@@ -1,7 +1,7 @@
 ---
 id: BPR-0005
 title: Implement the native Qt presentation adapter
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0004]
 ---

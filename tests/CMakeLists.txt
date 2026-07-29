@@ -18,3 +18,4 @@ add_custom_target(
 )
 
 add_subdirectory(core)
+add_subdirectory(application)
