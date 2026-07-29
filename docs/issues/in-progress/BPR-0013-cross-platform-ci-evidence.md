@@ -24,3 +24,16 @@ the separate Qt-free Ubuntu job.
 
 Remote publication was authorized when the user resumed the blocked RFC-pack
 goal.
+
+## Attempt 1
+
+- Commit: `2a3fd04386b58cd2e61947c2f6a05fc7409a1feb`
+- Workflow:
+  [CI run 30498222845](https://github.com/MikeMarcin/BetterPullReview/actions/runs/30498222845)
+- Result: infrastructure-blocked before runner allocation on all four jobs.
+- GitHub annotation: recent account payments failed or the Actions spending
+  limit must be increased in **Billing & plans**.
+
+No configure, build, test, launch, render, dependency, or runtime command ran,
+so this attempt supplies no acceptance evidence. Rerun after the account
+billing/spending-limit condition is resolved.

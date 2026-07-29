@@ -142,3 +142,12 @@ inspection uses tested `dumpbin`, `llvm-readobj`, and `objdump` fallbacks.
 Focused CI-configuration tests passed 4/4, dependency-tool-selection tests
 passed 4/4, the updated Qt-enabled matrix passed 14/14, and the Qt-free matrix
 passed 9/9. Actual Windows and Linux execution remains part of BPR-0013.
+
+### Remote run attempt
+
+Commit `2a3fd04386b58cd2e61947c2f6a05fc7409a1feb` triggered
+[CI run 30498222845](https://github.com/MikeMarcin/BetterPullReview/actions/runs/30498222845).
+GitHub rejected all four jobs before runner allocation because the account has
+a failed-payment or Actions spending-limit condition. Every job had zero
+steps, so the run supplies no platform evidence and does not change any claim
+result. BPR-0013 remains in progress pending an executed rerun.
