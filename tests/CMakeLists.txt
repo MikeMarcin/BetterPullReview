@@ -1,3 +1,5 @@
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 add_test(
     NAME core_dependency_boundary
     COMMAND
@@ -14,6 +16,15 @@ add_test(
         "-DBPR_ROOT=${PROJECT_SOURCE_DIR}"
         -P
         "${PROJECT_SOURCE_DIR}/cmake/VerifyArchitectureBoundaries.cmake"
+)
+
+add_test(
+    NAME documentation_structure
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/scripts/verify_documentation.py"
+        --root
+        "${PROJECT_SOURCE_DIR}"
 )
 
 add_custom_target(

@@ -39,7 +39,7 @@ refresh QAction
 | No browser or local listener is selected | Linked application and running process | Scan dependencies/source; launch under socket inspection | No WebEngine/Chromium/Node/Electron/Tauri and no listening socket | Passed on macOS; binary CI checks pending on Windows/Linux | `architecture_boundaries`, `binary_dependency_surface`, and `runtime_process_surface` |
 | No telemetry, remote loading, plugin discovery, or updater exists | Composition/configuration/runtime | Scan source/targets and inspect runtime diagnostics/network state | No selected code path or configuration exposes those behaviors | Passed for current foundation surfaces | `architecture_boundaries` and `runtime_process_surface` |
 | Qt event and projection are incremental | Qt adapter harness | Trigger refresh and observe QAction/status changes | Semantic intent is emitted and only affected presentation state changes | Passed for foundation public path | `qt_foundation_window` and `application_public_path` zero-reset assertions |
-| Repository instructions cover owned surfaces | Documentation gate over RFC base range | Inspect changed paths against owning agent/product docs and run validators | Every changed class has an updated or justified documentation disposition | Planned | BPR-0010 |
+| Repository instructions cover owned surfaces | Documentation gate over RFC base range | Inspect changed paths against owning agent/product docs and run validators | Every changed class has an updated or justified documentation disposition | Passed | Manual RFC-base path map plus `documentation_structure` / `DOCUMENTATION_OK` |
 | Supported platform claims are evidence-backed | macOS runtime plus Windows/Linux CI | Run platform configure/build/test/launch jobs and inspect selected Qt modules | Each claimed platform has direct build and launch evidence | macOS passed; Windows/Linux CI configured but unexecuted | Native macOS render/public path; `.github/workflows/ci.yml` pending remote run |
 
 ## Platform and mutation plan
@@ -55,12 +55,38 @@ refresh QAction
 
 | Scope | Changed/public surface | Required documents | Disposition | Evidence/validation | Intentionally unverified |
 |---|---|---|---|---|---|
-| Repository map and ownership | New C++/CMake/test/package roots | Root and nearest `AGENTS.md`, README, contributor/build docs | Planned | Path ownership review over RFC base range | None |
-| Product authority | Shared/private/derived state contract | Product contract and developer overview | Imported; implementation update planned | Product-authority replay tests | Later GitHub mutation behavior |
-| Core/host/Qt architecture | Targets, typed flow, dependency direction | System architecture, state model, concurrency/lifecycle docs | Imported; implementation update planned | Core-only build, target scan, composition trace | Later provider-specific ports |
-| Native UI | Empty-state shell, actions, diagnostics | UI architecture and accessibility/build docs | Planned | Qt automation and rendered inspection | Full workbench deferred to RFC-BPR-0005 |
-| Security/runtime | No browser/listener/telemetry/plugin/updater | Threat model and security/build docs | Imported; implementation update planned | Dependency/source/socket scans | Provider credential boundaries deferred to RFC-BPR-0002 |
-| Build/test/package | Presets, commands, platform CI baseline | README, contributor guide, build/test/package docs | Planned | Clean configure/build/test/package commands | Signed distribution deferred to RFC-BPR-0014 |
+| Repository map and ownership | New C++/CMake/test/package roots | Root and nearest `AGENTS.md`, README, contributor/build docs | updated | Manual path map over RFC base range plus `documentation_structure` | None |
+| Product authority | Shared/private/derived state contract | Product contract and developer overview | updated | `product_contract`, foundation implementation, README | Mixed-client mutation behavior belongs to RFC-BPR-0008 |
+| Core/host/Qt architecture | Targets, typed flow, dependency direction | System architecture, state model, implementation/lifecycle docs | updated | Core-only build, target scan, composition trace, scoped `AGENTS.md` | Provider-specific ports remain dependent RFC work |
+| Native UI | Empty-state shell, actions, diagnostics | UI architecture and accessibility/build docs | updated | Qt automation, native/offscreen rendered inspection, build guide | Full workbench belongs to RFC-BPR-0005 |
+| Security/runtime | No browser/listener/telemetry/plugin/updater | Threat model and foundation security docs | updated | Dependency/source/socket/process/canary scans | Provider credential boundaries belong to RFC-BPR-0002 |
+| Build/test/package | Presets, commands, platform CI baseline | README, contributor guide, build/test/package docs | updated | Clean preset commands, pinned CI, packaging scope docs | Signed distribution belongs to RFC-BPR-0014 |
+
+## Documentation gate result
+
+Manual inspection of
+`470741a605ac401464d9e50480667ca45033ca66..HEAD` mapped:
+
+- root CMake, presets, CI, warnings, hardening, and scripts to root
+  `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, and
+  `docs/development/build-and-test.md`;
+- deterministic state and transitions to `src/core/AGENTS.md`, the product
+  contract, domain/state model, and foundation implementation;
+- host ports, decision lane, cancellation, and lifecycle to
+  `src/application/AGENTS.md` and the foundation implementation;
+- Qt event/projection/accessibility behavior to `src/adapters/qt/AGENTS.md`,
+  the UX baseline, and the foundation implementation;
+- composition and launch behavior to `src/app/AGENTS.md`, README, and the build
+  guide;
+- test and fixture surfaces to `tests/AGENTS.md`, the fixture catalog, and the
+  build guide;
+- runtime/security checks to the threat model and foundation security baseline;
+- packaging policy to `packaging/AGENTS.md` and `packaging/README.md`;
+- RFC, board, architecture, UX, and verification records to `docs/AGENTS.md`.
+
+`scripts/verify_documentation.py` is the canonical structural validator. It
+checks required coverage, all fourteen RFC/index statuses, board lane/status
+agreement, `NEXT_ID`, relative links, and full-SHA GitHub Action pins.
 
 An `Auto-Verified` closeout is blocked until every `Planned` disposition and
 claim has a direct passing result or the RFC text is narrowed to the evidence.

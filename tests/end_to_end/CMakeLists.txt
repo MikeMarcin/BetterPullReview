@@ -12,8 +12,6 @@ set_tests_properties(
         TIMEOUT 15
 )
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-
 add_test(
     NAME binary_dependency_surface
     COMMAND

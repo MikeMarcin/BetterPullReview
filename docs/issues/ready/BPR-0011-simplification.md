@@ -1,7 +1,7 @@
 ---
 id: BPR-0011
 title: Simplify the RFC-BPR-0001 change set
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0010]
 ---
