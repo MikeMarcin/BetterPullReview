@@ -34,6 +34,20 @@ add_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_runtime_surface_tests.py"
 )
 
+add_test(
+    NAME binary_dependency_audit_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_binary_dependencies_tests.py"
+)
+
+add_test(
+    NAME ci_configuration_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/ci_configuration_tests.py"
+)
+
 add_custom_target(
     check_boundaries
     COMMAND

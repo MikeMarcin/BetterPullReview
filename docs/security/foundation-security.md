@@ -19,7 +19,8 @@ loader, or updater.
 - The selected-runtime scan rejects browser/server/listener, telemetry, and
   updater surfaces.
 - Binary inspection rejects WebEngine, WebKit, Chromium, Electron, Tauri,
-  Node, CEF, and HTTP-server dependencies.
+  Node, CEF, and HTTP-server dependencies. Windows PE inspection selects
+  `dumpbin`, `llvm-readobj`, or `objdump` in deterministic preference order.
 
 ## Runtime audit
 

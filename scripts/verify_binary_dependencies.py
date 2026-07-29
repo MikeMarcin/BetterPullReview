@@ -21,6 +21,22 @@ FORBIDDEN = (
 )
 
 
+def windows_dependency_command(executable: Path) -> list[str]:
+    candidates = (
+        ("dumpbin", ["/dependents", str(executable)]),
+        ("llvm-readobj", ["--coff-imports", str(executable)]),
+        ("objdump", ["-p", str(executable)]),
+    )
+    for tool, arguments in candidates:
+        resolved = shutil.which(tool)
+        if resolved is not None:
+            return [resolved, *arguments]
+
+    raise RuntimeError(
+        "dumpbin, llvm-readobj, or objdump is required on Windows"
+    )
+
+
 def dependency_output(executable: Path) -> str:
     system = platform.system()
     if system == "Darwin":
@@ -28,10 +44,7 @@ def dependency_output(executable: Path) -> str:
     elif system == "Linux":
         command = ["ldd", str(executable)]
     elif system == "Windows":
-        dumpbin = shutil.which("dumpbin")
-        if dumpbin is None:
-            raise RuntimeError("dumpbin is required on Windows")
-        command = [dumpbin, "/dependents", str(executable)]
+        command = windows_dependency_command(executable)
     else:
         raise RuntimeError(f"unsupported dependency-inspection platform: {system}")
 

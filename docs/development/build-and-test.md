@@ -32,6 +32,15 @@ ctest --preset core-only --output-on-failure
 
 Both presets use out-of-source directories under ignored `build/`.
 
+Windows CI uses the conditional multi-configuration preset that selects the
+Visual Studio 2022 x64 generator and the matching Qt archive:
+
+```powershell
+cmake --preset windows-dev
+cmake --build --preset windows-dev
+ctest --preset windows-dev --output-on-failure
+```
+
 ## Targets
 
 | Target | Responsibility |
@@ -59,14 +68,15 @@ build/dev/src/app/better_pull_review \
 
 `verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
 binary-dependency script also supports all three platforms, using `dumpbin` on
-Windows.
+Windows when available, followed by `llvm-readobj` and `objdump` fallbacks.
 
 ## CI
 
 `.github/workflows/ci.yml` configures Qt 6.11.1 builds and application launch
 tests on Ubuntu 24.04, Windows 2025, and macOS 15, plus a separate Qt-free core
-job. Actions are pinned to full commit hashes and checkout credentials are not
-persisted.
+job. Windows selects the Visual Studio 2022 x64 preset and
+`win64_msvc2022_64`. Every directly selected action is pinned to a full commit
+hash, and checkout credentials are not persisted.
 
 A configured job is not passing evidence until its actual workflow run
 completes successfully.

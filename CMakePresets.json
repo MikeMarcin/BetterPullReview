@@ -27,6 +27,22 @@
         "BPR_BUILD_TESTS": "ON",
         "CMAKE_BUILD_TYPE": "Debug"
       }
+    },
+    {
+      "name": "windows-dev",
+      "displayName": "Windows developer build",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/windows-dev",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "BPR_BUILD_QT": "ON",
+        "BPR_BUILD_TESTS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -37,6 +53,11 @@
     {
       "name": "core-only",
       "configurePreset": "core-only"
+    },
+    {
+      "name": "windows-dev",
+      "configurePreset": "windows-dev",
+      "configuration": "Debug"
     }
   ],
   "testPresets": [
@@ -50,6 +71,14 @@
     {
       "name": "core-only",
       "configurePreset": "core-only",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-dev",
+      "configurePreset": "windows-dev",
+      "configuration": "Debug",
       "output": {
         "outputOnFailure": true
       }

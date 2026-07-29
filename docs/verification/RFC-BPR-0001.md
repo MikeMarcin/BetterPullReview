@@ -132,3 +132,13 @@ query construction, process-scoped TCP/UDP query construction, and output
 parsing. The live macOS audit remained passing, the updated Qt-enabled matrix
 passed 12/12, and the Qt-free matrix passed 7/7. Actual Windows execution
 remains part of BPR-0013.
+
+### Cross-platform CI hardening follow-up
+
+The Windows matrix now selects a conditional Visual Studio 2022 x64 CMake
+preset and the matching `win64_msvc2022_64` Qt archive. Python setup and the
+bundled Qt installer implementation are directly SHA-pinned. PE dependency
+inspection uses tested `dumpbin`, `llvm-readobj`, and `objdump` fallbacks.
+Focused CI-configuration tests passed 4/4, dependency-tool-selection tests
+passed 4/4, the updated Qt-enabled matrix passed 14/14, and the Qt-free matrix
+passed 9/9. Actual Windows and Linux execution remains part of BPR-0013.
