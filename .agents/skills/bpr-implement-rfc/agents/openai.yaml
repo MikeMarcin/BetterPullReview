@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement BetterPullReview RFC"
+  short_description: "Implement BetterPullReview RFCs through verified closeout"
+  default_prompt: "Use $betterpullreview-implement-rfc to implement /Users/jaeger/Downloads/betterpullreview_rfc_pack."
