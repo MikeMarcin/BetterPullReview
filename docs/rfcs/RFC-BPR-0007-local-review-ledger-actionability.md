@@ -1,0 +1,82 @@
+---
+id: RFC-BPR-0007
+title: Local Review Ledger, File and Conversation Receipts, and Actionability
+status: Proposed
+area: BPR
+milestone: M2 Personal Review Workflow
+depends_on: [RFC-BPR-0003, RFC-BPR-0005]
+pack_version: 2
+---
+
+# RFC-BPR-0007: Local Review Ledger, File and Conversation Receipts, and Actionability
+
+## Summary
+
+Persist private review progress and derive unread, accepted, changed-since-review, needs-verification, and next-actionable states without competing with GitHub shared state.
+
+
+## Motivation
+
+GitHub does not represent the personal inspection ledger required to answer what is unread, what was accepted, what changed after review, and what should be inspected next.
+
+## Goals
+
+- Add a versioned SQLite review ledger.
+- Persist file receipts against immutable file material.
+- Persist conversation read/acceptance cursors against comment versions.
+- Persist local notes, exclusions, last-reviewed heads, and local defect metadata.
+- Derive changed-since-read/accepted, unread, needs-verification, and next-actionable projections.
+- Recover safely after restart and schema migration.
+
+## Non-goals
+
+- Synchronizing private state across machines.
+- Treating local acceptance as a GitHub approval.
+- Hiding GitHub state behind local state.
+
+## Architectural allocation
+
+- **Core:** owns receipt and acceptance transitions, actionability policy, next-actionable navigation, semantic command legality, and invalidation decisions based on file/comment material observations.
+- **Host:** owns the SQLite ledger as durable authority, migrations, transactions, queries, cache invalidation, crash recovery, and construction of bounded receipt/conversation observations. The core does not hold the entire ledger.
+- **Qt adapter:** owns badges, filters, explanations, actions, queue/file-tree projection, and event translation. It cannot mark state by mutating a Qt model directly.
+- A receipt command produces a semantic persistence request; the host commits it and returns a typed completion before the core publishes the accepted projection.
+
+## Storage design
+
+SQLite contains identities, receipts, rules, notes, projections, and migration metadata. Git objects remain in the Git cache. Credentials and duplicated source bodies are prohibited. One serialized writer and bounded readers use prepared statements, foreign keys, transactions, and WAL.
+
+## Receipt semantics
+
+File receipts attach to `FileMaterialId`. A new epoch preserves a receipt only when the compared material identity remains equivalent. Conversation receipts record the latest seen/accepted comment identity and edit version. New or edited comments reopen unread state.
+
+## Actionability
+
+The domain derives an ordered actionable queue from GitHub state, local receipts, defect state, and current filters. The UI can explain why an item is next.
+
+## Acceptance criteria
+
+- Read, accepted, excluded, and seen states survive restart.
+- Changed material invalidates only affected receipts.
+- New or edited comment versions reopen the correct conversation.
+- Database deletion loses only private state and recreates a clean ledger without changing GitHub.
+- Abrupt termination and WAL recovery preserve committed state and discard incomplete transactions.
+- Migrations are forward-only, versioned, backed up where policy requires, and tested from every supported prior schema.
+- Strong identity prevents state reuse across host, account, repository, PR, epoch, and material boundaries.
+- `Next actionable` is deterministic and explains its ranking.
+- Receipt/actionability transitions are directly replay-tested without SQLite/Qt, while host persistence tests and Qt projection tests prove the complete request/completion/delta path.
+
+## Verification matrix
+
+| Claim | Direct surface | Proof |
+|---|---|---|
+| Receipt invalidation is precise | Domain plus SQLite | Advance fixture with mixed changed/unchanged material |
+| Crash recovery is sound | Process-kill integration | Kill during transaction/refresh and restart |
+| No cross-identity leak | Persistence integration | Reuse PR numbers and paths across hosts/accounts/repos |
+| GitHub remains unchanged | Database-loss test | Delete ledger and inspect independent GitHub fixture state |
+| Ledger decision/effect split holds | Core + fake store + Qt tests | Receipt intent transitions, persistence request, completion, and UI delta are all explicit |
+
+## Documentation impact
+
+Schema, migration, identities, receipt semantics, actionability, backups, retention, purge, crash recovery, and privacy are mandatory.
+
+The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.
