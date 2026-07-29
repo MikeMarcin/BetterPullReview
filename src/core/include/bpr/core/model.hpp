@@ -70,8 +70,23 @@ struct foundation_refreshed_event
     auto operator<=>(const foundation_refreshed_event&) const = default;
 };
 
-using application_event =
-    std::variant<refresh_requested_intent, foundation_refreshed_event>;
+enum class foundation_failure : std::uint8_t
+{
+    unavailable,
+};
+
+struct foundation_refresh_failed_event
+{
+    request_context Context;
+    foundation_failure Failure = foundation_failure::unavailable;
+
+    auto operator<=>(const foundation_refresh_failed_event&) const = default;
+};
+
+using application_event = std::variant<
+    refresh_requested_intent,
+    foundation_refreshed_event,
+    foundation_refresh_failed_event>;
 
 struct foundation_observation
 {
@@ -100,6 +115,7 @@ enum class reason_code : std::uint8_t
     none,
     refresh_in_progress,
     stale_completion,
+    foundation_unavailable,
 };
 
 struct command_projection

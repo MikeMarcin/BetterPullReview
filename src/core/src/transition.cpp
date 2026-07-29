@@ -27,6 +27,16 @@ auto reject_stale_completion() -> transition_output
     return output;
 }
 
+auto is_current(
+    const application_state& state,
+    const request_context& context) -> bool
+{
+    return context.Session == state.Session
+        && context.Generation == state.RefreshGeneration
+        && state.PendingRefresh.has_value()
+        && context.Request == *state.PendingRefresh;
+}
+
 auto request_refresh(application_state& state) -> transition_output
 {
     if(state.PendingRefresh.has_value())
@@ -64,10 +74,7 @@ auto complete_refresh(
     application_state& state,
     const foundation_refreshed_event& event) -> transition_output
 {
-    if(event.Context.Session != state.Session
-       || event.Context.Generation != state.RefreshGeneration
-       || !state.PendingRefresh.has_value()
-       || event.Context.Request != *state.PendingRefresh)
+    if(!is_current(state, event.Context))
     {
         return reject_stale_completion();
     }
@@ -80,6 +87,28 @@ auto complete_refresh(
         | changed_domain::authority;
     output.Commands.push_back(refresh_command(true, reason_code::none));
     output.Status = status_delta{.Message = "Foundation state is current"};
+    return output;
+}
+
+auto fail_refresh(
+    application_state& state,
+    const foundation_refresh_failed_event& event) -> transition_output
+{
+    if(!is_current(state, event.Context))
+    {
+        return reject_stale_completion();
+    }
+
+    state.PendingRefresh.reset();
+
+    transition_output output;
+    output.Changed = changed_domain::commands | changed_domain::status;
+    output.Commands.push_back(refresh_command(true, reason_code::none));
+    output.Status = status_delta{.Message = "Foundation refresh failed"};
+    output.Diagnostics.push_back(diagnostic{
+        .Code = reason_code::foundation_unavailable,
+        .Detail = "The foundation capability was unavailable",
+    });
     return output;
 }
 }
@@ -104,9 +133,14 @@ auto transition(
             {
                 return request_refresh(state);
             }
-            else
+            else if constexpr(
+                std::is_same_v<event_type, foundation_refreshed_event>)
             {
                 return complete_refresh(state, typed_event);
+            }
+            else
+            {
+                return fail_refresh(state, typed_event);
             }
         },
         event);

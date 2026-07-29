@@ -1,0 +1,10 @@
+# RFC-BPR-0001 deterministic authority replay
+session=41
+next_request=1
+github_revision=19
+local_private_revision=999
+event=refresh_requested
+expect_request=refresh_foundation:request=1:session=41:generation=1
+event=foundation_refreshed:request=1:session=41:generation=1:github_revision=23
+expect_github_revision=23
+expect_local_private_cannot_override_shared=true

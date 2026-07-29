@@ -1,7 +1,7 @@
 ---
 id: BPR-0008
 title: Verify the rendered RFC-BPR-0001 native UI
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0006, BPR-0007]
 ---

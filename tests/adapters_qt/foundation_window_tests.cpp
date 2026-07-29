@@ -123,6 +123,17 @@ auto test_incremental_projection_application() -> void
         diagnostic_stats.DiagnosticUpdates == 1U,
         "diagnostic update is tracked independently");
 
+    core::transition_output failure;
+    failure.Diagnostics.push_back(core::diagnostic{
+        .Code = core::reason_code::foundation_unavailable,
+        .Detail = "provider detail stays outside presentation",
+    });
+    window.publish(failure);
+    expect(
+        window.diagnostic_text()
+            == "Foundation state is temporarily unavailable.",
+        "operational failure has presentation-owned wording");
+
     core::transition_output complete;
     complete.Commands.push_back(core::command_projection{
         .Id = core::command_id::refresh,

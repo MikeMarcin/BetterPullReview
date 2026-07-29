@@ -71,6 +71,15 @@ public:
         });
     }
 
+    void fail(const std::size_t index)
+    {
+        const auto request = Pending.at(index).Request;
+        Pending.at(index).Completion(core::foundation_refresh_failed_event{
+            .Context = request.Context,
+            .Failure = core::foundation_failure::unavailable,
+        });
+    }
+
     std::vector<pending_request> Pending;
     std::vector<core::request_id> Cancelled;
 };
@@ -224,6 +233,35 @@ auto test_shutdown_cancels_and_suppresses_completion() -> void
         "new ingress is rejected after shutdown");
 }
 
+auto test_failure_uses_the_serialized_event_path() -> void
+{
+    fake_observations observations;
+    fake_foundation foundation;
+    application::manual_executor lane;
+    recording_projections projections;
+    application::application_host host{
+        initial_state(),
+        observations,
+        foundation,
+        lane,
+        projections,
+    };
+
+    host.dispatch(core::refresh_requested_intent{});
+    foundation.fail(0);
+    expect(
+        host.state().PendingRefresh.has_value(),
+        "worker failure cannot mutate state directly");
+    lane.run_next();
+    expect(
+        !host.state().PendingRefresh.has_value(),
+        "serialized failure clears pending state");
+    expect(
+        projections.Published.back().Diagnostics.front().Code
+            == core::reason_code::foundation_unavailable,
+        "host preserves typed operational failure");
+}
+
 auto test_manual_executor_reorders_deterministically() -> void
 {
     application::manual_executor lane;
@@ -248,6 +286,7 @@ auto main() -> int
     test_completion_is_serialized();
     test_duplicate_and_stale_work_are_policy_safe();
     test_shutdown_cancels_and_suppresses_completion();
+    test_failure_uses_the_serialized_event_path();
     test_manual_executor_reorders_deterministically();
 
     std::cout << "All application host tests passed\n";

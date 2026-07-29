@@ -28,6 +28,8 @@ auto diagnostic_message(const core::reason_code code) -> QString
         return QStringLiteral("A refresh is already in progress.");
     case core::reason_code::stale_completion:
         return QStringLiteral("An outdated refresh result was ignored.");
+    case core::reason_code::foundation_unavailable:
+        return QStringLiteral("Foundation state is temporarily unavailable.");
     case core::reason_code::none:
         return QString{};
     }

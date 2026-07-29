@@ -186,6 +186,34 @@ auto test_duplicate_intent_is_rejected() -> void
         "duplicate refresh reports semantic rejection");
 }
 
+auto test_operational_failure_is_typed_and_recoverable() -> void
+{
+    auto state = initial_state();
+    const auto request_output = transition(
+        state,
+        refresh_requested_intent{},
+        foundation_observation{});
+    const auto context = first_refresh_context(request_output);
+
+    const auto output = transition(
+        state,
+        foundation_refresh_failed_event{
+            .Context = context,
+            .Failure = foundation_failure::unavailable,
+        },
+        foundation_observation{});
+
+    expect(!state.PendingRefresh.has_value(), "failed request is cleared");
+    expect(
+        output.Commands.front().Enabled,
+        "failure re-enables the refresh command");
+    expect(
+        output.Diagnostics.size() == 1U
+            && output.Diagnostics.front().Code
+                == reason_code::foundation_unavailable,
+        "operational failure uses a structured reason");
+}
+
 auto test_authority_categories_are_explicit() -> void
 {
     expect(
@@ -229,6 +257,39 @@ auto test_replay_is_deterministic() -> void
         left_completion == right_completion,
         "identical completion produces identical outputs");
 }
+
+auto test_replay_property_across_revision_range() -> void
+{
+    for(std::uint64_t revision = 0; revision < 256U; ++revision)
+    {
+        auto left = initial_state();
+        auto right = initial_state();
+        const foundation_observation observation{
+            .GitHubRevision = revision,
+            .LocalPrivateRevision = 255U - revision,
+        };
+
+        const auto left_request =
+            transition(left, refresh_requested_intent{}, observation);
+        const auto right_request =
+            transition(right, refresh_requested_intent{}, observation);
+        expect(
+            left == right && left_request == right_request,
+            "request replay property holds across revisions");
+
+        const foundation_refreshed_event completion{
+            .Context = first_refresh_context(left_request),
+            .GitHubRevision = revision + 1U,
+        };
+        const auto left_completion =
+            transition(left, completion, observation);
+        const auto right_completion =
+            transition(right, completion, observation);
+        expect(
+            left == right && left_completion == right_completion,
+            "completion replay property holds across revisions");
+    }
+}
 }
 
 auto main() -> int
@@ -240,8 +301,10 @@ auto main() -> int
     test_stale_completion_is_rejected();
     test_every_async_identity_dimension_is_checked();
     test_duplicate_intent_is_rejected();
+    test_operational_failure_is_typed_and_recoverable();
     test_authority_categories_are_explicit();
     test_replay_is_deterministic();
+    test_replay_property_across_revision_range();
 
     std::cout << "All deterministic core foundation tests passed\n";
     return EXIT_SUCCESS;

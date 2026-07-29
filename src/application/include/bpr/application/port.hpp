@@ -6,8 +6,7 @@
 
 namespace bpr::application
 {
-using completion_callback =
-    std::function<void(core::foundation_refreshed_event)>;
+using completion_callback = std::function<void(core::application_event)>;
 
 class foundation_observation_port
 {

@@ -84,7 +84,7 @@ void application_host::execute(const core::host_request& request)
                 auto* const lane = &DecisionLane;
                 Foundation.submit(
                     typed_request,
-                    [gate, lane](core::foundation_refreshed_event event) {
+                    [gate, lane](core::application_event event) {
                         lane->post(
                             [gate, event = std::move(event)]() mutable {
                                 const auto locked_gate = gate.lock();
