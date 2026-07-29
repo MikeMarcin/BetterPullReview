@@ -57,8 +57,9 @@ build/dev/src/app/better_pull_review \
   --render-evidence build/dev/foundation-window.png
 ```
 
-`verify_runtime_surface.py` is a macOS/Linux test. The binary-dependency script
-also supports Windows through `dumpbin`.
+`verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
+binary-dependency script also supports all three platforms, using `dumpbin` on
+Windows.
 
 ## CI
 

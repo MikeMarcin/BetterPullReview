@@ -27,6 +27,13 @@ add_test(
         "${PROJECT_SOURCE_DIR}"
 )
 
+add_test(
+    NAME runtime_audit_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_runtime_surface_tests.py"
+)
+
 add_custom_target(
     check_boundaries
     COMMAND

@@ -26,21 +26,19 @@ set_tests_properties(
         TIMEOUT 15
 )
 
-if(UNIX)
-    add_test(
-        NAME runtime_process_surface
-        COMMAND
-            "${Python3_EXECUTABLE}"
-            "${PROJECT_SOURCE_DIR}/scripts/verify_runtime_surface.py"
-            $<TARGET_FILE:better_pull_review>
-    )
-    set_tests_properties(
-        runtime_process_surface
-        PROPERTIES
-            PASS_REGULAR_EXPRESSION "RUNTIME_SURFACE_OK"
-            TIMEOUT 15
-    )
-endif()
+add_test(
+    NAME runtime_process_surface
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/scripts/verify_runtime_surface.py"
+        $<TARGET_FILE:better_pull_review>
+)
+set_tests_properties(
+    runtime_process_surface
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "RUNTIME_SURFACE_OK"
+        TIMEOUT 15
+)
 
 add_test(
     NAME application_render

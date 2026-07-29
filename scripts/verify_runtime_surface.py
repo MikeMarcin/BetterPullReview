@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -14,7 +15,26 @@ CANARY = "BPR_CANARY_SECRET_7B1E6D9A"
 SOCKET_PATTERN = re.compile(r"socket:\[(\d+)\]")
 
 
-def child_processes(parent_pid: int) -> list[int]:
+def output_lines(output: str) -> list[str]:
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+def powershell_output(command: str) -> str:
+    executable = shutil.which("pwsh") or shutil.which("powershell")
+    if executable is None:
+        raise RuntimeError("PowerShell is required for the Windows runtime audit")
+
+    completed = subprocess.run(
+        [executable, "-NoProfile", "-NonInteractive", "-Command", command],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    return completed.stdout
+
+
+def unix_child_processes(parent_pid: int) -> list[int]:
     completed = subprocess.run(
         ["ps", "-eo", "pid=,ppid="],
         check=True,
@@ -28,6 +48,29 @@ def child_processes(parent_pid: int) -> list[int]:
         if len(fields) == 2 and int(fields[1]) == parent_pid:
             children.append(int(fields[0]))
     return children
+
+
+def windows_child_process_query(parent_pid: int) -> str:
+    return (
+        "Get-CimInstance Win32_Process "
+        f'-Filter "ParentProcessId = {parent_pid}" '
+        "| Select-Object -ExpandProperty ProcessId"
+    )
+
+
+def windows_child_processes(parent_pid: int) -> list[int]:
+    return [
+        int(line)
+        for line in output_lines(
+            powershell_output(windows_child_process_query(parent_pid))
+        )
+    ]
+
+
+def child_processes(parent_pid: int) -> list[int]:
+    if platform.system() == "Windows":
+        return windows_child_processes(parent_pid)
+    return unix_child_processes(parent_pid)
 
 
 def linux_network_sockets(pid: int) -> list[str]:
@@ -66,12 +109,30 @@ def macos_network_sockets(pid: int) -> list[str]:
     return completed.stdout.splitlines()[1:]
 
 
+def windows_network_query(pid: int) -> str:
+    return (
+        f"$tcp = @(Get-NetTCPConnection -OwningProcess {pid} "
+        '-State Listen -ErrorAction SilentlyContinue | ForEach-Object { '
+        '"tcp:$($_.LocalAddress):$($_.LocalPort)" }); '
+        f"$udp = @(Get-NetUDPEndpoint -OwningProcess {pid} "
+        '-ErrorAction SilentlyContinue | ForEach-Object { '
+        '"udp:$($_.LocalAddress):$($_.LocalPort)" }); '
+        "$tcp + $udp"
+    )
+
+
+def windows_network_sockets(pid: int) -> list[str]:
+    return output_lines(powershell_output(windows_network_query(pid)))
+
+
 def network_sockets(pid: int) -> list[str]:
     system = platform.system()
     if system == "Darwin":
         return macos_network_sockets(pid)
     if system == "Linux":
         return linux_network_sockets(pid)
+    if system == "Windows":
+        return windows_network_sockets(pid)
     raise RuntimeError(f"unsupported runtime-audit platform: {system}")
 
 

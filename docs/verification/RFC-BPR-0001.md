@@ -97,3 +97,38 @@ The behavior-preserving simplification pass removed an unused composition API,
 named the automated public-path and render checks, and hardened runtime-audit
 process teardown. Focused tests passed 4/4, the full Qt-enabled matrix passed
 11/11, the core-only matrix passed 6/6, and `git diff --check` passed.
+
+## Clean closeout replay
+
+Fresh, previously absent `build/closeout-dev` and `build/closeout-core`
+directories were configured and built after the simplification commit.
+
+- Qt-enabled configure/build/test: 11/11 passed.
+- Qt-free configure/build/test: 6/6 passed without finding Qt.
+- Direct public-path and native render automation: `PUBLIC_PATH_OK` and
+  `RENDER_OK`.
+- Visual inspection: the native macOS empty-state workbench showed the Refresh
+  action, build/platform/configuration facts, and the current-state status.
+- Binary dependency scan: `BINARY_DEPENDENCIES_OK`; `otool -L` selected Qt
+  Core, Gui, and Widgets plus native system frameworks, with no browser runtime.
+- Live process audit: `RUNTIME_SURFACE_OK`, proving no socket, child process, or
+  canary-secret output during inspection.
+- Documentation validator: `DOCUMENTATION_OK`.
+- Source-pack validator: `OK: 14 RFCs, 17 normative documents, architecture v2
+  enforced`.
+- `git diff --check`: passed.
+
+The highest-risk remaining claim is cross-platform selection: the pinned
+GitHub Actions workflow exists, but the branch is not present on the remote, so
+Windows and Linux have no executed build, launch, render, or dependency
+evidence. BPR-0013 tracks that gap. RFC-BPR-0001 remains `Proposed`, BPR-0012
+remains open, and dependent RFC implementation must not begin.
+
+### Windows runtime-audit follow-up
+
+The unexecuted Windows job now includes the same live-process acceptance check
+as macOS and Linux. Focused tests passed 3/3 for Windows PowerShell/CIM child
+query construction, process-scoped TCP/UDP query construction, and output
+parsing. The live macOS audit remained passing, the updated Qt-enabled matrix
+passed 12/12, and the Qt-free matrix passed 7/7. Actual Windows execution
+remains part of BPR-0013.

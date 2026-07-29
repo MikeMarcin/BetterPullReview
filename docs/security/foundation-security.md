@@ -23,10 +23,12 @@ loader, or updater.
 
 ## Runtime audit
 
-The macOS/Linux process audit launches the real application with the offscreen
-Qt platform, injects a canary secret, maps process-owned IP sockets and child
-processes, terminates the application, and checks captured output. It fails on
-any network descriptor, subprocess, or canary-bearing output.
+The macOS, Linux, and Windows process audit launches the real application with
+the offscreen Qt platform, injects a canary secret, maps process-owned network
+endpoints and child processes, terminates the application, and checks captured
+output. It fails on any network endpoint, subprocess, or canary-bearing output.
+Windows inspection uses process-scoped PowerShell/CIM,
+`Get-NetTCPConnection`, and `Get-NetUDPEndpoint` queries.
 
 ```sh
 python3 scripts/verify_binary_dependencies.py \
