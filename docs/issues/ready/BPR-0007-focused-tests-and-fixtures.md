@@ -1,7 +1,7 @@
 ---
 id: BPR-0007
 title: Complete RFC-BPR-0001 focused tests and fixtures
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0006]
 ---

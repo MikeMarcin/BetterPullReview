@@ -1,20 +1,65 @@
-add_library(better_pull_review_composition INTERFACE)
-add_library(BetterPullReview::Composition ALIAS better_pull_review_composition)
-
-target_link_libraries(
-    better_pull_review_composition
-    INTERFACE
-        BetterPullReview::Application
-        BetterPullReview::AdapterGitHub
-        BetterPullReview::AdapterGit
-        BetterPullReview::AdapterSQLite
-        BetterPullReview::AdapterAI
-)
-
 if(BPR_BUILD_QT)
+    add_library(
+        better_pull_review_composition
+        STATIC
+            src/foundation_application.cpp
+    )
+    add_library(
+        BetterPullReview::Composition
+        ALIAS
+        better_pull_review_composition
+    )
+
+    target_link_libraries(
+        better_pull_review_composition
+        PUBLIC
+            BetterPullReview::Application
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::AdapterGit
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::AdapterAI
+            BetterPullReview::AdapterQt
+    )
+    target_include_directories(
+        better_pull_review_composition
+        PUBLIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    )
+    target_compile_features(better_pull_review_composition PUBLIC cxx_std_23)
+    bpr_enable_hardening(better_pull_review_composition)
+    bpr_enable_warnings(better_pull_review_composition)
+
+    add_executable(
+        better_pull_review
+        main.cpp
+    )
+    target_link_libraries(
+        better_pull_review
+        PRIVATE
+            BetterPullReview::Composition
+    )
+    target_compile_definitions(
+        better_pull_review
+        PRIVATE
+            "BPR_VERSION=\"${PROJECT_VERSION}\""
+            "BPR_BUILD_CONFIGURATION=\"$<CONFIG>\""
+    )
+    bpr_enable_hardening(better_pull_review)
+    bpr_enable_warnings(better_pull_review)
+else()
+    add_library(better_pull_review_composition INTERFACE)
+    add_library(
+        BetterPullReview::Composition
+        ALIAS
+        better_pull_review_composition
+    )
     target_link_libraries(
         better_pull_review_composition
         INTERFACE
-            BetterPullReview::AdapterQt
+            BetterPullReview::Application
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::AdapterGit
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::AdapterAI
     )
 endif()

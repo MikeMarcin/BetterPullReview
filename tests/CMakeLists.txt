@@ -22,4 +22,5 @@ add_subdirectory(application)
 
 if(BPR_BUILD_QT)
     add_subdirectory(adapters_qt)
+    add_subdirectory(end_to_end)
 endif()

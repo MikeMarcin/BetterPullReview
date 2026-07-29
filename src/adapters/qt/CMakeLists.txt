@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_adapter_qt
     STATIC
+        src/event_loop_executor.cpp
         src/foundation_window.cpp
 )
 add_library(BetterPullReview::AdapterQt ALIAS better_pull_review_adapter_qt)
