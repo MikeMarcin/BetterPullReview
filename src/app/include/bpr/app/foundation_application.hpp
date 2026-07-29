@@ -1,6 +1,5 @@
 #pragma once
 
-#include "bpr/core/model.hpp"
 #include "bpr/qt/foundation_window.hpp"
 
 #include <memory>
@@ -20,7 +19,6 @@ public:
     auto operator=(foundation_application&&) -> foundation_application& =
         delete;
 
-    void dispatch(core::application_event event);
     void show();
 
     [[nodiscard]] auto window() noexcept -> qt::foundation_window&;

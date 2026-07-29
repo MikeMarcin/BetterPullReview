@@ -118,7 +118,8 @@ def main() -> int:
             )
             return 1
     finally:
-        process.terminate()
+        if process.poll() is None:
+            process.terminate()
         try:
             stdout, stderr = process.communicate(timeout=5)
         except subprocess.TimeoutExpired:

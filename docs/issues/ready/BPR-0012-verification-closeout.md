@@ -1,7 +1,7 @@
 ---
 id: BPR-0012
 title: Verify and close RFC-BPR-0001
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0007, BPR-0008, BPR-0009, BPR-0010, BPR-0011]
 ---

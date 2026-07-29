@@ -90,3 +90,10 @@ agreement, `NEXT_ID`, relative links, and full-SHA GitHub Action pins.
 
 An `Auto-Verified` closeout is blocked until every `Planned` disposition and
 claim has a direct passing result or the RFC text is narrowed to the evidence.
+
+## Simplification result
+
+The behavior-preserving simplification pass removed an unused composition API,
+named the automated public-path and render checks, and hardened runtime-audit
+process teardown. Focused tests passed 4/4, the full Qt-enabled matrix passed
+11/11, the core-only matrix passed 6/6, and `git diff --check` passed.

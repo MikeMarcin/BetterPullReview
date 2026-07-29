@@ -83,11 +83,6 @@ foundation_application::foundation_application(
 
 foundation_application::~foundation_application() = default;
 
-void foundation_application::dispatch(core::application_event event)
-{
-    Implementation->Host.dispatch(event);
-}
-
 void foundation_application::show()
 {
     Implementation->Window.show();
