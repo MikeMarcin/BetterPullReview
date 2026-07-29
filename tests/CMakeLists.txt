@@ -19,3 +19,7 @@ add_custom_target(
 
 add_subdirectory(core)
 add_subdirectory(application)
+
+if(BPR_BUILD_QT)
+    add_subdirectory(adapters_qt)
+endif()

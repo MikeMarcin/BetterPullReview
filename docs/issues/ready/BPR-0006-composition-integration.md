@@ -1,7 +1,7 @@
 ---
 id: BPR-0006
 title: Wire and verify the RFC-BPR-0001 public application path
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0005]
 ---
