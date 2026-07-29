@@ -1,7 +1,7 @@
 ---
 id: BPR-0003
 title: Implement the deterministic functional-core vertical slice
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0002]
 ---

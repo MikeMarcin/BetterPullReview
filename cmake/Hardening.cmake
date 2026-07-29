@@ -1,0 +1,19 @@
+function(bpr_enable_hardening target)
+    if(MSVC)
+        target_compile_options("${target}" PRIVATE /sdl /guard:cf)
+        target_link_options("${target}" PRIVATE /guard:cf)
+        return()
+    endif()
+
+    target_compile_options(
+        "${target}"
+        PRIVATE
+            -fstack-protector-strong
+            -fno-omit-frame-pointer
+            "$<$<NOT:$<CONFIG:Debug>>:-D_FORTIFY_SOURCE=3>"
+    )
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_options("${target}" PRIVATE -Wl,-z,relro,-z,now)
+    endif()
+endfunction()
