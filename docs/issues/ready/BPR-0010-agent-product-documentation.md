@@ -1,7 +1,7 @@
 ---
 id: BPR-0010
 title: Complete RFC-BPR-0001 agent and product documentation gate
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0006, BPR-0007, BPR-0009]
 ---

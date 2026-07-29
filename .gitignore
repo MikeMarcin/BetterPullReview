@@ -13,3 +13,4 @@ CMakeUserPresets.json
 .DS_Store
 /build/
 /out/
+__pycache__/
