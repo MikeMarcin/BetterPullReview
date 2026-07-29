@@ -1,7 +1,7 @@
 ---
 id: BPR-0013
 title: Run RFC-BPR-0001 cross-platform CI evidence
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0001
 depends_on: [BPR-0011, BPR-0014, BPR-0015]
 ---
@@ -22,5 +22,5 @@ the separate Qt-free Ubuntu job.
 - The executed workflow URL and commit SHA are recorded in the RFC verification
   ledger.
 
-Remote publication is an external repository mutation and requires user
-authorization before the workflow stage of this task can start.
+Remote publication was authorized when the user resumed the blocked RFC-pack
+goal.

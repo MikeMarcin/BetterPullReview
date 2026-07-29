@@ -22,6 +22,5 @@ blocked while any required card remains outside `done/`.
 ## Current RFC
 
 RFC-BPR-0001 is the only active RFC. Local implementation and verification
-through the cross-platform CI harness are complete. `BPR-0013` is ready to
-collect remote evidence; closeout card `BPR-0012` remains blocked on that
-result.
+through the cross-platform CI harness are complete. `BPR-0013` is collecting
+remote evidence; closeout card `BPR-0012` remains blocked on that result.
