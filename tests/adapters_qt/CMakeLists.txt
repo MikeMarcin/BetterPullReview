@@ -15,5 +15,5 @@ add_test(NAME qt_foundation_window COMMAND better_pull_review_qt_tests)
 set_tests_properties(
     qt_foundation_window
     PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=1.25"
 )

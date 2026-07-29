@@ -30,7 +30,7 @@ refresh QAction
 | Claim | Direct surface | Command or interaction | What proves the claim | Result | Evidence |
 |---|---|---|---|---|---|
 | C++23 core is Qt- and effect-free | `better_pull_review_core` target | Configure, build, and test the core-only preset; scan core includes and link graph | The target builds without Qt/provider packages and forbidden imports are absent | Passed | `cmake --preset core-only && cmake --build --preset core-only && ctest --preset core-only` |
-| Native Qt Widgets shell is selected | Real `better_pull_review` application | Build and launch the application; inspect linked Qt modules and rendered empty state | Native Widgets app renders build/platform/configuration facts | Passed on macOS; rendered and cross-platform evidence pending | `application_public_path`, direct `--self-test`, and `otool -L` |
+| Native Qt Widgets shell is selected | Real `better_pull_review` application | Build and launch the application; inspect linked Qt modules and rendered empty state | Native Widgets app renders build/platform/configuration facts | Passed on macOS; Windows/Linux CI unexecuted | `application_public_path`, `application_render`, native rendered inspection, and `otool -L` |
 | GitHub is sole shared authority | Public core transition/product contract | Replay disagreement between local projection and GitHub observation | Result converges to the GitHub observation while private state remains distinct | Foundation passed; mixed-client contract remains RFC-BPR-0008 | `core_foundation` and `product_contract` authority tests |
 | Core decides, host performs, Qt presents | Full composition harness | Trigger refresh through QAction and inspect typed trace | No widget effect call; request/completion and incremental projection are all present | Passed for foundation public path | `application_public_path` plus core, host, and Qt focused suites |
 | Replay is deterministic | Core replay executable/test | Replay identical events/observations twice and compare state, requests, deltas, diagnostics | Value-equivalent outputs are produced | Passed | `core_foundation` identical replay and 256-revision property range |
@@ -40,15 +40,15 @@ refresh QAction
 | No telemetry, remote loading, plugin discovery, or updater exists | Composition/configuration/runtime | Scan source/targets and inspect runtime diagnostics/network state | No selected code path or configuration exposes those behaviors | Planned | BPR-0009 |
 | Qt event and projection are incremental | Qt adapter harness | Trigger refresh and observe QAction/status changes | Semantic intent is emitted and only affected presentation state changes | Passed for foundation public path | `qt_foundation_window` and `application_public_path` zero-reset assertions |
 | Repository instructions cover owned surfaces | Documentation gate over RFC base range | Inspect changed paths against owning agent/product docs and run validators | Every changed class has an updated or justified documentation disposition | Planned | BPR-0010 |
-| Supported platform claims are evidence-backed | macOS runtime plus Windows/Linux CI | Run platform configure/build/test/launch jobs and inspect selected Qt modules | Each claimed platform has direct build and launch evidence | Planned | BPR-0008, BPR-0012 |
+| Supported platform claims are evidence-backed | macOS runtime plus Windows/Linux CI | Run platform configure/build/test/launch jobs and inspect selected Qt modules | Each claimed platform has direct build and launch evidence | macOS passed; Windows/Linux CI configured but unexecuted | Native macOS render/public path; `.github/workflows/ci.yml` pending remote run |
 
 ## Platform and mutation plan
 
 | Surface | Plan |
 |---|---|
-| macOS arm64 | Direct configure, build, test, offscreen UI automation, and native launch inspection |
-| Windows x64 | CI configure, build, test, and application launch smoke |
-| Linux x64 | CI configure, build, test, and offscreen application launch smoke |
+| macOS arm64 | Passed direct configure, build, test, 1.25× offscreen UI automation, native launch, and rendered inspection |
+| Windows x64 | Pinned CI configure, build, test, and application launch smoke; not yet executed |
+| Linux x64 | Pinned CI configure, build, test, and offscreen application launch smoke; not yet executed |
 | GitHub mutations | None in RFC-BPR-0001; fixtures remain local and deterministic |
 
 ## Documentation ledger

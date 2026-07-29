@@ -1,7 +1,7 @@
 ---
 id: BPR-0009
 title: Verify RFC-BPR-0001 security and dependency boundaries
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0006, BPR-0007]
 ---

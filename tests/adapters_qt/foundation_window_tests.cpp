@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QToolBar>
 #include <QToolButton>
+#include <QWidget>
 
 #include <cstdlib>
 #include <iostream>
@@ -68,6 +69,32 @@ auto test_event_translation_and_accessibility() -> void
     expect(
         facts->text().contains(QStringLiteral("test-platform")),
         "selected platform is visible");
+
+    window.resize(640, 420);
+    window.show();
+    QApplication::processEvents();
+    expect(window.centralWidget()->isVisible(), "empty state is visible");
+    expect(toolbar->isVisible(), "toolbar is visible at minimum size");
+    expect(button->isVisible(), "primary action is visible at minimum size");
+    expect(facts->isVisible(), "build facts are visible at minimum size");
+    expect(
+        window.centralWidget()->width() > 0
+            && window.centralWidget()->height() > 0,
+        "minimum-size central viewport has positive geometry");
+
+    window.activateWindow();
+    button->setFocus(Qt::TabFocusReason);
+    QApplication::processEvents();
+    expect(
+        QApplication::focusWidget() == button,
+        "primary action participates in keyboard focus");
+
+    window.resize(960, 640);
+    QApplication::processEvents();
+    expect(
+        window.centralWidget()->width() > 0
+            && window.centralWidget()->height() > 0,
+        "default-size central viewport has positive geometry");
 }
 
 auto test_incremental_projection_application() -> void
