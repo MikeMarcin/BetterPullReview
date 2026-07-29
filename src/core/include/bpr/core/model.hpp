@@ -157,6 +157,7 @@ struct transition_output
 struct application_state
 {
     application_session_id Session;
+    request_id NextRequest{1};
     request_generation RefreshGeneration;
     std::optional<request_id> PendingRefresh;
     std::uint64_t GitHubRevision = 0;

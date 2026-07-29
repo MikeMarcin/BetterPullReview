@@ -2,6 +2,7 @@ add_library(
     better_pull_review_core
     STATIC
         src/model.cpp
+        src/transition.cpp
 )
 add_library(BetterPullReview::Core ALIAS better_pull_review_core)
 

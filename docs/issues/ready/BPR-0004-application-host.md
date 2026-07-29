@@ -1,7 +1,7 @@
 ---
 id: BPR-0004
 title: Implement the application host and manual executor
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0001
 depends_on: [BPR-0003]
 ---

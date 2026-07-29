@@ -16,3 +16,5 @@ add_custom_target(
         "${PROJECT_SOURCE_DIR}/cmake/VerifyCoreBoundary.cmake"
     VERBATIM
 )
+
+add_subdirectory(core)
