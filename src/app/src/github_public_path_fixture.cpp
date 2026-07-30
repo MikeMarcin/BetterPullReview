@@ -42,8 +42,8 @@ using adapters::github::detail::github_wire_transport_factory_port;
 using adapters::github::detail::github_wire_transport_factory_result;
 using adapters::github::detail::github_wire_transport_port;
 using adapters::github::detail::http_header;
-using adapters::github::detail::http_method;
 using adapters::github::detail::page_completeness;
+using adapters::github::detail::parse_recorded_http_method;
 using adapters::github::detail::read_operation;
 using adapters::github::detail::read_operation_catalog;
 using adapters::github::detail::read_operation_from_name;
@@ -206,6 +206,13 @@ void append_rate_limit_headers(wire_response& response,
         const auto response_file = root
             / utf8(interaction.value("response_file").toString());
         const auto body = interaction.value("body");
+        const auto method = parse_recorded_http_method(
+            utf8(interaction.value("method").toString()));
+        if(!method.has_value())
+        {
+            throw std::runtime_error{
+                "GitHub public-path fixture method is invalid"};
+        }
         exchanges.push_back(
             {
                 .Request =
@@ -213,10 +220,7 @@ void append_rate_limit_headers(wire_response& response,
                         .Semantic = {},
                         .Server = fixture_server(fixture),
                         .Operation = *operation,
-                        .Method =
-                            interaction.value("method").toString() == "POST"
-                            ? http_method::post
-                            : http_method::get,
+                        .Method = *method,
                         .Path =
                             utf8(interaction.value("path").toString()),
                         .Query = utf8(

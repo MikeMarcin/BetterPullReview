@@ -387,6 +387,14 @@ Normalization validates count, byte, nesting, page, string, and allocation
 limits before a snapshot can be staged. Failure is atomic: a rejected response
 does not partially update the accepted snapshot.
 
+Provider failure mapping is total and intentionally bounded. A table-driven
+application-host contract enumerates all 15 `github_provider_failure` values,
+drives each through a pull-request completion, and requires the corresponding
+typed core reason with no accepted host/core snapshot, projection payload, or
+provider-owned detail. Process-startup and generic-unavailable failures both
+map to the safe network reason; retry policy remains separately typed and
+bounded.
+
 The production provider, not the recorded one-page facade, owns continuation
 exhaustion. REST pages follow only a validated `Link` continuation on the
 selected authority; GraphQL connections advance only through nonempty,
@@ -928,11 +936,24 @@ vault-only evidence cannot substitute for a retained platform claim.
 The RFC-BPR-0002 composition exposes provider reads only. Its verification
 transport inventory is backed by a rejecting no-mutation sink:
 
-- REST operations are classified by method and route;
-- GraphQL documents are parsed for their selected operation type;
-- every GraphQL `mutation` is rejected regardless of operation name;
-- a query name, endpoint name, or fixture label is never treated as proof that
-  an operation is read-only.
+- recorded methods must parse as exact uppercase `GET` or `POST`, with no
+  fallback for any other value;
+- REST catalog operations must use typed `GET`;
+- GraphQL `POST` bodies and the capability-probe document share one bounded
+  full-document scanner and must contain exactly one explicit `query` plus
+  bounded fragments;
+- every top-level `mutation` or `subscription`, including one after a valid
+  query, is rejected, as are multiple operations, malformed scanned
+  structure or token framing, and byte, nesting, or definition-limit
+  exhaustion;
+- comments, strings, block strings, field names, operation names, endpoint
+  names, and fixture labels are never treated as operation-type evidence.
+
+The scanner is a bounded structural classifier, not a complete GraphQL grammar
+parser. The outbound read contract also requires exact equality with the
+canonical compiled request body before an operation can execute. Every
+legacy/current GraphQL shape has a direct case where the scanner approves an
+added read selection but canonical equality rejects the changed body.
 
 Mutation capability probing may observe schema support without executing the
 mutation. Executable GitHub mutations remain RFC-BPR-0008.

@@ -70,6 +70,12 @@ concept exposes_credential = requires(const Type& value)
     value.Credential;
 };
 
+template <typename Type>
+concept exposes_detail = requires(const Type& value)
+{
+    value.Detail;
+};
+
 struct fake_lease final : application::github_account_transport_lease
 {
 };
@@ -382,6 +388,19 @@ public:
             Updates.rend(),
             [](const auto& update) { return update.Session.has_value(); });
         expect(found != Updates.rend(), "a session projection update exists");
+        return *found;
+    }
+
+    [[nodiscard]] auto last_transition_update() const
+        -> const application::github_presentation_update&
+    {
+        const auto found = std::ranges::find_if(
+            Updates.rbegin(),
+            Updates.rend(),
+            [](const auto& update) { return update.Transition.has_value(); });
+        expect(
+            found != Updates.rend(),
+            "a transition projection update exists");
         return *found;
     }
 
@@ -1314,6 +1333,163 @@ auto test_success_projection_is_safe_atomic_and_conversation_complete() -> void
             && issue_comment.Body == "Issue follow-up"
             && !issue_comment.Deleted,
         "issue comment projects as a distinct top-level conversation");
+}
+
+auto test_every_provider_failure_maps_to_safe_pull_request_failure() -> void
+{
+    using provider_failure = application::github_provider_failure;
+    using reason = core::github_reason_code;
+
+    struct failure_mapping
+    {
+        provider_failure Provider;
+        reason CoreReason;
+        bool Retryable;
+    };
+
+    constexpr auto mappings = std::array{
+        failure_mapping{
+            provider_failure::authentication,
+            reason::authentication_failed,
+            false,
+        },
+        failure_mapping{
+            provider_failure::permission,
+            reason::permission_denied,
+            false,
+        },
+        failure_mapping{
+            provider_failure::network,
+            reason::network_unavailable,
+            true,
+        },
+        failure_mapping{
+            provider_failure::api_version,
+            reason::api_version_unsupported,
+            false,
+        },
+        failure_mapping{
+            provider_failure::unsupported_capability,
+            reason::capability_unavailable,
+            false,
+        },
+        failure_mapping{
+            provider_failure::rate_limit,
+            reason::rate_limited,
+            false,
+        },
+        failure_mapping{
+            provider_failure::certificate,
+            reason::certificate_rejected,
+            false,
+        },
+        failure_mapping{
+            provider_failure::redirect,
+            reason::redirect_rejected,
+            false,
+        },
+        failure_mapping{
+            provider_failure::timeout,
+            reason::timed_out,
+            true,
+        },
+        failure_mapping{
+            provider_failure::process_startup,
+            reason::network_unavailable,
+            false,
+        },
+        failure_mapping{
+            provider_failure::cli_unavailable,
+            reason::cli_unavailable,
+            false,
+        },
+        failure_mapping{
+            provider_failure::vault,
+            reason::vault_unavailable,
+            false,
+        },
+        failure_mapping{
+            provider_failure::malformed_response,
+            reason::malformed_response,
+            false,
+        },
+        failure_mapping{
+            provider_failure::response_limit,
+            reason::response_too_large,
+            false,
+        },
+        failure_mapping{
+            provider_failure::unavailable,
+            reason::network_unavailable,
+            true,
+        },
+    };
+    static_assert(
+        mappings.size()
+        == static_cast<std::size_t>(provider_failure::unavailable) + 1U);
+    static_assert(!exposes_detail<application::github_provider_error>);
+    static_assert(!exposes_detail<application::github_pull_request_error>);
+    static_assert(
+        !exposes_detail<application::github_host_diagnostic_projection>);
+    static_assert(!exposes_detail<core::github_diagnostic>);
+
+    for(const auto& mapping : mappings)
+    {
+        host_fixture fixture;
+        establish_native_session(fixture);
+        fixture.Host.dispatch(core::open_pull_request_intent{
+            .Repository = {.Owner = "openai", .Name = "better-pull-review"},
+            .Number = core::pull_request_number{27U},
+        });
+
+        const auto attempts =
+            mapping.Retryable
+            ? application::maximum_github_provider_attempts
+            : std::uint8_t{1U};
+        for(std::uint8_t attempt = 0U; attempt < attempts; ++attempt)
+        {
+            const auto request =
+                fixture.Provider.PullRequests.at(attempt).Request;
+            application::github_provider_error error{
+                .Failure = mapping.Provider,
+                .RetryAfterSeconds = std::nullopt,
+                .RateLimits = {},
+                .RateLimitCause = std::nullopt,
+            };
+            if(mapping.Provider == provider_failure::rate_limit)
+            {
+                auto exhausted = rate_limit();
+                exhausted.Remaining = 0U;
+                error.RateLimits = rate_limits_for(exhausted);
+                error.RateLimitCause = exhausted;
+            }
+            expect(application::valid(error),
+                   "provider failure fixture is structurally valid");
+            fixture.Provider.PullRequests.at(attempt).Completion(
+                application::github_pull_request_error{
+                    .Request = request,
+                    .Error = error,
+                });
+            fixture.Lane.run_next();
+        }
+
+        const auto& update = fixture.Projections.last_transition_update();
+        const auto expected_diagnostics =
+            std::vector{core::github_diagnostic{.Code = mapping.CoreReason}};
+        expect(
+            fixture.Provider.PullRequests.size() == attempts
+                && !fixture.Host.accepted_snapshot().has_value()
+                && !fixture.Host.state().AcceptedSnapshot.has_value()
+                && update.Transition->Status
+                       == core::github_status_delta{
+                           .Status = core::github_status::pull_request_failed}
+                && update.Transition->Diagnostics == expected_diagnostics
+                && !update.Session.has_value()
+                && !update.PullRequest.has_value()
+                && update.HostDiagnostics.empty(),
+            "every provider failure maps to one safe typed pull-request "
+            "failure without an accepted snapshot");
+    }
 }
 
 auto test_retries_are_bounded_and_stale_work_is_cancelled() -> void
@@ -3836,6 +4012,7 @@ auto main() -> int
 {
     test_enrollment_acceptance_snapshot_and_exact_delete();
     test_success_projection_is_safe_atomic_and_conversation_complete();
+    test_every_provider_failure_maps_to_safe_pull_request_failure();
     test_retries_are_bounded_and_stale_work_is_cancelled();
     test_retry_after_is_terminal_and_preserved();
     test_wrong_correlations_and_submit_exceptions_fail_closed();

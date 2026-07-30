@@ -39,6 +39,7 @@ SCENARIOS = (
     "success",
     "proxy-fallback",
     "same-redirect",
+    "same-query-redirect",
     "cross-redirect",
     "graphql-redirect",
     "untrusted-certificate",
@@ -761,6 +762,24 @@ class LoopbackConnectTlsFixture:
                         (
                             "Location",
                             f"https://{HOST}{REDIRECTED_REST_PATH}",
+                        ),
+                    ),
+                )
+            )
+            return
+        if self.scenario == "same-query-redirect":
+            connection.sendall(
+                response_bytes(
+                    302,
+                    "Found",
+                    b"",
+                    (
+                        (
+                            "Location",
+                            (
+                                f"https://{HOST}{REDIRECTED_REST_PATH}"
+                                "?cursor=next"
+                            ),
                         ),
                     ),
                 )

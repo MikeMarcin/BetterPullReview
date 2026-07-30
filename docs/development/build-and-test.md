@@ -554,10 +554,37 @@ focus, and accessibility checks. This is deterministic headless raster
 evidence, not native-desktop style certification. BPR-0031 retains the real
 application and native-style UX gate.
 
-The committed model regression checks both first-to-last and last-to-first
-reorders as one row move, exact final root and child order, and persistent
-index row/equality. Run the host and all three Qt cases under AddressSanitizer
-and UndefinedBehaviorSanitizer before closing the slice.
+BPR-0028 recorded a direct adversarial model run. BPR-0030 preserves that
+historical evidence and checks the corpus into a standalone, deterministic
+CTest target:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_qt_github_conversation_model_property_tests
+ctest --test-dir build/dev --output-on-failure \
+  -R '^qt_github_conversation_model_property$'
+```
+
+The single property-test identity is intentionally independent of the three
+scale-specific window cases. It executes 3,000 fixed-seed mixed projection
+updates, 5,000 fixed-seed permutations of 100 rows, and left and right
+50,000-row rotations. It requires exact tree/order and every public role,
+deletion-aware display and accessible text/description, deterministic
+variation of every mutable role, minimal move counts, exact changed-row
+counts, correct insert/remove signals, persistent-index preservation or
+invalidation, and zero model resets.
+
+After building the `dev` preset, run the focused BPR-0030 evidence group with:
+
+```sh
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(core_github_policy|github_read_contract|github_provider|github_capability_probe|application_github_host|application_github_credential_vault|qt_github_conversation_model_property|native_https_transport_contract|native_https_transport_fixture|github_contract_fixture_security)$'
+```
+
+This focused group does not replace either complete preset matrix, sanitizer
+coverage, target-native platform evidence, documentation/source-pack gates,
+or `git diff --check`. Windows verification remains open under BPR-0036 and
+does not block running or completing the available-platform work.
 
 ## Build ownership
 

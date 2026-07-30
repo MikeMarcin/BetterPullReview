@@ -390,6 +390,14 @@ Windows execution remains BPR-0036 work and is nonblocking for the other
 slices; it blocks only affected Windows claims and final RFC-BPR-0002
 closeout.
 
+BPR-0030 extends the current verifier to 32 scenarios without changing the
+frozen 15-case BPR-0026 evidence above. The added `same-query-redirect`
+scenario returns a same-authority REST `Location` with a nonempty query and
+requires a typed redirect failure after exactly one CONNECT, TLS handshake,
+origin request, and exact Authorization observation. Any attempted second hop
+violates the fixture counts and request-target contract. The complete current
+32-scenario verifier passed on the directly exercised macOS arm64 host.
+
 The transport's 30-second deadline and prompt cancellation cannot preempt
 synchronous Qt system/PAC proxy discovery or system-root enumeration.
 Response/header limits bound bytes accepted and retained by the adapter, not
@@ -457,6 +465,19 @@ Reviews, review threads, nested review comments, and pull-request comments use
 distinct stable IDs. The model cases require exact insert, remove, minimal
 move, and data-change notifications without reset; both reorder directions
 must produce the requested full order and preserve persistent indexes.
+
+BPR-0028 recorded a direct adversarial run covering 3,000 mixed cases, 5,000
+arbitrary 100-row permutations, and both 50,000-row rotations. That result
+remains historical BPR-0028 evidence; it was not a standalone checked-in
+property target in that slice. BPR-0030 checks the corpus into
+`better_pull_review_qt_github_conversation_model_property_tests`, registered
+once as `qt_github_conversation_model_property`. Fixed seeds make the 3,000
+mixed projection updates and 5,000 permutations reproducible. The target
+requires exact tree/order and every public projection role, deletion-aware
+display/accessibility invariants, deterministic variation of every mutable
+role on preserved rows, LIS-minimal permutation moves, exact changed-row
+counts, insert/remove coverage, correct persistent-index preservation or
+invalidation, one move for each large rotation, and zero model resets.
 
 Scale-specific CTest cases render at 1.0x, 1.25x, and 2.0x and save
 minimum-top, minimum-lower, and normal-size PNGs beneath the ignored build

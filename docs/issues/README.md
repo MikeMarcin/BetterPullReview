@@ -49,8 +49,15 @@ zero-launch CLI unavailability, public GitHub.com/GHES application fixtures,
 and a tests-disabled Release seam-absence contract. Its current-tree Linux v2
 matrix also passed in an Ubuntu 26.04 x86_64 full-system QEMU guest, including
 the native vault, both public fixtures, Release seam absence, exact cleanup,
-and dependency/runtime/ELF audits. `BPR-0030` is in `in-progress/` as the
-current implementation slice and owns the focused tests and hostile fixtures.
+and dependency/runtime/ELF audits. `BPR-0030` is in `done/` with exact
+recorded-method and bounded GraphQL operation policy, canonical-body
+backstop, exhaustive provider-failure mapping, a checked-in deterministic Qt
+property corpus, and the current 32-scenario native HTTPS verifier. Its final
+macOS matrices passed 44/44 and 17/17 plus sanitizer refreshes; its Ubuntu
+26.04 x86_64 GCC 15.2 build completed 83/83 targets and the complete
+non-native matrix passed 41/41. `BPR-0031` remains in `backlog/` as the next
+slice and owns presentation polish, native system appearance, live appearance
+changes, rendered UX, and accessibility verification.
 
 The open Windows task and CLI production-trust task do not block later
 implementation, tests, documentation, security review, or simplification on

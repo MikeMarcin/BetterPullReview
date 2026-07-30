@@ -664,6 +664,7 @@ enum class fixture_scenario : std::uint8_t
     success,
     proxy_fallback,
     same_redirect,
+    same_query_redirect,
     cross_redirect,
     graphql_redirect,
     untrusted_certificate,
@@ -708,6 +709,10 @@ enum class fixture_scenario : std::uint8_t
     if(value == "same-redirect")
     {
         return fixture_scenario::same_redirect;
+    }
+    if(value == "same-query-redirect")
+    {
+        return fixture_scenario::same_query_redirect;
     }
     if(value == "cross-redirect")
     {
@@ -835,6 +840,8 @@ scenario_name(const fixture_scenario scenario) noexcept -> std::string_view
         return "proxy-fallback";
     case fixture_scenario::same_redirect:
         return "same-redirect";
+    case fixture_scenario::same_query_redirect:
+        return "same-query-redirect";
     case fixture_scenario::cross_redirect:
         return "cross-redirect";
     case fixture_scenario::graphql_redirect:
@@ -1201,6 +1208,7 @@ void expect_fixture_completion(const github_wire_completion& completion,
         return;
     case fixture_scenario::cross_redirect:
     case fixture_scenario::graphql_redirect:
+    case fixture_scenario::same_query_redirect:
         expect_error(completion, correlation,
                      application::github_provider_failure::redirect);
         return;

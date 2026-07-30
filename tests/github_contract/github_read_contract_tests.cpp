@@ -1,8 +1,10 @@
 #include "github_read_contract.hpp"
+#include "github_graphql_operation_policy.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonParseError>
 
 #include <array>
 #include <cstdlib>
@@ -114,10 +116,11 @@ struct loaded_recording
                 });
         }
 
-        const auto method =
-            interaction.value("method").toString() == "POST"
-            ? http_method::post
-            : http_method::get;
+        const auto method = parse_recorded_http_method(
+            utf8(interaction.value("method").toString()));
+        expect(
+            method.has_value(),
+            "manifest method is exactly GET or POST");
         const auto body_value = interaction.value("body");
         const auto body =
             body_value.isNull() ? std::string{}
@@ -144,7 +147,7 @@ struct loaded_recording
                         .Semantic = {},
                         .Server = server,
                         .Operation = operation,
-                        .Method = method,
+                        .Method = *method,
                         .Path =
                             utf8(interaction.value("path").toString()),
                         .Query = utf8(
@@ -577,6 +580,352 @@ auto test_manifest_catalog_and_normalization_are_one_contract() -> void
     return request;
 }
 
+[[nodiscard]] auto paged_graphql_semantic(
+    const github_graphql_page_kind kind,
+    const std::uint32_t page,
+    const application::github_read_shape shape,
+    std::string after_cursor = {},
+    std::string thread_id = {}) -> semantic_read_request
+{
+    auto request = semantic(read_operation::list_review_threads);
+    request.Page = page;
+    request.GraphqlPage = github_graphql_page_request{
+        .Kind = kind,
+        .Shape = shape,
+        .AfterCursor = std::move(after_cursor),
+        .ThreadId = std::move(thread_id),
+    };
+    return request;
+}
+
+[[nodiscard]] auto graphql_request_shapes()
+    -> std::vector<semantic_read_request>
+{
+    return {
+        semantic(read_operation::list_review_threads),
+        paged_graphql_semantic(
+            github_graphql_page_kind::initial,
+            1U,
+            {
+                .ReviewThreads = true,
+                .ViewedFileState = true,
+                .ResolvePermission = true,
+                .UnresolvePermission = true,
+            }),
+        paged_graphql_semantic(
+            github_graphql_page_kind::files,
+            2U,
+            {
+                .ReviewThreads = false,
+                .ViewedFileState = true,
+                .ResolvePermission = false,
+                .UnresolvePermission = false,
+            },
+            "fixture-files-cursor"),
+        paged_graphql_semantic(
+            github_graphql_page_kind::threads,
+            2U,
+            {
+                .ReviewThreads = true,
+                .ViewedFileState = false,
+                .ResolvePermission = true,
+                .UnresolvePermission = true,
+            },
+            "fixture-threads-cursor"),
+        paged_graphql_semantic(
+            github_graphql_page_kind::comments,
+            2U,
+            {
+                .ReviewThreads = true,
+                .ViewedFileState = false,
+                .ResolvePermission = false,
+                .UnresolvePermission = false,
+            },
+            "fixture-comments-cursor",
+            "PRRT_fixture_thread"),
+    };
+}
+
+[[nodiscard]] auto graphql_query(const wire_request& request) -> std::string
+{
+    QJsonParseError error;
+    const auto document = QJsonDocument::fromJson(
+        QByteArray::fromStdString(request.Body),
+        &error);
+    expect(
+        error.error == QJsonParseError::NoError && document.isObject()
+            && document.object().value("query").isString(),
+        "compiled GraphQL body exposes one query string");
+    return utf8(document.object().value("query").toString());
+}
+
+[[nodiscard]] auto with_graphql_query(
+    wire_request request,
+    const std::string_view query) -> wire_request
+{
+    QJsonParseError error;
+    const auto document = QJsonDocument::fromJson(
+        QByteArray::fromStdString(request.Body),
+        &error);
+    expect(
+        error.error == QJsonParseError::NoError && document.isObject(),
+        "hostile GraphQL base body is valid JSON");
+    auto object = document.object();
+    object.insert(
+        "query",
+        QString::fromUtf8(
+            query.data(),
+            static_cast<qsizetype>(query.size())));
+    request.Body =
+        QJsonDocument{object}.toJson(QJsonDocument::Compact).toStdString();
+    return request;
+}
+
+auto expect_graphql_failure(
+    const wire_request& request,
+    const contract_failure_code expected,
+    const std::string_view message) -> void
+{
+    const auto result = validate_outbound_read_request(request);
+    expect(
+        !result.has_value() && result.error().Code == expected,
+        message);
+}
+
+[[nodiscard]] auto nested_query(const std::size_t depth) -> std::string
+{
+    auto query = std::string{"query Deep"};
+    for(std::size_t index = 0U; index < depth; ++index)
+    {
+        query += "{field";
+    }
+    query.append(depth, '}');
+    return query;
+}
+
+[[nodiscard]] auto query_with_definitions(
+    const std::size_t definitions) -> std::string
+{
+    auto query = std::string{"query Safe{name}"};
+    for(std::size_t index = 1U; index < definitions; ++index)
+    {
+        query += " fragment F";
+        query += std::to_string(index);
+        query += " on Type{name}";
+    }
+    return query;
+}
+
+auto test_read_only_protocol_policy() -> void
+{
+    const auto rest = compile_read_request(
+        semantic(read_operation::get_repository));
+    expect(rest.has_value(), "raw-method REST fixture compiles");
+
+    constexpr std::array raw_methods{
+        std::string_view{"GET"},
+        std::string_view{"HEAD"},
+        std::string_view{"POST"},
+        std::string_view{"PUT"},
+        std::string_view{"PATCH"},
+        std::string_view{"DELETE"},
+        std::string_view{"OPTIONS"},
+        std::string_view{"TRACE"},
+        std::string_view{"CONNECT"},
+        std::string_view{"UNKNOWN"},
+        std::string_view{"get"},
+        std::string_view{"post"},
+        std::string_view{"PoSt"},
+        std::string_view{""},
+        std::string_view{" GET"},
+        std::string_view{"GET "},
+    };
+    for(const auto raw_method : raw_methods)
+    {
+        const auto parsed = parse_recorded_http_method(raw_method);
+        auto accepted = false;
+        if(parsed.has_value())
+        {
+            auto candidate = *rest;
+            candidate.Method = *parsed;
+            accepted =
+                validate_outbound_read_request(candidate).has_value();
+        }
+        expect(
+            accepted == (raw_method == "GET"),
+            "raw REST sink accepts only exact GET");
+        expect(
+            parsed.has_value()
+                == (raw_method == "GET" || raw_method == "POST"),
+            "recording method parser accepts only exact GET or POST");
+    }
+    expect(
+        parse_recorded_http_method("GET") == http_method::get
+            && parse_recorded_http_method("POST") == http_method::post,
+        "recording methods retain their exact typed meaning");
+
+    using policy = graphql_operation_policy_result;
+    expect(
+        inspect_graphql_operation_policy(
+            "# mutation is comment text\n"
+            "query mutation($value:String=\"mutation\"){"
+            "mutationType probe(value:\"mutation\"){name}} "
+            "fragment MutationFields on __Type{name}")
+            == policy::query_only,
+        "comments, strings, field names, operation names, and fragments do "
+        "not create write operations");
+    expect(
+        inspect_graphql_operation_policy(
+            "query Safe($value:String=\"\"\"mutation\"\"\"){"
+            "probe(value:$value){name}}")
+            == policy::query_only,
+        "block strings containing mutation remain query data");
+    expect(
+        inspect_graphql_operation_policy(
+            "query Safe{probe(integer:-17,zero:0,float:1.25,"
+            "exponent:-2.5e+3){name}}")
+            == policy::query_only,
+        "valid integer, float, and exponent values remain query data");
+    expect(
+        inspect_graphql_operation_policy(
+            "mutation Unsafe{markFileAsViewed(input:{}){clientMutationId}}")
+            == policy::write_operation
+            && inspect_graphql_operation_policy(
+                   "subscription Unsafe{viewer{login}}")
+                == policy::write_operation
+            && inspect_graphql_operation_policy(
+                   "query Safe{viewer{login}} "
+                   "mutation Hidden{__typename}")
+                == policy::write_operation,
+        "top-level mutation, subscription, and hidden writes are rejected");
+    expect(
+        inspect_graphql_operation_policy(
+            "query First{viewer{login}} query Second{__typename}")
+            == policy::multiple_operations,
+        "multiple read operations fail closed without operation selection");
+    expect(
+        inspect_graphql_operation_policy("query Broken{viewer{login}")
+                == policy::malformed
+            && inspect_graphql_operation_policy(
+                   "query Broken{probe(value:\"unterminated){name}}")
+                == policy::malformed
+            && inspect_graphql_operation_policy(
+                   "query Safe{viewer{login}} trailing")
+                == policy::malformed,
+        "unbalanced, unterminated, and trailing definitions fail closed");
+    constexpr std::array malformed_numeric_queries{
+        std::string_view{"query Broken{probe(value:-){name}}"},
+        std::string_view{"query Broken{probe(value:01){name}}"},
+        std::string_view{"query Broken{probe(value:1.){name}}"},
+        std::string_view{"query Broken{probe(value:1e+){name}}"},
+        std::string_view{"query Broken{probe(value:1name){name}}"},
+    };
+    for(const auto query : malformed_numeric_queries)
+    {
+        expect(
+            inspect_graphql_operation_policy(query) == policy::malformed,
+            "malformed GraphQL numeric syntax fails closed");
+    }
+
+    auto oversized_query = std::string{"query Oversized{"};
+    oversized_query.append(
+        maximum_graphql_operation_document_bytes,
+        'a');
+    oversized_query.push_back('}');
+    expect(
+        inspect_graphql_operation_policy(oversized_query)
+                == policy::response_limit
+            && inspect_graphql_operation_policy(
+                   nested_query(maximum_graphql_operation_nesting))
+                == policy::query_only
+            && inspect_graphql_operation_policy(
+                   nested_query(maximum_graphql_operation_nesting + 1U))
+                == policy::response_limit
+            && inspect_graphql_operation_policy(
+                   query_with_definitions(
+                       maximum_graphql_document_definitions))
+                == policy::query_only
+            && inspect_graphql_operation_policy(
+                   query_with_definitions(
+                       maximum_graphql_document_definitions + 1U))
+                == policy::response_limit,
+        "GraphQL operation policy bounds bytes, nesting, and definitions");
+
+    for(const auto& semantic_request : graphql_request_shapes())
+    {
+        const auto compiled = compile_read_request(semantic_request);
+        expect(
+            compiled.has_value(),
+            "every legacy and paged GraphQL request shape compiles");
+        const auto query = graphql_query(*compiled);
+        expect(
+            inspect_graphql_operation_policy(query)
+                == policy::query_only,
+            "every compiled GraphQL request shape is exactly one query");
+
+        auto altered_read = query;
+        expect(
+            !altered_read.empty() && altered_read.back() == '}',
+            "compiled GraphQL query has an outer selection terminator");
+        altered_read.insert(
+            altered_read.size() - 1U,
+            " __typename");
+        expect(
+            inspect_graphql_operation_policy(altered_read)
+                == policy::query_only,
+            "noncanonical read remains exactly one scanner-approved query");
+        expect_graphql_failure(
+            with_graphql_query(*compiled, altered_read),
+            contract_failure_code::unexpected_body,
+            "canonical body equality rejects a scanner-approved altered "
+            "selection");
+
+        auto mutation = query;
+        mutation.replace(0U, std::string_view{"query"}.size(), "mutation");
+        expect_graphql_failure(
+            with_graphql_query(*compiled, mutation),
+            contract_failure_code::mutation_operation,
+            "every GraphQL request shape rejects a mutation operation");
+
+        auto subscription = query;
+        subscription.replace(
+            0U,
+            std::string_view{"query"}.size(),
+            "subscription");
+        expect_graphql_failure(
+            with_graphql_query(*compiled, subscription),
+            contract_failure_code::mutation_operation,
+            "every GraphQL request shape rejects a subscription operation");
+        expect_graphql_failure(
+            with_graphql_query(
+                *compiled,
+                query + " mutation Hidden{__typename}"),
+            contract_failure_code::mutation_operation,
+            "every GraphQL request shape rejects a hidden mutation");
+        expect_graphql_failure(
+            with_graphql_query(
+                *compiled,
+                query + " query Duplicate{__typename}"),
+            contract_failure_code::unexpected_body,
+            "every GraphQL request shape rejects multiple operations");
+
+        auto malformed = query;
+        malformed.pop_back();
+        expect_graphql_failure(
+            with_graphql_query(*compiled, malformed),
+            contract_failure_code::unexpected_body,
+            "every GraphQL request shape rejects malformed structure");
+    }
+
+    const auto legacy = compile_read_request(
+        semantic(read_operation::list_review_threads));
+    expect(legacy.has_value(), "oversized GraphQL base request compiles");
+    expect_graphql_failure(
+        with_graphql_query(*legacy, oversized_query),
+        contract_failure_code::response_limit,
+        "outbound GraphQL operation policy exposes its document bound");
+}
+
 auto test_read_only_catalog_and_outbound_validation() -> void
 {
     expect(
@@ -654,21 +1003,6 @@ auto test_read_only_catalog_and_outbound_validation() -> void
     expect(
         !validate_outbound_read_request(hostile).has_value(),
         "REST write method is rejected");
-
-    auto graph_mutation = *graphql;
-    const auto marker = graph_mutation.Body.find("query GetReviewThreads");
-    expect(marker != std::string::npos, "GraphQL query marker exists");
-    graph_mutation.Body.replace(
-        marker,
-        std::string_view{"query"}.size(),
-        "mutation");
-    const auto mutation_result =
-        validate_outbound_read_request(graph_mutation);
-    expect(
-        !mutation_result.has_value()
-            && mutation_result.error().Code
-                == contract_failure_code::mutation_operation,
-        "parsed GraphQL mutation is rejected");
 
     auto injected_search =
         semantic(read_operation::search_pull_requests);
@@ -1374,6 +1708,7 @@ auto test_provider_valid_nullable_and_conditional_shapes() -> void
 auto main() -> int
 {
     test_manifest_catalog_and_normalization_are_one_contract();
+    test_read_only_protocol_policy();
     test_read_only_catalog_and_outbound_validation();
     test_hostile_responses_fail_atomically();
     test_provider_valid_nullable_and_conditional_shapes();

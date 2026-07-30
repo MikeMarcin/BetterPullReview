@@ -1,4 +1,5 @@
 #include "github_read_contract.hpp"
+#include "github_graphql_operation_policy.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -845,37 +846,6 @@ private:
     });
 }
 
-[[nodiscard]] auto first_graphql_token(const QString& document) -> QString
-{
-    qsizetype index = 0;
-    while(index < document.size())
-    {
-        while(index < document.size() && document[index].isSpace())
-        {
-            ++index;
-        }
-        if(index >= document.size() || document[index] != '#')
-        {
-            break;
-        }
-        while(index < document.size() && document[index] != '\n')
-        {
-            ++index;
-        }
-    }
-
-    const auto start = index;
-    while(
-        index < document.size()
-        && (
-            document[index].isLetterOrNumber()
-            || document[index] == '_'))
-    {
-        ++index;
-    }
-    return document.mid(start, index - start);
-}
-
 [[nodiscard]] auto validate_graphql_body(
     const std::string_view body,
     const bool paged) -> std::expected<void, contract_failure>
@@ -915,12 +885,22 @@ private:
         return failure(contract_failure_code::unexpected_body);
     }
 
-    const auto token = first_graphql_token(object.value("query").toString());
-    if(token == "mutation" || token == "subscription")
+    const auto encoded_query =
+        object.value("query").toString().toUtf8();
+    const auto policy = inspect_graphql_operation_policy(
+        std::string_view{
+            encoded_query.constData(),
+            static_cast<std::size_t>(encoded_query.size()),
+        });
+    if(policy == graphql_operation_policy_result::write_operation)
     {
         return failure(contract_failure_code::mutation_operation);
     }
-    if(token != "query")
+    if(policy == graphql_operation_policy_result::response_limit)
+    {
+        return failure(contract_failure_code::response_limit);
+    }
+    if(policy != graphql_operation_policy_result::query_only)
     {
         return failure(contract_failure_code::unexpected_body);
     }

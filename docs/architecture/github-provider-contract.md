@@ -559,10 +559,20 @@ PR metadata, files, commits, reviews, threads, comments, checks, search, and
 capability probing. The mutation operations above describe the stable future
 provider contract but are not callable through the RFC-BPR-0002 composition.
 
-A no-mutation verification sink parses every REST method/route and the GraphQL
-document's selected operation type. It rejects every GraphQL `mutation`
-operation rather than relying on query names, endpoint names, or fixture
-intent.
+Recorded fixture methods pass through one exact parser that accepts only
+uppercase `GET` and `POST`; invalid or unknown text is never coerced to a read.
+The no-mutation verification sink accepts REST catalog entries only as typed
+`GET` requests and admits GraphQL `POST` only after a shared bounded
+full-document scanner finds exactly one explicit `query` plus bounded
+fragments. A top-level `mutation` or `subscription` anywhere in the document,
+multiple operations, malformed scanned structure or token framing, or a byte,
+nesting, or definition limit fails closed. This bounded structural classifier
+is not a complete GraphQL grammar parser. Comments, strings, block strings,
+fields, and operation names containing words such as `mutation` do not create
+false write classifications, and the outbound contract still requires exact
+equality with the canonical compiled request body. The contract suite proves
+that backstop independently for every legacy/current GraphQL shape by adding a
+scanner-approved read selection and requiring the altered body to fail.
 
 ## Failure and diagnostic boundary
 
@@ -571,6 +581,12 @@ such as authentication, permission, network, API version, unsupported
 capability, rate limit, certificate, redirect, cancellation, timeout, process
 startup, malformed response, and response limit. Provider-owned details are
 redacted before a safe typed event crosses inward. Qt owns user-facing prose.
+
+The application-host contract enumerates all 15
+`github_provider_failure` values and requires each to produce one typed core
+reason, no accepted snapshot, and no provider detail. The deliberately
+coarser mapping sends both process-startup and generic-unavailable failures to
+the bounded network reason; it does not expose transport diagnostics.
 
 Raw remote content and credential-bearing diagnostics are never retained as
 RFC evidence.

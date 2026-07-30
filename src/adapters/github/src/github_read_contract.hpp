@@ -53,6 +53,20 @@ enum class http_method : std::uint8_t
     post,
 };
 
+[[nodiscard]] constexpr auto parse_recorded_http_method(
+    const std::string_view method) noexcept -> std::optional<http_method>
+{
+    if(method == "GET")
+    {
+        return http_method::get;
+    }
+    if(method == "POST")
+    {
+        return http_method::post;
+    }
+    return std::nullopt;
+}
+
 struct http_header
 {
     std::string Name;

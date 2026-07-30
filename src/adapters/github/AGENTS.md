@@ -66,6 +66,18 @@ the functional core or Qt presentation adapter.
   network, logging, plaintext, or alternate-vault fallbacks.
 - Use typed records and explicit failure/limit handling at the adapter
   boundary. Do not expose provider response types inward.
+- Parse recorded HTTP methods only through `parse_recorded_http_method`.
+  Accept exact uppercase `GET` and `POST`; never coerce a missing, malformed,
+  differently cased, or unsupported method into either value.
+- Pass every GraphQL read and capability-probe document through the shared
+  bounded full-document operation scanner. Require exactly one explicit
+  `query` plus bounded fragment definitions; reject top-level `mutation` or
+  `subscription` definitions, multiple operations, malformed scanned
+  structure or token framing, and byte, nesting, or definition-limit
+  exhaustion. The scanner is not a complete GraphQL grammar parser. Comments,
+  strings, block strings, field names, and operation names are data, not
+  operation-type evidence, and canonical compiled request-body equality
+  remains required for outbound read admission.
 - Exhaust every REST `Link` continuation and GraphQL cursor before returning a
   snapshot. Enforce cursor progress, page/record/byte ceilings, exact
   repository authority, expected result counts, and capability-shaped

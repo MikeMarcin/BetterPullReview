@@ -1,4 +1,5 @@
 #include "github_capability_probe.hpp"
+#include "github_graphql_operation_policy.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -75,174 +76,9 @@ constexpr std::string_view graphql_document =
 
 constexpr capability_probe_limits hard_limits{};
 
-[[nodiscard]] constexpr auto graphql_name_start(const char value) noexcept
-    -> bool
-{
-    return (value >= 'A' && value <= 'Z')
-        || (value >= 'a' && value <= 'z') || value == '_';
-}
-
-[[nodiscard]] constexpr auto graphql_name_continue(const char value) noexcept
-    -> bool
-{
-    return graphql_name_start(value) || (value >= '0' && value <= '9');
-}
-
-[[nodiscard]] constexpr auto graphql_whitespace(const char value) noexcept
-    -> bool
-{
-    return value == ' ' || value == '\t' || value == '\r'
-        || value == '\n' || value == ',';
-}
-
-[[nodiscard]] constexpr auto query_only_graphql_document(
-    const std::string_view document) noexcept -> bool
-{
-    std::size_t position = 0U;
-    std::size_t brace_depth = 0U;
-    std::size_t parenthesis_depth = 0U;
-    std::size_t bracket_depth = 0U;
-    std::size_t query_operations = 0U;
-    bool query_has_selection = false;
-
-    while(position < document.size())
-    {
-        const auto value = document[position];
-        if(graphql_whitespace(value))
-        {
-            ++position;
-            continue;
-        }
-        if(value == '#')
-        {
-            while(
-                position < document.size()
-                && document[position] != '\r'
-                && document[position] != '\n')
-            {
-                ++position;
-            }
-            continue;
-        }
-        if(value == '"')
-        {
-            const bool block =
-                document.size() - position >= 3U
-                && document.substr(position, 3U) == "\"\"\"";
-            position += block ? 3U : 1U;
-            bool closed = false;
-            while(position < document.size())
-            {
-                if(
-                    block && document.size() - position >= 3U
-                    && document.substr(position, 3U) == "\"\"\"")
-                {
-                    position += 3U;
-                    closed = true;
-                    break;
-                }
-                const auto character = document[position++];
-                if(!block && character == '"')
-                {
-                    closed = true;
-                    break;
-                }
-                if(
-                    !block && character == '\\'
-                    && position < document.size())
-                {
-                    ++position;
-                }
-                else if(
-                    !block
-                    && (character == '\r' || character == '\n'))
-                {
-                    return false;
-                }
-            }
-            if(!closed)
-            {
-                return false;
-            }
-            continue;
-        }
-        if(graphql_name_start(value))
-        {
-            const auto start = position++;
-            while(
-                position < document.size()
-                && graphql_name_continue(document[position]))
-            {
-                ++position;
-            }
-            if(
-                brace_depth == 0U && parenthesis_depth == 0U
-                && bracket_depth == 0U)
-            {
-                const auto token =
-                    document.substr(start, position - start);
-                if(token == "mutation" || token == "subscription")
-                {
-                    return false;
-                }
-                if(token == "query")
-                {
-                    ++query_operations;
-                }
-            }
-            continue;
-        }
-
-        switch(value)
-        {
-        case '{':
-            if(
-                brace_depth == 0U && query_operations == 1U
-                && parenthesis_depth == 0U && bracket_depth == 0U)
-            {
-                query_has_selection = true;
-            }
-            ++brace_depth;
-            break;
-        case '}':
-            if(brace_depth == 0U)
-            {
-                return false;
-            }
-            --brace_depth;
-            break;
-        case '(':
-            ++parenthesis_depth;
-            break;
-        case ')':
-            if(parenthesis_depth == 0U)
-            {
-                return false;
-            }
-            --parenthesis_depth;
-            break;
-        case '[':
-            ++bracket_depth;
-            break;
-        case ']':
-            if(bracket_depth == 0U)
-            {
-                return false;
-            }
-            --bracket_depth;
-            break;
-        default:
-            break;
-        }
-        ++position;
-    }
-
-    return query_operations == 1U && query_has_selection
-        && brace_depth == 0U && parenthesis_depth == 0U
-        && bracket_depth == 0U;
-}
-
-static_assert(query_only_graphql_document(graphql_document));
+static_assert(
+    inspect_graphql_operation_policy(graphql_document)
+    == graphql_operation_policy_result::query_only);
 
 constexpr std::array<std::string_view, 25> response_aliases{
     "schemaRoot",
@@ -2532,7 +2368,8 @@ auto capability_probe_graphql_document() noexcept -> std::string_view
 auto capability_probe_document_is_query_only(
     const std::string_view document) noexcept -> bool
 {
-    return query_only_graphql_document(document);
+    return inspect_graphql_operation_policy(document)
+        == graphql_operation_policy_result::query_only;
 }
 
 auto compile_capability_probe_request(
