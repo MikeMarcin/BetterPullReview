@@ -1,4 +1,5 @@
 #include "gh_cli_transport.hpp"
+#include "github_wire_request_validation.hpp"
 
 #include <algorithm>
 #include <array>
@@ -458,88 +459,31 @@ auto append_fixed_environment(
     return std::nullopt;
 }
 
-[[nodiscard]] auto expected_server_contract(
-    const validated_github_host_profile& profile)
-    -> std::optional<server_contract>
-{
-    switch(profile.server_contract())
-    {
-    case application::github_server_contract::github_com_2022_11_28:
-        return server_contract::github_com;
-    case application::github_server_contract::ghes_3_18_2022_11_28:
-        return server_contract::ghes_3_18;
-    }
-    return std::nullopt;
-}
-
-[[nodiscard]] auto valid_parent_correlation(
-    const github_wire_request& request,
-    const validated_github_host_profile& profile) -> bool
-{
-    return std::visit(
-        [&request, &profile](const auto& parent) {
-            using parent_type = std::remove_cvref_t<decltype(parent)>;
-            if constexpr(
-                std::same_as<
-                    parent_type,
-                    core::github_session_request_context>)
-            {
-                return bpr::application::detail::valid_context(parent)
-                    && parent.Profile == profile.profile()
-                    && request.Correlation.Operation
-                        == read_operation::get_viewer_identity;
-            }
-            else
-            {
-                if(
-                    request.Correlation.Operation
-                        == read_operation::get_viewer_identity
-                    || !bpr::application::detail::valid_context(parent)
-                    || parent.Profile != profile.profile()
-                    || parent.Host != profile.host())
-                {
-                    return false;
-                }
-                const auto& semantic = request.Wire.Semantic;
-                if(
-                    semantic.Owner != parent.Repository.Owner
-                    || semantic.Repository != parent.Repository.Name)
-                {
-                    return false;
-                }
-                return semantic.PullRequestNumber == 0U
-                    || semantic.PullRequestNumber
-                        == parent.Number.value();
-            }
-        },
-        request.Correlation.Parent);
-}
-
 [[nodiscard]] auto validate_correlation(
     const github_wire_request& request,
     const validated_github_host_profile& profile)
     -> std::optional<gh_cli_invocation_failure>
 {
-    if(
-        request.Correlation.ProfileRevision != profile.revision()
-        || request.Correlation.Host != profile.host()
-        || request.Correlation.Operation != request.Wire.Operation
-        || request.Correlation.Operation
-            != request.Wire.Semantic.Operation
-        || request.Correlation.Page != request.Wire.Semantic.Page
-        || !valid_parent_correlation(request, profile))
+    const auto validation =
+        validate_github_wire_request(profile, request);
+    if(validation.has_value())
     {
-        return
-            gh_cli_invocation_failure::profile_correlation_mismatch;
+        return std::nullopt;
     }
-    const auto server = expected_server_contract(profile);
-    if(
-        !server.has_value() || request.Wire.Server != *server
-        || request.Wire.Semantic.Server != *server)
+    switch(validation.error())
     {
+    case github_wire_request_validation_failure::
+        profile_correlation_mismatch:
+        return gh_cli_invocation_failure::
+            profile_correlation_mismatch;
+    case github_wire_request_validation_failure::
+        server_contract_mismatch:
         return gh_cli_invocation_failure::server_contract_mismatch;
+    case github_wire_request_validation_failure::
+        invalid_wire_request:
+        return gh_cli_invocation_failure::invalid_wire_request;
     }
-    return std::nullopt;
+    return gh_cli_invocation_failure::profile_correlation_mismatch;
 }
 
 [[nodiscard]] auto safe_relative_endpoint(
@@ -837,14 +781,6 @@ auto compile_gh_cli_process_request(
        correlation.has_value())
     {
         return std::unexpected{*correlation};
-    }
-    if(
-        const auto validation =
-            validate_outbound_read_request(request.Wire);
-        !validation.has_value())
-    {
-        return std::unexpected{
-            gh_cli_invocation_failure::invalid_wire_request};
     }
     const auto endpoint = translated_endpoint(profile, request.Wire);
     if(!endpoint.has_value())

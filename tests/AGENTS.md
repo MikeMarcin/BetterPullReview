@@ -23,4 +23,12 @@ Tests are direct evidence, not naming evidence.
   config, a runtime-random synthetic token, fixed structural observations,
   and exact cleanup. A followed redirect is evidence that CLI mode is
   unavailable, never a passing trust result.
+- Native HTTPS fixtures use only loopback CONNECT proxies, a disposable CA
+  and leaf, runtime-random framed standard-input credentials, fixed output,
+  exact authority/SNI/Host/request observations, and bounded teardown. The
+  test-only proxy/CA seam must be absent with `BPR_BUILD_TESTS=OFF`; its
+  candidate-fallback evidence is not system-proxy reachability, public
+  provider composition, or permission to contact GitHub. Use uninstrumented
+  runs for cancellation/timeout behavior; a dependency trace may isolate one
+  trusted-success case because tracing perturbs the fixture's timing.
 - A test must fail or visibly disagree when its claimed behavior is false.

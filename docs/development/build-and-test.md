@@ -278,13 +278,150 @@ identity through cleanup or otherwise eliminate numeric `kill(-pgid, ...)`
 reuse risk after leader exit; the current group signaling is not claimed
 race-free.
 
+For the BPR-0026 native HTTPS internal wire transport, build the contract
+executable and run the contract plus target-native loopback fixture:
+
+```sh
+cmake --build build/dev --target \
+  better_pull_review_native_https_transport_tests
+ctest --test-dir build/dev --output-on-failure \
+  -R '^native_https_transport_(contract|fixture)$'
+
+build/dev/tests/github_contract/\
+better_pull_review_native_https_transport_tests --runtime
+```
+
+The runtime line has this fixed, secret-free shape:
+
+```text
+native-https-runtime:tls=BACKEND:proxy=KIND:candidates=COUNT:supported=BOOL
+```
+
+It reports Qt's active TLS backend category and support flag, then the first
+raw system-proxy candidate category and raw candidate count for the canonical
+synthetic GHES profile. It does not print proxy addresses, CA material,
+credentials, URLs, or remote content. The runtime query is observation only,
+not proof that every returned candidate is reachable. The request path
+independently filters a maximum of 16 supported direct, HTTP, or SOCKS5
+candidates and uses them in system order.
+
+The Python fixture generates a disposable CA and leaf certificate, starts
+only loopback CONNECT proxies, and passes one random bearer token plus the CA
+to the compiled child through length-framed standard input. It verifies the
+exact CONNECT authority, SNI, Host, request target, method/body, and
+Authorization placement. The 15 scenarios are:
+
+- trusted success;
+- retryable first-proxy failure followed by ordered fallback;
+- accepted same-authority REST redirect;
+- rejected cross-authority redirect;
+- rejected GraphQL redirect;
+- untrusted certificate;
+- response-body and response-header limits;
+- in-flight cancellation, timeout, and pre-cancellation with no network
+  effect;
+- HTTP 401, 403, and 429 typed classification;
+- content-encoding rejection.
+
+The fixture replaces proxy discovery with a test-only ordered loopback list
+and may add one disposable CA to the system root set. It otherwise uses the
+production request, TLS, redirect, cancellation, response, and credential
+binding path. This distinction matters: the fallback scenario proves
+transport candidate ordering, while the `--runtime` observation and
+target-native inspection characterize the selected system proxy/TLS backend.
+Neither is the BPR-0027 public provider composition.
+
+The default production deadline is 30 seconds, but synchronous Qt system/PAC
+proxy discovery and system-root enumeration cannot be interrupted by the stop
+token or deadline. Once discovery returns, the request uses the remaining
+absolute deadline. Adapter limits cover accepted and retained bytes, not Qt's
+private HTTP parser or socket/TLS buffers. Likewise, local mutable credential
+buffers are overwritten, but Qt-owned Authorization copies do not expose an
+exact wipe operation.
+
+To prove the loopback proxy/CA seam is absent from a production build, use a
+separate tests-disabled tree and inspect the GitHub adapter symbols:
+
+```sh
+cmake -S . -B build/native-https-production -G Ninja \
+  -DBPR_BUILD_QT=ON \
+  -DBPR_BUILD_TESTS=OFF \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build/native-https-production
+
+nm -g \
+  build/native-https-production/src/adapters/github/\
+libbetter_pull_review_adapter_github.a |
+  rg 'make_native_https_(bootstrap|account)_transport_for_test'
+```
+
+The final `rg` must return no match. Inspect target dependencies and runtime
+backend on the same native machine; a configure-time Qt discovery on another
+platform is not evidence.
+
+On the directly exercised macOS arm64 host, both focused CTest cases and all
+15 fixture scenarios passed. The runtime line was:
+
+```text
+native-https-runtime:tls=openssl:proxy=direct:candidates=1:supported=true
+```
+
+The tests-disabled dependency/runtime audit selected Qt Network 6.11.1,
+observed the OpenSSL runtime backend, retained direct Security and
+CoreFoundation dependencies for the macOS vault in the GitHub adapter, found
+no test-only native HTTPS symbols, and observed the current ad-hoc linker
+signature. These are development build/runtime facts, not signed package or
+distribution certification.
+
+The Linux target-native run passed in an Ubuntu 26.04 x86_64 full-system QEMU
+guest with Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. The copied inputs were
+frozen before execution:
+
+```text
+native_https_transport.cpp
+  sha256=fd7976b48241795302ded4d1a73c851064edce66364a3b50b990294ca95ab134
+verify_native_https_transport.py
+  sha256=bd0f771cd261a7fb6b4f1f4691af93c12adc7d4fe7ced96cb1182ee8bf2369dd
+```
+
+`native_https_transport_contract` and
+`native_https_transport_fixture` passed 2/2 in 0.12 and 11.29 seconds,
+respectively; the harness reported all 15 direct scenarios passing.
+`architecture_boundaries` and `architecture_boundary_contract` passed 2/2 in
+5.00 and 144.35 seconds with all 92 hostile mutations. The uninstrumented
+focused transport suite passed repeatedly. Runtime observation was:
+
+```text
+native-https-runtime:tls=openssl:proxy=direct:candidates=1:supported=true
+```
+
+ELF inspection showed direct `NEEDED` entries for Qt6Network and Qt6Core. A
+controlled `strace` of only the trusted-success case observed
+`qt6/plugins/tls/libqopensslbackend.so`, `libssl.so.3`, and `libcrypto.so.3`
+being opened. Do not use a full-suite `strace` as behavioral evidence:
+instrumentation perturbs the fixture's cancellation timing. The dependency
+trace intentionally runs one success, while the repeated uninstrumented suite
+is the functional evidence.
+
+Source and the generated Linux build contained no workflow files or GitHub
+Actions references. This scan reinforces the build-ownership rule below; no
+remote workflow contributed to configuration, compilation, tests, tracing, or
+verification.
+
+Windows 10/11 x64 execution, TLS/proxy/dependency inspection, and fixture
+registration remain BPR-0036 work. The open Windows task is nonblocking for
+macOS/Linux implementation, tests, documentation, security review, and
+simplification; it blocks only affected Windows claims and RFC-BPR-0002
+closeout.
+
 `verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
 binary-dependency script also supports all three platforms, using `dumpbin` on
 Windows when available, followed by `llvm-readobj` and `objdump` fallbacks.
 
 ## Build ownership
 
-GitHub Actions does not build, test, package, or release BetterPullReview.
+GitHub Actions does not configure, build, test, package, release, or verify
+BetterPullReview.
 Developer builds run through the checked-in CMake presets on the current
 machine. Clean Windows, macOS, and Linux package verification belongs to
 RFC-BPR-0014 and runs on release-operator or corporate-managed environments.

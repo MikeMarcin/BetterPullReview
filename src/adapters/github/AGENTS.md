@@ -30,6 +30,15 @@ the functional core or Qt presentation adapter.
   enable CLI mode.
 - Keep native HTTPS execution in `src/native_https_transport.cpp`; it is the
   only GitHub source permitted to use `QNetworkAccessManager`.
+- Keep native HTTPS on its dedicated worker with manager-local ordered system
+  proxy candidates, explicit system roots, `VerifyPeer`, TLS 1.2 or later,
+  the completed-handshake signal, manual exact-authority REST redirects, and
+  fixed request/header/body/redirect/deadline bounds. Do not add global
+  proxy/TLS mutation, automatic redirects, certificate-error bypass,
+  automatic content decoding, credential persistence, or unbounded reads. The
+  loopback proxy and fixture-CA seam must remain private to test-enabled
+  builds; Qt-owned Authorization and parser buffers are not claimed precisely
+  wipeable or hard-bounded.
 - Keep macOS Security framework effects in `src/macos_keychain.cpp`. Its v1
   contract is the exact default file-based Keychain, one generic-password
   item, and noninteractive `SecItem` operations. Do not add data-protection,

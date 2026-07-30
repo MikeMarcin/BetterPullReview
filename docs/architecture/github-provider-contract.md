@@ -161,14 +161,133 @@ BPR-0037 owns that production-enablement work.
 
 ### Native HTTPS
 
-- Use `QNetworkAccessManager` and operating-system trust/proxy configuration.
-- Store credentials only in Windows Credential Manager, macOS Keychain, or Linux Secret Service.
-- Never store tokens in SQLite, settings, environment files, logs, crash reports, or command lines.
-- Never offer an ignore-certificate-error option.
-- Handle redirects manually under an HTTPS and exact-authority allowlist.
-- Treat locked, unavailable, access-denied, or corrupt vaults and failed
-  credential deletion as typed failures. There is no plaintext, settings,
-  environment, or SQLite fallback.
+BPR-0026 implements the internal wire port with one dedicated Qt worker,
+event loop, and `QNetworkAccessManager` per transport. The Qt objects do not
+cross the adapter, and one transport rejects a second concurrent operation.
+The complete wire request and correlation are revalidated before the worker
+uses a credential or performs network work. This surface is not yet the
+application-facing provider: BPR-0027 still owns pagination, normalization,
+body-aware failure interpretation, staged snapshot delivery, and public
+composition.
+
+Production uses the system CA set and
+`QNetworkProxyFactory::systemProxyForQuery` for every hop. At most 16 proxy
+candidates are admitted; supported direct, HTTP, and SOCKS5 entries preserve
+system order, with fallback only after retryable proxy/connection failure.
+Unsupported or empty candidate sets fail closed. A manager-local proxy is
+selected for each attempt, with no global proxy mutation. Qt's generic Unix
+system-proxy implementation can use libproxy/desktop sources or lowercase
+`http_proxy`, `https_proxy`, and `no_proxy`. Production code itself does not
+call `getenv`, so this contract means the selected platform/Qt system policy,
+not environment independence. Proxy-authentication failure may try a later
+candidate; origin authentication, TLS, HTTP, malformed-response, and policy
+failures may not.
+
+TLS is configured for `VerifyPeer`, the explicit operating-system root set,
+TLS 1.2 or later, and HTTP/1.1 ALPN, without client identity, session reuse,
+HTTP/2, or a certificate-error bypass. `sslErrors` aborts the hop. A terminal
+requires the `QNetworkReply::encrypted` completed-initial-handshake signal, a
+non-null peer certificate, no accepted `sslErrors`, the exact requested reply
+URL, no HTTP/2 use, and the configured verification and minimum-protocol
+policy. Qt's scheme-associated
+`ConnectionEncryptedAttribute` is checked only as an additional consistency
+fact, not as standalone negotiated-session proof. The meaningful evidence is
+the completed-handshake signal and peer certificate under enforced
+`VerifyPeer`/TLS-1.2-or-later policy, together with the trusted/untrusted
+fixture outcomes; the transport does not directly record the negotiated TLS
+version.
+
+Qt automatic redirects are disabled. At most three manual redirects may
+follow a REST `GET`, and each target must be query-free HTTPS on the exact
+validated REST authority and inside its selected API namespace. GraphQL,
+cross-authority, looping, malformed, and over-limit redirects fail as typed
+`redirect`. Every accepted hop reconstructs its URL, proxy selection, TLS
+configuration, request, and Authorization header.
+
+The fixed adapter bounds are 256 KiB per request body, 4 MiB per response
+body, 64 response headers, 64 KiB aggregate response-header text, 8 KiB per
+header field, 16 proxy candidates, three redirects, and a 30-second absolute
+operation deadline. Synchronous discovery may extend wall-clock completion;
+only the remaining deadline applies when it returns. Successful pages must be
+HTTP 200 JSON with no content encoding, a consistent content length, and
+bounded Link metadata.
+
+HTTP and transport outcomes map to typed, redacted failures. HTTP 403 is a
+rate limit only with zero remaining or valid bounded `Retry-After`; HTTP 429
+is rate limited. GraphQL HTTP-200 error bodies and other body-defined
+secondary-rate-limit responses require BPR-0027's body-aware host path.
+
+System/PAC discovery and system-root enumeration are synchronous Qt calls.
+Cancellation queues a worker abort and the event loop polls the stop token,
+but neither prompt cancellation nor the 30-second deadline can preempt a
+blocked discovery call. The deadline begins when `perform` admits the
+operation, is rechecked after synchronous calls, and only its remainder is
+applied once control returns.
+
+Likewise, the public limits cap bytes accepted and retained by this adapter,
+not Qt's private HTTP parser, socket buffers, or pre-metadata allocations.
+`QNetworkReply` may normalize or collapse duplicate headers, especially
+`Location`, before exposing raw header pairs and redirect attributes. The
+adapter enforces the metadata Qt exposes, not an exact count of on-wire
+Location fields.
+
+The explicit mutable Authorization buffer and credential owner are
+overwritten, but Qt may hold internal Authorization copies for which it
+exposes no exact wipe operation.
+
+Bootstrap material is exact-session-bound, can authorize only one viewer
+identity request, and is destroyed once claimed. Stored-account material is
+accepted only for the exact profile, profile revision, host, account, server
+contract, application session, and identity generation. Store credentials
+only in Windows Credential Manager, macOS Keychain, or Linux Secret Service.
+Never store tokens in SQLite, settings, environment files, logs, crash
+reports, or command lines. Locked, unavailable, access-denied, corrupt, and
+failed-delete states remain typed; there is no plaintext, settings,
+environment, or SQLite fallback.
+
+The test-enabled build exposes an adapter-private loopback proxy and
+single-fixture-CA seam; `BPR_BUILD_TESTS=OFF` omits those factories and
+symbols. A disposable TLS-over-CONNECT harness exercises 15 cases: success,
+ordered proxy fallback, same-authority redirect, cross-authority redirect,
+GraphQL redirect, untrusted certificate, response and header limits,
+in-flight cancellation, timeout, pre-cancellation, HTTP 401/403/429, and
+content-encoding rejection. It verifies the exact CONNECT authority, SNI,
+Host, request target, method/body, and Authorization placement without
+contacting GitHub. Runtime facts report TLS support/backend and the first raw
+system-proxy kind/count without addresses or secret material; they do not
+prove that every returned candidate is reachable.
+
+The 15-case fixture passed on macOS arm64 with Qt Network 6.11.1 and the
+OpenSSL runtime backend; the observed system-proxy result was one direct
+candidate. A test-disabled production build contained no test-only native
+HTTPS factory symbols and retained the expected Security/CoreFoundation
+adapter dependencies and current ad-hoc linker signature. This is
+development build/runtime evidence, not delivered-package certification.
+
+Linux target-native verification passed in an Ubuntu 26.04 x86_64 full-system
+QEMU guest with Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. The frozen
+`native_https_transport.cpp` SHA-256 was
+`fd7976b48241795302ded4d1a73c851064edce66364a3b50b990294ca95ab134`;
+the frozen Python harness SHA-256 was
+`bd0f771cd261a7fb6b4f1f4691af93c12adc7d4fe7ced96cb1182ee8bf2369dd`.
+The focused contract and complete 15-case fixture passed 2/2 in
+0.12/11.29 seconds, and both architecture tests passed 2/2 in
+5.00/144.35 seconds with all 92 hostile mutations. The uninstrumented
+focused suite passed repeatedly. Runtime
+facts were
+`native-https-runtime:tls=openssl:proxy=direct:candidates=1:supported=true`.
+The test ELF directly needs Qt6Network and Qt6Core; a controlled trace of the
+single trusted-success case under `strace` opened
+`qt6/plugins/tls/libqopensslbackend.so`, `libssl.so.3`, and `libcrypto.so.3`.
+A full-suite `strace` is not functional evidence because tracing perturbs
+cancellation timing; dependency tracing was intentionally restricted to one
+success, while behavior comes from the repeated uninstrumented suite.
+Neither source nor generated build contained workflow files or GitHub Actions
+references.
+
+Windows execution remains BPR-0036 work and does not block other
+RFC-BPR-0002 implementation slices; it blocks only affected Windows claims
+and final RFC closeout.
 
 The portable vault capability accepts only an exact profile/profile-revision/
 host/account/server-contract authority and exact request/session/identity
@@ -257,15 +376,18 @@ runtime-surface probes, hostile service-name rejection, a truly locked default
 collection, and no-session-bus unavailability also passed. Access-denied and
 failed-delete terminals are covered by injected effects plus direct
 native-status classification rather than an operating-system policy fixture.
-This is direct Linux vault evidence from a full-system VM; it is neither
-bare-metal evidence nor proof of the still-pending Linux native HTTPS or
-public composition surfaces.
+This is direct Linux vault evidence from a full-system VM; it is not
+bare-metal evidence. BPR-0026 separately verified the internal Linux native
+HTTPS wire surface with the 15-case loopback fixture, runtime observation,
+ELF dependencies, and a controlled single-success dependency trace. Neither
+the vault evidence nor the internal wire evidence proves the public
+composition surface.
 
-Windows target-native evidence remains open. Linux native HTTPS evidence must
-still exercise TLS, system proxy selection, redirect rejection, certificate
-rejection, runtime network scope, binary dependencies, and the composed
-public path. A mock, cross-compile, vault-only run, or macOS-only run cannot
-prove those remaining platform claims.
+Windows target-native evidence remains open under BPR-0036 and is nonblocking
+for implementation on available platforms. The public provider path remains
+BPR-0027 regardless of target. A mock, cross-compile, vault-only run,
+macOS-only run, or internal wire fixture cannot prove that composed path or
+the retained Windows claim.
 
 ## Normalized application boundary
 
@@ -329,6 +451,12 @@ Search Issues numeric issue ID. Before projecting away raw URLs, the
 production transport must also prove each result belongs to the canonical
 repository-scoped request. No one-page fixture result may be used to claim
 that a larger live pull request was loaded completely.
+
+The BPR-0026 wire transport revalidates the canonical `ListChecks` URL and
+wire request, but the application-host request context does not yet bind the
+returned checks page to its expected head OID. BPR-0027 must carry and verify
+that `HeadOid` relationship before normalized checks can enter a staged
+snapshot.
 
 Provider callbacks return immutable completions and never mutate the active
 cache, core, Qt model, or widget. The host posts each completion to the

@@ -171,9 +171,10 @@ Qt 6.10.2, libsecret 0.21.7, and gnome-keyring 50. The four focused cases ran
 under Xvfb, a desktop D-Bus Secret Service session, and a dedicated real user;
 the controlled unavailable, locked, hostile-redirection, and cleanup checks
 also passed. This directly verifies the selected Linux vault stack in a
-full-system VM, not bare metal. Linux native HTTPS and the public composed
-provider path remain pending, so this fixture does not verify the combined
-Linux vault-plus-HTTPS claim.
+full-system VM, not bare metal. This vault fixture alone does not verify
+HTTPS. BPR-0026 separately verified the Linux internal native HTTPS wire
+surface in a full-system Ubuntu 26.04 QEMU guest. The public composed provider
+path remains BPR-0027.
 
 ## GitHub CLI process and trust fixtures
 
@@ -276,6 +277,110 @@ cannot receive a late signal. The current group signaling is not claimed
 race-free. It must also bind selected Linux CA-file/CA-directory identity and
 contents through the CLI's later open and directly prove hostile replacement
 and content mutation fail closed.
+
+## Native HTTPS loopback transport fixture
+
+`tests/scripts/verify_native_https_transport.py` drives the compiled
+`better_pull_review_native_https_transport_tests` child through the real
+BPR-0026 request/TLS/redirect/cancellation/response path. It creates a
+disposable one-day CA and leaf certificate for the canonical synthetic
+`ghe.bpr.invalid` authority, starts loopback-only HTTP CONNECT proxies, and
+requires the TLS SNI and origin Host to remain that authority. No GitHub or
+other remote endpoint is contacted.
+
+The parent generates a different random bearer token for every scenario and
+sends the token and fixture CA to the child through big-endian
+length-framed standard input. Tokens are absent from arguments and
+environment. The proxy rejects Authorization and Proxy-Authorization on
+CONNECT, then compares the exact `Bearer` value only inside the encrypted
+origin request. The fixture also checks the exact method, path, body shape,
+Host, `Accept-Encoding: identity`, and `Accept-Language: *`. Child output is
+bounded and must be one fixed pass line with empty standard error; the parent
+scans both captured streams for the live token and overwrites its mutable
+token/frame buffers. Python, Qt, TLS, and socket internals can make immutable
+or private copies that do not expose precise wiping, so this is not an exact
+process-memory erasure claim.
+
+The complete 15-case matrix is:
+
+| Scenario | Direct observation |
+|---|---|
+| `success` | One CONNECT, trusted TLS origin request, exact authorization, bounded JSON success |
+| `proxy-fallback` | A refusing first proxy is tried before the second loopback candidate succeeds |
+| `same-redirect` | A REST `GET` follows one query-free path on the exact authority and sends a fresh exact request |
+| `cross-redirect` | A distinct authority is rejected without contacting it |
+| `graphql-redirect` | GraphQL `POST` redirect is rejected after the initial request |
+| `untrusted-certificate` | Omitting the disposable CA produces typed certificate failure with no origin HTTP or authorization |
+| `response-limit` | Limit-plus-one response content produces typed response limit |
+| `header-limit` | An 8 KiB-plus-one response field produces typed response limit |
+| `cancel` | A stop request aborts a deliberately stalled in-flight operation |
+| `timeout` | The remaining absolute deadline aborts a deliberately stalled operation |
+| `pre-cancel` | Cancellation wins before any proxy, TLS, HTTP, or credential network effect |
+| `http-401` | Status maps to typed authentication |
+| `http-403` | Status without rate-limit facts maps to typed permission |
+| `http-429` | Status plus bounded `Retry-After: 7` maps to typed rate limit with seven seconds |
+| `content-encoding` | A compressed-content declaration is rejected as malformed |
+
+Every networked bootstrap scenario also attempts a replay and requires fixed
+unavailability, proving that a claimed bootstrap credential is one-shot.
+The untrusted-certificate server may observe a completed TLS 1.3 server-side
+handshake before the client rejects trust, or it may observe a handshake
+failure; in both allowed observations the client sends no origin HTTP bytes or
+authorization. The fixture therefore proves peer-verification rejection, not
+one particular server-side handshake timing.
+
+The fixture's adapter-private configuration is compiled only when
+`BPR_BUILD_TESTS=ON`. It replaces production system-proxy discovery with one
+or two ordered loopback proxies and may augment system roots with exactly one
+fixture CA. A separate tests-disabled build must contain no
+`make_native_https_*_transport_for_test` symbol. The fixture directly proves
+candidate fallback and wire policy, while `--runtime` separately reports Qt
+TLS support/backend and the first raw system-proxy candidate kind/count. The
+runtime count is not proof that every returned system candidate is reachable.
+
+Both the compiled contract and all 15 loopback scenarios passed on the
+directly exercised macOS arm64 host. Runtime facts reported Qt Network 6.11.1,
+OpenSSL, TLS supported, and one direct candidate. A tests-disabled dependency
+audit found no test-only factories, retained the GitHub adapter's Security and
+CoreFoundation dependencies, and observed the current ad-hoc linker
+signature. This is internal wire and development-runtime evidence, not
+BPR-0027 public provider composition or package certification.
+
+The Linux matrix passed in an Ubuntu 26.04 x86_64 full-system QEMU guest with
+Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. Its frozen
+`native_https_transport.cpp` SHA-256 was
+`fd7976b48241795302ded4d1a73c851064edce66364a3b50b990294ca95ab134`;
+the frozen harness SHA-256 was
+`bd0f771cd261a7fb6b4f1f4691af93c12adc7d4fe7ced96cb1182ee8bf2369dd`.
+The contract and fixture passed 2/2 in 0.12/11.29 seconds, with all 15
+scenarios directly passing. Both architecture tests passed 2/2 in
+5.00/144.35 seconds with all 92 hostile mutations. The uninstrumented
+focused suite passed repeatedly, and
+runtime facts were
+`native-https-runtime:tls=openssl:proxy=direct:candidates=1:supported=true`.
+The ELF directly needs Qt6Network and Qt6Core. A controlled dependency trace
+of only `success` under `strace` opened
+`qt6/plugins/tls/libqopensslbackend.so`, `libssl.so.3`, and `libcrypto.so.3`.
+A full-suite `strace` is not evidence: tracing perturbs cancellation timing,
+so functional evidence comes from the uninstrumented passes and the
+single-success trace proves only dependency selection. Source and generated
+build contained no workflow files or GitHub Actions references.
+
+Windows execution remains BPR-0036 work and is nonblocking for the other
+slices; it blocks only affected Windows claims and final RFC-BPR-0002
+closeout.
+
+The transport's 30-second deadline and prompt cancellation cannot preempt
+synchronous Qt system/PAC proxy discovery or system-root enumeration.
+Response/header limits bound bytes accepted and retained by the adapter, not
+Qt's private HTTP parser, network/TLS buffers, or pre-metadata allocation.
+`QNetworkReply` may also normalize or collapse duplicate response headers,
+including `Location`, before exposing raw header pairs and redirect
+attributes; policy enforces the metadata Qt exposes, not an exact count of
+on-wire Location fields. Likewise, the explicit Authorization buffer is
+overwritten but Qt-held copies cannot be exactly wiped. GraphQL
+HTTP-200/body-defined secondary-rate-limit interpretation and `ListChecks`
+expected-`HeadOid` binding remain BPR-0027.
 
 ## GitHub hosts
 

@@ -226,6 +226,117 @@ provenance, canonical lowercase ASCII FQDNs, and the exact GitHub.com or GHES
 rewrite a profile. GraphQL redirects are rejected; REST redirects require the
 same validated authority and API namespace.
 
+The BPR-0026 native HTTPS wire transport confines `QNetworkAccessManager`,
+requests, replies, TLS objects, and proxy objects to one dedicated adapter
+worker. It revalidates the complete canonical request/correlation before
+network use and accepts only one operation per transport at a time.
+Bootstrap credentials authorize one exact-context viewer-identity request
+and are destroyed once claimed. Account credentials must match the profile,
+profile revision, host, account, server contract, application session, and
+identity generation. A mismatch cannot be repaired from provider content and
+causes no network request.
+
+Production proxy selection calls Qt's system query separately for every hop,
+admits no more than 16 candidates, preserves supported direct/HTTP/SOCKS5
+order, and falls back only after a retryable proxy or connection failure.
+Manager-local proxy selection and cache clearing avoid process-global proxy
+mutation. On generic Unix, the selected Qt system policy can use
+libproxy/desktop sources or lowercase `http_proxy`, `https_proxy`, and
+`no_proxy`; production code itself does not call `getenv`. Proxy
+authentication is never filled with the GitHub credential; a proxy challenge
+aborts that candidate and may select a later candidate. Origin
+authentication, TLS, HTTP, malformed-response, and policy failures do not.
+
+TLS begins with an explicit operating-system root set, no local certificate or
+private key, `VerifyPeer`, TLS 1.2 or later, HTTP/1.1 ALPN, disabled session
+reuse, and no certificate-error bypass. `sslErrors` and pre-shared-key
+challenges abort. Accepted terminals require the `QNetworkReply::encrypted`
+completed-initial-handshake signal, a non-null peer certificate, no accepted
+`sslErrors`, the exact requested URL, no HTTP/2 use, and the configured
+verification/minimum-protocol policy. The scheme-associated
+`ConnectionEncryptedAttribute` is an additional consistency check, not
+standalone negotiated-session evidence. The meaningful evidence is the peer
+certificate and completed-handshake signal under enforced
+`VerifyPeer`/TLS-1.2-or-later policy, together with the trusted/untrusted
+fixture outcomes. The reply surface does not directly record the negotiated
+TLS version and must not be described as doing so.
+
+Automatic redirects are off. A fresh credential-bearing request may follow
+at most three redirects only for REST `GET` and only to a canonical,
+query-free HTTPS path on the exact validated authority inside the API
+namespace. GraphQL, cross-authority, looping, malformed, and fourth-hop
+redirects fail closed. The loopback fixture verifies that Authorization
+appears only inside the post-CONNECT TLS request and never in CONNECT itself;
+the same random token is required on an accepted same-authority hop.
+
+The adapter limits request bodies to 256 KiB, accepted response bodies to
+4 MiB, response headers to 64 fields/64 KiB aggregate/8 KiB each, proxy
+candidates to 16, redirects to three, and the cancellable transfer/event-loop
+portion to one absolute 30-second deadline. Fixed-size reads request at most
+the remaining accepted bound plus one. Successful responses require HTTP 200,
+JSON content type, no content encoding, consistent content length, and
+bounded pagination metadata. Every failure crossing inward is a fixed typed
+category with no URL, header, provider body, TLS detail, proxy address, or
+credential text.
+
+These limits do not make Qt's private HTTP parser, TLS/socket buffers, or
+bytes accumulated before `QNetworkReply` metadata exactly bounded. The
+reply may normalize or collapse duplicate headers, notably `Location`, before
+exposing raw pairs or redirect attributes. The adapter enforces the metadata
+Qt exposes, not an exact on-wire Location count. The credential owner and the
+transport's explicit mutable Authorization buffer are overwritten, but Qt may
+copy the header into request/network/TLS/socket storage for which it exposes
+no precise wipe operation. This in-process transport boundary reduces
+credential reach; it is not a memory-isolation sandbox.
+
+System/PAC proxy discovery and system-root enumeration are synchronous Qt
+calls. The absolute deadline starts when the operation is admitted, is checked
+around that preparation, and governs the subsequent request/event loop, but
+it cannot interrupt a blocked system discovery call. Only the remaining time
+is used after control returns. Cancellation queues an abort and polls the stop
+token once an event loop is active; prompt cancellation and shutdown can
+therefore wait for synchronous discovery to return.
+
+The 15-case TLS-over-loopback-CONNECT fixture exercises trusted success,
+ordered proxy fallback, accepted same-authority redirect, rejected
+cross-authority and GraphQL redirects, certificate failure, header/body
+limits, cancellation before and during I/O, timeout, HTTP 401/403/429, and
+content-encoding rejection. It passed on the directly exercised macOS arm64
+host. The runtime fact probe reported Qt Network 6.11.1, the OpenSSL backend,
+TLS support, and one direct system-proxy candidate. A separate test-disabled
+build omitted the test-only proxy/CA factories. This fixture verifies the
+internal wire boundary, not BPR-0027's public provider composition.
+
+The corresponding Linux verification used an Ubuntu 26.04 x86_64 full-system
+QEMU guest with Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. It froze
+`native_https_transport.cpp` at SHA-256
+`fd7976b48241795302ded4d1a73c851064edce66364a3b50b990294ca95ab134`
+and the harness at
+`bd0f771cd261a7fb6b4f1f4691af93c12adc7d4fe7ced96cb1182ee8bf2369dd`.
+The focused contract/fixture passed 2/2 in 0.12/11.29 seconds and all 15
+scenarios passed directly; the architecture matrix passed 2/2 in
+5.00/144.35 seconds with all 92 hostile mutations. The uninstrumented
+focused suite passed repeatedly. Runtime
+reported
+`native-https-runtime:tls=openssl:proxy=direct:candidates=1:supported=true`.
+The ELF directly needs Qt6Network and Qt6Core. A controlled trace of one
+trusted-success case under `strace` opened the Qt OpenSSL backend plugin,
+`libssl.so.3`, and `libcrypto.so.3`. A full-suite `strace` is explicitly not
+evidence because instrumentation perturbs cancellation timing; the trace
+establishes only single-success dependency selection, while uninstrumented
+runs establish behavior. No workflow files or GitHub Actions references were
+present in source or the generated build.
+
+Windows target-native execution remains BPR-0036 work and is nonblocking for
+other implementation slices; it blocks only affected Windows claims and final
+RFC-BPR-0002 closeout.
+
+Transport status alone is deliberately not a complete rate-limit
+interpreter. HTTP 403 with zero remaining or bounded `Retry-After`, and HTTP
+429, receive typed rate-limit outcomes. GraphQL HTTP-200 error bodies and
+body-defined secondary limits require BPR-0027, as does binding a
+`ListChecks` result to the expected `HeadOid`.
+
 Capability introspection is untrusted input. One allowlisted read-only query
 is subject to response-byte, depth, member, collection, string, and aggregate
 value bounds. Duplicate names, partial data, GraphQL errors, malformed type
@@ -237,3 +348,8 @@ profile/host/account/server/probe-contract cache.
 ## Security evidence
 
 Required release evidence includes threat-model review, SBOM, dependency inventory, secret scan, static analysis, sanitizers, parser fuzzing, hardened build flags, signed package verification, mutation-target tests, and diagnostics redaction tests.
+
+GitHub Actions is not a build, test, package, release, or security-verification
+surface for BetterPullReview. Native transport evidence is produced by local
+and target-native CMake/CTest runs, loopback fixtures, dependency inspection,
+and runtime observation.

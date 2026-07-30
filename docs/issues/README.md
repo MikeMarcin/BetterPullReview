@@ -29,8 +29,9 @@ broker slices are verified. `BPR-0023` is in `done/` with its Windows
 implementation evidence, while direct Windows x64 execution remains in
 `BPR-0036`. `BPR-0025` is in `done/`; its production CLI path remains
 fail-closed with zero launches until backlog card `BPR-0037` proves the
-separate trust and identity contract. `BPR-0026` is ready and is the next
-implementation slice.
+separate trust and identity contract. `BPR-0026` is in `done/` with its
+macOS/Linux native HTTPS trust, proxy, redirect, cancellation, bounds, and
+runtime evidence. `BPR-0027` is ready as the next implementation slice.
 
 The open Windows task and CLI production-trust task do not block later
 implementation, tests, documentation, security review, or simplification on

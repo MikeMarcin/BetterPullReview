@@ -75,6 +75,7 @@ endif()
 """
 
 GITHUB_TARGET = """\
+find_package(Qt6 REQUIRED COMPONENTS Core Network)
 find_package(Threads REQUIRED)
 add_library(better_pull_review_adapter_github INTERFACE)
 add_library(BetterPullReview::AdapterGitHub ALIAS better_pull_review_adapter_github)
@@ -85,13 +86,26 @@ target_link_libraries(
     PRIVATE
         Threads::Threads
 )
+target_link_libraries(
+    better_pull_review_adapter_github
+    PRIVATE
+        Qt6::Network
+)
 target_sources(
     better_pull_review_adapter_github
     INTERFACE
         src/github_cli_process_runner.cpp
         src/gh_cli_transport.cpp
+        src/github_wire_request_validation.cpp
         src/native_https_transport.cpp
 )
+if(BPR_BUILD_TESTS)
+    target_compile_definitions(
+        better_pull_review_adapter_github
+        PRIVATE
+            BPR_NATIVE_HTTPS_TESTING=1
+    )
+endif()
 """ + (
     APPLE_KEYCHAIN_TARGET
     + WINDOWS_CREDENTIAL_TARGET
@@ -736,6 +750,7 @@ make_github_cli_process_runner_for_test(
 
 GH_CLI_TRANSPORT_SOURCE = """\
 #include "gh_cli_transport.hpp"
+#include "github_wire_request_validation.hpp"
 
 constexpr const char* neutral_repository_marker = ".git";
 constexpr const char* arguments[] = {
@@ -766,6 +781,94 @@ constexpr const char* environment[] = {
     "SSL_CERT_FILE",
     "SSL_CERT_DIR",
 };
+"""
+
+NATIVE_HTTPS_TRANSPORT_INTERFACE = """\
+#pragma once
+#include <chrono>
+#include <expected>
+#include <memory>
+#include <stop_token>
+#include <string>
+class native_https_transport;
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+struct native_https_test_configuration {
+    std::string ProxyHost;
+};
+auto make_native_https_transport_for_test()
+    -> std::unique_ptr<native_https_transport>;
+#endif
+"""
+
+GITHUB_WIRE_VALIDATION_INTERFACE = """\
+#pragma once
+#include <expected>
+auto validate_github_wire_request() -> std::expected<void, int>;
+"""
+
+GITHUB_WIRE_VALIDATION_SOURCE = """\
+#include "github_wire_request_validation.hpp"
+auto validate_github_wire_request() -> std::expected<void, int> {
+    return validate_outbound_read_request();
+}
+"""
+
+NATIVE_HTTPS_TRANSPORT_SOURCE = """\
+#include "native_https_transport.hpp"
+#include "github_wire_request_validation.hpp"
+#include <QNetworkAccessManager>
+#include <QNetworkProxyFactory>
+#include <QNetworkRequest>
+#include <QSslConfiguration>
+#include <QSslSocket>
+#include <stop_token>
+
+constexpr int maximum_system_proxy_candidates = 16;
+struct active_hop_guard {};
+
+void remaining_before_deadline() {}
+bool proxy_candidate_retryable() { return true; }
+
+void native_https_policy() {
+    QNetworkAccessManager manager;
+    QNetworkRequest request;
+    QSslConfiguration tls;
+    QNetworkProxyFactory::systemProxyForQuery();
+    manager.setRedirectPolicy(QNetworkRequest::ManualRedirectPolicy);
+    tls.setPeerVerifyMode(QSslSocket::VerifyPeer);
+    tls.setProtocol(QSsl::TlsV1_2OrLater);
+    QSslConfiguration::systemCaCertificates();
+    tls.setLocalCertificateChain({});
+    tls.setBackendConfiguration({});
+    auto signal = &QNetworkAccessManager::sslErrors;
+    auto encrypted = &QNetworkReply::encrypted;
+    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+    request.setRawHeader("Accept-Encoding", "identity");
+    request.setRawHeader("Accept-Language", "*");
+    request.setTransferTimeout(1);
+    manager.get(request)->setReadBufferSize(1);
+    validate_github_redirect_target();
+    validate_github_wire_request();
+    QSslSocket::activeBackend();
+}
+
+void cancellation(std::stop_token stop) {
+    std::stop_callback callback{stop, [] {}};
+}
+
+struct completion_state {
+    struct done_state {
+        void notify_one();
+    } Done;
+};
+
+void complete(completion_state& state) {
+    state.Done.notify_one();
+}
+
+#if defined(BPR_NATIVE_HTTPS_TESTING)
+void fixed_loopback_fixture_policy();
+#endif
 """
 
 MACOS_KEYCHAIN_SOURCE = """\
@@ -1063,6 +1166,18 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 files[
                     "src/adapters/github/src/gh_cli_transport.cpp"
                 ] = GH_CLI_TRANSPORT_SOURCE
+            files[
+                "src/adapters/github/src/native_https_transport.hpp"
+            ] = NATIVE_HTTPS_TRANSPORT_INTERFACE
+            files[
+                "src/adapters/github/src/native_https_transport.cpp"
+            ] = NATIVE_HTTPS_TRANSPORT_SOURCE
+            files[
+                "src/adapters/github/src/github_wire_request_validation.hpp"
+            ] = GITHUB_WIRE_VALIDATION_INTERFACE
+            files[
+                "src/adapters/github/src/github_wire_request_validation.cpp"
+            ] = GITHUB_WIRE_VALIDATION_SOURCE
             if not omit_macos_source:
                 files["src/adapters/github/src/macos_keychain.cpp"] = (
                     MACOS_KEYCHAIN_SOURCE
@@ -1112,8 +1227,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "src/adapters/github/src/gh_cli_transport.cpp":
                     GH_CLI_TRANSPORT_SOURCE,
                 "src/adapters/github/src/native_https_transport.cpp":
-                    "#include <QNetworkAccessManager>\n"
-                    "QNetworkAccessManager* manager;\n",
+                    NATIVE_HTTPS_TRANSPORT_SOURCE,
             }
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -1300,7 +1414,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_designated_effect_source_must_belong_to_github_target(self) -> None:
         self.assert_failure(
-            "GitHub CLI broker source must be explicitly owned",
+            "GitHub host adapter source must be explicitly owned",
             {
                 "src/adapters/github/src/github_cli_process_runner.cpp":
                     GITHUB_CLI_PROCESS_RUNNER_SOURCE
@@ -1330,6 +1444,144 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                             f"{effect}* forbidden_effect;\n"
                     },
                 )
+
+    def test_native_https_target_requires_private_qt_network_and_test_seam(
+        self,
+    ) -> None:
+        mutations = (
+            (
+                "find_package(Qt6 REQUIRED COMPONENTS Core Network)\n",
+                "",
+                "requires the Qt6 Network component",
+            ),
+            (
+                "        Qt6::Network\n",
+                "",
+                "must link Qt6::Network privately",
+            ),
+            (
+                "if(BPR_BUILD_TESTS)",
+                "if(TRUE)",
+                "fixture seams must compile privately",
+            ),
+            (
+                "        PRIVATE\n            BPR_NATIVE_HTTPS_TESTING=1",
+                "        PUBLIC\n            BPR_NATIVE_HTTPS_TESTING=1",
+                "fixture seams must compile privately",
+            ),
+        )
+        for original, replacement, expected in mutations:
+            with self.subTest(expected=expected):
+                self.assert_failure(
+                    expected,
+                    github_target=GITHUB_TARGET.replace(
+                        original,
+                        replacement,
+                    ),
+                )
+
+    def test_native_https_headers_reject_qt_and_platform_effects(self) -> None:
+        for hostile, expected in (
+            (
+                "#include <QNetworkReply>\n",
+                "Qt network/TLS type ownership violation",
+            ),
+            (
+                "#include <windows.h>\n",
+                "native HTTPS interfaces must remain standard C++",
+            ),
+        ):
+            with self.subTest(hostile=hostile.strip()):
+                self.assert_failure(
+                    expected,
+                    {
+                        "src/adapters/github/src/native_https_transport.hpp":
+                            NATIVE_HTTPS_TRANSPORT_INTERFACE + hostile,
+                    },
+                )
+
+    def test_native_https_requires_system_trust_proxy_and_manual_policy(
+        self,
+    ) -> None:
+        mutations = (
+            "QNetworkProxyFactory::systemProxyForQuery();",
+            "constexpr int maximum_system_proxy_candidates = 16;",
+            "bool proxy_candidate_retryable() { return true; }",
+            "QNetworkRequest::ManualRedirectPolicy",
+            "QSslSocket::VerifyPeer",
+            "QSsl::TlsV1_2OrLater",
+            "    auto encrypted = &QNetworkReply::encrypted;",
+            'request.setRawHeader("Accept-Encoding", "identity");',
+            "std::stop_callback callback{stop, [] {}};",
+            "struct active_hop_guard {};",
+            "void remaining_before_deadline() {}",
+            "    state.Done.notify_one();",
+            "validate_github_redirect_target();",
+        )
+        for selected in mutations:
+            with self.subTest(selected=selected):
+                self.assert_failure(
+                    "native HTTPS must retain explicit",
+                    {
+                        "src/adapters/github/src/native_https_transport.cpp":
+                            NATIVE_HTTPS_TRANSPORT_SOURCE.replace(
+                                selected,
+                                "",
+                            ),
+                    },
+                )
+
+    def test_native_https_rejects_bypass_global_and_unbounded_surfaces(
+        self,
+    ) -> None:
+        hostile_surfaces = (
+            ("reply.ignoreSslErrors();\n", "certificate bypass"),
+            (
+                "QSslConfiguration::setDefaultConfiguration(tls);\n",
+                "process-global TLS mutation",
+            ),
+            (
+                "QNetworkProxy::setApplicationProxy({});\n",
+                "global proxy mutation",
+            ),
+            ("reply.readAll();\n", "unbounded response read"),
+            ("qWarning() << reply.errorString();\n", "raw diagnostic"),
+            ("QNetworkDiskCache cache;\n", "persistence"),
+            ("auto value = qgetenv(\"HTTPS_PROXY\");\n", "ambient"),
+        )
+        for hostile, expected in hostile_surfaces:
+            with self.subTest(expected=expected):
+                self.assert_failure(
+                    expected,
+                    {
+                        "src/adapters/github/src/native_https_transport.cpp":
+                            NATIVE_HTTPS_TRANSPORT_SOURCE + hostile,
+                    },
+                )
+
+    def test_both_transports_require_shared_canonical_wire_validation(
+        self,
+    ) -> None:
+        self.assert_failure(
+            "transports must use the shared correlation",
+            {
+                "src/adapters/github/src/gh_cli_transport.cpp":
+                    GH_CLI_TRANSPORT_SOURCE.replace(
+                        '#include "github_wire_request_validation.hpp"\n',
+                        "",
+                    ),
+            },
+        )
+        self.assert_failure(
+            "must recompile and validate the canonical",
+            {
+                "src/adapters/github/src/github_wire_request_validation.cpp":
+                    GITHUB_WIRE_VALIDATION_SOURCE.replace(
+                        "validate_outbound_read_request();",
+                        "std::expected<void, int>{};",
+                    ),
+            },
+        )
 
     def test_qt_adapter_cannot_own_provider_effects(self) -> None:
         self.assert_failure(
@@ -1372,7 +1624,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
-    def test_cli_broker_designated_files_are_required(self) -> None:
+    def test_github_host_designated_files_are_required(self) -> None:
         omissions = (
             {"omit_process_interface": True},
             {"omit_process_runner_interface": True},
@@ -1382,11 +1634,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         for omission in omissions:
             with self.subTest(omission=omission):
                 self.assert_failure(
-                    "designated GitHub CLI broker file is required",
+                    "designated GitHub host adapter file is required",
                     **omission,
                 )
 
-    def test_cli_broker_effect_sources_require_explicit_target_ownership(
+    def test_github_host_effect_sources_require_explicit_target_ownership(
         self,
     ) -> None:
         for source in (
@@ -1395,7 +1647,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         ):
             with self.subTest(source=source):
                 self.assert_failure(
-                    "GitHub CLI broker source must be explicitly owned",
+                    "GitHub host adapter source must be explicitly owned",
                     github_target=GITHUB_TARGET.replace(source, ""),
                 )
 

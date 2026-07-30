@@ -376,8 +376,9 @@ The native test is an x86-64 ELF PIE dynamically linked to libsecret, GIO,
 GObject, and GLib. Inspection found the selected service, collection, item,
 secret-value, and D-Bus proxy imports. The current public application reports
 the Linux vault as not composed, so public-path selection remains `Planned`.
-Native HTTPS, its TLS/proxy/redirect behavior, and composed runtime evidence
-remain BPR-0026 and BPR-0027 work.
+BPR-0026 now supplies the separate Linux native HTTPS
+TLS/proxy/redirect/runtime evidence below. Composed public runtime evidence
+remains BPR-0027 work.
 
 ## GitHub CLI broker slice result
 
@@ -482,6 +483,75 @@ validation, replacement/content mutation, launch, and open. Initial-group
 signaling is not claimed race-free. Native HTTPS in BPR-0026 is the available
 implementation path; its evidence cannot be assigned to CLI mode.
 
+## Native HTTPS transport slice result
+
+BPR-0026 adds the internal native `github_wire_transport_port` behind a
+standard-C++ boundary. One dedicated Qt worker owns one
+`QNetworkAccessManager`; complete request/correlation validation,
+single-operation admission, absolute-deadline and cancellation checks,
+one-shot bootstrap credentials, exact stored-account authority, and typed
+redacted terminals all precede or contain network effects.
+
+Production asks Qt for ordered system proxy candidates on every accepted hop,
+admits at most 16 supported direct, HTTP, or SOCKS5 entries, and falls back
+only after retryable proxy or connection failure. Every attempt uses
+manager-local proxy state, explicit system roots, `VerifyPeer`, TLS 1.2 or
+later, HTTP/1.1 ALPN, no HTTP/2, no cookie/cache/authentication reuse, and no
+certificate-error bypass. A successful terminal requires the completed
+`QNetworkReply::encrypted` handshake signal, a peer certificate, exact reply
+URL, and consistent TLS policy state. Automatic redirects are disabled; at
+most three manually validated REST `GET` redirects may stay on the exact
+validated authority and API namespace. GraphQL, cross-authority, looping,
+malformed, and over-limit redirects fail closed.
+
+The adapter admits request bodies through 256 KiB and response bodies through
+4 MiB, with 64 response headers, 64 KiB aggregate header text, 8 KiB per
+field, fixed 16 KiB reads, and a 30-second absolute deadline. Synchronous Qt
+system/PAC proxy discovery and system-root enumeration cannot be interrupted,
+so only the remaining deadline applies after they return. The bounds govern
+bytes accepted and retained by the adapter, not Qt-private parser, socket, or
+TLS buffers. Qt may normalize duplicate response headers, and its internal
+Authorization copies cannot be exactly wiped; those limitations are recorded
+rather than overclaimed.
+
+The test-only seam preserves the production request, TLS, redirect,
+cancellation, response, and credential-binding path while substituting
+ordered loopback CONNECT proxies and one disposable fixture CA. Its 15
+scenarios cover trusted success, ordered proxy fallback, allowed and rejected
+redirects, certificate rejection, response/header limits, cancellation,
+timeout, HTTP 401/403/429 classification, content-encoding rejection, and
+one-shot bootstrap replay rejection.
+
+On macOS 15.7.7 arm64 with Qt Network 6.11.1, the focused contract and fixture
+passed 2/2, all 15 scenarios passed, and the runtime reported
+`native-https-runtime:tls=openssl:proxy=direct:candidates=1:supported=true`.
+A tests-disabled Release audit found no test-only transport factories and
+recorded the selected Qt Network, OpenSSL, Security, and CoreFoundation
+dependencies plus the current ad hoc linker signature. The focused tests also
+passed under AddressSanitizer and UndefinedBehaviorSanitizer.
+
+The final simplified source and harness also passed directly in the Ubuntu
+26.04 x86_64 full-system QEMU guest with Linux 7.0.0-28, GCC 15.2, Qt
+6.10.2, and OpenSSL 3.5.5. The frozen transport source SHA-256 was
+`fd7976b48241795302ded4d1a73c851064edce66364a3b50b990294ca95ab134`;
+the harness SHA-256 was
+`bd0f771cd261a7fb6b4f1f4691af93c12adc7d4fe7ced96cb1182ee8bf2369dd`.
+The focused contract/fixture passed 2/2 in 0.12/11.29 seconds, the direct
+harness reported `native-https-transport-fixture:pass`, and the architecture
+gates passed 2/2 in 5.00/144.35 seconds with all 92 hostile mutations.
+Runtime facts matched macOS. A tests-disabled Release build omitted the
+testing macro and factories; ELF inspection recorded Qt6Network and Qt6Core,
+and a controlled single-success trace opened Qt's OpenSSL backend,
+`libssl.so.3`, and `libcrypto.so.3`. The ordinary suite is the behavioral
+evidence because full-suite tracing perturbs cancellation timing.
+
+This verifies the macOS and Linux internal wire transport, not BPR-0027's
+pagination, normalization, host staging, public provider composition, or
+rendered Qt flow. Windows 10/11 x64 execution and dependency inspection remain
+open in BPR-0036. By product-owner direction, that Windows work is nonblocking
+for every other implementation slice and blocks only its affected Windows
+claims and final RFC-BPR-0002 closeout.
+
 ## Claim matrix
 
 | Claim | Direct surface | Command or interaction | What proves | Result | Evidence |
@@ -495,28 +565,29 @@ implementation path; its evidence cannot be assigned to CLI mode.
 | macOS/Linux CLI broker mechanically preserves the process boundary | Injectable process port plus real child-process integration on each selected Unix target | Launch the same-executable child with exact input/retention/time limits and an unknown parent-environment canary; exercise initial-process-group cleanup and escape on clean success, failure, timeout, and cancellation; compile every selected operation/profile request | Canonical executable, closed argv, stdin body, canonical currently non-repository cwd, requested environment plus only the documented Darwin addition, directly observed Unix hardening/session/group facts, bounded public reads/retention, initial-process-group cleanup, watchdog quarantine, fixed failures, and canary absence are directly inspected | Verified | BPR-0025 macOS and Linux transport/compiler and sole-`QProcess` runner suites plus hostile source mutations; a descendant that changes group can escape, numeric PID/PGID reuse means group signaling is not claimed race-free, actual live-process failed-reap retention remains source-gated, Qt private in-flight pipe allocation is not claimed, and the separate trust row governs whether this boundary may send a provider request |
 | Windows CLI process boundary is target-native and descendant-contained | Real Windows 10/11 x64 runner | Inspect the raw child environment, valid/invalid `.exe` startup, Job Object descendant containment, cancellation/timeout cleanup, crash artifacts, and in-flight stream allocation | The selected Windows implementation has exact process authority and leaves no child, descendant, credential, or diagnostic artifact | Planned | BPR-0036 owns the direct Windows run and any required Job Object/private-pipe implementation; current source remains fail-closed and does not make this claim |
 | CLI broker fails closed on trust | CLI executable/authority/configuration/identity contract | Exercise certificate failure and a cross-authority redirect against the exact selected binary; inspect executable, CA material, persisted transport, and account-selection replacement/mutation surfaces; then inject a fake successful process port | The probe digest is not launch-bound, certificate rejection reaches no HTTP handler, the redirect reaches the unknown sink, ambient `http_unix_socket`, CA identity/content binding, and active-account binding remain unproved, and production emits typed `cli_unavailable` with zero process calls | Planned | BPR-0025 directly falsifies trust for `gh` 2.95.0 and verifies all four typed fail-closed reasons; BPR-0037 must independently close the executable-identity, redirect, ambient-configuration (including CA-material TOCTOU), and credential-identity gaps before this claim or RFC closeout can pass |
-| Native HTTPS fails closed | Native network adapter on each target platform | Exercise system proxy, trusted TLS, unknown-host redirect, certificate failure, cancellation, and response bounds | Only configured HTTPS authorities succeed; no certificate bypass or partial snapshot commit occurs | Planned | Pending |
+| macOS/Linux native HTTPS fails closed | Native network adapter on both directly exercised targets | Exercise ordered proxy fallback, system-proxy observation, trusted TLS, unknown-host and GraphQL redirects, certificate failure, cancellation, timeout, response/header bounds, and typed HTTP failures | Only configured HTTPS authorities succeed; trust, authority, credential, deadline, cancellation, and retention policies fail closed inside the internal wire transport | Verified | BPR-0026 15-scenario macOS arm64 and frozen Ubuntu 26.04 x86_64 full-system matrices, runtime facts, tests-disabled symbol/dependency audits, sanitizer run, and hostile architecture gates; public snapshot commit remains separately governed by BPR-0027 |
+| Windows native HTTPS fails closed | Native network adapter on real Windows 10/11 x64 | Exercise system proxy, trusted TLS, unknown-host and GraphQL redirects, certificate failure, cancellation, response/header bounds, runtime scope, and PE dependencies | The selected Windows Qt TLS/proxy runtime enforces the same fail-closed wire contract | Planned | BPR-0036 owns direct target-native execution and inspection; this open Windows task is nonblocking for all other implementation work |
 | Portable credential authority and lifetime are explicit | Application credential-vault contract and queued fake | Exercise construction, movement, replacement, exact-key isolation, failure, cancellation, and reordered completion | Credential bytes remain bounded and move-only; exact authority/correlation survives every terminal path; core and Qt cannot name a vault type | Verified | BPR-0021 contract, fake-vault suite, and hostile source-boundary checks; no native-vault claim |
 | macOS credentials stay in Keychain and fail closed | Native macOS adapter | Store/retrieve/replace/delete a disposable canary; inject lock/deny/unavailable/corrupt/delete failures; inspect source, process inputs/output/scratch, native imports, and cleanup | The exact default-Keychain item is the sole adapter-selected store; captured surfaces are canary-free; final exact item is absent; every failure is typed with no fallback | Verified | BPR-0022 contract and native fixture, source boundary, Security/CoreFoundation import inspection, and exact cleanup; public composition remains separately planned |
-| Windows credentials stay in Credential Manager and fail closed | Native Windows adapter and HTTPS runtime | Run vault lifecycle/failure cases plus TLS/proxy/redirect/runtime/dependency inspection on native Windows | Credential, network, process, and linked/runtime dependencies match the selected Windows implementation with no fallback | Planned | BPR-0023 adapter, fake contracts, fixture, boundaries, and x64 cross-PE imports are prepared; BPR-0036 retains native lifecycle/cleanup plus BPR-0026 HTTPS and composed-runtime evidence |
-| Linux credentials stay in Secret Service and fail closed | Native Linux desktop adapter and HTTPS runtime | Run vault lifecycle/failure cases plus TLS/proxy/redirect/runtime/dependency inspection on native Linux | Credential, network, process, and linked/runtime dependencies match the selected Linux implementation with no fallback | Planned | BPR-0024 verifies the vault portion through the full-system Linux lifecycle, locked/unavailable/redirect cases, exact cleanup, and native dependency inspection; BPR-0026 HTTPS and BPR-0027 public composition remain pending |
+| Windows credentials stay in Credential Manager and fail closed | Native Windows adapter and HTTPS runtime | Run vault lifecycle/failure cases plus TLS/proxy/redirect/runtime/dependency inspection on native Windows | Credential, network, process, and linked/runtime dependencies match the selected Windows implementation with no fallback | Planned | BPR-0023 adapter, fake contracts, fixture, boundaries, and x64 cross-PE imports plus BPR-0026's portable native-HTTPS implementation are prepared; BPR-0036 retains direct native lifecycle, cleanup, HTTPS, and dependency evidence |
+| Linux credentials stay in Secret Service and fail closed | Native Linux desktop adapter and HTTPS runtime | Run vault lifecycle/failure cases plus TLS/proxy/redirect/runtime/dependency inspection on native Linux | Credential, network, process, and linked/runtime dependencies match the selected Linux implementation with no fallback | Verified | BPR-0024 full-system vault lifecycle, locked/unavailable/redirect cases, exact cleanup, and dependency inspection plus BPR-0026 frozen native-HTTPS fixture, runtime facts, and ELF/OpenSSL inspection; public composition remains separately planned in BPR-0027 |
 | Host/account switching invalidates identity-sensitive state | Core plus host with reordered completions | Switch profile/account while a session probe and PR fetch are in flight | Generation advances; stages, caches, rate/retry state, and projections invalidate; old completions emit no acceptance delta | Planned | Pending |
 | Staged snapshots commit only after core acceptance | Application host and manual executor | Deliver current, stale-request, stale-profile, stale-account, stale-PR, and stale-generation completions | Only the exact accepted snapshot ID enters the active cache or Qt projection | Planned | Pending |
 | Failures are clear and bounded | Core diagnostics and Qt projection | Exercise authentication, permission, network, API-version, capability, rate-limit, malformed, oversized, vault, TLS, and redirect failures | Typed safe presentation appears without raw provider, process, remote-content, or credential text | Planned | Pending |
-| Provider inputs cannot exhaust the application | Strict fixture and transport limits | Exceed body, page, nesting, string, retained stdout/stderr, duration, and allocation limits independently | Each limit fails atomically and leaves the accepted authority/projection unchanged | Planned | BPR-0019 verifies read JSON/body/page/string/record/allocation bounds; BPR-0020 verifies introspection request/response/depth/member/collection/string/aggregate bounds; BPR-0025 runtime tests verify CLI stdin, public read/retention, timeout/cancellation/direct-child-reap terminals, watchdog quarantine, and atomic partial-output behavior on macOS/Linux, while actual live-process failed-reap retention is source-gated; Qt private in-flight pipe allocation, Windows, network, and staged-authority evidence remain pending |
+| Provider inputs cannot exhaust the application | Strict fixture and transport limits | Exceed body, page, nesting, string, retained stdout/stderr, duration, and allocation limits independently | Each limit fails atomically and leaves the accepted authority/projection unchanged | Planned | BPR-0019 verifies read JSON/body/page/string/record/allocation bounds; BPR-0020 verifies introspection request/response/depth/member/collection/string/aggregate bounds; BPR-0025 verifies CLI stdin, public read/retention, timeout/cancellation/direct-child-reap terminals, watchdog quarantine, and atomic partial-output behavior on macOS/Linux, while actual live-process failed-reap retention is source-gated; BPR-0026 verifies native request, response, header, proxy, redirect, read, and deadline limits on macOS/Linux while explicitly excluding Qt-private buffers; Windows and staged-authority evidence remain pending |
 | Core decides, host performs, Qt presents | Target graph, source scan, and full trace | Run core-only build, boundary checks, host integration, and Qt action/projection tests | Core has no effects/provider/Qt types, host owns execution/staging, and Qt receives projections only | Planned | Pending |
 | Public application selects real provider implementations | Concrete composition | Run QAction-to-provider-to-completion-to-rendered-projection flows for both profile fixtures and both transport selections | The actual executable selects the claimed transport and reaches an accepted normalized state rather than a helper | Planned | Pending |
-| Runtime effects are mode-bound | Live process, network, and binary inspection | Inspect foundation, CLI, and HTTPS modes on applicable native platforms | Foundation has no provider effect; CLI permits only resolved `gh`; HTTPS permits only configured outbound authority; no mode listens; dependencies match selection | Planned | Pending |
+| Runtime effects are mode-bound | Live process, network, and binary inspection | Inspect foundation, CLI, and HTTPS modes on applicable native platforms | Foundation has no provider effect; CLI permits only resolved `gh`; HTTPS permits only configured outbound authority; no mode listens; dependencies match selection | Planned | BPR-0025 verifies the macOS/Linux internal CLI process boundary while leaving production CLI unavailable; BPR-0026 verifies the internal HTTPS loopback wire scope and selected macOS/Linux Qt TLS dependencies; BPR-0027 still owns public mode selection and executable-level runtime inspection |
 | RFC-BPR-0002 performs no GitHub mutation | Request inventory plus rejecting sink | Route every REST and GraphQL operation through a no-mutation sink | Sink validates REST method/route, parses GraphQL operation type, and rejects every `mutation` regardless of operation name | Planned | BPR-0019 verifies the ten-read request catalog and mutation rejection; BPR-0020 adds one exact static introspection `query` and no mutation operation; composed transport inventory remains pending |
-| Provider dependencies are accurately recorded | Build graph, binary inspector, and packaging records | Inspect selected targets and current/native binaries | Qt Network and platform-vault compile/link/runtime dependencies are recorded; distribution certification remains RFC-BPR-0014 | Planned | BPR-0022 records macOS Security/CoreFoundation linkage and exact native-test imports; BPR-0023 records WIN32 Advapi32/Bcrypt selection and cross-PE imports, with target-native inspection retained by BPR-0036; BPR-0024 records Linux libsecret/GIO/GObject/GLib linkage and selected native-test imports while the current public application reports the vault not composed; native HTTPS, public selection, and package evidence remain pending |
+| Provider dependencies are accurately recorded | Build graph, binary inspector, and packaging records | Inspect selected targets and current/native binaries | Qt Network and platform-vault compile/link/runtime dependencies are recorded; distribution certification remains RFC-BPR-0014 | Planned | BPR-0022 records macOS Security/CoreFoundation linkage and exact native-test imports; BPR-0023 records WIN32 Advapi32/Bcrypt selection and cross-PE imports, with target-native inspection retained by BPR-0036; BPR-0024 records Linux libsecret/GIO/GObject/GLib linkage; BPR-0026 records macOS Qt Network/OpenSSL/framework facts and Linux Qt6Network/Qt6Core/OpenSSL runtime dependencies; public selection, Windows native inspection, and package certification remain pending |
 
 ## Platform and safe-target plan
 
 | Surface | Plan |
 |---|---|
-| macOS arm64 | BPR-0022 directly passed the Keychain success/fail-closed lifecycle and binary inspection; BPR-0025 directly passes the CLI compiler/runner process boundary while CLI trust remains unavailable; native HTTPS, public application automation, and rendered provider inspection remain later RFC-BPR-0002 slices |
+| macOS arm64 | BPR-0022 directly passed the Keychain success/fail-closed lifecycle and binary inspection; BPR-0025 directly passes the CLI compiler/runner process boundary while CLI trust remains unavailable; BPR-0026 directly passes native HTTPS trust/proxy/redirect/cancellation/bounds and development dependency inspection; public application automation and rendered provider inspection remain |
 | Windows x64 | BPR-0023 adapter, fake contracts, fixture, and x64 cross-PE inspection are prepared; BPR-0036 retains direct native configure/build/test, Credential Manager lifecycle, CLI raw-environment/Job Object/crash/private-pipe checks, native HTTPS TLS/proxy/redirect/certificate checks, runtime network/process inspection, binary dependency inspection, and public fixture automation |
-| Linux x64 desktop | BPR-0024 directly passed the Secret Service lifecycle, fail-closed cases, exact cleanup, and native dependency inspection in a full-system Ubuntu x86_64 guest with an emulated CPU; BPR-0025 directly passes the CLI compiler/runner process boundary in that guest while CLI trust remains unavailable; BPR-0026 native HTTPS plus later runtime network/public fixture automation remain |
+| Linux x64 desktop | BPR-0024 directly passed the Secret Service lifecycle, fail-closed cases, exact cleanup, and native dependency inspection in a full-system Ubuntu x86_64 guest with an emulated CPU; BPR-0025 directly passes the CLI compiler/runner process boundary in that guest while CLI trust remains unavailable; BPR-0026 directly passes frozen native HTTPS trust/proxy/redirect/cancellation/bounds plus Qt/OpenSSL runtime inspection; public runtime and fixture automation remain |
 | GitHub.com | Sanitized recorded fixtures; optional authenticated read-only smoke through the broker with response body discarded |
 | GHES 3.18 | Sanitized recorded contract trace through the real provider facade; no corporate credentials or repository content retained |
 | GitHub mutations | None; RFC-BPR-0002 exposes and verifies read operations only |
@@ -524,13 +595,14 @@ implementation path; its evidence cannot be assigned to CLI mode.
 
 Target-native credential evidence is a closeout gate. Configuration,
 cross-compilation, mocks, and hosted workflow results cannot substitute for
-native store/retrieve/delete behavior. BPR-0024 supplies the direct Linux
-guest operating-system and native-library evidence while explicitly retaining
-its emulated-CPU limitation. BPR-0036 retains the Windows evidence without
-blocking other implementation slices; it still blocks the affected Windows
-claims and RFC closeout. Windows and Linux closeout also require their native
-HTTPS, TLS, proxy, redirect, runtime-surface, and binary-dependency evidence;
-a macOS success cannot substitute for either.
+native store/retrieve/delete behavior. BPR-0024 and BPR-0026 supply the direct
+Linux guest operating-system and native-library vault/HTTPS evidence while
+explicitly retaining its emulated-CPU limitation. BPR-0036 retains the
+Windows evidence without blocking other implementation slices; it still
+blocks the affected Windows claims and RFC closeout. The Windows closeout
+still requires native HTTPS, TLS, proxy, redirect, runtime-surface, and
+binary-dependency evidence; a macOS or Linux success cannot substitute for
+that run.
 
 ## Security evidence rules
 
@@ -592,11 +664,11 @@ policy, Windows/Linux vaults, cache invalidation, or UI behavior.
 | Core state and typed flow | Domain/state model and implementation architecture | Update for opaque identities, capabilities, requests/events/deltas, generation, and invalidation | Core tests and type/dependency scan |
 | Host/provider boundary | System architecture, provider contract, implementation architecture | Normalized and correlated ports plus CLI process/invocation ownership recorded; sessions, retry/rate/cache and native HTTPS composition remain later slices | BPR-0019/BPR-0020 contracts plus BPR-0025 compiler, runner, fake process, and hostile boundary suites |
 | Portable credential contract | Domain/state model, provider contract, implementation architecture, threat model | Record bounded move-only material, exact authority/correlation, typed results, and no core/Qt exposure without claiming a native vault | BPR-0021 fake-vault and hostile boundary suites |
-| Native credentials and network trust | Security baseline, threat model, operator/troubleshooting guidance | macOS vault lifecycle and limitation recorded; Windows adapter, semantics, fixture, and evidence gap recorded; Linux Secret Service lifecycle, fail-closed ordering, emulated-CPU limitation, dependencies, and public-composition gap updated; CLI certificate rejection, redirect following, ambient configuration, and identity-binding gaps recorded with mode unavailable; native HTTPS remains BPR-0026 and CLI enablement remains BPR-0037 | BPR-0022 native canary, source/binary boundaries, and exact cleanup; BPR-0023 prepared source/fake/cross-PE evidence with BPR-0036 retaining the native run; BPR-0024 full-system Linux lifecycle and exact cleanup; BPR-0025 exact-binary loopback and official CLI configuration/account-selection evidence |
+| Native credentials and network trust | Security baseline, threat model, operator/troubleshooting guidance | macOS vault lifecycle and limitation recorded; Windows adapter, semantics, fixture, and evidence gap recorded; Linux Secret Service lifecycle, fail-closed ordering, emulated-CPU limitation, dependencies, and public-composition gap updated; CLI certificate rejection, redirect following, ambient configuration, and identity-binding gaps recorded with mode unavailable; macOS/Linux native HTTPS policy, evidence, limits, and limitations recorded; Windows remains BPR-0036 and CLI enablement remains BPR-0037 | BPR-0022 native canary, source/binary boundaries, and exact cleanup; BPR-0023 prepared source/fake/cross-PE evidence with BPR-0036 retaining the native run; BPR-0024 full-system Linux lifecycle and exact cleanup; BPR-0025 exact-binary loopback and official CLI configuration/account-selection evidence; BPR-0026 macOS/Linux 15-scenario wire fixtures, runtime facts, dependency audits, and hostile boundaries |
 | Qt presentation | UI architecture and UX baseline | Update for active identity, open/read states, capability legality, errors, focus, and accessibility | Qt tests and rendered inspection |
-| Composition and operation | README, build/test guide, developer overview | Local CLI broker build/test and trust-probe procedure recorded; selected profiles, native transport, fixture mode, and real public path remain later work | BPR-0025 focused compiled tests and exact selected-binary probe; later end-to-end automation |
-| Tests and fixtures | Test guide and fixture catalog | GitHub.com/GHES contracts, hostile inputs, native-vault fixtures, CLI invocation/child process, and selected-binary trust fixture recorded; native HTTPS and public path remain to update | BPR-0024 Linux matrices and cleanup plus BPR-0025 focused compiler/runner, hostile architecture, direct trust, workflow-absence, and documentation gates |
-| Packaging and release | Packaging policy and dependency inventory | Record actual Qt Network and platform-vault compile/link/runtime dependencies with no package-format claim; RFC-BPR-0014 still owns distribution certification | macOS framework, Windows cross-PE, and Linux libsecret/GIO/GObject/GLib target and binary inspection; public selection and package certification remain pending |
+| Composition and operation | README, build/test guide, developer overview | Local CLI broker and native HTTPS build/test/runtime procedures recorded; selected profiles and real public path remain later work | BPR-0025 focused compiled tests and exact selected-binary probe; BPR-0026 focused fixture/runtime/dependency procedures; later end-to-end automation |
+| Tests and fixtures | Test guide and fixture catalog | GitHub.com/GHES contracts, hostile inputs, native-vault fixtures, CLI invocation/child process and selected-binary trust fixtures, and native HTTPS contract/15-scenario fixture recorded; public path remains to update | BPR-0024 Linux matrices and cleanup, BPR-0025 compiler/runner and trust evidence, and BPR-0026 macOS/Linux fixture, sanitizer, hostile architecture, workflow-absence, and documentation gates |
+| Packaging and release | Packaging policy and dependency inventory | Record actual Qt Network, TLS backend, and platform-vault compile/link/runtime dependencies with no package-format claim; RFC-BPR-0014 still owns distribution certification | macOS Qt Network/OpenSSL/framework, Windows cross-PE, and Linux Qt Network/OpenSSL/libsecret/GIO/GObject/GLib target and binary inspection; public selection, Windows native inspection, and package certification remain pending |
 | GitHub Actions | Build/test/package/release documentation | Preserve explicit prohibition; no workflow files | Documentation validator plus tracked and on-disk workflow-absence scans |
 
 ## Performance and projection plan

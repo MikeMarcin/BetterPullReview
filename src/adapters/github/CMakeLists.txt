@@ -1,5 +1,5 @@
 if(BPR_BUILD_QT)
-    find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network)
     find_package(Threads REQUIRED)
 
     add_library(
@@ -11,6 +11,8 @@ if(BPR_BUILD_QT)
             src/github_host_profile.cpp
             src/github_read_contract.cpp
             src/github_read_normalizer.cpp
+            src/github_wire_request_validation.cpp
+            src/native_https_transport.cpp
     )
     add_library(
         BetterPullReview::AdapterGitHub
@@ -24,6 +26,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::Application
         PRIVATE
             Qt6::Core
+            Qt6::Network
             Threads::Threads
     )
     target_include_directories(
@@ -36,6 +39,13 @@ if(BPR_BUILD_QT)
         PUBLIC
             cxx_std_23
     )
+    if(BPR_BUILD_TESTS)
+        target_compile_definitions(
+            better_pull_review_adapter_github
+            PRIVATE
+                BPR_NATIVE_HTTPS_TESTING=1
+        )
+    endif()
     if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_definitions(
             better_pull_review_adapter_github

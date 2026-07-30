@@ -1,5 +1,71 @@
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network)
 find_package(Threads REQUIRED)
+
+add_executable(
+    better_pull_review_native_https_transport_tests
+    native_https_transport_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_native_https_transport_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+        Threads::Threads
+)
+target_include_directories(
+    better_pull_review_native_https_transport_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    better_pull_review_native_https_transport_tests
+    PRIVATE
+        BPR_NATIVE_HTTPS_TESTING=1
+)
+bpr_enable_hardening(
+    better_pull_review_native_https_transport_tests
+)
+bpr_enable_warnings(
+    better_pull_review_native_https_transport_tests
+)
+
+add_test(
+    NAME native_https_transport_contract
+    COMMAND
+        better_pull_review_native_https_transport_tests
+        --contract
+)
+set_tests_properties(
+    native_https_transport_contract
+    PROPERTIES
+        TIMEOUT 30
+)
+
+if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_program(
+        BPR_TEST_NATIVE_HTTPS_OPENSSL
+        NAMES openssl
+        REQUIRED
+    )
+    add_test(
+        NAME native_https_transport_fixture
+        COMMAND
+            "${Python3_EXECUTABLE}"
+            "${PROJECT_SOURCE_DIR}/tests/scripts/verify_native_https_transport.py"
+            --executable
+            "$<TARGET_FILE:better_pull_review_native_https_transport_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+    )
+    set_tests_properties(
+        native_https_transport_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+    )
+endif()
 
 add_executable(
     better_pull_review_gh_cli_transport_tests

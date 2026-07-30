@@ -522,17 +522,149 @@ and the CLI trust claim and RFC closeout remain open.
 
 ### Native HTTPS
 
-The native transport uses `QNetworkAccessManager`, operating-system
-trust/proxy behavior, and the selected platform vault. Redirects are handled
-under an HTTPS and exact-authority allowlist. Certificate failures abort the
-request; there is no call or option that ignores TLS errors.
+BPR-0026 implements the adapter-private `github_wire_transport_port` with one
+dedicated `QThread`, event loop, and `QNetworkAccessManager` per transport
+instance. The manager and every request/reply object stay on that worker.
+`perform` admits one operation at a time, revalidates the complete correlation
+and canonical wire request before network work, and returns only the original
+correlation plus a bounded success, typed error, or cancellation. This is an
+internal wire transport, not the public provider composition; pagination,
+normalization, host staging, and the application-facing provider path remain
+BPR-0027 work.
 
-Native credentials are consumed inside the credential-bearing transport and
-are never placed in SQLite, settings, environment files, process arguments,
-logs, diagnostics, core events, application projections, or Qt objects.
-Locked, unavailable, access-denied, corrupt, and credential-deletion failure
-states are typed failures. They never cause plaintext, settings, environment,
-or SQLite fallback storage.
+The production transport asks `QNetworkProxyFactory::systemProxyForQuery` for
+each initial or redirected URL. It accepts at most 16 returned candidates,
+retains supported direct, HTTP, and SOCKS5 candidates in system order, and
+tries the next candidate only after a retryable connection or proxy failure.
+Proxy-authentication failure is retryable to a later system candidate; origin
+authentication, TLS, HTTP, malformed-response, and policy failures are not.
+Each attempt clears manager-local access and connection caches and selects
+only that candidate; no process-global proxy is mutated. On generic Unix,
+Qt's system policy may use libproxy/desktop sources or lowercase
+`http_proxy`, `https_proxy`, and `no_proxy`. Production code does not call
+`getenv`, but “system proxy” is not a claim of environment independence.
+
+System/PAC proxy discovery is synchronous inside Qt. System-root enumeration
+and request configuration are also synchronous. The absolute 30-second
+deadline is checked before and after those calls and bounds subsequent Qt
+transfer/event-loop work, but it cannot preempt a blocked discovery call.
+Prompt cancellation sets a stop flag and queues an abort on the worker, with
+a five-millisecond in-loop poll as a backstop; completion can still be delayed
+until synchronous discovery returns. Shutdown can wait for the same worker.
+
+Every hop receives a fresh request with manual redirect policy, no cookie,
+cache, or authentication reuse, HTTP/2 disabled, `Accept-Encoding: identity`,
+and HTTP/1.1 ALPN. TLS configuration starts from an explicit copy of the
+operating-system CA set, removes local identity, session-ticket, backend, and
+pre-shared-key state, selects `VerifyPeer`, and permits TLS 1.2 or later.
+Certificate errors and pre-shared-key challenges abort; there is no
+certificate-error bypass or process-global TLS mutation. A terminal requires
+the `QNetworkReply::encrypted` completed-initial-handshake signal, a non-null
+peer certificate, no accepted `sslErrors`, the configured peer-verification
+and TLS-1.2-or-later policy, no HTTP/2 use, and the exact requested reply URL.
+Qt's scheme-associated
+`ConnectionEncryptedAttribute` is an additional terminal consistency check,
+not by itself proof of a negotiated encrypted session. The meaningful
+handshake/trust evidence is the completed-handshake signal and peer
+certificate under the enforced verification policy, together with the
+trusted/untrusted fixture outcomes. Qt's public reply surface used here does
+not directly record the negotiated TLS version, so the implementation does
+not claim that stronger fact.
+
+Qt automatic redirects are disabled. The transport permits at most three
+manual redirects, only for REST `GET`, only to a canonical query-free HTTPS
+path on the exact validated REST authority and within its API namespace.
+GraphQL redirects, cross-authority targets, loops, malformed targets, and a
+fourth redirect return typed `redirect`. A newly validated URL, proxy
+candidate list, TLS configuration, request, and Authorization header are
+created for each accepted hop.
+
+Adapter-visible bounds are fixed: 256 KiB per request body, 4 MiB per response
+body, 64 response headers, 64 KiB of aggregate response-header text, 8 KiB per
+header field, 16 system proxy candidates, three redirects, and one
+30-second absolute operation deadline. Synchronous discovery may extend
+wall-clock completion because it cannot be preempted; the request uses only
+the remaining deadline after discovery returns. Reads use fixed 16 KiB chunks
+and request no more than the remaining response limit plus one byte.
+Successful responses must be HTTP 200 JSON with no content encoding, a
+consistent content length, and bounded pagination metadata. Authentication,
+permission, network, API-version, rate-limit, certificate, redirect, timeout,
+cancellation, malformed-response, response-limit, and unavailable outcomes
+remain typed and redact remote detail.
+
+Those are adapter acceptance and retention bounds, not exact bounds on Qt's
+private HTTP parser, socket buffers, or other in-flight allocations. Qt can
+parse or retain bytes before exposing metadata through `QNetworkReply`, and it
+may normalize or collapse duplicate headers, notably `Location`, before raw
+header pairs and redirect attributes become visible. The adapter enforces the
+metadata Qt exposes, not an exact count of on-wire Location fields. Qt also
+does not provide a wipe API for the copies of an Authorization header held by
+`QNetworkRequest`, `QNetworkAccessManager`, TLS, or socket internals. The
+transport overwrites its explicit mutable Authorization buffer and the
+credential owner overwrites its storage, but exact erasure of Qt-owned copies
+is not claimed.
+
+Bootstrap material is bound to one exact session context and may authorize
+only one `GetViewerIdentity` operation; once claimed, it is destroyed after
+that terminal path and cannot be replayed. An account credential must match
+the exact profile, profile revision, host, account, and server contract, and
+each request must match its application session and identity generation.
+Mismatches fail before network execution.
+
+The target-native test seam exists only when `BPR_BUILD_TESTS=ON`. It keeps
+the production request, TLS, redirect, cancellation, response, and
+credential-binding path but substitutes an ordered loopback proxy list and
+may add one disposable fixture CA to the system roots. The 15-case
+TLS-over-CONNECT fixture covers success, ordered proxy fallback, accepted
+same-authority REST redirect, rejected cross-authority and GraphQL redirects,
+untrusted certificate, response/header limits, in-flight and pre-start
+cancellation, timeout, HTTP 401/403/429 classification, and content-encoding
+rejection. Runtime facts separately report whether Qt supports TLS, its active
+TLS backend category, the first raw system-proxy candidate category, and raw
+candidate count; they do not contain credentials, proxy addresses, CA
+contents, or remote data, and they do not prove every candidate is reachable.
+
+On the directly exercised macOS arm64 development host, the complete 15-case
+fixture passed. Runtime observation reported Qt Network 6.11.1 with the
+OpenSSL TLS backend, TLS supported, and one direct system-proxy candidate.
+A separate `BPR_BUILD_TESTS=OFF` build/dependency audit found no test-only
+factory symbols, retained the adapter's direct Security and CoreFoundation
+dependencies, and observed the current ad-hoc linker signature. These are
+development build and runtime facts, not package signing or distribution
+certification.
+
+Direct Linux evidence used an Ubuntu 26.04 x86_64 full-system QEMU guest with
+Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. The guest inputs were frozen to
+SHA-256
+`fd7976b48241795302ded4d1a73c851064edce66364a3b50b990294ca95ab134`
+for `native_https_transport.cpp` and
+`bd0f771cd261a7fb6b4f1f4691af93c12adc7d4fe7ced96cb1182ee8bf2369dd`
+for the Python harness. The contract and 15-case fixture passed 2/2 in
+0.12/11.29 seconds, and the two architecture gates passed 2/2 in
+5.00/144.35 seconds. The final hostile suite covered all 92 mutations.
+The uninstrumented focused suite passed repeatedly. Runtime
+observation reported
+`native-https-runtime:tls=openssl:proxy=direct:candidates=1:supported=true`.
+The ELF directly requires Qt6Network and Qt6Core. A controlled trace of only
+the trusted-success case under `strace` observed the Qt OpenSSL backend plugin,
+`libssl.so.3`, and `libcrypto.so.3` being opened. A full fixture-suite
+`strace` is deliberately not evidence because tracing perturbs cancellation
+timing; behavioral evidence comes from the uninstrumented passes, while the
+single-success trace is dependency evidence only. Source and the generated
+build contained no workflow files or GitHub Actions references.
+
+Windows 10/11 x64 execution and dependency inspection remain BPR-0036 work;
+that platform-specific evidence is nonblocking for the other implementation,
+test, documentation, security-review, and simplification work.
+
+Native credentials are consumed inside the credential-bearing transport.
+They never enter process arguments, environment, logs, diagnostics,
+persistence, core events, application projections, or a wrong-authority wire
+request. The transport necessarily places Authorization in transient
+`QNetworkRequest`/network-backend storage; those Qt-held copies cannot be
+precisely wiped. Locked, unavailable, access-denied, corrupt, and
+credential-deletion failure states are typed failures. They never cause
+plaintext, settings, environment, or SQLite fallback storage.
 
 The portable application contract keys every native credential by profile,
 profile revision, host, authenticated account, and server contract. Every
@@ -746,13 +878,16 @@ terminals without claiming those as desktop-policy fixtures.
 
 That full-system VM result proves the selected Linux vault behavior against a
 real Linux kernel and user-space API stack, but it is not bare-metal evidence.
-It also does not verify the Linux native HTTPS transport or the composed
-public provider path. Those pending surfaces still must prove TLS validation,
-system proxy selection, cross-authority redirect rejection, certificate
-rejection, runtime network/process scope, and binary dependencies. Windows
-target-native evidence remains in BPR-0036. Mock transports,
-cross-compilation, and vault-only evidence cannot substitute for either open
-claim.
+The vault fixture itself does not verify HTTPS. BPR-0026 separately verified
+the Linux internal native HTTPS wire path in the same class of full-system
+Ubuntu 26.04 QEMU environment: all 15 TLS/proxy/redirect/limit/cancellation
+scenarios passed, runtime selected the OpenSSL backend and one direct proxy
+candidate, and ELF plus a controlled single-success trace selected Qt6Network,
+Qt6Core, the Qt OpenSSL backend plugin, `libssl.so.3`, and `libcrypto.so.3`.
+That separate evidence still is not the composed public provider path, which
+remains BPR-0027. Windows target-native evidence remains in BPR-0036. Mock
+transports, cross-compilation, and vault-only evidence cannot substitute for
+either remaining claim.
 
 ## Read-only enforcement
 
@@ -899,11 +1034,12 @@ RFC-BPR-0002 has no implementation impact on:
 Git cache and epoch work remains RFC-BPR-0003. GitHub mutations remain
 RFC-BPR-0008. Delivered-package certification remains RFC-BPR-0014.
 
-Within RFC-BPR-0002, the Linux Secret Service vault lifecycle and the CLI
-broker's process/invocation boundary are directly verified. The selected
-CLI's network-trust claim remains open because its redirect behavior was
-directly falsified and the production gate is unavailable. Native HTTPS,
-public composition, Qt flow, and retained Windows target-native credential
-evidence also remain open issue slices rather than deferred acceptance
-criteria. RFC-BPR-0002 cannot close while any required slice remains
-unverified.
+Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the CLI
+broker's process/invocation boundary, and the native HTTPS internal wire path
+on macOS and Linux are directly verified. The selected CLI's network-trust
+claim remains open because its redirect behavior was directly falsified and
+the production gate is unavailable. Public provider composition and Qt flow
+remain BPR-0027 work, and retained Windows target-native credential/HTTPS
+evidence remains BPR-0036 work. The open Windows execution is nonblocking for
+other slices but continues to block only its affected platform claim and
+RFC-BPR-0002 closeout.

@@ -21,6 +21,18 @@ set(
     "src/adapters/github/src/native_https_transport.cpp"
 )
 set(
+    github_native_https_interface_relative
+    "src/adapters/github/src/native_https_transport.hpp"
+)
+set(
+    github_wire_validation_relative
+    "src/adapters/github/src/github_wire_request_validation.cpp"
+)
+set(
+    github_wire_validation_interface_relative
+    "src/adapters/github/src/github_wire_request_validation.hpp"
+)
+set(
     github_cli_transport_relative
     "src/adapters/github/src/gh_cli_transport.cpp"
 )
@@ -50,6 +62,13 @@ if(
 endif()
 
 file(READ "${github_adapter_cmake}" github_cmake_contents)
+string(
+    REGEX REPLACE
+    "[ \t\r\n]+"
+    " "
+    github_cmake_compact
+    "${github_cmake_contents}"
+)
 set(
     github_target_patterns
     "add_library\\([ \t\r\n]*better_pull_review_adapter_github([ \t\r\n]|\\))"
@@ -88,23 +107,27 @@ if(
 endif()
 
 foreach(
-    required_cli_file_relative
+    required_github_host_file_relative
     IN ITEMS
         "${github_process_interface_relative}"
         "${github_process_runner_interface_relative}"
         "${github_process_runner_relative}"
         "${github_cli_transport_relative}"
+        "${github_native_https_interface_relative}"
+        "${github_native_https_relative}"
+        "${github_wire_validation_interface_relative}"
+        "${github_wire_validation_relative}"
 )
     get_filename_component(
-        required_cli_file
-        "${BPR_ROOT}/${required_cli_file_relative}"
+        required_github_host_file
+        "${BPR_ROOT}/${required_github_host_file_relative}"
         ABSOLUTE
     )
-    if(NOT EXISTS "${required_cli_file}")
+    if(NOT EXISTS "${required_github_host_file}")
         message(
             FATAL_ERROR
-            "The designated GitHub CLI broker file is required: "
-            "${required_cli_file_relative}"
+            "The designated GitHub host adapter file is required: "
+            "${required_github_host_file_relative}"
         )
     endif()
 endforeach()
@@ -117,7 +140,7 @@ function(require_github_target_source required_source_relative)
     )
         message(
             FATAL_ERROR
-            "GitHub CLI broker source must be explicitly owned by "
+            "GitHub host adapter source must be explicitly owned by "
             "better_pull_review_adapter_github: ${required_source_relative}"
         )
     endif()
@@ -125,6 +148,40 @@ endfunction()
 
 require_github_target_source("src/github_cli_process_runner\\.cpp")
 require_github_target_source("src/gh_cli_transport\\.cpp")
+require_github_target_source("src/github_wire_request_validation\\.cpp")
+require_github_target_source("src/native_https_transport\\.cpp")
+
+if(
+    NOT github_cmake_contents
+        MATCHES
+            "find_package[ \t\r\n]*\\([ \t\r\n]*Qt6[^\\)]*COMPONENTS[^\\)]*Network[^\\)]*\\)"
+)
+    message(
+        FATAL_ERROR
+        "GitHub native HTTPS requires the Qt6 Network component"
+    )
+endif()
+if(
+    NOT github_cmake_contents
+        MATCHES
+            "target_link_libraries[ \t\r\n]*\\([ \t\r\n]*better_pull_review_adapter_github[^\\)]*PRIVATE[^\\)]*Qt6::Network[^\\)]*\\)"
+)
+    message(
+        FATAL_ERROR
+        "GitHub native HTTPS must link Qt6::Network privately"
+    )
+endif()
+if(
+    NOT github_cmake_compact
+        MATCHES
+            "if\\(BPR_BUILD_TESTS\\) target_compile_definitions\\( better_pull_review_adapter_github PRIVATE BPR_NATIVE_HTTPS_TESTING=1 \\) endif\\(\\)"
+)
+    message(
+        FATAL_ERROR
+        "Native HTTPS fixture seams must compile privately and only in "
+        "test-enabled builds"
+    )
+endif()
 
 get_filename_component(
     macos_keychain_file
@@ -1686,6 +1743,186 @@ reject_github_cli_transport_surface(
 reject_github_cli_transport_surface(
     "(std::(cout|cerr|clog)|(^|[^A-Za-z0-9_])(printf|fprintf|puts|fputs|perror|syslog|os_log|NSLog|qDebug|qInfo|qWarning|qCritical|qFatal)[ \t\r\n]*\\(|spdlog)"
     "logging/printing"
+)
+
+get_filename_component(
+    github_native_https_interface_file
+    "${BPR_ROOT}/${github_native_https_interface_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    github_native_https_file
+    "${BPR_ROOT}/${github_native_https_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    github_wire_validation_interface_file
+    "${BPR_ROOT}/${github_wire_validation_interface_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    github_wire_validation_file
+    "${BPR_ROOT}/${github_wire_validation_relative}"
+    ABSOLUTE
+)
+
+foreach(
+    standard_native_header
+    IN ITEMS
+        "${github_native_https_interface_file}"
+        "${github_wire_validation_interface_file}"
+)
+    file(READ "${standard_native_header}" standard_native_header_contents)
+    set(
+        forbidden_standard_native_header_patterns
+        "#[ \t]*include[ \t]*[<\"]Q"
+        "#[ \t]*include[ \t]*[<\"]Qt"
+        "(^|[^A-Za-z0-9_])Q[A-Z][A-Za-z0-9_]*"
+        "#[ \t]*include[ \t]*[<\"](windows\\.h|winhttp\\.h|Security/|SystemConfiguration/|sys/socket\\.h|curl/)"
+        "(^|[^A-Za-z0-9_])(HANDLE|SOCKET|CF[A-Z][A-Za-z0-9_]*|CURL[A-Za-z0-9_]*)([^A-Za-z0-9_]|$)"
+    )
+    foreach(
+        forbidden_standard_native_header_pattern
+        IN LISTS forbidden_standard_native_header_patterns
+    )
+        if(
+            standard_native_header_contents
+                MATCHES "${forbidden_standard_native_header_pattern}"
+        )
+            file(
+                RELATIVE_PATH
+                relative_file
+                "${BPR_ROOT}"
+                "${standard_native_header}"
+            )
+            message(
+                FATAL_ERROR
+                "GitHub native HTTPS interfaces must remain standard C++ "
+                "and effect-free in ${relative_file}: "
+                "${forbidden_standard_native_header_pattern}"
+            )
+        endif()
+    endforeach()
+endforeach()
+
+file(READ "${github_native_https_file}" github_native_https_contents)
+file(READ "${github_wire_validation_file}" github_wire_validation_contents)
+file(READ "${github_cli_transport_file}" github_cli_transport_contents)
+
+set(
+    required_native_https_patterns
+    "#[ \t]*include[ \t]*[<\"]QNetworkAccessManager[>\"]"
+    "#[ \t]*include[ \t]*[<\"]QSslConfiguration[>\"]"
+    "QNetworkProxyFactory::systemProxyForQuery[ \t\r\n]*\\("
+    "maximum_system_proxy_candidates"
+    "proxy_candidate_retryable[ \t\r\n]*\\("
+    "QNetworkRequest::ManualRedirectPolicy"
+    "QSslSocket::VerifyPeer"
+    "QSsl::TlsV1_2OrLater"
+    "QSslConfiguration::systemCaCertificates[ \t\r\n]*\\("
+    "setLocalCertificateChain[ \t\r\n]*\\([ \t\r\n]*\\{\\}[ \t\r\n]*\\)"
+    "setBackendConfiguration[ \t\r\n]*\\([ \t\r\n]*\\{\\}[ \t\r\n]*\\)"
+    "QNetworkAccessManager::sslErrors"
+    "QNetworkReply::encrypted"
+    "QNetworkRequest::Http2AllowedAttribute"
+    "\"Accept-Encoding\""
+    "\"identity\""
+    "\"Accept-Language\""
+    "std::stop_callback"
+    "active_hop_guard"
+    "remaining_before_deadline[ \t\r\n]*\\("
+    "Done\\.notify_one[ \t\r\n]*\\("
+    "setTransferTimeout[ \t\r\n]*\\("
+    "setReadBufferSize[ \t\r\n]*\\("
+    "validate_github_redirect_target[ \t\r\n]*\\("
+    "validate_github_wire_request[ \t\r\n]*\\("
+    "BPR_NATIVE_HTTPS_TESTING"
+    "QSslSocket::activeBackend[ \t\r\n]*\\("
+)
+foreach(required_native_https_pattern IN LISTS required_native_https_patterns)
+    if(
+        NOT github_native_https_contents
+            MATCHES "${required_native_https_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub native HTTPS must retain explicit system proxy/trust, "
+            "manual redirect, cancellation, protocol, and resource policy: "
+            "${required_native_https_pattern}"
+        )
+    endif()
+endforeach()
+
+foreach(
+    validation_consumer_contents
+    IN ITEMS
+        "${github_native_https_contents}"
+        "${github_cli_transport_contents}"
+)
+    if(
+        NOT validation_consumer_contents
+            MATCHES
+                "#[ \t]*include[ \t]*[<\"]github_wire_request_validation\\.hpp[>\"]"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub transports must use the shared correlation and outbound "
+            "request validator"
+        )
+    endif()
+endforeach()
+if(
+    NOT github_wire_validation_contents
+        MATCHES "validate_outbound_read_request[ \t\r\n]*\\("
+)
+    message(
+        FATAL_ERROR
+        "Shared GitHub wire validation must recompile and validate the "
+        "canonical read-only request"
+    )
+endif()
+
+function(reject_native_https_surface forbidden_pattern surface_name)
+    if(github_native_https_contents MATCHES "${forbidden_pattern}")
+        message(
+            FATAL_ERROR
+            "Forbidden native HTTPS ${surface_name} surface in "
+            "${github_native_https_relative}: ${forbidden_pattern}"
+        )
+    endif()
+endfunction()
+
+reject_native_https_surface(
+    "(ignoreSslErrors|QSslSocket::VerifyNone|setPeerVerifyName[ \t\r\n]*\\()"
+    "certificate bypass"
+)
+reject_native_https_surface(
+    "(QSslConfiguration::setDefaultConfiguration|QSslSocket::setActiveBackend)"
+    "process-global TLS mutation"
+)
+reject_native_https_surface(
+    "(QNetworkProxy::setApplicationProxy|QNetworkProxyFactory::setUseSystemConfiguration|QNetworkProxyFactory::setApplicationProxyFactory)"
+    "global proxy mutation"
+)
+reject_native_https_surface(
+    "(QNetworkRequest::(NoLessSafeRedirectPolicy|SameOriginRedirectPolicy|UserVerifiedRedirectPolicy)|FollowRedirectsAttribute)"
+    "automatic redirect"
+)
+reject_native_https_surface(
+    "\\.[ \t\r\n]*read(All|Line)[ \t\r\n]*\\("
+    "unbounded response read"
+)
+reject_native_https_surface(
+    "(errorString|reasonPhrase|std::(cout|cerr|clog)|(^|[^A-Za-z0-9_])(printf|fprintf|puts|fputs|perror|syslog|os_log|NSLog|qDebug|qInfo|qWarning|qCritical|qFatal)[ \t\r\n]*\\(|spdlog)"
+    "raw diagnostic or logging"
+)
+reject_native_https_surface(
+    "(QNetworkDiskCache|setCookieJar[ \t\r\n]*\\(|QSettings|QFile|QProcess|QTcp(Server|Socket)|QUdpSocket|QLocalServer)"
+    "persistence, process, listener, or raw socket"
+)
+reject_native_https_surface(
+    "(qgetenv[ \t\r\n]*\\(|qEnvironmentVariable[A-Za-z0-9_]*[ \t\r\n]*\\(|(^|[^A-Za-z0-9_])(getenv|secure_getenv|_wgetenv|environ)([^A-Za-z0-9_]|$))"
+    "ambient environment"
 )
 
 file(READ "${macos_keychain_file}" macos_keychain_contents)
