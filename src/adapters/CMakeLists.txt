@@ -1,5 +1,4 @@
-add_library(better_pull_review_adapter_github INTERFACE)
-add_library(BetterPullReview::AdapterGitHub ALIAS better_pull_review_adapter_github)
+add_subdirectory(github)
 
 add_library(better_pull_review_adapter_git INTERFACE)
 add_library(BetterPullReview::AdapterGit ALIAS better_pull_review_adapter_git)
@@ -13,7 +12,6 @@ add_library(BetterPullReview::AdapterAI ALIAS better_pull_review_adapter_ai)
 foreach(
     adapter
     IN ITEMS
-        better_pull_review_adapter_github
         better_pull_review_adapter_git
         better_pull_review_adapter_sqlite
         better_pull_review_adapter_ai

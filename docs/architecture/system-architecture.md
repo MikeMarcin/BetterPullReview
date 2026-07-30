@@ -31,9 +31,13 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
 - CMake and Ninja
 - SQLite through a pinned, directly linked C API
 - Installed Git executable through `QProcess`
+- Installed GitHub CLI through a designated, bounded `QProcess` broker
 - REST-first GitHub provider with narrow GraphQL use
 - KSyntaxHighlighting through its low-level highlighter interface
 - No Qt WebEngine, QML runtime, Electron, Tauri, Node runtime, local HTTP service, or browser-extension requirement
+
+The concrete RFC-BPR-0002 allocation is defined in [GitHub Host
+Implementation Architecture](github-host-implementation.md).
 
 ## BetterPullReview component graph
 
@@ -82,6 +86,9 @@ better_pull_review_adapter_sqlite
 better_pull_review_adapter_ai
     implement application-host ports
 
+    the GitHub adapter may depend on Qt Core and Network for its designated
+    process, HTTPS, and native-integration effects, but never on Qt Widgets
+
 better_pull_review_adapter_qt
     Qt presentation adapter
     depends on application-facing contracts and Qt
@@ -95,6 +102,9 @@ The live repository may use different target names, but it must enforce these ru
 - The core imports no Qt, SQLite, GitHub, Git, operating-system, AI, clock, thread, future, timer, dialog, or process APIs.
 - The host depends on core and capability-specific port contracts. It may be mutable and concurrent, but semantic decisions remain in the core.
 - Provider adapters implement narrow host ports. They do not expose provider response types to the core or Qt.
+- `QProcess`, `QNetworkAccessManager`, and credential-vault APIs are confined
+  to designated external adapter sources; their presence in a provider adapter
+  does not authorize their use in the application host or Qt presentation.
 - The Qt adapter uses Qt idiomatically. It does not own canonical GitHub state, review policy, persistence, asynchronous orchestration, or stale-result policy.
 - The composition root is the only place that knows all concrete pieces.
 - In-process communication uses typed C++ calls and records. JSON/RPC is added only at a real process boundary such as an agent protocol.
@@ -155,7 +165,8 @@ Do not fragment a feature into unnecessary targets before the ownership boundary
 | Private durable review state | Host-owned SQLite ledger | receipts, acceptance, observer rules, local defect classification, AI drafts |
 | Interaction state | Functional core | active PR/file/change, epoch selection, navigation context, command state, pending semantic operation |
 | Bounded observations | Host, borrowed by core | current GitHub snapshot, selected file material, permissions, capability facts, visible queue records |
-| Caches and indexes | Application host | Git objects, normalized API cache, diff/syntax cache, row maps, search indexes |
+| Staged provider results | Application host, pending a core acceptance decision | immutable normalized snapshots keyed by complete request context |
+| Caches and indexes | Application host | accepted GitHub snapshots, Git objects, normalized API cache, diff/syntax cache, row maps, search indexes |
 | Presentation projections | Host and Qt adapter | visible file rows, conversation cards, command projections, status summaries |
 | Qt-local state | Qt presentation adapter | focus, hover, expanded branches, scroll positions, drawer geometry, animation progress |
 | External resource state | Application host/adapters | sockets, child processes, credential-vault handles, SQLite connection, worker pool |
@@ -206,11 +217,14 @@ Qt event or QAction
     -> host performs immediate or asynchronous requests
     -> host converts completion into a typed event
     -> core accepts/rejects it using identity and generation
-    -> host publishes changed projections
+    -> host commits only an explicitly accepted staged result
+    -> host publishes bounded changed projections
     -> Qt adapter incrementally updates affected actions, models, and views
 ```
 
 No widget may call GitHub, Git, SQLite, or an agent directly. No provider completion may mutate a widget or core state directly.
+For GitHub reads, an `accepted_snapshot_delta` is the explicit commit signal;
+a broad changed-domain bit cannot substitute for acceptance.
 
 ## Concurrency and stale work
 
@@ -237,7 +251,7 @@ No widget may call GitHub, Git, SQLite, or an agent directly. No provider comple
 
 | Feature family | Functional core | Application host | Qt presentation adapter |
 |---|---|---|---|
-| GitHub/GHES | host/account identity policy, command legality, completion acceptance | authentication, REST/GraphQL, retries, capability cache | account/host selection, errors, capability presentation |
+| GitHub/GHES | host/account identity policy, command legality, completion acceptance | provider capability port, session/staging/cache lifecycle; external GitHub adapter implements authentication and transports | account/host selection, errors, capability presentation |
 | Git/epochs | epoch-selection rules, comparison intent, stale acceptance | Git process, bare cache, refs, clocks, persistence | epoch selectors, labels, unavailable states |
 | Diff/navigation | deterministic mapping/group planning, active change, navigation policy | blob residency, jobs, diff/syntax caches | virtualized panes, connectors, lower detail, focus |
 | Review ledger | receipt/actionability transitions | SQLite authority, queries, migrations | badges, filters, commands, explanations |
@@ -256,12 +270,21 @@ active set + changed set
 
 not total PR history, total repository size, or all rows in every panel. The implementation must use incremental projections, bounded prefetch, retained caches, cancellation, event coalescing, and allocation-conscious hot paths. There is no JSON/RPC bus between in-process regions.
 
+Provider refresh follows the same rule: normalization is bounded before
+staging, accepted snapshots are compared by stable identity, and Qt receives
+only affected metadata and conversation deltas rather than a routine model or
+application reset.
+
 ## Testing contract
 
 - **Core:** no `QApplication`; table-driven transitions, invariants, property tests, replay, fuzzing, and deterministic benchmarks.
 - **Host:** fake/in-memory ports, manual executor, completion ordering, cancellation, stale rejection, cache invalidation, persistence, failure, recovery, and shutdown tests.
 - **Qt adapter:** event-to-intent translation, `QAction` projection, incremental model notifications, selection synchronization, focus, keyboard, accessibility, high-DPI, and rendered interaction tests.
 - **End to end:** a smaller set of complete workflows through the real composition root and packaged application.
+
+Build, test, package, release, and RFC verification evidence is produced by
+local or target-native tools. GitHub Actions is not a BetterPullReview
+verification or product-build surface.
 
 ## Prohibited implementation shortcuts
 

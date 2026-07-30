@@ -14,4 +14,14 @@ repository selection, bound time and output, classify failures, and redact all
 retained diagnostics.
 
 The broker must never extract a token, place credentials in arguments, use a
-shell, or expose credential-bearing environment state to unrelated code.
+shell, or expose credential-bearing environment state to unrelated code. It
+must run from a trusted neutral working directory with an explicit minimal
+environment allowlist, explicit hostname/endpoint/method, and an argument
+allowlist that rejects token/status-output, response-cache, debug, and
+credential-bearing flags. Inject unknown canary variables to prove they do not
+reach the child.
+
+Directly prove the selected CLI version rejects certificate failures and
+unknown-authority redirects without forwarding a request body or credential.
+If those semantics cannot be proved, CLI mode remains a closeout blocker rather
+than inheriting the native HTTPS adapter's evidence.

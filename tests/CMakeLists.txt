@@ -19,6 +19,13 @@ add_test(
 )
 
 add_test(
+    NAME architecture_boundary_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/architecture_boundary_tests.py"
+)
+
+add_test(
     NAME documentation_structure
     COMMAND
         "${Python3_EXECUTABLE}"

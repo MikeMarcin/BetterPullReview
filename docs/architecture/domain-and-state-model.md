@@ -7,10 +7,13 @@ The functional core owns compact interaction state and deterministic policy. The
 ## Strong identities
 
 ```text
+HostProfileId
 GitHostId
 GitHubAccountId
 RepositoryId
 PullRequestId
+ProviderSnapshotId
+CapabilityRevision
 CommitOid
 BlobOid
 ReviewEpochId
@@ -31,7 +34,10 @@ Every persisted row, observation, request, completion, cache key, and asynchrono
 
 | Category | Authority | Core representation | Qt representation |
 |---|---|---|---|
+| Host profiles | Host profile registry | opaque selected profile identity | non-secret configuration and selection controls |
+| GitHub credentials | GitHub CLI store or native platform vault | none | none |
 | GitHub shared state | GitHub/provider session in host | stable IDs, current revision facts, bounded observations | immutable cards/rows/actions |
+| Staged GitHub results | Application host until a core acceptance decision | pending request and generation identity | none |
 | Private durable state | SQLite ledger in host | current relevant receipt/actionability observations | badges, filters, commands |
 | Review interaction | Functional core | active PR/file/change, epoch pair, navigation mode, pending semantic action | selected indexes, focus, visible command state |
 | Git/GitHub/diff caches | Host | cache identities and availability observations | loading/unavailable projections |
@@ -46,7 +52,10 @@ The core should retain only the state needed to make decisions, for example:
 
 ```text
 application session identity
-active host/account/repository/PR identity
+active profile/host/account/repository/PR identity
+GitHub identity and request generations
+compact tri-state host capabilities plus capability revision
+accepted provider snapshot identity
 selected left/right review epochs
 active file material and change group
 filtered navigation context
@@ -60,12 +69,18 @@ compact diagnostics and status state
 
 The core does not own all PR comments, all Git blobs, all diff rows, all queue entries, or the SQLite database. It receives the bounded records required for the current transition.
 
+For GitHub reads, full normalized snapshots remain immutable host-owned
+records. The core retains only the identity and summary required to decide
+whether a staged snapshot belongs to the active session.
+
 ## Semantic input/output types
 
 ### Intents
 
 ```text
+ActivateHostProfile
 OpenPullRequest
+RefreshPullRequest
 SelectComparisonEpochs
 SelectFile
 SelectChangeGroup
@@ -89,6 +104,7 @@ StartAiReview
 ### Bounded observations
 
 ```text
+CurrentGitHubIdentityObservation
 CurrentHostCapabilitiesObservation
 CurrentPullRequestSnapshotObservation
 SelectedFileMaterialObservation
@@ -105,7 +121,9 @@ Observations expose facts, not service objects. They carry source identity/revis
 ### Host requests
 
 ```text
+EstablishGitHubSessionRequest
 FetchPullRequestRequest
+InvalidateGitHubIdentityRequest
 EnsureGitObjectsRequest
 ComputeDiffRequest
 PersistReceiptRequest
@@ -122,7 +140,10 @@ Requests are semantic. The core does not request a `QMessageBox`, `QNetworkReply
 ### Result events
 
 ```text
+GitHubSessionReadyEvent
+GitHubSessionFailedEvent
 PullRequestLoadedEvent
+PullRequestLoadFailedEvent
 GitObjectsAvailableEvent
 DiffComputedEvent
 ReceiptPersistedEvent
@@ -137,6 +158,10 @@ RequestCancelledEvent
 ### Semantic deltas
 
 ```text
+GitHubIdentityDelta
+CapabilityDelta
+AcceptedSnapshotDelta
+PullRequestSummaryDelta
 CommandDelta
 SelectionDelta
 FileReceiptDelta
@@ -147,6 +172,45 @@ DiagnosticDelta
 ```
 
 Deltas describe meaning. Qt-specific row/index updates are derived by the presentation adapter.
+
+`AcceptedSnapshotDelta` has a narrower role than a general content dirty bit:
+it identifies the exact staged provider snapshot that the host may commit to
+the active cache. A stale or rejected completion emits no such delta.
+
+## GitHub capability state
+
+Each host capability is represented as `Unknown`, `Supported`, or
+`Unsupported`. `Unknown` means that the current profile/account session has
+not produced sufficient evidence; it cannot enable a command and is not
+presented as a proven server limitation.
+
+Capability observations carry the selected profile revision, host, account,
+probe-contract revision, and `CapabilityRevision`. Switching profile or
+account clears the compact core capability set to `Unknown` and invalidates
+the host's identity-sensitive capability cache.
+
+RFC-BPR-0002 observes review-thread reads, viewed-file mutations,
+resolve-thread, and unresolve-thread support. Observing a mutation capability
+does not authorize its execution before RFC-BPR-0008.
+
+## Staged provider snapshots
+
+The provider completion path is transactional at the host/core boundary:
+
+```text
+immutable normalized completion
+    -> serialized application lane
+    -> host staging keyed by complete request context
+    -> typed core event
+    -> exact accepted snapshot delta
+    -> host cache commit and bounded projection
+```
+
+The host discards a stage when the core rejects its request, application
+session, profile, host, account, repository/PR, or generation identity.
+Neither staging nor a provider callback changes visible or authoritative
+state. See [GitHub Host Implementation
+Architecture](github-host-implementation.md) for the concrete allocation.
 
 ## Pull request and epoch
 
@@ -208,6 +272,7 @@ struct request_context
 {
     request_id Request;
     application_session_id Session;
+    host_profile_id Profile;
     git_host_id Host;
     github_account_id Account;
     pull_request_key PullRequest;
@@ -217,6 +282,12 @@ struct request_context
 ```
 
 Not every request needs every field, but no completion may be accepted merely because the originating widget still exists.
+
+Session establishment, which precedes authenticated account discovery, carries
+request, application session, host profile, and generation. A PR fetch adds
+host, account, repository locator or identity, PR number, and all applicable
+revision facts. Identity switching advances the generation before cancellation
+or invalidation effects are performed.
 
 ## Qt-local state
 

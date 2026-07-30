@@ -16,3 +16,10 @@ documentation-ledger entry, and move every RFC card to `done/`.
 Mark RFC-BPR-0002 Auto-Verified only when GitHub.com, recorded GHES 3.18, CLI
 broker, native HTTPS, all three native credential stores, core/host/Qt
 boundaries, security assertions, documentation, and tracker state agree.
+
+Every passing claim must name a reproducible command or interaction, a
+falsifiable success condition, and retained secret-free evidence. Closeout
+also requires fresh `dev` and `core-only` matrices, target-native builds and
+network/vault checks, architecture/runtime/binary-dependency gates,
+documentation validation over the immutable RFC base, fixture and mutation
+audits, source-pack validation, and `git diff --check`.

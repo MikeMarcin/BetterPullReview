@@ -1,7 +1,7 @@
 ---
 id: BPR-0018
 title: Implement deterministic GitHub identity and capability policy
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0017]
 ---
@@ -15,4 +15,3 @@ identity invalidation; incremental deltas; and deterministic replay tests.
 
 The implementation must remain free of Qt, URLs, REST, GraphQL, process,
 network, credential, filesystem, clock, thread, timer, and persistence types.
-

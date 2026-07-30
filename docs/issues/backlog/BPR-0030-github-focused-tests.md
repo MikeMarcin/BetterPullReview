@@ -13,3 +13,7 @@ tests, fake process/network/vault tests, reordered-completion tests, Qt event
 and projection tests, and hostile fixtures for malformed data, oversized
 responses, redirects, certificate failures, permissions, rate limits,
 unsupported capabilities, and canary-secret leakage.
+
+The protocol sink must reject every non-read REST verb and parse GraphQL
+documents to reject `mutation` operations even though GraphQL reads use HTTP
+POST.

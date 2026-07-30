@@ -14,3 +14,8 @@ API roots, explicit redirects, cancellation, and typed error classification.
 
 Certificate failures and redirects to unknown hosts must fail closed. No
 certificate-error bypass or unbounded response path may exist.
+
+Run controlled target-native trust, proxy, certificate-failure, redirect,
+cancellation, and selected-adapter tests on macOS, Windows, and Linux. Inspect
+each target's linked/runtime Qt Network, TLS, proxy, and credential-vault
+dependencies; configuration or another platform's backend is not evidence.
