@@ -5,12 +5,24 @@ GitHub pull requests. GitHub remains the sole collaborative source of truth;
 BetterPullReview stores only private workflow state and derived projections
 that GitHub does not represent.
 
-The current implementation is the RFC-BPR-0001 repository foundation: a C++23
-deterministic functional core, an imperative application host, a Qt 6 Widgets
-presentation adapter, and an explicit composition root. It renders and
-exercises a native empty-state application. GitHub/GHES access, real pull
-request loading, diffs, review workflows, and packaging arrive in later RFCs
-and are not claimed by this foundation.
+The current implementation includes the RFC-BPR-0001 repository foundation
+and RFC-BPR-0002's implemented public read-only GitHub path. The public
+executable composes explicit GitHub.com and optional GHES 3.18 profiles,
+native HTTPS, the target platform's credential vault, the normalized provider
+and application host, and the Qt 6 Widgets presentation. A pull request's
+metadata and conversations can traverse the real
+QAction-to-provider-to-core-acceptance-to-rendered-window path.
+
+GitHub CLI choices remain visible but deliberately unavailable: their trust
+contract is still open, so selecting one fails closed before starting a
+process. Native credentials are entered through a Qt-owned password input,
+stored under a hostname-bound authority, and exact-deleted before an orderly
+public-application shutdown completes. There is no durable credential
+selector; a crash can leave an item that BetterPullReview cannot enumerate or
+recover. Diff, review-mutation, private-ledger, and packaging work remains in
+later RFCs. The current GitHub window is a functional integration surface;
+the deliberate presentation-polish and native system-appearance pass remains
+BPR-0031, with user-selectable appearance profiles in RFC-BPR-0006.
 
 ## Architecture
 
@@ -20,13 +32,20 @@ and are not claimed by this foundation.
   deltas, diagnostics, and shared/private authority policy. It has no Qt or
   effectful dependency.
 - `src/application/` owns bounded observations, typed request execution,
-  serialized completion delivery, cancellation, and lifecycle.
+  serialized completion delivery, cancellation, credential lifecycle, and
+  shutdown quiescence.
+- `src/adapters/github/` owns validated profiles, normalized GitHub.com/GHES
+  contracts, native HTTPS, the fail-closed CLI broker, and platform-vault
+  adapters.
 - `src/adapters/qt/` translates Qt events into semantic intents and applies
-  projections incrementally.
-- `src/app/` is the only composition root that knows the concrete pieces.
+  projections incrementally. It also owns credential input, focus,
+  accessibility, layout, and appearance.
+- `src/app/` is the only composition root that selects concrete profiles,
+  transports, vaults, workers, the provider, host, and Qt presentation.
 
-See the [implementation architecture](docs/architecture/foundation-implementation.md)
-and [normative system architecture](docs/architecture/system-architecture.md).
+See the [GitHub host implementation
+architecture](docs/architecture/github-host-implementation.md) and
+[normative system architecture](docs/architecture/system-architecture.md).
 
 ## Build and test
 
@@ -53,8 +72,22 @@ Run the application:
 build/dev/src/app/better_pull_review
 ```
 
+Add an explicit GHES 3.18 hostname when needed:
+
+```sh
+build/dev/src/app/better_pull_review --ghes-host ghe.example.com
+```
+
+The GitHub.com native HTTPS profile is built in. A supplied GHES hostname is
+validated as explicit user configuration; provider content and redirects
+cannot create a profile. The application prompts for native-HTTPS credential
+material only after the user activates that profile.
+
 Detailed commands, targets, runtime audits, and evidence expectations are in
 [Build and Test](docs/development/build-and-test.md).
+
+All configure, build, test, package, release, and verification work is local
+or target-native. GitHub Actions has zero role.
 
 ## Repository workflow
 
@@ -62,4 +95,4 @@ Detailed commands, targets, runtime audits, and evidence expectations are in
 - [Issue board](docs/issues/README.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security baseline](docs/security/foundation-security.md)
-- [Verification plan](docs/verification/RFC-BPR-0001.md)
+- [RFC-BPR-0002 verification ledger](docs/verification/RFC-BPR-0002.md)

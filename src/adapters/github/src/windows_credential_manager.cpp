@@ -22,10 +22,10 @@ namespace
 {
 constexpr std::wstring_view production_target_prefix =
     L"org.betterpullreview.github-native-credential."
-    L"windows-credential-manager.v1/";
+    L"windows-credential-manager.v2/";
 constexpr std::wstring_view integration_test_target_prefix =
     L"org.betterpullreview.github-native-credential."
-    L"windows-credential-manager.integration-test.v1/";
+    L"windows-credential-manager.integration-test.v2/";
 
 // Microsoft documents a 5 * 512-byte generic credential blob limit for the
 // supported Windows 10/11 surface. Some MinGW headers retain the legacy
@@ -37,11 +37,11 @@ constexpr std::size_t windows_credential_manager_maximum_blob_bytes =
 static_assert(
     production_target_prefix.size()
         + windows_credential_manager_authority_account_chars
-    == 142U);
+    == 650U);
 static_assert(
     integration_test_target_prefix.size()
         + windows_credential_manager_authority_account_chars
-    == 159U);
+    == 667U);
 static_assert(
     integration_test_target_prefix.size()
         + windows_credential_manager_authority_account_chars
@@ -1126,6 +1126,20 @@ auto encode_windows_credential_manager_authority_account(
         encoded,
         offset,
         server_contract_discriminator(authority.ServerContract));
+    const auto hostname = authority.Hostname.value();
+    append_hex_u8(
+        encoded, offset, static_cast<std::uint8_t>(hostname.size()));
+    for(std::size_t index = 0U;
+        index < application::maximum_github_hostname_bytes;
+        ++index)
+    {
+        const std::uint8_t value =
+            index < hostname.size()
+            ? static_cast<std::uint8_t>(
+                  static_cast<unsigned char>(hostname[index]))
+            : std::uint8_t{0U};
+        append_hex_u8(encoded, offset, value);
+    }
     return encoded;
 }
 

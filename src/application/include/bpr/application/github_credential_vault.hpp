@@ -81,6 +81,7 @@ struct github_credential_authority_key
     core::host_profile_id Profile;
     github_profile_revision ProfileRevision;
     core::git_host_id Host;
+    github_canonical_hostname Hostname;
     core::github_account_id Account;
     github_server_contract ServerContract =
         github_server_contract::github_com_2022_11_28;
@@ -95,7 +96,8 @@ struct github_credential_authority_key
         && authority.ProfileRevision.valid()
         && authority.Host.value() != 0U
         && authority.Account.value() != 0U
-        && valid(authority.ServerContract);
+        && valid_github_authority_hostname(
+            authority.ServerContract, authority.Hostname);
 }
 
 struct github_credential_operation_context

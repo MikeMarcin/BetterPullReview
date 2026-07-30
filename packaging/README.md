@@ -18,9 +18,19 @@ CA bundle or proxy implementation in this slice.
 
 | Target | GitHub adapter dependency facts |
 |---|---|
-| macOS arm64 development host | Qt Network 6.11.1; active TLS backend reported as OpenSSL; direct Security and CoreFoundation dependencies for the file-based Keychain adapter; current binary is ad-hoc linker-signed |
-| Linux x86_64 full-system QEMU guest | Ubuntu 26.04, Linux 7.0.0-28, GCC 15.2, Qt 6.10.2; adapter build includes Threads and `libsecret-1>=0.20.0`; native HTTPS test ELF directly needs Qt6Network and Qt6Core; runtime selected OpenSSL and one direct proxy candidate |
+| macOS arm64 development host | Qt Network 6.11.1; active TLS backend reported as OpenSSL; the public tests-off Release self-test reports native platform-vault selection; the binary links Security/CoreFoundation and imports `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, and `SecItemDelete`; current binary is ad-hoc linker-signed |
+| Linux x86_64 full-system QEMU guest | Historical v1 Secret Service and internal native-HTTPS evidence: Ubuntu 26.04, Linux 7.0.0-28, GCC 15.2, Qt 6.10.2; adapter build includes Threads and `libsecret-1>=0.20.0`; native HTTPS test ELF directly needs Qt6Network and Qt6Core; runtime selected OpenSSL and one direct proxy candidate. The current v2 public selection/runtime, exact cleanup, tests-disabled seam absence, and dependency/runtime/ELF audits passed under BPR-0029 |
 | Windows 10/11 x64 | Qt Core/Network, Threads, and `Advapi32` for Credential Manager are selected by the build; native runtime, TLS/proxy, and PE dependency inspection remain BPR-0036 work |
+
+The BPR-0029 current-v2 Linux run completed fresh tests-on and tests-off
+Release builds at 81/81 and 36/36 targets. All 40 non-native registered test
+identities have passing current-tree evidence after the repaired gates; the
+Secret Service setup/lifecycle/cleanup cases passed 3/3 plus independent exact
+cleanup and hostile/unavailable/locked cases; and both public fixtures passed
+with exact host and rendered state. The tests-off self-test reported
+`PUBLIC_PATH_OK` and `NATIVE_PLATFORM_VAULT_SELECTED:true`; its executable
+SHA-256 is
+`78a85e15319473e39baaa6b6c8723ff7f9adbade13b48475a3f94a5622719b01`.
 
 Linux verification froze `native_https_transport.cpp` at SHA-256
 `fd7976b48241795302ded4d1a73c851064edce66364a3b50b990294ca95ab134`
@@ -42,14 +52,19 @@ owns trusted Qt plugin placement, complete transitive dependency inventory,
 SBOM, signing/notarization, installers, launch, upgrade, and uninstall evidence.
 Windows target-native execution is nonblocking for current implementation and
 documentation work but remains required for the affected Windows claim and
-RFC-BPR-0002 closeout.
+RFC-BPR-0002 closeout. The public application exact-deletes its retained v2
+credential on orderly shutdown; it has no durable selector or enumeration
+path, so no crash/restart recovery is claimed.
 
-`BPR_BUILD_TESTS=ON` adds an adapter-private native HTTPS seam that substitutes
-loopback proxies and can add one disposable fixture CA. A directly inspected
+`BPR_BUILD_TESTS=ON` adds the adapter-private native HTTPS seam and the
+GitHub.com/GHES public composition fixture. A directly inspected
 `BPR_BUILD_TESTS=OFF` macOS build exported no
-`make_native_https_*_transport_for_test` symbols. Release/package builds must
-keep tests disabled and repeat the symbol and dependency audit on the packaged
-target.
+`make_native_https_*_transport_for_test` symbols, omitted the fixture
+translation unit and test definitions from its compile graph, and contained
+none of the fixture arguments, status strings, labels, identities, paths, or
+access symbols in its raw application bytes. Release/package builds must keep
+tests disabled and repeat the graph, byte, symbol, and dependency audits on
+the packaged target.
 
 GitHub Actions has no role in configuring, building, testing, packaging,
 releasing, signing, or verifying BetterPullReview. Packaging evidence comes

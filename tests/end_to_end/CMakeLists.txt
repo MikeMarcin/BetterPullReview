@@ -1,3 +1,9 @@
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(bpr_native_platform_vault_self_test_result "true")
+else()
+    set(bpr_native_platform_vault_self_test_result "false")
+endif()
+
 add_test(
     NAME application_public_path
     COMMAND
@@ -8,8 +14,98 @@ set_tests_properties(
     application_public_path
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        PASS_REGULAR_EXPRESSION "PUBLIC_PATH_OK"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+NATIVE_PLATFORM_VAULT_SELECTED:${bpr_native_platform_vault_self_test_result}"
         TIMEOUT 15
+)
+
+add_executable(
+    better_pull_review_worker_executor_tests
+    worker_executor_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_worker_executor_tests
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_features(
+    better_pull_review_worker_executor_tests
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(better_pull_review_worker_executor_tests)
+bpr_enable_warnings(better_pull_review_worker_executor_tests)
+
+add_test(
+    NAME application_worker_executor
+    COMMAND better_pull_review_worker_executor_tests
+)
+set_tests_properties(
+    application_worker_executor
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "worker-executor-tests:pass"
+        TIMEOUT 15
+)
+
+add_test(
+    NAME application_composition_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"
+        --cmake
+        "${CMAKE_COMMAND}"
+        --qt-dir
+        "${Qt6_DIR}"
+)
+set_tests_properties(
+    application_composition_contract
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "OK"
+        TIMEOUT 600
+)
+
+set(bpr_public_path_fixture_environment "QT_QPA_PLATFORM=offscreen")
+if(UNIX AND NOT APPLE)
+    list(APPEND
+        bpr_public_path_fixture_environment
+        "QT_STYLE_OVERRIDE=Windows"
+    )
+endif()
+
+add_test(
+    NAME application_github_public_path_github_com
+    COMMAND
+        $<TARGET_FILE:better_pull_review>
+        --github-fixture
+        github-com
+        --render-evidence
+        "${CMAKE_CURRENT_BINARY_DIR}/github-public-path-github-com.png"
+)
+set_tests_properties(
+    application_github_public_path_github_com
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+RENDER_OK"
+        TIMEOUT 30
+)
+
+add_test(
+    NAME application_github_public_path_ghes_3_18
+    COMMAND
+        $<TARGET_FILE:better_pull_review>
+        --github-fixture
+        ghes-3.18
+        --render-evidence
+        "${CMAKE_CURRENT_BINARY_DIR}/github-public-path-ghes-3.18.png"
+)
+set_tests_properties(
+    application_github_public_path_ghes_3_18
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:ghes-3.18[\r\n]+RENDER_OK"
+        TIMEOUT 30
 )
 
 add_test(

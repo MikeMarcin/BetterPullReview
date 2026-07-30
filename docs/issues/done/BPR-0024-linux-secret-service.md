@@ -19,6 +19,13 @@ environment, or a plaintext file.
 
 GitHub Actions is not an acceptable evidence surface.
 
+> Later BPR-0029 note: this card's target-native result records the historical
+> v1 schema. Current source uses a disjoint v2 schema and 574-character
+> hostname-bound authority. BPR-0029 separately passed the current v2
+> lifecycle, exact cleanup, and public composition in an Ubuntu 26.04 x86_64
+> full-system QEMU guest; that result does not relabel this card's v1 evidence.
+> No v1 migration or fallback exists.
+
 ## Result
 
 - Added a Linux-only libsecret adapter with fixed, disjoint production and
@@ -55,8 +62,9 @@ GitHub Actions is not an acceptable evidence surface.
   This is direct guest operating-system and native-library execution with an
   emulated x86_64 CPU, not bare-metal hardware evidence.
 - Inspected the x86-64 ELF test and its selected libsecret, GIO, GObject, and
-  GLib dependencies and imports. The current public application does not yet
-  compose this vault, so public-path selection remains later work.
+  GLib dependencies and imports. At BPR-0024 closeout, the public application
+  did not compose this vault; the later BPR-0029 note above records the
+  current state.
 - Preserved local and target-native build ownership. GitHub Actions has no
   build, test, package, release, or verification role.
 

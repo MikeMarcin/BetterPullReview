@@ -16,6 +16,12 @@ namespace bpr::application
 {
 inline constexpr std::size_t maximum_github_credential_bindings = 64U;
 
+enum class github_credential_shutdown_policy
+{
+    retain,
+    delete_retained_on_shutdown,
+};
+
 class github_credential_binding_catalog final
 {
 public:
@@ -53,6 +59,8 @@ public:
     // shutdown() closes ingress but does not wait for remote work. When
     // is_quiescent() is false, composition keeps this host and its referenced
     // ports, decision lane, and projections alive while draining callbacks.
+    // delete_retained_on_shutdown makes an exact vault delete terminal part of
+    // quiescence for the credential authority retained by this host.
     // Destruction alone cannot guarantee cleanup of an extracted vault store.
     github_application_host(
         core::github_state initial_state,
@@ -63,7 +71,9 @@ public:
         github_credential_vault_port& credentials,
         github_credential_binding_catalog& credential_bindings,
         decision_executor& decision_lane,
-        github_projection_port& projections);
+        github_projection_port& projections,
+        github_credential_shutdown_policy credential_shutdown_policy =
+            github_credential_shutdown_policy::retain);
     ~github_application_host();
 
     github_application_host(const github_application_host&) = delete;

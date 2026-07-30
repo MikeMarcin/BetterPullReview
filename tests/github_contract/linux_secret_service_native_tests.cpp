@@ -337,8 +337,21 @@ template<typename Terminal, typename Completion>
 void write_fixed_diagnostic(
     const std::string_view category) noexcept
 {
-    static_cast<void>(
-        ::write(STDERR_FILENO, category.data(), category.size()));
+    auto remaining = category;
+    while(!remaining.empty())
+    {
+        const auto written =
+            ::write(STDERR_FILENO, remaining.data(), remaining.size());
+        if(written < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        if(written <= 0)
+        {
+            return;
+        }
+        remaining.remove_prefix(static_cast<std::size_t>(written));
+    }
 }
 
 [[nodiscard]] auto run_store(

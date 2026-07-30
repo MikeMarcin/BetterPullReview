@@ -14,10 +14,10 @@ namespace bpr::adapters::github
 namespace
 {
 constexpr std::string_view production_service =
-    "org.betterpullreview.github-native-credential.file-keychain.v1";
+    "org.betterpullreview.github-native-credential.file-keychain.v2";
 constexpr std::string_view integration_test_service =
     "org.betterpullreview.github-native-credential.file-keychain."
-    "integration-test.v1";
+    "integration-test.v2";
 
 template<typename... Callables>
 struct overloaded : Callables...
@@ -1308,6 +1308,20 @@ auto encode_macos_keychain_authority_account(
         encoded,
         offset,
         server_contract_discriminator(authority.ServerContract));
+    const auto hostname = authority.Hostname.value();
+    append_hex_u8(
+        encoded, offset, static_cast<std::uint8_t>(hostname.size()));
+    for(std::size_t index = 0U;
+        index < application::maximum_github_hostname_bytes;
+        ++index)
+    {
+        const std::uint8_t value =
+            index < hostname.size()
+            ? static_cast<std::uint8_t>(
+                  static_cast<unsigned char>(hostname[index]))
+            : std::uint8_t{0U};
+        append_hex_u8(encoded, offset, value);
+    }
     return encoded;
 }
 

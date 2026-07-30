@@ -80,13 +80,18 @@ larger live pull request loaded completely.
   live until host quiescence. Duplicate, stale, malformed, reordered, and late
   terminals cannot rewrite accepted state or credential lifecycle.
 
-The credential binding catalog proves only same-process host recreation when
-composition shares the catalog across host instances. Normal shutdown
-intentionally preserves an accepted native credential, but the current vault
-cannot enumerate or reconstruct its account-keyed authority after process
-restart. BPR-0029 must add trusted durable rehydration or exact shutdown
-deletion before native persistence is composed; BPR-0027 makes no
-process-restart or public persistence claim.
+At BPR-0027 closeout, the credential binding catalog proved only same-process
+host recreation when composition shared the catalog across host instances.
+Normal shutdown intentionally preserved an accepted native credential, but
+the vault could not enumerate or reconstruct its account-keyed authority after
+process restart. BPR-0029 therefore had to add trusted durable rehydration or
+exact shutdown deletion before native persistence was composed; BPR-0027 made
+no process-restart or public persistence claim.
+
+> Later BPR-0029 result: the public composition chose exact orderly shutdown
+> deletion. Its delete terminal is part of quiescence before worker teardown.
+> There is still no durable selector or enumeration; a crash can leave an item
+> that a later process cannot recover.
 
 Windows target-native execution remains BPR-0036 and is nonblocking for this
 slice. GitHub Actions has no build, test, package, release, or verification

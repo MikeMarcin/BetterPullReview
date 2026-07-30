@@ -5,6 +5,7 @@
       "pullRequest": {
         "id": "PR_fixture_17",
         "files": {
+          "totalCount": 1,
           "nodes": [
             {
               "path": "src/core/review_snapshot.cpp",
@@ -17,6 +18,7 @@
           }
         },
         "reviewThreads": {
+          "totalCount": 1,
           "nodes": [
             {
               "id": "PRRT_fixture_1",
@@ -29,6 +31,7 @@
               "line": 42,
               "originalLine": 42,
               "comments": {
+                "totalCount": 1,
                 "nodes": [
                   {
                     "id": "PRRC_fixture_1",

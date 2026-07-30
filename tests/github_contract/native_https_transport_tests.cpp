@@ -248,6 +248,9 @@ account_operation_context(const validated_github_host_profile& profile,
                 .Profile = profile.profile(),
                 .ProfileRevision = profile.revision(),
                 .Host = profile.host(),
+                .Hostname =
+                    application::github_canonical_hostname{
+                        profile.hostname()},
                 .Account = request.Account,
                 .ServerContract = profile.server_contract(),
             },
@@ -269,6 +272,9 @@ account_operation_context(const validated_github_host_profile& profile,
                 .Profile = profile.profile(),
                 .ProfileRevision = profile.revision(),
                 .Host = profile.host(),
+                .Hostname =
+                    application::github_canonical_hostname{
+                        profile.hostname()},
                 .Account = account,
                 .ServerContract = profile.server_contract(),
             },
@@ -437,6 +443,26 @@ void test_factory_contracts_and_preflight()
                 == native_https_configuration_failure::
                     credential_authority_mismatch,
         "credential-authority-mismatch");
+
+    auto mismatched_hostname =
+        account_operation_context(*native, pull_request);
+    mismatched_hostname.Authority.Hostname =
+        application::github_canonical_hostname{"other.bpr.invalid"};
+    const auto hostname_authority_factory =
+        make_native_https_account_transport_for_test(
+            *native,
+            application::github_credential_retrieve_success{
+                .Context = mismatched_hostname,
+                .Credential =
+                    credential_material("BPR0026FixtureValue"),
+            },
+            configuration);
+    expect(
+        !hostname_authority_factory.has_value()
+            && hostname_authority_factory.error()
+                == native_https_configuration_failure::
+                    credential_authority_mismatch,
+        "credential-hostname-authority-mismatch");
 
     auto bootstrap = make_native_https_bootstrap_transport_for_test(
         *native,

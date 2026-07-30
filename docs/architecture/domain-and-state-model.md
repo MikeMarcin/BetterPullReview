@@ -45,11 +45,12 @@ Every persisted row, observation, request, completion, cache key, and asynchrono
 | Pending work | Core and host | request/generation/revision correlation | progress/cancel presentation |
 
 Native credential authority is the exact tuple of profile, profile revision,
-host, authenticated account, and server contract. The application contract
-adds request, application-session, and identity-generation correlation to
-every vault operation and terminal result. Credential bytes are neither state
-facts nor observations: they remain in a move-only host-owned material object
-until the vault or credential-bearing transport consumes and overwrites them.
+host identity, canonical hostname, authenticated account, and server
+contract. The application contract adds request, application-session, and
+identity-generation correlation to every vault operation and terminal result.
+Credential bytes are neither state facts nor observations: they remain in a
+move-only host-owned material object until the vault or credential-bearing
+transport consumes and overwrites them.
 
 When local and GitHub state disagree about a shared fact, GitHub wins. When a widget and the core disagree about semantic selection, the core wins and the adapter repairs the visual selection.
 

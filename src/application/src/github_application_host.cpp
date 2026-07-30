@@ -92,6 +92,7 @@ mapped_failure(const github_provider_failure failure) noexcept
         .Profile = profile.Profile,
         .ProfileRevision = profile.ProfileRevision,
         .Host = profile.Host,
+        .Hostname = profile.Hostname,
         .Account = account,
         .ServerContract = profile.ServerContract,
     };
@@ -393,7 +394,9 @@ struct github_application_host::implementation final
                    github_credential_vault_port& credentials,
                    github_credential_binding_catalog& credential_bindings,
                    decision_executor& decision_lane,
-                   github_projection_port& projections)
+                   github_projection_port& projections,
+                   const github_credential_shutdown_policy
+                       credential_shutdown_policy)
         : State{std::move(initial_state)}
         , Profiles{profiles}
         , Viewers{viewers}
@@ -404,6 +407,7 @@ struct github_application_host::implementation final
         , CapabilityCache{create_host_capability_cache()}
         , DecisionLane{decision_lane}
         , Projections{projections}
+        , CredentialShutdownPolicy{credential_shutdown_policy}
         , CompletionGate{std::make_shared<completion_gate>()}
     {
         CompletionGate->Host.store(this, std::memory_order_release);
@@ -754,6 +758,20 @@ struct github_application_host::implementation final
                 .RateLimitCause = error.RateLimitCause,
             });
         }
+    }
+
+    [[nodiscard]] auto requires_shutdown_credential_cleanup() const noexcept
+        -> bool
+    {
+        if(!CredentialAuthority.has_value()
+           || !CredentialSessionContext.has_value())
+        {
+            return false;
+        }
+        return CredentialLifecycle == credential_lifecycle::provisional
+               || CredentialShutdownPolicy
+                      == github_credential_shutdown_policy::
+                          delete_retained_on_shutdown;
     }
 
     void execute(const core::github_host_request& request)
@@ -1136,6 +1154,7 @@ struct github_application_host::implementation final
                || resume_authority.ProfileRevision
                       != success->Authority.ProfileRevision
                || resume_authority.Host != success->Authority.Host
+               || resume_authority.Hostname != success->Authority.Hostname
                || resume_authority.ServerContract
                       != success->Authority.ServerContract)
             {
@@ -1962,7 +1981,7 @@ struct github_application_host::implementation final
                 ActiveVaultOperation = vault_operation::none;
                 ActiveVaultContext.reset();
                 DeferredInvalidationGeneration.reset();
-                if(CredentialLifecycle == credential_lifecycle::provisional)
+                if(requires_shutdown_credential_cleanup())
                 {
                     start_delete(expected_operation.IdentityGeneration,
                                  std::nullopt);
@@ -2200,7 +2219,7 @@ struct github_application_host::implementation final
                 ActiveVaultOperation = vault_operation::none;
                 ActiveVaultContext.reset();
                 DeferredInvalidationGeneration.reset();
-                if(CredentialLifecycle == credential_lifecycle::provisional)
+                if(requires_shutdown_credential_cleanup())
                 {
                     start_delete(expected_operation.IdentityGeneration,
                                  std::nullopt);
@@ -3051,10 +3070,7 @@ struct github_application_host::implementation final
             // An exact cleanup is already in flight. Its terminal remains the
             // only authority for shutdown quiescence.
         }
-        else if(CredentialAuthority.has_value()
-                && CredentialSessionContext.has_value()
-                && !AcceptedSession.has_value()
-                && CredentialLifecycle == credential_lifecycle::provisional)
+        else if(requires_shutdown_credential_cleanup())
         {
             start_delete(CredentialSessionContext->IdentityGeneration,
                          std::nullopt);
@@ -3083,6 +3099,8 @@ struct github_application_host::implementation final
     github_capability_cache CapabilityCache;
     decision_executor& DecisionLane;
     github_projection_port& Projections;
+    github_credential_shutdown_policy CredentialShutdownPolicy =
+        github_credential_shutdown_policy::retain;
     std::shared_ptr<completion_gate> CompletionGate;
     std::deque<deferred_ingress> DeferredIngress;
     bool TurnActive = false;
@@ -3136,7 +3154,8 @@ github_application_host::github_application_host(
     github_credential_vault_port& credentials,
     github_credential_binding_catalog& credential_bindings,
     decision_executor& decision_lane,
-    github_projection_port& projections)
+    github_projection_port& projections,
+    const github_credential_shutdown_policy credential_shutdown_policy)
     : Implementation{std::make_unique<implementation>(std::move(initial_state),
                                                       profiles,
                                                       viewers,
@@ -3145,7 +3164,8 @@ github_application_host::github_application_host(
                                                       credentials,
                                                       credential_bindings,
                                                       decision_lane,
-                                                      projections)}
+                                                      projections,
+                                                      credential_shutdown_policy)}
 {
 }
 

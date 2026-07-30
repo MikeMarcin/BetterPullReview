@@ -13,7 +13,9 @@
 
 namespace bpr::adapters::github
 {
-inline constexpr std::size_t linux_secret_service_authority_account_bytes = 66U;
+inline constexpr std::size_t linux_secret_service_authority_account_bytes =
+    (4U * 16U) + 2U + 2U
+    + (2U * application::maximum_github_hostname_bytes);
 
 using linux_secret_service_authority_account =
     std::array<char, linux_secret_service_authority_account_bytes>;

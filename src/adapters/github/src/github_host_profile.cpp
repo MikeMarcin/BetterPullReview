@@ -8,10 +8,7 @@ namespace bpr::adapters::github
 {
 namespace
 {
-constexpr std::size_t maximum_hostname_bytes = 253U;
-constexpr std::size_t maximum_hostname_label_bytes = 63U;
 constexpr std::size_t maximum_redirect_target_bytes = 2U * 1024U;
-constexpr std::string_view github_com_hostname = "github.com";
 constexpr std::string_view github_com_rest_root = "https://api.github.com";
 constexpr std::string_view github_com_graphql_root =
     "https://api.github.com/graphql";
@@ -26,56 +23,6 @@ constexpr std::string_view https_prefix = "https://";
 [[nodiscard]] constexpr auto ascii_digit(const char value) noexcept -> bool
 {
     return value >= '0' && value <= '9';
-}
-
-[[nodiscard]] auto canonical_hostname(const std::string_view hostname) noexcept
-    -> bool
-{
-    if(
-        hostname.empty() || hostname.size() > maximum_hostname_bytes
-        || hostname.front() == '.' || hostname.back() == '.')
-    {
-        return false;
-    }
-
-    bool saw_dot = false;
-    std::size_t label_begin = 0U;
-    while(label_begin < hostname.size())
-    {
-        const auto label_end = hostname.find('.', label_begin);
-        const auto end =
-            label_end == std::string_view::npos ? hostname.size() : label_end;
-        const auto label = hostname.substr(label_begin, end - label_begin);
-        if(
-            label.empty() || label.size() > maximum_hostname_label_bytes
-            || label.front() == '-' || label.back() == '-'
-            || label.starts_with("xn--"))
-        {
-            return false;
-        }
-
-        bool label_has_letter = false;
-        for(const auto character : label)
-        {
-            if(ascii_lower_letter(character))
-            {
-                label_has_letter = true;
-                continue;
-            }
-            if(!ascii_digit(character) && character != '-')
-            {
-                return false;
-            }
-        }
-
-        if(end == hostname.size())
-        {
-            return saw_dot && label_has_letter;
-        }
-        saw_dot = true;
-        label_begin = end + 1U;
-    }
-    return false;
 }
 
 [[nodiscard]] constexpr auto valid_provenance(
@@ -347,7 +294,7 @@ auto validate_github_host_profile(
         return std::unexpected{
             github_profile_failure::untrusted_provenance};
     }
-    if(!canonical_hostname(candidate.Hostname))
+    if(!application::valid_github_canonical_hostname(candidate.Hostname))
     {
         return std::unexpected{github_profile_failure::invalid_hostname};
     }
@@ -358,7 +305,10 @@ auto validate_github_host_profile(
         candidate.Server
         == application::github_server_contract::github_com_2022_11_28)
     {
-        if(candidate.Hostname != github_com_hostname)
+        if(!application::valid_github_authority_hostname(
+               candidate.Server,
+               application::github_canonical_hostname{
+                   candidate.Hostname}))
         {
             return std::unexpected{github_profile_failure::invalid_hostname};
         }
@@ -367,9 +317,10 @@ auto validate_github_host_profile(
     }
     else
     {
-        if(
-            candidate.Hostname == github_com_hostname
-            || candidate.Hostname == "api.github.com")
+        if(!application::valid_github_authority_hostname(
+               candidate.Server,
+               application::github_canonical_hostname{
+                   candidate.Hostname}))
         {
             return std::unexpected{github_profile_failure::invalid_hostname};
         }

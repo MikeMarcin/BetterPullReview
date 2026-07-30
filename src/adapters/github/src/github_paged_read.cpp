@@ -2371,6 +2371,7 @@ struct thread_pagination_state
            && authority.Profile == profile.profile()
            && authority.ProfileRevision == profile.revision()
            && authority.Host == context.Host && authority.Host == profile.host()
+           && authority.Hostname.value() == profile.hostname()
            && authority.ServerContract == profile.server_contract()
            && authority.Authentication == profile.authentication_transport()
            && application::valid(observation)

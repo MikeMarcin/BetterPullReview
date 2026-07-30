@@ -16,6 +16,12 @@ text and that cleanup succeeds. Exercise locked, unavailable, access-denied,
 replacement, and delete-failure states; every failure must remain explicit and
 must never fall back to a profile, settings, environment, or plaintext file.
 
+> Later BPR-0029 note: this card records the historical v1 hostname-free
+> service. The current adapter uses a disjoint v2 service and 574-character
+> hostname-bound authority; BPR-0029 reran macOS native
+> setup/lifecycle/cleanup and selected that v2 factory publicly. No v1
+> migration or fallback exists.
+
 ## Result
 
 - Added an Apple-only file-based Keychain v1 adapter that resolves the exact

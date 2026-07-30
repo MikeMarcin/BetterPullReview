@@ -70,3 +70,28 @@ set_tests_properties(
         ENVIRONMENT
             "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=2.0;BPR_EXPECTED_QT_SCALE=2.0;BPR_QT_MIN_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-minimum-200.png;BPR_QT_MIN_LOWER_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-minimum-lower-200.png;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-200.png"
 )
+
+add_executable(
+    better_pull_review_qt_sensitive_text_input_tests
+    sensitive_text_input_tests.cpp
+)
+
+target_link_libraries(
+    better_pull_review_qt_sensitive_text_input_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(better_pull_review_qt_sensitive_text_input_tests)
+bpr_enable_warnings(better_pull_review_qt_sensitive_text_input_tests)
+
+add_test(
+    NAME qt_sensitive_text_input
+    COMMAND better_pull_review_qt_sensitive_text_input_tests
+)
+set_tests_properties(
+    qt_sensitive_text_input
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "sensitive-text-input-tests:pass"
+        TIMEOUT 15
+)

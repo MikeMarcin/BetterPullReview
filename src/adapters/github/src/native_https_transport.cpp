@@ -423,6 +423,7 @@ profile_policy_valid(const validated_github_host_profile& profile) noexcept
     return authority.Profile == profile.profile()
         && authority.ProfileRevision == profile.revision()
         && authority.Host == profile.host()
+        && authority.Hostname.value() == profile.hostname()
         && authority.ServerContract == profile.server_contract();
 }
 

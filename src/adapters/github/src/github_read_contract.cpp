@@ -1206,6 +1206,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
             {
                 "base",
                 "body",
+                "changed_files",
+                "commits",
                 "draft",
                 "head",
                 "id",
@@ -1223,6 +1225,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
     const auto merged = object.value("merged").toBool();
     return exact_integer(object.value("id"), true)
         && valid_pull_request_number(object.value("number"))
+        && exact_integer(object.value("changed_files"))
+        && exact_integer(object.value("commits"), true)
         && nonempty_string(object.value("node_id"))
         && one_of(object.value("state"), {"open", "closed"})
         && nonempty_string(object.value("title"))
@@ -1459,7 +1463,9 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
     const auto files = pull_request.toObject().value("files");
     if(
         !files.isObject()
-        || !has_exact_keys(files.toObject(), {"nodes", "pageInfo"})
+        || !has_exact_keys(
+            files.toObject(), {"nodes", "pageInfo", "totalCount"})
+        || !exact_integer(files.toObject().value("totalCount"))
         || !bounded_object_array(
             files.toObject().value("nodes"),
             {"path", "viewerViewedState"}))
@@ -1471,6 +1477,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
         !exact_page_info(
             files.toObject().value("pageInfo"),
             file_nodes.size())
+        || files.toObject().value("totalCount").toDouble()
+               != static_cast<double>(file_nodes.size())
         || !std::ranges::all_of(
             file_nodes,
             [](const QJsonValue& value) {
@@ -1488,7 +1496,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
         !threads.isObject()
         || !has_exact_keys(
             threads.toObject(),
-            {"nodes", "pageInfo"})
+            {"nodes", "pageInfo", "totalCount"})
+        || !exact_integer(threads.toObject().value("totalCount"))
         || !bounded_object_array(
             threads.toObject().value("nodes"),
             {
@@ -1510,7 +1519,9 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
     if(
         !exact_page_info(
             threads.toObject().value("pageInfo"),
-            thread_nodes.size()))
+            thread_nodes.size())
+        || threads.toObject().value("totalCount").toDouble()
+               != static_cast<double>(thread_nodes.size()))
     {
         return false;
     }
@@ -1549,13 +1560,16 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
             || !comments.isObject()
             || !has_exact_keys(
                 comments.toObject(),
-                {"nodes", "pageInfo"})
+                {"nodes", "pageInfo", "totalCount"})
+            || !exact_integer(comments.toObject().value("totalCount"))
             || !comments.toObject().value("nodes").isArray()
             || comment_nodes.size()
                 > maximum_fixture_page_records
             || !exact_page_info(
                 comments.toObject().value("pageInfo"),
                 comment_nodes.size())
+            || comments.toObject().value("totalCount").toDouble()
+                   != static_cast<double>(comment_nodes.size())
             || !std::ranges::all_of(
                 comment_nodes,
                 exact_graphql_comment))
@@ -1690,8 +1704,11 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
             value.toObject(),
             {
                 "draft",
+                "html_url",
                 "node_id",
                 "number",
+                "pull_request",
+                "repository_url",
                 "state",
                 "title",
             }))
@@ -1699,11 +1716,17 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
         return false;
     }
     const auto object = value.toObject();
+    const auto pull_request = object.value("pull_request");
     return nonempty_string(object.value("node_id"))
         && valid_pull_request_number(object.value("number"))
         && one_of(object.value("state"), {"open"})
         && nonempty_string(object.value("title"))
-        && object.value("draft").isBool();
+        && object.value("draft").isBool()
+        && nonempty_string(object.value("repository_url"))
+        && nonempty_string(object.value("html_url"))
+        && pull_request.isObject()
+        && has_exact_keys(pull_request.toObject(), {"url"})
+        && nonempty_string(pull_request.toObject().value("url"));
 }
 
 [[nodiscard]] auto validate_search_fixture(const QJsonDocument& document)

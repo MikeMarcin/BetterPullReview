@@ -36,6 +36,13 @@ aliases, IP literals, ports, non-HTTPS roots, and root drift fail before a
 request can be compiled. GraphQL redirects are forbidden, and REST redirects
 remain on the exact validated authority and API namespace.
 
+The public composition provides built-in-provenance GitHub.com native-HTTPS
+and CLI profiles. An optional GHES 3.18 hostname supplied through the
+application command line creates explicit-user-provenance native-HTTPS and CLI
+profiles only after the same validation. The provider owns immutable copies
+of all selected profiles, rejects duplicate profile identities, and routes
+each operation by the exact validated profile.
+
 The functional core sees an opaque profile identity rather than hostname, URL,
 proxy, trust, or authentication configuration. The active host and account are
 always visible to the user, while credential material is never projected.
@@ -152,12 +159,15 @@ already-established identity generation, so the child cannot prove it used
 the correlated credential identity.
 
 Production CLI reads expose all four typed unavailability reasons and return
-`cli_unavailable` without starting a process. The synthetic authentication
-config used by the isolated trust probe is verification-only; token variables
-and every other credential-bearing environment surface are absent from the
-production broker. A future CLI path must eliminate or directly bind every
-one of these gaps; satisfying only redirect behavior is insufficient.
-BPR-0037 owns that production-enablement work.
+`cli_unavailable` without starting a process. The public profile labels CLI as
+unavailable and sends activation through the same semantic host path, so the
+user sees the bounded unavailable diagnostic while the process launch count
+remains zero. The synthetic authentication config used by the isolated trust
+probe is verification-only; token variables and every other
+credential-bearing environment surface are absent from the production broker.
+A future CLI path must eliminate or directly bind every one of these gaps;
+satisfying only redirect behavior is insufficient. BPR-0037 owns that
+production-enablement work.
 
 ### Native HTTPS
 
@@ -165,11 +175,11 @@ BPR-0026 implements the internal wire port with one dedicated Qt worker,
 event loop, and `QNetworkAccessManager` per transport. The Qt objects do not
 cross the adapter, and one transport rejects a second concurrent operation.
 The complete wire request and correlation are revalidated before the worker
-uses a credential or performs network work. This surface is not yet the
-public executable path. BPR-0027 consumes it through the application-facing
-provider and owns pagination, normalization, body-aware failure
-interpretation, and staged snapshot delivery; BPR-0029 owns concrete public
-composition.
+uses a credential or performs network work. BPR-0027 consumes it through the
+application-facing provider and owns pagination, normalization, body-aware
+failure interpretation, and staged snapshot delivery. BPR-0029 selects this
+native transport in the public executable for GitHub.com and explicitly
+configured GHES profiles.
 
 Production uses the system CA set and
 `QNetworkProxyFactory::systemProxyForQuery` for every hop. At most 16 proxy
@@ -252,9 +262,10 @@ exposes no exact wipe operation.
 
 Bootstrap material is exact-session-bound, can authorize only one viewer
 identity request, and is destroyed once claimed. Stored-account material is
-accepted only for the exact profile, profile revision, host, account, server
-contract, application session, and identity generation. Store credentials
-only in Windows Credential Manager, macOS Keychain, or Linux Secret Service.
+accepted only for the exact profile, profile revision, host identity,
+canonical hostname, account, server contract, application session, and
+identity generation. Store credentials only in Windows Credential Manager,
+macOS Keychain, or Linux Secret Service.
 Never store tokens in SQLite, settings, environment files, logs, crash
 reports, or command lines. Locked, unavailable, access-denied, corrupt, and
 failed-delete states remain typed; there is no plaintext, settings,
@@ -305,23 +316,26 @@ RFC-BPR-0002 implementation slices; it blocks only affected Windows claims
 and final RFC closeout.
 
 The portable vault capability accepts only an exact profile/profile-revision/
-host/account/server-contract authority and exact request/session/identity
-generation. Its credential owner is noncopyable, caps nonempty material at
+host/hostname/account/server-contract authority and exact
+request/session/identity generation. Its credential owner is noncopyable,
+caps nonempty material at
 2,560 bytes so every supported native vault can represent it, exposes only
 read-only bytes, and securely overwrites storage before release. Store is an
 ownership-transferring atomic upsert; retrieve, absence, delete, failure, and
 cancellation are distinct typed outcomes. No raw operating-system error text
 or credential bytes enter provider errors or projections.
 
-On macOS, the BPR-0022 adapter explicitly selects the file-based Keychain
-implementation for the current ad hoc linker-signed, unbundled executable,
-which has no team identity, bound `Info.plist`, or provisioning profile. It
-scopes every generic-password operation to the exact default keychain, fixed
-v1 production service, and 66-character fixed-width hexadecimal encoding of
-the complete portable authority; stable explicit bytes distinguish the
-GitHub.com and GHES contracts without serializing a C++ enum ordinal. Requests
-fail rather than display authentication UI. The dedicated native-test service
-is distinct from the production service. The adapter does not set the
+On macOS, the current adapter retains BPR-0022's explicit file-based Keychain
+selection for the ad hoc linker-signed, unbundled executable, which has no
+team identity, bound `Info.plist`, or provisioning profile. BPR-0029 advances
+its fixed production and integration namespaces from the historically tested
+v1 format to v2 and scopes every generic-password operation to the exact
+default keychain and 574-character fixed-width hexadecimal encoding of the
+complete hostname-bound portable authority. Stable explicit bytes distinguish
+the GitHub.com and GHES contracts without serializing a C++ enum ordinal.
+Requests fail rather than display authentication UI. The dedicated
+native-test service is distinct from the production service. The adapter does
+not set the
 data-protection, synchronization, access-group, or accessibility attributes,
 and it never probes or falls back between Keychain implementations. A future
 signed data-protection Keychain migration is package lifecycle work under
@@ -334,10 +348,12 @@ or destructor cancellation may complete synchronously on their originating
 lane. A consuming application host must marshal every typed terminal onto its
 decision lane.
 
-On Windows, the BPR-0023 adapter selects only wide-character generic
-Credential Manager operations. A fixed production target prefix and a
-disjoint integration-test prefix precede the same complete 66-character
-authority encoding. Store is one `CredWriteW` create-or-replace operation;
+On Windows, the current adapter retains BPR-0023's wide-character generic
+Credential Manager operations while BPR-0029 advances the fixed production
+and integration target prefixes from the prepared v1 format to hostname-bound
+v2. Each prefix precedes the same complete 574-character authority encoding.
+Store is one `CredWriteW`
+create-or-replace operation;
 retrieve and delete are exact-target `CredReadW` and `CredDeleteW`
 operations. Native results are bounded to the documented Windows 10/11
 2,560-byte limit, wiped only over a structurally valid extent, and released
@@ -354,8 +370,10 @@ The prepared fake and cross-compile evidence does not verify native behavior;
 BPR-0023 closes only the implementation slice. BPR-0036 retains the direct
 Windows x64 lifecycle, cleanup, and runtime claim as open work.
 
-On Linux, the BPR-0024 adapter is compiled only for the Linux target and
-requires stable `libsecret-1>=0.20.0`. It opens a derived `SecretService` with
+On Linux, the current adapter retains BPR-0024's Linux-only
+`libsecret-1>=0.20.0` selection while BPR-0029 advances the schemas from the
+historically tested v1 format to hostname-bound v2. It opens a derived
+`SecretService` with
 the literal canonical `org.freedesktop.secrets` argument and
 `SECRET_SERVICE_NONE`, validates that the resulting D-Bus proxy has that exact
 name, and only then establishes a Secret Service session. Dependency-level
@@ -367,17 +385,26 @@ denies all prompt vfuncs. When libsecret supplies a prompt, the adapter makes
 one bounded, no-auto-start `Dismiss` call and never displays a prompt, unlocks
 a collection, or creates a collection.
 
-The Linux adapter uses only the default collection. Its exact disjoint v1
+The Linux adapter uses only the default collection. Its exact disjoint v2
 production and integration-test schemas each have one explicit `authority`
-attribute containing the complete 66-character portable authority; libsecret
-adds the exact `xdg:schema` attribute. Store uses atomic replacement and
-`application/octet-stream`. Retrieve accepts only that type or exact
+attribute containing the complete 574-character hostname-bound portable
+authority; libsecret adds the exact `xdg:schema` attribute. Store uses atomic
+replacement and `application/octet-stream`. Retrieve accepts only that type
+or exact
 `text/plain`: gnome-keyring 50 with libsecret 0.21.7 was directly observed
 normalizing the stored content-type metadata to `text/plain` while preserving
 the opaque bytes. Locked and unavailable service, access denial, corrupt
 items, invalid requests, allocation failure, ordinary operation failure,
 absence, replacement, deletion, and cancellation remain typed. Synchronous
 libsecret operations run only through the host effect executor.
+
+The v2 service, target, and schema namespaces are disjoint from the historical
+hostname-free v1 namespaces on every platform. Production does not read,
+enumerate, migrate, or fall back to v1. The v1 production adapters were never
+selected by the public executable. Every directly executed v1 integration
+fixture completed exact cleanup; the Windows v1 fixture remained preparatory
+and created no target-native item. This is an intentional pre-release format
+break, not a credential migration.
 
 The Linux vault contract, resource-locked native fixture, and cleanup passed
 in an Ubuntu 26.04 x86_64 full-system QEMU VM with an emulated CPU, Linux 7.0,
@@ -391,18 +418,25 @@ runtime-surface probes, hostile service-name rejection, a truly locked default
 collection, and no-session-bus unavailability also passed. Access-denied and
 failed-delete terminals are covered by injected effects plus direct
 native-status classification rather than an operating-system policy fixture.
-This is direct Linux vault evidence from a full-system VM; it is not
+This is historical v1 Linux vault evidence from a full-system VM; it is not
 bare-metal evidence. BPR-0026 separately verified the internal Linux native
 HTTPS wire surface with the 15-case loopback fixture, runtime observation,
-ELF dependencies, and a controlled single-success dependency trace. Neither
-the vault evidence nor the internal wire evidence proves the public
-composition surface.
+ELF dependencies, and a controlled single-success dependency trace.
+
+BPR-0029 separately verified the current v2 fixture and composed public path
+in an Ubuntu 26.04 x86_64 full-system QEMU guest. The Secret Service
+setup/lifecycle/cleanup cases passed 3/3 along with independent exact cleanup
+and hostile, unavailable, and locked cases. Both GitHub.com and GHES public
+fixtures passed with exact host and rendered state; fresh tests-on and
+tests-off Release builds completed 81/81 and 36/36 targets respectively, the
+fixture seam was absent, native platform-vault selection was reported, and
+dependency, runtime, and ELF audits passed.
 
 Windows target-native evidence remains open under BPR-0036 and is nonblocking
-for implementation on available platforms. The public executable provider
-path remains BPR-0029 regardless of target. A mock, cross-compile, vault-only
-run, macOS-only run, or internal wire fixture cannot prove that composed path
-or the retained Windows claim.
+for implementation on available platforms. BPR-0029 directly verifies the
+composed path on macOS and Linux; BPR-0036 retains the Windows public-fixture
+run. A mock, cross-compile, vault-only run, or internal wire fixture cannot
+prove a retained platform claim.
 
 ## Normalized application boundary
 
@@ -489,6 +523,15 @@ submission that returns normally produces exactly one terminal even after
 advisory cancellation; a throwing submission retained no operation. The
 decision lane remains available through host quiescence and invokes every
 accepted post exactly once without inline execution.
+
+The public composition uses separate provider and vault worker executors and
+the Qt event loop as the serialized decision lane. Native credential input is
+owned by a Qt password-echo prompt, converted immediately to the application
+move-only material type, and cleared from the Qt-owned temporary. The public
+host selects exact deletion of its retained credential on orderly shutdown;
+the delete terminal is required for quiescence before workers are closed and
+joined. No durable selector or enumeration path exists, so an abrupt crash can
+leave a v2 item that the next process cannot recover.
 
 ## Normalized provider surface
 

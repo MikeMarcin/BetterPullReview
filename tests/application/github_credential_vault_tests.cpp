@@ -96,13 +96,22 @@ auto authority(
     const std::uint64_t account = 4U,
     const application::github_server_contract server =
         application::github_server_contract::
-            github_com_2022_11_28) -> authority_key
+            github_com_2022_11_28,
+    const std::string_view hostname = {}) -> authority_key
 {
     return {
         .Profile = core::host_profile_id{profile},
         .ProfileRevision =
             application::github_profile_revision{profile_revision},
         .Host = core::git_host_id{host},
+        .Hostname = application::github_canonical_hostname{
+            hostname.empty()
+                ? (server
+                           == application::github_server_contract::
+                               github_com_2022_11_28
+                       ? "github.com"
+                       : "ghe.example.invalid")
+                : hostname},
         .Account = core::github_account_id{account},
         .ServerContract = server,
     };
@@ -620,6 +629,31 @@ void test_material_contract()
 
 void test_authority_and_context_validation()
 {
+    const auto maximum_hostname =
+        std::string(63U, 'a') + "." + std::string(63U, 'b') + "."
+        + std::string(63U, 'c') + "." + std::string(61U, 'd');
+    const application::github_canonical_hostname owned_maximum{
+        maximum_hostname};
+    expect(
+        maximum_hostname.size()
+                == application::maximum_github_hostname_bytes
+            && owned_maximum.valid()
+            && owned_maximum.value() == maximum_hostname,
+        "maximum canonical hostname is retained byte-exactly");
+    const auto oversized_hostname = maximum_hostname + "e";
+    const application::github_canonical_hostname rejected_oversized{
+        oversized_hostname};
+    const application::github_canonical_hostname rejected_noncanonical{
+        "GitHub.com"};
+    expect(
+        oversized_hostname.size()
+                == application::maximum_github_hostname_bytes + 1U
+            && !rejected_oversized.valid()
+            && rejected_oversized.value().empty()
+            && !rejected_noncanonical.valid()
+            && rejected_noncanonical.value().empty(),
+        "oversized and non-canonical hostnames have no owned authority");
+
     const auto base_authority = authority();
     const auto base_context = context(base_authority);
     expect(valid(base_authority), "complete credential authority is valid");
@@ -637,6 +671,42 @@ void test_authority_and_context_validation()
     invalid_authority = base_authority;
     invalid_authority.Host = core::git_host_id{};
     expect(!valid(invalid_authority), "zero host is rejected");
+
+    invalid_authority = base_authority;
+    invalid_authority.Hostname = {};
+    expect(!valid(invalid_authority), "empty hostname is rejected");
+
+    invalid_authority = base_authority;
+    invalid_authority.Hostname =
+        application::github_canonical_hostname{"GitHub.com"};
+    expect(!valid(invalid_authority), "non-canonical hostname is rejected");
+
+    const auto enterprise_authority = authority(
+        1U,
+        2U,
+        3U,
+        4U,
+        application::github_server_contract::
+            ghes_3_18_2022_11_28);
+    auto different_hostname = enterprise_authority;
+    different_hostname.Hostname =
+        application::github_canonical_hostname{"ghe.other.invalid"};
+    expect(
+        valid(enterprise_authority) && valid(different_hostname)
+            && different_hostname != enterprise_authority,
+        "canonical hostname is an exact credential authority dimension");
+    invalid_authority = base_authority;
+    invalid_authority.Hostname =
+        application::github_canonical_hostname{"ghe.example.invalid"};
+    expect(
+        !valid(invalid_authority),
+        "GitHub.com contract rejects an enterprise hostname");
+    invalid_authority = enterprise_authority;
+    invalid_authority.Hostname =
+        application::github_canonical_hostname{"api.github.com"};
+    expect(
+        !valid(invalid_authority),
+        "GHES contract rejects a GitHub.com subdomain");
 
     invalid_authority = base_authority;
     invalid_authority.Account = core::github_account_id{};
@@ -888,6 +958,14 @@ void test_authority_isolation()
             4U,
             application::github_server_contract::
                 ghes_3_18_2022_11_28),
+        authority(
+            1U,
+            2U,
+            3U,
+            4U,
+            application::github_server_contract::
+                ghes_3_18_2022_11_28,
+            "ghe.other.invalid"),
     };
 
     auto credentials = std::vector<std::vector<std::byte>>{};

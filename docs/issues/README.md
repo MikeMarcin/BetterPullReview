@@ -41,15 +41,28 @@ provider-free atomic projection, accessible GitHub Qt window, stable
 incremental conversation model, three-scale rendering, fresh macOS 38/38 and
 core-only 17/17 matrices, sanitizer 4/4, and Ubuntu x86_64 host/scale 4/4
 evidence. `BPR-0038` is in `done/` with the fail-closed decision to keep
-query-bearing HTTP redirect targets rejected. `BPR-0029` is in
-`in-progress/` as the current implementation slice and owns public executable
-provider composition.
+query-bearing HTTP redirect targets rejected. `BPR-0029` is in `done/` with
+explicit GitHub.com/GHES profiles and provenance, multi-profile provider
+routing, native HTTPS and platform-vault selection, Qt-owned sensitive input,
+hostname-bound v2 authority, orderly exact credential deletion, visible
+zero-launch CLI unavailability, public GitHub.com/GHES application fixtures,
+and a tests-disabled Release seam-absence contract. Its current-tree Linux v2
+matrix also passed in an Ubuntu 26.04 x86_64 full-system QEMU guest, including
+the native vault, both public fixtures, Release seam absence, exact cleanup,
+and dependency/runtime/ELF audits.
+`BPR-0030` remains in `backlog/` as the next implementation slice; it owns the
+focused tests and hostile fixtures.
 
 The open Windows task and CLI production-trust task do not block later
 implementation, tests, documentation, security review, or simplification on
 available targets. BPR-0036 blocks only its affected Windows claims and final
 RFC-BPR-0002 Auto-Verified closeout; BPR-0037 blocks only CLI production
 enablement and the final RFC closeout.
+
+The public application has no durable credential selector or enumeration
+path. Orderly shutdown exact-deletes the retained credential before worker
+teardown; an abrupt crash can leave an item that a later process cannot
+recover. No restart-recovery claim is made.
 
 GitHub Actions is not a BetterPullReview build, test, package, release, or RFC
 verification surface. Platform-specific claims require local or target-native

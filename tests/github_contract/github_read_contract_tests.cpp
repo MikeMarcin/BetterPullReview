@@ -481,7 +481,19 @@ struct loaded_recording
             .HeadOid = {},
             .SearchTerms = {},
             .Page = 1,
-            .GraphqlPage = std::nullopt,
+            .GraphqlPage =
+                github_graphql_page_request{
+                    .Kind = github_graphql_page_kind::initial,
+                    .Shape =
+                        {
+                            .ReviewThreads = true,
+                            .ViewedFileState = true,
+                            .ResolvePermission = true,
+                            .UnresolvePermission = true,
+                        },
+                    .AfterCursor = {},
+                    .ThreadId = {},
+                },
         });
     expect(compiled_graphql.has_value(), "fixture GraphQL request compiles");
     expect(
@@ -1046,7 +1058,7 @@ auto test_provider_valid_nullable_and_conditional_shapes() -> void
         .Status = 200,
         .Headers = {{"Content-Type", "application/json"}},
         .Body =
-            R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","files":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
+            R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","files":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
         .Completeness = page_completeness::complete,
     };
     expect(

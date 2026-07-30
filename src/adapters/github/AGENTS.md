@@ -39,7 +39,7 @@ the functional core or Qt presentation adapter.
   loopback proxy and fixture-CA seam must remain private to test-enabled
   builds; Qt-owned Authorization and parser buffers are not claimed precisely
   wipeable or hard-bounded.
-- Keep macOS Security framework effects in `src/macos_keychain.cpp`. Its v1
+- Keep macOS Security framework effects in `src/macos_keychain.cpp`. Its v2
   contract is the exact default file-based Keychain, one generic-password
   item, and noninteractive `SecItem` operations. Do not add data-protection,
   synchronization, access-group, accessibility, alternate-keychain, UI,
@@ -47,7 +47,8 @@ the functional core or Qt presentation adapter.
 - Keep Windows Credential Manager effects in
   `src/windows_credential_manager.cpp`. Use only exact-target,
   wide-character generic-credential CRUD with the fixed production namespace,
-  `CRED_PERSIST_LOCAL_MACHINE`, bounded wiping, and `CredFree`. Do not add
+  hostname-bound authority, `CRED_PERSIST_LOCAL_MACHINE`, bounded wiping, and
+  `CredFree`. Do not add
   Credential UI, enumeration, Credential Locker, DPAPI, registry, settings,
   database, environment, file, process, network, logging, or alternate-vault
   fallbacks.
@@ -56,7 +57,7 @@ the functional core or Qt presentation adapter.
   canonical `org.freedesktop.secrets` service with `SECRET_SERVICE_NONE`,
   validate the exact proxy name before establishing a session, and then use
   only the default collection. Deny prompt vfuncs, never unlock or create a
-  collection, keep production and integration-test v1 schemas disjoint, and
+  collection, keep production and integration-test v2 schemas disjoint, and
   store opaque bytes as `application/octet-stream`.
   Retrieval may also accept exact `text/plain` because the selected
   gnome-keyring/libsecret stack was directly observed normalizing that

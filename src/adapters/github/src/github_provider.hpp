@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <span>
 
 namespace bpr::adapters::github::detail
 {
@@ -115,9 +116,15 @@ using github_provider_factory_result =
                   github_provider_configuration_failure>;
 
 [[nodiscard]] auto
-make_github_provider(const validated_github_host_profile& profile,
+make_github_provider(std::span<const validated_github_host_profile> profiles,
                      application::effect_executor& effects,
                      std::shared_ptr<github_wire_transport_factory_port>
                          transport_factory) noexcept
     -> github_provider_factory_result;
+
+[[nodiscard]] auto make_github_provider(
+    std::span<const validated_github_host_profile* const> profiles,
+    application::effect_executor& effects,
+    std::shared_ptr<github_wire_transport_factory_port>
+        transport_factory) noexcept -> github_provider_factory_result;
 }

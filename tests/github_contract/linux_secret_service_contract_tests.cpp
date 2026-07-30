@@ -20,6 +20,7 @@
 #include <optional>
 #include <span>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <type_traits>
@@ -69,6 +70,21 @@ static_assert(std::is_same_v<
 static_assert(std::is_same_v<
     decltype(&make_linux_secret_service_vault_with_backend),
     injected_factory_signature>);
+
+[[nodiscard]] auto hex_encoded(const std::string_view input) -> std::string
+{
+    constexpr std::string_view digits = "0123456789abcdef";
+    std::string result;
+    result.reserve(input.size() * 2U);
+    for(const auto character : input)
+    {
+        const auto value =
+            static_cast<unsigned char>(character);
+        result.push_back(digits[value >> 4U]);
+        result.push_back(digits[value & 0x0fU]);
+    }
+    return result;
+}
 
 struct wipe_observation
 {
@@ -618,10 +634,10 @@ void test_schema_and_authority_encoding()
 {
     constexpr std::string_view production_schema =
         "org.betterpullreview.github-native-credential."
-        "secret-service.v1";
+        "secret-service.v2";
     constexpr std::string_view integration_schema =
         "org.betterpullreview.github-native-credential."
-        "secret-service.integration-test.v1";
+        "secret-service.integration-test.v2";
     expect(
         linux_secret_service_schema_identifier(
             linux_secret_service_schema_scope::production)
@@ -648,11 +664,19 @@ void test_schema_and_authority_encoding()
                 || (character >= 'a' && character <= 'f');
         }),
         "authority attribute is fixed-width lowercase hexadecimal");
+    const auto encoded_view =
+        std::string_view{encoded->data(), encoded->size()};
     expect(
-        std::string_view{encoded->data(), encoded->size()}
-            == "000000000000000100000000000000020000000000000003"
-               "000000000000000401",
-        "GitHub.com authority has the exact stable v1 encoding");
+        encoded_view.substr(0U, 66U)
+                == "000000000000000100000000000000020000000000000003"
+                   "000000000000000401"
+            && encoded_view.substr(66U, 2U) == "0a"
+            && encoded_view.substr(68U, 20U)
+                   == "6769746875622e636f6d"
+            && std::ranges::all_of(
+                encoded_view.substr(88U),
+                [](const char character) { return character == '0'; }),
+        "GitHub.com authority has the exact stable v2 encoding");
 
     const auto enterprise =
         encode_linux_secret_service_authority_account(authority(
@@ -662,14 +686,59 @@ void test_schema_and_authority_encoding()
             4U,
             application::github_server_contract::
                 ghes_3_18_2022_11_28));
-    expect(
+    const auto enterprise_view =
         enterprise.has_value()
-            && std::string_view{
-                   enterprise->data(),
-                   enterprise->size()}
+        ? std::string_view{enterprise->data(), enterprise->size()}
+        : std::string_view{};
+    expect(
+        enterprise_view.substr(0U, 66U)
                 == "000000000000000100000000000000020000000000000003"
-                   "000000000000000402",
-        "GHES authority has the exact stable v1 encoding");
+                   "000000000000000402"
+            && enterprise_view.substr(66U, 2U) == "13"
+            && enterprise_view.substr(68U, 38U)
+                   == "6768652e6578616d706c652e696e76616c6964"
+            && std::ranges::all_of(
+                enterprise_view.substr(106U),
+                [](const char character) { return character == '0'; }),
+        "GHES authority has the exact stable v2 encoding");
+    const auto other_enterprise =
+        encode_linux_secret_service_authority_account(authority(
+            1U,
+            2U,
+            3U,
+            4U,
+            application::github_server_contract::
+                ghes_3_18_2022_11_28,
+            "ghe.other.invalid"));
+    expect(
+        other_enterprise.has_value()
+            && *other_enterprise != *enterprise,
+        "canonical hostname is an injective attribute-key dimension");
+    const auto maximum_hostname =
+        std::string(63U, 'a') + "." + std::string(63U, 'b') + "."
+        + std::string(63U, 'c') + "." + std::string(61U, 'd');
+    const auto maximum_encoding =
+        encode_linux_secret_service_authority_account(authority(
+            1U,
+            2U,
+            3U,
+            4U,
+            application::github_server_contract::
+                ghes_3_18_2022_11_28,
+            maximum_hostname));
+    const auto maximum_view =
+        maximum_encoding.has_value()
+        ? std::string_view{
+              maximum_encoding->data(), maximum_encoding->size()}
+        : std::string_view{};
+    expect(
+        maximum_hostname.size()
+                == application::maximum_github_hostname_bytes
+            && maximum_view.size()
+                   == linux_secret_service_authority_account_bytes
+            && maximum_view.substr(66U, 2U) == "fd"
+            && maximum_view.substr(68U) == hex_encoded(maximum_hostname),
+        "maximum hostname is encoded losslessly without truncation");
 
     const std::array variants{
         authority(9U, 2U, 3U, 4U),
@@ -683,6 +752,14 @@ void test_schema_and_authority_encoding()
             4U,
             application::github_server_contract::
                 ghes_3_18_2022_11_28),
+        authority(
+            1U,
+            2U,
+            3U,
+            4U,
+            application::github_server_contract::
+                ghes_3_18_2022_11_28,
+            "ghe.other.invalid"),
         authority(1U, 23U, 4U, 5U),
         authority(12U, 3U, 4U, 5U),
     };
@@ -714,6 +791,11 @@ void test_schema_and_authority_encoding()
             == std::unexpected{vault_failure::invalid_request},
         "zero host is rejected before Secret Service");
     malformed = base;
+    malformed.Hostname = {};
+    expect(
+        encode_linux_secret_service_authority_account(malformed)
+            == std::unexpected{vault_failure::invalid_request},
+        "empty hostname is rejected before Secret Service");
     malformed.Account = {};
     expect(
         encode_linux_secret_service_authority_account(malformed)

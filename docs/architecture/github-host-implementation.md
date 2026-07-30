@@ -546,10 +546,10 @@ dedicated `QThread`, event loop, and `QNetworkAccessManager` per transport
 instance. The manager and every request/reply object stay on that worker.
 `perform` admits one operation at a time, revalidates the complete correlation
 and canonical wire request before network work, and returns only the original
-correlation plus a bounded success, typed error, or cancellation. This is an
-internal wire transport. BPR-0027 adds pagination, normalization, host
-staging, and the application-facing provider path; BPR-0029 still owns
-concrete public composition.
+correlation plus a bounded success, typed error, or cancellation. BPR-0027
+adds pagination, normalization, host staging, and the application-facing
+provider path. BPR-0029 composes that provider and transport in the public
+executable for explicit GitHub.com and GHES profiles.
 
 The production transport asks `QNetworkProxyFactory::systemProxyForQuery` for
 each initial or redirected URL. It accepts at most 16 returned candidates,
@@ -626,9 +626,9 @@ is not claimed.
 Bootstrap material is bound to one exact session context and may authorize
 only one `GetViewerIdentity` operation; once claimed, it is destroyed after
 that terminal path and cannot be replayed. An account credential must match
-the exact profile, profile revision, host, account, and server contract, and
-each request must match its application session and identity generation.
-Mismatches fail before network execution.
+the exact profile, profile revision, host identity, canonical hostname,
+account, and server contract, and each request must match its application
+session and identity generation. Mismatches fail before network execution.
 
 The target-native test seam exists only when `BPR_BUILD_TESTS=ON`. It keeps
 the production request, TLS, redirect, cancellation, response, and
@@ -686,11 +686,11 @@ credential-deletion failure states are typed failures. They never cause
 plaintext, settings, environment, or SQLite fallback storage.
 
 The portable application contract keys every native credential by profile,
-profile revision, host, authenticated account, and server contract. Every
-store, retrieve, delete, cancellation, and terminal result also carries the
-request, application session, and identity generation. Login text, repository
-content, redirects, capability revisions, and caller-provided provider facts
-cannot form credential authority.
+profile revision, host identity, canonical hostname, authenticated account,
+and server contract. Every store, retrieve, delete, cancellation, and terminal
+result also carries the request, application session, and identity generation.
+Login text, repository content, redirects, capability revisions, and
+caller-provided provider facts cannot form credential authority.
 
 Credential material is a bounded nonempty byte owner rather than a string.
 It is noncopyable, move-safe, exposes only a read-only byte span, overwrites
@@ -713,7 +713,7 @@ target-native lifecycle gates.
 
 ### macOS Keychain selection
 
-BPR-0022's macOS adapter is an explicit file-based Keychain v1
+BPR-0022's macOS adapter is an explicit file-based Keychain
 implementation. It uses the modern `SecItem` operations with a generic
 password item, but deliberately does not set
 `kSecUseDataProtectionKeychain`, `kSecAttrSynchronizable`, an access group, or
@@ -731,15 +731,17 @@ service/account item in another keychain cannot be retrieved, replaced, or
 deleted by this adapter.
 
 The production service is fixed as
-`org.betterpullreview.github-native-credential.file-keychain.v1`; native
+`org.betterpullreview.github-native-credential.file-keychain.v2`; native
 tests use the separate
-`org.betterpullreview.github-native-credential.file-keychain.integration-test.v1`
-service and cannot touch production items. The account attribute is 66
+`org.betterpullreview.github-native-credential.file-keychain.integration-test.v2`
+service and cannot touch production items. The account attribute is 574
 lowercase hexadecimal characters: four fixed-width 64-bit fields for profile,
-profile revision, host, and account followed by an explicit v1
-server-contract discriminator (`01` for GitHub.com and `02` for GHES 3.18).
-The discriminators do not depend on C++ enum ordinals. The key contains no
-login, URL, repository, redirect, provider response, or credential material.
+profile revision, host, and account; an explicit server-contract discriminator
+(`01` for GitHub.com and `02` for GHES 3.18); one byte of hostname length; and
+253 fixed hostname-byte slots encoded as canonical ASCII bytes or `00`
+padding. The discriminators do not depend on C++ enum ordinals. The key
+contains no login, API URL, repository, redirect, provider response, or
+credential material.
 Every query matches the generic-password class, exact service, exact account,
 and exact default keychain and requests failure instead of authentication UI.
 
@@ -774,12 +776,12 @@ silently mixed.
 BPR-0023's Windows adapter selects the wide-character Win32 Credential
 Manager API and one `CRED_TYPE_GENERIC` credential with
 `CRED_PERSIST_LOCAL_MACHINE`. The production target prefix is fixed as
-`org.betterpullreview.github-native-credential.windows-credential-manager.v1/`;
+`org.betterpullreview.github-native-credential.windows-credential-manager.v2/`;
 native tests use the disjoint
-`org.betterpullreview.github-native-credential.windows-credential-manager.integration-test.v1/`
-prefix. The same 66-character fixed-width lowercase hexadecimal authority
+`org.betterpullreview.github-native-credential.windows-credential-manager.integration-test.v2/`
+prefix. The same 574-character fixed-width lowercase hexadecimal authority
 encoding used by the macOS adapter follows the prefix. Production and test
-targets are therefore 142 and 159 UTF-16 code units respectively.
+targets are therefore 650 and 667 UTF-16 code units respectively.
 
 The target prefix is an application namespace, not an operating-system access
 control list. Generic credentials are available to another process running as
@@ -829,14 +831,22 @@ BPR-0024's Linux adapter is selected only when `CMAKE_SYSTEM_NAME` is
 or link libsecret.
 
 The production schema is fixed as
-`org.betterpullreview.github-native-credential.secret-service.v1`; native
+`org.betterpullreview.github-native-credential.secret-service.v2`; native
 tests use the disjoint
-`org.betterpullreview.github-native-credential.secret-service.integration-test.v1`
+`org.betterpullreview.github-native-credential.secret-service.integration-test.v2`
 schema. Each schema declares only one string attribute, `authority`, whose
-value is the same 66-character fixed-width lowercase hexadecimal encoding
+value is the same 574-character fixed-width lowercase hexadecimal encoding
 used by the other native adapters. A matching item must have exactly that
 authority and the `xdg:schema` value added by libsecret. Multiple matches,
 additional attributes, a schema mismatch, or an invalid value is corrupt.
+
+The v1 and v2 namespaces are deliberately disjoint, and the adapters do not
+read, enumerate, migrate, or fall back to v1. The pre-release v1 production
+vaults were never composed into the public executable. Every directly
+executed v1 integration fixture completed exact cleanup; the Windows v1
+fixture remained preparatory and created no target-native item. This
+intentional format break prevents an old hostname-free key from aliasing a
+hostname-bound authority.
 
 The adapter opens a derived `SecretService` with the literal
 `org.freedesktop.secrets` argument and `SECRET_SERVICE_NONE`, then checks
@@ -903,10 +913,15 @@ Ubuntu 26.04 QEMU environment: all 15 TLS/proxy/redirect/limit/cancellation
 scenarios passed, runtime selected the OpenSSL backend and one direct proxy
 candidate, and ELF plus a controlled single-success trace selected Qt6Network,
 Qt6Core, the Qt OpenSSL backend plugin, `libssl.so.3`, and `libcrypto.so.3`.
-That separate evidence still is not the composed public provider path, which
-remains BPR-0029. Windows target-native evidence remains in BPR-0036. Mock
-transports, cross-compilation, and vault-only evidence cannot substitute for
-either remaining claim.
+That separate BPR-0026 evidence is not by itself composed-provider evidence.
+BPR-0029 now supplies the public executable trace on macOS and in an Ubuntu
+26.04 x86_64 full-system QEMU guest. The current Linux v2 run passed the
+Secret Service setup/lifecycle/cleanup cases 3/3, independent exact cleanup
+and hostile/unavailable/locked cases, both exact-host rendered public
+fixtures, fresh 81/81 tests-on and 36/36 tests-off Release build targets,
+fixture-seam absence, and dependency/runtime/ELF audits. Windows target-native
+evidence remains in BPR-0036. Mock transports, cross-compilation, and
+vault-only evidence cannot substitute for a retained platform claim.
 
 ## Read-only enforcement
 
@@ -957,19 +972,21 @@ delta precedes cache commit.
 
 Native credential resume accepts only an opaque profile identity. A
 noncopyable host-owned binding catalog selects the complete
-profile/profile-revision/host/account/server authority previously established
-by strict credential-authenticated `/user`. Login text, profile text,
-settings, SQLite, and caller-provided account values cannot select a vault
-item. Switching identity exact-deletes the prior retained authority before
-the next session begins; authoritative absence forgets the stale binding;
-failed cleanup retains an exact catalog tombstone for remediation.
+profile/profile-revision/host/hostname/account/server authority previously
+established by strict credential-authenticated `/user`. Login text, profile
+text, settings, SQLite, and caller-provided account values cannot select a
+vault item. Switching identity exact-deletes the prior retained authority
+before the next session begins; authoritative absence forgets the stale
+binding; failed cleanup retains an exact catalog tombstone for remediation.
 
 This catalog is process-local. Sharing it across host instances proves
-same-process recreation only. Normal shutdown may preserve an accepted
-operating-system-vault item, so BPR-0029 must either add trusted durable
-binding rehydration or exact shutdown deletion before native persistence is
-available in the public composition. No process-restart recovery claim is
-made by BPR-0027.
+same-process recreation only. The public composition selects
+`delete_retained_on_shutdown`; its exact vault delete terminal is part of host
+quiescence, and provider/vault workers are not drained until that terminal has
+returned. A delete failure is reported and leaves the exact catalog tombstone.
+There is no serialized or integrity-backed selector, enumeration, v1 fallback,
+or process-restart recovery. An abrupt process or host crash can therefore
+leave a native-vault item that BetterPullReview cannot discover or resume.
 
 ## Application projection and Qt rules
 
@@ -992,6 +1009,13 @@ display label, canonical hostname, product kind, and selected transport.
 Profile selection is the only identity-authority input. Login and account
 identity remain read-only output of the authenticated `/user` observation and
 cannot select a credential or vault binding.
+
+Native-HTTPS activation obtains credential text through a Qt-owned
+password-echo input with character and UTF-8 byte bounds. Composition sees
+only the move-only sensitive buffer, immediately converts it to the
+application credential-material owner, and resets the temporary on every
+terminal path. The prompt is presentation behavior; it does not perform a
+vault, provider, filesystem, process, or network effect.
 
 The RFC-BPR-0002 presentation exposes:
 
@@ -1020,11 +1044,25 @@ stale completion.
 ## Composition and lifecycle
 
 The composition root is the only scope that knows all concrete pieces. Its
-visible ownership order is:
+production profile set is explicit:
+
+- built-in GitHub.com native HTTPS;
+- built-in GitHub.com CLI, visibly labeled unavailable;
+- optional GHES 3.18 native HTTPS from an explicitly supplied canonical
+  hostname;
+- optional GHES 3.18 CLI, visibly labeled unavailable.
+
+The provider owns immutable copies of every validated profile and routes by
+exact profile identity. GitHub.com profiles have built-in provenance; GHES
+profiles have explicit-user provenance. CLI activation reaches the same
+semantic host path but returns `cli_unavailable` before the process port,
+which keeps the unavailable state visible and produces zero child launches.
+
+The visible ownership order is:
 
 ```text
-non-secret profile store
-host effect executors
+validated non-secret profile store
+provider and vault effect executors
 platform credential vault
 process runner and native network transport
 normalized GitHub provider
@@ -1034,7 +1072,8 @@ host-owned credential binding catalog
 application host
 ```
 
-The decision executor is a required live service through host quiescence. A
+Provider and vault effects use separate worker executors. The Qt event-loop
+decision executor is a required live service through host quiescence. A
 successful post is retained exactly once for eventual non-inline execution.
 Provider and vault submissions that return normally produce exactly one
 terminal; cancellation is advisory and does not suppress it. Composition
@@ -1048,18 +1087,27 @@ generation present at turn entry runs in that turn, preventing projection
 feedback from starving queued work. New ingress cannot overtake an older
 continuation, and shutdown closes ingress with terminal priority.
 
-Destruction reverses ownership. Shutdown first closes ingress, advances or
-invalidates the active generation, cancels provider work, drains the required
-vault terminal and cleanup path, and discards staged snapshots. Only after
-quiescence may Qt projections, transports, vault handles, effect executors,
-the binding catalog, and the decision lane be destroyed. A failed exact
-credential deletion is surfaced and leaves the catalog tombstone; it is not
-silently treated as successful cleanup.
+Destruction reverses ownership. Public shutdown first closes ingress,
+advances or invalidates the active generation, cancels provider work, requires
+an exact delete terminal for the retained v2 credential authority, and
+discards staged snapshots. Only after host quiescence does composition stop
+the provider, close and join both workers, and permit Qt projections,
+transports, vault handles, the binding catalog, and the decision lane to be
+destroyed. A failed exact credential deletion is surfaced and leaves the
+catalog tombstone; it is not silently treated as successful cleanup.
 
 Recorded GitHub.com and GHES fixtures may replace the transport behind the same
 provider port in tests. They must use the same provider, host, core, Qt, and
 composition path as the real application; a direct normalizer helper or static
 mockup is not public-path evidence.
+
+The fixture transport, fixture vault, fixture command-line choices, and
+fixture evidence types are compiled only into test-enabled targets. The
+public application header is test-definition-free. A clean
+`BPR_BUILD_TESTS=OFF` Release configure/build inspects compile commands, the
+Ninja graph, symbols, and raw binary bytes to prove that the fixture
+translation unit, test macros, paths, arguments, labels, and evidence strings
+are absent.
 
 ## Build and dependency allocation
 
@@ -1119,13 +1167,17 @@ RFC-BPR-0008. Delivered-package certification remains RFC-BPR-0014.
 Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the CLI
 broker's process/invocation boundary, and the native HTTPS internal wire path
 on macOS and Linux are directly verified. The selected CLI's network-trust
-claim remains open because its redirect behavior was directly falsified and
-the production gate is unavailable. BPR-0028 directly verifies the safe Qt
-projection and presentation; public provider composition remains BPR-0029
-work. Trusted process-restart credential binding is also a BPR-0029 gate.
-Retained Windows target-native
-credential/HTTPS evidence remains BPR-0036 work. Query-bearing REST redirects
-remain rejected by the closed BPR-0038 design decision; any future relaxation
-requires new direct public-contract evidence and separately scoped work. The
-open Windows execution is nonblocking for other slices but continues to block
-only its affected platform claim and RFC-BPR-0002 closeout.
+claim remains open because its redirect behavior was directly falsified, so
+the public profile is visibly unavailable and launches zero processes.
+BPR-0028 verifies the safe Qt projection and presentation. BPR-0029 composes
+the explicit profiles, native HTTPS, platform vault, provider, host, core, and
+Qt path and exact-deletes retained credentials during orderly shutdown; it
+makes no crash/restart recovery claim. Its current-tree Linux v2 execution
+passed in an Ubuntu 26.04 x86_64 full-system QEMU guest with exact shutdown
+cleanup and tests-disabled Release selection/seam evidence. Retained Windows
+target-native credential/HTTPS/public-fixture evidence remains BPR-0036 work.
+Query-bearing REST redirects remain rejected by the closed BPR-0038 design
+decision; any future relaxation requires new direct public-contract evidence
+and separately scoped work. The open Windows execution is nonblocking for
+other slices but continues to block only its affected platform claim and
+RFC-BPR-0002 closeout.

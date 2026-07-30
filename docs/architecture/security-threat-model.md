@@ -34,26 +34,37 @@ domain. The material has a noncopyable owner; movement empties the source,
 replacement and destruction overwrite owned bytes, and the type offers no
 text, formatting, comparison, hashing, logging, serialization, settings,
 environment, or Qt conversion. Vault authority includes exact profile
-revision, host, account, and server contract; async results also retain
-request, session, and identity generation. Cancellation that wins suppresses
-retrieval success and destroys the returned material before publication.
+revision, host identity, canonical hostname, account, and server contract;
+async results also retain request, session, and identity generation.
+Cancellation that wins suppresses retrieval success and destroys the returned
+material before publication.
 
 The BPR-0027 host never accepts an account or login as resume authority.
 Credential-authenticated strict `/user` establishes the numeric account, and
 a noncopyable host-owned catalog retains the resulting exact
-profile/profile-revision/host/account/server key. The catalog has no raw seed,
-enumeration, copy, move, serialization, settings, or SQLite surface. Profile,
-account, and authentication-transport replacement exact-delete the prior
-authority before proceeding; authoritative absence forgets it; failed
-cleanup retains an exact tombstone.
+profile/profile-revision/host/hostname/account/server key. The catalog has no
+raw seed, enumeration, copy, move, serialization, settings, or SQLite
+surface. Profile, hostname, account, and authentication-transport replacement
+exact-delete the prior authority before proceeding; authoritative absence
+forgets it; failed cleanup retains an exact tombstone.
 
 That selector provenance is process-local. Sharing one catalog across host
-instances proves same-process recreation, not restart recovery. Because
-ordinary shutdown preserves accepted native credentials, BPR-0029 must add a
-vault- or integrity-backed durable rehydration boundary that cannot launder a
-caller-supplied account, or exact-delete retained items before exit. Until
-then, public native persistence is unavailable and no durable-recovery claim
-is made.
+instances proves same-process recreation, not restart recovery. The public
+composition chooses exact deletion instead of durable rehydration: an exact
+delete terminal for the retained authority is part of host quiescence, and
+composition keeps the decision lane, vault, catalog, and workers alive until
+it returns. A failed delete is reported and retains the exact tombstone.
+There is no enumeration or durable selector, so an abrupt process or host
+crash can leave a vault item that a later BetterPullReview process cannot
+discover or resume.
+
+Qt owns the native-HTTPS credential prompt. It uses password echo, bounds both
+characters and UTF-8 bytes, returns a move-only sensitive byte owner, and
+clears its mutable temporary on cancellation, rejection, conversion, and
+destruction. Composition immediately converts that owner to the application
+credential-material type. The prompt cannot access a vault, provider,
+filesystem, process, or network capability, and no credential enters a Qt
+projection or diagnostic.
 
 The production host also creates its capability cache internally. A caller
 can exercise the standalone cache library, but cannot inject populated
@@ -70,12 +81,13 @@ progress.
 
 The current macOS adapter targets one explicitly resolved default file-based
 Keychain. Every operation matches that exact keychain, a fixed adapter-owned
-service, and a versioned encoding of the complete portable authority, and
-disallows authentication UI. It does not search arbitrary keychains or enable
-data protection, synchronization, access groups, or accessibility attributes.
-There is no fallback to a second Keychain implementation or to plaintext
-storage. Raw Security framework status numbers and messages do not cross the
-adapter boundary.
+v2 service, and the 574-character hostname-bound encoding of the complete
+portable authority, and disallows authentication UI. It does not search
+arbitrary keychains or enable data protection, synchronization, access groups,
+or accessibility attributes. There is no fallback to the historical v1
+namespace, a second Keychain implementation, or plaintext storage. Raw
+Security framework status numbers and messages do not cross the adapter
+boundary.
 
 Synchronous Security framework work runs through a host effect executor,
 separate from the serialized decision and GUI lanes. The native integration
@@ -83,6 +95,9 @@ fixture uses a distinct adapter-owned service and exact synthetic authority,
 passes runtime canaries only over standard input, audits bounded child
 arguments, environment, output, executable, source, and scratch surfaces, and
 verifies exact-item absence after same-binary parent and CTest cleanup.
+BPR-0022's closeout evidence exercised the historical v1 namespace;
+BPR-0029's current macOS run repeated setup, lifecycle, and cleanup against
+the v2 hostname-bound namespace.
 
 The current unbundled integration executable is ad hoc linker-signed. Its
 legacy default-Keychain item ACL is therefore tied to an exact code-directory
@@ -92,8 +107,9 @@ noninteractively. This is not cross-rebuild crash-recovery evidence; stable
 signed package identity and that lifecycle gate remain RFC-BPR-0014 work.
 
 The Windows adapter selects one generic Credential Manager item under a fixed
-versioned target prefix and the complete portable authority. Its integration
-fixture uses a distinct prefix and one exact synthetic authority. Store is a
+v2 target prefix and the complete hostname-bound portable authority. Its
+integration fixture uses a distinct v2 prefix and one exact synthetic
+authority. Store is a
 single create-or-replace call; read and delete use the exact target; valid
 returned blobs are overwritten before native release. Credential UI,
 enumeration, DPAPI, Credential Locker, registry, settings, SQLite,
@@ -105,6 +121,11 @@ knows the target can request the item. Local-machine persistence means later
 logons of that user on the same computer, not all users, roaming, or hardware
 backing. The target prefix limits accidental name collision but is not an
 authorization boundary.
+
+BPR-0023's implementation and cross-PE evidence covered the historical v1
+target format. BPR-0029 changes the current source to v2, but no target-native
+Windows claim is inferred from that edit; BPR-0036 retains the current-format
+lifecycle and public-fixture run.
 
 The Windows fixture passes runtime-only canaries over anonymous standard
 input, starts the canonical test executable with an exact inherited-handle
@@ -128,8 +149,8 @@ makes at most one bounded, no-auto-start `Dismiss`; it never displays a
 prompt, unlocks or creates a collection, or selects another vault.
 
 Production and integration-test schemas are disjoint. Their only explicit
-attribute is the non-secret 66-character portable authority; libsecret adds
-`xdg:schema`. Credential bytes are stored as
+attribute is the non-secret 574-character hostname-bound portable authority;
+libsecret adds `xdg:schema`. Credential bytes are stored as
 `application/octet-stream`. Retrieval also accepts exact `text/plain` because
 the directly tested gnome-keyring 50/libsecret 0.21.7 stack normalized that
 metadata while preserving arbitrary opaque bytes. Exact attribute checks,
@@ -139,21 +160,35 @@ operation failures keep malformed or redirected storage from becoming a
 credential result. No raw provider error or credential material crosses the
 adapter.
 
-The Linux native fixture uses only the integration schema and a synthetic
-authority. In an Ubuntu 26.04 x86_64 full-system QEMU VM with an emulated CPU,
-a dedicated real user ran it under Xvfb and a desktop D-Bus Secret Service
-session. Runtime-only canaries entered the same-executable child through
-framed standard input; arguments, the explicit child environment, fixed
-output, executable, source, and isolated scratch were checked. A separate
-opaque-byte lifecycle included NUL, high-bit, and invalid UTF-8 bytes.
-Checked-in cleanup proved the exact fixture authority absent; a controlled
-D-Bus audit separately proved integration-schema absence. A truly locked
-default collection, no-session-bus unavailability, and hostile service-name
-rejection were also checked. Access denial and failed deletion are
-fake-backed/status-classification evidence rather than desktop-policy
-fixtures. This proves the vault surface in the selected full-system Linux
-stack, not bare metal, arbitrary user-home or system-log absence, native
-HTTPS, or the composed public provider path.
+The v2 Keychain service, Credential Manager target, and Secret Service schema
+names are disjoint from their historical hostname-free v1 namespaces.
+Production neither reads, enumerates, migrates, nor falls back to v1. The v1
+production adapters were never publicly composed. Every directly executed v1
+integration fixture completed exact cleanup; the Windows v1 fixture remained
+preparatory and created no target-native item.
+
+The historical BPR-0024 Linux native fixture used only the v1 integration
+schema and a synthetic authority. In an Ubuntu 26.04 x86_64 full-system QEMU
+VM with an emulated CPU, a dedicated real user ran it under Xvfb and a desktop
+D-Bus Secret Service session. Runtime-only canaries entered the
+same-executable child through framed standard input; arguments, the explicit
+child environment, fixed output, executable, source, and isolated scratch
+were checked. A separate opaque-byte lifecycle included NUL, high-bit, and
+invalid UTF-8 bytes. Checked-in cleanup proved the exact fixture authority
+absent; a controlled D-Bus audit separately proved integration-schema
+absence. A truly locked default collection, no-session-bus unavailability,
+and hostile service-name rejection were also checked. Access denial and
+failed deletion are fake-backed/status-classification evidence rather than
+desktop-policy fixtures. This proves the historical v1 vault surface in the
+selected full-system Linux stack.
+
+BPR-0029 separately verified the current v2 Linux fixture and public
+composition in an Ubuntu 26.04 x86_64 full-system QEMU guest; this does not
+relabel the historical result. The v2 Secret Service
+setup/lifecycle/cleanup cases passed 3/3, independent exact cleanup passed,
+and the hostile, unavailable, and locked cases remained fail-closed. Both
+public fixtures completed with exact host and rendered state, and the
+tests-disabled Release seam, dependency, runtime, and ELF audits passed.
 
 ## Baseline posture
 
@@ -262,9 +297,9 @@ worker. It revalidates the complete canonical request/correlation before
 network use and accepts only one operation per transport at a time.
 Bootstrap credentials authorize one exact-context viewer-identity request
 and are destroyed once claimed. Account credentials must match the profile,
-profile revision, host, account, server contract, application session, and
-identity generation. A mismatch cannot be repaired from provider content and
-causes no network request.
+profile revision, host identity, canonical hostname, account, server contract,
+application session, and identity generation. A mismatch cannot be repaired
+from provider content and causes no network request.
 
 Production proxy selection calls Qt's system query separately for every hop,
 admits no more than 16 candidates, preserves supported direct/HTTP/SOCKS5
@@ -336,7 +371,10 @@ host. The runtime fact probe reported Qt Network 6.11.1, the OpenSSL backend,
 TLS support, and one direct system-proxy candidate. A separate test-disabled
 build omitted the test-only proxy/CA factories. This fixture verifies the
 internal wire boundary; BPR-0027 separately verifies the application-facing
-provider and host, while BPR-0029 owns public composition.
+provider and host, and BPR-0029 now supplies composed public traces on macOS
+and Linux. The Linux trace passed both exact-host rendered fixture states,
+orderly exact credential cleanup, and tests-disabled Release selection/seam
+inspection.
 
 The corresponding Linux verification used an Ubuntu 26.04 x86_64 full-system
 QEMU guest with Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. It froze

@@ -1320,6 +1320,8 @@ auto test_completion_contexts_are_exact() -> void
         .Profile = core::host_profile_id{3},
         .ProfileRevision = application::github_profile_revision{4},
         .Host = core::git_host_id{14},
+        .Hostname =
+            application::github_canonical_hostname{"github.com"},
         .ServerContract =
             application::github_server_contract::github_com_2022_11_28,
         .Authentication =

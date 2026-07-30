@@ -50,7 +50,7 @@ struct provider_state
 {
     application::effect_executor* Effects = nullptr;
     std::shared_ptr<github_wire_transport_factory_port> TransportFactory;
-    std::shared_ptr<const validated_github_host_profile> Profile;
+    std::vector<std::shared_ptr<const validated_github_host_profile>> Profiles;
     std::mutex Mutex;
     std::vector<std::shared_ptr<provider_job>> Jobs;
     std::atomic<std::uint64_t> NextSnapshot{1U};
@@ -192,6 +192,8 @@ profile_authority(const validated_github_host_profile& profile) noexcept
         .Profile = profile.profile(),
         .ProfileRevision = profile.revision(),
         .Host = profile.host(),
+        .Hostname =
+            application::github_canonical_hostname{profile.hostname()},
         .ServerContract = profile.server_contract(),
         .Authentication = profile.authentication_transport(),
         .ProbeContractRevision =
@@ -205,6 +207,31 @@ exact_profile(const application::github_profile_authority& authority,
 {
     return application::valid(authority)
            && authority == profile_authority(profile);
+}
+
+[[nodiscard]] auto
+find_profile(const provider_state& state,
+             const core::host_profile_id identity) noexcept
+    -> std::shared_ptr<const validated_github_host_profile>
+{
+    const auto match = std::ranges::find_if(
+        state.Profiles,
+        [identity](const auto& profile)
+        { return profile->profile() == identity; });
+    return match == state.Profiles.end() ? nullptr : *match;
+}
+
+[[nodiscard]] auto
+find_exact_profile(const provider_state& state,
+                   const application::github_profile_authority& authority)
+    noexcept -> std::shared_ptr<const validated_github_host_profile>
+{
+    auto profile = find_profile(state, authority.Profile);
+    if(profile == nullptr || !exact_profile(authority, *profile))
+    {
+        return {};
+    }
+    return profile;
 }
 
 [[nodiscard]] auto structurally_valid(
@@ -541,6 +568,7 @@ capability_facts(const core::github_capabilities& capabilities)
        || transport->CredentialContext.Authority.ProfileRevision
               != profile.ProfileRevision
        || transport->CredentialContext.Authority.Host != profile.Host
+       || transport->CredentialContext.Authority.Hostname != profile.Hostname
        || transport->CredentialContext.Authority.Account != account
        || transport->CredentialContext.Authority.ServerContract
               != profile.ServerContract)
@@ -621,6 +649,7 @@ void github_provider::resolve_profile(
         return;
     }
     const auto state = Implementation->State;
+    const auto profile = find_profile(*state, request.Context.Profile);
     std::shared_ptr<provider_completion_delivery<
         application::github_profile_completion_handler>>
         delivery;
@@ -660,19 +689,17 @@ void github_provider::resolve_profile(
     try
     {
         state->Effects->post(
-            [state, job, request, delivery]
+            [state, job, profile, request, delivery]
             {
                 try
                 {
-                    const auto matches =
-                        request.Context.Profile == state->Profile->profile();
                     if(finish_job(state, job))
                     {
                         delivery->deliver(application::github_profile_cancelled{
                             .Request = request,
                         });
                     }
-                    else if(!matches)
+                    else if(profile == nullptr)
                     {
                         delivery->deliver(application::github_profile_error{
                             .Request = request,
@@ -685,7 +712,7 @@ void github_provider::resolve_profile(
                     {
                         delivery->deliver(application::github_profile_success{
                             .Request = request,
-                            .Authority = profile_authority(*state->Profile),
+                            .Authority = profile_authority(*profile),
                         });
                     }
                 }
@@ -754,7 +781,8 @@ void github_provider::observe_viewer(
         return;
     }
     const auto state = Implementation->State;
-    if(!exact_profile(request.Authority, *state->Profile)
+    const auto profile = find_exact_profile(*state, request.Authority);
+    if(profile == nullptr
        || (request.Authority.Authentication
                == application::github_authentication_transport::github_cli
            && !std::holds_alternative<std::monostate>(
@@ -823,6 +851,7 @@ void github_provider::observe_viewer(
         state->Effects->post(
             [state,
              job,
+             profile,
              request,
              authentication = std::move(authentication),
              delivery]() mutable
@@ -883,7 +912,7 @@ void github_provider::observe_viewer(
                             return;
                         }
                         transport = state->TransportFactory->make_bootstrap(
-                            *state->Profile,
+                            *profile,
                             request.Context,
                             std::move(bootstrap->Credential));
                     }
@@ -904,6 +933,8 @@ void github_provider::observe_viewer(
                                   != request.Authority.ProfileRevision
                            || account->Context.Authority.Host
                                   != request.Authority.Host
+                           || account->Context.Authority.Hostname
+                                  != request.Authority.Hostname
                            || account->Context.Authority.ServerContract
                                   != request.Authority.ServerContract
                            || account->Context.IdentityGeneration
@@ -916,7 +947,7 @@ void github_provider::observe_viewer(
                         }
                         account_context = account->Context;
                         transport = state->TransportFactory->make_account(
-                            *state->Profile, std::move(*account));
+                            *profile, std::move(*account));
                     }
                     if(!transport.has_value())
                     {
@@ -924,7 +955,7 @@ void github_provider::observe_viewer(
                         return;
                     }
                     const auto wire =
-                        viewer_wire_request(*state->Profile, request);
+                        viewer_wire_request(*profile, request);
                     if(!wire.has_value())
                     {
                         failed(wire.error());
@@ -985,7 +1016,7 @@ void github_provider::observe_viewer(
                                 malformed_response));
                         return;
                     }
-                    const auto server = expected_server(*state->Profile);
+                    const auto server = expected_server(*profile);
                     if(!server.has_value())
                     {
                         failed(provider_error(
@@ -1080,6 +1111,8 @@ void github_provider::probe_capabilities(
         return;
     }
     const auto state = Implementation->State;
+    const auto profile =
+        find_exact_profile(*state, request.ProfileAuthority);
     const auto account_transport =
         exact_account_transport(request.AccountTransport,
                                 request.ProfileAuthority,
@@ -1087,8 +1120,7 @@ void github_provider::probe_capabilities(
                                 request.Context.IdentityGeneration,
                                 request.Viewer.Account,
                                 request.Context.Request);
-    if(account_transport == nullptr
-       || !exact_profile(request.ProfileAuthority, *state->Profile))
+    if(profile == nullptr || account_transport == nullptr)
     {
         completion(application::github_capability_error{
             .Request = std::move(request),
@@ -1137,7 +1169,12 @@ void github_provider::probe_capabilities(
     try
     {
         state->Effects->post(
-            [state, job, account_transport, request, delivery]() mutable
+            [state,
+             job,
+             profile,
+             account_transport,
+             request,
+             delivery]() mutable
             {
                 const auto cancelled = [&]
                 {
@@ -1170,7 +1207,7 @@ void github_provider::probe_capabilities(
                         return;
                     }
                     const auto compiled =
-                        compile_capability_probe_request(*state->Profile);
+                        compile_capability_probe_request(*profile);
                     if(!compiled.has_value())
                     {
                         failed(
@@ -1278,7 +1315,7 @@ void github_provider::probe_capabilities(
                     }
                     const auto metadata =
                         parse_github_response_metadata(metadata_response);
-                    const auto server = expected_server(*state->Profile);
+                    const auto server = expected_server(*profile);
                     if(!metadata.has_value())
                     {
                         failed(metadata.error());
@@ -1418,14 +1455,15 @@ void github_provider::fetch_pull_request(
         return;
     }
     const auto state = Implementation->State;
+    const auto profile =
+        find_exact_profile(*state, request.ProfileAuthority);
     const auto account_transport =
         exact_account_transport(request.AccountTransport,
                                 request.ProfileAuthority,
                                 request.Context.ApplicationSession,
                                 request.Context.IdentityGeneration,
                                 request.Context.Account);
-    if(account_transport == nullptr
-       || !exact_profile(request.ProfileAuthority, *state->Profile))
+    if(profile == nullptr || account_transport == nullptr)
     {
         completion(application::github_pull_request_error{
             .Request = std::move(request),
@@ -1474,7 +1512,12 @@ void github_provider::fetch_pull_request(
     try
     {
         state->Effects->post(
-            [state, job, account_transport, request, delivery]() mutable
+            [state,
+             job,
+             profile,
+             account_transport,
+             request,
+             delivery]() mutable
             {
                 const auto cancelled = [&]
                 {
@@ -1517,7 +1560,7 @@ void github_provider::fetch_pull_request(
                     }
                     auto result =
                         perform_paged_github_read(*account_transport->Transport,
-                                                  *state->Profile,
+                                                  *profile,
                                                   request,
                                                   *snapshot,
                                                   job->Stop.get_token());
@@ -1618,25 +1661,59 @@ void github_provider::shutdown() noexcept
     }
 }
 
-auto make_github_provider(const validated_github_host_profile& profile,
-                          application::effect_executor& effects,
-                          std::shared_ptr<github_wire_transport_factory_port>
-                              transport_factory) noexcept
+namespace
+{
+auto make_github_provider_from_pointers(
+    const std::span<const validated_github_host_profile* const> profiles,
+    application::effect_executor& effects,
+    std::shared_ptr<github_wire_transport_factory_port> transport_factory)
+    noexcept
     -> github_provider_factory_result
 {
-    if(!application::valid(profile_authority(profile))
-       || transport_factory == nullptr)
+    if(profiles.empty())
+    {
+        return std::unexpected{
+            github_provider_configuration_failure::no_profiles};
+    }
+    if(transport_factory == nullptr)
     {
         return std::unexpected{
             github_provider_configuration_failure::invalid_profile};
+    }
+    for(std::size_t index = 0U; index < profiles.size(); ++index)
+    {
+        if(profiles[index] == nullptr
+           || !application::valid(profile_authority(*profiles[index])))
+        {
+            return std::unexpected{
+                github_provider_configuration_failure::invalid_profile};
+        }
+        const auto previous_profiles = profiles.first(index);
+        const auto duplicate = std::ranges::find_if(
+            previous_profiles,
+            [&](const auto& profile)
+            {
+                return profile != nullptr
+                    && profile->profile() == profiles[index]->profile();
+            });
+        if(duplicate != previous_profiles.end())
+        {
+            return std::unexpected{
+                github_provider_configuration_failure::duplicate_profile};
+        }
     }
     try
     {
         auto state = std::make_shared<provider_state>();
         state->Effects = &effects;
         state->TransportFactory = std::move(transport_factory);
-        state->Profile =
-            std::make_shared<validated_github_host_profile>(profile);
+        state->Profiles.reserve(profiles.size());
+        for(const auto* const profile : profiles)
+        {
+            state->Profiles.push_back(
+                std::make_shared<const validated_github_host_profile>(
+                    *profile));
+        }
         auto implementation =
             std::make_unique<github_provider::implementation>(std::move(state));
         return std::make_unique<github_provider>(std::move(implementation));
@@ -1646,5 +1723,43 @@ auto make_github_provider(const validated_github_host_profile& profile,
         return std::unexpected{
             github_provider_configuration_failure::allocation_failure};
     }
+}
+}
+
+auto make_github_provider(
+    const std::span<const validated_github_host_profile> profiles,
+    application::effect_executor& effects,
+    std::shared_ptr<github_wire_transport_factory_port> transport_factory)
+    noexcept
+    -> github_provider_factory_result
+{
+    try
+    {
+        auto profile_pointers =
+            std::vector<const validated_github_host_profile*>{};
+        profile_pointers.reserve(profiles.size());
+        for(const auto& profile : profiles)
+        {
+            profile_pointers.push_back(&profile);
+        }
+        return make_github_provider_from_pointers(
+            profile_pointers, effects, std::move(transport_factory));
+    }
+    catch(...)
+    {
+        return std::unexpected{
+            github_provider_configuration_failure::allocation_failure};
+    }
+}
+
+auto make_github_provider(
+    const std::span<const validated_github_host_profile* const> profiles,
+    application::effect_executor& effects,
+    std::shared_ptr<github_wire_transport_factory_port> transport_factory)
+    noexcept
+    -> github_provider_factory_result
+{
+    return make_github_provider_from_pointers(
+        profiles, effects, std::move(transport_factory));
 }
 }

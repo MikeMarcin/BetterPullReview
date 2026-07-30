@@ -923,7 +923,7 @@ static_assert(
 void selected_credential_manager_lifecycle() {
     CREDENTIALW credential{};
     PCREDENTIALW retrieved = nullptr;
-    static_assert(159U <= CRED_MAX_GENERIC_TARGET_NAME_LENGTH);
+    static_assert(667U <= CRED_MAX_GENERIC_TARGET_NAME_LENGTH);
     static_assert(
         2'560U == windows_credential_manager_maximum_blob_bytes);
     const DWORD blob_size = 512U;
@@ -949,18 +949,19 @@ LINUX_SECRET_SERVICE_SOURCE = """\
 namespace application {
 class effect_executor;
 constexpr std::size_t maximum_github_credential_bytes = 2'560U;
+constexpr std::size_t maximum_github_hostname_bytes = 253U;
 }
 application::effect_executor* selected_effect_lane = nullptr;
 
-constexpr std::size_t linux_secret_service_authority_account_bytes = 66U;
-static_assert(linux_secret_service_authority_account_bytes == 66U);
+constexpr std::size_t linux_secret_service_authority_account_bytes = 574U;
+static_assert(linux_secret_service_authority_account_bytes == 574U);
 constexpr std::string_view canonical_service_bus_name =
     "org.freedesktop.secrets";
 constexpr std::string_view production_schema_identifier =
-    "org.betterpullreview.github-native-credential.secret-service.v1";
+    "org.betterpullreview.github-native-credential.secret-service.v2";
 constexpr std::string_view integration_test_schema_identifier =
     "org.betterpullreview.github-native-credential."
-    "secret-service.integration-test.v1";
+    "secret-service.integration-test.v2";
 constexpr std::string_view authority_attribute = "authority";
 constexpr std::string_view schema_attribute = "xdg:schema";
 constexpr std::string_view binary_content_type = "application/octet-stream";
@@ -1030,6 +1031,19 @@ void selected_secret_service_lifecycle() {
         output,
         offset,
         server_contract_discriminator(authority.ServerContract));
+    const auto hostname = authority.Hostname.value();
+    append_hex_u8(
+        encoded, offset, static_cast<std::uint8_t>(hostname.size()));
+    for(std::size_t index = 0U;
+        index < application::maximum_github_hostname_bytes;
+        ++index) {
+        const std::uint8_t value =
+            index < hostname.size()
+            ? static_cast<std::uint8_t>(
+                  static_cast<unsigned char>(hostname[index]))
+            : std::uint8_t{0U};
+        append_hex_u8(encoded, offset, value);
+    }
 
     error_owner error;
     Service = secret_service_open_sync(
@@ -3339,10 +3353,10 @@ auto finish_background_reap(
     def test_linux_vault_requires_exact_schema_and_authority(self) -> None:
         required_fragments = (
             "static_assert("
-            "linux_secret_service_authority_account_bytes == 66U)",
+            "linux_secret_service_authority_account_bytes == 574U)",
             "org.betterpullreview.github-native-credential."
-            "secret-service.v1",
-            "secret-service.integration-test.v1",
+            "secret-service.v2",
+            "secret-service.integration-test.v2",
             'authority_attribute = "authority"',
             'schema_attribute = "xdg:schema"',
             "SECRET_SCHEMA_NONE",
@@ -3357,6 +3371,11 @@ auto finish_background_reap(
             "        output,\n"
             "        offset,\n"
             "        server_contract_discriminator(authority.ServerContract))",
+            "authority.Hostname.value()",
+            "static_cast<std::uint8_t>(hostname.size())",
+            "index < application::maximum_github_hostname_bytes",
+            "static_cast<unsigned char>(hostname[index])",
+            "append_hex_u8(encoded, offset, value)",
         )
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
@@ -3777,9 +3796,9 @@ auto finish_background_reap(
     ) -> None:
         bound_mutations = (
             (
-                "    static_assert(159U <= "
+                "    static_assert(667U <= "
                 "CRED_MAX_GENERIC_TARGET_NAME_LENGTH);\n",
-                "    static_assert(159U == "
+                "    static_assert(667U == "
                 "CRED_MAX_GENERIC_TARGET_NAME_LENGTH);\n",
             ),
             (

@@ -14,7 +14,9 @@
 namespace bpr::adapters::github
 {
 inline constexpr std::size_t
-    windows_credential_manager_authority_account_chars = 66U;
+    windows_credential_manager_authority_account_chars =
+        (4U * 16U) + 2U + 2U
+        + (2U * application::maximum_github_hostname_bytes);
 
 using windows_credential_manager_authority_account =
     std::array<

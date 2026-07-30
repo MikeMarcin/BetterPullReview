@@ -17,6 +17,12 @@ file.
 
 GitHub Actions is not an acceptable evidence surface.
 
+> Later BPR-0029 note: this card records the historical v1 target in its
+> implementation/cross-PE evidence. Current source uses a disjoint v2 prefix
+> and 574-character hostname-bound authority. BPR-0036 retains target-native
+> current-format lifecycle, cleanup, and public-fixture evidence; no v1
+> migration or fallback exists.
+
 ## Result
 
 - Added a WIN32-only wide-character Credential Manager adapter using one

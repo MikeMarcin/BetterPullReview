@@ -46,13 +46,14 @@ GRAPHQL_HEADERS = {
     "User-Agent": "BetterPullReview/0.1",
 }
 GRAPHQL_QUERY = (
-    "query GetReviewThreads($owner:String!,$name:String!,$number:Int!){"
+    "query GetReviewData($owner:String!,$name:String!,$number:Int!){"
     "repository(owner:$owner,name:$name){id pullRequest(number:$number){id "
-    "files(first:100){nodes{path viewerViewedState} "
-    "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){nodes{id "
-    "isResolved isOutdated viewerCanResolve viewerCanUnresolve subjectType "
-    "path line originalLine comments(first:100){nodes{id bodyText path line "
-    "originalLine outdated author{login ... on Node{id}} replyTo{id}} "
+    "files(first:100){totalCount nodes{path viewerViewedState} "
+    "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount "
+    "nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
+    "subjectType path line originalLine comments(first:100){totalCount "
+    "nodes{id bodyText path line originalLine outdated author{login ... on "
+    "Node{id}} replyTo{id}} "
     "pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}"
 )
 GRAPHQL_BODY = json.dumps(
@@ -201,6 +202,8 @@ EXPECTED_RESPONSE_FIELDS = {
         "state",
         "title",
         "body",
+        "changed_files",
+        "commits",
         "draft",
         "user",
         "login",
@@ -239,6 +242,7 @@ EXPECTED_RESPONSE_FIELDS = {
         "repository",
         "pullRequest",
         "files",
+        "totalCount",
         "viewerViewedState",
         "reviewThreads",
         "nodes",
@@ -285,6 +289,10 @@ EXPECTED_RESPONSE_FIELDS = {
         "state",
         "title",
         "draft",
+        "repository_url",
+        "html_url",
+        "pull_request",
+        "url",
     },
 }
 
@@ -393,18 +401,25 @@ def json_fields(value: object) -> set[str]:
     return fields
 
 
-def artifact_field_violations(value: object) -> list[str]:
+def artifact_field_violations(
+    value: object,
+    allowed_url_fields: frozenset[str] = frozenset(),
+) -> list[str]:
     violations = []
     for field in json_fields(value):
         lowered = field.lower()
-        if (
+        forbidden_artifact_name = (
             lowered in FORBIDDEN_ARTIFACT_FIELDS
             or lowered.endswith("_url")
-            or any(
-                fragment in lowered
-                for fragment in ("password", "secret", "token", "credential")
-            )
-        ):
+        )
+        sensitive_name = any(
+            fragment in lowered
+            for fragment in ("password", "secret", "token", "credential")
+        )
+        if (
+            forbidden_artifact_name
+            and lowered not in allowed_url_fields
+        ) or sensitive_name:
             violations.append(f"forbidden artifact field: {field}")
     return violations
 
@@ -765,13 +780,81 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                 FIXTURE_ROOT / "ghes-3.18" / "responses" / response_name
             )
             with self.subTest(operation=operation):
-                self.assertEqual(cloud_path.read_bytes(), ghes_path.read_bytes())
-                response = self.load_json(cloud_path)
-                self.assertEqual(
-                    json_fields(response),
-                    EXPECTED_RESPONSE_FIELDS[operation],
+                cloud_response = self.load_json(cloud_path)
+                ghes_response = self.load_json(ghes_path)
+                if operation != "SearchPullRequests":
+                    self.assertEqual(
+                        cloud_path.read_bytes(),
+                        ghes_path.read_bytes(),
+                    )
+
+                allowed_url_fields = (
+                    frozenset({"repository_url", "html_url", "url"})
+                    if operation == "SearchPullRequests"
+                    else frozenset()
                 )
-                self.assertEqual(artifact_field_violations(response), [])
+                for response in (cloud_response, ghes_response):
+                    self.assertEqual(
+                        json_fields(response),
+                        EXPECTED_RESPONSE_FIELDS[operation],
+                    )
+                    self.assertEqual(
+                        artifact_field_violations(
+                            response,
+                            allowed_url_fields,
+                        ),
+                        [],
+                    )
+
+                if operation == "SearchPullRequests":
+                    cloud_item = cloud_response["items"][0]
+                    ghes_item = ghes_response["items"][0]
+                    semantic_fields = {
+                        "node_id",
+                        "number",
+                        "state",
+                        "title",
+                        "draft",
+                    }
+                    self.assertEqual(
+                        {key: cloud_item[key] for key in semantic_fields},
+                        {key: ghes_item[key] for key in semantic_fields},
+                    )
+                    for host_name, item in (
+                        ("github-com", cloud_item),
+                        ("ghes-3.18", ghes_item),
+                    ):
+                        host = HOSTS[host_name]
+                        repository_path = (
+                            "/repos/octo-org/review-repository"
+                        )
+                        self.assertEqual(
+                            set(item),
+                            semantic_fields
+                            | {
+                                "repository_url",
+                                "html_url",
+                                "pull_request",
+                            },
+                        )
+                        self.assertEqual(
+                            item["repository_url"],
+                            f"{host['api_roots']['rest']}{repository_path}",
+                        )
+                        self.assertEqual(
+                            item["html_url"],
+                            f"https://{host['host']}"
+                            f"/octo-org/review-repository/pull/17",
+                        )
+                        self.assertEqual(
+                            item["pull_request"],
+                            {
+                                "url": (
+                                    f"{host['api_roots']['rest']}"
+                                    f"{repository_path}/pulls/17"
+                                ),
+                            },
+                        )
 
     def test_stable_fixture_identities_are_synthetic_and_bounded(self) -> None:
         pull_request = self.load_json(

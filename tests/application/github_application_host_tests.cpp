@@ -448,6 +448,8 @@ public:
         .Profile = profile,
         .ProfileRevision = application::github_profile_revision{31U},
         .Host = core::git_host_id{21U},
+        .Hostname =
+            application::github_canonical_hostname{"github.com"},
         .ServerContract =
             application::github_server_contract::github_com_2022_11_28,
         .Authentication =
@@ -470,6 +472,20 @@ public:
     -> application::github_profile_authority
 {
     auto result = cli_profile(profile);
+    result.Hostname =
+        application::github_canonical_hostname{"ghe.example.invalid"};
+    result.ServerContract =
+        application::github_server_contract::ghes_3_18_2022_11_28;
+    return result;
+}
+
+[[nodiscard]] auto ghes_native_profile(
+    const core::host_profile_id profile,
+    const std::string_view hostname = "ghe.example.invalid")
+    -> application::github_profile_authority
+{
+    auto result = native_profile(profile);
+    result.Hostname = application::github_canonical_hostname{hostname};
     result.ServerContract =
         application::github_server_contract::ghes_3_18_2022_11_28;
     return result;
@@ -843,7 +859,25 @@ struct host_fixture
     }
 
     explicit host_fixture(
-        application::github_credential_binding_catalog& bindings)
+        const application::github_credential_shutdown_policy shutdown_policy)
+        : Bindings{OwnedBindings}
+        , Host{initial_state(),
+               Provider,
+               Provider,
+               Provider,
+               Provider,
+               Vault,
+               Bindings,
+               Lane,
+               Projections,
+               shutdown_policy}
+    {
+    }
+
+    explicit host_fixture(
+        application::github_credential_binding_catalog& bindings,
+        const application::github_credential_shutdown_policy shutdown_policy =
+            application::github_credential_shutdown_policy::retain)
         : Bindings{bindings}
         , Host{initial_state(),
                Provider,
@@ -853,7 +887,8 @@ struct host_fixture
                Vault,
                Bindings,
                Lane,
-               Projections}
+               Projections,
+               shutdown_policy}
     {
     }
 };
@@ -896,7 +931,9 @@ auto advance_native_to_retrieve(host_fixture& fixture) -> void
 auto establish_native_session(
     host_fixture& fixture,
     const core::host_profile_id profile = core::host_profile_id{11U},
-    const core::github_account_id account = core::github_account_id{51U})
+    const core::github_account_id account = core::github_account_id{51U},
+    const std::optional<application::github_profile_authority>&
+        resolved_profile = std::nullopt)
     -> void
 {
     fixture.Host.enroll_profile(profile, credential());
@@ -906,7 +943,9 @@ auto establish_native_session(
     fixture.Provider.Profiles.front().Completion(
         application::github_profile_success{
             .Request = profile_request,
-            .Authority = native_profile(profile_request.Context.Profile),
+            .Authority =
+                resolved_profile.value_or(
+                    native_profile(profile_request.Context.Profile)),
         });
     expect(fixture.Provider.Viewers.empty(),
            "worker completion cannot advance the host before decision lane");
@@ -1047,12 +1086,14 @@ auto advance_resume_to_capability(
 auto seed_persistent_binding(
     application::github_credential_binding_catalog& bindings,
     const core::host_profile_id profile = core::host_profile_id{11U},
-    const core::github_account_id account = core::github_account_id{51U})
+    const core::github_account_id account = core::github_account_id{51U},
+    const std::optional<application::github_profile_authority>&
+        resolved_profile = std::nullopt)
     -> application::github_credential_authority_key
 {
     const auto prior_bindings = bindings.size();
     host_fixture source{bindings};
-    establish_native_session(source, profile, account);
+    establish_native_session(source, profile, account, resolved_profile);
     const auto authority = source.Vault.Stores.front().Context.Authority;
     source.Host.shutdown();
     expect(bindings.size() == prior_bindings + 1U
@@ -2673,6 +2714,99 @@ auto test_shutdown_preserves_persistent_credentials() -> void
            "ordinary shutdown preserves accepted persistent credentials");
 }
 
+auto test_shutdown_deletes_persistent_credentials_by_policy() -> void
+{
+    constexpr auto policy = application::github_credential_shutdown_policy::
+        delete_retained_on_shutdown;
+
+    {
+        host_fixture fixture{policy};
+        establish_native_session(fixture);
+        const auto authority = fixture.Vault.Stores.front().Context.Authority;
+        const auto transition_count = fixture.Projections.transition_count();
+
+        fixture.Host.shutdown();
+        expect(
+            fixture.Vault.Deletes.size() == 1U
+                && fixture.Vault.Deletes.front().Context.Authority == authority
+                && fixture.Bindings.size() == 1U
+                && !fixture.Host.is_quiescent(),
+            "delete-on-shutdown waits for exact accepted-credential cleanup");
+
+        fixture.Host.shutdown();
+        expect(fixture.Vault.Deletes.size() == 1U
+                   && fixture.Vault.Cancellations.empty(),
+               "duplicate shutdown preserves the one required delete");
+
+        const auto cleanup = fixture.Vault.Deletes.front().Context;
+        fixture.Vault.Deletes.front().Completion(
+            application::github_credential_delete_success{
+                .Context = cleanup,
+                .Disposition =
+                    application::github_credential_delete_disposition::absent,
+            });
+        expect(!fixture.Host.is_quiescent() && fixture.Bindings.size() == 1U,
+               "delete completion cannot clear authority off the decision "
+               "lane");
+        fixture.Lane.run_next();
+        expect(fixture.Host.is_quiescent()
+                   && !fixture.Host.shutdown_cleanup_failed()
+                   && fixture.Bindings.size() == 0U
+                   && fixture.Projections.transition_count()
+                          == transition_count,
+               "authoritative deletion or absence completes shutdown cleanup");
+
+        fixture.Vault.Deletes.front().Completion(
+            application::github_credential_delete_error{
+                .Context = cleanup,
+                .Failure = application::github_credential_vault_failure::
+                    operation_failed,
+            });
+        fixture.Lane.run_next();
+        expect(fixture.Host.is_quiescent()
+                   && !fixture.Host.shutdown_cleanup_failed()
+                   && fixture.Bindings.size() == 0U,
+               "late duplicate delete cannot rewrite successful cleanup");
+    }
+
+    {
+        host_fixture fixture{policy};
+        establish_native_session(fixture);
+        fixture.Host.shutdown();
+        const auto cleanup = fixture.Vault.Deletes.front().Context;
+        auto wrong = cleanup;
+        wrong.IdentityGeneration =
+            core::github_identity_generation{
+                cleanup.IdentityGeneration.value() + 1U};
+        fixture.Vault.Deletes.front().Completion(
+            application::github_credential_delete_success{
+                .Context = wrong,
+                .Disposition =
+                    application::github_credential_delete_disposition::deleted,
+            });
+        fixture.Lane.run_next();
+        expect(
+            fixture.Host.is_quiescent()
+                && fixture.Host.shutdown_cleanup_failed()
+                && fixture.Bindings.size() == 1U
+                && fixture.Projections.last_host_diagnostic().Reason
+                       == core::github_reason_code::vault_unavailable,
+            "wrong cleanup terminal is visible and retains the exact binding "
+            "tombstone");
+
+        fixture.Vault.Deletes.front().Completion(
+            application::github_credential_delete_success{
+                .Context = cleanup,
+                .Disposition =
+                    application::github_credential_delete_disposition::deleted,
+            });
+        fixture.Lane.run_next();
+        expect(fixture.Host.shutdown_cleanup_failed()
+                   && fixture.Bindings.size() == 1U,
+               "late exact delete cannot conceal an already failed cleanup");
+    }
+}
+
 auto test_caller_cache_cannot_bypass_capability_probe() -> void
 {
     static_assert(!std::is_constructible_v<
@@ -2790,6 +2924,47 @@ auto test_catalog_resume_and_replacement_revalidate_persistent_credentials()
             bindings.size() == 0U
                 && !mismatched_profile.Host.state().PendingSession.has_value(),
             "successful replacement cleanup forgets the trusted binding");
+    }
+
+    {
+        application::github_credential_binding_catalog bindings;
+        const auto profile = core::host_profile_id{11U};
+        static_cast<void>(seed_persistent_binding(
+            bindings,
+            profile,
+            core::github_account_id{51U},
+            ghes_native_profile(profile)));
+        host_fixture mismatched_hostname{bindings};
+        mismatched_hostname.Host.resume_profile(profile);
+        const auto request =
+            mismatched_hostname.Provider.Profiles.front().Request;
+        const auto changed = ghes_native_profile(
+            request.Context.Profile, "ghe.other.invalid");
+        mismatched_hostname.Provider.Profiles.front().Completion(
+            application::github_profile_success{
+                .Request = request,
+                .Authority = changed,
+            });
+        mismatched_hostname.Lane.run_next();
+        expect(
+            mismatched_hostname.Vault.Retrieves.empty()
+                && mismatched_hostname.Vault.Deletes.size() == 1U
+                && bindings.size() == 1U,
+            "hostname replacement exact-deletes the retained authority");
+        const auto cleanup =
+            mismatched_hostname.Vault.Deletes.front().Context;
+        mismatched_hostname.Vault.Deletes.front().Completion(
+            application::github_credential_delete_success{
+                .Context = cleanup,
+                .Disposition =
+                    application::github_credential_delete_disposition::deleted,
+            });
+        mismatched_hostname.Lane.run_next();
+        expect(
+            bindings.size() == 0U
+                && !mismatched_hostname.Host.state()
+                        .PendingSession.has_value(),
+            "hostname replacement cleanup forgets the trusted binding");
     }
 
     {
@@ -3219,6 +3394,98 @@ auto test_shutdown_preserves_inflight_persistent_resume() -> void
     }
 }
 
+auto test_shutdown_deletes_inflight_persistent_resume_by_policy() -> void
+{
+    enum class retrieve_terminal
+    {
+        success,
+        cancelled,
+        error,
+    };
+
+    constexpr auto policy = application::github_credential_shutdown_policy::
+        delete_retained_on_shutdown;
+    for(const auto terminal : {retrieve_terminal::success,
+                               retrieve_terminal::cancelled,
+                               retrieve_terminal::error})
+    {
+        application::github_credential_binding_catalog bindings;
+        const auto authority = seed_persistent_binding(bindings);
+        host_fixture fixture{bindings, policy};
+        fixture.Host.resume_profile(core::host_profile_id{11U});
+        const auto profile = fixture.Provider.Profiles.front().Request;
+        fixture.Provider.Profiles.front().Completion(
+            application::github_profile_success{
+                .Request = profile,
+                .Authority = native_profile(profile.Context.Profile),
+            });
+        fixture.Lane.run_next();
+        const auto running = fixture.Vault.Retrieves.front().Context;
+
+        fixture.Host.shutdown();
+        expect(fixture.Vault.Cancellations == std::vector{running}
+                   && fixture.Vault.Deletes.empty()
+                   && !fixture.Host.is_quiescent(),
+               "delete policy waits for the in-flight retained retrieval "
+               "terminal");
+
+        switch(terminal)
+        {
+        case retrieve_terminal::success:
+            fixture.Vault.Retrieves.front().Completion(
+                application::github_credential_retrieve_success{
+                    .Context = running,
+                    .Credential = credential(),
+                });
+            break;
+        case retrieve_terminal::cancelled:
+            fixture.Vault.Retrieves.front().Completion(
+                application::github_credential_retrieve_cancelled{
+                    .Context = running,
+                });
+            break;
+        case retrieve_terminal::error:
+            fixture.Vault.Retrieves.front().Completion(
+                application::github_credential_retrieve_error{
+                    .Context = running,
+                    .Failure = application::github_credential_vault_failure::
+                        operation_failed,
+                });
+            break;
+        }
+        fixture.Lane.run_next();
+        expect(
+            fixture.Vault.Deletes.size() == 1U
+                && fixture.Vault.Deletes.front().Context.Authority == authority
+                && !fixture.Host.is_quiescent(),
+            "every retained retrieval terminal chains into one exact delete");
+
+        fixture.Vault.Retrieves.front().Completion(
+            application::github_credential_retrieve_cancelled{
+                .Context = running,
+            });
+        fixture.Lane.run_next();
+        expect(fixture.Vault.Deletes.size() == 1U
+                   && !fixture.Host.is_quiescent()
+                   && !fixture.Host.shutdown_cleanup_failed(),
+               "duplicate retrieval terminal cannot overtake required delete");
+
+        const auto cleanup = fixture.Vault.Deletes.front().Context;
+        fixture.Vault.Deletes.front().Completion(
+            application::github_credential_delete_success{
+                .Context = cleanup,
+                .Disposition =
+                    application::github_credential_delete_disposition::deleted,
+            });
+        fixture.Lane.run_next();
+        expect(fixture.Host.is_quiescent()
+                   && !fixture.Host.shutdown_cleanup_failed()
+                   && bindings.size() == 0U,
+               "retained retrieval cleanup reaches exact deletion before "
+               "quiescence");
+    }
+}
+
 auto test_shutdown_cancels_running_vault_work() -> void
 {
     enum class store_terminal
@@ -3584,9 +3851,11 @@ auto main() -> int
     test_bootstrap_lease_and_changed_account_fail_closed();
     test_shutdown_cancels_and_suppresses_late_completion();
     test_shutdown_preserves_persistent_credentials();
+    test_shutdown_deletes_persistent_credentials_by_policy();
     test_caller_cache_cannot_bypass_capability_probe();
     test_catalog_resume_and_replacement_revalidate_persistent_credentials();
     test_shutdown_preserves_inflight_persistent_resume();
+    test_shutdown_deletes_inflight_persistent_resume_by_policy();
     test_shutdown_cancels_running_vault_work();
     test_shutdown_exact_cleans_every_provisional_phase();
     test_shutdown_cancel_has_no_completion_gate_lock_inversion();

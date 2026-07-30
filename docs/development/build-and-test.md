@@ -50,8 +50,8 @@ ctest --preset windows-dev --output-on-failure
 | `better_pull_review_application` | Host, effect/decision ports, serialized completion, manual executor |
 | `better_pull_review_adapter_{github,git,sqlite,ai}` | Capability boundaries established for later RFCs |
 | `better_pull_review_adapter_qt` | Native Qt presentation adapter |
-| `better_pull_review_composition` | Concrete foundation wiring |
-| `better_pull_review` | Native application executable |
+| `better_pull_review_composition` | Explicit profile, transport, vault, provider, worker, host, and Qt wiring |
+| `better_pull_review` | Native read-only GitHub application executable |
 
 ## Focused evidence
 
@@ -67,10 +67,60 @@ build/dev/src/app/better_pull_review \
   --render-evidence build/dev/foundation-window.png
 ```
 
+The public application provides built-in GitHub.com native-HTTPS and
+fail-closed CLI choices. Add explicit GHES 3.18 choices with:
+
+```sh
+build/dev/src/app/better_pull_review --ghes-host ghe.example.com
+```
+
+Activating native HTTPS opens the Qt-owned password prompt, then enrolls the
+credential through the selected platform vault and authenticated `/user`
+observation. Activating CLI shows the bounded unavailable state and starts
+zero processes. `--self-test` directly exercises that fail-closed CLI choice,
+then reports whether composition selected the native platform vault. On
+macOS, Windows, and Linux its successful fixed output includes
+`NATIVE_PLATFORM_VAULT_SELECTED:true`.
+
+The test-enabled application also exposes two deterministic recorded public
+paths:
+
+```sh
+QT_QPA_PLATFORM=offscreen \
+  build/dev/src/app/better_pull_review \
+  --github-fixture github-com \
+  --render-evidence build/dev/github-public-path-github-com.png
+
+QT_QPA_PLATFORM=offscreen \
+  build/dev/src/app/better_pull_review \
+  --github-fixture ghes-3.18 \
+  --render-evidence build/dev/github-public-path-ghes-3.18.png
+```
+
+On headless Linux, also set `QT_STYLE_OVERRIDE=Windows`. Each run must report
+`PUBLIC_PATH_OK`, the matching `GITHUB_FIXTURE_OK` marker, and `RENDER_OK`.
+The fixture drives a real QAction through the concrete provider, application
+host, core acceptance, Qt projection, and orderly exact credential deletion.
+It is deterministic integration/layout evidence, not final presentation
+polish or native system-theme certification; BPR-0031 retains that gate.
+
+Run the focused composition group with:
+
+```sh
+ctest --test-dir build/dev --output-on-failure \
+  -R '^application_(public_path|worker_executor|composition_contract|github_public_path_(github_com|ghes_3_18))$'
+```
+
+`application_composition_contract` creates a fresh tests-disabled Release
+tree. It proves the public application header has no testing conditional and
+the Release compile commands, build graph, symbols, and raw executable bytes
+contain no fixture translation unit, macro, argument, label, path, or evidence
+string.
+
 On macOS, the fake-backed contract test is non-mutating. The native fixture
 creates, replaces, retrieves, and deletes one disposable generic-password item
 under the dedicated
-`org.betterpullreview.github-native-credential.file-keychain.integration-test.v1`
+`org.betterpullreview.github-native-credential.file-keychain.integration-test.v2`
 service in the exact default Keychain:
 
 ```sh
@@ -89,6 +139,11 @@ Keychain is acceptable. Do not treat it as proof that an item orphaned by a
 crash remains removable after rebuilding the current ad hoc-signed test
 binary; stable package identity and cross-build lifecycle verification belong
 to RFC-BPR-0014.
+
+BPR-0022's original target-native evidence used the historical v1 service.
+The current fixture uses the disjoint hostname-bound v2 service shown above,
+and the BPR-0029 macOS run repeated its setup, lifecycle, and exact cleanup.
+Production never reads, enumerates, migrates, or falls back to v1.
 
 On a designated Windows 10/11 x64 test account, the Windows target builds the
 fake-backed contract and native Credential Manager fixture:
@@ -114,6 +169,11 @@ machine. A MinGW cross-compile, a non-Windows build that excludes the targets,
 or a mock-backed pass is useful preparatory evidence but is not a native
 Credential Manager result. Do not run the fixture on an account where a
 disposable test credential is unacceptable.
+
+BPR-0023's preparatory source and cross-PE evidence covered the historical v1
+target format. The current source and fixture use the disjoint hostname-bound
+v2 target. BPR-0036 retains every direct Windows 10/11 x64 current-format
+lifecycle, cleanup, public-fixture, runtime, and dependency check.
 
 On Linux, configure the regular `dev` preset and build the fake-backed
 contract plus native Secret Service fixture:
@@ -178,9 +238,24 @@ user, the four focused CTest cases passed; the lifecycle stored and retrieved
 73 bytes, replaced them with 2,560 bytes, deleted the item, and proved
 absence. Runtime canary probes, exact integration-schema cleanup, hostile
 service-name rejection, a truly locked collection, and no-session-bus
-unavailability also passed. This is direct Linux vault evidence from a
-full-system VM, not bare metal and not proof of the pending native HTTPS or
-public composition surfaces.
+unavailability also passed. That result is direct historical v1 Linux vault
+evidence from a full-system VM, not bare metal. The current fixture uses the
+disjoint hostname-bound v2 schema; its BPR-0029 result is separate and is not
+inferred from the v1 pass.
+
+The current-v2 BPR-0029 run used an Ubuntu 26.04 x86_64 full-system QEMU
+guest. A fresh tests-on Release build completed 81/81 targets, and all 40
+non-native registered test identities have passing current-tree evidence
+after the repaired dependency and composition gates. Secret Service
+setup/lifecycle/cleanup passed 3/3, as did independent exact cleanup and the
+hostile, unavailable, and locked cases. The GitHub.com and GHES public
+fixtures passed with exact host and rendered state. A fresh tests-off Release
+build completed 36/36 targets; the fixture seam was absent; the self-test
+reported `PUBLIC_PATH_OK` and `NATIVE_PLATFORM_VAULT_SELECTED:true`; and
+dependency, runtime, and ELF audits passed. The tests-off executable SHA-256
+is `78a85e15319473e39baaa6b6c8723ff7f9adbade13b48475a3f94a5622719b01`.
+The generated PNGs are deterministic layout/composition evidence only, not
+presentation-polish, native system-theme, or light/dark-theme certification.
 
 For the BPR-0025 GitHub CLI process boundary, build and run the two focused
 contract executables:
@@ -329,7 +404,8 @@ production request, TLS, redirect, cancellation, response, and credential
 binding path. This distinction matters: the fallback scenario proves
 transport candidate ordering, while the `--runtime` observation and
 target-native inspection characterize the selected system proxy/TLS backend.
-Neither is the BPR-0029 public provider composition.
+Neither alone proves the composed public provider; the BPR-0029 fixture above
+supplies that separate executable path on the directly exercised platform.
 
 The default production deadline is 30 seconds, but synchronous Qt system/PAC
 proxy discovery and system-root enumeration cannot be interrupted by the stop
@@ -441,12 +517,14 @@ configuration, workflow-absence scan, tests-disabled Release symbol/dependency
 inspection, and `git diff --check`.
 
 The host-owned credential binding catalog supports same-process host
-recreation only. Do not operate or document native credential persistence in
-the public application until BPR-0029 provides trusted durable binding
-rehydration or exact shutdown deletion. Query-bearing REST redirects continue
-to fail closed under the completed BPR-0038 design decision. Any future
-relaxation requires new direct public-contract evidence and separately scoped
-work.
+recreation only. The public application selects exact deletion on orderly
+shutdown; its delete terminal is part of host quiescence, and composition
+closes and joins provider/vault workers only afterward. There is no durable
+binding rehydration, enumeration, v1 fallback, or crash recovery. An abrupt
+process or host crash can therefore leave a vault item that the next process
+cannot discover. Query-bearing REST redirects continue to fail closed under
+the completed BPR-0038 design decision. Any future relaxation requires new
+direct public-contract evidence and separately scoped work.
 
 For the BPR-0028 provider-free Qt projection and presentation, build the host
 and Qt targets and run the atomic projection, architecture-boundary, and three

@@ -76,6 +76,21 @@ static_assert(std::is_same_v<
     decltype(&make_windows_credential_manager_vault_with_backend),
     injected_factory_signature>);
 
+[[nodiscard]] auto hex_encoded(const std::string_view input) -> std::wstring
+{
+    constexpr std::wstring_view digits = L"0123456789abcdef";
+    std::wstring result;
+    result.reserve(input.size() * 2U);
+    for(const auto character : input)
+    {
+        const auto value =
+            static_cast<unsigned char>(character);
+        result.push_back(digits[value >> 4U]);
+        result.push_back(digits[value & 0x0fU]);
+    }
+    return result;
+}
+
 struct wipe_observation
 {
     std::size_t Buffers = 0U;
@@ -625,10 +640,10 @@ void test_target_and_authority_encoding()
 {
     constexpr std::wstring_view production_prefix =
         L"org.betterpullreview.github-native-credential."
-        L"windows-credential-manager.v1/";
+        L"windows-credential-manager.v2/";
     constexpr std::wstring_view integration_prefix =
         L"org.betterpullreview.github-native-credential."
-        L"windows-credential-manager.integration-test.v1/";
+        L"windows-credential-manager.integration-test.v2/";
     expect(
         windows_credential_manager_target_prefix(
             windows_credential_manager_target_scope::production)
@@ -647,13 +662,13 @@ void test_target_and_authority_encoding()
     expect(
         production_prefix.size()
                 + windows_credential_manager_authority_account_chars
-            == 142U,
-        "production target is exactly 142 UTF-16 code units");
+            == 650U,
+        "production target is exactly 650 UTF-16 code units");
     expect(
         integration_prefix.size()
                 + windows_credential_manager_authority_account_chars
-            == 159U,
-        "integration target is exactly 159 UTF-16 code units");
+            == 667U,
+        "integration target is exactly 667 UTF-16 code units");
 
     const auto base = authority();
     const auto encoded =
@@ -667,11 +682,19 @@ void test_target_and_authority_encoding()
                     || (character >= L'a' && character <= L'f');
             }),
         "account key is fixed-width lowercase hexadecimal");
+    const auto encoded_view =
+        std::wstring_view{encoded->data(), encoded->size()};
     expect(
-        std::wstring_view{encoded->data(), encoded->size()}
-            == L"000000000000000100000000000000020000000000000003"
-               L"000000000000000401",
-        "GitHub.com authority has the exact stable v1 encoding");
+        encoded_view.substr(0U, 66U)
+                == L"000000000000000100000000000000020000000000000003"
+                   L"000000000000000401"
+            && encoded_view.substr(66U, 2U) == L"0a"
+            && encoded_view.substr(68U, 20U)
+                   == L"6769746875622e636f6d"
+            && std::ranges::all_of(
+                encoded_view.substr(88U),
+                [](const wchar_t character) { return character == L'0'; }),
+        "GitHub.com authority has the exact stable v2 encoding");
     const auto production_target =
         std::wstring{production_prefix}
         + std::wstring{encoded->data(), encoded->size()};
@@ -679,20 +702,16 @@ void test_target_and_authority_encoding()
         std::wstring{integration_prefix}
         + std::wstring{encoded->data(), encoded->size()};
     expect(
-        production_target
-            == L"org.betterpullreview.github-native-credential."
-               L"windows-credential-manager.v1/"
-               L"000000000000000100000000000000020000000000000003"
-               L"000000000000000401"
-            && production_target.size() == 142U,
+        production_target.starts_with(production_prefix)
+            && production_target.substr(production_prefix.size())
+                   == encoded_view
+            && production_target.size() == 650U,
         "production target name is exact and complete");
     expect(
-        integration_target
-            == L"org.betterpullreview.github-native-credential."
-               L"windows-credential-manager.integration-test.v1/"
-               L"000000000000000100000000000000020000000000000003"
-               L"000000000000000401"
-            && integration_target.size() == 159U,
+        integration_target.starts_with(integration_prefix)
+            && integration_target.substr(integration_prefix.size())
+                   == encoded_view
+            && integration_target.size() == 667U,
         "integration target name is exact and complete");
     const auto enterprise_encoding =
         encode_windows_credential_manager_authority_account(
@@ -703,14 +722,60 @@ void test_target_and_authority_encoding()
                 4U,
                 application::github_server_contract::
                     ghes_3_18_2022_11_28));
-    expect(
+    const auto enterprise_view =
         enterprise_encoding.has_value()
-            && std::wstring_view{
-                   enterprise_encoding->data(),
-                   enterprise_encoding->size()}
+        ? std::wstring_view{
+              enterprise_encoding->data(), enterprise_encoding->size()}
+        : std::wstring_view{};
+    expect(
+        enterprise_view.substr(0U, 66U)
                 == L"000000000000000100000000000000020000000000000003"
-                   L"000000000000000402",
-        "GHES 3.18 authority has the exact stable v1 encoding");
+                   L"000000000000000402"
+            && enterprise_view.substr(66U, 2U) == L"13"
+            && enterprise_view.substr(68U, 38U)
+                   == L"6768652e6578616d706c652e696e76616c6964"
+            && std::ranges::all_of(
+                enterprise_view.substr(106U),
+                [](const wchar_t character) { return character == L'0'; }),
+        "GHES 3.18 authority has the exact stable v2 encoding");
+    const auto other_enterprise_encoding =
+        encode_windows_credential_manager_authority_account(authority(
+            1U,
+            2U,
+            3U,
+            4U,
+            application::github_server_contract::
+                ghes_3_18_2022_11_28,
+            "ghe.other.invalid"));
+    expect(
+        other_enterprise_encoding.has_value()
+            && *other_enterprise_encoding != *enterprise_encoding,
+        "canonical hostname is an injective target-key dimension");
+    const auto maximum_hostname =
+        std::string(63U, 'a') + "." + std::string(63U, 'b') + "."
+        + std::string(63U, 'c') + "." + std::string(61U, 'd');
+    const auto maximum_encoding =
+        encode_windows_credential_manager_authority_account(authority(
+            1U,
+            2U,
+            3U,
+            4U,
+            application::github_server_contract::
+                ghes_3_18_2022_11_28,
+            maximum_hostname));
+    const auto maximum_view =
+        maximum_encoding.has_value()
+        ? std::wstring_view{
+              maximum_encoding->data(), maximum_encoding->size()}
+        : std::wstring_view{};
+    expect(
+        maximum_hostname.size()
+                == application::maximum_github_hostname_bytes
+            && maximum_view.size()
+                   == windows_credential_manager_authority_account_chars
+            && maximum_view.substr(66U, 2U) == L"fd"
+            && maximum_view.substr(68U) == hex_encoded(maximum_hostname),
+        "maximum hostname is encoded losslessly without truncation");
 
     const std::array variants{
         authority(9U, 2U, 3U, 4U),
@@ -724,6 +789,14 @@ void test_target_and_authority_encoding()
             4U,
             application::github_server_contract::
                 ghes_3_18_2022_11_28),
+        authority(
+            1U,
+            2U,
+            3U,
+            4U,
+            application::github_server_contract::
+                ghes_3_18_2022_11_28,
+            "ghe.other.invalid"),
         authority(1U, 23U, 4U, 5U),
         authority(12U, 3U, 4U, 5U),
     };
@@ -765,6 +838,11 @@ void test_target_and_authority_encoding()
             == std::unexpected{vault_failure::invalid_request},
         "zero host is rejected before Credential Manager");
     malformed = base;
+    malformed.Hostname = {};
+    expect(
+        encode_windows_credential_manager_authority_account(malformed)
+            == std::unexpected{vault_failure::invalid_request},
+        "empty hostname is rejected before Credential Manager");
     malformed.Account = {};
     expect(
         encode_windows_credential_manager_authority_account(malformed)

@@ -65,7 +65,7 @@ every relative descriptor reference inside the capability fixture root.
 ## macOS Keychain integration fixture
 
 The BPR-0022 target-native fixture uses the fixed
-`org.betterpullreview.github-native-credential.file-keychain.integration-test.v1`
+`org.betterpullreview.github-native-credential.file-keychain.integration-test.v2`
 service and one exact synthetic authority in the user's default file-based
 Keychain. It never selects the production service. A resource-locked CTest
 setup/lifecycle/cleanup sequence proves initial absence, add, retrieve,
@@ -83,10 +83,16 @@ The scratch scan does not inspect the user's complete home directory, and the
 fixture does not claim cross-rebuild cleanup after an ad hoc code-signature
 change.
 
+BPR-0022's original closeout run exercised the historical hostname-free v1
+service. BPR-0029 changed the current fixture to the disjoint v2 service and
+574-character hostname-bound authority, then repeated the macOS setup,
+lifecycle, and exact cleanup. Production has no v1 read, enumeration,
+migration, or fallback.
+
 ## Windows Credential Manager integration fixture
 
 The BPR-0023 fixture uses the fixed
-`org.betterpullreview.github-native-credential.windows-credential-manager.integration-test.v1/`
+`org.betterpullreview.github-native-credential.windows-credential-manager.integration-test.v2/`
 prefix and one exact synthetic authority. It never selects the production
 prefix. A resource-locked CTest setup/lifecycle/cleanup sequence is prepared
 to prove initial absence, create, retrieve, single-call replacement, retrieve,
@@ -120,14 +126,20 @@ native Windows environment. Host-stub compilation and an x64 MinGW PE
 cross-compile do not satisfy that lifecycle claim. BPR-0036 retains the
 target-native run and exact cleanup as open work.
 
+BPR-0023's preparatory source and cross-PE evidence exercised the historical
+v1 target format. BPR-0029 changed the current source and fixture to the
+disjoint v2 target and 574-character hostname-bound authority. The v2
+target-native lifecycle and cleanup remain unclaimed until BPR-0036 runs them
+on Windows.
+
 ## Linux Secret Service integration fixture
 
 The BPR-0024 fixture uses the fixed
-`org.betterpullreview.github-native-credential.secret-service.integration-test.v1`
+`org.betterpullreview.github-native-credential.secret-service.integration-test.v2`
 schema and one exact synthetic authority. It never selects the production
-schema. Each item has only the 66-character `authority` value plus the
-`xdg:schema` attribute supplied by libsecret, and resides only in the default
-collection.
+schema. Each item has only the 574-character hostname-bound `authority` value
+plus the `xdg:schema` attribute supplied by libsecret, and resides only in the
+default collection.
 
 The resource-locked CTest setup/lifecycle/cleanup sequence proves initial
 absence, a 73-byte store and retrieve, atomic replacement with a 2,560-byte
@@ -165,16 +177,23 @@ inspection. Fake-backed operation failures and direct native-status
 classification exercise access-denied and failed-delete terminals without
 claiming a desktop policy can reliably force those two states.
 
-The fake contract and all three native fixture CTest cases passed in an Ubuntu
-26.04 x86_64 full-system QEMU VM with an emulated CPU, Linux 7.0,
-Qt 6.10.2, libsecret 0.21.7, and gnome-keyring 50. The four focused cases ran
-under Xvfb, a desktop D-Bus Secret Service session, and a dedicated real user;
-the controlled unavailable, locked, hostile-redirection, and cleanup checks
-also passed. This directly verifies the selected Linux vault stack in a
-full-system VM, not bare metal. This vault fixture alone does not verify
-HTTPS. BPR-0026 separately verified the Linux internal native HTTPS wire
-surface in a full-system Ubuntu 26.04 QEMU guest. The public executable
-provider composition remains BPR-0029.
+The historical BPR-0024 v1 fake contract and all three native fixture CTest
+cases passed in an Ubuntu 26.04 x86_64 full-system QEMU VM with an emulated
+CPU, Linux 7.0, Qt 6.10.2, libsecret 0.21.7, and gnome-keyring 50. The four
+focused cases ran under Xvfb, a desktop D-Bus Secret Service session, and a
+dedicated real user; the controlled unavailable, locked, hostile-redirection,
+and cleanup checks also passed. This directly verifies the historical v1
+Linux vault stack in a full-system VM, not bare metal. BPR-0026 separately
+verified the Linux internal native HTTPS wire surface in a full-system Ubuntu
+26.04 QEMU guest.
+
+BPR-0029 changed the current fixture to the disjoint v2 schema and
+hostname-bound authority. Production has no v1 read, enumeration, migration,
+or fallback. A separate BPR-0029 run in an Ubuntu 26.04 x86_64 full-system
+QEMU guest passed the current v2 setup/lifecycle/cleanup cases 3/3,
+independent exact cleanup, and hostile, unavailable, and locked cases. Both
+composed public-path fixtures also passed. This current-tree evidence is not
+inferred from or substituted for the historical v1 result.
 
 ## GitHub CLI process and trust fixtures
 
@@ -344,7 +363,8 @@ OpenSSL, TLS supported, and one direct candidate. A tests-disabled dependency
 audit found no test-only factories, retained the GitHub adapter's Security and
 CoreFoundation dependencies, and observed the current ad-hoc linker
 signature. This is internal wire and development-runtime evidence, not
-BPR-0029 public provider composition or package certification.
+composed-provider or package certification. BPR-0029 supplies the separate
+public application fixture on the directly exercised platform.
 
 The Linux matrix passed in an Ubuntu 26.04 x86_64 full-system QEMU guest with
 Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. Its frozen
@@ -415,9 +435,12 @@ account authority, and prove an independently populated capability cache
 cannot enter the production host.
 
 Catalog sharing across host fixtures proves same-process recreation only.
-There is no restart/durable-selector fixture in BPR-0027; BPR-0029 must provide
-trusted rehydration or exact shutdown deletion before native persistence is
-publicly composed. Windows target-native execution remains in BPR-0036.
+BPR-0029 adds and directly tests the public host's
+`delete_retained_on_shutdown` policy: the exact delete terminal is required
+for quiescence, and failure retains the tombstone. There is still no
+restart/durable-selector or enumeration fixture; a crash can leave an item the
+next process cannot recover. Windows target-native execution remains in
+BPR-0036.
 
 ## GitHub Qt presentation harness
 
@@ -442,6 +465,60 @@ backtrace identified a fractional-scale offscreen Fusion cached-painter fault;
 native-style real-application verification remains BPR-0031. The harness
 contains no credential, provider port, transport, URL, request, or private
 repository data and performs no GitHub effect.
+
+## GitHub public application composition fixture
+
+The BPR-0029 test-enabled executable supports
+`--github-fixture github-com` and `--github-fixture ghes-3.18`. Each choice
+selects one recorded native-HTTPS profile and uses the same concrete
+composition as the interactive application: profile selection, QAction,
+provider facade, authenticated viewer observation, capability probe, complete
+pull-request assembly, application-host staging, exact core acceptance,
+incremental Qt rendering, and orderly shutdown.
+
+The fixture transport separately records bootstrap and stored-account reads.
+Its vault retains the complete credential operation context and accepts
+retrieve/delete only when the exact request, application session, identity
+generation, profile, profile revision, host identity, canonical hostname,
+account, and server contract match. Success requires the recording and
+capability fixture to be consumed, both transport selections to be observed,
+the credential to be stored and retrieved, the exact shutdown delete to
+complete, and no secret to remain. Output contains only fixed markers and
+bounded structural evidence:
+
+```text
+PUBLIC_PATH_OK
+GITHUB_FIXTURE_OK:github.com
+RENDER_OK
+```
+
+or the corresponding `ghes-3.18` marker. PNGs stay under the ignored build
+tree. Headless Linux additionally selects Qt's basic Windows style. These
+rasters prove deterministic composition and layout, not final visual polish,
+native light/dark following, or runtime appearance switching; BPR-0031 owns
+those public UX checks.
+
+The production CLI choices are tested separately through `--self-test`.
+Selecting the visibly unavailable CLI profile must publish the bounded
+`cli_unavailable` presentation and make zero process launches.
+
+The fixture implementation, command-line parser branch, vault, recordings,
+paths, labels, and evidence strings exist only when `BPR_BUILD_TESTS=ON`.
+`application_composition_contract` creates a fresh tests-disabled Release
+tree and inspects its public header, compile commands, build graph, and raw
+application bytes. It fails if the fixture translation unit, test
+definitions, fixture argument/status strings, recorded label/identity, fixture
+paths, or fixture-access symbols survive.
+
+The macOS current-tree public fixture runs passed for both profiles and
+reported the fixed success markers above. The current-tree Linux v2 run also
+passed both profiles with the exact host labels and rendered state in an
+Ubuntu 26.04 x86_64 full-system QEMU guest. Its fresh tests-off Release build
+completed 36/36 targets, omitted the fixture seam, reported `PUBLIC_PATH_OK`
+and `NATIVE_PLATFORM_VAULT_SELECTED:true`, and passed dependency, runtime, and
+ELF audits. These Linux PNGs remain layout/composition evidence only, not
+presentation-polish or system-theme certification. Windows public-fixture
+execution remains BPR-0036.
 
 ## GitHub hosts
 

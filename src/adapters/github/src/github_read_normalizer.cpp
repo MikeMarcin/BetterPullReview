@@ -464,6 +464,21 @@ namespace
     {
         request.HeadOid = head_oid;
     }
+    if(operation == read_operation::list_review_threads)
+    {
+        request.GraphqlPage = github_graphql_page_request{
+            .Kind = github_graphql_page_kind::initial,
+            .Shape =
+                {
+                    .ReviewThreads = true,
+                    .ViewedFileState = true,
+                    .ResolvePermission = true,
+                    .UnresolvePermission = true,
+                },
+            .AfterCursor = {},
+            .ThreadId = {},
+        };
+    }
     if(operation == read_operation::search_pull_requests)
     {
         request.SearchTerms = context.SearchTerms;

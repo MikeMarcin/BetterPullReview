@@ -238,6 +238,12 @@ provider_request(const application::github_server_contract server =
                 .Profile = core::host_profile_id{11U},
                 .ProfileRevision = application::github_profile_revision{3U},
                 .Host = core::git_host_id{22U},
+                .Hostname = application::github_canonical_hostname{
+                    server
+                            == application::github_server_contract::
+                                github_com_2022_11_28
+                        ? "github.com"
+                        : "ghe.example.invalid"},
                 .ServerContract = server,
                 .Authentication =
                     application::github_authentication_transport::native_https,

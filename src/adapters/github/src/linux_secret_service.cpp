@@ -16,10 +16,10 @@ namespace bpr::adapters::github
 namespace
 {
 constexpr std::string_view production_schema_identifier =
-    "org.betterpullreview.github-native-credential.secret-service.v1";
+    "org.betterpullreview.github-native-credential.secret-service.v2";
 constexpr std::string_view integration_test_schema_identifier =
     "org.betterpullreview.github-native-credential."
-    "secret-service.integration-test.v1";
+    "secret-service.integration-test.v2";
 constexpr std::string_view authority_attribute = "authority";
 constexpr std::string_view schema_attribute = "xdg:schema";
 constexpr std::string_view binary_content_type = "application/octet-stream";
@@ -32,7 +32,7 @@ constexpr std::string_view canonical_service_bus_name =
     "org.freedesktop.secrets";
 constexpr gint prompt_dismiss_timeout_milliseconds = 1'000;
 
-static_assert(linux_secret_service_authority_account_bytes == 66U);
+static_assert(linux_secret_service_authority_account_bytes == 574U);
 
 template <typename... Callables> struct overloaded : Callables...
 {
@@ -1602,6 +1602,20 @@ auto encode_linux_secret_service_authority_account(
     append_hex_u8(encoded,
         offset,
         server_contract_discriminator(authority.ServerContract));
+    const auto hostname = authority.Hostname.value();
+    append_hex_u8(
+        encoded, offset, static_cast<std::uint8_t>(hostname.size()));
+    for(std::size_t index = 0U;
+        index < application::maximum_github_hostname_bytes;
+        ++index)
+    {
+        const std::uint8_t value =
+            index < hostname.size()
+            ? static_cast<std::uint8_t>(
+                  static_cast<unsigned char>(hostname[index]))
+            : std::uint8_t{0U};
+        append_hex_u8(encoded, offset, value);
+    }
     return encoded;
 }
 

@@ -61,7 +61,8 @@ inline void erase(std::span<std::byte> bytes) noexcept
     const std::uint64_t account = 4U,
     const application::github_server_contract server =
         application::github_server_contract::
-            github_com_2022_11_28)
+            github_com_2022_11_28,
+    const std::string_view hostname = {})
     -> application::github_credential_authority_key
 {
     return {
@@ -69,6 +70,14 @@ inline void erase(std::span<std::byte> bytes) noexcept
         .ProfileRevision =
             application::github_profile_revision{profile_revision},
         .Host = core::git_host_id{host},
+        .Hostname = application::github_canonical_hostname{
+            hostname.empty()
+                ? (server
+                           == application::github_server_contract::
+                               github_com_2022_11_28
+                       ? "github.com"
+                       : "ghe.example.invalid")
+                : hostname},
         .Account = core::github_account_id{account},
         .ServerContract = server,
     };
