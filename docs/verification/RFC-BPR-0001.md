@@ -137,3 +137,21 @@ After the correction, the platform configuration contract passed 4/4, the
 complete Qt-enabled local matrix passed 14/14, the Qt-free local matrix passed
 9/9, the documentation and source-pack validators passed, and
 `git diff --check` passed.
+
+## Final closeout
+
+The final replay used previously absent `build/closeout-local-dev` and
+`build/closeout-local-core` directories after the hosted-build removal commit.
+The Qt-enabled matrix passed 14/14 and the Qt-free matrix passed 9/9.
+`PUBLIC_PATH_OK`, `RENDER_OK`, `BINARY_DEPENDENCIES_OK`, and
+`RUNTIME_SURFACE_OK` all came from the fresh real executable. Visual inspection
+confirmed the Refresh action, native empty state, version/platform/configuration
+facts, and current-state status without clipping. `otool -L` selected Qt Core,
+Gui, and Widgets plus native macOS frameworks with no browser runtime.
+
+Documentation validation, source-pack validation, `git diff --check`, and the
+zero-GitHub-Actions-workflow assertion passed. Every RFC-BPR-0001 card is in
+`done/`, every documentation-ledger disposition is resolved, and the claim
+matrix matches the amended RFC scope. RFC-BPR-0001 is therefore
+`Auto-Verified`; clean delivered-platform certification remains open only in
+RFC-BPR-0014, where it is a release claim rather than a foundation claim.

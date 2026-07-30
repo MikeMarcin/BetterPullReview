@@ -1,7 +1,7 @@
 ---
 id: RFC-BPR-0001
 title: Product Contract, Native Architecture, and Repository Foundation
-status: Proposed
+status: Auto-Verified
 area: BPR
 milestone: M1 Native Read-Only Workbench
 depends_on: []
@@ -9,6 +9,16 @@ pack_version: 2
 ---
 
 # RFC-BPR-0001: Product Contract, Native Architecture, and Repository Foundation
+
+## Implementation status
+
+Auto-Verified on 2026-07-29 against the directly exercised macOS development
+host. The clean Qt-enabled matrix passed 14/14, the Qt-free matrix passed 9/9,
+the real application public path and rendered inspection passed, dependency
+and live-process audits passed, documentation and source-pack validation
+passed, and the repository selected no GitHub Actions workflow. Clean
+Windows/macOS/Linux delivered-package certification remains an explicit
+RFC-BPR-0014 requirement.
 
 ## Summary
 

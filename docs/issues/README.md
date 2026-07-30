@@ -21,5 +21,6 @@ blocked while any required card remains outside `done/`.
 
 ## Current RFC
 
-RFC-BPR-0001 is the only active RFC. Local implementation, verification, and
-hosted-build removal are complete. Closeout card `BPR-0012` is ready.
+RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `done/`.
+RFC-BPR-0002 is the next RFC in canonical order; its live planning slice has
+not started.
