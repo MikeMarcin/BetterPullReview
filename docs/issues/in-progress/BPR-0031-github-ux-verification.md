@@ -23,6 +23,9 @@ offscreen fixture with a forced cross-platform style is layout evidence only
 and cannot satisfy native visual or dark-mode acceptance.
 Full user-selectable light/dark/high-contrast appearance profiles remain
 RFC-BPR-0006 scope.
+This RFC-BPR-0002 window remains an interim provider/read-model integration
+surface. RFC-BPR-0005 owns its integration into the complete native workbench
+and virtualized review layout.
 
 ## Result
 

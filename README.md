@@ -27,6 +27,11 @@ native palette, style, and font without forcing a palette, style, or QSS, and
 responds to application appearance and font changes. User-selectable
 appearance profiles remain RFC-BPR-0006 work.
 
+This GitHub window is an interim RFC-BPR-0002 integration surface, not the
+final review workbench. RFC-BPR-0005 owns the complete native workbench and
+virtualized review layout. RFC-BPR-0006 owns syntax presentation and the full
+System, Light, Dark, and high-contrast appearance profiles.
+
 ## Architecture
 
 > The core decides. The host performs. Qt presents.

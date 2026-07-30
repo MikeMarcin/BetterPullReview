@@ -835,7 +835,10 @@ BPR-0036.
 ## Presentation-polish slice result
 
 BPR-0031 replaces the functional-integration layout with a compact,
-responsive GitHub workbench without moving policy or effects into Qt.
+responsive interim GitHub integration surface without moving policy or
+effects into Qt. RFC-BPR-0005 owns the complete native workbench and
+virtualized review layout; RFC-BPR-0006 owns syntax presentation and the full
+appearance profiles.
 Connection, locator, status, pull-request hierarchy, description, and
 conversations have distinct visual roles. Capability/rate observations and
 exact commit identities remain available through keyboard-operable
