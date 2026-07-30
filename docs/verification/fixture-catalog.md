@@ -483,9 +483,32 @@ Scale-specific CTest cases render at 1.0x, 1.25x, and 2.0x and save
 minimum-top, minimum-lower, and normal-size PNGs beneath the ignored build
 tree. Headless Linux selects Qt's basic Windows style after a direct Qt 6.10.2
 backtrace identified a fractional-scale offscreen Fusion cached-painter fault;
-native-style real-application verification remains BPR-0031. The harness
-contains no credential, provider port, transport, URL, request, or private
-repository data and performs no GitHub effect.
+native-style real-application verification remains a separate surface.
+
+BPR-0031 extends the same harness without adding a provider or effect. It
+directly asserts the `disconnected`, `connecting`, `empty`, `loading`,
+`error`, `cancelled`, `loaded`, `refreshing`, `loaded-error`, and
+`loaded-cancelled` presentation states; collapsed disclosures and keyboard
+order; narrow and wide splitter layout; retained content after refresh failure
+or cancellation; and empty first-load failure and cancellation. In addition
+to the minimum and loaded-success rasters, each scale saves representative
+`disconnected`, `loading`, `first-load-error`, `session-cancelled`,
+`first-load-cancelled`, `retained-refresh-error`, and
+`retained-refresh-cancelled` PNGs. These transient files are inspected for
+clipping, overlap, hierarchy, and retained-state behavior.
+
+Conversation rows use a nonuniform wrapped delegate. Tests require literal
+multiline remote text, increasing height at narrower widths and larger fonts,
+nonoverlapping rows, native palette/style/font inheritance, zero model resets,
+and preservation of current selection, keyboard focus, and an explicitly
+collapsed thread through accepted refresh and controlled application
+palette/font changes. A scoped accessibility handler requires one combined
+polite status-plus-diagnostic announcement and suppresses identical repeats.
+
+The harness contains no credential, provider port, transport, URL, request,
+or private repository data and performs no GitHub effect. Its forced
+offscreen style remains deterministic layout evidence only; it cannot certify
+native operating-system appearance integration.
 
 ## GitHub public application composition fixture
 
@@ -515,9 +538,11 @@ RENDER_OK
 
 or the corresponding `ghes-3.18` marker. PNGs stay under the ignored build
 tree. Headless Linux additionally selects Qt's basic Windows style. These
-rasters prove deterministic composition and layout, not final visual polish,
-native light/dark following, or runtime appearance switching; BPR-0031 owns
-those public UX checks.
+rasters prove deterministic composition and layout, not native light/dark
+following or runtime appearance switching. BPR-0031 separately records native
+system-Dark startup and controlled loaded-process appearance response; a real
+operating-system Light startup and live system toggle remain distinct native
+evidence.
 
 The production CLI choices are tested separately through `--self-test`.
 Selecting the visibly unavailable CLI profile must publish the bounded

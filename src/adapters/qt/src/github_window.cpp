@@ -1,9 +1,14 @@
 #include "bpr/qt/github_window.hpp"
+#include "bpr/qt/github_conversation_delegate.hpp"
 
 #include <QAbstractItemView>
+#include <QAccessible>
 #include <QAction>
 #include <QComboBox>
-#include <QFormLayout>
+#include <QEvent>
+#include <QFrame>
+#include <QFont>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -12,12 +17,14 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStatusBar>
-#include <QToolBar>
+#include <QStyle>
 #include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -455,65 +462,29 @@ github_window::github_window(
     setMinimumSize(640, 420);
     resize(1100, 720);
 
-    auto* const toolbar = addToolBar(QStringLiteral("GitHub"));
-    toolbar->setObjectName(QStringLiteral("githubToolbar"));
-    toolbar->setAccessibleName(QStringLiteral("GitHub actions"));
-    toolbar->setMovable(false);
-
-    ConnectAction = toolbar->addAction(QStringLiteral("&Connect"));
+    ConnectAction = new QAction{QStringLiteral("&Connect"), this};
     ConnectAction->setObjectName(QStringLiteral("connectGithubAction"));
     ConnectAction->setShortcut(
         QKeySequence{QStringLiteral("Ctrl+Shift+C")});
     ConnectAction->setShortcutContext(Qt::ApplicationShortcut);
-    OpenAction = toolbar->addAction(QStringLiteral("&Open pull request"));
+    addAction(ConnectAction);
+    OpenAction = new QAction{QStringLiteral("&Open pull request"), this};
     OpenAction->setObjectName(QStringLiteral("openPullRequestAction"));
     OpenAction->setShortcut(QKeySequence::Open);
     OpenAction->setShortcutContext(Qt::ApplicationShortcut);
-    RefreshAction = toolbar->addAction(QStringLiteral("&Refresh"));
+    addAction(OpenAction);
+    RefreshAction = new QAction{QStringLiteral("&Refresh"), this};
     RefreshAction->setObjectName(QStringLiteral("refreshPullRequestAction"));
     RefreshAction->setShortcut(QKeySequence::Refresh);
     RefreshAction->setShortcutContext(Qt::ApplicationShortcut);
-    ShowReviewThreadsAction =
-        toolbar->addAction(QStringLiteral("Show review &threads"));
+    addAction(RefreshAction);
+    ShowReviewThreadsAction = new QAction{
+        QStringLiteral("Show review &threads"),
+        this,
+    };
     ShowReviewThreadsAction->setObjectName(
         QStringLiteral("showReviewThreadsAction"));
-
-    ConnectButton = qobject_cast<QToolButton*>(
-        toolbar->widgetForAction(ConnectAction));
-    OpenButton =
-        qobject_cast<QToolButton*>(toolbar->widgetForAction(OpenAction));
-    RefreshButton =
-        qobject_cast<QToolButton*>(toolbar->widgetForAction(RefreshAction));
-    ShowReviewThreadsButton = qobject_cast<QToolButton*>(
-        toolbar->widgetForAction(ShowReviewThreadsAction));
-    if(ConnectButton != nullptr)
-    {
-        ConnectButton->setObjectName(QStringLiteral("connectGithubButton"));
-        ConnectButton->setAccessibleName(
-            QStringLiteral("Connect GitHub host"));
-        ConnectButton->setFocusPolicy(Qt::StrongFocus);
-    }
-    if(OpenButton != nullptr)
-    {
-        OpenButton->setObjectName(QStringLiteral("openPullRequestButton"));
-        OpenButton->setAccessibleName(QStringLiteral("Open pull request"));
-        OpenButton->setFocusPolicy(Qt::StrongFocus);
-    }
-    if(RefreshButton != nullptr)
-    {
-        RefreshButton->setObjectName(
-            QStringLiteral("refreshPullRequestButton"));
-        RefreshButton->setAccessibleName(QStringLiteral("Refresh pull request"));
-        RefreshButton->setFocusPolicy(Qt::StrongFocus);
-    }
-    if(ShowReviewThreadsButton != nullptr)
-    {
-        ShowReviewThreadsButton->setObjectName(
-            QStringLiteral("showReviewThreadsButton"));
-        ShowReviewThreadsButton->setAccessibleName(
-            QStringLiteral("Show review threads"));
-        ShowReviewThreadsButton->setFocusPolicy(Qt::StrongFocus);
-    }
+    addAction(ShowReviewThreadsAction);
 
     auto* const presentation_scroll = new QScrollArea{this};
     presentation_scroll->setObjectName(
@@ -527,18 +498,29 @@ github_window::github_window(
 
     auto* const central = new QWidget{presentation_scroll};
     central->setObjectName(QStringLiteral("githubPresentation"));
-    central->setMinimumHeight(560);
+    central->setMinimumHeight(500);
     auto* const central_layout = new QVBoxLayout{central};
-    central_layout->setContentsMargins(12, 12, 12, 12);
-    central_layout->setSpacing(10);
+    const auto horizontal_margin =
+        style()->pixelMetric(QStyle::PM_LayoutLeftMargin, nullptr, central);
+    const auto vertical_margin =
+        style()->pixelMetric(QStyle::PM_LayoutTopMargin, nullptr, central);
+    central_layout->setContentsMargins(
+        horizontal_margin,
+        vertical_margin,
+        horizontal_margin,
+        vertical_margin);
+    central_layout->setSpacing(
+        style()->pixelMetric(
+            QStyle::PM_LayoutVerticalSpacing,
+            nullptr,
+            central));
 
-    auto* const identity_group =
-        new QGroupBox{QStringLiteral("GitHub identity"), central};
+    auto* const identity_group = new QFrame{central};
+    identity_group->setFrameShape(QFrame::StyledPanel);
     identity_group->setObjectName(QStringLiteral("githubIdentityGroup"));
-    identity_group->setAccessibleName(QStringLiteral("GitHub identity"));
-    auto* const identity_layout = new QFormLayout{identity_group};
-    identity_layout->setFieldGrowthPolicy(
-        QFormLayout::AllNonFixedFieldsGrow);
+    identity_group->setAccessibleName(QStringLiteral("GitHub connection"));
+    auto* const identity_layout = new QGridLayout{identity_group};
+    identity_layout->setColumnStretch(1, 1);
 
     ProfileSelector = new QComboBox{identity_group};
     ProfileSelector->setObjectName(QStringLiteral("githubProfileSelector"));
@@ -555,6 +537,23 @@ github_window::github_window(
         new QLabel{QStringLiteral("&Host profile:"), identity_group};
     profile_label->setObjectName(QStringLiteral("githubProfileLabel"));
     profile_label->setBuddy(ProfileSelector);
+
+    ConnectButton = new QToolButton{identity_group};
+    ConnectButton->setDefaultAction(ConnectAction);
+    ConnectButton->setObjectName(QStringLiteral("connectGithubButton"));
+    ConnectButton->setAccessibleName(QStringLiteral("Connect GitHub host"));
+    ConnectButton->setFocusPolicy(Qt::StrongFocus);
+    ConnectButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+
+    ConnectionDetailsButton = new QToolButton{identity_group};
+    ConnectionDetailsButton->setObjectName(
+        QStringLiteral("githubConnectionDetailsButton"));
+    ConnectionDetailsButton->setText(QStringLiteral("Details"));
+    ConnectionDetailsButton->setAccessibleName(
+        QStringLiteral("Show GitHub connection details"));
+    ConnectionDetailsButton->setCheckable(true);
+    ConnectionDetailsButton->setArrowType(Qt::RightArrow);
+    ConnectionDetailsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
     HostLabel = new QLabel{identity_group};
     HostLabel->setObjectName(QStringLiteral("activeGithubHost"));
@@ -582,19 +581,40 @@ github_window::github_window(
     RateLimitLabel->setWordWrap(true);
     set_plain_text_label(RateLimitLabel);
 
-    identity_layout->addRow(profile_label, ProfileSelector);
-    identity_layout->addRow(QStringLiteral("Host:"), HostLabel);
-    identity_layout->addRow(QStringLiteral("Transport:"), TransportLabel);
-    identity_layout->addRow(QStringLiteral("Account:"), AccountLabel);
-    identity_layout->addRow(QStringLiteral("Capabilities:"), CapabilityLabel);
-    identity_layout->addRow(QStringLiteral("Availability:"), RateLimitLabel);
+    ConnectionDetails = new QWidget{identity_group};
+    ConnectionDetails->setObjectName(
+        QStringLiteral("githubConnectionDetails"));
+    auto* const details_layout = new QGridLayout{ConnectionDetails};
+    details_layout->setContentsMargins(0, 0, 0, 0);
+    auto* const capabilities_label =
+        new QLabel{QStringLiteral("Capabilities:"), ConnectionDetails};
+    auto* const availability_label =
+        new QLabel{QStringLiteral("Availability:"), ConnectionDetails};
+    details_layout->addWidget(capabilities_label, 0, 0);
+    details_layout->addWidget(CapabilityLabel, 0, 1);
+    details_layout->addWidget(availability_label, 0, 2);
+    details_layout->addWidget(RateLimitLabel, 0, 3);
+    details_layout->setColumnStretch(1, 1);
+    details_layout->setColumnStretch(3, 1);
+    ConnectionDetails->hide();
+
+    identity_layout->addWidget(profile_label, 0, 0);
+    identity_layout->addWidget(ProfileSelector, 0, 1);
+    identity_layout->addWidget(ConnectButton, 0, 2);
+    identity_layout->addWidget(ConnectionDetailsButton, 0, 3);
+    identity_layout->addWidget(HostLabel, 1, 0, 1, 3);
+    identity_layout->addWidget(TransportLabel, 1, 3);
+    identity_layout->addWidget(AccountLabel, 2, 0, 1, 4);
+    identity_layout->addWidget(ConnectionDetails, 3, 0, 1, 4);
     central_layout->addWidget(identity_group);
 
-    auto* const locator_group =
-        new QGroupBox{QStringLiteral("Open pull request"), central};
+    auto* const locator_group = new QFrame{central};
+    locator_group->setFrameShape(QFrame::StyledPanel);
     locator_group->setObjectName(QStringLiteral("pullRequestLocatorGroup"));
     locator_group->setAccessibleName(QStringLiteral("Pull request locator"));
-    auto* const locator_layout = new QHBoxLayout{locator_group};
+    LocatorLayout = new QGridLayout{locator_group};
+    LocatorLayout->setColumnStretch(1, 1);
+    LocatorLayout->setColumnStretch(3, 1);
 
     OwnerEditor = new QLineEdit{locator_group};
     OwnerEditor->setObjectName(QStringLiteral("repositoryOwnerEditor"));
@@ -620,29 +640,108 @@ github_window::github_window(
     PullRequestEditor->setRange(
         1, static_cast<int>(core::maximum_pull_request_number));
     auto* const number_label =
-        new QLabel{QStringLiteral("Pull request &number:"), locator_group};
+        new QLabel{QStringLiteral("&PR:"), locator_group};
     number_label->setBuddy(PullRequestEditor);
 
-    locator_layout->addWidget(owner_label);
-    locator_layout->addWidget(OwnerEditor, 1);
-    locator_layout->addWidget(repository_label);
-    locator_layout->addWidget(RepositoryEditor, 1);
-    locator_layout->addWidget(number_label);
-    locator_layout->addWidget(PullRequestEditor);
+    OpenButton = new QToolButton{locator_group};
+    OpenButton->setDefaultAction(OpenAction);
+    OpenButton->setObjectName(QStringLiteral("openPullRequestButton"));
+    OpenButton->setAccessibleName(QStringLiteral("Open pull request"));
+    OpenButton->setFocusPolicy(Qt::StrongFocus);
+    OpenButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+
+    RefreshButton = new QToolButton{locator_group};
+    RefreshButton->setDefaultAction(RefreshAction);
+    RefreshButton->setObjectName(
+        QStringLiteral("refreshPullRequestButton"));
+    RefreshButton->setAccessibleName(QStringLiteral("Refresh pull request"));
+    RefreshButton->setFocusPolicy(Qt::StrongFocus);
+    RefreshButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+
+    LocatorLayout->addWidget(owner_label, 0, 0);
+    LocatorLayout->addWidget(OwnerEditor, 0, 1);
+    LocatorLayout->addWidget(repository_label, 0, 2);
+    LocatorLayout->addWidget(RepositoryEditor, 0, 3);
+    LocatorLayout->addWidget(number_label, 0, 4);
+    LocatorLayout->addWidget(PullRequestEditor, 0, 5);
+    LocatorActions = new QWidget{locator_group};
+    LocatorActions->setObjectName(
+        QStringLiteral("pullRequestLocatorActions"));
+    auto* const locator_action_layout = new QHBoxLayout{LocatorActions};
+    locator_action_layout->setContentsMargins(0, 0, 0, 0);
+    locator_action_layout->addStretch(1);
+    locator_action_layout->addWidget(OpenButton);
+    locator_action_layout->addWidget(RefreshButton);
+    LocatorLayout->addWidget(LocatorActions, 0, 6);
     central_layout->addWidget(locator_group);
 
-    auto* const content_splitter = new QSplitter{Qt::Horizontal, central};
-    content_splitter->setObjectName(QStringLiteral("githubContentSplitter"));
-    content_splitter->setAccessibleName(
-        QStringLiteral("Pull request content"));
+    StatusBanner = new QFrame{central};
+    StatusBanner->setFrameShape(QFrame::StyledPanel);
+    StatusBanner->setObjectName(QStringLiteral("githubStatusBanner"));
+    StatusBanner->setAccessibleName(QStringLiteral("GitHub activity"));
+    auto* const status_layout = new QVBoxLayout{StatusBanner};
+    StatusLabel = new QLabel{
+        QStringLiteral("No GitHub host is connected."),
+        StatusBanner,
+    };
+    StatusLabel->setObjectName(QStringLiteral("githubStatus"));
+    StatusLabel->setAccessibleName(QStringLiteral("GitHub status"));
+    StatusLabel->setWordWrap(true);
+    set_plain_text_label(StatusLabel);
+    status_layout->addWidget(StatusLabel);
+    DiagnosticLabel = new QLabel{StatusBanner};
+    DiagnosticLabel->setObjectName(QStringLiteral("githubDiagnostic"));
+    DiagnosticLabel->setAccessibleName(QStringLiteral("GitHub diagnostic"));
+    DiagnosticLabel->setWordWrap(true);
+    set_plain_text_label(DiagnosticLabel);
+    DiagnosticLabel->hide();
+    status_layout->addWidget(DiagnosticLabel);
+    central_layout->addWidget(StatusBanner);
 
-    auto* const metadata_group =
-        new QGroupBox{QStringLiteral("Pull request"), content_splitter};
+    PullRequestStack = new QStackedWidget{central};
+    PullRequestStack->setObjectName(QStringLiteral("githubViewState"));
+    PullRequestStack->setAccessibleName(
+        QStringLiteral("GitHub pull request state"));
+
+    auto* const empty_state = new QWidget{PullRequestStack};
+    empty_state->setObjectName(QStringLiteral("githubEmptyState"));
+    auto* const empty_layout = new QVBoxLayout{empty_state};
+    empty_layout->addStretch(1);
+    EmptyStateTitleLabel = new QLabel{empty_state};
+    EmptyStateTitleLabel->setObjectName(
+        QStringLiteral("githubEmptyStateTitle"));
+    EmptyStateTitleLabel->setAccessibleName(
+        QStringLiteral("GitHub view state"));
+    EmptyStateTitleLabel->setAlignment(Qt::AlignCenter);
+    EmptyStateTitleLabel->setWordWrap(true);
+    set_plain_text_label(EmptyStateTitleLabel);
+    empty_layout->addWidget(EmptyStateTitleLabel);
+    EmptyStateBodyLabel = new QLabel{empty_state};
+    EmptyStateBodyLabel->setObjectName(
+        QStringLiteral("githubEmptyStateBody"));
+    EmptyStateBodyLabel->setAccessibleName(
+        QStringLiteral("GitHub view guidance"));
+    EmptyStateBodyLabel->setAlignment(Qt::AlignCenter);
+    EmptyStateBodyLabel->setWordWrap(true);
+    set_plain_text_label(EmptyStateBodyLabel);
+    empty_layout->addWidget(EmptyStateBodyLabel);
+    empty_layout->addStretch(2);
+    PullRequestStack->addWidget(empty_state);
+
+    auto* const pull_request_content = new QWidget{PullRequestStack};
+    pull_request_content->setObjectName(
+        QStringLiteral("githubPullRequestContent"));
+    auto* const pull_request_layout =
+        new QVBoxLayout{pull_request_content};
+    pull_request_layout->setContentsMargins(0, 0, 0, 0);
+
+    auto* const metadata_group = new QFrame{pull_request_content};
+    metadata_group->setFrameShape(QFrame::NoFrame);
     metadata_group->setObjectName(QStringLiteral("pullRequestMetadataGroup"));
     metadata_group->setAccessibleName(QStringLiteral("Pull request metadata"));
-    auto* const metadata_layout = new QFormLayout{metadata_group};
-    metadata_layout->setFieldGrowthPolicy(
-        QFormLayout::AllNonFixedFieldsGrow);
+    auto* const metadata_layout = new QGridLayout{metadata_group};
+    metadata_layout->setContentsMargins(0, 0, 0, 0);
+    metadata_layout->setColumnStretch(0, 1);
 
     PullRequestLabel = new QLabel{metadata_group};
     PullRequestLabel->setObjectName(QStringLiteral("pullRequestIdentity"));
@@ -683,18 +782,69 @@ github_window::github_window(
     BodyEditor->setAccessibleName(QStringLiteral("Pull request description"));
     BodyEditor->setReadOnly(true);
     BodyEditor->setTabChangesFocus(true);
+    BodyEditor->setMinimumHeight(120);
 
-    metadata_layout->addRow(QStringLiteral("Pull request:"), PullRequestLabel);
-    metadata_layout->addRow(QStringLiteral("Title:"), TitleLabel);
-    metadata_layout->addRow(QStringLiteral("State:"), StateLabel);
-    metadata_layout->addRow(QStringLiteral("Author:"), AuthorLabel);
-    metadata_layout->addRow(QStringLiteral("Branches:"), BranchLabel);
-    metadata_layout->addRow(QStringLiteral("Commits:"), OidLabel);
-    metadata_layout->addRow(QStringLiteral("Records:"), CountLabel);
-    metadata_layout->addRow(QStringLiteral("Description:"), BodyEditor);
+    TechnicalDetailsButton = new QToolButton{metadata_group};
+    TechnicalDetailsButton->setObjectName(
+        QStringLiteral("githubTechnicalDetailsButton"));
+    TechnicalDetailsButton->setText(QStringLiteral("Technical details"));
+    TechnicalDetailsButton->setAccessibleName(
+        QStringLiteral("Show pull request technical details"));
+    TechnicalDetailsButton->setCheckable(true);
+    TechnicalDetailsButton->setArrowType(Qt::RightArrow);
+    TechnicalDetailsButton->setToolButtonStyle(
+        Qt::ToolButtonTextBesideIcon);
+    TechnicalDetails = new QWidget{metadata_group};
+    TechnicalDetails->setObjectName(
+        QStringLiteral("githubTechnicalDetails"));
+    auto* const technical_layout = new QHBoxLayout{TechnicalDetails};
+    technical_layout->setContentsMargins(0, 0, 0, 0);
+    auto* const commits_label =
+        new QLabel{QStringLiteral("Commit identities:"), TechnicalDetails};
+    technical_layout->addWidget(commits_label);
+    technical_layout->addWidget(OidLabel, 1);
+    TechnicalDetails->hide();
+
+    metadata_layout->addWidget(PullRequestLabel, 0, 0);
+    metadata_layout->addWidget(
+        StateLabel,
+        0,
+        1,
+        Qt::AlignRight | Qt::AlignVCenter);
+    metadata_layout->addWidget(TitleLabel, 1, 0, 1, 2);
+    metadata_layout->addWidget(AuthorLabel, 2, 0);
+    metadata_layout->addWidget(BranchLabel, 3, 0, 1, 2);
+    metadata_layout->addWidget(CountLabel, 4, 0);
+    metadata_layout->addWidget(
+        TechnicalDetailsButton,
+        4,
+        1,
+        Qt::AlignRight | Qt::AlignVCenter);
+    metadata_layout->addWidget(TechnicalDetails, 5, 0, 1, 2);
+    pull_request_layout->addWidget(metadata_group);
+
+    ContentSplitter = new QSplitter{
+        Qt::Horizontal,
+        pull_request_content,
+    };
+    ContentSplitter->setObjectName(QStringLiteral("githubContentSplitter"));
+    ContentSplitter->setAccessibleName(
+        QStringLiteral("Pull request content"));
+    ContentSplitter->setChildrenCollapsible(false);
+
+    auto* const description_group =
+        new QGroupBox{QStringLiteral("Description"), ContentSplitter};
+    description_group->setObjectName(
+        QStringLiteral("pullRequestDescriptionGroup"));
+    description_group->setAccessibleName(
+        QStringLiteral("Pull request description"));
+    auto* const description_layout =
+        new QVBoxLayout{description_group};
+    BodyEditor->setParent(description_group);
+    description_layout->addWidget(BodyEditor);
 
     auto* const conversation_group =
-        new QGroupBox{QStringLiteral("Conversations"), content_splitter};
+        new QGroupBox{QStringLiteral("Conversations"), ContentSplitter};
     conversation_group->setObjectName(
         QStringLiteral("pullRequestConversationGroup"));
     conversation_group->setAccessibleName(
@@ -707,9 +857,29 @@ github_window::github_window(
         QStringLiteral("Review-thread availability"));
     ConversationAvailabilityLabel->setWordWrap(true);
     set_plain_text_label(ConversationAvailabilityLabel);
-    conversation_layout->addWidget(ConversationAvailabilityLabel);
+    auto* const conversation_header = new QHBoxLayout;
+    conversation_header->addWidget(ConversationAvailabilityLabel, 1);
+    ShowReviewThreadsButton = new QToolButton{conversation_group};
+    ShowReviewThreadsButton->setDefaultAction(ShowReviewThreadsAction);
+    ShowReviewThreadsButton->setObjectName(
+        QStringLiteral("showReviewThreadsButton"));
+    ShowReviewThreadsButton->setAccessibleName(
+        QStringLiteral("Show review threads"));
+    ShowReviewThreadsButton->setFocusPolicy(Qt::StrongFocus);
+    ShowReviewThreadsButton->setToolButtonStyle(
+        Qt::ToolButtonTextBesideIcon);
+    conversation_header->addWidget(ShowReviewThreadsButton);
+    conversation_layout->addLayout(conversation_header);
+
+    ConversationStack = new QStackedWidget{conversation_group};
+    ConversationStack->setObjectName(
+        QStringLiteral("githubConversationState"));
+    auto* const conversation_empty = new QWidget{ConversationStack};
+    conversation_empty->setObjectName(
+        QStringLiteral("githubConversationEmptyState"));
+    ConversationStack->addWidget(conversation_empty);
     ConversationModel = new github_conversation_model{this};
-    ConversationView = new QTreeView{conversation_group};
+    ConversationView = new QTreeView{ConversationStack};
     ConversationView->setObjectName(QStringLiteral("githubConversationView"));
     ConversationView->setAccessibleName(
         QStringLiteral("Read-only GitHub conversations"));
@@ -723,31 +893,26 @@ github_window::github_window(
     ConversationView->setRootIsDecorated(true);
     ConversationView->setItemsExpandable(true);
     ConversationView->setWordWrap(true);
-    ConversationView->header()->setStretchLastSection(true);
-    conversation_layout->addWidget(ConversationView);
+    ConversationView->setUniformRowHeights(false);
+    ConversationView->setTextElideMode(Qt::ElideNone);
+    ConversationView->header()->hide();
+    ConversationView->setItemDelegate(
+        new github_conversation_delegate{ConversationView});
+    ConversationStack->addWidget(ConversationView);
+    conversation_layout->addWidget(ConversationStack, 1);
 
-    content_splitter->addWidget(metadata_group);
-    content_splitter->addWidget(conversation_group);
-    content_splitter->setStretchFactor(0, 1);
-    content_splitter->setStretchFactor(1, 1);
-    content_splitter->setMinimumHeight(220);
-    central_layout->addWidget(content_splitter, 1);
+    ContentSplitter->addWidget(description_group);
+    ContentSplitter->addWidget(conversation_group);
+    ContentSplitter->setStretchFactor(0, 2);
+    ContentSplitter->setStretchFactor(1, 3);
+    ContentSplitter->setMinimumHeight(240);
+    pull_request_layout->addWidget(ContentSplitter, 1);
+    PullRequestStack->addWidget(pull_request_content);
+    central_layout->addWidget(PullRequestStack, 1);
 
-    DiagnosticLabel = new QLabel{central};
-    DiagnosticLabel->setObjectName(QStringLiteral("githubDiagnostic"));
-    DiagnosticLabel->setAccessibleName(QStringLiteral("GitHub diagnostic"));
-    DiagnosticLabel->setWordWrap(true);
-    set_plain_text_label(DiagnosticLabel);
-    DiagnosticLabel->hide();
-    central_layout->addWidget(DiagnosticLabel);
     presentation_scroll->setWidget(central);
     setCentralWidget(presentation_scroll);
-
-    StatusLabel = new QLabel{QStringLiteral("No GitHub host is connected."), this};
-    StatusLabel->setObjectName(QStringLiteral("githubStatus"));
-    StatusLabel->setAccessibleName(QStringLiteral("GitHub status"));
-    set_plain_text_label(StatusLabel);
-    statusBar()->addWidget(StatusLabel, 1);
+    statusBar()->hide();
 
     connect(ProfileSelector,
             &QComboBox::currentIndexChanged,
@@ -757,6 +922,34 @@ github_window::github_window(
                 update_selected_profile();
                 update_connect_enabled();
             });
+    connect(
+        ConnectionDetailsButton,
+        &QToolButton::toggled,
+        this,
+        [this](const bool visible)
+        {
+            ConnectionDetails->setVisible(visible);
+            ConnectionDetailsButton->setArrowType(
+                visible ? Qt::DownArrow : Qt::RightArrow);
+            ConnectionDetailsButton->setAccessibleName(
+                visible
+                    ? QStringLiteral("Hide GitHub connection details")
+                    : QStringLiteral("Show GitHub connection details"));
+        });
+    connect(
+        TechnicalDetailsButton,
+        &QToolButton::toggled,
+        this,
+        [this](const bool visible)
+        {
+            TechnicalDetails->setVisible(visible);
+            TechnicalDetailsButton->setArrowType(
+                visible ? Qt::DownArrow : Qt::RightArrow);
+            TechnicalDetailsButton->setAccessibleName(
+                visible
+                    ? QStringLiteral("Hide pull request technical details")
+                    : QStringLiteral("Show pull request technical details"));
+        });
     connect(ConnectAction,
             &QAction::triggered,
             this,
@@ -814,35 +1007,17 @@ github_window::github_window(
             this,
             [this] { focus_review_threads(); });
 
-    if(ConnectButton != nullptr)
-    {
-        setTabOrder(ProfileSelector, ConnectButton);
-        setTabOrder(ConnectButton, OwnerEditor);
-    }
-    else
-    {
-        setTabOrder(ProfileSelector, OwnerEditor);
-    }
+    setTabOrder(ProfileSelector, ConnectButton);
+    setTabOrder(ConnectButton, ConnectionDetailsButton);
+    setTabOrder(ConnectionDetailsButton, OwnerEditor);
     setTabOrder(OwnerEditor, RepositoryEditor);
     setTabOrder(RepositoryEditor, PullRequestEditor);
-    if(OpenButton != nullptr)
-    {
-        setTabOrder(PullRequestEditor, OpenButton);
-        if(RefreshButton != nullptr)
-        {
-            setTabOrder(OpenButton, RefreshButton);
-        }
-    }
-    if(RefreshButton != nullptr && ShowReviewThreadsButton != nullptr)
-    {
-        setTabOrder(RefreshButton, ShowReviewThreadsButton);
-        setTabOrder(ShowReviewThreadsButton, BodyEditor);
-    }
-    else if(RefreshButton != nullptr)
-    {
-        setTabOrder(RefreshButton, BodyEditor);
-    }
-    setTabOrder(BodyEditor, ConversationView);
+    setTabOrder(PullRequestEditor, OpenButton);
+    setTabOrder(OpenButton, RefreshButton);
+    setTabOrder(RefreshButton, TechnicalDetailsButton);
+    setTabOrder(TechnicalDetailsButton, BodyEditor);
+    setTabOrder(BodyEditor, ShowReviewThreadsButton);
+    setTabOrder(ShowReviewThreadsButton, ConversationView);
 
     CapabilityLabel->setText(capabilities_text({}));
     apply_rate_limits({});
@@ -867,6 +1042,9 @@ github_window::github_window(
         false,
         core::github_reason_code::no_active_pull_request,
         QStringLiteral("Focus the review-thread conversations"));
+    refresh_native_appearance();
+    update_presentation_state();
+    update_splitter_orientation();
 }
 
 void github_window::publish(
@@ -888,6 +1066,7 @@ void github_window::publish(
     {
         apply_host_diagnostic(diagnostic);
     }
+    announce_presentation_update();
 }
 
 auto github_window::connect_action() const noexcept -> QAction*
@@ -964,6 +1143,30 @@ auto github_window::active_account_text() const -> std::string
 auto github_window::statistics() const noexcept -> github_window_statistics
 {
     return Statistics;
+}
+
+void github_window::changeEvent(QEvent* const event)
+{
+    QMainWindow::changeEvent(event);
+    switch(event->type())
+    {
+    case QEvent::ApplicationPaletteChange:
+    case QEvent::PaletteChange:
+    case QEvent::ApplicationFontChange:
+    case QEvent::FontChange:
+    case QEvent::StyleChange:
+    case QEvent::ThemeChange:
+        refresh_native_appearance();
+        break;
+    default:
+        break;
+    }
+}
+
+void github_window::resizeEvent(QResizeEvent* const event)
+{
+    QMainWindow::resizeEvent(event);
+    update_splitter_orientation();
 }
 
 void github_window::apply_transition(
@@ -1065,6 +1268,17 @@ void github_window::apply_pull_request(
             pull_request.ReviewThreadCount,
             pull_request.Capabilities.ReviewThreads));
     ConversationModel->apply(pull_request.Conversations);
+    HasPullRequest = true;
+    ConversationStack->setCurrentIndex(
+        pull_request.Conversations.empty() ? 0 : 1);
+    ConversationView->doItemsLayout();
+    if(
+        ExpandConversationsOnNextProjection
+        && !pull_request.Conversations.empty())
+    {
+        ConversationView->expandAll();
+        ExpandConversationsOnNextProjection = false;
+    }
     if(!selected_identity.empty())
     {
         const auto restored =
@@ -1077,6 +1291,7 @@ void github_window::apply_pull_request(
     }
     apply_capabilities(pull_request.Capabilities);
     apply_rate_limits(pull_request.RateLimits);
+    update_presentation_state();
     ++Statistics.PullRequestUpdates;
 }
 
@@ -1159,7 +1374,32 @@ void github_window::apply_capabilities(
 
 void github_window::apply_status(const core::github_status status)
 {
-    StatusLabel->setText(github_status_text(status));
+    CurrentStatus = status;
+    if(status == core::github_status::loading_pull_request && HasPullRequest)
+    {
+        StatusLabel->setText(
+            QStringLiteral("Refreshing the pull request."));
+    }
+    else if(
+        status == core::github_status::pull_request_failed
+        && HasPullRequest)
+    {
+        StatusLabel->setText(
+            QStringLiteral(
+                "Refresh failed. Showing the last accepted pull request."));
+    }
+    else if(
+        status == core::github_status::pull_request_cancelled
+        && HasPullRequest)
+    {
+        StatusLabel->setText(
+            QStringLiteral(
+                "Refresh canceled. Showing the last accepted pull request."));
+    }
+    else
+    {
+        StatusLabel->setText(github_status_text(status));
+    }
     switch(status)
     {
     case core::github_status::no_profile:
@@ -1194,6 +1434,7 @@ void github_window::apply_status(const core::github_status status)
     case core::github_status::pull_request_cancelled:
         break;
     }
+    update_presentation_state();
     ++Statistics.StatusUpdates;
 }
 
@@ -1215,6 +1456,7 @@ void github_window::apply_diagnostic(
     LastDiagnosticReason =
         message.isEmpty() ? std::nullopt : std::optional{reason};
     LastDiagnosticHasHostDetail = !message.isEmpty() && host_detail;
+    update_presentation_state();
     ++Statistics.DiagnosticUpdates;
 }
 
@@ -1226,6 +1468,8 @@ void github_window::apply_rate_limits(
 
 void github_window::clear_pull_request()
 {
+    HasPullRequest = false;
+    ExpandConversationsOnNextProjection = true;
     PullRequestLabel->setText(QStringLiteral("No pull request is open"));
     TitleLabel->setText(QStringLiteral("Not available"));
     StateLabel->setText(QStringLiteral("Not available"));
@@ -1238,6 +1482,9 @@ void github_window::clear_pull_request()
         QStringLiteral(
             "Review threads are unavailable until a pull request is open."));
     ConversationModel->clear();
+    ConversationStack->setCurrentIndex(0);
+    TechnicalDetailsButton->setChecked(false);
+    update_presentation_state();
 }
 
 void github_window::update_selected_profile()
@@ -1297,6 +1544,215 @@ void github_window::update_connect_enabled()
         enabled,
         ConnectDisabledReason,
         QStringLiteral("Connect the selected GitHub host profile"));
+}
+
+void github_window::update_presentation_state()
+{
+    PullRequestStack->setCurrentIndex(HasPullRequest ? 1 : 0);
+
+    QString state;
+    if(HasPullRequest)
+    {
+        switch(CurrentStatus)
+        {
+        case core::github_status::loading_pull_request:
+            state = QStringLiteral("refreshing");
+            break;
+        case core::github_status::pull_request_failed:
+            state = QStringLiteral("loaded-error");
+            break;
+        case core::github_status::pull_request_cancelled:
+            state = QStringLiteral("loaded-cancelled");
+            break;
+        default:
+            state = QStringLiteral("loaded");
+            break;
+        }
+    }
+    else
+    {
+        switch(CurrentStatus)
+        {
+        case core::github_status::no_profile:
+            state = QStringLiteral("disconnected");
+            EmptyStateTitleLabel->setText(
+                QStringLiteral("Connect to GitHub"));
+            EmptyStateBodyLabel->setText(
+                Profiles.empty()
+                    ? QStringLiteral(
+                          "No GitHub host profiles are configured.")
+                    : QStringLiteral(
+                          "Choose a host profile above, then connect."));
+            break;
+        case core::github_status::establishing_session:
+            state = QStringLiteral("connecting");
+            EmptyStateTitleLabel->setText(
+                QStringLiteral("Connecting to GitHub…"));
+            EmptyStateBodyLabel->setText(
+                QStringLiteral(
+                    "The selected host is establishing an authenticated "
+                    "session."));
+            break;
+        case core::github_status::session_ready:
+        case core::github_status::pull_request_ready:
+            state = QStringLiteral("empty");
+            EmptyStateTitleLabel->setText(
+                QStringLiteral("Open a pull request"));
+            EmptyStateBodyLabel->setText(
+                QStringLiteral(
+                    "Enter an owner, repository, and pull request number "
+                    "above."));
+            break;
+        case core::github_status::loading_pull_request:
+            state = QStringLiteral("loading");
+            EmptyStateTitleLabel->setText(
+                QStringLiteral("Loading pull request…"));
+            EmptyStateBodyLabel->setText(
+                QStringLiteral(
+                    "BetterPullReview is reading the selected GitHub "
+                    "snapshot."));
+            break;
+        case core::github_status::session_failed:
+            state = QStringLiteral("error");
+            EmptyStateTitleLabel->setText(
+                QStringLiteral("Connection unavailable"));
+            EmptyStateBodyLabel->setText(
+                DiagnosticLabel->isVisible()
+                    ? DiagnosticLabel->text()
+                    : QStringLiteral(
+                          "Review the connection details and try again."));
+            break;
+        case core::github_status::session_cancelled:
+            state = QStringLiteral("cancelled");
+            EmptyStateTitleLabel->setText(
+                QStringLiteral("Connection canceled"));
+            EmptyStateBodyLabel->setText(
+                QStringLiteral(
+                    "Choose Connect when you are ready to try again."));
+            break;
+        case core::github_status::pull_request_failed:
+            state = QStringLiteral("error");
+            EmptyStateTitleLabel->setText(
+                QStringLiteral("Pull request unavailable"));
+            EmptyStateBodyLabel->setText(
+                DiagnosticLabel->isVisible()
+                    ? DiagnosticLabel->text()
+                    : QStringLiteral(
+                          "Check the locator and try opening it again."));
+            break;
+        case core::github_status::pull_request_cancelled:
+            state = QStringLiteral("cancelled");
+            EmptyStateTitleLabel->setText(
+                QStringLiteral("Pull request loading canceled"));
+            EmptyStateBodyLabel->setText(
+                QStringLiteral(
+                    "The locator is unchanged and can be opened again."));
+            break;
+        }
+    }
+    PullRequestStack->setProperty("githubPresentationState", state);
+
+    auto accessible_description = StatusLabel->text();
+    if(DiagnosticLabel->isVisible() && !DiagnosticLabel->text().isEmpty())
+    {
+        accessible_description.append(
+            QStringLiteral(" %1").arg(DiagnosticLabel->text()));
+    }
+    StatusBanner->setAccessibleDescription(accessible_description);
+}
+
+void github_window::update_splitter_orientation()
+{
+    const auto narrow = width() < 820;
+    if(
+        LocatorLayout != nullptr && LocatorActions != nullptr
+        && LocatorActions->property("githubNarrowLayout").toBool() != narrow)
+    {
+        LocatorLayout->removeWidget(LocatorActions);
+        if(narrow)
+        {
+            LocatorLayout->addWidget(LocatorActions, 1, 0, 1, 6);
+        }
+        else
+        {
+            LocatorLayout->addWidget(LocatorActions, 0, 6);
+        }
+        LocatorActions->setProperty("githubNarrowLayout", narrow);
+    }
+
+    if(ContentSplitter == nullptr)
+    {
+        return;
+    }
+    const auto desired =
+        narrow ? Qt::Vertical : Qt::Horizontal;
+    if(ContentSplitter->orientation() == desired)
+    {
+        return;
+    }
+    ContentSplitter->setOrientation(desired);
+    const auto extent = desired == Qt::Horizontal
+        ? std::max(ContentSplitter->width(), 500)
+        : std::max(ContentSplitter->height(), 400);
+    ContentSplitter->setSizes({extent * 2 / 5, extent * 3 / 5});
+}
+
+void github_window::refresh_native_appearance()
+{
+    auto title_font = font();
+    title_font.setWeight(QFont::DemiBold);
+    if(title_font.pointSizeF() > 0.0)
+    {
+        title_font.setPointSizeF(title_font.pointSizeF() * 1.35);
+    }
+    TitleLabel->setFont(title_font);
+
+    auto empty_title_font = font();
+    empty_title_font.setWeight(QFont::DemiBold);
+    if(empty_title_font.pointSizeF() > 0.0)
+    {
+        empty_title_font.setPointSizeF(
+            empty_title_font.pointSizeF() * 1.2);
+    }
+    EmptyStateTitleLabel->setFont(empty_title_font);
+
+    auto emphasis_font = font();
+    emphasis_font.setWeight(QFont::DemiBold);
+    StatusLabel->setFont(emphasis_font);
+    PullRequestLabel->setFont(emphasis_font);
+    StateLabel->setFont(emphasis_font);
+
+    ConnectAction->setIcon(
+        style()->standardIcon(QStyle::SP_DialogApplyButton));
+    OpenAction->setIcon(
+        style()->standardIcon(QStyle::SP_DialogOpenButton));
+    RefreshAction->setIcon(
+        style()->standardIcon(QStyle::SP_BrowserReload));
+    ShowReviewThreadsAction->setIcon(
+        style()->standardIcon(QStyle::SP_FileDialogListView));
+
+    ConversationView->doItemsLayout();
+    ConversationView->viewport()->update();
+    StatusBanner->update();
+    PullRequestStack->update();
+}
+
+void github_window::announce_presentation_update()
+{
+    auto announcement = StatusLabel->text();
+    if(DiagnosticLabel->isVisible() && !DiagnosticLabel->text().isEmpty())
+    {
+        announcement.append(
+            QStringLiteral(" %1").arg(DiagnosticLabel->text()));
+    }
+    if(announcement.isEmpty() || announcement == LastAnnouncement)
+    {
+        return;
+    }
+    LastAnnouncement = announcement;
+    QAccessibleAnnouncementEvent event{StatusBanner, announcement};
+    event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+    QAccessible::updateAccessibility(&event);
 }
 
 void github_window::focus_review_threads()

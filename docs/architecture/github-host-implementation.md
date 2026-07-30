@@ -1048,11 +1048,30 @@ The RFC-BPR-0002 presentation exposes:
   capability, rate-limit, malformed, oversized, canceled, and stale states;
 - normalized PR metadata and read-only conversations.
 
+The BPR-0031 presentation arranges connection and locator controls into
+compact responsive rows. At narrow widths the locator actions move below
+their inputs and the description/conversation splitter changes from
+horizontal to vertical. Host, transport, account, pull-request identity, and
+review content remain primary; capability/rate observations and exact commit
+identities are reachable through separate Connection Details and Technical
+Details disclosures.
+
+Presentation state is explicit: `disconnected`, `connecting`, `empty`,
+`loading`, `error`, `cancelled`, `loaded`, `refreshing`, `loaded-error`, and
+`loaded-cancelled`. The last three nonterminal/failure variants retain
+accepted content. A new-target load does not imply that prior
+identity-sensitive content is current, while refresh failure or cancellation
+does not discard an accepted projection.
+
 Conversation models map stable GitHub identities to rows. Accepted refreshes
 produce insert, remove, move, and data-change deltas for affected records.
 They do not call `beginResetModel()` for a bounded comment, capability, status,
-or selection change. Presentation owns wording, focus, accessibility, layout,
-and safe plain-text rendering.
+or selection change. A custom delegate wraps remote literal text without
+elision while leaving native selection and focus painting to the active
+style. The first accepted projection may establish an initial expansion;
+subsequent accepted refreshes preserve Qt-local expansion and restore the
+current selection when its stable identity remains. Presentation owns
+wording, focus, accessibility, layout, and safe plain-text rendering.
 
 The normalized presentation contains separate stable identities for reviews,
 review threads, nested review comments, and pull-request comments. Qt derives
@@ -1061,6 +1080,21 @@ provider records or row indexes from the host. A new pull-request open clears
 the prior metadata and conversation projection immediately, while a refresh
 keeps the last accepted projection through loading, failure, cancellation, or
 stale completion.
+
+The window inherits the application and operating-system palette, style, and
+font. It does not force a palette or style, apply QSS, or install a replacement
+application font. Qt application palette, font, style, and theme events refresh
+the derived presentation fonts, native icons, delegate geometry, and
+responsive layout without changing semantic state. Each published
+status/diagnostic presentation update emits at most one combined polite
+accessible announcement, and identical announcement text is suppressed.
+
+Direct macOS evidence records system-default Dark startup under QMacStyle and
+a safe loaded-window application-local Dark-to-Light plus 13-to-17-point font
+exercise. The latter proves that the live event path responds; it is not
+evidence of a real operating-system-global appearance toggle. Deterministic
+offscreen forced-style renders remain layout and scaling evidence only.
+User-selectable System, Light, and Dark profiles remain RFC-BPR-0006 work.
 
 ## Composition and lifecycle
 

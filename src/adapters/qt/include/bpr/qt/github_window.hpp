@@ -4,6 +4,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 
 #include <QMainWindow>
+#include <QString>
 
 #include <cstddef>
 #include <optional>
@@ -12,12 +13,19 @@
 
 class QAction;
 class QComboBox;
+class QEvent;
+class QFrame;
+class QGridLayout;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
+class QResizeEvent;
 class QSpinBox;
+class QSplitter;
+class QStackedWidget;
 class QToolButton;
 class QTreeView;
+class QWidget;
 
 namespace bpr::qt
 {
@@ -68,6 +76,10 @@ public:
     [[nodiscard]] auto active_account_text() const -> std::string;
     [[nodiscard]] auto statistics() const noexcept -> github_window_statistics;
 
+protected:
+    void changeEvent(QEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+
 private:
     void apply_transition(
         const application::github_transition_projection& transition);
@@ -93,6 +105,10 @@ private:
     void clear_pull_request();
     void update_selected_profile();
     void update_connect_enabled();
+    void update_presentation_state();
+    void update_splitter_orientation();
+    void refresh_native_appearance();
+    void announce_presentation_update();
     void focus_review_threads();
 
     [[nodiscard]] auto selected_profile() const
@@ -113,6 +129,8 @@ private:
     QToolButton* OpenButton = nullptr;
     QToolButton* RefreshButton = nullptr;
     QToolButton* ShowReviewThreadsButton = nullptr;
+    QToolButton* ConnectionDetailsButton = nullptr;
+    QToolButton* TechnicalDetailsButton = nullptr;
     QComboBox* ProfileSelector = nullptr;
     QLineEdit* OwnerEditor = nullptr;
     QLineEdit* RepositoryEditor = nullptr;
@@ -133,6 +151,16 @@ private:
     QLabel* ConversationAvailabilityLabel = nullptr;
     QLabel* DiagnosticLabel = nullptr;
     QLabel* StatusLabel = nullptr;
+    QLabel* EmptyStateTitleLabel = nullptr;
+    QLabel* EmptyStateBodyLabel = nullptr;
+    QFrame* StatusBanner = nullptr;
+    QWidget* ConnectionDetails = nullptr;
+    QWidget* TechnicalDetails = nullptr;
+    QWidget* LocatorActions = nullptr;
+    QGridLayout* LocatorLayout = nullptr;
+    QStackedWidget* PullRequestStack = nullptr;
+    QStackedWidget* ConversationStack = nullptr;
+    QSplitter* ContentSplitter = nullptr;
     QTreeView* ConversationView = nullptr;
     github_conversation_model* ConversationModel = nullptr;
 
@@ -143,6 +171,10 @@ private:
     bool ConnectCommandEnabled = true;
     core::github_reason_code ConnectDisabledReason =
         core::github_reason_code::none;
+    core::github_status CurrentStatus = core::github_status::no_profile;
+    QString LastAnnouncement;
+    bool HasPullRequest = false;
+    bool ExpandConversationsOnNextProjection = true;
     github_window_statistics Statistics;
 };
 }

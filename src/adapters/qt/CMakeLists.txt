@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/event_loop_executor.cpp
         src/foundation_window.cpp
+        src/github_conversation_delegate.cpp
         src/github_conversation_model.cpp
         src/github_window.cpp
         src/sensitive_text_input.cpp

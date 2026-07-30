@@ -20,9 +20,12 @@ stored under a hostname-bound authority, and exact-deleted before an orderly
 public-application shutdown completes. There is no durable credential
 selector; a crash can leave an item that BetterPullReview cannot enumerate or
 recover. Diff, review-mutation, private-ledger, and packaging work remains in
-later RFCs. The current GitHub window is a functional integration surface;
-the deliberate presentation-polish and native system-appearance pass remains
-BPR-0031, with user-selectable appearance profiles in RFC-BPR-0006.
+later RFCs. The GitHub window now presents that path through a compact,
+responsive hierarchy with explicit request states, retained accepted content
+during refresh, and read-only conversation rendering. It inherits the active
+native palette, style, and font without forcing a palette, style, or QSS, and
+responds to application appearance and font changes. User-selectable
+appearance profiles remain RFC-BPR-0006 work.
 
 ## Architecture
 

@@ -1,27 +1,37 @@
 #include "bpr/qt/github_window.hpp"
 
+#include <QAbstractItemDelegate>
 #include <QAbstractItemModel>
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QColor>
 #include <QComboBox>
 #include <QCursor>
+#include <QFileInfo>
+#include <QFontMetrics>
+#include <QFrame>
 #include <QImage>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPalette>
 #include <QPersistentModelIndex>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStackedWidget>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QStyleOptionViewItem>
 #include <QToolButton>
 #include <QTreeView>
 #include <QWidget>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -42,6 +52,59 @@ auto expect(const bool condition, const std::string_view message) -> void
         std::cerr << "FAILED: " << message << '\n';
         std::exit(EXIT_FAILURE);
     }
+}
+
+template<typename Widget>
+[[nodiscard]] auto required_child(
+    qt::github_window& window,
+    const char* const object_name) -> Widget*
+{
+    auto* const child =
+        window.findChild<Widget*>(QString::fromLatin1(object_name));
+    expect(child != nullptr, "required GitHub presentation object exists");
+    return child;
+}
+
+[[nodiscard]] auto presentation_state(qt::github_window& window) -> QString
+{
+    return required_child<QStackedWidget>(window, "githubViewState")
+        ->property("githubPresentationState")
+        .toString();
+}
+
+auto capture_layout_state(
+    qt::github_window& window,
+    const QString& state_name) -> void
+{
+    QApplication::processEvents();
+    const auto rendered = window.grab();
+    const auto device_ratio = window.devicePixelRatioF();
+    expect(
+        !rendered.isNull() && rendered.width() > 0 && rendered.height() > 0
+            && rendered.width()
+                   == static_cast<int>(std::lround(
+                       static_cast<double>(window.width()) * device_ratio))
+            && rendered.height()
+                   == static_cast<int>(std::lround(
+                       static_cast<double>(window.height()) * device_ratio)),
+        "state layout capture is nonempty and has exact device dimensions");
+
+    const auto configured_path =
+        qEnvironmentVariable("BPR_QT_RENDER_PATH");
+    if(configured_path.isEmpty())
+    {
+        return;
+    }
+    const QFileInfo configured{configured_path};
+    const auto state_path =
+        QStringLiteral("%1/%2-%3.png")
+            .arg(
+                configured.path(),
+                configured.completeBaseName(),
+                state_name);
+    expect(
+        rendered.save(state_path, "PNG"),
+        "state layout capture is saved in the ignored build tree");
 }
 
 [[nodiscard]] auto profiles()
@@ -544,10 +607,577 @@ auto publish_pull_request(
     qt::github_window& window,
     const char* const object_name) -> QLabel*
 {
-    auto* const label =
-        window.findChild<QLabel*>(QString::fromLatin1(object_name));
-    expect(label != nullptr, "required GitHub presentation label exists");
-    return label;
+    return required_child<QLabel>(window, object_name);
+}
+
+auto test_presentation_states_disclosures_and_responsive_layout() -> void
+{
+    qt::github_window window{
+        qt::github_view_config{.Profiles = profiles()},
+        [](application::github_intent) {},
+    };
+    window.resize(640, 720);
+    window.show();
+    QApplication::processEvents();
+
+    auto* const banner =
+        required_child<QFrame>(window, "githubStatusBanner");
+    auto* const view_state =
+        required_child<QStackedWidget>(window, "githubViewState");
+    auto* const empty_state =
+        required_child<QWidget>(window, "githubEmptyState");
+    auto* const empty_title =
+        required_label(window, "githubEmptyStateTitle");
+    auto* const empty_body =
+        required_label(window, "githubEmptyStateBody");
+    auto* const connection_button =
+        required_child<QToolButton>(
+            window, "githubConnectionDetailsButton");
+    auto* const connection_details =
+        required_child<QWidget>(window, "githubConnectionDetails");
+    auto* const technical_button =
+        required_child<QToolButton>(
+            window, "githubTechnicalDetailsButton");
+    auto* const technical_details =
+        required_child<QWidget>(window, "githubTechnicalDetails");
+    auto* const conversation_state =
+        required_child<QStackedWidget>(window, "githubConversationState");
+    auto* const conversation_empty =
+        required_child<QWidget>(window, "githubConversationEmptyState");
+    auto* const splitter =
+        required_child<QSplitter>(window, "githubContentSplitter");
+    auto* const connect_button =
+        required_child<QToolButton>(window, "connectGithubButton");
+    auto* const refresh_button =
+        required_child<QToolButton>(window, "refreshPullRequestButton");
+
+    expect(
+        banner->isVisible()
+            && view_state->currentWidget() == empty_state
+            && presentation_state(window) == QStringLiteral("disconnected")
+            && empty_title->text() == QStringLiteral("Connect to GitHub")
+            && !empty_body->text().isEmpty(),
+        "initial presentation is a visible disconnected empty state");
+    capture_layout_state(window, QStringLiteral("disconnected"));
+    expect(
+        splitter->orientation() == Qt::Vertical,
+        "the content splitter is vertical at the 640-pixel minimum width");
+
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::establishing_session,
+                    },
+            },
+    });
+    expect(
+        presentation_state(window) == QStringLiteral("connecting")
+            && view_state->currentWidget() == empty_state
+            && empty_title->text().contains(QStringLiteral("Connecting"))
+            && empty_body->text().contains(
+                QStringLiteral("authenticated session")),
+        "connecting has explicit activity and guidance");
+
+    publish_session_ready(window);
+    expect(
+        presentation_state(window) == QStringLiteral("empty")
+            && view_state->currentWidget() == empty_state
+            && empty_title->text() == QStringLiteral("Open a pull request")
+            && empty_body->text().contains(QStringLiteral("owner")),
+        "session-ready without a pull request has an actionable empty state");
+
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::loading_pull_request,
+                    },
+                .PullRequest =
+                    core::pull_request_summary_delta{
+                        .Summary = std::nullopt,
+                    },
+            },
+    });
+    expect(
+        presentation_state(window) == QStringLiteral("loading")
+            && view_state->currentWidget() == empty_state
+            && empty_title->text().contains(QStringLiteral("Loading"))
+            && empty_body->text().contains(QStringLiteral("snapshot")),
+        "a new target load clears content into an explicit loading state");
+    capture_layout_state(window, QStringLiteral("loading"));
+
+    publish_pull_request(window);
+    QApplication::processEvents();
+    expect(
+        presentation_state(window) == QStringLiteral("loaded")
+            && view_state->currentWidget() != empty_state
+            && conversation_state->currentWidget()
+                   == window.conversation_view(),
+        "accepted pull-request content replaces the empty state");
+
+    expect(
+        connection_button->isVisible()
+            && technical_button->isVisible()
+            && !connection_details->isVisible()
+            && !technical_details->isVisible()
+            && (connection_button->focusPolicy() & Qt::TabFocus) != 0
+            && (technical_button->focusPolicy() & Qt::TabFocus) != 0,
+        "both disclosure controls are naturally focusable and initially "
+        "collapsed");
+
+    const auto next_visible_tab_stop = [](QWidget* const start) {
+        auto* current = start->nextInFocusChain();
+        while(current != start)
+        {
+            if(
+                current->isVisible() && current->isEnabled()
+                && (current->focusPolicy() & Qt::TabFocus) != 0)
+            {
+                return current;
+            }
+            current = current->nextInFocusChain();
+        }
+        return start;
+    };
+    expect(
+        next_visible_tab_stop(window.profile_selector()) == connect_button
+            && next_visible_tab_stop(connect_button) == connection_button
+            && next_visible_tab_stop(refresh_button) == technical_button,
+        "disclosures follow the natural primary-control tab order");
+
+    connection_button->setFocus(Qt::TabFocusReason);
+    connection_button->click();
+    QApplication::processEvents();
+    expect(
+        connection_details->isVisible()
+            && connection_button->arrowType() == Qt::DownArrow
+            && connection_button->accessibleName().contains(
+                QStringLiteral("Hide"))
+            && QApplication::focusWidget() == connection_button,
+        "connection disclosure opens in place without moving focus");
+    connection_button->click();
+    QApplication::processEvents();
+    expect(
+        !connection_details->isVisible()
+            && connection_button->arrowType() == Qt::RightArrow
+            && QApplication::focusWidget() == connection_button,
+        "connection disclosure closes in place without moving focus");
+
+    technical_button->setFocus(Qt::TabFocusReason);
+    technical_button->click();
+    QApplication::processEvents();
+    expect(
+        technical_details->isVisible()
+            && technical_button->arrowType() == Qt::DownArrow
+            && technical_button->accessibleName().contains(
+                QStringLiteral("Hide"))
+            && QApplication::focusWidget() == technical_button,
+        "technical disclosure opens in place without moving focus");
+    technical_button->click();
+    QApplication::processEvents();
+    expect(
+        !technical_details->isVisible()
+            && technical_button->arrowType() == Qt::RightArrow
+            && QApplication::focusWidget() == technical_button,
+        "technical disclosure closes in place without moving focus");
+
+    window.resize(960, 720);
+    QApplication::processEvents();
+    expect(
+        splitter->orientation() == Qt::Horizontal,
+        "the content splitter is horizontal at 960 pixels");
+
+    const auto retained_title =
+        required_label(window, "pullRequestTitle")->text();
+    const auto retained_identity =
+        QPersistentModelIndex{
+            window.conversation_model()->index_for_id("issue-comment:i1")};
+    window.conversation_view()->setCurrentIndex(retained_identity);
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::loading_pull_request,
+                    },
+            },
+    });
+    expect(
+        presentation_state(window) == QStringLiteral("refreshing")
+            && required_label(window, "pullRequestTitle")->text()
+                   == retained_title
+            && retained_identity.isValid()
+            && window.conversation_view()->currentIndex()
+                   == retained_identity,
+        "refresh retains accepted content in a distinct refreshing state");
+
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::pull_request_failed,
+                    },
+                .Diagnostics =
+                    {
+                        {
+                            .Code =
+                                core::github_reason_code::network_unavailable,
+                        },
+                    },
+            },
+    });
+    expect(
+        presentation_state(window) == QStringLiteral("loaded-error")
+            && required_label(window, "pullRequestTitle")->text()
+                   == retained_title
+            && retained_identity.isValid()
+            && !window.diagnostic_text().empty(),
+        "refresh failure retains accepted content and presents the error");
+    capture_layout_state(window, QStringLiteral("retained-refresh-error"));
+
+    auto available_empty = pull_request_projection();
+    available_empty.ReviewCount = 0U;
+    available_empty.ReviewThreadCount = 0U;
+    available_empty.IssueCommentCount = 0U;
+    available_empty.Conversations.clear();
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::pull_request_ready,
+                    },
+            },
+        .PullRequest = std::move(available_empty),
+    });
+    expect(
+        presentation_state(window) == QStringLiteral("loaded")
+            && conversation_state->currentWidget() == conversation_empty
+            && required_label(window, "reviewThreadAvailability")
+                   ->text()
+                   .contains(QStringLiteral("available;"))
+            && required_label(window, "reviewThreadAvailability")
+                   ->text()
+                   .contains(QStringLiteral("none")),
+        "available-empty conversations are distinct from unavailable data");
+
+    auto unknown_threads = pull_request_projection(false);
+    unknown_threads.Conversations.clear();
+    window.publish(application::github_presentation_update{
+        .PullRequest = std::move(unknown_threads),
+    });
+    expect(
+        presentation_state(window) == QStringLiteral("loaded")
+            && conversation_state->currentWidget() == conversation_empty
+            && required_label(window, "reviewThreadAvailability")
+                   ->text()
+                   .contains(QStringLiteral("not been confirmed")),
+        "unknown review-thread support remains visibly unknown");
+
+    auto unsupported_threads = pull_request_projection(false);
+    unsupported_threads.Conversations.clear();
+    unsupported_threads.Capabilities.ReviewThreads =
+        core::github_capability_state::unsupported;
+    window.publish(application::github_presentation_update{
+        .PullRequest = std::move(unsupported_threads),
+    });
+    expect(
+        required_label(window, "reviewThreadAvailability")
+            ->text()
+            .contains(QStringLiteral("does not support")),
+        "unsupported review-thread capability is distinct from unknown");
+
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::establishing_session,
+                    },
+                .Identity =
+                    core::github_identity_delta{
+                        .Profile = core::host_profile_id{11U},
+                        .Host = std::nullopt,
+                        .Account = std::nullopt,
+                        .Generation = core::github_identity_generation{3U},
+                    },
+                .PullRequest =
+                    core::pull_request_summary_delta{
+                        .Summary = std::nullopt,
+                    },
+            },
+    });
+    expect(
+        presentation_state(window) == QStringLiteral("connecting")
+            && view_state->currentWidget() == empty_state
+            && window.conversation_model()->rowCount() == 0
+            && window.active_account_text() == "Connecting…",
+        "identity switching clears stale content into the connecting state");
+
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::session_failed,
+                    },
+                .Diagnostics =
+                    {
+                        {
+                            .Code =
+                                core::github_reason_code::authentication_failed,
+                        },
+                    },
+            },
+    });
+    expect(
+        presentation_state(window) == QStringLiteral("error")
+            && empty_title->text()
+                   == QStringLiteral("Connection unavailable")
+            && empty_body->text().contains(
+                QStringLiteral("Authentication failed"))
+            && banner->isVisible(),
+        "identity connection failure presents a focused empty error state");
+}
+
+auto test_cancellation_states_and_failure_layouts() -> void
+{
+    qt::github_window session_window{
+        qt::github_view_config{.Profiles = profiles()},
+        [](application::github_intent) {},
+    };
+    session_window.resize(960, 640);
+    session_window.show();
+    QApplication::processEvents();
+    auto* const session_stack =
+        required_child<QStackedWidget>(session_window, "githubViewState");
+    auto* const session_empty =
+        required_child<QWidget>(session_window, "githubEmptyState");
+    auto* const session_diagnostic =
+        required_label(session_window, "githubDiagnostic");
+    session_window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::establishing_session,
+                    },
+            },
+    });
+    session_window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::session_cancelled,
+                    },
+            },
+    });
+    expect(
+        presentation_state(session_window) == QStringLiteral("cancelled")
+            && session_stack->currentWidget() == session_empty
+            && required_label(session_window, "githubEmptyStateTitle")->text()
+                   == QStringLiteral("Connection canceled")
+            && required_label(session_window, "githubEmptyStateBody")
+                   ->text()
+                   .contains(QStringLiteral("Connect"))
+            && session_window.status_text()
+                   == "The GitHub connection was canceled."
+            && session_window.diagnostic_text().empty()
+            && session_diagnostic->isHidden()
+            && required_label(session_window, "pullRequestIdentity")->text()
+                   == QStringLiteral("No pull request is open")
+            && !session_window.conversation_view()
+                    ->currentIndex()
+                    .isValid(),
+        "unloaded session cancellation has an empty cancellation page "
+        "without a diagnostic or retained pull request");
+    capture_layout_state(
+        session_window, QStringLiteral("session-cancelled"));
+
+    qt::github_window first_load_window{
+        qt::github_view_config{.Profiles = profiles()},
+        [](application::github_intent) {},
+    };
+    first_load_window.resize(960, 640);
+    first_load_window.show();
+    QApplication::processEvents();
+    publish_session_ready(first_load_window);
+    first_load_window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::loading_pull_request,
+                    },
+                .PullRequest =
+                    core::pull_request_summary_delta{
+                        .Summary = std::nullopt,
+                    },
+            },
+    });
+    first_load_window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::pull_request_cancelled,
+                    },
+            },
+    });
+    auto* const first_load_stack =
+        required_child<QStackedWidget>(first_load_window, "githubViewState");
+    auto* const first_load_empty =
+        required_child<QWidget>(first_load_window, "githubEmptyState");
+    auto* const first_load_diagnostic =
+        required_label(first_load_window, "githubDiagnostic");
+    expect(
+        presentation_state(first_load_window) == QStringLiteral("cancelled")
+            && first_load_stack->currentWidget() == first_load_empty
+            && required_label(first_load_window, "githubEmptyStateTitle")
+                       ->text()
+                   == QStringLiteral("Pull request loading canceled")
+            && required_label(first_load_window, "githubEmptyStateBody")
+                   ->text()
+                   .contains(QStringLiteral("locator is unchanged"))
+            && first_load_window.status_text()
+                   == "Pull request loading was canceled."
+            && first_load_window.diagnostic_text().empty()
+            && first_load_diagnostic->isHidden()
+            && required_label(first_load_window, "pullRequestIdentity")->text()
+                   == QStringLiteral("No pull request is open")
+            && required_child<QPlainTextEdit>(
+                   first_load_window, "pullRequestBody")
+                   ->toPlainText()
+                   .isEmpty()
+            && first_load_window.conversation_model()->rowCount() == 0
+            && !first_load_window.conversation_view()
+                    ->currentIndex()
+                    .isValid(),
+        "first-load pull-request cancellation has no retained projection or "
+        "failure diagnostic");
+    capture_layout_state(
+        first_load_window, QStringLiteral("first-load-cancelled"));
+
+    first_load_window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::loading_pull_request,
+                    },
+                .PullRequest =
+                    core::pull_request_summary_delta{
+                        .Summary = std::nullopt,
+                    },
+            },
+    });
+    first_load_window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::pull_request_failed,
+                    },
+                .Diagnostics =
+                    {
+                        {
+                            .Code =
+                                core::github_reason_code::network_unavailable,
+                        },
+                    },
+            },
+    });
+    expect(
+        presentation_state(first_load_window) == QStringLiteral("error")
+            && first_load_stack->currentWidget() == first_load_empty
+            && required_label(first_load_window, "githubEmptyStateTitle")
+                       ->text()
+                   == QStringLiteral("Pull request unavailable")
+            && required_label(first_load_window, "githubEmptyStateBody")->text()
+                   == first_load_diagnostic->text()
+            && first_load_window.status_text()
+                   == "The pull request could not be loaded."
+            && !first_load_window.diagnostic_text().empty()
+            && first_load_diagnostic->isVisible()
+            && first_load_window.conversation_model()->rowCount() == 0,
+        "first-load failure has an empty error page with the visible "
+        "diagnostic");
+    capture_layout_state(
+        first_load_window, QStringLiteral("first-load-error"));
+
+    qt::github_window refresh_window{
+        qt::github_view_config{.Profiles = profiles()},
+        [](application::github_intent) {},
+    };
+    publish_session_ready(refresh_window);
+    publish_pull_request(refresh_window);
+    refresh_window.resize(960, 640);
+    refresh_window.show();
+    QApplication::processEvents();
+    auto* const refresh_stack =
+        required_child<QStackedWidget>(refresh_window, "githubViewState");
+    auto* const refresh_empty =
+        required_child<QWidget>(refresh_window, "githubEmptyState");
+    auto* const refresh_diagnostic =
+        required_label(refresh_window, "githubDiagnostic");
+    const auto retained_title =
+        required_label(refresh_window, "pullRequestTitle")->text();
+    const auto retained_identity =
+        required_label(refresh_window, "pullRequestIdentity")->text();
+    const auto retained_body = required_child<QPlainTextEdit>(
+        refresh_window, "pullRequestBody")
+                                   ->toPlainText();
+    const QPersistentModelIndex retained_selection{
+        refresh_window.conversation_model()->index_for_id(
+            "issue-comment:i1")};
+    refresh_window.conversation_view()->setCurrentIndex(retained_selection);
+    refresh_window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::loading_pull_request,
+                    },
+            },
+    });
+    refresh_window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::pull_request_cancelled,
+                    },
+            },
+    });
+    expect(
+        presentation_state(refresh_window)
+                == QStringLiteral("loaded-cancelled")
+            && refresh_stack->currentWidget() != refresh_empty
+            && required_label(refresh_window, "pullRequestTitle")->text()
+                   == retained_title
+            && required_label(refresh_window, "pullRequestIdentity")->text()
+                   == retained_identity
+            && required_child<QPlainTextEdit>(
+                   refresh_window, "pullRequestBody")
+                       ->toPlainText()
+                   == retained_body
+            && retained_selection.isValid()
+            && refresh_window.conversation_view()->currentIndex()
+                   == retained_selection
+            && refresh_window.status_text()
+                   == "Refresh canceled. Showing the last accepted pull "
+                      "request."
+            && refresh_window.diagnostic_text().empty()
+            && refresh_diagnostic->isHidden(),
+        "loaded refresh cancellation retains exact accepted content and "
+        "selection without presenting a failure diagnostic");
+    capture_layout_state(
+        refresh_window, QStringLiteral("retained-refresh-cancelled"));
 }
 
 auto test_identity_metadata_commands_and_refresh_semantics() -> void
@@ -1066,6 +1696,382 @@ auto test_status_diagnostics_and_host_detail_are_complete() -> void
         "none diagnostic clears stale presentation wording");
 }
 
+auto test_native_inheritance_and_wrapped_conversation_layout() -> void
+{
+    qt::github_window window{
+        qt::github_view_config{.Profiles = profiles()},
+        [](application::github_intent) {},
+    };
+    publish_session_ready(window);
+
+    const std::string long_body =
+        "<b>& literal markup remains text.\n"
+        "A deliberately long second paragraph wraps across several visual "
+        "lines when the conversation pane narrows, preserving every word, "
+        "punctuation mark, and line break without clipping or elision.";
+    auto pull_request = pull_request_projection();
+    pull_request.Conversations.insert(
+        pull_request.Conversations.begin(),
+        conversation(
+            "issue-comment:long",
+            application::github_conversation_kind::issue_comment,
+            long_body));
+    auto accepted_refresh = pull_request;
+    accepted_refresh.Title = "Accepted refreshed title";
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::pull_request_ready,
+                    },
+            },
+        .PullRequest = std::move(pull_request),
+    });
+    window.resize(960, 720);
+    window.show();
+    QApplication::processEvents();
+
+    auto* const banner =
+        required_child<QFrame>(window, "githubStatusBanner");
+    auto* const view_state =
+        required_child<QStackedWidget>(window, "githubViewState");
+    auto* const title = required_label(window, "pullRequestTitle");
+    auto* const view = window.conversation_view();
+    auto* const model = window.conversation_model();
+    const auto long_index = model->index_for_id("issue-comment:long");
+    const auto short_index = model->index_for_id("review:r1");
+    expect(
+        long_index.isValid() && short_index.isValid(),
+        "wrapped-row fixture exposes long and short stable rows");
+
+    const auto literal = QString::fromUtf8(
+        long_body.data(), static_cast<qsizetype>(long_body.size()));
+    expect(
+        long_index.data(qt::github_conversation_model::body_role).toString()
+                == literal
+            && long_index.data(Qt::DisplayRole).toString().contains(literal)
+            && view->wordWrap()
+            && !view->uniformRowHeights()
+            && view->textElideMode() == Qt::ElideNone,
+        "conversation content remains literal and is configured for "
+        "nonuniform wrapping without elision");
+
+    const auto measure_height =
+        [view](const QModelIndex& index, const int width) {
+            QStyleOptionViewItem option;
+            option.initFrom(view);
+            option.widget = view;
+            option.rect = QRect{0, 0, width, 1};
+            return view->itemDelegate()->sizeHint(option, index).height();
+        };
+    const auto original_wide_height = measure_height(long_index, 620);
+    const auto original_short_height = measure_height(short_index, 620);
+    expect(
+        original_wide_height > original_short_height,
+        "long multiline conversation rows receive a larger delegate height");
+
+    const std::array<QWidget*, 4> inherited_widgets{
+        banner,
+        view_state,
+        view,
+        window.profile_selector(),
+    };
+    expect(
+        std::ranges::all_of(
+            inherited_widgets,
+            [&window](const QWidget* const widget) {
+                return !widget->testAttribute(Qt::WA_SetPalette)
+                    && !widget->testAttribute(Qt::WA_SetStyle)
+                    && !widget->testAttribute(Qt::WA_SetFont)
+                    && widget->font() == window.font()
+                    && widget->styleSheet().isEmpty();
+            })
+            && !window.testAttribute(Qt::WA_SetPalette)
+            && !window.testAttribute(Qt::WA_SetStyle)
+            && !window.testAttribute(Qt::WA_SetFont)
+            && window.styleSheet().isEmpty(),
+        "representative presentation widgets inherit application palette, "
+        "style, and body font without overrides");
+
+    std::size_t model_resets = 0U;
+    QObject::connect(
+        model,
+        &QAbstractItemModel::modelReset,
+        [&model_resets] { ++model_resets; });
+    const QPersistentModelIndex stable_long{long_index};
+    const QPersistentModelIndex collapsed_thread{
+        model->index_for_id("review-thread:t1")};
+    view->setCurrentIndex(long_index);
+    view->selectionModel()->select(
+        long_index,
+        QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    view->setFocus(Qt::OtherFocusReason);
+    view->collapse(collapsed_thread);
+    QApplication::processEvents();
+    expect(
+        collapsed_thread.isValid() && !view->isExpanded(collapsed_thread)
+            && QApplication::focusWidget() == view
+            && view->selectionModel()->isSelected(long_index),
+        "conversation fixture starts selected, focused, and explicitly "
+        "collapsed");
+
+    window.publish(application::github_presentation_update{
+        .Transition =
+            application::github_transition_projection{
+                .Status =
+                    core::github_status_delta{
+                        .Status = core::github_status::pull_request_ready,
+                    },
+            },
+        .PullRequest = std::move(accepted_refresh),
+    });
+    QApplication::processEvents();
+    expect(
+        required_label(window, "pullRequestTitle")->text()
+                == QStringLiteral("Accepted refreshed title")
+            && stable_long.isValid() && collapsed_thread.isValid()
+            && !view->isExpanded(collapsed_thread)
+            && view->currentIndex() == stable_long
+            && view->selectionModel()->isSelected(stable_long)
+            && QApplication::focusWidget() == view
+            && model_resets == 0U,
+        "accepted refresh preserves explicit collapse, selection, focus, and "
+        "incremental model state");
+
+    const auto original_palette = QApplication::palette();
+    const auto original_font = QApplication::font();
+    const auto original_body_font_height =
+        QFontMetrics{window.font()}.height();
+    const auto original_title_font_height =
+        QFontMetrics{title->font()}.height();
+
+    auto controlled_palette = original_palette;
+    const QColor controlled_window{37, 52, 68};
+    const QColor controlled_base{25, 34, 43};
+    const QColor controlled_text{226, 232, 240};
+    const QColor controlled_highlight{103, 73, 184};
+    controlled_palette.setColor(QPalette::Window, controlled_window);
+    controlled_palette.setColor(QPalette::Base, controlled_base);
+    controlled_palette.setColor(QPalette::Text, controlled_text);
+    controlled_palette.setColor(
+        QPalette::WindowText, controlled_text);
+    controlled_palette.setColor(
+        QPalette::Highlight, controlled_highlight);
+    QApplication::setPalette(controlled_palette);
+    QApplication::processEvents();
+    expect(
+        banner->palette().color(QPalette::Window) == controlled_window
+            && view->palette().color(QPalette::Base) == controlled_base
+            && title->palette().color(QPalette::WindowText)
+                   == controlled_text
+            && std::ranges::none_of(
+                inherited_widgets,
+                [](const QWidget* const widget) {
+                    return widget->testAttribute(Qt::WA_SetPalette);
+                })
+            && !view->isExpanded(collapsed_thread)
+            && view->currentIndex() == stable_long
+            && view->selectionModel()->isSelected(stable_long)
+            && QApplication::focusWidget() == view
+            && model_resets == 0U,
+        "an application palette change reaches representative widgets "
+        "through inheritance without disturbing conversation state");
+
+    auto larger_font = original_font;
+    if(larger_font.pointSizeF() > 0.0)
+    {
+        larger_font.setPointSizeF(larger_font.pointSizeF() + 4.0);
+    }
+    else
+    {
+        larger_font.setPixelSize(
+            std::max(1, larger_font.pixelSize()) + 6);
+    }
+    QApplication::setFont(larger_font);
+    QApplication::processEvents();
+    view->doItemsLayout();
+    QApplication::processEvents();
+
+    const auto larger_wide_height = measure_height(long_index, 620);
+    const auto larger_narrow_height = measure_height(long_index, 190);
+    expect(
+        QFontMetrics{window.font()}.height() > original_body_font_height
+            && QFontMetrics{title->font()}.height()
+                   > original_title_font_height
+            && larger_wide_height > original_wide_height
+            && larger_narrow_height > larger_wide_height,
+        "application font growth and narrower width increase wrapped row "
+        "size hints");
+
+    const auto next_index = view->indexBelow(long_index);
+    const auto long_rect = view->visualRect(long_index);
+    const auto next_rect = view->visualRect(next_index);
+    expect(
+        next_index.isValid() && long_rect.isValid() && next_rect.isValid()
+            && long_rect.height() > next_rect.height()
+            && long_rect.bottom() < next_rect.top(),
+        "laid-out wrapped rows have nonuniform heights and never overlap");
+    expect(
+        stable_long.isValid()
+            && view->currentIndex() == stable_long
+            && view->selectionModel()->isSelected(stable_long)
+            && !view->isExpanded(collapsed_thread)
+            && QApplication::focusWidget() == view
+            && model_resets == 0U,
+        "appearance changes preserve row identity, selection, focus, and "
+        "incremental model state");
+
+    QApplication::setFont(original_font);
+    QApplication::setPalette(original_palette);
+    QApplication::processEvents();
+    expect(
+        QFontMetrics{window.font()}.height() == original_body_font_height
+            && banner->palette().color(QPalette::Window)
+                   == original_palette.color(QPalette::Window)
+            && stable_long.isValid()
+            && view->currentIndex() == stable_long
+            && !view->isExpanded(collapsed_thread)
+            && QApplication::focusWidget() == view
+            && model_resets == 0U,
+        "application palette and font restoration also preserves UI state");
+}
+
+struct accessible_announcement
+{
+    QString Message;
+    QString ObjectName;
+    QAccessible::AnnouncementPoliteness Politeness =
+        QAccessible::AnnouncementPoliteness::Polite;
+};
+
+std::vector<accessible_announcement>* AnnouncementSink = nullptr;
+
+void capture_accessibility_update(QAccessibleEvent* const event)
+{
+    if(
+        AnnouncementSink == nullptr || event == nullptr
+        || event->type() != QAccessible::Announcement)
+    {
+        return;
+    }
+    const auto* const announcement =
+        static_cast<const QAccessibleAnnouncementEvent*>(event);
+    AnnouncementSink->push_back(
+        {
+            .Message = announcement->message(),
+            .ObjectName =
+                event->object() == nullptr ? QString{}
+                                           : event->object()->objectName(),
+            .Politeness = announcement->politeness(),
+        });
+}
+
+class scoped_accessibility_capture final
+{
+public:
+    explicit scoped_accessibility_capture(
+        std::vector<accessible_announcement>& announcements)
+        : Previous{
+              QAccessible::installUpdateHandler(capture_accessibility_update)}
+    {
+        AnnouncementSink = &announcements;
+    }
+
+    ~scoped_accessibility_capture()
+    {
+        AnnouncementSink = nullptr;
+        static_cast<void>(QAccessible::installUpdateHandler(Previous));
+    }
+
+    scoped_accessibility_capture(const scoped_accessibility_capture&) = delete;
+    auto operator=(const scoped_accessibility_capture&)
+        -> scoped_accessibility_capture& = delete;
+    scoped_accessibility_capture(scoped_accessibility_capture&&) = delete;
+    auto operator=(scoped_accessibility_capture&&)
+        -> scoped_accessibility_capture& = delete;
+
+private:
+    QAccessible::UpdateHandler Previous = nullptr;
+};
+
+auto test_accessible_announcements_are_combined_and_deduplicated() -> void
+{
+    qt::github_window window{
+        qt::github_view_config{.Profiles = profiles()},
+        [](application::github_intent) {},
+    };
+    auto* const banner =
+        required_child<QFrame>(window, "githubStatusBanner");
+    window.show();
+    QApplication::processEvents();
+    std::vector<accessible_announcement> announcements;
+    {
+        const scoped_accessibility_capture capture{announcements};
+        const application::github_presentation_update failure{
+            .Transition =
+                application::github_transition_projection{
+                    .Status =
+                        core::github_status_delta{
+                            .Status = core::github_status::session_failed,
+                        },
+                    .Diagnostics =
+                        {
+                            {
+                                .Code = core::github_reason_code::
+                                    authentication_failed,
+                            },
+                        },
+                },
+        };
+        window.publish(failure);
+        expect(
+            announcements.size() == 1U
+                && announcements.front().ObjectName
+                       == QStringLiteral("githubStatusBanner")
+                && announcements.front().Message.contains(
+                    QStringLiteral("connection failed"))
+                && announcements.front().Message.contains(
+                    QStringLiteral("Authentication failed"))
+                && announcements.front().Message
+                       == banner->accessibleDescription()
+                && announcements.front().Politeness
+                       == QAccessible::AnnouncementPoliteness::Polite,
+            "one polite accessibility announcement combines status and "
+            "diagnostic context");
+
+        window.publish(failure);
+        expect(
+            announcements.size() == 1U,
+            "an identical presentation update suppresses duplicate "
+            "announcements");
+
+        window.publish(application::github_presentation_update{
+            .Transition =
+                application::github_transition_projection{
+                    .Status =
+                        core::github_status_delta{
+                            .Status = core::github_status::session_failed,
+                        },
+                    .Diagnostics =
+                        {
+                            {
+                                .Code =
+                                    core::github_reason_code::permission_denied,
+                            },
+                        },
+                },
+        });
+        expect(
+            announcements.size() == 2U
+                && announcements.back().Message.contains(
+                    QStringLiteral("does not have permission"))
+                && announcements.back().Message
+                       == banner->accessibleDescription(),
+            "a changed diagnostic produces one newly combined announcement");
+    }
+}
+
 auto test_accessibility_minimum_geometry_and_render() -> void
 {
     qt::github_window window{
@@ -1240,8 +2246,12 @@ auto main(int argc, char** argv) -> int
 
     test_conversation_model_is_stable_and_incremental();
     test_intent_translation_is_narrow_and_account_is_output_only();
+    test_presentation_states_disclosures_and_responsive_layout();
+    test_cancellation_states_and_failure_layouts();
     test_identity_metadata_commands_and_refresh_semantics();
     test_status_diagnostics_and_host_detail_are_complete();
+    test_native_inheritance_and_wrapped_conversation_layout();
+    test_accessible_announcements_are_combined_and_deduplicated();
     test_accessibility_minimum_geometry_and_render();
 
     std::cout << "All GitHub Qt presentation tests passed\n";

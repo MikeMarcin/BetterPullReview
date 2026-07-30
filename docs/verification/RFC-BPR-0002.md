@@ -832,6 +832,83 @@ found no remaining P0/P1 defect. GitHub Actions supplied no evidence and has
 no role. Windows target-native verification remains open and nonblocking in
 BPR-0036.
 
+## Presentation-polish slice result
+
+BPR-0031 replaces the functional-integration layout with a compact,
+responsive GitHub workbench without moving policy or effects into Qt.
+Connection, locator, status, pull-request hierarchy, description, and
+conversations have distinct visual roles. Capability/rate observations and
+exact commit identities remain available through keyboard-operable
+disclosures. Locator actions move below their inputs at narrow widths and the
+description/conversation splitter changes from horizontal to vertical.
+
+The pull-request stack now exposes exact `disconnected`, `connecting`,
+`empty`, `loading`, `error`, `cancelled`, `loaded`, `refreshing`,
+`loaded-error`, and `loaded-cancelled` state properties. New-target loading,
+failure, and cancellation use a focused empty state. Refresh loading, failure,
+and cancellation retain the last accepted pull-request projection, stable
+selection, and local expansion. The first accepted projection establishes the
+initial conversation hierarchy; subsequent projections do not reopen a thread
+the user collapsed.
+
+Conversation rows use a Qt delegate that wraps literal multiline remote text
+without elision. The active native style still paints selection, background,
+and focus, and the delegate reads the current style option rather than caching
+colors or fonts. The window does not set an application or widget palette,
+force a style, apply QSS, or replace the application font. Application
+palette, font, style, and theme events refresh derived title fonts, native
+icons, delegate geometry, and responsive layout. Each published
+status/diagnostic update emits at most one combined polite accessible
+announcement; identical text is suppressed.
+
+The three deterministic scale cases directly assert every presentation state,
+both disclosures, keyboard order, narrow/wide layout, retained and empty
+failure/cancellation behavior, literal wrapped rows, nonoverlap, selection,
+focus, manually collapsed expansion, zero resets, controlled palette/font
+inheritance, and accessibility announcements. At 1.0x, 1.25x, and 2.0x they
+save minimum-top, minimum-lower, loaded-success, disconnected, loading,
+first-load-error, session-cancelled, first-load-cancelled,
+retained-refresh-error, and retained-refresh-cancelled rasters. Those forced
+offscreen-style images are inspected layout evidence only.
+
+The final macOS `dev` matrix passed 44/44 in 70.17 seconds and the Qt-free
+`core-only` matrix passed 17/17 in 17.29 seconds. The three scale cases plus
+the property corpus passed 4/4 in 41.12 seconds under AddressSanitizer and
+UndefinedBehaviorSanitizer.
+
+In the Ubuntu 26.04 x86_64 full-system QEMU guest, a fresh tests-enabled
+Release build completed all 84 build steps under GCC 15.2 and Qt 6.10.2. The
+focused architecture, documentation, three-scale, property, both public-
+fixture, and application-render matrix passed 11/11 in 202.34 seconds. GCC
+rejected three declaration-inconsistent designated initializers in the new
+test fixtures; they were reordered canonically and the same fresh guest build
+then completed without a production portability change. The Linux normal,
+minimum, loading, and retained-error rasters were inspected directly.
+
+On macOS 15.7.7 arm64 with Qt 6.11.1, the real application loaded
+`libqcocoa.dylib` and `libqmacstyle.dylib`, selected QMacStyle, inherited the
+system-default Dark appearance at startup, and rendered the complete
+GitHub.com fixture. The run reported `PUBLIC_PATH_OK`,
+`GITHUB_FIXTURE_OK:github.com`, and `RENDER_OK`; the 2200x1440 raster SHA-256
+was `309f70eae18dda39d8920802f1c8cb2840db1761340b17213719a9b4173804d7`.
+A safe loaded-process probe changed the application-local color scheme from
+Dark to Light while retaining QMacStyle; representative window/base pixels
+changed from `rgb(50,50,50)`/`rgb(23,23,23)` to
+`rgb(236,236,236)`/`rgb(255,255,255)`, and the complete presentation remained
+clean. A settled 13-to-17-point application-font probe also refreshed
+geometry and rows without clipping. An ad hoc QMacStyle-to-QFusionStyle probe
+is not visual evidence: although it exercised the style event, its inherited
+dark control palette produced inadequate input contrast.
+
+Those controlled probes verify the responder path but do not claim a real
+macOS system-Light startup or operating-system appearance change. BPR-0031
+remains open until the same loaded native process is directly observed across
+an actual System Appearance change, with the original desktop setting
+restored. Selectable System/Light/Dark/high-contrast profiles remain
+RFC-BPR-0006. Windows target-native verification remains separately deferred
+and nonblocking in BPR-0036. GitHub Actions supplied no build, test, package,
+release, or verification evidence.
+
 ## Claim matrix
 
 | Claim | Direct surface | Command or interaction | What proves | Result | Evidence |
@@ -842,6 +919,7 @@ BPR-0036.
 | Validated profile construction is explicit | Profile validator and hostile contracts | Submit non-HTTPS, mismatched-root, content-derived, redirect-derived, moved-from, and unknown-authority profiles | No invalid candidate can produce a usable capability-probe authority | Verified | BPR-0020 validated-profile, value-invariant, request-compilation, and redirect contract suites plus BPR-0027 provider/profile composition |
 | Capability state is bounded and honest | Probe cache plus core command policy | Replay supported, unsupported, and insufficient-evidence probes | Review-thread/viewed/resolve/unresolve states remain tri-state and unavailable actions never silently approximate support | Verified | BPR-0018 core policy plus BPR-0020 bounded probe and exact-authority cache suites |
 | Active host and account are always visible | GitHub Qt presentation | Render initial, loaded, error, and in-flight identity-switch states | Accessible visible identity always matches the accepted provider session and never exposes a credential | Verified | BPR-0028 atomic safe-projection and three-scale Qt cases plus both BPR-0029 public fixtures cover selected profile/host/transport, authenticated account output, connecting state, and immediate account/PR/rate invalidation |
+| Native appearance is inherited and updates live | Real Qt application under the operating-system appearance | Launch under native Light and Dark, then change the System Appearance while the same loaded process remains alive | QMacStyle and the operating-system palette remain authoritative without a forced palette/style/QSS; focus, selection, and collapsed expansion survive the live change | Planned | BPR-0031 directly verifies real system-Dark startup and controlled loaded-process Light/font/style responders plus deterministic state preservation. Real system-Light startup and a same-process operating-system appearance change remain the open native gate |
 | macOS/Linux CLI broker mechanically preserves the process boundary | Injectable process port plus real child-process integration on each selected Unix target | Launch the same-executable child with exact input/retention/time limits and an unknown parent-environment canary; exercise initial-process-group cleanup and escape on clean success, failure, timeout, and cancellation; compile every selected operation/profile request | Canonical executable, closed argv, stdin body, canonical currently non-repository cwd, requested environment plus only the documented Darwin addition, directly observed Unix hardening/session/group facts, bounded public reads/retention, initial-process-group cleanup, watchdog quarantine, fixed failures, and canary absence are directly inspected | Verified | BPR-0025 macOS and Linux transport/compiler and sole-`QProcess` runner suites plus hostile source mutations; a descendant that changes group can escape, numeric PID/PGID reuse means group signaling is not claimed race-free, actual live-process failed-reap retention remains source-gated, Qt private in-flight pipe allocation is not claimed, and the separate trust row governs whether this boundary may send a provider request |
 | Windows CLI process boundary is target-native and descendant-contained | Real Windows 10/11 x64 runner | Inspect the raw child environment, valid/invalid `.exe` startup, Job Object descendant containment, cancellation/timeout cleanup, crash artifacts, and in-flight stream allocation | The selected Windows implementation has exact process authority and leaves no child, descendant, credential, or diagnostic artifact | Planned | BPR-0036 owns the direct Windows run and any required Job Object/private-pipe implementation; current source remains fail-closed and does not make this claim |
 | CLI mode is visibly unavailable and launches zero processes | Public CLI profile plus executable/authority/configuration/identity trust gate | Select the CLI profile through the real application after exercising the exact-binary trust probes and inject a fake successful process port | The public profile is labeled unavailable, activation presents bounded `cli_unavailable`, and every trust failure returns before the process port | Verified | BPR-0025 directly falsifies trust for `gh` 2.95.0 and verifies all four typed reasons; the BPR-0029 public self-test selects CLI and passes with zero launch. BPR-0037 must close every trust gap before positive CLI enablement or RFC closeout |
@@ -955,7 +1033,7 @@ policy, Windows/Linux vaults, cache invalidation, or UI behavior.
 | Host/provider boundary | System architecture, provider contract, implementation architecture | Updated: normalized ports, pagination, authenticated sessions, retry/rate state, private capability cache, hostname-bound credential lifecycle, serialized completion, multi-profile routing, public native-HTTPS consumption, exact recorded-method admission, bounded GraphQL operation classification, canonical-body equality, and exhaustive bounded failure mapping are recorded | BPR-0019/BPR-0020 contracts; BPR-0025/BPR-0026 transport evidence; BPR-0027 host/provider evidence; BPR-0029 macOS and Linux public fixtures; BPR-0030 macOS/Linux protocol, failure-mapping, and redirect matrices |
 | Portable credential contract | Domain/state model, provider contract, implementation architecture, threat model | Updated: bounded move-only material, canonical-hostname authority, exact correlation, typed results, Qt-owned input boundary, and no core/Qt vault capability | BPR-0021 lifetime/result contract plus BPR-0029 fake-vault, hostname, prompt, host-shutdown, and boundary suites |
 | Native credentials and network trust | Security baseline, threat model, operator/troubleshooting guidance | Updated: historical v1 evidence remains labeled historical; current v2 namespaces/encoding/no-fallback and exact public shutdown deletion are recorded; macOS and Linux v2 are verified, Windows remains BPR-0036, and CLI enablement remains BPR-0037 | Historical BPR-0022/BPR-0023/BPR-0024 evidence; BPR-0025/BPR-0026 transport evidence; BPR-0029 macOS Keychain and Linux Secret Service v2 public-fixture, Release runtime/dependency, and exact-cleanup evidence |
-| Qt presentation | UI architecture and UX baseline | Updated: provider-free projection plus Qt-owned sensitive input and public fixture behavior are recorded; BPR-0031 retains hierarchy, density, typography, native system light/dark, live appearance switching, and public UX certification | BPR-0028 presentation evidence plus BPR-0029 prompt tests and both rendered public fixtures; deterministic offscreen Windows style is explicitly layout-only |
+| Qt presentation | UI architecture and UX baseline | Updated: provider-free projection, Qt-owned sensitive input, compact responsive hierarchy, explicit retained/empty states, wrapped native delegate, expansion/selection preservation, polite announcements, and native inheritance are recorded; real system-Light startup and a live operating-system appearance change remain open in BPR-0031 | BPR-0028/BPR-0029 projection and public-fixture evidence plus BPR-0031 three-scale state, focus, accessibility, native system-Dark, and controlled responder evidence; deterministic forced offscreen style is explicitly layout-only |
 | Composition and operation | README, build/test guide, developer overview | Updated: explicit profiles/provenance, multi-profile provider, native HTTPS/platform vault, separate workers, CLI unavailability, exact-delete shutdown, crash limitation, public commands, and Release seam absence | BPR-0029 macOS public fixtures and fresh Debug/core-only/sanitizer matrices; Linux public fixtures, fresh Release 81/81 tests-on and 36/36 tests-off targets, native-vault selection, and seam/dependency/runtime/ELF audits |
 | Tests and fixtures | Test guide and fixture catalog | Updated: historical/current vault versions, Qt sensitive input, worker, composition contract, both public fixtures, exact-host/delete evidence, current 32-scenario HTTPS verification, standalone deterministic conversation property corpus, and UX-evidence limits are recorded | BPR-0029 current-tree macOS/Linux matrices and direct fixture markers; BPR-0030 macOS 44/44, core-only 17/17, sanitizer deltas, Linux 83/83-target build and 41/41 matrix; offscreen PNGs remain layout-only evidence |
 | Packaging and release | Packaging policy and dependency inventory | Updated for public macOS and Linux platform-vault selection and tests-off seam absence; Windows native inspection remains unresolved; RFC-BPR-0014 still owns distribution certification | macOS Release reports Security/CoreFoundation and exact `SecItem` imports; Linux Release reports native-vault selection, seam absence, and passing dependency/runtime/ELF audits; historical Windows evidence remains recorded |

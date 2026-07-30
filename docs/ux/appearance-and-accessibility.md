@@ -4,7 +4,28 @@
 
 Appearance is intentionally outside the functional core. The host owns settings persistence, resource policy, scheduling, and caches. The Qt presentation adapter owns system-scheme observation, fonts, colors, layout, syntax presentation, accessibility, previews, and visual-state composition. Appearance changes publish bounded presentation invalidations rather than changing review semantics.
 
-## Appearance modes
+## Current system-native presentation
+
+The RFC-BPR-0002 GitHub window currently follows the palette, style, and
+interface font supplied by Qt and the operating system. It does not install a
+light or dark palette, select a style, apply QSS, or replace the application
+font. Derived title and status fonts, standard icons, delegate geometry, and
+layout are refreshed when Qt reports application palette, font, style, or
+theme changes.
+
+The conversation delegate uses the live style option for colors and fonts,
+lets the native style paint selection and focus, and wraps remote literal
+text without elision. Color is not used as the only state signal.
+
+Direct macOS evidence records startup under the system-default Dark
+appearance with QMacStyle. A safe loaded-window exercise also changed the
+application-local color scheme from Dark to Light and the application font
+from 13 to 17 points, with the corresponding live events handled. This is not
+a claim that a real operating-system-global Light switch has been exercised.
+Offscreen forced-style renders at controlled scales are layout evidence only
+and cannot certify native system-appearance integration.
+
+## Appearance modes (RFC-BPR-0006)
 
 ```text
 System
@@ -12,9 +33,12 @@ Light
 Dark
 ```
 
-System mode follows the operating-system color scheme and chooses the corresponding variant from the selected BetterPullReview profile. High-contrast system preference selects or recommends a high-contrast variant.
+RFC-BPR-0006 will add user-selectable appearance profiles. Its System mode
+will follow the operating-system color scheme and choose the corresponding
+variant from the selected BetterPullReview profile. High-contrast system
+preference will select or recommend a high-contrast variant.
 
-Built-in profiles:
+Planned built-in profiles:
 
 - BetterPullReview Light
 - BetterPullReview Dark
@@ -56,3 +80,9 @@ Package audited definitions and themes as resources. Disable filesystem discover
 - Reduced-motion behavior
 - Minimum supported contrast checks and warnings in the theme editor
 - Keyboard-equivalent access to every pointer action
+
+The current GitHub window publishes one combined polite announcement for a
+status and diagnostic presentation update. Repeated identical text is
+deduplicated so one accepted projection does not become a burst of field-level
+announcements. Connection and technical facts hidden by disclosures remain
+available through named keyboard-operable controls.

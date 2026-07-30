@@ -546,13 +546,54 @@ and verifies the exact device-pixel ratio and raster dimensions. Inspect those
 images in addition to the assertions; they are transient evidence and are not
 checked in.
 
+BPR-0031 adds explicit presentation-state, native-inheritance, wrapped-row,
+state-preservation, and announcement checks to the same three scale cases.
+Run the complete focused presentation group with:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_qt_github_tests \
+  better_pull_review_qt_github_conversation_model_property_tests
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(qt_github_window_scale_(100|125|200)|qt_github_conversation_model_property)$'
+```
+
+Each scale also saves representative disconnected, loading, first-load error,
+session cancellation, first-load cancellation, retained refresh error, and
+retained refresh cancellation rasters beside the existing minimum and loaded
+images. The assertions cover exact presentation properties and stack pages,
+visible wording, retained identity/content, disclosures, responsive layout,
+literal wrapped rows, focus, selection, collapsed expansion, inherited
+palette/font changes, and combined deduplicated polite announcements.
+
 On headless Linux, CTest selects Qt's built-in basic Windows style. Direct
 Ubuntu 26.04 testing found Qt 6.10.2's offscreen Fusion cached painter could
 segfault while repainting a combo box at 1.25x; the basic style passed 20
 consecutive fractional-scale runs and retains the scale, geometry, content,
 focus, and accessibility checks. This is deterministic headless raster
-evidence, not native-desktop style certification. BPR-0031 retains the real
-application and native-style UX gate.
+evidence, not native-desktop style certification.
+
+For a native macOS startup check, first record the current System Appearance,
+remove Qt platform/style overrides, then drive the test-enabled public fixture
+through the real application:
+
+```sh
+defaults read -g AppleInterfaceStyle
+env -u QT_QPA_PLATFORM -u QT_STYLE_OVERRIDE \
+  build/dev/src/app/better_pull_review \
+  --github-fixture github-com \
+  --render-evidence build/dev/github-native-system.png
+```
+
+The run must report `PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:github.com`, and
+`RENDER_OK`; inspect the loaded style/plugin and rendered palette rather than
+inferring appearance from the command. A controlled application-local color
+scheme, palette, font, or style change can prove that Qt appearance events
+refresh derived presentation state, but it cannot substitute for launching
+under a real system Light appearance and changing the operating-system
+appearance while the same loaded process remains alive. Record and restore the
+original desktop setting for that manual native gate. Never force a palette or
+QSS merely to make the evidence pass.
 
 BPR-0028 recorded a direct adversarial model run. BPR-0030 preserves that
 historical evidence and checks the corpus into a standalone, deterministic

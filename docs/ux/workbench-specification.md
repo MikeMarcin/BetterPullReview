@@ -34,9 +34,23 @@ window:
 - Connect, Open, and Refresh emit semantic application intents. Show Review
   Threads is Qt-local presentation behavior that selects, expands, scrolls
   to, and focuses the first available review thread.
+- Connection and pull-request locator controls form compact responsive rows.
+  The active host, transport, and account remain visible, while capability
+  and rate-limit facts are behind a Connection Details disclosure. At narrow
+  widths locator actions move below their inputs, and the description and
+  conversation regions change from a horizontal to a vertical split.
 - Repository and pull-request input, command legality, capability tri-state,
   rate-limit observations, normalized metadata, conversations, status, and
   bounded diagnostic text remain distinct accessible fields.
+- The pull-request title, author, branch, state, and counts establish the
+  primary hierarchy. Exact commit identities remain available behind a
+  Technical Details disclosure rather than competing with the review
+  content.
+- The viewport has explicit `disconnected`, `connecting`, `empty`, `loading`,
+  `error`, `cancelled`, `loaded`, `refreshing`, `loaded-error`, and
+  `loaded-cancelled` presentation states. The last three nonterminal/failure
+  variants retain accepted content. A failed or canceled refresh cannot
+  replace the last accepted content with an indeterminate spinner.
 - Remote title, body, author, path, and comment values render as literal plain
   text. Provider records, requests, URLs, transports, vaults, credentials, and
   authentication material never enter the Qt adapter.
@@ -46,11 +60,21 @@ window:
   cancels, or becomes stale.
 - Conversation rows have stable semantic identities and update by insert,
   remove, minimal move, or data change without resetting the complete model.
+- Conversation rows use a wrapped, non-eliding delegate that preserves native
+  selection and focus painting. The first accepted projection expands the
+  initial hierarchy; later refreshes preserve local expansion and restore the
+  current selection when its identity remains.
+- Each published status/diagnostic update produces at most one combined,
+  polite accessible announcement, with repeated identical announcements
+  suppressed.
 
 The window remains usable through a minimum-size scroll surface, exposes
 keyboard shortcuts and accessible names/descriptions, and is rendered at
-1.0x, 1.25x, and 2.0x scale in the BPR-0028 harness. BPR-0031 retains
-native-style and complete public-application UX certification.
+1.0x, 1.25x, and 2.0x scale in the Qt harness. It inherits the active native
+palette, style, and font without a forced palette, style, or QSS, and responds
+to application palette, font, style, and theme changes. Offscreen
+forced-style renders verify layout only. User-selectable Light, Dark, and
+System profiles remain RFC-BPR-0006 work.
 
 ## Primary actions
 
