@@ -41,9 +41,9 @@ provider-free atomic projection, accessible GitHub Qt window, stable
 incremental conversation model, three-scale rendering, fresh macOS 38/38 and
 core-only 17/17 matrices, sanitizer 4/4, and Ubuntu x86_64 host/scale 4/4
 evidence. `BPR-0038` is in `done/` with the fail-closed decision to keep
-query-bearing HTTP redirect targets rejected. `BPR-0029` is in `ready/` as
-the next implementation slice and retains public executable provider
-composition.
+query-bearing HTTP redirect targets rejected. `BPR-0029` is in
+`in-progress/` as the current implementation slice and owns public executable
+provider composition.
 
 The open Windows task and CLI production-trust task do not block later
 implementation, tests, documentation, security review, or simplification on

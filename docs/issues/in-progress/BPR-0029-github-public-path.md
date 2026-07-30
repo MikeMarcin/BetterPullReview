@@ -1,7 +1,7 @@
 ---
 id: BPR-0029
 title: Wire the RFC-BPR-0002 public application path
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0002
 depends_on: [BPR-0027, BPR-0028]
 ---
