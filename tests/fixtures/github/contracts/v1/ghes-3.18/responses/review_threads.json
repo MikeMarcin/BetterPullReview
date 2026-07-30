@@ -1,0 +1,48 @@
+{
+  "data": {
+    "repository": {
+      "id": "R_fixture_repository",
+      "pullRequest": {
+        "id": "PR_fixture_17",
+        "reviewThreads": {
+          "nodes": [
+            {
+              "id": "PRRT_fixture_1",
+              "isResolved": false,
+              "isOutdated": false,
+              "subjectType": "LINE",
+              "path": "src/core/review_snapshot.cpp",
+              "line": 42,
+              "originalLine": 42,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "PRRC_fixture_1",
+                    "bodyText": "Please preserve snapshot identity across refreshes.",
+                    "path": "src/core/review_snapshot.cpp",
+                    "line": 42,
+                    "originalLine": 42,
+                    "outdated": false,
+                    "author": {
+                      "login": "octo-reviewer",
+                      "id": "U_fixture_viewer"
+                    },
+                    "replyTo": null
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "endCursor": "Y3Vyc29yOlBSUkNfZml4dHVyZV8x"
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "Y3Vyc29yOlBSUlRfZml4dHVyZV8x"
+          }
+        }
+      }
+    }
+  }
+}

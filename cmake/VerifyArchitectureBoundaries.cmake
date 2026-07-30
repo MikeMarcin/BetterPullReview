@@ -108,6 +108,8 @@ set(
     effect_free_region_patterns
     "QProcess"
     "QNetwork[A-Za-z0-9_]*"
+    "QJson[A-Za-z0-9_]*"
+    "#[ \t]*include[ \t]*[<\"](curl|nlohmann|rapidjson|boost/json)"
 )
 foreach(effect_free_file IN LISTS effect_free_region_files)
     file(READ "${effect_free_file}" contents)
@@ -117,6 +119,99 @@ foreach(effect_free_file IN LISTS effect_free_region_files)
             message(
                 FATAL_ERROR
                 "Core/application/Qt effect-boundary violation in "
+                "${relative_file}: ${pattern}"
+            )
+        endif()
+    endforeach()
+endforeach()
+
+file(
+    GLOB_RECURSE standard_cpp_region_files
+    LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/core/*.c"
+    "${BPR_ROOT}/src/core/*.cc"
+    "${BPR_ROOT}/src/core/*.cpp"
+    "${BPR_ROOT}/src/core/*.cxx"
+    "${BPR_ROOT}/src/core/*.h"
+    "${BPR_ROOT}/src/core/*.hh"
+    "${BPR_ROOT}/src/core/*.hpp"
+    "${BPR_ROOT}/src/core/*.hxx"
+    "${BPR_ROOT}/src/application/*.c"
+    "${BPR_ROOT}/src/application/*.cc"
+    "${BPR_ROOT}/src/application/*.cpp"
+    "${BPR_ROOT}/src/application/*.cxx"
+    "${BPR_ROOT}/src/application/*.h"
+    "${BPR_ROOT}/src/application/*.hh"
+    "${BPR_ROOT}/src/application/*.hpp"
+    "${BPR_ROOT}/src/application/*.hxx"
+)
+set(
+    standard_cpp_region_patterns
+    "#[ \t]*include[ \t]*[<\"]Q"
+    "#[ \t]*include[ \t]*[<\"]Qt"
+    "QString"
+    "QByteArray"
+    "QVariant"
+    "QUrl"
+    "(adapters/github|github_read_contract)"
+    "api\\.github\\.com"
+    "/api/v3"
+    "Authorization[ \t]*:"
+    "Bearer[ \t]+"
+    "node_id[^\r\n]*:"
+)
+foreach(standard_cpp_file IN LISTS standard_cpp_region_files)
+    file(READ "${standard_cpp_file}" contents)
+    foreach(pattern IN LISTS standard_cpp_region_patterns)
+        if(contents MATCHES "${pattern}")
+            file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${standard_cpp_file}")
+            message(
+                FATAL_ERROR
+                "Core/application standard-C++ boundary violation in "
+                "${relative_file}: ${pattern}"
+            )
+        endif()
+    endforeach()
+endforeach()
+
+file(
+    GLOB_RECURSE provider_free_projection_files
+    LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/core/*.c"
+    "${BPR_ROOT}/src/core/*.cc"
+    "${BPR_ROOT}/src/core/*.cpp"
+    "${BPR_ROOT}/src/core/*.cxx"
+    "${BPR_ROOT}/src/core/*.h"
+    "${BPR_ROOT}/src/core/*.hh"
+    "${BPR_ROOT}/src/core/*.hpp"
+    "${BPR_ROOT}/src/core/*.hxx"
+    "${BPR_ROOT}/src/adapters/qt/*.cc"
+    "${BPR_ROOT}/src/adapters/qt/*.cpp"
+    "${BPR_ROOT}/src/adapters/qt/*.cxx"
+    "${BPR_ROOT}/src/adapters/qt/*.h"
+    "${BPR_ROOT}/src/adapters/qt/*.hh"
+    "${BPR_ROOT}/src/adapters/qt/*.hpp"
+    "${BPR_ROOT}/src/adapters/qt/*.hxx"
+    "${BPR_ROOT}/src/adapters/qt/*.mm"
+)
+set(
+    provider_free_projection_patterns
+    "QUrl"
+    "https?://"
+    "Authorization[ \t]*:"
+    "Bearer[ \t]+"
+    "bpr/application/github_(read_model|provider_port)"
+    "(adapters/github|github_read_contract)"
+    "node_id[^\r\n]*:"
+)
+foreach(provider_free_file IN LISTS provider_free_projection_files)
+    file(READ "${provider_free_file}" contents)
+    foreach(pattern IN LISTS provider_free_projection_patterns)
+        if(contents MATCHES "${pattern}")
+            file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${provider_free_file}")
+            message(
+                FATAL_ERROR
+                "Provider data crossed the core/Qt boundary in "
                 "${relative_file}: ${pattern}"
             )
         endif()
@@ -148,6 +243,8 @@ set(
     "QUrl"
     "sqlite3"
     "bpr/adapters/(github|git|sqlite|ai)"
+    "bpr/application/github_(read_model|provider_port)"
+    "(REST|GraphQL|HTTP)[A-Za-z_]*(Response|Request)"
 )
 
 foreach(qt_file IN LISTS qt_files)
@@ -162,6 +259,26 @@ foreach(qt_file IN LISTS qt_files)
         endif()
     endforeach()
 endforeach()
+
+file(READ "${BPR_ROOT}/src/application/CMakeLists.txt" application_cmake_contents)
+if(
+    application_cmake_contents
+        MATCHES
+            "BetterPullReview::(AdapterGitHub|AdapterQt)|Qt6::|Q[A-Za-z]+::"
+)
+    message(
+        FATAL_ERROR
+        "Application target must depend inward on Core only"
+    )
+endif()
+
+file(READ "${BPR_ROOT}/src/adapters/qt/CMakeLists.txt" qt_cmake_contents)
+if(qt_cmake_contents MATCHES "BetterPullReview::AdapterGitHub")
+    message(
+        FATAL_ERROR
+        "Qt presentation adapter must not link the GitHub provider adapter"
+    )
+endif()
 
 file(
     GLOB_RECURSE source_files
@@ -222,6 +339,11 @@ verify_effect_owner(
 verify_effect_owner(
     "QNetworkAccessManager"
     "QNetworkAccessManager"
+    "${github_native_https_relative}"
+)
+verify_effect_owner(
+    "(QNetwork[A-Za-z0-9_]*|QSsl[A-Za-z0-9_]*)"
+    "Qt network/TLS type"
     "${github_native_https_relative}"
 )
 verify_effect_owner(

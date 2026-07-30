@@ -1,7 +1,7 @@
 ---
 id: BPR-0020
 title: Implement host profiles and capability probing
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0019]
 ---

@@ -62,6 +62,13 @@ add_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/platform_configuration_tests.py"
 )
 
+add_test(
+    NAME github_contract_fixture_security
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/github_contract_fixture_security_tests.py"
+)
+
 add_custom_target(
     check_boundaries
     COMMAND
@@ -83,5 +90,6 @@ add_subdirectory(contract)
 
 if(BPR_BUILD_QT)
     add_subdirectory(adapters_qt)
+    add_subdirectory(github_contract)
     add_subdirectory(end_to_end)
 endif()

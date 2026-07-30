@@ -30,6 +30,9 @@ using capability_revision = strong_id<capability_revision_tag>;
 using github_identity_generation =
     strong_id<github_identity_generation_tag>;
 
+inline constexpr std::uint32_t maximum_pull_request_number =
+    2'147'483'647U;
+
 class pull_request_number
 {
 public:
@@ -46,7 +49,7 @@ public:
 
     [[nodiscard]] constexpr auto valid() const noexcept -> bool
     {
-        return Value != 0U;
+        return Value != 0U && Value <= maximum_pull_request_number;
     }
 
     auto operator<=>(const pull_request_number&) const = default;

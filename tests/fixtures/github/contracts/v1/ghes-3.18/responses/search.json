@@ -1,0 +1,13 @@
+{
+  "total_count": 1,
+  "incomplete_results": false,
+  "items": [
+    {
+      "node_id": "PR_fixture_17",
+      "number": 17,
+      "state": "open",
+      "title": "Keep review snapshots deterministic",
+      "draft": false
+    }
+  ]
+}

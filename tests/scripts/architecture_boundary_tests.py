@@ -45,8 +45,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             root = Path(temporary_directory)
             files = {
                 "CMakeLists.txt": "",
+                "src/application/CMakeLists.txt": "",
                 "src/adapters/CMakeLists.txt": adapter_root,
                 "src/adapters/github/CMakeLists.txt": github_target,
+                "src/adapters/qt/CMakeLists.txt": "",
             }
             files.update(sources or {})
 
@@ -101,7 +103,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self,
     ) -> None:
         for region in ("core", "application", "adapters/qt"):
-            for effect in ("QProcess", "QNetworkReply"):
+            for effect in ("QProcess", "QNetworkReply", "QJsonDocument"):
                 with self.subTest(region=region, effect=effect):
                     self.assert_failure(
                         "Core/application/Qt effect-boundary violation",
@@ -110,6 +112,130 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                                 f"{effect}* forbidden_effect;\n"
                         },
                     )
+
+    def test_core_and_qt_reject_raw_provider_data(self) -> None:
+        for region in ("core", "adapters/qt"):
+            for provider_data in (
+                'const char* endpoint = "https://api.example.test";\n',
+                'const char* header = "Authorization: Bearer canary";\n',
+            ):
+                with self.subTest(
+                    region=region,
+                    provider_data=provider_data,
+                ):
+                    expected = (
+                        "Core/application standard-C++ boundary violation"
+                        if region == "core"
+                        and "Authorization" in provider_data
+                        else "Provider data crossed the core/Qt boundary"
+                    )
+                    self.assert_failure(
+                        expected,
+                        {f"src/{region}/hostile.cpp": provider_data},
+                    )
+        self.assert_failure(
+            "Provider data crossed the core/Qt boundary",
+            {"src/adapters/qt/hostile.cpp": "QUrl provider_url;\n"},
+        )
+
+    def test_application_rejects_provider_json_libraries(self) -> None:
+        self.assert_failure(
+            "Core/application/Qt effect-boundary violation",
+            {
+                "src/application/hostile.cpp":
+                    "#include <nlohmann/json.hpp>\n"
+            },
+        )
+
+    def test_application_rejects_qt_value_types(self) -> None:
+        self.assert_failure(
+            "Core/application standard-C++ boundary violation",
+            {
+                "src/application/include/provider.hpp":
+                    "#include <QString>\nQString provider_value;\n"
+            },
+        )
+
+    def test_core_and_application_reject_github_adapter_includes(self) -> None:
+        for region in ("core", "application"):
+            with self.subTest(region=region):
+                self.assert_failure(
+                    "Core/application standard-C++ boundary violation",
+                    {
+                        f"src/{region}/hostile.cpp":
+                            '#include "../adapters/github/src/'
+                            'github_read_contract.hpp"\n'
+                    },
+                )
+
+    def test_core_application_and_qt_reject_raw_provider_literals(
+        self,
+    ) -> None:
+        for region in ("core", "application", "adapters/qt"):
+            with self.subTest(region=region):
+                expected = (
+                    "Core/application standard-C++ boundary violation"
+                    if region != "adapters/qt"
+                    else "Provider data crossed the core/Qt boundary"
+                )
+                self.assert_failure(
+                    expected,
+                    {
+                        f"src/{region}/hostile.cpp":
+                            'const char* raw = "{\\"node_id\\":'
+                            '\\"provider-id\\"}";\n'
+                    },
+                )
+
+    def test_application_rejects_embedded_provider_authority_and_auth(
+        self,
+    ) -> None:
+        for literal in (
+            'const char* endpoint = "https://api.github.com";\n',
+            'const char* auth = "Authorization: Bearer canary";\n',
+        ):
+            with self.subTest(literal=literal):
+                self.assert_failure(
+                    "Core/application standard-C++ boundary violation",
+                    {"src/application/hostile.cpp": literal},
+                )
+
+    def test_qt_rejects_normalized_provider_headers(self) -> None:
+        self.assert_failure(
+            "Provider data crossed the core/Qt boundary",
+            {
+                "src/adapters/qt/provider.cpp":
+                    '#include "bpr/application/github_provider_port.hpp"\n'
+            },
+        )
+
+    def test_core_rejects_application_provider_headers(self) -> None:
+        self.assert_failure(
+            "Provider data crossed the core/Qt boundary",
+            {
+                "src/core/provider.cpp":
+                    '#include "bpr/application/github_read_model.hpp"\n'
+            },
+        )
+
+    def test_application_target_cannot_link_qt_or_provider_adapter(self) -> None:
+        self.assert_failure(
+            "Application target must depend inward on Core only",
+            {
+                "src/application/CMakeLists.txt":
+                    "target_link_libraries(app PRIVATE Qt6::Core)\n"
+            },
+        )
+
+    def test_qt_target_cannot_link_provider_adapter(self) -> None:
+        self.assert_failure(
+            "Qt presentation adapter must not link the GitHub provider adapter",
+            {
+                "src/adapters/qt/CMakeLists.txt":
+                    "target_link_libraries(qt PRIVATE "
+                    "BetterPullReview::AdapterGitHub)\n"
+            },
+        )
 
     def test_designated_effect_source_must_belong_to_github_target(self) -> None:
         self.assert_failure(
@@ -132,6 +258,17 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     "QNetworkAccessManager* manager;\n"
             },
         )
+
+    def test_all_qt_network_and_tls_types_are_owned_by_native_https(self) -> None:
+        for effect in ("QNetworkReply", "QSslCertificate"):
+            with self.subTest(effect=effect):
+                self.assert_failure(
+                    "Qt network/TLS type ownership violation",
+                    {
+                        "src/adapters/github/src/other.cpp":
+                            f"{effect}* forbidden_effect;\n"
+                    },
+                )
 
     def test_qt_adapter_cannot_own_provider_effects(self) -> None:
         self.assert_failure(

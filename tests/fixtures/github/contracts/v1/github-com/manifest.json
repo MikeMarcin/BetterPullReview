@@ -1,0 +1,143 @@
+{
+  "schema_revision": 1,
+  "product": "github.com",
+  "host": "github.com",
+  "api_roots": {
+    "rest": "https://api.github.com",
+    "graphql": "https://api.github.com/graphql"
+  },
+  "version": "cloud",
+  "sanitized": true,
+  "interactions": [
+    {
+      "operation": "GetViewerIdentity",
+      "method": "GET",
+      "path": "/user",
+      "canonical_query": "",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/viewer.json"
+    },
+    {
+      "operation": "GetRepository",
+      "method": "GET",
+      "path": "/repos/octo-org/review-repository",
+      "canonical_query": "",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/repository.json"
+    },
+    {
+      "operation": "GetPullRequest",
+      "method": "GET",
+      "path": "/repos/octo-org/review-repository/pulls/17",
+      "canonical_query": "",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/pull_request.json"
+    },
+    {
+      "operation": "ListPullRequestFiles",
+      "method": "GET",
+      "path": "/repos/octo-org/review-repository/pulls/17/files",
+      "canonical_query": "page=1&per_page=100",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/files.json"
+    },
+    {
+      "operation": "ListPullRequestCommits",
+      "method": "GET",
+      "path": "/repos/octo-org/review-repository/pulls/17/commits",
+      "canonical_query": "page=1&per_page=100",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/commits.json"
+    },
+    {
+      "operation": "ListReviews",
+      "method": "GET",
+      "path": "/repos/octo-org/review-repository/pulls/17/reviews",
+      "canonical_query": "page=1&per_page=100",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/reviews.json"
+    },
+    {
+      "operation": "ListReviewThreads",
+      "method": "POST",
+      "path": "/graphql",
+      "canonical_query": "",
+      "safe_headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "BetterPullReview/0.1"
+      },
+      "body": "{\"query\":\"query GetReviewThreads($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){id pullRequest(number:$number){id reviewThreads(first:100){nodes{id isResolved isOutdated subjectType path line originalLine comments(first:100){nodes{id bodyText path line originalLine outdated author{login ... on Node{id}} replyTo{id}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}\",\"variables\":{\"name\":\"review-repository\",\"number\":17,\"owner\":\"octo-org\"}}",
+      "response_file": "responses/review_threads.json"
+    },
+    {
+      "operation": "ListIssueComments",
+      "method": "GET",
+      "path": "/repos/octo-org/review-repository/issues/17/comments",
+      "canonical_query": "page=1&per_page=100",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/issue_comments.json"
+    },
+    {
+      "operation": "ListChecks",
+      "method": "GET",
+      "path": "/repos/octo-org/review-repository/commits/2222222222222222222222222222222222222222/check-runs",
+      "canonical_query": "page=1&per_page=100",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/checks.json"
+    },
+    {
+      "operation": "SearchPullRequests",
+      "method": "GET",
+      "path": "/search/issues",
+      "canonical_query": "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20repo%3Aocto-org%2Freview-repository",
+      "safe_headers": {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BetterPullReview/0.1",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      "body": null,
+      "response_file": "responses/search.json"
+    }
+  ]
+}

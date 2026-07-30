@@ -193,6 +193,12 @@ auto test_strong_types_and_compact_state() -> void
             "repository")),
         "oversized owner is rejected");
     expect(!pull_request_number{}.valid(), "zero PR number is invalid");
+    expect(
+        pull_request_number{maximum_pull_request_number}.valid(),
+        "maximum GraphQL-compatible PR number is valid");
+    expect(
+        !pull_request_number{maximum_pull_request_number + 1U}.valid(),
+        "PR number above GraphQL Int range is invalid");
 }
 
 auto test_profile_activation_and_session_acceptance() -> void

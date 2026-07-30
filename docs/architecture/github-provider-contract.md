@@ -96,6 +96,51 @@ review, thread, comment, file, check, capability, rate-limit, and snapshot
 identities as applicable. Count, byte, page, nesting, string, and allocation
 limits are enforced before a result can be staged.
 
+Actor identity uses GitHub's opaque global node ID plus a bounded login. The
+node ID is case-sensitive and scoped by the selected profile and host; it is
+never decoded or compared across GitHub installations. The authenticated
+numeric account ID remains part of request authority, while the viewer's node
+ID and login seed author consistency within each snapshot. A present author
+must have both facts, and a deleted or unavailable author is explicitly null.
+Entity, actor, and non-target search node IDs share one collision domain;
+only an exactly correlated reference to the selected pull request may reuse
+an existing node ID.
+
+The GraphQL review-thread projection includes repository and pull-request node
+IDs and must match the corresponding REST records. Each thread carries an
+explicit `LINE` or `FILE` subject: line threads require line anchors, file
+threads prohibit them, and every comment path must match its thread path.
+REST and GraphQL records therefore cannot be replayed across repository,
+pull-request, actor, or thread authority without the complete candidate
+failing atomically.
+
+The v1 selected contract admits at most 4 MiB per response page, 100 records
+per page, JSON nesting depth 32, 64 members per object, 3,000 files, 250
+pull-request commits, 1,000 search results, 50,000 aggregate records, 256 KiB
+per body, and 16 MiB of normalized text. Callers may tighten these ceilings
+but cannot relax them. Overflow, duplicate identity, malformed relationship,
+unknown enum, incomplete GraphQL page, or allocation failure rejects the
+entire candidate snapshot.
+
+Recorded fixtures retain an exact sanitized field projection. They are not
+complete raw GitHub payloads. Raw transports own status, content type,
+pagination, header, and envelope validation and must discard additive
+provider fields before the exact selected projection is normalized; no raw
+response type or unbounded provider field crosses the adapter.
+
+The BPR-0019 recorded facade executes one selected page for each operation.
+Every transport response must explicitly certify that the selected page is
+complete; unknown completeness or a declared continuation rejects the whole
+candidate. The facade also rejects incompleteness in GraphQL `pageInfo` and
+projected check/search totals. It is not a production pagination
+implementation: BPR-0027 must exhaust REST and GraphQL pages under the
+aggregate limits before submitting one complete snapshot. Search results use
+the pull request's global node ID and repository-scoped number, never the
+Search Issues numeric issue ID. Before projecting away raw URLs, the
+production transport must also prove each result belongs to the canonical
+repository-scoped request. No one-page fixture result may be used to claim
+that a larger live pull request was loaded completely.
+
 Provider callbacks return immutable completions and never mutate the active
 cache, core, Qt model, or widget. The host posts each completion to the
 serialized application lane, stages it under the exact request context, and

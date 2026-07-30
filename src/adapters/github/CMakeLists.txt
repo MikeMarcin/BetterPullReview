@@ -1,8 +1,47 @@
-add_library(better_pull_review_adapter_github INTERFACE)
-add_library(BetterPullReview::AdapterGitHub ALIAS better_pull_review_adapter_github)
+if(BPR_BUILD_QT)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
 
-target_link_libraries(
-    better_pull_review_adapter_github
-    INTERFACE
-        BetterPullReview::Application
-)
+    add_library(
+        better_pull_review_adapter_github
+        STATIC
+            src/github_read_contract.cpp
+            src/github_read_normalizer.cpp
+    )
+    add_library(
+        BetterPullReview::AdapterGitHub
+        ALIAS
+        better_pull_review_adapter_github
+    )
+
+    target_link_libraries(
+        better_pull_review_adapter_github
+        PUBLIC
+            BetterPullReview::Application
+        PRIVATE
+            Qt6::Core
+    )
+    target_include_directories(
+        better_pull_review_adapter_github
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
+    target_compile_features(
+        better_pull_review_adapter_github
+        PUBLIC
+            cxx_std_23
+    )
+    bpr_enable_hardening(better_pull_review_adapter_github)
+    bpr_enable_warnings(better_pull_review_adapter_github)
+else()
+    add_library(better_pull_review_adapter_github INTERFACE)
+    add_library(
+        BetterPullReview::AdapterGitHub
+        ALIAS
+        better_pull_review_adapter_github
+    )
+    target_link_libraries(
+        better_pull_review_adapter_github
+        INTERFACE
+            BetterPullReview::Application
+    )
+endif()

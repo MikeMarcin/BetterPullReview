@@ -80,13 +80,41 @@ the Qt-free matrix passed 12/12, the hostile core boundary passed 4/4, and
 documentation/source-pack/diff gates passed. This verifies core policy only;
 normalized provider, host, Qt, and public-path claims remain planned.
 
+## Normalized-contract slice result
+
+The application boundary now defines standard C++ records and a narrow
+provider port for the ten RFC read operations. Stable opaque node identities,
+bounded actor facts, repository-scoped search relationships, nullable provider
+facts, line/file review-thread subjects, capability evidence, rate-limit
+facts, typed failures, exact request context, cancellation, and aggregate
+security limits all fail closed before staging.
+
+The GitHub adapter compiles only canonical read semantics. REST requests are
+exact `GET` routes with the required media type, user agent, and REST version;
+the sole `POST` is an exact GraphQL `query`. The GraphQL result carries
+repository and pull-request node IDs that must match REST. Paired sanitized
+GitHub.com and GHES 3.18 manifests drive the real recorded facade and normalize
+to one independently constructed result. Hostile tests cover request drift,
+mutation operation types, duplicate JSON, structural limits, unknown enums,
+identity replay, cross-kind global-node collisions, actor conflicts,
+malformed relationships, selected-search aliasing, signed GraphQL integer
+bounds, explicit page completeness, result truncation, and legitimate
+null/fork/file-level/non-User shapes.
+
+The Qt-enabled matrix passed 20/20, the Qt-free matrix passed 14/14, and the
+fixture security gate passed 10/10. This verifies the exact selected v1
+contract, not live transport completeness. BPR-0027 still must exhaust REST
+and GraphQL pagination, validate raw envelopes, project allowlisted fields,
+and stage the complete result through the application host before the public
+read path can be claimed.
+
 ## Claim matrix
 
 | Claim | Direct surface | Command or interaction | What proves | Result | Evidence |
 |---|---|---|---|---|---|
-| GitHub.com read path is normalized | Real provider facade and public fixture composition | Open the GitHub.com contract PR through the real application | Recorded metadata and conversations traverse provider, host staging, core acceptance, and rendered Qt projection | Planned | Pending |
-| GHES 3.18 contract is selected | Real provider facade with recorded 3.18 trace | Open the equivalent GHES fixture and retain a redacted request trace | Exact hostname/API roots, `2022-11-28` version, capability evidence, and equivalent normalized result are observed | Planned | Pending |
-| Normalization is stable and complete | Strict paired provider contracts | Replay paired viewer/repository/PR/files/commits/reviews/threads/comments/checks/search fixtures | Equivalent semantic facts normalize identically, limits hold, and no provider type crosses inward | Planned | Pending |
+| GitHub.com read path is normalized | Real provider facade and public fixture composition | Open the GitHub.com contract PR through the real application | Recorded metadata and conversations traverse provider, host staging, core acceptance, and rendered Qt projection | Planned | BPR-0019 verifies the recorded adapter facade; host/core/Qt composition remains pending |
+| GHES 3.18 contract is selected | Real provider facade with recorded 3.18 trace | Open the equivalent GHES fixture and retain a redacted request trace | Exact hostname/API roots, `2022-11-28` version, capability evidence, and equivalent normalized result are observed | Planned | BPR-0019 verifies the relative GHES REST/GraphQL contract and equivalent result; profile/transport selection remains pending |
+| Selected v1 normalization is stable and complete | Strict paired provider contracts | Replay paired viewer/repository/PR/files/commits/reviews/threads/comments/checks/search fixtures | Equivalent semantic facts normalize identically, limits hold, and no provider type crosses inward | Verified | BPR-0019 paired manifests, independent normalized expectation, hostile contract suite, and fixture security gate |
 | Profile trust is explicit | Profile validator and hostile contracts | Submit non-HTTPS, mismatched-root, content-derived, redirect-derived, and unknown-authority profiles | Every invalid authority is rejected before a normalized record can be staged | Planned | Pending |
 | Capability state is bounded and honest | Probe cache plus core command policy | Replay supported, unsupported, and insufficient-evidence probes | Review-thread/viewed/resolve/unresolve states remain tri-state and unavailable actions never silently approximate support | Planned | Pending |
 | Active host and account are always visible | Real Qt application | Render initial, loaded, error, and in-flight identity-switch states | Accessible visible identity always matches the accepted provider session and never exposes a credential | Planned | Pending |
@@ -99,11 +127,11 @@ normalized provider, host, Qt, and public-path claims remain planned.
 | Host/account switching invalidates identity-sensitive state | Core plus host with reordered completions | Switch profile/account while a session probe and PR fetch are in flight | Generation advances; stages, caches, rate/retry state, and projections invalidate; old completions emit no acceptance delta | Planned | Pending |
 | Staged snapshots commit only after core acceptance | Application host and manual executor | Deliver current, stale-request, stale-profile, stale-account, stale-PR, and stale-generation completions | Only the exact accepted snapshot ID enters the active cache or Qt projection | Planned | Pending |
 | Failures are clear and bounded | Core diagnostics and Qt projection | Exercise authentication, permission, network, API-version, capability, rate-limit, malformed, oversized, vault, TLS, and redirect failures | Typed safe presentation appears without raw provider, process, remote-content, or credential text | Planned | Pending |
-| Provider inputs cannot exhaust the application | Strict fixture and transport limits | Exceed body, page, nesting, string, stdout/stderr, duration, and allocation limits independently | Each limit fails atomically and leaves the accepted authority/projection unchanged | Planned | Pending |
+| Provider inputs cannot exhaust the application | Strict fixture and transport limits | Exceed body, page, nesting, string, stdout/stderr, duration, and allocation limits independently | Each limit fails atomically and leaves the accepted authority/projection unchanged | Planned | BPR-0019 verifies JSON/body/page/string/record/allocation bounds; process, network, duration, and staged-authority evidence remains pending |
 | Core decides, host performs, Qt presents | Target graph, source scan, and full trace | Run core-only build, boundary checks, host integration, and Qt action/projection tests | Core has no effects/provider/Qt types, host owns execution/staging, and Qt receives projections only | Planned | Pending |
 | Public application selects real provider implementations | Concrete composition | Run QAction-to-provider-to-completion-to-rendered-projection flows for both profile fixtures and both transport selections | The actual executable selects the claimed transport and reaches an accepted normalized state rather than a helper | Planned | Pending |
 | Runtime effects are mode-bound | Live process, network, and binary inspection | Inspect foundation, CLI, and HTTPS modes on applicable native platforms | Foundation has no provider effect; CLI permits only resolved `gh`; HTTPS permits only configured outbound authority; no mode listens; dependencies match selection | Planned | Pending |
-| RFC-BPR-0002 performs no GitHub mutation | Request inventory plus rejecting sink | Route every REST and GraphQL operation through a no-mutation sink | Sink validates REST method/route, parses GraphQL operation type, and rejects every `mutation` regardless of operation name | Planned | Pending |
+| RFC-BPR-0002 performs no GitHub mutation | Request inventory plus rejecting sink | Route every REST and GraphQL operation through a no-mutation sink | Sink validates REST method/route, parses GraphQL operation type, and rejects every `mutation` regardless of operation name | Planned | BPR-0019 verifies the ten-read request catalog and mutation rejection; composed transport inventory remains pending |
 | Provider dependencies are accurately recorded | Build graph, binary inspector, and packaging records | Inspect selected targets and current/native binaries | Qt Network and platform-vault compile/link/runtime dependencies are recorded; distribution certification remains RFC-BPR-0014 | Planned | Pending |
 
 ## Platform and safe-target plan

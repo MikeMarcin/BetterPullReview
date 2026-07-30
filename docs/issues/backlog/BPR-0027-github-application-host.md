@@ -15,3 +15,12 @@ identity-sensitive state on host or account changes.
 
 Fake-port tests must reorder completions, switch identity in flight, exhaust
 bounded retries, cancel jobs, and prove workers never touch core or Qt state.
+
+The production host must exhaust every REST `Link` continuation and GraphQL
+`pageInfo` cursor under the aggregate record and byte ceilings before staging
+one snapshot. It validates raw status, content type, headers, pagination
+envelopes, cursor progress, and repository authority, projects only the
+allowlisted normalized fields, and rejects unknown completeness, repeated or
+missing cursors, partial pages, excess pages, and truncated totals atomically.
+The one-page BPR-0019 recorded facade is test scaffolding, not evidence that a
+larger live pull request loaded completely.

@@ -2,6 +2,41 @@
 
 The implementation must maintain sanitized deterministic fixtures covering at least:
 
+## Implemented GitHub read contract v1
+
+`tests/fixtures/github/contracts/v1/` contains paired `github-com` and
+`ghes-3.18` manifests for the ten RFC-BPR-0002 read operations. Each manifest
+pins the product, synthetic authority, API roots, request method, relative
+path, canonical query, non-secret headers, GraphQL document and variables,
+and selected response projection. The two response trees contain the same
+synthetic semantic facts.
+
+These fixtures are hand-minimized, sanitized provider projections, not
+literal complete wire dumps. They deliberately omit authorization, cookies,
+transport metadata, remote URLs, patches, source content, email addresses,
+home paths, request identifiers, and provider fields that the normalizer does
+not consume. The strict recorded-contract harness rejects additions or
+omissions from this selected projection. A production transport must validate
+the raw envelope and project the allowlisted fields before this strict
+normalization boundary; additive raw GitHub response fields are not an excuse
+to expose provider records inward.
+
+The paired baseline contains repository, pull-request, viewer, author, review,
+thread, comment, commit, check, and search identities. GraphQL repository and
+pull-request node IDs are correlated with REST, and actor node IDs plus logins
+are correlated across every normalized author. Contract variants directly
+exercise null/deleted and non-User actors, fork heads, nullable review commit
+IDs, renamed files, queued checks, and both line- and file-level review
+threads. Every selected response is explicitly marked complete; unknown
+completeness or a transport-declared continuation fails. The selected
+GraphQL page also has a terminal `pageInfo`; a true `hasNextPage` result fails
+rather than being normalized as a truncated snapshot.
+
+The fixture security gate verifies the exact tree and operations, rejects
+duplicate JSON members and encoded secret/path/email/foreign-authority
+bypasses, and checks both hosts against one independent normalized
+expectation. No live or private repository response was recorded.
+
 ## GitHub hosts
 
 - GitHub.com current contract

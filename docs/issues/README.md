@@ -23,8 +23,8 @@ blocked while any required card remains outside `done/`.
 
 RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `done/`.
 RFC-BPR-0002 is the active RFC in canonical order. Its planning slice is
-complete, its architecture and deterministic-core slices are verified,
-`BPR-0019` is ready, and every remaining RFC-BPR-0002 card is
+complete; its architecture, deterministic-core, and normalized-contract
+slices are verified; `BPR-0020` is ready; and every later RFC-BPR-0002 card is
 dependency-tracked in `backlog/`.
 
 GitHub Actions is not a BetterPullReview build, test, package, release, or RFC
