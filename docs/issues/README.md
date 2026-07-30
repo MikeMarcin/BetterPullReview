@@ -28,7 +28,7 @@ host-profile/capability, portable/native credential, and hardened GitHub CLI
 broker slices are verified. `BPR-0023` is in `done/` with its Windows
 implementation evidence, while direct Windows x64 execution remains in
 `BPR-0036`. `BPR-0025` is in `done/`; its production CLI path remains
-fail-closed with zero launches until backlog card `BPR-0037` proves the
+fail-closed with zero launches until ready card `BPR-0037` proves the
 separate trust and identity contract. `BPR-0026` is in `done/` with its
 macOS/Linux native HTTPS trust, proxy, redirect, cancellation, bounds, and
 runtime evidence. `BPR-0027` is in `done/` with the application provider,
@@ -59,11 +59,13 @@ non-native matrix passed 41/41. `BPR-0031` is in `in-progress/` as the current
 slice and owns presentation polish, native system appearance, live appearance
 changes, rendered UX, and accessibility verification.
 
-The open Windows task and CLI production-trust task do not block later
-implementation, tests, documentation, security review, or simplification on
-available targets. BPR-0036 blocks only its affected Windows claims and final
-RFC-BPR-0002 Auto-Verified closeout; BPR-0037 blocks only CLI production
-enablement and the final RFC closeout.
+The open Windows task does not block later implementation, tests,
+documentation, security review, or simplification on available targets.
+BPR-0036 blocks only its affected Windows claims and final RFC-BPR-0002
+Auto-Verified closeout. BPR-0037 is already dependency-ready, but its
+production CLI trust result is a direct input to the BPR-0032 security review;
+that explicit dependency consequently precedes BPR-0033 documentation and
+BPR-0034 simplification as well as final RFC closeout.
 
 The public application has no durable credential selector or enumeration
 path. Orderly shutdown exact-deletes the retained credential before worker

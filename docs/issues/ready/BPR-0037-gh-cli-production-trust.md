@@ -1,7 +1,7 @@
 ---
 id: BPR-0037
 title: Resolve GitHub CLI production trust and identity binding
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0025, BPR-0027]
 ---
