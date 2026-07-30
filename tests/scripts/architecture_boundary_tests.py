@@ -218,6 +218,42 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_core_and_qt_reject_credential_vault_contract_types(self) -> None:
+        forbidden_surfaces = (
+            '#include "bpr/application/github_credential_vault.hpp"\n',
+            "github_credential_material material;\n",
+            "github_credential_enrollment enrollment;\n",
+            "github_credential_vault_port* vault;\n",
+            "github_credential_retrieve_success* success;\n",
+            "github_credential_retrieve_completion* completion;\n",
+            "github_credential_retrieve_completion_handler* handler;\n",
+        )
+        for region in ("core", "adapters/qt"):
+            for surface in forbidden_surfaces:
+                with self.subTest(region=region, surface=surface):
+                    self.assert_failure(
+                        "Credential-vault capability crossed the "
+                        "core/Qt boundary",
+                        {f"src/{region}/hostile.cpp": surface},
+                    )
+
+    def test_application_and_application_tests_may_name_vault_contract(
+        self,
+    ) -> None:
+        contract_use = (
+            '#include "bpr/application/github_credential_vault.hpp"\n'
+            "github_credential_material material;\n"
+            "github_credential_enrollment enrollment;\n"
+            "github_credential_vault_port* vault;\n"
+        )
+        result = self.run_check(
+            {
+                "src/application/include/contract.hpp": contract_use,
+                "tests/application/contract_tests.cpp": contract_use,
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_application_target_cannot_link_qt_or_provider_adapter(self) -> None:
         self.assert_failure(
             "Application target must depend inward on Core only",
@@ -304,6 +340,61 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     "const char* setting = \"GH_PROMPT_DISABLED=1\";\n"
             },
         )
+
+    def test_future_native_vault_sources_are_not_required(self) -> None:
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_native_vault_apis_are_rejected_outside_designated_sources(
+        self,
+    ) -> None:
+        hostile_apis = (
+            ("SecItemAdd(query, nullptr);\n", "macOS Keychain API"),
+            (
+                "SecKeychainAddGenericPassword(nullptr, 0, nullptr);\n",
+                "macOS Keychain API",
+            ),
+            ("CredWriteW(&credential, 0);\n", "Windows Credential Manager API"),
+            (
+                "secret_password_store_sync(schema, nullptr);\n",
+                "Linux Secret Service API",
+            ),
+            (
+                "secret_item_delete_sync(item, nullptr);\n",
+                "Linux Secret Service API",
+            ),
+            (
+                'auto service = "org.freedesktop.Secret.Service";\n',
+                "Linux Secret Service API",
+            ),
+        )
+        for source, ownership_message in hostile_apis:
+            with self.subTest(source=source):
+                self.assert_failure(
+                    f"{ownership_message} ownership violation",
+                    {"src/adapters/github/src/other_vault.cpp": source},
+                )
+
+    def test_designated_native_vault_sources_are_allowed(self) -> None:
+        vault_target = GITHUB_TARGET.replace(
+            "        src/native_https_transport.cpp\n",
+            "        src/native_https_transport.cpp\n"
+            "        src/macos_keychain.cpp\n"
+            "        src/windows_credential_manager.cpp\n"
+            "        src/linux_secret_service.cpp\n",
+        )
+        result = self.run_check(
+            {
+                "src/adapters/github/src/macos_keychain.cpp":
+                    "SecItemAdd(query, nullptr);\n",
+                "src/adapters/github/src/windows_credential_manager.cpp":
+                    "CredWriteW(&credential, 0);\n",
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    "secret_password_store_sync(schema, nullptr);\n",
+            },
+            github_target=vault_target,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_adapter_root_must_delegate_target_ownership(self) -> None:
         self.assert_failure(

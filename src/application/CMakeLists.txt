@@ -2,6 +2,7 @@ add_library(
     better_pull_review_application
     STATIC
         src/github_capability_cache.cpp
+        src/github_credential_vault.cpp
         src/host.cpp
         src/manual_executor.cpp
 )

@@ -21,6 +21,14 @@ BPR-0019 recorded normalizer's caller-supplied context is fixture scaffolding;
 the production host must not treat caller-provided host, account, or
 capability values as observations or use them to launder provider data.
 
+Native enrollment must solve account discovery without weakening the vault
+key. Treat submitted material as transient host-owned input, use it only
+through the credential-bearing transport to observe `/user`, then store it
+under that exact observed account authority. A login string or caller-claimed
+account cannot select a vault entry. Profile replacement or identity
+invalidation must delete the previous exact authority so a revision-keyed
+credential cannot become an orphaned secret.
+
 Production GraphQL reads must be compiled from that exact capability
 observation. Omit unsupported schema fields, preserve review-thread reads when
 only resolve or unresolve is unsupported, and normalize omitted per-file

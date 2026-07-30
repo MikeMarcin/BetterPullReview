@@ -142,6 +142,39 @@ configuration passed 4/4. Documentation, original source-pack,
 `git diff --check`, untracked/tracked workflow-absence gates, and the
 conservative completed-slice simplification review passed.
 
+## Portable credential-vault contract slice result
+
+The application boundary now defines one platform-neutral credential-vault
+capability. Its authority is the exact profile, profile revision, host,
+authenticated account, and server-contract tuple. Every store, retrieve,
+delete, cancellation, and terminal outcome retains exact request,
+application-session, and identity-generation correlation.
+
+Credential material is a non-default-constructible, noncopyable, move-only
+owner of nonempty material bounded to 2,560 bytes, the smallest supported
+native-vault limit. It exposes only a read-only byte span, empties moved-from
+objects, and overwrites owned storage before reset, replacement, or
+destruction. The port represents store, retrieval, absence, deletion, prior
+absence, bounded failure, and cancellation without raw operating-system error
+text or a credential-bearing core or Qt type.
+
+The queued fake-vault suite directly exercises replacement, exact authority
+isolation, reordered completions, duplicate work, injected failure,
+cancellation races, and late-completion suppression. Source-boundary checks
+reserve native Keychain, Credential Manager, and Secret Service APIs for
+their designated future adapter sources and reject every credential-contract
+type from core and Qt. This verifies only the portable lifetime, authority,
+and result contract. The target-native lifecycle rows remain `Planned` until
+BPR-0022, BPR-0023, and BPR-0024 supply direct evidence on each platform.
+
+The clean Qt-enabled matrix passed 24/24 and the clean Qt-free matrix passed
+16/16. The queued fake-vault test passed under address and undefined-behavior
+sanitizers, and optimized-code inspection retained the explicit overwrite
+loop before deallocation. Architecture boundaries passed 27/27, the hostile
+core boundary passed 4/4, capability/read fixture security passed 12/12, and
+platform configuration passed 4/4. Documentation, original source-pack,
+`git diff --check`, and untracked/tracked workflow-absence gates passed.
+
 ## Claim matrix
 
 | Claim | Direct surface | Command or interaction | What proves | Result | Evidence |
@@ -155,6 +188,7 @@ conservative completed-slice simplification review passed.
 | CLI broker preserves the credential and process boundary | Injectable process port plus real child-process integration | Launch the compiled fake `gh` with canary token variables and an unknown environment canary | Canonical executable, argv allowlist, stdin body, neutral cwd, explicit minimal environment allowlist, stream/time/page bounds, and absence of all canaries are directly inspected | Planned | Pending |
 | CLI broker fails closed on trust | CLI redirect/certificate contract | Exercise approved authority, cross-authority redirect, and certificate-failure scenarios through the broker | Only an authority/certificate path proven to satisfy the selected profile can normalize; otherwise the broker is unavailable and closeout remains blocked | Planned | Pending |
 | Native HTTPS fails closed | Native network adapter on each target platform | Exercise system proxy, trusted TLS, unknown-host redirect, certificate failure, cancellation, and response bounds | Only configured HTTPS authorities succeed; no certificate bypass or partial snapshot commit occurs | Planned | Pending |
+| Portable credential authority and lifetime are explicit | Application credential-vault contract and queued fake | Exercise construction, movement, replacement, exact-key isolation, failure, cancellation, and reordered completion | Credential bytes remain bounded and move-only; exact authority/correlation survives every terminal path; core and Qt cannot name a vault type | Verified | BPR-0021 contract, fake-vault suite, and hostile source-boundary checks; no native-vault claim |
 | macOS credentials stay in Keychain and fail closed | Native macOS adapter | Store/retrieve/delete a disposable canary; lock/deny/unavailable/delete-failure fixtures | Success leaves no other copy; every vault failure is typed and has no plaintext fallback | Planned | Pending |
 | Windows credentials stay in Credential Manager and fail closed | Native Windows adapter and HTTPS runtime | Run vault lifecycle/failure cases plus TLS/proxy/redirect/runtime/dependency inspection on native Windows | Credential, network, process, and linked/runtime dependencies match the selected Windows implementation with no fallback | Planned | Pending |
 | Linux credentials stay in Secret Service and fail closed | Native Linux desktop adapter and HTTPS runtime | Run vault lifecycle/failure cases plus TLS/proxy/redirect/runtime/dependency inspection on native Linux | Credential, network, process, and linked/runtime dependencies match the selected Linux implementation with no fallback | Planned | Pending |
@@ -239,6 +273,7 @@ cache invalidation, or UI behavior.
 |---|---|---|---|
 | Core state and typed flow | Domain/state model and implementation architecture | Update for opaque identities, capabilities, requests/events/deltas, generation, and invalidation | Core tests and type/dependency scan |
 | Host/provider boundary | System architecture, provider contract, implementation architecture | Update for normalized port, sessions, retry/rate/caches, CLI/native transport ownership | Host and contract suites |
+| Portable credential contract | Domain/state model, provider contract, implementation architecture, threat model | Record bounded move-only material, exact authority/correlation, typed results, and no core/Qt exposure without claiming a native vault | BPR-0021 fake-vault and hostile boundary suites |
 | Native credentials and network trust | Security baseline, threat model, operator/troubleshooting guidance | Update for vault lifecycle, CA/proxy, redirects, certificate failures, bounds, and secret hygiene | Native canary and hostile-transport evidence |
 | Qt presentation | UI architecture and UX baseline | Update for active identity, open/read states, capability legality, errors, focus, and accessibility | Qt tests and rendered inspection |
 | Composition and operation | README, build/test guide, developer overview | Update for selected profiles/transports, fixture mode, safe read-only smoke, and real public path | End-to-end automation |

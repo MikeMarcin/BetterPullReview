@@ -16,6 +16,18 @@ set(
     github_cli_transport_relative
     "src/adapters/github/src/gh_cli_transport.cpp"
 )
+set(
+    macos_keychain_relative
+    "src/adapters/github/src/macos_keychain.cpp"
+)
+set(
+    windows_credential_manager_relative
+    "src/adapters/github/src/windows_credential_manager.cpp"
+)
+set(
+    linux_secret_service_relative
+    "src/adapters/github/src/linux_secret_service.cpp"
+)
 
 if(NOT EXISTS "${github_adapter_cmake}")
     message(FATAL_ERROR "GitHub adapter must own a dedicated CMake target")
@@ -218,6 +230,24 @@ foreach(provider_free_file IN LISTS provider_free_projection_files)
     endforeach()
 endforeach()
 
+set(
+    credential_free_region_patterns
+    "github_credential_"
+)
+foreach(credential_free_file IN LISTS provider_free_projection_files)
+    file(READ "${credential_free_file}" contents)
+    foreach(pattern IN LISTS credential_free_region_patterns)
+        if(contents MATCHES "${pattern}")
+            file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${credential_free_file}")
+            message(
+                FATAL_ERROR
+                "Credential-vault capability crossed the core/Qt boundary in "
+                "${relative_file}: ${pattern}"
+            )
+        endif()
+    endforeach()
+endforeach()
+
 file(
     GLOB_RECURSE qt_files
     LIST_DIRECTORIES false
@@ -350,6 +380,21 @@ verify_effect_owner(
     "GH_TELEMETRY=0"
     "GitHub CLI telemetry hardening"
     "${github_cli_transport_relative}"
+)
+verify_effect_owner(
+    "(Security/(Security|SecItem|SecKeychain)\\.h|Sec(Item|Keychain)[A-Za-z0-9_]*|kSec[A-Z][A-Za-z0-9_]*)"
+    "macOS Keychain API"
+    "${macos_keychain_relative}"
+)
+verify_effect_owner(
+    "(wincred\\.h|Cred[A-Z][A-Za-z0-9_]*|P?CREDENTIAL[A-Z0-9_]*|CRED_[A-Z0-9_]+)"
+    "Windows Credential Manager API"
+    "${windows_credential_manager_relative}"
+)
+verify_effect_owner(
+    "(libsecret/secret\\.h|org\\.freedesktop\\.(Secret|secrets)|secret_(collection|item|password|schema|service|value)_[A-Za-z0-9_]*|Secret(Collection|Item|Schema|Service|Value)[A-Za-z0-9_]*|SECRET_(COLLECTION|ITEM|SCHEMA|SERVICE|VALUE)_[A-Z0-9_]*)"
+    "Linux Secret Service API"
+    "${linux_secret_service_relative}"
 )
 
 file(

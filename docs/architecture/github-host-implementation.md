@@ -431,6 +431,32 @@ Locked, unavailable, access-denied, corrupt, and credential-deletion failure
 states are typed failures. They never cause plaintext, settings, environment,
 or SQLite fallback storage.
 
+The portable application contract keys every native credential by profile,
+profile revision, host, authenticated account, and server contract. Every
+store, retrieve, delete, cancellation, and terminal result also carries the
+request, application session, and identity generation. Login text, repository
+content, redirects, capability revisions, and caller-provided provider facts
+cannot form credential authority.
+
+Credential material is a bounded nonempty byte owner rather than a string.
+It is noncopyable, move-safe, exposes only a read-only byte span, overwrites
+owned storage before release, and has no comparison, hashing, formatting,
+streaming, or serialization surface. Store takes ownership immediately and
+acts as an atomic upsert. Retrieve distinguishes material from absence;
+delete distinguishes deletion from prior absence; every operation has typed
+failure and cancellation alternatives. A winning cancellation suppresses
+secret-bearing success and destroys transient material, and teardown does the
+same for pending work.
+
+The contract does not itself discover an account or prove a native vault.
+Production enrollment must bind a validated profile to the authenticated
+account observed through `/user`, then hand the move-only material directly
+to the selected platform adapter. Its caller remains responsible for
+overwriting any mutable input buffer used to construct the owned material.
+Fake-vault tests prove portable replacement, isolation, result, and
+cancellation semantics only; BPR-0022, BPR-0023, and BPR-0024 retain the
+target-native lifecycle gates.
+
 The native Windows and Linux matrices exercise HTTPS TLS validation, system
 proxy selection, cross-authority redirect rejection, certificate rejection,
 runtime network/process scope, and binary dependencies in addition to the

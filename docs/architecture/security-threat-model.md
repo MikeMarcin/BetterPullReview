@@ -28,6 +28,16 @@ The functional-core/host/Qt split is not presented as an operating-system securi
 - all effects are traceable through typed host requests and result events;
 - no widget can bypass the mutation coordinator or select a remote target directly.
 
+The portable native-vault contract admits at most 2,560 bytes of nonempty
+credential material so every supported native vault can represent the valid
+domain. The material has a noncopyable owner; movement empties the source,
+replacement and destruction overwrite owned bytes, and the type offers no
+text, formatting, comparison, hashing, logging, serialization, settings,
+environment, or Qt conversion. Vault authority includes exact profile
+revision, host, account, and server contract; async results also retain
+request, session, and identity generation. Cancellation that wins suppresses
+retrieval success and destroys the returned material before publication.
+
 ## Baseline posture
 
 - No hosted BetterPullReview service.

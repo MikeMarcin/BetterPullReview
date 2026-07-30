@@ -96,6 +96,15 @@ fail-closed until RFC-BPR-0008.
   credential deletion as typed failures. There is no plaintext, settings,
   environment, or SQLite fallback.
 
+The portable vault capability accepts only an exact profile/profile-revision/
+host/account/server-contract authority and exact request/session/identity
+generation. Its credential owner is noncopyable, caps nonempty material at
+2,560 bytes so every supported native vault can represent it, exposes only
+read-only bytes, and securely overwrites storage before release. Store is an
+ownership-transferring atomic upsert; retrieve, absence, delete, failure, and
+cancellation are distinct typed outcomes. No raw operating-system error text
+or credential bytes enter provider errors or projections.
+
 Windows and Linux native evidence must exercise HTTPS TLS, system proxy,
 redirect rejection, certificate rejection, runtime network scope, and binary
 dependencies in addition to their target-native vault lifecycle. A mock,
