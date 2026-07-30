@@ -15,6 +15,12 @@ Tests are direct evidence, not naming evidence.
   structured error classification, cancellation, and atomic failure.
 - Qt tests cover translation and presentation mechanics without duplicating
   every core rule.
+- GitHub Qt tests prove the safe projection boundary, exact stable-identity
+  insert/remove/minimal-move/data-change results, persistent indexes, literal
+  remote text, command-owned action state, identity invalidation, focus,
+  accessibility, minimum layout, and 1.0x/1.25x/2.0x rasters. Headless Linux
+  uses Qt's basic Windows style to avoid the offscreen Fusion cached-painter
+  fault; native-style UX remains a separate target-native gate.
 - End-to-end tests use the real composition root.
 - Runtime-surface tests inspect the launched process on macOS, Linux, and
   Windows; keep platform queries process-scoped and directly unit-tested.

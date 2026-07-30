@@ -977,6 +977,22 @@ The application host publishes an envelope containing semantic core deltas and
 optional immutable host-owned read projections. Qt never receives a provider
 or credential object.
 
+The public presentation boundary is
+`bpr/application/github_projection.hpp`. Its intent callback admits only
+profile activation, pull-request open, and pull-request refresh intents; it
+cannot construct provider completion events. The update envelope strips core
+host requests and accepted-completion internals before delivery. The host
+projects accepted session and pull-request records into provider-free value
+types before publishing them atomically with the core transition that accepted
+them.
+
+Composition supplies Qt with immutable non-secret profile choices derived
+from the same validated profile configuration: opaque profile identity,
+display label, canonical hostname, product kind, and selected transport.
+Profile selection is the only identity-authority input. Login and account
+identity remain read-only output of the authenticated `/user` observation and
+cannot select a credential or vault binding.
+
 The RFC-BPR-0002 presentation exposes:
 
 - active hostname, authenticated account, and selected transport;
@@ -992,6 +1008,14 @@ produce insert, remove, move, and data-change deltas for affected records.
 They do not call `beginResetModel()` for a bounded comment, capability, status,
 or selection change. Presentation owns wording, focus, accessibility, layout,
 and safe plain-text rendering.
+
+The normalized presentation contains separate stable identities for reviews,
+review threads, nested review comments, and pull-request comments. Qt derives
+incremental model operations from those identities; it does not receive
+provider records or row indexes from the host. A new pull-request open clears
+the prior metadata and conversation projection immediately, while a refresh
+keeps the last accepted projection through loading, failure, cancellation, or
+stale completion.
 
 ## Composition and lifecycle
 
@@ -1096,9 +1120,10 @@ Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the CLI
 broker's process/invocation boundary, and the native HTTPS internal wire path
 on macOS and Linux are directly verified. The selected CLI's network-trust
 claim remains open because its redirect behavior was directly falsified and
-the production gate is unavailable. Qt presentation and public provider
-composition remain BPR-0028/BPR-0029 work. Trusted process-restart credential
-binding is also a BPR-0029 gate. Retained Windows target-native
+the production gate is unavailable. BPR-0028 directly verifies the safe Qt
+projection and presentation; public provider composition remains BPR-0029
+work. Trusted process-restart credential binding is also a BPR-0029 gate.
+Retained Windows target-native
 credential/HTTPS evidence remains BPR-0036 work. Query-bearing REST redirects
 remain rejected by the closed BPR-0038 design decision; any future relaxation
 requires new direct public-contract evidence and separately scoped work. The

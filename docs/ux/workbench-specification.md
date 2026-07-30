@@ -22,6 +22,36 @@
 
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface.
 
+## GitHub host and pull-request presentation
+
+Before the complete workbench is publicly composed, the GitHub presentation
+surface exposes the same architectural contract in a bounded read-only
+window:
+
+- The user selects a configured profile, never an account identity. The
+  active hostname, transport, and authenticated account are visible,
+  read-only outputs of the accepted session.
+- Connect, Open, and Refresh emit semantic application intents. Show Review
+  Threads is Qt-local presentation behavior that selects, expands, scrolls
+  to, and focuses the first available review thread.
+- Repository and pull-request input, command legality, capability tri-state,
+  rate-limit observations, normalized metadata, conversations, status, and
+  bounded diagnostic text remain distinct accessible fields.
+- Remote title, body, author, path, and comment values render as literal plain
+  text. Provider records, requests, URLs, transports, vaults, credentials, and
+  authentication material never enter the Qt adapter.
+- Selecting another identity or opening another target immediately clears
+  stale identity-sensitive content. Refresh keeps the last accepted content
+  visible while a replacement is loading or if that replacement fails,
+  cancels, or becomes stale.
+- Conversation rows have stable semantic identities and update by insert,
+  remove, minimal move, or data change without resetting the complete model.
+
+The window remains usable through a minimum-size scroll surface, exposes
+keyboard shortcuts and accessible names/descriptions, and is rendered at
+1.0x, 1.25x, and 2.0x scale in the BPR-0028 harness. BPR-0031 retains
+native-style and complete public-application UX certification.
+
 ## Primary actions
 
 Previous/next file and previous/next change are always visible in the top toolbar. They operate on the current filtered/actionable set and expose keyboard shortcuts. Disabled states explain why navigation is unavailable.

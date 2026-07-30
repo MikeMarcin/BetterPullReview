@@ -36,10 +36,14 @@ serialized host, pagination, rate/retry, credential-lifecycle, and staging
 surface verified on macOS by the focused 9/9, fresh `dev` 35/35, fresh
 `core-only` 17/17, sanitizer 3/3, and tests-disabled Release gates; its final
 Ubuntu 26.04 x86_64 full-system QEMU build passed under GCC 15.2 and its
-focused matrix passed 9/9 under Qt 6.10.2. `BPR-0038` is in `done/` with the
-fail-closed decision to keep query-bearing HTTP redirect targets rejected.
-`BPR-0028` is in `ready/` as the next implementation slice, and BPR-0029
-retains public executable provider composition.
+focused matrix passed 9/9 under Qt 6.10.2. `BPR-0028` is in `done/` with the
+provider-free atomic projection, accessible GitHub Qt window, stable
+incremental conversation model, three-scale rendering, fresh macOS 38/38 and
+core-only 17/17 matrices, sanitizer 4/4, and Ubuntu x86_64 host/scale 4/4
+evidence. `BPR-0038` is in `done/` with the fail-closed decision to keep
+query-bearing HTTP redirect targets rejected. `BPR-0029` is in `ready/` as
+the next implementation slice and retains public executable provider
+composition.
 
 The open Windows task and CLI production-trust task do not block later
 implementation, tests, documentation, security review, or simplification on

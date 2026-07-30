@@ -419,6 +419,30 @@ There is no restart/durable-selector fixture in BPR-0027; BPR-0029 must provide
 trusted rehydration or exact shutdown deletion before native persistence is
 publicly composed. Windows target-native execution remains in BPR-0036.
 
+## GitHub Qt presentation harness
+
+The BPR-0028 Qt harness feeds synthetic provider-free session and pull-request
+projections into the real GitHub window and conversation model. It covers
+profile-only identity input, read-only authenticated-account output, semantic
+Connect/Open/Refresh intents, Qt-local review-thread focus, command-owned
+action state, all status and diagnostic categories, capability tri-state,
+rate-limit presentation, identity invalidation, refresh retention, new-target
+clearing, selection restoration, plain-text hostile markup, accessibility,
+focus stability, and minimum-size scroll behavior.
+
+Reviews, review threads, nested review comments, and pull-request comments use
+distinct stable IDs. The model cases require exact insert, remove, minimal
+move, and data-change notifications without reset; both reorder directions
+must produce the requested full order and preserve persistent indexes.
+
+Scale-specific CTest cases render at 1.0x, 1.25x, and 2.0x and save
+minimum-top, minimum-lower, and normal-size PNGs beneath the ignored build
+tree. Headless Linux selects Qt's basic Windows style after a direct Qt 6.10.2
+backtrace identified a fractional-scale offscreen Fusion cached-painter fault;
+native-style real-application verification remains BPR-0031. The harness
+contains no credential, provider port, transport, URL, request, or private
+repository data and performs no GitHub effect.
+
 ## GitHub hosts
 
 - GitHub.com current contract

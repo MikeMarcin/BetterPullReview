@@ -17,6 +17,11 @@ serialized completions, cancellation, recovery, and lifecycle.
 - A production host owns its capability cache. Do not inject caller-populated
   capability entries or treat caller-provided capability facts as
   observations.
+- Map accepted GitHub read models to the provider-free public presentation
+  contract inside the host's exception boundary. Publish the safe projection
+  atomically with the transition that accepted it; never expose raw requests,
+  accepted-completion internals, provider records, or credential authority to
+  Qt.
 - Credential resume accepts a profile only. Select an exact account authority
   from a trusted host-owned binding established by authenticated `/user`;
   never use login text, settings, or a caller-supplied account as a vault key.

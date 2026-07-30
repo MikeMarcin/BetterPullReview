@@ -448,6 +448,39 @@ to fail closed under the completed BPR-0038 design decision. Any future
 relaxation requires new direct public-contract evidence and separately scoped
 work.
 
+For the BPR-0028 provider-free Qt projection and presentation, build the host
+and Qt targets and run the atomic projection, architecture-boundary, and three
+scale-specific presentation cases:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_application_github_host_tests \
+  better_pull_review_qt_github_tests
+
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(application_github_host|qt_github_window_scale_(100|125|200)|architecture_boundaries|architecture_boundary_contract)$'
+```
+
+The presentation path receives only synthetic normalized projections and
+issues no network, process, vault, or GitHub operation. The test harness saves
+minimum-top, minimum-lower, and normal-size PNGs under the ignored build tree
+and verifies the exact device-pixel ratio and raster dimensions. Inspect those
+images in addition to the assertions; they are transient evidence and are not
+checked in.
+
+On headless Linux, CTest selects Qt's built-in basic Windows style. Direct
+Ubuntu 26.04 testing found Qt 6.10.2's offscreen Fusion cached painter could
+segfault while repainting a combo box at 1.25x; the basic style passed 20
+consecutive fractional-scale runs and retains the scale, geometry, content,
+focus, and accessibility checks. This is deterministic headless raster
+evidence, not native-desktop style certification. BPR-0031 retains the real
+application and native-style UX gate.
+
+The committed model regression checks both first-to-last and last-to-first
+reorders as one row move, exact final root and child order, and persistent
+index row/equality. Run the host and all three Qt cases under AddressSanitizer
+and UndefinedBehaviorSanitizer before closing the slice.
+
 ## Build ownership
 
 GitHub Actions does not configure, build, test, package, release, or verify
