@@ -1,7 +1,7 @@
 ---
 id: BPR-0030
 title: Add RFC-BPR-0002 focused tests and hostile fixtures
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0002
 depends_on: [BPR-0027, BPR-0029]
 ---

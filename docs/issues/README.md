@@ -49,9 +49,8 @@ zero-launch CLI unavailability, public GitHub.com/GHES application fixtures,
 and a tests-disabled Release seam-absence contract. Its current-tree Linux v2
 matrix also passed in an Ubuntu 26.04 x86_64 full-system QEMU guest, including
 the native vault, both public fixtures, Release seam absence, exact cleanup,
-and dependency/runtime/ELF audits.
-`BPR-0030` remains in `backlog/` as the next implementation slice; it owns the
-focused tests and hostile fixtures.
+and dependency/runtime/ELF audits. `BPR-0030` is in `in-progress/` as the
+current implementation slice and owns the focused tests and hostile fixtures.
 
 The open Windows task and CLI production-trust task do not block later
 implementation, tests, documentation, security review, or simplification on
