@@ -9,6 +9,14 @@ set(
     "src/adapters/github/src/github_cli_process_runner.cpp"
 )
 set(
+    github_process_interface_relative
+    "src/adapters/github/src/github_cli_process.hpp"
+)
+set(
+    github_process_runner_interface_relative
+    "src/adapters/github/src/github_cli_process_runner.hpp"
+)
+set(
     github_native_https_relative
     "src/adapters/github/src/native_https_transport.cpp"
 )
@@ -57,6 +65,66 @@ foreach(pattern IN LISTS github_target_patterns)
         )
     endif()
 endforeach()
+
+if(
+    NOT github_cmake_contents
+        MATCHES
+            "find_package[ \t\r\n]*\\([ \t\r\n]*Threads[ \t\r\n]+REQUIRED[ \t\r\n]*\\)"
+)
+    message(
+        FATAL_ERROR
+        "GitHub adapter must resolve the required CMake Threads package"
+    )
+endif()
+if(
+    NOT github_cmake_contents
+        MATCHES
+            "target_link_libraries[ \t\r\n]*\\([ \t\r\n]*better_pull_review_adapter_github[^\\)]*PRIVATE[^\\)]*Threads::Threads[^\\)]*\\)"
+)
+    message(
+        FATAL_ERROR
+        "GitHub adapter must link Threads::Threads explicitly and privately"
+    )
+endif()
+
+foreach(
+    required_cli_file_relative
+    IN ITEMS
+        "${github_process_interface_relative}"
+        "${github_process_runner_interface_relative}"
+        "${github_process_runner_relative}"
+        "${github_cli_transport_relative}"
+)
+    get_filename_component(
+        required_cli_file
+        "${BPR_ROOT}/${required_cli_file_relative}"
+        ABSOLUTE
+    )
+    if(NOT EXISTS "${required_cli_file}")
+        message(
+            FATAL_ERROR
+            "The designated GitHub CLI broker file is required: "
+            "${required_cli_file_relative}"
+        )
+    endif()
+endforeach()
+
+function(require_github_target_source required_source_relative)
+    if(
+        NOT github_cmake_contents
+            MATCHES
+                "(add_library|target_sources)[ \t\r\n]*\\([ \t\r\n]*better_pull_review_adapter_github[^\\)]*${required_source_relative}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI broker source must be explicitly owned by "
+            "better_pull_review_adapter_github: ${required_source_relative}"
+        )
+    endif()
+endfunction()
+
+require_github_target_source("src/github_cli_process_runner\\.cpp")
+require_github_target_source("src/gh_cli_transport\\.cpp")
 
 get_filename_component(
     macos_keychain_file
@@ -711,6 +779,11 @@ verify_effect_owner(
     "${github_process_runner_relative}"
 )
 verify_effect_owner(
+    "QProcessEnvironment"
+    "QProcessEnvironment"
+    "${github_process_runner_relative}"
+)
+verify_effect_owner(
     "QNetworkAccessManager"
     "QNetworkAccessManager"
     "${github_native_https_relative}"
@@ -739,6 +812,880 @@ verify_effect_owner(
     "(libsecret/secret\\.h|org\\.freedesktop\\.(Secret|secrets)|(^|[^A-Za-z0-9_])secret_(collection|item|password|schema|service|value)_[A-Za-z0-9_]*|(^|[^A-Za-z0-9_])Secret(Collection|Item|Schema|Service|Value)[A-Za-z0-9_]*|(^|[^A-Za-z0-9_])SECRET_(COLLECTION|ITEM|SCHEMA|SERVICE|VALUE)_[A-Z0-9_]*)"
     "Linux Secret Service API"
     "${linux_secret_service_relative}"
+)
+
+get_filename_component(
+    github_process_interface_file
+    "${BPR_ROOT}/${github_process_interface_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    github_process_runner_interface_file
+    "${BPR_ROOT}/${github_process_runner_interface_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    github_process_runner_file
+    "${BPR_ROOT}/${github_process_runner_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    github_cli_transport_file
+    "${BPR_ROOT}/${github_cli_transport_relative}"
+    ABSOLUTE
+)
+
+foreach(
+    standard_process_header
+    IN ITEMS
+        "${github_process_interface_file}"
+        "${github_process_runner_interface_file}"
+)
+    file(READ "${standard_process_header}" standard_process_header_contents)
+    set(
+        forbidden_standard_process_header_patterns
+        "#[ \t]*include[ \t]*[<\"]Q"
+        "#[ \t]*include[ \t]*[<\"]Qt"
+        "(^|[^A-Za-z0-9_])Q[A-Z][A-Za-z0-9_]*"
+        "#[ \t]*include[ \t]*[<\"](windows\\.h|process\\.h|spawn\\.h|sys/wait\\.h)"
+        "(^|[^A-Za-z0-9_])(pid_t|HANDLE|PROCESS_INFORMATION|STARTUPINFO[A-Z]?|FILE)([^A-Za-z0-9_]|$)"
+        "std::string[ \t\r\n]+StandardError([^A-Za-z0-9_]|$)"
+        "(^|[^A-Za-z0-9_])(Authorization|GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN)([^A-Za-z0-9_]|$)"
+    )
+    foreach(
+        forbidden_standard_process_header_pattern
+        IN LISTS forbidden_standard_process_header_patterns
+    )
+        if(
+            standard_process_header_contents
+                MATCHES "${forbidden_standard_process_header_pattern}"
+        )
+            file(
+                RELATIVE_PATH
+                relative_file
+                "${BPR_ROOT}"
+                "${standard_process_header}"
+            )
+            message(
+                FATAL_ERROR
+                "GitHub CLI process interface must remain standard C++ and "
+                "effect-free in ${relative_file}: "
+                "${forbidden_standard_process_header_pattern}"
+            )
+        endif()
+    endforeach()
+endforeach()
+
+file(
+    READ
+    "${github_process_runner_interface_file}"
+    github_process_runner_interface_contents
+)
+file(READ "${github_process_runner_file}" github_process_runner_contents)
+string(
+    REGEX REPLACE
+    "[ \t\r\n]+"
+    " "
+    github_process_runner_compact
+    "${github_process_runner_contents}"
+)
+
+string(
+    FIND
+    "${github_process_runner_compact}"
+    "auto contains_nul("
+    github_request_shape_start
+)
+string(
+    FIND
+    "${github_process_runner_compact}"
+    "[[nodiscard]] auto decode_utf8("
+    github_request_shape_end
+)
+if(
+    github_request_shape_start EQUAL -1
+    OR github_request_shape_end EQUAL -1
+    OR NOT github_request_shape_start LESS github_request_shape_end
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process runner must define bounded allocation-free "
+        "pre-copy helper and request-shape validation"
+    )
+endif()
+math(
+    EXPR
+    github_request_shape_length
+    "${github_request_shape_end} - ${github_request_shape_start}"
+)
+string(
+    SUBSTRING
+    "${github_process_runner_compact}"
+    "${github_request_shape_start}"
+    "${github_request_shape_length}"
+    github_request_shape_contents
+)
+set(
+    required_github_request_shape_patterns
+    "valid_request_shape\\( const github_cli_process_request& request\\) noexcept -> bool"
+    "request\\.Executable\\.empty\\(\\)"
+    "request\\.Executable\\.size\\(\\) > github_cli_process_max_path_bytes"
+    "contains_nul\\(request\\.Executable\\)"
+    "request\\.WorkingDirectory\\.empty\\(\\)"
+    "request\\.WorkingDirectory\\.size\\(\\) > github_cli_process_max_path_bytes"
+    "contains_nul\\(request\\.WorkingDirectory\\)"
+    "request\\.Arguments\\.empty\\(\\)"
+    "request\\.Arguments\\.size\\(\\) > github_cli_process_max_argument_count"
+    "request\\.Environment\\.size\\(\\) > github_cli_process_max_environment_count"
+    "request\\.StandardInputLimit == 0"
+    "request\\.StandardInputLimit > github_cli_process_max_standard_input_bytes"
+    "request\\.StandardInput\\.size\\(\\) > request\\.StandardInputLimit"
+    "request\\.StandardOutputLimit == 0"
+    "request\\.StandardOutputLimit > github_cli_process_max_standard_output_bytes"
+    "request\\.StandardErrorLimit == 0"
+    "request\\.StandardErrorLimit > github_cli_process_max_standard_error_bytes"
+    "request\\.Timeout <= std::chrono::milliseconds::zero\\(\\)"
+    "request\\.Timeout > std::chrono::duration_cast<std::chrono::milliseconds>\\( github_cli_process_max_timeout\\)"
+    "request\\.ReapTimeout <= std::chrono::milliseconds::zero\\(\\)"
+    "request\\.ReapTimeout > std::chrono::duration_cast<std::chrono::milliseconds>\\( github_cli_process_max_reap_timeout\\)"
+    "argument\\.empty\\(\\)"
+    "argument\\.size\\(\\) > github_cli_process_max_argument_bytes"
+    "contains_nul\\(argument\\)"
+    "add_bounded\\( argument_bytes, argument\\.size\\(\\), github_cli_process_max_arguments_bytes\\)"
+    "entry\\.Name\\.size\\(\\) > github_cli_process_max_environment_name_bytes"
+    "valid_environment_name\\(entry\\.Name\\)"
+    "entry\\.Value\\.size\\(\\) > github_cli_process_max_environment_value_bytes"
+    "contains_nul\\(entry\\.Value\\)"
+    "add_bounded\\( environment_bytes, entry\\.Name\\.size\\(\\), github_cli_process_max_environment_bytes\\)"
+    "add_bounded\\( environment_bytes, entry\\.Value\\.size\\(\\), github_cli_process_max_environment_bytes\\)"
+    "equal_environment_names\\( entry\\.Name, request\\.Environment\\[prior\\]\\.Name\\)"
+    "!has_empty_path \\|\\| !has_system_root"
+)
+foreach(
+    required_request_shape_pattern
+    IN LISTS required_github_request_shape_patterns
+)
+    if(
+        NOT github_request_shape_contents
+            MATCHES "${required_request_shape_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI pre-copy request-shape validation must retain all "
+            "path, argument, environment, stream, and deadline bounds: "
+            "${required_request_shape_pattern}"
+        )
+    endif()
+endforeach()
+set(
+    forbidden_github_request_shape_patterns
+    "(QString|QByteArray|QFileInfo|QDir|decode_utf8)"
+    "std::(string|vector|deque|list|map|unordered_[a-z_]+|set)([^A-Za-z0-9_]|$)"
+    "std::(make_unique|make_shared|allocate_shared)[ \t]*[<(]"
+    "(^|[^A-Za-z0-9_])(new|malloc|calloc|realloc|aligned_alloc)[ \t\r\n]*(\\(|[A-Za-z_])"
+    "\\.(reserve|resize|assign|append|push_back|emplace|emplace_back)[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_])(try|throw)([^A-Za-z0-9_]|$)"
+)
+foreach(
+    forbidden_request_shape_pattern
+    IN LISTS forbidden_github_request_shape_patterns
+)
+    if(
+        github_request_shape_contents
+            MATCHES "${forbidden_request_shape_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI pre-copy request-shape validation must remain "
+            "allocation-free and non-throwing: "
+            "${forbidden_request_shape_pattern}"
+        )
+    endif()
+endforeach()
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "if\\(total > limit \\|\\| amount > limit - total\\) \\{ return false; \\}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI aggregate pre-copy bounds must reject overflow before "
+        "subtraction"
+    )
+endif()
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "if\\(!valid_request_shape\\(request\\)\\) \\{ return std::unexpected\\{ github_cli_process_failure::invalid_request\\}; \\} if\\(stop\\.stop_requested\\(\\)\\) \\{ return std::unexpected\\{ github_cli_process_failure::cancelled\\}; \\} std::shared_ptr<process_work_item> item; try \\{ item = std::make_shared<process_work_item>\\(\\); item->Request = request;"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI worker must validate request shape and cancellation "
+        "before allocating or copying the work item"
+    )
+endif()
+string(
+    REGEX MATCHALL
+    "item->Request = request"
+    github_request_work_item_copies
+    "${github_process_runner_compact}"
+)
+list(LENGTH github_request_work_item_copies github_request_work_item_copy_count)
+if(NOT github_request_work_item_copy_count EQUAL 1)
+    message(
+        FATAL_ERROR
+        "GitHub CLI worker must have exactly one guarded request-copy site"
+    )
+endif()
+
+set(
+    required_github_process_runner_patterns
+    "#[ \t]*include[ \t]*[<\"]QProcess[>\"]"
+    "#[ \t]*include[ \t]*[<\"]QProcessEnvironment[>\"]"
+    "setProgram[ \t\r\n]*\\("
+    "setArguments[ \t\r\n]*\\("
+    "setProcessEnvironment[ \t\r\n]*\\("
+    "setWorkingDirectory[ \t\r\n]*\\("
+    "\"\\.git\""
+    "equal_environment_names[ \t\r\n]*\\([ \t\r\n]*entry\\.Name[ \t\r\n]*,[ \t\r\n]*\"PATH\"[ \t\r\n]*\\)"
+    "equal_environment_names[ \t\r\n]*\\([ \t\r\n]*entry\\.Name[ \t\r\n]*,[ \t\r\n]*\"SystemRoot\"[ \t\r\n]*\\)"
+    "QProcess::SeparateChannels"
+    "QProcess::ManagedInputChannel"
+    "write[ \t\r\n]*\\("
+    "closeWriteChannel[ \t\r\n]*\\("
+    "setReadChannel[ \t\r\n]*\\("
+    "read[ \t\r\n]*\\("
+    "waitForStarted[ \t\r\n]*\\("
+    "waitForReadyRead[ \t\r\n]*\\("
+    "waitForFinished[ \t\r\n]*\\("
+    "process\\.kill[ \t\r\n]*\\("
+    "std::make_unique<QProcess>[ \t\r\n]*\\("
+    "(^|[^A-Za-z0-9_])StandardInputLimit([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])StandardOutputLimit([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])StandardErrorLimit([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])Timeout([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])ReapTimeout([^A-Za-z0-9_]|$)"
+)
+foreach(required_runner_pattern IN LISTS required_github_process_runner_patterns)
+    if(NOT github_process_runner_contents MATCHES "${required_runner_pattern}")
+        message(
+            FATAL_ERROR
+            "GitHub CLI process runner must retain explicit program, "
+            "argument, empty-environment, neutral-directory, separate-stream, "
+            "bounded-I/O, timeout, kill, and reap handling: "
+            "${required_runner_pattern}"
+        )
+    endif()
+endforeach()
+
+set(
+    required_github_process_windows_environment_patterns
+    "#if[ \t]+defined[ \t]*\\([ \t]*_WIN32[ \t]*\\)"
+    "bool[ \t]+has_empty_path[ \t]*=[ \t]*false"
+    "bool[ \t]+has_system_root[ \t]*=[ \t]*false"
+    "has_empty_path[ \t]*=[ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
+    "has_system_root[ \t]*=[ \t]*![ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
+    "![ \t]*has_empty_path[ \t]*\\|\\|[ \t]*![ \t]*has_system_root"
+)
+foreach(
+    required_windows_environment_pattern
+    IN LISTS required_github_process_windows_environment_patterns
+)
+    if(
+        NOT github_process_runner_contents
+            MATCHES "${required_windows_environment_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI process runner must retain explicit Windows empty "
+            "PATH and non-empty SystemRoot validation: "
+            "${required_windows_environment_pattern}"
+        )
+    endif()
+endforeach()
+
+set(
+    required_github_process_unix_containment_patterns
+    "setUnixProcessParameters[ \t\r\n]*\\("
+    "QProcess::UnixProcessFlag::CloseFileDescriptors"
+    "QProcess::UnixProcessFlag::DisableCoreDumps"
+    "QProcess::UnixProcessFlag::ResetSignalHandlers"
+    "QProcess::UnixProcessFlag::CreateNewSession"
+    "const[ \t]+auto[ \t]+process_group[ \t\r\n]*=[ \t\r\n]*-[ \t]*static_cast<pid_t>[ \t\r\n]*\\([ \t\r\n]*process_group_id[ \t\r\n]*\\)"
+    "::kill[ \t\r\n]*\\([ \t\r\n]*process_group[ \t\r\n]*,[ \t\r\n]*SIGKILL[ \t\r\n]*\\)"
+    "QProcess::started"
+    "process_pointer->processId[ \t\r\n]*\\("
+    "kill_process_group_and_reap[ \t\r\n]*\\("
+    "finish_background_reap[ \t\r\n]*\\("
+)
+foreach(
+    required_unix_containment_pattern
+    IN LISTS required_github_process_unix_containment_patterns
+)
+    if(
+        NOT github_process_runner_contents
+            MATCHES "${required_unix_containment_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI process runner must retain Unix child hardening and "
+            "initial process-group kill/reap containment: "
+            "${required_unix_containment_pattern}"
+        )
+    endif()
+endforeach()
+
+set(
+    required_process_group_resolution_patterns
+    "resolve_process_group[ \t\r\n]*\\([ \t\r\n]*const[ \t]+QProcess&[ \t\r\n]+process[ \t\r\n]*,[ \t\r\n]*const[ \t]+qint64[ \t\r\n]+known_process_group_id[ \t\r\n]*\\)"
+    "const[ \t]+auto[ \t]+process_id[ \t\r\n]*=[ \t\r\n]*process\\.processId[ \t\r\n]*\\([ \t]*\\)"
+    "process_id[ \t\r\n]*>[ \t\r\n]*1[ \t\r\n]*\\?[ \t\r\n]*process_id[ \t\r\n]*:[ \t\r\n]*0"
+)
+foreach(
+    required_group_resolution_pattern
+    IN LISTS required_process_group_resolution_patterns
+)
+    if(
+        NOT github_process_runner_contents
+            MATCHES "${required_group_resolution_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI process runner must resolve the saved initial process "
+            "group from QProcess::processId when the signal has not supplied "
+            "it: ${required_group_resolution_pattern}"
+        )
+    endif()
+endforeach()
+
+set(
+    required_process_group_start_resolution
+    "process->start\\(\\); \\*process_group_id = resolve_process_group\\( \\*process, \\*process_group_id\\); for\\(;;\\) \\{ \\*process_group_id = resolve_process_group\\( \\*process, \\*process_group_id\\); if\\(const auto failure = terminal_failure\\(\\); failure\\.has_value\\(\\)\\)"
+)
+if(
+    NOT github_process_runner_compact
+        MATCHES "${required_process_group_start_resolution}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process runner must resolve the initial process group "
+        "immediately after start and before every startup-loop terminal check"
+    )
+endif()
+
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "auto process_group_id = resolve_process_group\\(process, known_process_group_id\\); kill_process_group\\(process_group_id\\);"
+    OR NOT github_process_runner_compact
+        MATCHES
+            "process\\.waitForFinished\\(wait\\)\\); if\\(process\\.state\\(\\) != QProcess::NotRunning\\) \\{ process_group_id = resolve_process_group\\(process, process_group_id\\); kill_process_group\\(process_group_id\\);"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI bounded reap must resolve the initial process group "
+        "before initial and repeated kill attempts"
+    )
+endif()
+
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "auto finish_background_reap\\( QProcess& process, const qint64 known_process_group_id\\) -> void \\{ auto process_group_id = resolve_process_group\\(process, known_process_group_id\\); while\\(process\\.state\\(\\) != QProcess::NotRunning\\) \\{ process_group_id = resolve_process_group\\(process, process_group_id\\); kill_process_group\\(process_group_id\\);"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI background reap must retain and refresh resolved initial "
+        "process-group ownership throughout cleanup"
+    )
+endif()
+
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "const auto process_group_id = resolve_process_group\\(\\*process, known_process_group_id\\); if\\( kill_process_group_and_reap\\( \\*process, process_group_id, reap_timeout\\)\\)"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI failed execution must resolve initial process-group "
+        "ownership before bounded reap or quarantine handoff"
+    )
+endif()
+
+set(
+    required_stable_process_group_state
+    "const auto process_group_id = std::make_shared<qint64>\\(0\\);"
+)
+set(
+    required_started_process_group_capture
+    "QObject::connect\\( process\\.get\\(\\), &QProcess::started, process\\.get\\(\\), \\[ process_pointer = process\\.get\\(\\), process_group_id \\]\\(\\) noexcept \\{ \\*process_group_id = process_pointer->processId\\(\\); \\}, Qt::DirectConnection\\);"
+)
+set(
+    required_finished_process_group_cleanup
+    "QObject::connect\\( process\\.get\\(\\), &QProcess::finished, process\\.get\\(\\), \\[process_group_id\\]\\( const int, const QProcess::ExitStatus\\) noexcept \\{ kill_process_group\\(\\*process_group_id\\); \\}, Qt::DirectConnection\\);"
+)
+if(
+    NOT github_process_runner_compact
+        MATCHES "${required_stable_process_group_state}"
+    OR NOT github_process_runner_compact
+        MATCHES "${required_started_process_group_capture}"
+    OR NOT github_process_runner_compact
+        MATCHES "${required_finished_process_group_cleanup}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process signals must capture stable process-group state "
+        "by value and synchronously kill that group on finish"
+    )
+endif()
+string(
+    FIND
+    "${github_process_runner_compact}"
+    "&QProcess::finished"
+    github_process_finished_connection_position
+)
+string(
+    FIND
+    "${github_process_runner_compact}"
+    "process->start();"
+    github_process_start_position
+)
+if(
+    github_process_finished_connection_position EQUAL -1
+    OR github_process_start_position EQUAL -1
+    OR NOT github_process_finished_connection_position
+        LESS github_process_start_position
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI finished process-group cleanup must be connected before "
+        "process start"
+    )
+endif()
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "kill_process_group\\(\\*process_group_id\\); return \\{ \\.Result = github_cli_process_success"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process runner must repeat initial process-group cleanup "
+        "immediately before publishing success"
+    )
+endif()
+
+set(
+    required_github_process_worker_patterns
+    "class[ \t]+process_worker[ \t]+final"
+    "~process_worker[ \t\r\n]*\\("
+    "ShutdownRequested\\.store[ \t\r\n]*\\("
+    "Worker\\.join[ \t\r\n]*\\("
+    "while[ \t\r\n]*\\([ \t\r\n]*Busy[ \t\r\n]*\\)"
+    "Busy[ \t\r\n]*=[ \t\r\n]*true"
+    "Pending[ \t\r\n]*=[ \t\r\n]*item"
+    "WorkAvailable\\.notify_one[ \t\r\n]*\\("
+    "item->Deadline[ \t\r\n]*=[ \t\r\n]*clock::now[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*\\+[ \t\r\n]*request\\.Timeout"
+    "std::unique_ptr<process_worker>[ \t\r\n]+Worker"
+    "Worker[ \t\r\n]*=[ \t\r\n]*std::make_unique<process_worker>[ \t\r\n]*\\("
+    "std::mutex[ \t\r\n]+WorkerMutex"
+)
+foreach(required_worker_pattern IN LISTS required_github_process_worker_patterns)
+    if(NOT github_process_runner_contents MATCHES "${required_worker_pattern}")
+        message(
+            FATAL_ERROR
+            "GitHub CLI process runner must retain its runner-owned, "
+            "serialized, joined worker lifecycle: "
+            "${required_worker_pattern}"
+        )
+    endif()
+endforeach()
+string(
+    REGEX MATCHALL
+    "std::unique_ptr<process_worker>"
+    github_process_worker_owners
+    "${github_process_runner_contents}"
+)
+list(LENGTH github_process_worker_owners github_process_worker_owner_count)
+string(
+    REGEX MATCHALL
+    "std::make_unique<process_worker>[ \t\r\n]*\\("
+    github_process_worker_constructions
+    "${github_process_runner_contents}"
+)
+list(
+    LENGTH
+    github_process_worker_constructions
+    github_process_worker_construction_count
+)
+string(
+    REGEX MATCHALL
+    "std::thread[ \t\r\n]+[A-Za-z_][A-Za-z0-9_]*"
+    github_process_worker_threads
+    "${github_process_runner_contents}"
+)
+list(LENGTH github_process_worker_threads github_process_worker_thread_count)
+if(
+    github_process_runner_contents
+        MATCHES
+            "github_cli_process_runner_test_seam[ \t\r\n]*\\*"
+    OR github_process_runner_interface_contents
+        MATCHES
+            "github_cli_process_runner_test_seam[ \t\r\n]*\\*"
+    OR NOT github_process_runner_interface_contents
+        MATCHES
+            "make_github_cli_process_runner[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*->[ \t\r\n]*std::unique_ptr<github_cli_process_port>"
+    OR NOT github_process_runner_interface_contents
+        MATCHES
+            "make_github_cli_process_runner_for_test[ \t\r\n]*\\([ \t\r\n]*std::shared_ptr<github_cli_process_runner_test_seam>[ \t\r\n]+test_seam[ \t\r\n]*\\)"
+    OR NOT github_process_runner_compact
+        MATCHES
+            "auto make_github_cli_process_runner\\(\\) -> std::unique_ptr<github_cli_process_port> \\{ return make_qprocess_github_cli_process_runner\\(nullptr\\); \\}"
+    OR NOT github_process_runner_compact
+        MATCHES
+            "auto make_github_cli_process_runner_for_test\\( std::shared_ptr<github_cli_process_runner_test_seam> test_seam\\) -> std::unique_ptr<github_cli_process_port> \\{ return make_qprocess_github_cli_process_runner\\( std::move\\(test_seam\\)\\); \\}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI production factory must remain nullary while the explicit "
+        "test factory and asynchronous worker retain shared seam ownership"
+    )
+endif()
+
+if(
+    NOT github_process_worker_owner_count EQUAL 1
+    OR NOT github_process_worker_construction_count EQUAL 1
+    OR NOT github_process_worker_thread_count EQUAL 1
+    OR NOT github_process_runner_compact
+        MATCHES
+            "private: std::shared_ptr<github_cli_process_runner_test_seam> TestSeam; std::mutex WorkerMutex; std::unique_ptr<process_worker> Worker; \\};"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process worker must have exactly one owner, the concrete "
+        "runner instance"
+    )
+endif()
+
+set(
+    required_pre_start_guard
+    "if\\( shutdown_requested\\.load\\([^;]*\\) \\|\\| stop\\.stop_requested\\(\\)\\) \\{ return failed\\( github_cli_process_failure::cancelled\\); \\} if\\(clock::now\\(\\) >= deadline\\) \\{ return failed\\(github_cli_process_failure::timeout\\); \\} process->start\\(\\);"
+)
+if(NOT github_process_runner_compact MATCHES "${required_pre_start_guard}")
+    message(
+        FATAL_ERROR
+        "GitHub CLI process runner must check shutdown, cancellation, and "
+        "the absolute deadline immediately before process start"
+    )
+endif()
+string(
+    REGEX MATCHALL
+    "process->start[ \t\r\n]*\\("
+    github_process_start_calls
+    "${github_process_runner_contents}"
+)
+list(LENGTH github_process_start_calls github_process_start_call_count)
+if(NOT github_process_start_call_count EQUAL 1)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process runner must have exactly one guarded process "
+        "start site"
+    )
+endif()
+
+set(
+    required_github_process_reap_ownership_patterns
+    "std::unique_ptr<QProcess>[ \t\r\n]+AwaitingReap"
+    "\\.AwaitingReap[ \t\r\n]*=[ \t\r\n]*std::move[ \t\r\n]*\\([ \t\r\n]*process[ \t\r\n]*\\)"
+    "Quarantined[ \t\r\n]*=[ \t\r\n]*true"
+    "publish[ \t\r\n]*\\([ \t\r\n]*item"
+    "finish_background_reap[ \t\r\n]*\\([ \t\r\n]*\\*execution->AwaitingReap"
+    "execution->AwaitingReap\\.reset[ \t\r\n]*\\("
+    "Quarantined[ \t\r\n]*=[ \t\r\n]*false"
+    "Busy[ \t\r\n]*=[ \t\r\n]*false"
+)
+foreach(
+    required_reap_ownership_pattern
+    IN LISTS required_github_process_reap_ownership_patterns
+)
+    if(
+        NOT github_process_runner_contents
+            MATCHES "${required_reap_ownership_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI process runner must retain quarantine ownership until "
+            "a failed bounded reap completes: "
+            "${required_reap_ownership_pattern}"
+        )
+    endif()
+endforeach()
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "if\\(execution->AwaitingReap != nullptr\\) \\{ \\{ std::lock_guard lock\\{Mutex\\}; Quarantined = true; \\} SlotAvailable\\.notify_all\\(\\); \\} publish\\(item,"
+    OR NOT github_process_runner_compact
+        MATCHES
+            "finish_background_reap\\( \\*execution->AwaitingReap, execution->ProcessGroupId\\); execution->AwaitingReap\\.reset\\(\\); \\} \\{ std::lock_guard lock\\{Mutex\\}; Quarantined = false; Busy = false;"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process runner must publish reap_failure only after "
+        "quarantine owns the process, then release the slot only after reap"
+    )
+endif()
+
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "if\\( !item->Completed\\.wait_until\\( result_lock, completion_deadline, \\[&\\] \\{ return item->Result\\.has_value\\(\\); \\}\\)\\) \\{ \\{ std::lock_guard lock\\{Mutex\\}; if\\(Busy\\) \\{ Quarantined = true; \\} \\} SlotAvailable\\.notify_all\\(\\); return std::unexpected\\{ github_cli_process_failure::reap_failure\\}; \\}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI completion watchdog must predicate-check publication and "
+        "quarantine the busy worker before returning reap_failure"
+    )
+endif()
+
+if(
+    NOT github_process_runner_compact
+        MATCHES
+            "catch\\(\\.\\.\\.\\) \\{ publish\\( item, std::unexpected\\{ github_cli_process_failure::start_failure\\}\\); \\{ std::lock_guard lock\\{Mutex\\}; Quarantined = false; Busy = false; \\} SlotAvailable\\.notify_all\\(\\); (continue|return); \\}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI worker exception recovery must clear any watchdog "
+        "quarantine before reopening the serialized slot"
+    )
+endif()
+
+string(
+    REGEX MATCHALL
+    "github_cli_process_failure::reap_failure"
+    github_process_reap_failure_sites
+    "${github_process_runner_contents}"
+)
+list(
+    LENGTH
+    github_process_reap_failure_sites
+    github_process_reap_failure_site_count
+)
+if(NOT github_process_reap_failure_site_count EQUAL 3)
+    message(
+        FATAL_ERROR
+        "GitHub CLI process runner must retain exactly the bounded-reap, "
+        "already-quarantined, and watchdog-quarantine reap_failure sites"
+    )
+endif()
+
+set(
+    required_github_process_bounded_read_patterns
+    "std::array<char,[ \t\r\n]*16U[ \t]*\\*[ \t]*1024U>[ \t\r\n]+buffer"
+    "const[ \t]+auto[ \t]+remaining[ \t\r\n]*=[ \t\r\n]*limit[ \t\r\n]*-[ \t\r\n]*consumed"
+    "std::min<std::size_t>[ \t\r\n]*\\([ \t\r\n]*buffer\\.size[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*,[ \t\r\n]*remaining[ \t\r\n]*\\+[ \t\r\n]*1U[ \t\r\n]*\\)"
+    "process\\.read[ \t\r\n]*\\([ \t\r\n]*buffer\\.data[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*,[ \t\r\n]*static_cast<qint64>[ \t\r\n]*\\([ \t\r\n]*requested[ \t\r\n]*\\)[ \t\r\n]*\\)"
+    "byte_count[ \t\r\n]*>[ \t\r\n]*remaining"
+    "consumed[ \t\r\n]*\\+=[ \t\r\n]*byte_count"
+)
+foreach(
+    required_bounded_read_pattern
+    IN LISTS required_github_process_bounded_read_patterns
+)
+    if(
+        NOT github_process_runner_contents
+            MATCHES "${required_bounded_read_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI process runner must retain bounded fixed-buffer "
+            "remaining-plus-one channel reads: "
+            "${required_bounded_read_pattern}"
+        )
+    endif()
+endforeach()
+
+function(reject_github_process_runner_surface forbidden_pattern surface_name)
+    if(github_process_runner_contents MATCHES "${forbidden_pattern}")
+        message(
+            FATAL_ERROR
+            "Forbidden ${surface_name} surface in "
+            "${github_process_runner_relative}: ${forbidden_pattern}"
+        )
+    endif()
+endfunction()
+
+reject_github_process_runner_surface(
+    "(startCommand|splitCommand|setNativeArguments|startDetached|QProcess::execute|setCreateProcessArgumentsModifier)"
+    "shell/raw-command"
+)
+reject_github_process_runner_surface(
+    "(QProcess::(ForwardedChannels|ForwardedOutputChannel|ForwardedErrorChannel|MergedChannels)|setProcessChannelMode[ \t\r\n]*\\([ \t\r\n]*QProcess::(Forwarded|Merged)|setStandardOutputProcess|setStandard(Input|Output|Error)File)"
+    "forwarded, merged, or file-redirected process channel"
+)
+
+set(
+    github_process_runner_without_selected_channels
+    "${github_process_runner_contents}"
+)
+string(
+    REGEX REPLACE
+    "process(\\.|->)[ \t\r\n]*setReadChannel[ \t\r\n]*\\([ \t\r\n]*channel[ \t\r\n]*\\)"
+    ""
+    github_process_runner_without_selected_channels
+    "${github_process_runner_without_selected_channels}"
+)
+string(
+    REGEX REPLACE
+    "process(\\.|->)[ \t\r\n]*setReadChannel[ \t\r\n]*\\([ \t\r\n]*QProcess::StandardOutput[ \t\r\n]*\\)"
+    ""
+    github_process_runner_without_selected_channels
+    "${github_process_runner_without_selected_channels}"
+)
+if(
+    github_process_runner_without_selected_channels
+        MATCHES "setReadChannel[ \t\r\n]*\\("
+)
+    message(
+        FATAL_ERROR
+        "Forbidden unselected process channel selection surface in "
+        "${github_process_runner_relative}"
+    )
+endif()
+
+set(
+    github_process_runner_without_bounded_read
+    "${github_process_runner_contents}"
+)
+string(
+    REGEX REPLACE
+    "process\\.read[ \t\r\n]*\\([ \t\r\n]*buffer\\.data[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*,[ \t\r\n]*static_cast<qint64>[ \t\r\n]*\\([ \t\r\n]*requested[ \t\r\n]*\\)[ \t\r\n]*\\)"
+    ""
+    github_process_runner_without_bounded_read
+    "${github_process_runner_without_bounded_read}"
+)
+if(
+    github_process_runner_without_bounded_read
+        MATCHES "\\.[ \t\r\n]*read(All|Line)?[ \t\r\n]*\\("
+)
+    message(
+        FATAL_ERROR
+        "Forbidden unselected raw process channel read surface in "
+        "${github_process_runner_relative}"
+    )
+endif()
+reject_github_process_runner_surface(
+    "(\\.detach[ \t\r\n]*\\(|Worker\\.release[ \t\r\n]*\\(|new[ \t\r\n]+process_worker|static[ \t\r\n]+([^;\r\n]*[ \t\r\n]+)?process_worker|(^|[\r\n])[ \t]*process_worker[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*[;={])"
+    "global, detached, or leaked process worker"
+)
+reject_github_process_runner_surface(
+    "(process\\.reset[ \t\r\n]*\\(|delete[ \t\r\n]+process|AwaitingReap\\.release[ \t\r\n]*\\(|new[ \t\r\n]+QProcess|(^|[;{}\r\n])[ \t]*QProcess[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*[;={])"
+    "premature process ownership release"
+)
+
+set(
+    github_process_runner_without_local_worker_view
+    "${github_process_runner_contents}"
+)
+string(
+    REGEX REPLACE
+    "process_worker[ \t]*\\*[ \t]*worker[ \t]*=[ \t]*nullptr"
+    ""
+    github_process_runner_without_local_worker_view
+    "${github_process_runner_without_local_worker_view}"
+)
+if(
+    github_process_runner_without_local_worker_view
+        MATCHES
+            "(std::shared_ptr<process_worker>|process_worker[ \t]*\\*)"
+)
+    message(
+        FATAL_ERROR
+        "Forbidden unowned or shared process worker lifetime in "
+        "${github_process_runner_relative}"
+    )
+endif()
+reject_github_process_runner_surface(
+    "(QProcessEnvironment::systemEnvironment|QProcessEnvironment::InheritFromParent|processEnvironment[ \t\r\n]*\\(|qgetenv[ \t\r\n]*\\(|qEnvironmentVariable[A-Za-z0-9_]*[ \t\r\n]*\\(|(^|[^A-Za-z0-9_])(getenv|secure_getenv|_wgetenv|environ)([^A-Za-z0-9_]|$))"
+    "inherited or ambient environment"
+)
+reject_github_process_runner_surface(
+    "errorString[ \t\r\n]*\\("
+    "raw process error-string exposure"
+)
+reject_github_process_runner_surface(
+    "(\"--(auth-token|with-token|token|include|cache|verbose|debug|jq|template|paginate|slurp|preview|field|raw-field|silent)\"|(^|[^A-Za-z0-9_])(Authorization|GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_DEBUG)([^A-Za-z0-9_]|$))"
+    "credential, status-output, cache, or debug"
+)
+reject_github_process_runner_surface(
+    "(std::(cout|cerr|clog)|(^|[^A-Za-z0-9_])(printf|fprintf|puts|fputs|perror|syslog|os_log|NSLog|qDebug|qInfo|qWarning|qCritical|qFatal)[ \t\r\n]*\\(|spdlog)"
+    "logging/printing"
+)
+
+file(READ "${github_cli_transport_file}" github_cli_transport_contents)
+set(
+    required_github_cli_transport_patterns
+    "\"api\""
+    "\"--hostname\""
+    "\"--method\""
+    "\"--input\""
+    "\"\\.git\""
+    "GH_PROMPT_DISABLED=1"
+    "GH_NO_UPDATE_NOTIFIER=1"
+    "GH_NO_EXTENSION_UPDATE_NOTIFIER=1"
+    "GH_SPINNER_DISABLED=1"
+    "NO_COLOR=1"
+    "CLICOLOR=0"
+    "\"HOME\""
+    "\"XDG_RUNTIME_DIR\""
+    "\"DBUS_SESSION_BUS_ADDRESS\""
+    "\"USERPROFILE\""
+    "\"APPDATA\""
+    "\"LOCALAPPDATA\""
+    "\"SystemRoot\""
+    "\"PATH\""
+    "\"HTTPS_PROXY\""
+    "\"NO_PROXY\""
+    "\"SSL_CERT_FILE\""
+    "\"SSL_CERT_DIR\""
+)
+foreach(
+    required_transport_pattern
+    IN LISTS required_github_cli_transport_patterns
+)
+    if(NOT github_cli_transport_contents MATCHES "${required_transport_pattern}")
+        message(
+            FATAL_ERROR
+            "GitHub CLI transport must retain explicit allowlisted "
+            "invocation and minimal noninteractive environment construction: "
+            "${required_transport_pattern}"
+        )
+    endif()
+endforeach()
+
+function(reject_github_cli_transport_surface forbidden_pattern surface_name)
+    if(github_cli_transport_contents MATCHES "${forbidden_pattern}")
+        message(
+            FATAL_ERROR
+            "Forbidden ${surface_name} surface in "
+            "${github_cli_transport_relative}: ${forbidden_pattern}"
+        )
+    endif()
+endfunction()
+
+reject_github_cli_transport_surface(
+    "(#[ \t]*include[ \t]*[<\"]Q|(^|[^A-Za-z0-9_])Q(Process|ProcessEnvironment|String|ByteArray|Variant|Url)([^A-Za-z0-9_]|$))"
+    "Qt/process implementation"
+)
+reject_github_cli_transport_surface(
+    "\"--(auth-token|with-token|token|include|cache|verbose|debug|jq|template|paginate|slurp|preview|field|raw-field|silent)\""
+    "credential, status-output, cache, debug, or response-transform flag"
+)
+reject_github_cli_transport_surface(
+    "(^|[^A-Za-z0-9_])(Authorization|GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_DEBUG)([^A-Za-z0-9_]|$)"
+    "credential or debug literal"
+)
+reject_github_cli_transport_surface(
+    "(std::(cout|cerr|clog)|(^|[^A-Za-z0-9_])(printf|fprintf|puts|fputs|perror|syslog|os_log|NSLog|qDebug|qInfo|qWarning|qCritical|qFatal)[ \t\r\n]*\\(|spdlog)"
+    "logging/printing"
 )
 
 file(READ "${macos_keychain_file}" macos_keychain_contents)
@@ -1539,6 +2486,132 @@ if(
         "selected open, default-collection, search, binary item lifecycle"
     )
 endif()
+
+set(
+    alternate_process_patterns
+    "(NSTask|GSubprocess|g_subprocess_|CreateProcess(AsUser|WithLogon|WithToken)?[AW]?|ShellExecute(Ex)?[AW]?|WinExec|posix_spawnp?|(^|[^A-Za-z0-9_])(_?w?system|_?w?popen|fork|vfork|clone3?|exec(l|le|lp|v|ve|vp|vpe)|_?w?spawn(l|le|lp|lpe|v|ve|vp|vpe))[ \t\r\n]*\\()"
+    "(#[ \t]*include[ \t]*[<\"]boost/process|boost::process|Poco::Process|wx(Process|Execute)|uv_spawn|g_spawn[A-Za-z0-9_]*)"
+    "(/bin/(ba|z|k|c)?sh|\"(/usr/bin/)?(sh|bash|zsh|ksh|csh|fish|cmd(\\.exe)?|powershell(\\.exe)?|pwsh(\\.exe)?)\"|(^|[^A-Za-z0-9_])(sh|bash|zsh|cmd)[ \t]+(-c|/c)([^A-Za-z0-9_]|$))"
+)
+foreach(source_file IN LISTS source_files)
+    file(READ "${source_file}" contents)
+    foreach(alternate_process_pattern IN LISTS alternate_process_patterns)
+        if(contents MATCHES "${alternate_process_pattern}")
+            file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
+            message(
+                FATAL_ERROR
+                "Alternate process or shell API is forbidden in "
+                "${relative_file}: ${alternate_process_pattern}"
+            )
+        endif()
+    endforeach()
+endforeach()
+
+set(
+    github_cli_invocation_and_environment_patterns
+    "\"api\""
+    "\"--hostname\""
+    "\"--method\""
+    "\"--input\""
+    "GH_PROMPT_DISABLED=1"
+    "GH_NO_UPDATE_NOTIFIER=1"
+    "GH_NO_EXTENSION_UPDATE_NOTIFIER=1"
+    "GH_SPINNER_DISABLED=1"
+    "NO_COLOR=1"
+    "CLICOLOR=0"
+    "\"HOME\""
+    "\"XDG_RUNTIME_DIR\""
+    "\"DBUS_SESSION_BUS_ADDRESS\""
+    "\"USERPROFILE\""
+    "\"APPDATA\""
+    "\"LOCALAPPDATA\""
+    "\"HTTPS_PROXY\""
+    "\"NO_PROXY\""
+    "\"SSL_CERT_FILE\""
+    "\"SSL_CERT_DIR\""
+)
+foreach(
+    cli_construction_pattern
+    IN LISTS github_cli_invocation_and_environment_patterns
+)
+    verify_effect_owner(
+        "${cli_construction_pattern}"
+        "GitHub CLI invocation/environment construction"
+        "${github_cli_transport_relative}"
+    )
+endforeach()
+
+set(
+    github_cli_runner_environment_validation_patterns
+    "equal_environment_names[ \t\r\n]*\\([ \t\r\n]*entry\\.Name[ \t\r\n]*,[ \t\r\n]*\"PATH\"[ \t\r\n]*\\)"
+    "equal_environment_names[ \t\r\n]*\\([ \t\r\n]*entry\\.Name[ \t\r\n]*,[ \t\r\n]*\"SystemRoot\"[ \t\r\n]*\\)"
+)
+set(
+    github_process_runner_without_environment_validation
+    "${github_process_runner_contents}"
+)
+foreach(
+    runner_environment_validation_pattern
+    IN LISTS github_cli_runner_environment_validation_patterns
+)
+    string(
+        REGEX REPLACE
+        "${runner_environment_validation_pattern}"
+        ""
+        github_process_runner_without_environment_validation
+        "${github_process_runner_without_environment_validation}"
+    )
+endforeach()
+if(
+    github_process_runner_without_environment_validation
+        MATCHES "\"(PATH|SystemRoot)\""
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI runner may name PATH and SystemRoot only while validating "
+        "the transport-constructed Windows environment"
+    )
+endif()
+
+foreach(source_file IN LISTS source_files)
+    get_filename_component(normalized_source_file "${source_file}" ABSOLUTE)
+    file(READ "${source_file}" contents)
+    if(
+        contents MATCHES "\"(PATH|SystemRoot)\""
+        AND NOT normalized_source_file STREQUAL github_cli_transport_file
+        AND NOT normalized_source_file STREQUAL github_process_runner_file
+    )
+        file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
+        message(
+            FATAL_ERROR
+            "GitHub CLI invocation/environment construction ownership "
+            "violation in ${relative_file}; PATH and SystemRoot are owned by "
+            "${github_cli_transport_relative}, with validation only in "
+            "${github_process_runner_relative}"
+        )
+    endif()
+
+    file(
+        RELATIVE_PATH
+        relative_source_file
+        "${BPR_ROOT}"
+        "${source_file}"
+    )
+    if(
+        relative_source_file MATCHES "^src/adapters/github/"
+        AND contents MATCHES "\"\\.git\""
+        AND NOT normalized_source_file STREQUAL github_cli_transport_file
+        AND NOT normalized_source_file STREQUAL github_process_runner_file
+    )
+        message(
+            FATAL_ERROR
+            "GitHub CLI neutral working-directory validation ownership "
+            "violation in ${relative_source_file}; only "
+            "${github_cli_transport_relative} and "
+            "${github_process_runner_relative} may validate it"
+        )
+    endif()
+endforeach()
 
 file(
     GLOB_RECURSE runtime_files

@@ -175,6 +175,108 @@ full-system VM, not bare metal. Linux native HTTPS and the public composed
 provider path remain pending, so this fixture does not verify the combined
 Linux vault-plus-HTTPS claim.
 
+## GitHub CLI process and trust fixtures
+
+The BPR-0025 compiled-child fixture launches its own canonical executable
+through the production `QProcess` runner. Helper modes directly inspect the
+element-wise argument vector, requested child-environment allowlist, standard
+input, and canonical directory currently outside repository ancestry. A
+random parent environment name/value unknown to production is absent in the
+child. Raw macOS inspection
+allows and separately verifies only Darwin's deterministic
+`__CF_USER_TEXT_ENCODING` addition; raw Linux inspection requires the
+requested fact and explicit locale with no additions. Exact limit and
+limit-plus-one cases cover input, retained output, error, duration,
+cancellation, nonzero exit, crash, simultaneous stream pressure, and
+termination/reaping. Every failing terminal exposes only a fixed category and
+discards partial standard output and all standard error.
+
+The Unix fixture directly observes closed inherited descriptors, disabled core
+dumps, reset signal disposition, and that the child is the new session and
+initial process-group leader. It proves clean leader exit, nonzero failure,
+timeout, and cancellation signal descendants that remain in that initial
+process group while the direct child is reaped. An escape case proves a
+descendant that moves to another group survives until explicit fixture
+cleanup. The fixture also proves a request whose absolute deadline expires
+behind the runner's sole worker never launches later.
+
+A compiled seam proves completion-watchdog quarantine, zero launch for another
+request while quarantined, and recovery after the worker resumes. Source and
+hostile architecture gates, not a compiled live-process failed-reap fixture,
+require the owner-managed worker to retain a live `QProcess` after actual
+bounded reap failure and continue kill/reap work without invoking the Qt
+destructor inside the completed call.
+Allocation-free request-shape validation and pre-cancellation precede
+work-item allocation and request copying. Marker-backed N+1 cases cover path,
+argument, environment, input, stream, time, and reap dimensions and require
+zero launches.
+Reads use a fixed buffer and request at most the remaining retained bound plus
+one byte. This does not prove a hard cap on Qt's private in-flight pipe
+allocation. Windows Job Object descendant containment, private pipe bounds,
+and target-native behavior remain open in BPR-0036.
+
+The invocation fixture compiles every selected GitHub.com and GHES 3.18 read
+operation. It checks exact REST-prefix removal, literal GraphQL routing,
+hostname/method/header arguments, standard-input bodies, fixed hardening
+environment, platform credential-session facts, and the absence of arbitrary
+environment or caller argument input. Profile, correlation, server, route,
+method, header, body, executable, environment, and working-directory drift
+fail before the process port is called. The production trust gate is also
+tested with a fake successful child: it remains `cli_unavailable` and makes
+zero calls.
+
+`tests/scripts/verify_gh_cli_trust.py` is a separate direct selected-binary
+fixture. It resolves one absolute `gh`, makes and executes an owner-private
+copy, hashes that copy before use, and verifies its digest again after every
+probe. It creates a private temporary config and random synthetic startup
+token, generates a disposable loopback certificate, and captures only fixed
+TLS/redirect categories, counts, booleans, version, and digest. No GitHub
+endpoint is contacted, and every child runs from the canonical
+non-repository temporary directory. The certificate fixture requires the
+selected fixed bad-certificate alert and zero HTTP requests. The `302`,
+`307`, and `308` POST redirect fixtures compare the body digest and
+authorization value without retaining either, and record whether a distinct
+loopback hostname is contacted.
+
+`gh` rejects the fixture's ephemeral `host:port` as a `--hostname`, so the
+verification-only invocation retains the synthetic `github.com` startup
+hostname while its full URL selects loopback. Official selected-version
+source establishes that relative production endpoints use the same Go
+client. This is exact-binary behavior characterization, not exact
+production-authority proof.
+
+The selected macOS `gh` 2.95.0 binary, SHA-256
+`798882434e7f6ae5846194191263ecc59d56bc201f13f016270f44cb4f34499e`,
+produced one bad-certificate alert with zero HTTP requests but followed the
+cross-authority `302` once. Its selected origin received the exact 47-byte
+body and synthetic authorization; the distinct sink received neither. The
+`307` and `308` origins received both, while their sinks were not observed
+and therefore remain unproven rather than accepted as redirect rejection.
+The `302` is direct evidence that the selected CLI cannot satisfy the
+no-cross-authority contract, not a successful broker trust result. The
+temporary executable and configuration are verification-only and removed
+after the probe; production never admits `GH_CONFIG_DIR`.
+
+The fixed production gate also records three independent source-backed
+blockers. Production's canonical path/name validation does not bind the
+eventually launched image to the probe's exact copied-byte digest across a
+replacement or update race. Persisted CLI configuration can select
+`http_unix_socket` through the platform home/application-data path, and
+`gh api --hostname` has no per-invocation account selector that binds it to
+the request's correlated credential identity generation. An external
+`gh auth switch` can change the active account for that host. The fake
+successful child still makes zero production calls because
+executable-identity, redirect, ambient-configuration, and credential-identity
+trust must all be established independently. BPR-0037 owns that
+production-enablement work together with owner/permission and
+validation-to-launch binding for the canonical/currently non-repository
+working directory, Unix descendant escape from the initial process group, and
+binding PID/process-group identity across cleanup so a reused numeric group
+cannot receive a late signal. The current group signaling is not claimed
+race-free. It must also bind selected Linux CA-file/CA-directory identity and
+contents through the CLI's later open and directly prove hostile replacement
+and content mutation fail closed.
+
 ## GitHub hosts
 
 - GitHub.com current contract

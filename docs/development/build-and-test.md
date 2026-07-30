@@ -182,6 +182,102 @@ unavailability also passed. This is direct Linux vault evidence from a
 full-system VM, not bare metal and not proof of the pending native HTTPS or
 public composition surfaces.
 
+For the BPR-0025 GitHub CLI process boundary, build and run the two focused
+contract executables:
+
+```sh
+cmake --build build/dev --target \
+  better_pull_review_gh_cli_transport_tests \
+  better_pull_review_github_cli_process_runner_tests
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(gh_cli_transport|github_cli_process_runner)$'
+```
+
+The transport test checks the closed operation-to-argument translation,
+complete requested child-environment allowlist, canonical directory currently
+outside repository ancestry, request correlation, four typed trust blockers,
+and the fixed zero-process `cli_unavailable` gate. The runner test uses
+same-executable child modes to exercise standard input, retained-output
+limits, both output streams, deadline, cancellation, process failure, and
+reaping without a shell. On Unix, direct child observation proves closed
+inherited descriptors, disabled core dumps, reset signal handlers, and that
+`CreateNewSession` makes the child the new session and initial process-group
+leader. Lifecycle cases prove clean leader exit, nonzero failure, timeout, and
+cancellation signal descendants that remain in that initial process group;
+an escape case proves a descendant that moves to another group survives until
+the fixture removes it. Queue-expiry cases prove no late launch.
+
+The runner owns one serialized process worker. A compiled seam test proves
+completion-watchdog quarantine, rejection of another request with zero
+launch, and recovery after the worker resumes. Source and hostile architecture
+gates separately require an actual failed bounded reap to retain the live
+`QProcess` on the quarantined worker for continued reaping without spawning
+unbounded workers or invoking Qt's destructor wait inside the completed call;
+the compiled suite does not force that live-process path.
+Allocation-free shape validation and pre-cancellation precede work-item
+allocation and request copying; every checked N+1 dimension must leave the
+marker-backed helper unlaunched.
+
+On macOS, raw child-environment inspection observes only the requested
+allowlist plus Darwin's deterministic `__CF_USER_TEXT_ENCODING` addition. On
+Linux, the checked request includes its explicit locale fact and raw child
+inspection must find no addition. These checks bound retained bytes and every
+read requested through the public Qt API; Qt does not expose a cap for its
+private in-flight pipe buffers, so do not describe those internal allocations
+as hard-bounded. Windows Job Object descendant containment, private pipe
+allocation, and target-native runner behavior remain BPR-0036 work.
+
+The selected-binary trust probe is separate and loopback-only:
+
+```sh
+python3 tests/scripts/verify_gh_cli_trust.py \
+  --gh /opt/homebrew/bin/gh \
+  --expect-version 2.95.0 \
+  --expect-sha256 \
+  798882434e7f6ae5846194191263ecc59d56bc201f13f016270f44cb4f34499e
+```
+
+It copies the selected executable into an owner-private temporary directory,
+hashes those exact bytes, executes only that copy, and verifies the digest
+again afterward. A private temporary CLI configuration holds a runtime-random
+synthetic token solely to pass `gh api`'s startup authentication gate. The
+probe runs from that canonical non-repository directory, never contacts
+GitHub, retains no response, raw header, or TLS error text, and removes every
+temporary input. `GH_CONFIG_DIR` is verification-only and is forbidden from
+the production broker. Since `gh` rejects an ephemeral loopback `host:port`
+as `--hostname`, the synthetic `github.com` startup hostname remains in this
+fixture. Treat the loopback result as exact-binary, source-backed redirect
+characterization, never as exact production-authority proof.
+
+For the recorded binary, the expected result is one fixed bad-certificate TLS
+alert with zero HTTP requests; a followed cross-authority `302` whose origin
+receives the 47-byte body and authorization while its sink receives neither;
+`307` and `308` origins reached with sink behavior
+`not-observed-unproven`; and `broker-availability: unavailable`. A different
+binary digest requires a fresh review; do not drop the expected digest and
+inherit this result.
+
+Redirect behavior is only one of four fixed production blockers. The direct
+probe binds its result to exact copied bytes, while production's canonical
+path/name validation cannot yet bind those bytes through replacement or
+update races to the image actually launched. Official
+CLI configuration permits persisted `http_unix_socket`, which remains
+ambient when the child receives its selected home/application-data path.
+Canonical Linux `SSL_CERT_FILE`/`SSL_CERT_DIR` strings do not bind CA
+file/directory identity or contents through the CLI's later open. Also,
+`gh api --hostname` has no per-invocation account selector and can use an
+account changed independently by `gh auth switch`, so it cannot bind the child
+to the request's credential identity generation. All four reasons must be
+eliminated or directly bound under BPR-0037 before CLI mode can start a
+process. BPR-0037 must also bind an owner-controlled working-directory
+identity across launch, close directory permission/repository-creation and
+replacement races, prove hostile CA-file/CA-directory replacement and content
+mutation fail closed, and contain or fail closed for a Unix descendant that
+moves out of the initial process group. It must also bind PID/process-group
+identity through cleanup or otherwise eliminate numeric `kill(-pgid, ...)`
+reuse risk after leader exit; the current group signaling is not claimed
+race-free.
+
 `verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
 binary-dependency script also supports all three platforms, using `dumpbin` on
 Windows when available, followed by `llvm-readobj` and `objdump` fallbacks.

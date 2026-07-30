@@ -19,6 +19,16 @@ scope, exercise the public application fixture, and inspect the selected PE
 imports and runtime dependencies. Retain only secret-free commands, fixed
 output, and inspection evidence.
 
+Complete the Windows GitHub CLI process boundary before assigning any
+Windows runner claim: compare the raw child environment including explicit
+empty `PATH` and selected `SystemRoot`, exercise valid and invalid `.exe`
+startup, contain the complete descendant tree in a kill-on-close Job Object,
+prove timeout/cancellation leaves no child or descendant, suppress
+crash/core-diagnostic artifacts, and establish a hard in-flight
+stdout/stderr memory bound that does not rely on Qt's uncapped Windows pipe
+reader. If any of those properties remains unproved, keep Windows CLI process
+execution unavailable; the native HTTPS path is independent.
+
 This card intentionally owns every deferred RFC-BPR-0002 Windows x64
 target-native claim. Cross-compilation, mocks, another operating system, and
 GitHub Actions are not acceptable substitutes. Its open state does not block

@@ -16,4 +16,11 @@ Tests are direct evidence, not naming evidence.
   setup/lifecycle/cleanup sequence, fixed secret-free output, and exact
   post-test absence. Never touch a production service, perform broad vault
   cleanup, or claim cross-rebuild cleanup without stable package identity.
+- GitHub CLI process fixtures launch only a canonical same-test executable
+  from an isolated non-repository directory and compare the complete child
+  argument/environment/input contract. Trust probes use loopback-only
+  endpoints, an owner-private digest-stable executable copy and temporary
+  config, a runtime-random synthetic token, fixed structural observations,
+  and exact cleanup. A followed redirect is evidence that CLI mode is
+  unavailable, never a passing trust result.
 - A test must fail or visibly disagree when its claimed behavior is false.

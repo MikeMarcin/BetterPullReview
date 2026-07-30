@@ -145,7 +145,70 @@ All API, Git, diff, syntax, Markdown, agent, and settings inputs are untrusted. 
 - Invoke with argument arrays, never a shell.
 - Use bounded stdin/stdout/stderr, timeouts, cancellation, and redaction.
 - Pass prompts and request bodies through stdin or protocol messages, not command lines.
-- Allowlist inherited environment variables for sensitive child processes.
+- Construct explicit child environments from approved names for sensitive
+  processes; never inherit everything and then scrub known names.
+
+The GitHub CLI broker does not inherit and scrub the parent environment. It
+constructs a new child environment from fixed noninteractive settings and
+typed platform credential-session, trust, and proxy facts. Its standard-C++
+process request contains explicit input/output/error/time/reap bounds; the
+sole `QProcess` runner uses one owner-managed worker and separate captured
+channels. On Unix, the child is created as a new session and initial
+process-group leader; a compiled child directly observes session/group
+identity, closed inherited descriptors, disabled core dumps, and reset signal
+handlers. Compiled lifecycle cases prove cleanup signals descendants that
+remain in that initial process group on clean exit, failure, timeout, and
+cancellation while reaping the direct child, and an escape case proves a
+descendant can survive after moving groups before explicit fixture cleanup. A
+compiled seam proves completion-watchdog quarantine and recovery. Source and
+hostile architecture gates additionally cover shutdown and group-resolution
+paths and actual failed bounded reap, where the live process must remain on the
+quarantined worker for continued reaping; the runtime suite does not force
+that live-process path. Fixed-size public reads bound accepted and retained
+bytes; Qt's private in-flight pipe allocation is not claimed as hard-bounded.
+Allocation-free request-shape validation and pre-cancellation occur before
+work-item allocation or request copying. Path, argument, environment, input,
+stream, timeout, and reap N+1 requests fail without launching a child.
+Executable and working-directory paths are canonical; at validation time the
+working directory has neither a `.git` nor bare-repository ancestor. This does
+not establish owner-controlled permissions or bind directory identity through
+launch. Token, host/repository override, config override, debug,
+pager/editor/browser, TTY/color override, update, spinner, prompt, and unknown
+parent variables are not read.
+
+Raw macOS child inspection permits only the requested facts plus Darwin's
+deterministic `__CF_USER_TEXT_ENCODING` addition. The Linux raw-runner fixture
+requests its locale explicitly; production does not add that fixture-only
+fact. Windows Job Object descendant containment, private pipe bounds, and
+direct target-native verification remain open under BPR-0036.
+
+This mechanical boundary is not trust evidence for GitHub CLI networking.
+An owner-private, digest-stable copy of the selected `gh` 2.95.0 bytes
+produces a fixed bad-certificate alert before HTTP but follows a
+cross-authority `302` and does not provide a safe final-authority result
+surface. The loopback `host:port` cannot be the CLI startup hostname, so the
+source-backed observation is deliberately not treated as exact
+production-authority proof. The production platform home/application-data
+facts also leave the CLI's documented persisted `http_unix_socket`
+configuration in scope, and `gh api --hostname` cannot bind the invocation to
+the request's credential/account generation while `gh auth switch` can change
+the active account externally. The probe's exact copied-byte digest is also
+not bound through production's current canonical path/name checks to the image
+eventually launched across a path replacement or update race. Likewise,
+canonical Linux `SSL_CERT_FILE`/`SSL_CERT_DIR` strings do not bind the selected
+trust-material identity or contents through the CLI's later open, so
+replacement or mutation remains part of the ambient-configuration blocker.
+
+The production transport therefore reports four typed trust blockers and
+returns fixed `cli_unavailable` before process execution. A future CLI
+contract must directly close the executable-identity, authority,
+ambient-configuration, and identity-binding gaps; native HTTPS evidence and
+fake-child success are inapplicable. BPR-0037 also owns working-directory
+identity/owner-permission/TOCTOU closure and Unix process-group escape before
+production enablement, plus binding PID/process-group identity across cleanup
+so a reused numeric group cannot receive a late signal and binding selected CA
+file/directory identity and contents through open. Initial-group signaling is
+not claimed race-free.
 
 ## Network handling
 

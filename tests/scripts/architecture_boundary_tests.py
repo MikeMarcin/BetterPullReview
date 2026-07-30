@@ -75,12 +75,15 @@ endif()
 """
 
 GITHUB_TARGET = """\
+find_package(Threads REQUIRED)
 add_library(better_pull_review_adapter_github INTERFACE)
 add_library(BetterPullReview::AdapterGitHub ALIAS better_pull_review_adapter_github)
 target_link_libraries(
     better_pull_review_adapter_github
     INTERFACE
         BetterPullReview::Application
+    PRIVATE
+        Threads::Threads
 )
 target_sources(
     better_pull_review_adapter_github
@@ -94,6 +97,676 @@ target_sources(
     + WINDOWS_CREDENTIAL_TARGET
     + LINUX_SECRET_SERVICE_TARGET
 )
+
+GITHUB_CLI_PROCESS_INTERFACE = """\
+#pragma once
+#include <chrono>
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <vector>
+
+struct github_cli_process_request {
+    std::string Program;
+    std::vector<std::string> Arguments;
+    std::vector<std::string> Environment;
+    std::string WorkingDirectory;
+    std::vector<std::byte> StandardInput;
+    std::size_t StandardInputLimit;
+    std::size_t StandardOutputLimit;
+    std::size_t StandardErrorLimit;
+    std::chrono::milliseconds Timeout;
+    std::chrono::milliseconds ReapTimeout;
+};
+
+class github_cli_process_port {
+public:
+    virtual ~github_cli_process_port() = default;
+};
+"""
+
+GITHUB_CLI_PROCESS_RUNNER_INTERFACE = """\
+#pragma once
+#include "github_cli_process.hpp"
+#include <memory>
+
+class github_cli_process_runner_test_seam {
+public:
+    virtual ~github_cli_process_runner_test_seam() = default;
+    virtual auto before_execute() -> void = 0;
+};
+
+auto make_github_cli_process_runner()
+    -> std::unique_ptr<github_cli_process_port>;
+auto make_github_cli_process_runner_for_test(
+    std::shared_ptr<github_cli_process_runner_test_seam> test_seam)
+    -> std::unique_ptr<github_cli_process_port>;
+"""
+
+GITHUB_CLI_PROCESS_RUNNER_SOURCE = """\
+#include "github_cli_process_runner.hpp"
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <array>
+#include <atomic>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <thread>
+
+using clock = std::chrono::steady_clock;
+
+[[nodiscard]] auto contains_nul(
+    const std::string_view value) noexcept -> bool {
+    return value.find('\\0') != std::string_view::npos;
+}
+
+[[nodiscard]] auto valid_environment_name(
+    const std::string_view name) noexcept -> bool {
+    return !name.empty();
+}
+
+[[nodiscard]] auto equal_environment_names(
+    const std::string_view left,
+    const std::string_view right) noexcept -> bool {
+    return left == right;
+}
+
+[[nodiscard]] auto add_bounded(
+    std::size_t& total,
+    std::size_t amount,
+    std::size_t limit) noexcept -> bool {
+    if(total > limit || amount > limit - total) {
+        return false;
+    }
+    total += amount;
+    return true;
+}
+
+[[nodiscard]] auto valid_request_shape(
+    const github_cli_process_request& request) noexcept -> bool {
+    if(
+        request.Executable.empty()
+        || request.Executable.size() > github_cli_process_max_path_bytes
+        || contains_nul(request.Executable)
+        || request.WorkingDirectory.empty()
+        || request.WorkingDirectory.size()
+            > github_cli_process_max_path_bytes
+        || contains_nul(request.WorkingDirectory)
+        || request.Arguments.empty()
+        || request.Arguments.size()
+            > github_cli_process_max_argument_count
+        || request.Environment.size()
+            > github_cli_process_max_environment_count
+        || request.StandardInputLimit == 0
+        || request.StandardInputLimit
+            > github_cli_process_max_standard_input_bytes
+        || request.StandardInput.size() > request.StandardInputLimit
+        || request.StandardOutputLimit == 0
+        || request.StandardOutputLimit
+            > github_cli_process_max_standard_output_bytes
+        || request.StandardErrorLimit == 0
+        || request.StandardErrorLimit
+            > github_cli_process_max_standard_error_bytes
+        || request.Timeout <= std::chrono::milliseconds::zero()
+        || request.Timeout
+            > std::chrono::duration_cast<std::chrono::milliseconds>(
+                github_cli_process_max_timeout)
+        || request.ReapTimeout <= std::chrono::milliseconds::zero()
+        || request.ReapTimeout
+            > std::chrono::duration_cast<std::chrono::milliseconds>(
+                github_cli_process_max_reap_timeout)) {
+        return false;
+    }
+
+    std::size_t argument_bytes = 0;
+    for(const auto& argument : request.Arguments) {
+        if(
+            argument.empty()
+            || argument.size() > github_cli_process_max_argument_bytes
+            || contains_nul(argument)
+            || !add_bounded(
+                argument_bytes,
+                argument.size(),
+                github_cli_process_max_arguments_bytes)) {
+            return false;
+        }
+    }
+
+    std::size_t environment_bytes = 0;
+#if defined(_WIN32)
+    bool has_empty_path = false;
+    bool has_system_root = false;
+#endif
+    for(std::size_t index = 0; index < request.Environment.size(); ++index) {
+        const auto& entry = request.Environment[index];
+        if(
+            entry.Name.size()
+                > github_cli_process_max_environment_name_bytes
+            || !valid_environment_name(entry.Name)
+            || entry.Value.size()
+                > github_cli_process_max_environment_value_bytes
+            || contains_nul(entry.Value)
+            || !add_bounded(
+                environment_bytes,
+                entry.Name.size(),
+                github_cli_process_max_environment_bytes)
+            || !add_bounded(
+                environment_bytes,
+                entry.Value.size(),
+                github_cli_process_max_environment_bytes)) {
+            return false;
+        }
+#if defined(_WIN32)
+        if(equal_environment_names(entry.Name, "PATH")) {
+            has_empty_path = entry.Value.empty();
+        }
+        if(equal_environment_names(entry.Name, "SystemRoot")) {
+            has_system_root = !entry.Value.empty();
+        }
+#endif
+        for(std::size_t prior = 0; prior < index; ++prior) {
+            if(equal_environment_names(
+                   entry.Name,
+                   request.Environment[prior].Name)) {
+                return false;
+            }
+        }
+    }
+#if defined(_WIN32)
+    if(!has_empty_path || !has_system_root) {
+        return false;
+    }
+#endif
+    return true;
+}
+
+[[nodiscard]] auto decode_utf8(
+    const std::string_view,
+    QString&) -> bool {
+    return true;
+}
+
+[[nodiscard]] auto exact_canonical_file() -> bool {
+    return true;
+}
+
+bool validate_request(
+    const github_cli_process_request& request,
+    validated_process_request& validated) {
+    const char* neutral_repository_marker = ".git";
+#if defined(_WIN32)
+    bool has_empty_path = false;
+    bool has_system_root = false;
+#endif
+    for(const auto& entry : request.Environment) {
+#if defined(_WIN32)
+        if(equal_environment_names(entry.Name, "PATH")) {
+            has_empty_path = entry.Value.empty();
+        }
+        if(equal_environment_names(entry.Name, "SystemRoot")) {
+            has_system_root = !entry.Value.empty();
+        }
+#endif
+        child_environment.insert(entry.Name, entry.Value);
+    }
+#if defined(_WIN32)
+    if(!has_empty_path || !has_system_root) {
+        return false;
+    }
+#endif
+    validated.Environment = child_environment;
+    return true;
+}
+
+void kill_process_group(const qint64 process_group_id) {
+#if defined(Q_OS_UNIX)
+    const auto process_group =
+        -static_cast<pid_t>(process_group_id);
+    static_cast<void>(::kill(process_group, SIGKILL));
+#endif
+}
+
+qint64 resolve_process_group(
+    const QProcess& process,
+    const qint64 known_process_group_id) noexcept {
+    if(known_process_group_id > 1) {
+        return known_process_group_id;
+    }
+    const auto process_id = process.processId();
+    return process_id > 1 ? process_id : 0;
+}
+
+bool kill_process_group_and_reap(
+    QProcess& process,
+    const qint64 known_process_group_id,
+    std::chrono::milliseconds timeout) {
+    auto process_group_id =
+        resolve_process_group(process, known_process_group_id);
+    kill_process_group(process_group_id);
+    process.kill();
+    while(process.state() != QProcess::NotRunning) {
+        const auto wait = timeout.count();
+        static_cast<void>(process.waitForFinished(wait));
+        if(process.state() != QProcess::NotRunning) {
+            process_group_id =
+                resolve_process_group(process, process_group_id);
+            kill_process_group(process_group_id);
+            process.kill();
+        }
+    }
+    return true;
+}
+
+auto finish_background_reap(
+    QProcess& process,
+    const qint64 known_process_group_id) -> void {
+    auto process_group_id =
+        resolve_process_group(process, known_process_group_id);
+    while(process.state() != QProcess::NotRunning) {
+        process_group_id =
+            resolve_process_group(process, process_group_id);
+        kill_process_group(process_group_id);
+        process.kill();
+        process.waitForFinished(10);
+    }
+}
+
+std::optional<github_cli_process_failure> drain_channel(
+    QProcess& process,
+    QProcess::ProcessChannel channel,
+    std::size_t limit,
+    std::size_t& consumed) {
+    process.setReadChannel(channel);
+    std::array<char, 16U * 1024U> buffer{};
+    while(process.bytesAvailable() > 0) {
+        const auto remaining = limit - consumed;
+        const auto requested = std::min<std::size_t>(
+            buffer.size(),
+            remaining + 1U);
+        const auto bytes_read = process.read(
+            buffer.data(),
+            static_cast<qint64>(requested));
+        const auto byte_count = static_cast<std::size_t>(bytes_read);
+        if(byte_count > remaining) {
+            return github_cli_process_failure::standard_output_limit;
+        }
+        consumed += byte_count;
+    }
+    return std::nullopt;
+}
+
+struct process_execution {
+    github_cli_process_result Result;
+    std::unique_ptr<QProcess> AwaitingReap;
+    qint64 ProcessGroupId = 0;
+};
+
+process_execution failed_execution(
+    std::unique_ptr<QProcess>& process,
+    const qint64 known_process_group_id,
+    std::chrono::milliseconds reap_timeout,
+    github_cli_process_failure failure) {
+    const auto process_group_id =
+        resolve_process_group(*process, known_process_group_id);
+    if(
+        kill_process_group_and_reap(
+            *process,
+            process_group_id,
+            reap_timeout)) {
+        return {.Result = std::unexpected{failure}};
+    }
+    return {
+        .Result = std::unexpected{github_cli_process_failure::reap_failure},
+        .AwaitingReap = std::move(process),
+        .ProcessGroupId = process_group_id,
+    };
+}
+
+process_execution execute_process(
+    const github_cli_process_request& request,
+    std::stop_token stop,
+    const std::atomic_bool& shutdown_requested,
+    clock::time_point deadline) {
+    validated_process_request validated;
+    validate_request(request, validated);
+    if(request.StandardInput.size() > request.StandardInputLimit
+       || request.StandardOutputLimit == 0
+       || request.StandardErrorLimit == 0) {
+        return {.Result = std::unexpected{
+            github_cli_process_failure::invalid_request}};
+    }
+
+    auto process = std::make_unique<QProcess>();
+    const auto process_group_id =
+        std::make_shared<qint64>(0);
+    process->setProgram(validated.Executable);
+    process->setArguments(validated.Arguments);
+    process->setProcessEnvironment(validated.Environment);
+    process->setWorkingDirectory(validated.WorkingDirectory);
+    process->setProcessChannelMode(QProcess::SeparateChannels);
+    process->setInputChannelMode(QProcess::ManagedInputChannel);
+#if defined(Q_OS_UNIX)
+    process->setUnixProcessParameters(
+        QProcess::UnixProcessFlag::CloseFileDescriptors
+        | QProcess::UnixProcessFlag::DisableCoreDumps
+        | QProcess::UnixProcessFlag::ResetSignalHandlers
+        | QProcess::UnixProcessFlag::CreateNewSession);
+#endif
+    QObject::connect(
+        process.get(),
+        &QProcess::started,
+        process.get(),
+        [
+            process_pointer = process.get(),
+            process_group_id
+        ]() noexcept {
+            *process_group_id =
+                process_pointer->processId();
+        },
+        Qt::DirectConnection);
+    QObject::connect(
+        process.get(),
+        &QProcess::finished,
+        process.get(),
+        [process_group_id](
+            const int,
+            const QProcess::ExitStatus) noexcept {
+            kill_process_group(*process_group_id);
+        },
+        Qt::DirectConnection);
+    const auto failed = [&](github_cli_process_failure failure) {
+        return failed_execution(
+            process,
+            *process_group_id,
+            request.ReapTimeout,
+            failure);
+    };
+    const auto terminal_failure = [&]()
+        -> std::optional<github_cli_process_failure> {
+        if(stop.stop_requested()) {
+            return github_cli_process_failure::cancelled;
+        }
+        return std::nullopt;
+    };
+    if(
+        shutdown_requested.load(std::memory_order_acquire)
+        || stop.stop_requested())
+    {
+        return failed(
+            github_cli_process_failure::cancelled);
+    }
+    if(clock::now() >= deadline)
+    {
+        return failed(github_cli_process_failure::timeout);
+    }
+    process->start();
+    *process_group_id = resolve_process_group(
+        *process,
+        *process_group_id);
+    for(;;) {
+        *process_group_id = resolve_process_group(
+            *process,
+            *process_group_id);
+        if(const auto failure = terminal_failure(); failure.has_value()) {
+            return failed(*failure);
+        }
+        if(process->waitForStarted(request.Timeout.count())) {
+            break;
+        }
+        if(process->state() == QProcess::NotRunning) {
+            return failed(github_cli_process_failure::start_failure);
+        }
+    }
+    process->write(
+        request.StandardInput.data(),
+        static_cast<qint64>(request.StandardInput.size()));
+    process->closeWriteChannel();
+    process->setReadChannel(QProcess::StandardOutput);
+    process->waitForReadyRead(request.Timeout.count());
+    std::size_t consumed = 0;
+    drain_channel(
+        *process,
+        QProcess::StandardOutput,
+        request.StandardOutputLimit,
+        consumed);
+    if(process->state() != QProcess::NotRunning) {
+        return failed(github_cli_process_failure::timeout);
+    }
+    kill_process_group(*process_group_id);
+    return {
+        .Result = github_cli_process_success{},
+    };
+}
+
+struct process_work_item {
+    github_cli_process_request Request;
+    std::stop_token Stop;
+    clock::time_point Deadline;
+    std::mutex Mutex;
+    std::condition_variable Completed;
+    std::optional<github_cli_process_result> Result;
+};
+
+class process_worker final {
+public:
+    explicit process_worker(
+        std::shared_ptr<github_cli_process_runner_test_seam> test_seam)
+        : TestSeam{std::move(test_seam)},
+          Worker{[this] { worker_loop(); }} {}
+
+    ~process_worker() {
+        ShutdownRequested.store(true, std::memory_order_release);
+        WorkAvailable.notify_all();
+        SlotAvailable.notify_all();
+        if(Worker.joinable()) {
+            Worker.join();
+        }
+    }
+
+    github_cli_process_result submit(
+        const github_cli_process_request& request,
+        std::stop_token stop) {
+        if(!valid_request_shape(request)) {
+            return std::unexpected{
+                github_cli_process_failure::invalid_request};
+        }
+        if(stop.stop_requested()) {
+            return std::unexpected{
+                github_cli_process_failure::cancelled};
+        }
+        std::shared_ptr<process_work_item> item;
+        try {
+            item = std::make_shared<process_work_item>();
+            item->Request = request;
+            item->Stop = stop;
+            item->Deadline = clock::now() + request.Timeout;
+        }
+        catch(...) {
+            return std::unexpected{
+                github_cli_process_failure::start_failure};
+        }
+        {
+            std::unique_lock lock{Mutex};
+            while(Busy) {
+                if(Quarantined) {
+                    return std::unexpected{
+                        github_cli_process_failure::reap_failure};
+                }
+                SlotAvailable.wait(lock);
+            }
+            Busy = true;
+            Pending = item;
+        }
+        WorkAvailable.notify_one();
+        std::unique_lock result_lock{item->Mutex};
+        const auto completion_deadline =
+            item->Deadline + request.ReapTimeout + wait_slice;
+        if(
+            !item->Completed.wait_until(
+                result_lock,
+                completion_deadline,
+                [&] {
+                    return item->Result.has_value();
+                })) {
+            {
+                std::lock_guard lock{Mutex};
+                if(Busy) {
+                    Quarantined = true;
+                }
+            }
+            SlotAvailable.notify_all();
+            return std::unexpected{
+                github_cli_process_failure::reap_failure};
+        }
+        return std::move(*item->Result);
+    }
+
+private:
+    void publish(
+        const std::shared_ptr<process_work_item>& item,
+        github_cli_process_result result) {}
+
+    void worker_loop() {
+        auto item = Pending;
+        std::optional<process_execution> execution;
+        try {
+            if(TestSeam != nullptr) {
+                TestSeam->before_execute();
+            }
+            execution.emplace(execute_process(
+                item->Request,
+                item->Stop,
+                ShutdownRequested,
+                item->Deadline));
+        }
+        catch(...) {
+            publish(
+                item,
+                std::unexpected{
+                    github_cli_process_failure::start_failure});
+            {
+                std::lock_guard lock{Mutex};
+                Quarantined = false;
+                Busy = false;
+            }
+            SlotAvailable.notify_all();
+            return;
+        }
+        if(execution->AwaitingReap != nullptr) {
+            {
+                std::lock_guard lock{Mutex};
+                Quarantined = true;
+            }
+            SlotAvailable.notify_all();
+        }
+        publish(item, std::move(execution->Result));
+        if(execution->AwaitingReap != nullptr) {
+            finish_background_reap(
+                *execution->AwaitingReap,
+                execution->ProcessGroupId);
+            execution->AwaitingReap.reset();
+        }
+        {
+            std::lock_guard lock{Mutex};
+            Quarantined = false;
+            Busy = false;
+        }
+        SlotAvailable.notify_all();
+    }
+
+    std::mutex Mutex;
+    std::condition_variable WorkAvailable;
+    std::condition_variable SlotAvailable;
+    std::shared_ptr<process_work_item> Pending;
+    bool Busy = false;
+    bool Quarantined = false;
+    std::atomic_bool ShutdownRequested = false;
+    std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
+    std::thread Worker;
+};
+
+class qprocess_github_cli_process_runner final {
+public:
+    explicit qprocess_github_cli_process_runner(
+        std::shared_ptr<github_cli_process_runner_test_seam> test_seam)
+        : TestSeam{std::move(test_seam)} {}
+
+    github_cli_process_result run(
+        const github_cli_process_request& request,
+        std::stop_token stop) {
+        process_worker* worker = nullptr;
+        {
+            std::lock_guard lock{WorkerMutex};
+            if(Worker == nullptr) {
+                Worker = std::make_unique<process_worker>(
+                    TestSeam);
+            }
+            worker = Worker.get();
+        }
+        return worker->submit(request, stop);
+    }
+
+private:
+    std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
+    std::mutex WorkerMutex;
+    std::unique_ptr<process_worker> Worker;
+};
+
+std::unique_ptr<github_cli_process_port>
+make_qprocess_github_cli_process_runner(
+    std::shared_ptr<github_cli_process_runner_test_seam> test_seam) {
+    return std::make_unique<qprocess_github_cli_process_runner>(
+        std::move(test_seam));
+}
+
+auto make_github_cli_process_runner()
+    -> std::unique_ptr<github_cli_process_port> {
+    return make_qprocess_github_cli_process_runner(nullptr);
+}
+
+auto
+make_github_cli_process_runner_for_test(
+    std::shared_ptr<github_cli_process_runner_test_seam> test_seam)
+    -> std::unique_ptr<github_cli_process_port> {
+    return make_qprocess_github_cli_process_runner(
+        std::move(test_seam));
+}
+"""
+
+GH_CLI_TRANSPORT_SOURCE = """\
+#include "gh_cli_transport.hpp"
+
+constexpr const char* neutral_repository_marker = ".git";
+constexpr const char* arguments[] = {
+    "api",
+    "--hostname",
+    "--method",
+    "--input",
+    "-",
+};
+constexpr const char* environment[] = {
+    "GH_PROMPT_DISABLED=1",
+    "GH_NO_UPDATE_NOTIFIER=1",
+    "GH_NO_EXTENSION_UPDATE_NOTIFIER=1",
+    "GH_SPINNER_DISABLED=1",
+    "GH_TELEMETRY=0",
+    "NO_COLOR=1",
+    "CLICOLOR=0",
+    "HOME",
+    "XDG_RUNTIME_DIR",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "SystemRoot",
+    "PATH",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+};
+"""
 
 MACOS_KEYCHAIN_SOURCE = """\
 #include <Security/Security.h>
@@ -360,6 +1033,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         omit_macos_source: bool = False,
         omit_windows_source: bool = False,
         omit_linux_source: bool = False,
+        omit_process_interface: bool = False,
+        omit_process_runner_interface: bool = False,
+        omit_process_runner: bool = False,
+        omit_cli_transport: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -370,6 +1047,22 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "src/adapters/github/CMakeLists.txt": github_target,
                 "src/adapters/qt/CMakeLists.txt": "",
             }
+            if not omit_process_interface:
+                files[
+                    "src/adapters/github/src/github_cli_process.hpp"
+                ] = GITHUB_CLI_PROCESS_INTERFACE
+            if not omit_process_runner_interface:
+                files[
+                    "src/adapters/github/src/github_cli_process_runner.hpp"
+                ] = GITHUB_CLI_PROCESS_RUNNER_INTERFACE
+            if not omit_process_runner:
+                files[
+                    "src/adapters/github/src/github_cli_process_runner.cpp"
+                ] = GITHUB_CLI_PROCESS_RUNNER_SOURCE
+            if not omit_cli_transport:
+                files[
+                    "src/adapters/github/src/gh_cli_transport.cpp"
+                ] = GH_CLI_TRANSPORT_SOURCE
             if not omit_macos_source:
                 files["src/adapters/github/src/macos_keychain.cpp"] = (
                     MACOS_KEYCHAIN_SOURCE
@@ -415,9 +1108,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         result = self.run_check(
             {
                 "src/adapters/github/src/github_cli_process_runner.cpp":
-                    "#include <QProcess>\nQProcess* process;\n",
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE,
                 "src/adapters/github/src/gh_cli_transport.cpp":
-                    "const char* setting = \"GH_TELEMETRY=0\";\n",
+                    GH_CLI_TRANSPORT_SOURCE,
                 "src/adapters/github/src/native_https_transport.cpp":
                     "#include <QNetworkAccessManager>\n"
                     "QNetworkAccessManager* manager;\n",
@@ -607,10 +1300,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_designated_effect_source_must_belong_to_github_target(self) -> None:
         self.assert_failure(
-            "Designated GitHub effect source",
+            "GitHub CLI broker source must be explicitly owned",
             {
                 "src/adapters/github/src/github_cli_process_runner.cpp":
-                    "QProcess* process;\n"
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE
             },
             github_target=GITHUB_TARGET.replace(
                 "        src/github_cli_process_runner.cpp\n",
@@ -660,7 +1353,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "Forbidden telemetry surface",
             {
                 "src/adapters/github/src/gh_cli_transport.cpp":
-                    "const char* setting = \"GH_TELEMETRY=1\";\n"
+                    GH_CLI_TRANSPORT_SOURCE.replace(
+                        "GH_TELEMETRY=0",
+                        "GH_TELEMETRY=1",
+                    )
             },
         )
 
@@ -669,9 +1365,1290 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "must set GH_TELEMETRY=0",
             {
                 "src/adapters/github/src/gh_cli_transport.cpp":
-                    "const char* setting = \"GH_PROMPT_DISABLED=1\";\n"
+                    GH_CLI_TRANSPORT_SOURCE.replace(
+                        '    "GH_TELEMETRY=0",\n',
+                        "",
+                    )
             },
         )
+
+    def test_cli_broker_designated_files_are_required(self) -> None:
+        omissions = (
+            {"omit_process_interface": True},
+            {"omit_process_runner_interface": True},
+            {"omit_process_runner": True},
+            {"omit_cli_transport": True},
+        )
+        for omission in omissions:
+            with self.subTest(omission=omission):
+                self.assert_failure(
+                    "designated GitHub CLI broker file is required",
+                    **omission,
+                )
+
+    def test_cli_broker_effect_sources_require_explicit_target_ownership(
+        self,
+    ) -> None:
+        for source in (
+            "        src/github_cli_process_runner.cpp\n",
+            "        src/gh_cli_transport.cpp\n",
+        ):
+            with self.subTest(source=source):
+                self.assert_failure(
+                    "GitHub CLI broker source must be explicitly owned",
+                    github_target=GITHUB_TARGET.replace(source, ""),
+                )
+
+        thread_dependency_mutations = (
+            (
+                "find_package(Threads REQUIRED)\n",
+                "",
+                "must resolve the required CMake Threads package",
+            ),
+            (
+                "        Threads::Threads\n",
+                "",
+                "must link Threads::Threads explicitly and privately",
+            ),
+            (
+                "    PRIVATE\n        Threads::Threads\n",
+                "    PUBLIC\n        Threads::Threads\n",
+                "must link Threads::Threads explicitly and privately",
+            ),
+        )
+        for original, mutation, expected in thread_dependency_mutations:
+            with self.subTest(thread_dependency=original.strip()):
+                self.assert_failure(
+                    expected,
+                    github_target=GITHUB_TARGET.replace(
+                        original,
+                        mutation,
+                    ),
+                )
+
+    def test_cli_process_interfaces_reject_qt_and_os_process_types(
+        self,
+    ) -> None:
+        hostile_headers = (
+            (
+                "src/adapters/github/src/github_cli_process.hpp",
+                GITHUB_CLI_PROCESS_INTERFACE
+                + "#include <QProcess>\nQProcess* process;\n",
+            ),
+            (
+                "src/adapters/github/src/github_cli_process_runner.hpp",
+                GITHUB_CLI_PROCESS_RUNNER_INTERFACE
+                + "#include <QByteArray>\nQByteArray bytes;\n",
+            ),
+            (
+                "src/adapters/github/src/github_cli_process.hpp",
+                GITHUB_CLI_PROCESS_INTERFACE
+                + "#include <sys/wait.h>\npid_t process_id;\n",
+            ),
+            (
+                "src/adapters/github/src/github_cli_process.hpp",
+                GITHUB_CLI_PROCESS_INTERFACE
+                + "#include <windows.h>\nHANDLE process_handle;\n",
+            ),
+            (
+                "src/adapters/github/src/github_cli_process.hpp",
+                GITHUB_CLI_PROCESS_INTERFACE
+                + "std::string StandardError;\n",
+            ),
+            (
+                "src/adapters/github/src/github_cli_process.hpp",
+                GITHUB_CLI_PROCESS_INTERFACE
+                + "const char* forbidden = \"GH_TOKEN\";\n",
+            ),
+        )
+        for path, source in hostile_headers:
+            with self.subTest(path=path, source=source[-40:]):
+                expected = (
+                    "QProcess ownership violation"
+                    if "QProcess" in source
+                    else "process interface must remain standard C++"
+                )
+                self.assert_failure(
+                    expected,
+                    {path: source},
+                )
+
+        self.assert_failure(
+            "production factory must remain nullary",
+            {
+                "src/adapters/github/src/"
+                "github_cli_process_runner.hpp":
+                    GITHUB_CLI_PROCESS_RUNNER_INTERFACE.replace(
+                        "std::shared_ptr<"
+                        "github_cli_process_runner_test_seam> test_seam",
+                        "github_cli_process_runner_test_seam* test_seam",
+                    )
+            },
+        )
+        self.assert_failure(
+            "production factory must remain nullary",
+            {
+                "src/adapters/github/src/"
+                "github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        "std::shared_ptr<"
+                        "github_cli_process_runner_test_seam> TestSeam",
+                        "github_cli_process_runner_test_seam* TestSeam",
+                    )
+            },
+        )
+        self.assert_failure(
+            "production factory must remain nullary",
+            {
+                "src/adapters/github/src/"
+                "github_cli_process_runner.hpp":
+                    GITHUB_CLI_PROCESS_RUNNER_INTERFACE.replace(
+                        "make_github_cli_process_runner()",
+                        "make_github_cli_process_runner("
+                        "std::shared_ptr<"
+                        "github_cli_process_runner_test_seam>)",
+                    )
+            },
+        )
+
+    def test_cli_runner_requires_explicit_bounded_process_lifecycle(
+        self,
+    ) -> None:
+        required_fragments = (
+            "#include <QProcess>\n",
+            "#include <QProcessEnvironment>\n",
+            "process->setProgram",
+            "process->setArguments",
+            "process->setProcessEnvironment",
+            "process->setWorkingDirectory",
+            'neutral_repository_marker = ".git"',
+            'equal_environment_names(entry.Name, "PATH")',
+            'equal_environment_names(entry.Name, "SystemRoot")',
+            "QProcess::SeparateChannels",
+            "QProcess::ManagedInputChannel",
+            "process->write",
+            "process->closeWriteChannel",
+            "process->waitForStarted",
+            "process->waitForReadyRead",
+            "process.waitForFinished",
+            "process.kill",
+            "std::make_unique<QProcess>()",
+            "request.StandardInputLimit",
+            "request.StandardOutputLimit",
+            "request.StandardErrorLimit",
+            "request.Timeout",
+            "request.ReapTimeout",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                expected = (
+                    "pre-copy request-shape validation must retain all"
+                    if fragment
+                    in {
+                        "request.StandardInputLimit",
+                        "request.StandardOutputLimit",
+                        "request.StandardErrorLimit",
+                        "request.Timeout",
+                        "request.ReapTimeout",
+                    }
+                    else "GitHub CLI process runner must retain explicit"
+                )
+                self.assert_failure(
+                    expected,
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                fragment,
+                                "REMOVED_REQUIRED_RUNNER_LIFECYCLE",
+                            )
+                    },
+                )
+
+        request_shape_fragments = (
+            "request.Executable.size()",
+            "request.WorkingDirectory.size()",
+            "request.Arguments.size()",
+            "request.Environment.size()",
+            "request.StandardInput.size()",
+            "request.StandardOutputLimit",
+            "request.StandardErrorLimit",
+            "request.Timeout",
+            "request.ReapTimeout",
+            "argument.empty()",
+            "argument.size() > github_cli_process_max_argument_bytes",
+            "contains_nul(argument)",
+            "argument_bytes",
+            "entry.Name.size()",
+            "entry.Value.size()",
+            "environment_bytes",
+            "request.Environment[prior].Name",
+        )
+        for fragment in request_shape_fragments:
+            with self.subTest(pre_copy_shape=fragment):
+                self.assert_failure(
+                    "pre-copy request-shape validation must retain all",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                fragment,
+                                "REMOVED_PRE_COPY_SHAPE_BOUND",
+                            )
+                    },
+                )
+
+        for allocating_shape_surface in (
+            "\n    std::string copied_path = request.Executable;\n",
+            "\n    auto storage = std::make_unique<int>(1);\n",
+            "\n    throw invalid_request{};\n",
+        ):
+            with self.subTest(
+                allocating_shape_surface=allocating_shape_surface.strip(),
+            ):
+                mutated_shape = GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                    "    return true;\n}\n\n"
+                    "[[nodiscard]] auto decode_utf8(",
+                    allocating_shape_surface
+                    + "    return true;\n}\n\n"
+                    "[[nodiscard]] auto decode_utf8(",
+                )
+                self.assert_failure(
+                    "pre-copy request-shape validation must remain",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp": mutated_shape
+                    },
+                )
+
+        self.assert_failure(
+            "pre-copy request-shape validation must remain",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        "    return value.find('\\0') "
+                        "!= std::string_view::npos;\n",
+                        "    std::string copied{value};\n"
+                        "    return copied.find('\\0') "
+                        "!= std::string::npos;\n",
+                    )
+            },
+        )
+
+        helper_allocation_mutations = (
+            (
+                "    return !name.empty();\n",
+                "    std::string copied{name};\n"
+                "    return !copied.empty();\n",
+            ),
+            (
+                "    return left == right;\n",
+                "    throw invalid_request{};\n"
+                "    return left == right;\n",
+            ),
+            (
+                "    if(total > limit || amount > limit - total) {\n",
+                "    auto storage = std::make_unique<int>(1);\n"
+                "    if(total > limit || amount > limit - total) {\n",
+            ),
+        )
+        for original, mutation in helper_allocation_mutations:
+            with self.subTest(pre_copy_helper=original.strip()):
+                self.assert_failure(
+                    "pre-copy request-shape validation must remain",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                original,
+                                mutation,
+                            )
+                    },
+                )
+
+        self.assert_failure(
+            "aggregate pre-copy bounds must reject overflow",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        "if(total > limit || amount > limit - total)",
+                        "if(amount > limit - total)",
+                    )
+            },
+        )
+
+        shape_guard = """\
+        if(!valid_request_shape(request)) {
+            return std::unexpected{
+                github_cli_process_failure::invalid_request};
+        }
+"""
+        stop_guard = """\
+        if(stop.stop_requested()) {
+            return std::unexpected{
+                github_cli_process_failure::cancelled};
+        }
+"""
+        for guard in (shape_guard, stop_guard):
+            with self.subTest(removed_pre_copy_guard=guard.splitlines()[0]):
+                self.assert_failure(
+                    "must validate request shape and cancellation",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                guard,
+                                "",
+                            )
+                    },
+                )
+
+            reordered = GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                guard,
+                "",
+            ).replace(
+                "            item->Request = request;\n",
+                "            item->Request = request;\n" + guard,
+            )
+            with self.subTest(reordered_pre_copy_guard=guard.splitlines()[0]):
+                self.assert_failure(
+                    "must validate request shape and cancellation",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp": reordered
+                    },
+                )
+
+        self.assert_failure(
+            "exactly one guarded request-copy site",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                    + "\nvoid duplicate_copy() { item->Request = request; }\n"
+            },
+        )
+
+        windows_environment_fragments = (
+            "bool has_empty_path = false;",
+            "bool has_system_root = false;",
+            "has_empty_path = entry.Value.empty();",
+            "has_system_root = !entry.Value.empty();",
+            "if(!has_empty_path || !has_system_root)",
+        )
+        for fragment in windows_environment_fragments:
+            with self.subTest(windows_environment=fragment):
+                expected = (
+                    "pre-copy request-shape validation must retain all"
+                    if fragment == "if(!has_empty_path || !has_system_root)"
+                    else "must retain explicit Windows empty PATH"
+                )
+                self.assert_failure(
+                    expected,
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                fragment,
+                                "REMOVED_WINDOWS_ENVIRONMENT_VALIDATION",
+                            )
+                    },
+                )
+
+        unix_containment_fragments = (
+            "process->setUnixProcessParameters(",
+            "QProcess::UnixProcessFlag::CloseFileDescriptors",
+            "QProcess::UnixProcessFlag::DisableCoreDumps",
+            "QProcess::UnixProcessFlag::ResetSignalHandlers",
+            "QProcess::UnixProcessFlag::CreateNewSession",
+            "-static_cast<pid_t>(process_group_id)",
+            "::kill(process_group, SIGKILL)",
+            "&QProcess::started",
+            "process_pointer->processId();",
+            "kill_process_group_and_reap(",
+            "finish_background_reap(",
+        )
+        for fragment in unix_containment_fragments:
+            with self.subTest(unix_containment=fragment):
+                self.assert_failure(
+                    "must retain Unix child hardening",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                fragment,
+                                "REMOVED_UNIX_PROCESS_CONTAINMENT",
+                            )
+                    },
+                )
+
+        process_group_resolution_mutations = (
+            (
+                "    const auto process_id = process.processId();\n",
+                "    const auto process_id = 0;\n",
+                "must resolve the saved initial process group",
+            ),
+            (
+                """\
+    process->start();
+    *process_group_id = resolve_process_group(
+        *process,
+        *process_group_id);
+""",
+                "    process->start();\n",
+                "must resolve the initial process group",
+            ),
+            (
+                """\
+    for(;;) {
+        *process_group_id = resolve_process_group(
+            *process,
+            *process_group_id);
+        if(const auto failure = terminal_failure(); failure.has_value()) {
+""",
+                """\
+    for(;;) {
+        if(const auto failure = terminal_failure(); failure.has_value()) {
+        *process_group_id = resolve_process_group(
+            *process,
+            *process_group_id);
+""",
+                "must resolve the initial process group",
+            ),
+            (
+                """\
+    auto process_group_id =
+        resolve_process_group(process, known_process_group_id);
+    kill_process_group(process_group_id);
+""",
+                """\
+    auto process_group_id = known_process_group_id;
+    kill_process_group(process_group_id);
+""",
+                "bounded reap must resolve the initial process group",
+            ),
+            (
+                """\
+            process_group_id =
+                resolve_process_group(process, process_group_id);
+            kill_process_group(process_group_id);
+""",
+                "            kill_process_group(process_group_id);\n",
+                "bounded reap must resolve the initial process group",
+            ),
+            (
+                """\
+auto finish_background_reap(
+    QProcess& process,
+    const qint64 known_process_group_id) -> void {
+    auto process_group_id =
+        resolve_process_group(process, known_process_group_id);
+""",
+                """\
+auto finish_background_reap(
+    QProcess& process,
+    const qint64 known_process_group_id) -> void {
+    auto process_group_id = known_process_group_id;
+""",
+                "background reap must retain and refresh",
+            ),
+            (
+                """\
+    while(process.state() != QProcess::NotRunning) {
+        process_group_id =
+            resolve_process_group(process, process_group_id);
+        kill_process_group(process_group_id);
+""",
+                """\
+    while(process.state() != QProcess::NotRunning) {
+        kill_process_group(process_group_id);
+""",
+                "background reap must retain and refresh",
+            ),
+            (
+                """\
+    const auto process_group_id =
+        resolve_process_group(*process, known_process_group_id);
+    if(
+        kill_process_group_and_reap(
+            *process,
+            process_group_id,
+            reap_timeout)) {
+""",
+                """\
+    const auto process_group_id = known_process_group_id;
+    if(
+        kill_process_group_and_reap(
+            *process,
+            process_group_id,
+            reap_timeout)) {
+""",
+                "failed execution must resolve initial process-group",
+            ),
+        )
+        for original, mutation, expected in process_group_resolution_mutations:
+            with self.subTest(process_group_resolution=expected):
+                self.assert_failure(
+                    expected,
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                original,
+                                mutation,
+                            )
+                    },
+                )
+
+        finished_connection = """\
+    QObject::connect(
+        process.get(),
+        &QProcess::finished,
+        process.get(),
+        [process_group_id](
+            const int,
+            const QProcess::ExitStatus) noexcept {
+            kill_process_group(*process_group_id);
+        },
+        Qt::DirectConnection);
+"""
+        self.assert_failure(
+            "must capture stable process-group state",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        finished_connection,
+                        "",
+                    )
+            },
+        )
+        self.assert_failure(
+            "must capture stable process-group state",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        finished_connection,
+                        finished_connection.replace(
+                            "Qt::DirectConnection",
+                            "Qt::QueuedConnection",
+                        ),
+                    )
+            },
+        )
+        self.assert_failure(
+            "finished process-group cleanup must be connected before",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        finished_connection,
+                        "",
+                    ).replace(
+                        "    process->write(\n",
+                        finished_connection + "    process->write(\n",
+                    )
+            },
+        )
+
+        self.assert_failure(
+            "must capture stable process-group state",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        "[process_group_id](",
+                        "[&](",
+                    )
+            },
+        )
+
+        self.assert_failure(
+            "must capture stable process-group state",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        """\
+        [
+            process_pointer = process.get(),
+            process_group_id
+        ]() noexcept {
+""",
+                        "        [&]() noexcept {\n",
+                    )
+            },
+        )
+
+        terminal_success_cleanup = """\
+    kill_process_group(*process_group_id);
+    return {
+        .Result = github_cli_process_success{},
+"""
+        self.assert_failure(
+            "must repeat initial process-group cleanup",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        terminal_success_cleanup,
+                        """\
+    return {
+        .Result = github_cli_process_success{},
+""",
+                    )
+            },
+        )
+
+        worker_fragments = (
+            "class process_worker final",
+            "~process_worker()",
+            "ShutdownRequested.store(",
+            "Worker.join();",
+            "while(Busy)",
+            "Busy = true;",
+            "Pending = item;",
+            "WorkAvailable.notify_one();",
+            "item->Deadline = clock::now() + request.Timeout;",
+            "std::unique_ptr<process_worker> Worker;",
+            "Worker = std::make_unique<process_worker>(",
+            "std::mutex WorkerMutex;",
+        )
+        for fragment in worker_fragments:
+            with self.subTest(worker_lifecycle=fragment):
+                self.assert_failure(
+                    "must retain its runner-owned",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                fragment,
+                                "REMOVED_RUNNER_OWNED_WORKER_LIFECYCLE",
+                            )
+                    },
+                )
+
+        for hostile_worker in (
+            "\nvoid detach_worker() { Worker.detach(); }\n",
+            "\nvoid leak_worker() { Worker.release(); }\n",
+            "\nauto* leaked_worker = new process_worker();\n",
+            "\nprocess_worker global_worker;\n",
+        ):
+            with self.subTest(hostile_worker=hostile_worker):
+                self.assert_failure(
+                    "Forbidden global, detached, or leaked process worker",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_worker
+                    },
+                )
+
+        self.assert_failure(
+            "process worker must have exactly one owner",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                    + "\nstd::unique_ptr<process_worker> GlobalWorker;\n"
+            },
+        )
+        for hostile_owner in (
+            "\nauto GlobalWorker = std::make_unique<process_worker>();\n",
+            "\nstd::thread GlobalWorkerThread;\n",
+        ):
+            with self.subTest(hostile_owner=hostile_owner):
+                self.assert_failure(
+                    "process worker must have exactly one owner",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_owner
+                    },
+                )
+
+        for hostile_worker_view in (
+            "\nprocess_worker* GlobalWorkerView;\n",
+            "\nstd::shared_ptr<process_worker> SharedWorker;\n",
+        ):
+            with self.subTest(hostile_worker_view=hostile_worker_view):
+                self.assert_failure(
+                    "Forbidden unowned or shared process worker lifetime",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_worker_view
+                    },
+                )
+
+        self.assert_failure(
+            "must check shutdown, cancellation",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        "|| stop.stop_requested())",
+                        "|| false)",
+                    )
+            },
+        )
+        self.assert_failure(
+            "must check shutdown, cancellation",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        "if(clock::now() >= deadline)",
+                        "if(false)",
+                    )
+            },
+        )
+        self.assert_failure(
+            "exactly one guarded process start site",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        finished_connection,
+                        finished_connection + "    process->start();\n",
+                    )
+            },
+        )
+
+        reap_ownership_fragments = (
+            "std::unique_ptr<QProcess> AwaitingReap;",
+            ".AwaitingReap = std::move(process),",
+            "Quarantined = true;",
+            "execution->AwaitingReap.reset();",
+            "Quarantined = false;",
+        )
+        for fragment in reap_ownership_fragments:
+            with self.subTest(reap_ownership=fragment):
+                self.assert_failure(
+                    "must retain quarantine ownership",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                fragment,
+                                "REMOVED_REAP_QUARANTINE_OWNERSHIP",
+                            )
+                    },
+                )
+
+        quarantined_publish = """\
+        if(execution->AwaitingReap != nullptr) {
+            {
+                std::lock_guard lock{Mutex};
+                Quarantined = true;
+            }
+            SlotAvailable.notify_all();
+        }
+        publish(item, std::move(execution->Result));
+"""
+        publish_before_quarantine = """\
+        publish(item, std::move(execution->Result));
+        if(execution->AwaitingReap != nullptr) {
+            {
+                std::lock_guard lock{Mutex};
+                Quarantined = true;
+            }
+            SlotAvailable.notify_all();
+        }
+"""
+        self.assert_failure(
+            "must publish reap_failure only after quarantine",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        quarantined_publish,
+                        publish_before_quarantine,
+                )
+            },
+        )
+
+        watchdog_predicate = """\
+                [&] {
+                    return item->Result.has_value();
+                })) {
+"""
+        self.assert_failure(
+            "completion watchdog must predicate-check publication",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        watchdog_predicate,
+                        """\
+                [&] {
+                    return true;
+                })) {
+""",
+                    )
+            },
+        )
+
+        watchdog_quarantine = """\
+            {
+                std::lock_guard lock{Mutex};
+                if(Busy) {
+                    Quarantined = true;
+                }
+            }
+            SlotAvailable.notify_all();
+            return std::unexpected{
+                github_cli_process_failure::reap_failure};
+"""
+        self.assert_failure(
+            "completion watchdog must predicate-check publication",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        watchdog_quarantine,
+                        """\
+            return std::unexpected{
+                github_cli_process_failure::reap_failure};
+""",
+                    )
+            },
+        )
+
+        exception_recovery = """\
+            {
+                std::lock_guard lock{Mutex};
+                Quarantined = false;
+                Busy = false;
+            }
+            SlotAvailable.notify_all();
+            return;
+"""
+        self.assert_failure(
+            "exception recovery must clear any watchdog quarantine",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        exception_recovery,
+                        exception_recovery.replace(
+                            "                Quarantined = false;\n",
+                            "",
+                        ),
+                        1,
+                    )
+            },
+        )
+
+        self.assert_failure(
+            "exactly the bounded-reap",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                    + "\nauto extra_reap_failure() { return "
+                    "github_cli_process_failure::reap_failure; }\n"
+            },
+        )
+
+        bounded_read_mutations = (
+            (
+                "std::array<char, 16U * 1024U> buffer{};",
+                "std::vector<char> buffer(limit);",
+            ),
+            (
+                "const auto remaining = limit - consumed;",
+                "const auto remaining = limit;",
+            ),
+            (
+                "remaining + 1U",
+                "buffer.size()",
+            ),
+            (
+                "process.read(\n"
+                "            buffer.data(),\n"
+                "            static_cast<qint64>(requested))",
+                "process.read(buffer.data(), 1)",
+            ),
+            (
+                "if(byte_count > remaining)",
+                "if(false)",
+            ),
+            (
+                "consumed += byte_count;",
+                "consumed = byte_count;",
+            ),
+        )
+        for original, mutation in bounded_read_mutations:
+            with self.subTest(bounded_read=original):
+                self.assert_failure(
+                    "must retain bounded fixed-buffer",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                                original,
+                                mutation,
+                            )
+                    },
+                )
+
+        for premature_release in (
+            "\nvoid release_process() { process.reset(); }\n",
+            "\nvoid delete_process() { delete process; }\n",
+            "\nvoid release_reap() { AwaitingReap.release(); }\n",
+            "\nvoid stack_process() { QProcess process; }\n",
+            "\nvoid raw_process() { auto* process = new QProcess; }\n",
+        ):
+            with self.subTest(premature_release=premature_release):
+                self.assert_failure(
+                    "Forbidden premature process ownership release",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + premature_release
+                    },
+                )
+
+    def test_cli_runner_rejects_shell_and_raw_command_surfaces(self) -> None:
+        hostile_surfaces = (
+            "process.startCommand(command);\n",
+            "QProcess::splitCommand(command);\n",
+            "process.setNativeArguments(command);\n",
+            "process.startDetached();\n",
+            "QProcess::execute(command);\n",
+            "process.setCreateProcessArgumentsModifier(modifier);\n",
+            'const char* shell = "/bin/sh";\n',
+            'const char* shell = "cmd.exe";\n',
+        )
+        for hostile_surface in hostile_surfaces:
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    (
+                        "Alternate process or shell API"
+                        if "bin/sh" in hostile_surface
+                        or "cmd.exe" in hostile_surface
+                        else "Forbidden shell/raw-command"
+                    ),
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_surface
+                    },
+                )
+
+    def test_cli_runner_rejects_unsafe_channel_routing(self) -> None:
+        hostile_surfaces = (
+            (
+                "process.setProcessChannelMode("
+                "QProcess::ForwardedChannels);\n",
+                "Forbidden forwarded, merged, or file-redirected",
+            ),
+            (
+                "process.setProcessChannelMode(QProcess::MergedChannels);\n",
+                "Forbidden forwarded, merged, or file-redirected",
+            ),
+            (
+                "process.setReadChannel(QProcess::StandardError);\n",
+                "Forbidden unselected process channel selection",
+            ),
+            (
+                "process.setStandardOutputProcess(other_process);\n",
+                "Forbidden forwarded, merged, or file-redirected",
+            ),
+            (
+                'process.setStandardOutputFile("output.log");\n',
+                "Forbidden forwarded, merged, or file-redirected",
+            ),
+            (
+                'process.setStandardErrorFile("error.log");\n',
+                "Forbidden forwarded, merged, or file-redirected",
+            ),
+            (
+                'process.setStandardInputFile("input.txt");\n',
+                "Forbidden forwarded, merged, or file-redirected",
+            ),
+        )
+        for hostile_surface, expected in hostile_surfaces:
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    expected,
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_surface
+                    },
+                )
+
+        for hostile_surface in (
+            "process.readAll();\n",
+            "process.readLine();\n",
+            "process.read(buffer, size);\n",
+        ):
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    "Forbidden unselected raw process channel read",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_surface
+                    },
+                )
+
+    def test_cli_runner_rejects_ambient_environment_reads(self) -> None:
+        hostile_surfaces = (
+            "auto environment = "
+            "QProcessEnvironment::systemEnvironment();\n",
+            "QProcessEnvironment environment("
+            "QProcessEnvironment::InheritFromParent);\n",
+            "auto environment = process.processEnvironment();\n",
+            'auto value = qgetenv("UNKNOWN_CANARY");\n',
+            'auto value = qEnvironmentVariable("UNKNOWN_CANARY");\n',
+            'auto* value = getenv("UNKNOWN_CANARY");\n',
+            "auto** values = environ;\n",
+        )
+        for hostile_surface in hostile_surfaces:
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    "Forbidden inherited or ambient environment",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_surface
+                    },
+                )
+
+        hostile_surfaces = (
+            'const char* duplicate = "PATH";\n',
+            'const char* duplicate = "SystemRoot";\n',
+            'child_environment.insert("PATH", "ambient");\n',
+            'child_environment.insert("SystemRoot", "ambient");\n',
+        )
+        for hostile_surface in hostile_surfaces:
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    "runner may name PATH and SystemRoot only while validating",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_surface
+                    },
+                )
+
+        self.assert_failure(
+            "neutral working-directory validation ownership violation",
+            {
+                "src/adapters/github/src/other.cpp":
+                    'const char* repository_marker = ".git";\n'
+            },
+        )
+
+    def test_cli_runner_rejects_raw_errors_and_logging(self) -> None:
+        hostile_surfaces = (
+            (
+                "auto error = process.errorString();\n",
+                "raw process error-string exposure",
+            ),
+            (
+                "std::cerr << process.readAllStandardError();\n",
+                "logging/printing",
+            ),
+            (
+                "qWarning() << process.readAllStandardError();\n",
+                "logging/printing",
+            ),
+            (
+                'const char* forbidden = "Authorization";\n',
+                "credential, status-output, cache, or debug",
+            ),
+            (
+                'const char* forbidden = "--cache";\n',
+                "credential, status-output, cache, or debug",
+            ),
+        )
+        for hostile_surface, expected in hostile_surfaces:
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    f"Forbidden {expected} surface",
+                    {
+                        "src/adapters/github/src/"
+                        "github_cli_process_runner.cpp":
+                            GITHUB_CLI_PROCESS_RUNNER_SOURCE
+                            + hostile_surface
+                    },
+                )
+
+    def test_alternate_process_apis_are_rejected_everywhere(self) -> None:
+        hostile_surfaces = (
+            "NSTask* task;\n",
+            "GSubprocess* process;\n",
+            "CreateProcessW(nullptr, nullptr, nullptr, nullptr, FALSE, "
+            "0U, nullptr, nullptr, nullptr, nullptr);\n",
+            "ShellExecuteW(nullptr, nullptr, nullptr, nullptr, nullptr, 0);\n",
+            "posix_spawn(nullptr, nullptr, nullptr, nullptr, nullptr, "
+            "nullptr);\n",
+            "posix_spawnp(nullptr, nullptr, nullptr, nullptr, nullptr, "
+            "nullptr);\n",
+            'system("gh api");\n',
+            '_wsystem(L"gh api");\n',
+            'popen("gh api", "r");\n',
+            "fork();\n",
+            "vfork();\n",
+            "execvp(program, arguments);\n",
+            'const char* shell = "powershell.exe";\n',
+            "#include <boost/process.hpp>\n",
+            "g_spawn_async(nullptr, nullptr, nullptr, 0, nullptr, nullptr, "
+            "nullptr, nullptr);\n",
+        )
+        for hostile_surface in hostile_surfaces:
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    "Alternate process or shell API is forbidden",
+                    {
+                        "src/adapters/github/src/alternate_process.cpp":
+                            hostile_surface
+                    },
+                )
+
+    def test_cli_transport_requires_allowlisted_invocation_and_environment(
+        self,
+    ) -> None:
+        required_fragments = (
+            '"api"',
+            '"--hostname"',
+            '"--method"',
+            '"--input"',
+            '".git"',
+            '"GH_PROMPT_DISABLED=1"',
+            '"GH_NO_UPDATE_NOTIFIER=1"',
+            '"GH_NO_EXTENSION_UPDATE_NOTIFIER=1"',
+            '"GH_SPINNER_DISABLED=1"',
+            '"NO_COLOR=1"',
+            '"CLICOLOR=0"',
+            '"HOME"',
+            '"XDG_RUNTIME_DIR"',
+            '"DBUS_SESSION_BUS_ADDRESS"',
+            '"USERPROFILE"',
+            '"APPDATA"',
+            '"LOCALAPPDATA"',
+            '"SystemRoot"',
+            '"PATH"',
+            '"HTTPS_PROXY"',
+            '"NO_PROXY"',
+            '"SSL_CERT_FILE"',
+            '"SSL_CERT_DIR"',
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assert_failure(
+                    "GitHub CLI transport must retain explicit allowlisted",
+                    {
+                        "src/adapters/github/src/gh_cli_transport.cpp":
+                            GH_CLI_TRANSPORT_SOURCE.replace(
+                                fragment,
+                                '"REMOVED_REQUIRED_TRANSPORT_PROPERTY"',
+                            )
+                    },
+                )
+
+    def test_cli_invocation_and_environment_construction_has_one_owner(
+        self,
+    ) -> None:
+        hostile_literals = (
+            '"api"',
+            '"--hostname"',
+            '"--method"',
+            '"--input"',
+            '"GH_PROMPT_DISABLED=1"',
+            '"GH_NO_UPDATE_NOTIFIER=1"',
+            '"GH_NO_EXTENSION_UPDATE_NOTIFIER=1"',
+            '"GH_SPINNER_DISABLED=1"',
+            '"NO_COLOR=1"',
+            '"CLICOLOR=0"',
+            '"HOME"',
+            '"XDG_RUNTIME_DIR"',
+            '"DBUS_SESSION_BUS_ADDRESS"',
+            '"USERPROFILE"',
+            '"APPDATA"',
+            '"LOCALAPPDATA"',
+            '"SystemRoot"',
+            '"PATH"',
+            '"HTTPS_PROXY"',
+            '"NO_PROXY"',
+            '"SSL_CERT_FILE"',
+            '"SSL_CERT_DIR"',
+        )
+        for hostile_literal in hostile_literals:
+            with self.subTest(hostile_literal=hostile_literal):
+                self.assert_failure(
+                    "invocation/environment construction ownership violation",
+                    {
+                        "src/adapters/github/src/other.cpp":
+                            f"const char* hostile = {hostile_literal};\n"
+                    },
+                )
+
+    def test_cli_transport_rejects_credential_status_cache_and_debug(
+        self,
+    ) -> None:
+        hostile_literals = (
+            '"--auth-token"',
+            '"--with-token"',
+            '"--token"',
+            '"--include"',
+            '"--cache"',
+            '"--verbose"',
+            '"--debug"',
+            '"--jq"',
+            '"--template"',
+            '"--paginate"',
+            '"--slurp"',
+            '"--preview"',
+            '"--field"',
+            '"--raw-field"',
+            '"--silent"',
+            '"Authorization"',
+            '"GH_TOKEN"',
+            '"GITHUB_TOKEN"',
+            '"GH_ENTERPRISE_TOKEN"',
+            '"GITHUB_ENTERPRISE_TOKEN"',
+            '"GH_DEBUG"',
+        )
+        for hostile_literal in hostile_literals:
+            with self.subTest(hostile_literal=hostile_literal):
+                expected = (
+                    "Forbidden credential or debug literal surface"
+                    if not hostile_literal.startswith('"--')
+                    else "Forbidden credential, status-output, cache, debug"
+                )
+                self.assert_failure(
+                    expected,
+                    {
+                        "src/adapters/github/src/gh_cli_transport.cpp":
+                            GH_CLI_TRANSPORT_SOURCE
+                            + f"const char* hostile = {hostile_literal};\n"
+                    },
+                )
+
+    def test_cli_transport_rejects_qt_and_logging(self) -> None:
+        hostile_surfaces = (
+            (
+                "#include <QString>\nQString raw;\n",
+                "Qt/process implementation",
+            ),
+            (
+                "std::cerr << standard_error;\n",
+                "logging/printing",
+            ),
+            (
+                "qWarning() << standard_error;\n",
+                "logging/printing",
+            ),
+        )
+        for hostile_surface, expected in hostile_surfaces:
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    f"Forbidden {expected} surface",
+                    {
+                        "src/adapters/github/src/gh_cli_transport.cpp":
+                            GH_CLI_TRANSPORT_SOURCE
+                            + hostile_surface
+                    },
+                )
 
     def test_linux_secret_service_source_is_required(self) -> None:
         self.assert_failure(

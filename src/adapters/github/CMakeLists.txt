@@ -1,10 +1,13 @@
 if(BPR_BUILD_QT)
     find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
+    find_package(Threads REQUIRED)
 
     add_library(
         better_pull_review_adapter_github
         STATIC
+            src/gh_cli_transport.cpp
             src/github_capability_probe.cpp
+            src/github_cli_process_runner.cpp
             src/github_host_profile.cpp
             src/github_read_contract.cpp
             src/github_read_normalizer.cpp
@@ -21,6 +24,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::Application
         PRIVATE
             Qt6::Core
+            Threads::Threads
     )
     target_include_directories(
         better_pull_review_adapter_github
@@ -32,6 +36,13 @@ if(BPR_BUILD_QT)
         PUBLIC
             cxx_std_23
     )
+    if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_definitions(
+            better_pull_review_adapter_github
+            PUBLIC
+                _LIBCPP_ENABLE_EXPERIMENTAL
+        )
+    endif()
 
     if(APPLE)
         find_library(

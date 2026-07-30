@@ -10,6 +10,24 @@ the functional core or Qt presentation adapter.
 - Keep GitHub CLI invocation and child-environment construction in
   `src/gh_cli_transport.cpp`. The exact `GH_TELEMETRY=0` hardening setting in
   that source is the sole permitted telemetry reference.
+- Keep `github_cli_process.hpp`, `github_cli_process_runner.hpp`, and
+  `github_wire_transport.hpp` standard-C++-only. The process result may expose
+  bounded stdout only on clean success; failures expose fixed categories, not
+  stderr, `QProcess::errorString()`, arguments, environment, paths, exit
+  diagnostics, or partial output.
+- Construct the CLI child environment from nothing. Admit only typed
+  platform credential-session and selected HTTPS proxy/trust facts plus the
+  fixed noninteractive settings. Never read or pass token, host/repository,
+  config-directory, debug, pager/editor/browser, TTY/color override, update,
+  spinner, prompt, or arbitrary parent variables.
+- Compile only the closed `gh api` argument shape from a revalidated canonical
+  read request. The current production trust gate remains
+  `cli_unavailable`: production cannot bind the launched bytes to the reviewed
+  executable digest; selected `gh` 2.95.0 follows cross-authority redirects,
+  can honor ambient persisted `http_unix_socket` configuration, and has no
+  per-invocation account selector that binds the child to the correlated
+  credential generation. A fake child or native HTTPS evidence must never
+  enable CLI mode.
 - Keep native HTTPS execution in `src/native_https_transport.cpp`; it is the
   only GitHub source permitted to use `QNetworkAccessManager`.
 - Keep macOS Security framework effects in `src/macos_keychain.cpp`. Its v1

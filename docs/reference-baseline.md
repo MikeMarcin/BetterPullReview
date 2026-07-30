@@ -2,7 +2,7 @@
 
 This dated baseline records external interfaces assumed by the RFCs. Revalidate it during implementation; live server introspection, installed tool behavior, repository policy, and current official documentation override this file.
 
-Baseline date: 2026-07-29
+Baseline date: 2026-07-30
 
 ## Pack-local architecture authority
 
@@ -13,6 +13,16 @@ Baseline date: 2026-07-29
 ## Native platform and rendering
 
 - Qt 6.11 supported platforms: https://doc.qt.io/qt-6/supported-platforms.html
+- Qt 6.11 `QProcess` contract and Unix process flags:
+  https://doc.qt.io/qt-6/qprocess.html
+- Qt 6.11 `QProcess` lifecycle implementation:
+  https://github.com/qt/qtbase/blob/6.11/src/corelib/io/qprocess.cpp
+- Qt 6.11 Unix process implementation:
+  https://github.com/qt/qtbase/blob/6.11/src/corelib/io/qprocess_unix.cpp
+- Qt 6.11 Darwin environment observation:
+  https://github.com/qt/qtbase/blob/6.11/src/corelib/io/qprocess_darwin.mm
+- Qt 6.11 Windows pipe reader:
+  https://github.com/qt/qtbase/blob/6.11/src/corelib/io/qwindowspipereader.cpp
 - `QAbstractScrollArea`: https://doc.qt.io/qt-6/qabstractscrollarea.html
 - `QTextLayout`: https://doc.qt.io/qt-6/qtextlayout.html
 - `QStyleHints`: https://doc.qt.io/qt-6/qstylehints.html
@@ -32,7 +42,17 @@ Baseline date: 2026-07-29
 - GHES 3.18 GraphQL mutations: https://docs.github.com/en/enterprise-server@3.18/graphql/reference/mutations
 - GHES 3.18 REST OpenAPI description: https://docs.github.com/en/enterprise-server@3.18/rest/about-the-rest-api/about-the-openapi-description-for-the-rest-api
 - GitHub CLI authentication: https://cli.github.com/manual/gh_auth_login
+- GitHub CLI active-account selection:
+  https://cli.github.com/manual/gh_auth_switch
 - GitHub CLI API command: https://cli.github.com/manual/gh_api
+- GitHub CLI respected persisted configuration:
+  https://cli.github.com/manual/gh_config
+- GitHub CLI environment and default configuration directories:
+  https://cli.github.com/manual/gh_help_environment
+- GitHub CLI 2.95.0 API URL construction:
+  https://github.com/cli/cli/blob/v2.95.0/pkg/cmd/api/http.go
+- GitHub CLI 2.95.0 HTTP client and redirect-auth handling:
+  https://github.com/cli/cli/blob/v2.95.0/api/http_client.go
 
 ## AI agent interfaces
 

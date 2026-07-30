@@ -1,4 +1,70 @@
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
+find_package(Threads REQUIRED)
+
+add_executable(
+    better_pull_review_gh_cli_transport_tests
+    gh_cli_transport_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_gh_cli_transport_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+)
+target_include_directories(
+    better_pull_review_gh_cli_transport_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+bpr_enable_hardening(
+    better_pull_review_gh_cli_transport_tests
+)
+bpr_enable_warnings(
+    better_pull_review_gh_cli_transport_tests
+)
+
+add_test(
+    NAME gh_cli_transport
+    COMMAND better_pull_review_gh_cli_transport_tests
+)
+set_tests_properties(
+    gh_cli_transport
+    PROPERTIES
+        TIMEOUT 30
+)
+
+add_executable(
+    better_pull_review_github_cli_process_runner_tests
+    github_cli_process_runner_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_github_cli_process_runner_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        Qt6::Core
+        Threads::Threads
+)
+target_include_directories(
+    better_pull_review_github_cli_process_runner_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+bpr_enable_hardening(
+    better_pull_review_github_cli_process_runner_tests
+)
+bpr_enable_warnings(
+    better_pull_review_github_cli_process_runner_tests
+)
+
+add_test(
+    NAME github_cli_process_runner
+    COMMAND better_pull_review_github_cli_process_runner_tests
+)
+set_tests_properties(
+    github_cli_process_runner
+    PROPERTIES
+        TIMEOUT 60
+)
 
 add_executable(
     better_pull_review_github_contract_tests

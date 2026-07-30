@@ -70,8 +70,8 @@ fail-closed until RFC-BPR-0008.
 - Pass request bodies through standard input.
 - Disable interactive prompts for application jobs.
 - Preserve the agent or GitHub CLI's own credential storage boundary.
-- Use an argument allowlist, a neutral non-repository working directory, and
-  no shell.
+- Use an argument allowlist, a canonical working directory currently outside
+  repository ancestry, and no shell.
 - Construct an explicit minimal environment allowlist rather than inheriting
   the parent environment. Token, repository/host override, debug, pager,
   editor/browser, color, TTY, update, telemetry, spinner, and prompt
@@ -80,10 +80,84 @@ fail-closed until RFC-BPR-0008.
   prove it is not inherited by the child.
 - Bound input, output, error, duration, and pagination; fail atomically when a
   limit is reached.
-- Accept a result only when the broker's effective authority and
-  redirect/certificate behavior have been proven to satisfy the selected
-  profile. If the selected `gh` contract cannot prove that requirement, the
-  broker path remains unavailable and RFC closeout is blocked.
+- Accept a result only when the broker's effective authority, active
+  credential identity, ambient configuration, and redirect/certificate
+  behavior have been proven to satisfy the selected profile and correlated
+  identity generation. If the selected `gh` contract cannot prove those
+  requirements, the broker path remains unavailable and RFC closeout is
+  blocked.
+
+BPR-0025 implements the closed invocation compiler, Qt-free injected process
+port, bounded sole-`QProcess` runner, correlation-preserving wire terminal,
+and fixed unavailability gate. The compiler translates the already-validated
+GitHub.com/GHES REST and GraphQL routes into the exact relative form expected
+by `gh api`; callers cannot contribute arguments or environment names.
+
+The runner owns one serialized process worker. On Unix it requests a new
+session, closed inherited descriptors, disabled core dumps, and reset signal
+handlers; the child is the new session's initial process-group leader.
+Compiled child observation proves those flag/session/group facts. Compiled
+lifecycle cases prove clean exit, failure, timeout, and cancellation signal
+descendants that remain in that initial process group while the direct child
+is reaped; an escape case proves a descendant that moves to another process
+group survives before explicit fixture cleanup. A compiled seam proves
+completion-watchdog quarantine and recovery. Source and hostile architecture
+gates additionally enforce shutdown and group-resolution paths and the rule
+that an actual bounded-reap failure retains the live `QProcess` on the
+quarantined worker for continued reaping; the runtime suite does not force
+that live-process failed-reap path.
+Allocation-free request-shape validation and pre-cancellation occur before the
+worker allocates or copies a request.
+Fixed-size reads bound bytes accepted and retained by the adapter, but Qt
+exposes no hard cap for its private in-flight pipe allocation. Raw macOS
+inspection admits only Darwin's deterministic `__CF_USER_TEXT_ENCODING`
+addition to the requested environment. The Linux raw-runner fixture requests
+its locale explicitly; this is a fixture fact, not an additional production
+broker variable. Windows Job Object containment, private pipe bounds, and
+target-native behavior remain BPR-0036 work.
+
+Canonical/currently non-repository working-directory validation does not
+establish owner-controlled permissions or bind directory identity through
+launch. BPR-0037 owns that validation-to-launch race together with Unix
+process-group escape and PID/process-group identity reuse across cleanup
+signals before production CLI enablement. Initial-group signaling is not
+claimed race-free.
+
+An owner-private, digest-stable copy of the selected `gh` 2.95.0 bytes
+produced a fixed bad-certificate TLS alert before HTTP but followed a
+cross-authority `302` loopback redirect. The selected origin received the
+synthetic authorization and exact body; the distinct sink received neither.
+POST `307` and `308` sink absence is recorded as unproven rather than
+rejection. The ephemeral loopback authority cannot be supplied as the CLI
+startup hostname, so this source-backed characterization is not exact
+production-authority proof. Ordinary CLI output cannot prove the final
+authority.
+
+Three independent executable, configuration, and identity gaps also prevent
+enablement. The trust probe binds its observations to exact copied bytes, but
+production currently validates only a canonical path and executable name; it
+cannot carry that digest identity through a path replacement or update race to
+the image actually launched.
+Official CLI configuration permits a persisted `http_unix_socket` value, and
+the production environment must supply the selected platform home or
+application-data facts used by the CLI's credential/account state. Merely
+omitting `GH_CONFIG_DIR` therefore does not exclude ambient transport
+redirection. Canonical `SSL_CERT_FILE`/`SSL_CERT_DIR` paths also do not bind
+the selected trust-material identity or contents through the CLI's later
+open, leaving replacement/content mutation unresolved. In addition,
+`gh api --hostname` selects the account currently active for that host and
+exposes no per-invocation account selector.
+`gh auth switch` can change that selection independently of the request's
+already-established identity generation, so the child cannot prove it used
+the correlated credential identity.
+
+Production CLI reads expose all four typed unavailability reasons and return
+`cli_unavailable` without starting a process. The synthetic authentication
+config used by the isolated trust probe is verification-only; token variables
+and every other credential-bearing environment surface are absent from the
+production broker. A future CLI path must eliminate or directly bind every
+one of these gaps; satisfying only redirect behavior is insufficient.
+BPR-0037 owns that production-enablement work.
 
 ### Native HTTPS
 
