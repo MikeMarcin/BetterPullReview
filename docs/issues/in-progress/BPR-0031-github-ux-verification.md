@@ -1,7 +1,7 @@
 ---
 id: BPR-0031
 title: Verify RFC-BPR-0002 rendered UX and accessibility
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0002
 depends_on: [BPR-0028, BPR-0029, BPR-0030]
 ---
