@@ -59,6 +59,21 @@ All API, Git, diff, syntax, Markdown, agent, and settings inputs are untrusted. 
 - Do not provide certificate-error bypass.
 - Maintain a metadata-only network activity log.
 
+GitHub profile authority is established before transport execution. The
+selected v1 validator accepts only trusted explicit/builtin/managed
+provenance, canonical lowercase ASCII FQDNs, and the exact GitHub.com or GHES
+3.18 HTTPS roots. Provider content and redirect targets cannot create or
+rewrite a profile. GraphQL redirects are rejected; REST redirects require the
+same validated authority and API namespace.
+
+Capability introspection is untrusted input. One allowlisted read-only query
+is subject to response-byte, depth, member, collection, string, and aggregate
+value bounds. Duplicate names, partial data, GraphQL errors, malformed type
+wrappers, permission failures, and transport failures yield explicit
+all-Unknown unavailability rather than support or a misleading unsupported
+claim. Only complete schema compatibility evidence enters the
+profile/host/account/server/probe-contract cache.
+
 ## Security evidence
 
 Required release evidence includes threat-model review, SBOM, dependency inventory, secret scan, static analysis, sanitizers, parser fuzzing, hardened build flags, signed package verification, mutation-target tests, and diagnostics redaction tests.

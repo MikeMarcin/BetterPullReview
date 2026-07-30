@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -11,6 +12,14 @@ from urllib.parse import urlsplit
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_ROOT = (
     REPOSITORY_ROOT / "tests" / "fixtures" / "github" / "contracts" / "v1"
+)
+CAPABILITY_FIXTURE_ROOT = (
+    REPOSITORY_ROOT
+    / "tests"
+    / "fixtures"
+    / "github"
+    / "capabilities"
+    / "v1"
 )
 
 OPERATIONS = (
@@ -39,8 +48,10 @@ GRAPHQL_HEADERS = {
 GRAPHQL_QUERY = (
     "query GetReviewThreads($owner:String!,$name:String!,$number:Int!){"
     "repository(owner:$owner,name:$name){id pullRequest(number:$number){id "
-    "reviewThreads(first:100){nodes{id isResolved isOutdated subjectType path line "
-    "originalLine comments(first:100){nodes{id bodyText path line "
+    "files(first:100){nodes{path viewerViewedState} "
+    "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){nodes{id "
+    "isResolved isOutdated viewerCanResolve viewerCanUnresolve subjectType "
+    "path line originalLine comments(first:100){nodes{id bodyText path line "
     "originalLine outdated author{login ... on Node{id}} replyTo{id}} "
     "pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}"
 )
@@ -227,11 +238,15 @@ EXPECTED_RESPONSE_FIELDS = {
         "data",
         "repository",
         "pullRequest",
+        "files",
+        "viewerViewedState",
         "reviewThreads",
         "nodes",
         "id",
         "isResolved",
         "isOutdated",
+        "viewerCanResolve",
+        "viewerCanUnresolve",
         "subjectType",
         "path",
         "line",
@@ -273,7 +288,12 @@ EXPECTED_RESPONSE_FIELDS = {
     },
 }
 
-ALLOWED_URL_HOSTS = {"api.github.com", "github.com", "ghe.example.invalid"}
+ALLOWED_URL_HOSTS = {
+    "api.github.com",
+    "docs.github.com",
+    "github.com",
+    "ghe.example.invalid",
+}
 FORBIDDEN_ARTIFACT_FIELDS = {
     "_links",
     "arguments",
@@ -503,6 +523,192 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                     byte_security_violations(payload),
                     [],
                 )
+
+    def test_capability_fixture_tree_is_exact_and_sanitized(self) -> None:
+        expected_files = {
+            "github-com/manifest.json",
+            "github-com/supported.json",
+            "ghes-3.18/manifest.json",
+            "ghes-3.18/supported.json",
+            "synthetic/incompatible-mark.json",
+            "synthetic/missing-unresolve.json",
+        }
+        actual_files = {
+            str(path.relative_to(CAPABILITY_FIXTURE_ROOT))
+            for path in CAPABILITY_FIXTURE_ROOT.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(actual_files, expected_files)
+
+        root = CAPABILITY_FIXTURE_ROOT.resolve()
+        for relative_path in sorted(actual_files):
+            with self.subTest(path=relative_path):
+                path = CAPABILITY_FIXTURE_ROOT / relative_path
+                payload = path.read_bytes()
+                self.assertTrue(payload.endswith(b"\n"))
+                self.assertEqual(byte_security_violations(payload), [])
+                document = self.load_json(path)
+                self.assertIsInstance(document, dict)
+                for reference_name in (
+                    "response_file",
+                    "base_response_file",
+                ):
+                    reference = document.get(reference_name)
+                    if reference is None:
+                        continue
+                    self.assertIsInstance(reference, str)
+                    target = (path.parent / reference).resolve()
+                    self.assertTrue(target.is_relative_to(root))
+                    self.assertTrue(target.is_file())
+
+    def test_capability_manifests_pin_independent_official_schemas(
+        self,
+    ) -> None:
+        expected = {
+            "github-com": {
+                "product": "github.com",
+                "version": "cloud",
+                "source_url": (
+                    "https://docs.github.com/public/fpt/"
+                    "schema.docs.graphql"
+                ),
+                "retrieved_at_utc": "2026-07-30T03:58:23Z",
+                "last_modified": "Mon, 27 Jul 2026 14:39:03 GMT",
+                "source_sha256": (
+                    "f7a98392e2281c215810c5ac648c3a6940bcd49db"
+                    "74beb2502143f244fdb4da3"
+                ),
+                "response_sha256": (
+                    "85a692f13e121c130d997454795a0601440b3b03d"
+                    "ca5629e0892b451738b6bc3"
+                ),
+                "mutation_fields": 271,
+                "pull_request_fields": 113,
+            },
+            "ghes-3.18": {
+                "product": "github-enterprise-server",
+                "version": "3.18",
+                "source_url": (
+                    "https://docs.github.com/public/ghes-3.18/"
+                    "schema.docs-enterprise.graphql"
+                ),
+                "retrieved_at_utc": "2026-07-30T03:58:23Z",
+                "last_modified": "Wed, 29 Jul 2026 23:22:15 GMT",
+                "source_sha256": (
+                    "41179787f224304625d0e31c4e4928380b013ffe"
+                    "3f02bbabfec17c3c1320b066"
+                ),
+                "response_sha256": (
+                    "cc2d5829ce4c75c137f79969b7270034067c753c"
+                    "fb8dc66b29ce42a0e211774c"
+                ),
+                "mutation_fields": 224,
+                "pull_request_fields": 109,
+            },
+        }
+        query_sha256 = (
+            "839ec85171a2d9fb21e23a50890723331e5944725"
+            "2953a7de16f3847d5be6730"
+        )
+
+        responses = []
+        for host_name, contract in expected.items():
+            with self.subTest(host=host_name):
+                host_root = CAPABILITY_FIXTURE_ROOT / host_name
+                manifest = self.load_json(host_root / "manifest.json")
+                self.assertEqual(
+                    set(manifest),
+                    {
+                        "schema_revision",
+                        "product",
+                        "version",
+                        "response_file",
+                        "source",
+                        "projection",
+                        "expected",
+                    },
+                )
+                self.assertEqual(
+                    set(manifest["source"]),
+                    {
+                        "url",
+                        "retrieved_at_utc",
+                        "last_modified",
+                        "sha256",
+                    },
+                )
+                self.assertEqual(
+                    set(manifest["projection"]),
+                    {
+                        "generator",
+                        "query_sha256",
+                        "response_sha256",
+                        "mutation_fields",
+                        "pull_request_fields",
+                    },
+                )
+                self.assertEqual(manifest["schema_revision"], 1)
+                self.assertEqual(manifest["product"], contract["product"])
+                self.assertEqual(manifest["version"], contract["version"])
+                self.assertEqual(manifest["response_file"], "supported.json")
+                self.assertEqual(
+                    manifest["source"]["url"],
+                    contract["source_url"],
+                )
+                self.assertEqual(
+                    manifest["source"]["retrieved_at_utc"],
+                    contract["retrieved_at_utc"],
+                )
+                self.assertEqual(
+                    manifest["source"]["last_modified"],
+                    contract["last_modified"],
+                )
+                self.assertEqual(
+                    manifest["source"]["sha256"],
+                    contract["source_sha256"],
+                )
+                self.assertEqual(
+                    manifest["projection"]["generator"],
+                    "graphql-js 16.11.0 buildSchema/graphqlSync",
+                )
+                self.assertEqual(
+                    manifest["projection"]["query_sha256"],
+                    query_sha256,
+                )
+                self.assertEqual(
+                    manifest["projection"]["mutation_fields"],
+                    contract["mutation_fields"],
+                )
+                self.assertEqual(
+                    manifest["projection"]["pull_request_fields"],
+                    contract["pull_request_fields"],
+                )
+                self.assertEqual(
+                    manifest["expected"],
+                    {
+                        "review_threads": "supported",
+                        "viewed_file_mutations": "supported",
+                        "resolve_thread": "supported",
+                        "unresolve_thread": "supported",
+                    },
+                )
+
+                response = (host_root / "supported.json").read_bytes()
+                self.assertEqual(
+                    hashlib.sha256(response).hexdigest(),
+                    contract["response_sha256"],
+                )
+                self.assertEqual(
+                    manifest["projection"]["response_sha256"],
+                    contract["response_sha256"],
+                )
+                responses.append(response)
+
+        self.assertNotEqual(
+            responses[0],
+            responses[1],
+            "GitHub.com and GHES evidence must be independent",
+        )
 
     def test_manifests_pin_exact_read_only_contracts(self) -> None:
         for host_name in HOSTS:

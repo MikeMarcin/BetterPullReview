@@ -308,6 +308,8 @@ struct loaded_recording
                     .Deletions = 3,
                     .ContentKind =
                         application::github_file_content_kind::unknown,
+                    .ViewedState =
+                        application::github_file_viewed_state::viewed,
                 },
             },
         .Commits =
@@ -359,6 +361,8 @@ struct loaded_recording
                     .Line = 42,
                     .Resolved = false,
                     .Outdated = false,
+                    .ViewerCanResolve = true,
+                    .ViewerCanUnresolve = false,
                     .Comments =
                         {
                             {
@@ -684,6 +688,25 @@ auto replace_once(
     text.replace(position, from.size(), to);
 }
 
+auto mark_graphql_page_incomplete(
+    std::string& body,
+    const std::string_view cursor) -> void
+{
+    const auto cursor_position = body.find(cursor);
+    expect(
+        cursor_position != std::string::npos,
+        "targeted GraphQL cursor exists");
+    const auto marker = std::string_view{"\"hasNextPage\": false"};
+    const auto marker_position = body.rfind(marker, cursor_position);
+    expect(
+        marker_position != std::string::npos,
+        "targeted GraphQL page marker exists");
+    body.replace(
+        marker_position,
+        marker.size(),
+        "\"hasNextPage\": true");
+}
+
 auto expect_atomic_failure(
     const github_read_normalization_context& context,
     const std::vector<operation_response>& responses,
@@ -795,6 +818,38 @@ auto test_hostile_responses_fail_atomically() -> void
 
     responses = recording.Responses;
     replace_once(
+        responses[6].Response.Body,
+        "\"path\": \"src/core/review_snapshot.cpp\",\n"
+        "              \"viewerViewedState\": \"VIEWED\"",
+        "\"path\": \"src/core/other.cpp\",\n"
+        "              \"viewerViewedState\": \"VIEWED\"");
+    expect_atomic_failure(
+        context,
+        responses,
+        "GraphQL viewed state must correlate to one REST file path");
+
+    responses = recording.Responses;
+    replace_once(
+        responses[6].Response.Body,
+        "\"viewerViewedState\": \"VIEWED\"",
+        "\"viewerViewedState\": \"UNKNOWN\"");
+    expect_atomic_failure(
+        context,
+        responses,
+        "unknown viewed-file state is rejected");
+
+    responses = recording.Responses;
+    replace_once(
+        responses[6].Response.Body,
+        "\"viewerCanResolve\": true",
+        "\"viewerCanResolve\": null");
+    expect_atomic_failure(
+        context,
+        responses,
+        "non-boolean per-thread resolve availability is rejected");
+
+    responses = recording.Responses;
+    replace_once(
         responses[9].Response.Body,
         "\"state\": \"open\"",
         "\"state\": \"closed\"");
@@ -813,15 +868,39 @@ auto test_hostile_responses_fail_atomically() -> void
         responses,
         "unknown provider enum is rejected");
 
-    responses = recording.Responses;
-    replace_once(
-        responses[6].Response.Body,
-        "\"hasNextPage\": false",
-        "\"hasNextPage\": true");
-    expect_atomic_failure(
-        context,
-        responses,
-        "incomplete GraphQL page cannot be truncated into success");
+    for(const auto& [cursor, description] : {
+            std::pair{
+                std::string_view{"Y3Vyc29yOlBSQ0ZfZml4dHVyZV8x"},
+                std::string_view{"viewed-file"},
+            },
+            std::pair{
+                std::string_view{"Y3Vyc29yOlBSUkNfZml4dHVyZV8x"},
+                std::string_view{"thread-comment"},
+            },
+            std::pair{
+                std::string_view{"Y3Vyc29yOlBSUlRfZml4dHVyZV8x"},
+                std::string_view{"review-thread"},
+            },
+        })
+    {
+        responses = recording.Responses;
+        mark_graphql_page_incomplete(
+            responses[6].Response.Body,
+            cursor);
+        const auto strict = validate_strict_fixture_response(
+            read_operation::list_review_threads,
+            responses[6].Response);
+        expect(
+            !strict.has_value()
+                && strict.error().Code
+                    == contract_failure_code::response_limit,
+            "each incomplete GraphQL connection is classified as a limit");
+        expect_atomic_failure(
+            context,
+            responses,
+            std::string{"incomplete "} + std::string{description}
+                + " GraphQL page cannot become a snapshot");
+    }
 
     responses = recording.Responses;
     replace_once(
@@ -924,7 +1003,7 @@ auto test_provider_valid_nullable_and_conditional_shapes() -> void
         .Status = 200,
         .Headers = {{"Content-Type", "application/json"}},
         .Body =
-            R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
+            R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","files":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
         .Completeness = page_completeness::complete,
     };
     expect(
@@ -1018,6 +1097,60 @@ auto test_provider_valid_nullable_and_conditional_shapes() -> void
             review)
             .has_value(),
         "pending review is a valid provider state");
+
+    for(const auto& [wire_state, normalized_state] : {
+            std::pair{
+                std::string_view{"DISMISSED"},
+                application::github_file_viewed_state::dismissed,
+            },
+            std::pair{
+                std::string_view{"UNVIEWED"},
+                application::github_file_viewed_state::unviewed,
+            },
+            std::pair{
+                std::string_view{"VIEWED"},
+                application::github_file_viewed_state::viewed,
+            },
+        })
+    {
+        auto viewed_recording = recording;
+        replace_once(
+            viewed_recording.Responses[6].Response.Body,
+            "\"viewerViewedState\": \"VIEWED\"",
+            std::string{"\"viewerViewedState\": \""}
+                + std::string{wire_state} + "\"");
+        const auto normalized = normalize_github_read(
+            normalization_context(server_contract::github_com),
+            viewed_recording.Responses);
+        expect(
+            normalized.has_value()
+                && normalized->PullRequest.Files.front().ViewedState
+                    == normalized_state,
+            "every selected viewed-file state normalizes exactly");
+    }
+
+    auto target_availability = recording;
+    replace_once(
+        target_availability.Responses[6].Response.Body,
+        "\"viewerCanResolve\": true",
+        "\"viewerCanResolve\": false");
+    replace_once(
+        target_availability.Responses[6].Response.Body,
+        "\"viewerCanUnresolve\": false",
+        "\"viewerCanUnresolve\": true");
+    const auto normalized_availability = normalize_github_read(
+        normalization_context(server_contract::github_com),
+        target_availability.Responses);
+    expect(
+        normalized_availability.has_value()
+            && !normalized_availability->PullRequest.ReviewThreads.front()
+                    .ViewerCanResolve
+            && normalized_availability->PullRequest.ReviewThreads.front()
+                   .ViewerCanUnresolve
+            && normalized_availability->PullRequest.CapabilityEvidence
+                       .Capabilities
+                == capabilities(),
+        "per-thread availability remains distinct from host capability");
 
     auto check = recording.Responses[8].Response;
     replace_once(

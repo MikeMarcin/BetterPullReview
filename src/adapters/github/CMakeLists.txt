@@ -4,6 +4,8 @@ if(BPR_BUILD_QT)
     add_library(
         better_pull_review_adapter_github
         STATIC
+            src/github_capability_probe.cpp
+            src/github_host_profile.cpp
             src/github_read_contract.cpp
             src/github_read_normalizer.cpp
     )

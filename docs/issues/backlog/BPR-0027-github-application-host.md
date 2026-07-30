@@ -13,6 +13,24 @@ completions through the serialized decision lane; own cancellation, retry,
 rate-limit, session, cache, and lifecycle behavior; and invalidate
 identity-sensitive state on host or account changes.
 
+Production session establishment must bind three independently validated
+facts in order: a validated host profile, the authenticated account observed
+from the strict `/user` contract, and normalized capability-probe evidence
+for that exact profile revision/host/account/server/probe-contract key. The
+BPR-0019 recorded normalizer's caller-supplied context is fixture scaffolding;
+the production host must not treat caller-provided host, account, or
+capability values as observations or use them to launder provider data.
+
+Production GraphQL reads must be compiled from that exact capability
+observation. Omit unsupported schema fields, preserve review-thread reads when
+only resolve or unresolve is unsupported, and normalize omitted per-file
+viewed state as `unavailable` and omitted per-thread target permission as a
+safe unavailable/false fact. Absence caused by capability-shaped selection
+must never be staged as an authoritative empty collection. The BPR-0019
+single-query recorded facade covers only the fully supported selected
+GitHub.com/GHES 3.18 contract and is not the production fallback for a
+partially supported schema.
+
 Fake-port tests must reorder completions, switch identity in flight, exhaust
 bounded retries, cancel jobs, and prove workers never touch core or Qt state.
 

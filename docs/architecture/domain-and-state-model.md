@@ -193,6 +193,20 @@ RFC-BPR-0002 observes review-thread reads, viewed-file mutations,
 resolve-thread, and unresolve-thread support. Observing a mutation capability
 does not authorize its execution before RFC-BPR-0008.
 
+The host cache key also includes the enum-backed server contract. Only a
+complete recorded or observed contract can enter the cache; transient or
+insufficient evidence is an explicit all-`Unknown` unavailable result and is
+never cached. Logical freshness epochs, bounded capacity, generated
+capability revisions, and exact/profile/identity invalidation remain
+application-host state rather than core timing or eviction policy.
+
+Host capability and target legality are separate. A normalized file carries
+an unavailable, dismissed, unviewed, or viewed state. A normalized review
+thread carries `viewerCanResolve` and `viewerCanUnresolve`. A false target
+flag cannot downgrade the host schema capability, and a supported schema
+capability cannot manufacture authorization for a target whose observation
+does not permit the action.
+
 ## Staged provider snapshots
 
 The provider completion path is transactional at the host/core boundary:

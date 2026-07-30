@@ -1,0 +1,17 @@
+{
+  "base_response_file": "../github-com/supported.json",
+  "operation": "replace_return_type",
+  "type_alias": "schemaRoot.mutationType",
+  "field": "markFileAsViewed",
+  "replacement": {
+    "kind": "OBJECT",
+    "name": "WrongMarkPayload",
+    "ofType": null
+  },
+  "expected": {
+    "review_threads": "supported",
+    "viewed_file_mutations": "unsupported",
+    "resolve_thread": "supported",
+    "unresolve_thread": "supported"
+  }
+}

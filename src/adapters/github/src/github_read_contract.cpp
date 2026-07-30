@@ -28,8 +28,11 @@ constexpr qsizetype maximum_cursor_bytes = 1024;
 constexpr std::string_view review_threads_document =
     "query GetReviewThreads($owner:String!,$name:String!,"
     "$number:Int!){repository(owner:$owner,name:$name){id "
-    "pullRequest(number:$number){id reviewThreads(first:100){nodes{"
-    "id isResolved isOutdated subjectType path line originalLine "
+    "pullRequest(number:$number){id files(first:100){nodes{"
+    "path viewerViewedState} pageInfo{hasNextPage endCursor}} "
+    "reviewThreads(first:100){nodes{"
+    "id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
+    "subjectType path line originalLine "
     "comments(first:100){nodes{id bodyText path line originalLine outdated "
     "author{login ... on Node{id}} replyTo{id}} "
     "pageInfo{hasNextPage endCursor}}} "
@@ -1245,8 +1248,35 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
         !pull_request.isObject()
         || !has_exact_keys(
             pull_request.toObject(),
-            {"id", "reviewThreads"})
+            {"files", "id", "reviewThreads"})
         || !nonempty_string(pull_request.toObject().value("id")))
+    {
+        return false;
+    }
+    const auto files = pull_request.toObject().value("files");
+    if(
+        !files.isObject()
+        || !has_exact_keys(files.toObject(), {"nodes", "pageInfo"})
+        || !bounded_object_array(
+            files.toObject().value("nodes"),
+            {"path", "viewerViewedState"}))
+    {
+        return false;
+    }
+    const auto file_nodes = files.toObject().value("nodes").toArray();
+    if(
+        !exact_page_info(
+            files.toObject().value("pageInfo"),
+            file_nodes.size())
+        || !std::ranges::all_of(
+            file_nodes,
+            [](const QJsonValue& value) {
+                const auto object = value.toObject();
+                return nonempty_string(object.value("path"))
+                    && one_of(
+                        object.value("viewerViewedState"),
+                        {"DISMISSED", "UNVIEWED", "VIEWED"});
+            }))
     {
         return false;
     }
@@ -1267,6 +1297,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
                 "originalLine",
                 "path",
                 "subjectType",
+                "viewerCanResolve",
+                "viewerCanUnresolve",
             }))
     {
         return false;
@@ -1296,6 +1328,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
             !nonempty_string(thread.value("id"))
             || !thread.value("isResolved").isBool()
             || !thread.value("isOutdated").isBool()
+            || !thread.value("viewerCanResolve").isBool()
+            || !thread.value("viewerCanUnresolve").isBool()
             || (!file_subject && !line_subject)
             || !nonempty_string(thread.value("path"))
             || !(
@@ -1522,15 +1556,24 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
         return false;
     }
 
-    const auto threads = document.object()
-                             .value("data")
-                             .toObject()
-                             .value("repository")
-                             .toObject()
-                             .value("pullRequest")
-                             .toObject()
-                             .value("reviewThreads")
-                             .toObject();
+    const auto pull_request = document.object()
+                                  .value("data")
+                                  .toObject()
+                                  .value("repository")
+                                  .toObject()
+                                  .value("pullRequest")
+                                  .toObject();
+    const auto files = pull_request.value("files").toObject();
+    if(files.value("pageInfo")
+           .toObject()
+           .value("hasNextPage")
+           .toBool())
+    {
+        return true;
+    }
+
+    const auto threads =
+        pull_request.value("reviewThreads").toObject();
     if(threads.value("pageInfo")
            .toObject()
            .value("hasNextPage")

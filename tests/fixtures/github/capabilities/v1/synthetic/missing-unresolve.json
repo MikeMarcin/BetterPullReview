@@ -1,0 +1,12 @@
+{
+  "base_response_file": "../github-com/supported.json",
+  "operation": "remove_field",
+  "type_alias": "schemaRoot.mutationType",
+  "field": "unresolveReviewThread",
+  "expected": {
+    "review_threads": "supported",
+    "viewed_file_mutations": "supported",
+    "resolve_thread": "supported",
+    "unresolve_thread": "unsupported"
+  }
+}

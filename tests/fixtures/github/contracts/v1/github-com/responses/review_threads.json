@@ -4,12 +4,26 @@
       "id": "R_fixture_repository",
       "pullRequest": {
         "id": "PR_fixture_17",
+        "files": {
+          "nodes": [
+            {
+              "path": "src/core/review_snapshot.cpp",
+              "viewerViewedState": "VIEWED"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "Y3Vyc29yOlBSQ0ZfZml4dHVyZV8x"
+          }
+        },
         "reviewThreads": {
           "nodes": [
             {
               "id": "PRRT_fixture_1",
               "isResolved": false,
               "isOutdated": false,
+              "viewerCanResolve": true,
+              "viewerCanUnresolve": false,
               "subjectType": "LINE",
               "path": "src/core/review_snapshot.cpp",
               "line": 42,

@@ -201,6 +201,8 @@ auto valid_snapshot() -> application::github_pull_request_snapshot
                     .Change = application::github_file_change::modified,
                     .Additions = 12,
                     .Deletions = 3,
+                    .ViewedState =
+                        application::github_file_viewed_state::viewed,
                 },
             },
         .Commits =
@@ -244,6 +246,8 @@ auto valid_snapshot() -> application::github_pull_request_snapshot
                     .Line = 42,
                     .Resolved = false,
                     .Outdated = false,
+                    .ViewerCanResolve = true,
+                    .ViewerCanUnresolve = false,
                     .Comments =
                         {
                             {
@@ -520,6 +524,28 @@ auto test_malformed_enums_fail_closed() -> void
         application::validate(snapshot, request),
         application::github_read_validation_error::invalid_enum,
         "malformed file content kind is rejected");
+
+    snapshot = valid_snapshot();
+    snapshot.Files.front().ViewedState =
+        static_cast<application::github_file_viewed_state>(255);
+    expect_error(
+        application::validate(snapshot, request),
+        application::github_read_validation_error::invalid_enum,
+        "malformed viewed-file state is rejected");
+
+    for(const auto viewed_state : {
+            application::github_file_viewed_state::unavailable,
+            application::github_file_viewed_state::dismissed,
+            application::github_file_viewed_state::unviewed,
+            application::github_file_viewed_state::viewed,
+        })
+    {
+        snapshot = valid_snapshot();
+        snapshot.Files.front().ViewedState = viewed_state;
+        expect(
+            application::validate(snapshot, request).valid(),
+            "every known viewed-file state is accepted");
+    }
 
     snapshot = valid_snapshot();
     snapshot.Reviews.front().State =

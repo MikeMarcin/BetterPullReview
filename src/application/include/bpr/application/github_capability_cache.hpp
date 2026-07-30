@@ -1,0 +1,336 @@
+#pragma once
+
+#include "bpr/application/github_host_authority.hpp"
+#include "bpr/core/github_model.hpp"
+
+#include <array>
+#include <compare>
+#include <cstddef>
+#include <cstdint>
+#include <expected>
+#include <optional>
+#include <variant>
+#include <vector>
+
+namespace bpr::application
+{
+inline constexpr std::size_t github_capability_fact_count = 4U;
+inline constexpr std::size_t maximum_github_capability_cache_capacity = 64U;
+inline constexpr std::uint64_t
+    maximum_github_capability_freshness_window = 900U;
+
+inline constexpr std::array<
+    core::github_capability,
+    github_capability_fact_count>
+    canonical_github_capabilities{
+        core::github_capability::review_threads,
+        core::github_capability::viewed_file_mutations,
+        core::github_capability::resolve_thread,
+        core::github_capability::unresolve_thread,
+    };
+
+enum class github_capability_evidence_source : std::uint8_t
+{
+    uninitialized,
+    recorded_contract,
+    observed_contract,
+};
+
+[[nodiscard]] constexpr auto valid(
+    github_capability_evidence_source source) noexcept -> bool
+{
+    return source == github_capability_evidence_source::recorded_contract
+        || source
+            == github_capability_evidence_source::observed_contract;
+}
+
+struct github_capability_fact
+{
+    core::github_capability Capability =
+        core::github_capability::review_threads;
+    core::github_capability_state State =
+        core::github_capability_state::unknown;
+    github_capability_evidence_source Source =
+        github_capability_evidence_source::uninitialized;
+
+    auto operator<=>(const github_capability_fact&) const = default;
+};
+
+enum class github_capability_unavailable_reason : std::uint8_t
+{
+    none,
+    authentication,
+    permission,
+    network,
+    api_version,
+    rate_limit,
+    certificate,
+    redirect,
+    cancellation,
+    timeout,
+    malformed_response,
+    response_limit,
+    transport_unavailable,
+    incomplete_evidence,
+};
+
+[[nodiscard]] constexpr auto valid(
+    github_capability_unavailable_reason reason) noexcept -> bool
+{
+    switch(reason)
+    {
+    case github_capability_unavailable_reason::authentication:
+    case github_capability_unavailable_reason::permission:
+    case github_capability_unavailable_reason::network:
+    case github_capability_unavailable_reason::api_version:
+    case github_capability_unavailable_reason::rate_limit:
+    case github_capability_unavailable_reason::certificate:
+    case github_capability_unavailable_reason::redirect:
+    case github_capability_unavailable_reason::cancellation:
+    case github_capability_unavailable_reason::timeout:
+    case github_capability_unavailable_reason::malformed_response:
+    case github_capability_unavailable_reason::response_limit:
+    case github_capability_unavailable_reason::transport_unavailable:
+    case github_capability_unavailable_reason::incomplete_evidence:
+        return true;
+    case github_capability_unavailable_reason::none:
+        return false;
+    }
+    return false;
+}
+
+struct github_capability_authority_key
+{
+    core::host_profile_id Profile;
+    github_profile_revision ProfileRevision;
+    core::git_host_id Host;
+    core::github_account_id Account;
+    github_server_contract ServerContract =
+        github_server_contract::github_com_2022_11_28;
+    github_probe_contract_revision ProbeContractRevision;
+
+    auto operator<=>(const github_capability_authority_key&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const github_capability_authority_key& authority) noexcept -> bool
+{
+    return authority.Profile.value() != 0U
+        && authority.ProfileRevision.valid()
+        && authority.Host.value() != 0U
+        && authority.Account.value() != 0U
+        && valid(authority.ServerContract)
+        && authority.ProbeContractRevision.valid();
+}
+
+struct github_capability_probe_observation
+{
+    github_capability_authority_key Authority;
+    github_freshness_epoch ObservedAt;
+    std::array<github_capability_fact, github_capability_fact_count> Facts;
+
+    auto operator<=>(const github_capability_probe_observation&) const =
+        default;
+};
+
+struct github_capability_probe_unavailable
+{
+    github_capability_authority_key Authority;
+    github_freshness_epoch ObservedAt;
+    core::github_capabilities Capabilities;
+    github_capability_unavailable_reason Reason =
+        github_capability_unavailable_reason::none;
+
+    auto operator<=>(const github_capability_probe_unavailable&) const =
+        default;
+};
+
+using github_capability_probe_result = std::variant<
+    github_capability_probe_observation,
+    github_capability_probe_unavailable>;
+
+[[nodiscard]] auto valid(
+    const github_capability_probe_observation& observation) noexcept -> bool;
+[[nodiscard]] auto valid(
+    const github_capability_probe_unavailable& unavailable) noexcept -> bool;
+[[nodiscard]] auto projected_capabilities(
+    const github_capability_probe_observation& observation) noexcept
+    -> core::github_capabilities;
+[[nodiscard]] auto all_unknown(
+    const core::github_capabilities& capabilities) noexcept -> bool;
+
+struct github_capability_cache_policy
+{
+    std::size_t Capacity = 16U;
+    std::uint64_t FreshnessWindowEpochs = 300U;
+    core::capability_revision FirstRevision{1U};
+
+    auto operator<=>(const github_capability_cache_policy&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const github_capability_cache_policy& policy) noexcept -> bool
+{
+    return policy.Capacity != 0U
+        && policy.Capacity <= maximum_github_capability_cache_capacity
+        && policy.FreshnessWindowEpochs != 0U
+        && policy.FreshnessWindowEpochs
+            <= maximum_github_capability_freshness_window
+        && policy.FirstRevision.value() != 0U;
+}
+
+struct github_capability_cache_entry
+{
+    github_capability_authority_key Authority;
+    std::array<github_capability_fact, github_capability_fact_count> Facts;
+    core::github_capabilities Capabilities;
+    core::capability_revision Revision;
+    github_freshness_epoch ObservedAt;
+    github_freshness_epoch ExpiresBefore;
+
+    auto operator<=>(const github_capability_cache_entry&) const = default;
+};
+
+enum class github_capability_cache_error : std::uint8_t
+{
+    none,
+    invalid_cache,
+    invalid_policy,
+    allocation_failure,
+    invalid_authority,
+    invalid_probe,
+    probe_unavailable,
+    invalid_epoch,
+    epoch_regression,
+    epoch_overflow,
+    revision_overflow,
+    capacity_exhausted,
+};
+
+enum class github_capability_cache_lookup_status : std::uint8_t
+{
+    hit,
+    miss,
+    expired,
+    rejected,
+};
+
+struct github_capability_cache_lookup_result
+{
+    github_capability_cache_lookup_status Status =
+        github_capability_cache_lookup_status::rejected;
+    github_capability_cache_error Error =
+        github_capability_cache_error::none;
+    std::optional<github_capability_cache_entry> Entry;
+
+    [[nodiscard]] auto hit() const noexcept -> bool
+    {
+        return Status == github_capability_cache_lookup_status::hit
+            && Error == github_capability_cache_error::none
+            && Entry.has_value();
+    }
+};
+
+enum class github_capability_cache_store_disposition : std::uint8_t
+{
+    inserted,
+    replaced,
+    reused_expired,
+    rejected,
+};
+
+struct github_capability_cache_store_result
+{
+    github_capability_cache_store_disposition Disposition =
+        github_capability_cache_store_disposition::rejected;
+    github_capability_cache_error Error =
+        github_capability_cache_error::none;
+    std::optional<github_capability_cache_entry> Entry;
+
+    [[nodiscard]] auto stored() const noexcept -> bool
+    {
+        if(
+            Error != github_capability_cache_error::none
+            || !Entry.has_value())
+        {
+            return false;
+        }
+        switch(Disposition)
+        {
+        case github_capability_cache_store_disposition::inserted:
+        case github_capability_cache_store_disposition::replaced:
+        case github_capability_cache_store_disposition::reused_expired:
+            return true;
+        case github_capability_cache_store_disposition::rejected:
+            return false;
+        }
+        return false;
+    }
+};
+
+struct github_capability_cache_invalidation_result
+{
+    github_capability_cache_error Error =
+        github_capability_cache_error::none;
+    std::size_t Removed = 0U;
+
+    [[nodiscard]] auto accepted() const noexcept -> bool
+    {
+        return Error == github_capability_cache_error::none;
+    }
+};
+
+class github_capability_cache final
+{
+public:
+    [[nodiscard]] static auto create(
+        github_capability_cache_policy policy) noexcept
+        -> std::expected<
+            github_capability_cache,
+            github_capability_cache_error>;
+
+    github_capability_cache(const github_capability_cache&) = delete;
+    auto operator=(const github_capability_cache&)
+        -> github_capability_cache& = delete;
+    github_capability_cache(github_capability_cache&& other) noexcept;
+    auto operator=(github_capability_cache&&)
+        -> github_capability_cache& = delete;
+
+    [[nodiscard]] auto lookup(
+        const github_capability_authority_key& authority,
+        github_freshness_epoch now) noexcept
+        -> github_capability_cache_lookup_result;
+    [[nodiscard]] auto store(
+        const github_capability_probe_result& result) noexcept
+        -> github_capability_cache_store_result;
+
+    [[nodiscard]] auto invalidate_exact(
+        const github_capability_authority_key& authority) noexcept
+        -> github_capability_cache_invalidation_result;
+    [[nodiscard]] auto invalidate_profile(
+        core::host_profile_id profile) noexcept
+        -> github_capability_cache_invalidation_result;
+    [[nodiscard]] auto invalidate_identity(
+        core::host_profile_id profile,
+        core::git_host_id host,
+        core::github_account_id account) noexcept
+        -> github_capability_cache_invalidation_result;
+    [[nodiscard]] auto clear() noexcept -> std::size_t;
+
+    [[nodiscard]] auto size() const noexcept -> std::size_t;
+    [[nodiscard]] auto capacity() const noexcept -> std::size_t;
+    [[nodiscard]] auto last_epoch() const noexcept
+        -> github_freshness_epoch;
+
+private:
+    explicit github_capability_cache(
+        github_capability_cache_policy policy) noexcept;
+
+    github_capability_cache_policy Policy;
+    std::vector<github_capability_cache_entry> Entries;
+    github_freshness_epoch LastEpoch;
+    std::uint64_t NextRevision = 1U;
+    bool RevisionExhausted = false;
+    bool Usable = true;
+};
+}

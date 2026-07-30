@@ -24,18 +24,43 @@ to expose provider records inward.
 The paired baseline contains repository, pull-request, viewer, author, review,
 thread, comment, commit, check, and search identities. GraphQL repository and
 pull-request node IDs are correlated with REST, and actor node IDs plus logins
-are correlated across every normalized author. Contract variants directly
+are correlated across every normalized author. GraphQL file paths map
+bijectively to the REST file collection and carry viewed state; threads carry
+per-target resolve/unresolve availability. Contract variants directly
 exercise null/deleted and non-User actors, fork heads, nullable review commit
-IDs, renamed files, queued checks, and both line- and file-level review
-threads. Every selected response is explicitly marked complete; unknown
-completeness or a transport-declared continuation fails. The selected
-GraphQL page also has a terminal `pageInfo`; a true `hasNextPage` result fails
-rather than being normalized as a truncated snapshot.
+IDs, renamed files, every viewed state, queued checks, and both line- and
+file-level review threads. Every selected response is explicitly marked
+complete; unknown completeness or a transport-declared continuation fails.
+The files, threads, and nested comments GraphQL connections each have
+terminal `pageInfo`; a true `hasNextPage` result fails rather than being
+normalized as a truncated snapshot.
 
 The fixture security gate verifies the exact tree and operations, rejects
 duplicate JSON members and encoded secret/path/email/foreign-authority
 bypasses, and checks both hosts against one independent normalized
 expectation. No live or private repository response was recorded.
+
+## Implemented GitHub capability contract v1
+
+`tests/fixtures/github/capabilities/v1/` contains independent complete
+introspection responses derived from the official public GitHub.com and GHES
+3.18 schema snapshots with the probe's exact static query. Per-host manifests
+pin the official source URL and digest, retrieval metadata, query digest,
+generator version, complete response digest, and actual Mutation and
+PullRequest field counts. Synthetic missing/incompatible mutation-contract
+descriptors derive only from the GitHub.com response. The contract covers the
+exact review-thread query fields, viewed-file state, mark/unmark inputs and
+payloads, resolve/unresolve inputs and payloads, and their dependency
+relationships.
+
+These are public schema-contract observations, not live account-permission
+claims or authenticated API recordings. Unsupported results are synthetic
+because both selected schemas support all four capabilities. Operational
+failures and partial/malformed responses are constructed in the focused probe
+test and must remain all-Unknown. The fixture security gate pins the exact
+tree, provenance and response digests, rejects duplicate JSON members and
+secret-bearing content, proves the host responses are independent, and keeps
+every relative descriptor reference inside the capability fixture root.
 
 ## GitHub hosts
 

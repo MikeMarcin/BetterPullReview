@@ -24,7 +24,17 @@ the core accepts or rejects its complete identity context, and only an exact
 - GitHub.com
 - GitHub Enterprise Server 3.18 and later, subject to capability probing
 
-Host profiles are explicit and never inferred from untrusted content. Each profile stores hostname, product kind, API roots, authentication mode, proxy/trust behavior, REST version, and a profile revision. Capabilities are separately probed observations keyed by profile revision, host, account, server/contract facts, and capability revision.
+Host profiles are explicit and never inferred from untrusted content. Each profile stores hostname, product kind, API roots, authentication mode, proxy/trust behavior, REST version, and a profile revision. Capabilities are separately probed observations keyed by profile revision, host, account, server/contract facts, and probe-contract revision; capability revision is generated for the accepted cache value.
+
+The selected v1 profile validator admits canonical lowercase ASCII FQDNs
+only. GitHub.com is exactly `github.com` with REST
+`https://api.github.com` and GraphQL
+`https://api.github.com/graphql`; GHES 3.18 is exactly
+`https://HOST/api/v3` and `https://HOST/api/graphql`. Both use REST version
+`2022-11-28`. Profiles derived from provider content or redirects, hostname
+aliases, IP literals, ports, non-HTTPS roots, and root drift fail before a
+request can be compiled. GraphQL redirects are forbidden, and REST redirects
+remain on the exact validated authority and API namespace.
 
 The functional core sees an opaque profile identity rather than hostname, URL,
 proxy, trust, or authentication configuration. The active host and account are
@@ -39,6 +49,17 @@ GHES requests pin the supported REST API version selected by the host adapter. T
 Each capability is `Unknown`, `Supported`, or `Unsupported`. Lack of probe
 evidence produces `Unknown`; it does not silently enable a feature or claim
 that the server does not support it.
+
+One bounded, static GraphQL introspection query observes the exact
+review-thread, viewed-state, mark/unmark, and resolve/unresolve schema
+contracts. It never executes a mutation. Only a complete authenticated
+schema observation may produce `Supported` or `Unsupported`; every
+operational failure, GraphQL error, partial response, malformed shape, or
+limit breach produces explicit all-`Unknown` unavailability. Schema support
+is distinct from target authorization: normalized
+`viewerCanResolve`/`viewerCanUnresolve` flags and viewed-file state describe
+the selected thread/file, while actual mutation permission remains
+fail-closed until RFC-BPR-0008.
 
 ## Authentication transports
 
@@ -106,13 +127,15 @@ Entity, actor, and non-target search node IDs share one collision domain;
 only an exactly correlated reference to the selected pull request may reuse
 an existing node ID.
 
-The GraphQL review-thread projection includes repository and pull-request node
-IDs and must match the corresponding REST records. Each thread carries an
-explicit `LINE` or `FILE` subject: line threads require line anchors, file
-threads prohibit them, and every comment path must match its thread path.
-REST and GraphQL records therefore cannot be replayed across repository,
-pull-request, actor, or thread authority without the complete candidate
-failing atomically.
+The GraphQL review-thread/viewed-state projection includes repository and
+pull-request node IDs and must match the corresponding REST records. Each
+GraphQL file path maps exactly once to the REST file collection and carries
+`DISMISSED`, `UNVIEWED`, or `VIEWED`. Each thread carries an explicit `LINE`
+or `FILE` subject plus per-target resolve/unresolve availability: line
+threads require line anchors, file threads prohibit them, and every comment
+path must match its thread path. REST and GraphQL records therefore cannot be
+replayed across repository, pull-request, file, actor, or thread authority
+without the complete candidate failing atomically.
 
 The v1 selected contract admits at most 4 MiB per response page, 100 records
 per page, JSON nesting depth 32, 64 members per object, 3,000 files, 250

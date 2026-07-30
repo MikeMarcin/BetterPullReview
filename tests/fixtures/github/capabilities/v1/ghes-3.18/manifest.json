@@ -1,0 +1,25 @@
+{
+  "schema_revision": 1,
+  "product": "github-enterprise-server",
+  "version": "3.18",
+  "response_file": "supported.json",
+  "source": {
+    "url": "https://docs.github.com/public/ghes-3.18/schema.docs-enterprise.graphql",
+    "retrieved_at_utc": "2026-07-30T03:58:23Z",
+    "last_modified": "Wed, 29 Jul 2026 23:22:15 GMT",
+    "sha256": "41179787f224304625d0e31c4e4928380b013ffe3f02bbabfec17c3c1320b066"
+  },
+  "projection": {
+    "generator": "graphql-js 16.11.0 buildSchema/graphqlSync",
+    "query_sha256": "839ec85171a2d9fb21e23a50890723331e59447252953a7de16f3847d5be6730",
+    "response_sha256": "cc2d5829ce4c75c137f79969b7270034067c753cfb8dc66b29ce42a0e211774c",
+    "mutation_fields": 224,
+    "pull_request_fields": 109
+  },
+  "expected": {
+    "review_threads": "supported",
+    "viewed_file_mutations": "supported",
+    "resolve_thread": "supported",
+    "unresolve_thread": "supported"
+  }
+}

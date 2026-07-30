@@ -1,0 +1,25 @@
+{
+  "schema_revision": 1,
+  "product": "github.com",
+  "version": "cloud",
+  "response_file": "supported.json",
+  "source": {
+    "url": "https://docs.github.com/public/fpt/schema.docs.graphql",
+    "retrieved_at_utc": "2026-07-30T03:58:23Z",
+    "last_modified": "Mon, 27 Jul 2026 14:39:03 GMT",
+    "sha256": "f7a98392e2281c215810c5ac648c3a6940bcd49db74beb2502143f244fdb4da3"
+  },
+  "projection": {
+    "generator": "graphql-js 16.11.0 buildSchema/graphqlSync",
+    "query_sha256": "839ec85171a2d9fb21e23a50890723331e59447252953a7de16f3847d5be6730",
+    "response_sha256": "85a692f13e121c130d997454795a0601440b3b03dca5629e0892b451738b6bc3",
+    "mutation_fields": 271,
+    "pull_request_fields": 113
+  },
+  "expected": {
+    "review_threads": "supported",
+    "viewed_file_mutations": "supported",
+    "resolve_thread": "supported",
+    "unresolve_thread": "supported"
+  }
+}

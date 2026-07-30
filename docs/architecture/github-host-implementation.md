@@ -124,6 +124,35 @@ request number. Host/profile/account switching increments the generation,
 clears active shared projections, and makes every earlier completion stale in
 constant time.
 
+## Validated host authority
+
+A host-profile candidate becomes usable only through the GitHub adapter's
+validated-profile type. The candidate must have trusted `explicit_user`,
+`builtin`, or `managed` provenance, nonzero opaque profile/host identity and revision,
+system proxy/trust modes, a selected authentication transport, and one of the
+two enum-backed server contracts. Pull-request/provider content and redirects
+are never profile provenance.
+
+The initial contracts admit only canonical lowercase ASCII FQDNs, with DNS
+label and total-length bounds and no IP literal, custom port, trailing dot,
+userinfo, IDNA alias, URL syntax, query, or fragment. Their roots are exact:
+
+| Contract | Hostname | REST root | GraphQL root |
+|---|---|---|---|
+| GitHub.com | `github.com` | `https://api.github.com` | `https://api.github.com/graphql` |
+| GHES 3.18 | configured FQDN | `https://HOST/api/v3` | `https://HOST/api/graphql` |
+
+Both select REST version `2022-11-28`. Product kind, routes, roots, and
+version are derived from the validated contract rather than accepted again
+as request strings. A redirect is only a target-validation input: it cannot
+create or mutate a profile. GraphQL redirects are rejected; a REST redirect
+may proceed only when it remains HTTPS, on the exact REST authority, and
+inside the selected API namespace.
+
+Profiles contain no login, account, capability, or credential material.
+Authenticated account identity is a later `/user` observation, and
+capabilities are separately observed and cached facts.
+
 ## Capability model
 
 Every probed capability has three states:
@@ -148,6 +177,40 @@ are not exposed as executable mutations in RFC-BPR-0002. A capability snapshot
 is keyed by profile revision, host, authenticated account, product/server
 facts, and probe-contract revision. The core receives the compact tri-state
 set plus `capability_revision`; the host retains detailed probe evidence.
+
+The adapter sends one statically selected, bounded GraphQL introspection
+`query` to the exact validated GraphQL root. It inspects the mutation root and
+the pull-request, changed-file, review-thread, viewed-state enum, and four
+mutation input/payload contracts without executing a mutation. Names and type
+signatures are case-sensitive and order-independent; duplicate names,
+partial aliases, GraphQL errors, malformed wrappers, or a limit breach do not
+form evidence.
+
+`Supported` means a complete authenticated schema observation matches the
+recorded call contract. It does not assert that the current account may
+mutate every target. `Unsupported` is emitted only by a complete observation
+that conclusively lacks or incompatibly changes a required fact.
+Authentication, permission, network, API-version, rate-limit, certificate,
+redirect, timeout, cancellation, malformed, partial, and oversized results
+remain explicitly unavailable with all four core states `Unknown`.
+
+Review-thread support is a dependency of resolve and unresolve support.
+Viewed-file mutation support requires both mark and unmark contracts.
+Per-thread `viewerCanResolve`/`viewerCanUnresolve` and per-file
+`DISMISSED`/`UNVIEWED`/`VIEWED` state are normalized target facts, not host
+capability overrides. GitHub exposes no equivalent read-only per-file
+mutation-permission fact, so mutation authorization remains fail-closed until
+RFC-BPR-0008 exercises a designated safe target.
+
+The application cache accepts only four canonical, conclusive recorded or
+observed facts. Its exact key is profile, profile revision, host,
+authenticated account, server contract, and probe-contract revision. It uses
+an injected monotonic logical epoch rather than a clock, generates a new
+nonzero capability revision for every successful re-probe, reuses that
+revision on a hit, expires at a half-open boundary, never caches unavailable
+results, never evicts fresh authority, and exposes exact/profile/identity
+invalidation. Capacity and freshness are bounded (defaults 16 and 300 epochs;
+ceilings 64 and 900).
 
 ## Typed vocabulary
 

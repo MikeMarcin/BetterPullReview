@@ -13,6 +13,7 @@
 #include <new>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -254,6 +255,24 @@ namespace
         return application::github_file_change::unchanged;
     }
     return application::github_file_change::type_changed;
+}
+
+[[nodiscard]] auto viewed_state(const QString& value)
+    -> std::optional<application::github_file_viewed_state>
+{
+    if(value == "DISMISSED")
+    {
+        return application::github_file_viewed_state::dismissed;
+    }
+    if(value == "UNVIEWED")
+    {
+        return application::github_file_viewed_state::unviewed;
+    }
+    if(value == "VIEWED")
+    {
+        return application::github_file_viewed_state::viewed;
+    }
+    return std::nullopt;
 }
 
 [[nodiscard]] auto review_state(const QString& value)
@@ -713,6 +732,55 @@ auto normalize_github_read(
         {
             return failed(contract_failure_code::identity_mismatch);
         }
+        const auto graphql_files = graphql_pull_request.value("files")
+                                       .toObject()
+                                       .value("nodes")
+                                       .toArray();
+        if(
+            static_cast<std::size_t>(graphql_files.size())
+            != result.PullRequest.Files.size())
+        {
+            return failed(contract_failure_code::identity_mismatch);
+        }
+        std::unordered_map<
+            std::string,
+            application::github_file_viewed_state>
+            viewed_states;
+        viewed_states.reserve(
+            static_cast<std::size_t>(graphql_files.size()));
+        for(const auto& file_value : graphql_files)
+        {
+            const auto file = file_value.toObject();
+            const auto state =
+                viewed_state(file.value("viewerViewedState").toString());
+            if(!state.has_value())
+            {
+                return failed(
+                    contract_failure_code::unexpected_response_shape);
+            }
+            const auto inserted =
+                viewed_states
+                    .emplace(text(file.value("path")), *state)
+                    .second;
+            if(!inserted)
+            {
+                return failed(contract_failure_code::duplicate_identity);
+            }
+        }
+        for(auto& file : result.PullRequest.Files)
+        {
+            const auto iterator = viewed_states.find(file.Path);
+            if(iterator == viewed_states.end())
+            {
+                return failed(contract_failure_code::identity_mismatch);
+            }
+            file.ViewedState = iterator->second;
+            viewed_states.erase(iterator);
+        }
+        if(!viewed_states.empty())
+        {
+            return failed(contract_failure_code::identity_mismatch);
+        }
         const auto threads = review_threads_array(review_threads_document);
         result.PullRequest.ReviewThreads.reserve(
             static_cast<std::size_t>(threads.size()));
@@ -731,6 +799,10 @@ auto normalize_github_read(
                     thread.value("originalLine")),
                 .Resolved = thread.value("isResolved").toBool(),
                 .Outdated = thread.value("isOutdated").toBool(),
+                .ViewerCanResolve =
+                    thread.value("viewerCanResolve").toBool(),
+                .ViewerCanUnresolve =
+                    thread.value("viewerCanUnresolve").toBool(),
             };
             const auto comments = thread.value("comments")
                                       .toObject()

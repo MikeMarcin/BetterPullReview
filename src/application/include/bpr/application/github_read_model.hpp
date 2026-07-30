@@ -89,6 +89,14 @@ enum class github_file_content_kind : std::uint8_t
     binary,
 };
 
+enum class github_file_viewed_state : std::uint8_t
+{
+    unavailable,
+    dismissed,
+    unviewed,
+    viewed,
+};
+
 enum class github_review_state : std::uint8_t
 {
     uninitialized,
@@ -180,6 +188,8 @@ struct github_file_record
     std::uint64_t Deletions = 0;
     github_file_content_kind ContentKind =
         github_file_content_kind::unknown;
+    github_file_viewed_state ViewedState =
+        github_file_viewed_state::unavailable;
 
     auto operator<=>(const github_file_record&) const = default;
 };
@@ -228,6 +238,8 @@ struct github_review_thread_record
     std::optional<std::uint32_t> Line;
     bool Resolved = false;
     bool Outdated = false;
+    bool ViewerCanResolve = false;
+    bool ViewerCanUnresolve = false;
     std::vector<github_review_comment_record> Comments;
 
     auto operator<=>(const github_review_thread_record&) const = default;
@@ -578,6 +590,20 @@ private:
 }
 
 [[nodiscard]] constexpr auto valid_enum(
+    const github_file_viewed_state value) noexcept -> bool
+{
+    switch(value)
+    {
+    case github_file_viewed_state::unavailable:
+    case github_file_viewed_state::dismissed:
+    case github_file_viewed_state::unviewed:
+    case github_file_viewed_state::viewed:
+        return true;
+    }
+    return false;
+}
+
+[[nodiscard]] constexpr auto valid_enum(
     const github_review_state value) noexcept -> bool
 {
     switch(value)
@@ -866,7 +892,9 @@ private:
     const github_read_limits& limits) noexcept
     -> github_read_validation_error
 {
-    if(!valid_enum(record.Change) || !valid_enum(record.ContentKind))
+    if(
+        !valid_enum(record.Change) || !valid_enum(record.ContentKind)
+        || !valid_enum(record.ViewedState))
     {
         return github_read_validation_error::invalid_enum;
     }
