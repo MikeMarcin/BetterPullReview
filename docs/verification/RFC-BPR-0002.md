@@ -54,6 +54,32 @@ The focused hostile boundary suite passed 11/11, the Qt-enabled matrix passed
 validation plus `git diff --check` passed. These results verify the allocation
 and enforcement mechanism, not any still-unimplemented provider behavior.
 
+## Deterministic-core slice result
+
+The core now exposes a focused GitHub policy surface with strong identity for
+profile, host, account, repository, pull request, provider snapshot,
+capability revision, application session, request, and identity/request
+generation. It owns profile renewal, session/open/refresh legality, all four
+tri-state capabilities, complete stale-result comparison, explicit identity
+invalidation, safe failure and canceled states, compact projections, and the
+exact `accepted_snapshot_delta` required before host cache commit.
+
+Direct tests cover all 81 capability combinations; malformed capability
+representations; bounded and hostile repository locators; every independent
+session/fetch context mismatch; duplicate, stale, failure, cancellation,
+profile-switch, and canonical-target races; old-snapshot refresh preservation;
+new-target clearing; and deterministic full-sequence replay. A compile-time
+state-size bound and the three-variant read-only request surface prevent full
+provider payload or mutation growth.
+
+The hostile core-boundary harness rejects Qt, JSON/provider, database,
+filesystem, clock, randomness, concurrency, environment, process, socket,
+embedded HTTP endpoint, and native-vault dependencies, including qualified
+and unqualified environment/process calls. The Qt-enabled matrix passed 17/17,
+the Qt-free matrix passed 12/12, the hostile core boundary passed 4/4, and
+documentation/source-pack/diff gates passed. This verifies core policy only;
+normalized provider, host, Qt, and public-path claims remain planned.
+
 ## Claim matrix
 
 | Claim | Direct surface | Command or interaction | What proves | Result | Evidence |

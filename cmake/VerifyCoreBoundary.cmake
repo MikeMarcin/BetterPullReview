@@ -4,9 +4,14 @@ endif()
 
 file(
     GLOB_RECURSE core_files
+    LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/core/*.cc"
     "${BPR_ROOT}/src/core/*.cpp"
+    "${BPR_ROOT}/src/core/*.cxx"
     "${BPR_ROOT}/src/core/*.h"
+    "${BPR_ROOT}/src/core/*.hh"
     "${BPR_ROOT}/src/core/*.hpp"
+    "${BPR_ROOT}/src/core/*.hxx"
 )
 
 if(NOT core_files)
@@ -22,8 +27,26 @@ set(
     "#[ \t]*include[ \t]*[<\"]thread[>\"]"
     "#[ \t]*include[ \t]*[<\"]future[>\"]"
     "#[ \t]*include[ \t]*[<\"]filesystem[>\"]"
+    "#[ \t]*include[ \t]*[<\"]chrono[>\"]"
+    "#[ \t]*include[ \t]*[<\"]ctime[>\"]"
     "#[ \t]*include[ \t]*[<\"]random[>\"]"
+    "#[ \t]*include[ \t]*[<\"]fstream[>\"]"
+    "#[ \t]*include[ \t]*[<\"](atomic|mutex|condition_variable)[>\"]"
+    "#[ \t]*include[ \t]*[<\"](asio|boost/asio)"
+    "#[ \t]*include[ \t]*[<\"](nlohmann|rapidjson|boost/json)"
+    "#[ \t]*include[ \t]*[<\"](sys/socket|winsock)"
     "std::filesystem"
+    "std::chrono"
+    "std::time[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(time|clock_gettime|GetSystemTime)[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(std::|::)?getenv[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(std::|::)?system[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(fopen|freopen)[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(popen|fork|execve|CreateProcess)[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(socket|connect|listen)[ \t]*\\("
+    "(^|[^A-Za-z0-9_])(SecItem|CredRead|CredWrite|CredDelete)"
+    "(^|[^A-Za-z0-9_])(SecretService|libsecret|secret_password_)"
+    "https?://"
     "Q[A-Z][A-Za-z0-9_]*"
 )
 

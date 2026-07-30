@@ -10,6 +10,13 @@ add_test(
 )
 
 add_test(
+    NAME core_boundary_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/core_boundary_tests.py"
+)
+
+add_test(
     NAME architecture_boundaries
     COMMAND
         "${CMAKE_COMMAND}"
