@@ -515,6 +515,58 @@ and rollback behavior, and target-native package evidence under
 RFC-BPR-0014. Until that work is complete, the two stores must never be
 silently mixed.
 
+### Windows Credential Manager selection
+
+BPR-0023's Windows adapter selects the wide-character Win32 Credential
+Manager API and one `CRED_TYPE_GENERIC` credential with
+`CRED_PERSIST_LOCAL_MACHINE`. The production target prefix is fixed as
+`org.betterpullreview.github-native-credential.windows-credential-manager.v1/`;
+native tests use the disjoint
+`org.betterpullreview.github-native-credential.windows-credential-manager.integration-test.v1/`
+prefix. The same 66-character fixed-width lowercase hexadecimal authority
+encoding used by the macOS adapter follows the prefix. Production and test
+targets are therefore 142 and 159 UTF-16 code units respectively.
+
+The target prefix is an application namespace, not an operating-system access
+control list. Generic credentials are available to another process running as
+the same user if that process knows the target. `CRED_PERSIST_LOCAL_MACHINE`
+means that the credential remains available to later logon sessions of that
+same user on the same computer. It does not make the credential machine-wide,
+hardware-backed, application-isolated, or roaming.
+
+The portable 2,560-byte limit exactly matches the documented Windows 10/11
+generic-credential bound of `5 * 512` bytes. The adapter names that supported
+platform contract directly because some MinGW headers retain the obsolete
+512-byte macro. It does not reduce the portable contract according to the
+compiler header. Returned native blobs are accepted and overwritten before
+`CredFree` only when both their pointer and their extent satisfy the stable
+bound; malformed or oversized native results fail as corrupt without
+dereferencing an untrusted extent.
+
+Store constructs one zero-initialized `CREDENTIALW` and makes one
+`CredWriteW(..., 0)` create-or-replace call. It never deletes the old
+credential before replacement. Retrieve and delete use exact-target
+`CredReadW` and `CredDeleteW` calls, and native ownership is released only
+through `CredFree`. `GetLastError` is captured immediately after a failed
+call. Documented absence, unavailable-session, denial, corrupt-data,
+allocation, and invalid-request statuses map to portable outcomes; all
+unselected statuses become `operation_failed`. Credential Manager documents
+no read/write/delete status that honestly means a locked vault, so this
+adapter does not invent a native `locked` mapping.
+
+Synchronous Credential Manager calls use the host effect executor with the
+same queued-work, cancellation, callback, and atomic teardown rules as the
+macOS adapter. The source has no Credential UI, enumeration, Credential
+Locker, DPAPI, registry, file, settings, SQLite, environment, process,
+network, logging, or alternate-vault path.
+
+The adapter, fake-backed contract suite, native fixture, hostile source
+boundaries, and x64 PE cross-compile are prepared. None is a substitute for
+running the checked-in `windows-dev` build and disposable lifecycle on a
+native Windows x64 environment. BPR-0023 closes the implementation slice;
+BPR-0036 keeps the native claim open until that target-native build,
+execution, import inspection, and exact cleanup pass.
+
 The native Windows and Linux matrices exercise HTTPS TLS validation, system
 proxy selection, cross-authority redirect rejection, certificate rejection,
 runtime network/process scope, and binary dependencies in addition to the

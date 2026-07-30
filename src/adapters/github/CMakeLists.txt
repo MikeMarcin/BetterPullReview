@@ -57,6 +57,19 @@ if(BPR_BUILD_QT)
         )
     endif()
 
+    if(WIN32)
+        target_sources(
+            better_pull_review_adapter_github
+            PRIVATE
+                src/windows_credential_manager.cpp
+        )
+        target_link_libraries(
+            better_pull_review_adapter_github
+            PRIVATE
+                Advapi32
+        )
+    endif()
+
     bpr_enable_hardening(better_pull_review_adapter_github)
     bpr_enable_warnings(better_pull_review_adapter_github)
 else()

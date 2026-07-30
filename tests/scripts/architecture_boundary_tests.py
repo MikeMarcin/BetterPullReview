@@ -37,6 +37,21 @@ if(APPLE)
 endif()
 """
 
+WINDOWS_CREDENTIAL_TARGET = """\
+if(WIN32)
+    target_sources(
+        better_pull_review_adapter_github
+        INTERFACE
+            src/windows_credential_manager.cpp
+    )
+    target_link_libraries(
+        better_pull_review_adapter_github
+        INTERFACE
+            Advapi32
+    )
+endif()
+"""
+
 GITHUB_TARGET = """\
 add_library(better_pull_review_adapter_github INTERFACE)
 add_library(BetterPullReview::AdapterGitHub ALIAS better_pull_review_adapter_github)
@@ -52,7 +67,7 @@ target_sources(
         src/gh_cli_transport.cpp
         src/native_https_transport.cpp
 )
-""" + APPLE_KEYCHAIN_TARGET
+""" + APPLE_KEYCHAIN_TARGET + WINDOWS_CREDENTIAL_TARGET
 
 MACOS_KEYCHAIN_SOURCE = """\
 #include <Security/Security.h>
@@ -88,6 +103,44 @@ void selected_keychain_lifecycle() {
 }
 """
 
+WINDOWS_CREDENTIAL_MANAGER_SOURCE = """\
+#include <wincred.h>
+
+namespace application {
+class effect_executor;
+constexpr std::size_t maximum_github_credential_bytes = 2'560U;
+}
+application::effect_executor* selected_effect_lane = nullptr;
+
+constexpr std::size_t windows_credential_manager_maximum_blob_bytes =
+    5U * 512U;
+static_assert(
+    application::maximum_github_credential_bytes
+    == windows_credential_manager_maximum_blob_bytes);
+
+void selected_credential_manager_lifecycle() {
+    CREDENTIALW credential{};
+    PCREDENTIALW retrieved = nullptr;
+    static_assert(159U <= CRED_MAX_GENERIC_TARGET_NAME_LENGTH);
+    static_assert(
+        2'560U == windows_credential_manager_maximum_blob_bytes);
+    const DWORD blob_size = 512U;
+    credential.Type = CRED_TYPE_GENERIC;
+    credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
+    CredWriteW(&credential, 0U);
+    CredReadW(target, CRED_TYPE_GENERIC, 0U, &retrieved);
+    const DWORD status = GetLastError();
+    CredDeleteW(target, CRED_TYPE_GENERIC, 0U);
+    if(
+        credential.CredentialBlobSize
+        <= windows_credential_manager_maximum_blob_bytes)
+    {
+        SecureZeroMemory(credential.CredentialBlob, blob_size);
+    }
+    CredFree(retrieved);
+}
+"""
+
 
 class ArchitectureBoundaryTests(unittest.TestCase):
     def run_check(
@@ -97,6 +150,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         adapter_root: str = ADAPTER_ROOT,
         github_target: str = GITHUB_TARGET,
         omit_macos_source: bool = False,
+        omit_windows_source: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -111,6 +165,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 files["src/adapters/github/src/macos_keychain.cpp"] = (
                     MACOS_KEYCHAIN_SOURCE
                 )
+            if not omit_windows_source:
+                files[
+                    "src/adapters/github/src/windows_credential_manager.cpp"
+                ] = WINDOWS_CREDENTIAL_MANAGER_SOURCE
             files.update(sources or {})
 
             for relative_path, contents in files.items():
@@ -402,11 +460,325 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
-    def test_future_windows_and_linux_vault_sources_are_not_required(
+    def test_future_linux_vault_source_is_not_required(self) -> None:
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_windows_credential_manager_source_is_required(self) -> None:
+        self.assert_failure(
+            "designated Windows Credential Manager source is required",
+            omit_windows_source=True,
+        )
+
+    def test_windows_source_must_be_owned_by_win32_target(self) -> None:
+        self.assert_failure(
+            "Windows GitHub adapter must compile",
+            github_target=GITHUB_TARGET.replace(
+                "            src/windows_credential_manager.cpp\n",
+                "",
+            ),
+        )
+
+    def test_win32_target_requires_advapi32(self) -> None:
+        self.assert_failure(
+            "must link Advapi32",
+            github_target=GITHUB_TARGET.replace(
+                "            Advapi32\n",
+                "",
+            ),
+        )
+
+    def test_windows_source_requires_a_win32_target_branch(self) -> None:
+        self.assert_failure(
+            "must define a WIN32 branch",
+            github_target=GITHUB_TARGET.replace(
+                WINDOWS_CREDENTIAL_TARGET,
+                "",
+            ),
+        )
+
+    def test_selected_windows_credential_manager_source_is_allowed(
         self,
     ) -> None:
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_windows_vault_requires_the_effect_executor(self) -> None:
+        self.assert_failure(
+            "requires the host effect executor",
+            {
+                "src/adapters/github/src/windows_credential_manager.cpp":
+                    WINDOWS_CREDENTIAL_MANAGER_SOURCE.replace(
+                        "effect_executor",
+                        "removed_executor",
+                    )
+            },
+        )
+
+    def test_windows_vault_rejects_the_decision_executor(self) -> None:
+        self.assert_failure(
+            "Forbidden serialized decision-executor surface",
+            {
+                "src/adapters/github/src/windows_credential_manager.cpp":
+                    WINDOWS_CREDENTIAL_MANAGER_SOURCE
+                    + "application::decision_executor* "
+                    "forbidden_decision_lane = nullptr;\n"
+            },
+        )
+
+    def test_windows_vault_requires_selected_wide_lifecycle(self) -> None:
+        required_lines = (
+            "#include <wincred.h>\n",
+            "    CredWriteW(&credential, 0U);\n",
+            "    CredReadW(target, CRED_TYPE_GENERIC, 0U, &retrieved);\n",
+            "    CredDeleteW(target, CRED_TYPE_GENERIC, 0U);\n",
+            "    CredFree(retrieved);\n",
+            "    const DWORD status = GetLastError();\n",
+            "    SecureZeroMemory(credential.CredentialBlob, blob_size);\n",
+        )
+        for required_line in required_lines:
+            with self.subTest(required_line=required_line):
+                self.assert_failure(
+                    "selected wide-character",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE.replace(
+                                required_line,
+                                "",
+                            )
+                    },
+                )
+
+    def test_windows_vault_enforces_selected_supported_upper_bounds(
+        self,
+    ) -> None:
+        bound_mutations = (
+            (
+                "    static_assert(159U <= "
+                "CRED_MAX_GENERIC_TARGET_NAME_LENGTH);\n",
+                "    static_assert(159U == "
+                "CRED_MAX_GENERIC_TARGET_NAME_LENGTH);\n",
+            ),
+            (
+                "constexpr std::size_t "
+                "windows_credential_manager_maximum_blob_bytes =\n"
+                "    5U * 512U;\n",
+                "",
+            ),
+            (
+                "    application::maximum_github_credential_bytes\n"
+                "    == windows_credential_manager_maximum_blob_bytes);\n",
+                "",
+            ),
+            (
+                "        credential.CredentialBlobSize\n"
+                "        <= windows_credential_manager_maximum_blob_bytes)\n",
+                "",
+            ),
+        )
+        for bound_line, replacement in bound_mutations:
+            with self.subTest(bound_line=bound_line):
+                self.assert_failure(
+                    "Windows credential bound missing",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE.replace(
+                                bound_line,
+                                replacement,
+                            )
+                    },
+                )
+
+    def test_windows_vault_requires_generic_local_bounded_properties(
+        self,
+    ) -> None:
+        required_constants = (
+            "CRED_TYPE_GENERIC",
+            "CRED_PERSIST_LOCAL_MACHINE",
+            "CRED_MAX_GENERIC_TARGET_NAME_LENGTH",
+            "windows_credential_manager_maximum_blob_bytes",
+        )
+        for required_constant in required_constants:
+            with self.subTest(required_constant=required_constant):
+                self.assert_failure(
+                    "bounded credential property",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE.replace(
+                                required_constant,
+                                "REMOVED_REQUIRED_PROPERTY",
+                            )
+                    },
+                )
+
+    def test_windows_vault_rejects_toolchain_varying_legacy_blob_bound(
+        self,
+    ) -> None:
+        self.assert_failure(
+            "Forbidden toolchain-varying legacy credential-blob bound",
+            {
+                "src/adapters/github/src/windows_credential_manager.cpp":
+                    WINDOWS_CREDENTIAL_MANAGER_SOURCE
+                    + "static_assert(512U <= "
+                    "CRED_MAX_CREDENTIAL_BLOB_SIZE);\n"
+            },
+        )
+
+    def test_windows_vault_rejects_ansi_and_neutral_aliases(self) -> None:
+        forbidden_aliases = (
+            "CredWrite(&credential, 0U);\n",
+            "CredWriteA(&credential, 0U);\n",
+            "CredRead(target, 1U, 0U, &retrieved);\n",
+            "CredReadA(target, 1U, 0U, &retrieved);\n",
+            "CredDelete(target, 1U, 0U);\n",
+            "CredDeleteA(target, 1U, 0U);\n",
+            "CREDENTIAL forbidden_neutral{};\n",
+            "CREDENTIALA forbidden_ansi{};\n",
+            "PCREDENTIAL forbidden_neutral_pointer = nullptr;\n",
+            "PCREDENTIALA forbidden_ansi_pointer = nullptr;\n",
+        )
+        for forbidden_alias in forbidden_aliases:
+            with self.subTest(forbidden_alias=forbidden_alias):
+                self.assert_failure(
+                    "Forbidden ANSI/encoding-neutral Credential Manager "
+                    "surface",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE
+                            + forbidden_alias
+                    },
+                )
+
+    def test_windows_vault_rejects_unselected_credential_apis(self) -> None:
+        forbidden_apis = (
+            "CredUIPromptForWindowsCredentialsW();\n",
+            "CredEnumerateW(nullptr, 0U, nullptr, nullptr);\n",
+            "CredFindBestCredentialW(nullptr, 1U, 0U, nullptr);\n",
+            "CredGetTargetInfoW(nullptr, 0U, nullptr);\n",
+            "CredReadDomainCredentialsW(nullptr, 0U, nullptr, nullptr);\n",
+            "CredWriteDomainCredentialsW(nullptr, nullptr, 0U);\n",
+            "CredIsProtectedW(nullptr, nullptr);\n",
+            "CredProtectW(FALSE, nullptr, 0U, nullptr, nullptr, nullptr);\n",
+            "CredUnprotectW(FALSE, nullptr, 0U, nullptr, nullptr);\n",
+            "CredRenameW(nullptr, nullptr, 1U, 0U);\n",
+            "CredMarshalCredentialW(1U, nullptr, nullptr);\n",
+            "CredUnmarshalCredentialW(nullptr, nullptr, nullptr);\n",
+        )
+        for forbidden_api in forbidden_apis:
+            with self.subTest(forbidden_api=forbidden_api):
+                self.assert_failure(
+                    "Forbidden unselected Credential Manager surface",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE
+                            + forbidden_api
+                    },
+                )
+
+    def test_windows_vault_rejects_unselected_credential_effects(self) -> None:
+        self.assert_failure(
+            "credential effect outside",
+            {
+                "src/adapters/github/src/windows_credential_manager.cpp":
+                    WINDOWS_CREDENTIAL_MANAGER_SOURCE
+                    + "CredGetSessionTypes(nullptr, 0U);\n"
+            },
+        )
+
+    def test_windows_vault_rejects_dpapi_and_credential_locker(self) -> None:
+        hostile_surfaces = (
+            ("CryptProtectData(nullptr, nullptr, nullptr, nullptr, nullptr, "
+             "0U, nullptr);\n", "DPAPI"),
+            ("CryptUnprotectData(nullptr, nullptr, nullptr, nullptr, nullptr, "
+             "0U, nullptr);\n", "DPAPI"),
+            ("NCryptProtectSecret(nullptr, 0U, nullptr, 0U, nullptr, nullptr, "
+             "nullptr, nullptr);\n", "DPAPI"),
+            ("PasswordVault forbidden_vault;\n", "Credential Locker"),
+            ("Windows::Security::Credentials::PasswordCredential "
+             "forbidden_credential;\n", "Credential Locker"),
+        )
+        for hostile_source, surface_name in hostile_surfaces:
+            with self.subTest(surface_name=surface_name):
+                self.assert_failure(
+                    f"Forbidden {surface_name} surface",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE
+                            + hostile_source
+                    },
+                )
+
+    def test_windows_vault_rejects_alternate_storage_policy(self) -> None:
+        hostile_surfaces = (
+            ("CRED_PERSIST_SESSION", "non-local Credential Manager "
+             "persistence"),
+            ("CRED_PERSIST_ENTERPRISE", "non-local Credential Manager "
+             "persistence"),
+            ("CRED_PRESERVE_CREDENTIAL_BLOB", "credential-blob "
+             "preservation"),
+            ("CRED_TYPE_DOMAIN_PASSWORD", "non-generic credential type"),
+        )
+        for hostile_constant, surface_name in hostile_surfaces:
+            with self.subTest(hostile_constant=hostile_constant):
+                self.assert_failure(
+                    f"Forbidden {surface_name} surface",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE
+                            + f"const DWORD forbidden = {hostile_constant};\n"
+                    },
+                )
+
+    def test_windows_vault_rejects_fallback_effect_families(self) -> None:
+        hostile_surfaces = (
+            ("RegSetValueExW(nullptr, nullptr, 0U, 0U, nullptr, 0U);\n",
+             "registry"),
+            ("CreateFileW(nullptr, 0U, 0U, nullptr, 0U, 0U, nullptr);\n",
+             "filesystem"),
+            ("sqlite3* database;\n", "settings/database"),
+            ("GetEnvironmentVariableW(nullptr, nullptr, 0U);\n",
+             "environment"),
+            ("CreateProcessW(nullptr, nullptr, nullptr, nullptr, FALSE, 0U, "
+             "nullptr, nullptr, nullptr, nullptr);\n", "command/process"),
+            ("WinHttpOpen(nullptr, 0U, nullptr, nullptr, 0U);\n", "network"),
+            ("MessageBoxW(nullptr, nullptr, nullptr, 0U);\n", "Qt/UI"),
+            ("OutputDebugStringW(nullptr);\n", "logging/printing"),
+        )
+        for hostile_source, surface_name in hostile_surfaces:
+            with self.subTest(surface_name=surface_name):
+                self.assert_failure(
+                    f"Forbidden {surface_name} surface",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE
+                            + hostile_source
+                    },
+                )
+
+    def test_windows_vault_rejects_raw_error_formatting(self) -> None:
+        forbidden_formatters = (
+            "FormatMessageW(0U, nullptr, status, 0U, nullptr, 0U, nullptr);\n",
+            "std::to_string(status);\n",
+            "snprintf(buffer, sizeof(buffer), \"%lu\", status);\n",
+        )
+        for formatter in forbidden_formatters:
+            with self.subTest(formatter=formatter):
+                self.assert_failure(
+                    "Forbidden raw operating-system error formatting surface",
+                    {
+                        "src/adapters/github/src/"
+                        "windows_credential_manager.cpp":
+                            WINDOWS_CREDENTIAL_MANAGER_SOURCE + formatter
+                    },
+                )
 
     def test_macos_keychain_source_is_required(self) -> None:
         self.assert_failure(
@@ -653,15 +1025,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         vault_target = GITHUB_TARGET.replace(
             "        src/native_https_transport.cpp\n",
             "        src/native_https_transport.cpp\n"
-            "        src/windows_credential_manager.cpp\n"
             "        src/linux_secret_service.cpp\n",
         )
         result = self.run_check(
             {
-                "src/adapters/github/src/macos_keychain.cpp":
-                    MACOS_KEYCHAIN_SOURCE,
-                "src/adapters/github/src/windows_credential_manager.cpp":
-                    "CredWriteW(&credential, 0);\n",
                 "src/adapters/github/src/linux_secret_service.cpp":
                     "secret_password_store_sync(schema, nullptr);\n",
             },

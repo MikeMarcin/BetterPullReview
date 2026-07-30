@@ -61,6 +61,31 @@ the test executable can leave an orphan that the new binary cannot remove
 noninteractively. This is not cross-rebuild crash-recovery evidence; stable
 signed package identity and that lifecycle gate remain RFC-BPR-0014 work.
 
+The Windows adapter selects one generic Credential Manager item under a fixed
+versioned target prefix and the complete portable authority. Its integration
+fixture uses a distinct prefix and one exact synthetic authority. Store is a
+single create-or-replace call; read and delete use the exact target; valid
+returned blobs are overwritten before native release. Credential UI,
+enumeration, DPAPI, Credential Locker, registry, settings, SQLite,
+environment, file, logging, and alternate-vault paths are absent.
+
+Windows generic credentials are protected by the current user's Credential
+Manager boundary, not by an executable-specific ACL. A same-user process that
+knows the target can request the item. Local-machine persistence means later
+logons of that user on the same computer, not all users, roaming, or hardware
+backing. The target prefix limits accidental name collision but is not an
+authorization boundary.
+
+The Windows fixture passes runtime-only canaries over anonymous standard
+input, starts the canonical test executable with an exact inherited-handle
+list and explicit minimal environment, captures fixed output, bounds process
+time, scans its isolated scratch tree, and requires exact parent and fixture
+cleanup. These are prepared checks, not completed native evidence: no Windows
+x64 SDK/runtime is available on the current macOS host. Cross-compilation and
+static boundaries cannot verify operating-system storage, denial,
+unavailable-session behavior, or cleanup. BPR-0036 therefore retains those
+Windows target-native checks and the affected claim remains open.
+
 ## Baseline posture
 
 - No hosted BetterPullReview service.

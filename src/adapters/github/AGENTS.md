@@ -17,6 +17,13 @@ the functional core or Qt presentation adapter.
   item, and noninteractive `SecItem` operations. Do not add data-protection,
   synchronization, access-group, accessibility, alternate-keychain, UI,
   settings, database, environment, file, process, or logging fallbacks.
+- Keep Windows Credential Manager effects in
+  `src/windows_credential_manager.cpp`. Use only exact-target,
+  wide-character generic-credential CRUD with the fixed production namespace,
+  `CRED_PERSIST_LOCAL_MACHINE`, bounded wiping, and `CredFree`. Do not add
+  Credential UI, enumeration, Credential Locker, DPAPI, registry, settings,
+  database, environment, file, process, network, logging, or alternate-vault
+  fallbacks.
 - Use typed records and explicit failure/limit handling at the adapter
   boundary. Do not expose provider response types inward.
 - Keep credentials inside the designated authentication transport or native

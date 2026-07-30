@@ -126,6 +126,26 @@ or destructor cancellation may complete synchronously on their originating
 lane. A consuming application host must marshal every typed terminal onto its
 decision lane.
 
+On Windows, the BPR-0023 adapter selects only wide-character generic
+Credential Manager operations. A fixed production target prefix and a
+disjoint integration-test prefix precede the same complete 66-character
+authority encoding. Store is one `CredWriteW` create-or-replace operation;
+retrieve and delete are exact-target `CredReadW` and `CredDeleteW`
+operations. Native results are bounded to the documented Windows 10/11
+2,560-byte limit, wiped only over a structurally valid extent, and released
+with `CredFree`. The adapter neither deletes before replacement nor selects
+Credential UI, enumeration, Credential Locker, DPAPI, registry, settings,
+SQLite, environment, file, or another storage implementation.
+
+Generic Credential Manager storage is scoped to the current user rather than
+to the BetterPullReview executable. Its target prefix is a namespace, not an
+ACL. `CRED_PERSIST_LOCAL_MACHINE` retains the item for that same user's later
+logons on the same computer; it is not machine-wide, hardware-backed, or
+roaming. No documented Credential Manager CRUD status is mapped to `locked`.
+The prepared fake and cross-compile evidence does not verify native behavior;
+BPR-0023 closes only the implementation slice. BPR-0036 retains the direct
+Windows x64 lifecycle, cleanup, and runtime claim as open work.
+
 Windows and Linux native evidence must exercise HTTPS TLS, system proxy,
 redirect rejection, certificate rejection, runtime network scope, and binary
 dependencies in addition to their target-native vault lifecycle. A mock,

@@ -83,6 +83,43 @@ The scratch scan does not inspect the user's complete home directory, and the
 fixture does not claim cross-rebuild cleanup after an ad hoc code-signature
 change.
 
+## Windows Credential Manager integration fixture
+
+The BPR-0023 fixture uses the fixed
+`org.betterpullreview.github-native-credential.windows-credential-manager.integration-test.v1/`
+prefix and one exact synthetic authority. It never selects the production
+prefix. A resource-locked CTest setup/lifecycle/cleanup sequence is prepared
+to prove initial absence, create, retrieve, single-call replacement, retrieve,
+delete, post-delete absence, and exact final cleanup on Windows 10/11 x64.
+
+The parent generates two runtime-only printable canaries, including one at the
+complete 2,560-byte portable/native bound, and sends framed bytes to a
+same-executable child through anonymous standard input. It starts the canonical
+executable directly with an exact inherited-handle list, a sorted minimal
+Unicode environment, and a unique neutral scratch directory. The child emits
+only fixed pass/fail text. The parent bounds execution, requires confirmed
+child termination before credential cleanup or scans, checks parent/child
+arguments and explicit environment, and searches fixed stdout/stderr,
+executable, source, and the isolated scratch tree for random 32-byte prefix
+and suffix probes from both canaries. The short probes detect truncated
+replacement leaks without placing either complete credential on an audited
+surface. Successful scratch removal must leave the exact path absent.
+
+If termination cannot be confirmed, the test fails closed and deliberately
+does not delete storage beneath a potentially live child; the independent
+CTest cleanup still attempts exact credential deletion. The fixture does not
+enumerate Credential Manager. It also does not inspect arbitrary application
+settings, SQLite files, Qt UI text, Windows Event Log, ETW, or the user's
+complete profile. Settings, SQLite, UI, logging, file, registry, environment,
+DPAPI, Credential Locker, and alternate-vault exclusions come from the
+production source boundary and must not be attributed to the runtime fixture
+alone.
+
+This fixture and its WIN32 registration are checked in but have not run on a
+native Windows environment. Host-stub compilation and an x64 MinGW PE
+cross-compile do not satisfy that lifecycle claim. BPR-0036 retains the
+target-native run and exact cleanup as open work.
+
 ## GitHub hosts
 
 - GitHub.com current contract

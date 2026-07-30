@@ -71,6 +71,19 @@ if(NOT EXISTS "${macos_keychain_file}")
     )
 endif()
 
+get_filename_component(
+    windows_credential_manager_file
+    "${BPR_ROOT}/${windows_credential_manager_relative}"
+    ABSOLUTE
+)
+if(NOT EXISTS "${windows_credential_manager_file}")
+    message(
+        FATAL_ERROR
+        "The designated Windows Credential Manager source is required: "
+        "${windows_credential_manager_relative}"
+    )
+endif()
+
 file(STRINGS "${github_adapter_cmake}" github_cmake_lines)
 set(github_apple_branch_contents "")
 set(in_github_apple_branch FALSE)
@@ -175,6 +188,77 @@ if(
     message(
         FATAL_ERROR
         "Apple GitHub adapter must link the required CoreFoundation framework"
+    )
+endif()
+
+set(github_win32_branch_contents "")
+set(in_github_win32_branch FALSE)
+set(github_win32_branch_depth 0)
+foreach(github_cmake_line IN LISTS github_cmake_lines)
+    set(started_github_win32_branch FALSE)
+    if(
+        NOT in_github_win32_branch
+        AND github_cmake_line
+            MATCHES "^[ \t]*if[ \t]*\\([ \t]*WIN32[ \t]*\\)"
+    )
+        set(in_github_win32_branch TRUE)
+        set(started_github_win32_branch TRUE)
+        set(github_win32_branch_depth 1)
+    endif()
+
+    if(NOT in_github_win32_branch)
+        continue()
+    endif()
+
+    string(APPEND github_win32_branch_contents "${github_cmake_line}\n")
+    if(
+        NOT started_github_win32_branch
+        AND github_cmake_line MATCHES "^[ \t]*if[ \t]*\\("
+    )
+        math(EXPR github_win32_branch_depth "${github_win32_branch_depth} + 1")
+    endif()
+    if(github_cmake_line MATCHES "^[ \t]*endif[ \t]*\\(")
+        math(EXPR github_win32_branch_depth "${github_win32_branch_depth} - 1")
+        if(github_win32_branch_depth EQUAL 0)
+            set(in_github_win32_branch FALSE)
+        endif()
+    endif()
+endforeach()
+
+if(github_win32_branch_contents STREQUAL "")
+    message(
+        FATAL_ERROR
+        "GitHub adapter CMake must define a WIN32 branch for "
+        "Windows Credential Manager"
+    )
+endif()
+if(
+    NOT github_win32_branch_contents
+        MATCHES
+            "target_sources[ \t\r\n]*\\([^\\)]*better_pull_review_adapter_github[^\\)]*windows_credential_manager\\.cpp"
+)
+    message(
+        FATAL_ERROR
+        "Windows GitHub adapter must compile "
+        "src/windows_credential_manager.cpp"
+    )
+endif()
+
+string(
+    REGEX MATCH
+    "target_link_libraries[ \t\r\n]*\\([^\\)]*better_pull_review_adapter_github[^\\)]*\\)"
+    github_win32_target_links
+    "${github_win32_branch_contents}"
+)
+if(
+    github_win32_target_links STREQUAL ""
+    OR NOT github_win32_target_links
+        MATCHES
+            "(^|[ \t\r\n])Advapi32([ \t\r\n]|\\))"
+)
+    message(
+        FATAL_ERROR
+        "Windows GitHub adapter must link Advapi32"
     )
 endif()
 
@@ -656,6 +740,207 @@ reject_macos_keychain_surface(
 )
 reject_macos_keychain_surface(
     "(std::(cout|cerr|clog)|(^|[^A-Za-z0-9_])(printf|fprintf|puts|fputs|perror|syslog|os_log|NSLog|qDebug|qInfo|qWarning|qCritical|qFatal)[ \t\r\n]*\\(|spdlog)"
+    "logging/printing"
+)
+
+file(
+    READ
+    "${windows_credential_manager_file}"
+    windows_credential_manager_contents
+)
+if(
+    NOT windows_credential_manager_contents
+        MATCHES
+            "(^|[^A-Za-z0-9_])application::effect_executor([^A-Za-z0-9_]|$)"
+)
+    message(
+        FATAL_ERROR
+        "Windows Credential Manager adapter requires the host effect executor"
+    )
+endif()
+
+set(
+    required_windows_credential_manager_patterns
+    "#[ \t]*include[ \t]*[<\"]wincred\\.h[>\"]"
+    "CredWriteW[ \t\r\n]*\\("
+    "CredReadW[ \t\r\n]*\\("
+    "CredDeleteW[ \t\r\n]*\\("
+    "CredFree[ \t\r\n]*\\("
+    "GetLastError[ \t\r\n]*\\("
+    "SecureZeroMemory[ \t\r\n]*\\("
+)
+foreach(
+    required_pattern
+    IN LISTS required_windows_credential_manager_patterns
+)
+    if(NOT windows_credential_manager_contents MATCHES "${required_pattern}")
+        message(
+            FATAL_ERROR
+            "Windows Credential Manager adapter must use the selected "
+            "wide-character lifecycle: ${required_pattern}"
+        )
+    endif()
+endforeach()
+
+set(
+    required_windows_credential_manager_constants
+    CRED_TYPE_GENERIC
+    CRED_PERSIST_LOCAL_MACHINE
+    CRED_MAX_GENERIC_TARGET_NAME_LENGTH
+    windows_credential_manager_maximum_blob_bytes
+)
+foreach(
+    required_constant
+    IN LISTS required_windows_credential_manager_constants
+)
+    if(
+        NOT windows_credential_manager_contents
+            MATCHES
+                "(^|[^A-Za-z0-9_])${required_constant}([^A-Za-z0-9_]|$)"
+    )
+        message(
+            FATAL_ERROR
+            "Windows Credential Manager adapter must retain the selected "
+            "generic, local-machine, bounded credential property "
+            "${required_constant}"
+        )
+    endif()
+endforeach()
+
+set(
+    required_windows_credential_manager_bounds
+    "<=[ \t\r\n]*CRED_MAX_GENERIC_TARGET_NAME_LENGTH"
+    "windows_credential_manager_maximum_blob_bytes[ \t\r\n]*=[ \t\r\n]*5U[ \t\r\n]*\\*[ \t\r\n]*512U"
+    "application::maximum_github_credential_bytes[ \t\r\n]*==[ \t\r\n]*windows_credential_manager_maximum_blob_bytes"
+    "CredentialBlobSize[ \t\r\n]*<=[ \t\r\n]*windows_credential_manager_maximum_blob_bytes"
+)
+foreach(required_bound IN LISTS required_windows_credential_manager_bounds)
+    if(NOT windows_credential_manager_contents MATCHES "${required_bound}")
+        message(
+            FATAL_ERROR
+            "Windows credential bound missing: ${required_bound}"
+        )
+    endif()
+endforeach()
+
+function(
+    reject_windows_credential_manager_surface
+    forbidden_pattern
+    surface_name
+)
+    if(windows_credential_manager_contents MATCHES "${forbidden_pattern}")
+        message(
+            FATAL_ERROR
+            "Forbidden ${surface_name} surface in "
+            "${windows_credential_manager_relative}: ${forbidden_pattern}"
+        )
+    endif()
+endfunction()
+
+reject_windows_credential_manager_surface(
+    "(application::decision_executor|DecisionLane|decision_lane)"
+    "serialized decision-executor"
+)
+reject_windows_credential_manager_surface(
+    "CRED_MAX_CREDENTIAL_BLOB_SIZE"
+    "toolchain-varying legacy credential-blob bound"
+)
+reject_windows_credential_manager_surface(
+    "(^|[^A-Za-z0-9_])(Cred(Write|Read|Delete)A?|P?CREDENTIALA?)([^A-Za-z0-9_]|$)"
+    "ANSI/encoding-neutral Credential Manager"
+)
+reject_windows_credential_manager_surface(
+    "(^|[^A-Za-z0-9_])Cred(UI|Enumerate|FindBestCredential|GetTargetInfo|ReadDomainCredentials|WriteDomainCredentials|IsProtected|Protect|Unprotect|Rename|MarshalCredential|UnmarshalCredential)[A-Za-z0-9_]*"
+    "unselected Credential Manager"
+)
+
+set(
+    windows_credential_manager_effects
+    "${windows_credential_manager_contents}"
+)
+foreach(
+    selected_effect
+    IN ITEMS
+        CredWriteW
+        CredReadW
+        CredDeleteW
+        CredFree
+)
+    string(
+        REPLACE
+        "${selected_effect}"
+        ""
+        windows_credential_manager_effects
+        "${windows_credential_manager_effects}"
+    )
+endforeach()
+if(
+    windows_credential_manager_effects
+        MATCHES
+            "(^|[^A-Za-z0-9_])Cred[A-Z][A-Za-z0-9_]*"
+)
+    message(
+        FATAL_ERROR
+        "Windows Credential Manager adapter uses a credential effect outside "
+        "the selected CredWriteW, CredReadW, CredDeleteW, and CredFree "
+        "lifecycle"
+    )
+endif()
+
+reject_windows_credential_manager_surface(
+    "(#[ \t]*include[ \t]*[<\"](dpapi|wincrypt|ncryptprotect)\\.h[>\"]|(^|[^A-Za-z0-9_])(CryptProtectData|CryptUnprotectData|CryptProtectMemory|CryptUnprotectMemory|NCryptProtectSecret|NCryptUnprotectSecret|DATA_BLOB|NCRYPT_DESCRIPTOR_HANDLE)([^A-Za-z0-9_]|$)|Crypt32)"
+    "DPAPI"
+)
+reject_windows_credential_manager_surface(
+    "(Windows[.:]+Security[.:]+Credentials|PasswordVault|PasswordCredential|#[ \t]*include[ \t]*[<\"]winrt/Windows\\.Security\\.Credentials\\.h[>\"])"
+    "Credential Locker"
+)
+reject_windows_credential_manager_surface(
+    "(^|[^A-Za-z0-9_])CRED_PERSIST_(SESSION|ENTERPRISE)([^A-Za-z0-9_]|$)"
+    "non-local Credential Manager persistence"
+)
+reject_windows_credential_manager_surface(
+    "(^|[^A-Za-z0-9_])CRED_PRESERVE_CREDENTIAL_BLOB([^A-Za-z0-9_]|$)"
+    "credential-blob preservation"
+)
+reject_windows_credential_manager_surface(
+    "(^|[^A-Za-z0-9_])CRED_TYPE_(DOMAIN_PASSWORD|DOMAIN_CERTIFICATE|DOMAIN_VISIBLE_PASSWORD|GENERIC_CERTIFICATE|DOMAIN_EXTENDED|MAXIMUM|MAXIMUM_EX)([^A-Za-z0-9_]|$)"
+    "non-generic credential type"
+)
+reject_windows_credential_manager_surface(
+    "(#[ \t]*include[ \t]*[<\"]winreg\\.h[>\"]|(^|[^A-Za-z0-9_])(Reg(Open|Create|Set|Get|Query|Delete|Close|Load|Save|Restore|Replace|Copy|Enum|Flush|Connect)[A-Za-z0-9_]*|HKEY_[A-Z0-9_]+)([^A-Za-z0-9_]|$))"
+    "registry"
+)
+reject_windows_credential_manager_surface(
+    "(#[ \t]*include[ \t]*<(filesystem|fstream)>|std::filesystem|std::([io]?fstream|[io]stream)|(^|[^A-Za-z0-9_.:])(fopen|freopen|fread|fwrite|open|openat|creat|read|write|pread|pwrite|((Create|Open|Read|Write|Delete|Move|Copy|Replace)File)[AW]?)[ \t\r\n]*\\()"
+    "filesystem"
+)
+reject_windows_credential_manager_surface(
+    "([Ss][Qq][Ll][Ii][Tt][Ee]3?|QSettings|ApplicationData[.:]+Current|LocalSettings|RoamingSettings)"
+    "settings/database"
+)
+reject_windows_credential_manager_surface(
+    "((^|[^A-Za-z0-9_])(_?w?getenv|_?w?putenv|setenv|unsetenv|GetEnvironment(Strings|Variable)[AW]?|FreeEnvironmentStrings[AW]?|SetEnvironmentVariable[AW]?)[ \t\r\n]*\\(|(^|[^A-Za-z0-9_])environ([^A-Za-z0-9_]|$)|QProcessEnvironment)"
+    "environment"
+)
+reject_windows_credential_manager_surface(
+    "(QProcess|CreateProcess(AsUser|WithLogon|WithToken)?[AW]?|ShellExecute(Ex)?[AW]?|WinExec|(^|[^A-Za-z0-9_])(system|popen|_popen|fork|exec(l|le|lp|v|ve|vp|vpe))[ \t\r\n]*\\()"
+    "command/process"
+)
+reject_windows_credential_manager_surface(
+    "(QNetwork[A-Za-z0-9_]*|QtNetwork|WinHttp[A-Za-z0-9_]*|Internet(Open|Connect|ReadFile|WriteFile|CloseHandle)[AW]?|URLDownloadToFile[AW]?|Windows[.:]+Web[.:]+Http|HttpClient|IXMLHTTPRequest|#[ \t]*include[ \t]*[<\"]curl/|CURL[A-Za-z0-9_]*|(^|[^A-Za-z0-9_])(socket|connect|send|recv|WSA[A-Za-z0-9_]*)[ \t\r\n]*\\()"
+    "network"
+)
+reject_windows_credential_manager_surface(
+    "(#[ \t]*include[ \t]*[<\"](Q|Qt|Windows\\.UI)|(^|[^A-Za-z0-9_])(Q[A-Z][A-Za-z0-9_]*|MessageBox[AW]?|CreateWindow(Ex)?[AW]?|DialogBox[A-Za-z0-9_]*|TaskDialog[A-Za-z0-9_]*)([^A-Za-z0-9_]|$))"
+    "Qt/UI"
+)
+reject_windows_credential_manager_surface(
+    "(FormatMessage[AW]?|#[ \t]*include[ \t]*<format>|std::(format|vformat|to_string|to_wstring)|([io]stringstream|snprintf|sprintf|swprintf)[ \t\r\n]*\\(|QString::number|std::system_category|std::error_code)"
+    "raw operating-system error formatting"
+)
+reject_windows_credential_manager_surface(
+    "(std::(cout|cerr|clog|wcout|wcerr|wclog)|TraceLogging[A-Za-z0-9_]*|EventWrite[A-Za-z0-9_]*|(^|[^A-Za-z0-9_])(printf|fprintf|wprintf|fwprintf|puts|fputs|perror|syslog|OutputDebugString[AW]?|ReportEvent[AW]?|qDebug|qInfo|qWarning|qCritical|qFatal)[ \t\r\n]*\\(|spdlog)"
     "logging/printing"
 )
 

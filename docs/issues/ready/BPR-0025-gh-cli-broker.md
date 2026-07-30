@@ -1,7 +1,7 @@
 ---
 id: BPR-0025
 title: Implement hardened GitHub CLI broker transport
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0019, BPR-0020]
 ---

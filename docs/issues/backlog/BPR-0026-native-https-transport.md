@@ -16,6 +16,12 @@ Certificate failures and redirects to unknown hosts must fail closed. No
 certificate-error bypass or unbounded response path may exist.
 
 Run controlled target-native trust, proxy, certificate-failure, redirect,
-cancellation, and selected-adapter tests on macOS, Windows, and Linux. Inspect
-each target's linked/runtime Qt Network, TLS, proxy, and credential-vault
-dependencies; configuration or another platform's backend is not evidence.
+cancellation, and selected-adapter tests on the available macOS and Linux
+targets. Inspect each available target's linked/runtime Qt Network, TLS,
+proxy, and credential-vault dependencies; configuration or another platform's
+backend is not evidence.
+
+By product-owner direction, this card prepares the Windows tests and
+boundaries but delegates the Windows 10/11 x64 execution, runtime inspection,
+and claim to BPR-0036. That open Windows evidence does not block this
+implementation slice.

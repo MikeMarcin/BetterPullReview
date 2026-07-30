@@ -190,3 +190,103 @@ if(APPLE)
             TIMEOUT 30
     )
 endif()
+
+if(WIN32)
+    add_executable(
+        better_pull_review_windows_credential_manager_contract_tests
+        windows_credential_manager_contract_tests.cpp
+    )
+    target_link_libraries(
+        better_pull_review_windows_credential_manager_contract_tests
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::Application
+            Advapi32
+    )
+    target_include_directories(
+        better_pull_review_windows_credential_manager_contract_tests
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+    )
+    bpr_enable_hardening(
+        better_pull_review_windows_credential_manager_contract_tests
+    )
+    bpr_enable_warnings(
+        better_pull_review_windows_credential_manager_contract_tests
+    )
+
+    add_test(
+        NAME windows_credential_manager_contract
+        COMMAND
+            better_pull_review_windows_credential_manager_contract_tests
+    )
+
+    add_executable(
+        better_pull_review_windows_credential_manager_native_tests
+        windows_credential_manager_native_tests.cpp
+    )
+    target_link_libraries(
+        better_pull_review_windows_credential_manager_native_tests
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::Application
+            Advapi32
+            Bcrypt
+    )
+    target_include_directories(
+        better_pull_review_windows_credential_manager_native_tests
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+    )
+    bpr_enable_hardening(
+        better_pull_review_windows_credential_manager_native_tests
+    )
+    bpr_enable_warnings(
+        better_pull_review_windows_credential_manager_native_tests
+    )
+
+    add_test(
+        NAME windows_credential_manager_native_setup
+        COMMAND
+            better_pull_review_windows_credential_manager_native_tests
+            --fixture-setup
+    )
+    add_test(
+        NAME windows_credential_manager_native
+        COMMAND
+            better_pull_review_windows_credential_manager_native_tests
+    )
+    add_test(
+        NAME windows_credential_manager_native_cleanup
+        COMMAND
+            better_pull_review_windows_credential_manager_native_tests
+            --fixture-cleanup
+    )
+    set_tests_properties(
+        windows_credential_manager_native_setup
+        PROPERTIES
+            FIXTURES_SETUP
+                windows_credential_manager_integration_item
+            RESOURCE_LOCK
+                windows_credential_manager_integration_item
+            TIMEOUT 30
+    )
+    set_tests_properties(
+        windows_credential_manager_native
+        PROPERTIES
+            FIXTURES_REQUIRED
+                windows_credential_manager_integration_item
+            RESOURCE_LOCK
+                windows_credential_manager_integration_item
+            TIMEOUT 30
+    )
+    set_tests_properties(
+        windows_credential_manager_native_cleanup
+        PROPERTIES
+            FIXTURES_CLEANUP
+                windows_credential_manager_integration_item
+            RESOURCE_LOCK
+                windows_credential_manager_integration_item
+            TIMEOUT 30
+    )
+endif()

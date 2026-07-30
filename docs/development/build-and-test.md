@@ -89,6 +89,31 @@ crash remains removable after rebuilding the current ad hoc-signed test
 binary; stable package identity and cross-build lifecycle verification belong
 to RFC-BPR-0014.
 
+On a designated Windows 10/11 x64 test account, the Windows target builds the
+fake-backed contract and native Credential Manager fixture:
+
+```powershell
+cmake --preset windows-dev
+cmake --build --preset windows-dev
+ctest --preset windows-dev --output-on-failure `
+  -R '^windows_credential_manager_(contract|native|native_setup|native_cleanup)$'
+```
+
+The native setup, lifecycle, and cleanup tests share one CTest resource lock
+and use only the fixed integration-test target prefix. Runtime canaries enter
+the child through anonymous standard input, not arguments or environment.
+The parent requires the child to stop, deletes the exact integration item,
+verifies absence, scans fixed output and the isolated scratch tree, and
+verifies successful scratch removal. The independent cleanup fixture repeats
+exact deletion and absence.
+
+Run the complete `windows-dev` CTest matrix as well as the focused command.
+Inspect the resulting PE imports and dependencies on that same Windows
+machine. A MinGW cross-compile, a non-Windows build that excludes the targets,
+or a mock-backed pass is useful preparatory evidence but is not a native
+Credential Manager result. Do not run the fixture on an account where a
+disposable test credential is unacceptable.
+
 `verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
 binary-dependency script also supports all three platforms, using `dumpbin` on
 Windows when available, followed by `llvm-readobj` and `objdump` fallbacks.

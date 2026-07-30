@@ -19,5 +19,11 @@ backend and binary dependencies, failure-only vault states and fallback
 absence, cross-authority redirect sinks, certificate rejection in both
 transports, and parsed REST/GraphQL operation types.
 
+Complete direct target-native checks on the available macOS and Linux
+surfaces. By product-owner direction, BPR-0036 owns the equivalent Windows
+10/11 x64 runtime, binary-dependency, Credential Manager, HTTPS, and
+secret-absence evidence. Its open state keeps the affected Windows claims and
+RFC closeout open without blocking this cross-platform security-review slice.
+
 Only read-only GitHub operations are in scope; no mutation permission or live
 mutation target is required.
