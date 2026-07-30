@@ -15,3 +15,18 @@ application path for GitHub.com and GHES 3.18.
 
 The composition root is the only layer allowed to select concrete transports
 and platform credential adapters.
+
+Native credential persistence must not be composed until the public path can
+recover its exact profile/profile-revision/host/account/server authority after
+process restart without accepting a caller-supplied account selector. Provide
+either a vault-provenance or integrity-backed durable binding-rehydration
+boundary, or exact-delete every retained credential before normal shutdown
+completes. Settings, SQLite, login text, profile text, and an untrusted raw
+account value cannot seed that selector. If neither design is available,
+native credential persistence remains unavailable even though BPR-0027 proves
+same-process host recreation through a shared host-owned catalog.
+
+The composition must also keep the decision executor alive and accepting
+posts until the application host is quiescent, and keep the credential
+binding catalog, provider, transports, vault, and projections alive for the
+lifetimes documented by their ports.

@@ -166,8 +166,9 @@ event loop, and `QNetworkAccessManager` per transport. The Qt objects do not
 cross the adapter, and one transport rejects a second concurrent operation.
 The complete wire request and correlation are revalidated before the worker
 uses a credential or performs network work. This surface is not yet the
-application-facing provider: BPR-0027 still owns pagination, normalization,
-body-aware failure interpretation, staged snapshot delivery, and public
+public executable path. BPR-0027 consumes it through the application-facing
+provider and owns pagination, normalization, body-aware failure
+interpretation, and staged snapshot delivery; BPR-0029 owns concrete public
 composition.
 
 Production uses the system CA set and
@@ -213,9 +214,23 @@ HTTP 200 JSON with no content encoding, a consistent content length, and
 bounded Link metadata.
 
 HTTP and transport outcomes map to typed, redacted failures. HTTP 403 is a
-rate limit only with zero remaining or valid bounded `Retry-After`; HTTP 429
-is rate limited. GraphQL HTTP-200 error bodies and other body-defined
-secondary-rate-limit responses require BPR-0027's body-aware host path.
+rate limit only when exact metadata proves exhausted quota, a valid bounded
+`Retry-After` is present, or a bounded strict provider payload identifies a
+secondary or GraphQL `RATE_LIMITED` response. HTTP 429 is rate limited only
+with an exact causal rate-limit record. GraphQL HTTP-200 and non-200 error
+envelopes use the same bounded structured classification; message matching is
+limited to the documented secondary-limit form and cannot launder a generic
+permission failure.
+
+GitHub.com responses require the complete
+`X-RateLimit-Limit`/`Remaining`/`Reset`/`Resource` tuple. GHES may omit that
+tuple completely, but a partial, duplicate, malformed, unknown-resource, or
+wrong-resource tuple is rejected. Core REST, Search, and GraphQL operations
+must respectively report `core`, `search`, and `graphql`. The provider
+accumulates those independent observations across every exhausted page and
+preserves them on later local, wire, or remote failure. A rate-limit terminal
+also identifies its exact causal resource record and whether it is a
+secondary limit; `Retry-After` remains a separate bounded scheduling fact.
 
 System/PAC discovery and system-root enumeration are synchronous Qt calls.
 Cancellation queues a worker abort and the event loop polls the stop token,
@@ -384,10 +399,10 @@ the vault evidence nor the internal wire evidence proves the public
 composition surface.
 
 Windows target-native evidence remains open under BPR-0036 and is nonblocking
-for implementation on available platforms. The public provider path remains
-BPR-0027 regardless of target. A mock, cross-compile, vault-only run,
-macOS-only run, or internal wire fixture cannot prove that composed path or
-the retained Windows claim.
+for implementation on available platforms. The public executable provider
+path remains BPR-0029 regardless of target. A mock, cross-compile, vault-only
+run, macOS-only run, or internal wire fixture cannot prove that composed path
+or the retained Windows claim.
 
 ## Normalized application boundary
 
@@ -425,13 +440,19 @@ path must match its thread path. REST and GraphQL records therefore cannot be
 replayed across repository, pull-request, file, actor, or thread authority
 without the complete candidate failing atomically.
 
-The v1 selected contract admits at most 4 MiB per response page, 100 records
-per page, JSON nesting depth 32, 64 members per object, 3,000 files, 250
-pull-request commits, 1,000 search results, 50,000 aggregate records, 256 KiB
-per body, and 16 MiB of normalized text. Callers may tighten these ceilings
-but cannot relax them. Overflow, duplicate identity, malformed relationship,
-unknown enum, incomplete GraphQL page, or allocation failure rejects the
-entire candidate snapshot.
+The v1 selected contract admits at most 4 MiB per response page, 100 selected
+records per page, JSON nesting depth 32, 256 raw members per object, and
+10,000 elements per raw array. A raw string is bounded by the configured page
+body ceiling so ignored GitHub fields such as a documented 500 KiB file patch
+can be discarded safely; projected fields retain their narrower semantic
+limits. Aggregate normalized ceilings remain 3,000 files, 250 pull-request
+commits, 1,000 search results, 50,000 records, 256 KiB per selected body, and
+16 MiB of text. The pull-request summary's `changed_files` and `commits`
+counts are required, bounded by those ceilings, and must equal the completely
+exhausted REST collections even when GraphQL file viewed state is unavailable.
+Callers may tighten these ceilings but cannot relax them. Overflow, duplicate
+identity, malformed relationship, unknown enum, incomplete GraphQL page, or
+allocation failure rejects the entire candidate snapshot.
 
 Recorded fixtures retain an exact sanitized field projection. They are not
 complete raw GitHub payloads. Raw transports own status, content type,
@@ -444,24 +465,30 @@ Every transport response must explicitly certify that the selected page is
 complete; unknown completeness or a declared continuation rejects the whole
 candidate. The facade also rejects incompleteness in GraphQL `pageInfo` and
 projected check/search totals. It is not a production pagination
-implementation: BPR-0027 must exhaust REST and GraphQL pages under the
-aggregate limits before submitting one complete snapshot. Search results use
+implementation. The BPR-0027 provider exhausts REST and GraphQL pages under
+the aggregate limits before submitting one complete snapshot. Search results use
 the pull request's global node ID and repository-scoped number, never the
 Search Issues numeric issue ID. Before projecting away raw URLs, the
-production transport must also prove each result belongs to the canonical
-repository-scoped request. No one-page fixture result may be used to claim
-that a larger live pull request was loaded completely.
+production transport requires the Search item `pull_request` marker and
+proves its REST URL, `repository_url`, and web `html_url` exactly bind the
+server-canonical repository owner/name and the result number under the
+validated profile authority. The caller's locator casing cannot replace that
+observed canonical repository identity. No one-page fixture result may be
+used to claim that a larger live pull request was loaded completely.
 
 The BPR-0026 wire transport revalidates the canonical `ListChecks` URL and
-wire request, but the application-host request context does not yet bind the
-returned checks page to its expected head OID. BPR-0027 must carry and verify
-that `HeadOid` relationship before normalized checks can enter a staged
-snapshot.
+wire request. BPR-0027 additionally carries the expected head OID through the
+application-host request and rejects a returned checks page whose canonical
+commit relationship does not match before normalization or staging.
 
 Provider callbacks return immutable completions and never mutate the active
 cache, core, Qt model, or widget. The host posts each completion to the
 serialized application lane, stages it under the exact request context, and
-commits it only after the core emits the matching acceptance delta.
+commits it only after the core emits the matching acceptance delta. A
+submission that returns normally produces exactly one terminal even after
+advisory cancellation; a throwing submission retained no operation. The
+decision lane remains available through host quiescence and invokes every
+accepted post exactly once without inline execution.
 
 ## Normalized provider surface
 

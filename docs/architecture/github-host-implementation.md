@@ -387,6 +387,25 @@ Normalization validates count, byte, nesting, page, string, and allocation
 limits before a snapshot can be staged. Failure is atomic: a rejected response
 does not partially update the accepted snapshot.
 
+The production provider, not the recorded one-page facade, owns continuation
+exhaustion. REST pages follow only a validated `Link` continuation on the
+selected authority; GraphQL connections advance only through nonempty,
+changing `pageInfo.endCursor` values while `hasNextPage` is true. Page count,
+per-page bytes and records, aggregate bytes and records, cursor size, expected
+GitHub totals, repository identity, pull-request identity, and expected head
+OID are checked before one snapshot is returned. A repeated or missing cursor,
+unknown completeness, truncated count, authority drift, or failed page
+rejects the complete read.
+
+Rate-limit observations are resource-scoped. Core REST, Search, and GraphQL
+may update only their corresponding `core`, `search`, and `graphql` buckets.
+GitHub.com requires the applicable exact four-header tuple; GHES may omit an
+entire tuple, but a partial, duplicate, malformed, unknown, or wrong-resource
+tuple is invalid. The provider and host merge independent buckets across
+pages and retries. A primary, secondary, or structured GraphQL `RATE_LIMITED`
+terminal retains its exact causal record; a bounded `Retry-After` remains a
+separate scheduling observation. Raw provider messages never cross inward.
+
 ## Transport ownership
 
 The provider adapter selects one transport from the explicit host profile.
@@ -528,9 +547,9 @@ instance. The manager and every request/reply object stay on that worker.
 `perform` admits one operation at a time, revalidates the complete correlation
 and canonical wire request before network work, and returns only the original
 correlation plus a bounded success, typed error, or cancellation. This is an
-internal wire transport, not the public provider composition; pagination,
-normalization, host staging, and the application-facing provider path remain
-BPR-0027 work.
+internal wire transport. BPR-0027 adds pagination, normalization, host
+staging, and the application-facing provider path; BPR-0029 still owns
+concrete public composition.
 
 The production transport asks `QNetworkProxyFactory::systemProxyForQuery` for
 each initial or redirected URL. It accepts at most 16 returned candidates,
@@ -885,7 +904,7 @@ scenarios passed, runtime selected the OpenSSL backend and one direct proxy
 candidate, and ELF plus a controlled single-success trace selected Qt6Network,
 Qt6Core, the Qt OpenSSL backend plugin, `libssl.so.3`, and `libcrypto.so.3`.
 That separate evidence still is not the composed public provider path, which
-remains BPR-0027. Windows target-native evidence remains in BPR-0036. Mock
+remains BPR-0029. Windows target-native evidence remains in BPR-0036. Mock
 transports, cross-compilation, and vault-only evidence cannot substitute for
 either remaining claim.
 
@@ -930,6 +949,28 @@ Selecting a different profile or resolving a different authenticated account:
 Shared records are refreshed from GitHub. A cache hit can satisfy a bounded
 observation only when its entire authority key and freshness policy match.
 
+The production application host constructs and owns an initially empty
+capability cache. Composition cannot inject a populated cache, and a caller's
+syntactically valid capability facts are not observations. Only the exact
+authenticated provider probe can stage an entry; the core's accepted-session
+delta precedes cache commit.
+
+Native credential resume accepts only an opaque profile identity. A
+noncopyable host-owned binding catalog selects the complete
+profile/profile-revision/host/account/server authority previously established
+by strict credential-authenticated `/user`. Login text, profile text,
+settings, SQLite, and caller-provided account values cannot select a vault
+item. Switching identity exact-deletes the prior retained authority before
+the next session begins; authoritative absence forgets the stale binding;
+failed cleanup retains an exact catalog tombstone for remediation.
+
+This catalog is process-local. Sharing it across host instances proves
+same-process recreation only. Normal shutdown may preserve an accepted
+operating-system-vault item, so BPR-0029 must either add trusted durable
+binding rehydration or exact shutdown deletion before native persistence is
+available in the public composition. No process-restart recovery claim is
+made by BPR-0027.
+
 ## Application projection and Qt rules
 
 The application host publishes an envelope containing semantic core deltas and
@@ -963,16 +1004,33 @@ host effect executors
 platform credential vault
 process runner and native network transport
 normalized GitHub provider
-host snapshot/capability caches
 decision executor
 Qt window and models
+host-owned credential binding catalog
 application host
 ```
 
-Destruction reverses that order. Shutdown first closes ingress, advances or
-invalidates the active generation, cancels provider work, disables completion
-publication, and discards staged snapshots. Only then are Qt projections,
-transports, vault handles, effect executors, and caches destroyed.
+The decision executor is a required live service through host quiescence. A
+successful post is retained exactly once for eventual non-inline execution.
+Provider and vault submissions that return normally produce exactly one
+terminal; cancellation is advisory and does not suppress it. Composition
+keeps every referenced port, projection, decision lane, and binding catalog
+alive until the host reports quiescence.
+
+Projection delivery is synchronous but observational. An exception sets a
+diagnostic latch and cannot veto a core transition, effect, or cleanup.
+Reentrant public ingress is deferred into FIFO generations; only the
+generation present at turn entry runs in that turn, preventing projection
+feedback from starving queued work. New ingress cannot overtake an older
+continuation, and shutdown closes ingress with terminal priority.
+
+Destruction reverses ownership. Shutdown first closes ingress, advances or
+invalidates the active generation, cancels provider work, drains the required
+vault terminal and cleanup path, and discards staged snapshots. Only after
+quiescence may Qt projections, transports, vault handles, effect executors,
+the binding catalog, and the decision lane be destroyed. A failed exact
+credential deletion is surfaced and leaves the catalog tombstone; it is not
+silently treated as successful cleanup.
 
 Recorded GitHub.com and GHES fixtures may replace the transport behind the same
 provider port in tests. They must use the same provider, host, core, Qt, and
@@ -1038,8 +1096,11 @@ Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the CLI
 broker's process/invocation boundary, and the native HTTPS internal wire path
 on macOS and Linux are directly verified. The selected CLI's network-trust
 claim remains open because its redirect behavior was directly falsified and
-the production gate is unavailable. Public provider composition and Qt flow
-remain BPR-0027 work, and retained Windows target-native credential/HTTPS
-evidence remains BPR-0036 work. The open Windows execution is nonblocking for
-other slices but continues to block only its affected platform claim and
-RFC-BPR-0002 closeout.
+the production gate is unavailable. Qt presentation and public provider
+composition remain BPR-0028/BPR-0029 work. Trusted process-restart credential
+binding is also a BPR-0029 gate. Retained Windows target-native
+credential/HTTPS evidence remains BPR-0036 work. Query-bearing REST redirects
+remain rejected by the closed BPR-0038 design decision; any future relaxation
+requires new direct public-contract evidence and separately scoped work. The
+open Windows execution is nonblocking for other slices but continues to block
+only its affected platform claim and RFC-BPR-0002 closeout.

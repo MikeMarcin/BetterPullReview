@@ -65,6 +65,15 @@ the functional core or Qt presentation adapter.
   network, logging, plaintext, or alternate-vault fallbacks.
 - Use typed records and explicit failure/limit handling at the adapter
   boundary. Do not expose provider response types inward.
+- Exhaust every REST `Link` continuation and GraphQL cursor before returning a
+  snapshot. Enforce cursor progress, page/record/byte ceilings, exact
+  repository authority, expected result counts, and capability-shaped
+  selection; incomplete or ambiguous pagination fails atomically.
+- Preserve `core`, `search`, and `graphql` rate observations independently.
+  GitHub.com requires the applicable exact tuple; GHES may omit a whole tuple
+  but may not supply a partial, malformed, unknown, or wrong-resource tuple.
+  Structured secondary and GraphQL `RATE_LIMITED` bodies identify the exact
+  causal record without exposing provider text.
 - Keep credentials inside the designated authentication transport or native
   vault capability.
 - Add effectful sources explicitly to this directory's CMake target. Do not

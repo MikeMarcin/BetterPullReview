@@ -38,6 +38,36 @@ revision, host, account, and server contract; async results also retain
 request, session, and identity generation. Cancellation that wins suppresses
 retrieval success and destroys the returned material before publication.
 
+The BPR-0027 host never accepts an account or login as resume authority.
+Credential-authenticated strict `/user` establishes the numeric account, and
+a noncopyable host-owned catalog retains the resulting exact
+profile/profile-revision/host/account/server key. The catalog has no raw seed,
+enumeration, copy, move, serialization, settings, or SQLite surface. Profile,
+account, and authentication-transport replacement exact-delete the prior
+authority before proceeding; authoritative absence forgets it; failed
+cleanup retains an exact tombstone.
+
+That selector provenance is process-local. Sharing one catalog across host
+instances proves same-process recreation, not restart recovery. Because
+ordinary shutdown preserves accepted native credentials, BPR-0029 must add a
+vault- or integrity-backed durable rehydration boundary that cannot launder a
+caller-supplied account, or exact-delete retained items before exit. Until
+then, public native persistence is unavailable and no durable-recovery claim
+is made.
+
+The production host also creates its capability cache internally. A caller
+can exercise the standalone cache library, but cannot inject populated
+capability facts into session establishment or bypass the authenticated live
+probe. Capability commit follows the core's exact accepted-session delta.
+
+Provider and vault submissions are nonblocking and, after normal return,
+produce exactly one terminal despite advisory cancellation. The decision
+executor remains live, accepts every post, and invokes each accepted task once
+until the host is quiescent. Duplicate or malformed terminals are still
+contained defensively. Projection callbacks are observational: exceptions and
+reentrant feedback cannot veto mandatory effects, exact cleanup, or FIFO
+progress.
+
 The current macOS adapter targets one explicitly resolved default file-based
 Keychain. Every operation matches that exact keychain, a fixed adapter-owned
 service, and a versioned encoding of the complete portable authority, and
@@ -305,7 +335,8 @@ content-encoding rejection. It passed on the directly exercised macOS arm64
 host. The runtime fact probe reported Qt Network 6.11.1, the OpenSSL backend,
 TLS support, and one direct system-proxy candidate. A separate test-disabled
 build omitted the test-only proxy/CA factories. This fixture verifies the
-internal wire boundary, not BPR-0027's public provider composition.
+internal wire boundary; BPR-0027 separately verifies the application-facing
+provider and host, while BPR-0029 owns public composition.
 
 The corresponding Linux verification used an Ubuntu 26.04 x86_64 full-system
 QEMU guest with Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. It froze
@@ -333,9 +364,10 @@ RFC-BPR-0002 closeout.
 
 Transport status alone is deliberately not a complete rate-limit
 interpreter. HTTP 403 with zero remaining or bounded `Retry-After`, and HTTP
-429, receive typed rate-limit outcomes. GraphQL HTTP-200 error bodies and
-body-defined secondary limits require BPR-0027, as does binding a
-`ListChecks` result to the expected `HeadOid`.
+429, receive typed rate-limit outcomes. BPR-0027 adds bounded structured
+GraphQL HTTP-200 error and body-defined secondary-limit classification,
+resource-scoped accumulation, and exact expected-`HeadOid` binding for
+`ListChecks`.
 
 Capability introspection is untrusted input. One allowlisted read-only query
 is subject to response-byte, depth, member, collection, string, and aggregate

@@ -173,8 +173,8 @@ the controlled unavailable, locked, hostile-redirection, and cleanup checks
 also passed. This directly verifies the selected Linux vault stack in a
 full-system VM, not bare metal. This vault fixture alone does not verify
 HTTPS. BPR-0026 separately verified the Linux internal native HTTPS wire
-surface in a full-system Ubuntu 26.04 QEMU guest. The public composed provider
-path remains BPR-0027.
+surface in a full-system Ubuntu 26.04 QEMU guest. The public executable
+provider composition remains BPR-0029.
 
 ## GitHub CLI process and trust fixtures
 
@@ -344,7 +344,7 @@ OpenSSL, TLS supported, and one direct candidate. A tests-disabled dependency
 audit found no test-only factories, retained the GitHub adapter's Security and
 CoreFoundation dependencies, and observed the current ad-hoc linker
 signature. This is internal wire and development-runtime evidence, not
-BPR-0027 public provider composition or package certification.
+BPR-0029 public provider composition or package certification.
 
 The Linux matrix passed in an Ubuntu 26.04 x86_64 full-system QEMU guest with
 Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. Its frozen
@@ -380,7 +380,44 @@ attributes; policy enforces the metadata Qt exposes, not an exact count of
 on-wire Location fields. Likewise, the explicit Authorization buffer is
 overwritten but Qt-held copies cannot be exactly wiped. GraphQL
 HTTP-200/body-defined secondary-rate-limit interpretation and `ListChecks`
-expected-`HeadOid` binding remain BPR-0027.
+expected-`HeadOid` binding are exercised by the BPR-0027 provider harnesses
+below.
+
+## Application host and provider harnesses
+
+The BPR-0027 pager suite drives synthetic bounded wire pages through the
+production pagination and normalization code. REST cases cover canonical
+`Link` progress, repeated and malformed continuations, exact authority,
+per-page and aggregate count/byte limits, expected totals, and atomic
+failure. GraphQL cases cover every selected connection, independent cursors,
+missing/repeated/non-progressing cursors, capability-shaped field omission,
+repository and pull-request identity, expected head OID, and completeness.
+No case contacts GitHub or contains private repository content.
+
+The provider suite uses injected standard-C++ transports and an effect
+executor to exercise profile resolution, one-shot bootstrap `/user`,
+account-bound `/user`, capability probing, full pull-request assembly,
+cancellation, stale completion, shutdown, submission failure, and exact
+completion correlation. It validates GitHub.com-required and GHES-optional
+resource tuples, independent `core`/`search`/`graphql` accumulation across
+pages, bounded `Retry-After`, status/body-aware primary and secondary limits,
+and structured GraphQL `RATE_LIMITED` errors.
+
+The application host suite uses fake provider/vault ports and the manual
+decision lane. It reorders and duplicates terminals; switches profile and
+account during provider, store, retrieve, and delete phases; exhausts retries;
+injects projection exceptions and repeated reentrant feedback; and proves
+FIFO generations, terminal-priority shutdown, exact staged-snapshot
+acceptance, and stale-result suppression. Credential cases establish bindings
+only through a real strict bootstrap observation, prove exact A-to-B cleanup
+while A retrieval is active, retain cleanup tombstones, reject caller-selected
+account authority, and prove an independently populated capability cache
+cannot enter the production host.
+
+Catalog sharing across host fixtures proves same-process recreation only.
+There is no restart/durable-selector fixture in BPR-0027; BPR-0029 must provide
+trusted rehydration or exact shutdown deletion before native persistence is
+publicly composed. Windows target-native execution remains in BPR-0036.
 
 ## GitHub hosts
 

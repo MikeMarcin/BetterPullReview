@@ -329,7 +329,7 @@ production request, TLS, redirect, cancellation, response, and credential
 binding path. This distinction matters: the fallback scenario proves
 transport candidate ordering, while the `--runtime` observation and
 target-native inspection characterize the selected system proxy/TLS backend.
-Neither is the BPR-0027 public provider composition.
+Neither is the BPR-0029 public provider composition.
 
 The default production deadline is 30 seconds, but synchronous Qt system/PAC
 proxy discovery and system-root enumeration cannot be interrupted by the stop
@@ -417,6 +417,36 @@ closeout.
 `verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
 binary-dependency script also supports all three platforms, using `dumpbin` on
 Windows when available, followed by `llvm-readobj` and `objdump` fallbacks.
+
+For the BPR-0027 application host and provider, build the focused targets and
+run the complete local contract group:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_application_github_host_tests \
+  better_pull_review_github_paged_read_tests \
+  better_pull_review_github_provider_tests
+
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(application_github_(host|contract|capability_cache)|github_(paged_read|provider|read_contract|capability_probe)|native_https_transport_(contract|fixture))$'
+```
+
+The pager/provider tests use injected and loopback-only transports; the host
+uses fake ports and the manual decision lane. They do not mutate GitHub or
+contact a private repository. Run the host, pager, and provider executables
+under AddressSanitizer and UndefinedBehaviorSanitizer before closing the
+slice. Also run the complete clean `dev` and `core-only` matrices,
+documentation and source-pack validators, architecture boundaries, platform
+configuration, workflow-absence scan, tests-disabled Release symbol/dependency
+inspection, and `git diff --check`.
+
+The host-owned credential binding catalog supports same-process host
+recreation only. Do not operate or document native credential persistence in
+the public application until BPR-0029 provides trusted durable binding
+rehydration or exact shutdown deletion. Query-bearing REST redirects continue
+to fail closed under the completed BPR-0038 design decision. Any future
+relaxation requires new direct public-contract evidence and separately scoped
+work.
 
 ## Build ownership
 

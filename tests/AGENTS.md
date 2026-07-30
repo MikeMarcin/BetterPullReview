@@ -4,6 +4,15 @@ Tests are direct evidence, not naming evidence.
 
 - Core tests instantiate no `QApplication`.
 - Host tests use fake/in-memory ports and the manual executor.
+- Host lifecycle tests include reentrant projection feedback, bounded FIFO
+  generations, stale/duplicate terminals, exact credential deletion during
+  profile switches, projection exceptions, and shutdown while every
+  provider/vault phase is active.
+- Capability-cache tests may exercise the standalone cache API, but production
+  host tests must prove a caller-populated cache cannot bypass a live probe.
+- Pager/provider fixtures must prove full REST/GraphQL exhaustion, cursor
+  progress, aggregate limits, exact authority, resource-scoped rate metadata,
+  structured error classification, cancellation, and atomic failure.
 - Qt tests cover translation and presentation mechanics without duplicating
   every core rule.
 - End-to-end tests use the real composition root.

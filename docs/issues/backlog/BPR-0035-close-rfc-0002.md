@@ -3,7 +3,7 @@ id: BPR-0035
 title: Verify and close RFC-BPR-0002
 status: Backlog
 rfc: RFC-BPR-0002
-depends_on: [BPR-0030, BPR-0031, BPR-0032, BPR-0033, BPR-0034, BPR-0036, BPR-0037]
+depends_on: [BPR-0030, BPR-0031, BPR-0032, BPR-0033, BPR-0034, BPR-0036, BPR-0037, BPR-0038]
 ---
 
 # Verify and close RFC-BPR-0002

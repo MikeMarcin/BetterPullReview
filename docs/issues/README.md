@@ -31,12 +31,21 @@ implementation evidence, while direct Windows x64 execution remains in
 fail-closed with zero launches until backlog card `BPR-0037` proves the
 separate trust and identity contract. `BPR-0026` is in `done/` with its
 macOS/Linux native HTTPS trust, proxy, redirect, cancellation, bounds, and
-runtime evidence. `BPR-0027` is ready as the next implementation slice.
+runtime evidence. `BPR-0027` is in `done/` with the application provider,
+serialized host, pagination, rate/retry, credential-lifecycle, and staging
+surface verified on macOS by the focused 9/9, fresh `dev` 35/35, fresh
+`core-only` 17/17, sanitizer 3/3, and tests-disabled Release gates; its final
+Ubuntu 26.04 x86_64 full-system QEMU build passed under GCC 15.2 and its
+focused matrix passed 9/9 under Qt 6.10.2. `BPR-0038` is in `done/` with the
+fail-closed decision to keep query-bearing HTTP redirect targets rejected.
+`BPR-0028` is in `ready/` as the next implementation slice, and BPR-0029
+retains public executable provider composition.
 
 The open Windows task and CLI production-trust task do not block later
 implementation, tests, documentation, security review, or simplification on
-available targets. They block only their affected claims and RFC-BPR-0002
-closeout.
+available targets. BPR-0036 blocks only its affected Windows claims and final
+RFC-BPR-0002 Auto-Verified closeout; BPR-0037 blocks only CLI production
+enablement and the final RFC closeout.
 
 GitHub Actions is not a BetterPullReview build, test, package, release, or RFC
 verification surface. Platform-specific claims require local or target-native

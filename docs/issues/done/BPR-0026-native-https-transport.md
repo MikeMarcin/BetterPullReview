@@ -62,9 +62,9 @@ implementation slice.
   preempted; bounds do not cover Qt-private parser/socket/TLS buffers; Qt may
   normalize duplicate headers; and Qt-owned Authorization copies cannot be
   exactly wiped.
-- Kept public pagination, body-aware GraphQL/rate-limit interpretation,
-  normalization, host staging, snapshot acceptance, and executable
-  composition in BPR-0027.
+- Kept pagination, body-aware GraphQL/rate-limit interpretation,
+  normalization, host staging, and snapshot acceptance in BPR-0027, with
+  executable provider composition separately assigned to BPR-0029.
 - Kept all configuration, builds, tests, runtime inspection, and verification
   local or target-native. GitHub Actions has no role.
 

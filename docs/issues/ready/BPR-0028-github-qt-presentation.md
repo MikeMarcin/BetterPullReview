@@ -1,7 +1,7 @@
 ---
 id: BPR-0028
 title: Implement GitHub host and pull-request Qt presentation
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0018, BPR-0027]
 ---
