@@ -4,6 +4,7 @@ add_library(
         src/github_capability_cache.cpp
         src/github_application_host.cpp
         src/github_credential_vault.cpp
+        src/github_projection_mapping.cpp
         src/host.cpp
         src/manual_executor.cpp
 )

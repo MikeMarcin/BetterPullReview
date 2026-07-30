@@ -2,6 +2,7 @@
 
 #include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/github_transition.hpp"
@@ -44,33 +45,6 @@ private:
         Entries{};
 
     friend class github_application_host;
-};
-
-struct github_host_diagnostic
-{
-    core::github_reason_code Reason = core::github_reason_code::none;
-    std::optional<std::uint32_t> RetryAfterSeconds;
-    github_rate_limit_state RateLimits;
-    std::optional<github_rate_limit_record> RateLimitCause;
-
-    auto operator<=>(const github_host_diagnostic&) const = default;
-};
-
-class github_projection_port
-{
-public:
-    virtual ~github_projection_port() = default;
-
-    // Projection delivery is synchronous but observational: exceptions are
-    // contained and cannot veto a transition or cleanup. Public host ingress
-    // invoked reentrantly is deferred until the current host turn completes.
-    // A projection must not synchronously destroy the publishing host.
-    virtual void publish(const core::github_transition_output& output) = 0;
-    virtual void publish_session(const github_session_read_model& session) = 0;
-    virtual void
-    publish_snapshot(const github_pull_request_snapshot& snapshot) = 0;
-    virtual void
-    publish_diagnostic(const github_host_diagnostic& diagnostic) = 0;
 };
 
 class github_application_host final

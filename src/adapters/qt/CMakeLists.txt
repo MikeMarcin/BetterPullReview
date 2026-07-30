@@ -3,6 +3,8 @@ add_library(
     STATIC
         src/event_loop_executor.cpp
         src/foundation_window.cpp
+        src/github_conversation_model.cpp
+        src/github_window.cpp
 )
 add_library(BetterPullReview::AdapterQt ALIAS better_pull_review_adapter_qt)
 

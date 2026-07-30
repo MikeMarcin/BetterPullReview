@@ -1,5 +1,7 @@
 #include "bpr/application/github_application_host.hpp"
 
+#include "github_projection_mapping.hpp"
+
 #include <atomic>
 #include <cstdint>
 #include <deque>
@@ -678,12 +680,33 @@ struct github_application_host::implementation final
         }
     }
 
-    template <typename Delivery>
-    void deliver_projection(Delivery&& delivery) noexcept
+    void publish_transition(
+        const core::github_transition_output& output,
+        const github_session_read_model* const session = nullptr,
+        const github_pull_request_snapshot* const pull_request =
+            nullptr) noexcept
     {
         try
         {
-            std::forward<Delivery>(delivery)();
+            std::optional<github_session_projection> session_projection;
+            if(session != nullptr)
+            {
+                session_projection = project_github_session(*session);
+            }
+            std::optional<github_pull_request_projection>
+                pull_request_projection;
+            if(pull_request != nullptr)
+            {
+                pull_request_projection =
+                    project_github_pull_request(*pull_request);
+            }
+            const github_presentation_update update{
+                .Transition = project_github_transition(output),
+                .Session = std::move(session_projection),
+                .PullRequest = std::move(pull_request_projection),
+                .HostDiagnostics = {},
+            };
+            Projections.publish(update);
         }
         catch(...)
         {
@@ -691,28 +714,23 @@ struct github_application_host::implementation final
         }
     }
 
-    void
-    publish_transition(const core::github_transition_output& output) noexcept
-    {
-        deliver_projection([this, &output] { Projections.publish(output); });
-    }
-
-    void publish_session(const github_session_read_model& session) noexcept
-    {
-        deliver_projection([this, &session]
-                           { Projections.publish_session(session); });
-    }
-
-    void publish_snapshot(const github_pull_request_snapshot& snapshot) noexcept
-    {
-        deliver_projection([this, &snapshot]
-                           { Projections.publish_snapshot(snapshot); });
-    }
-
     void publish_diagnostic(const github_host_diagnostic& diagnostic) noexcept
     {
-        deliver_projection([this, &diagnostic]
-                           { Projections.publish_diagnostic(diagnostic); });
+        try
+        {
+            const github_presentation_update update{
+                .Transition = std::nullopt,
+                .Session = std::nullopt,
+                .PullRequest = std::nullopt,
+                .HostDiagnostics =
+                    {project_github_host_diagnostic(diagnostic)},
+            };
+            Projections.publish(update);
+        }
+        catch(...)
+        {
+            ProjectionDeliveryFailed = true;
+        }
     }
 
     void observe_provider_error(const github_provider_error& error)
@@ -1797,8 +1815,7 @@ struct github_application_host::implementation final
         {
             CredentialLifecycle = credential_lifecycle::persistent;
         }
-        publish_transition(output);
-        publish_session(*AcceptedSession);
+        publish_transition(output, &*AcceptedSession);
     }
 
     void start_store(const core::github_session_request_context& context)
@@ -2844,8 +2861,10 @@ struct github_application_host::implementation final
                 StagedSnapshot.reset();
                 static_cast<void>(
                     merge(RateLimits, AcceptedSnapshot->RateLimits));
-                publish_transition(output);
-                publish_snapshot(*AcceptedSnapshot);
+                publish_transition(
+                    output,
+                    nullptr,
+                    &*AcceptedSnapshot);
             }
             else
             {

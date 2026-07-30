@@ -1357,6 +1357,179 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_qt_accepts_only_the_safe_github_projection_contract(
+        self,
+    ) -> None:
+        result = self.run_check(
+            {
+                "src/adapters/qt/safe_projection.cpp": (
+                    '#include "bpr/application/github_projection.hpp"\n'
+                    "bpr::application::github_presentation_update* update;\n"
+                    "bpr::application::github_intent_dispatch* dispatch;\n"
+                )
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_qt_rejects_other_application_github_contracts(self) -> None:
+        forbidden_headers = (
+            (
+                "github_application_host.hpp",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_read_model.hpp",
+                "Provider data crossed the core/Qt boundary",
+            ),
+            (
+                "github_provider_port.hpp",
+                "Provider data crossed the core/Qt boundary",
+            ),
+            (
+                "github_credential_vault.hpp",
+                "Credential-vault capability crossed the core/Qt boundary",
+            ),
+            (
+                "github_capability_cache.hpp",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_host_authority.hpp",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+        )
+        for header, expected_message in forbidden_headers:
+            with self.subTest(header=header):
+                self.assert_failure(
+                    expected_message,
+                    {
+                        "src/adapters/qt/hostile.cpp": (
+                            f'#include "bpr/application/{header}"\n'
+                        )
+                    },
+                )
+
+    def test_qt_rejects_github_adapter_headers_and_types(self) -> None:
+        hostile_surfaces = (
+            (
+                '#include "../github/src/github_provider.hpp"\n',
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                '#include "bpr/adapters/github/github_provider.hpp"\n',
+                "Provider data crossed the core/Qt boundary",
+            ),
+            (
+                "bpr::adapters::github::github_provider* provider;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "validated_github_host_profile* profile;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "native_https_transport* transport;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_paged_read* pager;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+        )
+        for surface, expected_message in hostile_surfaces:
+            with self.subTest(surface=surface):
+                self.assert_failure(
+                    expected_message,
+                    {"src/adapters/qt/hostile.cpp": surface},
+                )
+
+    def test_qt_rejects_github_effect_and_wire_value_types(self) -> None:
+        hostile_surfaces = (
+            (
+                "QNetworkAccessManager* network;\n",
+                "Core/application/Qt effect-boundary violation",
+            ),
+            (
+                "QProcess* process;\n",
+                "Core/application/Qt effect-boundary violation",
+            ),
+            (
+                "QJsonDocument* document;\n",
+                "Core/application/Qt effect-boundary violation",
+            ),
+            (
+                "QUrl* url;\n",
+                "Provider data crossed the core/Qt boundary",
+            ),
+        )
+        for surface, expected_message in hostile_surfaces:
+            with self.subTest(surface=surface):
+                self.assert_failure(
+                    expected_message,
+                    {"src/adapters/qt/hostile.cpp": surface},
+                )
+
+    def test_qt_rejects_url_auth_credential_provider_and_transport_material(
+        self,
+    ) -> None:
+        hostile_surfaces = (
+            (
+                'const char* endpoint = "https://api.example.test";\n',
+                "Provider data crossed the core/Qt boundary",
+            ),
+            (
+                'const char* authorization = '
+                '"Authorization: Bearer canary";\n',
+                "Provider data crossed the core/Qt boundary",
+            ),
+            (
+                "github_credential_material material;\n",
+                "Credential-vault capability crossed the core/Qt boundary",
+            ),
+            (
+                "github_provider_request provider_request;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_account_transport account_transport;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_authentication_transport authentication_transport;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_capability_port* capability_port;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                'const char* endpoint = "api.github.com";\n',
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "Authorization* authorization;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_bootstrap_credential credential;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_pull_request_snapshot snapshot;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+            (
+                "github_profile_authority authority;\n",
+                "Qt adapter GitHub projection boundary violation",
+            ),
+        )
+        for surface, expected_message in hostile_surfaces:
+            with self.subTest(surface=surface):
+                self.assert_failure(
+                    expected_message,
+                    {"src/adapters/qt/hostile.cpp": surface},
+                )
+
     def test_core_and_qt_reject_credential_vault_contract_types(self) -> None:
         forbidden_surfaces = (
             '#include "bpr/application/github_credential_vault.hpp"\n',

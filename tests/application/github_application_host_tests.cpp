@@ -28,6 +28,48 @@ auto expect(const bool condition, const std::string_view message) -> void
     }
 }
 
+template <typename Type>
+concept exposes_requests = requires(const Type& value)
+{
+    value.Requests;
+};
+
+template <typename Type>
+concept exposes_accepted_session = requires(const Type& value)
+{
+    value.AcceptedSession;
+};
+
+template <typename Type>
+concept exposes_accepted_snapshot = requires(const Type& value)
+{
+    value.AcceptedSnapshot;
+};
+
+template <typename Type>
+concept exposes_viewer = requires(const Type& value)
+{
+    value.Viewer;
+};
+
+template <typename Type>
+concept exposes_capability_evidence = requires(const Type& value)
+{
+    value.CapabilityEvidence;
+};
+
+template <typename Type>
+concept exposes_account_transport = requires(const Type& value)
+{
+    value.AccountTransport;
+};
+
+template <typename Type>
+concept exposes_credential = requires(const Type& value)
+{
+    value.Credential;
+};
+
 struct fake_lease final : application::github_account_transport_lease
 {
 };
@@ -276,65 +318,102 @@ private:
 class recording_projections final : public application::github_projection_port
 {
 public:
-    void publish(const core::github_transition_output& output) override
+    void publish(
+        const application::github_presentation_update& update) override
     {
-        if(ThrowNextOutput)
+        if(update.Transition.has_value() && ThrowNextOutput)
         {
             ThrowNextOutput = false;
             throw std::runtime_error{"transition projection"};
         }
-        if(OnNextOutput)
-        {
-            auto action = std::exchange(OnNextOutput, std::function<void()>{});
-            action();
-        }
-        if(OnEveryOutput)
-        {
-            OnEveryOutput();
-        }
-        Outputs.push_back(output);
-    }
-
-    void publish_session(
-        const application::github_session_read_model& session) override
-    {
-        if(ThrowNextSession)
-        {
-            ThrowNextSession = false;
-            throw std::runtime_error{"session projection"};
-        }
-        Sessions.push_back(session);
-    }
-
-    void publish_snapshot(
-        const application::github_pull_request_snapshot& snapshot) override
-    {
-        if(ThrowNextSnapshot)
-        {
-            ThrowNextSnapshot = false;
-            throw std::runtime_error{"snapshot projection"};
-        }
-        Snapshots.push_back(snapshot);
-    }
-
-    void publish_diagnostic(
-        const application::github_host_diagnostic& diagnostic) override
-    {
-        if(ThrowNextDiagnostic)
+        if(!update.HostDiagnostics.empty() && ThrowNextDiagnostic)
         {
             ThrowNextDiagnostic = false;
             throw std::runtime_error{"diagnostic projection"};
         }
-        Diagnostics.push_back(diagnostic);
+        if(update.Transition.has_value() && OnNextOutput)
+        {
+            auto action = std::exchange(OnNextOutput, std::function<void()>{});
+            action();
+        }
+        if(update.Transition.has_value() && OnEveryOutput)
+        {
+            OnEveryOutput();
+        }
+        Updates.push_back(update);
     }
 
-    std::vector<core::github_transition_output> Outputs;
-    std::vector<application::github_session_read_model> Sessions;
-    std::vector<application::github_pull_request_snapshot> Snapshots;
-    std::vector<application::github_host_diagnostic> Diagnostics;
+    [[nodiscard]] auto transition_count() const noexcept -> std::size_t
+    {
+        return static_cast<std::size_t>(std::ranges::count_if(
+            Updates,
+            [](const auto& update) { return update.Transition.has_value(); }));
+    }
+
+    [[nodiscard]] auto session_count() const noexcept -> std::size_t
+    {
+        return static_cast<std::size_t>(std::ranges::count_if(
+            Updates,
+            [](const auto& update) { return update.Session.has_value(); }));
+    }
+
+    [[nodiscard]] auto pull_request_count() const noexcept -> std::size_t
+    {
+        return static_cast<std::size_t>(std::ranges::count_if(
+            Updates,
+            [](const auto& update) { return update.PullRequest.has_value(); }));
+    }
+
+    [[nodiscard]] auto host_diagnostic_count() const noexcept -> std::size_t
+    {
+        std::size_t count = 0U;
+        for(const auto& update : Updates)
+        {
+            count += update.HostDiagnostics.size();
+        }
+        return count;
+    }
+
+    [[nodiscard]] auto last_session_update() const
+        -> const application::github_presentation_update&
+    {
+        const auto found = std::ranges::find_if(
+            Updates.rbegin(),
+            Updates.rend(),
+            [](const auto& update) { return update.Session.has_value(); });
+        expect(found != Updates.rend(), "a session projection update exists");
+        return *found;
+    }
+
+    [[nodiscard]] auto last_pull_request_update() const
+        -> const application::github_presentation_update&
+    {
+        const auto found = std::ranges::find_if(
+            Updates.rbegin(),
+            Updates.rend(),
+            [](const auto& update) { return update.PullRequest.has_value(); });
+        expect(
+            found != Updates.rend(),
+            "a pull-request projection update exists");
+        return *found;
+    }
+
+    [[nodiscard]] auto last_host_diagnostic() const
+        -> const application::github_host_diagnostic_projection&
+    {
+        for(auto update = Updates.rbegin(); update != Updates.rend(); ++update)
+        {
+            if(!update->HostDiagnostics.empty())
+            {
+                return update->HostDiagnostics.back();
+            }
+        }
+        expect(false, "a host diagnostic projection exists");
+        std::abort();
+    }
+
+    std::vector<application::github_presentation_update> Updates;
     bool ThrowNextOutput = false;
-    bool ThrowNextSession = false;
-    bool ThrowNextSnapshot = false;
     bool ThrowNextDiagnostic = false;
     std::function<void()> OnNextOutput;
     std::function<void()> OnEveryOutput;
@@ -432,6 +511,48 @@ rate_limit(const application::github_rate_limit_resource resource =
         .Core = rate_limit(application::github_rate_limit_resource::core),
         .Search = search,
         .Graphql = graphql,
+    };
+}
+
+[[nodiscard]] auto projected_rate_limit(
+    const application::github_rate_limit_record& record)
+    -> application::github_rate_limit_projection
+{
+    application::github_rate_limit_resource_projection resource =
+        application::github_rate_limit_resource_projection::core;
+    if(record.Resource == application::github_rate_limit_resource::search)
+    {
+        resource = application::github_rate_limit_resource_projection::search;
+    }
+    else if(record.Resource == application::github_rate_limit_resource::graphql)
+    {
+        resource = application::github_rate_limit_resource_projection::graphql;
+    }
+
+    return {
+        .Resource = resource,
+        .Limit = record.Limit,
+        .Remaining = record.Remaining,
+        .ResetUnixSeconds = record.ResetUnixSeconds,
+        .SecondaryLimited = record.SecondaryLimited,
+    };
+}
+
+[[nodiscard]] auto projected_rate_limits(
+    const application::github_rate_limit_state& state)
+    -> application::github_rate_limits_projection
+{
+    const auto project = [](const auto& record)
+        -> std::optional<application::github_rate_limit_projection>
+    {
+        return record.has_value()
+            ? std::optional{projected_rate_limit(*record)}
+            : std::nullopt;
+    };
+    return {
+        .Core = project(state.Core),
+        .Search = project(state.Search),
+        .Graphql = project(state.Graphql),
     };
 }
 
@@ -618,6 +739,85 @@ snapshot(const application::github_pull_request_provider_request& request)
     };
 }
 
+[[nodiscard]] auto rich_snapshot(
+    const application::github_pull_request_provider_request& request)
+    -> application::github_pull_request_snapshot
+{
+    auto result = snapshot(request);
+    const application::github_actor_record author{
+        .Actor = application::github_actor_id{"author-node"},
+        .Login = "octo-author",
+    };
+    const application::github_actor_record reviewer{
+        .Actor = request.Viewer.Node,
+        .Login = request.Viewer.Login,
+    };
+    constexpr std::string_view path = "src/application/host.cpp";
+
+    result.PullRequest.Author = author;
+    result.Files.push_back(application::github_file_record{
+        .Path = std::string{path},
+        .PreviousPath = std::nullopt,
+        .Change = application::github_file_change::modified,
+        .Additions = 4U,
+        .Deletions = 2U,
+        .ContentKind = application::github_file_content_kind::text,
+        .ViewedState = application::github_file_viewed_state::viewed,
+    });
+    result.Reviews.push_back(application::github_review_record{
+        .Review = application::github_review_id{"review-1"},
+        .Author = reviewer,
+        .State = application::github_review_state::changes_requested,
+        .Commit = std::nullopt,
+        .Body = "Please preserve identity.",
+    });
+    result.ReviewThreads.push_back(application::github_review_thread_record{
+        .Thread = application::github_thread_id{"thread-1"},
+        .Subject = application::github_review_thread_subject::line,
+        .Path = std::string{path},
+        .Line = 42U,
+        .Resolved = true,
+        .Outdated = false,
+        .ViewerResolvePermission =
+            application::github_permission_state::denied,
+        .ViewerUnresolvePermission =
+            application::github_permission_state::allowed,
+        .Comments =
+            {
+                application::github_review_comment_record{
+                    .Comment =
+                        application::github_comment_id{"review-comment-1"},
+                    .ReplyTo = std::nullopt,
+                    .Author = reviewer,
+                    .Body = "Thread root",
+                    .Path = std::string{path},
+                    .Line = 42U,
+                    .Outdated = false,
+                    .Deleted = false,
+                },
+                application::github_review_comment_record{
+                    .Comment =
+                        application::github_comment_id{"review-comment-2"},
+                    .ReplyTo =
+                        application::github_comment_id{"review-comment-1"},
+                    .Author = author,
+                    .Body = "Follow-up",
+                    .Path = std::string{path},
+                    .Line = 42U,
+                    .Outdated = true,
+                    .Deleted = true,
+                },
+            },
+    });
+    result.IssueComments.push_back(application::github_issue_comment_record{
+        .Comment = application::github_comment_id{"issue-comment-1"},
+        .Author = author,
+        .Body = "Issue follow-up",
+        .Deleted = false,
+    });
+    return result;
+}
+
 struct host_fixture
 {
     fake_provider Provider;
@@ -790,7 +990,7 @@ auto establish_native_session(
     fixture.Lane.run_next();
     expect(fixture.Host.accepted_session().has_value()
                && fixture.Host.capability_cache_size() == 1U
-               && fixture.Projections.Sessions.size() == 1U,
+               && fixture.Projections.session_count() == 1U,
            "core acceptance precedes one exact capability-cache commit");
 }
 
@@ -882,7 +1082,7 @@ auto test_enrollment_acceptance_snapshot_and_exact_delete() -> void
            "snapshot remains staged until the decision lane accepts it");
     fixture.Lane.run_next();
     expect(fixture.Host.accepted_snapshot().has_value()
-               && fixture.Projections.Snapshots.size() == 1U
+               && fixture.Projections.pull_request_count() == 1U
                && fixture.Host.rate_limits() == rate_limits(),
            "exact core snapshot delta commits with distinct resource limits");
 
@@ -905,10 +1105,174 @@ auto test_enrollment_acceptance_snapshot_and_exact_delete() -> void
         });
     fixture.Lane.run_next();
     expect(fixture.Provider.Profiles.size() == 1U
-               && !fixture.Projections.Diagnostics.empty()
-               && fixture.Projections.Diagnostics.back().Reason
+               && fixture.Projections.host_diagnostic_count() != 0U
+               && fixture.Projections.last_host_diagnostic().Reason
                       == core::github_reason_code::vault_unavailable,
            "delete failure is visible and blocks new session establishment");
+}
+
+auto test_success_projection_is_safe_atomic_and_conversation_complete() -> void
+{
+    static_assert(
+        !exposes_requests<application::github_transition_projection>);
+    static_assert(
+        !exposes_accepted_session<application::github_transition_projection>);
+    static_assert(
+        !exposes_accepted_snapshot<application::github_transition_projection>);
+    static_assert(!exposes_viewer<application::github_session_projection>);
+    static_assert(
+        !exposes_capability_evidence<
+            application::github_session_projection>);
+    static_assert(
+        !exposes_account_transport<application::github_session_projection>);
+    static_assert(!exposes_credential<application::github_session_projection>);
+    static_assert(
+        std::is_same_v<
+            decltype(application::github_session_projection::RateLimits),
+            application::github_rate_limits_projection>);
+
+    host_fixture fixture;
+    establish_native_session(fixture);
+
+    const auto& session_update = fixture.Projections.last_session_update();
+    const auto& accepted_session = *fixture.Host.accepted_session();
+    expect(
+        session_update.Transition.has_value()
+            && session_update.Session.has_value()
+            && !session_update.PullRequest.has_value()
+            && session_update.HostDiagnostics.empty(),
+        "accepted session publishes one atomic transition and safe session");
+    expect(
+        session_update.Transition->Status.has_value()
+            && session_update.Transition->Status->Status
+                   == core::github_status::session_ready,
+        "accepted session transition reports ready status");
+    expect(
+        session_update.Session->Profile == core::host_profile_id{11U}
+            && session_update.Session->Host == core::git_host_id{21U}
+            && session_update.Session->Account
+                   == core::github_account_id{51U}
+            && session_update.Session->Login == "reviewer"
+            && session_update.Session->DisplayName == "Review Engineer"
+            && session_update.Session->Capabilities
+                   == accepted_session.CapabilityEvidence.Capabilities
+            && session_update.Session->CapabilityRevision
+                   == accepted_session.CapabilityEvidence.Revision
+            && session_update.Session->RateLimits
+                   == projected_rate_limits(accepted_session.RateLimits),
+        "session projection contains only accepted identity, login, "
+        "capability, and rate facts");
+
+    fixture.Host.dispatch(core::open_pull_request_intent{
+        .Repository = {.Owner = "openai", .Name = "better-pull-review"},
+        .Number = core::pull_request_number{27U},
+    });
+    const auto request = fixture.Provider.PullRequests.front().Request;
+    const auto accepted_snapshot = rich_snapshot(request);
+    fixture.Provider.PullRequests.front().Completion(
+        application::github_pull_request_success{
+            .Request = request,
+            .Snapshot = accepted_snapshot,
+        });
+    fixture.Lane.run_next();
+
+    const auto& pull_request_update =
+        fixture.Projections.last_pull_request_update();
+    expect(
+        pull_request_update.Transition.has_value()
+            && !pull_request_update.Session.has_value()
+            && pull_request_update.PullRequest.has_value()
+            && pull_request_update.HostDiagnostics.empty(),
+        "accepted pull request publishes one atomic transition and projection");
+    expect(
+        pull_request_update.Transition->Status.has_value()
+            && pull_request_update.Transition->Status->Status
+                   == core::github_status::pull_request_ready,
+        "accepted pull-request transition reports ready status");
+
+    const auto& pull_request = *pull_request_update.PullRequest;
+    expect(
+        pull_request.Profile == accepted_snapshot.Profile
+            && pull_request.Host == accepted_snapshot.Host
+            && pull_request.Account == accepted_snapshot.Account
+            && pull_request.Snapshot == accepted_snapshot.Snapshot
+            && pull_request.Repository
+                   == accepted_snapshot.Repository.Repository
+            && pull_request.PullRequest
+                   == accepted_snapshot.PullRequest.PullRequest
+            && pull_request.AuthorLogin == "octo-author"
+            && pull_request.FileCount == 1U
+            && pull_request.ReviewCount == 1U
+            && pull_request.ReviewThreadCount == 1U
+            && pull_request.IssueCommentCount == 1U
+            && pull_request.ReviewThreadsAvailable
+            && pull_request.Capabilities
+                   == accepted_snapshot.CapabilityEvidence.Capabilities
+            && pull_request.CapabilityRevision
+                   == accepted_snapshot.CapabilityEvidence.Revision
+            && pull_request.RateLimits
+                   == projected_rate_limits(accepted_snapshot.RateLimits),
+        "pull-request projection retains presentation-safe snapshot facts");
+    expect(
+        pull_request.Conversations.size() == 5U
+            && pull_request.Conversations[0U].Id == "review:review-1"
+            && pull_request.Conversations[1U].Id
+                   == "review-thread:thread-1"
+            && pull_request.Conversations[2U].Id
+                   == "review-comment:review-comment-1"
+            && pull_request.Conversations[3U].Id
+                   == "review-comment:review-comment-2"
+            && pull_request.Conversations[4U].Id
+                   == "issue-comment:issue-comment-1",
+        "review conversation identities are stable, prefixed, and ordered");
+
+    const auto& review = pull_request.Conversations[0U];
+    const auto& thread = pull_request.Conversations[1U];
+    const auto& thread_root = pull_request.Conversations[2U];
+    const auto& thread_reply = pull_request.Conversations[3U];
+    const auto& issue_comment = pull_request.Conversations[4U];
+    expect(
+        review.Kind == application::github_conversation_kind::review
+            && !review.ParentId.has_value()
+            && review.AuthorLogin == "reviewer"
+            && review.Body == "Please preserve identity."
+            && review.ReviewState
+                   == application::github_review_state_projection::
+                       changes_requested,
+        "review projects its author, body, and review state");
+    expect(
+        thread.Kind == application::github_conversation_kind::review_thread
+            && !thread.ParentId.has_value()
+            && thread.Path == "src/application/host.cpp"
+            && thread.Line == 42U && thread.Resolved && !thread.Outdated,
+        "review thread projects its location and state");
+    expect(
+        thread_root.Kind
+                == application::github_conversation_kind::review_comment
+            && thread_root.ParentId == thread.Id
+            && thread_root.AuthorLogin == "reviewer"
+            && thread_root.Body == "Thread root"
+            && thread_root.Path == thread.Path && thread_root.Line == 42U
+            && thread_root.Resolved && !thread_root.Outdated
+            && !thread_root.Deleted,
+        "root review comment projects under its stable thread identity");
+    expect(
+        thread_reply.Kind
+                == application::github_conversation_kind::review_comment
+            && thread_reply.ParentId == thread.Id
+            && thread_reply.AuthorLogin == "octo-author"
+            && thread_reply.Body == "Follow-up"
+            && thread_reply.Resolved && thread_reply.Outdated
+            && thread_reply.Deleted,
+        "reply review comment retains thread state and comment flags");
+    expect(
+        issue_comment.Kind
+                == application::github_conversation_kind::issue_comment
+            && !issue_comment.ParentId.has_value()
+            && issue_comment.AuthorLogin == "octo-author"
+            && issue_comment.Body == "Issue follow-up"
+            && !issue_comment.Deleted,
+        "issue comment projects as a distinct top-level conversation");
 }
 
 auto test_retries_are_bounded_and_stale_work_is_cancelled() -> void
@@ -1013,10 +1377,10 @@ auto test_retry_after_is_terminal_and_preserved() -> void
             });
         fixture.Lane.run_next();
         expect(fixture.Provider.Profiles.size() == 1U
-                   && fixture.Projections.Diagnostics.size() == 1U
-                   && fixture.Projections.Diagnostics.back().Reason
+                   && fixture.Projections.host_diagnostic_count() == 1U
+                   && fixture.Projections.last_host_diagnostic().Reason
                           == core::github_reason_code::network_unavailable
-                   && fixture.Projections.Diagnostics.back().RetryAfterSeconds
+                   && fixture.Projections.last_host_diagnostic().RetryAfterSeconds
                           == 30U,
                "positive Retry-After prevents an immediate retry and is "
                "preserved");
@@ -1053,13 +1417,13 @@ auto test_retry_after_is_terminal_and_preserved() -> void
         fixture.Lane.run_next();
         expect(
             fixture.Provider.PullRequests.size() == 1U
-                && fixture.Projections.Diagnostics.size() == 1U
-                && fixture.Projections.Diagnostics.back().Reason
+                && fixture.Projections.host_diagnostic_count() == 1U
+                && fixture.Projections.last_host_diagnostic().Reason
                        == core::github_reason_code::rate_limited
-                && fixture.Projections.Diagnostics.back().RetryAfterSeconds
+                && fixture.Projections.last_host_diagnostic().RetryAfterSeconds
                        == application::maximum_github_retry_after_seconds
-                && fixture.Projections.Diagnostics.back().RateLimits.Core
-                       == fixture.Host.rate_limits().Core
+                && fixture.Projections.last_host_diagnostic().RateLimits.Core
+                       == projected_rate_limits(fixture.Host.rate_limits()).Core
                 && fixture.Host.rate_limits().Core == exhausted,
             "bounded rate-limit Retry-After reaches the projection advisory");
     }
@@ -1121,9 +1485,9 @@ auto test_retry_after_is_terminal_and_preserved() -> void
             });
         fixture.Lane.run_next();
         expect(fixture.Host.rate_limits().Core == secondary
-                   && fixture.Projections.Diagnostics.back().RateLimits.Core
-                          == secondary
-                   && fixture.Projections.Diagnostics.back().RetryAfterSeconds
+                   && fixture.Projections.last_host_diagnostic().RateLimits.Core
+                          == projected_rate_limit(secondary)
+                   && fixture.Projections.last_host_diagnostic().RetryAfterSeconds
                           == 60U,
                "secondary-limit state and fallback delay remain distinct");
     }
@@ -1171,9 +1535,9 @@ auto test_retry_after_is_terminal_and_preserved() -> void
         fixture.Lane.run_next();
         expect(
             fixture.Provider.PullRequests.size() == 2U
-                && fixture.Projections.Diagnostics.size() == 1U
-                && fixture.Projections.Diagnostics.back().RateLimits
-                       == fixture.Host.rate_limits()
+                && fixture.Projections.host_diagnostic_count() == 1U
+                && fixture.Projections.last_host_diagnostic().RateLimits
+                       == projected_rate_limits(fixture.Host.rate_limits())
                 && fixture.Host.rate_limits().Core == core
                 && fixture.Host.rate_limits().Search == search
                 && fixture.Host.rate_limits().Graphql.has_value(),
@@ -1238,7 +1602,7 @@ auto test_wrong_correlations_and_submit_exceptions_fail_closed() -> void
         expect(
             fixture.Provider.Profiles.size() == 1U
                 && !fixture.Host.state().PendingSession.has_value()
-                && fixture.Projections.Diagnostics.empty(),
+                && fixture.Projections.host_diagnostic_count() == 0U,
             "invalid retry metadata is terminal without an advisory or retry");
     }
 
@@ -1272,7 +1636,7 @@ auto test_wrong_correlations_and_submit_exceptions_fail_closed() -> void
         expect(!fixture.Host.rate_limits().Core.has_value()
                    && !fixture.Host.rate_limits().Search.has_value()
                    && !fixture.Host.rate_limits().Graphql.has_value()
-                   && fixture.Projections.Diagnostics.empty()
+                   && fixture.Projections.host_diagnostic_count() == 0U
                    && !fixture.Host.state().PendingSession.has_value(),
                "local profile resolution cannot fabricate remote rate state");
     }
@@ -1615,7 +1979,7 @@ auto test_no_graphql_read_rejects_graphql_error_observations() -> void
         });
     fixture.Lane.run_next();
     expect(fixture.Host.rate_limits().Graphql == prior_graphql
-               && fixture.Projections.Diagnostics.empty()
+               && fixture.Projections.host_diagnostic_count() == 0U
                && !fixture.Host.state().PendingPullRequest.has_value(),
            "REST-only reads cannot inject a GraphQL error observation");
 }
@@ -1685,7 +2049,7 @@ auto test_projection_failures_cannot_interrupt_effects_or_cleanup() -> void
             });
         fixture.Lane.run_next();
         expect(!fixture.Host.state().PendingSession.has_value()
-                   && fixture.Projections.Diagnostics.empty(),
+                   && fixture.Projections.host_diagnostic_count() == 0U,
                "a failed cleanup diagnostic cannot interrupt the deferred "
                "terminal");
     }
@@ -1743,7 +2107,7 @@ auto test_projection_reentry_is_serialized_after_the_current_turn() -> void
                     application::github_rate_limit_resource::graphql),
             });
         fixture.Lane.run_next();
-        expect(fixture.Projections.Sessions.size() == 1U
+        expect(fixture.Projections.session_count() == 1U
                    && !fixture.Host.accepted_session().has_value()
                    && fixture.Vault.Deletes.size() == 1U,
                "session publication finishes before deferred reentrant "
@@ -1839,7 +2203,7 @@ auto test_snapshot_authority_and_pr_cancellation_fail_closed() -> void
             });
         fixture.Lane.run_next();
         expect(!fixture.Host.accepted_snapshot().has_value()
-                   && fixture.Projections.Snapshots.empty(),
+                   && fixture.Projections.pull_request_count() == 0U,
                "same-revision fabricated capability evidence cannot be staged");
     }
 
@@ -1863,7 +2227,7 @@ auto test_snapshot_authority_and_pr_cancellation_fail_closed() -> void
             });
         fixture.Lane.run_next();
         expect(!fixture.Host.accepted_snapshot().has_value()
-                   && fixture.Projections.Snapshots.empty(),
+                   && fixture.Projections.pull_request_count() == 0U,
                "provider snapshot cannot replace the authenticated viewer");
     }
 
@@ -1887,7 +2251,7 @@ auto test_snapshot_authority_and_pr_cancellation_fail_closed() -> void
                "identity switch cancels the exact in-flight PR request");
         fixture.Lane.run_next();
         expect(!fixture.Host.accepted_snapshot().has_value()
-                   && fixture.Projections.Snapshots.empty(),
+                   && fixture.Projections.pull_request_count() == 0U,
                "queued old-identity PR success is inert after cancellation");
     }
 
@@ -1934,7 +2298,7 @@ auto test_snapshot_authority_and_pr_cancellation_fail_closed() -> void
         expect(!fixture.Host.rate_limits().Core.has_value()
                    && !fixture.Host.rate_limits().Search.has_value()
                    && !fixture.Host.rate_limits().Graphql.has_value()
-                   && fixture.Projections.Diagnostics.empty(),
+                   && fixture.Projections.host_diagnostic_count() == 0U,
                "stale old-identity rate observations cannot repopulate host "
                "state");
     }
@@ -2041,7 +2405,8 @@ auto test_vault_wrong_context_and_submit_throw_fail_closed() -> void
                     application::github_credential_delete_disposition::deleted,
             });
         fixture.Lane.run_next();
-        const auto diagnostics = fixture.Projections.Diagnostics.size();
+        const auto diagnostics =
+            fixture.Projections.host_diagnostic_count();
         fixture.Vault.Deletes.front().Completion(
             application::github_credential_delete_success{
                 .Context = cleanup,
@@ -2050,7 +2415,7 @@ auto test_vault_wrong_context_and_submit_throw_fail_closed() -> void
             });
         fixture.Lane.run_next();
         expect(
-            fixture.Projections.Diagnostics.size() == diagnostics
+            fixture.Projections.host_diagnostic_count() == diagnostics
                 && !fixture.Host.state().PendingSession.has_value(),
             "duplicate delete terminal is stale and cannot rewrite lifecycle");
     }
@@ -2271,7 +2636,7 @@ auto test_shutdown_cancels_and_suppresses_late_completion() -> void
         .Profile = core::host_profile_id{11U},
     });
     const auto request = fixture.Provider.Profiles.front().Request;
-    const auto projection_count = fixture.Projections.Outputs.size();
+    const auto projection_count = fixture.Projections.transition_count();
     fixture.Host.shutdown();
     expect(fixture.Host.is_closing() && fixture.Host.is_quiescent()
                && fixture.Provider.CancelledProfiles == std::vector{request}
@@ -2284,7 +2649,7 @@ auto test_shutdown_cancels_and_suppresses_late_completion() -> void
         });
     fixture.Lane.run_next();
     expect(fixture.Provider.Viewers.empty()
-               && fixture.Projections.Outputs.size() == projection_count,
+               && fixture.Projections.transition_count() == projection_count,
            "late completion after shutdown cannot publish or start new work");
 }
 
@@ -2872,7 +3237,7 @@ auto test_shutdown_cancels_running_vault_work() -> void
         host_fixture fixture;
         advance_native_to_store(fixture);
         const auto running = fixture.Vault.Stores.front().Context;
-        const auto projection_count = fixture.Projections.Outputs.size();
+        const auto projection_count = fixture.Projections.transition_count();
 
         fixture.Host.shutdown();
         expect(fixture.Vault.Cancellations == std::vector{running}
@@ -2912,7 +3277,7 @@ auto test_shutdown_cancels_running_vault_work() -> void
                    && fixture.Vault.Deletes.front().Context.Authority
                           == running.Authority
                    && fixture.Provider.Profiles.size() == 1U
-                   && fixture.Projections.Outputs.size() == projection_count
+                   && fixture.Projections.transition_count() == projection_count
                    && !fixture.Host.is_quiescent(),
                "every store terminal exact-cleans before shutdown quiesces");
 
@@ -2926,7 +3291,7 @@ auto test_shutdown_cancels_running_vault_work() -> void
         fixture.Lane.run_next();
         expect(fixture.Host.is_quiescent()
                    && fixture.Provider.Profiles.size() == 1U
-                   && fixture.Projections.Outputs.size() == projection_count,
+                   && fixture.Projections.transition_count() == projection_count,
                "shutdown quiesces after provisional store cleanup terminates");
     }
 
@@ -2939,7 +3304,7 @@ auto test_shutdown_cancels_running_vault_work() -> void
         host_fixture fixture;
         advance_native_to_retrieve(fixture);
         const auto running = fixture.Vault.Retrieves.front().Context;
-        const auto projection_count = fixture.Projections.Outputs.size();
+        const auto projection_count = fixture.Projections.transition_count();
 
         fixture.Host.shutdown();
         expect(fixture.Vault.Cancellations == std::vector{running}
@@ -2977,7 +3342,7 @@ auto test_shutdown_cancels_running_vault_work() -> void
                 && fixture.Vault.Deletes.front().Context.Authority
                        == running.Authority
                 && fixture.Provider.Viewers.size() == 1U
-                && fixture.Projections.Outputs.size() == projection_count
+                && fixture.Projections.transition_count() == projection_count
                 && !fixture.Host.is_quiescent(),
             "every retrieve terminal exact-cleans the provisional credential");
 
@@ -3098,8 +3463,8 @@ auto test_shutdown_exact_cleans_every_provisional_phase() -> void
             fixture.Host.is_quiescent()
                 && fixture.Host.shutdown_cleanup_failed()
                 && fixture.Bindings.size() == 1U
-                && !fixture.Projections.Diagnostics.empty()
-                && fixture.Projections.Diagnostics.back().Reason
+                && fixture.Projections.host_diagnostic_count() != 0U
+                && fixture.Projections.last_host_diagnostic().Reason
                        == core::github_reason_code::vault_unavailable,
             "terminal cleanup failure is distinct from successful quiescence");
     }
@@ -3203,6 +3568,7 @@ auto test_destroyed_host_suppresses_late_callbacks_before_posting() -> void
 auto main() -> int
 {
     test_enrollment_acceptance_snapshot_and_exact_delete();
+    test_success_projection_is_safe_atomic_and_conversation_complete();
     test_retries_are_bounded_and_stale_work_is_cancelled();
     test_retry_after_is_terminal_and_preserved();
     test_wrong_correlations_and_submit_exceptions_fail_closed();

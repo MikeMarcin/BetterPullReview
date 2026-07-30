@@ -656,6 +656,41 @@ foreach(standard_cpp_file IN LISTS standard_cpp_region_files)
 endforeach()
 
 file(
+    GLOB_RECURSE qt_github_projection_files
+    LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/adapters/qt/*.cc"
+    "${BPR_ROOT}/src/adapters/qt/*.cpp"
+    "${BPR_ROOT}/src/adapters/qt/*.cxx"
+    "${BPR_ROOT}/src/adapters/qt/*.h"
+    "${BPR_ROOT}/src/adapters/qt/*.hh"
+    "${BPR_ROOT}/src/adapters/qt/*.hpp"
+    "${BPR_ROOT}/src/adapters/qt/*.hxx"
+    "${BPR_ROOT}/src/adapters/qt/*.mm"
+)
+set(
+    qt_github_projection_forbidden_patterns
+    "QNetwork[A-Za-z0-9_]*"
+    "QProcess[A-Za-z0-9_]*"
+    "QJson[A-Za-z0-9_]*"
+    "QUrl"
+    "(^|[^A-Za-z0-9_:])((bpr::)?adapters::github)([^A-Za-z0-9_]|$)"
+    "#[ \t]*include[ \t]*[<\"][^>\"]*adapters/github"
+    "#[ \t]*include[ \t]*[<\"][^>\"]*(gh_cli_transport|github_(capability_probe|cli_process|host_profile|paged_read|provider|read_contract|wire_request_validation)|native_https_transport|macos_keychain|windows_credential_manager|linux_secret_service)\\.hpp[>\"]"
+    "(^|[^A-Za-z0-9_])(validated_github_host_profile|github_host_profile_candidate|native_https_transport|gh_cli_transport|github_cli_process[A-Za-z0-9_]*|github_wire_[A-Za-z0-9_]*)([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])github_(capability_probe|host_profile|paged_read|provider|read_contract)[A-Za-z0-9_]*([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])github_(credential_[A-Za-z0-9_]*|provider_[A-Za-z0-9_]*|account_transport[A-Za-z0-9_]*|authentication_transport|capability_(cache|port|request|success|error|cancelled|completion|fact|probe)[A-Za-z0-9_]*)([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])github_(profile|viewer|pull_request)_(request|success|error|cancelled|completion|port|submission|authentication)([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])github_([A-Za-z0-9_]+_record|pull_request_snapshot|session_read_model|read_limits|profile_authority|read_shape|bootstrap_credential)([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])(provider_(request|response|record|completion|transport|snapshot)|(credential|Credential)(Material|Bytes|Payload|Value|Vault|Token|Secret|Input|Store|Retrieve|Delete))([^A-Za-z0-9_]|$)"
+    "https?://"
+    "(api\\.github\\.com|/api/v3|/api/graphql)"
+    "(^|[^A-Za-z0-9_])(URL|Url|URI|Uri|Endpoint|RestRoot|GraphqlRoot|RestRoute|GraphqlRoute)([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])(Authorization|BearerToken|AccessToken|AuthToken|TokenBytes)([^A-Za-z0-9_]|$)"
+    "Authorization[ \t]*:"
+    "Bearer[ \t]+"
+    "(^|[^A-Za-z0-9_])(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN)([^A-Za-z0-9_]|$)"
+)
+file(
     GLOB_RECURSE provider_free_projection_files
     LIST_DIRECTORIES false
     "${BPR_ROOT}/src/core/*.c"
@@ -754,6 +789,53 @@ foreach(qt_file IN LISTS qt_files)
             message(
                 FATAL_ERROR
                 "Qt adapter effect-boundary violation in ${relative_file}: ${pattern}"
+            )
+        endif()
+    endforeach()
+endforeach()
+
+foreach(qt_github_projection_file IN LISTS qt_github_projection_files)
+    file(READ "${qt_github_projection_file}" contents)
+    string(
+        REGEX MATCHALL
+        "#[ \t]*include[ \t]*[<\"]bpr/application/github_[A-Za-z0-9_]+\\.hpp[>\"]"
+        qt_application_github_includes
+        "${contents}"
+    )
+    foreach(qt_application_github_include IN LISTS qt_application_github_includes)
+        if(
+            NOT qt_application_github_include
+                MATCHES
+                    "bpr/application/github_projection\\.hpp[>\"]$"
+        )
+            file(
+                RELATIVE_PATH
+                relative_file
+                "${BPR_ROOT}"
+                "${qt_github_projection_file}"
+            )
+            message(
+                FATAL_ERROR
+                "Qt adapter GitHub projection boundary violation in "
+                "${relative_file}: only "
+                "bpr/application/github_projection.hpp may cross from the "
+                "application GitHub surface"
+            )
+        endif()
+    endforeach()
+
+    foreach(pattern IN LISTS qt_github_projection_forbidden_patterns)
+        if(contents MATCHES "${pattern}")
+            file(
+                RELATIVE_PATH
+                relative_file
+                "${BPR_ROOT}"
+                "${qt_github_projection_file}"
+            )
+            message(
+                FATAL_ERROR
+                "Qt adapter GitHub projection boundary violation in "
+                "${relative_file}: ${pattern}"
             )
         endif()
     endforeach()
