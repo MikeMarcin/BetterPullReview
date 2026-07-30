@@ -15,6 +15,7 @@
 namespace bpr::application
 {
 inline constexpr std::size_t github_capability_fact_count = 4U;
+inline constexpr std::size_t github_schema_capability_fact_count = 8U;
 inline constexpr std::size_t maximum_github_capability_cache_capacity = 64U;
 inline constexpr std::uint64_t
     maximum_github_capability_freshness_window = 900U;
@@ -36,6 +37,32 @@ enum class github_capability_evidence_source : std::uint8_t
     observed_contract,
 };
 
+enum class github_schema_capability : std::uint8_t
+{
+    review_threads_read,
+    viewed_file_state_read,
+    mark_file_as_viewed,
+    unmark_file_as_viewed,
+    resolve_permission,
+    resolve_review_thread,
+    unresolve_permission,
+    unresolve_review_thread,
+};
+
+inline constexpr std::array<
+    github_schema_capability,
+    github_schema_capability_fact_count>
+    canonical_github_schema_capabilities{
+        github_schema_capability::review_threads_read,
+        github_schema_capability::viewed_file_state_read,
+        github_schema_capability::mark_file_as_viewed,
+        github_schema_capability::unmark_file_as_viewed,
+        github_schema_capability::resolve_permission,
+        github_schema_capability::resolve_review_thread,
+        github_schema_capability::unresolve_permission,
+        github_schema_capability::unresolve_review_thread,
+    };
+
 [[nodiscard]] constexpr auto valid(
     github_capability_evidence_source source) noexcept -> bool
 {
@@ -54,6 +81,18 @@ struct github_capability_fact
         github_capability_evidence_source::uninitialized;
 
     auto operator<=>(const github_capability_fact&) const = default;
+};
+
+struct github_schema_capability_fact
+{
+    github_schema_capability Capability =
+        github_schema_capability::review_threads_read;
+    core::github_capability_state State =
+        core::github_capability_state::unknown;
+    github_capability_evidence_source Source =
+        github_capability_evidence_source::uninitialized;
+
+    auto operator<=>(const github_schema_capability_fact&) const = default;
 };
 
 enum class github_capability_unavailable_reason : std::uint8_t
@@ -128,6 +167,10 @@ struct github_capability_probe_observation
     github_capability_authority_key Authority;
     github_freshness_epoch ObservedAt;
     std::array<github_capability_fact, github_capability_fact_count> Facts;
+    std::array<
+        github_schema_capability_fact,
+        github_schema_capability_fact_count>
+        SchemaFacts;
 
     auto operator<=>(const github_capability_probe_observation&) const =
         default;
@@ -156,6 +199,9 @@ using github_capability_probe_result = std::variant<
 [[nodiscard]] auto projected_capabilities(
     const github_capability_probe_observation& observation) noexcept
     -> core::github_capabilities;
+[[nodiscard]] auto projected_read_shape(
+    const github_capability_probe_observation& observation) noexcept
+    -> github_read_shape;
 [[nodiscard]] auto all_unknown(
     const core::github_capabilities& capabilities) noexcept -> bool;
 
@@ -183,7 +229,12 @@ struct github_capability_cache_entry
 {
     github_capability_authority_key Authority;
     std::array<github_capability_fact, github_capability_fact_count> Facts;
+    std::array<
+        github_schema_capability_fact,
+        github_schema_capability_fact_count>
+        SchemaFacts;
     core::github_capabilities Capabilities;
+    github_read_shape ReadShape;
     core::capability_revision Revision;
     github_freshness_epoch ObservedAt;
     github_freshness_epoch ExpiresBefore;
@@ -205,6 +256,7 @@ enum class github_capability_cache_error : std::uint8_t
     epoch_overflow,
     revision_overflow,
     capacity_exhausted,
+    stale_stage,
 };
 
 enum class github_capability_cache_lookup_status : std::uint8_t
@@ -237,6 +289,53 @@ enum class github_capability_cache_store_disposition : std::uint8_t
     replaced,
     reused_expired,
     rejected,
+};
+
+class github_capability_cache_stage final
+{
+public:
+    [[nodiscard]] auto entry() const noexcept
+        -> const github_capability_cache_entry&
+    {
+        return Entry;
+    }
+
+    [[nodiscard]] auto disposition() const noexcept
+        -> github_capability_cache_store_disposition
+    {
+        return Disposition;
+    }
+
+private:
+    friend class github_capability_cache;
+
+    github_capability_cache_stage(
+        github_capability_cache_entry entry,
+        github_capability_cache_store_disposition disposition,
+        std::uint64_t mutation_generation) noexcept
+        : Entry{std::move(entry)}
+        , Disposition{disposition}
+        , MutationGeneration{mutation_generation}
+    {
+    }
+
+    github_capability_cache_entry Entry;
+    github_capability_cache_store_disposition Disposition =
+        github_capability_cache_store_disposition::rejected;
+    std::uint64_t MutationGeneration = 0U;
+};
+
+struct github_capability_cache_stage_result
+{
+    github_capability_cache_error Error =
+        github_capability_cache_error::none;
+    std::optional<github_capability_cache_stage> Stage;
+
+    [[nodiscard]] auto staged() const noexcept -> bool
+    {
+        return Error == github_capability_cache_error::none
+            && Stage.has_value();
+    }
 };
 
 struct github_capability_cache_store_result
@@ -303,6 +402,12 @@ public:
     [[nodiscard]] auto store(
         const github_capability_probe_result& result) noexcept
         -> github_capability_cache_store_result;
+    [[nodiscard]] auto stage(
+        const github_capability_probe_result& result) noexcept
+        -> github_capability_cache_stage_result;
+    [[nodiscard]] auto commit(
+        const github_capability_cache_stage& stage) noexcept
+        -> github_capability_cache_store_result;
 
     [[nodiscard]] auto invalidate_exact(
         const github_capability_authority_key& authority) noexcept
@@ -330,6 +435,7 @@ private:
     std::vector<github_capability_cache_entry> Entries;
     github_freshness_epoch LastEpoch;
     std::uint64_t NextRevision = 1U;
+    std::uint64_t MutationGeneration = 1U;
     bool RevisionExhausted = false;
     bool Usable = true;
 };

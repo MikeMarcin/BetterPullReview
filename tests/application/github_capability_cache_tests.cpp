@@ -76,6 +76,59 @@ auto conclusive_facts()
     };
 }
 
+auto conclusive_schema_facts()
+    -> std::array<
+        application::github_schema_capability_fact,
+        application::github_schema_capability_fact_count>
+{
+    using capability = application::github_schema_capability;
+    using fact = application::github_schema_capability_fact;
+    using source = application::github_capability_evidence_source;
+    using state = core::github_capability_state;
+    return {
+        fact{
+            .Capability = capability::review_threads_read,
+            .State = state::supported,
+            .Source = source::observed_contract,
+        },
+        fact{
+            .Capability = capability::viewed_file_state_read,
+            .State = state::supported,
+            .Source = source::observed_contract,
+        },
+        fact{
+            .Capability = capability::mark_file_as_viewed,
+            .State = state::unsupported,
+            .Source = source::observed_contract,
+        },
+        fact{
+            .Capability = capability::unmark_file_as_viewed,
+            .State = state::supported,
+            .Source = source::observed_contract,
+        },
+        fact{
+            .Capability = capability::resolve_permission,
+            .State = state::supported,
+            .Source = source::observed_contract,
+        },
+        fact{
+            .Capability = capability::resolve_review_thread,
+            .State = state::supported,
+            .Source = source::observed_contract,
+        },
+        fact{
+            .Capability = capability::unresolve_permission,
+            .State = state::supported,
+            .Source = source::observed_contract,
+        },
+        fact{
+            .Capability = capability::unresolve_review_thread,
+            .State = state::unsupported,
+            .Source = source::observed_contract,
+        },
+    };
+}
+
 auto observation(
     application::github_capability_authority_key key,
     const std::uint64_t epoch)
@@ -85,6 +138,7 @@ auto observation(
         .Authority = key,
         .ObservedAt = application::github_freshness_epoch{epoch},
         .Facts = conclusive_facts(),
+        .SchemaFacts = conclusive_schema_facts(),
     };
 }
 
@@ -180,12 +234,36 @@ auto test_policy_and_evidence_are_bounded() -> void
             && projected.UnresolveThread
                 == core::github_capability_state::unsupported,
         "canonical facts project without losing tri-state meaning");
+    expect(
+        application::projected_read_shape(valid_observation)
+            == application::github_read_shape{
+                .ReviewThreads = true,
+                .ViewedFileState = true,
+                .ResolvePermission = true,
+                .UnresolvePermission = true,
+            },
+        "detailed schema evidence projects the exact production read shape");
 
     auto reordered = valid_observation;
     std::swap(reordered.Facts[0U], reordered.Facts[1U]);
     expect(
         !application::valid(reordered),
         "facts outside canonical core-enum order are rejected");
+
+    auto reordered_schema = valid_observation;
+    std::swap(
+        reordered_schema.SchemaFacts[0U],
+        reordered_schema.SchemaFacts[1U]);
+    expect(
+        !application::valid(reordered_schema),
+        "schema facts outside canonical order are rejected");
+
+    auto inconsistent = valid_observation;
+    inconsistent.SchemaFacts[5U].State =
+        core::github_capability_state::unsupported;
+    expect(
+        !application::valid(inconsistent),
+        "aggregate support cannot contradict detailed schema evidence");
 
     auto inconclusive = valid_observation;
     inconclusive.Facts[2U].State =
@@ -483,6 +561,98 @@ auto test_capacity_never_evicts_fresh_authority() -> void
         "only the expired authority was replaced");
 }
 
+auto test_stage_is_non_mutating_and_commit_is_exact() -> void
+{
+    using error = application::github_capability_cache_error;
+
+    auto cache = make_cache({
+        .Capacity = 2U,
+        .FreshnessWindowEpochs = 10U,
+    });
+    const auto first = authority();
+    const auto candidate = application::github_capability_probe_result{
+        observation(first, 1U)};
+    const auto staged = cache.stage(candidate);
+    expect(
+        staged.staged()
+            && staged.Stage->entry().Revision
+                == core::capability_revision{1U}
+            && staged.Stage->entry().ReadShape.ReviewThreads
+            && cache.size() == 0U
+            && cache.last_epoch() == application::github_freshness_epoch{},
+        "staging computes an exact candidate without mutating cache state");
+
+    const auto committed = cache.commit(*staged.Stage);
+    expect(
+        committed.stored() && cache.size() == 1U
+            && cache.last_epoch()
+                == application::github_freshness_epoch{1U},
+        "one exact stage commit mutates cache state");
+    expect(
+        cache.commit(*staged.Stage).Error == error::stale_stage
+            && cache.size() == 1U,
+        "a committed stage cannot be replayed");
+
+    const auto replacement = cache.stage(
+        application::github_capability_probe_result{
+            observation(first, 2U)});
+    expect(replacement.staged(), "replacement can be staged");
+    expect(
+        cache.invalidate_exact(first).Removed == 1U,
+        "intervening invalidation mutates the staged authority");
+    expect(
+        cache.commit(*replacement.Stage).Error == error::stale_stage
+            && cache.size() == 0U,
+        "an intervening mutation invalidates the staged commit token");
+
+    const auto expect_zero_removal_invalidates_stage =
+        [&](const auto& invalidate, const std::string_view message) {
+            const auto candidate_stage = cache.stage(
+                application::github_capability_probe_result{
+                    observation(first, 3U)});
+            expect(candidate_stage.staged(), "zero-removal stage creates");
+            invalidate();
+            expect(
+                cache.commit(*candidate_stage.Stage).Error
+                    == error::stale_stage,
+                message);
+        };
+    expect_zero_removal_invalidates_stage(
+        [&] {
+            expect(
+                cache.invalidate_exact(authority(9U)).Removed == 0U,
+                "exact zero-removal invalidation is accepted");
+        },
+        "exact zero-removal invalidation invalidates an older stage");
+    expect_zero_removal_invalidates_stage(
+        [&] {
+            expect(
+                cache.invalidate_profile(core::host_profile_id{9U}).Removed
+                    == 0U,
+                "profile zero-removal invalidation is accepted");
+        },
+        "profile zero-removal invalidation invalidates an older stage");
+    expect_zero_removal_invalidates_stage(
+        [&] {
+            expect(
+                cache.invalidate_identity(
+                         core::host_profile_id{9U},
+                         core::git_host_id{9U},
+                         core::github_account_id{9U})
+                        .Removed
+                    == 0U,
+                "identity zero-removal invalidation is accepted");
+        },
+        "identity zero-removal invalidation invalidates an older stage");
+    expect_zero_removal_invalidates_stage(
+        [&] {
+            expect(
+                cache.clear() == 0U,
+                "empty clear reports zero removals");
+        },
+        "empty clear invalidates an older stage");
+}
+
 auto test_invalid_probe_and_revision_overflow_are_atomic() -> void
 {
     using error = application::github_capability_cache_error;
@@ -714,6 +884,7 @@ int main()
     test_every_authority_dimension_is_exact();
     test_freshness_and_epoch_failures_are_atomic();
     test_capacity_never_evicts_fresh_authority();
+    test_stage_is_non_mutating_and_commit_is_exact();
     test_invalid_probe_and_revision_overflow_are_atomic();
     test_invalidation_is_exact_and_isolated();
     test_move_and_result_helpers_fail_closed();

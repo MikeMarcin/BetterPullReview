@@ -156,6 +156,12 @@ struct refresh_pull_request_intent
     auto operator<=>(const refresh_pull_request_intent&) const = default;
 };
 
+struct deactivate_github_identity_intent
+{
+    auto operator<=>(const deactivate_github_identity_intent&) const =
+        default;
+};
+
 enum class github_failure : std::uint8_t
 {
     authentication,
@@ -226,6 +232,7 @@ struct pull_request_load_cancelled_event
 
 using github_event = std::variant<
     activate_host_profile_intent,
+    deactivate_github_identity_intent,
     open_pull_request_intent,
     refresh_pull_request_intent,
     github_session_ready_event,
@@ -398,6 +405,17 @@ struct accepted_snapshot_delta
     auto operator<=>(const accepted_snapshot_delta&) const = default;
 };
 
+struct accepted_session_delta
+{
+    github_session_request_context Context;
+    git_host_id Host;
+    github_account_id Account;
+    github_capabilities Capabilities;
+    capability_revision CapabilityRevision;
+
+    auto operator<=>(const accepted_session_delta&) const = default;
+};
+
 enum class github_changed_domain : std::uint16_t
 {
     none = 0,
@@ -437,6 +455,7 @@ struct github_transition_output
     std::optional<github_identity_delta> Identity;
     std::optional<github_capability_delta> Capabilities;
     std::optional<pull_request_summary_delta> PullRequest;
+    std::optional<accepted_session_delta> AcceptedSession;
     std::optional<accepted_snapshot_delta> AcceptedSnapshot;
     std::vector<github_diagnostic> Diagnostics;
 

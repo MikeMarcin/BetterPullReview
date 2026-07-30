@@ -19,4 +19,9 @@ enum class github_wire_request_validation_failure : std::uint8_t
     const validated_github_host_profile& profile,
     const github_wire_request& request)
     -> std::expected<void, github_wire_request_validation_failure>;
+
+[[nodiscard]] auto validate_github_capability_probe_wire_request(
+    const validated_github_host_profile& profile,
+    const github_capability_probe_wire_request& request)
+    -> std::expected<void, github_wire_request_validation_failure>;
 }

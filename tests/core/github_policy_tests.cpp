@@ -183,6 +183,9 @@ auto expect_stale(const github_transition_output& output) -> void
     expect(
         !output.AcceptedSnapshot.has_value(),
         "stale completion emits no snapshot acceptance");
+    expect(
+        !output.AcceptedSession.has_value(),
+        "stale completion emits no session acceptance");
 }
 
 auto test_strong_types_and_compact_state() -> void
@@ -266,11 +269,54 @@ auto test_profile_activation_and_session_acceptance() -> void
             && state.CapabilityRevision == capability_revision{41},
         "matching completion applies exact capability facts");
     expect(
+        ready.AcceptedSession
+            == accepted_session_delta{
+                .Context = context,
+                .Host = git_host_id{21},
+                .Account = github_account_id{31},
+                .Capabilities = all_supported(),
+                .CapabilityRevision = capability_revision{41},
+            },
+        "matching completion authorizes the exact staged session");
+    expect(
         command_projection(
             ready.Commands,
             github_command_id::open_pull_request)
             .Enabled,
         "ready session enables read-only open");
+}
+
+auto test_deactivation_invalidates_without_reestablishing() -> void
+{
+    auto state = loaded_state();
+    const auto previous_generation = state.IdentityGeneration;
+    const auto output =
+        transition(state, deactivate_github_identity_intent{});
+
+    expect(
+        state.IdentityGeneration
+            == github_identity_generation{
+                previous_generation.value() + 1U},
+        "deactivation advances identity generation");
+    expect(
+        !state.ActiveProfile.has_value() && !state.PendingSession.has_value()
+            && !state.Host.has_value() && !state.Account.has_value()
+            && !state.PendingPullRequest.has_value()
+            && !state.AcceptedSnapshot.has_value(),
+        "deactivation clears every identity-sensitive core field");
+    expect(
+        output.Requests.size() == 1U
+            && std::holds_alternative<invalidate_github_identity_request>(
+                output.Requests.front()),
+        "deactivation emits invalidation without session establishment");
+    expect(
+        output.Status
+            == github_status_delta{.Status = github_status::no_profile}
+            && output.PullRequest.has_value()
+            && !output.PullRequest->Summary.has_value()
+            && !output.AcceptedSession.has_value()
+            && !output.AcceptedSnapshot.has_value(),
+        "deactivation projects a terminal empty identity");
 }
 
 auto assert_session_context_is_stale(
@@ -1092,6 +1138,7 @@ auto main() -> int
 {
     test_strong_types_and_compact_state();
     test_profile_activation_and_session_acceptance();
+    test_deactivation_invalidates_without_reestablishing();
     test_every_session_identity_dimension_and_duplicate_are_rejected();
     test_capability_tristate_property_and_no_mutation_surface();
     test_malformed_capability_value_fails_closed();

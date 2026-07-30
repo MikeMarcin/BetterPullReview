@@ -9,6 +9,8 @@ if(BPR_BUILD_QT)
             src/github_capability_probe.cpp
             src/github_cli_process_runner.cpp
             src/github_host_profile.cpp
+            src/github_paged_read.cpp
+            src/github_provider.cpp
             src/github_read_contract.cpp
             src/github_read_normalizer.cpp
             src/github_wire_request_validation.cpp

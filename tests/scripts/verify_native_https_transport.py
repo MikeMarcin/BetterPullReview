@@ -49,8 +49,24 @@ SCENARIOS = (
     "pre-cancel",
     "http-401",
     "http-403",
+    "http-403-secondary",
+    "http-403-secondary-retry",
+    "http-408",
     "http-429",
+    "http-503-retry",
+    "http-504",
+    "graphql-403-rate",
     "content-encoding",
+    "response-metadata",
+    "duplicate-rate-limit",
+    "invalid-rate-limit",
+    "wrong-rate-resource",
+    "invalid-link",
+    "graphql-link",
+    "capability-success",
+    "capability-redirect",
+    "capability-403-rate",
+    "capability-429",
 )
 
 
@@ -454,16 +470,29 @@ def response_bytes(
     reason: str,
     body: bytes,
     extra_headers: tuple[tuple[str, str], ...] = (),
+    content_type: str = "application/json",
 ) -> bytes:
     fields = [
         f"HTTP/1.1 {status} {reason}\r\n",
-        "Content-Type: application/json\r\n",
+        f"Content-Type: {content_type}\r\n",
         f"Content-Length: {len(body)}\r\n",
         "Connection: close\r\n",
     ]
     fields.extend(f"{name}: {value}\r\n" for name, value in extra_headers)
     fields.append("\r\n")
     return "".join(fields).encode("ascii") + body
+
+
+def rate_limit_headers(
+    resource: str,
+    remaining: str = "42",
+) -> tuple[tuple[str, str], ...]:
+    return (
+        ("X-RateLimit-Limit", "60"),
+        ("X-RateLimit-Remaining", remaining),
+        ("X-RateLimit-Reset", "1999999999"),
+        ("X-RateLimit-Resource", resource),
+    )
 
 
 class LoopbackConnectTlsFixture:
@@ -686,7 +715,15 @@ class LoopbackConnectTlsFixture:
         if one_header(request.headers, "accept-language") != b"*":
             self.observation.violate("origin-accept-language")
 
-        if self.scenario == "graphql-redirect":
+        if self.scenario in {
+            "graphql-redirect",
+            "graphql-link",
+            "graphql-403-rate",
+            "capability-success",
+            "capability-redirect",
+            "capability-403-rate",
+            "capability-429",
+        }:
             if (
                 request.method != "POST"
                 or request.target != GRAPHQL_PATH
@@ -744,7 +781,7 @@ class LoopbackConnectTlsFixture:
                 )
             )
             return
-        if self.scenario == "graphql-redirect":
+        if self.scenario in {"graphql-redirect", "capability-redirect"}:
             connection.sendall(
                 response_bytes(
                     302,
@@ -794,13 +831,63 @@ class LoopbackConnectTlsFixture:
         if self.scenario == "http-403":
             connection.sendall(response_bytes(403, "Forbidden", b"{}"))
             return
+        if self.scenario == "http-403-secondary":
+            connection.sendall(
+                response_bytes(
+                    403,
+                    "Forbidden",
+                    b'{"message":"secondary rate limit"}',
+                    rate_limit_headers("core"),
+                )
+            )
+            return
+        if self.scenario == "http-403-secondary-retry":
+            connection.sendall(
+                response_bytes(
+                    403,
+                    "Forbidden",
+                    b'{"message":"secondary rate limit"}',
+                    rate_limit_headers("core") + (("Retry-After", "17"),),
+                )
+            )
+            return
+        if self.scenario == "http-408":
+            connection.sendall(
+                response_bytes(408, "Request Timeout", b"{}")
+            )
+            return
         if self.scenario == "http-429":
             connection.sendall(
                 response_bytes(
                     429,
                     "Too Many Requests",
                     b"{}",
-                    (("Retry-After", "7"),),
+                    rate_limit_headers("core") + (("Retry-After", "7"),),
+                )
+            )
+            return
+        if self.scenario == "http-503-retry":
+            connection.sendall(
+                response_bytes(
+                    503,
+                    "Service Unavailable",
+                    b"{}",
+                    rate_limit_headers("core") + (("Retry-After", "9"),),
+                )
+            )
+            return
+        if self.scenario == "http-504":
+            connection.sendall(
+                response_bytes(504, "Gateway Timeout", b"{}")
+            )
+            return
+        if self.scenario == "graphql-403-rate":
+            connection.sendall(
+                response_bytes(
+                    403,
+                    "Forbidden",
+                    b'{"errors":[{"extensions":{"code":"RATE_LIMITED"}}]}',
+                    rate_limit_headers("graphql"),
                 )
             )
             return
@@ -811,6 +898,128 @@ class LoopbackConnectTlsFixture:
                     "OK",
                     b"{}",
                     (("Content-Encoding", "gzip"),),
+                )
+            )
+            return
+        if self.scenario == "response-metadata":
+            connection.sendall(
+                response_bytes(
+                    200,
+                    "OK",
+                    b'{"id":7,"login":"fixture-user"}',
+                    (
+                        (
+                            "Link",
+                            (
+                                "<https://ghe.bpr.invalid/api/v3/user"
+                                '?page=2>; rel="next"'
+                            ),
+                        ),
+                        ("X-RateLimit-Limit", "60"),
+                        ("X-RateLimit-Remaining", "42"),
+                        ("X-RateLimit-Reset", "1999999999"),
+                        ("X-RateLimit-Resource", "core"),
+                        ("Retry-After", "7"),
+                    ),
+                    content_type="Application/JSON; Charset=UTF-8",
+                )
+            )
+            return
+        if self.scenario == "duplicate-rate-limit":
+            connection.sendall(
+                response_bytes(
+                    200,
+                    "OK",
+                    b'{"id":7,"login":"fixture-user"}',
+                    (
+                        ("X-RateLimit-Remaining", "42"),
+                        ("x-ratelimit-remaining", "41"),
+                    ),
+                )
+            )
+            return
+        if self.scenario == "invalid-rate-limit":
+            connection.sendall(
+                response_bytes(
+                    200,
+                    "OK",
+                    b'{"id":7,"login":"fixture-user"}',
+                    (("X-RateLimit-Reset", "1999999999x"),),
+                )
+            )
+            return
+        if self.scenario == "wrong-rate-resource":
+            connection.sendall(
+                response_bytes(
+                    429,
+                    "Too Many Requests",
+                    b"{}",
+                    rate_limit_headers("search"),
+                )
+            )
+            return
+        if self.scenario == "invalid-link":
+            connection.sendall(
+                response_bytes(
+                    200,
+                    "OK",
+                    b'{"id":7,"login":"fixture-user"}',
+                    (("Link", 'page=2; rel="next"'),),
+                )
+            )
+            return
+        if self.scenario == "graphql-link":
+            connection.sendall(
+                response_bytes(
+                    200,
+                    "OK",
+                    b"{}",
+                    (
+                        (
+                            "Link",
+                            (
+                                "<https://ghe.bpr.invalid/api/graphql"
+                                '?page=2>; rel="next"'
+                            ),
+                        ),
+                    ),
+                )
+            )
+            return
+        if self.scenario == "capability-success":
+            connection.sendall(
+                response_bytes(
+                    200,
+                    "OK",
+                    b"{}",
+                    (
+                        ("X-RateLimit-Limit", "60"),
+                        ("X-RateLimit-Remaining", "42"),
+                        ("X-RateLimit-Reset", "1999999999"),
+                        ("X-RateLimit-Resource", "graphql"),
+                        ("Retry-After", "7"),
+                    ),
+                    content_type="Application/JSON; Charset=UTF-8",
+                )
+            )
+            return
+        if self.scenario == "capability-403-rate":
+            connection.sendall(
+                response_bytes(
+                    403,
+                    "Forbidden",
+                    b'{"errors":[{"type":"RATE_LIMITED"}]}',
+                    rate_limit_headers("graphql"),
+                )
+            )
+            return
+        if self.scenario == "capability-429":
+            connection.sendall(
+                response_bytes(
+                    429,
+                    "Too Many Requests",
+                    b"{}",
+                    rate_limit_headers("graphql"),
                 )
             )
             return
@@ -866,7 +1075,15 @@ class LoopbackConnectTlsFixture:
         if self.scenario == "same-redirect":
             if targets != (REST_PATH, REDIRECTED_REST_PATH):
                 raise ProbeFailure("same-redirect-targets")
-        elif self.scenario == "graphql-redirect":
+        elif self.scenario in {
+            "graphql-redirect",
+            "graphql-link",
+            "graphql-403-rate",
+            "capability-success",
+            "capability-redirect",
+            "capability-403-rate",
+            "capability-429",
+        }:
             if targets != (GRAPHQL_PATH,):
                 raise ProbeFailure("graphql-redirect-target")
         elif targets != (REST_PATH,):

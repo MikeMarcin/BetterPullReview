@@ -1,5 +1,6 @@
 #include "native_https_transport.hpp"
 
+#include "github_paged_read.hpp"
 #include "github_wire_request_validation.hpp"
 
 #include <QAuthenticator>
@@ -102,23 +103,24 @@ struct account_credential
 using credential_binding =
     std::variant<bootstrap_credential, account_credential>;
 
-struct operation_state
+enum class native_request_surface : std::uint8_t
 {
-    operation_state(
-        const github_wire_request& request,
-        const std::stop_token stop,
-        const std::chrono::steady_clock::time_point deadline)
-        : Request{request}
-        , Stop{stop}
-        , Deadline{deadline}
-    {
-    }
+    rest_read,
+    graphql_read,
+    capability_probe,
+};
 
-    github_wire_request Request;
-    std::stop_token Stop;
-    std::chrono::steady_clock::time_point Deadline;
-    std::optional<github_wire_completion> Result;
-    std::atomic_bool Done = false;
+struct native_request
+{
+    native_request_surface Surface = native_request_surface::rest_read;
+    application::github_rate_limit_resource RateLimitResource =
+        application::github_rate_limit_resource::uninitialized;
+    bool RequireRateLimitHeaders = true;
+    http_method Method = http_method::get;
+    std::string Path;
+    std::string Query;
+    std::vector<http_header> Headers;
+    std::string Body;
 };
 
 struct hop_cancelled
@@ -138,23 +140,35 @@ struct hop_proxy_failure
 struct hop_success
 {
     std::string Body;
+    std::vector<http_header> Headers;
     page_completeness Completeness = page_completeness::unknown;
 };
 
-using hop_result = std::variant<
-    hop_success,
-    hop_redirect,
-    hop_proxy_failure,
-    application::github_provider_error,
-    hop_cancelled>;
+using hop_result =
+    std::variant<hop_success, hop_redirect, hop_proxy_failure,
+                 application::github_provider_error, hop_cancelled>;
+
+struct operation_state
+{
+    operation_state(native_request request, const std::stop_token stop,
+                    const std::chrono::steady_clock::time_point deadline)
+        : Request{std::move(request)}, Stop{stop}, Deadline{deadline}
+    {
+    }
+
+    native_request Request;
+    std::stop_token Stop;
+    std::chrono::steady_clock::time_point Deadline;
+    std::optional<hop_result> Result;
+    std::atomic_bool Done = false;
+};
 
 struct hop_state
 {
-    hop_state(
-        std::shared_ptr<operation_state> operation,
-        const std::size_t response_body_limit)
-        : Operation{std::move(operation)}
-        , ResponseBodyLimit{response_body_limit}
+    hop_state(std::shared_ptr<operation_state> operation,
+              const std::size_t response_body_limit)
+        : Operation{std::move(operation)},
+          ResponseBodyLimit{response_body_limit}
     {
     }
 
@@ -170,34 +184,51 @@ struct hop_state
     bool AuthenticationChallenge = false;
     bool ProxyAuthenticationChallenge = false;
     bool PreSharedKeyChallenge = false;
-    bool StopReading = false;
     bool MetadataChecked = false;
     int Status = 0;
     std::optional<std::string> ContentType;
     std::optional<std::uint64_t> ContentLength;
     std::optional<std::string> Link;
     std::optional<std::string> RetryAfter;
+    std::optional<std::string> RateLimitLimit;
     std::optional<std::string> RateLimitRemaining;
+    std::optional<std::string> RateLimitReset;
+    std::optional<std::string> RateLimitResource;
     std::string Body;
-    std::size_t ResponseBodyLimit =
-        native_https_maximum_response_body_bytes;
+    std::size_t ResponseBodyLimit = native_https_maximum_response_body_bytes;
 };
 
 [[nodiscard]] auto provider_error(
     const application::github_provider_failure failure,
-    const std::optional<std::uint32_t> retry_after = std::nullopt)
-    -> application::github_provider_error
+    const std::optional<std::uint32_t> retry_after = std::nullopt,
+    application::github_rate_limit_state rate_limits = {},
+    std::optional<application::github_rate_limit_record> rate_limit_cause =
+        std::nullopt) -> application::github_provider_error
 {
     return {
         .Failure = failure,
         .RetryAfterSeconds = retry_after,
+        .RateLimits = std::move(rate_limits),
+        .RateLimitCause = std::move(rate_limit_cause),
     };
 }
 
-[[nodiscard]] auto wire_error(
-    const github_wire_correlation& correlation,
-    const application::github_provider_failure failure,
-    const std::optional<std::uint32_t> retry_after = std::nullopt)
+[[nodiscard]] auto rate_limit_state(
+    const std::optional<application::github_rate_limit_record>& record) noexcept
+    -> application::github_rate_limit_state
+{
+    auto state = application::github_rate_limit_state{};
+    if(record.has_value())
+    {
+        static_cast<void>(application::observe(state, *record));
+    }
+    return state;
+}
+
+[[nodiscard]] auto
+wire_error(const github_wire_correlation& correlation,
+           const application::github_provider_failure failure,
+           const std::optional<std::uint32_t> retry_after = std::nullopt)
     -> github_wire_completion
 {
     return github_wire_error{
@@ -206,20 +237,108 @@ struct hop_state
     };
 }
 
-[[nodiscard]] auto unavailable(
-    const github_wire_correlation& correlation) -> github_wire_completion
+[[nodiscard]] auto unavailable(const github_wire_correlation& correlation)
+    -> github_wire_completion
 {
-    return wire_error(
-        correlation,
-        application::github_provider_failure::unavailable);
+    return wire_error(correlation,
+                      application::github_provider_failure::unavailable);
 }
 
-[[nodiscard]] constexpr auto ascii_alpha_numeric(
-    const unsigned char value) noexcept -> bool
+[[nodiscard]] auto
+capability_error(const github_capability_probe_wire_correlation& correlation,
+                 const application::github_provider_error error)
+    -> github_capability_probe_wire_completion
 {
-    return (value >= 'a' && value <= 'z')
-        || (value >= 'A' && value <= 'Z')
-        || (value >= '0' && value <= '9');
+    return github_capability_probe_wire_error{
+        .Correlation = correlation,
+        .Error = error,
+    };
+}
+
+[[nodiscard]] auto
+capability_error(const github_capability_probe_wire_correlation& correlation,
+                 const application::github_provider_failure failure,
+                 const std::optional<std::uint32_t> retry_after = std::nullopt)
+    -> github_capability_probe_wire_completion
+{
+    return capability_error(correlation, provider_error(failure, retry_after));
+}
+
+[[nodiscard]] auto native_request_from(const github_wire_request& request)
+    -> native_request
+{
+    const auto resource =
+        request.Wire.Operation == read_operation::list_review_threads
+            ? application::github_rate_limit_resource::graphql
+            : (request.Wire.Operation == read_operation::search_pull_requests
+                   ? application::github_rate_limit_resource::search
+                   : application::github_rate_limit_resource::core);
+    return {
+        .Surface = request.Wire.Operation == read_operation::list_review_threads
+                       ? native_request_surface::graphql_read
+                       : native_request_surface::rest_read,
+        .RateLimitResource = resource,
+        .Method = request.Wire.Method,
+        .Path = request.Wire.Path,
+        .Query = request.Wire.Query,
+        .Headers = request.Wire.Headers,
+        .Body = request.Wire.Body,
+    };
+}
+
+[[nodiscard]] auto
+native_request_from(const github_capability_probe_wire_request& request)
+    -> native_request
+{
+    auto headers = std::vector<http_header>{};
+    headers.reserve(request.Wire.Headers.size());
+    for(const auto& header : request.Wire.Headers)
+    {
+        headers.push_back(http_header{
+            .Name = header.Name,
+            .Value = header.Value,
+        });
+    }
+    return {
+        .Surface = native_request_surface::capability_probe,
+        .RateLimitResource = application::github_rate_limit_resource::graphql,
+        .Method = http_method::post,
+        .Path = request.Wire.Path,
+        .Query = {},
+        .Headers = std::move(headers),
+        .Body = request.Wire.Body,
+    };
+}
+
+[[nodiscard]] constexpr auto
+ascii_alpha_numeric(const unsigned char value) noexcept -> bool
+{
+    return (value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z')
+           || (value >= '0' && value <= '9');
+}
+
+[[nodiscard]] constexpr auto ascii_fold(const char value) noexcept -> char
+{
+    return value >= 'A' && value <= 'Z' ? static_cast<char>(value + ('a' - 'A'))
+                                        : value;
+}
+
+[[nodiscard]] constexpr auto
+ascii_equal_fold(const std::string_view left,
+                 const std::string_view right) noexcept -> bool
+{
+    if(left.size() != right.size())
+    {
+        return false;
+    }
+    for(std::size_t index = 0U; index < left.size(); ++index)
+    {
+        if(ascii_fold(left[index]) != ascii_fold(right[index]))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 [[nodiscard]] auto valid_bearer_material(
@@ -239,13 +358,9 @@ struct hop_state
             padding = true;
             continue;
         }
-        if(
-            padding
-            || (
-                !ascii_alpha_numeric(value)
-                && value != '-' && value != '.'
-                && value != '_' && value != '~'
-                && value != '+' && value != '/'))
+        if(padding
+           || (!ascii_alpha_numeric(value) && value != '-' && value != '.'
+               && value != '_' && value != '~' && value != '+' && value != '/'))
         {
             return false;
         }
@@ -253,30 +368,30 @@ struct hop_state
     return true;
 }
 
-[[nodiscard]] auto profile_policy_valid(
-    const validated_github_host_profile& profile) noexcept -> bool
+[[nodiscard]] auto
+profile_policy_valid(const validated_github_host_profile& profile) noexcept
+    -> bool
 {
     return profile.authentication_transport()
-            == application::github_authentication_transport::native_https
-        && profile.proxy_mode() == application::github_proxy_mode::system
-        && profile.trust_mode() == application::github_trust_mode::system;
+               == application::github_authentication_transport::native_https
+           && profile.proxy_mode() == application::github_proxy_mode::system
+           && profile.trust_mode() == application::github_trust_mode::system;
 }
 
-[[nodiscard]] auto valid_request_shape(
-    const github_wire_request& request) noexcept -> bool
+[[nodiscard]] auto valid_request_shape(const native_request& request) noexcept
+    -> bool
 {
-    if(
-        request.Wire.Path.size() > maximum_url_bytes
-        || request.Wire.Query.size() > maximum_url_bytes
-        || request.Wire.Headers.size() > 8U
-        || request.Wire.Body.size()
-            > native_https_maximum_request_body_bytes)
+    if(!application::valid(request.RateLimitResource)
+       || request.Path.size() > maximum_url_bytes
+       || request.Query.size() > maximum_url_bytes
+       || request.Headers.size() > 8U
+       || request.Body.size() > native_https_maximum_request_body_bytes)
     {
         return false;
     }
 
     std::size_t header_bytes = 0U;
-    for(const auto& header : request.Wire.Headers)
+    for(const auto& header : request.Headers)
     {
         if(
             header.Name.empty() || header.Name.size() > 256U
@@ -392,6 +507,24 @@ struct hop_state
     return value;
 }
 
+[[nodiscard]] constexpr auto rate_limit_resource_name(
+    const application::github_rate_limit_resource resource) noexcept
+    -> std::string_view
+{
+    switch(resource)
+    {
+    case application::github_rate_limit_resource::core:
+        return "core";
+    case application::github_rate_limit_resource::search:
+        return "search";
+    case application::github_rate_limit_resource::graphql:
+        return "graphql";
+    case application::github_rate_limit_resource::uninitialized:
+        return {};
+    }
+    return {};
+}
+
 [[nodiscard]] auto trimmed_ascii(const QByteArray& value) -> QByteArray
 {
     return value.trimmed();
@@ -488,59 +621,53 @@ void wipe(QByteArray& bytes) noexcept
 
 [[nodiscard]] auto build_url(
     const validated_github_host_profile& profile,
-    const github_wire_request& request) -> std::optional<QUrl>
+    const native_request& request)
+    -> std::optional<QUrl>
 {
-    if(
-        request.Wire.Path.empty()
-        || request.Wire.Path.front() != '/'
-        || request.Wire.Path.size() > maximum_url_bytes)
+    if(request.Path.empty() || request.Path.front() != '/'
+       || request.Path.size() > maximum_url_bytes)
     {
         return std::nullopt;
     }
-    if(
-        request.Wire.Operation
-            == read_operation::list_review_threads
-        && request.Wire.Path != profile.graphql_route())
+    if(request.Surface != native_request_surface::rest_read
+       && request.Path != profile.graphql_route())
     {
         return std::nullopt;
     }
 
     std::string encoded = "https://";
     encoded += profile.rest_authority();
-    encoded += request.Wire.Path;
-    if(!request.Wire.Query.empty())
+    encoded += request.Path;
+    if(!request.Query.empty())
     {
         encoded += '?';
-        encoded += request.Wire.Query;
+        encoded += request.Query;
     }
     if(encoded.size() > maximum_url_bytes)
     {
         return std::nullopt;
     }
 
-    const auto bytes = QByteArray{
-        encoded.data(),
-        static_cast<qsizetype>(encoded.size())};
+    const auto bytes =
+        QByteArray{encoded.data(), static_cast<qsizetype>(encoded.size())};
     const auto url = QUrl::fromEncoded(bytes, QUrl::StrictMode);
-    if(
-        !url.isValid() || url.isRelative()
-        || url.scheme() != QStringLiteral("https")
-        || url.host().toUtf8() != profile.rest_authority()
-        || url.port(-1) != -1 || !url.userInfo().isEmpty()
-        || !url.fragment().isEmpty()
-        || url.toEncoded(QUrl::FullyEncoded) != bytes)
+    if(!url.isValid() || url.isRelative()
+       || url.scheme() != QStringLiteral("https")
+       || url.host().toUtf8() != profile.rest_authority() || url.port(-1) != -1
+       || !url.userInfo().isEmpty() || !url.fragment().isEmpty()
+       || url.toEncoded(QUrl::FullyEncoded) != bytes)
     {
         return std::nullopt;
     }
     return url;
 }
 
-[[nodiscard]] auto supported_json_content_type(
-    const std::string_view value) noexcept -> bool
+[[nodiscard]] auto
+supported_json_content_type(const std::string_view value) noexcept -> bool
 {
     const auto separator = value.find(';');
     const auto media = value.substr(0U, separator);
-    if(media != "application/json")
+    if(!ascii_equal_fold(media, "application/json"))
     {
         return false;
     }
@@ -553,12 +680,11 @@ void wipe(QByteArray& bytes) noexcept
     {
         parameter.remove_prefix(1U);
     }
-    return parameter == "charset=utf-8"
-        || parameter == "charset=UTF-8";
+    return ascii_equal_fold(parameter, "charset=utf-8");
 }
 
-[[nodiscard]] auto parse_link_completeness(
-    const std::optional<std::string>& link) noexcept
+[[nodiscard]] auto
+parse_link_completeness(const std::optional<std::string>& link) noexcept
     -> std::optional<page_completeness>
 {
     if(!link.has_value())
@@ -569,21 +695,182 @@ void wipe(QByteArray& bytes) noexcept
     {
         return std::nullopt;
     }
-    for(const auto character : *link)
-    {
+
+    const auto text = std::string_view{*link};
+    const auto token_character = [](const char character) noexcept {
         const auto value = static_cast<unsigned char>(character);
-        if(value < 0x20U || value == 0x7fU)
+        return ascii_alpha_numeric(value) || character == '!'
+               || character == '#' || character == '$' || character == '%'
+               || character == '&' || character == '\'' || character == '*'
+               || character == '+' || character == '-' || character == '.'
+               || character == '^' || character == '_' || character == '`'
+               || character == '|' || character == '~';
+    };
+    const auto skip_whitespace = [&text](std::size_t& position) noexcept {
+        while(position < text.size()
+              && (text[position] == ' ' || text[position] == '\t'))
+        {
+            ++position;
+        }
+    };
+    const auto valid_relation = [](const std::string_view value,
+                                   bool& has_next) noexcept {
+        if(value.empty())
+        {
+            return false;
+        }
+        std::size_t position = 0U;
+        while(position < value.size())
+        {
+            const auto separator = value.find(' ', position);
+            const auto relation =
+                value.substr(position, separator == std::string_view::npos
+                                           ? value.size() - position
+                                           : separator - position);
+            if(relation != "next" && relation != "prev" && relation != "first"
+               && relation != "last")
+            {
+                return false;
+            }
+            has_next = has_next || relation == "next";
+            if(separator == std::string_view::npos)
+            {
+                break;
+            }
+            position = separator + 1U;
+            if(position == value.size() || value[position] == ' ')
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    bool has_next = false;
+    std::size_t position = 0U;
+    while(position < text.size())
+    {
+        skip_whitespace(position);
+        if(position == text.size() || text[position] != '<')
+        {
+            return std::nullopt;
+        }
+        const auto target_end = text.find('>', position + 1U);
+        if(target_end == std::string_view::npos || target_end == position + 1U)
+        {
+            return std::nullopt;
+        }
+        for(auto target = position + 1U; target < target_end; ++target)
+        {
+            const auto value = static_cast<unsigned char>(text[target]);
+            if(value <= 0x20U || value >= 0x7fU || text[target] == '<'
+               || text[target] == '"')
+            {
+                return std::nullopt;
+            }
+        }
+        position = target_end + 1U;
+
+        bool relation_seen = false;
+        while(true)
+        {
+            skip_whitespace(position);
+            if(position == text.size() || text[position] == ',')
+            {
+                break;
+            }
+            if(text[position] != ';')
+            {
+                return std::nullopt;
+            }
+            ++position;
+            skip_whitespace(position);
+            const auto name_begin = position;
+            while(position < text.size() && token_character(text[position]))
+            {
+                ++position;
+            }
+            if(name_begin == position)
+            {
+                return std::nullopt;
+            }
+            const auto name = text.substr(name_begin, position - name_begin);
+            skip_whitespace(position);
+            if(position == text.size() || text[position] != '=')
+            {
+                return std::nullopt;
+            }
+            ++position;
+            skip_whitespace(position);
+            const auto quoted = position < text.size() && text[position] == '"';
+            if(quoted)
+            {
+                ++position;
+            }
+            const auto value_begin = position;
+            if(quoted)
+            {
+                while(position < text.size() && text[position] != '"')
+                {
+                    const auto value =
+                        static_cast<unsigned char>(text[position]);
+                    if(value < 0x20U || value == 0x7fU
+                       || text[position] == '\\')
+                    {
+                        return std::nullopt;
+                    }
+                    ++position;
+                }
+                if(position == text.size())
+                {
+                    return std::nullopt;
+                }
+            }
+            else
+            {
+                while(position < text.size() && token_character(text[position]))
+                {
+                    ++position;
+                }
+            }
+            if(value_begin == position)
+            {
+                return std::nullopt;
+            }
+            const auto value = text.substr(value_begin, position - value_begin);
+            if(quoted)
+            {
+                ++position;
+            }
+            if(name == "rel")
+            {
+                if(relation_seen || !valid_relation(value, has_next))
+                {
+                    return std::nullopt;
+                }
+                relation_seen = true;
+            }
+        }
+        if(!relation_seen)
+        {
+            return std::nullopt;
+        }
+        if(position == text.size())
+        {
+            break;
+        }
+        ++position;
+        if(position == text.size())
         {
             return std::nullopt;
         }
     }
-    return link->find("rel=\"next\"") != std::string::npos
-        ? std::optional{page_completeness::has_next_page}
-        : std::optional{page_completeness::complete};
+    return has_next ? std::optional{page_completeness::has_next_page}
+                    : std::optional{page_completeness::complete};
 }
 
-[[nodiscard]] auto parse_retry_after(
-    const std::optional<std::string>& value) noexcept
+[[nodiscard]] auto
+parse_retry_after(const std::optional<std::string>& value) noexcept
     -> std::optional<std::uint32_t>
 {
     if(!value.has_value())
@@ -598,9 +885,78 @@ void wipe(QByteArray& bytes) noexcept
     return static_cast<std::uint32_t>(*parsed);
 }
 
+[[nodiscard]] auto allowlisted_success_headers(const hop_state& state)
+    -> std::vector<http_header>
+{
+    auto headers = std::vector<http_header>{};
+    headers.reserve(7U);
+    const auto add = [&headers](const char* const name,
+                                const std::optional<std::string>& value) {
+        if(value.has_value())
+        {
+            headers.push_back(http_header{
+                .Name = name,
+                .Value = *value,
+            });
+        }
+    };
+    add("Content-Type", state.ContentType);
+    add("Link", state.Link);
+    add("X-RateLimit-Limit", state.RateLimitLimit);
+    add("X-RateLimit-Remaining", state.RateLimitRemaining);
+    add("X-RateLimit-Reset", state.RateLimitReset);
+    add("X-RateLimit-Resource", state.RateLimitResource);
+    add("Retry-After", state.RetryAfter);
+    return headers;
+}
+
 [[nodiscard]] auto classify_http_status(const hop_state& state)
     -> application::github_provider_error
 {
+    const auto remaining = state.RateLimitRemaining.has_value()
+                               ? strict_decimal(*state.RateLimitRemaining)
+                               : std::nullopt;
+    const auto limit = state.RateLimitLimit.has_value()
+                           ? strict_decimal(*state.RateLimitLimit)
+                           : std::nullopt;
+    const auto reset = state.RateLimitReset.has_value()
+                           ? strict_decimal(*state.RateLimitReset)
+                           : std::nullopt;
+    const auto exhausted = remaining.has_value() && *remaining == 0U;
+    const auto retry_after = parse_retry_after(state.RetryAfter);
+    const auto secondary_message =
+        (state.Status == 403 || state.Status == 429)
+        && state.ContentType.has_value()
+        && supported_json_content_type(*state.ContentType)
+        && github_error_body_is_secondary_rate_limit(
+            state.Body, native_https_maximum_error_response_body_bytes);
+    const auto structured_graphql_rate_limit =
+        state.Status == 403
+        && state.Operation->Request.Surface != native_request_surface::rest_read
+        && state.ContentType.has_value()
+        && supported_json_content_type(*state.ContentType)
+        && github_graphql_error_body_is_rate_limited(
+            state.Body, native_https_maximum_error_response_body_bytes);
+    const auto secondary = secondary_message || structured_graphql_rate_limit;
+    auto rate_limit =
+        limit.has_value() && remaining.has_value() && reset.has_value()
+                && state.RateLimitResource.has_value() && *remaining <= *limit
+            ? std::optional<
+                  application::
+                      github_rate_limit_record>{application::
+                                                    github_rate_limit_record{
+                                                        .Resource =
+                                                            state.Operation
+                                                                ->Request
+                                                                .RateLimitResource,
+                                                        .Limit = *limit,
+                                                        .Remaining = *remaining,
+                                                        .ResetUnixSeconds =
+                                                            *reset,
+                                                        .SecondaryLimited =
+                                                            false,
+                                                    }}
+            : std::nullopt;
     auto failure = application::github_provider_failure::malformed_response;
     switch(state.Status)
     {
@@ -608,11 +964,9 @@ void wipe(QByteArray& bytes) noexcept
         failure = application::github_provider_failure::authentication;
         break;
     case 403:
-        failure =
-            state.RateLimitRemaining == std::optional<std::string>{"0"}
-                || parse_retry_after(state.RetryAfter).has_value()
-            ? application::github_provider_failure::rate_limit
-            : application::github_provider_failure::permission;
+        failure = exhausted || retry_after.has_value() || secondary
+                      ? application::github_provider_failure::rate_limit
+                      : application::github_provider_failure::permission;
         break;
     case 404:
         failure = application::github_provider_failure::permission;
@@ -631,15 +985,45 @@ void wipe(QByteArray& bytes) noexcept
     default:
         if(state.Status >= 500 && state.Status <= 599)
         {
-            failure = application::github_provider_failure::network;
+            failure = application::github_provider_failure::unavailable;
         }
         break;
+    }
+    if(rate_limit.has_value()
+       && failure == application::github_provider_failure::rate_limit
+       && rate_limit->Remaining != 0U)
+    {
+        rate_limit->SecondaryLimited =
+            state.Status == 429 || secondary
+            || (state.Status == 403 && retry_after.has_value());
+    }
+    auto rate_limits = rate_limit_state(rate_limit);
+    auto cause = failure == application::github_provider_failure::rate_limit
+                     ? rate_limit
+                     : std::optional<application::github_rate_limit_record>{};
+    if(failure == application::github_provider_failure::rate_limit
+       && !cause.has_value())
+    {
+        return provider_error(
+            application::github_provider_failure::malformed_response,
+            std::nullopt, std::move(rate_limits));
+    }
+    if(cause.has_value())
+    {
+        static_cast<void>(application::observe(rate_limits, *cause));
     }
     return provider_error(
         failure,
         failure == application::github_provider_failure::rate_limit
-            ? parse_retry_after(state.RetryAfter)
-            : std::nullopt);
+            ? (retry_after.has_value()
+                   ? retry_after
+                   : (cause.has_value() && cause->SecondaryLimited && !exhausted
+                          ? std::optional<std::uint32_t>{60U}
+                          : std::nullopt))
+            : (failure == application::github_provider_failure::unavailable
+                   ? retry_after
+                   : std::nullopt),
+        std::move(rate_limits), std::move(cause));
 }
 
 [[nodiscard]] auto recognized_redirect_status(const int status) noexcept
@@ -775,17 +1159,18 @@ void inspect_metadata_impl(hop_state& state)
     std::size_t link_count = 0U;
     std::size_t location_count = 0U;
     std::size_t retry_after_count = 0U;
+    std::size_t rate_limit_count = 0U;
     std::size_t rate_remaining_count = 0U;
+    std::size_t rate_reset_count = 0U;
+    std::size_t rate_resource_count = 0U;
     for(const auto& [name, value] : headers)
     {
-        const auto field_size =
-            static_cast<std::size_t>(name.size())
-            + static_cast<std::size_t>(value.size());
-        if(
-            !text_is_bounded_header_name(name)
-            || !text_is_bounded_header_value(value)
-            || field_size
-                > native_https_maximum_response_header_bytes - aggregate)
+        const auto field_size = static_cast<std::size_t>(name.size())
+                                + static_cast<std::size_t>(value.size());
+        if(!text_is_bounded_header_name(name)
+           || !text_is_bounded_header_value(value)
+           || field_size
+                  > native_https_maximum_response_header_bytes - aggregate)
         {
             state.HeaderLimit = true;
             abort_hop(state);
@@ -796,20 +1181,24 @@ void inspect_metadata_impl(hop_state& state)
         if(header_name_equal(name, "Content-Type"))
         {
             ++content_type_count;
-            state.ContentType =
-                safe_qbytearray_string(trimmed_ascii(value).toLower());
+            state.ContentType = safe_qbytearray_string(trimmed_ascii(value));
         }
         else if(header_name_equal(name, "Content-Length"))
         {
             ++content_length_count;
-            const auto text =
-                safe_qbytearray_string(trimmed_ascii(value));
+            const auto text = safe_qbytearray_string(trimmed_ascii(value));
             const auto parsed = strict_decimal(text);
             if(!parsed.has_value())
             {
                 state.Malformed = true;
             }
-            else if(*parsed > state.ResponseBodyLimit)
+            else if(
+                *parsed
+                > (state.Status == 200
+                       ? state.ResponseBodyLimit
+                       : std::min(
+                             state.ResponseBodyLimit,
+                             native_https_maximum_error_response_body_bytes)))
             {
                 state.ResponseLimit = true;
             }
@@ -834,8 +1223,12 @@ void inspect_metadata_impl(hop_state& state)
         else if(header_name_equal(name, "Retry-After"))
         {
             ++retry_after_count;
-            state.RetryAfter =
-                safe_qbytearray_string(trimmed_ascii(value));
+            state.RetryAfter = safe_qbytearray_string(trimmed_ascii(value));
+        }
+        else if(header_name_equal(name, "X-RateLimit-Limit"))
+        {
+            ++rate_limit_count;
+            state.RateLimitLimit = safe_qbytearray_string(trimmed_ascii(value));
         }
         else if(header_name_equal(name, "X-RateLimit-Remaining"))
         {
@@ -843,13 +1236,65 @@ void inspect_metadata_impl(hop_state& state)
             state.RateLimitRemaining =
                 safe_qbytearray_string(trimmed_ascii(value));
         }
+        else if(header_name_equal(name, "X-RateLimit-Reset"))
+        {
+            ++rate_reset_count;
+            state.RateLimitReset = safe_qbytearray_string(trimmed_ascii(value));
+        }
+        else if(header_name_equal(name, "X-RateLimit-Resource"))
+        {
+            ++rate_resource_count;
+            state.RateLimitResource =
+                safe_qbytearray_string(trimmed_ascii(value));
+        }
     }
 
-    if(
-        content_type_count > 1U || content_length_count > 1U
-        || content_encoding_count != 0U || link_count > 1U
-        || location_count > 1U || retry_after_count > 1U
-        || rate_remaining_count > 1U)
+    if(content_type_count > 1U || content_length_count > 1U
+       || content_encoding_count != 0U || link_count > 1U || location_count > 1U
+       || retry_after_count > 1U || rate_limit_count > 1U
+       || rate_remaining_count > 1U || rate_reset_count > 1U
+       || rate_resource_count > 1U
+       || (link_count != 0U
+           && state.Operation->Request.Surface
+                  != native_request_surface::rest_read)
+       || (state.RetryAfter.has_value()
+           && !parse_retry_after(state.RetryAfter).has_value())
+       || (state.RateLimitLimit.has_value()
+           && !strict_decimal(*state.RateLimitLimit).has_value())
+       || (state.RateLimitRemaining.has_value()
+           && !strict_decimal(*state.RateLimitRemaining).has_value())
+       || (state.RateLimitReset.has_value()
+           && !strict_decimal(*state.RateLimitReset).has_value()))
+    {
+        state.Malformed = true;
+    }
+    const auto rate_tuple_count =
+        static_cast<std::size_t>(state.RateLimitLimit.has_value())
+        + static_cast<std::size_t>(state.RateLimitRemaining.has_value())
+        + static_cast<std::size_t>(state.RateLimitReset.has_value())
+        + static_cast<std::size_t>(state.RateLimitResource.has_value());
+    const auto redirect_status = state.Status == 301 || state.Status == 302
+                                 || state.Status == 303 || state.Status == 307
+                                 || state.Status == 308;
+    if((rate_tuple_count != 0U && rate_tuple_count != 4U)
+       || (rate_tuple_count == 0U
+           && state.Operation->Request.RequireRateLimitHeaders
+           && !redirect_status)
+       || (rate_tuple_count == 4U
+           && *state.RateLimitResource
+                  != rate_limit_resource_name(
+                      state.Operation->Request.RateLimitResource)))
+    {
+        state.Malformed = true;
+    }
+    const auto rate_limit = state.RateLimitLimit.has_value()
+                                ? strict_decimal(*state.RateLimitLimit)
+                                : std::optional<std::uint64_t>{};
+    const auto rate_remaining = state.RateLimitRemaining.has_value()
+                                    ? strict_decimal(*state.RateLimitRemaining)
+                                    : std::optional<std::uint64_t>{};
+    if(rate_limit.has_value() && rate_remaining.has_value()
+       && *rate_remaining > *rate_limit)
     {
         state.Malformed = true;
     }
@@ -857,11 +1302,6 @@ void inspect_metadata_impl(hop_state& state)
     {
         abort_hop(state);
         return;
-    }
-    if(state.Status != 200)
-    {
-        state.StopReading = true;
-        abort_hop(state);
     }
 }
 
@@ -878,24 +1318,25 @@ void inspect_metadata(hop_state& state) noexcept
     }
 }
 
-void read_available(
-    hop_state& state,
-    const std::size_t limit) noexcept
+void read_available(hop_state& state) noexcept
 {
     try
     {
-        if(
-            state.Reply == nullptr || state.StopReading
-            || state.ResponseLimit || state.Malformed
-            || state.HeaderLimit)
+        if(state.Reply == nullptr || state.ResponseLimit || state.Malformed
+           || state.HeaderLimit)
         {
             return;
         }
         inspect_metadata(state);
-        if(state.StopReading || state.Reply == nullptr)
+        if(state.Reply == nullptr)
         {
             return;
         }
+        const auto limit =
+            state.Status == 200
+                ? state.ResponseBodyLimit
+                : std::min(state.ResponseBodyLimit,
+                           native_https_maximum_error_response_body_bytes);
 
         std::array<char, response_read_chunk_bytes> buffer{};
         while(state.Reply->bytesAvailable() > 0)
@@ -1065,7 +1506,100 @@ void read_available(
     }
     return false;
 }
+
+[[nodiscard]] auto read_completion(const github_wire_correlation& correlation,
+                                   hop_result result) -> github_wire_completion
+{
+    if(auto* success = std::get_if<hop_success>(&result); success != nullptr)
+    {
+        return github_wire_success{
+            .Correlation = correlation,
+            .Response =
+                wire_response{
+                    .Status = 200,
+                    .Headers = std::move(success->Headers),
+                    .Body = std::move(success->Body),
+                    .Completeness = success->Completeness,
+                },
+        };
+    }
+    if(auto* error = std::get_if<application::github_provider_error>(&result);
+       error != nullptr)
+    {
+        return github_wire_error{
+            .Correlation = correlation,
+            .Error = *error,
+        };
+    }
+    if(std::holds_alternative<hop_cancelled>(result))
+    {
+        return github_wire_cancelled{.Correlation = correlation};
+    }
+    return wire_error(correlation,
+                      application::github_provider_failure::redirect);
 }
+
+[[nodiscard]] auto capability_completion(
+    const github_capability_probe_wire_correlation& correlation,
+    hop_result result) -> github_capability_probe_wire_completion
+{
+    if(auto* success = std::get_if<hop_success>(&result); success != nullptr)
+    {
+        auto response = capability_probe_response{
+            .Status = 200,
+            .Authenticated = true,
+            .ContentType = {},
+            .Body = std::move(success->Body),
+            .RateLimitHeaders = {},
+            .RateLimitHeaderCount = 0U,
+        };
+        for(auto& header : success->Headers)
+        {
+            if(header.Name == "Content-Type")
+            {
+                response.ContentType = std::move(header.Value);
+                continue;
+            }
+            if(response.RateLimitHeaderCount
+               >= response.RateLimitHeaders.size())
+            {
+                return capability_error(
+                    correlation,
+                    application::github_provider_failure::malformed_response);
+            }
+            response.RateLimitHeaders[response.RateLimitHeaderCount] =
+                capability_probe_header{
+                    .Name = std::move(header.Name),
+                    .Value = std::move(header.Value),
+                };
+            ++response.RateLimitHeaderCount;
+        }
+        if(response.ContentType.empty())
+        {
+            return capability_error(
+                correlation,
+                application::github_provider_failure::malformed_response);
+        }
+        return github_capability_probe_wire_success{
+            .Correlation = correlation,
+            .Response = std::move(response),
+        };
+    }
+    if(auto* error = std::get_if<application::github_provider_error>(&result);
+       error != nullptr)
+    {
+        return capability_error(correlation, *error);
+    }
+    if(std::holds_alternative<hop_cancelled>(result))
+    {
+        return github_capability_probe_wire_cancelled{
+            .Correlation = correlation,
+        };
+    }
+    return capability_error(correlation,
+                            application::github_provider_failure::redirect);
+}
+} // namespace
 
 class native_https_transport::implementation final
 {
@@ -1196,16 +1730,18 @@ public:
                 .Correlation = request.Correlation,
             };
         }
-        if(
-            Closing.load(std::memory_order_acquire)
-            || Dispatcher == nullptr || Manager == nullptr
-            || !valid_request_shape(request))
-        {
-            return unavailable(request.Correlation);
-        }
+        native_request native;
         try
         {
             if(!validate_github_wire_request(Profile, request).has_value())
+            {
+                return unavailable(request.Correlation);
+            }
+            native = native_request_from(request);
+            native.RequireRateLimitHeaders =
+                Profile.server_contract()
+                == application::github_server_contract::github_com_2022_11_28;
+            if(!valid_request_shape(native))
             {
                 return unavailable(request.Correlation);
             }
@@ -1216,53 +1752,103 @@ public:
                 request.Correlation,
                 application::github_provider_failure::response_limit);
         }
-        if(Busy.test_and_set(std::memory_order_acq_rel))
-        {
-            return unavailable(request.Correlation);
-        }
+        return read_completion(
+            request.Correlation,
+            perform_validated(request, std::move(native), stop));
+    }
 
-        struct busy_guard final
+    [[nodiscard]] auto perform_capability_probe(
+        const github_capability_probe_wire_request& request,
+        const std::stop_token stop) -> github_capability_probe_wire_completion
+    {
+        if(stop.stop_requested())
         {
-            std::atomic_flag& Busy;
-            ~busy_guard()
-            {
-                Busy.clear(std::memory_order_release);
-            }
-        } guard{Busy};
-
-        if(
-            stop.stop_requested()
-            || Closing.load(std::memory_order_acquire))
-        {
-            return github_wire_cancelled{
+            return github_capability_probe_wire_cancelled{
                 .Correlation = request.Correlation,
             };
         }
+        native_request native;
+        try
+        {
+            if(!validate_github_capability_probe_wire_request(Profile, request)
+                    .has_value())
+            {
+                return capability_error(
+                    request.Correlation,
+                    application::github_provider_failure::unavailable);
+            }
+            native = native_request_from(request);
+            native.RequireRateLimitHeaders =
+                Profile.server_contract()
+                == application::github_server_contract::github_com_2022_11_28;
+            if(!valid_request_shape(native))
+            {
+                return capability_error(
+                    request.Correlation,
+                    application::github_provider_failure::unavailable);
+            }
+        }
+        catch(...)
+        {
+            return capability_error(
+                request.Correlation,
+                application::github_provider_failure::response_limit);
+        }
+        return capability_completion(
+            request.Correlation,
+            perform_validated(request, std::move(native), stop));
+    }
+
+private:
+    template <typename Request>
+    [[nodiscard]] auto perform_validated(const Request& request,
+                                         native_request native,
+                                         const std::stop_token stop)
+        -> hop_result
+    {
+        if(Closing.load(std::memory_order_acquire) || Dispatcher == nullptr
+           || Manager == nullptr)
+        {
+            return provider_error(
+                application::github_provider_failure::unavailable);
+        }
+        if(Busy.test_and_set(std::memory_order_acq_rel))
+        {
+            return provider_error(
+                application::github_provider_failure::unavailable);
+        }
+        struct busy_guard final
+        {
+            std::atomic_flag& Busy;
+            ~busy_guard() { Busy.clear(std::memory_order_release); }
+        } guard{Busy};
+
+        if(stop.stop_requested() || Closing.load(std::memory_order_acquire))
+        {
+            return hop_cancelled{};
+        }
         if(!claim_credential(request))
         {
-            return unavailable(request.Correlation);
+            return provider_error(
+                application::github_provider_failure::unavailable);
         }
 
         std::shared_ptr<operation_state> state;
         try
         {
             state = std::make_shared<operation_state>(
-                request,
-                stop,
-                std::chrono::steady_clock::now()
-                    + Policy.TotalTimeout);
+                std::move(native), stop,
+                std::chrono::steady_clock::now() + Policy.TotalTimeout);
         }
         catch(...)
         {
             discard_bootstrap();
-            return wire_error(
-                request.Correlation,
+            return provider_error(
                 application::github_provider_failure::response_limit);
         }
 
         std::stop_callback callback{
-            stop,
-            [this, weak = std::weak_ptr<operation_state>{state}] {
+            stop, [this, weak = std::weak_ptr<operation_state>{state}] {
                 const auto operation = weak.lock();
                 if(operation == nullptr)
                 {
@@ -1274,10 +1860,8 @@ public:
                         Dispatcher,
                         [this, weak] {
                             const auto current = weak.lock();
-                            if(
-                                current != nullptr
-                                && ActiveHop != nullptr
-                                && ActiveHop->Operation == current)
+                            if(current != nullptr && ActiveHop != nullptr
+                               && ActiveHop->Operation == current)
                             {
                                 ActiveHop->Cancellation = true;
                                 abort_hop(*ActiveHop);
@@ -1301,8 +1885,7 @@ public:
                     {
                         try
                         {
-                            state->Result.emplace(wire_error(
-                                state->Request.Correlation,
+                            state->Result.emplace(provider_error(
                                 application::github_provider_failure::
                                     response_limit));
                         }
@@ -1319,25 +1902,25 @@ public:
         catch(...)
         {
             discard_bootstrap();
-            return wire_error(
-                request.Correlation,
+            return provider_error(
                 application::github_provider_failure::response_limit);
         }
         if(!invoked)
         {
             discard_bootstrap();
-            return unavailable(request.Correlation);
+            return provider_error(
+                application::github_provider_failure::unavailable);
         }
 
         state->Done.wait(false, std::memory_order_acquire);
         if(!state->Result.has_value())
         {
-            return unavailable(request.Correlation);
+            return provider_error(
+                application::github_provider_failure::unavailable);
         }
         return std::move(*state->Result);
     }
 
-private:
     void connect_manager_signals()
     {
         QObject::connect(
@@ -1450,8 +2033,32 @@ private:
             Credential);
     }
 
-    [[nodiscard]] auto claim_credential(
-        const github_wire_request& request) noexcept -> bool
+    [[nodiscard]] auto credential_matches(
+        const github_capability_probe_wire_request& request) const noexcept
+        -> bool
+    {
+        const auto* credential = std::get_if<account_credential>(&Credential);
+        if(credential == nullptr)
+        {
+            return false;
+        }
+        const auto& correlation = request.Correlation;
+        return correlation.Session.Request == credential->Context.Request
+               && correlation.Session.ApplicationSession
+                      == credential->Context.ApplicationSession
+               && correlation.Session.Profile == Profile.profile()
+               && correlation.Session.IdentityGeneration
+                      == credential->Context.IdentityGeneration
+               && correlation.ProfileRevision == Profile.revision()
+               && correlation.Host == Profile.host()
+               && correlation.ObservedAccount
+                      == credential->Context.Authority.Account
+               && authority_matches_profile(credential->Context.Authority,
+                                            Profile);
+    }
+
+    template <typename Request>
+    [[nodiscard]] auto claim_credential(const Request& request) noexcept -> bool
     {
         if(!credential_matches(request))
         {
@@ -1578,42 +2185,29 @@ private:
     }
 
     [[nodiscard]] auto make_request(
-        const github_wire_request& wire,
-        const QUrl& url)
+        const native_request& wire, const QUrl& url)
         -> std::optional<QNetworkRequest>
     {
         auto request = QNetworkRequest{url};
-        request.setAttribute(
-            QNetworkRequest::RedirectPolicyAttribute,
-            QNetworkRequest::ManualRedirectPolicy);
-        request.setAttribute(
-            QNetworkRequest::CookieLoadControlAttribute,
-            QNetworkRequest::Manual);
-        request.setAttribute(
-            QNetworkRequest::CookieSaveControlAttribute,
-            QNetworkRequest::Manual);
-        request.setAttribute(
-            QNetworkRequest::AuthenticationReuseAttribute,
-            QNetworkRequest::Manual);
-        request.setAttribute(
-            QNetworkRequest::CacheLoadControlAttribute,
-            QNetworkRequest::AlwaysNetwork);
-        request.setAttribute(
-            QNetworkRequest::CacheSaveControlAttribute,
-            false);
-        request.setAttribute(
-            QNetworkRequest::Http2AllowedAttribute,
-            false);
-        request.setAttribute(
-            QNetworkRequest::Http2DirectAttribute,
-            false);
-        request.setAttribute(
-            QNetworkRequest::Http2CleartextAllowedAttribute,
-            false);
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                             QNetworkRequest::ManualRedirectPolicy);
+        request.setAttribute(QNetworkRequest::CookieLoadControlAttribute,
+                             QNetworkRequest::Manual);
+        request.setAttribute(QNetworkRequest::CookieSaveControlAttribute,
+                             QNetworkRequest::Manual);
+        request.setAttribute(QNetworkRequest::AuthenticationReuseAttribute,
+                             QNetworkRequest::Manual);
+        request.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
+                             QNetworkRequest::AlwaysNetwork);
+        request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
+        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+        request.setAttribute(QNetworkRequest::Http2DirectAttribute, false);
+        request.setAttribute(QNetworkRequest::Http2CleartextAllowedAttribute,
+                             false);
         request.setMaximumRedirectsAllowed(0);
         request.setDecompressedSafetyCheckThreshold(0);
 
-        for(const auto& header : wire.Wire.Headers)
+        for(const auto& header : wire.Headers)
         {
             request.setRawHeader(
                 QByteArray{
@@ -1687,12 +2281,11 @@ private:
 
         QByteArray request_body;
         if(
-            operation->Request.Wire.Method == http_method::post)
+            operation->Request.Method == http_method::post)
         {
             request_body = QByteArray{
-                operation->Request.Wire.Body.data(),
-                static_cast<qsizetype>(
-                    operation->Request.Wire.Body.size())};
+                operation->Request.Body.data(),
+                static_cast<qsizetype>(operation->Request.Body.size())};
         }
         if(cancellation_result(operation))
         {
@@ -1706,8 +2299,7 @@ private:
                 application::github_provider_failure::timeout);
         }
         request->setTransferTimeout(*send_remaining);
-        if(
-            operation->Request.Wire.Method == http_method::post)
+        if(operation->Request.Method == http_method::post)
         {
             state.Reply = Manager->post(*request, request_body);
         }
@@ -1721,10 +2313,8 @@ private:
                 application::github_provider_failure::network);
         }
         active_hop_guard active{state, ActiveHop};
-        state.Reply->setReadBufferSize(
-            static_cast<qint64>(std::min(
-                Policy.ResponseBodyLimit + 1U,
-                response_read_buffer_bytes)));
+        state.Reply->setReadBufferSize(static_cast<qint64>(std::min(
+            Policy.ResponseBodyLimit + 1U, response_read_buffer_bytes)));
 
         QEventLoop loop;
         QTimer deadline;
@@ -1732,51 +2322,25 @@ private:
         QTimer cancellation;
         cancellation.setInterval(cancellation_poll_interval);
 
-        QObject::connect(
-            state.Reply,
-            &QNetworkReply::encrypted,
-            &loop,
-            [&state] {
-                state.EncryptedSignalObserved = true;
-            });
-        QObject::connect(
-            state.Reply,
-            &QNetworkReply::metaDataChanged,
-            &loop,
-            [&state] {
-                inspect_metadata(state);
-            });
-        QObject::connect(
-            state.Reply,
-            &QIODevice::readyRead,
-            &loop,
-            [&state, this] {
-                read_available(state, Policy.ResponseBodyLimit);
-            });
-        QObject::connect(
-            state.Reply,
-            &QNetworkReply::finished,
-            &loop,
-            &QEventLoop::quit);
-        QObject::connect(
-            &deadline,
-            &QTimer::timeout,
-            &loop,
-            [&state] {
-                state.Deadline = true;
+        QObject::connect(state.Reply, &QNetworkReply::encrypted, &loop,
+                         [&state] { state.EncryptedSignalObserved = true; });
+        QObject::connect(state.Reply, &QNetworkReply::metaDataChanged, &loop,
+                         [&state] { inspect_metadata(state); });
+        QObject::connect(state.Reply, &QIODevice::readyRead, &loop,
+                         [&state] { read_available(state); });
+        QObject::connect(state.Reply, &QNetworkReply::finished, &loop,
+                         &QEventLoop::quit);
+        QObject::connect(&deadline, &QTimer::timeout, &loop, [&state] {
+            state.Deadline = true;
+            abort_hop(state);
+        });
+        QObject::connect(&cancellation, &QTimer::timeout, &loop, [&state] {
+            if(cancellation_result(state.Operation))
+            {
+                state.Cancellation = true;
                 abort_hop(state);
-            });
-        QObject::connect(
-            &cancellation,
-            &QTimer::timeout,
-            &loop,
-            [&state] {
-                if(cancellation_result(state.Operation))
-                {
-                    state.Cancellation = true;
-                    abort_hop(state);
-                }
-            });
+            }
+        });
 
         const auto wait_remaining =
             remaining_before_deadline(operation->Deadline);
@@ -1802,7 +2366,7 @@ private:
         deadline.stop();
         cancellation.stop();
         inspect_metadata(state);
-        read_available(state, Policy.ResponseBodyLimit);
+        read_available(state);
         if(state.Cancellation || cancellation_result(operation))
         {
             active.reset();
@@ -1931,21 +2495,19 @@ private:
         }
         return hop_success{
             .Body = std::move(state.Body),
+            .Headers = allowlisted_success_headers(state),
             .Completeness = *completeness,
         };
     }
 
     [[nodiscard]] auto execute_with_proxy_candidates(
-        const std::shared_ptr<operation_state>& operation,
-        const QUrl& url,
+        const std::shared_ptr<operation_state>& operation, const QUrl& url,
         const std::vector<QNetworkProxy>& candidates) -> hop_result
     {
         for(std::size_t index = 0U; index < candidates.size(); ++index)
         {
-            auto attempt =
-                execute_hop(operation, url, candidates[index]);
-            if(auto* proxy_failure =
-                   std::get_if<hop_proxy_failure>(&attempt);
+            auto attempt = execute_hop(operation, url, candidates[index]);
+            if(auto* proxy_failure = std::get_if<hop_proxy_failure>(&attempt);
                proxy_failure != nullptr)
             {
                 if(index + 1U < candidates.size())
@@ -1956,147 +2518,101 @@ private:
             }
             return attempt;
         }
-        return provider_error(
-            application::github_provider_failure::network);
+        return provider_error(application::github_provider_failure::network);
     }
 
-    [[nodiscard]] auto execute(
-        const std::shared_ptr<operation_state>& operation)
-        -> github_wire_completion
+    [[nodiscard]] auto
+    execute(const std::shared_ptr<operation_state>& operation) -> hop_result
     {
         const auto initial = build_url(Profile, operation->Request);
         if(!initial.has_value())
         {
-            return unavailable(operation->Request.Correlation);
+            return provider_error(
+                application::github_provider_failure::unavailable);
         }
 
         auto current = *initial;
         std::vector<std::string> visited;
         visited.reserve(native_https_maximum_redirects + 1U);
         visited.emplace_back(
-            safe_qbytearray_string(
-                current.toEncoded(QUrl::FullyEncoded)));
+            safe_qbytearray_string(current.toEncoded(QUrl::FullyEncoded)));
 
-        for(std::uint32_t hop = 0U;
-            hop <= native_https_maximum_redirects;
+        for(std::uint32_t hop = 0U; hop <= native_https_maximum_redirects;
             ++hop)
         {
             if(cancellation_result(operation))
             {
-                return github_wire_cancelled{
-                    .Correlation = operation->Request.Correlation,
-                };
+                return hop_cancelled{};
             }
             if(!remaining_before_deadline(operation->Deadline).has_value())
             {
-                return wire_error(
-                    operation->Request.Correlation,
+                return provider_error(
                     application::github_provider_failure::timeout);
             }
             const auto candidates = proxy_candidates(current);
             if(cancellation_result(operation))
             {
-                return github_wire_cancelled{
-                    .Correlation = operation->Request.Correlation,
-                };
+                return hop_cancelled{};
             }
             if(!remaining_before_deadline(operation->Deadline).has_value())
             {
-                return wire_error(
-                    operation->Request.Correlation,
+                return provider_error(
                     application::github_provider_failure::timeout);
             }
             if(!candidates.has_value() || candidates->empty())
             {
-                return wire_error(
-                    operation->Request.Correlation,
+                return provider_error(
                     application::github_provider_failure::network);
             }
 
-            auto result = execute_with_proxy_candidates(
-                operation,
-                current,
-                *candidates);
+            auto result =
+                execute_with_proxy_candidates(operation, current, *candidates);
             if(auto* success = std::get_if<hop_success>(&result);
                success != nullptr)
             {
-                return github_wire_success{
-                    .Correlation = operation->Request.Correlation,
-                    .Response =
-                        wire_response{
-                            .Status = 200,
-                            .Headers =
-                                {
-                                    http_header{
-                                        .Name = "Content-Type",
-                                        .Value = "application/json",
-                                    },
-                                },
-                            .Body = std::move(success->Body),
-                            .Completeness = success->Completeness,
-                        },
-                };
+                return std::move(*success);
             }
             if(std::holds_alternative<hop_cancelled>(result))
             {
-                return github_wire_cancelled{
-                    .Correlation = operation->Request.Correlation,
-                };
+                return hop_cancelled{};
             }
             if(auto* error =
                    std::get_if<application::github_provider_error>(&result);
                error != nullptr)
             {
-                return github_wire_error{
-                    .Correlation = operation->Request.Correlation,
-                    .Error = *error,
-                };
+                return *error;
             }
 
             const auto& redirect = std::get<hop_redirect>(result);
-            if(
-                hop == native_https_maximum_redirects
-                || operation->Request.Wire.Method != http_method::get
-                || operation->Request.Wire.Operation
-                    == read_operation::list_review_threads)
+            if(hop == native_https_maximum_redirects
+               || operation->Request.Method != http_method::get
+               || operation->Request.Surface
+                      != native_request_surface::rest_read)
             {
-                return wire_error(
-                    operation->Request.Correlation,
+                return provider_error(
                     application::github_provider_failure::redirect);
             }
             const auto approved = validate_github_redirect_target(
-                Profile,
-                github_request_surface::rest,
-                redirect.Target);
-            if(
-                !approved.has_value()
-                || std::ranges::find(visited, redirect.Target)
-                    != visited.end())
+                Profile, github_request_surface::rest, redirect.Target);
+            if(!approved.has_value()
+               || std::ranges::find(visited, redirect.Target) != visited.end())
             {
-                return wire_error(
-                    operation->Request.Correlation,
+                return provider_error(
                     application::github_provider_failure::redirect);
             }
             visited.push_back(redirect.Target);
-            const auto encoded = QByteArray{
-                redirect.Target.data(),
-                static_cast<qsizetype>(redirect.Target.size())};
-            const auto next = QUrl::fromEncoded(
-                encoded,
-                QUrl::StrictMode);
-            if(
-                !next.isValid()
-                || next.toEncoded(QUrl::FullyEncoded) != encoded)
+            const auto encoded =
+                QByteArray{redirect.Target.data(),
+                           static_cast<qsizetype>(redirect.Target.size())};
+            const auto next = QUrl::fromEncoded(encoded, QUrl::StrictMode);
+            if(!next.isValid() || next.toEncoded(QUrl::FullyEncoded) != encoded)
             {
-                return wire_error(
-                    operation->Request.Correlation,
+                return provider_error(
                     application::github_provider_failure::redirect);
             }
             current = next;
         }
-        return wire_error(
-            operation->Request.Correlation,
-            application::github_provider_failure::redirect);
+        return provider_error(application::github_provider_failure::redirect);
     }
 
     validated_github_host_profile Profile;
@@ -2173,7 +2689,7 @@ template<typename Credential>
             native_https_configuration_failure::allocation_failure};
     }
 }
-}
+} // namespace
 
 native_https_transport::native_https_transport(
     std::unique_ptr<implementation> implementation) noexcept
@@ -2183,15 +2699,27 @@ native_https_transport::native_https_transport(
 
 native_https_transport::~native_https_transport() = default;
 
-auto native_https_transport::perform(
-    const github_wire_request& request,
-    const std::stop_token stop) -> github_wire_completion
+auto native_https_transport::perform(const github_wire_request& request,
+                                     const std::stop_token stop)
+    -> github_wire_completion
 {
     if(Implementation == nullptr)
     {
         return unavailable(request.Correlation);
     }
     return Implementation->perform(request, stop);
+}
+
+auto native_https_transport::perform_capability_probe(
+    const github_capability_probe_wire_request& request,
+    const std::stop_token stop) -> github_capability_probe_wire_completion
+{
+    if(Implementation == nullptr)
+    {
+        return capability_error(request.Correlation,
+                                application::github_provider_failure::network);
+    }
+    return Implementation->perform_capability_probe(request, stop);
 }
 
 auto make_native_https_bootstrap_transport(
@@ -2413,4 +2941,4 @@ auto observe_native_https_runtime(
         return facts;
     }
 }
-}
+} // namespace bpr::adapters::github::detail

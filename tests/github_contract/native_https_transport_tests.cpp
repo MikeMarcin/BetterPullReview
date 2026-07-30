@@ -1,3 +1,4 @@
+#include "github_wire_request_validation.hpp"
 #include "native_https_transport.hpp"
 
 #include <QCoreApplication>
@@ -5,6 +6,7 @@
 #include <QString>
 #include <QtLogging>
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <chrono>
@@ -41,15 +43,12 @@ using namespace bpr::adapters::github::detail;
 using namespace std::chrono_literals;
 
 static_assert(
-    std::is_base_of_v<
-        github_wire_transport_port,
-        native_https_transport>);
+    std::is_base_of_v<github_wire_transport_port, native_https_transport>);
 static_assert(!std::is_copy_constructible_v<native_https_transport>);
 static_assert(!std::is_move_constructible_v<native_https_transport>);
-static_assert(
-    native_https_maximum_request_body_bytes == 256U * 1024U);
-static_assert(
-    native_https_maximum_response_body_bytes == 4U * 1024U * 1024U);
+static_assert(native_https_maximum_request_body_bytes == 256U * 1024U);
+static_assert(native_https_maximum_response_body_bytes == 4U * 1024U * 1024U);
+static_assert(native_https_maximum_error_response_body_bytes == 64U * 1024U);
 static_assert(native_https_maximum_response_header_bytes == 64U * 1024U);
 static_assert(native_https_maximum_redirects == 3U);
 
@@ -169,6 +168,7 @@ void select_binary_standard_streams()
         .HeadOid = {},
         .SearchTerms = {},
         .Page = 1U,
+        .GraphqlPage = std::nullopt,
     };
     if(operation != read_operation::get_viewer_identity)
     {
@@ -205,21 +205,39 @@ void select_binary_standard_streams()
     };
 }
 
-[[nodiscard]] auto credential_material(
-    const std::string_view value)
+[[nodiscard]] auto
+capability_request_for(const validated_github_host_profile& profile,
+                       const core::github_session_request_context& session,
+                       const core::github_account_id observed_account)
+    -> github_capability_probe_wire_request
+{
+    const auto wire = compile_capability_probe_request(profile);
+    expect(wire.has_value(), "canonical-capability-request");
+    return {
+        .Correlation =
+            github_capability_probe_wire_correlation{
+                .Session = session,
+                .ProfileRevision = profile.revision(),
+                .Host = profile.host(),
+                .ObservedAccount = observed_account,
+            },
+        .Wire = *wire,
+    };
+}
+
+[[nodiscard]] auto credential_material(const std::string_view value)
     -> application::github_credential_material
 {
-    const auto characters =
-        std::span<const char>{value.data(), value.size()};
+    const auto characters = std::span<const char>{value.data(), value.size()};
     auto material = application::github_credential_material::create(
         std::as_bytes(characters));
     expect(material.has_value(), "credential-material");
     return std::move(*material);
 }
 
-[[nodiscard]] auto account_operation_context(
-    const validated_github_host_profile& profile,
-    const core::pull_request_request_context& request)
+[[nodiscard]] auto
+account_operation_context(const validated_github_host_profile& profile,
+                          const core::pull_request_request_context& request)
     -> application::github_credential_operation_context
 {
     return {
@@ -237,8 +255,28 @@ void select_binary_standard_streams()
     };
 }
 
-[[nodiscard]] auto test_configuration()
-    -> native_https_test_configuration
+[[nodiscard]] auto
+account_operation_context(const validated_github_host_profile& profile,
+                          const core::github_session_request_context& request,
+                          const core::github_account_id account)
+    -> application::github_credential_operation_context
+{
+    return {
+        .Request = request.Request,
+        .ApplicationSession = request.ApplicationSession,
+        .Authority =
+            application::github_credential_authority_key{
+                .Profile = profile.profile(),
+                .ProfileRevision = profile.revision(),
+                .Host = profile.host(),
+                .Account = account,
+                .ServerContract = profile.server_contract(),
+            },
+        .IdentityGeneration = request.IdentityGeneration,
+    };
+}
+
+[[nodiscard]] auto test_configuration() -> native_https_test_configuration
 {
     return {
         .ProxyHost = "127.0.0.1",
@@ -246,24 +284,35 @@ void select_binary_standard_streams()
         .FallbackProxyPort = 0U,
         .TrustedCaCertificatePem = {},
         .TotalTimeout = 1s,
-        .ResponseBodyLimit =
-            native_https_maximum_response_body_bytes,
+        .ResponseBodyLimit = native_https_maximum_response_body_bytes,
     };
 }
 
-void expect_unavailable(
-    const github_wire_completion& completion,
-    const github_wire_correlation& correlation,
-    const std::string_view message)
+void expect_unavailable(const github_wire_completion& completion,
+                        const github_wire_correlation& correlation,
+                        const std::string_view message)
 {
     const auto* error = std::get_if<github_wire_error>(&completion);
-    expect(
-        error != nullptr
-            && error->Correlation == correlation
-            && error->Error.Failure
-                == application::github_provider_failure::unavailable
-            && !error->Error.RetryAfterSeconds.has_value(),
-        message);
+    expect(error != nullptr && error->Correlation == correlation
+               && error->Error.Failure
+                      == application::github_provider_failure::unavailable
+               && !error->Error.RetryAfterSeconds.has_value(),
+           message);
+}
+
+void expect_capability_error(
+    const github_capability_probe_wire_completion& completion,
+    const github_capability_probe_wire_correlation& correlation,
+    const application::github_provider_failure error,
+    const std::optional<std::uint32_t> retry_after,
+    const std::string_view message)
+{
+    const auto* failure =
+        std::get_if<github_capability_probe_wire_error>(&completion);
+    expect(failure != nullptr && failure->Correlation == correlation
+               && failure->Error.Failure == error
+               && failure->Error.RetryAfterSeconds == retry_after,
+           message);
 }
 
 void test_factory_contracts_and_preflight()
@@ -447,6 +496,87 @@ void test_factory_contracts_and_preflight()
         drift_completion,
         account_drift.Correlation,
         "account-drift-preflight");
+
+    const auto observed_account = core::github_account_id{203};
+    const auto session = session_context(*native);
+    const auto capability =
+        capability_request_for(*native, session, observed_account);
+    expect(validate_github_capability_probe_wire_request(*native, capability)
+               .has_value(),
+           "capability-wire-validation");
+
+    auto mutation = capability;
+    mutation.Wire.Body = R"({"query":"mutation { __typename }"})";
+    const auto mutation_completion =
+        (*account)->perform_capability_probe(mutation, std::stop_token{});
+    expect_capability_error(mutation_completion, mutation.Correlation,
+                            application::github_provider_failure::unavailable,
+                            std::nullopt, "capability-mutation-preflight");
+
+    const auto bootstrap_capability =
+        (*bootstrap)->perform_capability_probe(capability, std::stop_token{});
+    expect_capability_error(bootstrap_capability, capability.Correlation,
+                            application::github_provider_failure::unavailable,
+                            std::nullopt, "bootstrap-capability-denied");
+
+    auto capability_account = make_native_https_account_transport_for_test(
+        *native,
+        application::github_credential_retrieve_success{
+            .Context =
+                account_operation_context(*native, session, observed_account),
+            .Credential = credential_material("BPR0027FixtureValue"),
+        },
+        configuration);
+    expect(capability_account.has_value(), "capability-account-transport");
+
+    auto account_drift_capability = capability;
+    account_drift_capability.Correlation.ObservedAccount =
+        core::github_account_id{999};
+    const auto account_drift_probe =
+        (*capability_account)
+            ->perform_capability_probe(account_drift_capability,
+                                       std::stop_token{});
+    expect_capability_error(account_drift_probe,
+                            account_drift_capability.Correlation,
+                            application::github_provider_failure::unavailable,
+                            std::nullopt, "capability-account-drift");
+
+    const auto expect_session_drift =
+        [&capability_account](const github_capability_probe_wire_request& drift,
+                              const std::string_view message) {
+            const auto completion =
+                (*capability_account)
+                    ->perform_capability_probe(drift, std::stop_token{});
+            expect_capability_error(
+                completion, drift.Correlation,
+                application::github_provider_failure::unavailable, std::nullopt,
+                message);
+        };
+    auto request_drift = capability;
+    request_drift.Correlation.Session.Request = core::request_id{999};
+    expect_session_drift(request_drift, "capability-session-request-drift");
+    auto application_session_drift = capability;
+    application_session_drift.Correlation.Session.ApplicationSession =
+        core::application_session_id{999};
+    expect_session_drift(application_session_drift,
+                         "capability-application-session-drift");
+    auto identity_generation_drift = capability;
+    identity_generation_drift.Correlation.Session.IdentityGeneration =
+        core::github_identity_generation{999};
+    expect_session_drift(identity_generation_drift,
+                         "capability-identity-generation-drift");
+
+    std::stop_source probe_stop;
+    expect(probe_stop.request_stop(), "capability-pre-cancel-request");
+    const auto capability_cancelled =
+        (*capability_account)
+            ->perform_capability_probe(capability, probe_stop.get_token());
+    const auto* probe_cancellation =
+        std::get_if<github_capability_probe_wire_cancelled>(
+            &capability_cancelled);
+    expect(probe_cancellation != nullptr
+               && probe_cancellation->Correlation == capability.Correlation,
+           "capability-pre-cancel-correlation");
 }
 
 [[nodiscard]] constexpr auto tls_backend_name(
@@ -518,12 +648,28 @@ enum class fixture_scenario : std::uint8_t
     pre_cancel,
     http_401,
     http_403,
+    http_403_secondary,
+    http_403_secondary_retry,
+    http_408,
     http_429,
+    http_503_retry,
+    http_504,
+    graphql_403_rate,
     content_encoding,
+    response_metadata,
+    duplicate_rate_limit,
+    invalid_rate_limit,
+    wrong_rate_resource,
+    invalid_link,
+    graphql_link,
+    capability_success,
+    capability_redirect,
+    capability_403_rate,
+    capability_429,
 };
 
-[[nodiscard]] auto parse_scenario(
-    const std::string_view value) -> std::optional<fixture_scenario>
+[[nodiscard]] auto parse_scenario(const std::string_view value)
+    -> std::optional<fixture_scenario>
 {
     if(value == "success")
     {
@@ -577,19 +723,83 @@ enum class fixture_scenario : std::uint8_t
     {
         return fixture_scenario::http_403;
     }
+    if(value == "http-403-secondary")
+    {
+        return fixture_scenario::http_403_secondary;
+    }
+    if(value == "http-403-secondary-retry")
+    {
+        return fixture_scenario::http_403_secondary_retry;
+    }
+    if(value == "http-408")
+    {
+        return fixture_scenario::http_408;
+    }
     if(value == "http-429")
     {
         return fixture_scenario::http_429;
+    }
+    if(value == "http-503-retry")
+    {
+        return fixture_scenario::http_503_retry;
+    }
+    if(value == "http-504")
+    {
+        return fixture_scenario::http_504;
+    }
+    if(value == "graphql-403-rate")
+    {
+        return fixture_scenario::graphql_403_rate;
     }
     if(value == "content-encoding")
     {
         return fixture_scenario::content_encoding;
     }
+    if(value == "response-metadata")
+    {
+        return fixture_scenario::response_metadata;
+    }
+    if(value == "duplicate-rate-limit")
+    {
+        return fixture_scenario::duplicate_rate_limit;
+    }
+    if(value == "invalid-rate-limit")
+    {
+        return fixture_scenario::invalid_rate_limit;
+    }
+    if(value == "wrong-rate-resource")
+    {
+        return fixture_scenario::wrong_rate_resource;
+    }
+    if(value == "invalid-link")
+    {
+        return fixture_scenario::invalid_link;
+    }
+    if(value == "graphql-link")
+    {
+        return fixture_scenario::graphql_link;
+    }
+    if(value == "capability-success")
+    {
+        return fixture_scenario::capability_success;
+    }
+    if(value == "capability-redirect")
+    {
+        return fixture_scenario::capability_redirect;
+    }
+    if(value == "capability-403-rate")
+    {
+        return fixture_scenario::capability_403_rate;
+    }
+    if(value == "capability-429")
+    {
+        return fixture_scenario::capability_429;
+    }
     return std::nullopt;
 }
 
-[[nodiscard]] constexpr auto scenario_name(
-    const fixture_scenario scenario) noexcept -> std::string_view
+[[nodiscard]] constexpr auto
+scenario_name(const fixture_scenario scenario) noexcept -> std::string_view
 {
     switch(scenario)
     {
@@ -619,10 +829,42 @@ enum class fixture_scenario : std::uint8_t
         return "http-401";
     case fixture_scenario::http_403:
         return "http-403";
+    case fixture_scenario::http_403_secondary:
+        return "http-403-secondary";
+    case fixture_scenario::http_403_secondary_retry:
+        return "http-403-secondary-retry";
+    case fixture_scenario::http_408:
+        return "http-408";
     case fixture_scenario::http_429:
         return "http-429";
+    case fixture_scenario::http_503_retry:
+        return "http-503-retry";
+    case fixture_scenario::http_504:
+        return "http-504";
+    case fixture_scenario::graphql_403_rate:
+        return "graphql-403-rate";
     case fixture_scenario::content_encoding:
         return "content-encoding";
+    case fixture_scenario::response_metadata:
+        return "response-metadata";
+    case fixture_scenario::duplicate_rate_limit:
+        return "duplicate-rate-limit";
+    case fixture_scenario::invalid_rate_limit:
+        return "invalid-rate-limit";
+    case fixture_scenario::wrong_rate_resource:
+        return "wrong-rate-resource";
+    case fixture_scenario::invalid_link:
+        return "invalid-link";
+    case fixture_scenario::graphql_link:
+        return "graphql-link";
+    case fixture_scenario::capability_success:
+        return "capability-success";
+    case fixture_scenario::capability_redirect:
+        return "capability-redirect";
+    case fixture_scenario::capability_403_rate:
+        return "capability-403-rate";
+    case fixture_scenario::capability_429:
+        return "capability-429";
     }
     return {};
 }
@@ -727,10 +969,28 @@ void wipe(std::string& value) noexcept
         configuration);
 }
 
-[[nodiscard]] auto perform_fixture(
-    native_https_transport& transport,
-    const github_wire_request& request,
-    const fixture_scenario scenario) -> github_wire_completion
+[[nodiscard]] auto
+fixture_transport(const validated_github_host_profile& profile,
+                  const github_capability_probe_wire_request& request,
+                  const std::string_view credential,
+                  const native_https_test_configuration& configuration)
+    -> native_https_transport_factory_result
+{
+    return make_native_https_account_transport_for_test(
+        profile,
+        application::github_credential_retrieve_success{
+            .Context =
+                account_operation_context(profile, request.Correlation.Session,
+                                          request.Correlation.ObservedAccount),
+            .Credential = credential_material(credential),
+        },
+        configuration);
+}
+
+[[nodiscard]] auto perform_fixture(native_https_transport& transport,
+                                   const github_wire_request& request,
+                                   const fixture_scenario scenario)
+    -> github_wire_completion
 {
     if(scenario == fixture_scenario::pre_cancel)
     {
@@ -746,18 +1006,17 @@ void wipe(std::string& value) noexcept
     std::stop_source stop;
     std::optional<github_wire_completion> completion;
     std::exception_ptr worker_failure;
-    std::jthread worker{
-        [&transport, &request, &stop, &completion, &worker_failure] {
-            try
-            {
-                completion.emplace(
-                    transport.perform(request, stop.get_token()));
-            }
-            catch(...)
-            {
-                worker_failure = std::current_exception();
-            }
-        }};
+    std::jthread worker{[&transport, &request, &stop, &completion,
+                         &worker_failure] {
+        try
+        {
+            completion.emplace(transport.perform(request, stop.get_token()));
+        }
+        catch(...)
+        {
+            worker_failure = std::current_exception();
+        }
+    }};
     std::this_thread::sleep_for(750ms);
     stop.request_stop();
     worker.join();
@@ -766,9 +1025,9 @@ void wipe(std::string& value) noexcept
     return std::move(*completion);
 }
 
-void expect_success(
-    const github_wire_completion& completion,
-    const github_wire_correlation& correlation)
+void expect_success(const github_wire_completion& completion,
+                    const github_wire_correlation& correlation,
+                    const fixture_scenario scenario)
 {
     const auto* success = std::get_if<github_wire_success>(&completion);
     if(success == nullptr)
@@ -819,142 +1078,270 @@ void expect_success(
     expect(
         success->Response.Status == 200,
         "fixture-success-status");
-    expect(
-        success->Response.Headers
-            == std::vector<http_header>{
-                {
-                    .Name = "Content-Type",
-                    .Value = "application/json",
-                },
-            },
-        "fixture-success-headers");
-    expect(
-        success->Response.Body
-            == R"({"id":7,"login":"fixture-user"})",
-        "fixture-success-body");
-    expect(
-        success->Response.Completeness
-            == page_completeness::complete,
-        "fixture-success-completeness");
+    const auto metadata_headers = std::array<http_header, 7U>{
+        http_header{
+            .Name = "Content-Type",
+            .Value = "Application/JSON; Charset=UTF-8",
+        },
+        http_header{
+            .Name = "Link",
+            .Value =
+                "<https://ghe.bpr.invalid/api/v3/user?page=2>; rel=\"next\"",
+        },
+        http_header{
+            .Name = "X-RateLimit-Limit",
+            .Value = "60",
+        },
+        http_header{
+            .Name = "X-RateLimit-Remaining",
+            .Value = "42",
+        },
+        http_header{
+            .Name = "X-RateLimit-Reset",
+            .Value = "1999999999",
+        },
+        http_header{
+            .Name = "X-RateLimit-Resource",
+            .Value = "core",
+        },
+        http_header{
+            .Name = "Retry-After",
+            .Value = "7",
+        },
+    };
+    const auto standard_headers = std::array<http_header, 1U>{
+        http_header{
+            .Name = "Content-Type",
+            .Value = "application/json",
+        },
+    };
+    const auto headers_match =
+        scenario == fixture_scenario::response_metadata
+        ? std::ranges::equal(success->Response.Headers, metadata_headers)
+        : std::ranges::equal(success->Response.Headers, standard_headers);
+    expect(headers_match, "fixture-success-headers");
+    expect(success->Response.Body == R"({"id":7,"login":"fixture-user"})",
+           "fixture-success-body");
+    expect(success->Response.Completeness
+               == (scenario == fixture_scenario::response_metadata
+                       ? page_completeness::has_next_page
+                       : page_completeness::complete),
+           "fixture-success-completeness");
 }
 
-void expect_error(
-    const github_wire_completion& completion,
-    const github_wire_correlation& correlation,
-    const application::github_provider_failure failure,
-    const std::optional<std::uint32_t> retry_after = std::nullopt)
+void expect_error(const github_wire_completion& completion,
+                  const github_wire_correlation& correlation,
+                  const application::github_provider_failure failure,
+                  const std::optional<std::uint32_t> retry_after = std::nullopt,
+                  const std::optional<application::github_rate_limit_resource>
+                      observed_resource = std::nullopt,
+                  const bool expect_rate_cause = false,
+                  const bool secondary = false)
 {
     const auto* error = std::get_if<github_wire_error>(&completion);
+    expect(error != nullptr && error->Correlation == correlation
+               && error->Error.Failure == failure
+               && error->Error.RetryAfterSeconds == retry_after
+               && application::valid(error->Error),
+           "fixture-error-completion");
+    if(!observed_resource.has_value())
+    {
+        return;
+    }
+    const auto* observation =
+        application::find(error->Error.RateLimits, *observed_resource);
     expect(
-        error != nullptr
-            && error->Correlation == correlation
-            && error->Error.Failure == failure
-            && error->Error.RetryAfterSeconds == retry_after,
-        "fixture-error-completion");
+        observation != nullptr
+            && error->Error.RateLimitCause.has_value() == expect_rate_cause
+            && (!expect_rate_cause
+                || (error->Error.RateLimitCause->Resource == *observed_resource
+                    && error->Error.RateLimitCause->SecondaryLimited
+                           == secondary
+                    && *observation == *error->Error.RateLimitCause)),
+        "fixture-error-rate-resource");
 }
 
-void expect_fixture_completion(
-    const github_wire_completion& completion,
-    const github_wire_correlation& correlation,
-    const fixture_scenario scenario)
+void expect_fixture_completion(const github_wire_completion& completion,
+                               const github_wire_correlation& correlation,
+                               const fixture_scenario scenario)
 {
     switch(scenario)
     {
     case fixture_scenario::success:
     case fixture_scenario::proxy_fallback:
     case fixture_scenario::same_redirect:
-        expect_success(completion, correlation);
+    case fixture_scenario::response_metadata:
+        expect_success(completion, correlation, scenario);
         return;
     case fixture_scenario::cross_redirect:
     case fixture_scenario::graphql_redirect:
-        expect_error(
-            completion,
-            correlation,
-            application::github_provider_failure::redirect);
+        expect_error(completion, correlation,
+                     application::github_provider_failure::redirect);
         return;
     case fixture_scenario::untrusted_certificate:
-        expect_error(
-            completion,
-            correlation,
-            application::github_provider_failure::certificate);
+        expect_error(completion, correlation,
+                     application::github_provider_failure::certificate);
         return;
     case fixture_scenario::response_limit:
     case fixture_scenario::header_limit:
-        expect_error(
-            completion,
-            correlation,
-            application::github_provider_failure::response_limit);
+        expect_error(completion, correlation,
+                     application::github_provider_failure::response_limit);
         return;
     case fixture_scenario::cancel:
-    case fixture_scenario::pre_cancel:
-    {
-        const auto* cancelled =
-            std::get_if<github_wire_cancelled>(&completion);
-        expect(
-            cancelled != nullptr
-                && cancelled->Correlation == correlation,
-            "fixture-cancelled-completion");
+    case fixture_scenario::pre_cancel: {
+        const auto* cancelled = std::get_if<github_wire_cancelled>(&completion);
+        expect(cancelled != nullptr && cancelled->Correlation == correlation,
+               "fixture-cancelled-completion");
         return;
     }
     case fixture_scenario::timeout:
-        expect_error(
-            completion,
-            correlation,
-            application::github_provider_failure::timeout);
+        expect_error(completion, correlation,
+                     application::github_provider_failure::timeout);
         return;
     case fixture_scenario::http_401:
-        expect_error(
-            completion,
-            correlation,
-            application::github_provider_failure::authentication);
+        expect_error(completion, correlation,
+                     application::github_provider_failure::authentication);
         return;
     case fixture_scenario::http_403:
-        expect_error(
-            completion,
-            correlation,
-            application::github_provider_failure::permission);
+        expect_error(completion, correlation,
+                     application::github_provider_failure::permission);
+        return;
+    case fixture_scenario::http_403_secondary:
+        expect_error(completion, correlation,
+                     application::github_provider_failure::rate_limit, 60U,
+                     application::github_rate_limit_resource::core, true, true);
+        return;
+    case fixture_scenario::http_403_secondary_retry:
+        expect_error(completion, correlation,
+                     application::github_provider_failure::rate_limit, 17U,
+                     application::github_rate_limit_resource::core, true, true);
+        return;
+    case fixture_scenario::http_408:
+        expect_error(completion, correlation,
+                     application::github_provider_failure::timeout);
         return;
     case fixture_scenario::http_429:
-        expect_error(
-            completion,
-            correlation,
-            application::github_provider_failure::rate_limit,
-            7U);
+        expect_error(completion, correlation,
+                     application::github_provider_failure::rate_limit, 7U,
+                     application::github_rate_limit_resource::core, true, true);
+        return;
+    case fixture_scenario::http_503_retry:
+        expect_error(completion, correlation,
+                     application::github_provider_failure::unavailable, 9U,
+                     application::github_rate_limit_resource::core);
+        return;
+    case fixture_scenario::http_504:
+        expect_error(completion, correlation,
+                     application::github_provider_failure::timeout);
+        return;
+    case fixture_scenario::graphql_403_rate:
+        expect_error(completion, correlation,
+                     application::github_provider_failure::rate_limit, 60U,
+                     application::github_rate_limit_resource::graphql, true,
+                     true);
         return;
     case fixture_scenario::content_encoding:
-        expect_error(
-            completion,
-            correlation,
-            application::github_provider_failure::malformed_response);
+    case fixture_scenario::duplicate_rate_limit:
+    case fixture_scenario::invalid_rate_limit:
+    case fixture_scenario::wrong_rate_resource:
+    case fixture_scenario::invalid_link:
+    case fixture_scenario::graphql_link:
+        expect_error(completion, correlation,
+                     application::github_provider_failure::malformed_response);
         return;
+    case fixture_scenario::capability_success:
+    case fixture_scenario::capability_redirect:
+    case fixture_scenario::capability_403_rate:
+    case fixture_scenario::capability_429:
+        throw test_failure{"capability-scenario-read-completion"};
     }
     throw test_failure{"fixture-scenario"};
 }
 
-void run_fixture(
-    const fixture_scenario scenario,
-    const std::uint16_t proxy_port,
-    const std::uint16_t fallback_proxy_port)
+void expect_capability_fixture_completion(
+    const github_capability_probe_wire_completion& completion,
+    const github_capability_probe_wire_correlation& correlation,
+    const fixture_scenario scenario)
 {
-    auto framed_credential = read_frame(
-        application::maximum_github_credential_bytes,
-        "fixture-credential-limit");
+    if(scenario == fixture_scenario::capability_redirect)
+    {
+        expect_capability_error(completion, correlation,
+                                application::github_provider_failure::redirect,
+                                std::nullopt, "capability-fixture-redirect");
+        return;
+    }
+    if(scenario == fixture_scenario::capability_403_rate
+       || scenario == fixture_scenario::capability_429)
+    {
+        const auto* failure =
+            std::get_if<github_capability_probe_wire_error>(&completion);
+        expect(failure != nullptr && failure->Correlation == correlation
+                   && failure->Error.Failure
+                          == application::github_provider_failure::rate_limit
+                   && failure->Error.RetryAfterSeconds
+                          == std::optional<std::uint32_t>{60U}
+                   && failure->Error.RateLimitCause.has_value()
+                   && failure->Error.RateLimitCause->Resource
+                          == application::github_rate_limit_resource::graphql
+                   && failure->Error.RateLimitCause->SecondaryLimited
+                   && failure->Error.RateLimits.Graphql
+                          == failure->Error.RateLimitCause
+                   && application::valid(failure->Error),
+               "capability-fixture-rate-limit");
+        return;
+    }
+
+    const auto* success =
+        std::get_if<github_capability_probe_wire_success>(&completion);
+    const auto expected_rate_limit_headers =
+        std::array<capability_probe_header, 5U>{
+            capability_probe_header{
+                .Name = "X-RateLimit-Limit",
+                .Value = "60",
+            },
+            capability_probe_header{
+                .Name = "X-RateLimit-Remaining",
+                .Value = "42",
+            },
+            capability_probe_header{
+                .Name = "X-RateLimit-Reset",
+                .Value = "1999999999",
+            },
+            capability_probe_header{
+                .Name = "X-RateLimit-Resource",
+                .Value = "graphql",
+            },
+            capability_probe_header{
+                .Name = "Retry-After",
+                .Value = "7",
+            },
+        };
+    expect(
+      success != nullptr && success->Correlation == correlation &&
+          success->Response.Status == 200 && success->Response.Authenticated &&
+          success->Response.ContentType == "Application/JSON; Charset=UTF-8" &&
+          success->Response.Body == "{}" &&
+          success->Response.RateLimitHeaderCount == 5U &&
+          success->Response.RateLimitHeaders ==
+              expected_rate_limit_headers,
+      "capability-fixture-success");
+}
+
+void run_fixture(const fixture_scenario scenario,
+                 const std::uint16_t proxy_port,
+                 const std::uint16_t fallback_proxy_port)
+{
+    auto framed_credential =
+        read_frame(application::maximum_github_credential_bytes,
+                   "fixture-credential-limit");
     auto authority_certificate = read_frame(
-        native_https_maximum_response_header_bytes,
-        "fixture-authority-limit");
+        native_https_maximum_response_header_bytes, "fixture-authority-limit");
     expect(!framed_credential.empty(), "fixture-credential-empty");
     expect(!authority_certificate.empty(), "fixture-authority-empty");
 
-    const auto profile = validate_github_host_profile(
-        profile_candidate(
-            application::github_authentication_transport::native_https));
+    const auto profile = validate_github_host_profile(profile_candidate(
+        application::github_authentication_transport::native_https));
     expect(profile.has_value(), "fixture-profile");
-
-    const auto operation =
-        scenario == fixture_scenario::graphql_redirect
-        ? read_operation::list_review_threads
-        : read_operation::get_viewer_identity;
-    const auto request = wire_request_for(*profile, operation);
 
     auto configuration = native_https_test_configuration{
         .ProxyHost = "127.0.0.1",
@@ -962,53 +1349,63 @@ void run_fixture(
         .FallbackProxyPort = fallback_proxy_port,
         .TrustedCaCertificatePem =
             scenario == fixture_scenario::untrusted_certificate
-            ? std::string{}
-            : std::move(authority_certificate),
-        .TotalTimeout =
-            scenario == fixture_scenario::timeout
-            ? 1s
-            : 5s,
-        .ResponseBodyLimit =
-            scenario == fixture_scenario::response_limit
-            ? 1'024U
-            : native_https_maximum_response_body_bytes,
+                ? std::string{}
+                : std::move(authority_certificate),
+        .TotalTimeout = scenario == fixture_scenario::timeout ? 1s : 5s,
+        .ResponseBodyLimit = scenario == fixture_scenario::response_limit
+                                 ? 1'024U
+                                 : native_https_maximum_response_body_bytes,
     };
-    auto transport = fixture_transport(
-        *profile,
-        request,
-        framed_credential,
-        configuration);
+
+    if(scenario == fixture_scenario::capability_success
+       || scenario == fixture_scenario::capability_redirect
+       || scenario == fixture_scenario::capability_403_rate
+       || scenario == fixture_scenario::capability_429)
+    {
+        const auto request = capability_request_for(
+            *profile, session_context(*profile), core::github_account_id{203});
+        auto transport = fixture_transport(*profile, request, framed_credential,
+                                           configuration);
+        wipe(framed_credential);
+        expect(transport.has_value(), "capability-fixture-transport");
+        const auto completion =
+            (*transport)->perform_capability_probe(request, std::stop_token{});
+        expect_capability_fixture_completion(completion, request.Correlation,
+                                             scenario);
+        return;
+    }
+
+    const auto operation =
+        scenario == fixture_scenario::graphql_redirect
+                || scenario == fixture_scenario::graphql_link
+                || scenario == fixture_scenario::graphql_403_rate
+            ? read_operation::list_review_threads
+            : read_operation::get_viewer_identity;
+    const auto request = wire_request_for(*profile, operation);
+    auto transport =
+        fixture_transport(*profile, request, framed_credential, configuration);
     wipe(framed_credential);
     expect(transport.has_value(), "fixture-transport");
 
     const auto started = std::chrono::steady_clock::now();
-    const auto completion =
-        perform_fixture(**transport, request, scenario);
-    const auto elapsed =
-        std::chrono::steady_clock::now() - started;
+    const auto completion = perform_fixture(**transport, request, scenario);
+    const auto elapsed = std::chrono::steady_clock::now() - started;
     if(scenario == fixture_scenario::timeout)
     {
-        expect(
-            elapsed >= 500ms && elapsed < 4s,
-            "fixture-timeout-window");
+        expect(elapsed >= 500ms && elapsed < 4s, "fixture-timeout-window");
     }
-    expect_fixture_completion(
-        completion,
-        request.Correlation,
-        scenario);
-    if(
-        scenario != fixture_scenario::graphql_redirect
-        && scenario != fixture_scenario::pre_cancel)
+    expect_fixture_completion(completion, request.Correlation, scenario);
+    if(scenario != fixture_scenario::graphql_redirect
+       && scenario != fixture_scenario::graphql_link
+       && scenario != fixture_scenario::graphql_403_rate
+       && scenario != fixture_scenario::pre_cancel)
     {
-        const auto replay =
-            (*transport)->perform(request, std::stop_token{});
-        expect_unavailable(
-            replay,
-            request.Correlation,
-            "fixture-bootstrap-one-shot");
+        const auto replay = (*transport)->perform(request, std::stop_token{});
+        expect_unavailable(replay, request.Correlation,
+                           "fixture-bootstrap-one-shot");
     }
 }
-}
+} // namespace
 
 auto main(int argument_count, char* arguments[]) -> int
 {

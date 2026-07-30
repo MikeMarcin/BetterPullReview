@@ -166,6 +166,74 @@ add_test(
 )
 
 add_executable(
+    better_pull_review_github_paged_read_tests
+    github_paged_read_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_github_paged_read_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+)
+target_include_directories(
+    better_pull_review_github_paged_read_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+bpr_enable_hardening(
+    better_pull_review_github_paged_read_tests
+)
+bpr_enable_warnings(
+    better_pull_review_github_paged_read_tests
+)
+
+add_test(
+    NAME github_paged_read
+    COMMAND better_pull_review_github_paged_read_tests
+)
+
+add_executable(
+    better_pull_review_github_provider_tests
+    github_provider_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_github_provider_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+        Threads::Threads
+)
+target_include_directories(
+    better_pull_review_github_provider_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    better_pull_review_github_provider_tests
+    PRIVATE
+        BPR_GITHUB_CAPABILITY_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1"
+)
+bpr_enable_hardening(
+    better_pull_review_github_provider_tests
+)
+bpr_enable_warnings(
+    better_pull_review_github_provider_tests
+)
+
+add_test(
+    NAME github_provider
+    COMMAND better_pull_review_github_provider_tests
+)
+set_tests_properties(
+    github_provider
+    PROPERTIES
+        TIMEOUT 30
+)
+
+add_executable(
     better_pull_review_github_host_profile_tests
     github_host_profile_tests.cpp
 )

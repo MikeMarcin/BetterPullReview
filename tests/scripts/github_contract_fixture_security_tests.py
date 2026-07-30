@@ -579,10 +579,14 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                     "74beb2502143f244fdb4da3"
                 ),
                 "response_sha256": (
-                    "85a692f13e121c130d997454795a0601440b3b03d"
-                    "ca5629e0892b451738b6bc3"
+                    "07bb01a60bf0c640d1b98bce84a7f405503421fa"
+                    "faa2b50fd753e63b2dedfa01"
                 ),
+                "query_fields": 31,
                 "mutation_fields": 271,
+                "repository_fields": 145,
+                "actor_possible_types": 5,
+                "node_possible_types": 280,
                 "pull_request_fields": 113,
             },
             "ghes-3.18": {
@@ -599,16 +603,20 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                     "3f02bbabfec17c3c1320b066"
                 ),
                 "response_sha256": (
-                    "cc2d5829ce4c75c137f79969b7270034067c753c"
-                    "fb8dc66b29ce42a0e211774c"
+                    "eb36681a142fd49d6086a9fa629ffe50850504571"
+                    "0272c27bde79ffa974d768a"
                 ),
+                "query_fields": 24,
                 "mutation_fields": 224,
+                "repository_fields": 133,
+                "actor_possible_types": 5,
+                "node_possible_types": 244,
                 "pull_request_fields": 109,
             },
         }
         query_sha256 = (
-            "839ec85171a2d9fb21e23a50890723331e5944725"
-            "2953a7de16f3847d5be6730"
+            "892ad33dcb73ef8b9ed7a4e4e6f6e628568e4de5"
+            "267eca87ed246122701feb10"
         )
 
         responses = []
@@ -643,7 +651,11 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                         "generator",
                         "query_sha256",
                         "response_sha256",
+                        "query_fields",
                         "mutation_fields",
+                        "repository_fields",
+                        "actor_possible_types",
+                        "node_possible_types",
                         "pull_request_fields",
                     },
                 )
@@ -676,8 +688,24 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                     query_sha256,
                 )
                 self.assertEqual(
+                    manifest["projection"]["query_fields"],
+                    contract["query_fields"],
+                )
+                self.assertEqual(
                     manifest["projection"]["mutation_fields"],
                     contract["mutation_fields"],
+                )
+                self.assertEqual(
+                    manifest["projection"]["repository_fields"],
+                    contract["repository_fields"],
+                )
+                self.assertEqual(
+                    manifest["projection"]["actor_possible_types"],
+                    contract["actor_possible_types"],
+                )
+                self.assertEqual(
+                    manifest["projection"]["node_possible_types"],
+                    contract["node_possible_types"],
                 )
                 self.assertEqual(
                     manifest["projection"]["pull_request_fields"],

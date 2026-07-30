@@ -11,9 +11,13 @@
   },
   "projection": {
     "generator": "graphql-js 16.11.0 buildSchema/graphqlSync",
-    "query_sha256": "839ec85171a2d9fb21e23a50890723331e59447252953a7de16f3847d5be6730",
-    "response_sha256": "cc2d5829ce4c75c137f79969b7270034067c753cfb8dc66b29ce42a0e211774c",
+    "query_sha256": "892ad33dcb73ef8b9ed7a4e4e6f6e628568e4de5267eca87ed246122701feb10",
+    "response_sha256": "eb36681a142fd49d6086a9fa629ffe508505045710272c27bde79ffa974d768a",
+    "query_fields": 24,
     "mutation_fields": 224,
+    "repository_fields": 133,
+    "actor_possible_types": 5,
+    "node_possible_types": 244,
     "pull_request_fields": 109
   },
   "expected": {

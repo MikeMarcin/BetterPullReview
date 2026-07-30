@@ -25,7 +25,9 @@ namespace
 {
 constexpr std::string_view graphql_document =
     "query BetterPullReviewCapabilityProbeV1{"
-    "schemaRoot:__schema{mutationType{...FieldType}}"
+    "schemaRoot:__schema{queryType{...FieldType}"
+    "mutationType{...FieldType}}"
+    "repository:__type(name:\"Repository\"){...FieldType}"
     "pullRequest:__type(name:\"PullRequest\"){...FieldType}"
     "threadConnection:__type(name:\"PullRequestReviewThreadConnection\")"
     "{...FieldType}"
@@ -39,6 +41,10 @@ constexpr std::string_view graphql_document =
     "pageInfo:__type(name:\"PageInfo\"){...FieldType}"
     "actor:__type(name:\"Actor\"){...FieldType}"
     "node:__type(name:\"Node\"){...FieldType}"
+    "reviewThreadInterfaces:__type(name:\"PullRequestReviewThread\")"
+    "{...InterfaceType}"
+    "actorPossibleTypes:__type(name:\"Actor\"){...PossibleType}"
+    "nodePossibleTypes:__type(name:\"Node\"){...PossibleType}"
     "threadSubject:__type(name:\"PullRequestReviewThreadSubjectType\")"
     "{...EnumType}"
     "fileViewedState:__type(name:\"FileViewedState\"){...EnumType}"
@@ -63,7 +69,9 @@ constexpr std::string_view graphql_document =
     "fragment InputType on __Type{kind name inputFields{name defaultValue "
     "type{...TypeRef}}}"
     "fragment EnumType on __Type{kind name "
-    "enumValues(includeDeprecated:true){name}}";
+    "enumValues(includeDeprecated:true){name}}"
+    "fragment InterfaceType on __Type{kind name interfaces{kind name}}"
+    "fragment PossibleType on __Type{kind name possibleTypes{kind name}}";
 
 constexpr capability_probe_limits hard_limits{};
 
@@ -236,8 +244,9 @@ constexpr capability_probe_limits hard_limits{};
 
 static_assert(query_only_graphql_document(graphql_document));
 
-constexpr std::array<std::string_view, 21> response_aliases{
+constexpr std::array<std::string_view, 25> response_aliases{
     "schemaRoot",
+    "repository",
     "pullRequest",
     "threadConnection",
     "reviewThread",
@@ -248,6 +257,9 @@ constexpr std::array<std::string_view, 21> response_aliases{
     "pageInfo",
     "actor",
     "node",
+    "reviewThreadInterfaces",
+    "actorPossibleTypes",
+    "nodePossibleTypes",
     "threadSubject",
     "fileViewedState",
     "markInput",
@@ -612,6 +624,8 @@ enum class selected_type_shape : std::uint8_t
     fields,
     input_fields,
     enum_values,
+    interfaces,
+    possible_types,
 };
 
 enum class type_wrapper : std::uint8_t
@@ -643,31 +657,37 @@ struct selected_schema_type
     QJsonArray Members;
 };
 
-[[nodiscard]] auto kind_has_selected_members(
-    const QString& kind,
-    const selected_type_shape shape) -> bool
+[[nodiscard]] auto kind_has_selected_members(const QString& kind,
+                                             const selected_type_shape shape)
+    -> bool
 {
     switch(shape)
     {
     case selected_type_shape::fields:
         return kind == QStringLiteral("OBJECT")
-            || kind == QStringLiteral("INTERFACE");
+               || kind == QStringLiteral("INTERFACE");
     case selected_type_shape::input_fields:
         return kind == QStringLiteral("INPUT_OBJECT");
     case selected_type_shape::enum_values:
         return kind == QStringLiteral("ENUM");
+    case selected_type_shape::interfaces:
+        return kind == QStringLiteral("OBJECT")
+               || kind == QStringLiteral("INTERFACE");
+    case selected_type_shape::possible_types:
+        return kind == QStringLiteral("INTERFACE")
+               || kind == QStringLiteral("UNION");
     }
     return false;
 }
 
-[[nodiscard]] auto fact_index(
-    const capability_schema_fact fact) noexcept -> std::size_t
+[[nodiscard]] auto fact_index(const capability_schema_fact fact) noexcept
+    -> std::size_t
 {
     return static_cast<std::size_t>(fact);
 }
 
-[[nodiscard]] auto unavailable(
-    const capability_probe_unavailability reason) noexcept
+[[nodiscard]] auto
+unavailable(const capability_probe_unavailability reason) noexcept
     -> capability_probe_observation
 {
     return {
@@ -678,35 +698,30 @@ struct selected_schema_type
     };
 }
 
-[[nodiscard]] auto valid_limits(
-    const capability_probe_limits& limits) noexcept -> bool
+[[nodiscard]] auto valid_limits(const capability_probe_limits& limits) noexcept
+    -> bool
 {
-    const auto within = [](const std::size_t value,
-                           const std::size_t maximum) {
+    const auto within = [](const std::size_t value, const std::size_t maximum) {
         return value != 0U && value <= maximum;
     };
-    return within(
-               limits.MaximumRequestBytes,
-               hard_limits.MaximumRequestBytes)
-        && within(
-            limits.MaximumResponseBytes,
-            hard_limits.MaximumResponseBytes)
-        && within(limits.MaximumDepth, hard_limits.MaximumDepth)
-        && within(
-            limits.MaximumObjectMembers,
-            hard_limits.MaximumObjectMembers)
-        && within(
-            limits.MaximumArrayElements,
-            hard_limits.MaximumArrayElements)
-        && within(
-            limits.MaximumMutationFields,
-            hard_limits.MaximumMutationFields)
-        && within(
-            limits.MaximumPullRequestFields,
-            hard_limits.MaximumPullRequestFields)
-        && within(
-            limits.MaximumOtherTypeFields,
-            hard_limits.MaximumOtherTypeFields)
+    return within(limits.MaximumRequestBytes, hard_limits.MaximumRequestBytes)
+           && within(limits.MaximumResponseBytes,
+                     hard_limits.MaximumResponseBytes)
+           && within(limits.MaximumDepth, hard_limits.MaximumDepth)
+           && within(limits.MaximumObjectMembers,
+                     hard_limits.MaximumObjectMembers)
+           && within(limits.MaximumArrayElements,
+                     hard_limits.MaximumArrayElements)
+           && within(limits.MaximumQueryFields, hard_limits.MaximumQueryFields)
+           && within(limits.MaximumMutationFields,
+                     hard_limits.MaximumMutationFields)
+           && within(limits.MaximumRepositoryFields,
+                     hard_limits.MaximumRepositoryFields)
+           && within(limits.MaximumPullRequestFields,
+                     hard_limits.MaximumPullRequestFields)
+           && within(limits.MaximumOtherTypeFields,
+                     hard_limits.MaximumOtherTypeFields)
+           && within(limits.MaximumNamedTypes, hard_limits.MaximumNamedTypes)
         && within(
             limits.MaximumArguments,
             hard_limits.MaximumArguments)
@@ -1038,13 +1053,50 @@ struct selected_schema_type
     return true;
 }
 
-[[nodiscard]] auto parse_selected_type(
-    const QJsonValue& value,
-    const std::string_view expected_name,
-    const selected_type_shape shape,
-    const std::size_t maximum_fields,
-    const capability_probe_limits& limits,
-    selected_schema_type& output) -> bool
+[[nodiscard]] auto
+validate_named_type_members(const QJsonArray& values,
+                            const capability_probe_limits& limits) -> bool
+{
+    if(values.size() > static_cast<qsizetype>(limits.MaximumNamedTypes))
+    {
+        return false;
+    }
+    QSet<QString> names;
+    for(const auto& value : values)
+    {
+        if(!value.isObject())
+        {
+            return false;
+        }
+        const auto object = value.toObject();
+        if(!exact_keys(object,
+                       {
+                           QStringLiteral("kind"),
+                           QStringLiteral("name"),
+                       })
+           || !object.value("kind").isString()
+           || !valid_kind(object.value("kind").toString())
+           || !object.value("name").isString()
+           || object.value("name").toString().isEmpty())
+        {
+            return false;
+        }
+        const auto name = object.value("name").toString();
+        if(names.contains(name))
+        {
+            return false;
+        }
+        names.insert(name);
+    }
+    return true;
+}
+
+[[nodiscard]] auto parse_selected_type(const QJsonValue& value,
+                                       const std::string_view expected_name,
+                                       const selected_type_shape shape,
+                                       const std::size_t maximum_fields,
+                                       const capability_probe_limits& limits,
+                                       selected_schema_type& output) -> bool
 {
     if(value.isNull())
     {
@@ -1064,10 +1116,14 @@ struct selected_schema_type
 
     const auto object = value.toObject();
     const auto member_name = shape == selected_type_shape::fields
-        ? QStringLiteral("fields")
-        : shape == selected_type_shape::input_fields
-        ? QStringLiteral("inputFields")
-        : QStringLiteral("enumValues");
+                                 ? QStringLiteral("fields")
+                             : shape == selected_type_shape::input_fields
+                                 ? QStringLiteral("inputFields")
+                             : shape == selected_type_shape::enum_values
+                                 ? QStringLiteral("enumValues")
+                             : shape == selected_type_shape::interfaces
+                                 ? QStringLiteral("interfaces")
+                                 : QStringLiteral("possibleTypes");
     if(
         !exact_keys(
             object,
@@ -1124,6 +1180,9 @@ struct selected_schema_type
         return validate_input_members(output.Members, limits);
     case selected_type_shape::enum_values:
         return validate_enum_members(output.Members, limits);
+    case selected_type_shape::interfaces:
+    case selected_type_shape::possible_types:
+        return validate_named_type_members(output.Members, limits);
     }
     return false;
 }
@@ -1268,6 +1327,69 @@ struct selected_schema_type
     for(const auto expected : required_values)
     {
         if(!find_named_member(type.Members, expected).has_value())
+        {
+            return capability_schema_fact_state::incompatible;
+        }
+    }
+    return capability_schema_fact_state::matched;
+}
+
+[[nodiscard]] auto named_type_requirement(const selected_schema_type& type,
+                                          const std::string_view expected_kind,
+                                          const std::string_view member_kind,
+                                          const std::string_view member_name)
+    -> capability_schema_fact_state
+{
+    if(type.Missing)
+    {
+        return capability_schema_fact_state::missing;
+    }
+    if(type.Kind
+           != QString::fromUtf8(expected_kind.data(),
+                                static_cast<qsizetype>(expected_kind.size()))
+       || !type.MembersAvailable)
+    {
+        return capability_schema_fact_state::incompatible;
+    }
+    const auto expected_member_kind = QString::fromUtf8(
+        member_kind.data(), static_cast<qsizetype>(member_kind.size()));
+    const auto member = find_named_member(type.Members, member_name);
+    return member.has_value()
+                   && member->value("kind").toString() == expected_member_kind
+               ? capability_schema_fact_state::matched
+               : capability_schema_fact_state::incompatible;
+}
+
+[[nodiscard]] auto
+named_type_subset_requirement(const selected_schema_type& left,
+                              const selected_schema_type& right)
+    -> capability_schema_fact_state
+{
+    if(left.Missing || right.Missing)
+    {
+        return capability_schema_fact_state::missing;
+    }
+    if(left.Kind != QStringLiteral("INTERFACE")
+       || right.Kind != QStringLiteral("INTERFACE") || !left.MembersAvailable
+       || !right.MembersAvailable)
+    {
+        return capability_schema_fact_state::incompatible;
+    }
+    if(left.Members.isEmpty())
+    {
+        return capability_schema_fact_state::incompatible;
+    }
+    for(const auto& value : left.Members)
+    {
+        const auto member = value.toObject();
+        if(member.value("kind").toString() != QStringLiteral("OBJECT"))
+        {
+            return capability_schema_fact_state::incompatible;
+        }
+        const auto name = member.value("name").toString().toStdString();
+        const auto matching = find_named_member(right.Members, name);
+        if(!matching.has_value()
+           || matching->value("kind").toString() != QStringLiteral("OBJECT"))
         {
             return capability_schema_fact_state::incompatible;
         }
@@ -1446,9 +1568,16 @@ template<typename... States>
     const auto schema = data.value("schemaRoot");
     if(
         schema.isObject()
-        && field_array_exceeds_limits(
-            schema.toObject().value("mutationType"),
-            limits.MaximumMutationFields,
+        && (field_array_exceeds_limits(schema.toObject().value("queryType"),
+                                      limits.MaximumQueryFields, limits)
+           || field_array_exceeds_limits(
+               schema.toObject().value("mutationType"),
+               limits.MaximumMutationFields, limits)))
+    {
+        return true;
+    }
+    if(field_array_exceeds_limits(data.value("repository"),
+                                  limits.MaximumRepositoryFields,
             limits))
     {
         return true;
@@ -1529,61 +1658,73 @@ template<typename... States>
             return true;
         }
     }
+    for(const auto alias : {
+            "reviewThreadInterfaces",
+            "actorPossibleTypes",
+            "nodePossibleTypes",
+        })
+    {
+        const auto value = data.value(alias);
+        if(!value.isObject())
+        {
+            continue;
+        }
+        const auto object = value.toObject();
+        const auto members = object.contains("interfaces")
+                                 ? object.value("interfaces")
+                                 : object.value("possibleTypes");
+        if(members.isArray()
+           && members.toArray().size()
+                  > static_cast<qsizetype>(limits.MaximumNamedTypes))
+        {
+            return true;
+        }
+    }
     return false;
 }
 
-[[nodiscard]] auto evaluate_schema(
-    const QJsonObject& data,
-    const capability_probe_limits& limits,
-    capability_probe_observation& output) -> bool
+[[nodiscard]] auto evaluate_schema(const QJsonObject& data,
+                                   const capability_probe_limits& limits,
+                                   capability_probe_observation& output) -> bool
 {
-    const auto parse_fields =
-        [&data, &limits](
-            const std::string_view alias,
-            const std::string_view type_name,
-            const std::size_t maximum,
-            selected_schema_type& result) {
-            return parse_selected_type(
-                data.value(QString::fromUtf8(
-                    alias.data(),
-                    static_cast<qsizetype>(alias.size()))),
-                type_name,
-                selected_type_shape::fields,
-                maximum,
-                limits,
-                result);
-        };
-    const auto parse_input =
-        [&data, &limits](
-            const std::string_view alias,
-            const std::string_view type_name,
-            selected_schema_type& result) {
-            return parse_selected_type(
-                data.value(QString::fromUtf8(
-                    alias.data(),
-                    static_cast<qsizetype>(alias.size()))),
-                type_name,
-                selected_type_shape::input_fields,
-                limits.MaximumInputFields,
-                limits,
-                result);
-        };
-    const auto parse_enum =
-        [&data, &limits](
-            const std::string_view alias,
-            const std::string_view type_name,
-            selected_schema_type& result) {
-            return parse_selected_type(
-                data.value(QString::fromUtf8(
-                    alias.data(),
-                    static_cast<qsizetype>(alias.size()))),
-                type_name,
-                selected_type_shape::enum_values,
-                limits.MaximumEnumValues,
-                limits,
-                result);
-        };
+    const auto parse_fields = [&data, &limits](const std::string_view alias,
+                                               const std::string_view type_name,
+                                               const std::size_t maximum,
+                                               selected_schema_type& result) {
+        return parse_selected_type(
+            data.value(QString::fromUtf8(alias.data(),
+                                         static_cast<qsizetype>(alias.size()))),
+            type_name, selected_type_shape::fields, maximum, limits, result);
+    };
+    const auto parse_input = [&data, &limits](const std::string_view alias,
+                                              const std::string_view type_name,
+                                              selected_schema_type& result) {
+        return parse_selected_type(
+            data.value(QString::fromUtf8(alias.data(),
+                                         static_cast<qsizetype>(alias.size()))),
+            type_name, selected_type_shape::input_fields,
+            limits.MaximumInputFields, limits, result);
+    };
+    const auto parse_enum = [&data, &limits](const std::string_view alias,
+                                             const std::string_view type_name,
+                                             selected_schema_type& result) {
+        return parse_selected_type(
+            data.value(QString::fromUtf8(alias.data(),
+                                         static_cast<qsizetype>(alias.size()))),
+            type_name, selected_type_shape::enum_values,
+            limits.MaximumEnumValues, limits, result);
+    };
+    const auto parse_named = [&data, &limits](const std::string_view alias,
+                                              const std::string_view type_name,
+                                              const selected_type_shape shape,
+                                              selected_schema_type& result) {
+        return parse_selected_type(
+            data.value(QString::fromUtf8(alias.data(),
+                                         static_cast<qsizetype>(alias.size()))),
+            type_name, shape, limits.MaximumNamedTypes, limits, result);
+    };
 
+    selected_schema_type query;
     selected_schema_type mutation;
     const auto schema_root = data.value("schemaRoot");
     if(!schema_root.isObject())
@@ -1591,21 +1732,22 @@ template<typename... States>
         return false;
     }
     const auto schema_object = schema_root.toObject();
-    if(
-        !exact_keys(
-            schema_object,
-            {QStringLiteral("mutationType")})
-        || !parse_selected_type(
-            schema_object.value("mutationType"),
-            {},
-            selected_type_shape::fields,
-            limits.MaximumMutationFields,
-            limits,
-            mutation))
+    if(!exact_keys(schema_object,
+                   {
+                       QStringLiteral("queryType"),
+                       QStringLiteral("mutationType"),
+                   })
+       || !parse_selected_type(schema_object.value("queryType"), {},
+                               selected_type_shape::fields,
+                               limits.MaximumQueryFields, limits, query)
+       || !parse_selected_type(schema_object.value("mutationType"), {},
+                               selected_type_shape::fields,
+                               limits.MaximumMutationFields, limits, mutation))
     {
         return false;
     }
 
+    selected_schema_type repository;
     selected_schema_type pull_request;
     selected_schema_type thread_connection;
     selected_schema_type review_thread;
@@ -1616,6 +1758,9 @@ template<typename... States>
     selected_schema_type page_info;
     selected_schema_type actor;
     selected_schema_type node;
+    selected_schema_type review_thread_interfaces;
+    selected_schema_type actor_possible_types;
+    selected_schema_type node_possible_types;
     selected_schema_type thread_subject;
     selected_schema_type viewed_state;
     selected_schema_type mark_input;
@@ -1627,101 +1772,53 @@ template<typename... States>
     selected_schema_type unresolve_input;
     selected_schema_type unresolve_payload;
 
-    if(
-        !parse_fields(
-            "pullRequest",
-            "PullRequest",
-            limits.MaximumPullRequestFields,
-            pull_request)
-        || !parse_fields(
-            "threadConnection",
-            "PullRequestReviewThreadConnection",
-            limits.MaximumOtherTypeFields,
-            thread_connection)
-        || !parse_fields(
-            "reviewThread",
-            "PullRequestReviewThread",
-            limits.MaximumOtherTypeFields,
-            review_thread)
-        || !parse_fields(
-            "commentConnection",
-            "PullRequestReviewCommentConnection",
-            limits.MaximumOtherTypeFields,
-            comment_connection)
-        || !parse_fields(
-            "reviewComment",
-            "PullRequestReviewComment",
-            limits.MaximumOtherTypeFields,
-            review_comment)
-        || !parse_fields(
-            "changedFileConnection",
-            "PullRequestChangedFileConnection",
-            limits.MaximumOtherTypeFields,
-            changed_file_connection)
-        || !parse_fields(
-            "changedFile",
-            "PullRequestChangedFile",
-            limits.MaximumOtherTypeFields,
-            changed_file)
-        || !parse_fields(
-            "pageInfo",
-            "PageInfo",
-            limits.MaximumOtherTypeFields,
-            page_info)
-        || !parse_fields(
-            "actor",
-            "Actor",
-            limits.MaximumOtherTypeFields,
-            actor)
-        || !parse_fields(
-            "node",
-            "Node",
-            limits.MaximumOtherTypeFields,
-            node)
-        || !parse_enum(
-            "threadSubject",
-            "PullRequestReviewThreadSubjectType",
-            thread_subject)
-        || !parse_enum(
-            "fileViewedState",
-            "FileViewedState",
-            viewed_state)
-        || !parse_input(
-            "markInput",
-            "MarkFileAsViewedInput",
-            mark_input)
-        || !parse_fields(
-            "markPayload",
-            "MarkFileAsViewedPayload",
-            limits.MaximumOtherTypeFields,
-            mark_payload)
-        || !parse_input(
-            "unmarkInput",
-            "UnmarkFileAsViewedInput",
-            unmark_input)
-        || !parse_fields(
-            "unmarkPayload",
-            "UnmarkFileAsViewedPayload",
-            limits.MaximumOtherTypeFields,
-            unmark_payload)
-        || !parse_input(
-            "resolveInput",
-            "ResolveReviewThreadInput",
-            resolve_input)
-        || !parse_fields(
-            "resolvePayload",
-            "ResolveReviewThreadPayload",
-            limits.MaximumOtherTypeFields,
-            resolve_payload)
-        || !parse_input(
-            "unresolveInput",
-            "UnresolveReviewThreadInput",
-            unresolve_input)
-        || !parse_fields(
-            "unresolvePayload",
-            "UnresolveReviewThreadPayload",
-            limits.MaximumOtherTypeFields,
-            unresolve_payload))
+    if(!parse_fields("repository", "Repository", limits.MaximumRepositoryFields,
+                     repository)
+       || !parse_fields("pullRequest", "PullRequest",
+                        limits.MaximumPullRequestFields, pull_request)
+       || !parse_fields("threadConnection", "PullRequestReviewThreadConnection",
+                        limits.MaximumOtherTypeFields, thread_connection)
+       || !parse_fields("reviewThread", "PullRequestReviewThread",
+                        limits.MaximumOtherTypeFields, review_thread)
+       || !parse_fields("commentConnection",
+                        "PullRequestReviewCommentConnection",
+                        limits.MaximumOtherTypeFields, comment_connection)
+       || !parse_fields("reviewComment", "PullRequestReviewComment",
+                        limits.MaximumOtherTypeFields, review_comment)
+       || !parse_fields("changedFileConnection",
+                        "PullRequestChangedFileConnection",
+                        limits.MaximumOtherTypeFields, changed_file_connection)
+       || !parse_fields("changedFile", "PullRequestChangedFile",
+                        limits.MaximumOtherTypeFields, changed_file)
+       || !parse_fields("pageInfo", "PageInfo", limits.MaximumOtherTypeFields,
+                        page_info)
+       || !parse_fields("actor", "Actor", limits.MaximumOtherTypeFields, actor)
+       || !parse_fields("node", "Node", limits.MaximumOtherTypeFields, node)
+       || !parse_named("reviewThreadInterfaces", "PullRequestReviewThread",
+                       selected_type_shape::interfaces,
+                       review_thread_interfaces)
+       || !parse_named("actorPossibleTypes", "Actor",
+                       selected_type_shape::possible_types,
+                       actor_possible_types)
+       || !parse_named("nodePossibleTypes", "Node",
+                       selected_type_shape::possible_types, node_possible_types)
+       || !parse_enum("threadSubject", "PullRequestReviewThreadSubjectType",
+                      thread_subject)
+       || !parse_enum("fileViewedState", "FileViewedState", viewed_state)
+       || !parse_input("markInput", "MarkFileAsViewedInput", mark_input)
+       || !parse_fields("markPayload", "MarkFileAsViewedPayload",
+                        limits.MaximumOtherTypeFields, mark_payload)
+       || !parse_input("unmarkInput", "UnmarkFileAsViewedInput", unmark_input)
+       || !parse_fields("unmarkPayload", "UnmarkFileAsViewedPayload",
+                        limits.MaximumOtherTypeFields, unmark_payload)
+       || !parse_input("resolveInput", "ResolveReviewThreadInput",
+                       resolve_input)
+       || !parse_fields("resolvePayload", "ResolveReviewThreadPayload",
+                        limits.MaximumOtherTypeFields, resolve_payload)
+       || !parse_input("unresolveInput", "UnresolveReviewThreadInput",
+                       unresolve_input)
+       || !parse_fields("unresolvePayload", "UnresolveReviewThreadPayload",
+                        limits.MaximumOtherTypeFields, unresolve_payload))
     {
         return false;
     }
@@ -1734,160 +1831,104 @@ template<typename... States>
         .Name = "first",
         .Type = scalar("Int"),
     };
+    const argument_requirement id{
+        .Name = "id",
+        .Type = scalar("ID", true),
+    };
+    const argument_requirement name{
+        .Name = "name",
+        .Type = scalar("String", true),
+    };
+    const argument_requirement number{
+        .Name = "number",
+        .Type = scalar("Int", true),
+    };
+    const argument_requirement owner{
+        .Name = "owner",
+        .Type = scalar("String", true),
+    };
+
+    const auto repository_pull_request_read = combined_fact(
+        field_requirement(query, "OBJECT", "repository",
+                          object_type("Repository"), {name, owner}),
+        field_requirement(repository, "OBJECT", "id", scalar("ID", true)),
+        field_requirement(repository, "OBJECT", "pullRequest",
+                          object_type("PullRequest"), {number}),
+        field_requirement(pull_request, "OBJECT", "id", scalar("ID", true)));
 
     const auto review_read = combined_fact(
+        repository_pull_request_read,
+        field_requirement(query, "OBJECT", "node", interface_type("Node"),
+                          {id}),
+        named_type_requirement(review_thread_interfaces, "OBJECT", "INTERFACE",
+                               "Node"),
+        named_type_subset_requirement(actor_possible_types,
+                                      node_possible_types),
         field_requirement(
-            pull_request,
-            "OBJECT",
-            "reviewThreads",
-            object_type(
-                "PullRequestReviewThreadConnection",
-                true),
+            pull_request, "OBJECT", "reviewThreads",
+            object_type("PullRequestReviewThreadConnection", true),
             {after, first}),
+        field_requirement(thread_connection, "OBJECT", "nodes",
+                          list_of_objects("PullRequestReviewThread")),
+        field_requirement(thread_connection, "OBJECT", "pageInfo",
+                          object_type("PageInfo", true)),
+        field_requirement(thread_connection, "OBJECT", "totalCount",
+                          scalar("Int", true)),
+        field_requirement(review_thread, "OBJECT", "id", scalar("ID", true)),
+        field_requirement(review_thread, "OBJECT", "isResolved",
+                          scalar("Boolean", true)),
+        field_requirement(review_thread, "OBJECT", "isOutdated",
+                          scalar("Boolean", true)),
         field_requirement(
-            thread_connection,
-            "OBJECT",
-            "nodes",
-            list_of_objects("PullRequestReviewThread")),
+            review_thread, "OBJECT", "subjectType",
+            enum_type("PullRequestReviewThreadSubjectType", true)),
+        field_requirement(review_thread, "OBJECT", "path",
+                          scalar("String", true)),
+        field_requirement(review_thread, "OBJECT", "line", scalar("Int")),
+        field_requirement(review_thread, "OBJECT", "originalLine",
+                          scalar("Int")),
         field_requirement(
-            thread_connection,
-            "OBJECT",
-            "pageInfo",
-            object_type("PageInfo", true)),
-        field_requirement(
-            review_thread,
-            "OBJECT",
-            "id",
-            scalar("ID", true)),
-        field_requirement(
-            review_thread,
-            "OBJECT",
-            "isResolved",
-            scalar("Boolean", true)),
-        field_requirement(
-            review_thread,
-            "OBJECT",
-            "isOutdated",
-            scalar("Boolean", true)),
-        field_requirement(
-            review_thread,
-            "OBJECT",
-            "subjectType",
-            enum_type(
-                "PullRequestReviewThreadSubjectType",
-                true)),
-        field_requirement(
-            review_thread,
-            "OBJECT",
-            "path",
-            scalar("String", true)),
-        field_requirement(
-            review_thread,
-            "OBJECT",
-            "line",
-            scalar("Int")),
-        field_requirement(
-            review_thread,
-            "OBJECT",
-            "originalLine",
-            scalar("Int")),
-        field_requirement(
-            review_thread,
-            "OBJECT",
-            "comments",
-            object_type(
-                "PullRequestReviewCommentConnection",
-                true),
+            review_thread, "OBJECT", "comments",
+            object_type("PullRequestReviewCommentConnection", true),
             {after, first}),
-        field_requirement(
-            comment_connection,
-            "OBJECT",
-            "nodes",
-            list_of_objects("PullRequestReviewComment")),
-        field_requirement(
-            comment_connection,
-            "OBJECT",
-            "pageInfo",
-            object_type("PageInfo", true)),
-        field_requirement(
-            review_comment,
-            "OBJECT",
-            "id",
-            scalar("ID", true)),
-        field_requirement(
-            review_comment,
-            "OBJECT",
-            "bodyText",
-            scalar("String", true)),
-        field_requirement(
-            review_comment,
-            "OBJECT",
-            "path",
-            scalar("String", true)),
-        field_requirement(
-            review_comment,
-            "OBJECT",
-            "line",
-            scalar("Int")),
-        field_requirement(
-            review_comment,
-            "OBJECT",
-            "originalLine",
-            scalar("Int")),
-        field_requirement(
-            review_comment,
-            "OBJECT",
-            "outdated",
-            scalar("Boolean", true)),
-        field_requirement(
-            review_comment,
-            "OBJECT",
-            "author",
-            interface_type("Actor")),
-        field_requirement(
-            review_comment,
-            "OBJECT",
-            "replyTo",
-            object_type("PullRequestReviewComment")),
-        field_requirement(
-            page_info,
-            "OBJECT",
-            "hasNextPage",
-            scalar("Boolean", true)),
-        field_requirement(
-            page_info,
-            "OBJECT",
-            "endCursor",
-            scalar("String")),
-        field_requirement(
-            actor,
-            "INTERFACE",
-            "login",
-            scalar("String", true)),
-        field_requirement(
-            node,
-            "INTERFACE",
-            "id",
-            scalar("ID", true)),
+        field_requirement(comment_connection, "OBJECT", "nodes",
+                          list_of_objects("PullRequestReviewComment")),
+        field_requirement(comment_connection, "OBJECT", "pageInfo",
+                          object_type("PageInfo", true)),
+        field_requirement(comment_connection, "OBJECT", "totalCount",
+                          scalar("Int", true)),
+        field_requirement(review_comment, "OBJECT", "id", scalar("ID", true)),
+        field_requirement(review_comment, "OBJECT", "bodyText",
+                          scalar("String", true)),
+        field_requirement(review_comment, "OBJECT", "path",
+                          scalar("String", true)),
+        field_requirement(review_comment, "OBJECT", "line", scalar("Int")),
+        field_requirement(review_comment, "OBJECT", "originalLine",
+                          scalar("Int")),
+        field_requirement(review_comment, "OBJECT", "outdated",
+                          scalar("Boolean", true)),
+        field_requirement(review_comment, "OBJECT", "author",
+                          interface_type("Actor")),
+        field_requirement(review_comment, "OBJECT", "replyTo",
+                          object_type("PullRequestReviewComment")),
+        field_requirement(page_info, "OBJECT", "hasNextPage",
+                          scalar("Boolean", true)),
+        field_requirement(page_info, "OBJECT", "endCursor", scalar("String")),
+        field_requirement(actor, "INTERFACE", "login", scalar("String", true)),
+        field_requirement(node, "INTERFACE", "id", scalar("ID", true)),
         enum_requirement(thread_subject, {"FILE", "LINE"}));
 
     const auto viewed_read = combined_fact(
-        field_requirement(
-            pull_request,
-            "OBJECT",
-            "files",
-            object_type("PullRequestChangedFileConnection"),
-            {after, first}),
-        field_requirement(
-            changed_file_connection,
-            "OBJECT",
-            "nodes",
-            list_of_objects("PullRequestChangedFile")),
-        field_requirement(
-            changed_file_connection,
-            "OBJECT",
-            "pageInfo",
-            object_type("PageInfo", true)),
+        repository_pull_request_read,
+        field_requirement(pull_request, "OBJECT", "files",
+                          object_type("PullRequestChangedFileConnection"),
+                          {after, first}),
+        field_requirement(changed_file_connection, "OBJECT", "nodes",
+                          list_of_objects("PullRequestChangedFile")),
+        field_requirement(changed_file_connection, "OBJECT", "pageInfo",
+                          object_type("PageInfo", true)),
+        field_requirement(changed_file_connection, "OBJECT", "totalCount",
+                          scalar("Int", true)),
         field_requirement(
             changed_file,
             "OBJECT",
@@ -2138,6 +2179,7 @@ enum class rate_limit_header_kind : std::uint8_t
     limit,
     remaining,
     reset,
+    resource,
     retry_after,
     count,
 };
@@ -2147,19 +2189,17 @@ struct rate_limit_response_facts
     std::optional<std::uint64_t> Limit;
     std::optional<std::uint64_t> Remaining;
     std::optional<std::uint64_t> ResetUnixSeconds;
+    std::optional<bool> GraphqlResource;
     std::optional<std::uint64_t> RetryAfterSeconds;
 
     [[nodiscard]] auto signals_throttling() const noexcept -> bool
     {
-        return (
-                   Remaining.has_value()
-                   && *Remaining == 0U)
-            || RetryAfterSeconds.has_value();
+        return (Remaining.has_value() && *Remaining == 0U)
+               || RetryAfterSeconds.has_value();
     }
 };
 
-[[nodiscard]] auto rate_limit_header(
-    const std::string_view name) noexcept
+[[nodiscard]] auto rate_limit_header(const std::string_view name) noexcept
     -> std::optional<rate_limit_header_kind>
 {
     if(ascii_equal_fold(name, "x-ratelimit-limit"))
@@ -2174,6 +2214,10 @@ struct rate_limit_response_facts
     {
         return rate_limit_header_kind::reset;
     }
+    if(ascii_equal_fold(name, "x-ratelimit-resource"))
+    {
+        return rate_limit_header_kind::resource;
+    }
     if(ascii_equal_fold(name, "retry-after"))
     {
         return rate_limit_header_kind::retry_after;
@@ -2186,19 +2230,16 @@ struct rate_limit_response_facts
     -> std::optional<rate_limit_response_facts>
 {
     constexpr std::size_t maximum_header_name_bytes = 32U;
-    if(
-        response.RateLimitHeaderCount
-        > response.RateLimitHeaders.size())
+    if(response.RateLimitHeaderCount > response.RateLimitHeaders.size())
     {
         return std::nullopt;
     }
 
     auto facts = rate_limit_response_facts{};
-    auto seen = std::array<
-        bool,
-        static_cast<std::size_t>(rate_limit_header_kind::count)>{};
-    for(std::size_t index = 0U;
-        index < response.RateLimitHeaders.size();
+    auto seen =
+        std::array<bool,
+                   static_cast<std::size_t>(rate_limit_header_kind::count)>{};
+    for(std::size_t index = 0U; index < response.RateLimitHeaders.size();
         ++index)
     {
         const auto& header = response.RateLimitHeaders[index];
@@ -2210,15 +2251,13 @@ struct rate_limit_response_facts
             }
             continue;
         }
-        if(
-            header.Name.empty()
-            || header.Name.size() > maximum_header_name_bytes)
+        if(header.Name.empty()
+           || header.Name.size() > maximum_header_name_bytes)
         {
             return std::nullopt;
         }
         const auto kind = rate_limit_header(header.Name);
-        const auto parsed = decimal_header_value(header.Value);
-        if(!kind.has_value() || !parsed.has_value())
+        if(!kind.has_value())
         {
             return std::nullopt;
         }
@@ -2230,25 +2269,61 @@ struct rate_limit_response_facts
         seen[kind_index] = true;
         switch(*kind)
         {
-        case rate_limit_header_kind::limit:
+        case rate_limit_header_kind::limit: {
+            const auto parsed = decimal_header_value(header.Value);
+            if(!parsed.has_value())
+            {
+                return std::nullopt;
+            }
             facts.Limit = *parsed;
             break;
-        case rate_limit_header_kind::remaining:
+        }
+        case rate_limit_header_kind::remaining: {
+            const auto parsed = decimal_header_value(header.Value);
+            if(!parsed.has_value())
+            {
+                return std::nullopt;
+            }
             facts.Remaining = *parsed;
             break;
-        case rate_limit_header_kind::reset:
+        }
+        case rate_limit_header_kind::reset: {
+            const auto parsed = decimal_header_value(header.Value);
+            if(!parsed.has_value())
+            {
+                return std::nullopt;
+            }
             facts.ResetUnixSeconds = *parsed;
             break;
-        case rate_limit_header_kind::retry_after:
+        }
+        case rate_limit_header_kind::resource:
+            if(header.Value != "graphql")
+            {
+                return std::nullopt;
+            }
+            facts.GraphqlResource = true;
+            break;
+        case rate_limit_header_kind::retry_after: {
+            const auto parsed = decimal_header_value(header.Value);
+            if(!parsed.has_value())
+            {
+                return std::nullopt;
+            }
             facts.RetryAfterSeconds = *parsed;
             break;
+        }
         case rate_limit_header_kind::count:
             return std::nullopt;
         }
     }
-    if(
-        facts.Limit.has_value() && facts.Remaining.has_value()
-        && *facts.Remaining > *facts.Limit)
+    const auto tuple_count =
+        static_cast<std::size_t>(facts.Limit.has_value())
+        + static_cast<std::size_t>(facts.Remaining.has_value())
+        + static_cast<std::size_t>(facts.ResetUnixSeconds.has_value())
+        + static_cast<std::size_t>(facts.GraphqlResource.has_value());
+    if((tuple_count != 0U && tuple_count != 4U)
+       || (facts.Limit.has_value() && facts.Remaining.has_value()
+           && *facts.Remaining > *facts.Limit))
     {
         return std::nullopt;
     }
@@ -2330,6 +2405,41 @@ struct rate_limit_response_facts
     return true;
 }
 
+[[nodiscard]] auto
+graphql_error_body_rate_limited(const capability_probe_response& response,
+                                const capability_probe_limits& limits) noexcept
+    -> bool
+{
+    if(response.Body.empty()
+       || response.Body.size() > limits.MaximumResponseBytes
+       || !json_content_type(response.ContentType))
+    {
+        return false;
+    }
+    try
+    {
+        if(json_structural_preflight{response.Body, limits}.run()
+           != json_preflight_result::valid)
+        {
+            return false;
+        }
+        QJsonParseError error;
+        const auto document = QJsonDocument::fromJson(
+            QByteArray{
+                response.Body.data(),
+                static_cast<qsizetype>(response.Body.size()),
+            },
+            &error);
+        return error.error == QJsonParseError::NoError && document.isObject()
+               && graphql_error_rate_limited(
+                   document.object().value(QStringLiteral("errors")));
+    }
+    catch(...)
+    {
+        return false;
+    }
+}
+
 [[nodiscard]] auto status_failure(const int status) noexcept
     -> capability_probe_unavailability
 {
@@ -2347,7 +2457,7 @@ struct rate_limit_response_facts
         return capability_probe_unavailability::invalid_status;
     }
 }
-}
+} // namespace
 
 auto valid(const capability_probe_observation& observation) noexcept -> bool
 {
@@ -2534,14 +2644,17 @@ auto normalize_capability_probe(
         return unavailable(
             capability_probe_unavailability::malformed_response);
     }
+    if(value.Body.size() > limits.MaximumResponseBytes)
+    {
+        return unavailable(capability_probe_unavailability::response_limit);
+    }
     if(value.Status != 200)
     {
-        if(
-            value.Status == 403
-            && rate_limit->signals_throttling())
+        if(value.Status == 403
+           && (rate_limit->signals_throttling()
+               || graphql_error_body_rate_limited(value, limits)))
         {
-            return unavailable(
-                capability_probe_unavailability::rate_limit);
+            return unavailable(capability_probe_unavailability::rate_limit);
         }
         return unavailable(status_failure(value.Status));
     }
@@ -2550,14 +2663,9 @@ auto normalize_capability_probe(
         return unavailable(
             capability_probe_unavailability::invalid_content_type);
     }
-    if(
-        value.Body.empty()
-        || value.Body.size() > limits.MaximumResponseBytes)
+    if(value.Body.empty())
     {
-        return unavailable(
-            value.Body.empty()
-                ? capability_probe_unavailability::malformed_response
-                : capability_probe_unavailability::response_limit);
+        return unavailable(capability_probe_unavailability::malformed_response);
     }
 
     try
@@ -2654,4 +2762,4 @@ auto normalize_capability_probe(
             capability_probe_unavailability::malformed_response);
     }
 }
-}
+} // namespace bpr::adapters::github::detail

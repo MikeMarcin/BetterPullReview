@@ -111,7 +111,7 @@ enum class capability_schema_fact_state : std::uint8_t
 
 inline constexpr std::size_t capability_schema_fact_count =
     static_cast<std::size_t>(capability_schema_fact::count);
-inline constexpr std::size_t maximum_capability_probe_rate_limit_headers = 4U;
+inline constexpr std::size_t maximum_capability_probe_rate_limit_headers = 5U;
 
 struct capability_probe_limits
 {
@@ -120,9 +120,12 @@ struct capability_probe_limits
     std::size_t MaximumDepth = 32U;
     std::size_t MaximumObjectMembers = 64U;
     std::size_t MaximumArrayElements = 1'024U;
+    std::size_t MaximumQueryFields = 1'024U;
     std::size_t MaximumMutationFields = 1'024U;
+    std::size_t MaximumRepositoryFields = 512U;
     std::size_t MaximumPullRequestFields = 256U;
     std::size_t MaximumOtherTypeFields = 64U;
+    std::size_t MaximumNamedTypes = 512U;
     std::size_t MaximumArguments = 16U;
     std::size_t MaximumInputFields = 16U;
     std::size_t MaximumEnumValues = 32U;
@@ -215,4 +218,4 @@ using capability_probe_request_result =
     const capability_probe_transport_result& response,
     const capability_probe_limits& limits = {}) noexcept
     -> capability_probe_observation;
-}
+} // namespace bpr::adapters::github::detail

@@ -298,6 +298,12 @@ using github_credential_retrieve_completion_handler =
 using github_credential_delete_completion_handler =
     std::function<void(github_credential_delete_completion)>;
 
+// Vault submissions and cancellation return without waiting for a worker.
+// A submission that returns normally has retained the operation and invokes
+// its supplied completion exactly once; a submission that throws has retained
+// nothing and never invokes it. Cancellation is advisory and does not suppress
+// that one terminal. The application host serializes the terminal later on its
+// decision executor.
 class github_credential_vault_port
 {
 public:

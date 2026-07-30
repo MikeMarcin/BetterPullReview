@@ -18,6 +18,8 @@ inline constexpr std::size_t native_https_maximum_request_body_bytes =
     256U * 1024U;
 inline constexpr std::size_t native_https_maximum_response_body_bytes =
     4U * 1024U * 1024U;
+inline constexpr std::size_t native_https_maximum_error_response_body_bytes =
+    64U * 1024U;
 inline constexpr std::size_t native_https_maximum_response_header_bytes =
     64U * 1024U;
 inline constexpr std::uint32_t native_https_maximum_redirects = 3U;
@@ -104,13 +106,18 @@ public:
         const github_wire_request& request,
         std::stop_token stop) -> github_wire_completion override;
 
+    [[nodiscard]] auto perform_capability_probe(
+        const github_capability_probe_wire_request& request,
+        std::stop_token stop)
+        -> github_capability_probe_wire_completion override;
+
 private:
     std::unique_ptr<implementation> Implementation;
 };
 
-using native_https_transport_factory_result = std::expected<
-    std::unique_ptr<native_https_transport>,
-    native_https_configuration_failure>;
+using native_https_transport_factory_result =
+    std::expected<std::unique_ptr<native_https_transport>,
+                  native_https_configuration_failure>;
 
 [[nodiscard]] auto make_native_https_bootstrap_transport(
     const validated_github_host_profile& profile,
@@ -145,4 +152,4 @@ using native_https_transport_factory_result = std::expected<
 [[nodiscard]] auto observe_native_https_runtime(
     const validated_github_host_profile& profile) noexcept
     -> native_https_runtime_facts;
-}
+} // namespace bpr::adapters::github::detail

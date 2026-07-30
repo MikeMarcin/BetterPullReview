@@ -555,6 +555,8 @@ auto append_fixed_environment(
             application::github_provider_error{
                 .Failure = failure,
                 .RetryAfterSeconds = std::nullopt,
+                .RateLimits = {},
+                .RateLimitCause = std::nullopt,
             },
     };
 }

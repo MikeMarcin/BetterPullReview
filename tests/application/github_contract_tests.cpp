@@ -14,37 +14,31 @@ namespace
 {
 using namespace bpr;
 
-using establish_signature = void (application::github_provider_port::*)(
-    core::github_session_request_context,
-    application::github_session_completion_handler);
-using fetch_signature = void (application::github_provider_port::*)(
-    core::pull_request_request_context,
-    application::github_pull_request_completion_handler);
-using cancel_signature = void (application::github_provider_port::*)(
-    application::github_cancel_context);
-
 static_assert(std::is_abstract_v<application::github_provider_port>);
 static_assert(
-    std::same_as<
-        decltype(static_cast<establish_signature>(
-            &application::github_provider_port::establish_session)),
-        establish_signature>);
+    std::derived_from<
+        application::github_provider_port,
+        application::github_profile_port>);
 static_assert(
-    std::same_as<
-        decltype(static_cast<fetch_signature>(
-            &application::github_provider_port::fetch_pull_request)),
-        fetch_signature>);
+    std::derived_from<
+        application::github_provider_port,
+        application::github_viewer_port>);
 static_assert(
-    std::same_as<
-        decltype(static_cast<cancel_signature>(
-            &application::github_provider_port::cancel)),
-        cancel_signature>);
+    std::derived_from<
+        application::github_provider_port,
+        application::github_capability_port>);
 static_assert(
-    std::variant_size_v<application::github_session_completion> == 3U);
+    std::derived_from<
+        application::github_provider_port,
+        application::github_pull_request_port>);
+static_assert(
+    std::variant_size_v<application::github_profile_completion> == 3U);
+static_assert(
+    std::variant_size_v<application::github_viewer_completion> == 3U);
+static_assert(
+    std::variant_size_v<application::github_capability_completion> == 3U);
 static_assert(
     std::variant_size_v<application::github_pull_request_completion> == 3U);
-static_assert(
-    std::variant_size_v<application::github_cancel_context> == 2U);
 static_assert(
     !std::is_convertible_v<std::string, application::github_node_id>);
 static_assert(
@@ -118,7 +112,51 @@ auto capability_evidence(
                     core::github_capability_state::unknown,
             },
         .Revision = revision,
+        .ReadShape =
+            {
+                .ReviewThreads = true,
+                .ViewedFileState = true,
+                .ResolvePermission = true,
+                .UnresolvePermission = true,
+            },
         .ContractVersion = 1,
+    };
+}
+
+[[nodiscard]] auto rate_limit(
+    const application::github_rate_limit_resource resource)
+    -> application::github_rate_limit_record
+{
+    return {
+        .Resource = resource,
+        .Limit = 5'000U,
+        .Remaining = 4'999U,
+        .ResetUnixSeconds = 2'000'000'000U,
+        .SecondaryLimited = false,
+    };
+}
+
+[[nodiscard]] auto rate_limits() -> application::github_rate_limit_state
+{
+    auto core =
+        rate_limit(application::github_rate_limit_resource::core);
+    core.Remaining = 4'900U;
+
+    auto search =
+        rate_limit(application::github_rate_limit_resource::search);
+    search.Limit = 30U;
+    search.Remaining = 29U;
+    search.ResetUnixSeconds = 2'000'000'100U;
+
+    auto graphql =
+        rate_limit(application::github_rate_limit_resource::graphql);
+    graphql.Remaining = 4'998U;
+    graphql.ResetUnixSeconds = 2'000'000'200U;
+
+    return {
+        .Core = core,
+        .Search = search,
+        .Graphql = graphql,
     };
 }
 
@@ -136,12 +174,7 @@ auto valid_session() -> application::github_session_read_model
             },
         .CapabilityEvidence =
             capability_evidence(core::capability_revision{1}),
-        .RateLimit =
-            {
-                .Limit = 5'000,
-                .Remaining = 4'999,
-                .ResetUnixSeconds = 2'000'000'000,
-            },
+        .RateLimits = rate_limits(),
     };
 }
 
@@ -238,6 +271,8 @@ auto valid_snapshot() -> application::github_pull_request_snapshot
                     .Body = "Looks good.",
                 },
             },
+        .ReviewThreadsAvailability =
+            application::github_collection_availability::available,
         .ReviewThreads =
             {
                 {
@@ -248,8 +283,10 @@ auto valid_snapshot() -> application::github_pull_request_snapshot
                     .Line = 42,
                     .Resolved = false,
                     .Outdated = false,
-                    .ViewerCanResolve = true,
-                    .ViewerCanUnresolve = false,
+                    .ViewerResolvePermission =
+                        application::github_permission_state::allowed,
+                    .ViewerUnresolvePermission =
+                        application::github_permission_state::denied,
                     .Comments =
                         {
                             {
@@ -310,12 +347,7 @@ auto valid_snapshot() -> application::github_pull_request_snapshot
             },
         .CapabilityEvidence =
             capability_evidence(core::capability_revision{19}),
-        .RateLimit =
-            {
-                .Limit = 5'000,
-                .Remaining = 4'900,
-                .ResetUnixSeconds = 2'000'000'000,
-            },
+        .RateLimits = rate_limits(),
     };
 }
 
@@ -339,6 +371,21 @@ auto test_valid_models_and_identity_correlation() -> void
     expect(
         application::validate(snapshot, request).valid(),
         "valid aggregate pull request snapshot is accepted");
+    expect(
+        snapshot.RateLimits.Core.has_value()
+            && snapshot.RateLimits.Search.has_value()
+            && snapshot.RateLimits.Graphql.has_value()
+            && snapshot.RateLimits.Core->Resource
+                == application::github_rate_limit_resource::core
+            && snapshot.RateLimits.Core->Remaining == 4'900U
+            && snapshot.RateLimits.Search->Resource
+                == application::github_rate_limit_resource::search
+            && snapshot.RateLimits.Search->Limit == 30U
+            && snapshot.RateLimits.Search->Remaining == 29U
+            && snapshot.RateLimits.Graphql->Resource
+                == application::github_rate_limit_resource::graphql
+            && snapshot.RateLimits.Graphql->Remaining == 4'998U,
+        "snapshot preserves distinct core, search, and GraphQL rate limits");
 
     auto mismatch = snapshot;
     mismatch.Profile = core::host_profile_id{99};
@@ -495,6 +542,174 @@ auto test_malformed_enums_fail_closed() -> void
             static_cast<application::github_provider_failure>(255)),
         "malformed provider failure is rejected");
 
+    const auto observed_rate_limits = rate_limits();
+    auto core_exhausted = *observed_rate_limits.Core;
+    core_exhausted.Remaining = 0U;
+    auto primary_limited = observed_rate_limits;
+    primary_limited.Core = core_exhausted;
+
+    auto graphql_secondary = *observed_rate_limits.Graphql;
+    graphql_secondary.SecondaryLimited = true;
+    auto secondary_limited = observed_rate_limits;
+    secondary_limited.Graphql = graphql_secondary;
+
+    expect(
+        application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds =
+                application::maximum_github_retry_after_seconds,
+            .RateLimits = primary_limited,
+            .RateLimitCause = core_exhausted,
+        }),
+        "bounded primary limit names the exact exhausted resource");
+    expect(
+        application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::unavailable,
+            .RetryAfterSeconds = 30U,
+            .RateLimits = observed_rate_limits,
+            .RateLimitCause = std::nullopt,
+        }),
+        "unavailable failures may preserve all observed resource limits");
+    expect(
+        application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds = 60U,
+            .RateLimits = secondary_limited,
+            .RateLimitCause = graphql_secondary,
+        }),
+        "secondary limit names the exact triggering GraphQL resource");
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = primary_limited,
+            .RateLimitCause = std::nullopt,
+        }),
+        "rate-limit failures require an exact triggering record");
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure = application::github_provider_failure::network,
+            .RetryAfterSeconds = 1U,
+            .RateLimits = {},
+            .RateLimitCause = std::nullopt,
+        }),
+        "retry metadata is rejected for an ineligible failure");
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds =
+                application::maximum_github_retry_after_seconds + 1U,
+            .RateLimits = primary_limited,
+            .RateLimitCause = core_exhausted,
+        }),
+        "retry metadata above one day is rejected");
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::permission,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = secondary_limited,
+            .RateLimitCause = graphql_secondary,
+        }),
+        "a triggering record cannot accompany a non-rate-limit failure");
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = observed_rate_limits,
+            .RateLimitCause = *observed_rate_limits.Core,
+        }),
+        "a non-exhausted primary record cannot trigger rate limiting");
+
+    auto mismatched_cause = core_exhausted;
+    ++mismatched_cause.ResetUnixSeconds;
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = primary_limited,
+            .RateLimitCause = mismatched_cause,
+        }),
+        "trigger metadata must equal its resource-keyed observation");
+
+    auto wrong_resource_slot = observed_rate_limits;
+    wrong_resource_slot.Core->Resource =
+        application::github_rate_limit_resource::search;
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::unavailable,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = wrong_resource_slot,
+            .RateLimitCause = std::nullopt,
+        }),
+        "a rate-limit record cannot occupy another resource's slot");
+
+    auto wrong_secondary_cause = secondary_limited;
+    wrong_secondary_cause.Core = core_exhausted;
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = wrong_secondary_cause,
+            .RateLimitCause = core_exhausted,
+        }),
+        "a secondary-limited resource must be the named trigger");
+
+    auto multiple_secondary_causes = secondary_limited;
+    multiple_secondary_causes.Core->SecondaryLimited = true;
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = multiple_secondary_causes,
+            .RateLimitCause = graphql_secondary,
+        }),
+        "one failure cannot claim multiple secondary-limit triggers");
+
+    auto malformed_secondary = secondary_limited;
+    malformed_secondary.Graphql->Remaining = 0U;
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::rate_limit,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = malformed_secondary,
+            .RateLimitCause = *malformed_secondary.Graphql,
+        }),
+        "secondary limiting remains distinct from primary exhaustion");
+
+    auto malformed_arithmetic = observed_rate_limits;
+    malformed_arithmetic.Search->Remaining =
+        malformed_arithmetic.Search->Limit + 1U;
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                application::github_provider_failure::unavailable,
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = malformed_arithmetic,
+            .RateLimitCause = std::nullopt,
+        }),
+        "provider errors reject malformed rate-limit arithmetic");
+    expect(
+        !application::valid(application::github_provider_error{
+            .Failure =
+                static_cast<application::github_provider_failure>(255),
+            .RetryAfterSeconds = std::nullopt,
+            .RateLimits = {},
+            .RateLimitCause = std::nullopt,
+        }),
+        "a provider error rejects a malformed failure enum");
+
     const auto request = pull_request_context();
     auto snapshot = valid_snapshot();
     snapshot.PullRequest.State =
@@ -537,7 +752,6 @@ auto test_malformed_enums_fail_closed() -> void
         "malformed viewed-file state is rejected");
 
     for(const auto viewed_state : {
-            application::github_file_viewed_state::unavailable,
             application::github_file_viewed_state::dismissed,
             application::github_file_viewed_state::unviewed,
             application::github_file_viewed_state::viewed,
@@ -549,6 +763,19 @@ auto test_malformed_enums_fail_closed() -> void
             application::validate(snapshot, request).valid(),
             "every known viewed-file state is accepted");
     }
+    snapshot = valid_snapshot();
+    snapshot.CapabilityEvidence.ReadShape.ViewedFileState = false;
+    snapshot.Files.front().ViewedState =
+        application::github_file_viewed_state::unavailable;
+    expect(
+        application::validate(snapshot, request).valid(),
+        "capability-omitted viewed state is explicitly unavailable");
+    snapshot.Files.front().ViewedState =
+        application::github_file_viewed_state::unviewed;
+    expect_error(
+        application::validate(snapshot, request),
+        application::github_read_validation_error::invalid_relationship,
+        "an omitted viewed-state selection cannot become authoritative");
 
     snapshot = valid_snapshot();
     snapshot.Reviews.front().State =
@@ -573,6 +800,51 @@ auto test_malformed_enums_fail_closed() -> void
         application::validate(snapshot, request),
         application::github_read_validation_error::invalid_enum,
         "malformed review thread subject is rejected");
+
+    snapshot = valid_snapshot();
+    snapshot.ReviewThreads.front().ViewerResolvePermission =
+        static_cast<application::github_permission_state>(255);
+    expect_error(
+        application::validate(snapshot, request),
+        application::github_read_validation_error::invalid_enum,
+        "malformed thread permission is rejected");
+
+    snapshot = valid_snapshot();
+    snapshot.CapabilityEvidence.ReadShape.ResolvePermission = false;
+    snapshot.ReviewThreads.front().ViewerResolvePermission =
+        application::github_permission_state::unavailable;
+    snapshot.CapabilityEvidence.Capabilities.ResolveThread =
+        core::github_capability_state::unsupported;
+    expect(
+        application::validate(snapshot, request).valid(),
+        "omitted resolve permission is distinct from denied");
+    snapshot.ReviewThreads.front().ViewerResolvePermission =
+        application::github_permission_state::denied;
+    expect_error(
+        application::validate(snapshot, request),
+        application::github_read_validation_error::invalid_relationship,
+        "an omitted permission cannot be projected as denied");
+
+    snapshot = valid_snapshot();
+    snapshot.ReviewThreadsAvailability =
+        application::github_collection_availability::unavailable;
+    snapshot.ReviewThreads.clear();
+    snapshot.CapabilityEvidence.ReadShape.ReviewThreads = false;
+    snapshot.CapabilityEvidence.Capabilities.ReviewThreads =
+        core::github_capability_state::unsupported;
+    snapshot.CapabilityEvidence.Capabilities.ResolveThread =
+        core::github_capability_state::unsupported;
+    snapshot.CapabilityEvidence.Capabilities.UnresolveThread =
+        core::github_capability_state::unsupported;
+    expect(
+        application::validate(snapshot, request).valid(),
+        "capability-omitted thread collection is explicitly unavailable");
+    snapshot.ReviewThreadsAvailability =
+        application::github_collection_availability::available;
+    expect_error(
+        application::validate(snapshot, request),
+        application::github_read_validation_error::invalid_relationship,
+        "selection omission cannot become an authoritative empty collection");
 
     snapshot = valid_snapshot();
     snapshot.Checks.front().Status =
@@ -690,6 +962,8 @@ auto test_default_collection_and_field_bounds() -> void
             .Path = "file-" + std::to_string(index),
             .PreviousPath = std::nullopt,
             .Change = application::github_file_change::modified,
+            .ViewedState =
+                application::github_file_viewed_state::unviewed,
         });
     }
     expect(
@@ -699,6 +973,7 @@ auto test_default_collection_and_field_bounds() -> void
         .Path = "file-over-limit",
         .PreviousPath = std::nullopt,
         .Change = application::github_file_change::modified,
+        .ViewedState = application::github_file_viewed_state::unviewed,
     });
     expect_error(
         application::validate(snapshot, request),
@@ -921,11 +1196,12 @@ auto test_duplicate_identity_text_budget_and_rate_limit() -> void
         "total normalized text at N+1 is rejected");
 
     snapshot = valid_snapshot();
-    snapshot.RateLimit.Remaining = snapshot.RateLimit.Limit + 1U;
+    snapshot.RateLimits.Graphql->Remaining =
+        snapshot.RateLimits.Graphql->Limit + 1U;
     expect_error(
         application::validate(snapshot, request),
         application::github_read_validation_error::invalid_rate_limit,
-        "remaining rate limit greater than limit is rejected");
+        "malformed GraphQL rate-limit arithmetic is rejected");
 
     snapshot = valid_snapshot();
     snapshot.PullRequest.Author = application::github_actor_record{};
@@ -963,55 +1239,132 @@ auto test_duplicate_identity_text_budget_and_rate_limit() -> void
 class compiling_provider final : public application::github_provider_port
 {
 public:
-    void establish_session(
-        core::github_session_request_context context,
-        application::github_session_completion_handler completion) override
+    void resolve_profile(
+        application::github_profile_request request,
+        application::github_profile_completion_handler completion) override
     {
-        LastSession = context;
-        completion(application::github_session_cancelled{
-            .Context = context,
+        LastProfile = request;
+        completion(application::github_profile_cancelled{
+            .Request = request,
         });
+    }
+
+    void cancel_profile(application::github_profile_request request) override
+    {
+        LastProfileCancellation = request;
+    }
+
+    void observe_viewer(
+        application::github_viewer_submission submission,
+        application::github_viewer_completion_handler completion) override
+    {
+        LastViewer = submission.Request;
+        completion(application::github_viewer_cancelled{
+            .Request = submission.Request,
+        });
+    }
+
+    void cancel_viewer(application::github_viewer_request request) override
+    {
+        LastViewerCancellation = request;
+    }
+
+    void probe_capabilities(
+        application::github_capability_request request,
+        application::github_capability_completion_handler completion)
+        override
+    {
+        LastCapability = request;
+        completion(application::github_capability_cancelled{
+            .Request = request,
+        });
+    }
+
+    void cancel_capabilities(
+        application::github_capability_request request) override
+    {
+        LastCapabilityCancellation = request;
     }
 
     void fetch_pull_request(
-        core::pull_request_request_context context,
+        application::github_pull_request_provider_request request,
         application::github_pull_request_completion_handler completion)
         override
     {
-        LastPullRequest = context;
+        LastPullRequest = request;
         completion(application::github_pull_request_cancelled{
-            .Context = context,
+            .Request = request,
         });
     }
 
-    void cancel(application::github_cancel_context context) override
+    void cancel_pull_request(
+        application::github_pull_request_provider_request request) override
     {
-        LastCancellation = std::move(context);
+        LastPullRequestCancellation = std::move(request);
     }
 
-    core::github_session_request_context LastSession;
-    core::pull_request_request_context LastPullRequest;
-    application::github_cancel_context LastCancellation;
+    application::github_profile_request LastProfile;
+    application::github_profile_request LastProfileCancellation;
+    application::github_viewer_request LastViewer;
+    application::github_viewer_request LastViewerCancellation;
+    application::github_capability_request LastCapability;
+    application::github_capability_request LastCapabilityCancellation;
+    application::github_pull_request_provider_request LastPullRequest;
+    application::github_pull_request_provider_request
+        LastPullRequestCancellation;
 };
 
 auto test_completion_contexts_are_exact() -> void
 {
-    const auto session_request = session_context();
-    const auto pull_request = pull_request_context();
+    const application::github_profile_authority authority{
+        .Profile = core::host_profile_id{3},
+        .ProfileRevision = application::github_profile_revision{4},
+        .Host = core::git_host_id{14},
+        .ServerContract =
+            application::github_server_contract::github_com_2022_11_28,
+        .Authentication =
+            application::github_authentication_transport::github_cli,
+        .ProbeContractRevision =
+            application::github_probe_contract_revision{5},
+    };
+    const application::github_profile_request profile_request{
+        .Context = session_context(),
+        .Attempt = application::github_provider_attempt{1U},
+    };
+    const application::github_viewer_request viewer_request{
+        .Context = session_context(),
+        .Authority = authority,
+        .Attempt = application::github_provider_attempt{1U},
+    };
+    const application::github_capability_request capability_request{
+        .Context = session_context(),
+        .ProfileAuthority = authority,
+        .Viewer = valid_session().Viewer,
+        .AccountTransport = {},
+        .Attempt = application::github_provider_attempt{1U},
+    };
+    const application::github_pull_request_provider_request pull_request{
+        .Context = pull_request_context(),
+        .ProfileAuthority = authority,
+        .Viewer = valid_session().Viewer,
+        .CapabilityEvidence = {},
+        .AccountTransport = {},
+        .Attempt = application::github_provider_attempt{1U},
+    };
     compiling_provider provider;
 
-    application::github_session_completion session_completion;
-    provider.establish_session(
-        session_request,
+    application::github_profile_completion profile_completion;
+    provider.resolve_profile(
+        profile_request,
         [&](auto completion) {
-            session_completion = std::move(completion);
+            profile_completion = std::move(completion);
         });
     expect(
-        std::get<application::github_session_cancelled>(
-            session_completion)
-                .Context
-            == session_request,
-        "session cancellation returns the exact request context");
+        std::get<application::github_profile_cancelled>(
+            profile_completion)
+                .Request
+            == profile_request,
+        "profile cancellation returns the exact phase request");
 
     application::github_pull_request_completion pull_completion;
     provider.fetch_pull_request(
@@ -1022,42 +1375,55 @@ auto test_completion_contexts_are_exact() -> void
     expect(
         std::get<application::github_pull_request_cancelled>(
             pull_completion)
-                .Context
+                .Request
             == pull_request,
         "pull request cancellation returns the exact request context");
 
     const auto success =
         application::github_pull_request_completion{
             application::github_pull_request_success{
-                .Context = pull_request,
+                .Request = pull_request,
                 .Snapshot = valid_snapshot(),
             }};
     expect(
-        std::get<application::github_pull_request_success>(success).Context
+        std::get<application::github_pull_request_success>(success).Request
             == pull_request,
         "success alternative retains the exact request context");
+
+    auto failure_rate_limits = rate_limits();
+    auto failure_cause = *failure_rate_limits.Core;
+    failure_cause.Remaining = 0U;
+    failure_rate_limits.Core = failure_cause;
     const auto failure =
         application::github_pull_request_completion{
             application::github_pull_request_error{
-                .Context = pull_request,
+                .Request = pull_request,
                 .Error =
                     {
                         .Failure =
                             application::github_provider_failure::rate_limit,
                         .RetryAfterSeconds = 30,
+                        .RateLimits = failure_rate_limits,
+                        .RateLimitCause = failure_cause,
                     },
             }};
+    const auto& pull_request_error =
+        std::get<application::github_pull_request_error>(failure);
     expect(
-        std::get<application::github_pull_request_error>(failure).Context
-            == pull_request,
-        "failure alternative retains the exact request context");
+        pull_request_error.Request == pull_request
+            && application::valid(pull_request_error.Error),
+        "failure alternative retains exact context and a valid trigger");
 
-    provider.cancel(pull_request);
+    provider.cancel_profile(profile_request);
+    provider.cancel_viewer(viewer_request);
+    provider.cancel_capabilities(capability_request);
+    provider.cancel_pull_request(pull_request);
     expect(
-        std::get<core::pull_request_request_context>(
-            provider.LastCancellation)
-            == pull_request,
-        "cancellation retains the complete pull request identity");
+        provider.LastProfileCancellation == profile_request
+            && provider.LastViewerCancellation == viewer_request
+            && provider.LastCapabilityCancellation == capability_request
+            && provider.LastPullRequestCancellation == pull_request,
+        "every phase cancellation retains its complete typed identity");
 }
 }
 

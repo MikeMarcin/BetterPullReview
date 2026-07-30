@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -60,6 +61,25 @@ struct http_header
     auto operator==(const http_header&) const -> bool = default;
 };
 
+enum class github_graphql_page_kind : std::uint8_t
+{
+    initial,
+    files,
+    threads,
+    comments,
+};
+
+struct github_graphql_page_request
+{
+    github_graphql_page_kind Kind = github_graphql_page_kind::initial;
+    application::github_read_shape Shape;
+    std::string AfterCursor;
+    std::string ThreadId;
+
+    auto operator==(const github_graphql_page_request&) const -> bool =
+        default;
+};
+
 struct semantic_read_request
 {
     server_contract Server = server_contract::github_com;
@@ -70,6 +90,7 @@ struct semantic_read_request
     std::string HeadOid;
     std::string SearchTerms;
     std::uint32_t Page = 1;
+    std::optional<github_graphql_page_request> GraphqlPage;
 
     auto operator==(const semantic_read_request&) const -> bool = default;
 };
@@ -198,7 +219,7 @@ struct github_read_normalization_context
     core::provider_snapshot_id Snapshot;
     core::capability_revision CapabilityRevision;
     core::github_capabilities Capabilities;
-    application::github_rate_limit_record RateLimit;
+    application::github_rate_limit_state RateLimits;
     application::github_read_limits Limits;
     std::string SearchTerms = "is:open";
 };

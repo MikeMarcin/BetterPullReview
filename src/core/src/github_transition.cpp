@@ -195,6 +195,43 @@ auto publish_commands(
     return output;
 }
 
+[[nodiscard]] auto deactivate_identity(github_state& state)
+    -> github_transition_output
+{
+    const auto previous = identity_scope(state);
+    state.IdentityGeneration = github_identity_generation{
+        state.IdentityGeneration.value() + 1U};
+    state.ActiveProfile.reset();
+    state.PendingSession.reset();
+    state.Host.reset();
+    state.Account.reset();
+    state.Capabilities = {};
+    state.CapabilityRevision = {};
+    state.PendingPullRequest.reset();
+    state.ActiveLocator.reset();
+    state.ActiveNumber.reset();
+    state.Repository.reset();
+    state.PullRequest.reset();
+    state.AcceptedSnapshot.reset();
+
+    github_transition_output output;
+    output.Changed = github_changed_domain::identity
+        | github_changed_domain::capabilities
+        | github_changed_domain::pull_request
+        | github_changed_domain::status;
+    output.Requests.push_back(invalidate_github_identity_request{
+        .ApplicationSession = state.ApplicationSession,
+        .NewGeneration = state.IdentityGeneration,
+        .Previous = previous,
+    });
+    output.Identity = identity_delta(state);
+    output.Capabilities = capability_delta(state);
+    output.PullRequest = pull_request_summary_delta{.Summary = std::nullopt};
+    output.Status = github_status_delta{.Status = github_status::no_profile};
+    publish_commands(state, output);
+    return output;
+}
+
 [[nodiscard]] auto session_ready(
     github_state& state,
     const github_session_ready_event& event) -> github_transition_output
@@ -238,6 +275,13 @@ auto publish_commands(
         | github_changed_domain::status;
     output.Identity = identity_delta(state);
     output.Capabilities = capability_delta(state);
+    output.AcceptedSession = accepted_session_delta{
+        .Context = event.Context,
+        .Host = event.Host,
+        .Account = event.Account,
+        .Capabilities = event.Capabilities,
+        .CapabilityRevision = event.CapabilityRevision,
+    };
     output.Status = github_status_delta{.Status = github_status::session_ready};
     publish_commands(state, output);
     return output;
@@ -590,6 +634,13 @@ auto transition(
                     activate_host_profile_intent>)
             {
                 return activate_profile(state, typed_event);
+            }
+            else if constexpr(
+                std::is_same_v<
+                    event_type,
+                    deactivate_github_identity_intent>)
+            {
+                return deactivate_identity(state);
             }
             else if constexpr(
                 std::is_same_v<event_type, open_pull_request_intent>)

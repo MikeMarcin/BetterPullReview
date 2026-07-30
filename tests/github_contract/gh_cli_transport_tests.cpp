@@ -325,6 +325,7 @@ public:
         .HeadOid = {},
         .SearchTerms = {},
         .Page = 1U,
+        .GraphqlPage = std::nullopt,
     };
     if(operation != read_operation::get_viewer_identity)
     {

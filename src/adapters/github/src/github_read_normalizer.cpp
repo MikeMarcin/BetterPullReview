@@ -124,7 +124,7 @@ namespace
         && valid_capability(context.Capabilities.ViewedFileMutations)
         && valid_capability(context.Capabilities.ResolveThread)
         && valid_capability(context.Capabilities.UnresolveThread)
-        && context.RateLimit.Remaining <= context.RateLimit.Limit;
+        && application::valid(context.RateLimits);
 }
 
 [[nodiscard]] auto parse_document(const wire_response& response)
@@ -436,6 +436,7 @@ namespace
         .HeadOid = {},
         .SearchTerms = {},
         .Page = 1U,
+        .GraphqlPage = std::nullopt,
     };
     if(operation != read_operation::get_viewer_identity)
     {
@@ -545,9 +546,16 @@ auto normalize_github_read(
                 {
                     .Capabilities = context.Capabilities,
                     .Revision = context.CapabilityRevision,
+                    .ReadShape =
+                        {
+                            .ReviewThreads = true,
+                            .ViewedFileState = true,
+                            .ResolvePermission = true,
+                            .UnresolvePermission = true,
+                        },
                     .ContractVersion = 1U,
                 },
-            .RateLimit = context.RateLimit,
+            .RateLimits = context.RateLimits,
         };
 
         const auto repository = document(
@@ -633,6 +641,8 @@ auto normalize_github_read(
             .Files = {},
             .Commits = {},
             .Reviews = {},
+            .ReviewThreadsAvailability =
+                application::github_collection_availability::available,
             .ReviewThreads = {},
             .IssueComments = {},
             .Checks = {},
@@ -641,9 +651,16 @@ auto normalize_github_read(
                 {
                     .Capabilities = context.Capabilities,
                     .Revision = context.CapabilityRevision,
+                    .ReadShape =
+                        {
+                            .ReviewThreads = true,
+                            .ViewedFileState = true,
+                            .ResolvePermission = true,
+                            .UnresolvePermission = true,
+                        },
                     .ContractVersion = 1U,
                 },
-            .RateLimit = context.RateLimit,
+            .RateLimits = context.RateLimits,
         };
 
         const auto files = document(
@@ -811,10 +828,14 @@ auto normalize_github_read(
                     thread.value("originalLine")),
                 .Resolved = thread.value("isResolved").toBool(),
                 .Outdated = thread.value("isOutdated").toBool(),
-                .ViewerCanResolve =
-                    thread.value("viewerCanResolve").toBool(),
-                .ViewerCanUnresolve =
-                    thread.value("viewerCanUnresolve").toBool(),
+                .ViewerResolvePermission =
+                    thread.value("viewerCanResolve").toBool()
+                    ? application::github_permission_state::allowed
+                    : application::github_permission_state::denied,
+                .ViewerUnresolvePermission =
+                    thread.value("viewerCanUnresolve").toBool()
+                    ? application::github_permission_state::allowed
+                    : application::github_permission_state::denied,
                 .Comments = {},
             };
             const auto comments = thread.value("comments")

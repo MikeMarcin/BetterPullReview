@@ -1,7 +1,7 @@
 #include "github_capability_probe.hpp"
 
-#include <QJsonArray>
 #include <QCryptographicHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -129,7 +129,11 @@ auto expect(const bool condition, const std::string_view message) -> void
     const std::filesystem::path& directory,
     const QString& expected_product,
     const QString& expected_version,
+    const qsizetype expected_query_fields,
     const qsizetype expected_mutation_fields,
+    const qsizetype expected_repository_fields,
+    const qsizetype expected_actor_possible_types,
+    const qsizetype expected_node_possible_types,
     const qsizetype expected_pull_request_fields) -> std::string
 {
     const auto manifest =
@@ -137,12 +141,11 @@ auto expect(const bool condition, const std::string_view message) -> void
     const auto response_file = manifest.value("response_file").toString();
     const auto projection = manifest.value("projection").toObject();
     const auto expected = manifest.value("expected").toObject();
-    expect(
-        manifest.value("schema_revision").toInt() == 1
-            && manifest.value("product").toString() == expected_product
-            && manifest.value("version").toString() == expected_version
-            && response_file == QStringLiteral("supported.json"),
-        "capability fixture manifest identifies the exact host contract");
+    expect(manifest.value("schema_revision").toInt() == 1
+               && manifest.value("product").toString() == expected_product
+               && manifest.value("version").toString() == expected_version
+               && response_file == QStringLiteral("supported.json"),
+           "capability fixture manifest identifies the exact host contract");
     for(const auto key : {
             "review_threads",
             "viewed_file_mutations",
@@ -150,49 +153,76 @@ auto expect(const bool condition, const std::string_view message) -> void
             "unresolve_thread",
         })
     {
-        expect(
-            expected.value(key).toString()
-                == QStringLiteral("supported"),
-            "fixture manifest records each expected capability");
+        expect(expected.value(key).toString() == QStringLiteral("supported"),
+               "fixture manifest records each expected capability");
     }
 
-    const auto body =
-        read_file(directory / response_file.toStdString());
+    const auto body = read_file(directory / response_file.toStdString());
     const auto response = parse(body);
     const auto data = response.object().value("data").toObject();
-    const auto actual_mutation_fields =
-        data.value("schemaRoot")
-            .toObject()
-            .value("mutationType")
-            .toObject()
-            .value("fields")
-            .toArray()
-            .size();
+    const auto actual_query_fields = data.value("schemaRoot")
+                                         .toObject()
+                                         .value("queryType")
+                                         .toObject()
+                                         .value("fields")
+                                         .toArray()
+                                         .size();
+    const auto actual_mutation_fields = data.value("schemaRoot")
+                                            .toObject()
+                                            .value("mutationType")
+                                            .toObject()
+                                            .value("fields")
+                                            .toArray()
+                                            .size();
+    const auto actual_repository_fields =
+        data.value("repository").toObject().value("fields").toArray().size();
+    const auto actual_actor_possible_types = data.value("actorPossibleTypes")
+                                                 .toObject()
+                                                 .value("possibleTypes")
+                                                 .toArray()
+                                                 .size();
+    const auto actual_node_possible_types = data.value("nodePossibleTypes")
+                                                .toObject()
+                                                .value("possibleTypes")
+                                                .toArray()
+                                                .size();
     const auto actual_pull_request_fields =
-        data.value("pullRequest")
-            .toObject()
-            .value("fields")
-            .toArray()
-            .size();
-    expect(
-        actual_mutation_fields == expected_mutation_fields
-            && actual_pull_request_fields
-                == expected_pull_request_fields
-            && projection.value("mutation_fields").toInt()
-                == expected_mutation_fields
-            && projection.value("pull_request_fields").toInt()
-                == expected_pull_request_fields,
-        "manifest field counts match its independent response");
-    expect(
-        projection.value("query_sha256").toString()
-                == sha256(capability_probe_graphql_document())
-            && projection.value("response_sha256").toString()
-                == sha256(body),
-        "manifest hashes bind the exact query and response bytes");
-    expect(
-        static_cast<std::size_t>(actual_mutation_fields)
-                <= capability_probe_limits{}.MaximumMutationFields
-            && static_cast<std::size_t>(
+        data.value("pullRequest").toObject().value("fields").toArray().size();
+    expect(actual_query_fields == expected_query_fields
+               && actual_mutation_fields == expected_mutation_fields
+               && actual_repository_fields == expected_repository_fields
+               && actual_actor_possible_types == expected_actor_possible_types
+               && actual_node_possible_types == expected_node_possible_types
+               && actual_pull_request_fields == expected_pull_request_fields
+               && projection.value("query_fields").toInt()
+                      == expected_query_fields
+               && projection.value("mutation_fields").toInt()
+                      == expected_mutation_fields
+               && projection.value("repository_fields").toInt()
+                      == expected_repository_fields
+               && projection.value("actor_possible_types").toInt()
+                      == expected_actor_possible_types
+               && projection.value("node_possible_types").toInt()
+                      == expected_node_possible_types
+               && projection.value("pull_request_fields").toInt()
+                      == expected_pull_request_fields,
+           "manifest field counts match its independent response");
+    expect(projection.value("query_sha256").toString()
+                   == sha256(capability_probe_graphql_document())
+               && projection.value("response_sha256").toString()
+                      == sha256(body),
+           "manifest hashes bind the exact query and response bytes");
+    expect(static_cast<std::size_t>(actual_query_fields)
+                   <= capability_probe_limits{}.MaximumQueryFields
+               && static_cast<std::size_t>(actual_mutation_fields)
+                      <= capability_probe_limits{}.MaximumMutationFields
+               && static_cast<std::size_t>(actual_repository_fields)
+                      <= capability_probe_limits{}.MaximumRepositoryFields
+               && static_cast<std::size_t>(actual_actor_possible_types)
+                      <= capability_probe_limits{}.MaximumNamedTypes
+               && static_cast<std::size_t>(actual_node_possible_types)
+                      <= capability_probe_limits{}.MaximumNamedTypes
+               && static_cast<std::size_t>(
                    actual_pull_request_fields)
                 <= capability_probe_limits{}.MaximumPullRequestFields,
         "hard defaults admit the official complete schema sizes");
@@ -465,59 +495,51 @@ auto test_requests_bind_validated_profile_authority() -> void
                 "query BetterPullReviewCapabilityProbeV1")
             && capability_probe_document_is_query_only(query)
             && sha256(query)
-                == QStringLiteral(
-                    "839ec85171a2d9fb21e23a50890723331"
-                    "e59447252953a7de16f3847d5be6730"),
-        "probe operation is a query and never a mutation document");
+                == QStringLiteral("892ad33dcb73ef8b9ed7a4e4e6f6e628"
+                                        "568e4de5267eca87ed246122701feb10"),
+           "probe operation is a query and never a mutation document");
     expect(
         capability_probe_document_is_query_only(
             R"(query Safe{mutationType{name} probe(value:"mutation"){name}} fragment MutationFields on __Type{name})")
             && !capability_probe_document_is_query_only(
-                "mutation Unsafe{markFileAsViewed(input:{}){clientMutationId}}")
+                "mutation "
+                "Unsafe{markFileAsViewed(input:{}){clientMutationId}}")
             && !capability_probe_document_is_query_only(
                 "query Safe{__typename} mutation Unsafe{__typename}")
             && !capability_probe_document_is_query_only(
                 "query Broken{__typename"),
         "operation parser distinguishes mutation names from operations");
-    expect(
-        !valid(static_cast<capability_probe_http_method>(255U)),
-        "unknown HTTP methods fail closed");
+    expect(!valid(static_cast<capability_probe_http_method>(255U)),
+           "unknown HTTP methods fail closed");
 
     auto limits = capability_probe_limits{};
     limits.MaximumRequestBytes = 1U;
     const auto bounded =
         compile_capability_probe_request(*github_profile, limits);
-    expect(
-        !bounded.has_value()
-            && bounded.error()
-                == capability_probe_unavailability::response_limit,
-        "request byte limit fails closed");
+    expect(!bounded.has_value()
+               && bounded.error()
+                      == capability_probe_unavailability::response_limit,
+           "request byte limit fails closed");
 
     limits = {};
     limits.MaximumDepth += 1U;
     const auto invalid =
         compile_capability_probe_request(*github_profile, limits);
-    expect(
-        !invalid.has_value()
-            && invalid.error()
-                == capability_probe_unavailability::invalid_limits,
-        "probe limits cannot relax hard ceilings");
+    expect(!invalid.has_value()
+               && invalid.error()
+                      == capability_probe_unavailability::invalid_limits,
+           "probe limits cannot relax hard ceilings");
 }
 
 auto test_paired_supported_contracts() -> void
 {
     const auto root = fixture_root();
     const auto github_body = load_manifest_fixture(
-        root / "github-com",
-        QStringLiteral("github.com"),
-        QStringLiteral("cloud"),
-        271,
-        113);
+        root / "github-com", QStringLiteral("github.com"),
+        QStringLiteral("cloud"), 31, 271, 145, 5, 280, 113);
     const auto enterprise_body = load_manifest_fixture(
-        root / "ghes-3.18",
-        QStringLiteral("github-enterprise-server"),
-        QStringLiteral("3.18"),
-        224,
+        root / "ghes-3.18", QStringLiteral("github-enterprise-server"),
+        QStringLiteral("3.18"), 24, 224, 133, 5, 244,
         109);
     const auto github = observe(github_body);
     const auto enterprise = observe(enterprise_body);
@@ -650,15 +672,122 @@ auto test_synthetic_missing_and_incompatible_contracts() -> void
     return compact(QJsonDocument{envelope});
 }
 
-[[nodiscard]] auto with_graphql_errors(const std::string& body)
+[[nodiscard]] auto with_named_field_type(const std::string& body,
+                                         const QString& alias,
+                                         const QString& field_name,
+                                         QJsonObject replacement) -> std::string
+{
+    auto envelope = parse(body).object();
+    auto data = envelope.value("data").toObject();
+    auto type = data.value(alias).toObject();
+    auto fields = type.value("fields").toArray();
+    auto replacements = 0;
+    for(auto index = 0; index < fields.size(); ++index)
+    {
+        auto field = fields.at(index).toObject();
+        if(field.value("name").toString() == field_name)
+        {
+            field.insert("type", std::move(replacement));
+            fields.replace(index, field);
+            ++replacements;
+        }
+    }
+    expect(replacements == 1, "targeted schema field exists exactly once");
+    type.insert("fields", fields);
+    data.insert(alias, type);
+    envelope.insert("data", data);
+    return compact(QJsonDocument{envelope});
+}
+
+[[nodiscard]] auto without_schema_root_field(const std::string& body,
+                                             const QString& root_name,
+                                             const QString& field_name)
     -> std::string
 {
     auto envelope = parse(body).object();
-    envelope.insert(
-        "errors",
-        QJsonArray{
-            QJsonObject{{"message", "sanitized probe error"}},
-        });
+    auto data = envelope.value("data").toObject();
+    auto schema = data.value("schemaRoot").toObject();
+    auto root = schema.value(root_name).toObject();
+    const auto fields = root.value("fields").toArray();
+    auto retained = QJsonArray{};
+    for(const auto& value : fields)
+    {
+        if(value.toObject().value("name").toString() != field_name)
+        {
+            retained.push_back(value);
+        }
+    }
+    expect(retained.size() + 1 == fields.size(),
+           "targeted schema-root field exists exactly once");
+    root.insert("fields", retained);
+    schema.insert(root_name, root);
+    data.insert("schemaRoot", schema);
+    envelope.insert("data", data);
+    return compact(QJsonDocument{envelope});
+}
+
+[[nodiscard]] auto with_schema_root_field_type(const std::string& body,
+                                               const QString& root_name,
+                                               const QString& field_name,
+                                               const QJsonObject& replacement)
+    -> std::string
+{
+    auto envelope = parse(body).object();
+    auto data = envelope.value("data").toObject();
+    auto schema = data.value("schemaRoot").toObject();
+    auto root = schema.value(root_name).toObject();
+    auto fields = root.value("fields").toArray();
+    auto replacements = 0;
+    for(auto index = 0; index < fields.size(); ++index)
+    {
+        auto field = fields.at(index).toObject();
+        if(field.value("name").toString() == field_name)
+        {
+            field.insert("type", replacement);
+            fields.replace(index, field);
+            ++replacements;
+        }
+    }
+    expect(replacements == 1, "targeted schema-root field exists exactly once");
+    root.insert("fields", fields);
+    schema.insert(root_name, root);
+    data.insert("schemaRoot", schema);
+    envelope.insert("data", data);
+    return compact(QJsonDocument{envelope});
+}
+
+[[nodiscard]] auto
+without_named_type_member(const std::string& body, const QString& alias,
+                          const QString& member_name, const QString& type_name)
+    -> std::string
+{
+    auto envelope = parse(body).object();
+    auto data = envelope.value("data").toObject();
+    auto type = data.value(alias).toObject();
+    const auto members = type.value(member_name).toArray();
+    auto retained = QJsonArray{};
+    for(const auto& value : members)
+    {
+        if(value.toObject().value("name").toString() != type_name)
+        {
+            retained.push_back(value);
+        }
+    }
+    expect(retained.size() + 1 == members.size(),
+           "targeted named type exists exactly once");
+    type.insert(member_name, retained);
+    data.insert(alias, type);
+    envelope.insert("data", data);
+    return compact(QJsonDocument{envelope});
+}
+
+[[nodiscard]] auto with_graphql_errors(const std::string& body) -> std::string
+{
+    auto envelope = parse(body).object();
+    envelope.insert("errors",
+                    QJsonArray{
+                        QJsonObject{{"message", "sanitized probe error"}},
+                    });
     return compact(QJsonDocument{envelope});
 }
 
@@ -758,85 +887,73 @@ auto test_rate_limit_classification_is_bounded() -> void
             "application/json",
             {},
             {
-                {"x-ratelimit-remaining", "0"},
-                {"x-ratelimit-reset", "2000000000"},
-            }),
+                {"x-ratelimit-limit", "5000"},
+                    {"x-ratelimit-remaining", "0"},
+                    {"x-ratelimit-reset", "2000000000"},
+                    {"x-ratelimit-resource", "graphql"},
+                }),
         capability_probe_unavailability::rate_limit,
         "GitHub GraphQL 200 exhaustion is classified as rate limit");
+    expect_all_unknown(observe(supported, true, 403, "application/json", {},
+                               {{"Retry-After", "60"}}),
+                       capability_probe_unavailability::rate_limit,
+                       "GitHub 403 secondary limit uses bounded Retry-After");
     expect_all_unknown(
-        observe(
-            supported,
-            true,
-            403,
-            "application/json",
-            {},
-            {{"Retry-After", "60"}}),
-        capability_probe_unavailability::rate_limit,
-        "GitHub 403 secondary limit uses bounded Retry-After");
-    expect_all_unknown(
-        observe(
-            supported,
-            true,
-            403,
-            "application/json",
-            {},
-            {{"X-RateLimit-Remaining", " \t0\t "}}),
+        observe(supported, true, 403, "application/json", {},
+                {
+                    {"X-RateLimit-Limit", "5000"},
+                    {"X-RateLimit-Remaining", " \t0\t "},
+                    {"X-RateLimit-Reset", "2000000000"},
+                    {"X-RateLimit-Resource", "graphql"},
+                }),
         capability_probe_unavailability::rate_limit,
         "rate-limit numeric headers admit only outer HTTP whitespace");
+    expect_all_unknown(observe(with_rate_limited_graphql_errors(supported)),
+                       capability_probe_unavailability::rate_limit,
+                       "structured GraphQL RATE_LIMITED error is classified");
     expect_all_unknown(
-        observe(with_rate_limited_graphql_errors(supported)),
+        observe(with_rate_limited_graphql_errors(supported), true, 403),
         capability_probe_unavailability::rate_limit,
-        "structured GraphQL RATE_LIMITED error is classified");
+        "GraphQL 403 structured RATE_LIMITED error is classified");
     expect_all_unknown(
-        observe(
-            errors,
-            true,
-            200,
-            "application/json",
-            {},
-            {{"X-RateLimit-Remaining", "1"}}),
+        observe(errors, true, 200, "application/json", {},
+                {
+                    {"X-RateLimit-Limit", "5000"},
+                    {"X-RateLimit-Remaining", "1"},
+                    {"X-RateLimit-Reset", "2000000000"},
+                    {"X-RateLimit-Resource", "graphql"},
+                }),
         capability_probe_unavailability::partial_response,
         "non-exhausted GraphQL errors remain generic partial evidence");
-    expect_all_supported(
-        observe(
-            supported,
-            true,
-            200,
-            "application/json",
-            {},
-            {{"X-RateLimit-Remaining", "0"}}),
-        "a complete successful observation remains usable");
+    expect_all_supported(observe(supported, true, 200, "application/json", {},
+                                 {
+                                     {"X-RateLimit-Limit", "5000"},
+                                     {"X-RateLimit-Remaining", "0"},
+                                     {"X-RateLimit-Reset", "2000000000"},
+                                     {"X-RateLimit-Resource", "graphql"},
+                                 }),
+                         "a complete successful observation remains usable");
 
     const auto expect_malformed_headers =
         [&supported](
             const std::initializer_list<capability_probe_header> headers,
             const std::string_view message) {
             expect_all_unknown(
-                observe(
-                    supported,
-                    true,
-                    403,
-                    "application/json",
-                    {},
-                    headers),
-                capability_probe_unavailability::malformed_response,
-                message);
+                observe(supported, true, 403, "application/json", {}, headers),
+                capability_probe_unavailability::malformed_response, message);
         };
-    expect_malformed_headers(
-        {{"X-Unbounded-Provider-Header", "0"}},
-        "non-allowlisted response headers are rejected");
+    expect_malformed_headers({{"X-Unbounded-Provider-Header", "0"}},
+                             "non-allowlisted response headers are rejected");
     expect_malformed_headers(
         {
             {"X-RateLimit-Remaining", "0"},
             {"x-ratelimit-remaining", "0"},
         },
         "case-insensitive duplicate rate-limit headers are rejected");
-    expect_malformed_headers(
-        {{"X-RateLimit-Remaining", "-1"}},
-        "signed rate-limit values are rejected");
-    expect_malformed_headers(
-        {{"X-RateLimit-Remaining", "0\r\nInjected: 1"}},
-        "header-value injection is rejected");
+    expect_malformed_headers({{"X-RateLimit-Remaining", "-1"}},
+                             "signed rate-limit values are rejected");
+    expect_malformed_headers({{"X-RateLimit-Remaining", "0\r\nInjected: 1"}},
+                             "header-value injection is rejected");
     expect_malformed_headers(
         {{"X-RateLimit-Remaining", "18446744073709551616"}},
         "overflowing rate-limit values are rejected");
@@ -844,8 +961,18 @@ auto test_rate_limit_classification_is_bounded() -> void
         {
             {"X-RateLimit-Limit", "5"},
             {"X-RateLimit-Remaining", "6"},
+            {"X-RateLimit-Reset", "2000000000"},
+            {"X-RateLimit-Resource", "graphql"},
         },
         "inconsistent rate-limit facts are rejected");
+    expect_malformed_headers(
+        {
+            {"X-RateLimit-Limit", "5"},
+            {"X-RateLimit-Remaining", "4"},
+            {"X-RateLimit-Reset", "2000000000"},
+            {"X-RateLimit-Resource", "core"},
+        },
+        "capability response cannot inject a non-GraphQL rate resource");
     expect_malformed_headers(
         {{"Retry-After", std::string(33U, '9')}},
         "oversized rate-limit values are rejected");
@@ -1021,6 +1148,219 @@ auto test_capability_dependencies_remain_independent() -> void
                 == capability_schema_fact_state::missing
             && valid(missing_viewed_state),
         "viewed-state reads are independent from review threads");
+}
+
+auto test_compiled_connection_counts_are_required() -> void
+{
+    const auto supported =
+        load_supported_fixture(fixture_root() / "github-com/supported.json");
+    const auto wrong_type = QJsonObject{
+        {"kind", "NON_NULL"},
+        {"name", QJsonValue::Null},
+        {
+            "ofType",
+            QJsonObject{
+                {"kind", "SCALAR"},
+                {"name", "String"},
+            },
+        },
+    };
+
+    for(const auto& alias : {
+            QStringLiteral("threadConnection"),
+            QStringLiteral("commentConnection"),
+        })
+    {
+        const auto missing = observe(without_named_field(
+            supported, alias, QStringLiteral("totalCount")));
+        expect(missing.Complete
+                   && missing.Capabilities.ReviewThreads
+                          == core::github_capability_state::unsupported
+                   && missing.Capabilities.ViewedFileMutations
+                          == core::github_capability_state::supported
+                   && missing.Capabilities.ResolveThread
+                          == core::github_capability_state::unsupported
+                   && missing.Capabilities.UnresolveThread
+                          == core::github_capability_state::unsupported
+                   && fact(missing, capability_schema_fact::review_threads_read)
+                          == capability_schema_fact_state::missing
+                   && valid(missing),
+               "missing review connection totalCount disables its read shape");
+
+        const auto incompatible = observe(with_named_field_type(
+            supported, alias, QStringLiteral("totalCount"), wrong_type));
+        expect(
+            incompatible.Complete
+                && fact(incompatible,
+                        capability_schema_fact::review_threads_read)
+                       == capability_schema_fact_state::incompatible
+                && incompatible.Capabilities.ReviewThreads
+                       == core::github_capability_state::unsupported
+                && valid(incompatible),
+            "incompatible review connection totalCount disables its read shape");
+    }
+
+    const auto missing_files = observe(
+        without_named_field(supported, QStringLiteral("changedFileConnection"),
+                            QStringLiteral("totalCount")));
+    expect(missing_files.Complete
+               && missing_files.Capabilities.ReviewThreads
+                      == core::github_capability_state::supported
+               && missing_files.Capabilities.ViewedFileMutations
+                      == core::github_capability_state::unsupported
+               && fact(missing_files,
+                       capability_schema_fact::viewed_file_state_read)
+                      == capability_schema_fact_state::missing
+               && valid(missing_files),
+           "missing file connection totalCount disables viewed-state reads");
+
+    const auto incompatible_files = observe(with_named_field_type(
+        supported, QStringLiteral("changedFileConnection"),
+        QStringLiteral("totalCount"), wrong_type));
+    expect(
+        incompatible_files.Complete
+            && incompatible_files.Capabilities.ReviewThreads
+                   == core::github_capability_state::supported
+            && incompatible_files.Capabilities.ViewedFileMutations
+                   == core::github_capability_state::unsupported
+            && fact(incompatible_files,
+                    capability_schema_fact::viewed_file_state_read)
+                   == capability_schema_fact_state::incompatible
+            && valid(incompatible_files),
+        "incompatible file connection totalCount disables viewed-state reads");
+}
+
+auto test_compiled_graphql_baseline_is_required() -> void
+{
+    const auto supported =
+        load_supported_fixture(fixture_root() / "github-com/supported.json");
+    const auto wrong_type = QJsonObject{
+        {"kind", "NON_NULL"},
+        {"name", QJsonValue::Null},
+        {
+            "ofType",
+            QJsonObject{
+                {"kind", "SCALAR"},
+                {"name", "String"},
+            },
+        },
+    };
+    const auto expect_facts =
+        [](const capability_probe_observation& observation,
+           const capability_schema_fact_state review,
+           const capability_schema_fact_state viewed,
+           const std::string_view message) {
+            expect(observation.Complete
+                       && fact(observation,
+                               capability_schema_fact::review_threads_read)
+                              == review
+                       && fact(observation,
+                               capability_schema_fact::viewed_file_state_read)
+                              == viewed
+                       && valid(observation),
+                   message);
+        };
+
+    expect_facts(observe(without_schema_root_field(
+                     supported, QStringLiteral("queryType"),
+                     QStringLiteral("repository"))),
+                 capability_schema_fact_state::missing,
+                 capability_schema_fact_state::missing,
+                 "missing Query.repository disables both compiled read shapes");
+    expect_facts(
+        observe(with_schema_root_field_type(
+            supported, QStringLiteral("queryType"),
+            QStringLiteral("repository"), wrong_type)),
+        capability_schema_fact_state::incompatible,
+        capability_schema_fact_state::incompatible,
+        "incompatible Query.repository disables both compiled read shapes");
+
+    for(const auto& field_name : {
+            QStringLiteral("id"),
+            QStringLiteral("pullRequest"),
+        })
+    {
+        expect_facts(
+            observe(without_named_field(supported, QStringLiteral("repository"),
+                                        field_name)),
+            capability_schema_fact_state::missing,
+            capability_schema_fact_state::missing,
+            "missing Repository baseline field disables both read shapes");
+        expect_facts(
+            observe(with_named_field_type(supported,
+                                          QStringLiteral("repository"),
+                                          field_name, wrong_type)),
+            capability_schema_fact_state::incompatible,
+            capability_schema_fact_state::incompatible,
+            "incompatible Repository baseline field disables both read shapes");
+    }
+
+    expect_facts(
+        observe(without_named_field(supported, QStringLiteral("pullRequest"),
+                                    QStringLiteral("id"))),
+        capability_schema_fact_state::missing,
+        capability_schema_fact_state::missing,
+        "missing PullRequest.id disables both compiled read shapes");
+    expect_facts(
+        observe(with_named_field_type(supported, QStringLiteral("pullRequest"),
+                                      QStringLiteral("id"), wrong_type)),
+        capability_schema_fact_state::incompatible,
+        capability_schema_fact_state::incompatible,
+        "incompatible PullRequest.id disables both compiled read shapes");
+
+    expect_facts(observe(without_schema_root_field(supported,
+                                                   QStringLiteral("queryType"),
+                                                   QStringLiteral("node"))),
+                 capability_schema_fact_state::missing,
+                 capability_schema_fact_state::matched,
+                 "missing Query.node disables only comment paging");
+    expect_facts(observe(with_schema_root_field_type(
+                     supported, QStringLiteral("queryType"),
+                     QStringLiteral("node"), wrong_type)),
+                 capability_schema_fact_state::incompatible,
+                 capability_schema_fact_state::matched,
+                 "incompatible Query.node disables only comment paging");
+
+    expect_facts(
+        observe(with_data_alias_null(supported,
+                                     QStringLiteral("reviewThreadInterfaces"))),
+        capability_schema_fact_state::missing,
+        capability_schema_fact_state::matched,
+        "missing review-thread interface evidence disables comment paging");
+    expect_facts(
+        observe(without_named_type_member(
+            supported, QStringLiteral("reviewThreadInterfaces"),
+            QStringLiteral("interfaces"), QStringLiteral("Node"))),
+        capability_schema_fact_state::incompatible,
+        capability_schema_fact_state::matched,
+        "review thread without Node compatibility disables comment paging");
+
+    expect_facts(
+        observe(with_data_alias_null(supported,
+                                     QStringLiteral("actorPossibleTypes"))),
+        capability_schema_fact_state::missing,
+        capability_schema_fact_state::matched,
+        "missing Actor possible-type evidence disables author identity reads");
+    const auto actor_type = parse(supported)
+                                .object()
+                                .value("data")
+                                .toObject()
+                                .value("actorPossibleTypes")
+                                .toObject()
+                                .value("possibleTypes")
+                                .toArray()
+                                .at(0)
+                                .toObject()
+                                .value("name")
+                                .toString();
+    expect(!actor_type.isEmpty(), "fixture has an Actor possible type");
+    expect_facts(
+        observe(without_named_type_member(
+            supported, QStringLiteral("nodePossibleTypes"),
+            QStringLiteral("possibleTypes"), actor_type)),
+        capability_schema_fact_state::incompatible,
+        capability_schema_fact_state::matched,
+        "one non-Node Actor disables total author identity normalization");
 }
 
 [[nodiscard]] auto with_duplicate_review_field(
@@ -1312,22 +1652,32 @@ auto test_malformed_duplicates_additions_and_limits() -> void
         };
 
     auto limits = capability_probe_limits{};
+    limits.MaximumQueryFields = 30U;
+    expect_response_limit(limits, "query field limit rejects all evidence");
+
+    limits = {};
     limits.MaximumMutationFields = 270U;
-    expect_response_limit(
-        limits,
-        "mutation field limit rejects all evidence");
+    expect_response_limit(limits, "mutation field limit rejects all evidence");
+
+    limits = {};
+    limits.MaximumRepositoryFields = 144U;
+    expect_response_limit(limits,
+                          "repository field limit rejects all evidence");
 
     limits = {};
     limits.MaximumPullRequestFields = 112U;
-    expect_response_limit(
-        limits,
-        "pull-request field limit rejects all evidence");
+    expect_response_limit(limits,
+                          "pull-request field limit rejects all evidence");
 
     limits = {};
     limits.MaximumOtherTypeFields = 46U;
     expect_response_limit(
-        limits,
-        "other selected-type field limit rejects all evidence");
+        limits, "other selected-type field limit rejects all evidence");
+
+    limits = {};
+    limits.MaximumNamedTypes = 279U;
+    expect_response_limit(limits,
+                          "named-type membership limit rejects all evidence");
 
     limits = {};
     limits.MaximumArrayElements = 3U;
@@ -1432,7 +1782,7 @@ auto test_observation_invariants_reject_tampering() -> void
         !valid(invalid_incomplete),
         "incomplete evidence cannot retain partial schema facts");
 }
-}
+} // namespace
 
 int main()
 {
@@ -1444,6 +1794,8 @@ int main()
     test_complete_absence_is_unsupported();
     test_null_selected_members_are_incomplete();
     test_capability_dependencies_remain_independent();
+    test_compiled_connection_counts_are_required();
+    test_compiled_graphql_baseline_is_required();
     test_malformed_duplicates_additions_and_limits();
     test_observation_invariants_reject_tampering();
     std::cout << "github capability probe contracts passed\n";

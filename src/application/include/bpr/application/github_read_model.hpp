@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include <compare>
@@ -95,6 +96,19 @@ enum class github_file_viewed_state : std::uint8_t
     dismissed,
     unviewed,
     viewed,
+};
+
+enum class github_collection_availability : std::uint8_t
+{
+    unavailable,
+    available,
+};
+
+enum class github_permission_state : std::uint8_t
+{
+    unavailable,
+    denied,
+    allowed,
 };
 
 enum class github_review_state : std::uint8_t
@@ -238,8 +252,10 @@ struct github_review_thread_record
     std::optional<std::uint32_t> Line;
     bool Resolved = false;
     bool Outdated = false;
-    bool ViewerCanResolve = false;
-    bool ViewerCanUnresolve = false;
+    github_permission_state ViewerResolvePermission =
+        github_permission_state::unavailable;
+    github_permission_state ViewerUnresolvePermission =
+        github_permission_state::unavailable;
     std::vector<github_review_comment_record> Comments;
 
     auto operator<=>(const github_review_thread_record&) const = default;
@@ -282,13 +298,39 @@ struct github_capability_evidence
 {
     core::github_capabilities Capabilities;
     core::capability_revision Revision;
+    github_read_shape ReadShape;
     std::uint32_t ContractVersion = 1;
 
     auto operator<=>(const github_capability_evidence&) const = default;
 };
 
+enum class github_rate_limit_resource : std::uint8_t
+{
+    uninitialized,
+    core,
+    search,
+    graphql,
+};
+
+[[nodiscard]] constexpr auto valid(
+    const github_rate_limit_resource resource) noexcept -> bool
+{
+    switch(resource)
+    {
+    case github_rate_limit_resource::core:
+    case github_rate_limit_resource::search:
+    case github_rate_limit_resource::graphql:
+        return true;
+    case github_rate_limit_resource::uninitialized:
+        return false;
+    }
+    return false;
+}
+
 struct github_rate_limit_record
 {
+    github_rate_limit_resource Resource =
+        github_rate_limit_resource::uninitialized;
     std::uint64_t Limit = 0;
     std::uint64_t Remaining = 0;
     std::uint64_t ResetUnixSeconds = 0;
@@ -297,13 +339,155 @@ struct github_rate_limit_record
     auto operator<=>(const github_rate_limit_record&) const = default;
 };
 
+[[nodiscard]] constexpr auto valid(
+    const github_rate_limit_record& record) noexcept -> bool
+{
+    return valid(record.Resource)
+        && record.Remaining <= record.Limit
+        && (!record.SecondaryLimited || record.Remaining != 0U);
+}
+
+struct github_rate_limit_state
+{
+    std::optional<github_rate_limit_record> Core;
+    std::optional<github_rate_limit_record> Search;
+    std::optional<github_rate_limit_record> Graphql;
+
+    auto operator<=>(const github_rate_limit_state&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const github_rate_limit_state& state) noexcept -> bool
+{
+    return (
+               !state.Core.has_value()
+               || (
+                   valid(*state.Core)
+                   && state.Core->Resource
+                       == github_rate_limit_resource::core))
+        && (
+            !state.Search.has_value()
+            || (
+                valid(*state.Search)
+                && state.Search->Resource
+                    == github_rate_limit_resource::search))
+        && (
+            !state.Graphql.has_value()
+            || (
+                valid(*state.Graphql)
+                && state.Graphql->Resource
+                    == github_rate_limit_resource::graphql));
+}
+
+[[nodiscard]] constexpr auto observe(
+    github_rate_limit_state& state,
+    const github_rate_limit_record& record) noexcept -> bool
+{
+    if(!valid(record))
+    {
+        return false;
+    }
+    switch(record.Resource)
+    {
+    case github_rate_limit_resource::core:
+        state.Core = record;
+        return true;
+    case github_rate_limit_resource::search:
+        state.Search = record;
+        return true;
+    case github_rate_limit_resource::graphql:
+        state.Graphql = record;
+        return true;
+    case github_rate_limit_resource::uninitialized:
+        return false;
+    }
+    return false;
+}
+
+[[nodiscard]] constexpr auto merge(
+    github_rate_limit_state& destination,
+    const github_rate_limit_state& source) noexcept -> bool
+{
+    if(!valid(source))
+    {
+        return false;
+    }
+    if(source.Core.has_value())
+    {
+        destination.Core = source.Core;
+    }
+    if(source.Search.has_value())
+    {
+        destination.Search = source.Search;
+    }
+    if(source.Graphql.has_value())
+    {
+        destination.Graphql = source.Graphql;
+    }
+    return true;
+}
+
+[[nodiscard]] constexpr auto has_observations(
+    const github_rate_limit_state& state) noexcept -> bool
+{
+    return state.Core.has_value() || state.Search.has_value()
+        || state.Graphql.has_value();
+}
+
+[[nodiscard]] constexpr auto find(
+    const github_rate_limit_state& state,
+    const github_rate_limit_resource resource) noexcept
+    -> const github_rate_limit_record*
+{
+    switch(resource)
+    {
+    case github_rate_limit_resource::core:
+        return state.Core.has_value() ? &*state.Core : nullptr;
+    case github_rate_limit_resource::search:
+        return state.Search.has_value() ? &*state.Search : nullptr;
+    case github_rate_limit_resource::graphql:
+        return state.Graphql.has_value() ? &*state.Graphql : nullptr;
+    case github_rate_limit_resource::uninitialized:
+        return nullptr;
+    }
+    return nullptr;
+}
+
+[[nodiscard]] constexpr auto is_limited(
+    const github_rate_limit_record& record) noexcept -> bool
+{
+    return record.Remaining == 0U || record.SecondaryLimited;
+}
+
+[[nodiscard]] constexpr auto is_secondary_limited(
+    const github_rate_limit_state& state) noexcept -> bool
+{
+    return (
+               state.Core.has_value()
+               && state.Core->SecondaryLimited)
+        || (
+            state.Search.has_value()
+            && state.Search->SecondaryLimited)
+        || (
+            state.Graphql.has_value()
+            && state.Graphql->SecondaryLimited);
+}
+
+[[nodiscard]] constexpr auto is_limited(
+    const github_rate_limit_state& state) noexcept -> bool
+{
+    return (state.Core.has_value() && is_limited(*state.Core))
+        || (state.Search.has_value() && is_limited(*state.Search))
+        || (state.Graphql.has_value() && is_limited(*state.Graphql));
+}
+
 struct github_session_read_model
 {
     core::host_profile_id Profile;
     core::git_host_id Host;
     github_viewer_record Viewer;
     github_capability_evidence CapabilityEvidence;
-    github_rate_limit_record RateLimit;
+    github_rate_limit_state RateLimits;
 
     auto operator<=>(const github_session_read_model&) const = default;
 };
@@ -320,12 +504,14 @@ struct github_pull_request_snapshot
     std::vector<github_file_record> Files;
     std::vector<github_commit_record> Commits;
     std::vector<github_review_record> Reviews;
+    github_collection_availability ReviewThreadsAvailability =
+        github_collection_availability::unavailable;
     std::vector<github_review_thread_record> ReviewThreads;
     std::vector<github_issue_comment_record> IssueComments;
     std::vector<github_check_record> Checks;
     std::vector<github_search_result_record> SearchResults;
     github_capability_evidence CapabilityEvidence;
-    github_rate_limit_record RateLimit;
+    github_rate_limit_state RateLimits;
 
     auto operator<=>(const github_pull_request_snapshot&) const = default;
 };
@@ -601,6 +787,21 @@ private:
         return true;
     }
     return false;
+}
+
+[[nodiscard]] constexpr auto valid_enum(
+    const github_collection_availability value) noexcept -> bool
+{
+    return value == github_collection_availability::unavailable
+        || value == github_collection_availability::available;
+}
+
+[[nodiscard]] constexpr auto valid_enum(
+    const github_permission_state value) noexcept -> bool
+{
+    return value == github_permission_state::unavailable
+        || value == github_permission_state::denied
+        || value == github_permission_state::allowed;
 }
 
 [[nodiscard]] constexpr auto valid_enum(
@@ -1051,6 +1252,12 @@ private:
         return github_read_validation_error::invalid_enum;
     }
     if(
+        !valid_enum(record.ViewerResolvePermission)
+        || !valid_enum(record.ViewerUnresolvePermission))
+    {
+        return github_read_validation_error::invalid_enum;
+    }
+    if(
         (
             record.Subject == github_review_thread_subject::line
             && !record.Line.has_value())
@@ -1208,7 +1415,25 @@ private:
     const github_rate_limit_record& rate_limit) noexcept
     -> github_read_validation_error
 {
-    if(rate_limit.Remaining > rate_limit.Limit)
+    if(!valid(rate_limit))
+    {
+        return github_read_validation_error::invalid_rate_limit;
+    }
+    return github_read_validation_error::none;
+}
+
+[[nodiscard]] inline auto validate_rate_limits(
+    const github_rate_limit_state& rate_limits,
+    const bool require_core,
+    const bool require_search,
+    const bool require_graphql) noexcept
+    -> github_read_validation_error
+{
+    if(
+        !valid(rate_limits)
+        || (require_core && !rate_limits.Core.has_value())
+        || (require_search && !rate_limits.Search.has_value())
+        || (require_graphql && !rate_limits.Graphql.has_value()))
     {
         return github_read_validation_error::invalid_rate_limit;
     }
@@ -1472,7 +1697,11 @@ private:
         return detail::validation(error);
     }
     return detail::validation(
-        detail::validate_rate_limit(model.RateLimit));
+        detail::validate_rate_limits(
+            model.RateLimits,
+            false,
+            false,
+            false));
 }
 
 [[nodiscard]] inline auto validate(
@@ -1525,6 +1754,80 @@ private:
     {
         return detail::validation(
             github_read_validation_error::identity_mismatch);
+    }
+    if(const auto error =
+           detail::validate_capabilities(snapshot.CapabilityEvidence);
+       error != github_read_validation_error::none)
+    {
+        return detail::validation(error);
+    }
+    if(!detail::valid_enum(snapshot.ReviewThreadsAvailability))
+    {
+        return detail::validation(
+            github_read_validation_error::invalid_enum);
+    }
+    const auto& read_shape = snapshot.CapabilityEvidence.ReadShape;
+    const auto threads_available =
+        snapshot.ReviewThreadsAvailability
+        == github_collection_availability::available;
+    if(
+        threads_available != read_shape.ReviewThreads
+        || (
+            !threads_available
+            && !snapshot.ReviewThreads.empty())
+        || (
+            snapshot.CapabilityEvidence.Capabilities.ReviewThreads
+                == core::github_capability_state::supported
+            && !read_shape.ReviewThreads)
+        || (
+            snapshot.CapabilityEvidence.Capabilities.ReviewThreads
+                != core::github_capability_state::supported
+            && read_shape.ReviewThreads)
+        || (
+            snapshot.CapabilityEvidence.Capabilities.ViewedFileMutations
+                == core::github_capability_state::supported
+            && !read_shape.ViewedFileState)
+        || (
+            snapshot.CapabilityEvidence.Capabilities.ResolveThread
+                == core::github_capability_state::supported
+            && (
+                !read_shape.ReviewThreads
+                || !read_shape.ResolvePermission))
+        || (
+            snapshot.CapabilityEvidence.Capabilities.UnresolveThread
+                == core::github_capability_state::supported
+            && (
+                !read_shape.ReviewThreads
+                || !read_shape.UnresolvePermission)))
+    {
+        return detail::validation(
+            github_read_validation_error::invalid_relationship);
+    }
+    for(const auto& file : snapshot.Files)
+    {
+        const auto viewed_available =
+            file.ViewedState != github_file_viewed_state::unavailable;
+        if(viewed_available != read_shape.ViewedFileState)
+        {
+            return detail::validation(
+                github_read_validation_error::invalid_relationship);
+        }
+    }
+    for(const auto& thread : snapshot.ReviewThreads)
+    {
+        const auto resolve_available =
+            thread.ViewerResolvePermission
+            != github_permission_state::unavailable;
+        const auto unresolve_available =
+            thread.ViewerUnresolvePermission
+            != github_permission_state::unavailable;
+        if(
+            resolve_available != read_shape.ResolvePermission
+            || unresolve_available != read_shape.UnresolvePermission)
+        {
+            return detail::validation(
+                github_read_validation_error::invalid_relationship);
+        }
     }
     if(snapshot.Files.size() > limits.MaximumFiles
        || snapshot.Commits.size() > limits.MaximumCommits
@@ -1685,13 +1988,11 @@ private:
         return detail::validation(
             github_read_validation_error::allocation_limit);
     }
-    if(const auto error =
-           detail::validate_capabilities(snapshot.CapabilityEvidence);
-       error != github_read_validation_error::none)
-    {
-        return detail::validation(error);
-    }
     return detail::validation(
-        detail::validate_rate_limit(snapshot.RateLimit));
+        detail::validate_rate_limits(
+            snapshot.RateLimits,
+            false,
+            false,
+            false));
 }
 }

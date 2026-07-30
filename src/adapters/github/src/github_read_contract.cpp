@@ -554,6 +554,206 @@ private:
     return compact_json(document);
 }
 
+[[nodiscard]] auto bounded_graphql_token(
+    const std::string_view value,
+    const std::size_t maximum) noexcept -> bool
+{
+    return !value.empty() && value.size() <= maximum
+        && std::ranges::all_of(value, [](const char character) {
+               const auto byte = static_cast<unsigned char>(character);
+               return byte >= 0x21U && byte <= 0x7eU;
+           });
+}
+
+[[nodiscard]] auto valid_graphql_page(
+    const github_graphql_page_request& page,
+    const std::uint32_t sequence) noexcept -> bool
+{
+    const auto& shape = page.Shape;
+    if(
+        (shape.ResolvePermission || shape.UnresolvePermission)
+        && !shape.ReviewThreads)
+    {
+        return false;
+    }
+
+    switch(page.Kind)
+    {
+    case github_graphql_page_kind::initial:
+        return sequence == 1U
+            && (shape.ReviewThreads || shape.ViewedFileState)
+            && page.AfterCursor.empty() && page.ThreadId.empty();
+    case github_graphql_page_kind::files:
+        return sequence > 1U && shape.ViewedFileState
+            && page.ThreadId.empty()
+            && bounded_graphql_token(page.AfterCursor, 1'024U);
+    case github_graphql_page_kind::threads:
+        return sequence > 1U && shape.ReviewThreads
+            && page.ThreadId.empty()
+            && bounded_graphql_token(page.AfterCursor, 1'024U);
+    case github_graphql_page_kind::comments:
+        return sequence > 1U && shape.ReviewThreads
+            && bounded_graphql_token(page.AfterCursor, 1'024U)
+            && bounded_graphql_token(page.ThreadId, 256U);
+    }
+    return false;
+}
+
+[[nodiscard]] auto page_info_selection() -> std::string
+{
+    return "pageInfo{hasNextPage endCursor}";
+}
+
+[[nodiscard]] auto file_connection_selection(
+    const std::string_view arguments,
+    const application::github_read_shape& shape) -> std::string
+{
+    std::string result{"files("};
+    result += arguments;
+    result += "){totalCount nodes{path";
+    if(shape.ViewedFileState)
+    {
+        result += " viewerViewedState";
+    }
+    result += "} ";
+    result += page_info_selection();
+    result += "}";
+    return result;
+}
+
+[[nodiscard]] auto comment_connection_selection(
+    const std::string_view arguments) -> std::string
+{
+    std::string result{"comments("};
+    result += arguments;
+    result += "){totalCount nodes{id bodyText path line originalLine "
+              "outdated author{login ... on Node{id}} replyTo{id}} ";
+    result += page_info_selection();
+    result += "}";
+    return result;
+}
+
+[[nodiscard]] auto thread_connection_selection(
+    const std::string_view arguments,
+    const application::github_read_shape& shape) -> std::string
+{
+    std::string result{"reviewThreads("};
+    result += arguments;
+    result += "){totalCount nodes{id isResolved isOutdated";
+    if(shape.ResolvePermission)
+    {
+        result += " viewerCanResolve";
+    }
+    if(shape.UnresolvePermission)
+    {
+        result += " viewerCanUnresolve";
+    }
+    result += " subjectType path line originalLine ";
+    result += comment_connection_selection("first:100");
+    result += "} ";
+    result += page_info_selection();
+    result += "}";
+    return result;
+}
+
+[[nodiscard]] auto paged_review_body(
+    const semantic_read_request& request,
+    const github_graphql_page_request& page) -> std::string
+{
+    std::string query;
+    switch(page.Kind)
+    {
+    case github_graphql_page_kind::initial:
+        query =
+            "query GetReviewData($owner:String!,$name:String!,"
+            "$number:Int!){repository(owner:$owner,name:$name){id "
+            "pullRequest(number:$number){id";
+        if(page.Shape.ViewedFileState)
+        {
+            query += " ";
+            query += file_connection_selection("first:100", page.Shape);
+        }
+        if(page.Shape.ReviewThreads)
+        {
+            query += " ";
+            query += thread_connection_selection("first:100", page.Shape);
+        }
+        query += "}}}";
+        break;
+    case github_graphql_page_kind::files:
+        query =
+            "query GetReviewFilesPage($owner:String!,$name:String!,"
+            "$number:Int!,$after:String!){repository(owner:$owner,"
+            "name:$name){id pullRequest(number:$number){id ";
+        query += file_connection_selection(
+            "first:100,after:$after",
+            page.Shape);
+        query += "}}}";
+        break;
+    case github_graphql_page_kind::threads:
+        query =
+            "query GetReviewThreadsPage($owner:String!,$name:String!,"
+            "$number:Int!,$after:String!){repository(owner:$owner,"
+            "name:$name){id pullRequest(number:$number){id ";
+        query += thread_connection_selection(
+            "first:100,after:$after",
+            page.Shape);
+        query += "}}}";
+        break;
+    case github_graphql_page_kind::comments:
+        query =
+            "query GetReviewCommentsPage($owner:String!,$name:String!,"
+            "$number:Int!,$thread:ID!,$after:String!){"
+            "repository(owner:$owner,name:$name){id "
+            "pullRequest(number:$number){id}} "
+            "node(id:$thread){... on PullRequestReviewThread{id ";
+        query += comment_connection_selection(
+            "first:100,after:$after");
+        query += "}}}";
+        break;
+    }
+
+    QJsonObject variables;
+    variables.insert(
+        "name",
+        QString::fromUtf8(
+            request.Repository.data(),
+            static_cast<qsizetype>(request.Repository.size())));
+    variables.insert(
+        "number",
+        static_cast<qint64>(request.PullRequestNumber));
+    variables.insert(
+        "owner",
+        QString::fromUtf8(
+            request.Owner.data(),
+            static_cast<qsizetype>(request.Owner.size())));
+    if(page.Kind != github_graphql_page_kind::initial)
+    {
+        variables.insert(
+            "after",
+            QString::fromUtf8(
+                page.AfterCursor.data(),
+                static_cast<qsizetype>(page.AfterCursor.size())));
+    }
+    if(page.Kind == github_graphql_page_kind::comments)
+    {
+        variables.insert(
+            "thread",
+            QString::fromUtf8(
+                page.ThreadId.data(),
+                static_cast<qsizetype>(page.ThreadId.size())));
+    }
+
+    QJsonObject document;
+    document.insert(
+        "query",
+        QString::fromUtf8(
+            query.data(),
+            static_cast<qsizetype>(query.size())));
+    document.insert("variables", variables);
+    return compact_json(document);
+}
+
 [[nodiscard]] auto repository_path(
     const std::string_view prefix,
     const semantic_read_request& request) -> std::string
@@ -615,8 +815,9 @@ private:
     case read_operation::get_viewer_identity:
     case read_operation::get_repository:
     case read_operation::get_pull_request:
-    case read_operation::list_review_threads:
         return 1U;
+    case read_operation::list_review_threads:
+        return 1'024U;
     }
     return 0U;
 }
@@ -676,7 +877,8 @@ private:
 }
 
 [[nodiscard]] auto validate_graphql_body(
-    const std::string_view body) -> std::expected<void, contract_failure>
+    const std::string_view body,
+    const bool paged) -> std::expected<void, contract_failure>
 {
     if(body.size() > maximum_fixture_body_bytes)
     {
@@ -725,9 +927,10 @@ private:
 
     const auto variables = object.value("variables").toObject();
     if(
-        variables.size() != 3 || !variables.value("owner").isString()
+        !variables.value("owner").isString()
         || !variables.value("name").isString()
-        || !variables.value("number").isDouble())
+        || !variables.value("number").isDouble()
+        || (!paged && variables.size() != 3))
     {
         return failure(contract_failure_code::unexpected_body);
     }
@@ -1755,6 +1958,19 @@ auto compile_read_request_impl(
 
     const auto graphql =
         request.Operation == read_operation::list_review_threads;
+    if(
+        (!graphql && request.GraphqlPage.has_value())
+        || (
+            request.GraphqlPage.has_value()
+            && !valid_graphql_page(
+                *request.GraphqlPage,
+                request.Page))
+        || (
+            graphql && !request.GraphqlPage.has_value()
+            && request.Page != 1U))
+    {
+        return failure(contract_failure_code::unexpected_body);
+    }
     const auto prefix = path_prefix(request.Server, graphql);
     if(!prefix.has_value())
     {
@@ -1800,7 +2016,9 @@ auto compile_read_request_impl(
         break;
     case read_operation::list_review_threads:
         result.Path = std::string{*prefix} + "/graphql";
-        result.Body = review_threads_body(request);
+        result.Body = request.GraphqlPage.has_value()
+            ? paged_review_body(request, *request.GraphqlPage)
+            : review_threads_body(request);
         break;
     case read_operation::list_issue_comments:
         result.Path = repository_path(*prefix, request) + "/issues/"
@@ -1868,7 +2086,9 @@ auto validate_outbound_read_request(const wire_request& request)
         {
             return failure(contract_failure_code::unexpected_method);
         }
-        if(const auto validation = validate_graphql_body(request.Body);
+        if(const auto validation = validate_graphql_body(
+               request.Body,
+               request.Semantic.GraphqlPage.has_value());
            !validation.has_value())
         {
             return validation;

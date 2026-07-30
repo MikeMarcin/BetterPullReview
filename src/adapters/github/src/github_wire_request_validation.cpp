@@ -108,4 +108,46 @@ auto validate_github_wire_request(
     }
     return {};
 }
+
+auto validate_github_capability_probe_wire_request(
+    const validated_github_host_profile& profile,
+    const github_capability_probe_wire_request& request)
+    -> std::expected<void, github_wire_request_validation_failure>
+{
+    const auto& correlation = request.Correlation;
+    if(
+        !application::detail::valid_context(correlation.Session)
+        || correlation.Session.Profile != profile.profile()
+        || correlation.ProfileRevision != profile.revision()
+        || correlation.Host != profile.host()
+        || correlation.ObservedAccount.value() == 0U
+        || request.Wire.Profile != correlation.Session.Profile
+        || request.Wire.ProfileRevision != correlation.ProfileRevision
+        || request.Wire.Host != correlation.Host)
+    {
+        return std::unexpected{
+            github_wire_request_validation_failure::
+                profile_correlation_mismatch};
+    }
+
+    if(request.Wire.Contract != profile.server_contract())
+    {
+        return std::unexpected{
+            github_wire_request_validation_failure::
+                server_contract_mismatch};
+    }
+
+    const auto canonical = compile_capability_probe_request(profile);
+    if(
+        !canonical.has_value()
+        || request.Wire != *canonical
+        || !capability_probe_document_is_query_only(
+            capability_probe_graphql_document()))
+    {
+        return std::unexpected{
+            github_wire_request_validation_failure::
+                invalid_wire_request};
+    }
+    return {};
+}
 }

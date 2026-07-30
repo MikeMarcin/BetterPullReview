@@ -175,6 +175,34 @@ struct loaded_recording
     };
 }
 
+[[nodiscard]] auto canonical_rate_limits()
+    -> application::github_rate_limit_state
+{
+    return {
+        .Core =
+            application::github_rate_limit_record{
+                .Resource = application::github_rate_limit_resource::core,
+                .Limit = 5'000,
+                .Remaining = 4'999,
+                .ResetUnixSeconds = 2'000'000'000,
+            },
+        .Search =
+            application::github_rate_limit_record{
+                .Resource = application::github_rate_limit_resource::search,
+                .Limit = 30,
+                .Remaining = 29,
+                .ResetUnixSeconds = 2'000'000'000,
+            },
+        .Graphql =
+            application::github_rate_limit_record{
+                .Resource = application::github_rate_limit_resource::graphql,
+                .Limit = 5'000,
+                .Remaining = 4'999,
+                .ResetUnixSeconds = 2'000'000'000,
+            },
+    };
+}
+
 [[nodiscard]] auto normalization_context(const server_contract server)
     -> github_read_normalization_context
 {
@@ -216,12 +244,7 @@ struct loaded_recording
         .Snapshot = core::provider_snapshot_id{55},
         .CapabilityRevision = core::capability_revision{44},
         .Capabilities = capabilities(),
-        .RateLimit =
-            {
-                .Limit = 5'000,
-                .Remaining = 4'999,
-                .ResetUnixSeconds = 2'000'000'000,
-            },
+        .RateLimits = canonical_rate_limits(),
         .Limits = {},
         .SearchTerms = "is:open",
     };
@@ -232,13 +255,16 @@ struct loaded_recording
     const application::github_capability_evidence evidence{
         .Capabilities = capabilities(),
         .Revision = core::capability_revision{44},
+        .ReadShape =
+            {
+                .ReviewThreads = true,
+                .ViewedFileState = true,
+                .ResolvePermission = true,
+                .UnresolvePermission = true,
+            },
         .ContractVersion = 1,
     };
-    const application::github_rate_limit_record rate_limit{
-        .Limit = 5'000,
-        .Remaining = 4'999,
-        .ResetUnixSeconds = 2'000'000'000,
-    };
+    const auto rate_limits = canonical_rate_limits();
 
     normalized_github_read result;
     result.Session = {
@@ -252,7 +278,7 @@ struct loaded_recording
                 .DisplayName = "Octo Reviewer",
             },
         .CapabilityEvidence = evidence,
-        .RateLimit = rate_limit,
+        .RateLimits = rate_limits,
     };
     result.PullRequest = {
         .Profile = core::host_profile_id{11},
@@ -353,6 +379,8 @@ struct loaded_recording
                         "refreshes.",
                 },
             },
+        .ReviewThreadsAvailability =
+            application::github_collection_availability::available,
         .ReviewThreads =
             {
                 {
@@ -364,8 +392,10 @@ struct loaded_recording
                     .Line = 42,
                     .Resolved = false,
                     .Outdated = false,
-                    .ViewerCanResolve = true,
-                    .ViewerCanUnresolve = false,
+                    .ViewerResolvePermission =
+                        application::github_permission_state::allowed,
+                    .ViewerUnresolvePermission =
+                        application::github_permission_state::denied,
                     .Comments =
                         {
                             {
@@ -432,7 +462,7 @@ struct loaded_recording
                 },
             },
         .CapabilityEvidence = evidence,
-        .RateLimit = rate_limit,
+        .RateLimits = rate_limits,
     };
     return result;
 }
@@ -451,6 +481,7 @@ struct loaded_recording
             .HeadOid = {},
             .SearchTerms = {},
             .Page = 1,
+            .GraphqlPage = std::nullopt,
         });
     expect(compiled_graphql.has_value(), "fixture GraphQL request compiles");
     expect(
@@ -496,9 +527,11 @@ auto test_manifest_catalog_and_normalization_are_one_contract() -> void
         .Operation = operation,
         .Owner = {},
         .Repository = {},
+        .PullRequestNumber = 0U,
         .HeadOid = {},
         .SearchTerms = {},
         .Page = 1,
+        .GraphqlPage = std::nullopt,
     };
     if(operation != read_operation::get_viewer_identity)
     {
@@ -1153,10 +1186,12 @@ auto test_provider_valid_nullable_and_conditional_shapes() -> void
         target_availability.Responses);
     expect(
         normalized_availability.has_value()
-            && !normalized_availability->PullRequest.ReviewThreads.front()
-                    .ViewerCanResolve
             && normalized_availability->PullRequest.ReviewThreads.front()
-                   .ViewerCanUnresolve
+                       .ViewerResolvePermission
+                == application::github_permission_state::denied
+            && normalized_availability->PullRequest.ReviewThreads.front()
+                       .ViewerUnresolvePermission
+                == application::github_permission_state::allowed
             && normalized_availability->PullRequest.CapabilityEvidence
                        .Capabilities
                 == capabilities(),

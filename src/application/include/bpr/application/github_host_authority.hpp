@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bpr/core/github_model.hpp"
+
 #include <compare>
 #include <cstdint>
 #include <string_view>
@@ -90,6 +92,30 @@ enum class github_trust_mode : std::uint8_t
     system,
 };
 
+struct github_profile_authority
+{
+    core::host_profile_id Profile;
+    github_profile_revision ProfileRevision;
+    core::git_host_id Host;
+    github_server_contract ServerContract =
+        github_server_contract::github_com_2022_11_28;
+    github_authentication_transport Authentication =
+        github_authentication_transport::native_https;
+    github_probe_contract_revision ProbeContractRevision;
+
+    auto operator<=>(const github_profile_authority&) const = default;
+};
+
+struct github_read_shape
+{
+    bool ReviewThreads = false;
+    bool ViewedFileState = false;
+    bool ResolvePermission = false;
+    bool UnresolvePermission = false;
+
+    auto operator<=>(const github_read_shape&) const = default;
+};
+
 [[nodiscard]] constexpr auto valid(
     const github_server_contract contract) noexcept -> bool
 {
@@ -151,5 +177,16 @@ enum class github_trust_mode : std::uint8_t
     const github_trust_mode mode) noexcept -> bool
 {
     return mode == github_trust_mode::system;
+}
+
+[[nodiscard]] constexpr auto valid(
+    const github_profile_authority& authority) noexcept -> bool
+{
+    return authority.Profile.value() != 0U
+        && authority.ProfileRevision.valid()
+        && authority.Host.value() != 0U
+        && valid(authority.ServerContract)
+        && valid(authority.Authentication)
+        && authority.ProbeContractRevision.valid();
 }
 }
