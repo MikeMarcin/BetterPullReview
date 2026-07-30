@@ -13,7 +13,7 @@ completed: 2026-07-29
 
 - Recorded immutable RFC base `470741a605ac401464d9e50480667ca45033ca66`.
 - Verified the live repository and confirmed no pre-existing RFC, issue,
-  architecture, build, package, or CI convention existed.
+  architecture, build, package, or build-automation convention existed.
 - Resolved `docs/rfcs/` as `RFC_ROOT` and `docs/issues/` as `ISSUE_ROOT`.
 - Established `backlog`, `ready`, `in-progress`, and terminal `done` lanes.
 - Imported all fourteen RFCs and durable normative architecture, UX,

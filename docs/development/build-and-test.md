@@ -32,8 +32,8 @@ ctest --preset core-only --output-on-failure
 
 Both presets use out-of-source directories under ignored `build/`.
 
-Windows CI uses the conditional multi-configuration preset that selects the
-Visual Studio 2022 x64 generator and the matching Qt archive:
+Windows developers and release operators use the conditional
+multi-configuration preset that selects the Visual Studio 2022 x64 generator:
 
 ```powershell
 cmake --preset windows-dev
@@ -70,13 +70,13 @@ build/dev/src/app/better_pull_review \
 binary-dependency script also supports all three platforms, using `dumpbin` on
 Windows when available, followed by `llvm-readobj` and `objdump` fallbacks.
 
-## CI
+## Build ownership
 
-`.github/workflows/ci.yml` configures Qt 6.11.1 builds and application launch
-tests on Ubuntu 24.04, Windows 2025, and macOS 15, plus a separate Qt-free core
-job. Windows selects the Visual Studio 2022 x64 preset and
-`win64_msvc2022_64`. Every directly selected action is pinned to a full commit
-hash, and checkout credentials are not persisted.
+GitHub Actions does not build, test, package, or release BetterPullReview.
+Developer builds run through the checked-in CMake presets on the current
+machine. Clean Windows, macOS, and Linux package verification belongs to
+RFC-BPR-0014 and runs on release-operator or corporate-managed environments.
 
-A configured job is not passing evidence until its actual workflow run
-completes successfully.
+Platform support is never inferred from Qt availability or a configuration
+file. RFC-BPR-0014 requires direct install, launch, runtime, and uninstall
+evidence from each supported native environment.

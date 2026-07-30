@@ -20,3 +20,13 @@ Version 2 does not change the approved product scope, GitHub authority model, RF
 - expanding issue plans, verification matrices, release gates, and the pack validator to enforce the architecture.
 
 The RFC IDs remain `RFC-BPR-0001` through `RFC-BPR-0014`. Import this revision as the current pack source rather than layering it as an additional architecture RFC.
+
+## Repository implementation clarification
+
+At the product owner's direction, GitHub Actions is not part of the
+BetterPullReview build, test, package, or release path. RFC-BPR-0001 verifies
+the architecture, portable build configuration, and native public path on the
+current development host. RFC-BPR-0014 retains the direct clean-environment
+Windows, macOS, and Linux install/launch/runtime/uninstall gates. Those gates
+must run on release-operator or corporate-managed environments and cannot be
+replaced by configuration-only evidence.

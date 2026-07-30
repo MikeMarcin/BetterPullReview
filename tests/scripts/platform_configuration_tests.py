@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import re
 import unittest
 from pathlib import Path
 
@@ -10,15 +9,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-class CiConfigurationTests(unittest.TestCase):
+class PlatformConfigurationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.presets = json.loads(
             (ROOT / "CMakePresets.json").read_text(encoding="utf-8")
         )
-        cls.workflow = (
-            ROOT / ".github/workflows/ci.yml"
-        ).read_text(encoding="utf-8")
 
     def test_windows_preset_selects_visual_studio_2022_x64(self) -> None:
         configure_presets = {
@@ -47,27 +43,33 @@ class CiConfigurationTests(unittest.TestCase):
                 "Debug",
             )
 
-    def test_workflow_selects_matching_windows_qt_archive(self) -> None:
-        self.assertRegex(
-            self.workflow,
-            re.compile(
-                r"- os: windows-2025\s+"
-                r"preset: windows-dev\s+"
-                r"qt_arch: win64_msvc2022_64"
-            ),
-        )
-        self.assertIn("arch: ${{ matrix.qt_arch }}", self.workflow)
+    def test_portable_developer_preset_uses_ninja(self) -> None:
+        configure_presets = {
+            preset["name"]: preset
+            for preset in self.presets["configurePresets"]
+        }
+        developer = configure_presets["dev"]
 
-    def test_every_selected_action_is_commit_pinned(self) -> None:
-        action_lines = [
-            line.strip()
-            for line in self.workflow.splitlines()
-            if line.strip().startswith("uses:")
-        ]
-        self.assertGreater(len(action_lines), 0)
-        for line in action_lines:
-            reference = line.split("#", 1)[0].strip()
-            self.assertRegex(reference, r"@[0-9a-f]{40}$")
+        self.assertEqual(developer["generator"], "Ninja")
+        self.assertEqual(developer["cacheVariables"]["BPR_BUILD_QT"], "ON")
+        self.assertEqual(
+            developer["cacheVariables"]["BPR_BUILD_TESTS"],
+            "ON",
+        )
+
+    def test_repository_selects_no_github_actions_workflow(self) -> None:
+        workflow_root = ROOT / ".github/workflows"
+        if not workflow_root.exists():
+            return
+
+        workflows: list[Path] = []
+        for pattern in ("*.yml", "*.yaml"):
+            workflows.extend(workflow_root.glob(pattern))
+        self.assertEqual(
+            workflows,
+            [],
+            "GitHub Actions is not selected for BetterPullReview",
+        )
 
 
 if __name__ == "__main__":

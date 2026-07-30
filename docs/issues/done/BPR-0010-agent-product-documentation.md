@@ -21,13 +21,13 @@ documentation ledger without dummy edits.
 - Replaced the bootstrap README and added contributor/build guidance that
   states the implemented foundation and later-RFC limits without overclaiming.
 - Documented the live typed vertical slice, state authority, asynchronous
-  identity, lifecycle, selected targets, CI, focused commands, and runtime
-  security baseline.
+  identity, lifecycle, selected targets, focused commands, build ownership, and
+  runtime security baseline.
 - Mapped every changed path from the immutable RFC base to its owning agent and
   product/developer/security document in the RFC ledger.
 - Added the canonical documentation validator for required coverage,
   RFC/index status parity, board-lane state, `NEXT_ID`, relative links, and
-  full-SHA GitHub Action pins.
+  the prohibition on GitHub Actions product builds.
 
 ## Evidence
 

@@ -157,17 +157,22 @@ def verify_links(root: Path) -> None:
                 fail(f"broken relative link in {path}: {target}")
 
 
-def verify_pinned_actions(root: Path) -> None:
-    workflow = root / ".github/workflows/ci.yml"
-    if not workflow.is_file():
-        fail("missing CI workflow")
-    for line in workflow.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("uses:"):
-            continue
-        reference = stripped.split("#", 1)[0].strip()
-        if not re.search(r"@[0-9a-f]{40}$", reference):
-            fail(f"GitHub Action is not pinned to a commit: {stripped}")
+def verify_github_actions_not_selected(root: Path) -> None:
+    workflow_root = root / ".github/workflows"
+    if not workflow_root.exists():
+        return
+
+    workflows: list[Path] = []
+    for pattern in ("*.yml", "*.yaml"):
+        workflows.extend(workflow_root.glob(pattern))
+    if workflows:
+        selected = ", ".join(
+            str(path.relative_to(root)) for path in sorted(workflows)
+        )
+        fail(
+            "GitHub Actions is not selected for BetterPullReview: "
+            f"{selected}"
+        )
 
 
 def main() -> int:
@@ -187,7 +192,7 @@ def main() -> int:
     verify_rfc_index(root)
     verify_issue_board(root)
     verify_links(root)
-    verify_pinned_actions(root)
+    verify_github_actions_not_selected(root)
 
     print("DOCUMENTATION_OK")
     return 0

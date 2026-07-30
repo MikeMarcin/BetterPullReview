@@ -18,7 +18,8 @@ existing secret-canary and teardown checks platform-independent.
 - The runtime audit remains passing on macOS.
 - CTest registers the runtime audit on every supported platform.
 - Windows-specific command construction and output parsing have focused tests.
-- The actual Windows execution remains part of BPR-0013's remote CI evidence.
+- Actual Windows execution remains a clean native package gate in
+  RFC-BPR-0014.
 
 ## Result
 

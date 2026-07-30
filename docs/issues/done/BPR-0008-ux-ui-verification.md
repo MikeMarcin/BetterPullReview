@@ -12,7 +12,8 @@ completed: 2026-07-29
 Exercise the actual application with deterministic Qt automation and rendered
 inspection. Verify native empty-state content, command translation, projection
 updates, keyboard/focus behavior, accessibility labels, and supported macOS
-launch behavior. Record Windows/Linux CI coverage separately.
+launch behavior. Record clean Windows/Linux package launch coverage under
+RFC-BPR-0014.
 
 ## Result
 
@@ -26,8 +27,8 @@ launch behavior. Record Windows/Linux CI coverage separately.
 - Inspected both the deterministic offscreen rendering and the native macOS
   rendering. Both show the toolbar action, empty state, and non-secret
   version/platform/configuration facts without clipping.
-- Added pinned three-platform CI jobs for Ubuntu 24.04, Windows 2025, and macOS
-  15 using Qt 6.11.1, plus a separate Qt-free core job.
+- Kept the rendered test platform-neutral so release operators can exercise it
+  directly in clean native environments during RFC-BPR-0014.
 
 ## Evidence
 
@@ -42,6 +43,6 @@ RENDER_OK
 ```
 
 Local inspection artifacts remain under ignored `build/dev/` and are not
-checked in as implementation proof. The workflow is configured but has not
-run on the unpushed branch, so Windows and Linux remain explicitly unverified
-for RFC closeout.
+checked in as implementation proof. RFC-BPR-0001 directly verifies the current
+macOS development host; clean Windows and Linux package rendering remains an
+RFC-BPR-0014 release gate.

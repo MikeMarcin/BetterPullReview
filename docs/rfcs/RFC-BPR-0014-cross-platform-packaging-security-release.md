@@ -42,7 +42,15 @@ A corporate-acceptable tool needs more than source-level security claims. The de
 - macOS 13+ universal x86_64/arm64 application.
 - Linux x86_64 packages built against the documented oldest supported baseline; signed DEB and RPM are preferred, with a signed archive optional.
 
-Additional architectures require explicit CI, package, and runtime evidence rather than being implied by Qt support.
+Additional architectures require explicit native build, package, and runtime evidence rather than being implied by Qt support.
+
+## Build ownership
+
+GitHub Actions is not part of the BetterPullReview build, test, package, or
+release path. Release evidence is collected from clean release-operator or
+corporate-managed Windows, macOS, and Linux environments. The resulting
+packages, signatures, checksums, SBOMs, inspection reports, and sanitized test
+records—not a hosted workflow name—are authoritative.
 
 ## Packaging rules
 

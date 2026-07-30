@@ -24,7 +24,9 @@ BetterPullReview must be acceptable on a corporate workstation while remaining h
 - Establish C++23 and Qt 6 Widgets as the primary implementation stack.
 - Build the application around a deterministic standard-C++ functional core, imperative application host, and Qt presentation adapter.
 - Establish typed intents, events, bounded observations, requests, deltas, diagnostics, and one serialized application decision lane.
-- Launch a native application shell on Windows, macOS, and Linux.
+- Establish a platform-neutral native application shell and documented local
+  build entry points; direct supported-platform certification belongs to
+  RFC-BPR-0014.
 - Make the GitHub pull request authoritative for all shared review state.
 - Prohibit embedded web runtimes, hosted BetterPullReview services, and repository code execution.
 - Establish documentation, test, fixture, and packaging roots suitable for subsequent RFCs.
@@ -34,6 +36,17 @@ BetterPullReview must be acceptable on a corporate workstation while remaining h
 - Fetching a real pull request.
 - Implementing the final diff renderer or review workflow.
 - Building a browser extension, local service, plugin system, or auto-updater.
+- Building, testing, packaging, or releasing BetterPullReview through GitHub
+  Actions.
+
+## Build ownership
+
+BetterPullReview builds are initiated by developers or release operators using
+the checked-in CMake configuration. GitHub Actions is not a build, test,
+package, or release dependency. This foundation RFC proves the architecture
+and current-host native public path. RFC-BPR-0014 owns direct clean-environment
+Windows, macOS, and Linux package installation, launch, runtime, and uninstall
+evidence.
 
 ## Architectural allocation
 
@@ -76,7 +89,8 @@ The composition root wires the concrete host, core state, and Qt adapter. Routin
 
 ## Required repository foundation
 
-- CMake presets/toolchains for all supported platforms.
+- Portable CMake presets and conditional platform toolchain entry points
+  suitable for later clean-environment verification.
 - First-party warning and hardening defaults.
 - Unit, contract, integration, UI, fixture, benchmark, and fuzz test roots.
 - Architecture and security documents owned by explicit repository scopes.
@@ -88,7 +102,10 @@ The composition root wires the concrete host, core state, and Qt adapter. Routin
 ## Acceptance criteria
 
 - The standard-C++ functional-core library builds without Qt include or link dependencies.
-- The Qt application launches and renders a native empty-state workbench on Windows, macOS, and Linux CI/runtime targets.
+- The Qt application launches and renders a native empty-state workbench on
+  the directly exercised development host, and the CMake configuration exposes
+  portable Ninja and conditional Windows MSVC developer entry points without
+  hosted build infrastructure.
 - A dependency scan proves no WebEngine, Chromium, Node, Electron, Tauri, or local HTTP server dependency is selected.
 - The product-contract tests distinguish GitHub shared state from local private/derived state.
 - Repository instructions and agent documentation identify module ownership, dependency direction, threading, security, build, test, and package commands.
@@ -101,11 +118,12 @@ The composition root wires the concrete host, core state, and Qt adapter. Routin
 
 | Claim | Direct surface | Proof |
 |---|---|---|
-| Native shell is selected | Packaged/test application | Launch on each platform and inspect selected Qt modules |
+| Native shell is selected | Real application on the current host | Launch and render the public path; inspect selected Qt modules |
 | Functional core is Qt-free | Link and include graph | Build domain target in a toolchain with Qt unavailable |
 | No browser/listener | Dependency and runtime scan | Inspect linked libraries and open sockets while running |
 | GitHub is shared authority | Domain contract tests | Simulate local disagreement and confirm shared state resolves to GitHub snapshot |
 | Architecture flow is selected | Core/host/Qt integration harness | Replay a full intent/request/completion/delta workflow and inspect dependency graph |
+| Platform configuration is explicit | CMake presets and target graph | Validate portable Ninja and Windows MSVC presets; defer clean native package execution to RFC-BPR-0014 |
 
 ## Documentation impact
 

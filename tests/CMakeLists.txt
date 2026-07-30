@@ -42,10 +42,10 @@ add_test(
 )
 
 add_test(
-    NAME ci_configuration_contract
+    NAME platform_configuration_contract
     COMMAND
         "${Python3_EXECUTABLE}"
-        "${PROJECT_SOURCE_DIR}/tests/scripts/ci_configuration_tests.py"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/platform_configuration_tests.py"
 )
 
 add_custom_target(

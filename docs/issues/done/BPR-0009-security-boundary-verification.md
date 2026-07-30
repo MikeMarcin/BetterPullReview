@@ -36,5 +36,6 @@ widget-to-effect bypass. Inspect the selected target graph and running process.
 process, or canary output. Both architecture validators pass, and the complete
 local Qt-enabled suite reports 10/10 passing tests.
 
-The binary dependency check is configured for Windows and Linux CI but those
-remote jobs remain unexecuted until the branch is pushed.
+The dependency and process inspectors contain platform-native Windows, Linux,
+and macOS implementations. RFC-BPR-0001 directly executes the selected macOS
+runtime; RFC-BPR-0014 executes them against each delivered native package.
