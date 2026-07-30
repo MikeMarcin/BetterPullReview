@@ -15,6 +15,28 @@ ADAPTER_ROOT = """\
 add_subdirectory(github)
 """
 
+APPLE_KEYCHAIN_TARGET = """\
+if(APPLE)
+    find_library(BPR_TEST_SECURITY_FRAMEWORK Security REQUIRED)
+    find_library(
+        BPR_TEST_CORE_FOUNDATION_FRAMEWORK
+        CoreFoundation
+        REQUIRED
+    )
+    target_sources(
+        better_pull_review_adapter_github
+        INTERFACE
+            src/macos_keychain.cpp
+    )
+    target_link_libraries(
+        better_pull_review_adapter_github
+        INTERFACE
+            ${BPR_TEST_SECURITY_FRAMEWORK}
+            ${BPR_TEST_CORE_FOUNDATION_FRAMEWORK}
+    )
+endif()
+"""
+
 GITHUB_TARGET = """\
 add_library(better_pull_review_adapter_github INTERFACE)
 add_library(BetterPullReview::AdapterGitHub ALIAS better_pull_review_adapter_github)
@@ -30,6 +52,40 @@ target_sources(
         src/gh_cli_transport.cpp
         src/native_https_transport.cpp
 )
+""" + APPLE_KEYCHAIN_TARGET
+
+MACOS_KEYCHAIN_SOURCE = """\
+#include <Security/Security.h>
+#include <functional>
+#include <map>
+#include <mutex>
+
+using callback = std::function<void()>;
+std::map<int, callback> callbacks;
+std::mutex callback_mutex;
+namespace application { class effect_executor; }
+application::effect_executor* selected_effect_lane = nullptr;
+
+void selected_keychain_lifecycle() {
+    SecKeychainRef keychain = nullptr;
+    SecKeychainCopyDefault(&keychain);
+    const void* query_contract[] = {
+        kSecClassGenericPassword,
+        kSecAttrService,
+        kSecAttrAccount,
+        kSecUseKeychain,
+        kSecMatchSearchList,
+        kSecUseAuthenticationUI,
+        kSecUseAuthenticationUIFail,
+        kSecReturnData,
+        kSecMatchLimit,
+        kSecMatchLimitOne,
+    };
+    SecItemAdd(query, nullptr);
+    SecItemCopyMatching(query, nullptr);
+    SecItemUpdate(query, attributes);
+    SecItemDelete(query);
+}
 """
 
 
@@ -40,6 +96,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         *,
         adapter_root: str = ADAPTER_ROOT,
         github_target: str = GITHUB_TARGET,
+        omit_macos_source: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -50,6 +107,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "src/adapters/github/CMakeLists.txt": github_target,
                 "src/adapters/qt/CMakeLists.txt": "",
             }
+            if not omit_macos_source:
+                files["src/adapters/github/src/macos_keychain.cpp"] = (
+                    MACOS_KEYCHAIN_SOURCE
+                )
             files.update(sources or {})
 
             for relative_path, contents in files.items():
@@ -73,7 +134,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self,
         expected_message: str,
         sources: dict[str, str] | None = None,
-        **kwargs: str,
+        **kwargs: object,
     ) -> None:
         result = self.run_check(sources, **kwargs)
         self.assertNotEqual(result.returncode, 0, result.stdout)
@@ -341,9 +402,222 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
-    def test_future_native_vault_sources_are_not_required(self) -> None:
+    def test_future_windows_and_linux_vault_sources_are_not_required(
+        self,
+    ) -> None:
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_macos_keychain_source_is_required(self) -> None:
+        self.assert_failure(
+            "designated macOS Keychain source is required",
+            omit_macos_source=True,
+        )
+
+    def test_macos_keychain_source_must_be_owned_by_apple_target(self) -> None:
+        self.assert_failure(
+            "Apple GitHub adapter must compile src/macos_keychain.cpp",
+            github_target=GITHUB_TARGET.replace(
+                "            src/macos_keychain.cpp\n",
+                "",
+            ),
+        )
+
+    def test_apple_target_requires_native_frameworks(self) -> None:
+        hostile_targets = (
+            (
+                GITHUB_TARGET.replace(
+                    "    find_library(BPR_TEST_SECURITY_FRAMEWORK "
+                    "Security REQUIRED)\n",
+                    "",
+                ),
+                "must find Security with REQUIRED",
+            ),
+            (
+                GITHUB_TARGET.replace(
+                    "    find_library(\n"
+                    "        BPR_TEST_CORE_FOUNDATION_FRAMEWORK\n"
+                    "        CoreFoundation\n"
+                    "        REQUIRED\n"
+                    "    )\n",
+                    "",
+                ),
+                "must find CoreFoundation with REQUIRED",
+            ),
+            (
+                GITHUB_TARGET.replace(
+                    "            ${BPR_TEST_SECURITY_FRAMEWORK}\n",
+                    "",
+                ),
+                "must link the required Security framework",
+            ),
+            (
+                GITHUB_TARGET.replace(
+                    "            ${BPR_TEST_CORE_FOUNDATION_FRAMEWORK}\n",
+                    "",
+                ),
+                "must link the required CoreFoundation framework",
+            ),
+        )
+        for target, expected_message in hostile_targets:
+            with self.subTest(expected_message=expected_message):
+                self.assert_failure(
+                    expected_message,
+                    github_target=target,
+                )
+
+    def test_macos_keychain_requires_an_apple_target_branch(self) -> None:
+        self.assert_failure(
+            "must define an APPLE branch",
+            github_target=GITHUB_TARGET.replace(APPLE_KEYCHAIN_TARGET, ""),
+        )
+
+    def test_selected_macos_keychain_source_is_allowed(self) -> None:
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_macos_keychain_requires_the_effect_executor(self) -> None:
+        self.assert_failure(
+            "requires the host effect executor",
+            {
+                "src/adapters/github/src/macos_keychain.cpp":
+                    MACOS_KEYCHAIN_SOURCE.replace(
+                        "namespace application { class effect_executor; }\n"
+                        "application::effect_executor* "
+                        "selected_effect_lane = nullptr;\n",
+                        "",
+                    )
+            },
+        )
+
+    def test_macos_keychain_rejects_the_decision_executor(self) -> None:
+        self.assert_failure(
+            "Forbidden serialized decision-executor surface",
+            {
+                "src/adapters/github/src/macos_keychain.cpp":
+                    MACOS_KEYCHAIN_SOURCE
+                    + "application::decision_executor* "
+                    "forbidden_decision_lane = nullptr;\n"
+            },
+        )
+
+    def test_macos_keychain_rejects_backend_switch_attributes(self) -> None:
+        forbidden_attributes = (
+            "kSecUseDataProtectionKeychain",
+            "kSecAttrSynchronizable",
+            "kSecAttrAccessGroup",
+            "kSecAttrAccessible",
+            "kSecAttrAccessibleWhenUnlocked",
+        )
+        for attribute in forbidden_attributes:
+            with self.subTest(attribute=attribute):
+                self.assert_failure(
+                    "Forbidden Keychain backend-switch surface",
+                    {
+                        "src/adapters/github/src/macos_keychain.cpp":
+                            MACOS_KEYCHAIN_SOURCE
+                            + f"const void* forbidden = {attribute};\n"
+                    },
+                )
+
+    def test_macos_keychain_requires_safe_query_properties(self) -> None:
+        required_properties = (
+            "kSecClassGenericPassword",
+            "kSecAttrService",
+            "kSecAttrAccount",
+            "kSecUseKeychain",
+            "kSecMatchSearchList",
+            "kSecUseAuthenticationUI",
+            "kSecUseAuthenticationUIFail",
+            "kSecReturnData",
+            "kSecMatchLimit",
+            "kSecMatchLimitOne",
+        )
+        for query_property in required_properties:
+            with self.subTest(query_property=query_property):
+                self.assert_failure(
+                    "must retain the exact-keychain",
+                    {
+                        "src/adapters/github/src/macos_keychain.cpp":
+                            MACOS_KEYCHAIN_SOURCE.replace(
+                                f"        {query_property},\n",
+                                "",
+                            )
+                    },
+                )
+
+    def test_macos_keychain_rejects_expansive_query_policy(self) -> None:
+        forbidden_properties = (
+            "kSecClassInternetPassword",
+            "kSecClassCertificate",
+            "kSecReturnAttributes",
+            "kSecReturnRef",
+            "kSecReturnPersistentRef",
+            "kSecMatchLimitAll",
+            "kSecUseAuthenticationUIAllow",
+        )
+        for query_property in forbidden_properties:
+            with self.subTest(query_property=query_property):
+                self.assert_failure(
+                    "Forbidden Keychain query-policy surface",
+                    {
+                        "src/adapters/github/src/macos_keychain.cpp":
+                            MACOS_KEYCHAIN_SOURCE
+                            + f"const void* forbidden = {query_property};\n"
+                    },
+                )
+
+    def test_macos_keychain_rejects_unselected_keychain_effects(
+        self,
+    ) -> None:
+        self.assert_failure(
+            "Keychain effect outside the selected",
+            {
+                "src/adapters/github/src/macos_keychain.cpp":
+                    MACOS_KEYCHAIN_SOURCE
+                    + "SecKeychainGetStatus(keychain, &status);\n"
+            },
+        )
+
+    def test_macos_keychain_rejects_raw_os_error_formatting(self) -> None:
+        forbidden_formatters = (
+            "SecCopyErrorMessageString(status, nullptr);\n",
+            "std::to_string(status);\n",
+            "snprintf(buffer, sizeof(buffer), \"%d\", status);\n",
+        )
+        for formatter in forbidden_formatters:
+            with self.subTest(formatter=formatter):
+                self.assert_failure(
+                    "Forbidden raw operating-system error formatting surface",
+                    {
+                        "src/adapters/github/src/macos_keychain.cpp":
+                            MACOS_KEYCHAIN_SOURCE + formatter
+                    },
+                )
+
+    def test_macos_keychain_rejects_non_vault_effect_families(self) -> None:
+        hostile_surfaces = (
+            ("QWidget* widget;\n", "Qt/UI"),
+            ("NSURLSession* session;\n", "network"),
+            ("sqlite3* database;\n", "settings/database"),
+            ("QSettings* settings;\n", "Qt/UI"),
+            ("std::filesystem::path fallback;\n", "filesystem"),
+            ("std::ofstream plaintext_file;\n", "filesystem"),
+            ("write(descriptor, bytes, size);\n", "filesystem"),
+            ("auto* value = getenv(\"BPR_TOKEN\");\n", "environment"),
+            ("posix_spawn(nullptr, nullptr, nullptr, nullptr, nullptr, "
+             "nullptr);\n", "command/process"),
+            ("std::cerr << status;\n", "logging/printing"),
+        )
+        for hostile_source, surface_name in hostile_surfaces:
+            with self.subTest(surface_name=surface_name):
+                self.assert_failure(
+                    f"Forbidden {surface_name} surface",
+                    {
+                        "src/adapters/github/src/macos_keychain.cpp":
+                            MACOS_KEYCHAIN_SOURCE + hostile_source
+                    },
+                )
 
     def test_native_vault_apis_are_rejected_outside_designated_sources(
         self,
@@ -379,14 +653,13 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         vault_target = GITHUB_TARGET.replace(
             "        src/native_https_transport.cpp\n",
             "        src/native_https_transport.cpp\n"
-            "        src/macos_keychain.cpp\n"
             "        src/windows_credential_manager.cpp\n"
             "        src/linux_secret_service.cpp\n",
         )
         result = self.run_check(
             {
                 "src/adapters/github/src/macos_keychain.cpp":
-                    "SecItemAdd(query, nullptr);\n",
+                    MACOS_KEYCHAIN_SOURCE,
                 "src/adapters/github/src/windows_credential_manager.cpp":
                     "CredWriteW(&credential, 0);\n",
                 "src/adapters/github/src/linux_secret_service.cpp":

@@ -229,13 +229,17 @@ a broad changed-domain bit cannot substitute for acceptance.
 ## Concurrency and stale work
 
 - Application decisions are applied on one serialized decision lane, normally the GUI/application lane.
-- Network, Git, diff, syntax, indexing, persistence preparation, and AI work may run in parallel.
+- Blocking network, vault, Git, diff, syntax, indexing, persistence
+  preparation, and AI work runs through host-owned effect executors, separate
+  from the serialized decision lane, and may run in parallel.
 - Every asynchronous request carries the identities required to prove relevance: request, session, host/account, repository, PR, revision/epoch, and generation as applicable.
 - Workers operate on immutable inputs and never touch Qt objects or mutable core state.
 - Completions return as typed events to the serialized lane.
 - Stale completions are rejected deterministically in constant time.
 - Cancellation may stop work, suppress publication, or supersede a generation; it is a normal outcome rather than automatically an error.
-- Tests use a deterministic manual executor that can reorder, delay, fail, cancel, and deliberately deliver stale completions.
+- Tests may use one deterministic manual executor for both interfaces while
+  still preserving their separate effect-execution and decision-serialization
+  roles.
 
 ## Qt presentation rules
 

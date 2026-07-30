@@ -36,6 +36,14 @@ public:
     virtual void post(std::function<void()> task) = 0;
 };
 
+class effect_executor
+{
+public:
+    virtual ~effect_executor() = default;
+
+    virtual void post(std::function<void()> task) = 0;
+};
+
 class projection_port
 {
 public:

@@ -1,7 +1,7 @@
 ---
 id: BPR-0023
 title: Implement and verify Windows Credential Manager credentials
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0021]
 ---

@@ -32,6 +32,31 @@ if(BPR_BUILD_QT)
         PUBLIC
             cxx_std_23
     )
+
+    if(APPLE)
+        find_library(
+            BPR_MACOS_SECURITY_FRAMEWORK
+            Security
+            REQUIRED
+        )
+        find_library(
+            BPR_MACOS_COREFOUNDATION_FRAMEWORK
+            CoreFoundation
+            REQUIRED
+        )
+        target_sources(
+            better_pull_review_adapter_github
+            PRIVATE
+                src/macos_keychain.cpp
+        )
+        target_link_libraries(
+            better_pull_review_adapter_github
+            PRIVATE
+                "${BPR_MACOS_SECURITY_FRAMEWORK}"
+                "${BPR_MACOS_COREFOUNDATION_FRAMEWORK}"
+        )
+    endif()
+
     bpr_enable_hardening(better_pull_review_adapter_github)
     bpr_enable_warnings(better_pull_review_adapter_github)
 else()

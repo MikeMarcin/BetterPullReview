@@ -105,6 +105,27 @@ ownership-transferring atomic upsert; retrieve, absence, delete, failure, and
 cancellation are distinct typed outcomes. No raw operating-system error text
 or credential bytes enter provider errors or projections.
 
+On macOS, the BPR-0022 adapter explicitly selects the file-based Keychain
+implementation for the current ad hoc linker-signed, unbundled executable,
+which has no team identity, bound `Info.plist`, or provisioning profile. It
+scopes every generic-password operation to the exact default keychain, fixed
+v1 production service, and 66-character fixed-width hexadecimal encoding of
+the complete portable authority; stable explicit bytes distinguish the
+GitHub.com and GHES contracts without serializing a C++ enum ordinal. Requests
+fail rather than display authentication UI. The dedicated native-test service
+is distinct from the production service. The adapter does not set the
+data-protection, synchronization, access-group, or accessibility attributes,
+and it never probes or falls back between Keychain implementations. A future
+signed data-protection Keychain migration is package lifecycle work under
+RFC-BPR-0014, not an alternate path in this adapter.
+
+Synchronous Security framework calls run only through a host effect executor,
+never through the serialized decision executor or a GUI lane. Native-operation
+terminals arrive on the effect lane, while immediate rejection and explicit
+or destructor cancellation may complete synchronously on their originating
+lane. A consuming application host must marshal every typed terminal onto its
+decision lane.
+
 Windows and Linux native evidence must exercise HTTPS TLS, system proxy,
 redirect rejection, certificate rejection, runtime network scope, and binary
 dependencies in addition to their target-native vault lifecycle. A mock,

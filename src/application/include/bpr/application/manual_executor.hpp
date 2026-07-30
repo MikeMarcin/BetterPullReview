@@ -7,7 +7,7 @@
 
 namespace bpr::application
 {
-class manual_executor final : public decision_executor
+class manual_executor final : public decision_executor, public effect_executor
 {
 public:
     void post(std::function<void()> task) override;

@@ -38,6 +38,29 @@ revision, host, account, and server contract; async results also retain
 request, session, and identity generation. Cancellation that wins suppresses
 retrieval success and destroys the returned material before publication.
 
+The current macOS adapter targets one explicitly resolved default file-based
+Keychain. Every operation matches that exact keychain, a fixed adapter-owned
+service, and a versioned encoding of the complete portable authority, and
+disallows authentication UI. It does not search arbitrary keychains or enable
+data protection, synchronization, access groups, or accessibility attributes.
+There is no fallback to a second Keychain implementation or to plaintext
+storage. Raw Security framework status numbers and messages do not cross the
+adapter boundary.
+
+Synchronous Security framework work runs through a host effect executor,
+separate from the serialized decision and GUI lanes. The native integration
+fixture uses a distinct adapter-owned service and exact synthetic authority,
+passes runtime canaries only over standard input, audits bounded child
+arguments, environment, output, executable, source, and scratch surfaces, and
+verifies exact-item absence after same-binary parent and CTest cleanup.
+
+The current unbundled integration executable is ad hoc linker-signed. Its
+legacy default-Keychain item ACL is therefore tied to an exact code-directory
+hash. Same-binary cleanup is proven, but a host crash followed by rebuilding
+the test executable can leave an orphan that the new binary cannot remove
+noninteractively. This is not cross-rebuild crash-recovery evidence; stable
+signed package identity and that lifecycle gate remain RFC-BPR-0014 work.
+
 ## Baseline posture
 
 - No hosted BetterPullReview service.

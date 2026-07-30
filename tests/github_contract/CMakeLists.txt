@@ -86,3 +86,107 @@ add_test(
     NAME github_capability_probe
     COMMAND better_pull_review_github_capability_probe_tests
 )
+
+if(APPLE)
+    find_library(
+        BPR_TEST_MACOS_SECURITY_FRAMEWORK
+        Security
+        REQUIRED
+    )
+    find_library(
+        BPR_TEST_MACOS_COREFOUNDATION_FRAMEWORK
+        CoreFoundation
+        REQUIRED
+    )
+
+    add_executable(
+        better_pull_review_macos_keychain_contract_tests
+        macos_keychain_contract_tests.cpp
+    )
+    target_link_libraries(
+        better_pull_review_macos_keychain_contract_tests
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::Application
+            "${BPR_TEST_MACOS_SECURITY_FRAMEWORK}"
+            "${BPR_TEST_MACOS_COREFOUNDATION_FRAMEWORK}"
+    )
+    target_include_directories(
+        better_pull_review_macos_keychain_contract_tests
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+    )
+    bpr_enable_hardening(
+        better_pull_review_macos_keychain_contract_tests
+    )
+    bpr_enable_warnings(
+        better_pull_review_macos_keychain_contract_tests
+    )
+
+    add_test(
+        NAME macos_keychain_contract
+        COMMAND better_pull_review_macos_keychain_contract_tests
+    )
+
+    add_executable(
+        better_pull_review_macos_keychain_native_tests
+        macos_keychain_native_tests.cpp
+    )
+    target_link_libraries(
+        better_pull_review_macos_keychain_native_tests
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::Application
+            "${BPR_TEST_MACOS_SECURITY_FRAMEWORK}"
+            "${BPR_TEST_MACOS_COREFOUNDATION_FRAMEWORK}"
+    )
+    target_include_directories(
+        better_pull_review_macos_keychain_native_tests
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+    )
+    bpr_enable_hardening(
+        better_pull_review_macos_keychain_native_tests
+    )
+    bpr_enable_warnings(
+        better_pull_review_macos_keychain_native_tests
+    )
+
+    add_test(
+        NAME macos_keychain_native_setup
+        COMMAND
+            better_pull_review_macos_keychain_native_tests
+            --fixture-setup
+    )
+    add_test(
+        NAME macos_keychain_native
+        COMMAND better_pull_review_macos_keychain_native_tests
+    )
+    add_test(
+        NAME macos_keychain_native_cleanup
+        COMMAND
+            better_pull_review_macos_keychain_native_tests
+            --fixture-cleanup
+    )
+    set_tests_properties(
+        macos_keychain_native_setup
+        PROPERTIES
+            FIXTURES_SETUP macos_keychain_integration_item
+            RESOURCE_LOCK macos_keychain_integration_item
+            TIMEOUT 30
+    )
+    set_tests_properties(
+        macos_keychain_native
+        PROPERTIES
+            FIXTURES_REQUIRED macos_keychain_integration_item
+            RESOURCE_LOCK macos_keychain_integration_item
+            TIMEOUT 30
+    )
+    set_tests_properties(
+        macos_keychain_native_cleanup
+        PROPERTIES
+            FIXTURES_CLEANUP macos_keychain_integration_item
+            RESOURCE_LOCK macos_keychain_integration_item
+            TIMEOUT 30
+    )
+endif()

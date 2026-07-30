@@ -11,4 +11,9 @@ Tests are direct evidence, not naming evidence.
   Windows; keep platform queries process-scoped and directly unit-tested.
 - Fixtures are sanitized and deterministic; never include credentials or
   private repository content.
+- Native credential fixtures use an adapter-owned integration service and
+  exact synthetic authority, runtime-only stdin canaries, a resource-locked
+  setup/lifecycle/cleanup sequence, fixed secret-free output, and exact
+  post-test absence. Never touch a production service, perform broad vault
+  cleanup, or claim cross-rebuild cleanup without stable package identity.
 - A test must fail or visibly disagree when its claimed behavior is false.

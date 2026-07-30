@@ -58,6 +58,126 @@ foreach(pattern IN LISTS github_target_patterns)
     endif()
 endforeach()
 
+get_filename_component(
+    macos_keychain_file
+    "${BPR_ROOT}/${macos_keychain_relative}"
+    ABSOLUTE
+)
+if(NOT EXISTS "${macos_keychain_file}")
+    message(
+        FATAL_ERROR
+        "The designated macOS Keychain source is required: "
+        "${macos_keychain_relative}"
+    )
+endif()
+
+file(STRINGS "${github_adapter_cmake}" github_cmake_lines)
+set(github_apple_branch_contents "")
+set(in_github_apple_branch FALSE)
+set(github_apple_branch_depth 0)
+foreach(github_cmake_line IN LISTS github_cmake_lines)
+    set(started_github_apple_branch FALSE)
+    if(
+        NOT in_github_apple_branch
+        AND github_cmake_line
+            MATCHES "^[ \t]*if[ \t]*\\([ \t]*APPLE[ \t]*\\)"
+    )
+        set(in_github_apple_branch TRUE)
+        set(started_github_apple_branch TRUE)
+        set(github_apple_branch_depth 1)
+    endif()
+
+    if(NOT in_github_apple_branch)
+        continue()
+    endif()
+
+    string(APPEND github_apple_branch_contents "${github_cmake_line}\n")
+    if(
+        NOT started_github_apple_branch
+        AND github_cmake_line MATCHES "^[ \t]*if[ \t]*\\("
+    )
+        math(EXPR github_apple_branch_depth "${github_apple_branch_depth} + 1")
+    endif()
+    if(github_cmake_line MATCHES "^[ \t]*endif[ \t]*\\(")
+        math(EXPR github_apple_branch_depth "${github_apple_branch_depth} - 1")
+        if(github_apple_branch_depth EQUAL 0)
+            set(in_github_apple_branch FALSE)
+        endif()
+    endif()
+endforeach()
+
+if(github_apple_branch_contents STREQUAL "")
+    message(
+        FATAL_ERROR
+        "GitHub adapter CMake must define an APPLE branch for Keychain"
+    )
+endif()
+if(
+    NOT github_apple_branch_contents
+        MATCHES
+            "target_sources[ \t\r\n]*\\([^\\)]*better_pull_review_adapter_github[^\\)]*macos_keychain\\.cpp"
+)
+    message(
+        FATAL_ERROR
+        "Apple GitHub adapter must compile src/macos_keychain.cpp"
+    )
+endif()
+
+string(
+    REGEX MATCH
+    "find_library[ \t\r\n]*\\([ \t\r\n]*([A-Za-z_][A-Za-z0-9_]*)[ \t\r\n]+Security[ \t\r\n]+REQUIRED[ \t\r\n]*\\)"
+    github_security_find
+    "${github_apple_branch_contents}"
+)
+set(github_security_framework_variable "${CMAKE_MATCH_1}")
+if(github_security_find STREQUAL "")
+    message(
+        FATAL_ERROR
+        "Apple GitHub adapter must find Security with REQUIRED"
+    )
+endif()
+
+string(
+    REGEX MATCH
+    "find_library[ \t\r\n]*\\([ \t\r\n]*([A-Za-z_][A-Za-z0-9_]*)[ \t\r\n]+CoreFoundation[ \t\r\n]+REQUIRED[ \t\r\n]*\\)"
+    github_core_foundation_find
+    "${github_apple_branch_contents}"
+)
+set(github_core_foundation_framework_variable "${CMAKE_MATCH_1}")
+if(github_core_foundation_find STREQUAL "")
+    message(
+        FATAL_ERROR
+        "Apple GitHub adapter must find CoreFoundation with REQUIRED"
+    )
+endif()
+
+string(
+    REGEX MATCH
+    "target_link_libraries[ \t\r\n]*\\([^\\)]*better_pull_review_adapter_github[^\\)]*\\)"
+    github_apple_target_links
+    "${github_apple_branch_contents}"
+)
+if(
+    github_apple_target_links STREQUAL ""
+    OR NOT github_apple_target_links
+        MATCHES "${github_security_framework_variable}"
+)
+    message(
+        FATAL_ERROR
+        "Apple GitHub adapter must link the required Security framework"
+    )
+endif()
+if(
+    github_apple_target_links STREQUAL ""
+    OR NOT github_apple_target_links
+        MATCHES "${github_core_foundation_framework_variable}"
+)
+    message(
+        FATAL_ERROR
+        "Apple GitHub adapter must link the required CoreFoundation framework"
+    )
+endif()
+
 file(
     GLOB_RECURSE project_cmake_files
     LIST_DIRECTORIES false
@@ -395,6 +515,148 @@ verify_effect_owner(
     "(libsecret/secret\\.h|org\\.freedesktop\\.(Secret|secrets)|secret_(collection|item|password|schema|service|value)_[A-Za-z0-9_]*|Secret(Collection|Item|Schema|Service|Value)[A-Za-z0-9_]*|SECRET_(COLLECTION|ITEM|SCHEMA|SERVICE|VALUE)_[A-Z0-9_]*)"
     "Linux Secret Service API"
     "${linux_secret_service_relative}"
+)
+
+file(READ "${macos_keychain_file}" macos_keychain_contents)
+if(
+    NOT macos_keychain_contents
+        MATCHES
+            "(^|[^A-Za-z0-9_])application::effect_executor([^A-Za-z0-9_]|$)"
+    )
+    message(
+        FATAL_ERROR
+        "macOS Keychain adapter requires the host effect executor"
+    )
+endif()
+
+set(
+    required_macos_keychain_patterns
+    "#[ \t]*include[ \t]*[<\"]Security/(Security|SecItem|SecKeychain)\\.h[>\"]"
+    "SecKeychainCopyDefault[ \t\r\n]*\\("
+    "SecItemAdd[ \t\r\n]*\\("
+    "SecItemCopyMatching[ \t\r\n]*\\("
+    "SecItemUpdate[ \t\r\n]*\\("
+    "SecItemDelete[ \t\r\n]*\\("
+)
+foreach(required_pattern IN LISTS required_macos_keychain_patterns)
+    if(NOT macos_keychain_contents MATCHES "${required_pattern}")
+        message(
+            FATAL_ERROR
+            "macOS Keychain adapter must use the selected Keychain lifecycle: "
+            "${required_pattern}"
+        )
+    endif()
+endforeach()
+
+set(
+    required_macos_keychain_query_constants
+    kSecClassGenericPassword
+    kSecAttrService
+    kSecAttrAccount
+    kSecUseKeychain
+    kSecMatchSearchList
+    kSecUseAuthenticationUI
+    kSecUseAuthenticationUIFail
+    kSecReturnData
+    kSecMatchLimit
+    kSecMatchLimitOne
+)
+foreach(
+    required_query_constant
+    IN LISTS required_macos_keychain_query_constants
+)
+    if(
+        NOT macos_keychain_contents
+            MATCHES
+                "(^|[^A-Za-z0-9_])${required_query_constant}([^A-Za-z0-9_]|$)"
+    )
+        message(
+            FATAL_ERROR
+            "macOS Keychain adapter must retain the exact-keychain, "
+            "noninteractive, data-only query property "
+            "${required_query_constant}"
+        )
+    endif()
+endforeach()
+
+set(macos_keychain_effects "${macos_keychain_contents}")
+foreach(
+    selected_effect
+    IN ITEMS
+        SecKeychainCopyDefault
+        SecKeychainRef
+        SecItemAdd
+        SecItemCopyMatching
+        SecItemUpdate
+        SecItemDelete
+)
+    string(REPLACE "${selected_effect}" "" macos_keychain_effects "${macos_keychain_effects}")
+endforeach()
+if(
+    macos_keychain_effects
+        MATCHES
+            "(^|[^A-Za-z0-9_])Sec(Item|Keychain)[A-Za-z0-9_]+"
+)
+    message(
+        FATAL_ERROR
+        "macOS Keychain adapter uses a Keychain effect outside the selected "
+        "SecKeychainCopyDefault and SecItem lifecycle"
+    )
+endif()
+
+function(reject_macos_keychain_surface forbidden_pattern surface_name)
+    if(macos_keychain_contents MATCHES "${forbidden_pattern}")
+        message(
+            FATAL_ERROR
+            "Forbidden ${surface_name} surface in ${macos_keychain_relative}: "
+            "${forbidden_pattern}"
+        )
+    endif()
+endfunction()
+
+reject_macos_keychain_surface(
+    "kSec(UseDataProtectionKeychain|AttrSynchronizable|AttrAccessGroup|AttrAccessible[A-Za-z0-9_]*)"
+    "Keychain backend-switch"
+)
+reject_macos_keychain_surface(
+    "(application::decision_executor|DecisionLane|decision_lane)"
+    "serialized decision-executor"
+)
+reject_macos_keychain_surface(
+    "kSec(Class(InternetPassword|Certificate|Key|Identity)|Return(Attributes|Ref|PersistentRef)|MatchLimitAll|UseAuthenticationUI(Allow|Skip))"
+    "Keychain query-policy"
+)
+reject_macos_keychain_surface(
+    "(SecCopyErrorMessageString|#[ \t]*include[ \t]*<format>|std::(format|vformat|to_string)|([io]stringstream|snprintf|sprintf)[ \t\r\n]*\\(|QString::number)"
+    "raw operating-system error formatting"
+)
+reject_macos_keychain_surface(
+    "(#[ \t]*include[ \t]*[<\"](Q|Qt|AppKit/|UIKit/)|(^|[^A-Za-z0-9_])(Q[A-Z][A-Za-z0-9_]*|NS(Application|Window|View|Alert)[A-Za-z0-9_]*|UI(Application|Window|View|Alert)[A-Za-z0-9_]*))"
+    "Qt/UI"
+)
+reject_macos_keychain_surface(
+    "(QNetwork[A-Za-z0-9_]*|QtNetwork|CFNetwork|NSURLSession|NWConnection|#[ \t]*include[ \t]*[<\"]curl/|CURL[A-Za-z0-9_]*)"
+    "network"
+)
+reject_macos_keychain_surface(
+    "([Ss][Qq][Ll][Ii][Tt][Ee]3?|QSettings|NSUserDefaults|CFPreferences)"
+    "settings/database"
+)
+reject_macos_keychain_surface(
+    "(#[ \t]*include[ \t]*<(filesystem|fstream)>|std::filesystem|std::([io]?fstream|[io]stream)|(^|[^A-Za-z0-9_.:])(fopen|freopen|fread|fwrite|open|openat|creat|read|write|pread|pwrite)[ \t\r\n]*\\()"
+    "filesystem"
+)
+reject_macos_keychain_surface(
+    "((^|[^A-Za-z0-9_])(getenv|setenv|unsetenv|putenv)[ \t\r\n]*\\(|(^|[^A-Za-z0-9_])environ([^A-Za-z0-9_]|$)|QProcessEnvironment|NSProcessInfo)"
+    "environment"
+)
+reject_macos_keychain_surface(
+    "(QProcess|NSTask|posix_spawn|(^|[^A-Za-z0-9_])(system|popen|fork|exec(l|le|lp|v|ve|vp|vpe))[ \t\r\n]*\\()"
+    "command/process"
+)
+reject_macos_keychain_surface(
+    "(std::(cout|cerr|clog)|(^|[^A-Za-z0-9_])(printf|fprintf|puts|fputs|perror|syslog|os_log|NSLog|qDebug|qInfo|qWarning|qCritical|qFatal)[ \t\r\n]*\\(|spdlog)"
+    "logging/printing"
 )
 
 file(

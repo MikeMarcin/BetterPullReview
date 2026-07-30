@@ -46,7 +46,7 @@ ctest --preset windows-dev --output-on-failure
 | Target | Responsibility |
 |---|---|
 | `better_pull_review_core` | Qt/effect-free semantic library |
-| `better_pull_review_application` | Host, ports, serialized completion, manual executor |
+| `better_pull_review_application` | Host, effect/decision ports, serialized completion, manual executor |
 | `better_pull_review_adapter_{github,git,sqlite,ai}` | Capability boundaries established for later RFCs |
 | `better_pull_review_adapter_qt` | Native Qt presentation adapter |
 | `better_pull_review_composition` | Concrete foundation wiring |
@@ -65,6 +65,29 @@ build/dev/src/app/better_pull_review --self-test
 build/dev/src/app/better_pull_review \
   --render-evidence build/dev/foundation-window.png
 ```
+
+On macOS, the fake-backed contract test is non-mutating. The native fixture
+creates, replaces, retrieves, and deletes one disposable generic-password item
+under the dedicated
+`org.betterpullreview.github-native-credential.file-keychain.integration-test.v1`
+service in the exact default Keychain:
+
+```sh
+cmake --build build/dev --target \
+  better_pull_review_macos_keychain_contract_tests \
+  better_pull_review_macos_keychain_native_tests
+ctest --test-dir build/dev --output-on-failure \
+  -R '^macos_keychain_(contract|native|native_setup|native_cleanup)$'
+```
+
+The setup, lifecycle, and cleanup tests share one CTest resource lock. The
+native parent performs same-binary cleanup after every reaped child outcome,
+and the independent cleanup fixture verifies the exact item is absent. Run
+this only on a designated macOS test account where use of the default
+Keychain is acceptable. Do not treat it as proof that an item orphaned by a
+crash remains removable after rebuilding the current ad hoc-signed test
+binary; stable package identity and cross-build lifecycle verification belong
+to RFC-BPR-0014.
 
 `verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
 binary-dependency script also supports all three platforms, using `dumpbin` on

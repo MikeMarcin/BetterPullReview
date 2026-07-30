@@ -62,6 +62,27 @@ tree, provenance and response digests, rejects duplicate JSON members and
 secret-bearing content, proves the host responses are independent, and keeps
 every relative descriptor reference inside the capability fixture root.
 
+## macOS Keychain integration fixture
+
+The BPR-0022 target-native fixture uses the fixed
+`org.betterpullreview.github-native-credential.file-keychain.integration-test.v1`
+service and one exact synthetic authority in the user's default file-based
+Keychain. It never selects the production service. A resource-locked CTest
+setup/lifecycle/cleanup sequence proves initial absence, add, retrieve,
+in-place replacement, retrieve, delete, post-delete absence, and exact final
+cleanup.
+
+The parent generates runtime-only printable canaries, sends them to a
+same-executable child over framed standard input, uses a neutral audited
+working directory and bounded child deadline, and captures only fixed
+pass/fail output. It checks arguments, the explicit child environment,
+executable, source, and isolated scratch/XDG tree for raw canaries. Combined
+source-boundary checks reject settings, SQLite, environment, file, process,
+logging, UI, and alternate-Keychain fallbacks from the production adapter.
+The scratch scan does not inspect the user's complete home directory, and the
+fixture does not claim cross-rebuild cleanup after an ad hoc code-signature
+change.
+
 ## GitHub hosts
 
 - GitHub.com current contract

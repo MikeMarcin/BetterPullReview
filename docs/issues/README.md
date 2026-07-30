@@ -25,8 +25,8 @@ RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `done/`.
 RFC-BPR-0002 is the active RFC in canonical order. Its planning slice is
 complete; its architecture, deterministic-core, and normalized-contract
 slices plus host-profile/capability probing and the portable credential-vault
-contract are verified; `BPR-0022` is ready; and every later RFC-BPR-0002 card
-is dependency-tracked in `backlog/`.
+contract and native macOS Keychain adapter are verified; `BPR-0023` is ready;
+and every later RFC-BPR-0002 card remains dependency-tracked.
 
 GitHub Actions is not a BetterPullReview build, test, package, release, or RFC
 verification surface. Platform-specific claims require local or target-native

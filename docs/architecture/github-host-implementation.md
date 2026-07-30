@@ -457,6 +457,64 @@ Fake-vault tests prove portable replacement, isolation, result, and
 cancellation semantics only; BPR-0022, BPR-0023, and BPR-0024 retain the
 target-native lifecycle gates.
 
+### macOS Keychain selection
+
+BPR-0022's macOS adapter is an explicit file-based Keychain v1
+implementation. It uses the modern `SecItem` operations with a generic
+password item, but deliberately does not set
+`kSecUseDataProtectionKeychain`, `kSecAttrSynchronizable`, an access group, or
+an accessibility class. This is a scoped choice for the current ad hoc
+linker-signed, unbundled development executable, which has no team identity,
+bound `Info.plist`, or provisioning profile. It is not a claim that a future
+signed application bundle should remain on the legacy implementation.
+
+File-based Keychain searches normally cover every keychain in the process
+search list even though additions go to the default keychain. The adapter
+therefore resolves the exact default `SecKeychainRef`, uses it as
+`kSecUseKeychain` for additions, and supplies a singleton
+`kSecMatchSearchList` for retrieval, update, and deletion. A matching
+service/account item in another keychain cannot be retrieved, replaced, or
+deleted by this adapter.
+
+The production service is fixed as
+`org.betterpullreview.github-native-credential.file-keychain.v1`; native
+tests use the separate
+`org.betterpullreview.github-native-credential.file-keychain.integration-test.v1`
+service and cannot touch production items. The account attribute is 66
+lowercase hexadecimal characters: four fixed-width 64-bit fields for profile,
+profile revision, host, and account followed by an explicit v1
+server-contract discriminator (`01` for GitHub.com and `02` for GHES 3.18).
+The discriminators do not depend on C++ enum ordinals. The key contains no
+login, URL, repository, redirect, provider response, or credential material.
+Every query matches the generic-password class, exact service, exact account,
+and exact default keychain and requests failure instead of authentication UI.
+
+Store is an in-place upsert: add first, update only on duplicate, and retry add
+once only if that update reports absence. It never deletes an old item before
+replacement. Retrieve asks for one data result; delete reports deletion or
+prior absence distinctly. Native status values are mapped to the portable
+locked, unavailable, access-denied, corrupt, operation-failed,
+allocation-failure, or invalid-request categories without retaining a raw
+status number or operating-system error string.
+
+The adapter queues exact portable operation contexts through an injected host
+effect executor. Synchronous `SecItem` work never runs on the serialized
+decision executor or a GUI lane. Cancellation can win only before native
+execution starts; once a synchronous `SecItem` operation begins, its terminal
+result wins. A terminal produced after native execution arrives on the effect
+lane. Immediate rejection and explicit or destructor cancellation may complete
+synchronously on the originating lane. Every callback runs outside adapter
+locks, and a consuming application host must marshal every typed completion
+onto the serialized decision lane. Destruction atomically claims and cancels
+all still-queued work and destroys any owned store or retrieved material.
+
+There is no runtime probe, migration, or fallback between the file-based and
+data-protection Keychains. A future data-protection selection requires a
+signed app-like bundle, explicit entitlement/access-group policy, migration
+and rollback behavior, and target-native package evidence under
+RFC-BPR-0014. Until that work is complete, the two stores must never be
+silently mixed.
+
 The native Windows and Linux matrices exercise HTTPS TLS validation, system
 proxy selection, cross-authority redirect rejection, certificate rejection,
 runtime network/process scope, and binary dependencies in addition to the
@@ -533,6 +591,7 @@ visible ownership order is:
 
 ```text
 non-secret profile store
+host effect executors
 platform credential vault
 process runner and native network transport
 normalized GitHub provider
@@ -545,7 +604,7 @@ application host
 Destruction reverses that order. Shutdown first closes ingress, advances or
 invalidates the active generation, cancels provider work, disables completion
 publication, and discards staged snapshots. Only then are Qt projections,
-transports, vault handles, and caches destroyed.
+transports, vault handles, effect executors, and caches destroyed.
 
 Recorded GitHub.com and GHES fixtures may replace the transport behind the same
 provider port in tests. They must use the same provider, host, core, Qt, and
