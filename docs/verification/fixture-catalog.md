@@ -120,6 +120,61 @@ native Windows environment. Host-stub compilation and an x64 MinGW PE
 cross-compile do not satisfy that lifecycle claim. BPR-0036 retains the
 target-native run and exact cleanup as open work.
 
+## Linux Secret Service integration fixture
+
+The BPR-0024 fixture uses the fixed
+`org.betterpullreview.github-native-credential.secret-service.integration-test.v1`
+schema and one exact synthetic authority. It never selects the production
+schema. Each item has only the 66-character `authority` value plus the
+`xdg:schema` attribute supplied by libsecret, and resides only in the default
+collection.
+
+The resource-locked CTest setup/lifecycle/cleanup sequence proves initial
+absence, a 73-byte store and retrieve, atomic replacement with a 2,560-byte
+value and retrieve, delete, repeated absence, and exact final cleanup. Store
+labels the value `application/octet-stream`; retrieve accepts that type or
+exact `text/plain` because the tested gnome-keyring 50/libsecret 0.21.7 stack
+was observed normalizing only the content-type metadata while preserving the
+opaque bytes. After the runtime-canary lifecycle, the same native child repeats
+the 73-byte and 2,560-byte lifecycle with deterministic opaque values
+containing NUL, high-bit, and invalid UTF-8 byte sequences.
+
+The parent generates both runtime-only printable canaries, sends framed bytes
+to a same-executable child over standard input, provides an explicit minimal
+environment and neutral isolated scratch directory, bounds child execution,
+and accepts only fixed output. It checks parent and child arguments,
+environment, stdout/stderr, executable, source, and isolated scratch for
+canary probes. Parent and independent fixture cleanup both delete only the
+exact fixture authority and verify that item absent. A separate controlled
+D-Bus query verifies schema-wide integration-test absence after the matrix.
+
+Controlled direct modes separately prove typed unavailable with no desktop
+session bus, typed locked with a truly locked default collection, and
+rejection of a hostile dependency-level `SECRET_SERVICE_BUS_NAME`. Production
+does not read or mutate that variable: the adapter opens with the literal
+canonical service argument and `SECRET_SERVICE_NONE`, rejects any opened proxy
+whose exact name is not `org.freedesktop.secrets`, and establishes a session
+only after that check. The live hostile owner observed only proxy-property
+inspection and no `OpenSession`, collection, or credential-item method.
+Prompt overrides deny interaction and make one bounded, no-auto-start
+`Dismiss` when given a prompt. Source boundaries prove the absence of unlock,
+prompt display, collection creation, alternate-vault, plaintext, settings,
+SQLite, environment, file, process, network, logging, and UI fallbacks; the
+runtime fixture alone does not claim arbitrary user-home or system-log
+inspection. Fake-backed operation failures and direct native-status
+classification exercise access-denied and failed-delete terminals without
+claiming a desktop policy can reliably force those two states.
+
+The fake contract and all three native fixture CTest cases passed in an Ubuntu
+26.04 x86_64 full-system QEMU VM with an emulated CPU, Linux 7.0,
+Qt 6.10.2, libsecret 0.21.7, and gnome-keyring 50. The four focused cases ran
+under Xvfb, a desktop D-Bus Secret Service session, and a dedicated real user;
+the controlled unavailable, locked, hostile-redirection, and cleanup checks
+also passed. This directly verifies the selected Linux vault stack in a
+full-system VM, not bare metal. Linux native HTTPS and the public composed
+provider path remain pending, so this fixture does not verify the combined
+Linux vault-plus-HTTPS claim.
+
 ## GitHub hosts
 
 - GitHub.com current contract

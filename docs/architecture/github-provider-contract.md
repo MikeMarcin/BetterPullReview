@@ -146,10 +146,52 @@ The prepared fake and cross-compile evidence does not verify native behavior;
 BPR-0023 closes only the implementation slice. BPR-0036 retains the direct
 Windows x64 lifecycle, cleanup, and runtime claim as open work.
 
-Windows and Linux native evidence must exercise HTTPS TLS, system proxy,
-redirect rejection, certificate rejection, runtime network scope, and binary
-dependencies in addition to their target-native vault lifecycle. A mock,
-cross-compile, or macOS-only run cannot prove those platform claims.
+On Linux, the BPR-0024 adapter is compiled only for the Linux target and
+requires stable `libsecret-1>=0.20.0`. It opens a derived `SecretService` with
+the literal canonical `org.freedesktop.secrets` argument and
+`SECRET_SERVICE_NONE`, validates that the resulting D-Bus proxy has that exact
+name, and only then establishes a Secret Service session. Dependency-level
+service redirection therefore fails as typed `unavailable` before session or
+item work; production code neither reads nor mutates routing environment. A
+live hostile owner observed only proxy-property inspection and no
+`OpenSession`, collection, or credential-item method. The derived service
+denies all prompt vfuncs. When libsecret supplies a prompt, the adapter makes
+one bounded, no-auto-start `Dismiss` call and never displays a prompt, unlocks
+a collection, or creates a collection.
+
+The Linux adapter uses only the default collection. Its exact disjoint v1
+production and integration-test schemas each have one explicit `authority`
+attribute containing the complete 66-character portable authority; libsecret
+adds the exact `xdg:schema` attribute. Store uses atomic replacement and
+`application/octet-stream`. Retrieve accepts only that type or exact
+`text/plain`: gnome-keyring 50 with libsecret 0.21.7 was directly observed
+normalizing the stored content-type metadata to `text/plain` while preserving
+the opaque bytes. Locked and unavailable service, access denial, corrupt
+items, invalid requests, allocation failure, ordinary operation failure,
+absence, replacement, deletion, and cancellation remain typed. Synchronous
+libsecret operations run only through the host effect executor.
+
+The Linux vault contract, resource-locked native fixture, and cleanup passed
+in an Ubuntu 26.04 x86_64 full-system QEMU VM with an emulated CPU, Linux 7.0,
+Qt 6.10.2, libsecret 0.21.7, and gnome-keyring 50. The fixture ran under Xvfb,
+a desktop D-Bus Secret Service session, and a dedicated real user. It proved
+73-byte storage followed by 2,560-byte replacement, retrieval, deletion, and
+absence for both runtime canaries and opaque values containing NUL, high-bit,
+and invalid UTF-8 bytes. Checked-in cleanup proved the exact fixture authority
+absent, and a separate D-Bus audit proved integration-schema absence. Bounded
+runtime-surface probes, hostile service-name rejection, a truly locked default
+collection, and no-session-bus unavailability also passed. Access-denied and
+failed-delete terminals are covered by injected effects plus direct
+native-status classification rather than an operating-system policy fixture.
+This is direct Linux vault evidence from a full-system VM; it is neither
+bare-metal evidence nor proof of the still-pending Linux native HTTPS or
+public composition surfaces.
+
+Windows target-native evidence remains open. Linux native HTTPS evidence must
+still exercise TLS, system proxy selection, redirect rejection, certificate
+rejection, runtime network scope, binary dependencies, and the composed
+public path. A mock, cross-compile, vault-only run, or macOS-only run cannot
+prove those remaining platform claims.
 
 ## Normalized application boundary
 

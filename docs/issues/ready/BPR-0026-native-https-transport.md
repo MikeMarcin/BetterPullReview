@@ -1,7 +1,7 @@
 ---
 id: BPR-0026
 title: Implement native HTTPS transport and trust policy
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0020, BPR-0021, BPR-0022, BPR-0023, BPR-0024]
 ---

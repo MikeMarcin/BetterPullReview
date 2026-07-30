@@ -567,11 +567,89 @@ native Windows x64 environment. BPR-0023 closes the implementation slice;
 BPR-0036 keeps the native claim open until that target-native build,
 execution, import inspection, and exact cleanup pass.
 
-The native Windows and Linux matrices exercise HTTPS TLS validation, system
-proxy selection, cross-authority redirect rejection, certificate rejection,
-runtime network/process scope, and binary dependencies in addition to the
-platform vault lifecycle. Mock transports, cross-compilation, and macOS
-evidence cannot substitute for those target-native claims.
+### Linux Secret Service selection
+
+BPR-0024's Linux adapter is selected only when `CMAKE_SYSTEM_NAME` is
+`Linux`. That target requires and links the stable
+`libsecret-1>=0.20.0` interface; the Qt-free target graph does not discover
+or link libsecret.
+
+The production schema is fixed as
+`org.betterpullreview.github-native-credential.secret-service.v1`; native
+tests use the disjoint
+`org.betterpullreview.github-native-credential.secret-service.integration-test.v1`
+schema. Each schema declares only one string attribute, `authority`, whose
+value is the same 66-character fixed-width lowercase hexadecimal encoding
+used by the other native adapters. A matching item must have exactly that
+authority and the `xdg:schema` value added by libsecret. Multiple matches,
+additional attributes, a schema mismatch, or an invalid value is corrupt.
+
+The adapter opens a derived `SecretService` with the literal
+`org.freedesktop.secrets` argument and `SECRET_SERVICE_NONE`, then checks
+`g_dbus_proxy_get_name()` for that exact value before establishing a Secret
+Service session or resolving a collection or item. Only a canonical proxy may
+continue through `secret_service_ensure_session_sync()`. This second check is
+mandatory because the selected libsecret can be redirected at the dependency
+layer. A redirected proxy fails as typed `unavailable`; production code never
+reads, copies, changes, or removes a service-routing environment variable.
+
+Only the default collection alias is admitted. The adapter does not unlock
+the collection, create a collection, search an alternate vault, or silently
+start an interactive authentication flow. Its derived `SecretService`
+overrides synchronous, asynchronous, and finish prompt vfuncs. If libsecret
+hands it a prompt, the adapter issues exactly one `Dismiss` D-Bus call with
+no auto-start and a positive one-second bound, then returns a locked failure.
+It never calls `Prompt`.
+
+Store creates a binary `SecretValue` with
+`application/octet-stream` and uses one
+`SECRET_ITEM_CREATE_REPLACE` operation in the default collection. Retrieve
+searches all exact-schema matches without loading or unlocking them, requires
+zero or one exact item, checks its lock state, and then loads that item
+explicitly. It accepts only `application/octet-stream` or exact `text/plain`.
+The latter is narrowly admitted because gnome-keyring 50 through libsecret
+0.21.7 was directly observed changing the content-type metadata to
+`text/plain` while retaining arbitrary opaque bytes, including a complete
+2,560-byte replacement. Delete acts on the same one exact item.
+
+Secret Service, D-Bus, and I/O statuses map conservatively to the portable
+locked, unavailable, access-denied, corrupt, invalid-request, allocation, or
+operation-failed categories. No raw status text crosses inward. Synchronous
+libsecret work is serialized by the backend and dispatched through the
+injected host effect executor. Queuing, cancellation, completion, callback,
+and teardown follow the same portable ownership rules as the other native
+adapters. There is no prompt display, collection creation, unlock, alternate
+vault, plaintext, settings, SQLite, environment, file, process, network,
+logging, or UI fallback.
+
+Direct Linux vault evidence passed in an Ubuntu 26.04 x86_64 full-system QEMU
+VM with an emulated CPU, Linux 7.0, Qt 6.10.2, libsecret 0.21.7, and
+gnome-keyring 50. A dedicated real user ran the fake contract and the
+resource-locked setup/lifecycle/cleanup fixture under Xvfb plus a desktop
+D-Bus Secret Service session. The four focused CTest cases passed, including
+73-byte storage, 2,560-byte replacement, retrieval, deletion, repeated
+absence, and canary probes over arguments, environment, fixed output,
+executable, source, and isolated scratch. A second lifecycle round-tripped
+opaque values containing NUL, high-bit, and invalid UTF-8 bytes at the same
+73-byte and 2,560-byte sizes. Checked-in setup and cleanup proved the exact
+fixture authority absent; a separate controlled D-Bus audit proved the entire
+integration schema absent. Other controlled runs proved hostile
+`SECRET_SERVICE_BUS_NAME` rejection, a truly locked default collection, and
+no-session-bus unavailability. A live hostile D-Bus owner observed only
+proxy-property inspection and no `OpenSession`, collection, or
+credential-item method before rejection. Fake-backed effects and direct
+native-status classification separately cover access-denied and failed-delete
+terminals without claiming those as desktop-policy fixtures.
+
+That full-system VM result proves the selected Linux vault behavior against a
+real Linux kernel and user-space API stack, but it is not bare-metal evidence.
+It also does not verify the Linux native HTTPS transport or the composed
+public provider path. Those pending surfaces still must prove TLS validation,
+system proxy selection, cross-authority redirect rejection, certificate
+rejection, runtime network/process scope, and binary dependencies. Windows
+target-native evidence remains in BPR-0036. Mock transports,
+cross-compilation, and vault-only evidence cannot substitute for either open
+claim.
 
 ## Read-only enforcement
 
@@ -718,7 +796,8 @@ RFC-BPR-0002 has no implementation impact on:
 Git cache and epoch work remains RFC-BPR-0003. GitHub mutations remain
 RFC-BPR-0008. Delivered-package certification remains RFC-BPR-0014.
 
-Within RFC-BPR-0002, the CLI broker, native HTTPS transport, macOS Keychain,
-Windows Credential Manager, Linux Secret Service, Qt flow, and target-native
-credential evidence are later issue slices, not deferred acceptance criteria.
-RFC-BPR-0002 cannot close while any of them remains unverified.
+Within RFC-BPR-0002, the Linux Secret Service vault lifecycle is directly
+verified, while the CLI broker, native HTTPS transport and public composition,
+Qt flow, and retained Windows target-native credential evidence remain open
+issue slices rather than deferred acceptance criteria. RFC-BPR-0002 cannot
+close while any required slice remains unverified.

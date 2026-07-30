@@ -693,6 +693,8 @@ auto test_move_and_result_helpers_fail_closed() -> void
 
     github_capability_cache_lookup_result malformed_lookup{
         .Status = github_capability_cache_lookup_status::hit,
+        .Error = github_capability_cache_error::none,
+        .Entry = std::nullopt,
     };
     expect(
         !malformed_lookup.hit(),

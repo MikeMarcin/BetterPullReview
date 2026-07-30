@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <limits>
 #include <new>
+#include <optional>
 #include <utility>
 
 namespace bpr::application
@@ -41,6 +42,7 @@ namespace
     return {
         .Status = github_capability_cache_lookup_status::rejected,
         .Error = error,
+        .Entry = std::nullopt,
     };
 }
 
@@ -52,6 +54,7 @@ namespace
         .Disposition =
             github_capability_cache_store_disposition::rejected,
         .Error = error,
+        .Entry = std::nullopt,
     };
 }
 }
@@ -185,12 +188,16 @@ auto github_capability_cache::lookup(
     {
         return {
             .Status = github_capability_cache_lookup_status::miss,
+            .Error = github_capability_cache_error::none,
+            .Entry = std::nullopt,
         };
     }
     if(now >= found->ExpiresBefore)
     {
         return {
             .Status = github_capability_cache_lookup_status::expired,
+            .Error = github_capability_cache_error::none,
+            .Entry = std::nullopt,
         };
     }
     return {

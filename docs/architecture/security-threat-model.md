@@ -86,6 +86,45 @@ static boundaries cannot verify operating-system storage, denial,
 unavailable-session behavior, or cleanup. BPR-0036 therefore retains those
 Windows target-native checks and the affected claim remains open.
 
+The Linux adapter selects only the default Secret Service collection under
+the literal canonical `org.freedesktop.secrets` service. It opens with
+`SECRET_SERVICE_NONE`, validates the opened proxy name, and only then
+establishes a Secret Service session. Dependency-level service redirection
+therefore becomes typed unavailability before session or item work even
+though production never reads or mutates routing environment. A live hostile
+owner observed property inspection only and no `OpenSession`, collection, or
+credential-item method. A derived `SecretService` denies prompt vfuncs and
+makes at most one bounded, no-auto-start `Dismiss`; it never displays a
+prompt, unlocks or creates a collection, or selects another vault.
+
+Production and integration-test schemas are disjoint. Their only explicit
+attribute is the non-secret 66-character portable authority; libsecret adds
+`xdg:schema`. Credential bytes are stored as
+`application/octet-stream`. Retrieval also accepts exact `text/plain` because
+the directly tested gnome-keyring 50/libsecret 0.21.7 stack normalized that
+metadata while preserving arbitrary opaque bytes. Exact attribute checks,
+unique-item enforcement, collection/item lock checks, the 2,560-byte portable
+bound, and typed unavailable, access-denied, corrupt, allocation, and
+operation failures keep malformed or redirected storage from becoming a
+credential result. No raw provider error or credential material crosses the
+adapter.
+
+The Linux native fixture uses only the integration schema and a synthetic
+authority. In an Ubuntu 26.04 x86_64 full-system QEMU VM with an emulated CPU,
+a dedicated real user ran it under Xvfb and a desktop D-Bus Secret Service
+session. Runtime-only canaries entered the same-executable child through
+framed standard input; arguments, the explicit child environment, fixed
+output, executable, source, and isolated scratch were checked. A separate
+opaque-byte lifecycle included NUL, high-bit, and invalid UTF-8 bytes.
+Checked-in cleanup proved the exact fixture authority absent; a controlled
+D-Bus audit separately proved integration-schema absence. A truly locked
+default collection, no-session-bus unavailability, and hostile service-name
+rejection were also checked. Access denial and failed deletion are
+fake-backed/status-classification evidence rather than desktop-policy
+fixtures. This proves the vault surface in the selected full-system Linux
+stack, not bare metal, arbitrary user-home or system-log absence, native
+HTTPS, or the composed public provider path.
+
 ## Baseline posture
 
 - No hosted BetterPullReview service.

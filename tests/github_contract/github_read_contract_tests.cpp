@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -140,6 +141,7 @@ struct loaded_recording
             recorded_exchange{
                 .Request =
                     {
+                        .Semantic = {},
                         .Server = server,
                         .Operation = operation,
                         .Method = method,
@@ -303,6 +305,7 @@ struct loaded_recording
             {
                 {
                     .Path = "src/core/review_snapshot.cpp",
+                    .PreviousPath = std::nullopt,
                     .Change = application::github_file_change::modified,
                     .Additions = 12,
                     .Deletions = 3,
@@ -369,6 +372,7 @@ struct loaded_recording
                                 .Comment =
                                     application::github_comment_id{
                                         "PRRC_fixture_1"},
+                                .ReplyTo = std::nullopt,
                                 .Author =
                                     application::github_actor_record{
                                         .Actor =
@@ -444,6 +448,8 @@ struct loaded_recording
             .Owner = "octo-org",
             .Repository = "review-repository",
             .PullRequestNumber = 17,
+            .HeadOid = {},
+            .SearchTerms = {},
             .Page = 1,
         });
     expect(compiled_graphql.has_value(), "fixture GraphQL request compiles");
@@ -488,6 +494,10 @@ auto test_manifest_catalog_and_normalization_are_one_contract() -> void
     semantic_read_request request{
         .Server = server,
         .Operation = operation,
+        .Owner = {},
+        .Repository = {},
+        .HeadOid = {},
+        .SearchTerms = {},
         .Page = 1,
     };
     if(operation != read_operation::get_viewer_identity)

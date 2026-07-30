@@ -70,6 +70,26 @@ if(BPR_BUILD_QT)
         )
     endif()
 
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(
+            BPR_LIBSECRET
+            REQUIRED
+            IMPORTED_TARGET
+            libsecret-1>=0.20.0
+        )
+        target_sources(
+            better_pull_review_adapter_github
+            PRIVATE
+                src/linux_secret_service.cpp
+        )
+        target_link_libraries(
+            better_pull_review_adapter_github
+            PRIVATE
+                PkgConfig::BPR_LIBSECRET
+        )
+    endif()
+
     bpr_enable_hardening(better_pull_review_adapter_github)
     bpr_enable_warnings(better_pull_review_adapter_github)
 else()

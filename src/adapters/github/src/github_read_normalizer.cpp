@@ -430,6 +430,11 @@ namespace
     semantic_read_request request{
         .Server = context.Server,
         .Operation = operation,
+        .Owner = {},
+        .Repository = {},
+        .PullRequestNumber = 0U,
+        .HeadOid = {},
+        .SearchTerms = {},
         .Page = 1U,
     };
     if(operation != read_operation::get_viewer_identity)
@@ -625,6 +630,13 @@ auto normalize_github_read(
                     .BaseRef = text(base.value("ref")),
                     .HeadRef = text(head.value("ref")),
                 },
+            .Files = {},
+            .Commits = {},
+            .Reviews = {},
+            .ReviewThreads = {},
+            .IssueComments = {},
+            .Checks = {},
+            .SearchResults = {},
             .CapabilityEvidence =
                 {
                     .Capabilities = context.Capabilities,
@@ -803,6 +815,7 @@ auto normalize_github_read(
                     thread.value("viewerCanResolve").toBool(),
                 .ViewerCanUnresolve =
                     thread.value("viewerCanUnresolve").toBool(),
+                .Comments = {},
             };
             const auto comments = thread.value("comments")
                                       .toObject()

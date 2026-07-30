@@ -52,6 +52,28 @@ if(WIN32)
 endif()
 """
 
+LINUX_SECRET_SERVICE_TARGET = """\
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(
+        BPR_TEST_LIBSECRET
+        REQUIRED
+        IMPORTED_TARGET
+        libsecret-1>=0.20.0
+    )
+    target_sources(
+        better_pull_review_adapter_github
+        INTERFACE
+            src/linux_secret_service.cpp
+    )
+    target_link_libraries(
+        better_pull_review_adapter_github
+        INTERFACE
+            PkgConfig::BPR_TEST_LIBSECRET
+    )
+endif()
+"""
+
 GITHUB_TARGET = """\
 add_library(better_pull_review_adapter_github INTERFACE)
 add_library(BetterPullReview::AdapterGitHub ALIAS better_pull_review_adapter_github)
@@ -67,7 +89,11 @@ target_sources(
         src/gh_cli_transport.cpp
         src/native_https_transport.cpp
 )
-""" + APPLE_KEYCHAIN_TARGET + WINDOWS_CREDENTIAL_TARGET
+""" + (
+    APPLE_KEYCHAIN_TARGET
+    + WINDOWS_CREDENTIAL_TARGET
+    + LINUX_SECRET_SERVICE_TARGET
+)
 
 MACOS_KEYCHAIN_SOURCE = """\
 #include <Security/Security.h>
@@ -141,6 +167,188 @@ void selected_credential_manager_lifecycle() {
 }
 """
 
+LINUX_SECRET_SERVICE_SOURCE = """\
+#include <libsecret/secret.h>
+
+namespace application {
+class effect_executor;
+constexpr std::size_t maximum_github_credential_bytes = 2'560U;
+}
+application::effect_executor* selected_effect_lane = nullptr;
+
+constexpr std::size_t linux_secret_service_authority_account_bytes = 66U;
+static_assert(linux_secret_service_authority_account_bytes == 66U);
+constexpr std::string_view canonical_service_bus_name =
+    "org.freedesktop.secrets";
+constexpr std::string_view production_schema_identifier =
+    "org.betterpullreview.github-native-credential.secret-service.v1";
+constexpr std::string_view integration_test_schema_identifier =
+    "org.betterpullreview.github-native-credential."
+    "secret-service.integration-test.v1";
+constexpr std::string_view authority_attribute = "authority";
+constexpr std::string_view schema_attribute = "xdg:schema";
+constexpr std::string_view binary_content_type = "application/octet-stream";
+constexpr std::string_view gnome_keyring_content_type = "text/plain";
+constexpr gint prompt_dismiss_timeout_milliseconds = 1'000;
+
+struct NonPromptingSecretService { SecretService ParentInstance; };
+struct NonPromptingSecretServiceClass { SecretServiceClass ParentClass; };
+
+void dismiss_prompt(SecretPrompt* prompt) {
+    g_dbus_proxy_call_sync(
+        G_DBUS_PROXY(prompt),
+        "Dismiss",
+        g_variant_new("()"),
+        G_DBUS_CALL_FLAGS_NO_AUTO_START,
+        prompt_dismiss_timeout_milliseconds,
+        nullptr,
+        nullptr);
+}
+
+void deny_prompt_sync(SecretPrompt* prompt) {
+    dismiss_prompt(prompt);
+}
+void deny_prompt_async(SecretPrompt* prompt) {
+    dismiss_prompt(prompt);
+}
+void deny_prompt_finish() {}
+constexpr auto prompt_failure = SECRET_ERROR_IS_LOCKED;
+
+G_DEFINE_TYPE(
+    NonPromptingSecretService,
+    non_prompting_secret_service,
+    SECRET_TYPE_SERVICE)
+
+void non_prompting_secret_service_class_init(
+    NonPromptingSecretServiceClass* service_class) {
+    auto* parent = SECRET_SERVICE_CLASS(service_class);
+    parent->prompt_sync = deny_prompt_sync;
+    parent->prompt_async = deny_prompt_async;
+    parent->prompt_finish = deny_prompt_finish;
+}
+
+void selected_store_service_gate() {
+    const auto service = service_proxy();
+}
+void selected_retrieve_service_gate() {
+    const auto service = service_proxy();
+}
+void selected_delete_service_gate() {
+    const auto service = service_proxy();
+}
+
+void selected_secret_service_lifecycle() {
+    SecretSchema schema{};
+    schema.flags = SECRET_SCHEMA_NONE;
+    schema.attributes[0].name = authority_attribute;
+    schema.attributes[0].type = SECRET_SCHEMA_ATTRIBUTE_STRING;
+    g_hash_table_lookup(attributes, schema_attribute);
+    if(g_hash_table_size(attributes) != 2U) {}
+
+    for(std::size_t nibble = 0U; nibble < 16U; ++nibble) {}
+    append_hex_u64(authority.Profile.value());
+    append_hex_u64(authority.ProfileRevision.value());
+    append_hex_u64(authority.Host.value());
+    append_hex_u64(authority.Account.value());
+    append_hex_u8(
+        output,
+        offset,
+        server_contract_discriminator(authority.ServerContract));
+
+    error_owner error;
+    Service = secret_service_open_sync(
+        non_prompting_secret_service_get_type(),
+        canonical_service_bus_name.data(),
+        SECRET_SERVICE_NONE,
+        nullptr,
+        error.out());
+    if(Service == nullptr) {
+        const auto failure = mapped_error(error.get());
+        return std::unexpected{
+            failure
+                    == application::github_credential_vault_failure::
+                        operation_failed
+                ? application::github_credential_vault_failure::unavailable
+                : failure};
+    }
+    const auto* actual_name =
+        g_dbus_proxy_get_name(G_DBUS_PROXY(Service));
+    if(actual_name == nullptr
+        || std::strcmp(
+               actual_name,
+               canonical_service_bus_name.data())
+            != 0) {
+        g_object_unref(Service);
+        Service = nullptr;
+        return std::unexpected{
+            application::github_credential_vault_failure::unavailable};
+    }
+    error_owner session_error;
+    if(!secret_service_ensure_session_sync(
+           Service,
+           nullptr,
+           session_error.out())) {
+        const auto failure = mapped_error(session_error.get());
+        g_object_unref(Service);
+        Service = nullptr;
+        return std::unexpected{
+            failure
+                    == application::github_credential_vault_failure::
+                        operation_failed
+                ? application::github_credential_vault_failure::unavailable
+                : failure};
+    }
+
+    auto* collection = secret_collection_for_alias_sync(
+        Service,
+        SECRET_COLLECTION_DEFAULT,
+        SECRET_COLLECTION_NONE,
+        nullptr,
+        nullptr);
+    secret_collection_get_locked(collection);
+    secret_item_get_locked(item);
+
+    auto* stored_value = secret_value_new(
+        reinterpret_cast<const char*>(bytes.data()),
+        static_cast<gssize>(bytes.size()),
+        binary_content_type.data());
+    secret_item_create_sync(
+        collection,
+        &schema,
+        attributes,
+        label,
+        stored_value,
+        SECRET_ITEM_CREATE_REPLACE,
+        nullptr,
+        nullptr);
+    secret_collection_search_sync(
+        collection,
+        &schema,
+        attributes,
+        SECRET_SEARCH_ALL,
+        nullptr,
+        nullptr);
+    secret_item_load_secret_sync(item, nullptr, nullptr);
+    auto* value = secret_item_get_secret(item);
+    const auto* content_type =
+        value == nullptr ? nullptr : secret_value_get_content_type(value);
+    const auto recognized_content_type =
+        content_type != nullptr
+        && (
+            std::strcmp(content_type, binary_content_type.data()) == 0
+            || std::strcmp(
+                   content_type,
+                   gnome_keyring_content_type.data())
+                == 0);
+    if(value == nullptr || content_type == nullptr
+        || !recognized_content_type) {}
+    secret_value_get(value, &size);
+    static_assert(application::maximum_github_credential_bytes == 2'560U);
+    secret_item_delete_sync(item, nullptr, nullptr);
+    secret_value_unref(stored_value);
+}
+"""
+
 
 class ArchitectureBoundaryTests(unittest.TestCase):
     def run_check(
@@ -151,6 +359,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         github_target: str = GITHUB_TARGET,
         omit_macos_source: bool = False,
         omit_windows_source: bool = False,
+        omit_linux_source: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -169,6 +378,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 files[
                     "src/adapters/github/src/windows_credential_manager.cpp"
                 ] = WINDOWS_CREDENTIAL_MANAGER_SOURCE
+            if not omit_linux_source:
+                files[
+                    "src/adapters/github/src/linux_secret_service.cpp"
+                ] = LINUX_SECRET_SERVICE_SOURCE
             files.update(sources or {})
 
             for relative_path, contents in files.items():
@@ -460,9 +673,616 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
-    def test_future_linux_vault_source_is_not_required(self) -> None:
-        result = self.run_check()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+    def test_linux_secret_service_source_is_required(self) -> None:
+        self.assert_failure(
+            "designated Linux Secret Service source is required",
+            omit_linux_source=True,
+        )
+
+    def test_linux_source_requires_exact_linux_target_ownership(self) -> None:
+        hostile_targets = (
+            (
+                GITHUB_TARGET.replace(
+                    "            src/linux_secret_service.cpp\n",
+                    "",
+                ),
+                "Linux GitHub adapter must compile",
+            ),
+            (
+                GITHUB_TARGET.replace(
+                    'if(CMAKE_SYSTEM_NAME STREQUAL "Linux")\n',
+                    "if(UNIX AND NOT APPLE)\n",
+                ),
+                "must define an exact Linux branch",
+            ),
+            (
+                GITHUB_TARGET
+                + "target_sources(\n"
+                "    better_pull_review_adapter_github\n"
+                "    INTERFACE src/linux_secret_service.cpp\n"
+                ")\n",
+                "must remain Linux-only",
+            ),
+        )
+        for target, expected_message in hostile_targets:
+            with self.subTest(expected_message=expected_message):
+                self.assert_failure(
+                    expected_message,
+                    github_target=target,
+                )
+
+    def test_linux_target_requires_imported_libsecret(self) -> None:
+        hostile_targets = (
+            (
+                GITHUB_TARGET.replace(
+                    "    find_package(PkgConfig REQUIRED)\n",
+                    "",
+                ),
+                "must require PkgConfig",
+            ),
+            (
+                GITHUB_TARGET.replace(
+                    "        libsecret-1>=0.20.0\n",
+                    "        libsecret-1\n",
+                ),
+                "must import required libsecret-1>=0.20.0",
+            ),
+            (
+                GITHUB_TARGET.replace(
+                    "        IMPORTED_TARGET\n",
+                    "",
+                ),
+                "must import required libsecret-1>=0.20.0",
+            ),
+            (
+                GITHUB_TARGET.replace(
+                    "            PkgConfig::BPR_TEST_LIBSECRET\n",
+                    "",
+                ),
+                "must link the imported libsecret target",
+            ),
+        )
+        for target, expected_message in hostile_targets:
+            with self.subTest(expected_message=expected_message):
+                self.assert_failure(
+                    expected_message,
+                    github_target=target,
+                )
+
+    def test_linux_build_ownership_cannot_move_to_another_target(self) -> None:
+        self.assert_failure(
+            "Linux Secret Service build ownership must remain",
+            {
+                "src/adapters/git/CMakeLists.txt":
+                    "target_sources(git PRIVATE "
+                    "src/linux_secret_service.cpp)\n"
+            },
+        )
+
+    def test_linux_vault_requires_the_effect_executor(self) -> None:
+        self.assert_failure(
+            "Linux Secret Service adapter requires the host effect executor",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    LINUX_SECRET_SERVICE_SOURCE.replace(
+                        "application::effect_executor* "
+                        "selected_effect_lane = nullptr;\n",
+                        "",
+                    )
+            },
+        )
+
+    def test_linux_vault_rejects_the_decision_executor(self) -> None:
+        self.assert_failure(
+            "Forbidden serialized decision-executor surface",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    LINUX_SECRET_SERVICE_SOURCE
+                    + "application::decision_executor* "
+                    "forbidden_decision_lane = nullptr;\n"
+            },
+        )
+
+    def test_linux_vault_requires_exact_service_and_session(self) -> None:
+        required_fragments = (
+            '"org.freedesktop.secrets"',
+            "secret_service_open_sync",
+            "non_prompting_secret_service_get_type()",
+            "canonical_service_bus_name.data(),\n"
+            "        SECRET_SERVICE_NONE",
+            "SECRET_SERVICE_NONE",
+            "const auto failure = mapped_error(error.get())",
+            "                        operation_failed\n"
+            "                ? application::github_credential_vault_failure::"
+            "unavailable\n"
+            "                : failure",
+            "g_dbus_proxy_get_name",
+            "actual_name == nullptr",
+            "               canonical_service_bus_name.data())\n"
+            "            != 0",
+            "g_object_unref(Service)",
+            "Service = nullptr",
+            "application::github_credential_vault_failure::unavailable",
+            "secret_service_ensure_session_sync",
+            "session_error.out()",
+            "const auto failure = mapped_error(session_error.get())",
+            "secret_collection_for_alias_sync",
+            "SECRET_COLLECTION_DEFAULT",
+            "SECRET_COLLECTION_NONE",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assert_failure(
+                    "must retain the selected exact",
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE.replace(
+                                fragment,
+                                "REMOVED_REQUIRED_SERVICE_SELECTION",
+                            )
+                    },
+                )
+
+        hostile_source = LINUX_SECRET_SERVICE_SOURCE.replace(
+            "            != 0) {",
+            "            == 0) {",
+        )
+        self.assert_failure(
+            "must retain the selected exact",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    hostile_source
+            },
+        )
+
+        open_session_source = LINUX_SECRET_SERVICE_SOURCE.replace(
+            "        SECRET_SERVICE_NONE,\n",
+            "        SECRET_SERVICE_OPEN_SESSION,\n",
+            1,
+        )
+        self.assert_failure(
+            "must retain the selected exact",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    open_session_source
+            },
+        )
+
+        session_block = (
+            "    error_owner session_error;\n"
+            "    if(!secret_service_ensure_session_sync(\n"
+            "           Service,\n"
+            "           nullptr,\n"
+            "           session_error.out())) {\n"
+            "        const auto failure = mapped_error(session_error.get());\n"
+            "        g_object_unref(Service);\n"
+            "        Service = nullptr;\n"
+            "        return std::unexpected{\n"
+            "            failure\n"
+            "                    == application::"
+            "github_credential_vault_failure::\n"
+            "                        operation_failed\n"
+            "                ? application::github_credential_vault_failure::"
+            "unavailable\n"
+            "                : failure};\n"
+            "    }\n"
+        )
+        ensure_before_name_source = LINUX_SECRET_SERVICE_SOURCE.replace(
+            session_block,
+            "",
+            1,
+        ).replace(
+            "    const auto* actual_name =\n",
+            session_block + "    const auto* actual_name =\n",
+            1,
+        )
+        self.assert_failure(
+            "Linux Secret Service session ordering invalid",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    ensure_before_name_source
+            },
+        )
+
+        ensure_without_normalization = session_block.replace(
+            "                ? application::github_credential_vault_failure::"
+            "unavailable\n"
+            "                : failure",
+            "                ? failure\n"
+            "                : failure",
+            1,
+        )
+        self.assert_failure(
+            "Linux Secret Service failure normalization invalid",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    LINUX_SECRET_SERVICE_SOURCE.replace(
+                        session_block,
+                        ensure_without_normalization,
+                        1,
+                )
+            },
+        )
+
+        ensure_without_cleanup = session_block.replace(
+            "        g_object_unref(Service);\n",
+            "",
+            1,
+        )
+        self.assert_failure(
+            "Linux Secret Service ensure-session failure cleanup invalid",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    LINUX_SECRET_SERVICE_SOURCE.replace(
+                        session_block,
+                        ensure_without_cleanup,
+                        1,
+                    )
+            },
+        )
+
+        missing_operation_gate = LINUX_SECRET_SERVICE_SOURCE.replace(
+            "    const auto service = service_proxy();\n",
+            "",
+            1,
+        )
+        self.assert_failure(
+            "must verify the selected service",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    missing_operation_gate
+            },
+        )
+
+    def test_linux_vault_requires_exact_schema_and_authority(self) -> None:
+        required_fragments = (
+            "static_assert("
+            "linux_secret_service_authority_account_bytes == 66U)",
+            "org.betterpullreview.github-native-credential."
+            "secret-service.v1",
+            "secret-service.integration-test.v1",
+            'authority_attribute = "authority"',
+            'schema_attribute = "xdg:schema"',
+            "SECRET_SCHEMA_NONE",
+            "SECRET_SCHEMA_ATTRIBUTE_STRING",
+            "g_hash_table_size(attributes) != 2U",
+            "nibble < 16U",
+            "authority.Profile.value()",
+            "authority.ProfileRevision.value()",
+            "authority.Host.value()",
+            "authority.Account.value()",
+            "append_hex_u8(\n"
+            "        output,\n"
+            "        offset,\n"
+            "        server_contract_discriminator(authority.ServerContract))",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assert_failure(
+                    "must retain the selected exact",
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE.replace(
+                                fragment,
+                                "REMOVED_REQUIRED_AUTHORITY",
+                            )
+                    },
+                )
+
+    def test_linux_vault_requires_binary_secret_value_lifecycle(self) -> None:
+        required_fragments = (
+            "#include <libsecret/secret.h>",
+            '"application/octet-stream"',
+            'gnome_keyring_content_type = "text/plain"',
+            "secret_value_new(\n"
+            "        reinterpret_cast<const char*>(bytes.data()),\n"
+            "        static_cast<gssize>(bytes.size()),\n"
+            "        binary_content_type.data())",
+            "secret_value_new",
+            "secret_value_get_content_type",
+            "recognized_content_type",
+            "std::strcmp(content_type, binary_content_type.data()) == 0",
+            "                   gnome_keyring_content_type.data())\n"
+            "                == 0",
+            "!recognized_content_type",
+            "secret_value_get",
+            "secret_value_unref",
+            "application::maximum_github_credential_bytes",
+            "secret_collection_search_sync",
+            "SECRET_SEARCH_ALL",
+            "secret_item_create_sync",
+            "SECRET_ITEM_CREATE_REPLACE",
+            "secret_item_load_secret_sync",
+            "secret_item_get_secret",
+            "secret_item_delete_sync",
+            "secret_collection_get_locked",
+            "secret_item_get_locked",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assert_failure(
+                    "must retain the selected exact",
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE.replace(
+                                fragment,
+                                "REMOVED_REQUIRED_LIFECYCLE",
+                            )
+                    },
+                )
+
+        broader_recognition = LINUX_SECRET_SERVICE_SOURCE.replace(
+            "                == 0);",
+            "                == 0\n"
+            "            || std::strcmp(content_type, "
+            '"application/json") == 0);',
+        )
+        self.assert_failure(
+            "must retain the selected exact",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    broader_recognition
+            },
+        )
+
+        gnome_keyring_storage = LINUX_SECRET_SERVICE_SOURCE.replace(
+            "        binary_content_type.data());",
+            "        gnome_keyring_content_type.data());",
+            1,
+        )
+        self.assert_failure(
+            "must store only application/octet-stream",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    gnome_keyring_storage
+            },
+        )
+
+        broad_bypasses = (
+            "g_ascii_strcasecmp(content_type, expected);\n",
+            'g_str_has_prefix(content_type, "text/");\n',
+            'strstr(content_type, "octet-stream");\n',
+            'const char* wildcard = "text/*";\n',
+        )
+        for hostile_source in broad_bypasses:
+            with self.subTest(hostile_source=hostile_source):
+                self.assert_failure(
+                    "Forbidden broad SecretValue content-type bypass",
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE + hostile_source
+                    },
+                )
+
+    def test_linux_vault_requires_no_prompt_overrides_and_dismiss(self) -> None:
+        required_fragments = (
+            "SECRET_TYPE_SERVICE",
+            "parent->prompt_sync = deny_prompt_sync",
+            "parent->prompt_async = deny_prompt_async",
+            "parent->prompt_finish = deny_prompt_finish",
+            "g_dbus_proxy_call_sync",
+            '"Dismiss"',
+            'g_variant_new("()")',
+            "G_DBUS_CALL_FLAGS_NO_AUTO_START",
+            "prompt_dismiss_timeout_milliseconds",
+            "SECRET_ERROR_IS_LOCKED",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assert_failure(
+                    "must retain the selected exact",
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE.replace(
+                                fragment,
+                                "REMOVED_REQUIRED_PROMPT_POLICY",
+                            )
+                    },
+                )
+
+        self.assert_failure(
+            "must retain the selected exact",
+            {
+                "src/adapters/github/src/linux_secret_service.cpp":
+                    LINUX_SECRET_SERVICE_SOURCE.replace(
+                        "prompt_dismiss_timeout_milliseconds = 1'000",
+                        "prompt_dismiss_timeout_milliseconds = 0",
+                    )
+            },
+        )
+
+    def test_linux_vault_requires_dismiss_on_sync_and_async_prompt_paths(
+        self,
+    ) -> None:
+        hostile_sources = (
+            LINUX_SECRET_SERVICE_SOURCE.replace(
+                "void deny_prompt_sync(SecretPrompt* prompt) {\n"
+                "    dismiss_prompt(prompt);\n"
+                "}\n",
+                "void deny_prompt_sync(SecretPrompt*) {}\n",
+            ),
+            LINUX_SECRET_SERVICE_SOURCE.replace(
+                "void deny_prompt_async(SecretPrompt* prompt) {\n"
+                "    dismiss_prompt(prompt);\n"
+                "}\n",
+                "void deny_prompt_async(SecretPrompt*) {}\n",
+            ),
+        )
+        for source in hostile_sources:
+            with self.subTest(source=source):
+                self.assert_failure(
+                    "must retain the selected exact",
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            source
+                    },
+                )
+
+    def test_linux_vault_rejects_environment_and_service_redirection(
+        self,
+    ) -> None:
+        hostile_surfaces = (
+            'getenv("SECRET_SERVICE_BUS_NAME");\n',
+            'const char* variable = "SECRET_SERVICE_BUS_NAME";\n',
+            'const char* bus = "DBUS_SESSION_BUS_ADDRESS";\n',
+            "g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);\n",
+            "GDBusConnection* alternate_connection = nullptr;\n",
+            "GObjectConstructParam* redirected_properties = nullptr;\n",
+            "g_value_set_string(value, redirected_name);\n",
+            'g_object_set(object, "g-name", "org.example.secrets", '
+            "nullptr);\n",
+            'g_object_set_property(object, "g-name", redirected_value);\n',
+            "secret_service_open_sync(other_type, redirected_name, "
+            "SECRET_SERVICE_OPEN_SESSION, nullptr, nullptr);\n",
+        )
+        for hostile_source in hostile_surfaces:
+            with self.subTest(hostile_source=hostile_source):
+                expected_message = (
+                    "must open exactly one"
+                    if "secret_service_open_sync" in hostile_source
+                    else (
+                        "Forbidden ineffective service-name property override"
+                        if (
+                            '"g-name"' in hostile_source
+                            or "GObjectConstructParam" in hostile_source
+                            or "g_value_set_string" in hostile_source
+                        )
+                        else "Forbidden"
+                    )
+                )
+                self.assert_failure(
+                    expected_message,
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE + hostile_source
+                    },
+                )
+
+    def test_linux_vault_rejects_convenience_unlock_and_collection_apis(
+        self,
+    ) -> None:
+        hostile_surfaces = (
+            "secret_password_store_sync(schema, nullptr);\n",
+            "secret_service_get_sync(SECRET_SERVICE_OPEN_SESSION, "
+            "nullptr, nullptr);\n",
+            "secret_service_store_sync(service, schema, attributes, "
+            "nullptr, value, nullptr, nullptr);\n",
+            "secret_service_clear_sync(service, schema, attributes, "
+            "nullptr, nullptr);\n",
+            "const auto flags = SECRET_SEARCH_UNLOCK;\n",
+            "const auto flags = SECRET_SEARCH_LOAD_SECRETS;\n",
+            "secret_service_unlock_sync(service, objects, nullptr, "
+            "nullptr, nullptr);\n",
+            "secret_collection_create_sync(service, label, alias, "
+            "SECRET_COLLECTION_CREATE_NONE, nullptr, nullptr);\n",
+            'g_dbus_proxy_call_sync(proxy, "CreateCollection", nullptr, '
+            "nullptr, 0, 1, nullptr, nullptr);\n",
+            "secret_item_set_secret(item, value);\n",
+        )
+        for hostile_source in hostile_surfaces:
+            with self.subTest(hostile_source=hostile_source):
+                expected_message = (
+                    "libsecret effect outside"
+                    if "secret_item_set_secret" in hostile_source
+                    else "Forbidden"
+                )
+                self.assert_failure(
+                    expected_message,
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE + hostile_source
+                    },
+                )
+
+    def test_linux_vault_rejects_interactive_prompt_paths(self) -> None:
+        hostile_surfaces = (
+            'g_dbus_proxy_call_sync(prompt, "Prompt", nullptr, nullptr, '
+            "0, 1, nullptr, nullptr);\n",
+            "secret_service_prompt_sync(service, prompt, nullptr, "
+            "nullptr, nullptr);\n",
+            'const char* method = "org.freedesktop.Secret.Prompt.Prompt";\n',
+        )
+        for hostile_source in hostile_surfaces:
+            with self.subTest(hostile_source=hostile_source):
+                self.assert_failure(
+                    "Forbidden interactive prompt surface",
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE + hostile_source
+                    },
+                )
+
+    def test_linux_vault_rejects_other_native_vaults(self) -> None:
+        hostile_surfaces = (
+            ("QtKeychain::Job* job = nullptr;\n", "alternate credential vault"),
+            ("KWallet::Wallet* wallet = nullptr;\n", "alternate credential vault"),
+            ("gnome_keyring_store_password_sync();\n",
+             "alternate credential vault"),
+            ("SecItemAdd(query, nullptr);\n", "macOS Keychain API ownership"),
+            ("CredWriteW(&credential, 0U);\n",
+             "Windows Credential Manager API ownership"),
+        )
+        for hostile_source, expected_message in hostile_surfaces:
+            with self.subTest(hostile_source=hostile_source):
+                self.assert_failure(
+                    expected_message,
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE + hostile_source
+                    },
+                )
+
+    def test_linux_vault_rejects_fallback_effect_families(self) -> None:
+        hostile_surfaces = (
+            ("std::ofstream plaintext_file;\n", "filesystem"),
+            ("write(descriptor, bytes, size);\n", "filesystem"),
+            ("g_file_set_contents(path, bytes, size, nullptr);\n", "filesystem"),
+            ("sqlite3* database = nullptr;\n", "settings/database"),
+            ("QSettings* settings = nullptr;\n", "settings/database"),
+            ("GKeyFile* settings_file = nullptr;\n", "settings/database"),
+            ("g_spawn_sync(nullptr, nullptr, nullptr, 0, nullptr, nullptr, "
+             "nullptr, nullptr, nullptr, nullptr);\n", "command/process"),
+            ("GSubprocess* process = nullptr;\n", "command/process"),
+            (
+                "QNetworkAccessManager* network = nullptr;\n",
+                "QNetworkAccessManager ownership violation",
+            ),
+            ("GSocket* socket = nullptr;\n", "network"),
+            ("GtkWidget* dialog = nullptr;\n", "Qt/UI"),
+            ("std::cerr << status;\n", "logging/printing"),
+            ('g_debug("secret");\n', "logging/printing"),
+            ("auto* fallback = alternate_vault();\n", "credential fallback"),
+        )
+        for hostile_source, surface_name in hostile_surfaces:
+            with self.subTest(surface_name=surface_name):
+                expected_message = (
+                    surface_name
+                    if "ownership violation" in surface_name
+                    else f"Forbidden {surface_name} surface"
+                )
+                self.assert_failure(
+                    expected_message,
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE + hostile_source
+                    },
+                )
+
+    def test_linux_vault_rejects_raw_error_text(self) -> None:
+        hostile_surfaces = (
+            "g_dbus_error_get_remote_error(error);\n",
+            "g_quark_to_string(error->domain);\n",
+            "std::to_string(error->code);\n",
+        )
+        for hostile_source in hostile_surfaces:
+            with self.subTest(hostile_source=hostile_source):
+                self.assert_failure(
+                    "Forbidden raw operating-system error formatting surface",
+                    {
+                        "src/adapters/github/src/linux_secret_service.cpp":
+                            LINUX_SECRET_SERVICE_SOURCE + hostile_source
+                    },
+                )
 
     def test_windows_credential_manager_source_is_required(self) -> None:
         self.assert_failure(
@@ -1022,18 +1842,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 )
 
     def test_designated_native_vault_sources_are_allowed(self) -> None:
-        vault_target = GITHUB_TARGET.replace(
-            "        src/native_https_transport.cpp\n",
-            "        src/native_https_transport.cpp\n"
-            "        src/linux_secret_service.cpp\n",
-        )
-        result = self.run_check(
-            {
-                "src/adapters/github/src/linux_secret_service.cpp":
-                    "secret_password_store_sync(schema, nullptr);\n",
-            },
-            github_target=vault_target,
-        )
+        result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_adapter_root_must_delegate_target_ownership(self) -> None:

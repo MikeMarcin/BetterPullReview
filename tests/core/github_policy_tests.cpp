@@ -27,6 +27,20 @@ auto expect(const bool condition, const std::string_view message) -> void
     return github_state{
         .ApplicationSession = application_session_id{41},
         .NextRequest = request_id{1},
+        .ActiveProfile = {},
+        .IdentityGeneration = {},
+        .PendingSession = {},
+        .Host = {},
+        .Account = {},
+        .Capabilities = {},
+        .CapabilityRevision = {},
+        .PullRequestGeneration = {},
+        .PendingPullRequest = {},
+        .ActiveLocator = {},
+        .ActiveNumber = {},
+        .Repository = {},
+        .PullRequest = {},
+        .AcceptedSnapshot = {},
     };
 }
 

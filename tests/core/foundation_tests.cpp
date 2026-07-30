@@ -22,6 +22,9 @@ auto initial_state() -> application_state
     return application_state{
         .Session = application_session_id{41},
         .NextRequest = request_id{1},
+        .RefreshGeneration = {},
+        .PendingRefresh = {},
+        .GitHubRevision = 0U,
     };
 }
 

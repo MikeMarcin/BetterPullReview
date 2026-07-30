@@ -24,6 +24,18 @@ the functional core or Qt presentation adapter.
   Credential UI, enumeration, Credential Locker, DPAPI, registry, settings,
   database, environment, file, process, network, logging, or alternate-vault
   fallbacks.
+- Keep Linux Secret Service effects in `src/linux_secret_service.cpp`. The
+  Linux target alone imports stable `libsecret-1>=0.20.0`. Open the literal
+  canonical `org.freedesktop.secrets` service with `SECRET_SERVICE_NONE`,
+  validate the exact proxy name before establishing a session, and then use
+  only the default collection. Deny prompt vfuncs, never unlock or create a
+  collection, keep production and integration-test v1 schemas disjoint, and
+  store opaque bytes as `application/octet-stream`.
+  Retrieval may also accept exact `text/plain` because the selected
+  gnome-keyring/libsecret stack was directly observed normalizing that
+  metadata while preserving the bytes. Do not read or mutate service-routing
+  environment, or add UI, settings, SQLite, environment, file, process,
+  network, logging, plaintext, or alternate-vault fallbacks.
 - Use typed records and explicit failure/limit handling at the adapter
   boundary. Do not expose provider response types inward.
 - Keep credentials inside the designated authentication transport or native

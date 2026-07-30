@@ -3,6 +3,7 @@
 #include <concepts>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -198,6 +199,7 @@ auto valid_snapshot() -> application::github_pull_request_snapshot
             {
                 {
                     .Path = "src/github.cpp",
+                    .PreviousPath = std::nullopt,
                     .Change = application::github_file_change::modified,
                     .Additions = 12,
                     .Deletions = 3,
@@ -254,6 +256,7 @@ auto valid_snapshot() -> application::github_pull_request_snapshot
                                 .Comment =
                                     application::github_comment_id{
                                         "review-comment-node"},
+                                .ReplyTo = std::nullopt,
                                 .Author =
                                     application::github_actor_record{
                                         .Actor =
@@ -685,6 +688,7 @@ auto test_default_collection_and_field_bounds() -> void
     {
         snapshot.Files.push_back(application::github_file_record{
             .Path = "file-" + std::to_string(index),
+            .PreviousPath = std::nullopt,
             .Change = application::github_file_change::modified,
         });
     }
@@ -693,6 +697,7 @@ auto test_default_collection_and_field_bounds() -> void
         "files at default N are accepted");
     snapshot.Files.push_back(application::github_file_record{
         .Path = "file-over-limit",
+        .PreviousPath = std::nullopt,
         .Change = application::github_file_change::modified,
     });
     expect_error(

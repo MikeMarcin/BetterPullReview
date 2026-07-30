@@ -7,6 +7,7 @@
 - A C++23 compiler
 - Qt 6.8 or newer for the Qt adapter and application
 - Python 3 for structural and runtime verification scripts
+- On Linux, stable `libsecret-1>=0.20.0` and its development metadata
 
 The validated local foundation environment uses CMake 4.3, AppleClang 16,
 Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
@@ -113,6 +114,73 @@ machine. A MinGW cross-compile, a non-Windows build that excludes the targets,
 or a mock-backed pass is useful preparatory evidence but is not a native
 Credential Manager result. Do not run the fixture on an account where a
 disposable test credential is unacceptable.
+
+On Linux, configure the regular `dev` preset and build the fake-backed
+contract plus native Secret Service fixture:
+
+```sh
+cmake --preset dev
+cmake --build build/dev --target \
+  better_pull_review_linux_secret_service_contract_tests \
+  better_pull_review_linux_secret_service_native_tests
+ctest --test-dir build/dev --output-on-failure \
+  -R '^linux_secret_service_(contract|native|native_setup|native_cleanup)$'
+```
+
+Run the resource-locked setup/lifecycle/cleanup sequence only inside a
+designated desktop D-Bus session with a Secret Service implementation and an
+unlocked default collection. A controlled Xvfb, D-Bus, and test-only
+gnome-keyring session under a dedicated user is suitable. Never place the
+keyring password or a credential canary in arguments, environment, command
+output, or checked-in configuration. The fixture uses only the disjoint
+integration-test schema and confirms exact cleanup.
+
+The unavailable, locked, and dependency-level redirection cases are
+controlled direct checks rather than registered CTest cases. Run the first
+outside a desktop session with no session-bus address, the second in a fresh
+test session whose real default collection is locked, and the third while an
+ordinary canonical Secret Service remains available:
+
+```sh
+bpr_linux_vault_test=build/dev/tests/github_contract/\
+better_pull_review_linux_secret_service_native_tests
+
+env \
+  -u DBUS_SESSION_BUS_ADDRESS \
+  -u DBUS_STARTER_ADDRESS \
+  -u DBUS_STARTER_BUS_TYPE \
+  -u XDG_RUNTIME_DIR \
+  -u DISPLAY \
+  -u WAYLAND_DISPLAY \
+  -u SECRET_SERVICE_BUS_NAME \
+  "${bpr_linux_vault_test}" --expect-unavailable
+
+"${bpr_linux_vault_test}" --expect-locked
+
+SECRET_SERVICE_BUS_NAME=org.betterpullreview.Hostile.Secret \
+  "${bpr_linux_vault_test}" \
+  --expect-bus-redirect-rejected
+```
+
+The production adapter does not read or mutate
+`SECRET_SERVICE_BUS_NAME`; the last command proves that a dependency-level
+redirect is detected after opening without a session and before explicit
+session establishment or item work. In the live hostile-owner audit, only
+proxy-property inspection reached that owner; `OpenSession` and every
+collection or credential-item method remained absent. These commands are
+valid evidence only when their stated session preconditions are independently
+established.
+
+The BPR-0024 Linux vault matrix passed in an Ubuntu 26.04 x86_64 full-system
+QEMU VM with an emulated CPU, Linux 7.0, Qt 6.10.2, libsecret 0.21.7, and
+gnome-keyring 50. Under Xvfb, a desktop D-Bus session, and a dedicated real
+user, the four focused CTest cases passed; the lifecycle stored and retrieved
+73 bytes, replaced them with 2,560 bytes, deleted the item, and proved
+absence. Runtime canary probes, exact integration-schema cleanup, hostile
+service-name rejection, a truly locked collection, and no-session-bus
+unavailability also passed. This is direct Linux vault evidence from a
+full-system VM, not bare metal and not proof of the pending native HTTPS or
+public composition surfaces.
 
 `verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
 binary-dependency script also supports all three platforms, using `dumpbin` on

@@ -1435,7 +1435,9 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
         return false;
     }
     const auto runs = document.object().value("check_runs").toArray();
-    if(document.object().value("total_count").toDouble() != runs.size())
+    if(
+        document.object().value("total_count").toDouble()
+        != static_cast<double>(runs.size()))
     {
         return false;
     }
@@ -1519,7 +1521,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
         return false;
     }
     const auto items = document.object().value("items").toArray();
-    return document.object().value("total_count").toDouble() == items.size()
+    return document.object().value("total_count").toDouble()
+            == static_cast<double>(items.size())
         && std::ranges::all_of(items, exact_search_item);
 }
 
@@ -1533,7 +1536,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
         return object.value("total_count").isDouble()
             && object.value("check_runs").isArray()
             && object.value("total_count").toDouble()
-                > object.value("check_runs").toArray().size();
+                > static_cast<double>(
+                    object.value("check_runs").toArray().size());
     }
     if(
         operation == read_operation::search_pull_requests
@@ -1547,7 +1551,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
                 object.value("total_count").isDouble()
                 && object.value("items").isArray()
                 && object.value("total_count").toDouble()
-                    > object.value("items").toArray().size());
+                    > static_cast<double>(
+                        object.value("items").toArray().size()));
     }
     if(
         operation != read_operation::list_review_threads

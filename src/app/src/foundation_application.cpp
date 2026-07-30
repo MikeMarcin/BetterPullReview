@@ -58,6 +58,9 @@ public:
               core::application_state{
                   .Session = core::application_session_id{1},
                   .NextRequest = core::request_id{1},
+                  .RefreshGeneration = {},
+                  .PendingRefresh = {},
+                  .GitHubRevision = 0U,
               },
               Observations,
               Foundation,

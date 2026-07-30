@@ -25,11 +25,13 @@ RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `done/`.
 RFC-BPR-0002 is the active RFC in canonical order. Its planning slice is
 complete; its architecture, deterministic-core, and normalized-contract
 slices plus host-profile/capability probing and the portable credential-vault
-contract and native macOS Keychain adapter are verified; `BPR-0023` is in
-`done/` with its implementation evidence; and `BPR-0024` plus the independent
-`BPR-0025` are ready. Direct Windows x64 execution is deliberately retained
-in `BPR-0036` so it does not block the remaining implementation slices, while
-the affected Windows claims and RFC closeout remain open.
+contract plus the native macOS Keychain and Linux Secret Service adapters are
+verified. `BPR-0023` is in `done/` with its Windows implementation evidence,
+while direct Windows x64 execution remains in `BPR-0036`. `BPR-0025` is ready,
+and completion of `BPR-0024` newly unblocks `BPR-0026`, which is also ready.
+The open Windows task does not block implementation, tests, documentation,
+security review, or simplification on available targets; it blocks only the
+affected Windows claims and RFC-BPR-0002 closeout.
 
 GitHub Actions is not a BetterPullReview build, test, package, release, or RFC
 verification surface. Platform-specific claims require local or target-native

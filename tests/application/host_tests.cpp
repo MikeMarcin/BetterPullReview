@@ -100,6 +100,9 @@ auto initial_state() -> core::application_state
     return core::application_state{
         .Session = core::application_session_id{71},
         .NextRequest = core::request_id{1},
+        .RefreshGeneration = {},
+        .PendingRefresh = {},
+        .GitHubRevision = 0U,
     };
 }
 

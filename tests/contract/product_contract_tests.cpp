@@ -46,6 +46,9 @@ auto test_foundation_request_is_semantic() -> void
     application_state state{
         .Session = application_session_id{1},
         .NextRequest = request_id{1},
+        .RefreshGeneration = {},
+        .PendingRefresh = {},
+        .GitHubRevision = 0U,
     };
     const auto output = transition(
         state,
