@@ -1,7 +1,7 @@
 ---
 id: BPR-0042
 title: Implement hardened installed-Git process boundary
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0003
 depends_on: [BPR-0040]
 ---
@@ -18,10 +18,14 @@ shutdown.
 
 Keep credentials, URLs containing credentials, GitHub responses, proxy
 authority, and network trust out of the Git child. Use a separately bounded
-RFC-BPR-0003 Git smart-HTTP transport backed by the native-HTTPS authority so
-installed Git performs local pack/protocol work without becoming another
-production authentication transport. Do not weaken the RFC-BPR-0002
-query-bearing redirect rejection.
+app-owned protocol-v2 client and RFC-BPR-0003 smart-HTTP transport backed by
+the native-HTTPS authority. Installed Git performs only fixed local
+pack/object/ref work, including bounded strict `index-pack`; it never runs
+`fetch-pack`, parses a remote advertisement, or becomes another production
+authentication transport. Do not weaken the RFC-BPR-0002 query-bearing
+redirect rejection. Journal the validated request-owned pack spool and
+preexisting-pack fact before import so crash residue is exactly recoverable
+without broad object deletion.
 
 Direct canaries must prove that user/system configuration, credential helpers,
 askpass, hooks, filters, LFS, submodules, textconv, external diff, alternates,

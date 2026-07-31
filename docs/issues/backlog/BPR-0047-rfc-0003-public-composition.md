@@ -8,9 +8,10 @@ depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0046]
 
 # Compose the public Git cache and epoch path
 
-Wire the concrete Git smart transport, installed-Git adapter, cache/catalog
-ports, epoch host, core state, and Qt comparison controls in the composition
-root with explicit worker and shutdown order.
+Wire the concrete native smart transport, bounded app-owned protocol-v2
+client, credential-free installed-Git adapter, cache/catalog ports, epoch
+host, core state, and Qt comparison controls in the composition root with
+explicit worker and shutdown order.
 
 Drive a real QAction through the recorded GitHub fixture and a real installed
 Git process against a local deterministic smart-protocol fixture into cache

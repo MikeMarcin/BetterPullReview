@@ -30,6 +30,30 @@ restored the original Dark setting. Offscreen forced-style renders at
 controlled scales are layout evidence only and cannot certify native
 system-appearance integration.
 
+## RFC-BPR-0003 comparison control
+
+The reusable epoch/comparison control follows the same native-System contract.
+It inherits the active application palette, native style, and interface font;
+installs no forced palette, style, QSS, or custom theme; and refreshes derived
+geometry and presentation roles on application palette, font, style, or theme
+changes. Its exact OID fields, unavailable reasons, focus, selection, and
+accessible relationships remain legible in both actual system Light and Dark.
+
+Epoch rows are stable projections identified by authority, catalog
+incarnation, and epoch identity. Routine append, prune, availability, cause,
+and selection changes use exact insert/remove/data-change signals rather than
+resetting the model. The row presents the primary cause together with the
+independent base/head transition facts, including explicit unknown lineage.
+Unavailable aliases remain visibly unavailable and do not fall back to a
+different resident epoch. Color is not the only signal for any of these
+states.
+
+This inheritance and incremental-behavior proof is not the final-workbench
+appearance gate. RFC-BPR-0005 retains a distinct integrated-workbench
+presentation-polish and native visual-acceptance slice. RFC-BPR-0006 owns
+user-selectable themes, fonts, syntax presentation, and high-contrast
+profiles.
+
 ## Appearance modes (RFC-BPR-0006)
 
 ```text
@@ -38,10 +62,11 @@ Light
 Dark
 ```
 
-RFC-BPR-0006 will add user-selectable appearance profiles. Its System mode
-will follow the operating-system color scheme and choose the corresponding
-variant from the selected BetterPullReview profile. High-contrast system
-preference will select or recommend a high-contrast variant.
+RFC-BPR-0006 will add user-selectable appearance profiles, with a fresh
+installation defaulting to System. System mode will follow the
+operating-system color scheme and choose the corresponding variant from the
+selected BetterPullReview profile. High-contrast system preference will
+select or recommend a high-contrast variant.
 
 Planned built-in profiles:
 

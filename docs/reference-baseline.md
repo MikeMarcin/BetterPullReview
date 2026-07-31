@@ -39,8 +39,10 @@ Baseline date: 2026-07-30
   https://git-scm.com/docs/gitprotocol-http
 - Git protocol version 2:
   https://git-scm.com/docs/gitprotocol-v2
-- `git fetch-pack` and stateless RPC:
-  https://git-scm.com/docs/git-fetch-pack
+- `git index-pack` bounded pack ingestion:
+  https://git-scm.com/docs/git-index-pack
+- Git pack format:
+  https://git-scm.com/docs/gitformat-pack
 - Atomic ref transactions:
   https://git-scm.com/docs/git-update-ref
 - GHES 3.18 pull-request ref checkout:
@@ -54,6 +56,10 @@ Baseline date: 2026-07-30
 
 ## GitHub and GHES
 
+- GitHub.com pull-request reviews, including chronological response order:
+  https://docs.github.com/en/rest/pulls/reviews?apiVersion=2022-11-28#list-reviews-for-a-pull-request
+- GHES 3.18 pull-request reviews, including chronological response order:
+  https://docs.github.com/en/enterprise-server@3.18/rest/pulls/reviews?apiVersion=2022-11-28#list-reviews-for-a-pull-request
 - GHES 3.18 REST API versions: https://docs.github.com/en/enterprise-server@3.18/rest/about-the-rest-api/api-versions
 - GHES 3.18 pull-request GraphQL surface: https://docs.github.com/en/enterprise-server@3.18/graphql/reference/pulls
 - GHES 3.18 GraphQL mutations: https://docs.github.com/en/enterprise-server@3.18/graphql/reference/mutations
@@ -74,6 +80,27 @@ Baseline date: 2026-07-30
   https://github.com/cli/cli/blob/v2.95.0/pkg/cmd/api/http.go
 - Historical GitHub CLI 2.95.0 HTTP client and redirect-auth comparison:
   https://github.com/cli/cli/blob/v2.95.0/api/http_client.go
+
+## SQLite epoch catalog
+
+- SQLite open flags and `sqlite3_open_v2`:
+  https://sqlite.org/c3ref/open.html
+- Defensive connection configuration:
+  https://sqlite.org/c3ref/c_dbconfig_defensive.html
+- Foreign-key enforcement:
+  https://sqlite.org/foreignkeys.html
+- Write-ahead logging:
+  https://sqlite.org/wal.html
+- `application_id`, `user_version`, `synchronous`, and `trusted_schema`
+  pragmas:
+  https://sqlite.org/pragma.html
+- SQLite atomic commit behavior:
+  https://sqlite.org/atomiccommit.html
+
+The exact vendored SQLite release, source checksum, compile options, and
+platform build proof are intentionally selected and reviewed by the
+RFC-BPR-0003 implementation/dependency card; this baseline does not pin an
+unreviewed release.
 
 ## AI agent interfaces
 

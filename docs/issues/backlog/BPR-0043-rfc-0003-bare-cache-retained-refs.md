@@ -9,18 +9,20 @@ depends_on: [BPR-0042]
 # Implement app-owned bare caches and retained private refs
 
 Create and reuse versioned app-data bare repositories under exact validated
-host/repository authority. Reject symlink, junction, ownership, manifest,
-configuration, object-format, alternates, shallow/graft, worktree, or
-non-bare drift before use.
+profile-revision/host/account/repository/object-format authority. Do not share
+a physical object database across accounts or profile revisions. Reject
+symlink, junction, ownership, manifest, configuration, object-format,
+alternates, shallow/graft, worktree, or non-bare drift before use.
 
-Fetch only the exact accepted base and pull-request-head advertisements through
-the credential-free smart transport, verify both expected OIDs and complete
-commit connectivity, and atomically retain paired base/head private refs.
-Every retained and staging ref is qualified by a validated nonreversible
-authority-scope identity, so accounts sharing physical objects cannot collide
-by PR number or epoch ordinal. Never add a remote, fetch wildcard refs/tags,
-use provider URLs as authority, or use remote `HeadRef` text in an argument or
-refspec.
+Request only the exact accepted base and pull-request-head advertisements
+through the app-owned protocol-v2/native-HTTPS path, import only a bounded
+pack through the credential-free Git process boundary, verify both expected
+OIDs and complete commit connectivity, and atomically retain paired base/head
+private refs. The catalog allocates one opaque repository-cache scope for the
+complete physical partition and a separate opaque PR-authority scope for
+every retained and staging ref, so PR numbers or ordinals cannot collide.
+Never add a remote, fetch wildcard refs/tags, use provider URLs as authority,
+or use remote `HeadRef` text in an argument or refspec.
 
 Prove cache reuse and force-pushed old-head residency after the fixture remote
 removes and prunes the old object. Hard quota exhaustion must fail without

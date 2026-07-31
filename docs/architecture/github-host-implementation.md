@@ -349,6 +349,57 @@ late result to become an alternate authority even if Qt had not displayed it.
 Publishing merely because `changed_domain` contains a broad content bit would
 make acceptance ambiguous and is therefore prohibited.
 
+## Accepted pull-request revision handoff
+
+RFC-BPR-0003 consumes accepted pull-request revisions through a dedicated
+application boundary. It does not poll `accepted_snapshot()`, subscribe to a
+Qt projection, or extend the GitHub host into a Git/cache/catalog controller.
+After, and only after, step 4 of staged-snapshot acceptance, the GitHub host
+offers one immutable `accepted_pull_request_revision` to an application-owned
+sink. The offer is observational: a throwing or rejecting sink is contained
+and cannot roll back the GitHub core transition, cache commit, or Qt
+publication. The epoch host stages and decides its own work independently.
+
+The handoff contains only bounded, provider-free values:
+
+- application session identity, exact host profile identity and GitHub profile
+  revision, Git host identity, canonical hostname, server contract, and GitHub
+  identity generation;
+- authenticated numeric account identity and the exact scoped viewer actor
+  identity;
+- canonical repository identity and validated repository locator,
+  pull-request identity and number, pull-request generation, and provider
+  snapshot identity;
+- algorithm-tagged exact base and head Git object identities and an opaque
+  base-branch identity derived from the accepted canonical repository/branch
+  facts, never from display text or an untrusted ref name;
+- the one bounded newest-current-viewer review candidate, including exact
+  review/actor identity, typed provider order, state, and commit identity; and
+- an opaque, noncopyable, revocable native smart-HTTPS lease when the accepted
+  profile uses native HTTPS.
+
+An object identity is an algorithm tag plus exactly a nonzero 20-byte SHA-1 or
+32-byte SHA-256 binary digest. Provider input accepts only the corresponding
+40- or 64-character hexadecimal form and decodes it to bytes; complete
+lowercase hexadecimal text is a presentation projection only. Untagged text,
+all-zero digests, and a mix with the repository object format are invalid.
+The base-branch identity is a versioned fixed digest of repository identity
+and the separately validated full `refs/heads/...` value; raw branch text
+never becomes core identity or a Git argument. The full normalized GitHub
+snapshot, provider records, URLs, headers, credential objects, and transport
+types remain owned by the GitHub host and adapter.
+
+The corresponding `pull_request_authority_invalidated` notification is sent
+when application session, profile/revision, host, authenticated account,
+repository, pull request, or GitHub identity generation changes. The host
+revokes the smart-HTTPS lease, sends invalidation, and only then clears the
+old accepted GitHub authority and its identity-sensitive projection. Every
+epoch request and completion retains the complete handed-off context, so the
+epoch host can cancel work and reject a late terminal without consulting
+mutable GitHub host state. Refreshing the same authority may retain the last
+accepted epoch projection while new work is pending; an authority switch
+cannot.
+
 ## Normalized provider boundary
 
 The application-facing `github_provider_port` accepts semantic session and
@@ -404,6 +455,25 @@ GitHub totals, repository identity, pull-request identity, and expected head
 OID are checked before one snapshot is returned. A repeated or missing cursor,
 unknown completeness, truncated count, authority drift, or failed page
 rejects the complete read.
+
+The REST `ListReviews` contract is additionally order-sensitive. GitHub.com
+and GHES 3.18 document that reviews are returned in chronological order. The
+provider preserves the exhausted page sequence and attaches a bounded,
+one-based chronology ordinal to each normalized review; it does not sort by
+login, database identifier, state, commit, or locally observed time.
+`submitted_at` is parsed when present but is not used to repair, deduplicate,
+or reorder provider chronology, and a pending review may omit it.
+
+Current-viewer association requires exact actor/node identity under the
+accepted host/account authority, never login text. `My last reviewed` selects
+the highest-order review by that actor whose state is not pending and whose
+exact algorithm-tagged commit identity is present. A dismissed review is
+still a submitted review. Once selected, that exact candidate remains
+authoritative even when its object is not retained; the alias is then
+explicitly unavailable and never falls back to an older resident review,
+substitutes the current head, or guesses from a timestamp. Provider chronology
+is an observation; deterministic alias legality and selection remain core
+policy.
 
 Rate-limit observations are resource-scoped. Core REST, Search, and GraphQL
 may update only their corresponding `core`, `search`, and `graphql` buckets.
@@ -720,6 +790,65 @@ test, documentation, security-review, simplification, and later-RFC work. It
 blocks only affected Windows claims and final RFC-BPR-0002 Auto-Verified
 closeout.
 
+### RFC-BPR-0003 native Git smart HTTPS capability
+
+The epoch path uses a separate application capability and wire
+implementation. It is not `github_wire_transport_port`, does not expose its
+4-MiB JSON body contract, and does not make installed Git an authentication
+transport. An opaque smart-HTTPS lease is issued only from an accepted native
+HTTPS session and is bound to the exact application session, profile and
+profile revision, host identity, canonical hostname and server contract,
+authenticated account, repository identity, and GitHub identity generation.
+CLI profiles and an unavailable native session receive no lease.
+
+The lease exposes two semantic operations for the one accepted repository:
+
+```text
+discover_upload_pack
+    GET /OWNER/REPOSITORY.git/info/refs?service=git-upload-pack
+
+upload_pack
+    POST /OWNER/REPOSITORY.git/git-upload-pack
+```
+
+There is no general URL, method, header, body, redirect, or credential API.
+The repository path is compiled from the accepted server-canonical identity.
+The discovery query is the original Git smart-HTTP protocol query, not a
+redirect target. Automatic redirects are disabled and every redirect,
+including same-authority and query-bearing redirects, fails closed. This is
+stricter than, and does not relax, RFC-BPR-0002's query-free REST redirect
+contract. Cookies, HTTP cache, content decoding, credential reuse outside the
+bound lease, and response logging are disabled.
+
+The capability reuses the selected native adapter's credential, operating
+system trust store, bounded system-proxy policy, exact authority validation,
+TLS policy, and redacted terminal categories without exposing any credential
+or authorization header to its caller. Revocation on authority invalidation
+or shutdown is terminal for new work, cancels in-flight work, and causes every
+late completion to be rejected by its full context and generation. A normally
+accepted submission produces exactly one terminal.
+
+Smart-protocol discovery, pkt-line request/response, sideband, and pack bytes
+are streamed with explicit wire, retained-memory, temporary-storage,
+repository-quota, deadline, cancellation, and backpressure bounds. They are
+not accumulated under the JSON response-body implementation. Content type,
+service advertisement, pkt-line framing, object format, advertised exact
+base/head identities, and final pack/connectivity are independently
+validated. An app-owned minimal protocol-v2 client emits only the exact
+validated base and fixed pull-request-head `ls-refs` prefixes and the
+deduplicated accepted base/head `want` set under a closed request grammar.
+Known optional server capabilities may be advertised and ignored, but they
+are never requested, echoed, or exercised. Any bounded `have` comes only from
+catalog-visible exact objects in the same repository cache scope. It, not
+installed Git, owns protocol negotiation and network rounds.
+
+The fixed `index-pack` import child receives only the bounded pack stream on
+standard input and a validated app-owned bare-repository path. It receives no
+protocol advertisement, URL, remote ref, proxy, trust, cookie, certificate,
+Authorization, credential-helper, or provider authority and performs no
+network operation. Separate fixed ref operations receive only generated
+private BetterPullReview refs and exact expected object values.
+
 Native credentials are consumed inside the credential-bearing transport.
 They never enter process arguments, environment, logs, diagnostics,
 persistence, core events, application projections, or a wrong-authority wire
@@ -1023,6 +1152,24 @@ Selecting a different profile or resolving a different authenticated account:
 Shared records are refreshed from GitHub. A cache hit can satisfy a bounded
 observation only when its entire authority key and freshness policy match.
 
+Milestone one does not share a physical object database across accounts or
+profile revisions. The exact profile/revision, host, authenticated account,
+canonical repository, and object-format partition receives a
+catalog-generated random 256-bit `repository_cache_scope_id`. Each pull
+request within it separately receives a random 256-bit
+`pull_request_authority_scope_id`; that scope qualifies retained refs, epoch
+ordinals, aliases, catalog queries, paging, selection, and deletion. Both are
+persistent lowercase 64-hex opaque values, nonreversible, never supplied by a
+caller, and collision-checked before use.
+
+Every use requires a current accepted authenticated-account authority. There
+is no offline or restart visibility merely because a bare repository or
+catalog row exists, and a caller cannot enumerate scopes or fetch an object
+by arbitrary OID. Profile/account invalidation revokes active visibility. A
+catalog/ref authority mismatch, object-format mismatch, or stale generation
+fails closed. Provider clone URLs and raw `HeadRef` text are never cache,
+path, ref, or transport authority.
+
 The production application host constructs and owns an initially empty
 capability cache. Composition cannot inject a populated cache, and a caller's
 syntactically valid capability facts are not observations. Only the exact
@@ -1202,6 +1349,11 @@ decision executor
 Qt window and models
 host-owned credential binding catalog
 application host
+revocable native Git smart-HTTPS capability
+app-owned minimal Git protocol-v2 client
+installed-Git local pack/object/ref adapter
+app-owned bare-cache and epoch-catalog adapters
+dedicated epoch core and application host
 ```
 
 Provider and vault effects use separate worker executors. The Qt event-loop
@@ -1227,6 +1379,13 @@ the provider, close and join both workers, and permit Qt projections,
 transports, vault handles, the binding catalog, and the decision lane to be
 destroyed. A failed exact credential deletion is surfaced and leaves the
 catalog tombstone; it is not silently treated as successful cleanup.
+
+When RFC-BPR-0003 is composed, shutdown first closes epoch ingress, revokes
+every smart-HTTPS lease, cancels epoch transport/Git/catalog work, drains the
+serialized epoch completion lane, and closes catalog and bare-repository
+handles. Only then may GitHub credential deletion, native transport teardown,
+and the existing reverse ownership order continue. Revocation and stale-result
+rejection do not authorize implicit pruning or deletion of retained history.
 
 Recorded GitHub.com and GHES fixtures replace the native transport factory
 behind the same provider port in test-enabled runs. They must use the same
@@ -1301,6 +1460,12 @@ RFC-BPR-0002 has no implementation impact on:
 
 Git cache and epoch work remains RFC-BPR-0003. GitHub mutations remain
 RFC-BPR-0008. Delivered-package certification remains RFC-BPR-0014.
+
+RFC-BPR-0003 therefore integrates through the accepted-revision handoff and
+revocable native smart-HTTPS capability defined above while leaving
+RFC-BPR-0002's core, JSON provider, and Qt ownership unchanged. Its installed
+Git, cache, catalog, epoch host, and epoch presentation remain separate
+components.
 
 Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the inactive
 CLI broker's process/invocation boundary, and the native HTTPS internal wire

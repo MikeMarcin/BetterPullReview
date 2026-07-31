@@ -171,6 +171,8 @@ Do not fragment a feature into unnecessary targets before the ownership boundary
 | Bounded observations | Host, borrowed by core | current GitHub snapshot, selected file material, permissions, capability facts, visible queue records |
 | Staged provider results | Application host, pending a core acceptance decision | immutable normalized snapshots keyed by complete request context |
 | Caches and indexes | Application host | accepted GitHub snapshots, Git objects, normalized API cache, diff/syntax cache, row maps, search indexes |
+| Epoch catalog | Application host and transactional catalog adapter | authority-scoped catalog incarnation/revision, durable epoch/anchor rows, availability, and pending recovery records |
+| Staged Git/epoch results | Application host until a core commit request and durable terminal | request-scoped objects/refs and one bounded epoch candidate keyed by complete authority/source/catalog context |
 | Presentation projections | Host and Qt adapter | visible file rows, conversation cards, command projections, status summaries |
 | Qt-local state | Qt presentation adapter | focus, hover, expanded branches, scroll positions, drawer geometry, animation progress |
 | External resource state | Application host/adapters | sockets, child processes, credential-vault handles, SQLite connection, worker pool |
@@ -230,6 +232,15 @@ No widget may call GitHub, Git, SQLite, or an agent directly. No provider comple
 For GitHub reads, an `accepted_snapshot_delta` is the explicit commit signal;
 a broad changed-domain bit cannot substitute for acceptance.
 
+RFC-BPR-0003 begins only after that signal and host commit. The GitHub host
+then emits a provider-free accepted-revision observation containing the exact
+profile/profile-revision, host, account, repository, pull request, provider
+snapshot, GitHub identity/request generations, base-branch identity,
+algorithm-tagged base/head OIDs, observed time, and bounded current-viewer
+review candidate. It emits an invalidation before a previous identity can be
+replaced. This narrow handoff performs no Git, persistence, or Qt work and
+does not make the RFC-BPR-0002 GitHub host an epoch controller.
+
 ## Concurrency and stale work
 
 - Application decisions are applied on one serialized decision lane, normally the GUI/application lane.
@@ -244,6 +255,29 @@ a broad changed-domain bit cannot substitute for acceptance.
 - Tests may use one deterministic manual executor for both interfaces while
   still preserving their separate effect-execution and decision-serialization
   roles.
+
+Epoch ingestion, comparison resolution, and explicit maintenance use separate
+typed generations and at most one pending operation in each lane. Their
+contexts include the request, application session, complete pull-request
+authority, accepted pull-request revision, catalog incarnation/revision, and the
+lane generation. Authority replacement advances every applicable generation
+before cancellation and clears identity-sensitive epoch projections.
+Same-authority refresh may retain the last accepted exact pair as visibly
+refreshing.
+
+Every normally accepted Git/catalog submission during the live host lifetime
+produces exactly one typed success, failure, or cancellation terminal. An
+abrupt process death instead leaves one typed durable operation outcome for
+recovery, not a terminal-delivery promise to the dead session. Cancellation
+is advisory. Before the recorded point of no cancellation it may produce
+cancellation with no accepted epoch. After that phase, recovery must return
+success or a typed failure, not cancellation. The catalog visibility
+transaction is the durable success and linearization point; after it commits
+the terminal is success so durable state and the core cannot disagree. Stale,
+duplicate, mismatched, failed, or cancelled terminals emit no
+epoch/catalog/comparison acceptance delta. A durable success that is stale
+because the active identity changed remains private to its own authority
+catalog and is not published into the replacement identity.
 
 ## Qt presentation rules
 
@@ -267,6 +301,78 @@ a broad changed-domain bit cannot substitute for acceptance.
 | Queue/observers | rule matching and attention policy | refresh timers, API/cache, notification request execution | queue models, filters, native notification presentation |
 | AI | provider-host policy, context-scope decisions, staleness, finding promotion | process/session/workspace management and protocols | explicit invocation, approvals, chat/findings presentation |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
+
+## RFC-BPR-0003 dedicated epoch vertical slice
+
+RFC-BPR-0003 is implemented as a dedicated epoch core and application host.
+It does not grow the GitHub reducer/host into a cross-feature controller and
+does not use a Qt projection as an internal event bus.
+
+```text
+accepted RFC-BPR-0002 pull-request revision
+    -> dedicated epoch host
+    -> bounded catalog and Git observations
+    -> deterministic epoch core
+    -> semantic prepare/commit/resolve requests
+    -> Git transport/process and catalog adapters
+    -> typed terminals on the serialized decision lane
+    -> exact catalog/comparison deltas
+    -> provider/Git-free incremental Qt projection
+```
+
+The core uses fixed algorithm-tagged commit/tree identities, a complete
+pull-request authority and source revision, a catalog incarnation plus
+monotonic revision, composite epoch cause, exact base/head or review anchors,
+and checked request/epoch/comparison generations. Its state retains no catalog
+page or Git object and is bounded to 2,048 bytes. The host owns full paged
+history, refs, object residency, ancestry/material observations, time,
+persistence, recovery, and cancellation.
+
+An epoch ID is scoped by exact authority, catalog incarnation, and a nonzero
+ordinal no greater than `INT64_MAX`. Recreating a deleted catalog creates a
+new incarnation before ordinal reuse. The host presents at most one latest
+live epoch, one preceding distinct-head candidate, one current-viewer review
+candidate, one material-equivalence candidate, and two requested anchor facts
+to a core transition.
+
+Cause retains independent origin, base transition, and head transition. The
+primary label precedence is initial observation, explicit historical import,
+base-branch change, proven non-fast-forward head, descendant head,
+unknown-lineage head, then base-only update. Simultaneous base/head changes
+preserve both axes, and unknown lineage is never relabeled as
+force-push/rebase.
+Material equivalence is exact equality of ordered
+base-tree/head-tree/policy-revision tuples; it annotates but never removes or
+reorders an epoch.
+
+Named comparisons remain semantic. `Whole PR` resolves latest live base to
+latest live head. `Previous upload -> latest` selects the greatest earlier
+live epoch with a different head, including a force-push; a missing/pruned
+candidate makes the alias unavailable rather than causing a fallback.
+`My last reviewed -> latest` uses the maximum typed chronological review
+order for the exact current-viewer actor among non-pending, commit-bearing
+reviews. Historical imports never become Latest or Previous upload merely
+because they were imported later.
+
+Explicit pairs retain exact anchor identities and never remap. Same-authority,
+same-incarnation available anchors are legal in either order, including
+reverse and identical-OID comparisons. Cross-authority, cross-incarnation,
+missing, pruned, or unavailable pairs are illegal. Every later diff request
+uses the accepted anchor identities, exact OIDs, catalog revision, and
+comparison revision rather than selector labels.
+
+The host stages request-scoped Git objects/refs and a bounded candidate before
+the core issues `CommitEpochCatalogRequest`. The request carries the expected
+catalog revision. Ref/catalog publication is failure-atomic and recoverable:
+the core changes accepted epoch/catalog/comparison state only after an exact
+durable success terminal. A compare-and-swap conflict commits nothing and
+requires a fresh bounded catalog observation.
+
+When base, head, and branch are unchanged but the accepted
+newest-current-viewer review fact changes, the core issues the
+`associate review` variant instead. It performs one expected-revision
+SQLite-only catalog mutation, advances the revision only for a changed
+association, and creates no epoch, Git object import, or ref.
 
 ## Performance contract
 

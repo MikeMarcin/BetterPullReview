@@ -93,7 +93,11 @@ RFC-BPR-0003 is the implementation frontier. BPR-0039 is in `done/` with the
 immutable-base architecture, authority, claim, platform, UX, documentation,
 performance, and security plan recorded in the
 [RFC-BPR-0003 verification ledger](../verification/RFC-BPR-0003.md).
-BPR-0040 is in `ready/`; BPR-0041 through BPR-0054 remain in `backlog/`.
+BPR-0040 is in `done/` with the dedicated epoch core/host, account-isolated
+bare cache, app-owned protocol-v2 and credential-free `index-pack`, versioned
+ref/catalog, exact cause/alias, recovery, Qt projection, lifecycle, and
+no-impact architecture selected. BPR-0041 and BPR-0042 are in `ready/`;
+BPR-0043 through BPR-0054 remain in `backlog/`.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
 RFC work. BPR-0054 depends on BPR-0035 and BPR-0053, so canonical closeout and

@@ -476,6 +476,58 @@ composed path on macOS and Linux; BPR-0036 retains the Windows public-fixture
 run. A mock, cross-compile, vault-only run, or internal wire fixture cannot
 prove a retained platform claim.
 
+### RFC-BPR-0003 Git smart-HTTPS lease
+
+RFC-BPR-0003 adds a separate adapter-private wire contract for Git smart HTTP.
+It does not add an operation to `github_provider_port`, reuse the JSON
+`github_wire_transport_port`, or authorize installed Git to perform network
+authentication. The GitHub application host may mint an opaque noncopyable
+lease only after accepting a native-HTTPS pull-request snapshot. The lease is
+bound to the exact application session, profile and profile revision, host
+identity, canonical hostname and server contract, authenticated account,
+canonical repository identity, and GitHub identity generation.
+
+The lease admits only:
+
+- service discovery by exact `GET` of the compiled
+  `/OWNER/REPOSITORY.git/info/refs?service=git-upload-pack` target; and
+- stateless RPC by exact `POST` of the compiled
+  `/OWNER/REPOSITORY.git/git-upload-pack` target.
+
+The adapter, not the caller, compiles the canonical path and owns
+Authorization, TLS, trust, proxy, cookies, caching, headers, and response
+decoding policy. There is no generic URL/request API. The discovery query is
+valid only on the original request. Automatic redirects are disabled and all
+redirects fail closed, including same-authority and query-bearing redirects.
+The Git smart path therefore does not weaken the RFC-BPR-0002 REST rule.
+
+Discovery advertisements, pkt-lines, sideband messages, and pack data are
+streamed under separate wire, memory, temporary-storage, repository-quota,
+deadline, cancellation, and backpressure bounds. They are not treated as a
+4-MiB JSON response. Exact service/content types, object format, advertised
+base/head identities, framing, and final object connectivity must all agree
+with the accepted request before cache staging can succeed.
+
+Profile, account, repository, pull-request, or identity-generation
+invalidation revokes the lease before old-authority epoch work can publish.
+Shutdown does the same before native transport and credential teardown.
+Revocation rejects new calls, attempts bounded cancellation of admitted work,
+and preserves one typed terminal with the complete original context for every
+normally accepted submission. CLI profiles expose no lease, and positive
+`gh` enablement remains unavailable.
+
+An app-owned minimal protocol-v2 client, not installed Git, constructs the
+closed `ls-refs` and `fetch` requests for the validated accepted base and
+fixed pull-request-head refs and validates every advertisement and response.
+Its `want` set is exactly the deduplicated accepted base/head pair; any bounded
+`have` is a catalog-visible exact object from the same repository cache scope.
+The fixed installed-Git `index-pack` child receives the bounded pack stream
+and validated bare-repository path but no protocol advertisement, remote ref,
+credential, Authorization header, URL, proxy, trust, cookie, provider
+payload, or ambient account authority. Separate fixed ref operations receive
+only generated private BetterPullReview refs and exact expected OIDs. Native
+HTTPS remains the only credential-bearing network implementation.
+
 ## Normalized application boundary
 
 The application-facing `github_provider_port` accepts semantic session and
@@ -501,6 +553,22 @@ must have both facts, and a deleted or unavailable author is explicitly null.
 Entity, actor, and non-target search node IDs share one collision domain;
 only an exactly correlated reference to the selected pull request may reuse
 an existing node ID.
+
+GitHub.com and GHES 3.18 document `ListReviews` results in chronological
+order. The normalized provider preserves the fully exhausted sequence and
+assigns each review a bounded one-based chronology ordinal across pages.
+It does not reconstruct order from timestamps or identifiers. A present
+`submitted_at` value is parsed and bounded; pending reviews may omit it.
+Current-viewer association uses the exact scoped actor/node identity, never
+login text.
+
+The GitHub host uses that observation to derive the one handoff candidate for
+`My last reviewed`: the highest-order exact-current-viewer review whose state
+is not pending and whose algorithm-tagged commit identity is present.
+Dismissed is a submitted state. Once selected, the exact record remains
+authoritative even if its commit object was never retained; the epoch alias
+is then unavailable. Neither provider nor host substitutes an older resident
+review, current head, local time, or guessed commit.
 
 The GraphQL review-thread/viewed-state projection includes repository and
 pull-request node IDs and must match the corresponding REST records. Each
@@ -561,6 +629,25 @@ submission that returns normally produces exactly one terminal even after
 advisory cancellation; a throwing submission retained no operation. The
 decision lane remains available through host quiescence and invokes every
 accepted post exactly once without inline execution.
+
+Only after that exact accepted snapshot commit may the GitHub host emit the
+provider-free `accepted_pull_request_revision` handoff to the dedicated epoch
+host. It carries the application session; profile identity/revision; Git host,
+canonical hostname, and server contract; GitHub identity generation;
+authenticated account and exact viewer actor; repository identity and
+validated locator; pull-request identity/number/generation; provider snapshot
+identity; algorithm-tagged base/head object identities; opaque base-branch
+identity; the one bounded newest-current-viewer review candidate with typed
+provider order; and the optional native smart-HTTPS lease. Provider records,
+raw branch/ref text, URLs, credentials, and Qt projections do not cross.
+
+The GitHub host revokes the lease, sends the matching
+`pull_request_authority_invalidated` handoff, and only then clears the old
+accepted authority and identity-sensitive projection. Epoch work retains the
+original context and cannot regain authority by reading the GitHub host's
+current snapshot. Handoff delivery is observational with respect to the
+already accepted GitHub transition; the epoch host stages, decides, persists,
+and publishes through its own core and serialized completion path.
 
 The public composition uses separate provider and vault worker executors and
 the Qt event loop as the serialized decision lane. Native credential input is
@@ -638,6 +725,23 @@ authenticated account, repository/PR identity, and contract revision as
 applicable. Switching profile or authenticated account cancels or suppresses
 old work, clears visible shared projections, discards stages, and prevents
 cache reuse across the old identity.
+
+Milestone one does not share a physical Git object database across accounts
+or profile revisions. The catalog allocates one persistent random 256-bit
+`repository_cache_scope_id` for the exact profile/revision, host, account,
+canonical repository, and object-format partition, plus a separate random
+256-bit `pull_request_authority_scope_id` for each PR in that cache. Their
+lowercase 64-hex encodings are opaque, nonreversible, never supplied by a
+caller, and collision-checked before use. The PR scope qualifies every
+retained ref, epoch ordinal, alias, page query, and selection.
+
+Every catalog/cache access requires the currently accepted authenticated
+authority; persisted objects do not grant offline or restart access.
+Invalidation revokes visibility. An account cannot enumerate another cache or
+PR scope or request an arbitrary cached OID. Catalog/ref scope mismatch,
+object-format mismatch, and stale generation fail closed. Provider clone
+URLs, locator casing, login text, and raw `HeadRef` values never select a
+cache, path, ref, lease, or catalog partition.
 
 ## Mutation safety
 

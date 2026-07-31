@@ -1,7 +1,7 @@
 ---
 id: BPR-0041
 title: Implement deterministic review-epoch core policy
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0003
 depends_on: [BPR-0040]
 ---
@@ -15,10 +15,11 @@ diagnostics.
 
 Implement deterministic policy for initial observation, author upload,
 force-push/rebase, base update, base-branch change, historical import,
-material equivalence, default Branch-base-to-Latest selection, named aliases,
-arbitrary exact pairs, unavailable anchors, idempotence, and stale or
-duplicate completion rejection. Explicit time and bounded ancestry/material
-facts arrive as observations; the core never discovers them.
+material equivalence, the default semantic `Whole PR` alias resolving the
+latest live base/head pair, other named aliases, arbitrary exact pairs,
+unavailable anchors, idempotence, and stale or duplicate completion
+rejection. Explicit time and bounded ancestry/material facts arrive as
+observations; the core never discovers them.
 
 Prove full-context acceptance, identity-switch invalidation, generation
 overflow failure, deterministic replay, compact state, alias legality, and

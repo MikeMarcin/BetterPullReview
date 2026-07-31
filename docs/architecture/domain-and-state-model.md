@@ -8,15 +8,28 @@ The functional core owns compact interaction state and deterministic policy. The
 
 ```text
 HostProfileId
+HostProfileRevision
 GitHostId
 GitHubAccountId
 RepositoryId
 PullRequestId
 ProviderSnapshotId
 CapabilityRevision
+AuthorityScopeId
+PullRequestSourceRevision
+BaseBranchId
 CommitOid
+TreeOid
 BlobOid
+EpochCatalogIncarnationId
+EpochOrdinal
+EpochCatalogRevision
 ReviewEpochId
+ReviewAssociationId
+ComparisonAnchor
+ComparisonRevision
+EpochGeneration
+ComparisonGeneration
 FileMaterialId
 GitHubReviewId
 GitHubThreadId
@@ -29,6 +42,34 @@ ApplicationSessionId
 ```
 
 Every persisted row, observation, request, completion, cache key, and asynchronous result includes enough identity to prevent cross-host, cross-account, cross-repository, cross-PR, or cross-revision reuse.
+
+RFC-BPR-0003 uses fixed, algorithm-tagged Git object identities. A commit,
+tree, or blob OID carries `sha1` with exactly 20 bytes or `sha256` with
+exactly 32 bytes. The object kind is part of the C++ type, the algorithm is
+part of the value, an all-zero value is invalid, and a repository cannot mix
+formats. Hexadecimal text is parsed once at the provider or Git boundary and
+is rendered as canonical lowercase text only at an outward projection.
+
+The relevant bounds are normative:
+
+| Type | Valid range or size | Zero meaning |
+|---|---|---|
+| Opaque runtime identities | nonzero `uint64_t` | invalid |
+| Pull-request number | `1..2,147,483,647` | invalid |
+| Request and generation counters | `1..UINT64_MAX`, advanced only by checked increment | inactive or not yet issued |
+| Epoch ordinal | `1..INT64_MAX` | invalid |
+| Catalog revision | `0..INT64_MAX` | accepted empty catalog |
+| Comparison revision | `1..INT64_MAX` | no accepted pair |
+| Review order | `1..10,000` within one complete accepted snapshot | invalid |
+| Authority scope, catalog incarnation, base branch, and review association | exactly 32 nonzero bytes | invalid |
+| Host-supplied observed UTC milliseconds | `0..253402300799999` | the Unix epoch, not absence |
+
+No counter wraps, resets inside its authority, or reuses an identity after
+exhaustion. An explicitly deleted and recreated epoch catalog receives a new
+incarnation before its ordinal can begin again.
+The host supplies the nonreversible authority-scope identity and catalog
+incarnation from validated authority/persistence state; the core neither
+hashes provider text nor reads randomness.
 
 ## Authority by state category
 
@@ -80,6 +121,25 @@ The core does not own all PR comments, all Git blobs, all diff rows, all queue e
 For GitHub reads, full normalized snapshots remain immutable host-owned
 records. The core retains only the identity and summary required to decide
 whether a staged snapshot belongs to the active session.
+
+RFC-BPR-0003 adds a dedicated `epoch_state`; it does not add Git history to
+`github_state`. The epoch state contains only:
+
+```text
+active pull-request authority and accepted source revision
+active catalog incarnation and catalog revision
+checked next-request, epoch-generation, and comparison-generation counters
+requested alias or explicit comparison
+last accepted exact comparison pair and comparison revision
+at most one pending ingestion, comparison-resolution, and maintenance action
+compact commands, status, and reason-coded diagnostics
+```
+
+It contains no string, path, ref, catalog page, review collection, Git object,
+or dynamically sized history. `sizeof(epoch_state)` is capped at 2,048 bytes.
+A catalog observation supplied to the core contains at most one latest live
+epoch, one preceding distinct-head candidate, one current-viewer review
+candidate, one material-match candidate, and the two requested anchors.
 
 ## Semantic input/output types
 
@@ -185,6 +245,63 @@ Deltas describe meaning. Qt-specific row/index updates are derived by the presen
 it identifies the exact staged provider snapshot that the host may commit to
 the active cache. A stale or rejected completion emits no such delta.
 
+### RFC-BPR-0003 epoch vocabulary
+
+The dedicated epoch path uses the following exact semantic records.
+
+```text
+Intents
+    RefreshEpochs
+    SelectComparisonAlias
+    SelectComparisonAnchor
+    CancelEpochRefresh
+    PruneEpoch
+    DeleteRepositoryCache
+
+Accepted GitHub events
+    AcceptedPullRequestRevision
+    PullRequestRevisionInvalidated
+
+Bounded observations
+    AcceptedPullRequestRevisionObservation
+    EpochCatalogWindowObservation
+    GitEpochPreparationObservation
+    ComparisonAnchorObservation
+    MaintenancePlanObservation
+
+Host requests
+    InvalidateEpochAuthorityRequest
+    LoadEpochCatalogRequest
+    PrepareEpochRevisionRequest
+    CommitEpochCatalogRequest(append epoch | associate review)
+    ResolveComparisonRequest
+    CancelEpochWorkRequest
+    PruneEpochRequest
+    DeleteRepositoryCacheRequest
+
+Terminal events
+    EpochCatalogLoaded | EpochCatalogLoadFailed | EpochCatalogLoadCancelled
+    EpochRevisionPrepared | EpochRevisionPrepareFailed | EpochRevisionPrepareCancelled
+    EpochCatalogCommitted | EpochCatalogCommitFailed | EpochCatalogCommitCancelled
+    ComparisonResolved | ComparisonResolveFailed | ComparisonResolveCancelled
+    MaintenanceCompleted | MaintenanceFailed | MaintenanceCancelled
+
+Semantic deltas
+    EpochAuthorityDelta
+    EpochCatalogDelta
+    EpochRowDelta
+    ComparisonSelectionDelta
+    ComparisonResolutionDelta
+    EpochStatusDelta
+    EpochCommandDelta
+    EpochDiagnosticDelta
+```
+
+Selecting one side carries the side, exact anchor identity, and catalog
+revision observed by Qt. Changing one side of a named alias converts the
+selection to an explicit pair using the other last-accepted exact anchor.
+Neither labels nor displayed OID text are accepted back as identity.
+
 ## GitHub capability state
 
 Each host capability is represented as `Unknown`, `Supported`, or
@@ -237,11 +354,125 @@ Architecture](github-host-implementation.md) for the concrete allocation.
 ## Pull request and epoch
 
 ```text
-PullRequestKey = host + account + repository node/database identity + PR number
-ReviewEpoch = base OID + head OID + observed time + cause + ordinal
+PullRequestAuthority =
+    profile and profile revision
+    + host and authenticated account
+    + repository identity
+    + pull-request identity and number
+    + authority-scope identity
+
+EpochRequestAuthority =
+    application session
+    + pull-request authority
+
+PullRequestSourceRevision =
+    provider snapshot
+    + GitHub identity generation
+    + pull-request request generation
+
+PullRequestRevision =
+    source revision
+    + stable base-branch identity
+    + algorithm-tagged base and head commit OIDs
+
+ReviewEpochId =
+    authority scope
+    + catalog incarnation
+    + epoch ordinal
 ```
 
-Epoch causes include initial observation, author upload, force-push, base advance, base-branch change, and explicit historical import. Display labels may say `Branch base`, `Review epoch 4`, `My last review`, or `Latest`, but OIDs remain authoritative.
+The profile revision and complete accepted GitHub request context enter the
+RFC-BPR-0003 handoff even though raw profile configuration remains host-owned.
+The host validates that the fixed authority-scope identity is bound to that
+complete tuple. A source revision is operational correlation; the exact
+base-branch/base-OID/head-OID record is the PR revision whose history is
+retained.
+
+An epoch records exact base/head commit and tree identities, host-supplied
+observed time, ordinal, origin, independent base/head transitions, material
+identity, and availability. Ordinal defines observation chronology; wall time
+does not.
+
+Cause is composite rather than a lossy enum:
+
+| Axis | Values |
+|---|---|
+| Origin | initial observation, live observation, explicit historical import |
+| Base transition | not applicable, unchanged, base OID changed, base branch changed |
+| Head transition | not applicable, unchanged, descendant, non-fast-forward, lineage unknown |
+
+With no prior live epoch the origin is `initial observation`. A historical
+import requires an explicit source and an exact base/head pair; a review
+commit alone cannot manufacture a historical epoch because it does not prove
+the historical base. For a live update, a changed branch identity is a
+base-branch change even when the OID happens to match. With an unchanged
+branch, a changed base OID is a base update. A changed head is an author
+upload only when the prior head is proven to be its ancestor, a
+force-push/rebase only when non-ancestry is proven with both objects resident,
+and otherwise `lineage unknown`. Unknown lineage is never guessed as a
+force-push. An unchanged branch/base/head triple creates no epoch.
+
+The primary presentation label has deterministic precedence:
+
+```text
+initial observation
+explicit historical import
+base-branch change
+force-push/rebase
+author upload
+Head change; lineage unavailable
+base update
+```
+
+Both axes remain in the record. For example, a simultaneous base update and
+author upload presents the upload as primary and retains the base update as a
+secondary fact.
+
+Compared material is the ordered tuple of base tree OID, head tree OID, and
+comparison-policy revision. Two epochs are materially equivalent only within
+one authority when both tuples are present and exactly equal. Equivalence
+never suppresses an epoch, changes its cause or chronology, migrates a
+receipt, or treats unknown material as equal.
+
+A comparison anchor is either an epoch's exact base/head anchor or an exact
+review-associated commit anchor. The latter remains distinct even when its
+OID equals an epoch head. Resolved anchors carry availability and the exact
+commit OID. Same-authority retained anchors may be compared in either order,
+including reverse and identical pairs. Cross-authority, cross-incarnation,
+missing, pruned, or unavailable pairs are illegal.
+
+Named comparisons are semantic:
+
+- `Whole PR` resolves the latest live epoch's base to its head.
+- `Previous upload -> latest` resolves the greatest earlier live epoch whose
+  head differs from latest to the latest head. A force-push epoch qualifies;
+  intervening base-only epochs do not hide the preceding distinct head.
+- `My last reviewed -> latest` resolves the current viewer's newest eligible
+  review-associated commit to the latest head.
+
+Historical imports are selectable explicitly but are not eligible to become
+`Latest` or `Previous upload`, because import order is not evidence of PR-tip
+chronology. A named alias re-resolves when its authoritative catalog/review
+facts advance. It first selects the semantic candidate and then checks
+availability; it never skips a pruned candidate to an older one. An explicit
+pair remains exact and becomes visibly unavailable rather than silently
+jumping to `Latest`.
+
+GitHub's complete normalized review collection carries a one-based
+`ReviewOrder` preserving the documented chronological REST order across
+pages. `My last reviewed` chooses the maximum order whose author actor
+identity equals the accepted viewer, whose state is not pending, and whose
+commit is present. Login text, review-ID ordering, timestamps, and incidental
+container order are not substitutes. The selected review stays bound to its
+accepted provider snapshot; incomplete or rejected pagination changes
+nothing.
+
+An accepted snapshot whose base, head, and branch are unchanged creates no
+epoch. If its newest-current-viewer review fact is new or changed, the core
+instead authorizes an `associate review` catalog mutation. That
+expected-revision SQLite-only mutation advances the catalog revision when it
+changes the durable association, re-resolves review aliases, and creates no
+Git ref or epoch ordinal.
 
 The host owns epoch persistence and retained Git refs. The core owns the current left/right epoch selection and comparison policy. The Qt adapter owns selectors, labels, popup layout, and unavailable-state presentation.
 
@@ -310,6 +541,54 @@ request, application session, host profile, and generation. A PR fetch adds
 host, account, repository locator or identity, PR number, and all applicable
 revision facts. Identity switching advances the generation before cancellation
 or invalidation effects are performed.
+
+Epoch catalog mutation and comparison resolution use dedicated contexts:
+
+```text
+EpochMutationContext =
+    request
+    + application session
+    + complete pull-request authority
+    + accepted pull-request revision
+    + epoch generation
+    + catalog incarnation
+    + expected catalog revision
+
+ComparisonContext =
+    request
+    + application session
+    + complete pull-request authority
+    + accepted source revision
+    + catalog incarnation/revision
+    + comparison generation
+    + requested alias or exact anchors
+```
+
+All increments are checked before state changes. Exhausted request,
+generation, ordinal, or revision space produces a typed terminal diagnostic
+and no request; values never wrap or reuse zero.
+
+A completion with no matching pending request or an older generation is
+stale. A completion matching request/generation but disagreeing on another
+context field is an identity mismatch. Neither case clears current pending
+work or publishes catalog/comparison deltas, and a duplicate terminal is
+stale. Catalog mutation uses compare-and-swap on the expected revision; a
+conflict commits nothing and requires a fresh catalog observation.
+
+Cancellation is advisory and every normally accepted in-process submission
+during the live host lifetime produces exactly one terminal. An abrupt process
+death instead leaves exactly one typed durable operation outcome for recovery;
+it does not promise delivery to the dead application session. Before the host
+records `ref_commit_in_progress`, cancellation may return a cancelled terminal
+and no accepted epoch. That recorded phase is the point of no cancellation,
+not proof of durable success: recovery must resolve the exact operation to
+success or a typed failure and cannot call it cancelled. The catalog visibility
+transaction is the durable success and linearization point; once it commits,
+the terminal is success even when cancellation raced. Switching authority
+advances all epoch/comparison generations before cancellation and clears
+identity-sensitive projections. A same-authority refresh may retain the last
+accepted pair as visibly refreshing, but no pending, failed, cancelled, or
+stale pair becomes authoritative for downstream diff work.
 
 ## Qt-local state
 

@@ -6,6 +6,9 @@
 - GitHub/Git/ledger/diff observations and background work are supplied by the application host.
 - The main window, drawers, toolbars, actions, Qt models, focus, splitters, scrolling, painting, and accessibility are Qt-presentation-adapter responsibilities.
 - Every user gesture becomes a semantic intent, and every bounded state change reaches Qt as an incremental projection or delta. No workbench widget directly calls an effectful service.
+- Epoch rows and comparison endpoints use stable authority, catalog-incarnation,
+  and anchor IDs. Qt never derives an epoch cause, resolves an alias, checks
+  object residency, opens a cache, or infers a fallback.
 
 ## Primary layout
 
@@ -73,8 +76,10 @@ keyboard shortcuts and accessible names/descriptions, and is rendered at
 1.0x, 1.25x, and 2.0x scale in the Qt harness. It inherits the active native
 palette, style, and font without a forced palette, style, or QSS, and responds
 to application palette, font, style, and theme changes. Offscreen
-forced-style renders verify layout only. User-selectable Light, Dark, and
-System profiles remain RFC-BPR-0006 work.
+forced-style renders verify layout only. The reusable RFC-BPR-0003 comparison
+control follows this same native-System inheritance. User-selectable System,
+Light, Dark, and high-contrast profiles remain RFC-BPR-0006 work, with a fresh
+installation defaulting to System.
 
 ## Primary actions
 
@@ -84,7 +89,44 @@ Previous/next file and previous/next change are always visible in the top toolba
 
 ## Epoch selection
 
-Each upper pane has its own selector. The default comparison is `Branch base` on the left and `Latest` on the right. Selecting a named shortcut updates both selectors but never hides the exact OIDs.
+Each upper pane has its own selector. The default semantic comparison is
+`Whole PR`: the latest live epoch's exact `Branch base` anchor on the left and
+exact head (`Latest`) anchor on the right. Full OIDs remain non-elided and
+copyable.
+
+Named comparisons resolve as one operation:
+
+- `Whole PR` selects the latest live epoch's exact base and head;
+- `Previous upload -> latest` selects the nearest earlier live epoch with a
+  different head and the latest live head;
+- `My last reviewed -> latest` selects the exact newest chronologically
+  ordered, non-pending current-viewer review commit and the latest live head.
+
+Alias resolution chooses that semantic candidate before checking object
+availability. If the exact previous upload or newest review is pruned,
+cache-deleted, corrupt, or never observed, the alias remains visibly
+unavailable with its reason; it never falls back to an older resident
+candidate. A named selection re-resolves only when accepted review facts or
+the catalog revision changes.
+
+An explicit pair remains on its exact anchor IDs and OIDs. Any two resident
+anchors in the same PR authority and catalog incarnation are legal, including
+reverse and identical pairs; identical OIDs represent an empty comparison.
+Changing one side of a resolved alias converts the selection to an exact pair.
+Cross-authority, cross-incarnation, mixed-object-format, or unavailable pairs
+are rejected with a visible reason rather than remapped.
+
+Epoch rows show ordinal, availability, and both the primary label and
+independent base/head transition facts. A simultaneous base/head change keeps
+both facts, and unknown lineage is shown as `Head change; lineage unavailable`
+rather than guessed as an upload or force-push. Append, availability, and
+selection changes update stable rows incrementally without a routine model
+reset.
+
+This RFC-BPR-0003 control is the reusable semantic and accessibility surface,
+not final visual acceptance. RFC-BPR-0005 still owns the integrated workbench
+presentation-polish and native visual-acceptance slice. RFC-BPR-0006 owns
+selectable themes, fonts, syntax presentation, and high-contrast profiles.
 
 ## Comparison surface
 
@@ -108,4 +150,8 @@ Review submission actions remain visible in a persistent action region but do no
 
 ## Empty, loading, and failure states
 
-Every pane has explicit loading, canceled, permission-denied, unsupported-capability, unavailable-revision, binary, oversized, offline-cache, and retry states. No spinner may conceal a permanent error.
+Every pane has explicit loading, canceled, permission-denied,
+unsupported-capability, unavailable-revision, binary, oversized,
+authorization-required cache, and retry states. Cached private content never
+opens for an unauthenticated or different account. No spinner may conceal a
+permanent error.

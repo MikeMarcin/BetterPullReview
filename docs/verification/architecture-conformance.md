@@ -30,6 +30,21 @@ This document turns the deterministic-functional-core / imperative-host / Qt-pre
 | ARCH-H4 | Caches remain subordinate to authority | Invalidation/reconciliation tests | Cache value overrides GitHub or durable ledger fact |
 | ARCH-H5 | Lifecycle and shutdown are explicit | Pending-work shutdown tests | Callback reaches destroyed UI; process or DB teardown races |
 
+## RFC-BPR-0003 epoch checks
+
+| ID | Requirement | Direct proof | Failure examples |
+|---|---|---|---|
+| ARCH-E1 | Git object, PR authority, source revision, catalog incarnation, epoch, anchor, request, generation, and comparison identities are strongly typed and bounded | Compile-time type distinctions plus SHA-1/SHA-256, zero, mixed-format, range, and checked-increment tables | Raw OID/ref/label string becomes identity; counter wraps; catalog recreation reuses an incarnation |
+| ARCH-E2 | Dedicated epoch core state is compact and independent of the RFC-BPR-0002 GitHub reducer | `sizeof(epoch_state) <= 2048`, Qt-free/core-only build, allocation/dependency scan, and large-history test | Epoch history enters `github_state`; strings, vectors, catalog pages, refs, or Git objects are retained in `epoch_state`; provider, clock, process, or database APIs enter the epoch core |
+| ARCH-E3 | The accepted GitHub-to-epoch handoff is exact and post-acceptance | Cross every profile revision, host, account, repository, PR, snapshot, GitHub generation, base branch, base OID, and head OID; reorder acceptance/invalidation | Epoch work begins from a staged/rejected snapshot, login/ref text selects authority, or a new identity sees old catalog state |
+| ARCH-E4 | Epoch cause preserves independent origin/base/head facts | Exhaust initial, historical, base-only, branch-change, descendant, non-fast-forward, unknown-lineage, simultaneous, and unchanged tables | One enum loses a simultaneous change; unknown lineage is called force-push; timestamp determines chronology |
+| ARCH-E5 | Material equivalence is exact and non-destructive | Compare ordered base-tree/head-tree/policy identities across equal, unequal, unknown, cross-authority, and repeated-revision cases | Approximate diff text declares equivalence; equivalent material suppresses/reorders an epoch or migrates a receipt |
+| ARCH-E6 | Alias and explicit-pair policy remains core-owned | Whole-PR, previous-distinct-head, current-viewer-review, force-push, base-only, historical-import, reverse, identical, pruned, and cross-authority tables | Host/Qt chooses fallback; a pruned alias skips to older history; an explicit pair jumps to Latest |
+| ARCH-E7 | `My last reviewed` uses complete typed GitHub review chronology and persists association-only changes | Multi-page fixtures with exact viewer actor, review order `1..10,000`, pending/dismissed/missing-author/missing-commit cases, rejected incomplete pagination, and a new review on an unchanged base/head/branch | Login, review ID, timestamp, incidental container order, partial response, or an older available commit selects the alias; an unchanged head drops the new review fact because no epoch was appended |
+| ARCH-E8 | Catalog/ref publication is authorized, compare-and-swap guarded, failure-atomic, and recoverable | Fault inject every stage and restart; require exact expected revision and either one durable committed epoch or no accepted epoch | Prepared objects become visible; partial refs/catalog are reported as success; revision conflict overwrites a concurrent catalog |
+| ARCH-E9 | Stale, mismatched, duplicate, failed, and cancelled terminals cannot publish | Manual-executor cross-product over request/session/authority/source/incarnation/revision/generation plus cancellation before/after the durable commit point | Wrong completion clears current pending work; post-commit cancellation reports false failure; stale success enters another account |
+| ARCH-E10 | Epoch host lifecycle keeps the decision lane, Git transport/process, catalog, and projections alive through quiescence | Pending load/prepare/commit/resolve/maintenance shutdown tests and destruction-order instrumentation | Decision executor stops before a terminal, staged refs leak without recovery, or a callback reaches a destroyed projection |
+
 ## Qt-adapter checks
 
 | ID | Requirement | Direct proof | Failure examples |
