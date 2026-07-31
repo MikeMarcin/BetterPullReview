@@ -104,8 +104,8 @@ spool consumption, bounded lifecycle, hostile canaries, and direct macOS
 evidence complete. BPR-0043 is in `done/` with the app-owned
 protocol-v2/native-HTTPS, authority-partitioned bare-cache, and retained-ref
 component slice verified through commit `2801241`. BPR-0044 is the sole
-`ready/` card and owns durable epoch-catalog and operation-record persistence.
-BPR-0045 through BPR-0054 remain in `backlog/`.
+`in-progress/` card and owns durable epoch-catalog and operation-record
+persistence. BPR-0045 through BPR-0054 remain in `backlog/`.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
 RFC work. BPR-0054 depends on BPR-0035 and BPR-0053, so canonical closeout and
