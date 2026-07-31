@@ -501,12 +501,21 @@ valid only on the original request. Automatic redirects are disabled and all
 redirects fail closed, including same-authority and query-bearing redirects.
 The Git smart path therefore does not weaken the RFC-BPR-0002 REST rule.
 
-Discovery advertisements, pkt-lines, sideband messages, and pack data are
-streamed under separate wire, memory, temporary-storage, repository-quota,
-deadline, cancellation, and backpressure bounds. They are not treated as a
-4-MiB JSON response. Exact service/content types, object format, advertised
-base/head identities, framing, and final object connectivity must all agree
-with the accepted request before cache staging can succeed.
+Discovery and `ls-refs` are bounded control rounds, not streamed pack
+surfaces. Their replies are read in fixed chunks and retained only within a
+64-KiB whole-reply ceiling before parsing. Fetch response bytes are read in
+chunks of at most 16 KiB and forwarded directly to the incremental
+pkt-line/sideband consumer instead of being accumulated as a complete body.
+The production smart path has a 15-minute total deadline and a 30-second
+no-progress idle deadline. Exact service/content types, object format,
+advertised base/head identities, framing, and final object connectivity must
+all agree with the accepted request before cache staging can succeed.
+
+GitHub.com smart Git uses `github.com`; it never substitutes the
+`api.github.com` REST/GraphQL authority. GHES smart Git uses the exact
+validated enterprise hostname. The loopback contract exercises the complete
+19-scenario GHES matrix and the GitHub.com discovery, `ls-refs`, and fetch
+origin subset without contacting either service.
 
 Profile, account, repository, pull-request, or identity-generation
 invalidation revokes the lease before old-authority epoch work can publish.
@@ -527,6 +536,12 @@ credential, Authorization header, URL, proxy, trust, cookie, provider
 payload, or ambient account authority. Separate fixed ref operations receive
 only generated private BetterPullReview refs and exact expected OIDs. Native
 HTTPS remains the only credential-bearing network implementation.
+
+Commits `d903290` and `edd762e` implement and directly verify these
+application-protocol and native-wire component boundaries. They do not prove
+durable cache/catalog authorization, journal-before-import sequencing, crash
+recovery, or selection by the public executable; those remain BPR-0044,
+BPR-0045, and BPR-0047 work.
 
 ## Normalized application boundary
 

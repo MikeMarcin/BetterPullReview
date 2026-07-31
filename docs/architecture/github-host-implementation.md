@@ -828,19 +828,32 @@ or shutdown is terminal for new work, cancels in-flight work, and causes every
 late completion to be rejected by its full context and generation. A normally
 accepted submission produces exactly one terminal.
 
-Smart-protocol discovery, pkt-line request/response, sideband, and pack bytes
-are streamed with explicit wire, retained-memory, temporary-storage,
-repository-quota, deadline, cancellation, and backpressure bounds. They are
-not accumulated under the JSON response-body implementation. Content type,
-service advertisement, pkt-line framing, object format, advertised exact
-base/head identities, and final pack/connectivity are independently
-validated. An app-owned minimal protocol-v2 client emits only the exact
-validated base and fixed pull-request-head `ls-refs` prefixes and the
-deduplicated accepted base/head `want` set under a closed request grammar.
-Known optional server capabilities may be advertised and ignored, but they
-are never requested, echoed, or exercised. Any bounded `have` comes only from
-catalog-visible exact objects in the same repository cache scope. It, not
-installed Git, owns protocol negotiation and network rounds.
+Smart-protocol control and fetch rounds use separate bounds and retention
+shapes. Discovery and `ls-refs` are read in fixed chunks but retained only as
+complete replies within a 64-KiB ceiling before parsing. Fetch reads at most
+16 KiB at a time and forwards each chunk directly to the incremental
+pkt-line/sideband consumer; it is not accumulated under either the control
+reply or JSON response-body implementation. The production smart-operation
+deadline is 15 minutes, and a 30-second no-progress idle deadline is reset by
+admitted upload or download progress. Content type, service advertisement,
+pkt-line framing, object format, advertised exact base/head identities, and
+final pack/connectivity are independently validated. An app-owned minimal
+protocol-v2 client emits only the exact validated base and fixed
+pull-request-head `ls-refs` prefixes and the deduplicated accepted base/head
+`want` set under a closed request grammar. Known optional server capabilities
+may be advertised and ignored, but they are never requested, echoed, or
+exercised. Any bounded `have` comes only from catalog-visible exact objects in
+the same repository cache scope. It, not installed Git, owns protocol
+negotiation and network rounds.
+
+The smart origin is distinct from the API origin for GitHub.com:
+`github.com` receives smart Git while `api.github.com` remains the REST and
+GraphQL authority. GHES uses its exact validated enterprise hostname for
+smart Git. Commit `d903290` implements the bounded application protocol
+client, and `edd762e` implements the native smart-HTTPS lease and wire path.
+These are component contracts. BPR-0044 and BPR-0045 still own durable
+operation state and orchestration, and BPR-0047 still owns selection through
+the public BetterPullReview composition.
 
 The fixed `index-pack` import child receives only the bounded pack stream on
 standard input and a validated app-owned bare-repository path. It receives no

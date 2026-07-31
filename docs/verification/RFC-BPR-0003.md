@@ -157,14 +157,22 @@ redirect remains forbidden, including query-bearing redirects; RFC-BPR-0002's
 redirect policy is not relaxed. The current JSON-oriented native transport and
 its 4 MiB response contract are not relabeled as pack-stream evidence.
 
-The separate streaming transport implements a minimal app-owned protocol-v2
-client. Its `ls-refs` request names exactly the accepted base-branch and
-pull-request-head prefixes, requires exactly those two advertised refs and
-provider-approved OIDs, and admits only the deduplicated accepted base/head
-`want` set plus bounded haves derived from the same physical authority scope.
-Known optional capabilities may be advertised and ignored; unrequested
-capability use and alternate retrieval paths are rejected. Pack bytes enter
-installed Git only through this fixed local operation:
+GitHub.com smart Git uses `github.com`, while `api.github.com` remains its
+REST/GraphQL authority. GHES smart Git uses the exact validated enterprise
+hostname. Discovery and `ls-refs` are bounded control rounds: their replies
+are read in fixed chunks and retained only within a 64-KiB whole-reply
+ceiling. Fetch response bytes are read in chunks of at most 16 KiB and
+forwarded directly to the incremental protocol consumer rather than retained
+as one body. Production source policy declares a 15-minute total deadline and
+a 30-second no-progress idle deadline.
+
+The app-owned protocol-v2 client names exactly the accepted base-branch and
+pull-request-head prefixes in `ls-refs`, requires exactly those two advertised
+refs and provider-approved OIDs, and admits only the deduplicated accepted
+base/head `want` set plus bounded haves derived from the same physical
+authority scope. Known optional capabilities may be advertised and ignored;
+unrequested capability use and alternate retrieval paths are rejected. Pack
+bytes enter installed Git only through this fixed local operation:
 
 ```text
 git -c core.fsync=all
@@ -196,10 +204,29 @@ secure consumption of an already completed
 commits `0059fbc`, `6e2e7fc`, `a0a92cf`, and `251be4b`; the final focused
 matrix covers `git_process_contract`, `architecture_boundaries`, and
 `architecture_boundary_contract`, and the standalone architecture mutation
-suite covers 104 hostile mutations. This does not prove native HTTPS,
-protocol-v2 packets, cache authority/reuse, durable operation journaling,
-failure-atomic epoch publication, public composition, or target-native
-Linux/Windows execution. Those remain assigned to BPR-0043 through BPR-0053.
+suite covers 104 hostile mutations. Commit `b65b0a9` further binds cleanup to
+exact filesystem identities and serializes process-boundary mutation across
+adapter instances.
+
+Commit `d903290` implements the closed application protocol-v2 acquisition,
+and commit `edd762e` implements the native smart-HTTPS wire and lease
+boundary. Their focused replay passed 5/5:
+`git_protocol_boundary`, `application_git_protocol_v2`,
+`native_git_smart_transport_contract`,
+`native_git_smart_transport_fixture`, and `git_process_contract`. The native
+fixture runs 19 isolated GHES scenarios plus the GitHub.com discovery,
+`ls-refs`, and fetch success scenarios, for 22 child runs without contacting
+GitHub.com or a GHES service. The timeout fixture uses a reduced test-only
+absolute deadline; the 30-second idle value remains source-policy evidence,
+not independently elapsed fixture evidence.
+
+This is component evidence only. The BPR-0043 cache/ref implementation and
+its final commit hash and passing evidence remain in progress. BPR-0044 owns
+durable operation facts, BPR-0045 owns journal-before-`index-pack` and
+ref/catalog sequencing, BPR-0047 owns selection through the public
+BetterPullReview composition, and BPR-0053 owns target-native Windows
+execution. No evidence above proves durable authorization, crash recovery, or
+RFC-BPR-0003 completion.
 
 ## Cache, retention, and persistence
 
@@ -244,22 +271,22 @@ after interruption. No glob or broad credential/cache deletion is permitted.
 | Claim | Direct surface | Proof | Result |
 |---|---|---|---|
 | Core policy is deterministic and compact | Qt-free epoch reducer | Exhaust cause, alias, pair, idempotence, overflow, replay, and mismatch tables; inspect state size/dependencies | Verified in BPR-0041: core-only 20/20, focused core/architecture 2/2, explicit catalog-incarnation/projection-clear/session canaries, independent final review |
-| PR/epoch authority is exact | Core/host/cache/catalog contexts | Cross profile revision, host, account, repository, PR, snapshot, generation, catalog incarnation, and catalog revision | Planned |
-| App-owned bare cache is created and reused safely | Real Git adapter and temporary app-data root | Open fixture twice under one authority, then cross account/profile revision; inspect exact manifest/config/path/object format, reuse, and physical isolation | Planned |
-| Installed Git receives no credential or network authority | Process and app-owned smart-transport canaries | Inspect exact protocol-v2 requests, fixed `index-pack` image/argv, environment, cwd, config, streams, descendants, sockets, native-HTTPS counters, bounded same-scope haves, and rejected alternate retrieval capabilities | Partially verified in BPR-0042: the direct installed-Git surface uses only fixed local commands with an empty-built environment and closed port, and hostile real-Git canaries observe zero forbidden invocation. BPR-0043 still owns the smart-transport requests, sockets, and native-HTTPS counters |
-| Old observed head survives force-push | Local smart remote, cache, refs, catalog, public selector | Remove/prune old remote object, restart, and compare retained old head to latest | Planned |
+| PR/epoch authority is exact | Core/host/cache/catalog contexts | Cross profile revision, host, account, repository, PR, snapshot, generation, catalog incarnation, and catalog revision | Partially verified: BPR-0041 covers deterministic core identity; `d903290` and `edd762e` cover exact accepted refs/OIDs, bounded same-cache haves, and native profile/account lease authority. Cache manifest/catalog identity, host publication, and public selection remain planned |
+| App-owned bare cache is created and reused safely | Real Git adapter and temporary app-data root | Open fixture twice under one authority, then cross account/profile revision; inspect exact manifest/config/path/object format, reuse, and physical isolation | In progress in BPR-0043; no final implementation hash or passing cache/ref evidence is recorded |
+| Installed Git receives no credential or network authority | Process and app-owned smart-transport canaries | Inspect exact protocol-v2 requests, fixed `index-pack` image/argv, environment, cwd, config, streams, descendants, sockets, native-HTTPS counters, bounded same-scope haves, and rejected alternate retrieval capabilities | Partially verified across BPR-0042 and committed BPR-0043 components: the fixed installed-Git child has no credential/network authority, `d903290` admits only the closed protocol-v2 acquisition, and `edd762e` proves the native HTTPS wire/lease boundary in 19 GHES plus 3 GitHub.com loopback scenarios. Cache handoff and public composition remain open |
+| Old observed head survives force-push | Local smart remote, cache, refs, catalog, public selector | Observe and retain the old head, then remove/prune the remote object, import the replacement, restart, and compare retained old head to latest | Planned pending final chronological cache/ref evidence; final-state remote absence alone is insufficient |
 | Repository behavior cannot execute | Hostile Git/config/repository fixtures | Arm hooks/helpers/askpass/filters/LFS/submodule/textconv/ext-diff/protocol canaries; require zero invocation | Verified for the directly exercised macOS BPR-0042 local-process surface through hostile real-Git state plus exact child argv/environment/cwd/port inspection; Linux/Windows and end-to-end transport/cache evidence remain open |
 | Epoch causes remain truthful | Core cause table with real Git facts | Replay initial, descendant upload, non-fast-forward rewrite, base-only, branch-change, simultaneous-change, equivalent, and unknown-lineage cases | Planned |
 | Catalog/ref commit and recovery agree | Fault-injected catalog and Git refs | Fail or interrupt every phase; restart; require the catalog visibility authority to expose one exact committed epoch or an unavailable/recoverable pending state, never a ref-derived false success | Planned |
 | Defaults and arbitrary pairs use exact OIDs | Core + Qt + public application | Verify Whole PR and selected IDs/OIDs/context agree; accept same-authority reverse and identical pairs, with identical OIDs producing empty comparison | Planned |
 | Named aliases resolve exactly | Catalog/core/public application | Verify Whole PR, nearest preceding distinct live head, newest ordered current-viewer review, and an association-only review update on an unchanged head; make the exact alias unavailable instead of falling back when its candidate is unavailable | Planned |
 | Pruned and never-observed history is honest | Catalog/core/Qt | Explicit prune/delete and unreachable unknown head stay visible/unavailable and never silently remap | Planned |
-| Stale/canceled work cannot publish | Manual executor and real process cancellation | Reorder/duplicate/cancel Git, transport, catalog, and identity-switch completions | Planned |
+| Stale/canceled work cannot publish | Manual executor and real process cancellation | Reorder/duplicate/cancel Git, transport, catalog, and identity-switch completions | Partially verified at component boundaries: `d903290` aborts its pack sink on canceled/failed acquisition, `edd762e` verifies cancellation and exact lease revocation/isolation, and BPR-0042/`b65b0a9` cover process cancellation/cleanup. BPR-0045 still owns stale-result rejection across host publication |
 | Qt projection is incremental, accessible, and system-native | Stable-ID model and real widgets | Assert exact signals, persistent indexes, focus, keyboard, OID text, announcements, responsive layout, zero routine resets, and live native palette/style/font inheritance | Planned |
 | Public composition selects production pieces | Real executable | Recorded GitHub plus local Git protocol fixture reaches exact visible pair; second invocation proves persistence; Release excludes seams | Planned |
-| Resource use is bounded without silent retention loss | Protocol/process/cache/catalog/history fixtures | Exceed packet, stream, pack, disk, ref, row/page, output, time, and process limits; require bounded failure and no automatic prune | Partially verified in BPR-0042 for pack input, retained process output, time, cancellation, serialization, descendants, and bounded reap; protocol/cache/catalog/history bounds remain planned |
-| Platform claims are target-native | macOS, Linux, and Windows | Run configure/build/tests, Git/process/network/cache/catalog/Qt/runtime/dependency evidence on each claimed target | Partially verified: BPR-0042 has direct macOS installed-Git/process evidence. Linux remains planned; guarded Windows source is not target-native evidence and BPR-0053 remains open |
-| GitHub Actions is absent | Repository and documentation | Tracked/on-disk workflow scans plus documentation validator | Verified through BPR-0042: tracked and on-disk workflow counts are zero and no source/build integration selects GitHub Actions; repeat at RFC closeout |
+| Resource use is bounded without silent retention loss | Protocol/process/cache/catalog/history fixtures | Exceed packet, stream, pack, disk, ref, row/page, output, time, and process limits; require bounded failure and no automatic prune | Partially verified: BPR-0042/`b65b0a9` cover pack input, retained process output, process time/cancellation/serialization/descendants; `d903290` covers packet/control/progress/pack bounds; `edd762e` covers 64-KiB control retention, at-most-16-KiB fetch reads, cancellation, and total-deadline policy. Cache/catalog/history quotas and the production 30-second elapsed idle case remain open |
+| Platform claims are target-native | macOS, Linux, and Windows | Run configure/build/tests, Git/process/network/cache/catalog/Qt/runtime/dependency evidence on each claimed target | Partially verified: BPR-0042 plus `b65b0a9`, `d903290`, and `edd762e` have direct macOS process/protocol/native-loopback evidence. Linux remains planned; guarded Windows source is not target-native evidence and BPR-0053 remains open |
+| GitHub Actions is absent | Repository and documentation | Tracked/on-disk workflow scans plus documentation validator | Verified through the committed BPR-0043 protocol/native/process components: tracked and on-disk workflow counts are zero and no source/build integration selects GitHub Actions; repeat at RFC closeout |
 
 ## Platform and safe-target plan
 
@@ -309,14 +336,14 @@ visual-polish or custom-theme claim.
 | Scope | Required documents | Disposition | Planned evidence |
 |---|---|---|---|
 | Core epoch state and typed flow | Domain/state model and Git/epoch architecture | Selected: exact revision/incarnation, composite cause facts, exact alias/pair policy, request/generation acceptance, and deltas | Core tables, replay/property tests, state/dependency scans |
-| Host/Git/transport boundary | System architecture, Git/epoch implementation, security model | Updated through BPR-0042: the fixed credential-free installed-Git process and secure completed-spool consumer are implemented. Protocol-v2/native HTTPS and cache/ref work remain BPR-0043, durable operation facts remain BPR-0044, and sequencing/lifecycle remain BPR-0045 | Real process fixtures and boundary scans pass for BPR-0042; transport/cache/catalog fixtures remain pending |
-| Cache privacy and operations | Git/epoch architecture, build/test and operator guidance | Selected: account/profile-revision physical isolation, opaque scopes, permissions, quotas, retention, explicit prune/delete, and recoverable crash states | Hostile path/config/recovery tests and exact filesystem/ref/catalog inspection |
+| Host/Git/transport boundary | System architecture, Git/epoch implementation, security model | Updated through committed component work: `b65b0a9` hardens the credential-free installed-Git process, `d903290` implements the closed protocol-v2 client, and `edd762e` implements native smart HTTPS. BPR-0043 cache/ref work remains in progress; BPR-0044 owns durable operation facts, BPR-0045 sequencing/lifecycle, and BPR-0047 public composition | Focused committed-component replay passes 5/5; cache/catalog and composed-runtime evidence remain pending |
+| Cache privacy and operations | Git/epoch architecture, build/test and operator guidance | Selected: account/profile-revision physical isolation, opaque scopes, permissions, quotas, retention, and explicit prune/delete. Cache/ref implementation is in progress; durable intent/recovery is BPR-0044/BPR-0045 work | Final hostile path/config/chronological force-push/ref evidence and exact filesystem/ref/catalog inspection remain pending |
 | Epoch semantics | Product/UX reference and verification ledger | Selected: composite causes, unknown lineage, chronology, equivalence, exact anchors, aliases without fallback, reverse/identical pairs, and unavailable history | Core/host/public fixture matrix |
 | Qt presentation | Workbench and appearance/accessibility documents | Selected: reusable selectors, exact OIDs, states, incremental model, accessibility, and native System inheritance; no final-workbench claim | Qt signal/state/raster/native appearance evidence |
-| Build and packaging | Build/test guide and dependency inventory | Updated for the BPR-0042 installed-Git and Qt Core/QProcess contract; native transport, catalog, composed runtime dependencies, and platform-wide inspection remain planned | Dev target graph/build and focused process contract; later binary/runtime inspection |
-| Tests and fixtures | Fixture catalog and test guide | Updated for the BPR-0042 real-Git, hostile policy/repository, spool replacement, process-bound, and quarantine fixtures; deterministic Git histories, loopback protocol, cache/catalog recovery, and public composition remain planned | Focused BPR-0042 matrix plus later full/sanitizer/platform matrices |
-| No-impact/deferred regions | RFC ledger, architecture, issue board | Planned: no GitHub mutation, receipt/actionability, RFC4 diff/line mapping, RFC5 final workbench, RFC6 themes/syntax/fonts, queue/AI/notification, CLI enablement, package-format/signing/installer implementation | Immutable-base path/target audit and boundary scans |
-| GitHub Actions | Build/test/package/release documentation | Updated and verified through BPR-0042: absolute prohibition and no workflow files | Documentation validator and tracked/on-disk absence scans; repeat at RFC closeout |
+| Build and packaging | Build/test guide and dependency inventory | Updated for the installed-Git Qt Core/QProcess contract and the native Qt Network smart-HTTPS component. Cache/catalog, public composed runtime, and platform-wide inspection remain planned | Dev focused component graph/build/tests pass; later clean binary/runtime inspection remains required |
+| Tests and fixtures | Fixture catalog and test guide | Updated for installed-Git/process hardening, the app-owned protocol contract, and the native 19-GHES-plus-3-GitHub.com loopback matrix. Cache/ref fixtures are documented as in progress; catalog recovery and public composition remain planned | Focused committed-component replay passes 5/5; final cache/ref hash/evidence plus later full/sanitizer/platform matrices remain pending |
+| No-impact/deferred regions | RFC ledger, architecture, issue board | Recorded: BPR-0044 owns durable operation facts, BPR-0045 journal-before-import and orchestration, BPR-0047 public composition, and BPR-0053 target-native Windows evidence. No GitHub mutation, RFC4 diff/line mapping, RFC5 final workbench, RFC6 themes/syntax/fonts, queue/AI/notification, CLI enablement, or package-format/signing/installer implementation is claimed | Immutable-base path/target audit and boundary scans |
+| GitHub Actions | Build/test/package/release documentation | Updated and verified through committed BPR-0043 components: absolute prohibition and no workflow files | Documentation validator and tracked/on-disk absence scans; repeat at RFC closeout |
 
 ## Performance and projection plan
 

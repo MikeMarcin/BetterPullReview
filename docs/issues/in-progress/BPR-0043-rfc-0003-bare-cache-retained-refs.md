@@ -36,3 +36,45 @@ Prove cache reuse and force-pushed old-head residency after the fixture remote
 removes and prunes the old object. Hard quota exhaustion must fail without
 silently deleting retained history. Repository deletion and ref pruning remain
 explicit, exact-target operations with documented consequences.
+
+## Committed component evidence
+
+- Commit `d903290` implements the bounded app-owned protocol-v2 acquisition.
+  Discovery and `ls-refs` are whole control replies bounded to 64 KiB; fetch
+  is incrementally consumed rather than retained as one response.
+- Commit `edd762e` implements the native smart-HTTPS wire and lease boundary.
+  Native fetch reads are at most 16 KiB. GitHub.com smart Git uses
+  `github.com`, not its `api.github.com` REST/GraphQL origin; GHES uses its
+  exact validated enterprise hostname.
+- Commit `b65b0a9` hardens the credential-free installed-Git process boundary
+  with exact cleanup identities and cross-instance mutation serialization.
+- The focused replay passed 5/5:
+  `git_protocol_boundary`, `application_git_protocol_v2`,
+  `native_git_smart_transport_contract`,
+  `native_git_smart_transport_fixture`, and `git_process_contract`.
+- The native loopback verifier executes 19 GHES scenarios plus the GitHub.com
+  discovery, `ls-refs`, and fetch success scenarios, for 22 isolated child
+  runs without contacting GitHub.com or a GHES service.
+
+Production source policy is a 15-minute total smart-operation deadline and a
+30-second no-progress idle deadline. The compiled contract asserts the total
+policy, while the timeout fixture uses a reduced test-only absolute deadline.
+It does not directly establish 30 seconds of elapsed idle-time behavior.
+
+## Current evidence boundary
+
+The evidence above is component-level only. It does not prove that the public
+BetterPullReview composition selects the path. The cache/ref implementation
+and contract test remain in progress; their final implementation hash,
+chronological old-head force-push evidence, and passing result are not yet
+recorded. The final fixture must first observe and retain the old head, then
+remove and prune it from the fixture remote, import the replacement, and prove
+the original object remains locally available.
+
+BPR-0044 owns durable operation facts. BPR-0045 owns
+journal-before-`index-pack`, ref/catalog orchestration, stale-result
+publication rejection, and recovery sequencing. BPR-0047 owns public
+composition, and BPR-0053 owns target-native Windows execution. Opaque
+receipt, inventory, or authorization-shaped values exposed by this card are
+not evidence that those values are durably recorded or that crash recovery is
+complete. BPR-0043 remains in progress.

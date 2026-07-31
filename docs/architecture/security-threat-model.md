@@ -511,13 +511,18 @@ method, credential, or redirect surface.
 The discovery query is protocol-mandated on the original URL. Automatic
 redirects are disabled, and every redirect fails closed, including a
 same-authority or query-bearing target. Cookies, HTTP cache, transparent
-content decoding, and cross-lease credential reuse are disabled. Service
-advertisements, content types, pkt-lines, sideband data, and packs are
-streamed with explicit wire, memory, temporary-file, repository-quota,
-deadline, cancellation, and backpressure ceilings rather than the JSON
-transport's 4-MiB response-body rule. Advertised and received object formats
-and exact base/head OIDs must match the accepted revision, and complete
-connectivity is checked before staging.
+content decoding, and cross-lease credential reuse are disabled. GitHub.com
+smart Git uses `github.com`, not the `api.github.com` API authority; GHES uses
+the exact configured enterprise hostname. Discovery and `ls-refs` control
+replies are read in fixed chunks but retained only within a 64-KiB whole-reply
+ceiling before parsing. Fetch response bytes are read in chunks of at most 16
+KiB and streamed directly to the incremental pkt-line/sideband consumer.
+Wire, packet, progress, pack, temporary-file, repository-quota, cancellation,
+and backpressure ceilings are separate from the JSON transport's 4-MiB
+response-body rule. The production smart path has a 15-minute total deadline
+and a 30-second no-progress idle deadline. Advertised and received object
+formats and exact base/head OIDs must match the accepted revision, and
+complete connectivity is checked before staging.
 
 An app-owned minimal protocol-v2 client emits exactly the validated accepted
 base and fixed pull-request-head `ls-refs` prefixes. It requires one matching
@@ -536,10 +541,12 @@ The installed Git child is only a credential-free local pack/object/ref
 engine. Its executable image, matching exec path, and app-owned bare
 repository are resolved and validated before launch. The received pack is
 first bounded into the exact private request-owned
-`incoming/v1/<operation64>.pack.part` spool. The host validates and durably
-records its pack identity, pre-import pack inventory, and preexisting-pack
-fact before streaming that spool to this fixed import shape with the validated
-numeric bound:
+`incoming/v1/<operation64>.pack.part` spool. BPR-0043's cache/ref contract
+validates the completed spool and exposes opaque pack-receipt and pre-import
+inventory facts, but does not durably record them. BPR-0044 must persist the
+pack identity, pre-import pack inventory, and preexisting-pack fact before
+BPR-0045 may authorize streaming that spool to this fixed import shape with
+the validated numeric bound:
 
 ```text
 git -c core.fsync=all
@@ -557,15 +564,16 @@ git -c core.fsync=all
 `fetch-pack`, `--keep`, `--fix-thin`, network subcommands, arbitrary
 arguments, and a shell are not admitted. Exact bounded output and on-disk
 pack/index paths are validated before staging refs are created, then the spool
-is exact-deleted. A crash-recovery path can therefore identify a newly created
-pack before deleting it; a preexisting or ambiguous pack is never deleted.
-The child environment is constructed from nothing, selects app-owned empty
-system and global configuration/template roots, and admits only the exact
-validated app-owned local bare-repository configuration. Command overrides
-and source boundaries exclude credential helpers, askpass, hooks, filters,
-LFS, submodules, textconv, external diff, alternates, replace objects,
-SSH/file/ext protocols, editors, pagers, prompts, tracing, maintenance, and
-repository-supplied executables.
+is exact-deleted. The future composed recovery path can identify a newly
+created pack before deleting it only after BPR-0044 and BPR-0045 supply the
+required durable facts and sequencing; BPR-0043 alone does not prove that
+recovery. The child environment is constructed from nothing, selects
+app-owned empty system and global configuration/template roots, and admits
+only the exact validated app-owned local bare-repository configuration.
+Command overrides and source boundaries exclude credential helpers, askpass,
+hooks, filters, LFS, submodules, textconv, external diff, alternates, replace
+objects, SSH/file/ext protocols, editors, pagers, prompts, tracing,
+maintenance, and repository-supplied executables.
 
 No credential, protocol request, advertisement, URL, proxy, certificate,
 trust path, provider payload, remote ref, or ambient account authority reaches
@@ -575,13 +583,17 @@ process containment remains an explicit target-native verification task and
 does not block the other architecture or implementation slices.
 
 BPR-0042 implements the local child boundary and secure completed-spool
-consumption only. The app-owned protocol-v2/native-HTTPS client, cache writer,
-spool producer, and pre-import observations remain BPR-0043. BPR-0044 must
-durably store the exact completed-spool, expected-pack, pack-inventory, and
-preexisting-pack facts; BPR-0045 must commit that record before local import
-and enforce the remaining ref/catalog/recovery order. Until those slices
-complete, the architecture above is not a claim of an end-to-end fetch or
-crash-recovery implementation.
+consumption. Commit `b65b0a9` hardens that boundary with exact cleanup
+identities and process-boundary serialization. BPR-0043 has committed the
+closed protocol-v2 acquisition in `d903290` and native smart-HTTPS lease and
+wire path in `edd762e`; its cache writer, spool producer, pre-import
+observations, and retained refs remain in progress pending their final commit
+and evidence. BPR-0044 must durably store the exact completed-spool,
+expected-pack, pack-inventory, and preexisting-pack facts. BPR-0045 must
+commit that record before local import and enforce the remaining
+ref/catalog/recovery order, and BPR-0047 must select the complete path in the
+public application. Until those slices complete, the architecture above is
+not a claim of an end-to-end fetch or crash-recovery implementation.
 
 ### App-owned bare repository and private refs
 

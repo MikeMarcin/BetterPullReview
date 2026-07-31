@@ -354,6 +354,103 @@ cache identity or reuse, durable journaling/recovery, public composition, or
 target-native Linux/Windows behavior unless it is run on that target. Those
 surfaces remain assigned to later RFC-BPR-0003 cards.
 
+Commit `b65b0a9` extends the same process fixture with exact
+filesystem-identity binding, cross-instance process-boundary serialization,
+and hostile cleanup/replacement cases. In the focused BPR-0043 component
+replay, `git_process_contract` passed together with the four protocol/native
+cases. The guarded Windows implementations remain source-only until
+BPR-0053 runs them on a real Windows x64 machine.
+
+## App-owned Git protocol-v2 contract fixture
+
+`tests/application/git_protocol_v2_tests.cpp` exercises commit `d903290`'s
+Qt-free application client. It validates strict protocol-v2 discovery,
+required `ls-refs`, `fetch`, and object-format capabilities; exact SHA-1 and
+SHA-256 request forms; the accepted base and fixed pull-request-head refs;
+exact advertised OID agreement; deduplicated base/head wants; and bounded
+catalog-visible, object-verified haves from the same repository-cache scope.
+Cross-cache, catalog-invisible, unverified, mixed-format, and excessive haves
+fail before a transport round.
+
+Control replies are complete bounded values. Their decoder rejects an empty
+or greater-than-64-KiB reply, malformed/duplicate capabilities, extra,
+duplicate, missing, or mismatched refs, and unexpected packet markers. Fetch
+uses an incremental parser that is tested with one-byte raw transport
+fragmentation. It accepts one `packfile` section, streams sideband 1 into the
+pack sink, bounds and discards sideband 2, rejects sideband 3 and every other
+channel/section, requires the terminal flush, and aborts the sink exactly once
+on transport, parser, limit, cancellation, or sink failure.
+
+`tests/scripts/git_protocol_boundary_tests.py` proves that the complete
+`acquire_git_protocol_v2_pack` operation is the only public application
+acquisition surface, its raw round helpers have internal linkage, and no other
+production file calls raw smart-transport rounds. The focused
+`application_git_protocol_v2` and `git_protocol_boundary` cases passed after
+`d903290`. They use a scripted transport and pack sink; they do not prove
+native TLS, filesystem cache behavior, durable catalog state, or public
+composition.
+
+## Native Git smart-HTTPS loopback fixture
+
+`tests/github_contract/native_git_smart_transport_tests.cpp` and
+`tests/github_contract/verify_native_git_smart_transport.py` exercise commit
+`edd762e` through the native `QNetworkAccessManager` smart-Git path. The
+verifier creates a disposable CA, starts loopback-only CONNECT proxies, and
+passes one random credential plus the CA to each compiled child over framed
+standard input. No GitHub.com or GHES service is contacted.
+
+The GHES profile runs 19 scenarios: discovery, `ls-refs`, fetch, three
+redirect status variants, HTTP 401/403/503, response-header limit, wrong media
+type, response limit, consumer rejection, direct-to-proxy fallback, timeout,
+cancellation, active-lease revocation, unrelated-lease revocation isolation,
+and active shutdown. The GitHub.com profile separately runs discovery,
+`ls-refs`, and fetch success. These 22 child runs require exactly one CONNECT
+and one origin request apiece. The fixture checks exact route, Host, SNI,
+media types, `Git-Protocol: version=2`, and one Basic Authorization value for
+`x-access-token:<token>` inside TLS. CONNECT receives no Authorization or
+Proxy-Authorization.
+
+The origin distinction is direct evidence: GitHub.com smart Git uses
+`github.com`, not its `api.github.com` REST/GraphQL authority, while GHES uses
+the exact configured enterprise hostname. Discovery and `ls-refs` response
+bodies are retained only within the 64-KiB control limit. Fetch reads are at
+most 16 KiB and are delivered through multiple consumer calls rather than
+retained as one response body.
+
+Production declares a 15-minute smart total deadline and a 30-second
+no-progress idle deadline. The compiled contract asserts the total value, and
+the timeout fixture replaces it with a reduced test-only absolute deadline.
+The fixture does not wait for the production 30-second idle interval, so its
+timeout case is not independent elapsed idle-time evidence. Qt's private
+HTTP, socket, TLS, and proxy-discovery allocations are likewise outside the
+adapter's accepted/retained-byte claims.
+
+The focused `native_git_smart_transport_contract` and
+`native_git_smart_transport_fixture` cases passed after `edd762e`. They prove
+the component wire and lease boundary, not the BPR-0044 durable operation
+record, BPR-0045 orchestration/recovery sequence, BPR-0047 public application
+selection, or BPR-0053 Windows behavior.
+
+## In-progress app-owned cache and retained-ref fixture
+
+The BPR-0043 cache/ref implementation and
+`tests/git_contract/git_cache_contract_tests.cpp` remain uncommitted,
+in-progress work. Their intended direct surface covers the exact opaque
+repository path and manifest, account/profile-revision isolation, one-writer
+lock, request-owned spool receipt, bounded pre-import inventory, local
+credential-free import, paired staging/final refs, cache reuse, hard quotas,
+explicit exact prune/delete, topology drift, and old-head residency after a
+fixture remote force-push and prune. No implementation hash or passing result
+is recorded yet.
+
+Before BPR-0043 closes, the final fixture must prove the chronological
+sequence of observing and retaining the old head before the fixture remote
+removes it, then importing and retaining the replacement while the old remote
+object remains unreachable. A final-state-only remote-absence assertion is
+not sufficient. Any opaque durable-record or intent token in this component
+test is authorization-shape evidence only; BPR-0044 owns persistence and
+BPR-0045 owns journal-before-import and recovery sequencing.
+
 ## Native HTTPS loopback transport fixture
 
 `tests/scripts/verify_native_https_transport.py` drives the compiled

@@ -496,19 +496,30 @@ GET  /<owner>/<repository>.git/info/refs?service=git-upload-pack
 POST /<owner>/<repository>.git/git-upload-pack
 ```
 
-GitHub.com uses the exact `github.com` Git origin. GHES uses the exact
-validated enterprise hostname. The transport sends the protocol-v2 header,
-requires the exact advertisement/request/result media types, uses the
-RFC-BPR-0002 native credential and system trust/proxy policy, disables cookies
-and caching, and rejects every redirect. The mandatory discovery query is an
-original validated request, not a redirected target.
+GitHub.com uses the exact `github.com` Git origin, not the
+`api.github.com` REST/GraphQL authority. GHES uses the exact validated
+enterprise hostname for both its API and smart-Git origins. The transport
+sends the protocol-v2 header, requires the exact
+advertisement/request/result media types, uses the RFC-BPR-0002 native
+credential and system trust/proxy policy, disables cookies and caching, and
+rejects every redirect. The mandatory discovery query is an original
+validated request, not a redirected target.
 
 The current JSON transport and its 4 MiB body ceiling are unchanged. A
-separate streaming smart-transport implementation bounds discovery, packet
-lines, request rounds, request bytes, response/pack bytes, headers, idle and
-total duration, disk growth, and cancellation while applying backpressure.
-It emits fixed typed failures and never retains raw server, TLS, proxy, Git,
-path, or credential text in diagnostics.
+separate smart transport reads response data in fixed chunks. Discovery and
+`ls-refs` are control rounds: each complete reply is bounded to 64 KiB and is
+retained before the application protocol parser validates it. Fetch is
+different: each native read is at most 16 KiB and is forwarded immediately to
+the incremental pkt-line/sideband consumer rather than accumulated as a
+complete response body. The production smart-operation deadline is 15
+minutes, with a 30-second no-progress idle deadline reset by admitted upload
+or download progress. Request rounds, request bytes, response/pack bytes,
+headers, packet counts, progress, disk growth, and cancellation are
+independently bounded while fetch applies backpressure. These bounds describe
+bytes accepted and retained by BetterPullReview, not an exact cap on Qt's
+private TLS, socket, or HTTP-parser allocations. The transport emits fixed
+typed failures and never retains raw server, TLS, proxy, Git, path, or
+credential text in diagnostics.
 
 The bounded application protocol client validates the discovery capability
 advertisement, then constructs—not rewrites—an exact protocol-v2 `ls-refs`
@@ -544,12 +555,14 @@ private request-owned spool
 discarded; sideband 3 is a fixed typed failure. Packet counts, payloads,
 progress, and complete response bytes are bounded before disk admission.
 
-The host validates the pack header, repository-format trailer checksum, and
-operation byte limit; durably renames the completed spool; and records the
-exact pack identity, a bounded pre-import pack-directory inventory, and
-whether that final pack already existed in the typed catalog operation. Only
-then is the validated spool streamed to installed Git. The fixed ingestion
-command is equivalent to:
+The BPR-0043 cache/ref contract validates the pack header,
+repository-format trailer checksum, and operation byte limit; publishes the
+completed spool; and exposes opaque receipt and pre-import-observation values
+for the exact pack identity, bounded pack-directory inventory, repository
+size, and preexisting-pack fact. It does not make those facts durable.
+BPR-0044 must record them in the typed catalog operation, and BPR-0045 must
+prove that exact durable record before the validated spool can be streamed to
+installed Git. The fixed ingestion command is equivalent to:
 
 ```text
 git -c core.fsync=all
@@ -569,12 +582,12 @@ The client never requests a thin pack, so `--fix-thin` is absent. `--keep`,
 exclusive cache lock and disabled repack/maintenance/GC eliminate the race
 for which `index-pack --keep` is intended. Standard output must be exactly one
 validated `pack` result for the repository's object format; standard error is
-bounded and reduced to fixed diagnostics. The host records the exact pack
-identity agreement and immediately creates the paired staging refs after
-independently verifying the accepted commits and object closure. It then
-exact-deletes the request spool. A crash cannot create an unowned final pack:
-the durable operation already identifies the expected pack and preexisting
-state before `index-pack` starts.
+bounded and reduced to fixed diagnostics. The cache/ref contract can verify
+exact pack-identity agreement, accepted commits, object closure, and paired
+staging/ref transactions only after receiving the typed authorizations that
+later catalog and host slices must issue. BPR-0045 owns the journal-before-
+`index-pack` and ref/catalog sequencing that makes interruption recoverable.
+The component contracts alone are not crash-recovery evidence.
 
 The adapter performs a fixed version/capability probe and supports Git 2.39 or
 newer only when this exact `index-pack`, object-inspection, and ref-transaction
@@ -612,16 +625,21 @@ transport resources underneath that ownership. BPR-0045 owns final composed
 lifecycle ordering. No privileged helper, daemon, service, listener, or
 weakened platform-security setting is introduced.
 
-BPR-0042 implements only this credential-free local process boundary and the
-exact secure consumption of
-`incoming/v1/<64-lowercase-hex-operation-id>.pack.part`. BPR-0043 owns the
-app-owned protocol-v2/native-HTTPS path, cache creation and locking, spool
-creation and completed-pack validation, pre-import pack inventory, and
-retained refs. BPR-0044 owns the durable operation record containing the
-spool identity/size, expected pack, inventory, and preexisting-pack fact.
-BPR-0045 must persist that record before invoking `index-pack` and owns the
-remaining import/ref/catalog/recovery sequence. Passing the local
-BPR-0042 contract is not evidence that those later surfaces exist.
+BPR-0042 implements the credential-free local process boundary and exact
+secure consumption of
+`incoming/v1/<64-lowercase-hex-operation-id>.pack.part`; commit `b65b0a9`
+additionally binds cleanup to exact filesystem identities and serializes
+process-boundary mutation. BPR-0043 has committed the bounded application
+protocol client in `d903290` and native smart-HTTPS transport in `edd762e`.
+Its cache creation, locking, spool production, pre-import observation, and
+retained-ref implementation remains in progress until its final code and
+direct evidence are committed. BPR-0044 owns the durable operation record
+containing the spool identity/size, expected pack, inventory, and
+preexisting-pack fact. BPR-0045 must persist that record before invoking
+`index-pack` and owns the remaining import/ref/catalog/recovery sequence.
+BPR-0047 owns public composition. Passing these component contracts is not
+evidence that durable orchestration, crash recovery, or the selected
+application path exists.
 
 ## Catalog and recoverable commit protocol
 

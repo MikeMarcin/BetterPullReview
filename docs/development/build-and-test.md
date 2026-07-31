@@ -851,6 +851,61 @@ BPR-0044 journal recovery, BPR-0047 public composition, target-native Linux
 behavior when run on macOS, or the BPR-0053 Windows process/Job Object/path
 surface.
 
+Commit `b65b0a9` retains that boundary while binding cleanup decisions to
+exact filesystem identities, serializing process-boundary mutation across
+adapter instances, and adding hostile replacement/cleanup cases. It does not
+turn process-only evidence into cache, transport, recovery, or Windows
+evidence.
+
+For the committed BPR-0043 protocol-v2 and native smart-HTTPS components, run:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_application_git_protocol_v2_tests \
+  better_pull_review_native_git_smart_transport_tests \
+  better_pull_review_git_process_contract_tests
+ctest --preset dev --output-on-failure \
+  -R '^(application_git_protocol_v2|git_protocol_boundary|native_git_smart_transport_(contract|fixture)|git_process_contract)$'
+```
+
+The five-case focused replay after commits `d903290`, `edd762e`, and
+`b65b0a9` passed 5/5: `git_protocol_boundary`,
+`application_git_protocol_v2`, `native_git_smart_transport_contract`,
+`native_git_smart_transport_fixture`, and `git_process_contract`. The
+application tests cover the closed discovery/`ls-refs`/fetch sequence, exact
+refs and OIDs, same-cache verified haves, object-format agreement, response
+section and sideband grammar, arbitrary raw chunk fragmentation, bounds,
+cancellation, and one-time pack-sink abort. The source boundary prevents
+other production code from bypassing that complete acquisition through raw
+smart-transport rounds.
+
+The native loopback verifier runs 19 scenarios against the synthetic GHES
+profile and the discovery, `ls-refs`, and fetch success subset against the
+GitHub.com profile, for 22 isolated child runs. It directly checks one exact
+CONNECT and TLS origin request, SNI/Host, route, media types,
+`Git-Protocol: version=2`, and Basic authorization formed from
+`x-access-token:<token>`. The proxy receives no authorization, and no GitHub
+or GHES service is contacted. GitHub.com smart Git uses `github.com`, whereas
+its REST/GraphQL authority remains `api.github.com`; GHES smart Git uses its
+exact configured hostname.
+
+Discovery and `ls-refs` control replies are read in chunks but retained only
+within the 64-KiB whole-reply limit. Fetch is not retained as one body: native
+reads are at most 16 KiB and are delivered to the incremental consumer. The
+production smart total deadline is 15 minutes and its no-progress idle
+deadline is 30 seconds. The contract asserts the total policy and the fixture
+exercises a reduced test-only absolute deadline; it does not wait 30 seconds
+to establish independent elapsed idle-time evidence. Do not describe the
+fixture timeout case as such evidence.
+
+These commands verify only the committed application-protocol, native-wire,
+and installed-Git component boundaries. The BPR-0043 cache/ref adapter remains
+in progress until its code and direct evidence are committed. BPR-0044 still
+owns durable operation facts, BPR-0045 owns journal-before-`index-pack` and
+ref/catalog orchestration, BPR-0047 owns public composition, and BPR-0053 owns
+target-native Windows execution. No result above proves crash recovery,
+durable authorization, or selection by the BetterPullReview executable.
+
 ## Troubleshooting and safe verification
 
 - A GitHub CLI profile is visible but unavailable by design in milestone one.
