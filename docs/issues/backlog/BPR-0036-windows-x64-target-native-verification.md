@@ -19,19 +19,16 @@ scope, exercise the public application fixture, and inspect the selected PE
 imports and runtime dependencies. Retain only secret-free commands, fixed
 output, and inspection evidence.
 
-Complete the Windows GitHub CLI process boundary before assigning any
-Windows runner claim: compare the raw child environment including explicit
-empty `PATH` and selected `SystemRoot`, exercise valid and invalid `.exe`
-startup, contain the complete descendant tree in a kill-on-close Job Object,
-prove timeout/cancellation leaves no child or descendant, suppress
-crash/core-diagnostic artifacts, and establish a hard in-flight
-stdout/stderr memory bound that does not rely on Qt's uncapped Windows pipe
-reader. If any of those properties remains unproved, keep Windows CLI process
-execution unavailable; the native HTTPS path is independent.
+GitHub CLI process execution is not part of this card. Milestone one keeps
+every CLI selection fixed at zero-launch `cli_unavailable` on all platforms.
+If the upstream safety and identity contract ever becomes eligible,
+RFC-BPR-0015 owns exact-environment, image, working-directory, Job Object,
+descendant, PID, crash-artifact, stream-bound, redirect, configuration, and
+account-binding evidence before any Windows CLI claim.
 
 This card intentionally owns every deferred RFC-BPR-0002 Windows x64
 target-native claim. Cross-compilation, mocks, another operating system, and
 GitHub Actions are not acceptable substitutes. Its open state does not block
 implementation, tests, documentation, security review, or simplification on
-the other available targets; it blocks only the affected Windows claims and
-RFC-BPR-0002 closeout.
+the other available targets or later RFC work; it blocks only the affected
+Windows claims and final RFC-BPR-0002 Auto-Verified closeout.

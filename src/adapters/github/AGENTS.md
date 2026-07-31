@@ -21,13 +21,22 @@ the functional core or Qt presentation adapter.
   config-directory, debug, pager/editor/browser, TTY/color override, update,
   spinner, prompt, or arbitrary parent variables.
 - Compile only the closed `gh api` argument shape from a revalidated canonical
-  read request. The current production trust gate remains
-  `cli_unavailable`: production cannot bind the launched bytes to the reviewed
-  executable digest; selected `gh` 2.95.0 follows cross-authority redirects,
-  can honor ambient persisted `http_unix_socket` configuration, and has no
-  per-invocation account selector that binds the child to the correlated
-  credential generation. A fake child or native HTTPS evidence must never
-  enable CLI mode.
+  read request. Native HTTPS is the sole milestone-one production
+  authentication transport. CLI profile choices remain visible but always
+  return fixed typed `cli_unavailable` with zero CLI
+  executable/configuration discovery or CLI process launch. Keep all eight
+  reasons explicit: milestone-one product-scope deferral, executable-image
+  identity, cross-authority redirect behavior, ambient configuration,
+  credential/account identity, working-directory identity,
+  descendant-process containment, and numeric PID/process-group identity
+  reuse. Positive CLI enablement belongs to RFC-BPR-0015.
+- Keep the CLI trust gaps as real evidence, not telemetry-only assumptions.
+  The official `gh` 2.96.0 binary followed a cross-authority `302`, honored
+  persisted `http_unix_socket` for `gh api`, and routed an authenticated
+  request through an AF_UNIX sentinel. `gh api` has no per-invocation
+  `--user`; `gh auth token --user` exposes the token and
+  `gh auth switch --user` mutates persisted active-account state. A fake child
+  or native HTTPS evidence must never enable CLI mode.
 - Keep native HTTPS execution in `src/native_https_transport.cpp`; it is the
   only GitHub source permitted to use `QNetworkAccessManager`.
 - Keep native HTTPS on its dedicated worker with manager-local ordered system
@@ -38,7 +47,7 @@ the functional core or Qt presentation adapter.
   automatic content decoding, credential persistence, or unbounded reads. The
   loopback proxy and fixture-CA seam must remain private to test-enabled
   builds; Qt-owned Authorization and parser buffers are not claimed precisely
-  wipeable or hard-bounded.
+  wipeable or hard-bounded. Query-bearing redirects fail closed.
 - Keep macOS Security framework effects in `src/macos_keychain.cpp`. Its v2
   contract is the exact default file-based Keychain, one generic-password
   item, and noninteractive `SecItem` operations. Do not add data-protection,
@@ -92,3 +101,5 @@ the functional core or Qt presentation adapter.
 - Add effectful sources explicitly to this directory's CMake target. Do not
   move provider effects into the application host, Qt adapter, or composition
   root.
+- Do not add GitHub Actions for configuration, build, test, package, release,
+  or verification. Those surfaces remain local or target-native.

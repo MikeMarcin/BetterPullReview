@@ -1087,6 +1087,8 @@ auto test_transport_is_fixed_unavailable_without_process_execution() -> void
         gh_cli_transport transport{*profile, *configuration, process};
         const std::array expected_reasons{
             gh_cli_availability_reason::
+                milestone_one_product_scope_deferred,
+            gh_cli_availability_reason::
                 executable_identity_unverifiable,
             gh_cli_availability_reason::
                 cross_authority_redirect_unverifiable,
@@ -1094,10 +1096,16 @@ auto test_transport_is_fixed_unavailable_without_process_execution() -> void
                 ambient_configuration_unverifiable,
             gh_cli_availability_reason::
                 credential_identity_binding_unverifiable,
+            gh_cli_availability_reason::
+                working_directory_identity_unverifiable,
+            gh_cli_availability_reason::
+                descendant_process_containment_unverifiable,
+            gh_cli_availability_reason::
+                numeric_process_identity_reuse_unverifiable,
         };
         expect(
             transport.availability_reasons() == expected_reasons,
-            "transport exposes every fixed selected-CLI trust blocker");
+            "transport exposes the M1 deferral and every CLI trust blocker");
         for(const auto operation : read_operation_catalog)
         {
             const auto request = wire_request_for(*profile, operation);

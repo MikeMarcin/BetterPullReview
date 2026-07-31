@@ -233,7 +233,8 @@ zero launches.
 Reads use a fixed buffer and request at most the remaining retained bound plus
 one byte. This does not prove a hard cap on Qt's private in-flight pipe
 allocation. Windows Job Object descendant containment, private pipe bounds,
-and target-native behavior remain open in BPR-0036.
+and target-native CLI behavior are deferred to RFC-BPR-0015. BPR-0036 retains
+the Windows native-HTTPS, vault, and composed-public-path fixtures.
 
 The invocation fixture compiles every selected GitHub.com and GHES 3.18 read
 operation. It checks exact REST-prefix removal, literal GraphQL routing,
@@ -265,37 +266,48 @@ source establishes that relative production endpoints use the same Go
 client. This is exact-binary behavior characterization, not exact
 production-authority proof.
 
-The selected macOS `gh` 2.95.0 binary, SHA-256
+The current selection is the official macOS arm64 `gh` 2.96.0 release dated
+2026-07-02. Its downloaded ZIP SHA-256 was
+`f23a0c37d963aacc3bed703ccbd59b41c5ca22101fab7f00eb2b7cad23aba463`,
+and the extracted binary SHA-256 was
+`b1d6c442fde99ca27c04e1e74d624895abe37785f4a3e9e9b684bf7586ce4bc8`.
+It produced one bad-certificate alert with zero HTTP requests but followed the
+cross-authority `302` once. Its selected origin received the exact 47-byte body
+and synthetic authorization; the distinct sink received neither. The `307`
+and `308` origins received both, while their sinks were not observed and
+therefore remain unproven rather than accepted as redirect rejection. The
+installed macOS `gh` 2.95.0 binary, SHA-256
 `798882434e7f6ae5846194191263ecc59d56bc201f13f016270f44cb4f34499e`,
-produced one bad-certificate alert with zero HTTP requests but followed the
-cross-authority `302` once. Its selected origin received the exact 47-byte
-body and synthetic authorization; the distinct sink received neither. The
-`307` and `308` origins received both, while their sinks were not observed
-and therefore remain unproven rather than accepted as redirect rejection.
-The `302` is direct evidence that the selected CLI cannot satisfy the
-no-cross-authority contract, not a successful broker trust result. The
-temporary executable and configuration are verification-only and removed
-after the probe; production never admits `GH_CONFIG_DIR`.
+was rerun and produced the same material outcomes.
 
-The fixed production gate also records three independent source-backed
-blockers. Production's canonical path/name validation does not bind the
-eventually launched image to the probe's exact copied-byte digest across a
-replacement or update race. Persisted CLI configuration can select
-`http_unix_socket` through the platform home/application-data path, and
-`gh api --hostname` has no per-invocation account selector that binds it to
-the request's correlated credential identity generation. An external
-`gh auth switch` can change the active account for that host. The fake
-successful child still makes zero production calls because
-executable-identity, redirect, ambient-configuration, and credential-identity
-trust must all be established independently. BPR-0037 owns that
-production-enablement work together with owner/permission and
-validation-to-launch binding for the canonical/currently non-repository
-working directory, Unix descendant escape from the initial process group, and
-binding PID/process-group identity across cleanup so a reused numeric group
-cannot receive a late signal. The current group signaling is not claimed
-race-free. It must also bind selected Linux CA-file/CA-directory identity and
-contents through the CLI's later open and directly prove hostile replacement
-and content mutation fail closed.
+The fixture separately proves that persisted `http_unix_socket` is an active
+transport setting. For both selected binaries it verifies that the private
+configuration was loaded, then observes one exact authenticated `gh api`
+request through an AF_UNIX sentinel with the expected synthetic Authorization
+value. This evidence must not be reduced to a telemetry concern. The temporary
+executables and configurations are verification-only and removed after the
+probe; production never admits `GH_CONFIG_DIR`.
+
+Selected command/source inspection records that `gh api` exposes no
+per-invocation `--user`, `gh auth token --user` reveals credential material,
+and `gh auth switch --user` mutates persistent active-account state. The
+selected source also resolves `ActiveToken` per round trip, falls back from a
+keyring error to a blank-host token, and launches `/usr/bin/security` through
+the macOS keyring implementation. Production path/name validation cannot bind
+an eventually launched image to the exact copied-byte digest across
+replacement or update; CA paths cannot bind later-opened contents; working
+directory identity is not bound through launch; Unix descendants can escape
+the initial process group; and reused numeric PID/process-group identities can
+receive later signals.
+
+Milestone one keeps native HTTPS as the sole production authentication
+transport. The fixed CLI gate reports eight typed reasons: product-scope
+deferral, executable-image identity, cross-authority redirect behavior,
+ambient configuration, credential/account identity, working-directory
+identity, descendant containment, and numeric PID/process-group identity
+reuse. A fake successful child still receives zero calls, and the public path
+returns `cli_unavailable` with zero process launches. RFC-BPR-0015 owns any
+future positive CLI enablement.
 
 ## Native HTTPS loopback transport fixture
 
@@ -386,9 +398,9 @@ so functional evidence comes from the uninstrumented passes and the
 single-success trace proves only dependency selection. Source and generated
 build contained no workflow files or GitHub Actions references.
 
-Windows execution remains BPR-0036 work and is nonblocking for the other
-slices; it blocks only affected Windows claims and final RFC-BPR-0002
-closeout.
+Windows execution remains BPR-0036 work and is nonblocking for all other
+slices and later-RFC work; it blocks only affected Windows claims and final
+RFC-BPR-0002 Auto-Verified closeout.
 
 BPR-0030 extends the current verifier to 32 scenarios without changing the
 frozen 15-case BPR-0026 evidence above. The added `same-query-redirect`
@@ -544,9 +556,13 @@ system-Dark startup and controlled loaded-process appearance response; a real
 operating-system Light startup and live system toggle remain distinct native
 evidence.
 
-The production CLI choices are tested separately through `--self-test`.
-Selecting the visibly unavailable CLI profile must publish the bounded
-`cli_unavailable` presentation and make zero process launches.
+The tests-disabled `--self-test` selects the built-in GitHub.com CLI profile
+and requires the bounded `cli_unavailable` presentation. Provider counters
+independently require zero transport-factory and effect calls, and the CLI
+transport contract proves a fake successful process port receives zero calls.
+The optional GHES CLI profile follows the same source path but is not claimed
+as a second end-to-end selection case. Native HTTPS remains the sole
+milestone-one production authentication transport.
 
 The fixture implementation, command-line parser branch, vault, recordings,
 paths, labels, and evidence strings exist only when `BPR_BUILD_TESTS=ON`.
@@ -554,7 +570,9 @@ paths, labels, and evidence strings exist only when `BPR_BUILD_TESTS=ON`.
 tree and inspects its public header, compile commands, build graph, and raw
 application bytes. It fails if the fixture translation unit, test
 definitions, fixture argument/status strings, recorded label/identity, fixture
-paths, or fixture-access symbols survive.
+paths, or fixture-access symbols survive. It also rejects CLI process-runner
+factory symbols and requires production to compose only the native wire
+transport factory.
 
 The macOS current-tree public fixture runs passed for both profiles and
 reported the fixed success markers above. The current-tree Linux v2 run also

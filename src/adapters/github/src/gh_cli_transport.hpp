@@ -159,10 +159,14 @@ using gh_cli_invocation_result = std::expected<
 
 enum class gh_cli_availability_reason : std::uint8_t
 {
+    milestone_one_product_scope_deferred,
     executable_identity_unverifiable,
     cross_authority_redirect_unverifiable,
     ambient_configuration_unverifiable,
     credential_identity_binding_unverifiable,
+    working_directory_identity_unverifiable,
+    descendant_process_containment_unverifiable,
+    numeric_process_identity_reuse_unverifiable,
 };
 
 class gh_cli_transport final : public github_wire_transport_port
@@ -174,7 +178,7 @@ public:
         github_cli_process_port& process);
 
     [[nodiscard]] auto availability_reasons() const noexcept
-        -> std::array<gh_cli_availability_reason, 4>;
+        -> std::array<gh_cli_availability_reason, 8>;
 
     [[nodiscard]] auto perform(
         const github_wire_request& request,

@@ -13,9 +13,11 @@ composition and rendered application, verify target-native credential adapters
 and secret-free evidence, review the final diff skeptically, resolve every
 documentation-ledger entry, and move every RFC card to `done/`.
 
-Mark RFC-BPR-0002 Auto-Verified only when GitHub.com, recorded GHES 3.18, CLI
-broker, native HTTPS, all three native credential stores, core/host/Qt
-boundaries, security assertions, documentation, and tracker state agree.
+Mark RFC-BPR-0002 Auto-Verified only when GitHub.com, recorded GHES 3.18,
+native HTTPS, all three native credential stores, the fixed zero-launch CLI
+boundary, core/host/Qt boundaries, security assertions, documentation, and
+tracker state agree. Positive GitHub CLI execution is deferred to
+RFC-BPR-0015 and is not a closeout criterion.
 
 Every passing claim must name a reproducible command or interaction, a
 falsifiable success condition, and retained secret-free evidence. Closeout
@@ -23,3 +25,9 @@ also requires fresh `dev` and `core-only` matrices, target-native builds and
 network/vault checks, architecture/runtime/binary-dependency gates,
 documentation validation over the immutable RFC base, fixture and mutation
 audits, source-pack validation, and `git diff --check`.
+
+The product-owner-approved Windows deferral does not block available-target
+implementation, security review, documentation, simplification, or work on
+later RFCs. BPR-0036 remains open until its real-machine evidence exists and
+therefore blocks only the affected Windows claims and this final
+Auto-Verified transition.

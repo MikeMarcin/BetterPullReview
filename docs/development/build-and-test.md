@@ -115,7 +115,13 @@ ctest --test-dir build/dev --output-on-failure \
 tree. It proves the public application header has no testing conditional and
 the Release compile commands, build graph, symbols, and raw executable bytes
 contain no fixture translation unit, macro, argument, label, path, or evidence
-string.
+string. It also requires production to compose only
+`native_github_wire_transport_factory` and rejects CLI process-runner factory
+symbols in the application. The tests-disabled `--self-test` selects the
+built-in GitHub.com CLI profile and requires `CLI_UNAVAILABLE_OK`; provider
+counter tests prove the CLI rejection makes zero transport-factory or effect
+calls, while the transport contract proves a fake successful process port
+still receives zero calls.
 
 On macOS, the fake-backed contract test is non-mutating. The native fixture
 creates, replaces, retrieves, and deletes one disposable generic-password item
@@ -270,8 +276,12 @@ ctest --test-dir build/dev --output-on-failure \
 
 The transport test checks the closed operation-to-argument translation,
 complete requested child-environment allowlist, canonical directory currently
-outside repository ancestry, request correlation, four typed trust blockers,
-and the fixed zero-process `cli_unavailable` gate. The runner test uses
+outside repository ancestry, request correlation, all eight typed
+unavailability reasons, and the fixed zero-process `cli_unavailable` gate.
+The first reason is the milestone-one product-scope deferral; the remaining
+seven preserve the executable-image, cross-authority redirect, ambient
+configuration, credential/account, working-directory, descendant-containment,
+and numeric PID/process-group-reuse findings. The runner test uses
 same-executable child modes to exercise standard input, retained-output
 limits, both output streams, deadline, cancellation, process failure, and
 reaping without a shell. On Unix, direct child observation proves closed
@@ -300,16 +310,33 @@ inspection must find no addition. These checks bound retained bytes and every
 read requested through the public Qt API; Qt does not expose a cap for its
 private in-flight pipe buffers, so do not describe those internal allocations
 as hard-bounded. Windows Job Object descendant containment, private pipe
-allocation, and target-native runner behavior remain BPR-0036 work.
+allocation, and target-native CLI runner behavior are deferred to
+RFC-BPR-0015. BPR-0036 retains the Windows native-HTTPS, vault, and public-path
+checks.
 
 The selected-binary trust probe is separate and loopback-only:
 
 ```sh
+bpr_gh_audit_root="$(mktemp -d "${TMPDIR:-/tmp}/bpr-gh-audit.XXXXXX")"
+curl --fail --location \
+  --output "$bpr_gh_audit_root/gh_2.96.0_macOS_arm64.zip" \
+  https://github.com/cli/cli/releases/download/v2.96.0/gh_2.96.0_macOS_arm64.zip
+(
+  cd "$bpr_gh_audit_root"
+  printf '%s  %s\n' \
+    f23a0c37d963aacc3bed703ccbd59b41c5ca22101fab7f00eb2b7cad23aba463 \
+    gh_2.96.0_macOS_arm64.zip |
+    shasum -a 256 --check
+)
+ditto -x -k \
+  "$bpr_gh_audit_root/gh_2.96.0_macOS_arm64.zip" \
+  "$bpr_gh_audit_root/unpacked"
 python3 tests/scripts/verify_gh_cli_trust.py \
-  --gh /opt/homebrew/bin/gh \
-  --expect-version 2.95.0 \
+  --gh "$bpr_gh_audit_root/unpacked/gh_2.96.0_macOS_arm64/bin/gh" \
+  --expect-version 2.96.0 \
   --expect-sha256 \
-  798882434e7f6ae5846194191263ecc59d56bc201f13f016270f44cb4f34499e
+  b1d6c442fde99ca27c04e1e74d624895abe37785f4a3e9e9b684bf7586ce4bc8
+rm -r -- "$bpr_gh_audit_root"
 ```
 
 It copies the selected executable into an owner-private temporary directory,
@@ -324,34 +351,51 @@ as `--hostname`, the synthetic `github.com` startup hostname remains in this
 fixture. Treat the loopback result as exact-binary, source-backed redirect
 characterization, never as exact production-authority proof.
 
-For the recorded binary, the expected result is one fixed bad-certificate TLS
-alert with zero HTTP requests; a followed cross-authority `302` whose origin
-receives the 47-byte body and authorization while its sink receives neither;
-`307` and `308` origins reached with sink behavior
-`not-observed-unproven`; and `broker-availability: unavailable`. A different
-binary digest requires a fresh review; do not drop the expected digest and
-inherit this result.
+The current audit selected the official `gh` 2.96.0 release dated 2026-07-02.
+The downloaded macOS arm64 ZIP SHA-256 was
+`f23a0c37d963aacc3bed703ccbd59b41c5ca22101fab7f00eb2b7cad23aba463`,
+and the extracted binary SHA-256 was the value passed above. The expected
+result is one fixed bad-certificate TLS alert with zero HTTP requests; a
+followed cross-authority `302` whose origin receives the 47-byte body and
+authorization while its sink receives neither; `307` and `308` origins
+reached with sink behavior `not-observed-unproven`; and
+`broker-availability: unavailable`. The installed `gh` 2.95.0 binary,
+SHA-256
+`798882434e7f6ae5846194191263ecc59d56bc201f13f016270f44cb4f34499e`,
+was rerun and produced the same material outcomes. A different binary digest
+requires a fresh review; never omit the expected digest and inherit a prior
+result.
 
-Redirect behavior is only one of four fixed production blockers. The direct
-probe binds its result to exact copied bytes, while production's canonical
-path/name validation cannot yet bind those bytes through replacement or
-update races to the image actually launched. Official
-CLI configuration permits persisted `http_unix_socket`, which remains
-ambient when the child receives its selected home/application-data path.
-Canonical Linux `SSL_CERT_FILE`/`SSL_CERT_DIR` strings do not bind CA
-file/directory identity or contents through the CLI's later open. Also,
-`gh api --hostname` has no per-invocation account selector and can use an
-account changed independently by `gh auth switch`, so it cannot bind the child
-to the request's credential identity generation. All four reasons must be
-eliminated or directly bound under BPR-0037 before CLI mode can start a
-process. BPR-0037 must also bind an owner-controlled working-directory
-identity across launch, close directory permission/repository-creation and
-replacement races, prove hostile CA-file/CA-directory replacement and content
-mutation fail closed, and contain or fail closed for a Unix descendant that
-moves out of the initial process group. It must also bind PID/process-group
-identity through cleanup or otherwise eliminate numeric `kill(-pgid, ...)`
-reuse risk after leader exit; the current group signaling is not claimed
-race-free.
+The probe also writes a private `http_unix_socket` setting, verifies that the
+CLI loaded it, and performs the exact authenticated `gh api` request against
+an AF_UNIX sentinel. The required secret-free markers are:
+
+```text
+http-unix-socket-config-loaded: yes
+http-unix-socket-api-accepts: 1
+http-unix-socket-api-http-requests: 1
+http-unix-socket-api-authorization-exact: yes
+```
+
+These markers demonstrate that persisted `http_unix_socket` actively reroutes
+`gh api`; it is not telemetry-only. Canonical
+`SSL_CERT_FILE`/`SSL_CERT_DIR` strings still do not bind CA identity or
+contents through the CLI's later open. The current `gh api` exposes no
+per-invocation `--user`; `gh auth token --user` reveals the token and is
+prohibited, while `gh auth switch --user` mutates persisted active-account
+state. Source review additionally records per-round-trip `ActiveToken`
+selection, keyring-error fallback to a blank-host token, and the macOS keyring
+launch of `/usr/bin/security`.
+
+Milestone one does not positively enable CLI transport. Native HTTPS is the
+sole production authentication transport, and visible CLI choices return
+fixed `cli_unavailable` with zero process launches. The transport reports
+eight reasons: product-scope deferral plus executable-image identity,
+cross-authority redirect behavior, ambient configuration, credential/account
+identity, working-directory identity, descendant containment, and numeric
+PID/process-group identity reuse. RFC-BPR-0015 owns any future enablement and
+must directly close all eight conditions without a privileged helper, weakened
+security, or GitHub Actions.
 
 For the BPR-0026 native HTTPS internal wire transport, build the contract
 executable and run the contract plus target-native loopback fixture:
@@ -487,8 +531,8 @@ verification.
 Windows 10/11 x64 execution, TLS/proxy/dependency inspection, and fixture
 registration remain BPR-0036 work. The open Windows task is nonblocking for
 macOS/Linux implementation, tests, documentation, security review, and
-simplification; it blocks only affected Windows claims and RFC-BPR-0002
-closeout.
+simplification or later-RFC work; it blocks only affected Windows claims and
+final RFC-BPR-0002 Auto-Verified closeout.
 
 `verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
 binary-dependency script also supports all three platforms, using `dumpbin` on

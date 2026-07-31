@@ -12,7 +12,10 @@ pack_version: 2
 
 ## Summary
 
-Add GitHub.com and GHES 3.18-compatible host profiles, authentication transports, capability probing, and normalized read models without exposing credentials to unrelated subsystems.
+Add GitHub.com and GHES 3.18-compatible host profiles, native HTTPS
+authentication, capability probing, and normalized read models without
+exposing credentials to unrelated subsystems. GitHub CLI choices remain
+visible but fixed at a zero-process `cli_unavailable` result.
 
 
 ## Motivation
@@ -23,7 +26,9 @@ BetterPullReview must operate against both GitHub.com and an older corporate GHE
 
 - Implement explicit host profiles for GitHub.com and GHES.
 - Support GHES 3.18 as the minimum contract target.
-- Provide a GitHub CLI broker mode and a native HTTPS mode.
+- Use native HTTPS as the only production authentication transport in M1.
+- Keep GitHub CLI choices visible and fail them closed before starting a
+  process.
 - Normalize REST and GraphQL responses into stable internal models.
 - Probe and cache host capabilities rather than assuming feature presence.
 - Build a read-only vertical slice that opens PR metadata and conversations.
@@ -37,7 +42,11 @@ BetterPullReview must operate against both GitHub.com and an older corporate GHE
 ## Architectural allocation
 
 - **Core:** owns host/account identity in interaction state, semantic open/refresh intents, capability-dependent command legality, completion acceptance, and structured authentication/capability diagnostics based on bounded observations. It does not know REST, GraphQL, URLs, tokens, `gh`, `QNetworkAccessManager`, or credential-vault APIs.
-- **Host:** owns GitHub provider ports, CLI/native transports, credentials, proxy/trust behavior, request execution, retries, rate-limit state, capability caches, normalized records, and identity-sensitive invalidation. Provider completions return as revisioned/generation-tagged events.
+- **Host:** owns GitHub provider ports, native HTTPS, the fixed
+  CLI-unavailable boundary, credentials, proxy/trust behavior, request
+  execution, retries, rate-limit state, capability caches, normalized records,
+  and identity-sensitive invalidation. Provider completions return as
+  revisioned/generation-tagged events.
 - **Qt adapter:** owns host/account configuration controls, authentication prompts, capability/error presentation, and action state. It never receives a token or calls a provider directly.
 - **Flow:** an `open_pull_request_intent` is decided by the core, becomes a typed fetch/probe request, is performed by the host, and returns a normalized snapshot event that the core accepts before Qt receives projections.
 
@@ -49,13 +58,39 @@ REST supplies the broad baseline. GraphQL is limited to review-thread and viewed
 
 ## Authentication
 
-### GitHub CLI broker
+### GitHub CLI choices
 
-BetterPullReview invokes `gh api` or equivalent official CLI surfaces without extracting a token. It uses stdin for bodies, disables prompts, validates executable identity/path, bounds output, and redacts diagnostics.
+M1 may present GitHub CLI choices so the product's intended authentication
+surface is explicit, but selecting any of them must return the stable
+`cli_unavailable` diagnostic before any CLI executable or configuration
+discovery or CLI process creation. No `gh` process, credential helper, shell,
+or other descendant may start.
+Positive CLI enablement is neither an RFC-BPR-0002 acceptance criterion nor a
+closeout blocker.
+
+Production CLI enablement is deferred to
+[RFC-BPR-0015](future/RFC-BPR-0015-github-cli-production-enablement.md),
+which is outside the canonical fourteen-RFC pack and depends on missing
+upstream guarantees. Until that RFC is eligible and Auto-Verified, the
+zero-launch result is permanent rather than a best-effort fallback. A future
+implementation must not extract a token, add a listener or service, require a
+privileged helper, or substitute a patched CLI.
 
 ### Native HTTPS
 
-The direct transport uses system trust/proxy configuration and native credential vaults. No certificate-error bypass exists. A provider interface ensures the rest of the product does not care which transport was selected.
+The direct transport is the only production authentication transport in M1.
+It uses system trust/proxy configuration and native credential vaults. No
+certificate-error bypass exists. Redirects to an unknown authority are
+rejected before credentials or request bodies can be forwarded, and every
+query-bearing redirect fails closed even when it names the configured
+authority. A provider interface keeps transport details out of the core and Qt
+adapter.
+
+## Build and verification ownership
+
+Build, test, package, release, and verification work is local or
+target-native. GitHub Actions has no role in RFC-BPR-0002 and cannot replace
+direct application, transport, vault, or process-boundary evidence.
 
 ## Acceptance criteria
 
@@ -64,7 +99,11 @@ The direct transport uses system trust/proxy configuration and native credential
 - Capability probing reports review threads, viewed-file mutations, resolve/unresolve, and unsupported features accurately.
 - The UI presents clear authentication, permission, network, API-version, and capability failures.
 - Canary credentials do not appear in logs, process arguments, diagnostics, SQLite, or UI error text.
-- The provider rejects unknown redirect hosts and certificate failures.
+- Every visible GitHub CLI choice produces `cli_unavailable` without CLI
+  executable or configuration discovery, process creation, or descendants.
+- The native provider rejects certificate failures, unknown-authority
+  redirects before forwarding credentials or bodies, and all query-bearing
+  redirects.
 - Switching host or account invalidates all identity-sensitive caches and projections.
 - Core tests run with no Qt/network/credential implementation, host tests use fake transports and reordered completions, and Qt tests prove event translation and capability-driven action state without credential access.
 
@@ -73,8 +112,10 @@ The direct transport uses system trust/proxy configuration and native credential
 | Claim | Direct surface | Proof |
 |---|---|---|
 | GHES 3.18 path selected | Real provider facade with recorded contract | Inspect request/version/capability trace and normalized result |
-| `gh` broker owns credential | Child-process integration | Canary token remains absent from parent process and logs |
+| Native HTTPS is the M1 production transport | Public application composition | Select GitHub.com and GHES profiles and observe native request/vault routing |
+| CLI choices are zero-launch | Public self-test, composition contract, provider counters, and process-port counters | Select CLI, require `CLI_UNAVAILABLE_OK`, prove the Release executable omits CLI transport/runner symbols, and observe zero factory, effect, wire, and process-port calls |
 | Native vault storage | Platform credential adapter | Store/retrieve/delete test secret without settings/SQLite copies |
+| Redirects fail closed | Native transport contract | Exercise unknown-authority and query-bearing redirects and prove no redirected credential/body transmission |
 | Capability failure is safe | Application error state | Disable GraphQL mutation in fixture and verify action is unavailable, not approximated |
 | Architecture boundaries hold | Core, fake-host, and Qt adapter tests | Prove core has no transport types, host owns effects, and Qt sees projections only |
 

@@ -29,6 +29,17 @@ class ProbeFailure(RuntimeError):
     pass
 
 
+def short_unix_socket_root() -> Path:
+    if os.name != "posix" or not hasattr(socket, "AF_UNIX"):
+        raise ProbeFailure(
+            "the Unix-socket trust probe requires macOS or Linux"
+        )
+    conventional_root = Path("/tmp")
+    if conventional_root.is_dir():
+        return conventional_root
+    return Path(tempfile.gettempdir())
+
+
 @dataclass
 class Observation:
     tcp_accepts: int = 0
@@ -40,6 +51,14 @@ class Observation:
     exact_authorization_requests: int = 0
     body_bytes: int = 0
     exact_body_requests: int = 0
+
+
+@dataclass
+class UnixSocketObservation:
+    accepts: int = 0
+    http_requests: int = 0
+    authorization_requests: int = 0
+    exact_authorization_requests: int = 0
 
 
 @dataclass(frozen=True)
@@ -111,6 +130,80 @@ class ObservedHttpServer(ThreadingHTTPServer):
         connection, address = super().get_request()
         self._observation.tcp_accepts += 1
         return connection, address
+
+
+def start_unix_socket_sentinel(
+    path: Path,
+    observation: UnixSocketObservation,
+    expected_authorization: str,
+) -> tuple[socket.socket, threading.Event, threading.Thread]:
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind(str(path))
+    listener.listen()
+    listener.settimeout(0.1)
+    stopped = threading.Event()
+
+    def observe() -> None:
+        while not stopped.is_set():
+            try:
+                connection, _ = listener.accept()
+            except TimeoutError:
+                continue
+            except OSError:
+                return
+            observation.accepts += 1
+            try:
+                connection.settimeout(PROCESS_TIMEOUT_SECONDS)
+                request = bytearray()
+                while b"\r\n\r\n" not in request:
+                    block = connection.recv(4096)
+                    if not block:
+                        break
+                    request.extend(block)
+                    if len(request) > 64 * 1024:
+                        break
+                if b"\r\n\r\n" in request:
+                    observation.http_requests += 1
+                    for line in request.split(b"\r\n")[1:]:
+                        if b":" not in line:
+                            continue
+                        name, value = line.split(b":", 1)
+                        if name.lower() != b"authorization":
+                            continue
+                        observation.authorization_requests += 1
+                        if hmac.compare_digest(
+                            value.strip(),
+                            expected_authorization.encode("utf-8"),
+                        ):
+                            observation.exact_authorization_requests += 1
+                    connection.sendall(
+                        b"HTTP/1.1 200 OK\r\n"
+                        b"Content-Type: application/json\r\n"
+                        b"Content-Length: 2\r\n"
+                        b"Connection: close\r\n"
+                        b"\r\n"
+                        b"{}"
+                    )
+            finally:
+                connection.close()
+
+    thread = threading.Thread(target=observe, daemon=True)
+    thread.start()
+    return listener, stopped, thread
+
+
+def stop_unix_socket_sentinel(
+    listener: socket.socket,
+    stopped: threading.Event,
+    thread: threading.Thread,
+    path: Path,
+) -> None:
+    stopped.set()
+    listener.close()
+    thread.join(timeout=PROCESS_TIMEOUT_SECONDS)
+    if thread.is_alive():
+        raise ProbeFailure("the Unix-socket sentinel did not stop")
+    path.unlink(missing_ok=True)
 
 
 def canonical_executable(value: str) -> Path:
@@ -432,9 +525,20 @@ def stop_server(server: ThreadingHTTPServer, thread: threading.Thread) -> None:
         raise ProbeFailure("a loopback fixture did not stop")
 
 
-def isolated_config(directory: Path, token: str) -> Path:
-    config = directory / "gh-config"
+def isolated_config(
+    directory: Path,
+    token: str,
+    unix_socket: str,
+    name: str = "gh-config",
+) -> Path:
+    config = directory / name
     config.mkdir(mode=0o700)
+    general = config / "config.yml"
+    general.write_text(
+        f"http_unix_socket: {unix_socket}\n",
+        encoding="utf-8",
+    )
+    general.chmod(0o600)
     hosts = config / "hosts.yml"
     hosts.write_text(
         "github.com:\n"
@@ -445,6 +549,28 @@ def isolated_config(directory: Path, token: str) -> Path:
     )
     hosts.chmod(0o600)
     return config
+
+
+def require_configured_unix_socket(
+    executable: Path,
+    config: Path,
+    expected: str,
+) -> None:
+    return_code, output = bounded_standard_output(
+        [
+            str(executable),
+            "config",
+            "get",
+            "http_unix_socket",
+        ],
+        gh_environment(config),
+        config.parent,
+        MAXIMUM_VERSION_OUTPUT_BYTES,
+    )
+    if return_code != 0 or output.decode("utf-8").strip() != expected:
+        raise ProbeFailure(
+            "the selected gh did not load the Unix-socket sentinel setting"
+        )
 
 
 def authorize_fixture_host(config: Path, host: str, token: str) -> None:
@@ -664,8 +790,9 @@ def redirect_result(observation: Observation) -> str:
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Directly characterize one selected gh binary's certificate and "
-            "cross-authority redirect behavior using loopback-only fixtures."
+            "Directly characterize one selected gh binary's ambient "
+            "Unix-socket, certificate, and cross-authority redirect behavior "
+            "using local-only fixtures."
         )
     )
     parser.add_argument(
@@ -715,7 +842,66 @@ def main() -> int:
             ):
                 raise ProbeFailure("the selected gh version changed")
             disposable_token = "BPR0025_" + secrets.token_urlsafe(48)
-            config = isolated_config(directory, disposable_token)
+            unix_socket_directory = Path(
+                tempfile.mkdtemp(
+                    prefix="bpr-gh-socket-",
+                    dir=short_unix_socket_root(),
+                )
+            )
+            unix_socket_path = unix_socket_directory / "u"
+            unix_socket_value = str(unix_socket_path)
+            unix_socket_observation = UnixSocketObservation()
+            try:
+                expected_authorization = f"token {disposable_token}"
+                listener, stopped, unix_thread = start_unix_socket_sentinel(
+                    unix_socket_path,
+                    unix_socket_observation,
+                    expected_authorization,
+                )
+                try:
+                    socket_config = isolated_config(
+                        directory,
+                        disposable_token,
+                        unix_socket_value,
+                        "gh-socket-config",
+                    )
+                    require_configured_unix_socket(
+                        probe_executable,
+                        socket_config,
+                        unix_socket_value,
+                    )
+                    unix_socket_return_code = run_gh_api(
+                        probe_executable,
+                        "user",
+                        "github.com",
+                        gh_environment(socket_config),
+                        "GET",
+                    )
+                finally:
+                    stop_unix_socket_sentinel(
+                        listener,
+                        stopped,
+                        unix_thread,
+                        unix_socket_path,
+                    )
+            finally:
+                shutil.rmtree(unix_socket_directory)
+            if (
+                unix_socket_return_code != 0
+                or unix_socket_observation.accepts != 1
+                or unix_socket_observation.http_requests != 1
+                or unix_socket_observation.authorization_requests != 1
+                or unix_socket_observation.exact_authorization_requests != 1
+            ):
+                raise ProbeFailure(
+                    "gh api did not route its exact authenticated request "
+                    "through the configured Unix socket"
+                )
+            config = isolated_config(
+                directory,
+                disposable_token,
+                "",
+            )
             certificate, private_key = generate_certificate(openssl, directory)
             certificate_observation = certificate_probe(
                 probe_executable,
@@ -759,6 +945,22 @@ def main() -> int:
         print(
             "certificate-http-requests: "
             f"{certificate_observation.http_requests}"
+        )
+        print("http-unix-socket-config-loaded: yes")
+        print(
+            "http-unix-socket-api-accepts: "
+            f"{unix_socket_observation.accepts}"
+        )
+        print(
+            "http-unix-socket-api-http-requests: "
+            f"{unix_socket_observation.http_requests}"
+        )
+        unix_socket_authorization_exact = (
+            unix_socket_observation.exact_authorization_requests == 1
+        )
+        print(
+            "http-unix-socket-api-authorization-exact: "
+            f"{'yes' if unix_socket_authorization_exact else 'no'}"
         )
         for redirect_observation in redirect_observations:
             status = redirect_observation.status

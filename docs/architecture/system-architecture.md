@@ -31,7 +31,11 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
 - CMake and Ninja
 - SQLite through a pinned, directly linked C API
 - Installed Git executable through `QProcess`
-- Installed GitHub CLI through a designated, bounded `QProcess` broker
+- Native HTTPS as the sole milestone-one production GitHub authentication
+  transport
+- Visible GitHub CLI profile choices fixed to typed `cli_unavailable` with
+  zero CLI executable/configuration discovery or CLI process launch; the
+  bounded `QProcess` broker remains inactive scaffolding until RFC-BPR-0015
 - REST-first GitHub provider with narrow GraphQL use
 - KSyntaxHighlighting through its low-level highlighter interface
 - No Qt WebEngine, QML runtime, Electron, Tauri, Node runtime, local HTTP service, or browser-extension requirement
@@ -287,8 +291,8 @@ application reset.
 - **End to end:** a smaller set of complete workflows through the real composition root and packaged application.
 
 Build, test, package, release, and RFC verification evidence is produced by
-local or target-native tools. GitHub Actions is not a BetterPullReview
-verification or product-build surface.
+local or target-native tools. GitHub Actions has zero role in any of those
+surfaces.
 
 ## Prohibited implementation shortcuts
 

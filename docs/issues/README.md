@@ -28,8 +28,12 @@ host-profile/capability, portable/native credential, and hardened GitHub CLI
 broker slices are verified. `BPR-0023` is in `done/` with its Windows
 implementation evidence, while direct Windows x64 execution remains in
 `BPR-0036`. `BPR-0025` is in `done/`; its production CLI path remains
-fail-closed with zero launches until ready card `BPR-0037` proves the
-separate trust and identity contract. `BPR-0026` is in `done/` with its
+fail-closed with zero launches. `BPR-0037` is in `done/` with the
+product-owner-approved milestone-one resolution: native HTTPS is the sole
+production authentication transport, every visible CLI choice returns typed
+`cli_unavailable` before CLI discovery or process creation, and positive CLI
+enablement is deferred outside pack v2 to RFC-BPR-0015. `BPR-0026` is in
+`done/` with its
 macOS/Linux native HTTPS trust, proxy, redirect, cancellation, bounds, and
 runtime evidence. `BPR-0027` is in `done/` with the application provider,
 serialized host, pagination, rate/retry, credential-lifecycle, and staging
@@ -56,19 +60,22 @@ property corpus, and the current 32-scenario native HTTPS verifier. Its final
 macOS matrices passed 44/44 and 17/17 plus sanitizer refreshes; its Ubuntu
 26.04 x86_64 GCC 15.2 build completed 83/83 targets and the complete
 non-native matrix passed 41/41. `BPR-0031` is in `done/` with the interim
-presentation-polish, rendered-state, accessibility, and target-native macOS
-appearance evidence complete. Its authorized same-process probe observed both
-Qt and the global operating-system setting change from Light to Dark under
-Cocoa/QMacStyle, preserved focus/selection/collapse/model state, persisted
-distinct inspected rasters, and restored the original Dark setting.
+rendered-state, accessibility, and target-native macOS appearance evidence
+complete. Its authorized same-process probe observed both Qt and the global
+operating-system setting change from Light to Dark under Cocoa/QMacStyle,
+preserved focus/selection/collapse/model state, persisted distinct inspected
+rasters, and restored the original Dark setting. This is not a final
+visual-polish claim: RFC-BPR-0005 owns the dedicated presentation-polish and
+native visual-acceptance pass, while RFC-BPR-0006 owns selectable themes,
+fonts, and syntax presentation.
 
 The open Windows task does not block later implementation, tests,
 documentation, security review, or simplification on available targets.
 BPR-0036 blocks only its affected Windows claims and final RFC-BPR-0002
-Auto-Verified closeout. BPR-0037 is the next dependency-ready slice, and its
-production CLI trust result is a direct input to the BPR-0032 security review;
-that explicit dependency consequently precedes BPR-0033 documentation and
-BPR-0034 simplification as well as final RFC closeout.
+Auto-Verified closeout. It does not stop work on later RFCs. BPR-0032 is the
+next dependency-ready slice; it audits the fixed CLI zero-launch result as
+well as native HTTPS and credential authority before BPR-0033 documentation
+and BPR-0034 simplification.
 
 The public application has no durable credential selector or enumeration
 path. Orderly shutdown exact-deletes the retained credential before worker

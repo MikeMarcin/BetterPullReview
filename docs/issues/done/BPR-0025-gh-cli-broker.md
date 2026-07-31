@@ -133,3 +133,23 @@ GitHub Actions is not an acceptable build or evidence surface.
   after the self-`SIGKILL` fixture runs.
 - Windows target-native process evidence and CLI production trust remain
   explicit open tasks in BPR-0036 and BPR-0037 respectively.
+
+## Post-completion scope resolution — 2026-07-30
+
+BPR-0037 subsequently resolved, rather than enabled, the production CLI path.
+By product-owner approval, native HTTPS is the only milestone-one production
+authentication transport. All visible CLI choices remain fixed at typed
+`cli_unavailable` before CLI executable/configuration discovery or process
+creation, and the positive enablement contract moved outside RFC-BPR-0002 to
+deferred RFC-BPR-0015.
+
+The current official `gh` 2.96.0 audit strengthened the original result:
+`gh api` has no per-invocation account selector, active-account/token
+alternatives violate the identity or token-ownership contract, ambient
+`http_unix_socket` directly reroutes an authenticated API request, a
+cross-authority `302` is followed, and macOS keyring access starts
+`/usr/bin/security`. The dormant broker and runner remain bounded test
+surfaces, but no positive production or Windows CLI execution claim is part
+of RFC-BPR-0002. BPR-0036 now retains only the independent Windows native
+HTTPS, Credential Manager, public-composition, runtime, and dependency
+evidence.

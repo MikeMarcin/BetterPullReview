@@ -8,15 +8,19 @@ that GitHub does not represent.
 The current implementation includes the RFC-BPR-0001 repository foundation
 and RFC-BPR-0002's implemented public read-only GitHub path. The public
 executable composes explicit GitHub.com and optional GHES 3.18 profiles,
-native HTTPS, the target platform's credential vault, the normalized provider
-and application host, and the Qt 6 Widgets presentation. A pull request's
-metadata and conversations can traverse the real
+native HTTPS as the sole milestone-one production authentication transport,
+the target platform's credential vault, the normalized provider and
+application host, and the Qt 6 Widgets presentation. A pull request's metadata
+and conversations can traverse the real
 QAction-to-provider-to-core-acceptance-to-rendered-window path.
 
 GitHub CLI choices remain visible but deliberately unavailable: their trust
-contract is still open, so selecting one fails closed before starting a
-process. Native credentials are entered through a Qt-owned password input,
-stored under a hostname-bound authority, and exact-deleted before an orderly
+contract is outside milestone-one product scope, so selecting one returns the
+fixed typed `cli_unavailable` result with zero CLI executable/configuration
+discovery or CLI process launch. Positive CLI enablement is deferred to
+[RFC-BPR-0015](docs/rfcs/future/RFC-BPR-0015-github-cli-production-enablement.md).
+Native credentials are entered through a Qt-owned password input, stored under
+a hostname-bound authority, and exact-deleted before an orderly
 public-application shutdown completes. There is no durable credential
 selector; a crash can leave an item that BetterPullReview cannot enumerate or
 recover. Diff, review-mutation, private-ledger, and packaging work remains in
@@ -88,8 +92,9 @@ build/dev/src/app/better_pull_review --ghes-host ghe.example.com
 
 The GitHub.com native HTTPS profile is built in. A supplied GHES hostname is
 validated as explicit user configuration; provider content and redirects
-cannot create a profile. The application prompts for native-HTTPS credential
-material only after the user activates that profile.
+cannot create a profile, and query-bearing redirects fail closed. The
+application prompts for native-HTTPS credential material only after the user
+activates that profile.
 
 Detailed commands, targets, runtime audits, and evidence expectations are in
 [Build and Test](docs/development/build-and-test.md).

@@ -841,9 +841,11 @@ gh_cli_transport::gh_cli_transport(
 }
 
 auto gh_cli_transport::availability_reasons() const noexcept
-    -> std::array<gh_cli_availability_reason, 4>
+    -> std::array<gh_cli_availability_reason, 8>
 {
     return {
+        gh_cli_availability_reason::
+            milestone_one_product_scope_deferred,
         gh_cli_availability_reason::
             executable_identity_unverifiable,
         gh_cli_availability_reason::
@@ -852,6 +854,12 @@ auto gh_cli_transport::availability_reasons() const noexcept
             ambient_configuration_unverifiable,
         gh_cli_availability_reason::
             credential_identity_binding_unverifiable,
+        gh_cli_availability_reason::
+            working_directory_identity_unverifiable,
+        gh_cli_availability_reason::
+            descendant_process_containment_unverifiable,
+        gh_cli_availability_reason::
+            numeric_process_identity_reuse_unverifiable,
     };
 }
 

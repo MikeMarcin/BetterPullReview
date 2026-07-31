@@ -37,11 +37,11 @@ application host
         v
 GitHub adapter
     explicit profiles, REST/GraphQL request contracts, normalization,
-    GitHub CLI broker, native HTTPS, response limits and redaction
+    inactive GitHub CLI boundary, native HTTPS, response limits and redaction
         |
-        +-- installed gh through a designated QProcess runner
+        +-- retained gh/QProcess scaffolding, not public-composed in milestone one
         |
-        +-- QNetworkAccessManager plus a platform credential vault
+        +-- production QNetworkAccessManager plus a platform credential vault
 ```
 
 Provider, transport, process, network, vault, JSON, and Qt types do not enter
@@ -55,7 +55,7 @@ receives application projections and has no provider capability.
 |---|---|---|---|
 | Host profile configuration | Application host profile registry | Opaque `host_profile_id` | Selectable non-secret profile facts |
 | Authenticated account | Selected provider session | Opaque host/account identity and generation | Visible hostname and account login |
-| Credentials | GitHub CLI storage or native platform vault | None | None |
+| Credentials | Native platform vault in milestone one; CLI storage only under a future enabled contract | None | None |
 | Capability detail and evidence | Host capability cache | Compact tri-state capability set and revision | Supported, unsupported, or unknown presentation |
 | Shared PR and conversation state | GitHub, observed through the provider session | Stable identity, accepted snapshot identity, bounded summary | Immutable metadata and conversation projections |
 | Normalized response cache | Application host | Snapshot identity only | Incremental rows/cards derived from accepted snapshots |
@@ -416,16 +416,23 @@ separate scheduling observation. Raw provider messages never cross inward.
 
 ## Transport ownership
 
-The provider adapter selects one transport from the explicit host profile.
+The provider adapter validates the explicit host profile. Milestone-one native
+profiles construct native HTTPS; CLI profiles return `cli_unavailable` before
+transport construction.
 
 ### GitHub CLI broker
 
-The broker uses a canonical absolute `gh` executable through a designated
-`QProcess` runner. It invokes argument arrays without a shell, supplies
-request bodies through standard input, disables prompting and incidental
-output, uses a canonical directory currently outside repository ancestry,
-bounds all streams and duration, and redacts failures. It neither asks for nor
-extracts a token.
+Native HTTPS is the sole milestone-one production authentication transport.
+CLI profiles remain visible, but the public provider returns fixed typed
+`cli_unavailable` before transport construction, CLI
+executable/configuration discovery, or a process-port call. The broker uses a
+canonical absolute `gh` executable through a designated `QProcess` runner
+only as retained, tested scaffolding for a possible future transport. It
+invokes argument arrays without a shell, supplies request bodies through
+standard input, disables prompting and
+incidental output, uses a canonical directory currently outside repository
+ancestry, bounds all streams and duration, and redacts failures. It neither
+asks for nor extracts a token.
 
 Arguments come from an operation-specific allowlist. The child environment is
 constructed from an explicit minimal allowlist rather than inherited and then
@@ -445,8 +452,7 @@ unverifiable contract, cross-authority redirect, certificate failure,
 uncontrolled persisted transport setting, or unbound active-account
 selection fails closed. A configured hostname is not by itself authority,
 identity, redirect, or certificate evidence. If the installed CLI contract
-cannot prove these properties, broker mode is unavailable and RFC-BPR-0002
-closeout remains blocked.
+cannot prove these properties, broker mode is unavailable.
 
 BPR-0025 implements that boundary as two adapter-private, standard-C++ ports.
 The wire port retains the complete parent request, profile revision, host,
@@ -487,8 +493,9 @@ macOS inspection observes the requested environment plus only Darwin's
 deterministic `__CF_USER_TEXT_ENCODING` addition. The Linux raw-runner fixture
 requests its locale explicitly; that is not an extra production broker
 variable. Windows Job Object descendant containment, private pipe bounds, and
-target-native runner behavior remain BPR-0036 work and are not inferred from
-the Unix evidence.
+target-native CLI runner behavior are deferred to RFC-BPR-0015 and are not
+inferred from the Unix evidence. BPR-0036 retains the Windows native-HTTPS,
+vault, and public-path checks.
 
 The invocation compiler revalidates the complete canonical wire request. It
 emits only `gh api`, one translated relative endpoint, explicit
@@ -500,15 +507,22 @@ repository placeholders, file expansion, caller-supplied flags, status or
 debug output, response caching, pagination, templating, fields, previews, and
 credential-bearing arguments are not representable.
 
-An owner-private copy of the selected macOS `gh` 2.95.0 bytes, SHA-256
+The current direct audit used the official macOS arm64 `gh` 2.96.0 release
+dated 2026-07-02. Its downloaded ZIP SHA-256 was
+`f23a0c37d963aacc3bed703ccbd59b41c5ca22101fab7f00eb2b7cad23aba463`,
+and its extracted binary SHA-256 was
+`b1d6c442fde99ca27c04e1e74d624895abe37785f4a3e9e9b684bf7586ce4bc8`.
+An owner-private copy produced one fixed bad-certificate TLS alert and no HTTP
+request for a self-signed loopback certificate. A controlled cross-authority
+`302` received the exact 47-byte request body and synthetic authorization at
+its selected origin, then reached the distinct sink without either.
+Equivalent `307` and `308` POST probes reached their selected origins but did
+not produce an observed sink request; that absence remains unproven rather
+than accepted as redirect rejection. The installed `gh` 2.95.0 binary,
+SHA-256
 `798882434e7f6ae5846194191263ecc59d56bc201f13f016270f44cb4f34499e`,
-produces one fixed bad-certificate TLS alert and no HTTP request for a
-self-signed loopback certificate. A controlled cross-authority `302` receives
-the exact 47-byte request body and synthetic authorization at its selected
-origin, then reaches the distinct sink without either. Equivalent `307` and
-`308` POST probes reach their selected origins but do not produce a sink
-request; that absence remains recorded as unproven rather than redirect
-rejection. The private executable digest is checked again after all probes.
+was rerun with the same material outcomes. Each private executable digest was
+checked again after its probes.
 
 The observed `302` is sufficient to falsify exact-authority enforcement. The
 CLI's ordinary success output provides neither a stable redirect chain nor
@@ -524,28 +538,34 @@ verification-only owner-private `GH_CONFIG_DIR` holds the random synthetic
 token solely to pass the CLI startup authentication gate. That override is
 absent from production.
 
-Omitting that override does not eliminate ambient configuration: official CLI
-configuration admits `http_unix_socket`, while the production child receives
-the selected platform home or application-data paths required for CLI
-credential/account state. The allowed `gh api --hostname` shape also has no
-per-invocation account selector. It uses the account currently active for the
-host, which another `gh auth switch` can change independently of the request's
-correlated identity generation.
+Omitting that override does not eliminate ambient configuration.
+`http_unix_socket` is an active CLI transport setting, not a telemetry-only
+fact: for both selected binaries, the isolated probe loaded the setting and
+the exact `gh api` invocation made one authenticated HTTP request through an
+AF_UNIX sentinel with the expected synthetic Authorization value. The
+production broker would need the selected platform home or application-data
+paths for CLI account state. Canonical `SSL_CERT_FILE`/`SSL_CERT_DIR` paths
+likewise do not bind selected trust-material identity or contents through the
+CLI's later open.
 
-Consequently the current production CLI transport validates its profile,
-correlation, request, executable, working directory, and invocation contract,
-but a canonical path/name does not bind the image eventually launched to the
-exact digest characterized by the trust probe. It exposes typed
-executable-identity, redirect, ambient-configuration, and
-credential-identity blockers, then returns `cli_unavailable` before starting
-the child. Working-directory owner/permission checks, identity binding across
-launch, validation-to-launch replacement, Unix process-group escape, and
-PID/process-group identity reuse between leader exit and later numeric group
-signals are additional pre-enable risks; initial-group signaling is not
-claimed race-free. A fake process cannot create trust, and native HTTPS
-evidence cannot be borrowed. This keeps the BPR-0025 implementation and
-adversarial process evidence usable while BPR-0037 owns production enablement
-and the CLI trust claim and RFC closeout remain open.
+The current `gh api` command exposes no per-invocation `--user`.
+`gh auth token --user` prints the token and is prohibited;
+`gh auth switch --user` mutates persisted active-account state and is racy
+with BetterPullReview's correlated identity generation. Current selected
+source resolves `ActiveToken` per round trip, falls back from a keyring error
+to a blank-host token, and uses a macOS keyring path that launches
+`/usr/bin/security`.
+
+Consequently the retained CLI transport exposes eight typed reasons:
+milestone-one product-scope deferral, executable-image identity,
+cross-authority redirect behavior, ambient configuration, credential/account
+identity, working-directory identity, descendant-process containment, and
+numeric PID/process-group identity reuse. It returns `cli_unavailable` before
+starting a child; the public composition rejects CLI earlier and makes zero
+process launches. A fake process cannot create trust, and native HTTPS
+evidence cannot be borrowed. RFC-BPR-0015 owns any positive CLI enablement and
+must bind or eliminate every blocker without a privileged helper, weakened
+security, or GitHub Actions.
 
 ### Native HTTPS
 
@@ -682,7 +702,9 @@ build contained no workflow files or GitHub Actions references.
 
 Windows 10/11 x64 execution and dependency inspection remain BPR-0036 work;
 that platform-specific evidence is nonblocking for the other implementation,
-test, documentation, security-review, and simplification work.
+test, documentation, security-review, simplification, and later-RFC work. It
+blocks only affected Windows claims and final RFC-BPR-0002 Auto-Verified
+closeout.
 
 Native credentials are consumed inside the credential-bearing transport.
 They never enter process arguments, environment, logs, diagnostics,
@@ -1131,6 +1153,12 @@ exact profile identity. GitHub.com profiles have built-in provenance; GHES
 profiles have explicit-user provenance. CLI activation reaches the same
 semantic host path but returns `cli_unavailable` before the process port,
 which keeps the unavailable state visible and produces zero child launches.
+The tests-disabled composition contract also rejects CLI runner-factory
+symbols in the public application, while its self-test selects the built-in
+GitHub.com CLI profile and requires the bounded unavailable presentation.
+Provider and transport counter tests independently require zero factory,
+effect, and process-port calls. Optional GHES CLI selection follows the same
+source path but is not claimed as a separate end-to-end self-test case.
 
 The visible ownership order is:
 
@@ -1138,7 +1166,7 @@ The visible ownership order is:
 validated non-secret profile store
 provider and vault effect executors
 platform credential vault
-process runner and native network transport
+native network transport
 normalized GitHub provider
 decision executor
 Qt window and models
@@ -1239,11 +1267,11 @@ RFC-BPR-0002 has no implementation impact on:
 Git cache and epoch work remains RFC-BPR-0003. GitHub mutations remain
 RFC-BPR-0008. Delivered-package certification remains RFC-BPR-0014.
 
-Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the CLI
-broker's process/invocation boundary, and the native HTTPS internal wire path
-on macOS and Linux are directly verified. The selected CLI's network-trust
-claim remains open because its redirect behavior was directly falsified, so
-the public profile is visibly unavailable and launches zero processes.
+Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the inactive
+CLI broker's process/invocation boundary, and the native HTTPS internal wire
+path on macOS and Linux are directly verified. Positive CLI enablement is
+outside milestone-one scope under RFC-BPR-0015; the public profile is visibly
+unavailable and launches zero processes.
 BPR-0028 verifies the safe Qt projection and presentation. BPR-0029 composes
 the explicit profiles, native HTTPS, platform vault, provider, host, core, and
 Qt path and exact-deletes retained credentials during orderly shutdown; it
@@ -1253,6 +1281,6 @@ cleanup and tests-disabled Release selection/seam evidence. Retained Windows
 target-native credential/HTTPS/public-fixture evidence remains BPR-0036 work.
 Query-bearing REST redirects remain rejected by the closed BPR-0038 design
 decision; any future relaxation requires new direct public-contract evidence
-and separately scoped work. The open Windows execution is nonblocking for
-other slices but continues to block only its affected platform claim and
-RFC-BPR-0002 closeout.
+and separately scoped work. The open Windows execution is nonblocking for all
+other slices and later-RFC work; it blocks only its affected platform claim
+and final RFC-BPR-0002 Auto-Verified closeout.

@@ -13,7 +13,7 @@
 
 1. GitHub.com or configured GHES host
 2. BetterPullReview native process
-3. Installed Git and GitHub CLI processes
+3. Installed Git process and the retained, inactive GitHub CLI process boundary
 4. Configured AI agent processes
 5. Operating-system credential vault and trust store
 6. Untrusted repository content, comments, commit messages, diffs, and theme files
@@ -213,12 +213,16 @@ All API, Git, diff, syntax, Markdown, agent, and settings inputs are untrusted. 
 - Construct explicit child environments from approved names for sensitive
   processes; never inherit everything and then scrub known names.
 
-The GitHub CLI broker does not inherit and scrub the parent environment. It
+Native HTTPS is the sole milestone-one production authentication transport.
+Visible CLI selections return fixed typed `cli_unavailable` before transport
+construction, CLI executable/configuration discovery, or process launch. The
+retained CLI broker does not inherit and scrub the parent environment. It
 constructs a new child environment from fixed noninteractive settings and
-typed platform credential-session, trust, and proxy facts. Its standard-C++
-process request contains explicit input/output/error/time/reap bounds; the
-sole `QProcess` runner uses one owner-managed worker and separate captured
-channels. On Unix, the child is created as a new session and initial
+typed platform
+credential-session, trust, and proxy facts. Its standard-C++ process request
+contains explicit input/output/error/time/reap bounds; the sole `QProcess`
+runner uses one owner-managed worker and separate captured channels. On Unix,
+the child is created as a new session and initial
 process-group leader; a compiled child directly observes session/group
 identity, closed inherited descriptors, disabled core dumps, and reset signal
 handlers. Compiled lifecycle cases prove cleanup signals descendants that
@@ -245,35 +249,43 @@ Raw macOS child inspection permits only the requested facts plus Darwin's
 deterministic `__CF_USER_TEXT_ENCODING` addition. The Linux raw-runner fixture
 requests its locale explicitly; production does not add that fixture-only
 fact. Windows Job Object descendant containment, private pipe bounds, and
-direct target-native verification remain open under BPR-0036.
+direct target-native CLI verification are deferred to RFC-BPR-0015.
+BPR-0036 retains only Windows native-HTTPS, vault, and composed-public-path
+verification.
 
 This mechanical boundary is not trust evidence for GitHub CLI networking.
-An owner-private, digest-stable copy of the selected `gh` 2.95.0 bytes
-produces a fixed bad-certificate alert before HTTP but follows a
-cross-authority `302` and does not provide a safe final-authority result
-surface. The loopback `host:port` cannot be the CLI startup hostname, so the
-source-backed observation is deliberately not treated as exact
-production-authority proof. The production platform home/application-data
-facts also leave the CLI's documented persisted `http_unix_socket`
-configuration in scope, and `gh api --hostname` cannot bind the invocation to
-the request's credential/account generation while `gh auth switch` can change
-the active account externally. The probe's exact copied-byte digest is also
-not bound through production's current canonical path/name checks to the image
-eventually launched across a path replacement or update race. Likewise,
-canonical Linux `SSL_CERT_FILE`/`SSL_CERT_DIR` strings do not bind the selected
-trust-material identity or contents through the CLI's later open, so
-replacement or mutation remains part of the ambient-configuration blocker.
+The official `gh` 2.96.0 release dated 2026-07-02 was audited through an exact
+owner-private copy of the macOS arm64 binary, SHA-256
+`b1d6c442fde99ca27c04e1e74d624895abe37785f4a3e9e9b684bf7586ce4bc8`;
+the release ZIP SHA-256 was
+`f23a0c37d963aacc3bed703ccbd59b41c5ca22101fab7f00eb2b7cad23aba463`.
+It produced a fixed bad-certificate alert before HTTP but followed a
+cross-authority `302` and did not provide a safe final-authority result
+surface. The installed `gh` 2.95.0 binary, SHA-256
+`798882434e7f6ae5846194191263ecc59d56bc201f13f016270f44cb4f34499e`,
+was rerun with the same material outcomes.
 
-The production transport therefore reports four typed trust blockers and
-returns fixed `cli_unavailable` before process execution. A future CLI
-contract must directly close the executable-identity, authority,
-ambient-configuration, and identity-binding gaps; native HTTPS evidence and
-fake-child success are inapplicable. BPR-0037 also owns working-directory
-identity/owner-permission/TOCTOU closure and Unix process-group escape before
-production enablement, plus binding PID/process-group identity across cleanup
-so a reused numeric group cannot receive a late signal and binding selected CA
-file/directory identity and contents through open. Initial-group signaling is
-not claimed race-free.
+Persisted `http_unix_socket` is a demonstrated ambient routing input, not a
+telemetry-only concern: both binaries loaded it and sent one authenticated
+`gh api` request through the controlled AF_UNIX sentinel. The production
+platform home/application-data facts would leave that setting in scope.
+Canonical Linux `SSL_CERT_FILE`/`SSL_CERT_DIR` strings also do not bind trust
+material through the CLI's later open. The current `gh api` has no
+per-invocation `--user`; `gh auth token --user` exposes the token and
+`gh auth switch --user` persistently changes active-account state. Selected
+source resolves `ActiveToken` per round trip, can fall back from a keyring
+error to a blank-host token, and launches `/usr/bin/security` for the macOS
+keyring. None of these facts binds the invocation to BetterPullReview's
+correlated identity generation.
+
+The CLI boundary therefore reports eight typed reasons: milestone-one
+product-scope deferral, executable-image identity, cross-authority redirect
+behavior, ambient configuration, credential/account identity,
+working-directory identity, descendant-process containment, and numeric
+PID/process-group identity reuse. It returns fixed `cli_unavailable` with zero
+process launches. Native HTTPS evidence and fake-child success cannot enable
+it. RFC-BPR-0015 owns any future positive CLI contract and must directly close
+every blocker without privileged helpers or weakened security.
 
 ## Network handling
 
@@ -396,9 +408,10 @@ establishes only single-success dependency selection, while uninstrumented
 runs establish behavior. No workflow files or GitHub Actions references were
 present in source or the generated build.
 
-Windows target-native execution remains BPR-0036 work and is nonblocking for
-other implementation slices; it blocks only affected Windows claims and final
-RFC-BPR-0002 closeout.
+Windows target-native execution remains BPR-0036 work. It is nonblocking for
+all other implementation, security, documentation, simplification, and
+later-RFC work; it blocks only affected Windows claims and final
+RFC-BPR-0002 Auto-Verified closeout.
 
 Transport status alone is deliberately not a complete rate-limit
 interpreter. HTTP 403 with zero remaining or bounded `Retry-After`, and HTTP

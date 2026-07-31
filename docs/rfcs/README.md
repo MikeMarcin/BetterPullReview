@@ -22,3 +22,13 @@ after every listed dependency is `Auto-Verified`.
 
 The imported files in [plans](plans/README.md) are immutable planning source.
 Live work is tracked on the [issue board](../issues/README.md).
+
+## Deferred post-pack work
+
+The table above is the complete fourteen-RFC pack-v2 sequence. The following
+RFC is outside that canonical pack, cannot block its implementation or
+closeout, and remains deferred until its upstream eligibility gates exist:
+
+| RFC | Title | Status | Eligibility |
+|---|---|---|---|
+| [RFC-BPR-0015](future/RFC-BPR-0015-github-cli-production-enablement.md) | GitHub CLI Production Enablement | Deferred | RFC-BPR-0014 closed and official `gh` supplies the required safety contract |

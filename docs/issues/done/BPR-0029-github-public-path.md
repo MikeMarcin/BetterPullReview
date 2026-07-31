@@ -110,3 +110,13 @@ lifetimes documented by their ports.
   visual polish or native system-theme certification. BPR-0031 retains
   hierarchy, density, typography, native light/dark, and live appearance
   verification.
+
+## Post-completion scope resolution — 2026-07-30
+
+BPR-0037 closed the milestone-one CLI decision: the public application keeps
+both CLI choices visible and fixed at `cli_unavailable`, while native HTTPS is
+the sole production authentication transport. The tests-disabled
+`--self-test` now emits `CLI_UNAVAILABLE_OK`, and the Release composition
+contract rejects CLI transport, request-compiler, configuration-validator, or
+process-runner symbols in the executable. Positive CLI enablement is deferred
+to RFC-BPR-0015 and is not an RFC-BPR-0002 closeout requirement.

@@ -42,6 +42,10 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"tests\\fixtures\\github\\",
     b"tests/fixtures/github/contracts/v1",
     b"tests/fixtures/github/capabilities/v1",
+    b"gh_cli_transport",
+    b"github_cli_process_runner",
+    b"validate_gh_cli_configuration",
+    b"compile_gh_cli_process_request",
 )
 
 
@@ -86,6 +90,11 @@ class CompositionContractTests(unittest.TestCase):
         for selection in required_selection:
             with self.subTest(selection=selection):
                 self.assertIn(selection, composition_source)
+        self.assertNotIn(
+            "make_github_cli_process_runner",
+            composition_source,
+            "production composition must not construct a CLI process runner",
+        )
 
         composition_cmake = read("src/app/CMakeLists.txt")
         target = re.search(
@@ -283,6 +292,7 @@ class CompositionContractTests(unittest.TestCase):
                     r"PUBLIC_PATH_OK[\r\n]+"
                     r"NATIVE_PLATFORM_VAULT_SELECTED:"
                     + expected_selection
+                    + r"[\r\n]+CLI_UNAVAILABLE_OK"
                 ),
             )
             self.assertNotIn("GITHUB_FIXTURE", runtime.stdout)

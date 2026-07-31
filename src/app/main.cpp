@@ -306,6 +306,7 @@ struct automated_run
     bool PresentationPassed = false;
     bool RenderSaved = true;
     bool VerifyNativePlatformVault = false;
+    bool VerifyCliUnavailable = false;
 #if defined(BPR_BUILD_TESTS)
     struct native_appearance_probe_state
     {
@@ -612,6 +613,11 @@ void finish_automated_run(
         stream << "NATIVE_PLATFORM_VAULT_SELECTED:"
                << (status.NativePlatformVaultSelected ? "true" : "false")
                << '\n';
+    }
+    if(run.VerifyCliUnavailable)
+    {
+        stream << (passed ? "CLI_UNAVAILABLE_OK\n"
+                          : "CLI_UNAVAILABLE_FAILED\n");
     }
     if(!passed)
     {
@@ -1029,9 +1035,12 @@ auto main(int argc, char** argv) -> int
             { schedule_interactive_shutdown(*application); });
 
         auto verify_native_platform_vault = self_test;
+        auto verify_cli_unavailable = self_test;
 #if defined(BPR_BUILD_TESTS)
         verify_native_platform_vault =
             verify_native_platform_vault && fixture_name.empty();
+        verify_cli_unavailable =
+            verify_cli_unavailable && fixture_name.empty();
 #endif
         if(self_test || render_path.has_value()
 #if defined(BPR_BUILD_TESTS)
@@ -1049,6 +1058,7 @@ auto main(int argc, char** argv) -> int
                         .RenderSaved = true,
                         .VerifyNativePlatformVault =
                             verify_native_platform_vault,
+                        .VerifyCliUnavailable = verify_cli_unavailable,
 #if defined(BPR_BUILD_TESTS)
                         .Fixture = !fixture_name.empty(),
                         .FixtureName = std::move(fixture_name),
