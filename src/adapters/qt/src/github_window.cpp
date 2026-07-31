@@ -1652,13 +1652,7 @@ void github_window::update_presentation_state()
     }
     PullRequestStack->setProperty("githubPresentationState", state);
 
-    auto accessible_description = StatusLabel->text();
-    if(DiagnosticLabel->isVisible() && !DiagnosticLabel->text().isEmpty())
-    {
-        accessible_description.append(
-            QStringLiteral(" %1").arg(DiagnosticLabel->text()));
-    }
-    StatusBanner->setAccessibleDescription(accessible_description);
+    StatusBanner->setAccessibleDescription(presentation_summary_text());
 }
 
 void github_window::update_splitter_orientation()
@@ -1739,12 +1733,7 @@ void github_window::refresh_native_appearance()
 
 void github_window::announce_presentation_update()
 {
-    auto announcement = StatusLabel->text();
-    if(DiagnosticLabel->isVisible() && !DiagnosticLabel->text().isEmpty())
-    {
-        announcement.append(
-            QStringLiteral(" %1").arg(DiagnosticLabel->text()));
-    }
+    const auto announcement = presentation_summary_text();
     if(announcement.isEmpty() || announcement == LastAnnouncement)
     {
         return;
@@ -1753,6 +1742,17 @@ void github_window::announce_presentation_update()
     QAccessibleAnnouncementEvent event{StatusBanner, announcement};
     event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
     QAccessible::updateAccessibility(&event);
+}
+
+auto github_window::presentation_summary_text() const -> QString
+{
+    auto summary = StatusLabel->text();
+    if(DiagnosticLabel->isVisible() && !DiagnosticLabel->text().isEmpty())
+    {
+        summary.append(
+            QStringLiteral(" %1").arg(DiagnosticLabel->text()));
+    }
+    return summary;
 }
 
 void github_window::focus_review_threads()

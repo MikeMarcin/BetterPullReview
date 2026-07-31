@@ -111,6 +111,7 @@ private:
     void announce_presentation_update();
     void focus_review_threads();
 
+    [[nodiscard]] auto presentation_summary_text() const -> QString;
     [[nodiscard]] auto selected_profile() const
         -> std::optional<core::host_profile_id>;
     [[nodiscard]] auto profile_option(core::host_profile_id profile) const

@@ -998,6 +998,41 @@ BPR-0029/BPR-0030 snapshots rather than being mislabeled current-tree.
 Windows target-native execution remains BPR-0036 and blocks only affected
 Windows claims and final RFC Auto-Verified closeout.
 
+## Completed-slice simplification result
+
+BPR-0034 applied the code-simplifier workflow to the completed RFC-BPR-0002
+source and tests without changing public behavior. One core helper now owns
+the complete identity-generation advance and identity-scope clear used by
+profile activation and deactivation. Capability-cache stage and commit still
+recompute storage selection independently, but share the exact
+same-authority/insert/expired-slot policy so those decisions cannot drift.
+
+The Qt window now derives its status-banner accessible description and polite
+announcement from one status-plus-visible-diagnostic formatter. The public
+application groups the CLI-unavailable probe's counters and expected identity
+into one state object and uses one explicit failure-to-shutdown helper. The
+tests-disabled Release contract uses one assertion helper for both the
+one-row default and two-row explicit-GHES self-tests without weakening their
+exact markers or fixture-seam exclusion.
+
+The audit found no provider leakage, broad service access, unnecessary
+serialization, or whole-model reset to remove: the architecture boundaries,
+exact acceptance lane, separate provider/vault workers, and incremental Qt
+model remain intact. Larger shared native-vault, bounded-JSON-scanner, and
+asynchronous-host refactors were deliberately left unchanged. They combine
+security-sensitive lifetime, parser, cancellation, and platform behavior, and
+would require a separately scoped cross-platform change rather than a
+closeout cleanup—especially while direct Windows execution remains BPR-0036.
+
+The complete current shared-worktree matrices passed 47/47 for `dev` and
+18/18 for `core-only`; one project-source-dump identity in each matrix belongs
+to unrelated in-progress user work and is not part of this slice, leaving the
+RFC-owned matrices at 46/46 and 17/17. The focused changed-path matrix passed
+8/8, including the tests-disabled Release composition contract, and the fresh
+AddressSanitizer/UndefinedBehaviorSanitizer matrix passed 7/7. Documentation,
+original-pack, architecture, tracked/on-disk workflow-absence, Python compile,
+and `git diff --check` gates passed.
+
 ## Claim matrix
 
 | Claim | Direct surface | Command or interaction | What proves | Result | Evidence |

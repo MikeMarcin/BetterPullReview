@@ -79,8 +79,15 @@ self-test, tests-disabled Release symbol gate, native macOS checks, focused
 sanitizer matrix, and corrected evidence boundaries complete. BPR-0033 is in
 `done/` with the immutable-base documentation impact review, corrected native
 appearance record, operator-safe troubleshooting, resolved documentation
-ledger, and workflow-absence gate complete. BPR-0034 is the next
-dependency-ready simplification slice.
+ledger, and workflow-absence gate complete. BPR-0034 is in `done/` with
+behavior-preserving identity, capability-cache, accessibility-text,
+CLI-automation, and Release-contract simplifications verified by complete
+available-platform and focused sanitizer matrices.
+
+BPR-0035 and BPR-0036 remain in `backlog/`: BPR-0036 retains direct real
+Windows x64 evidence, and BPR-0035 cannot mark RFC-BPR-0002 Auto-Verified
+until that evidence exists. By product-owner direction, this does not block
+planning and implementing later RFCs in canonical order.
 
 The public application has no durable credential selector or enumeration
 path. Orderly shutdown exact-deletes the retained credential before worker

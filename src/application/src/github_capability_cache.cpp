@@ -126,6 +126,60 @@ void advance_mutation_generation(std::uint64_t& generation) noexcept
         ++generation;
     }
 }
+
+struct cache_storage_slot
+{
+    std::vector<github_capability_cache_entry>::iterator Reusable;
+    github_capability_cache_store_disposition Disposition =
+        github_capability_cache_store_disposition::inserted;
+};
+
+[[nodiscard]] auto select_storage_slot(
+    std::vector<github_capability_cache_entry>& entries,
+    const github_capability_authority_key& authority,
+    const github_freshness_epoch observed_at,
+    const std::size_t capacity) noexcept
+    -> std::expected<
+        cache_storage_slot,
+        github_capability_cache_error>
+{
+    const auto same_authority = std::ranges::find(
+        entries,
+        authority,
+        &github_capability_cache_entry::Authority);
+    if(same_authority != entries.end())
+    {
+        return cache_storage_slot{
+            .Reusable = same_authority,
+            .Disposition =
+                github_capability_cache_store_disposition::replaced,
+        };
+    }
+    if(entries.size() != capacity)
+    {
+        return cache_storage_slot{
+            .Reusable = entries.end(),
+            .Disposition =
+                github_capability_cache_store_disposition::inserted,
+        };
+    }
+
+    const auto expired = std::ranges::find_if(
+        entries,
+        [observed_at](const auto& entry) {
+            return observed_at >= entry.ExpiresBefore;
+        });
+    if(expired == entries.end())
+    {
+        return std::unexpected{
+            github_capability_cache_error::capacity_exhausted};
+    }
+    return cache_storage_slot{
+        .Reusable = expired,
+        .Disposition =
+            github_capability_cache_store_disposition::reused_expired,
+    };
+}
 }
 
 auto all_unknown(const core::github_capabilities& capabilities) noexcept
@@ -391,34 +445,14 @@ auto github_capability_cache::stage(
             github_capability_cache_error::revision_overflow);
     }
 
-    const auto same_authority = std::ranges::find(
+    const auto slot = select_storage_slot(
         Entries,
         observation.Authority,
-        &github_capability_cache_entry::Authority);
-    auto reusable = Entries.end();
-    auto disposition =
-        github_capability_cache_store_disposition::inserted;
-
-    if(same_authority != Entries.end())
+        observation.ObservedAt,
+        Policy.Capacity);
+    if(!slot.has_value())
     {
-        reusable = same_authority;
-        disposition =
-            github_capability_cache_store_disposition::replaced;
-    }
-    else if(Entries.size() == Policy.Capacity)
-    {
-        reusable = std::ranges::find_if(
-            Entries,
-            [&observation](const auto& entry) {
-                return observation.ObservedAt >= entry.ExpiresBefore;
-            });
-        if(reusable == Entries.end())
-        {
-            return stage_rejected(
-                github_capability_cache_error::capacity_exhausted);
-        }
-        disposition =
-            github_capability_cache_store_disposition::reused_expired;
+        return stage_rejected(slot.error());
     }
 
     const auto expires_before = github_freshness_epoch{
@@ -440,7 +474,7 @@ auto github_capability_cache::stage(
         .Error = github_capability_cache_error::none,
         .Stage = github_capability_cache_stage{
             entry,
-            disposition,
+            slot->Disposition,
             MutationGeneration},
     };
 }
@@ -498,41 +532,22 @@ auto github_capability_cache::commit(
             github_capability_cache_error::invalid_probe);
     }
 
-    const auto same_authority = std::ranges::find(
+    const auto slot = select_storage_slot(
         Entries,
         stage.Entry.Authority,
-        &github_capability_cache_entry::Authority);
-    auto reusable = Entries.end();
-    auto disposition =
-        github_capability_cache_store_disposition::inserted;
-    if(same_authority != Entries.end())
+        stage.Entry.ObservedAt,
+        Policy.Capacity);
+    if(!slot.has_value())
     {
-        reusable = same_authority;
-        disposition =
-            github_capability_cache_store_disposition::replaced;
+        return store_rejected(slot.error());
     }
-    else if(Entries.size() == Policy.Capacity)
-    {
-        reusable = std::ranges::find_if(
-            Entries,
-            [&stage](const auto& entry) {
-                return stage.Entry.ObservedAt >= entry.ExpiresBefore;
-            });
-        if(reusable == Entries.end())
-        {
-            return store_rejected(
-                github_capability_cache_error::capacity_exhausted);
-        }
-        disposition =
-            github_capability_cache_store_disposition::reused_expired;
-    }
-    if(disposition != stage.Disposition)
+    if(slot->Disposition != stage.Disposition)
     {
         return store_rejected(
             github_capability_cache_error::stale_stage);
     }
 
-    if(reusable == Entries.end())
+    if(slot->Reusable == Entries.end())
     {
         try
         {
@@ -546,7 +561,7 @@ auto github_capability_cache::commit(
     }
     else
     {
-        *reusable = stage.Entry;
+        *slot->Reusable = stage.Entry;
     }
 
     if(NextRevision == std::numeric_limits<std::uint64_t>::max())
@@ -561,7 +576,7 @@ auto github_capability_cache::commit(
     advance_mutation_generation(MutationGeneration);
 
     return {
-        .Disposition = disposition,
+        .Disposition = slot->Disposition,
         .Entry = stage.Entry,
     };
 }

@@ -141,19 +141,11 @@ auto publish_commands(
         && valid_capability_state(capabilities.UnresolveThread);
 }
 
-[[nodiscard]] auto activate_profile(
-    github_state& state,
-    const activate_host_profile_intent& intent) -> github_transition_output
+void advance_and_clear_identity_scope(github_state& state) noexcept
 {
-    if(intent.Profile.value() == 0U)
-    {
-        return reject(github_reason_code::invalid_profile);
-    }
-
-    const auto previous = identity_scope(state);
     state.IdentityGeneration = github_identity_generation{
         state.IdentityGeneration.value() + 1U};
-    state.ActiveProfile = intent.Profile;
+    state.ActiveProfile.reset();
     state.PendingSession.reset();
     state.Host.reset();
     state.Account.reset();
@@ -165,6 +157,20 @@ auto publish_commands(
     state.Repository.reset();
     state.PullRequest.reset();
     state.AcceptedSnapshot.reset();
+}
+
+[[nodiscard]] auto activate_profile(
+    github_state& state,
+    const activate_host_profile_intent& intent) -> github_transition_output
+{
+    if(intent.Profile.value() == 0U)
+    {
+        return reject(github_reason_code::invalid_profile);
+    }
+
+    const auto previous = identity_scope(state);
+    advance_and_clear_identity_scope(state);
+    state.ActiveProfile = intent.Profile;
 
     const github_session_request_context context{
         .Request = next_request(state),
@@ -199,20 +205,7 @@ auto publish_commands(
     -> github_transition_output
 {
     const auto previous = identity_scope(state);
-    state.IdentityGeneration = github_identity_generation{
-        state.IdentityGeneration.value() + 1U};
-    state.ActiveProfile.reset();
-    state.PendingSession.reset();
-    state.Host.reset();
-    state.Account.reset();
-    state.Capabilities = {};
-    state.CapabilityRevision = {};
-    state.PendingPullRequest.reset();
-    state.ActiveLocator.reset();
-    state.ActiveNumber.reset();
-    state.Repository.reset();
-    state.PullRequest.reset();
-    state.AcceptedSnapshot.reset();
+    advance_and_clear_identity_scope(state);
 
     github_transition_output output;
     output.Changed = github_changed_domain::identity

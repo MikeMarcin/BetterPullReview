@@ -76,6 +76,39 @@ def source_files(relative_root: str) -> list[Path]:
 
 
 class CompositionContractTests(unittest.TestCase):
+    def assert_release_self_test(
+        self,
+        executable: Path,
+        runtime_environment: dict[str, str],
+        expected_vault_selection: str,
+        expected_cli_count: int,
+        *extra_arguments: str,
+    ) -> None:
+        completed = subprocess.run(
+            [str(executable), "--self-test", *extra_arguments],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=runtime_environment,
+        )
+        self.assertEqual(
+            completed.returncode,
+            0,
+            completed.stdout + completed.stderr,
+        )
+        self.assertRegex(
+            completed.stdout,
+            (
+                r"PUBLIC_PATH_OK[\r\n]+"
+                r"NATIVE_PLATFORM_VAULT_SELECTED:"
+                + expected_vault_selection
+                + r"[\r\n]+CLI_UNAVAILABLE_OK"
+                + rf"[\r\n]+CLI_UNAVAILABLE_COUNT:{expected_cli_count}"
+            ),
+        )
+        self.assertNotIn("GITHUB_FIXTURE", completed.stdout)
+
     def test_concrete_github_selection_is_owned_by_composition(self) -> None:
         composition_source = read("src/app/src/github_application.cpp")
         required_selection = (
@@ -264,19 +297,6 @@ class CompositionContractTests(unittest.TestCase):
 
             runtime_environment = os.environ.copy()
             runtime_environment["QT_QPA_PLATFORM"] = "offscreen"
-            runtime = subprocess.run(
-                [str(executable), "--self-test"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=30,
-                env=runtime_environment,
-            )
-            self.assertEqual(
-                runtime.returncode,
-                0,
-                runtime.stdout + runtime.stderr,
-            )
             expected_selection = (
                 "true"
                 if (
@@ -286,51 +306,20 @@ class CompositionContractTests(unittest.TestCase):
                 )
                 else "false"
             )
-            self.assertRegex(
-                runtime.stdout,
-                (
-                    r"PUBLIC_PATH_OK[\r\n]+"
-                    r"NATIVE_PLATFORM_VAULT_SELECTED:"
-                    + expected_selection
-                    + (
-                        r"[\r\n]+CLI_UNAVAILABLE_OK"
-                        r"[\r\n]+CLI_UNAVAILABLE_COUNT:1"
-                    )
-                ),
+            self.assert_release_self_test(
+                executable,
+                runtime_environment,
+                expected_selection,
+                1,
             )
-            self.assertNotIn("GITHUB_FIXTURE", runtime.stdout)
-
-            ghes_runtime = subprocess.run(
-                [
-                    str(executable),
-                    "--self-test",
-                    "--ghes-host",
-                    "ghe.example.invalid",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=30,
-                env=runtime_environment,
+            self.assert_release_self_test(
+                executable,
+                runtime_environment,
+                expected_selection,
+                2,
+                "--ghes-host",
+                "ghe.example.invalid",
             )
-            self.assertEqual(
-                ghes_runtime.returncode,
-                0,
-                ghes_runtime.stdout + ghes_runtime.stderr,
-            )
-            self.assertRegex(
-                ghes_runtime.stdout,
-                (
-                    r"PUBLIC_PATH_OK[\r\n]+"
-                    r"NATIVE_PLATFORM_VAULT_SELECTED:"
-                    + expected_selection
-                    + (
-                        r"[\r\n]+CLI_UNAVAILABLE_OK"
-                        r"[\r\n]+CLI_UNAVAILABLE_COUNT:2"
-                    )
-                ),
-            )
-            self.assertNotIn("GITHUB_FIXTURE", ghes_runtime.stdout)
 
             failed_render = subprocess.run(
                 [
