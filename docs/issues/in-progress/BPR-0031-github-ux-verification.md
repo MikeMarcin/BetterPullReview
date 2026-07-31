@@ -65,6 +65,26 @@ and virtualized review layout.
 - Applied a conservative simplification pass without changing the verified
   behavior. GitHub Actions has no role.
 
+## Deferred final-workbench presentation obligation
+
+Direct inspection of the native-Dark render confirms system appearance
+inheritance, but it also confirms that this provider integration window is not
+the final product surface. It remains dominated by connection and locator
+forms, nested borders, mixed icon treatment, excess summary whitespace, weak
+content hierarchy, and an equal-width content split that does not prioritize
+the review task. It contains no central diff workbench.
+
+When RFC-BPR-0005 reaches its normal planning slice, allocate a distinct final
+workbench presentation-polish and native visual-acceptance card. That card must
+inspect the real integrated workbench at supported widths and at 1.0x, 1.25x,
+and 2.0x under native system Light and Dark. Acceptance must require coherent
+hierarchy, spacing, density, typography, grouping, and icon treatment;
+readable conversation and empty/loading/error states; visible keyboard focus;
+and no clipping, overlap, or low-contrast controls. Deterministic geometry and
+state assertions must be paired with direct native render inspection.
+RFC-BPR-0006 retains custom System/Light/Dark/high-contrast profiles, syntax
+colors, and configurable font/theme work.
+
 ## Evidence
 
 - The scale-specific Qt cases pass at 1.0x, 1.25x, and 2.0x and directly cover
