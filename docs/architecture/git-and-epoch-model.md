@@ -288,13 +288,22 @@ produce no accepted durable or visible state.
 ```text
 accepted_epoch_delta
 epoch_catalog_delta
+    optional catalog identity; absence explicitly clears catalog projection
     inserted, removed, and availability-changed stable IDs
 comparison_selection_delta
-    semantic selection plus exact resolved anchors/OIDs
+    semantic selection
+comparison_resolution_delta
+    semantic selection plus optional exact resolved anchors/OIDs
 epoch_command_delta
 epoch_status_delta
 epoch_diagnostic_delta
 ```
+
+Authority loss, authority switch, and catalog-conflict reload publish explicit
+catalog, semantic-selection, and resolved-comparison clears before any
+replacement catalog can become visible. Catalog incarnation is therefore a
+hard boundary: a one-sided selection cannot combine a newly loaded anchor
+with an accepted pair from an earlier incarnation.
 
 Selecting a different resolved anchor pair, or changing availability of the
 selected pair, advances `comparison_generation` and cancels dependent work.
