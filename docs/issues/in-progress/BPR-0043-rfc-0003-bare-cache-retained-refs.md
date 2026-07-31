@@ -1,7 +1,7 @@
 ---
 id: BPR-0043
 title: Implement app-owned bare caches and retained private refs
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0042]
 ---
