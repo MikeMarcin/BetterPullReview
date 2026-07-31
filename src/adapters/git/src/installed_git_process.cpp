@@ -1183,6 +1183,7 @@ struct runner_configuration
     std::filesystem::path GlobalConfig;
     std::filesystem::path Attributes;
     std::filesystem::path Templates;
+    std::filesystem::path Hooks;
     std::optional<std::filesystem::path> ExecPath;
     std::optional<std::filesystem::path> WindowsSystemRoot;
 };
@@ -1348,6 +1349,8 @@ struct runner_configuration
         || !regular_executable(*canonical_executable)
         || !canonical_existing(
             configuration.WorkingDirectory).has_value()
+        || !empty_private_directory(configuration.Templates)
+        || !empty_private_directory(configuration.Hooks)
         || (configuration.ExecPath.has_value()
             && canonical_existing(*configuration.ExecPath)
                 != configuration.ExecPath))
@@ -3154,6 +3157,7 @@ auto installed_git_process::capability_probe()
         .GlobalConfig = isolation / "config-global",
         .Attributes = isolation / "attributes-system",
         .Templates = isolation / "templates",
+        .Hooks = isolation / "hooks",
         .ExecPath = std::move(exec_path),
         .WindowsSystemRoot = windows_system_root,
     };
