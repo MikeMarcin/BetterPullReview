@@ -574,6 +574,15 @@ containment, reap, and shutdown are bounded. Platform-specific Windows
 process containment remains an explicit target-native verification task and
 does not block the other architecture or implementation slices.
 
+BPR-0042 implements the local child boundary and secure completed-spool
+consumption only. The app-owned protocol-v2/native-HTTPS client, cache writer,
+spool producer, and pre-import observations remain BPR-0043. BPR-0044 must
+durably store the exact completed-spool, expected-pack, pack-inventory, and
+preexisting-pack facts; BPR-0045 must commit that record before local import
+and enforce the remaining ref/catalog/recovery order. Until those slices
+complete, the architecture above is not a claim of an end-to-end fetch or
+crash-recovery implementation.
+
 ### App-owned bare repository and private refs
 
 Only a versioned app-data directory with validated ownership and permissions

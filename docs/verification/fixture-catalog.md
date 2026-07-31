@@ -310,6 +310,50 @@ reuse. A fake successful child still receives zero calls, and the public path
 returns `cli_unavailable` with zero process launches. RFC-BPR-0015 owns any
 future positive CLI enablement.
 
+## Installed Git local-process contract fixture
+
+`tests/git_contract/git_process_contract_tests.cpp` exercises the BPR-0042
+application port and designated `QProcess` adapter through both the selected
+real installed Git and same-executable fake-child modes. Construction binds a
+canonical executable and matching exec path, builds the environment from
+nothing, uses fixed private configuration/home/template/hook/temporary roots,
+and runs the SHA-1 and SHA-256 initialization, pack, object, and ref
+capability probes. Exact child logging proves the fixed argv, environment,
+working directory, and standard input without a shell, generic command, URL,
+credential, advertisement, proxy, or network verb surface.
+
+Real-Git cases derive the exact
+`incoming/v1/<64-lowercase-hex-operation-id>.pack.part` path, retain a
+no-follow verified spool handle across queue delay, reject a swapped symlink
+or reparse target, run strict bounded import, require the exact pack identity,
+inspect the resulting pack and nonempty index, and reject an unexpected
+`.rev`. They also cover bare-repository initialization, commit/tree
+inspection, ancestry, atomic exact private refs, invalid repository state,
+and SHA-1/SHA-256 object formats.
+
+Hostile cases arm ambient and repository configuration, credential helpers,
+askpass, hooks, filters, LFS, submodule recursion, textconv, external diff,
+alternate objects, replace refs, protocol handlers, editors, pagers, tracing,
+templates, and repository executables. The combined evidence is the hostile
+real repository plus the port's exact closed invocation surface; it does not
+claim that every excluded mechanism was naturally activated by one Git verb.
+Directory symlinks/reparse points, invalid permissions/ownership where the
+platform exposes them, final spool replacement, and nonempty configured hook
+or template roots fail closed before the affected launch or repository
+mutation.
+
+Fake-child cases cover serialized admission, queue expiry, bounded standard
+input and retained output, simultaneous stream pressure, deadline,
+cancellation, process failure, Unix descendant termination, bounded
+two-stage reap, and permanent zero-launch lane quarantine after catastrophic
+reap failure. Guarded Windows Job Object, pipe, ACL, junction, and reparse
+source is not target-native evidence; BPR-0053 retains that run.
+
+This fixture does not exercise native smart transport, protocol-v2 packets,
+cache identity or reuse, durable journaling/recovery, public composition, or
+target-native Linux/Windows behavior unless it is run on that target. Those
+surfaces remain assigned to later RFC-BPR-0003 cards.
+
 ## Native HTTPS loopback transport fixture
 
 `tests/scripts/verify_native_https_transport.py` drives the compiled

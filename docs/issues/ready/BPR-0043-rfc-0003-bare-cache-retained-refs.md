@@ -1,7 +1,7 @@
 ---
 id: BPR-0043
 title: Implement app-owned bare caches and retained private refs
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0003
 depends_on: [BPR-0042]
 ---
@@ -23,6 +23,14 @@ complete physical partition and a separate opaque PR-authority scope for
 every retained and staging ref, so PR numbers or ordinals cannot collide.
 Never add a remote, fetch wildcard refs/tags, use provider URLs as authority,
 or use remote `HeadRef` text in an argument or refspec.
+
+This slice owns the app-owned protocol-v2 client, native-HTTPS smart
+transport, request-owned spool creation and completed-spool validation, exact
+pre-import pack inventory and preexisting-pack observations, cache locking,
+cache reuse, local import handoff, connectivity checks, and retained private
+refs. It must expose the exact validated spool/pack/inventory facts needed by
+the durable BPR-0044 operation record. BPR-0044 owns persistence of those
+facts; BPR-0045 owns the required journal-before-`index-pack` sequencing.
 
 Prove cache reuse and force-pushed old-head residency after the fixture remote
 removes and prunes the old object. Hard quota exhaustion must fail without

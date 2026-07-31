@@ -19,5 +19,13 @@ presentation mapping. Every operation carries application session, profile,
 host, account, repository, pull request, provider snapshot, identity/PR/epoch
 generation, request, and expected catalog revision.
 
+Enforce the recoverable phase order: validate and durably complete the spool;
+persist the BPR-0044 operation record with expected-pack, pre-import inventory,
+and preexisting-pack facts; only then call BPR-0042 `index-pack`; independently
+verify objects/connectivity; create exact staging refs; commit catalog
+visibility and retained refs under the documented linearization policy; and
+exact-delete or recover the spool and request residue. No code path may publish
+catalog-visible epoch state before every earlier phase agrees.
+
 Manual-executor and fake-port tests must reorder every terminal path and prove
 that only an exact core acceptance decision can commit or publish epoch state.

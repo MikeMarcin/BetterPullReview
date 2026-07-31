@@ -20,6 +20,12 @@ availability, and retained-ref identity without source bodies or credentials.
 Keep this dedicated epoch database separate from RFC-BPR-0007's future review
 ledger.
 
+Persist a typed request operation record before local import. It includes the
+exact completed spool identity and size, expected pack identity, bounded
+pre-import pack-directory inventory, and preexisting-pack fact supplied by
+BPR-0043. Recovery must use those exact facts and never infer ownership from a
+broad object-directory scan.
+
 Coordinate catalog and private-ref commit so a stale, canceled, duplicate, or
 failed job cannot publish an epoch. A different observed revision with
 equivalent material remains a distinct epoch. Resolve Branch base, Latest,

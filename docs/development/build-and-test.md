@@ -48,7 +48,9 @@ ctest --preset windows-dev --output-on-failure
 |---|---|
 | `better_pull_review_core` | Qt/effect-free semantic library |
 | `better_pull_review_application` | Host, effect/decision ports, serialized completion, manual executor |
-| `better_pull_review_adapter_{github,git,sqlite,ai}` | Capability boundaries established for later RFCs |
+| `better_pull_review_adapter_github` | Normalized provider, native-HTTPS, credential-vault, and recorded-test adapters |
+| `better_pull_review_adapter_git` | Concrete Qt Core/`QProcess` installed-Git local pack/object/ref adapter |
+| `better_pull_review_adapter_{sqlite,ai}` | Capability boundaries established for later RFCs |
 | `better_pull_review_adapter_qt` | Native Qt presentation adapter |
 | `better_pull_review_composition` | Explicit profile, transport, vault, provider, worker, host, and Qt wiring |
 | `better_pull_review` | Native read-only GitHub application executable |
@@ -822,6 +824,32 @@ This focused group does not replace either complete preset matrix, sanitizer
 coverage, target-native platform evidence, documentation/source-pack gates,
 or `git diff --check`. Windows verification remains open under BPR-0036 and
 does not block running or completing the available-platform work.
+
+For the BPR-0042 installed-Git local-process boundary, configure the `dev`
+preset and run:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_git_process_contract_tests
+ctest --preset dev --output-on-failure \
+  -R '^(git_process_contract|architecture_boundaries|architecture_boundary_contract)$'
+python3 tests/scripts/architecture_boundary_tests.py
+```
+
+Git 2.39 is the minimum admitted version, but version text alone does not
+select a usable installation. Adapter construction binds the absolute
+executable and matching exec path and runs fixed SHA-1 and SHA-256
+pack/object/ref capability probes under the production isolation policy. The
+contract then exercises real installed Git plus a same-test fake child for
+exact command/environment/working-directory inspection and process-terminal
+faults.
+
+This focused target proves the BPR-0042 credential-free local process and
+completed-spool consumer on the machine where it runs. It does not prove the
+BPR-0043 native smart-HTTPS/protocol-v2 path, cache authority or reuse,
+BPR-0044 journal recovery, BPR-0047 public composition, target-native Linux
+behavior when run on macOS, or the BPR-0053 Windows process/Job Object/path
+surface.
 
 ## Troubleshooting and safe verification
 

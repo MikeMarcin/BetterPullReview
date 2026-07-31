@@ -50,7 +50,8 @@ an internal command bus.
 The application-owned protocol-v2 client depends on the narrow smart-transport
 port. The GitHub adapter implements that port with the same validated
 native-HTTPS account authority used for API reads. The Git adapter receives
-only a bounded pack byte stream and typed local object/ref commands. It never
+only an already completed, validated, bounded private spool request and typed
+local object/ref commands. It never
 receives credential bytes, a credential-bearing URL, a remote ref
 advertisement, proxy configuration, or permission to open a network
 connection. Installed Git remains a local pack/object/ref engine.
@@ -598,12 +599,29 @@ textconv, external diff, worktree, maintenance, or automatic GC behavior.
 Later ancestry, object, and tree checks use only fixed verbs and validated
 OIDs under the same repository and environment policy.
 
-Process creation uses a new Unix session/process group or a Windows Job Object
-and closed inherited handles. Output, time, descendants, cancellation, and
-reaping are bounded. A process that cannot be proven stopped remains owned by
-a quarantine/reaper path; the application does not free its repository or
-transport resources underneath it. No privileged helper, daemon, service,
-listener, or weakened platform-security setting is introduced.
+The implemented process worker serializes calls. Unix children enter a new
+session/process group; guarded Windows code assigns children to a Job Object
+and closes inherited handles, with target-native execution retained in
+BPR-0053. Input, retained output, time, cancellation, descendant termination,
+and two-stage reaping are bounded. If the adapter still cannot prove a child
+reaped after both stages, it permanently quarantines the lane and deliberately
+retains the process wrapper instead of invoking a potentially unbounded Qt
+destructor wait. It does not spawn an unbounded background reaper or admit
+later work onto the lane, and the application must not free repository or
+transport resources underneath that ownership. BPR-0045 owns final composed
+lifecycle ordering. No privileged helper, daemon, service, listener, or
+weakened platform-security setting is introduced.
+
+BPR-0042 implements only this credential-free local process boundary and the
+exact secure consumption of
+`incoming/v1/<64-lowercase-hex-operation-id>.pack.part`. BPR-0043 owns the
+app-owned protocol-v2/native-HTTPS path, cache creation and locking, spool
+creation and completed-pack validation, pre-import pack inventory, and
+retained refs. BPR-0044 owns the durable operation record containing the
+spool identity/size, expected pack, inventory, and preexisting-pack fact.
+BPR-0045 must persist that record before invoking `index-pack` and owns the
+remaining import/ref/catalog/recovery sequence. Passing the local
+BPR-0042 contract is not evidence that those later surfaces exist.
 
 ## Catalog and recoverable commit protocol
 
