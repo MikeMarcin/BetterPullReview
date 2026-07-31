@@ -58,6 +58,10 @@ and virtualized review layout.
   fresh, non-aliased PNGs created and reloaded. Failed probes leave no render
   artifacts. The test seam never changes the operating-system appearance and
   is absent from tests-off production builds.
+- Documented the owner-authorized native gate as a rollback-safe System Events
+  protocol. It waits for both Light readiness markers before changing the
+  desktop, requires every transition/state/pixel/render success marker, and
+  restores the original appearance through an exit/signal trap.
 - Applied a conservative simplification pass without changing the verified
   behavior. GitHub Actions has no role.
 

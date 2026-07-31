@@ -657,7 +657,10 @@ bpr_probe_pid=$!
 
 bpr_ready=false
 for bpr_attempt in $(seq 1 300); do
-  if grep -qx 'NATIVE_APPEARANCE_GLOBAL_READY:Light' "$bpr_log"; then
+  if \
+    grep -qx 'NATIVE_APPEARANCE_READY:Light' "$bpr_log" \
+    && grep -qx 'NATIVE_APPEARANCE_GLOBAL_READY:Light' "$bpr_log"
+  then
     bpr_ready=true
     break
   fi
@@ -690,6 +693,8 @@ for bpr_marker in \
   'PUBLIC_PATH_OK' \
   'GITHUB_FIXTURE_OK:github.com' \
   'RENDER_OK' \
+  'NATIVE_APPEARANCE_READY:Light' \
+  'NATIVE_APPEARANCE_GLOBAL_READY:Light' \
   'NATIVE_APPEARANCE_TRANSITION:Light->Dark' \
   'NATIVE_APPEARANCE_GLOBAL_TRANSITION:Light->Dark' \
   'NATIVE_APPEARANCE_PLATFORM:cocoa' \
