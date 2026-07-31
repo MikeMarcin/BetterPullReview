@@ -549,9 +549,9 @@ git -c core.fsync=all
     --stdin
     --strict
     --check-self-contained-and-connected
+    --max-input-size=<validated pack-byte bound>
     --threads=1
     --no-rev-index
-    --max-input-size=<validated pack-byte bound>
 ```
 
 `fetch-pack`, `--keep`, `--fix-thin`, network subcommands, arbitrary

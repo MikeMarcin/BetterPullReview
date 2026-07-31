@@ -3,6 +3,7 @@ if(NOT DEFINED BPR_ROOT)
 endif()
 
 set(github_adapter_cmake "${BPR_ROOT}/src/adapters/github/CMakeLists.txt")
+set(git_adapter_cmake "${BPR_ROOT}/src/adapters/git/CMakeLists.txt")
 set(adapters_cmake "${BPR_ROOT}/src/adapters/CMakeLists.txt")
 set(
     github_process_runner_relative
@@ -48,9 +49,24 @@ set(
     linux_secret_service_relative
     "src/adapters/github/src/linux_secret_service.cpp"
 )
+set(
+    git_process_runner_relative
+    "src/adapters/git/src/installed_git_process.cpp"
+)
+set(
+    git_process_port_relative
+    "src/application/include/bpr/application/git_process_port.hpp"
+)
+set(
+    git_process_factory_relative
+    "src/adapters/git/include/bpr/adapters/git/installed_git_process.hpp"
+)
 
 if(NOT EXISTS "${github_adapter_cmake}")
     message(FATAL_ERROR "GitHub adapter must own a dedicated CMake target")
+endif()
+if(NOT EXISTS "${git_adapter_cmake}")
+    message(FATAL_ERROR "Git adapter must own a dedicated CMake target")
 endif()
 
 file(READ "${adapters_cmake}" adapters_cmake_contents)
@@ -60,6 +76,58 @@ if(
 )
     message(FATAL_ERROR "Adapter root must delegate to the GitHub subdirectory")
 endif()
+if(
+    NOT adapters_cmake_contents
+        MATCHES "add_subdirectory\\([ \t\r\n]*git[ \t\r\n]*\\)"
+)
+    message(FATAL_ERROR "Adapter root must delegate to the Git subdirectory")
+endif()
+
+file(READ "${git_adapter_cmake}" git_cmake_contents)
+set(
+    git_target_patterns
+    "add_library\\([ \t\r\n]*better_pull_review_adapter_git([ \t\r\n]|\\))"
+    "add_library\\([ \t\r\n]*BetterPullReview::AdapterGit[ \t\r\n]+ALIAS[ \t\r\n]+better_pull_review_adapter_git[ \t\r\n]*\\)"
+    "src/installed_git_process\\.cpp"
+    "BetterPullReview::Application"
+    "Qt6::Core"
+    "Threads::Threads"
+)
+foreach(pattern IN LISTS git_target_patterns)
+    if(NOT git_cmake_contents MATCHES "${pattern}")
+        message(
+            FATAL_ERROR
+            "Installed-Git adapter target contract is incomplete: ${pattern}"
+        )
+    endif()
+endforeach()
+if(git_cmake_contents MATCHES "Qt6::Network")
+    message(FATAL_ERROR "Installed-Git adapter must not link Qt Network")
+endif()
+if(
+    git_cmake_contents MATCHES "BPR_[A-Z0-9_]*TEST"
+    OR git_cmake_contents MATCHES "BPR_BUILD_TESTS"
+)
+    message(
+        FATAL_ERROR
+        "Installed-Git adapter must not compile a test-only production seam"
+    )
+endif()
+foreach(
+    required_git_file_relative
+    IN ITEMS
+        "${git_process_runner_relative}"
+        "${git_process_port_relative}"
+        "${git_process_factory_relative}"
+)
+    if(NOT EXISTS "${BPR_ROOT}/${required_git_file_relative}")
+        message(
+            FATAL_ERROR
+            "Required installed-Git boundary file is missing: "
+            "${required_git_file_relative}"
+        )
+    endif()
+endforeach()
 
 file(READ "${github_adapter_cmake}" github_cmake_contents)
 string(
@@ -877,11 +945,16 @@ file(
 )
 
 function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
-    get_filename_component(
-        allowed_file
-        "${BPR_ROOT}/${allowed_relative_file}"
-        ABSOLUTE
-    )
+    set(allowed_relative_files "${allowed_relative_file}" ${ARGN})
+    set(allowed_files "")
+    foreach(current_allowed_relative IN LISTS allowed_relative_files)
+        get_filename_component(
+            current_allowed
+            "${BPR_ROOT}/${current_allowed_relative}"
+            ABSOLUTE
+        )
+        list(APPEND allowed_files "${current_allowed}")
+    endforeach()
 
     foreach(source_file IN LISTS source_files)
         file(READ "${source_file}" contents)
@@ -890,37 +963,55 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         endif()
 
         get_filename_component(normalized_source_file "${source_file}" ABSOLUTE)
-        if(NOT normalized_source_file STREQUAL allowed_file)
+        if(NOT normalized_source_file IN_LIST allowed_files)
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
             message(
                 FATAL_ERROR
                 "${effect_name} ownership violation in ${relative_file}; "
-                "only ${allowed_relative_file} may use it"
+                "only ${allowed_relative_files} may use it"
             )
         endif()
     endforeach()
 
-    if(EXISTS "${allowed_file}")
-        get_filename_component(allowed_name "${allowed_file}" NAME)
-        if(NOT github_cmake_contents MATCHES "${allowed_name}")
+    foreach(current_allowed IN LISTS allowed_files)
+        if(NOT EXISTS "${current_allowed}")
+            continue()
+        endif()
+        get_filename_component(allowed_name "${current_allowed}" NAME)
+        file(
+            RELATIVE_PATH
+            current_allowed_relative
+            "${BPR_ROOT}"
+            "${current_allowed}"
+        )
+        if(current_allowed_relative MATCHES "^src/adapters/git/")
+            set(effect_owner_cmake "${git_cmake_contents}")
+            set(effect_owner_target "better_pull_review_adapter_git")
+        else()
+            set(effect_owner_cmake "${github_cmake_contents}")
+            set(effect_owner_target "better_pull_review_adapter_github")
+        endif()
+        if(NOT effect_owner_cmake MATCHES "${allowed_name}")
             message(
                 FATAL_ERROR
-                "Designated GitHub effect source ${allowed_name} is not owned "
-                "by better_pull_review_adapter_github"
+                "Designated effect source ${allowed_name} is not owned by "
+                "${effect_owner_target}"
             )
         endif()
-    endif()
+    endforeach()
 endfunction()
 
 verify_effect_owner(
     "QProcess"
     "QProcess"
     "${github_process_runner_relative}"
+    "${git_process_runner_relative}"
 )
 verify_effect_owner(
     "QProcessEnvironment"
     "QProcessEnvironment"
     "${github_process_runner_relative}"
+    "${git_process_runner_relative}"
 )
 verify_effect_owner(
     "QNetworkAccessManager"
@@ -973,6 +1064,142 @@ get_filename_component(
     "${BPR_ROOT}/${github_cli_transport_relative}"
     ABSOLUTE
 )
+get_filename_component(
+    git_process_runner_file
+    "${BPR_ROOT}/${git_process_runner_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    git_process_port_file
+    "${BPR_ROOT}/${git_process_port_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    git_process_factory_file
+    "${BPR_ROOT}/${git_process_factory_relative}"
+    ABSOLUTE
+)
+
+file(READ "${git_process_runner_file}" git_process_runner_contents)
+file(READ "${git_process_port_file}" git_process_port_contents)
+file(READ "${git_process_factory_file}" git_process_factory_contents)
+set(
+    required_git_process_patterns
+    "QProcess::SeparateChannels"
+    "QProcess::ManagedInputChannel"
+    "QProcess::UnixProcessFlag::CloseFileDescriptors"
+    "QProcess::UnixProcessFlag::DisableCoreDumps"
+    "QProcess::UnixProcessFlag::ResetSignalHandlers"
+    "QProcess::UnixProcessFlag::CreateNewSession"
+    "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE"
+    "class[ \t]+process_worker[ \t]+final"
+    "Quarantined[ \t\r\n]*=[ \t\r\n]*true"
+    "finish_background_reap"
+    "stop\\.stop_requested\\(\\)"
+    "maximum_pending_input_bytes"
+    "buffered_input_offset"
+    "QFile[ \t\r\n]+input_file"
+    "standard_output_limit"
+    "standard_error_limit"
+    "\"GIT_CONFIG_NOSYSTEM\""
+    "\"GIT_CONFIG_SYSTEM\""
+    "\"GIT_CONFIG_GLOBAL\""
+    "\"GIT_ATTR_NOSYSTEM\""
+    "\"GIT_EXEC_PATH\""
+    "\"GIT_TEMPLATE_DIR\""
+    "\"GIT_TERMINAL_PROMPT\""
+    "\"GIT_NO_REPLACE_OBJECTS\""
+    "\"GIT_NO_LAZY_FETCH\""
+    "\"GIT_OPTIONAL_LOCKS\""
+    "\"HOME\""
+    "\"XDG_CONFIG_HOME\""
+    "\"PATH\""
+    "\"core\\.fsync=all\""
+    "\"core\\.fsyncMethod=fsync\""
+    "\"core\\.hooksPath=\""
+    "\"protocol\\.allow=never\""
+    "\"--git-dir=\""
+    "\"index-pack\""
+    "\"--stdin\""
+    "\"--strict\""
+    "\"--check-self-contained-and-connected\""
+    "\"--max-input-size=\""
+    "\"--threads=1\""
+    "\"--no-rev-index\""
+    "\"cat-file\""
+    "\"merge-base\""
+    "\"update-ref\""
+    "\"--no-deref\""
+    "\"show-ref\""
+    "transaction_success"
+    "probe_pack_sha256"
+    "capability_probe[ \t\r\n]*\\("
+)
+foreach(required_git_process_pattern IN LISTS required_git_process_patterns)
+    if(
+        NOT git_process_runner_contents
+            MATCHES "${required_git_process_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "Installed-Git runner contract is incomplete: "
+            "${required_git_process_pattern}"
+        )
+    endif()
+endforeach()
+
+set(
+    forbidden_git_process_patterns
+    "QNetwork[A-Za-z0-9_]*"
+    "QProcessEnvironment::systemEnvironment"
+    "QProcessEnvironment::InheritFromParent"
+    "(^|[^A-Za-z0-9_])(qgetenv|qEnvironmentVariable|getenv|secure_getenv|environ)([^A-Za-z0-9_]|$)"
+    "(startCommand|splitCommand|setNativeArguments|startDetached|QProcess::execute)"
+    "\"(fetch-pack|upload-pack|unpack-objects|clone|remote|submodule|checkout|merge|diff)\""
+    "\"--(fix-thin|keep)\""
+    "https?://"
+    "BPR_[A-Z0-9_]*TEST"
+)
+foreach(forbidden_git_process_pattern IN LISTS forbidden_git_process_patterns)
+    if(
+        git_process_runner_contents
+            MATCHES "${forbidden_git_process_pattern}"
+    )
+        message(
+            FATAL_ERROR
+            "Forbidden installed-Git process surface: "
+            "${forbidden_git_process_pattern}"
+        )
+    endif()
+endforeach()
+
+set(
+    forbidden_git_public_port_patterns
+    "#[ \t]*include[ \t]*[<\"]Q"
+    "(^|[^A-Za-z0-9_])Q[A-Z][A-Za-z0-9_]*"
+    "(Arguments|Environment|WorkingDirectory|Timeout|OutputLimit)"
+    "(URL|Url|URI|Credential|Authorization|Proxy|Certificate)"
+    "(std::string|std::vector)"
+)
+foreach(forbidden_pattern IN LISTS forbidden_git_public_port_patterns)
+    if(git_process_port_contents MATCHES "${forbidden_pattern}")
+        message(
+            FATAL_ERROR
+            "Git application port exposes forbidden process/provider "
+            "authority: ${forbidden_pattern}"
+        )
+    endif()
+endforeach()
+if(
+    git_process_factory_contents MATCHES "#[ \t]*include[ \t]*[<\"]Q"
+    OR git_process_factory_contents MATCHES "BPR_[A-Z0-9_]*TEST"
+)
+    message(
+        FATAL_ERROR
+        "Installed-Git factory header must remain standard C++ and "
+        "production-only"
+    )
+endif()
 
 foreach(
     standard_process_header
@@ -2858,11 +3085,24 @@ foreach(
     cli_construction_pattern
     IN LISTS github_cli_invocation_and_environment_patterns
 )
-    verify_effect_owner(
-        "${cli_construction_pattern}"
-        "GitHub CLI invocation/environment construction"
-        "${github_cli_transport_relative}"
+    if(
+        cli_construction_pattern STREQUAL "\"HOME\""
+        OR cli_construction_pattern STREQUAL "\"PATH\""
+        OR cli_construction_pattern STREQUAL "\"SystemRoot\""
     )
+        verify_effect_owner(
+            "${cli_construction_pattern}"
+            "process environment construction"
+            "${github_cli_transport_relative}"
+            "${git_process_runner_relative}"
+        )
+    else()
+        verify_effect_owner(
+            "${cli_construction_pattern}"
+            "GitHub CLI invocation/environment construction"
+            "${github_cli_transport_relative}"
+        )
+    endif()
 endforeach()
 
 set(
@@ -2904,6 +3144,7 @@ foreach(source_file IN LISTS source_files)
         contents MATCHES "\"(PATH|SystemRoot)\""
         AND NOT normalized_source_file STREQUAL github_cli_transport_file
         AND NOT normalized_source_file STREQUAL github_process_runner_file
+        AND NOT normalized_source_file STREQUAL git_process_runner_file
     )
         file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
         message(
@@ -2911,7 +3152,8 @@ foreach(source_file IN LISTS source_files)
             "GitHub CLI invocation/environment construction ownership "
             "violation in ${relative_file}; PATH and SystemRoot are owned by "
             "${github_cli_transport_relative}, with validation only in "
-            "${github_process_runner_relative}"
+            "${github_process_runner_relative}, or by the isolated installed-"
+            "Git runner ${git_process_runner_relative}"
         )
     endif()
 

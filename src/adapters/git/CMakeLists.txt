@@ -1,0 +1,59 @@
+if(BPR_BUILD_QT)
+    find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
+    find_package(Threads REQUIRED)
+
+    add_library(
+        better_pull_review_adapter_git
+        STATIC
+            src/installed_git_process.cpp
+    )
+    add_library(
+        BetterPullReview::AdapterGit
+        ALIAS
+        better_pull_review_adapter_git
+    )
+    target_include_directories(
+        better_pull_review_adapter_git
+        PUBLIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    )
+    target_link_libraries(
+        better_pull_review_adapter_git
+        PUBLIC
+            BetterPullReview::Application
+        PRIVATE
+            Qt6::Core
+            Threads::Threads
+    )
+    target_compile_features(
+        better_pull_review_adapter_git
+        PUBLIC
+            cxx_std_23
+    )
+    if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_definitions(
+            better_pull_review_adapter_git
+            PUBLIC
+                _LIBCPP_ENABLE_EXPERIMENTAL
+        )
+    endif()
+    bpr_enable_hardening(better_pull_review_adapter_git)
+    bpr_enable_warnings(better_pull_review_adapter_git)
+else()
+    add_library(better_pull_review_adapter_git INTERFACE)
+    add_library(
+        BetterPullReview::AdapterGit
+        ALIAS
+        better_pull_review_adapter_git
+    )
+    target_include_directories(
+        better_pull_review_adapter_git
+        INTERFACE
+            "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    )
+    target_link_libraries(
+        better_pull_review_adapter_git
+        INTERFACE
+            BetterPullReview::Application
+    )
+endif()

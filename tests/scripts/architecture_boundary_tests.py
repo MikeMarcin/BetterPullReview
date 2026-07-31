@@ -13,7 +13,40 @@ VERIFY_SCRIPT = REPOSITORY_ROOT / "cmake" / "VerifyArchitectureBoundaries.cmake"
 
 ADAPTER_ROOT = """\
 add_subdirectory(github)
+add_subdirectory(git)
 """
+
+GIT_TARGET = (
+    REPOSITORY_ROOT / "src" / "adapters" / "git" / "CMakeLists.txt"
+).read_text(encoding="utf-8")
+GIT_PROCESS_RUNNER_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "adapters"
+    / "git"
+    / "src"
+    / "installed_git_process.cpp"
+).read_text(encoding="utf-8")
+GIT_PROCESS_PORT = (
+    REPOSITORY_ROOT
+    / "src"
+    / "application"
+    / "include"
+    / "bpr"
+    / "application"
+    / "git_process_port.hpp"
+).read_text(encoding="utf-8")
+GIT_PROCESS_FACTORY = (
+    REPOSITORY_ROOT
+    / "src"
+    / "adapters"
+    / "git"
+    / "include"
+    / "bpr"
+    / "adapters"
+    / "git"
+    / "installed_git_process.hpp"
+).read_text(encoding="utf-8")
 
 APPLE_KEYCHAIN_TARGET = """\
 if(APPLE)
@@ -1147,6 +1180,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         *,
         adapter_root: str = ADAPTER_ROOT,
         github_target: str = GITHUB_TARGET,
+        git_target: str = GIT_TARGET,
         omit_macos_source: bool = False,
         omit_windows_source: bool = False,
         omit_linux_source: bool = False,
@@ -1162,7 +1196,14 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "src/application/CMakeLists.txt": "",
                 "src/adapters/CMakeLists.txt": adapter_root,
                 "src/adapters/github/CMakeLists.txt": github_target,
+                "src/adapters/git/CMakeLists.txt": git_target,
                 "src/adapters/qt/CMakeLists.txt": "",
+                "src/adapters/git/src/installed_git_process.cpp":
+                    GIT_PROCESS_RUNNER_SOURCE,
+                "src/application/include/bpr/application/"
+                "git_process_port.hpp": GIT_PROCESS_PORT,
+                "src/adapters/git/include/bpr/adapters/git/"
+                "installed_git_process.hpp": GIT_PROCESS_FACTORY,
             }
             if not omit_process_interface:
                 files[
@@ -1250,6 +1291,125 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assert_failure(
             "QProcess ownership violation",
             {"src/adapters/git/process.cpp": "QProcess* process;\n"},
+        )
+
+    def test_designated_installed_git_process_runner_is_allowed(self) -> None:
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_git_qprocess_environment_is_rejected_in_a_second_file(
+        self,
+    ) -> None:
+        self.assert_failure(
+            "QProcess ownership violation",
+            {
+                "src/adapters/git/src/other.cpp":
+                    "QProcessEnvironment environment;\n"
+            },
+        )
+
+    def test_installed_git_target_must_own_designated_runner(self) -> None:
+        self.assert_failure(
+            "Installed-Git adapter target contract is incomplete",
+            git_target=GIT_TARGET.replace(
+                "            src/installed_git_process.cpp\n",
+                "",
+            ),
+        )
+
+    def test_installed_git_runner_requires_closed_hardening_contract(
+        self,
+    ) -> None:
+        required_fragments = (
+            "QProcess::SeparateChannels",
+            "QProcess::ManagedInputChannel",
+            "QProcess::UnixProcessFlag::CreateNewSession",
+            "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
+            "maximum_pending_input_bytes",
+            "buffered_input_offset",
+            '"GIT_CONFIG_NOSYSTEM"',
+            '"GIT_EXEC_PATH"',
+            '"core.fsync=all"',
+            '"core.fsyncMethod=fsync"',
+            '"protocol.allow=never"',
+            '"--check-self-contained-and-connected"',
+            '"--max-input-size="',
+            "probe_pack_sha256",
+            "capability_probe(",
+        )
+        for fragment in required_fragments:
+            with self.subTest(fragment=fragment):
+                self.assert_failure(
+                    "Installed-Git runner contract is incomplete",
+                    {
+                        "src/adapters/git/src/"
+                        "installed_git_process.cpp":
+                            GIT_PROCESS_RUNNER_SOURCE.replace(
+                                fragment,
+                                "",
+                            )
+                    },
+                )
+
+    def test_installed_git_runner_rejects_expanded_authority(self) -> None:
+        hostile_surfaces = (
+            (
+                "QNetworkReply* reply;\n",
+                "Qt network/TLS type ownership violation",
+            ),
+            (
+                "auto inherited = "
+                "QProcessEnvironment::systemEnvironment();\n",
+                "Forbidden installed-Git process surface",
+            ),
+            (
+                'const char* verb = "fetch-pack";\n',
+                "Forbidden installed-Git process surface",
+            ),
+            (
+                "process.startCommand(command);\n",
+                "Forbidden installed-Git process surface",
+            ),
+            (
+                'const char* url = "https://example.invalid";\n',
+                "Forbidden installed-Git process surface",
+            ),
+            (
+                "#define BPR_GIT_TEST_SEAM 1\n",
+                "Forbidden installed-Git process surface",
+            ),
+        )
+        for hostile, expected in hostile_surfaces:
+            with self.subTest(hostile=hostile.strip()):
+                self.assert_failure(
+                    expected,
+                    {
+                        "src/adapters/git/src/"
+                        "installed_git_process.cpp":
+                            GIT_PROCESS_RUNNER_SOURCE + hostile
+                    },
+                )
+
+    def test_git_application_port_rejects_generic_process_controls(
+        self,
+    ) -> None:
+        self.assert_failure(
+            "Git application port exposes forbidden process/provider "
+            "authority",
+            {
+                "src/application/include/bpr/application/"
+                "git_process_port.hpp":
+                    GIT_PROCESS_PORT
+                    + "\nstruct hostile { std::vector<std::string> "
+                    "Arguments; };\n"
+            },
+        )
+
+    def test_installed_git_target_rejects_test_only_seams(self) -> None:
+        self.assert_failure(
+            "must not compile a test-only production seam",
+            git_target=GIT_TARGET
+            + "\nif(BPR_BUILD_TESTS)\nendif()\n",
         )
 
     def test_core_application_and_qt_reject_process_and_network_types(
@@ -3014,7 +3174,7 @@ auto finish_background_reap(
         for hostile_literal in hostile_literals:
             with self.subTest(hostile_literal=hostile_literal):
                 self.assert_failure(
-                    "invocation/environment construction ownership violation",
+                    "environment construction ownership violation",
                     {
                         "src/adapters/github/src/other.cpp":
                             f"const char* hostile = {hostile_literal};\n"
@@ -3168,11 +3328,9 @@ auto finish_background_reap(
     def test_linux_build_ownership_cannot_move_to_another_target(self) -> None:
         self.assert_failure(
             "Linux Secret Service build ownership must remain",
-            {
-                "src/adapters/git/CMakeLists.txt":
-                    "target_sources(git PRIVATE "
-                    "src/linux_secret_service.cpp)\n"
-            },
+            git_target=GIT_TARGET
+            + "\ntarget_sources(better_pull_review_adapter_git PRIVATE "
+            "src/linux_secret_service.cpp)\n",
         )
 
     def test_linux_vault_requires_the_effect_executor(self) -> None:
