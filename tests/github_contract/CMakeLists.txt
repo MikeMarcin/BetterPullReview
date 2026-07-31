@@ -43,6 +43,46 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+add_executable(
+    better_pull_review_native_git_smart_transport_tests
+    native_git_smart_transport_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_native_git_smart_transport_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::Application
+        Qt6::Core
+        Qt6::Network
+        Threads::Threads
+)
+target_include_directories(
+    better_pull_review_native_git_smart_transport_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    better_pull_review_native_git_smart_transport_tests
+    PRIVATE
+        BPR_NATIVE_HTTPS_TESTING=1
+)
+bpr_enable_hardening(
+    better_pull_review_native_git_smart_transport_tests
+)
+bpr_enable_warnings(
+    better_pull_review_native_git_smart_transport_tests
+)
+
+add_test(
+    NAME native_git_smart_transport_contract
+    COMMAND better_pull_review_native_git_smart_transport_tests --contract
+)
+set_tests_properties(
+    native_git_smart_transport_contract
+    PROPERTIES
+        TIMEOUT 30
+)
+
 if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_program(
         BPR_TEST_NATIVE_HTTPS_OPENSSL
@@ -61,6 +101,23 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
     set_tests_properties(
         native_https_transport_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 90
+    )
+
+    add_test(
+        NAME native_git_smart_transport_fixture
+        COMMAND
+            "${Python3_EXECUTABLE}"
+            "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_git_smart_transport.py"
+            --executable
+            "$<TARGET_FILE:better_pull_review_native_git_smart_transport_tests>"
+            --openssl
+            "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
+    )
+    set_tests_properties(
+        native_git_smart_transport_fixture
         PROPERTIES
             RESOURCE_LOCK native_https_loopback
             TIMEOUT 90

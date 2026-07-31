@@ -4,6 +4,7 @@
 #include "github_wire_transport.hpp"
 
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/git_smart_transport_port.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -14,6 +15,8 @@
 
 namespace bpr::adapters::github::detail
 {
+class native_git_smart_lease_state;
+
 inline constexpr std::size_t native_https_maximum_request_body_bytes =
     256U * 1024U;
 inline constexpr std::size_t native_https_maximum_response_body_bytes =
@@ -25,6 +28,8 @@ inline constexpr std::size_t native_https_maximum_response_header_bytes =
 inline constexpr std::uint32_t native_https_maximum_redirects = 3U;
 inline constexpr auto native_https_total_timeout =
     std::chrono::seconds{30};
+inline constexpr auto native_git_smart_total_timeout =
+    std::chrono::minutes{15};
 
 enum class native_https_configuration_failure : std::uint8_t
 {
@@ -75,6 +80,7 @@ struct native_https_test_configuration
     std::string ProxyHost;
     std::uint16_t ProxyPort = 0U;
     std::uint16_t FallbackProxyPort = 0U;
+    bool DirectFirstProxyCandidate = false;
     std::string TrustedCaCertificatePem;
     std::chrono::milliseconds TotalTimeout =
         native_https_total_timeout;
@@ -85,6 +91,8 @@ struct native_https_test_configuration
         default;
 };
 #endif
+
+class native_git_smart_transport;
 
 class native_https_transport final : public github_wire_transport_port
 {
@@ -112,12 +120,48 @@ public:
         -> github_capability_probe_wire_completion override;
 
 private:
+    friend class native_git_smart_transport;
+
+    [[nodiscard]] auto can_acquire_smart(
+        const application::git_smart_request_context& context) const noexcept
+        -> bool;
+
+    [[nodiscard]] auto discover_for_lease(
+        const application::git_smart_discovery_request& request,
+        const std::shared_ptr<native_git_smart_lease_state>& lease,
+        std::stop_token stop)
+        -> application::git_smart_transport_result<
+            application::git_smart_discovery_response>;
+
+    [[nodiscard]] auto ls_refs_for_lease(
+        const application::git_smart_ls_refs_request& request,
+        const std::shared_ptr<native_git_smart_lease_state>& lease,
+        std::stop_token stop)
+        -> application::git_smart_transport_result<
+            application::git_smart_ls_refs_response>;
+
+    [[nodiscard]] auto fetch_for_lease(
+        const application::git_smart_fetch_request& request,
+        const std::shared_ptr<native_git_smart_lease_state>& lease,
+        application::git_smart_wire_consumer& consumer,
+        std::stop_token stop)
+        -> application::git_smart_transport_result<void>;
+
+    void cancel_lease(
+        const std::shared_ptr<native_git_smart_lease_state>& lease) noexcept;
+
     std::unique_ptr<implementation> Implementation;
 };
 
 using native_https_transport_factory_result =
     std::expected<std::unique_ptr<native_https_transport>,
                   native_https_configuration_failure>;
+
+[[nodiscard]] auto make_native_git_smart_transport(
+    std::shared_ptr<native_https_transport> transport,
+    const application::git_smart_request_context& context) noexcept
+    -> application::git_smart_transport_result<
+        application::git_smart_transport>;
 
 [[nodiscard]] auto make_native_https_bootstrap_transport(
     const validated_github_host_profile& profile,

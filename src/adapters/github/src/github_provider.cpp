@@ -105,6 +105,7 @@ template <typename Handler>
 
 class github_wire_account_transport final
     : public application::github_account_transport_lease
+    , public application::git_smart_transport_factory_port
 {
 public:
     github_wire_account_transport(
@@ -115,6 +116,23 @@ public:
         , CredentialContext{credential_context}
         , Transport{std::move(transport)}
     {
+    }
+
+    [[nodiscard]] auto acquire(
+        const application::git_smart_request_context& context)
+        -> application::git_smart_transport_result<
+            application::git_smart_transport> override
+    {
+        const auto native =
+            std::dynamic_pointer_cast<native_https_transport>(Transport);
+        if(native == nullptr)
+        {
+            return std::unexpected{
+                application::git_smart_transport_error{
+                    .Failure = application::git_smart_transport_failure::
+                        unavailable}};
+        }
+        return make_native_git_smart_transport(native, context);
     }
 
     application::github_profile_authority Profile;

@@ -34,6 +34,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <new>
@@ -50,6 +51,19 @@
 
 namespace bpr::adapters::github::detail
 {
+class native_git_smart_lease_state final
+{
+public:
+    explicit native_git_smart_lease_state(
+        application::git_smart_request_context context) noexcept
+        : Context{std::move(context)}
+    {
+    }
+
+    application::git_smart_request_context Context;
+    std::atomic_bool Revoked = false;
+};
+
 namespace
 {
 constexpr std::size_t maximum_url_bytes = 4U * 1024U;
@@ -60,6 +74,15 @@ constexpr std::size_t response_read_chunk_bytes = 16U * 1024U;
 constexpr std::size_t maximum_system_proxy_candidates = 16U;
 constexpr std::uint32_t maximum_retry_after_seconds = 86'400U;
 constexpr auto cancellation_poll_interval = std::chrono::milliseconds{5};
+constexpr auto smart_idle_timeout = std::chrono::seconds{30};
+constexpr std::string_view smart_git_protocol_header = "version=2";
+constexpr std::string_view smart_git_request_content_type =
+    "application/x-git-upload-pack-request";
+constexpr std::string_view smart_git_advertisement_content_type =
+    "application/x-git-upload-pack-advertisement";
+constexpr std::string_view smart_git_result_content_type =
+    "application/x-git-upload-pack-result";
+constexpr std::string_view smart_git_basic_username = "x-access-token:";
 #if defined(BPR_NATIVE_HTTPS_TESTING)
 constexpr auto minimum_test_timeout = std::chrono::milliseconds{25};
 #endif
@@ -79,10 +102,13 @@ struct transport_policy
     std::string ProxyHost;
     std::uint16_t ProxyPort = 0U;
     std::uint16_t FallbackProxyPort = 0U;
+    bool DirectFirstProxyCandidate = false;
     std::string TrustedCaCertificatePem;
 #endif
     std::chrono::milliseconds TotalTimeout =
         native_https_total_timeout;
+    std::chrono::milliseconds SmartTotalTimeout =
+        native_git_smart_total_timeout;
     std::size_t ResponseBodyLimit =
         native_https_maximum_response_body_bytes;
 };
@@ -163,6 +189,77 @@ struct operation_state
     std::atomic_bool Done = false;
 };
 
+enum class smart_request_surface : std::uint8_t
+{
+    discovery,
+    ls_refs,
+    fetch,
+};
+
+struct smart_native_request
+{
+    smart_request_surface Surface = smart_request_surface::discovery;
+    application::git_smart_request_context Context;
+    std::vector<std::byte> Body;
+    std::uint64_t ResponseLimit =
+        application::maximum_git_smart_control_response_bytes;
+    application::git_smart_wire_consumer* Consumer = nullptr;
+};
+
+using smart_operation_result =
+    application::git_smart_transport_result<std::vector<std::byte>>;
+
+struct smart_operation_state
+{
+    smart_operation_state(
+        smart_native_request request,
+        std::shared_ptr<native_git_smart_lease_state> lease,
+        const std::stop_token stop,
+        const std::chrono::steady_clock::time_point deadline)
+        : Request{std::move(request)}
+        , Lease{std::move(lease)}
+        , Stop{stop}
+        , Deadline{deadline}
+    {
+    }
+
+    smart_native_request Request;
+    std::shared_ptr<native_git_smart_lease_state> Lease;
+    std::stop_token Stop;
+    std::chrono::steady_clock::time_point Deadline;
+    std::optional<smart_operation_result> Result;
+    std::atomic_bool Done = false;
+};
+
+struct smart_hop_state
+{
+    explicit smart_hop_state(
+        std::shared_ptr<smart_operation_state> operation)
+        : Operation{std::move(operation)}
+    {
+    }
+
+    std::shared_ptr<smart_operation_state> Operation;
+    QNetworkReply* Reply = nullptr;
+    bool Cancellation = false;
+    bool Certificate = false;
+    bool EncryptedSignalObserved = false;
+    bool Deadline = false;
+    bool IdleTimeout = false;
+    bool HeaderLimit = false;
+    bool ResponseLimit = false;
+    bool Malformed = false;
+    bool ConsumerRejected = false;
+    bool AuthenticationChallenge = false;
+    bool ProxyAuthenticationChallenge = false;
+    bool PreSharedKeyChallenge = false;
+    bool MetadataChecked = false;
+    int Status = 0;
+    std::optional<std::uint64_t> ContentLength;
+    std::uint64_t ReceivedBytes = 0U;
+    std::vector<std::byte> Body;
+};
+
 struct hop_state
 {
     hop_state(std::shared_ptr<operation_state> operation,
@@ -211,6 +308,20 @@ struct hop_state
         .RateLimits = std::move(rate_limits),
         .RateLimitCause = std::move(rate_limit_cause),
     };
+}
+
+[[nodiscard]] constexpr auto smart_error(
+    const application::git_smart_transport_failure failure) noexcept
+    -> application::git_smart_transport_error
+{
+    return {.Failure = failure};
+}
+
+[[nodiscard]] auto smart_failure(
+    const application::git_smart_transport_failure failure)
+    -> smart_operation_result
+{
+    return std::unexpected{smart_error(failure)};
 }
 
 [[nodiscard]] auto rate_limit_state(
@@ -554,6 +665,27 @@ void wipe(QByteArray& bytes) noexcept
     bytes.clear();
 }
 
+class qbytearray_wipe_guard final
+{
+public:
+    explicit qbytearray_wipe_guard(QByteArray& bytes) noexcept
+        : Bytes{bytes}
+    {
+    }
+
+    qbytearray_wipe_guard(const qbytearray_wipe_guard&) = delete;
+    auto operator=(const qbytearray_wipe_guard&)
+        -> qbytearray_wipe_guard& = delete;
+
+    ~qbytearray_wipe_guard()
+    {
+        wipe(Bytes);
+    }
+
+private:
+    QByteArray& Bytes;
+};
+
 [[nodiscard]] auto proxy_text_valid(
     const QString& value,
     const qsizetype maximum) noexcept -> bool
@@ -661,6 +793,57 @@ void wipe(QByteArray& bytes) noexcept
         return std::nullopt;
     }
     return url;
+}
+
+[[nodiscard]] auto build_smart_url(
+    const validated_github_host_profile& profile,
+    const smart_native_request& request) -> std::optional<QUrl>
+{
+    if(!core::valid(request.Context.Repository))
+    {
+        return std::nullopt;
+    }
+
+    std::string encoded = "https://";
+    encoded += profile.hostname();
+    encoded += '/';
+    encoded += request.Context.Repository.Owner;
+    encoded += '/';
+    encoded += request.Context.Repository.Name;
+    encoded += ".git/";
+    if(request.Surface == smart_request_surface::discovery)
+    {
+        encoded += "info/refs?service=git-upload-pack";
+    }
+    else
+    {
+        encoded += "git-upload-pack";
+    }
+    if(encoded.size() > maximum_url_bytes)
+    {
+        return std::nullopt;
+    }
+
+    const auto bytes =
+        QByteArray{encoded.data(), static_cast<qsizetype>(encoded.size())};
+    const auto url = QUrl::fromEncoded(bytes, QUrl::StrictMode);
+    if(!url.isValid() || url.isRelative()
+       || url.scheme() != QStringLiteral("https")
+       || url.host().toUtf8() != profile.hostname() || url.port(-1) != -1
+       || !url.userInfo().isEmpty() || !url.fragment().isEmpty()
+       || url.toEncoded(QUrl::FullyEncoded) != bytes)
+    {
+        return std::nullopt;
+    }
+    return url;
+}
+
+[[nodiscard]] constexpr auto smart_expected_content_type(
+    const smart_request_surface surface) noexcept -> std::string_view
+{
+    return surface == smart_request_surface::discovery
+        ? smart_git_advertisement_content_type
+        : smart_git_result_content_type;
 }
 
 [[nodiscard]] auto
@@ -1034,6 +1217,12 @@ parse_retry_after(const std::optional<std::string>& value) noexcept
         || status == 307 || status == 308;
 }
 
+[[nodiscard]] constexpr auto smart_redirect_status(const int status) noexcept
+    -> bool
+{
+    return status >= 300 && status <= 399;
+}
+
 [[nodiscard]] auto redirect_target(
     QNetworkReply& reply,
     const QUrl& source) -> std::optional<std::string>
@@ -1114,6 +1303,59 @@ private:
     hop_state& State;
     hop_state*& Active;
 };
+
+class active_smart_hop_guard final
+{
+public:
+    active_smart_hop_guard(
+        smart_hop_state& state,
+        smart_hop_state*& active) noexcept
+        : State{state}
+        , Active{active}
+    {
+        Active = &State;
+    }
+
+    active_smart_hop_guard(const active_smart_hop_guard&) = delete;
+    auto operator=(const active_smart_hop_guard&)
+        -> active_smart_hop_guard& = delete;
+
+    ~active_smart_hop_guard()
+    {
+        reset();
+    }
+
+    void reset() noexcept
+    {
+        if(Active == &State)
+        {
+            Active = nullptr;
+        }
+        auto* const reply = std::exchange(State.Reply, nullptr);
+        if(reply == nullptr)
+        {
+            return;
+        }
+        if(reply->isRunning())
+        {
+            reply->abort();
+        }
+        reply->deleteLater();
+        QCoreApplication::sendPostedEvents(reply, QEvent::DeferredDelete);
+    }
+
+private:
+    smart_hop_state& State;
+    smart_hop_state*& Active;
+};
+
+void abort_smart_hop(smart_hop_state& state) noexcept
+{
+    if(state.Reply != nullptr && state.Reply->isRunning())
+    {
+        state.Reply->abort();
+    }
+}
 
 void inspect_metadata_impl(hop_state& state)
 {
@@ -1376,10 +1618,219 @@ void read_available(hop_state& state) noexcept
     }
 }
 
+void inspect_smart_metadata_impl(smart_hop_state& state)
+{
+    if(state.MetadataChecked || state.Reply == nullptr)
+    {
+        return;
+    }
+    const auto status =
+        state.Reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+    if(!status.isValid())
+    {
+        if(state.Reply->isFinished()
+           && state.Reply->error() == QNetworkReply::NoError)
+        {
+            state.MetadataChecked = true;
+            state.Malformed = true;
+        }
+        return;
+    }
+    state.MetadataChecked = true;
+    state.Status = status.toInt();
+    if(state.Status < 100 || state.Status > 599)
+    {
+        state.Malformed = true;
+        abort_smart_hop(state);
+        return;
+    }
+
+    const auto& headers = state.Reply->rawHeaderPairs();
+    if(static_cast<std::size_t>(headers.size())
+       > maximum_response_header_count)
+    {
+        state.HeaderLimit = true;
+        abort_smart_hop(state);
+        return;
+    }
+
+    std::size_t aggregate = 0U;
+    std::size_t content_type_count = 0U;
+    std::size_t content_length_count = 0U;
+    std::size_t content_encoding_count = 0U;
+    std::size_t location_count = 0U;
+    std::optional<std::string> content_type;
+    for(const auto& [name, value] : headers)
+    {
+        const auto field_size = static_cast<std::size_t>(name.size())
+                              + static_cast<std::size_t>(value.size());
+        if(!text_is_bounded_header_name(name)
+           || !text_is_bounded_header_value(value)
+           || field_size
+                  > native_https_maximum_response_header_bytes - aggregate)
+        {
+            state.HeaderLimit = true;
+            abort_smart_hop(state);
+            return;
+        }
+        aggregate += field_size;
+
+        if(header_name_equal(name, "Content-Type"))
+        {
+            ++content_type_count;
+            content_type = safe_qbytearray_string(trimmed_ascii(value));
+        }
+        else if(header_name_equal(name, "Content-Length"))
+        {
+            ++content_length_count;
+            const auto parsed = strict_decimal(
+                safe_qbytearray_string(trimmed_ascii(value)));
+            if(!parsed.has_value())
+            {
+                state.Malformed = true;
+            }
+            else if(*parsed > state.Operation->Request.ResponseLimit)
+            {
+                state.ResponseLimit = true;
+            }
+            else
+            {
+                state.ContentLength = *parsed;
+            }
+        }
+        else if(header_name_equal(name, "Content-Encoding"))
+        {
+            ++content_encoding_count;
+        }
+        else if(header_name_equal(name, "Location"))
+        {
+            ++location_count;
+        }
+    }
+
+    const auto redirect = smart_redirect_status(state.Status);
+    if(content_type_count > 1U || content_length_count > 1U
+       || content_encoding_count != 0U || location_count > 1U)
+    {
+        state.Malformed = true;
+    }
+    if(state.Status == 200
+       && (!content_type.has_value()
+           || *content_type
+                  != smart_expected_content_type(
+                      state.Operation->Request.Surface)))
+    {
+        state.Malformed = true;
+    }
+    if(state.HeaderLimit || state.ResponseLimit || state.Malformed || redirect
+       || state.Status != 200)
+    {
+        abort_smart_hop(state);
+    }
+}
+
+void inspect_smart_metadata(smart_hop_state& state) noexcept
+{
+    try
+    {
+        inspect_smart_metadata_impl(state);
+    }
+    catch(...)
+    {
+        state.ResponseLimit = true;
+        abort_smart_hop(state);
+    }
+}
+
+void read_smart_available(smart_hop_state& state, QTimer& idle) noexcept
+{
+    try
+    {
+        if(state.Reply == nullptr || state.ResponseLimit || state.Malformed
+           || state.HeaderLimit || state.ConsumerRejected)
+        {
+            return;
+        }
+        inspect_smart_metadata(state);
+        if(state.Reply == nullptr || state.Status != 200)
+        {
+            return;
+        }
+
+        std::array<std::byte, response_read_chunk_bytes> buffer{};
+        while(state.Reply->bytesAvailable() > 0)
+        {
+            const auto remaining =
+                state.Operation->Request.ResponseLimit
+                - state.ReceivedBytes;
+            if(remaining == 0U)
+            {
+                state.ResponseLimit = true;
+                abort_smart_hop(state);
+                return;
+            }
+            const auto requested = static_cast<qint64>(
+                std::min<std::uint64_t>(remaining, buffer.size()));
+            const auto count = state.Reply->read(
+                reinterpret_cast<char*>(buffer.data()), requested);
+            if(count <= 0)
+            {
+                return;
+            }
+            const auto byte_count = static_cast<std::size_t>(count);
+            if(state.ReceivedBytes
+               > state.Operation->Request.ResponseLimit - byte_count)
+            {
+                state.ResponseLimit = true;
+                abort_smart_hop(state);
+                return;
+            }
+
+            const auto bytes =
+                std::span<const std::byte>{buffer.data(), byte_count};
+            if(state.Operation->Request.Surface
+               == smart_request_surface::fetch)
+            {
+                if(state.Operation->Request.Consumer == nullptr
+                   || !state.Operation->Request.Consumer->consume(bytes))
+                {
+                    state.ConsumerRejected = true;
+                    abort_smart_hop(state);
+                    return;
+                }
+            }
+            else
+            {
+                const auto offset = state.Body.size();
+                state.Body.resize(offset + byte_count);
+                std::memcpy(state.Body.data() + offset, buffer.data(),
+                            byte_count);
+            }
+            state.ReceivedBytes += byte_count;
+            idle.start(
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    smart_idle_timeout));
+        }
+    }
+    catch(...)
+    {
+        state.ResponseLimit = true;
+        abort_smart_hop(state);
+    }
+}
+
 [[nodiscard]] auto cancellation_result(
     const std::shared_ptr<operation_state>& operation) noexcept -> bool
 {
     return operation->Stop.stop_requested();
+}
+
+[[nodiscard]] auto cancellation_result(
+    const std::shared_ptr<smart_operation_state>& operation) noexcept -> bool
+{
+    return operation->Stop.stop_requested()
+        || operation->Lease == nullptr
+        || operation->Lease->Revoked.load(std::memory_order_acquire);
 }
 
 [[nodiscard]] auto remaining_before_deadline(
@@ -1461,6 +1912,55 @@ void read_available(hop_state& state) noexcept
         return application::github_provider_failure::network;
     }
     return application::github_provider_failure::network;
+}
+
+[[nodiscard]] auto smart_network_failure(
+    const QNetworkReply::NetworkError error) noexcept
+    -> application::git_smart_transport_failure
+{
+    switch(error)
+    {
+    case QNetworkReply::TimeoutError:
+    case QNetworkReply::ProxyTimeoutError:
+        return application::git_smart_transport_failure::timeout;
+    case QNetworkReply::AuthenticationRequiredError:
+        return application::git_smart_transport_failure::authentication;
+    case QNetworkReply::ContentAccessDenied:
+    case QNetworkReply::ContentOperationNotPermittedError:
+        return application::git_smart_transport_failure::permission;
+    case QNetworkReply::SslHandshakeFailedError:
+        return application::git_smart_transport_failure::certificate;
+    case QNetworkReply::ProxyConnectionRefusedError:
+    case QNetworkReply::ProxyConnectionClosedError:
+    case QNetworkReply::ProxyNotFoundError:
+    case QNetworkReply::ProxyAuthenticationRequiredError:
+    case QNetworkReply::UnknownProxyError:
+        return application::git_smart_transport_failure::proxy;
+    default:
+        return application::git_smart_transport_failure::network;
+    }
+}
+
+[[nodiscard]] constexpr auto smart_http_failure(const int status) noexcept
+    -> application::git_smart_transport_failure
+{
+    switch(status)
+    {
+    case 401:
+        return application::git_smart_transport_failure::authentication;
+    case 403:
+    case 404:
+        return application::git_smart_transport_failure::permission;
+    case 408:
+    case 504:
+        return application::git_smart_transport_failure::timeout;
+    case 429:
+        return application::git_smart_transport_failure::unavailable;
+    default:
+        return status >= 500 && status <= 599
+            ? application::git_smart_transport_failure::unavailable
+            : application::git_smart_transport_failure::malformed_response;
+    }
 }
 
 [[nodiscard]] auto proxy_candidate_retryable(
@@ -1602,6 +2102,139 @@ void read_available(hop_state& state) noexcept
 }
 } // namespace
 
+class native_git_smart_transport final
+    : public application::git_smart_transport_port
+{
+public:
+    [[nodiscard]] static auto acquire(
+        std::shared_ptr<native_https_transport> transport,
+        const application::git_smart_request_context& context) noexcept
+        -> application::git_smart_transport_result<
+            application::git_smart_transport>
+    {
+        if(transport == nullptr || !application::valid(context)
+           || !transport->can_acquire_smart(context))
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::invalid_request)};
+        }
+        try
+        {
+            auto state =
+                std::make_shared<native_git_smart_lease_state>(context);
+            return application::git_smart_transport{
+                new native_git_smart_transport{
+                    std::move(transport), std::move(state)}};
+        }
+        catch(...)
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::unavailable)};
+        }
+    }
+
+    native_git_smart_transport(
+        std::shared_ptr<native_https_transport> transport,
+        std::shared_ptr<native_git_smart_lease_state> state)
+        noexcept
+        : Transport{std::move(transport)}
+        , State{std::move(state)}
+    {
+    }
+
+    ~native_git_smart_transport() override
+    {
+        revoke();
+    }
+
+    void revoke() noexcept override
+    {
+        if(State == nullptr
+           || State->Revoked.exchange(true, std::memory_order_acq_rel))
+        {
+            return;
+        }
+        if(Transport != nullptr)
+        {
+            Transport->cancel_lease(State);
+        }
+    }
+
+    [[nodiscard]] auto revoked() const noexcept -> bool override
+    {
+        return State == nullptr
+            || State->Revoked.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] auto discover(
+        const application::git_smart_discovery_request& request,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<
+            application::git_smart_discovery_response> override
+    {
+        if(!exact_context(request.Context))
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::invalid_request)};
+        }
+        if(revoked() || Transport == nullptr)
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::cancelled)};
+        }
+        return Transport->discover_for_lease(request, State, stop);
+    }
+
+    [[nodiscard]] auto ls_refs(
+        const application::git_smart_ls_refs_request& request,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<
+            application::git_smart_ls_refs_response> override
+    {
+        if(!exact_context(request.Context))
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::invalid_request)};
+        }
+        if(revoked() || Transport == nullptr)
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::cancelled)};
+        }
+        return Transport->ls_refs_for_lease(request, State, stop);
+    }
+
+    [[nodiscard]] auto fetch(
+        const application::git_smart_fetch_request& request,
+        application::git_smart_wire_consumer& consumer,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<void> override
+    {
+        if(!exact_context(request.Context))
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::invalid_request)};
+        }
+        if(revoked() || Transport == nullptr)
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::cancelled)};
+        }
+        return Transport->fetch_for_lease(request, State, consumer, stop);
+    }
+
+private:
+    [[nodiscard]] auto exact_context(
+        const application::git_smart_request_context& context) const noexcept
+        -> bool
+    {
+        return State != nullptr && context == State->Context;
+    }
+
+    std::shared_ptr<native_https_transport> Transport;
+    std::shared_ptr<native_git_smart_lease_state> State;
+};
+
 class native_https_transport::implementation final
 {
 public:
@@ -1640,6 +2273,11 @@ public:
                     {
                         ActiveHop->Cancellation = true;
                         abort_hop(*ActiveHop);
+                    }
+                    if(ActiveSmartHop != nullptr)
+                    {
+                        ActiveSmartHop->Cancellation = true;
+                        abort_smart_hop(*ActiveSmartHop);
                     }
                     if(Manager != nullptr)
                     {
@@ -1800,7 +2438,295 @@ public:
             perform_validated(request, std::move(native), stop));
     }
 
+    [[nodiscard]] auto can_acquire_smart(
+        const application::git_smart_request_context& context) const noexcept
+        -> bool
+    {
+        return !Closing.load(std::memory_order_acquire)
+            && application::valid(context) && credential_matches(context);
+    }
+
+    void cancel_lease(
+        const std::shared_ptr<native_git_smart_lease_state>&
+            lease) noexcept
+    {
+        if(lease == nullptr || Dispatcher == nullptr || !Thread.isRunning())
+        {
+            return;
+        }
+        try
+        {
+            static_cast<void>(QMetaObject::invokeMethod(
+                Dispatcher,
+                [this, lease] {
+                    if(ActiveSmartHop != nullptr
+                       && ActiveSmartHop->Operation->Lease == lease)
+                    {
+                        ActiveSmartHop->Cancellation = true;
+                        abort_smart_hop(*ActiveSmartHop);
+                    }
+                },
+                Qt::QueuedConnection));
+        }
+        catch(...)
+        {
+        }
+    }
+
+    [[nodiscard]] auto lease_unavailable(
+        const std::shared_ptr<native_git_smart_lease_state>& lease)
+        const noexcept -> bool
+    {
+        return lease == nullptr
+            || lease->Revoked.load(std::memory_order_acquire)
+            || Closing.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] auto discover(
+        const application::git_smart_discovery_request& request,
+        const std::shared_ptr<native_git_smart_lease_state>& lease,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<
+            application::git_smart_discovery_response>
+    {
+        if(stop.stop_requested())
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::cancelled)};
+        }
+        if(!application::valid(request))
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::invalid_request)};
+        }
+        auto native = smart_native_request{
+            .Surface = smart_request_surface::discovery,
+            .Context = request.Context,
+            .ResponseLimit =
+                application::maximum_git_smart_control_response_bytes,
+        };
+        auto result = perform_smart(std::move(native), lease, stop);
+        if(!result.has_value())
+        {
+            return std::unexpected{result.error()};
+        }
+        return application::git_smart_discovery_response{
+            .Body = std::move(*result),
+        };
+    }
+
+    [[nodiscard]] auto ls_refs(
+        const application::git_smart_ls_refs_request& request,
+        const std::shared_ptr<native_git_smart_lease_state>& lease,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<
+            application::git_smart_ls_refs_response>
+    {
+        if(stop.stop_requested())
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::cancelled)};
+        }
+        if(!application::valid(request))
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::invalid_request)};
+        }
+        smart_native_request native{
+            .Surface = smart_request_surface::ls_refs,
+            .Context = request.Context,
+            .ResponseLimit =
+                application::maximum_git_smart_control_response_bytes,
+        };
+        try
+        {
+            native.Body.assign(request.Body.begin(), request.Body.end());
+        }
+        catch(...)
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::request_limit)};
+        }
+        auto result = perform_smart(std::move(native), lease, stop);
+        if(!result.has_value())
+        {
+            return std::unexpected{result.error()};
+        }
+        return application::git_smart_ls_refs_response{
+            .Body = std::move(*result),
+        };
+    }
+
+    [[nodiscard]] auto fetch(
+        const application::git_smart_fetch_request& request,
+        const std::shared_ptr<native_git_smart_lease_state>& lease,
+        application::git_smart_wire_consumer& consumer,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<void>
+    {
+        if(stop.stop_requested())
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::cancelled)};
+        }
+        if(!application::valid(request))
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::invalid_request)};
+        }
+        smart_native_request native{
+            .Surface = smart_request_surface::fetch,
+            .Context = request.Context,
+            .ResponseLimit = request.MaximumResponseBytes,
+            .Consumer = &consumer,
+        };
+        try
+        {
+            native.Body.assign(request.Body.begin(), request.Body.end());
+        }
+        catch(...)
+        {
+            return std::unexpected{smart_error(
+                application::git_smart_transport_failure::request_limit)};
+        }
+        auto result = perform_smart(std::move(native), lease, stop);
+        if(!result.has_value())
+        {
+            return std::unexpected{result.error()};
+        }
+        return {};
+    }
+
 private:
+    [[nodiscard]] auto perform_smart(
+        smart_native_request native,
+        std::shared_ptr<native_git_smart_lease_state> lease,
+        const std::stop_token stop) -> smart_operation_result
+    {
+        if(lease == nullptr || Closing.load(std::memory_order_acquire)
+           || Dispatcher == nullptr || Manager == nullptr)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::unavailable);
+        }
+        if(stop.stop_requested()
+           || lease->Revoked.load(std::memory_order_acquire))
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::cancelled);
+        }
+        if(Busy.test_and_set(std::memory_order_acq_rel))
+        {
+            return smart_failure(
+                stop.stop_requested()
+                        || lease->Revoked.load(std::memory_order_acquire)
+                    ? application::git_smart_transport_failure::cancelled
+                    : application::git_smart_transport_failure::unavailable);
+        }
+        struct busy_guard final
+        {
+            std::atomic_flag& Busy;
+            ~busy_guard() { Busy.clear(std::memory_order_release); }
+        } guard{Busy};
+
+        if(stop.stop_requested() || lease_unavailable(lease))
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::cancelled);
+        }
+        if(native.Context != lease->Context)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::invalid_request);
+        }
+        if(!credential_matches(native.Context))
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::unavailable);
+        }
+
+        std::shared_ptr<smart_operation_state> state;
+        try
+        {
+            state = std::make_shared<smart_operation_state>(
+                std::move(native), std::move(lease), stop,
+                std::chrono::steady_clock::now()
+                    + Policy.SmartTotalTimeout);
+        }
+        catch(...)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::response_limit);
+        }
+
+        std::stop_callback callback{
+            stop, [this, weak = std::weak_ptr<smart_operation_state>{state}] {
+                const auto operation = weak.lock();
+                if(operation == nullptr || Dispatcher == nullptr)
+                {
+                    return;
+                }
+                static_cast<void>(QMetaObject::invokeMethod(
+                    Dispatcher,
+                    [this, weak] {
+                        const auto current = weak.lock();
+                        if(current != nullptr && ActiveSmartHop != nullptr
+                           && ActiveSmartHop->Operation == current)
+                        {
+                            ActiveSmartHop->Cancellation = true;
+                            abort_smart_hop(*ActiveSmartHop);
+                        }
+                    },
+                    Qt::QueuedConnection));
+            }};
+
+        auto invoked = false;
+        try
+        {
+            invoked = QMetaObject::invokeMethod(
+                Dispatcher,
+                [this, state] noexcept {
+                    try
+                    {
+                        state->Result.emplace(execute_smart(state));
+                    }
+                    catch(...)
+                    {
+                        try
+                        {
+                            state->Result.emplace(smart_failure(
+                                application::git_smart_transport_failure::
+                                    response_limit));
+                        }
+                        catch(...)
+                        {
+                        }
+                    }
+                    state->Done.store(true, std::memory_order_release);
+                    state->Done.notify_one();
+                },
+                Qt::QueuedConnection);
+        }
+        catch(...)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::response_limit);
+        }
+        if(!invoked)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::unavailable);
+        }
+
+        state->Done.wait(false, std::memory_order_acquire);
+        if(!state->Result.has_value())
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::unavailable);
+        }
+        return std::move(*state->Result);
+    }
+
     template <typename Request>
     [[nodiscard]] auto perform_validated(const Request& request,
                                          native_request native,
@@ -1935,6 +2861,12 @@ private:
                     ActiveHop->AuthenticationChallenge = true;
                     abort_hop(*ActiveHop);
                 }
+                if(ActiveSmartHop != nullptr
+                   && ActiveSmartHop->Reply == reply)
+                {
+                    ActiveSmartHop->AuthenticationChallenge = true;
+                    abort_smart_hop(*ActiveSmartHop);
+                }
             });
         QObject::connect(
             Manager,
@@ -1950,6 +2882,11 @@ private:
                     ActiveHop->ProxyAuthenticationChallenge = true;
                     abort_hop(*ActiveHop);
                 }
+                if(ActiveSmartHop != nullptr)
+                {
+                    ActiveSmartHop->ProxyAuthenticationChallenge = true;
+                    abort_smart_hop(*ActiveSmartHop);
+                }
             });
         QObject::connect(
             Manager,
@@ -1964,6 +2901,12 @@ private:
                     ActiveHop->Certificate = true;
                     abort_hop(*ActiveHop);
                 }
+                if(ActiveSmartHop != nullptr
+                   && ActiveSmartHop->Reply == reply)
+                {
+                    ActiveSmartHop->Certificate = true;
+                    abort_smart_hop(*ActiveSmartHop);
+                }
             });
         QObject::connect(
             Manager,
@@ -1977,6 +2920,12 @@ private:
                 {
                     ActiveHop->PreSharedKeyChallenge = true;
                     abort_hop(*ActiveHop);
+                }
+                if(ActiveSmartHop != nullptr
+                   && ActiveSmartHop->Reply == reply)
+                {
+                    ActiveSmartHop->PreSharedKeyChallenge = true;
+                    abort_smart_hop(*ActiveSmartHop);
                 }
             });
     }
@@ -2058,6 +3007,26 @@ private:
                                             Profile);
     }
 
+    [[nodiscard]] auto credential_matches(
+        const application::git_smart_request_context& context) const noexcept
+        -> bool
+    {
+        const auto* credential = std::get_if<account_credential>(&Credential);
+        return credential != nullptr
+            && context.ApplicationSession
+                   == credential->Context.ApplicationSession
+            && context.Authority.Profile == Profile.profile()
+            && context.Authority.ProfileRevision.value()
+                   == Profile.revision().value()
+            && context.Authority.Host == Profile.host()
+            && context.Authority.Account
+                   == credential->Context.Authority.Account
+            && context.Revision.Source.IdentityGeneration
+                   == credential->Context.IdentityGeneration
+            && authority_matches_profile(
+                   credential->Context.Authority, Profile);
+    }
+
     template <typename Request>
     [[nodiscard]] auto claim_credential(const Request& request) noexcept -> bool
     {
@@ -2109,6 +3078,10 @@ private:
         if(Policy.Proxy == proxy_policy::fixed_test)
         {
             std::vector<QNetworkProxy> candidates;
+            if(Policy.DirectFirstProxyCandidate)
+            {
+                candidates.emplace_back(QNetworkProxy::NoProxy);
+            }
             candidates.emplace_back(
                 QNetworkProxy::HttpProxy,
                 QString::fromUtf8(
@@ -2222,12 +3195,80 @@ private:
         request.setRawHeader("Accept-Language", "*");
 
         QByteArray authorization{"Bearer "};
+        const qbytearray_wipe_guard authorization_guard{authorization};
         const auto credential = credential_bytes();
         authorization.append(
             reinterpret_cast<const char*>(credential.data()),
             static_cast<qsizetype>(credential.size()));
         request.setRawHeader("Authorization", authorization);
-        wipe(authorization);
+
+        const auto tls = ssl_configuration();
+        if(!tls.has_value())
+        {
+            return std::nullopt;
+        }
+        request.setSslConfiguration(*tls);
+        return request;
+    }
+
+    [[nodiscard]] auto make_smart_request(
+        const smart_native_request& wire,
+        const QUrl& url) -> std::optional<QNetworkRequest>
+    {
+        auto request = QNetworkRequest{url};
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                             QNetworkRequest::ManualRedirectPolicy);
+        request.setAttribute(QNetworkRequest::CookieLoadControlAttribute,
+                             QNetworkRequest::Manual);
+        request.setAttribute(QNetworkRequest::CookieSaveControlAttribute,
+                             QNetworkRequest::Manual);
+        request.setAttribute(QNetworkRequest::AuthenticationReuseAttribute,
+                             QNetworkRequest::Manual);
+        request.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
+                             QNetworkRequest::AlwaysNetwork);
+        request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
+        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+        request.setAttribute(QNetworkRequest::Http2DirectAttribute, false);
+        request.setAttribute(QNetworkRequest::Http2CleartextAllowedAttribute,
+                             false);
+        request.setMaximumRedirectsAllowed(0);
+        request.setDecompressedSafetyCheckThreshold(0);
+        request.setRawHeader(
+            "Git-Protocol",
+            QByteArray{smart_git_protocol_header.data(),
+                       static_cast<qsizetype>(
+                           smart_git_protocol_header.size())});
+        const auto accepted = smart_expected_content_type(wire.Surface);
+        request.setRawHeader(
+            "Accept",
+            QByteArray{accepted.data(),
+                       static_cast<qsizetype>(accepted.size())});
+        if(wire.Surface != smart_request_surface::discovery)
+        {
+            request.setRawHeader(
+                "Content-Type",
+                QByteArray{
+                    smart_git_request_content_type.data(),
+                    static_cast<qsizetype>(
+                        smart_git_request_content_type.size())});
+        }
+        request.setRawHeader("Accept-Encoding", "identity");
+        request.setRawHeader("Accept-Language", "*");
+
+        QByteArray user_password{
+            smart_git_basic_username.data(),
+            static_cast<qsizetype>(smart_git_basic_username.size())};
+        const qbytearray_wipe_guard user_password_guard{user_password};
+        const auto credential = credential_bytes();
+        user_password.append(
+            reinterpret_cast<const char*>(credential.data()),
+            static_cast<qsizetype>(credential.size()));
+        auto encoded = user_password.toBase64(QByteArray::Base64Encoding);
+        const qbytearray_wipe_guard encoded_guard{encoded};
+        QByteArray authorization{"Basic "};
+        const qbytearray_wipe_guard authorization_guard{authorization};
+        authorization.append(encoded);
+        request.setRawHeader("Authorization", authorization);
 
         const auto tls = ssl_configuration();
         if(!tls.has_value())
@@ -2616,6 +3657,291 @@ private:
         return provider_error(application::github_provider_failure::redirect);
     }
 
+    [[nodiscard]] auto execute_smart_hop(
+        const std::shared_ptr<smart_operation_state>& operation,
+        const QUrl& url,
+        const QNetworkProxy& proxy,
+        bool& retryable_candidate_failure) -> smart_operation_result
+    {
+        retryable_candidate_failure = false;
+        if(cancellation_result(operation))
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::cancelled);
+        }
+        if(!remaining_before_deadline(operation->Deadline).has_value())
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::timeout);
+        }
+        configure_proxy(proxy);
+        if(cancellation_result(operation))
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::cancelled);
+        }
+
+        auto request = make_smart_request(operation->Request, url);
+        if(!request.has_value())
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::unavailable);
+        }
+        const auto remaining =
+            remaining_before_deadline(operation->Deadline);
+        if(!remaining.has_value())
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::timeout);
+        }
+        request->setTransferTimeout(std::min(
+            *remaining,
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                smart_idle_timeout)));
+
+        smart_hop_state state{operation};
+        if(operation->Request.Surface != smart_request_surface::fetch)
+        {
+            try
+            {
+                state.Body.reserve(static_cast<std::size_t>(
+                    operation->Request.ResponseLimit));
+            }
+            catch(...)
+            {
+                return smart_failure(
+                    application::git_smart_transport_failure::response_limit);
+            }
+        }
+
+        if(operation->Request.Surface == smart_request_surface::discovery)
+        {
+            state.Reply = Manager->get(*request);
+        }
+        else
+        {
+            const auto& body = operation->Request.Body;
+            state.Reply = Manager->post(
+                *request,
+                QByteArray{
+                    reinterpret_cast<const char*>(body.data()),
+                    static_cast<qsizetype>(body.size())});
+        }
+        if(state.Reply == nullptr)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::network);
+        }
+        active_smart_hop_guard active{state, ActiveSmartHop};
+        state.Reply->setReadBufferSize(
+            static_cast<qint64>(response_read_buffer_bytes));
+
+        QEventLoop loop;
+        QTimer deadline;
+        deadline.setSingleShot(true);
+        QTimer idle;
+        idle.setSingleShot(true);
+        QTimer cancellation;
+        cancellation.setInterval(cancellation_poll_interval);
+
+        QObject::connect(state.Reply, &QNetworkReply::encrypted, &loop,
+                         [&state] { state.EncryptedSignalObserved = true; });
+        QObject::connect(state.Reply, &QNetworkReply::metaDataChanged, &loop,
+                         [&state] { inspect_smart_metadata(state); });
+        QObject::connect(
+            state.Reply, &QIODevice::readyRead, &loop,
+            [&state, &idle] { read_smart_available(state, idle); });
+        QObject::connect(
+            state.Reply, &QNetworkReply::uploadProgress, &loop,
+            [&idle](const qint64 sent, const qint64) {
+                if(sent > 0)
+                {
+                    idle.start(std::chrono::duration_cast<
+                               std::chrono::milliseconds>(
+                        smart_idle_timeout));
+                }
+            });
+        QObject::connect(state.Reply, &QNetworkReply::finished, &loop,
+                         &QEventLoop::quit);
+        QObject::connect(&deadline, &QTimer::timeout, &loop, [&state] {
+            state.Deadline = true;
+            abort_smart_hop(state);
+        });
+        QObject::connect(&idle, &QTimer::timeout, &loop, [&state] {
+            state.IdleTimeout = true;
+            abort_smart_hop(state);
+        });
+        QObject::connect(&cancellation, &QTimer::timeout, &loop, [&state] {
+            if(cancellation_result(state.Operation))
+            {
+                state.Cancellation = true;
+                abort_smart_hop(state);
+            }
+        });
+
+        const auto wait_remaining =
+            remaining_before_deadline(operation->Deadline);
+        if(!wait_remaining.has_value())
+        {
+            state.Deadline = true;
+            abort_smart_hop(state);
+        }
+        else
+        {
+            deadline.start(*wait_remaining);
+            idle.start(std::min(
+                *wait_remaining,
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    smart_idle_timeout)));
+            cancellation.start();
+            if(cancellation_result(operation))
+            {
+                state.Cancellation = true;
+                abort_smart_hop(state);
+            }
+            if(!state.Reply->isFinished())
+            {
+                loop.exec();
+            }
+        }
+        deadline.stop();
+        idle.stop();
+        cancellation.stop();
+        inspect_smart_metadata(state);
+        read_smart_available(state, idle);
+
+        const auto error = state.Reply->error();
+        const auto tls_valid =
+            !state.Certificate
+            && tls_terminal_valid(
+                *state.Reply, url, state.EncryptedSignalObserved);
+        const auto terminal_expired =
+            !remaining_before_deadline(operation->Deadline).has_value();
+        active.reset();
+
+        if(state.Cancellation || cancellation_result(operation))
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::cancelled);
+        }
+        if(state.Deadline || state.IdleTimeout || terminal_expired)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::timeout);
+        }
+        if(state.Certificate)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::certificate);
+        }
+        if(state.AuthenticationChallenge || state.PreSharedKeyChallenge)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::authentication);
+        }
+        if(state.ProxyAuthenticationChallenge)
+        {
+            retryable_candidate_failure =
+                state.ReceivedBytes == 0U;
+            return smart_failure(
+                application::git_smart_transport_failure::proxy);
+        }
+        if(state.Status != 0 && !tls_valid)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::certificate);
+        }
+        if(smart_redirect_status(state.Status))
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::redirect);
+        }
+        if(state.HeaderLimit || state.ResponseLimit)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::response_limit);
+        }
+        if(state.ConsumerRejected)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::consumer_rejected);
+        }
+        if(state.Status == 0)
+        {
+            retryable_candidate_failure =
+                error != QNetworkReply::NoError
+                && state.ReceivedBytes == 0U
+                && proxy_candidate_retryable(error);
+            return smart_failure(
+                error == QNetworkReply::NoError
+                    ? application::git_smart_transport_failure::
+                          malformed_response
+                    : smart_network_failure(error));
+        }
+        if(!tls_valid)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::certificate);
+        }
+        if(state.Status != 200)
+        {
+            return smart_failure(smart_http_failure(state.Status));
+        }
+        if(state.Malformed)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::
+                    malformed_response);
+        }
+        if(error != QNetworkReply::NoError)
+        {
+            return smart_failure(smart_network_failure(error));
+        }
+        if(state.ContentLength.has_value()
+           && *state.ContentLength != state.ReceivedBytes)
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::
+                    malformed_response);
+        }
+        return std::move(state.Body);
+    }
+
+    [[nodiscard]] auto execute_smart(
+        const std::shared_ptr<smart_operation_state>& operation)
+        -> smart_operation_result
+    {
+        const auto url = build_smart_url(Profile, operation->Request);
+        if(!url.has_value())
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::invalid_request);
+        }
+        const auto candidates = proxy_candidates(*url);
+        if(!candidates.has_value() || candidates->empty())
+        {
+            return smart_failure(
+                application::git_smart_transport_failure::proxy);
+        }
+        for(std::size_t index = 0U; index < candidates->size(); ++index)
+        {
+            auto retryable_candidate_failure = false;
+            auto result = execute_smart_hop(
+                operation,
+                *url,
+                (*candidates)[index],
+                retryable_candidate_failure);
+            if(result.has_value()
+               || !retryable_candidate_failure
+               || index + 1U == candidates->size())
+            {
+                return result;
+            }
+        }
+        return smart_failure(
+            application::git_smart_transport_failure::proxy);
+    }
+
     validated_github_host_profile Profile;
     credential_binding Credential;
     transport_policy Policy;
@@ -2623,6 +3949,7 @@ private:
     QObject* Dispatcher = nullptr;
     QNetworkAccessManager* Manager = nullptr;
     hop_state* ActiveHop = nullptr;
+    smart_hop_state* ActiveSmartHop = nullptr;
     std::atomic_bool Closing = false;
     std::atomic_flag Busy = ATOMIC_FLAG_INIT;
 };
@@ -2643,9 +3970,12 @@ namespace
         .ProxyHost = test.ProxyHost,
         .ProxyPort = test.ProxyPort,
         .FallbackProxyPort = test.FallbackProxyPort,
+        .DirectFirstProxyCandidate =
+            test.DirectFirstProxyCandidate,
         .TrustedCaCertificatePem =
             test.TrustedCaCertificatePem,
         .TotalTimeout = test.TotalTimeout,
+        .SmartTotalTimeout = test.TotalTimeout,
         .ResponseBodyLimit = test.ResponseBodyLimit,
     };
 }
@@ -2699,6 +4029,78 @@ native_https_transport::native_https_transport(
 }
 
 native_https_transport::~native_https_transport() = default;
+
+auto native_https_transport::can_acquire_smart(
+    const application::git_smart_request_context& context) const noexcept
+    -> bool
+{
+    return Implementation != nullptr
+        && Implementation->can_acquire_smart(context);
+}
+
+auto native_https_transport::discover_for_lease(
+    const application::git_smart_discovery_request& request,
+    const std::shared_ptr<native_git_smart_lease_state>& lease,
+    const std::stop_token stop)
+    -> application::git_smart_transport_result<
+        application::git_smart_discovery_response>
+{
+    if(Implementation == nullptr)
+    {
+        return std::unexpected{smart_error(
+            application::git_smart_transport_failure::unavailable)};
+    }
+    return Implementation->discover(request, lease, stop);
+}
+
+auto native_https_transport::ls_refs_for_lease(
+    const application::git_smart_ls_refs_request& request,
+    const std::shared_ptr<native_git_smart_lease_state>& lease,
+    const std::stop_token stop)
+    -> application::git_smart_transport_result<
+        application::git_smart_ls_refs_response>
+{
+    if(Implementation == nullptr)
+    {
+        return std::unexpected{smart_error(
+            application::git_smart_transport_failure::unavailable)};
+    }
+    return Implementation->ls_refs(request, lease, stop);
+}
+
+auto native_https_transport::fetch_for_lease(
+    const application::git_smart_fetch_request& request,
+    const std::shared_ptr<native_git_smart_lease_state>& lease,
+    application::git_smart_wire_consumer& consumer,
+    const std::stop_token stop)
+    -> application::git_smart_transport_result<void>
+{
+    if(Implementation == nullptr)
+    {
+        return std::unexpected{smart_error(
+            application::git_smart_transport_failure::unavailable)};
+    }
+    return Implementation->fetch(request, lease, consumer, stop);
+}
+
+void native_https_transport::cancel_lease(
+    const std::shared_ptr<native_git_smart_lease_state>& lease) noexcept
+{
+    if(Implementation != nullptr)
+    {
+        Implementation->cancel_lease(lease);
+    }
+}
+
+auto make_native_git_smart_transport(
+    std::shared_ptr<native_https_transport> transport,
+    const application::git_smart_request_context& context) noexcept
+    -> application::git_smart_transport_result<
+        application::git_smart_transport>
+{
+    return native_git_smart_transport::acquire(
+        std::move(transport), context);
+}
 
 auto native_https_transport::perform(const github_wire_request& request,
                                      const std::stop_token stop)
