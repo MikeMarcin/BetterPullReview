@@ -1,7 +1,7 @@
 ---
 id: BPR-0041
 title: Implement deterministic review-epoch core policy
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0040]
 ---

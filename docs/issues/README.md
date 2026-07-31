@@ -96,8 +96,9 @@ performance, and security plan recorded in the
 BPR-0040 is in `done/` with the dedicated epoch core/host, account-isolated
 bare cache, app-owned protocol-v2 and credential-free `index-pack`, versioned
 ref/catalog, exact cause/alias, recovery, Qt projection, lifecycle, and
-no-impact architecture selected. BPR-0041 and BPR-0042 are in `ready/`;
-BPR-0043 through BPR-0054 remain in `backlog/`.
+no-impact architecture selected. BPR-0041 and BPR-0042 are in `in-progress/`
+on their independent core and local-process tracks. BPR-0043 through BPR-0054
+remain in `backlog/`.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
 RFC work. BPR-0054 depends on BPR-0035 and BPR-0053, so canonical closeout and

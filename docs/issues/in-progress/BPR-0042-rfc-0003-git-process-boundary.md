@@ -1,7 +1,7 @@
 ---
 id: BPR-0042
 title: Implement hardened installed-Git process boundary
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0040]
 ---
