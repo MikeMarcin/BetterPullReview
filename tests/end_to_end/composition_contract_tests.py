@@ -25,9 +25,15 @@ CONCRETE_SELECTION_PATTERNS = (
 )
 RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"--github-fixture",
+    b"--native-appearance-probe",
+    b"--changed-render-evidence",
     b"GITHUB_FIXTURE_OK",
     b"GITHUB_FIXTURE_FAILED",
     b"GITHUB_FIXTURE_EVIDENCE",
+    b"NATIVE_APPEARANCE_",
+    b"AppleInterfaceStyle",
+    b"CFPreferencesCopyValue",
+    b"CFPreferencesSynchronize",
     b"Recorded native HTTPS",
     b"PRRT_fixture_1",
     b"github_application_fixture_access",
@@ -280,6 +286,26 @@ class CompositionContractTests(unittest.TestCase):
                 ),
             )
             self.assertNotIn("GITHUB_FIXTURE", runtime.stdout)
+
+            failed_render = subprocess.run(
+                [
+                    str(executable),
+                    "--render-evidence",
+                    str(build_directory),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=runtime_environment,
+            )
+            self.assertNotEqual(failed_render.returncode, 0)
+            self.assertIn("PUBLIC_PATH_STAGE:3", failed_render.stdout)
+            self.assertIn("RENDER_FAILED", failed_render.stdout)
+            self.assertNotIn(
+                "NATIVE_APPEARANCE_",
+                failed_render.stdout,
+            )
 
 
 def read_from(path: Path) -> str:

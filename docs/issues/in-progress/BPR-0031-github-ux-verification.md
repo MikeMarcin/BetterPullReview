@@ -47,6 +47,17 @@ and virtualized review layout.
   delegate geometry, and responsive layout.
 - Added one combined polite accessible status-plus-diagnostic announcement per
   published update, with identical repeats suppressed.
+- Added a test-build-only real-application appearance probe. It admits only a
+  loaded GitHub.com fixture under the native Cocoa platform in system Light,
+  retains the initial render in memory, and requires both Qt's color-scheme
+  signal and an independent read-only observation of the macOS current-user
+  global appearance changing from Light to Dark. It accepts only a settled
+  Dark palette that preserves style, platform, selection, focus, collapse
+  state, and zero model/window resets. The two captures must have equal
+  geometry and device-pixel ratio but different pixels; only then are two
+  fresh, non-aliased PNGs created and reloaded. Failed probes leave no render
+  artifacts. The test seam never changes the operating-system appearance and
+  is absent from tests-off production builds.
 - Applied a conservative simplification pass without changing the verified
   behavior. GitHub Actions has no role.
 
@@ -63,8 +74,8 @@ and virtualized review layout.
 - The standalone conversation property corpus remains green, including 3,000
   mixed updates, 5,000 permutations, both 50,000-row rotations, exact roles,
   minimal moves, persistent indexes, and zero resets.
-- The final macOS `dev` matrix passed 44/44 in 70.17 seconds and `core-only`
-  passed 17/17 in 17.29 seconds. The three scale cases plus property corpus
+- The final macOS `dev` matrix passed 45/45 in 63.26 seconds and `core-only`
+  passed 17/17 in 15.38 seconds. The three scale cases plus property corpus
   passed 4/4 in 41.12 seconds under
   AddressSanitizer/UndefinedBehaviorSanitizer.
 - The native macOS 15.7.7 arm64 application loaded Cocoa and QMacStyle,
@@ -76,6 +87,16 @@ and virtualized review layout.
   QMacStyle-to-QFusionStyle probe is excluded from visual acceptance because
   its inherited dark control palette did not provide acceptable input
   contrast.
+- The appearance-probe contract rejects incomplete arguments, GHES selection,
+  identical and symlink-aliased destinations, existing and dangling-symlink
+  destinations, and an offscreen platform without producing either render.
+  Its focused CTest passed together with the unchanged GitHub.com public
+  fixture and a clean tests-off Release composition scan. A direct native
+  invocation under the current system Dark setting reported both Qt and global
+  `Dark->Dark`, `cocoa`, and `QMacStyle`, then failed the signal, state,
+  pixel-difference, and changed-render claims exactly as intended. It created
+  no artifact and did not launder the existing Dark startup into the required
+  Light-to-Dark evidence.
 - In an Ubuntu 26.04 x86_64 full-system QEMU guest, a fresh Release
   tests-enabled GCC 15.2 build completed all 84 build steps. The focused
   architecture, documentation, three-scale, property, both public-fixture,

@@ -1094,6 +1094,25 @@ a safe loaded-window application-local Dark-to-Light plus 13-to-17-point font
 exercise. The latter proves that the live event path responds; it is not
 evidence of a real operating-system-global appearance toggle. Deterministic
 offscreen forced-style renders remain layout and scaling evidence only.
+The test-enabled real-application fixture includes a fail-closed native
+appearance probe for the remaining gate. It reports readiness only after a
+system-Light Cocoa/QMacStyle startup has loaded the public GitHub.com fixture,
+selected and collapsed a stable conversation, focused the conversation view,
+and retained an in-memory initial render. Qt's color-scheme signal alone is not
+accepted because an application-local override can emit it. On macOS the probe
+also reads the current-user global appearance domain through a read-only,
+test-only CoreFoundation seam and requires an independent Light-to-Dark global
+transition. Only after the Dark palette has settled with the same platform,
+style, selection, focus, collapse state, and model identity does it retain the
+second render. The captures must have the same geometry and device-pixel ratio
+but different pixels. The probe then creates two fresh non-aliased PNGs from
+those exact captures and reloads both before reporting success; failed probes
+leave no render artifacts. The probe observes appearance and never changes the
+operating-system setting. The global preference key is evidence plumbing, not
+production appearance logic. Incomplete arguments, a non-GitHub.com fixture,
+aliased or existing paths, offscreen execution, the wrong startup scheme, a
+missing signal or global transition, identical pixels, or state drift discard
+the claim and fail.
 User-selectable System, Light, and Dark profiles remain RFC-BPR-0006 work.
 
 ## Composition and lifecycle
@@ -1156,13 +1175,14 @@ provider port in tests. They must use the same provider, host, core, Qt, and
 composition path as the real application; a direct normalizer helper or static
 mockup is not public-path evidence.
 
-The fixture transport, fixture vault, fixture command-line choices, and
-fixture evidence types are compiled only into test-enabled targets. The
-public application header is test-definition-free. A clean
+The fixture transport, fixture vault, fixture command-line choices, native
+appearance-probe choices and evidence, and fixture evidence types are compiled
+only into test-enabled targets. The public application header is
+test-definition-free. A clean
 `BPR_BUILD_TESTS=OFF` Release configure/build inspects compile commands, the
 Ninja graph, symbols, and raw binary bytes to prove that the fixture
-translation unit, test macros, paths, arguments, labels, and evidence strings
-are absent.
+translation unit, test macros, paths, arguments, labels, native appearance
+markers, and evidence strings are absent.
 
 ## Build and dependency allocation
 

@@ -79,6 +79,18 @@ if(BPR_BUILD_QT)
             PRIVATE
                 BPR_BUILD_TESTS=1
         )
+        if(APPLE)
+            find_library(
+                BPR_MACOS_APPEARANCE_COREFOUNDATION_FRAMEWORK
+                CoreFoundation
+                REQUIRED
+            )
+            target_link_libraries(
+                better_pull_review
+                PRIVATE
+                    "${BPR_MACOS_APPEARANCE_COREFOUNDATION_FRAMEWORK}"
+            )
+        endif()
     endif()
     bpr_enable_hardening(better_pull_review)
     bpr_enable_warnings(better_pull_review)

@@ -595,6 +595,130 @@ appearance while the same loaded process remains alive. Record and restore the
 original desktop setting for that manual native gate. Never force a palette or
 QSS merely to make the evidence pass.
 
+Only run the live Light-to-Dark gate after the desktop owner explicitly
+authorizes changing the global appearance. The test-build-only probe reads the
+global preference as independent evidence but never writes it. Use System
+Events for the actual user-visible change, retain both captures in memory
+until the application has shut down cleanly, and restore the original setting
+through a shell trap:
+
+```sh
+set -eu
+
+bpr_original_dark=$(
+  osascript -e \
+    'tell application "System Events" to tell appearance preferences to get dark mode'
+)
+case "$bpr_original_dark" in
+  true|false) ;;
+  *) exit 1 ;;
+esac
+
+bpr_probe_pid=
+bpr_restore_appearance() {
+  if test -n "$bpr_probe_pid" && kill -0 "$bpr_probe_pid" 2>/dev/null; then
+    kill "$bpr_probe_pid" 2>/dev/null || true
+    wait "$bpr_probe_pid" 2>/dev/null || true
+  fi
+  osascript -e \
+    "tell application \"System Events\" to tell appearance preferences to set dark mode to $bpr_original_dark" \
+    >/dev/null
+}
+trap bpr_restore_appearance EXIT HUP INT TERM
+
+osascript -e \
+  'tell application "System Events" to tell appearance preferences to set dark mode to false'
+for bpr_attempt in $(seq 1 100); do
+  bpr_dark_now=$(
+    osascript -e \
+      'tell application "System Events" to tell appearance preferences to get dark mode'
+  )
+  test "$bpr_dark_now" = false && break
+  sleep 0.1
+done
+test "$bpr_dark_now" = false
+sleep 1
+
+bpr_evidence_dir=$(
+  mktemp -d "${TMPDIR:-/tmp}/bpr-native-appearance.XXXXXX"
+)
+bpr_before="$bpr_evidence_dir/system-light.png"
+bpr_after="$bpr_evidence_dir/system-dark.png"
+bpr_log="$bpr_evidence_dir/probe.log"
+
+env -u QT_QPA_PLATFORM -u QT_STYLE_OVERRIDE \
+  build/dev/src/app/better_pull_review \
+  --github-fixture github-com \
+  --native-appearance-probe \
+  --render-evidence "$bpr_before" \
+  --changed-render-evidence "$bpr_after" \
+  >"$bpr_log" 2>&1 &
+bpr_probe_pid=$!
+
+bpr_ready=false
+for bpr_attempt in $(seq 1 300); do
+  if grep -qx 'NATIVE_APPEARANCE_GLOBAL_READY:Light' "$bpr_log"; then
+    bpr_ready=true
+    break
+  fi
+  kill -0 "$bpr_probe_pid" 2>/dev/null || {
+    wait "$bpr_probe_pid" 2>/dev/null || true
+    bpr_probe_pid=
+    cat "$bpr_log"
+    exit 1
+  }
+  sleep 0.1
+done
+test "$bpr_ready" = true
+test ! -e "$bpr_before"
+test ! -e "$bpr_after"
+
+osascript -e \
+  'tell application "System Events" to tell appearance preferences to set dark mode to true'
+if wait "$bpr_probe_pid"; then
+  bpr_probe_status=0
+else
+  bpr_probe_status=$?
+fi
+bpr_probe_pid=
+test "$bpr_probe_status" -eq 0 || {
+  cat "$bpr_log"
+  exit "$bpr_probe_status"
+}
+
+for bpr_marker in \
+  'PUBLIC_PATH_OK' \
+  'GITHUB_FIXTURE_OK:github.com' \
+  'RENDER_OK' \
+  'NATIVE_APPEARANCE_TRANSITION:Light->Dark' \
+  'NATIVE_APPEARANCE_GLOBAL_TRANSITION:Light->Dark' \
+  'NATIVE_APPEARANCE_PLATFORM:cocoa' \
+  'NATIVE_APPEARANCE_STYLE:QMacStyle' \
+  'NATIVE_APPEARANCE_SIGNAL_OK' \
+  'NATIVE_APPEARANCE_STATE_OK' \
+  'NATIVE_APPEARANCE_PIXELS_DIFFER_OK' \
+  'NATIVE_APPEARANCE_CHANGED_RENDER_OK'
+do
+  grep -qx "$bpr_marker" "$bpr_log"
+done
+test -s "$bpr_before"
+test -s "$bpr_after"
+
+bpr_restore_appearance
+trap - EXIT HUP INT TERM
+cat "$bpr_log"
+```
+
+Inspect both PNGs directly after the trap has restored the desktop. The Light
+and Dark images must show the same loaded GitHub.com selection, focus, and
+collapsed conversation state, with native Cocoa/QMacStyle controls and
+readable contrast. The probe's persisted-image check reloads the exact
+in-memory pixels. Before persistence, it also requires equal raster geometry,
+equal device-pixel ratio, and different pixels. Application-local
+`QStyleHints` overrides, offscreen or forced-style renders, missing markers,
+or a setting that was not restored are not acceptance evidence. This remains
+a local target-native check; GitHub Actions has no role.
+
 BPR-0028 recorded a direct adversarial model run. BPR-0030 preserves that
 historical evidence and checks the corpus into a standalone, deterministic
 CTest target:

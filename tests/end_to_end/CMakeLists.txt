@@ -73,6 +73,23 @@ if(UNIX AND NOT APPLE)
 endif()
 
 add_test(
+    NAME application_native_appearance_probe_contract
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:better_pull_review>"
+        "-DBPR_BEFORE_RENDER=${CMAKE_CURRENT_BINARY_DIR}/native-appearance-before.png"
+        "-DBPR_AFTER_RENDER=${CMAKE_CURRENT_BINARY_DIR}/native-appearance-after.png"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/native_appearance_probe_contract.cmake"
+)
+set_tests_properties(
+    application_native_appearance_probe_contract
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "NATIVE_APPEARANCE_PROBE_CONTRACT_OK"
+        TIMEOUT 30
+)
+
+add_test(
     NAME application_github_public_path_github_com
     COMMAND
         $<TARGET_FILE:better_pull_review>
