@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <stop_token>
 
 namespace bpr::adapters::git
 {
@@ -17,7 +18,8 @@ struct installed_git_process_configuration
 };
 
 [[nodiscard]] auto make_installed_git_process(
-    const installed_git_process_configuration& configuration)
+    const installed_git_process_configuration& configuration,
+    std::stop_token stop = {})
     -> std::expected<
         std::unique_ptr<application::git_process_port>,
         application::git_process_failure>;

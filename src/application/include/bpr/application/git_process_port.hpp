@@ -185,6 +185,13 @@ struct git_ancestry_request
     git_commit_id Descendant;
 };
 
+struct git_connectivity_request
+{
+    std::filesystem::path Repository;
+    git_commit_id Base;
+    git_commit_id Head;
+};
+
 struct git_update_refs_request
 {
     std::filesystem::path Repository;
@@ -273,6 +280,9 @@ public:
     [[nodiscard]] virtual auto is_ancestor(
         const git_ancestry_request& request,
         std::stop_token stop) -> git_process_result<git_ancestry> = 0;
+    [[nodiscard]] virtual auto verify_connectivity(
+        const git_connectivity_request& request,
+        std::stop_token stop) -> git_process_result<void> = 0;
     [[nodiscard]] virtual auto update_refs(
         const git_update_refs_request& request,
         std::stop_token stop) -> git_process_result<void> = 0;

@@ -35,9 +35,19 @@
 #if defined(Q_OS_UNIX)
 #include <csignal>
 #include <fcntl.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
+
+#if defined(Q_OS_MACOS)
+#include <stdio.h>
+#endif
+
+#if defined(Q_OS_LINUX)
+#include <linux/fs.h>
+#include <sys/syscall.h>
 #endif
 
 #if defined(Q_OS_WIN)
@@ -406,6 +416,266 @@ private:
 #endif
 }
 
+enum class exact_artifact_kind : std::uint8_t
+{
+    regular_file,
+    directory,
+};
+
+struct exact_artifact_identity
+{
+    exact_artifact_kind Kind = exact_artifact_kind::regular_file;
+    std::uint64_t Volume = 0U;
+    std::uint64_t ObjectHigh = 0U;
+    std::uint64_t ObjectLow = 0U;
+
+    auto operator<=>(const exact_artifact_identity&) const = default;
+};
+
+#if defined(Q_OS_UNIX)
+[[nodiscard]] auto exact_identity(
+    const struct stat& information,
+    const exact_artifact_kind kind)
+    -> std::optional<exact_artifact_identity>
+{
+    const auto expected_type =
+        kind == exact_artifact_kind::regular_file
+        ? S_ISREG(information.st_mode)
+        : S_ISDIR(information.st_mode);
+    if(
+        !expected_type || information.st_uid != ::geteuid()
+        || information.st_nlink == 0
+        || (kind == exact_artifact_kind::regular_file
+            && information.st_nlink != 1))
+    {
+        return std::nullopt;
+    }
+    return exact_artifact_identity{
+        .Kind = kind,
+        .Volume = static_cast<std::uint64_t>(information.st_dev),
+        .ObjectHigh = 0U,
+        .ObjectLow = static_cast<std::uint64_t>(information.st_ino),
+    };
+}
+
+[[nodiscard]] auto exact_identity(
+    const int descriptor,
+    const exact_artifact_kind kind)
+    -> std::optional<exact_artifact_identity>
+{
+    struct stat information
+    {
+    };
+    return ::fstat(descriptor, &information) == 0
+        ? exact_identity(information, kind)
+        : std::nullopt;
+}
+#elif defined(Q_OS_WIN)
+[[nodiscard]] auto exact_identity(
+    const HANDLE handle,
+    const exact_artifact_kind kind)
+    -> std::optional<exact_artifact_identity>
+{
+    FILE_ATTRIBUTE_TAG_INFO tag{};
+    BY_HANDLE_FILE_INFORMATION information{};
+    if(
+        GetFileInformationByHandleEx(
+            handle,
+            FileAttributeTagInfo,
+            &tag,
+            sizeof(tag))
+                == 0
+        || (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U
+        || GetFileInformationByHandle(handle, &information) == 0
+        || information.nNumberOfLinks == 0U
+        || (kind == exact_artifact_kind::regular_file
+            && information.nNumberOfLinks != 1U))
+    {
+        return std::nullopt;
+    }
+    const auto directory =
+        (tag.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U;
+    if(
+        directory
+        != (kind == exact_artifact_kind::directory))
+    {
+        return std::nullopt;
+    }
+    return exact_artifact_identity{
+        .Kind = kind,
+        .Volume =
+            static_cast<std::uint64_t>(
+                information.dwVolumeSerialNumber),
+        .ObjectHigh =
+            static_cast<std::uint64_t>(
+                information.nFileIndexHigh),
+        .ObjectLow =
+            static_cast<std::uint64_t>(
+                information.nFileIndexLow),
+    };
+}
+#endif
+
+[[nodiscard]] auto exact_identity(
+    const std::filesystem::path& path,
+    const exact_artifact_kind kind)
+    -> std::optional<exact_artifact_identity>
+{
+#if defined(Q_OS_UNIX)
+    struct stat information
+    {
+    };
+    return ::lstat(path.c_str(), &information) == 0
+        ? exact_identity(information, kind)
+        : std::nullopt;
+#elif defined(Q_OS_WIN)
+    const auto handle = CreateFileW(
+        path.c_str(),
+        FILE_READ_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT
+            | FILE_FLAG_BACKUP_SEMANTICS,
+        nullptr);
+    if(handle == INVALID_HANDLE_VALUE)
+    {
+        return std::nullopt;
+    }
+    const auto result = exact_identity(handle, kind);
+    static_cast<void>(CloseHandle(handle));
+    return result;
+#else
+    static_cast<void>(path);
+    static_cast<void>(kind);
+    return std::nullopt;
+#endif
+}
+
+class process_boundary_lock final
+{
+public:
+    explicit process_boundary_lock(
+        const std::filesystem::path& isolation,
+        const std::stop_token stop = {})
+    {
+        if(stop.stop_requested())
+        {
+            return;
+        }
+        const auto path = isolation / ".git-process-boundary.lock";
+        const auto deadline = clock::now() + start_timeout;
+#if defined(Q_OS_UNIX)
+        Descriptor = ::open(
+            path.c_str(),
+            O_RDWR | O_CLOEXEC | O_NOFOLLOW | O_CREAT,
+            S_IRUSR | S_IWUSR);
+        if(Descriptor < 0)
+        {
+            return;
+        }
+        const auto identity = exact_identity(
+            Descriptor,
+            exact_artifact_kind::regular_file);
+        if(
+            !identity.has_value()
+            || ::fchmod(Descriptor, S_IRUSR | S_IWUSR) != 0)
+        {
+            return;
+        }
+        for(;;)
+        {
+            if(::flock(Descriptor, LOCK_EX | LOCK_NB) == 0)
+            {
+                Locked = true;
+                return;
+            }
+            if(errno != EWOULDBLOCK && errno != EAGAIN && errno != EINTR)
+            {
+                return;
+            }
+            if(clock::now() >= deadline)
+            {
+                return;
+            }
+            if(stop.stop_requested())
+            {
+                return;
+            }
+            std::this_thread::sleep_for(wait_slice);
+        }
+#elif defined(Q_OS_WIN)
+        while(
+            clock::now() < deadline
+            && !stop.stop_requested())
+        {
+            Handle = CreateFileW(
+                path.c_str(),
+                GENERIC_READ | GENERIC_WRITE,
+                0U,
+                nullptr,
+                OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
+                nullptr);
+            if(Handle != INVALID_HANDLE_VALUE)
+            {
+                const auto identity = exact_identity(
+                    Handle,
+                    exact_artifact_kind::regular_file);
+                if(identity.has_value())
+                {
+                    Locked = true;
+                    return;
+                }
+                static_cast<void>(CloseHandle(Handle));
+                Handle = INVALID_HANDLE_VALUE;
+                return;
+            }
+            std::this_thread::sleep_for(wait_slice);
+        }
+#else
+        static_cast<void>(path);
+        static_cast<void>(deadline);
+#endif
+    }
+
+    process_boundary_lock(const process_boundary_lock&) = delete;
+    auto operator=(const process_boundary_lock&)
+        -> process_boundary_lock& = delete;
+
+    ~process_boundary_lock()
+    {
+#if defined(Q_OS_UNIX)
+        if(Descriptor >= 0)
+        {
+            if(Locked)
+            {
+                static_cast<void>(::flock(Descriptor, LOCK_UN));
+            }
+            static_cast<void>(::close(Descriptor));
+        }
+#elif defined(Q_OS_WIN)
+        if(Handle != INVALID_HANDLE_VALUE)
+        {
+            static_cast<void>(CloseHandle(Handle));
+        }
+#endif
+    }
+
+    [[nodiscard]] auto valid() const noexcept -> bool
+    {
+        return Locked;
+    }
+
+private:
+    bool Locked = false;
+#if defined(Q_OS_UNIX)
+    int Descriptor = -1;
+#elif defined(Q_OS_WIN)
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+#endif
+};
+
 auto make_private_directory(
     const std::filesystem::path& path) -> bool
 {
@@ -625,6 +895,143 @@ auto write_private_file(
     return write_private_file(
         path,
         std::as_bytes(std::span{bytes}));
+}
+
+struct new_private_file_result
+{
+    bool Created = false;
+    bool Complete = false;
+    std::optional<exact_artifact_identity> Identity;
+};
+
+[[nodiscard]] auto write_new_private_file(
+    const std::filesystem::path& path,
+    const std::span<const std::byte> bytes)
+    -> new_private_file_result
+{
+    if(
+        path.empty() || !path.is_absolute()
+        || !private_directory(path.parent_path()))
+    {
+        return {};
+    }
+#if defined(Q_OS_UNIX)
+    const auto descriptor = ::open(
+        path.c_str(),
+        O_WRONLY | O_CLOEXEC | O_NOFOLLOW | O_CREAT | O_EXCL,
+        S_IRUSR | S_IWUSR);
+    if(descriptor < 0)
+    {
+        return {};
+    }
+    auto complete = true;
+    struct stat opened
+    {
+    };
+    complete = ::fstat(descriptor, &opened) == 0
+        && S_ISREG(opened.st_mode)
+        && opened.st_uid == ::geteuid()
+        && opened.st_nlink == 1
+        && (opened.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+    std::size_t offset = 0U;
+    while(complete && offset < bytes.size())
+    {
+        const auto written = ::write(
+            descriptor,
+            bytes.data() + offset,
+            bytes.size() - offset);
+        if(written < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        if(written <= 0)
+        {
+            complete = false;
+            break;
+        }
+        offset += static_cast<std::size_t>(written);
+    }
+    complete = complete && ::fsync(descriptor) == 0;
+    const auto closed = ::close(descriptor) == 0;
+    return {
+        .Created = true,
+        .Complete =
+            complete && closed && private_regular_file(path),
+        .Identity = exact_identity(
+            opened,
+            exact_artifact_kind::regular_file),
+    };
+#elif defined(Q_OS_WIN)
+    const auto handle = CreateFileW(
+        path.c_str(),
+        GENERIC_WRITE,
+        0U,
+        nullptr,
+        CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
+        nullptr);
+    if(handle == INVALID_HANDLE_VALUE)
+    {
+        return {};
+    }
+    const auto identity = exact_identity(
+        handle,
+        exact_artifact_kind::regular_file);
+    auto complete = identity.has_value();
+    std::size_t offset = 0U;
+    while(complete && offset < bytes.size())
+    {
+        const auto remaining = std::min<std::size_t>(
+            bytes.size() - offset,
+            std::numeric_limits<DWORD>::max());
+        DWORD written = 0U;
+        complete = WriteFile(
+                       handle,
+                       bytes.data() + offset,
+                       static_cast<DWORD>(remaining),
+                       &written,
+                       nullptr)
+                != 0
+            && written != 0U;
+        offset += written;
+    }
+    complete = complete && FlushFileBuffers(handle) != 0;
+    const auto closed = CloseHandle(handle) != 0;
+    return {
+        .Created = true,
+        .Complete =
+            complete && closed && private_regular_file(path),
+        .Identity = identity,
+    };
+#else
+    std::ofstream output{
+        path,
+        std::ios::binary | std::ios::out | std::ios::noreplace};
+    if(!output)
+    {
+        return {};
+    }
+    output.write(
+        reinterpret_cast<const char*>(bytes.data()),
+        static_cast<std::streamsize>(bytes.size()));
+    output.flush();
+    output.close();
+    std::error_code error;
+    std::filesystem::permissions(
+        path,
+        std::filesystem::perms::owner_read
+            | std::filesystem::perms::owner_write,
+        std::filesystem::perm_options::replace,
+        error);
+    return {
+        .Created = true,
+        .Complete =
+            !error && output && private_regular_file(path),
+        .Identity = exact_identity(
+            path,
+            exact_artifact_kind::regular_file),
+    };
+#endif
 }
 
 [[nodiscard]] auto read_exact_file(
@@ -1970,6 +2377,200 @@ auto append_arguments(
     (target.emplace_back(std::forward<Arguments>(arguments)), ...);
 }
 
+[[nodiscard]] auto rename_no_replace(
+    const std::filesystem::path& source,
+    const std::filesystem::path& destination,
+    std::error_code& error) noexcept -> bool
+{
+    error.clear();
+#if defined(Q_OS_MACOS)
+    if(
+        ::renamex_np(
+            source.c_str(),
+            destination.c_str(),
+            RENAME_EXCL)
+        == 0)
+    {
+        return true;
+    }
+    error = std::error_code{errno, std::generic_category()};
+    return false;
+#elif defined(Q_OS_LINUX) && defined(SYS_renameat2)
+    if(
+        ::syscall(
+            SYS_renameat2,
+            AT_FDCWD,
+            source.c_str(),
+            AT_FDCWD,
+            destination.c_str(),
+            RENAME_NOREPLACE)
+        == 0)
+    {
+        return true;
+    }
+    error = std::error_code{errno, std::generic_category()};
+    return false;
+#elif defined(Q_OS_LINUX)
+    static_cast<void>(source);
+    static_cast<void>(destination);
+    error = std::make_error_code(
+        std::errc::operation_not_supported);
+    return false;
+#elif defined(Q_OS_WIN)
+    if(
+        MoveFileExW(
+            source.c_str(),
+            destination.c_str(),
+            MOVEFILE_WRITE_THROUGH)
+        != 0)
+    {
+        return true;
+    }
+    error = std::error_code{
+        static_cast<int>(GetLastError()),
+        std::system_category()};
+    return false;
+#else
+    static_cast<void>(source);
+    static_cast<void>(destination);
+    error = std::make_error_code(
+        std::errc::operation_not_supported);
+    return false;
+#endif
+}
+
+[[nodiscard]] auto quarantine_and_remove_exact(
+    std::filesystem::path& path,
+    const exact_artifact_identity& expected,
+    const bool recursive) noexcept -> bool
+{
+    try
+    {
+        std::random_device random;
+        constexpr std::size_t maximum_quarantine_attempts = 8U;
+        for(
+            std::size_t attempt = 0U;
+            attempt < maximum_quarantine_attempts;
+            ++attempt)
+        {
+            if(exact_identity(path, expected.Kind) != expected)
+            {
+                return false;
+            }
+            std::array<std::uint8_t, 16U> nonce{};
+            for(auto& byte : nonce)
+            {
+                byte = static_cast<std::uint8_t>(random());
+            }
+            auto quarantine =
+                path.parent_path()
+                / (".bpr-cleanup-" + lower_hex(nonce));
+#if defined(BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION)
+            const auto isolation =
+                path.parent_path().parent_path().parent_path();
+            std::error_code injection_marker_error;
+            const auto inject_destination =
+                attempt == 0U
+                && std::filesystem::exists(
+                    isolation
+                        / "inject-probe-quarantine-destination",
+                    injection_marker_error)
+                && !injection_marker_error;
+            if(inject_destination)
+            {
+                quarantine =
+                    path.parent_path()
+                    / (recursive
+                           ? ".bpr-cleanup-destination-repository"
+                           : ".bpr-cleanup-destination-spool");
+            }
+#endif
+            std::error_code presence_error;
+            if(
+                std::filesystem::exists(
+                    quarantine,
+                    presence_error)
+                || presence_error)
+            {
+                continue;
+            }
+#if defined(BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION)
+            if(inject_destination)
+            {
+                const auto injected =
+                    recursive
+                    ? make_private_directory(quarantine)
+                        && write_private_file(
+                            quarantine / "destination-canary",
+                            "quarantine-repository-canary")
+                    : write_private_file(
+                        quarantine,
+                        "quarantine-spool-canary");
+                if(!injected)
+                {
+                    return false;
+                }
+            }
+#endif
+            std::error_code rename_error;
+            if(!rename_no_replace(path, quarantine, rename_error))
+            {
+                std::error_code destination_error;
+                if(
+                    std::filesystem::exists(
+                        quarantine,
+                        destination_error)
+                    && !destination_error)
+                {
+                    continue;
+                }
+                return false;
+            }
+            const auto quarantined =
+                exact_identity(quarantine, expected.Kind);
+            if(quarantined != expected)
+            {
+                std::error_code original_error;
+                const auto original_present =
+                    std::filesystem::exists(path, original_error);
+                if(!original_error && !original_present)
+                {
+                    std::error_code restore_error;
+                    static_cast<void>(rename_no_replace(
+                        quarantine,
+                        path,
+                        restore_error));
+                }
+                return false;
+            }
+            path = quarantine;
+
+            std::error_code remove_error;
+            if(recursive)
+            {
+                static_cast<void>(
+                    std::filesystem::remove_all(path, remove_error));
+            }
+            else
+            {
+                static_cast<void>(
+                    std::filesystem::remove(path, remove_error));
+            }
+            std::error_code removal_presence_error;
+            const auto present =
+                std::filesystem::exists(
+                    path,
+                    removal_presence_error);
+            return !remove_error && !removal_presence_error && !present;
+        }
+        return false;
+    }
+    catch(...)
+    {
+        return false;
+    }
+}
+
 class installed_git_process final
     : public application::git_process_port
 {
@@ -2014,61 +2615,19 @@ public:
         const std::stop_token stop)
         -> git_process_result<void> override
     {
-        if(
-            !valid_hash_algorithm(request.Algorithm)
-            || !valid_new_repository_path(request.Repository))
+        auto boundary = process_boundary_lock{IsolationRoot, stop};
+        if(!boundary.valid())
         {
             return std::unexpected{
-                git_process_failure::invalid_request};
+                stop.stop_requested()
+                    ? git_process_failure::cancelled
+                    : git_process_failure::invalid_configuration};
         }
-        auto arguments = std::vector<std::string>{
-            "init",
-            "--bare",
-            "--quiet",
-            "--initial-branch=main",
-            request.Algorithm == git_hash_algorithm::sha1
-                ? "--object-format=sha1"
-                : "--object-format=sha256",
-            "--template=" + path_text(TemplatesRoot),
-            path_text(request.Repository),
-        };
-        const auto result = submit(
-            process_request{
-                .Arguments = std::move(arguments),
-                .Input = memory_input{},
-                .Timeout = process_timeout,
-            },
-            stop);
-        if(!result.has_value())
+        const auto initialized =
+            initialize_owned_bare_repository(request, stop);
+        if(!initialized.has_value())
         {
-            return std::unexpected{result.error()};
-        }
-        if(!result->StandardOutput.empty())
-        {
-            return std::unexpected{
-                git_process_failure::malformed_output};
-        }
-        std::error_code permission_error;
-        std::filesystem::permissions(
-            request.Repository,
-            std::filesystem::perms::owner_all,
-            std::filesystem::perm_options::replace,
-            permission_error);
-        const auto config = repository_config(request.Algorithm);
-        if(
-            permission_error
-            || !write_private_file(
-                request.Repository / "config",
-                config)
-            || !write_private_file(
-                request.Repository / "HEAD",
-                "ref: refs/heads/main\n")
-            || !valid_repository(
-                request.Repository,
-                request.Algorithm))
-        {
-            return std::unexpected{
-                git_process_failure::invalid_repository};
+            return std::unexpected{initialized.error()};
         }
         return {};
     }
@@ -2307,6 +2866,55 @@ public:
             : git_ancestry::not_ancestor;
     }
 
+    [[nodiscard]] auto verify_connectivity(
+        const application::git_connectivity_request& request,
+        const std::stop_token stop)
+        -> git_process_result<void> override
+    {
+        if(
+            !application::valid(request.Base)
+            || !application::valid(request.Head)
+            || request.Base.Algorithm != request.Head.Algorithm)
+        {
+            return std::unexpected{
+                git_process_failure::invalid_request};
+        }
+        if(
+            !valid_repository(
+                request.Repository,
+                request.Base.Algorithm))
+        {
+            return std::unexpected{
+                git_process_failure::invalid_repository};
+        }
+        auto arguments =
+            common_git_arguments(request.Repository, HooksRoot);
+        append_arguments(
+            arguments,
+            "fsck",
+            "--connectivity-only",
+            "--no-dangling",
+            "--no-reflogs",
+            "--no-progress",
+            "--no-name-objects",
+            "--",
+            object_text(request.Base),
+            object_text(request.Head));
+        const auto result = submit(
+            process_request{.Arguments = std::move(arguments)},
+            stop);
+        if(!result.has_value())
+        {
+            return std::unexpected{result.error()};
+        }
+        if(!result->StandardOutput.empty())
+        {
+            return std::unexpected{
+                git_process_failure::malformed_output};
+        }
+        return {};
+    }
+
     [[nodiscard]] auto update_refs(
         const application::git_update_refs_request& request,
         const std::stop_token stop)
@@ -2526,10 +3134,138 @@ public:
         return std::optional<git_commit_id>{*object};
     }
 
-    [[nodiscard]] auto capability_probe()
+    [[nodiscard]] auto capability_probe(std::stop_token stop)
         -> git_process_result<void>;
 
 private:
+    [[nodiscard]] auto initialize_owned_bare_repository(
+        const application::git_initialize_repository_request& request,
+        const std::stop_token stop)
+        -> git_process_result<exact_artifact_identity>
+    {
+        if(
+            !valid_hash_algorithm(request.Algorithm)
+            || !valid_new_repository_path(request.Repository))
+        {
+            return std::unexpected{
+                git_process_failure::invalid_request};
+        }
+        std::error_code create_error;
+#if defined(Q_OS_UNIX)
+        const auto created =
+            ::mkdir(request.Repository.c_str(), S_IRWXU) == 0;
+        if(!created)
+        {
+            create_error = std::error_code{errno, std::generic_category()};
+        }
+#else
+        const auto created = std::filesystem::create_directory(
+            request.Repository,
+            create_error);
+#endif
+        if(!created || create_error)
+        {
+            return std::unexpected{
+                git_process_failure::invalid_request};
+        }
+        const auto identity = exact_identity(
+            request.Repository,
+            exact_artifact_kind::directory);
+        if(
+            !identity.has_value()
+            || !private_directory(request.Repository))
+        {
+            return std::unexpected{
+                git_process_failure::invalid_repository};
+        }
+        auto owned_path = request.Repository;
+        const auto cleanup_repository =
+            [&]() noexcept
+        {
+            return quarantine_and_remove_exact(
+                owned_path,
+                *identity,
+                true);
+        };
+        auto arguments = std::vector<std::string>{
+            "init",
+            "--bare",
+            "--quiet",
+            "--initial-branch=main",
+            request.Algorithm == git_hash_algorithm::sha1
+                ? "--object-format=sha1"
+                : "--object-format=sha256",
+            "--template=" + path_text(TemplatesRoot),
+            path_text(request.Repository),
+        };
+        const auto result = submit(
+            process_request{
+                .Arguments = std::move(arguments),
+                .Input = memory_input{},
+                .Timeout = process_timeout,
+            },
+            stop);
+        if(!result.has_value())
+        {
+            if(
+                result.error()
+                    != git_process_failure::reap_failure
+                && !cleanup_repository())
+            {
+                return std::unexpected{
+                    git_process_failure::invalid_repository};
+            }
+            return std::unexpected{result.error()};
+        }
+        if(!result->StandardOutput.empty())
+        {
+            if(!cleanup_repository())
+            {
+                return std::unexpected{
+                    git_process_failure::invalid_repository};
+            }
+            return std::unexpected{
+                git_process_failure::malformed_output};
+        }
+        if(
+            exact_identity(
+                request.Repository,
+                exact_artifact_kind::directory)
+            != identity)
+        {
+            return std::unexpected{
+                git_process_failure::invalid_repository};
+        }
+        std::error_code permission_error;
+        std::filesystem::permissions(
+            request.Repository,
+            std::filesystem::perms::owner_all,
+            std::filesystem::perm_options::replace,
+            permission_error);
+        const auto config = repository_config(request.Algorithm);
+        if(
+            permission_error
+            || !write_private_file(
+                request.Repository / "config",
+                config)
+            || !write_private_file(
+                request.Repository / "HEAD",
+                "ref: refs/heads/main\n")
+            || exact_identity(
+                   request.Repository,
+                   exact_artifact_kind::directory)
+                != identity
+            || !valid_repository(
+                request.Repository,
+                request.Algorithm))
+        {
+            static_cast<void>(cleanup_repository());
+            return std::unexpected{
+                git_process_failure::invalid_repository};
+        }
+        return *identity;
+    }
+
     [[nodiscard]] auto submit(
         process_request request,
         const std::stop_token stop) -> process_result
@@ -2759,9 +3495,97 @@ inline constexpr std::array<std::uint8_t, 271U> probe_pack_sha256{
         algorithm);
 }
 
-auto installed_git_process::capability_probe()
+class exact_probe_cleanup final
+{
+public:
+    exact_probe_cleanup(
+        std::filesystem::path repository,
+        std::filesystem::path spool)
+        : Repository{std::move(repository)},
+          Spool{std::move(spool)}
+    {
+    }
+
+    exact_probe_cleanup(const exact_probe_cleanup&) = delete;
+    auto operator=(const exact_probe_cleanup&)
+        -> exact_probe_cleanup& = delete;
+
+    ~exact_probe_cleanup()
+    {
+        if(!Complete && !Retained)
+        {
+            static_cast<void>(cleanup());
+        }
+    }
+
+    auto repository_created(
+        exact_artifact_identity identity) noexcept -> void
+    {
+        RepositoryIdentity = std::move(identity);
+    }
+
+    auto spool_created(
+        exact_artifact_identity identity) noexcept -> void
+    {
+        SpoolIdentity = std::move(identity);
+    }
+
+    auto retain() noexcept -> void
+    {
+        Retained = true;
+    }
+
+    [[nodiscard]] auto cleanup() noexcept -> bool
+    {
+        auto spool_clean = true;
+        if(SpoolIdentity.has_value())
+        {
+            spool_clean = quarantine_and_remove_exact(
+                Spool,
+                *SpoolIdentity,
+                false);
+            if(spool_clean)
+            {
+                SpoolIdentity.reset();
+            }
+        }
+        auto repository_clean = true;
+        if(RepositoryIdentity.has_value())
+        {
+            repository_clean = quarantine_and_remove_exact(
+                Repository,
+                *RepositoryIdentity,
+                true);
+            if(repository_clean)
+            {
+                RepositoryIdentity.reset();
+            }
+        }
+        Complete = spool_clean && repository_clean;
+        return Complete;
+    }
+
+private:
+    std::filesystem::path Repository;
+    std::filesystem::path Spool;
+    std::optional<exact_artifact_identity> RepositoryIdentity;
+    std::optional<exact_artifact_identity> SpoolIdentity;
+    bool Retained = false;
+    bool Complete = false;
+};
+
+auto installed_git_process::capability_probe(
+    const std::stop_token stop)
     -> git_process_result<void>
 {
+    auto boundary = process_boundary_lock{IsolationRoot, stop};
+    if(!boundary.valid())
+    {
+        return std::unexpected{
+            stop.stop_requested()
+                ? git_process_failure::cancelled
+                : git_process_failure::invalid_configuration};
+    }
     const auto probe =
         [&](const git_hash_algorithm algorithm,
             const std::span<const std::uint8_t> pack_bytes,
@@ -2770,35 +3594,160 @@ auto installed_git_process::capability_probe()
             const std::string_view tree_hex)
             -> git_process_result<void>
     {
-        application::git_operation_identity operation{};
-        std::random_device random;
-        for(auto& byte : operation.Bytes)
-        {
-            byte = static_cast<std::uint8_t>(random());
-        }
-        if(!application::valid_identity(operation))
-        {
-            operation.Bytes.front() = 1U;
-        }
-        const auto repository =
-            RepositoriesRoot / (lower_hex(operation.Bytes) + ".git");
-        const auto initialized = initialize_bare_repository(
-            {.Repository = repository, .Algorithm = algorithm},
-            {});
-        if(!initialized.has_value())
-        {
-            return std::unexpected{initialized.error()};
-        }
-        const auto spool = pack_spool_path(operation);
-        if(
-            !spool.has_value()
-            || !write_private_file(
-                *spool,
-                std::as_bytes(pack_bytes)))
+        if(stop.stop_requested())
         {
             return std::unexpected{
-                git_process_failure::standard_input};
+                git_process_failure::cancelled};
         }
+        std::random_device random;
+        const auto presence =
+            [](const std::filesystem::path& path)
+                -> std::optional<bool>
+        {
+            std::error_code error;
+            const auto status =
+                std::filesystem::symlink_status(path, error);
+            if(
+                error
+                && error
+                    != std::make_error_code(
+                        std::errc::no_such_file_or_directory))
+            {
+                return std::nullopt;
+            }
+            return !error
+                && status.type()
+                    != std::filesystem::file_type::not_found;
+        };
+        application::git_operation_identity operation{};
+        std::filesystem::path repository;
+        std::filesystem::path expected_spool;
+        std::unique_ptr<exact_probe_cleanup> cleanup;
+        constexpr std::size_t maximum_probe_path_attempts = 8U;
+        for(
+            std::size_t attempt = 0U;
+            attempt < maximum_probe_path_attempts;
+            ++attempt)
+        {
+            if(stop.stop_requested())
+            {
+                return std::unexpected{
+                    git_process_failure::cancelled};
+            }
+            for(auto& byte : operation.Bytes)
+            {
+                byte = static_cast<std::uint8_t>(random());
+            }
+            if(!application::valid_identity(operation))
+            {
+                operation.Bytes.front() = 1U;
+            }
+#if defined(BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION)
+            std::error_code collision_marker_error;
+            if(
+                attempt == 0U
+                && std::filesystem::exists(
+                    IsolationRoot / "inject-probe-collision",
+                    collision_marker_error)
+                && !collision_marker_error)
+            {
+                operation.Bytes.fill(0x0cU);
+            }
+#endif
+            repository =
+                RepositoriesRoot
+                / (lower_hex(operation.Bytes) + ".git");
+            expected_spool =
+                IncomingRoot
+                / (lower_hex(operation.Bytes) + ".pack.part");
+            const auto repository_before = presence(repository);
+            const auto spool_before = presence(expected_spool);
+            if(
+                !repository_before.has_value()
+                || !spool_before.has_value())
+            {
+                return std::unexpected{
+                    git_process_failure::invalid_configuration};
+            }
+            if(*repository_before || *spool_before)
+            {
+                continue;
+            }
+
+            auto candidate_cleanup =
+                std::make_unique<exact_probe_cleanup>(
+                    repository,
+                    expected_spool);
+            const auto spool_write = write_new_private_file(
+                expected_spool,
+                std::as_bytes(pack_bytes));
+            if(!spool_write.Created)
+            {
+                continue;
+            }
+            if(!spool_write.Identity.has_value())
+            {
+                candidate_cleanup->retain();
+                return std::unexpected{
+                    git_process_failure::invalid_repository};
+            }
+            candidate_cleanup->spool_created(
+                *spool_write.Identity);
+            if(!spool_write.Complete)
+            {
+                return std::unexpected{
+                    git_process_failure::standard_input};
+            }
+            if(
+                exact_identity(
+                    expected_spool,
+                    exact_artifact_kind::regular_file)
+                != spool_write.Identity)
+            {
+                return std::unexpected{
+                    git_process_failure::invalid_repository};
+            }
+            const auto initialized = initialize_owned_bare_repository(
+                {.Repository = repository, .Algorithm = algorithm},
+                stop);
+            if(!initialized.has_value())
+            {
+                if(
+                    initialized.error()
+                    == git_process_failure::invalid_request)
+                {
+                    continue;
+                }
+                if(
+                    initialized.error()
+                    == git_process_failure::reap_failure)
+                {
+                    candidate_cleanup->retain();
+                }
+                return std::unexpected{initialized.error()};
+            }
+            candidate_cleanup->repository_created(*initialized);
+            cleanup = std::move(candidate_cleanup);
+            break;
+        }
+        if(cleanup == nullptr)
+        {
+            return std::unexpected{
+                git_process_failure::invalid_request};
+        }
+#if defined(BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION)
+        std::error_code reap_marker_error;
+        if(
+            std::filesystem::exists(
+                IsolationRoot / "inject-probe-reap-failure",
+                reap_marker_error)
+            && !reap_marker_error)
+        {
+            cleanup->retain();
+            return std::unexpected{
+                git_process_failure::reap_failure};
+        }
+#endif
         const auto pack =
             probe_pack_identity(pack_hex, algorithm);
         const auto commit =
@@ -2811,11 +3760,11 @@ auto installed_git_process::capability_probe()
                 .MaximumInputBytes = pack_bytes.size(),
                 .ExpectedPack = pack,
             },
-            {});
+            stop);
         const auto inspected = indexed.has_value()
             ? inspect_commit(
                 {.Repository = repository, .Commit = commit},
-                {})
+                stop)
             : git_process_result<
                 application::git_commit_inspection>{
                 std::unexpected{
@@ -2827,8 +3776,19 @@ auto installed_git_process::capability_probe()
                     .Ancestor = commit,
                     .Descendant = commit,
                 },
-                {})
+                stop)
             : git_process_result<git_ancestry>{
+                std::unexpected{
+                    git_process_failure::unsupported_git}};
+        const auto connectivity = ancestry.has_value()
+            ? verify_connectivity(
+                {
+                    .Repository = repository,
+                    .Base = commit,
+                    .Head = commit,
+                },
+                stop)
+            : git_process_result<void>{
                 std::unexpected{
                     git_process_failure::unsupported_git}};
         const application::git_staging_ref probe_ref{
@@ -2846,19 +3806,20 @@ auto installed_git_process::capability_probe()
                     application::git_ref_expected_absent{},
             }};
         const auto created =
-            ancestry == git_ancestry::ancestor
+            connectivity.has_value()
+            && ancestry == git_ancestry::ancestor
             && inspected->Tree
                 == probe_tree_identity(tree_hex, algorithm)
             ? update_refs(
                 {.Repository = repository, .Mutations = create},
-                {})
+                stop)
             : git_process_result<void>{
                 std::unexpected{
                     git_process_failure::unsupported_git}};
         const auto observed = created.has_value()
             ? inspect_ref(
                 {.Repository = repository, .Ref = probe_ref},
-                {})
+                stop)
             : git_process_result<
                 std::optional<git_commit_id>>{
                 std::unexpected{
@@ -2874,23 +3835,77 @@ auto installed_git_process::capability_probe()
             observed.has_value() && *observed == commit
             ? update_refs(
                 {.Repository = repository, .Mutations = remove},
-                {})
+                stop)
             : git_process_result<void>{
                 std::unexpected{
                     git_process_failure::unsupported_git}};
         const auto absent = removed.has_value()
             ? inspect_ref(
                 {.Repository = repository, .Ref = probe_ref},
-                {})
+                stop)
             : git_process_result<
                 std::optional<git_commit_id>>{
                 std::unexpected{
                     git_process_failure::unsupported_git}};
 
-        std::error_code cleanup_error;
-        std::filesystem::remove(*spool, cleanup_error);
-        cleanup_error.clear();
-        std::filesystem::remove_all(repository, cleanup_error);
+        const auto reaped =
+            [](const auto& result)
+        {
+            return !result.has_value()
+                && result.error()
+                    == git_process_failure::reap_failure;
+        };
+        if(
+            reaped(indexed) || reaped(inspected)
+            || reaped(ancestry) || reaped(connectivity)
+            || reaped(created)
+            || reaped(observed) || reaped(removed)
+            || reaped(absent))
+        {
+            cleanup->retain();
+            return std::unexpected{
+                git_process_failure::reap_failure};
+        }
+#if defined(BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION)
+        std::error_code substitution_marker_error;
+        if(
+            std::filesystem::exists(
+                IsolationRoot
+                    / "inject-probe-post-create-substitution",
+                substitution_marker_error)
+            && !substitution_marker_error)
+        {
+            const auto displaced_repository =
+                RepositoriesRoot / ".displaced-owned-probe.git";
+            const auto displaced_spool =
+                IncomingRoot / ".displaced-owned-probe.pack.part";
+            std::error_code repository_rename_error;
+            std::error_code spool_rename_error;
+            std::filesystem::rename(
+                repository,
+                displaced_repository,
+                repository_rename_error);
+            std::filesystem::rename(
+                expected_spool,
+                displaced_spool,
+                spool_rename_error);
+            if(
+                repository_rename_error || spool_rename_error
+                || !make_private_directory(repository)
+                || !write_private_file(
+                    repository / "replacement-canary",
+                    "replacement-repository-canary")
+                || !write_private_file(
+                    expected_spool,
+                    "replacement-spool-canary"))
+            {
+                cleanup->retain();
+                return std::unexpected{
+                    git_process_failure::invalid_repository};
+            }
+        }
+#endif
+        const auto cleaned = cleanup->cleanup();
         if(!indexed.has_value())
         {
             return std::unexpected{indexed.error()};
@@ -2902,6 +3917,10 @@ auto installed_git_process::capability_probe()
         if(!ancestry.has_value())
         {
             return std::unexpected{ancestry.error()};
+        }
+        if(!connectivity.has_value())
+        {
+            return std::unexpected{connectivity.error()};
         }
         if(!created.has_value())
         {
@@ -2924,7 +3943,7 @@ auto installed_git_process::capability_probe()
             return std::unexpected{
                 git_process_failure::invalid_request};
         }
-        if(cleanup_error)
+        if(!cleaned)
         {
             return std::unexpected{
                 git_process_failure::invalid_repository};
@@ -3165,13 +4184,19 @@ auto installed_git_process::capability_probe()
 }
 
 auto make_installed_git_process(
-    const installed_git_process_configuration& configuration)
+    const installed_git_process_configuration& configuration,
+    const std::stop_token stop)
     -> std::expected<
         std::unique_ptr<application::git_process_port>,
         application::git_process_failure>
 {
     try
     {
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::git_process_failure::cancelled};
+        }
         const auto isolation =
             canonical_existing(configuration.IsolationRoot);
         const auto candidate =
@@ -3214,7 +4239,7 @@ auto make_installed_git_process(
                 .Input = memory_input{},
                 .Timeout = process_timeout,
             },
-            {});
+            stop);
         if(!exec_path_result.has_value())
         {
             return std::unexpected{exec_path_result.error()};
@@ -3275,14 +4300,14 @@ auto make_installed_git_process(
                 .Input = memory_input{},
                 .Timeout = process_timeout,
             },
-            {});
+            stop);
         const auto version_result = worker->submit(
             process_request{
                 .Arguments = {"--version"},
                 .Input = memory_input{},
                 .Timeout = process_timeout,
             },
-            {});
+            stop);
         const auto expected_exec_path =
             path_text(*exec_path) + "\n";
         if(!matching_exec_path.has_value())
@@ -3317,9 +4342,27 @@ auto make_installed_git_process(
                 },
                 *isolation,
                 std::move(worker));
-        const auto probe = implementation->capability_probe();
+        const auto probe = implementation->capability_probe(stop);
         if(!probe.has_value())
         {
+            if(
+                probe.error()
+                == application::git_process_failure::reap_failure)
+            {
+                // The worker may still own a live child and its probe files.
+                // Keep the complete boundary quarantined instead of allowing
+                // either its destructor or probe cleanup to race that child.
+                static_cast<void>(implementation.release());
+                return std::unexpected{
+                    application::git_process_failure::reap_failure};
+            }
+            if(
+                probe.error()
+                == application::git_process_failure::cancelled)
+            {
+                return std::unexpected{
+                    application::git_process_failure::cancelled};
+            }
             return std::unexpected{
                 application::git_process_failure::unsupported_git};
         }

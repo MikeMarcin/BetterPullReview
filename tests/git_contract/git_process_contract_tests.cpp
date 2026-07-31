@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QProcess>
 #include <QProcessEnvironment>
 
 #include <algorithm>
@@ -298,6 +299,15 @@ auto fake_log_invocation(const QStringList& arguments) -> void
     output << "END\n";
 }
 
+[[nodiscard]] auto fake_isolation_root()
+    -> std::filesystem::path
+{
+    const auto home = qEnvironmentVariable("HOME");
+    return home.isEmpty()
+        ? std::filesystem::path{}
+        : std::filesystem::path{home.toStdString()}.parent_path();
+}
+
 [[nodiscard]] auto fake_repository(
     const QStringList& arguments) -> std::filesystem::path
 {
@@ -486,6 +496,13 @@ auto write_fake_refs(
             std::filesystem::perm_options::replace);
         write_text(repository / "config", "");
         write_text(repository / "HEAD", "");
+        if(
+            std::filesystem::exists(
+                fake_isolation_root()
+                / "fail-capability-probe-after-init"))
+        {
+            return 91;
+        }
         return 0;
     }
 
@@ -493,6 +510,25 @@ auto write_fake_refs(
     if(arguments.contains("index-pack"))
     {
         const auto input = read_standard_input();
+        if(
+            std::filesystem::exists(
+                fake_isolation_root()
+                / "block-capability-probe-index-pack"))
+        {
+            write_text(
+                fake_isolation_root()
+                    / "capability-probe-block-started",
+                "started");
+            std::this_thread::sleep_for(std::chrono::seconds{20});
+            return 93;
+        }
+        if(
+            std::filesystem::exists(
+                fake_isolation_root()
+                / "fail-capability-probe-index-pack"))
+        {
+            return 92;
+        }
         if(input.starts_with("BPR_BIG_OUTPUT"))
         {
             std::cout << std::string(2048U, 'x');
@@ -585,6 +621,10 @@ auto write_fake_refs(
     {
         return 0;
     }
+    if(arguments.contains("fsck"))
+    {
+        return 0;
+    }
     if(arguments.contains("update-ref"))
     {
         return fake_update_refs(
@@ -627,6 +667,169 @@ auto write_fake_refs(
         require(false, message);
     }
     return std::move(*made);
+}
+
+[[nodiscard]] auto make_fake_git_executable(
+    const std::filesystem::path& root) -> std::filesystem::path
+{
+    const auto directory = root / "fake-exec";
+    std::filesystem::create_directories(directory);
+    std::filesystem::permissions(
+        directory,
+        std::filesystem::perms::owner_all,
+        std::filesystem::perm_options::replace);
+    const auto executable =
+        directory
+#if defined(Q_OS_WIN)
+        / "git.exe";
+#else
+        / "git";
+#endif
+    std::filesystem::copy_file(
+        QCoreApplication::applicationFilePath().toStdString(),
+        executable);
+    std::filesystem::permissions(
+        executable,
+        std::filesystem::perms::owner_all,
+        std::filesystem::perm_options::replace);
+    return executable;
+}
+
+[[nodiscard]] auto run_fixture_git(
+    const std::filesystem::path& repository,
+    const std::vector<std::string>& arguments,
+    const std::string_view input = {}) -> std::string
+{
+    QProcess process;
+    process.setProgram(QString::fromStdString(BPR_TEST_GIT_EXECUTABLE));
+    auto command = QStringList{
+        QString::fromStdString(
+            "--git-dir=" + repository.string())};
+    for(const auto& argument : arguments)
+    {
+        command.push_back(QString::fromStdString(argument));
+    }
+    process.setArguments(command);
+    auto environment = QProcessEnvironment::systemEnvironment();
+    environment.insert("GIT_CONFIG_NOSYSTEM", "1");
+    environment.insert(
+        "GIT_CONFIG_GLOBAL",
+        QString::fromStdString(
+            (repository.parent_path() / "fixture-global-config")
+                .string()));
+    environment.insert("GIT_ATTR_NOSYSTEM", "1");
+    environment.insert("GIT_TERMINAL_PROMPT", "0");
+    environment.insert("GIT_AUTHOR_NAME", "BetterPullReview Fixture");
+    environment.insert(
+        "GIT_AUTHOR_EMAIL",
+        "fixture@betterpullreview.invalid");
+    environment.insert(
+        "GIT_AUTHOR_DATE",
+        "2000-01-01T00:00:00+0000");
+    environment.insert("GIT_COMMITTER_NAME", "BetterPullReview Fixture");
+    environment.insert(
+        "GIT_COMMITTER_EMAIL",
+        "fixture@betterpullreview.invalid");
+    environment.insert(
+        "GIT_COMMITTER_DATE",
+        "2000-01-01T00:00:00+0000");
+    environment.insert("LC_ALL", "C");
+    environment.insert("LANG", "C");
+    process.setProcessEnvironment(environment);
+    process.setWorkingDirectory(
+        QString::fromStdString(repository.parent_path().string()));
+    process.setProcessChannelMode(QProcess::SeparateChannels);
+    process.start();
+    require(
+        process.waitForStarted(5000),
+        "start local connectivity fixture Git");
+    if(!input.empty())
+    {
+        require(
+            process.write(
+                input.data(),
+                static_cast<qint64>(input.size()))
+                == static_cast<qint64>(input.size()),
+            "write complete connectivity fixture input");
+    }
+    process.closeWriteChannel();
+    require(
+        process.waitForFinished(10000),
+        "finish local connectivity fixture Git");
+    const auto standard_output = process.readAllStandardOutput();
+    const auto standard_error = process.readAllStandardError();
+    require(
+        process.exitStatus() == QProcess::NormalExit
+            && process.exitCode() == 0
+            && standard_error.isEmpty(),
+        "local connectivity fixture Git succeeds silently");
+    auto result = standard_output.toStdString();
+    require(
+        !result.empty() && result.back() == '\n'
+            && result.find('\n') == result.size() - 1U,
+        "local connectivity fixture emits one object identity");
+    result.pop_back();
+    return result;
+}
+
+struct connectivity_fixture
+{
+    std::string Blob;
+    std::string NestedTree;
+    std::string RootTree;
+    std::string MissingParent;
+    application::git_commit_id Base;
+    application::git_commit_id Head;
+};
+
+[[nodiscard]] auto make_connectivity_fixture(
+    const std::filesystem::path& repository,
+    const application::git_hash_algorithm algorithm)
+    -> connectivity_fixture
+{
+    const auto blob = run_fixture_git(
+        repository,
+        {"hash-object", "-w", "--stdin"},
+        "connected fixture blob\n");
+    const auto nested_tree = run_fixture_git(
+        repository,
+        {"mktree"},
+        "100644 blob " + blob + "\tfile.txt\n");
+    const auto root_tree = run_fixture_git(
+        repository,
+        {"mktree"},
+        "040000 tree " + nested_tree + "\tdirectory\n");
+    const auto base = run_fixture_git(
+        repository,
+        {"commit-tree", root_tree},
+        "base\n");
+    const auto missing_parent = run_fixture_git(
+        repository,
+        {"commit-tree", root_tree},
+        "missing parent\n");
+    const auto head = run_fixture_git(
+        repository,
+        {"commit-tree", root_tree, "-p", missing_parent},
+        "head\n");
+    return {
+        .Blob = blob,
+        .NestedTree = nested_tree,
+        .RootTree = root_tree,
+        .MissingParent = missing_parent,
+        .Base = object<application::git_commit_id>(base, algorithm),
+        .Head = object<application::git_commit_id>(head, algorithm),
+    };
+}
+
+[[nodiscard]] auto loose_object_path(
+    const std::filesystem::path& repository,
+    const std::string_view identity) -> std::filesystem::path
+{
+    require(identity.size() == 40U || identity.size() == 64U,
+            "complete loose-object identity");
+    return repository / "objects"
+        / std::string{identity.substr(0U, 2U)}
+        / std::string{identity.substr(2U)};
 }
 
 auto initialize_repository(
@@ -927,6 +1130,142 @@ auto run_real_git_contract() -> void
             == application::git_process_failure::invalid_repository,
         "hostile repository config rejected before Git");
     adapter.reset();
+}
+
+auto run_connectivity_contract() -> void
+{
+    temporary_root root{"git-connectivity"};
+    auto adapter = make_adapter(
+        std::filesystem::path{BPR_TEST_GIT_EXECUTABLE},
+        root.Path);
+    const auto exercise =
+        [&](const application::git_hash_algorithm algorithm,
+            const char repository_digit,
+            const std::string_view label)
+            -> connectivity_fixture
+    {
+        const auto repository =
+            repository_path(root.Path, repository_digit);
+        initialize_repository(*adapter, repository, algorithm);
+        const auto fixture =
+            make_connectivity_fixture(repository, algorithm);
+        const auto verify =
+            [&]
+            {
+                return adapter->verify_connectivity(
+                    {
+                        .Repository = repository,
+                        .Base = fixture.Base,
+                        .Head = fixture.Head,
+                    },
+                    {});
+            };
+        const auto expect =
+            [&](const bool condition, const std::string_view claim)
+        {
+            require(
+                condition,
+                std::string{label} + ": " + std::string{claim});
+        };
+        expect(
+            verify().has_value(),
+            "base/head graph is completely connected");
+
+        expect(
+            std::filesystem::remove(
+                loose_object_path(
+                    repository,
+                    fixture.MissingParent)),
+            "remove exact parent object fixture");
+        const auto missing_parent = verify();
+        expect(
+            !missing_parent.has_value()
+                && missing_parent.error()
+                    == application::git_process_failure::nonzero_exit,
+            "missing head parent fails complete connectivity");
+        expect(
+            run_fixture_git(
+                repository,
+                {"commit-tree", fixture.RootTree},
+                "missing parent\n")
+                == fixture.MissingParent,
+            "restore exact parent object fixture");
+        expect(
+            verify().has_value(),
+            "restored parent restores complete connectivity");
+
+        expect(
+            std::filesystem::remove(
+                loose_object_path(
+                    repository,
+                    fixture.NestedTree)),
+            "remove exact nested-tree object fixture");
+        const auto missing_tree = verify();
+        expect(
+            !missing_tree.has_value()
+                && missing_tree.error()
+                    == application::git_process_failure::nonzero_exit,
+            "missing nested tree fails complete connectivity");
+        expect(
+            run_fixture_git(
+                repository,
+                {"mktree"},
+                "100644 blob " + fixture.Blob + "\tfile.txt\n")
+                == fixture.NestedTree,
+            "restore exact nested-tree object fixture");
+        expect(
+            verify().has_value(),
+            "restored nested tree restores complete connectivity");
+
+        expect(
+            std::filesystem::remove(
+                loose_object_path(repository, fixture.Blob)),
+            "remove exact blob object fixture");
+        const auto missing_blob = verify();
+        expect(
+            !missing_blob.has_value()
+                && missing_blob.error()
+                    == application::git_process_failure::nonzero_exit,
+            "missing nested blob fails complete connectivity");
+        expect(
+            run_fixture_git(
+                repository,
+                {"hash-object", "-w", "--stdin"},
+                "connected fixture blob\n")
+                == fixture.Blob,
+            "restore exact blob object fixture");
+        expect(
+            verify().has_value(),
+            "restored blob restores complete connectivity");
+        return fixture;
+    };
+
+    static_cast<void>(
+        exercise(
+            application::git_hash_algorithm::sha1,
+            '7',
+            "SHA-1"));
+    const auto sha256 = exercise(
+        application::git_hash_algorithm::sha256,
+        '8',
+        "SHA-256");
+
+    auto mismatched_head = sha256.Head;
+    mismatched_head.Algorithm =
+        application::git_hash_algorithm::sha1;
+    const auto mismatched =
+        adapter->verify_connectivity(
+            {
+                .Repository = repository_path(root.Path, '8'),
+                .Base = sha256.Base,
+                .Head = mismatched_head,
+            },
+            {});
+    require(
+        !mismatched.has_value()
+            && mismatched.error()
+                == application::git_process_failure::invalid_request,
+        "mixed-algorithm connectivity request fails before Git");
 }
 
 auto run_real_hostile_canary_contract() -> void
@@ -1545,6 +1884,379 @@ auto run_hostile_process_contract() -> void
         "durability options have canonical order");
 }
 
+auto run_capability_probe_cleanup_contract() -> void
+{
+    const auto entry_count =
+        [](const std::filesystem::path& directory)
+    {
+        return static_cast<std::size_t>(
+            std::distance(
+                std::filesystem::directory_iterator{directory},
+                std::filesystem::directory_iterator{}));
+    };
+    const auto run_failure =
+        [](const std::string_view label,
+           const std::string_view marker)
+    {
+        temporary_root root{label};
+        const auto fake_git_path =
+            make_fake_git_executable(root.Path);
+        write_text(root.Path / marker, "induced probe failure");
+
+        const auto adapter =
+            git_adapter::make_installed_git_process({
+                .GitExecutable = fake_git_path,
+                .IsolationRoot = root.Path,
+            });
+        require(
+            !adapter.has_value()
+                && adapter.error()
+                    == application::git_process_failure::
+                        unsupported_git,
+            "induced capability-probe failure is rejected");
+        require(
+            std::filesystem::is_empty(
+                root.Path / "repositories" / "v1")
+                && std::filesystem::is_empty(
+                    root.Path / "incoming" / "v1"),
+            "failed capability probe leaves no repository or spool residue");
+    };
+
+    run_failure(
+        "git-probe-init-cleanup",
+        "fail-capability-probe-after-init");
+    run_failure(
+        "git-probe-index-cleanup",
+        "fail-capability-probe-index-pack");
+
+    {
+        temporary_root root{"git-probe-success-cleanup"};
+        const auto fake_git_path =
+            make_fake_git_executable(root.Path);
+        auto adapter = make_adapter(fake_git_path, root.Path);
+        require(
+            std::filesystem::is_empty(
+                root.Path / "repositories" / "v1")
+                && std::filesystem::is_empty(
+                    root.Path / "incoming" / "v1"),
+            "successful capability probes leave no repository or spool residue");
+        adapter.reset();
+    }
+
+    {
+        temporary_root root{"git-probe-collision"};
+        const auto fake_git_path =
+            make_fake_git_executable(root.Path);
+        const auto repositories =
+            root.Path / "repositories" / "v1";
+        const auto incoming =
+            root.Path / "incoming" / "v1";
+        std::filesystem::create_directories(repositories);
+        std::filesystem::create_directories(incoming);
+        for(const auto& directory : {
+                root.Path / "repositories",
+                repositories,
+                root.Path / "incoming",
+                incoming})
+        {
+            std::filesystem::permissions(
+                directory,
+                std::filesystem::perms::owner_all,
+                std::filesystem::perm_options::replace);
+        }
+        std::string collision_identity;
+        collision_identity.reserve(64U);
+        for(std::size_t index = 0U; index < 32U; ++index)
+        {
+            collision_identity += "0c";
+        }
+        const auto collision_repository =
+            repositories / (collision_identity + ".git");
+        const auto collision_spool =
+            incoming / (collision_identity + ".pack.part");
+        std::filesystem::create_directory(collision_repository);
+        std::filesystem::permissions(
+            collision_repository,
+            std::filesystem::perms::owner_all,
+            std::filesystem::perm_options::replace);
+        write_text(
+            collision_repository / "collision-canary",
+            "repository-canary");
+        write_text(collision_spool, "spool-canary");
+        write_text(
+            root.Path / "inject-probe-collision",
+            "first candidate only");
+
+        auto adapter = make_adapter(fake_git_path, root.Path);
+        require(
+            read_text(
+                collision_repository / "collision-canary")
+                    == "repository-canary"
+                && read_text(collision_spool) == "spool-canary",
+            "preexisting probe collisions are neither overwritten nor deleted");
+        require(
+            entry_count(repositories) == 1U
+                && entry_count(incoming) == 1U,
+            "probe retries a collision and cleans only its new artifacts");
+        adapter.reset();
+    }
+
+    {
+        temporary_root root{"git-probe-quarantine-destination"};
+        const auto fake_git_path =
+            make_fake_git_executable(root.Path);
+        write_text(
+            root.Path / "inject-probe-quarantine-destination",
+            "race both no-replace destinations");
+        auto adapter = make_adapter(fake_git_path, root.Path);
+        const auto repositories =
+            root.Path / "repositories" / "v1";
+        const auto incoming =
+            root.Path / "incoming" / "v1";
+        const auto repository_canary =
+            repositories
+            / ".bpr-cleanup-destination-repository"
+            / "destination-canary";
+        const auto spool_canary =
+            incoming / ".bpr-cleanup-destination-spool";
+        require(
+            read_text(repository_canary)
+                    == "quarantine-repository-canary"
+                && read_text(spool_canary)
+                    == "quarantine-spool-canary",
+            "exclusive quarantine rename preserves raced destinations");
+        require(
+            entry_count(repositories) == 1U
+                && entry_count(incoming) == 1U,
+            "probe retries quarantine destination without owned residue");
+        adapter.reset();
+    }
+
+    {
+        temporary_root root{"git-probe-post-create-substitution"};
+        const auto fake_git_path =
+            make_fake_git_executable(root.Path);
+        write_text(
+            root.Path / "inject-probe-post-create-substitution",
+            "replace both exact artifact names");
+        const auto adapter =
+            git_adapter::make_installed_git_process({
+                .GitExecutable = fake_git_path,
+                .IsolationRoot = root.Path,
+            });
+        require(
+            !adapter.has_value()
+                && adapter.error()
+                    == application::git_process_failure::
+                        unsupported_git,
+            "post-creation substitution fails the capability probe closed");
+
+        const auto repositories =
+            root.Path / "repositories" / "v1";
+        const auto incoming =
+            root.Path / "incoming" / "v1";
+        const auto displaced_repository =
+            repositories / ".displaced-owned-probe.git";
+        const auto displaced_spool =
+            incoming / ".displaced-owned-probe.pack.part";
+        require(
+            std::filesystem::is_directory(displaced_repository)
+                && std::filesystem::is_regular_file(displaced_spool),
+            "displaced owned probe artifacts remain quarantined");
+
+        auto replacement_repositories = std::size_t{0U};
+        for(const auto& entry :
+            std::filesystem::directory_iterator{repositories})
+        {
+            if(entry.path() == displaced_repository)
+            {
+                continue;
+            }
+            require(
+                read_text(entry.path() / "replacement-canary")
+                    == "replacement-repository-canary",
+                "replacement repository canary survives cleanup");
+            ++replacement_repositories;
+        }
+        auto replacement_spools = std::size_t{0U};
+        for(const auto& entry :
+            std::filesystem::directory_iterator{incoming})
+        {
+            if(entry.path() == displaced_spool)
+            {
+                continue;
+            }
+            require(
+                read_text(entry.path())
+                    == "replacement-spool-canary",
+                "replacement spool canary survives cleanup");
+            ++replacement_spools;
+        }
+        require(
+            replacement_repositories == 1U
+                && replacement_spools == 1U
+                && entry_count(repositories) == 2U
+                && entry_count(incoming) == 2U,
+            "identity mismatch preserves replacements and displaced owners");
+    }
+
+    {
+        temporary_root root{"git-probe-reap-retain"};
+        const auto fake_git_path =
+            make_fake_git_executable(root.Path);
+        write_text(
+            root.Path / "inject-probe-reap-failure",
+            "retain exact probe boundary");
+        const auto adapter =
+            git_adapter::make_installed_git_process({
+                .GitExecutable = fake_git_path,
+                .IsolationRoot = root.Path,
+            });
+        require(
+            !adapter.has_value()
+                && adapter.error()
+                    == application::git_process_failure::reap_failure,
+            "injected probe reap failure remains distinguishable");
+        const auto repositories =
+            root.Path / "repositories" / "v1";
+        const auto incoming =
+            root.Path / "incoming" / "v1";
+        require(
+            entry_count(repositories) == 1U
+                && entry_count(incoming) == 1U
+                && std::filesystem::is_directory(
+                    *std::filesystem::directory_iterator{repositories})
+                && std::filesystem::is_regular_file(
+                    *std::filesystem::directory_iterator{incoming}),
+            "reap failure retains the probe repository and spool quarantine");
+    }
+}
+
+auto run_factory_cancellation_contract() -> void
+{
+    {
+        temporary_root root{"git-factory-pre-cancel"};
+        const auto fake_git_path =
+            make_fake_git_executable(root.Path);
+        std::stop_source cancellation;
+        cancellation.request_stop();
+        const auto adapter =
+            git_adapter::make_installed_git_process(
+                {
+                    .GitExecutable = fake_git_path,
+                    .IsolationRoot = root.Path,
+                },
+                cancellation.get_token());
+        require(
+            !adapter.has_value()
+                && adapter.error()
+                    == application::git_process_failure::cancelled,
+            "pre-cancelled factory returns typed cancellation");
+        require(
+            !std::filesystem::exists(root.Path / "home")
+                && !std::filesystem::exists(
+                    root.Path / "repositories")
+                && !std::filesystem::exists(
+                    root.Path / "invocations.log"),
+            "pre-cancelled factory creates no isolation topology or child");
+    }
+
+    temporary_root root{"git-factory-live-cancel"};
+    const auto fake_git_path =
+        make_fake_git_executable(root.Path);
+    write_text(
+        root.Path / "block-capability-probe-index-pack",
+        "block exact probe command");
+    const auto configuration =
+        git_adapter::installed_git_process_configuration{
+            .GitExecutable = fake_git_path,
+            .IsolationRoot = root.Path,
+        };
+    using factory_result = decltype(
+        git_adapter::make_installed_git_process(configuration));
+    std::optional<factory_result> probing;
+    std::optional<factory_result> waiting;
+    std::stop_source probe_cancellation;
+    std::stop_source waiter_cancellation;
+    std::thread probe{
+        [&]
+        {
+            probing.emplace(
+                git_adapter::make_installed_git_process(
+                    configuration,
+                    probe_cancellation.get_token()));
+        }};
+    const auto wait_for =
+        [](const auto& predicate)
+    {
+        const auto deadline =
+            std::chrono::steady_clock::now()
+            + std::chrono::seconds{5};
+        while(
+            !predicate()
+            && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds{10});
+        }
+        return predicate();
+    };
+    require(
+        wait_for(
+            [&]
+            {
+                return std::filesystem::exists(
+                    root.Path / "capability-probe-block-started");
+            }),
+        "first factory reaches the cancellable capability probe");
+
+    std::thread waiter{
+        [&]
+        {
+            waiting.emplace(
+                git_adapter::make_installed_git_process(
+                    configuration,
+                    waiter_cancellation.get_token()));
+        }};
+    require(
+        wait_for(
+            [&]
+            {
+                const auto log =
+                    read_text(root.Path / "invocations.log");
+                const auto first = log.find("arg=--version\n");
+                return first != std::string::npos
+                    && log.find(
+                           "arg=--version\n",
+                           first + 1U)
+                        != std::string::npos;
+            }),
+        "second factory reaches the process-boundary lock wait");
+    waiter_cancellation.request_stop();
+    waiter.join();
+    require(
+        waiting.has_value()
+            && !waiting->has_value()
+            && waiting->error()
+                == application::git_process_failure::cancelled,
+        "boundary-lock wait returns typed cancellation");
+
+    probe_cancellation.request_stop();
+    probe.join();
+    require(
+        probing.has_value()
+            && !probing->has_value()
+            && probing->error()
+                == application::git_process_failure::cancelled,
+        "live capability child cancellation returns typed cancellation");
+    require(
+        std::filesystem::is_empty(
+            root.Path / "repositories" / "v1")
+            && std::filesystem::is_empty(
+                root.Path / "incoming" / "v1"),
+        "cancelled probe exact-cleans owned repository and spool");
+}
+
 auto run_input_validation_contract() -> void
 {
     application::git_pack_id invalid{};
@@ -1733,8 +2445,11 @@ auto main(int argc, char** argv) -> int
     QCoreApplication application{argc, argv};
 
     run_real_git_contract();
+    run_connectivity_contract();
     run_real_hostile_canary_contract();
     run_hostile_process_contract();
+    run_capability_probe_cleanup_contract();
+    run_factory_cancellation_contract();
     run_input_validation_contract();
     run_isolation_symlink_contract();
     std::cout << "Git process contract passed\n";
