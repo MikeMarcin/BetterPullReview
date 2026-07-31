@@ -586,14 +586,32 @@ BPR-0042 implements the local child boundary and secure completed-spool
 consumption. Commit `b65b0a9` hardens that boundary with exact cleanup
 identities and process-boundary serialization. BPR-0043 has committed the
 closed protocol-v2 acquisition in `d903290` and native smart-HTTPS lease and
-wire path in `edd762e`; its cache writer, spool producer, pre-import
-observations, and retained refs remain in progress pending their final commit
-and evidence. BPR-0044 must durably store the exact completed-spool,
-expected-pack, pack-inventory, and preexisting-pack facts. BPR-0045 must
-commit that record before local import and enforce the remaining
-ref/catalog/recovery order, and BPR-0047 must select the complete path in the
-public application. Until those slices complete, the architecture above is
-not a claim of an end-to-end fetch or crash-recovery implementation.
+wire path in `edd762e`. Commit `2801241` completes its cache writer, spool
+producer, pre-import observations, installed-pack reconciliation, and private
+retained refs. Its direct contract binds repositories, held locks, spools,
+pack/index artifacts, and delete tombstones to exact identities; refuses
+link, mount/topology, manifest/configuration, cross-authority, quota, and
+substitution ambiguity; and preserves state when cleanup ownership cannot be
+proven. Abort/finish and import terminal races are serialized and
+stop-aware. The cache contract passed 1/1 in 162.58 seconds, the adjacent
+boundary replay passed 7/7 in 92.95 seconds, and the corrected-snapshot
+independent review completed cleanly. A tests-disabled Release artifact
+contained zero cache fault-injection markers.
+
+The cache port exports no filesystem path. Its versioned, scheme-tagged
+fixed-size artifact facts bind the completed spool and installed pack/index
+to roles and exact sizes, while a canonical bounded pre-import inventory
+records whether the expected pack already existed. These facts are
+serializable recovery inputs; their accompanying opaque authorization tokens
+are only live-session state and are not durable evidence.
+
+BPR-0044 must durably store the exact completed-spool, expected-pack,
+pack-inventory, and preexisting-pack facts. BPR-0045 must commit that record
+before local import and enforce the remaining ref/catalog/recovery order,
+BPR-0047 must select the complete path in the public application, and
+BPR-0053 retains target-native Windows execution. Until those slices
+complete, the architecture above is not a claim of durable authorization,
+end-to-end fetch, crash recovery, public composition, or Windows behavior.
 
 ### App-owned bare repository and private refs
 

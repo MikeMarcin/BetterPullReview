@@ -898,13 +898,42 @@ exercises a reduced test-only absolute deadline; it does not wait 30 seconds
 to establish independent elapsed idle-time evidence. Do not describe the
 fixture timeout case as such evidence.
 
-These commands verify only the committed application-protocol, native-wire,
-and installed-Git component boundaries. The BPR-0043 cache/ref adapter remains
-in progress until its code and direct evidence are committed. BPR-0044 still
-owns durable operation facts, BPR-0045 owns journal-before-`index-pack` and
-ref/catalog orchestration, BPR-0047 owns public composition, and BPR-0053 owns
-target-native Windows execution. No result above proves crash recovery,
-durable authorization, or selection by the BetterPullReview executable.
+For the committed BPR-0043 cache/ref adapter, build and run its direct contract
+separately because the hostile filesystem/process matrix is intentionally
+long-running:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_git_cache_contract_tests
+ctest --preset dev --output-on-failure -R '^git_cache_contract$'
+```
+
+At commit `2801241`, `git_cache_contract` passed 1/1 in 162.58 seconds. The
+adjacent `git_process_contract`, application-protocol, native-transport, and
+two architecture CTest cases passed 7/7 in 92.95 seconds. Directly running
+`tests/scripts/git_protocol_boundary_tests.py` passed 3/3 and
+`tests/scripts/architecture_boundary_tests.py` passed 104/104. A
+tests-disabled Release build contained zero cache fault-injection markers.
+The documentation validator and `git diff --check` passed, and tracked and
+on-disk GitHub Actions workflow counts were 0/0.
+
+The cache contract covers exact authority isolation/reuse, SHA-1 and SHA-256,
+manifest/repository/lock/spool/pack/index identity checks, true cross-process
+writer exclusion, bounded inventory and quota behavior, stop-aware public
+operations, abort/finish linearization, import terminal reconciliation,
+paired retained refs, exact prune/delete, and chronological old-head residency
+after the fixture remote prunes that object. A corrected-snapshot independent
+review completed cleanly. A conservative simplification review made no code
+change: the repeated explicit guards and cleanup branches are the executable
+fail-closed invariants rather than safely collapsible duplication.
+
+These commands verify committed application-protocol, native-wire,
+installed-Git, and cache/ref component boundaries. BPR-0044 still owns durable
+operation facts, BPR-0045 owns journal-before-`index-pack`, restart recovery,
+and ref/catalog orchestration, BPR-0047 owns public composition, and BPR-0053
+owns target-native Windows execution. No result above proves durable
+authorization, crash recovery, selection by the BetterPullReview executable,
+or Windows behavior.
 
 ## Troubleshooting and safe verification
 

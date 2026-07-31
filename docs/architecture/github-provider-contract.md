@@ -538,10 +538,13 @@ only generated private BetterPullReview refs and exact expected OIDs. Native
 HTTPS remains the only credential-bearing network implementation.
 
 Commits `d903290` and `edd762e` implement and directly verify these
-application-protocol and native-wire component boundaries. They do not prove
-durable cache/catalog authorization, journal-before-import sequencing, crash
-recovery, or selection by the public executable; those remain BPR-0044,
-BPR-0045, and BPR-0047 work.
+application-protocol and native-wire component boundaries. Commit `2801241`
+implements their authority-partitioned cache/ref consumer; its direct cache
+contract passed 1/1 in 162.58 seconds, while the adjacent protocol,
+native-transport, process, and architecture replay passed 7/7 in 92.95
+seconds. These component results do not prove durable catalog authorization,
+journal-before-import sequencing, crash recovery, or selection by the public
+executable; those remain BPR-0044, BPR-0045, and BPR-0047 work.
 
 ## Normalized application boundary
 

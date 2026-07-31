@@ -1,7 +1,7 @@
 ---
 id: BPR-0043
 title: Implement app-owned bare caches and retained private refs
-status: In Progress
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0042]
 ---
@@ -48,6 +48,16 @@ explicit, exact-target operations with documented consequences.
   exact validated enterprise hostname.
 - Commit `b65b0a9` hardens the credential-free installed-Git process boundary
   with exact cleanup identities and cross-instance mutation serialization.
+- Commit `2801241` implements the authority-partitioned bare cache, private
+  request-owned pack spools, bounded inventory/import handoff, paired staging
+  and retained refs, exact prune/delete operations, and stop-aware cache
+  lifecycle. Repository, lock, spool, installed-pack/index, and deletion
+  decisions are bound to exact filesystem identities and preserve substituted
+  or otherwise unprovable state rather than deleting it.
+- The application port exposes versioned, scheme-tagged fixed-size no-path
+  identities, roles, and sizes for the completed spool and installed
+  pack/index, plus canonical bounded pre-import inventory facts for BPR-0044.
+  Its opaque authorization tokens remain in-memory state.
 - The focused replay passed 5/5:
   `git_protocol_boundary`, `application_git_protocol_v2`,
   `native_git_smart_transport_contract`,
@@ -61,20 +71,37 @@ Production source policy is a 15-minute total smart-operation deadline and a
 policy, while the timeout fixture uses a reduced test-only absolute deadline.
 It does not directly establish 30 seconds of elapsed idle-time behavior.
 
-## Current evidence boundary
+## Completion evidence
 
-The evidence above is component-level only. It does not prove that the public
-BetterPullReview composition selects the path. The cache/ref implementation
-and contract test remain in progress; their final implementation hash,
-chronological old-head force-push evidence, and passing result are not yet
-recorded. The final fixture must first observe and retain the old head, then
-remove and prune it from the fixture remote, import the replacement, and prove
-the original object remains locally available.
+- `git_cache_contract` passed 1/1 in 162.58 seconds against commit `2801241`.
+  It covers SHA-1 and SHA-256 caches, exact authority isolation and reuse,
+  manifest/topology/configuration validation, true cross-process writer
+  exclusion, lock and repository substitution, spool lifecycle races,
+  pre-import inventory, quota refusal, cancellation, import reconciliation,
+  paired ref promotion/prune, identity-bound tombstoned deletion, and
+  preservation of uncertain or substituted artifacts.
+- The fixture retained the old head before force-pushing and pruning the
+  fixture remote, directly proved the old remote object absent, imported the
+  replacement, and then proved the original commit and its complete object
+  connectivity remained available from the local cache.
+- The adjacent protocol/native/process/architecture CTest replay passed 7/7
+  in 92.95 seconds. The standalone protocol boundary suite passed 3/3, and the
+  architecture mutation suite passed 104/104.
+- A tests-disabled Release build contained zero cache fault-injection markers.
+  The documentation validator passed, tracked and on-disk GitHub Actions
+  workflow counts were 0/0, and `git diff --check` passed.
+- A corrected-snapshot independent review completed cleanly. The conservative
+  simplification pass made no code change because the explicit validation,
+  lifecycle, and cleanup guards encode the cache's fail-closed invariants.
+
+This is direct cache/ref component evidence. It does not prove that the public
+BetterPullReview composition selects the path, that the authorization-shaped
+values are durable, or that interrupted work recovers across restart.
 
 BPR-0044 owns durable operation facts. BPR-0045 owns
 journal-before-`index-pack`, ref/catalog orchestration, stale-result
 publication rejection, and recovery sequencing. BPR-0047 owns public
-composition, and BPR-0053 owns target-native Windows execution. Opaque
-receipt, inventory, or authorization-shaped values exposed by this card are
-not evidence that those values are durably recorded or that crash recovery is
-complete. BPR-0043 remains in progress.
+composition, and BPR-0053 owns target-native Windows execution. The exported
+artifact and inventory facts are serializable inputs, but their presence is
+not evidence that BPR-0044 has durably recorded them or that BPR-0045 crash
+recovery is complete.

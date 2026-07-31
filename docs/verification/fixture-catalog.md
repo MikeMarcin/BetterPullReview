@@ -431,25 +431,43 @@ the component wire and lease boundary, not the BPR-0044 durable operation
 record, BPR-0045 orchestration/recovery sequence, BPR-0047 public application
 selection, or BPR-0053 Windows behavior.
 
-## In-progress app-owned cache and retained-ref fixture
+## App-owned cache and retained-ref fixture
 
-The BPR-0043 cache/ref implementation and
-`tests/git_contract/git_cache_contract_tests.cpp` remain uncommitted,
-in-progress work. Their intended direct surface covers the exact opaque
-repository path and manifest, account/profile-revision isolation, one-writer
-lock, request-owned spool receipt, bounded pre-import inventory, local
-credential-free import, paired staging/final refs, cache reuse, hard quotas,
-explicit exact prune/delete, topology drift, and old-head residency after a
-fixture remote force-push and prune. No implementation hash or passing result
-is recorded yet.
+Commit `2801241` adds `tests/git_contract/git_cache_contract_tests.cpp` as the
+direct BPR-0043 cache/ref surface. `git_cache_contract` passed 1/1 in 162.58
+seconds. It creates real SHA-1 and SHA-256 app-owned bare repositories and
+exercises the exact opaque repository path and immutable manifest,
+account/profile-revision isolation, configuration and topology drift, true
+cross-process writer exclusion, lock and repository substitution,
+request-owned receiving/completed spools, bounded pre-import inventory,
+credential-free local import, exact pack/index reconciliation, paired
+staging/final refs, preexisting-pack reuse, hard quotas, cancellation,
+abort/finish races, and exact identity-bound prune/delete/tombstone retry.
+Hostile cases require uncertain or substituted files and directories to be
+preserved for repair rather than removed by path alone.
 
-Before BPR-0043 closes, the final fixture must prove the chronological
-sequence of observing and retaining the old head before the fixture remote
-removes it, then importing and retaining the replacement while the old remote
-object remains unreachable. A final-state-only remote-absence assertion is
-not sufficient. Any opaque durable-record or intent token in this component
-test is authorization-shape evidence only; BPR-0044 owns persistence and
-BPR-0045 owns journal-before-import and recovery sequencing.
+The force-push case is chronological: it first imports and retains the old
+head, then updates and prunes the fixture remote and directly proves that old
+remote commit absent, then imports and retains the replacement. Direct local
+object inspection and retained-ref inspection prove the old commit and its
+connectivity remain resident in the cache. This is stronger than a
+final-state-only remote-absence assertion, but it is not catalog restart or
+public-selector evidence.
+
+The adjacent protocol/native/process/architecture CTest replay passed 7/7 in
+92.95 seconds. The standalone protocol boundary suite passed 3/3 and the
+architecture mutation suite passed 104/104. A tests-disabled Release build
+contained zero cache fault-injection markers, and a corrected-snapshot
+independent review completed cleanly. The simplification pass made no change
+because the explicit validation and cleanup guards encode the safety
+invariants.
+
+The completed-spool receipt and prepared pack/index result expose versioned
+fixed-size no-path artifact identities, roles, and byte counts for later
+persistence. Opaque durable-record or intent tokens in this component test
+remain authorization-shape evidence only. BPR-0044 owns persistence,
+BPR-0045 owns journal-before-import and restart recovery sequencing, BPR-0047
+owns public composition, and BPR-0053 owns target-native Windows execution.
 
 ## Native HTTPS loopback transport fixture
 

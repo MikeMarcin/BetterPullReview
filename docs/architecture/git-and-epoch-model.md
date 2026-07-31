@@ -630,16 +630,34 @@ secure consumption of
 `incoming/v1/<64-lowercase-hex-operation-id>.pack.part`; commit `b65b0a9`
 additionally binds cleanup to exact filesystem identities and serializes
 process-boundary mutation. BPR-0043 has committed the bounded application
-protocol client in `d903290` and native smart-HTTPS transport in `edd762e`.
-Its cache creation, locking, spool production, pre-import observation, and
-retained-ref implementation remains in progress until its final code and
-direct evidence are committed. BPR-0044 owns the durable operation record
-containing the spool identity/size, expected pack, inventory, and
-preexisting-pack fact. BPR-0045 must persist that record before invoking
-`index-pack` and owns the remaining import/ref/catalog/recovery sequence.
-BPR-0047 owns public composition. Passing these component contracts is not
-evidence that durable orchestration, crash recovery, or the selected
-application path exists.
+protocol client in `d903290`, native smart-HTTPS transport in `edd762e`, and
+authority-partitioned bare cache/private-ref adapter in `2801241`. The cache
+contract passed 1/1 in 162.58 seconds and directly exercises SHA-1/SHA-256
+creation and reuse, exact authority and filesystem identity binding,
+cross-process locking, bounded spool/inventory/import behavior, quota refusal,
+cancellation, paired ref promotion/prune, deletion tombstones, and
+chronological force-push retention after the old remote object is pruned. The
+adjacent protocol/native/process/architecture replay passed 7/7 in 92.95
+seconds; the protocol and architecture mutation scripts passed 3/3 and
+104/104. A clean independent corrected-snapshot review found no remaining
+issue, and the conservative simplification pass made no change because the
+explicit guards and cleanup branches encode fail-closed invariants.
+
+The BPR-0043 application boundary now exposes versioned, scheme-tagged,
+fixed-size artifact identities without paths or provider/platform enums. A
+completed receipt binds the exact spool identity, role, and byte count; a
+prepared result binds the installed pack and index identities, roles, and
+sizes; and the pre-import inventory is bounded, ordered, unique, and explicit
+about a preexisting expected pack. The opaque authorization tokens remain
+in-memory state and are not persistence evidence.
+
+BPR-0044 still owns the durable operation record containing those artifact,
+expected-pack, inventory, and preexisting-pack facts. BPR-0045 must persist
+that record before invoking `index-pack` and owns the remaining
+import/ref/catalog/recovery sequence. BPR-0047 owns public composition, and
+BPR-0053 owns target-native Windows execution. Passing the BPR-0043 component
+contracts is not evidence that durable orchestration, crash recovery, the
+selected application path, or Windows behavior exists.
 
 ## Catalog and recoverable commit protocol
 

@@ -850,10 +850,14 @@ The smart origin is distinct from the API origin for GitHub.com:
 `github.com` receives smart Git while `api.github.com` remains the REST and
 GraphQL authority. GHES uses its exact validated enterprise hostname for
 smart Git. Commit `d903290` implements the bounded application protocol
-client, and `edd762e` implements the native smart-HTTPS lease and wire path.
-These are component contracts. BPR-0044 and BPR-0045 still own durable
-operation state and orchestration, and BPR-0047 still owns selection through
-the public BetterPullReview composition.
+client, `edd762e` implements the native smart-HTTPS lease and wire path, and
+`2801241` implements the authority-partitioned bare-cache/retained-ref
+component that consumes their validated pack. Its direct cache contract
+passed 1/1 in 162.58 seconds; the adjacent protocol/native/process/
+architecture replay passed 7/7 in 92.95 seconds. These remain component
+contracts. BPR-0044 and BPR-0045 still own durable operation state and
+orchestration, and BPR-0047 still owns selection through the public
+BetterPullReview composition.
 
 The fixed `index-pack` import child receives only the bounded pack stream on
 standard input and a validated app-owned bare-repository path. It receives no
