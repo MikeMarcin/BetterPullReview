@@ -4,7 +4,7 @@ project(
     BetterPullReview
     VERSION 0.1.0
     DESCRIPTION "Native GitHub pull-request review workbench"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 option(BPR_BUILD_QT "Build the Qt presentation adapter" ON)
@@ -18,6 +18,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(Hardening)
 include(Warnings)
+
+add_subdirectory(third_party/sqlite)
 
 add_subdirectory(src/core)
 add_subdirectory(src/application)
