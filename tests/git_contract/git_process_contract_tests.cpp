@@ -854,6 +854,66 @@ auto run_real_git_contract() -> void
             == application::git_process_failure::nonzero_exit,
         "wrong expected-old ref removal fails closed");
 
+    const auto configured_hook_marker =
+        root.Path / "configured-hook-ran";
+    const auto configured_hook =
+        root.Path / "hooks" / "reference-transaction";
+    write_executable_canary(
+        configured_hook,
+        configured_hook_marker,
+        "configured-hook");
+    const std::array<application::git_ref_mutation, 1U> valid_remove{
+        application::git_ref_remove{
+            .Ref = final_head,
+            .ExpectedOld = commit,
+        }};
+    require(
+        adapter
+                ->update_refs(
+                    {
+                        .Repository = repository,
+                        .Mutations = valid_remove,
+                    },
+                    {})
+                .error()
+            == application::git_process_failure::invalid_configuration,
+        "nonempty configured hooks directory fails before Git");
+    require(
+        !std::filesystem::exists(configured_hook_marker),
+        "configured hook has zero invocations");
+    require(
+        std::filesystem::remove(configured_hook),
+        "remove configured hook canary");
+    const auto still_retained = adapter->inspect_ref(
+        {.Repository = repository, .Ref = final_head},
+        {});
+    require(
+        still_retained.has_value() && *still_retained == commit,
+        "rejected configured hook cannot mutate refs");
+
+    const auto configured_template =
+        root.Path / "templates" / "hostile-template";
+    write_text(configured_template, "must-not-be-consumed");
+    const auto blocked_repository = repository_path(root.Path, '6');
+    require(
+        adapter
+                ->initialize_bare_repository(
+                    {
+                        .Repository = blocked_repository,
+                        .Algorithm =
+                            application::git_hash_algorithm::sha1,
+                    },
+                    {})
+                .error()
+            == application::git_process_failure::invalid_configuration,
+        "nonempty configured templates directory fails before Git");
+    require(
+        !std::filesystem::exists(blocked_repository),
+        "rejected template creates no repository");
+    require(
+        std::filesystem::remove(configured_template),
+        "remove configured template canary");
+
     write_text(
         repository / "config",
         read_text(repository / "config")
@@ -1614,6 +1674,41 @@ auto run_isolation_symlink_contract() -> void
             && !std::filesystem::exists(
                 content_isolation / "home"),
         "nonempty isolation policy file is rejected before any mutation");
+
+    const auto policy_isolation = root.Path / "policy-isolation";
+    std::filesystem::create_directories(
+        policy_isolation / "hooks");
+    std::filesystem::permissions(
+        policy_isolation,
+        std::filesystem::perms::owner_all,
+        std::filesystem::perm_options::replace);
+    std::filesystem::permissions(
+        policy_isolation / "hooks",
+        std::filesystem::perms::owner_all,
+        std::filesystem::perm_options::replace);
+    const auto policy_marker = root.Path / "policy-hook-ran";
+    write_executable_canary(
+        policy_isolation / "hooks" / "reference-transaction",
+        policy_marker,
+        "preexisting-policy-hook");
+    const auto rejected_policy =
+        git_adapter::make_installed_git_process(
+            {
+                .GitExecutable = executable,
+                .IsolationRoot =
+                    std::filesystem::canonical(policy_isolation),
+            });
+    require(
+        !rejected_policy.has_value()
+            && rejected_policy.error()
+                == application::git_process_failure::
+                    invalid_configuration,
+        "nonempty persistent hook policy fails closed");
+    require(
+        !std::filesystem::exists(policy_marker)
+            && !std::filesystem::exists(
+                policy_isolation / "home"),
+        "policy hook is never launched and topology remains untouched");
 #endif
 }
 }

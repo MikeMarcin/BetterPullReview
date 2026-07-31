@@ -202,6 +202,17 @@ struct process_request
 #endif
 }
 
+[[nodiscard]] auto empty_private_directory(
+    const std::filesystem::path& path) -> bool
+{
+    if(!private_directory(path))
+    {
+        return false;
+    }
+    std::error_code error;
+    return std::filesystem::is_empty(path, error) && !error;
+}
+
 [[nodiscard]] auto private_regular_file(
     const std::filesystem::path& path) -> bool
 {
@@ -317,18 +328,8 @@ public:
             && static_cast<std::uint64_t>(size.QuadPart)
                 == expected_bytes;
 #else
-        if(!private_regular_file(path))
-        {
-            return false;
-        }
-        Input.open(path, std::ios::binary);
-        if(!Input)
-        {
-            return false;
-        }
-        std::error_code error;
-        return std::filesystem::file_size(path, error) == expected_bytes
-            && !error;
+        static_cast<void>(expected_bytes);
+        return false;
 #endif
     }
 
@@ -371,15 +372,8 @@ public:
         }
         return static_cast<std::size_t>(received);
 #else
-        Input.read(
-            destination.data(),
-            static_cast<std::streamsize>(destination.size()));
-        const auto received = Input.gcount();
-        if(received < 0 || (received == 0 && Input.bad()))
-        {
-            return std::nullopt;
-        }
-        return static_cast<std::size_t>(received);
+        static_cast<void>(destination);
+        return std::nullopt;
 #endif
     }
 
@@ -388,8 +382,6 @@ private:
     int Descriptor = -1;
 #elif defined(Q_OS_WIN)
     HANDLE Handle = INVALID_HANDLE_VALUE;
-#else
-    std::ifstream Input;
 #endif
 };
 
@@ -1140,22 +1132,44 @@ struct process_execution
     return true;
 }
 
-auto finish_background_reap(
+[[nodiscard]] auto finish_background_reap(
     QProcess& process,
-    const qint64 known_process_group_id) -> void
+    const qint64 known_process_group_id) -> bool
 {
+    const auto deadline = clock::now() + reap_timeout;
     auto process_group_id =
         resolve_process_group(process, known_process_group_id);
     while(process.state() != QProcess::NotRunning)
     {
+        const auto wait = wait_milliseconds(deadline);
+        if(wait == 0)
+        {
+            return false;
+        }
         kill_process_group(process_group_id);
         process.kill();
         static_cast<void>(process.waitForFinished(
-            static_cast<int>(wait_slice.count())));
+            wait));
         process_group_id =
             resolve_process_group(process, process_group_id);
     }
     kill_process_group(process_group_id);
+    return true;
+}
+
+auto abandon_unreaped_process(
+    std::unique_ptr<QProcess>& process) noexcept -> void
+{
+    static_cast<void>(
+        QObject::disconnect(
+            process.get(),
+            nullptr,
+            process.get(),
+            nullptr));
+    // Destruction of a still-running QProcess may wait. The worker is already
+    // permanently quarantined, so retain this one catastrophic wrapper until
+    // operating-system process cleanup rather than make shutdown unbounded.
+    static_cast<void>(process.release());
 }
 
 struct runner_configuration
@@ -1750,6 +1764,11 @@ public:
                 }
                 SlotAvailable.wait_for(lock, wait_slice);
             }
+            if(Quarantined)
+            {
+                return std::unexpected{
+                    git_process_failure::reap_failure};
+            }
             if(ShutdownRequested.load(std::memory_order_acquire))
             {
                 return std::unexpected{
@@ -1832,17 +1851,26 @@ private:
                 SlotAvailable.notify_all();
             }
             publish(item, std::move(execution.Result));
+            bool reaped = true;
             if(execution.AwaitingReap != nullptr)
             {
-                finish_background_reap(
+                reaped = finish_background_reap(
                     *execution.AwaitingReap,
                     execution.ProcessGroupId);
-                execution.AwaitingReap.reset();
+                if(reaped)
+                {
+                    execution.AwaitingReap.reset();
+                }
+                else
+                {
+                    abandon_unreaped_process(
+                        execution.AwaitingReap);
+                }
             }
             {
                 std::lock_guard lock{Mutex};
                 Busy = false;
-                Quarantined = false;
+                Quarantined = !reaped;
             }
             SlotAvailable.notify_all();
         }
@@ -1951,6 +1979,7 @@ public:
           IsolationRoot{std::move(isolation_root)},
           RepositoriesRoot{IsolationRoot / "repositories" / "v1"},
           IncomingRoot{IsolationRoot / "incoming" / "v1"},
+          TemplatesRoot{IsolationRoot / "templates"},
           HooksRoot{IsolationRoot / "hooks"},
           Worker{std::move(worker)}
     {
@@ -1997,10 +2026,10 @@ public:
             request.Algorithm == git_hash_algorithm::sha1
                 ? "--object-format=sha1"
                 : "--object-format=sha256",
-            "--template=" + path_text(IsolationRoot / "templates"),
+            "--template=" + path_text(TemplatesRoot),
             path_text(request.Repository),
         };
-        const auto result = Worker->submit(
+        const auto result = submit(
             process_request{
                 .Arguments = std::move(arguments),
                 .Input = memory_input{},
@@ -2094,7 +2123,7 @@ public:
                 + std::to_string(request.MaximumInputBytes),
             "--threads=1",
             "--no-rev-index");
-        const auto result = Worker->submit(
+        const auto result = submit(
             process_request{
                 .Arguments = std::move(arguments),
                 .Input = file_input{
@@ -2157,7 +2186,7 @@ public:
             "cat-file",
             "-e",
             commit + "^{commit}");
-        const auto exists = Worker->submit(
+        const auto exists = submit(
             process_request{.Arguments = std::move(arguments)},
             stop);
         if(!exists.has_value())
@@ -2178,7 +2207,7 @@ public:
             "--verify",
             "--end-of-options",
             commit + "^{tree}");
-        const auto tree = Worker->submit(
+        const auto tree = submit(
             process_request{.Arguments = std::move(arguments)},
             stop);
         if(!tree.has_value())
@@ -2209,7 +2238,7 @@ public:
             "cat-file",
             "-e",
             object_text(*parsed) + "^{tree}");
-        const auto tree_exists = Worker->submit(
+        const auto tree_exists = submit(
             process_request{.Arguments = std::move(arguments)},
             stop);
         if(!tree_exists.has_value())
@@ -2255,7 +2284,7 @@ public:
             "--is-ancestor",
             object_text(request.Ancestor),
             object_text(request.Descendant));
-        const auto result = Worker->submit(
+        const auto result = submit(
             process_request{
                 .Arguments = std::move(arguments),
                 .AllowExitOne = true,
@@ -2387,7 +2416,7 @@ public:
             "--stdin",
             "-z",
             "--no-deref");
-        const auto result = Worker->submit(
+        const auto result = submit(
             process_request{
                 .Arguments = std::move(arguments),
                 .Input = memory_input{.Bytes = std::move(input)},
@@ -2430,7 +2459,7 @@ public:
             "--verify",
             "--quiet",
             *ref);
-        const auto presence = Worker->submit(
+        const auto presence = submit(
             process_request{
                 .Arguments = std::move(arguments),
                 .AllowExitOne = true,
@@ -2457,7 +2486,7 @@ public:
             "--verify",
             "--hash",
             *ref);
-        const auto result = Worker->submit(
+        const auto result = submit(
             process_request{.Arguments = std::move(arguments)},
             stop);
         if(!result.has_value())
@@ -2498,6 +2527,20 @@ public:
         -> git_process_result<void>;
 
 private:
+    [[nodiscard]] auto submit(
+        process_request request,
+        const std::stop_token stop) -> process_result
+    {
+        if(
+            !empty_private_directory(TemplatesRoot)
+            || !empty_private_directory(HooksRoot))
+        {
+            return std::unexpected{
+                git_process_failure::invalid_configuration};
+        }
+        return Worker->submit(std::move(request), stop);
+    }
+
     [[nodiscard]] auto valid_new_repository_path(
         const std::filesystem::path& repository) const -> bool
     {
@@ -2632,6 +2675,7 @@ private:
     std::filesystem::path IsolationRoot;
     std::filesystem::path RepositoriesRoot;
     std::filesystem::path IncomingRoot;
+    std::filesystem::path TemplatesRoot;
     std::filesystem::path HooksRoot;
     std::unique_ptr<process_worker> Worker;
 };
@@ -3032,6 +3076,10 @@ auto installed_git_process::capability_probe()
         isolation / "config-global",
         isolation / "attributes-system",
     };
+    const std::array empty_policy_directories{
+        isolation / "templates",
+        isolation / "hooks",
+    };
 
     const auto missing =
         [](const std::filesystem::path& path)
@@ -3061,6 +3109,13 @@ auto installed_git_process::capability_probe()
             return false;
         }
     }
+    for(const auto& directory : empty_policy_directories)
+    {
+        if(!missing(directory) && !empty_private_directory(directory))
+        {
+            return false;
+        }
+    }
 
     for(const auto& directory : directories)
     {
@@ -3076,7 +3131,10 @@ auto installed_git_process::capability_probe()
             return false;
         }
     }
-    return true;
+    return std::all_of(
+        empty_policy_directories.begin(),
+        empty_policy_directories.end(),
+        empty_private_directory);
 }
 
 [[nodiscard]] auto runner_config(

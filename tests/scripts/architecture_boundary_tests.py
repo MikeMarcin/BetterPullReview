@@ -1325,6 +1325,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "QProcess::ManagedInputChannel",
             "QProcess::UnixProcessFlag::CreateNewSession",
             "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
+            "abandon_unreaped_process",
+            "empty_private_directory",
             "class private_input_file final",
             "O_NOFOLLOW",
             "FILE_FLAG_OPEN_REPARSE_POINT",

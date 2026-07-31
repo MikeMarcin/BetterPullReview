@@ -1095,6 +1095,8 @@ set(
     "class[ \t]+process_worker[ \t]+final"
     "Quarantined[ \t\r\n]*=[ \t\r\n]*true"
     "finish_background_reap"
+    "abandon_unreaped_process"
+    "empty_private_directory"
     "stop\\.stop_requested\\(\\)"
     "maximum_pending_input_bytes"
     "buffered_input_offset"
