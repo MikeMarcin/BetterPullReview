@@ -55,14 +55,17 @@ backstop, exhaustive provider-failure mapping, a checked-in deterministic Qt
 property corpus, and the current 32-scenario native HTTPS verifier. Its final
 macOS matrices passed 44/44 and 17/17 plus sanitizer refreshes; its Ubuntu
 26.04 x86_64 GCC 15.2 build completed 83/83 targets and the complete
-non-native matrix passed 41/41. `BPR-0031` is in `in-progress/` as the current
-slice and owns presentation polish, native system appearance, live appearance
-changes, rendered UX, and accessibility verification.
+non-native matrix passed 41/41. `BPR-0031` is in `done/` with the interim
+presentation-polish, rendered-state, accessibility, and target-native macOS
+appearance evidence complete. Its authorized same-process probe observed both
+Qt and the global operating-system setting change from Light to Dark under
+Cocoa/QMacStyle, preserved focus/selection/collapse/model state, persisted
+distinct inspected rasters, and restored the original Dark setting.
 
 The open Windows task does not block later implementation, tests,
 documentation, security review, or simplification on available targets.
 BPR-0036 blocks only its affected Windows claims and final RFC-BPR-0002
-Auto-Verified closeout. BPR-0037 is already dependency-ready, but its
+Auto-Verified closeout. BPR-0037 is the next dependency-ready slice, and its
 production CLI trust result is a direct input to the BPR-0032 security review;
 that explicit dependency consequently precedes BPR-0033 documentation and
 BPR-0034 simplification as well as final RFC closeout.

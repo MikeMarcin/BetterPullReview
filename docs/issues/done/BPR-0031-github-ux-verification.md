@@ -1,9 +1,10 @@
 ---
 id: BPR-0031
 title: Verify RFC-BPR-0002 rendered UX and accessibility
-status: In Progress
+status: Done
 rfc: RFC-BPR-0002
 depends_on: [BPR-0028, BPR-0029, BPR-0030]
+completed: 2026-07-30
 ---
 
 # Verify RFC-BPR-0002 rendered UX and accessibility
@@ -62,6 +63,13 @@ and virtualized review layout.
   protocol. It waits for both Light readiness markers before changing the
   desktop, requires every transition/state/pixel/render success marker, and
   restores the original appearance through an exit/signal trap.
+- Completed that authorized live gate from an original system-Dark desktop.
+  The public fixture reached independent Qt and global Light readiness before
+  either image existed, then the same process observed the real operating
+  system changing to Dark. It retained QMacStyle, platform, focus, selection,
+  collapsed conversation state, model identity, and raster geometry; persisted
+  and reloaded distinct Light and Dark pixels; shut down cleanly; and restored
+  the original Dark setting.
 - Applied a conservative simplification pass without changing the verified
   behavior. GitHub Actions has no role.
 
@@ -129,9 +137,18 @@ colors, and configurable font/theme work.
   put into canonical declaration order and the same fresh guest build then
   completed without a production portability change. Linux normal, minimum,
   loading, and retained-error rasters were inspected directly.
-- The controlled responder probes do not substitute for a real system-Light
-  startup and live operating-system appearance change. That final native
-  acceptance remains open; this card must not move to `done/` until it is
-  directly observed and the original desktop setting is restored.
+- The authorized live macOS probe reported every required exact marker:
+  `PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:github.com`, `RENDER_OK`, both Light
+  readiness markers, both `Light->Dark` transitions, `cocoa`, `QMacStyle`,
+  and the signal, state, pixel-difference, and changed-render success markers.
+  The 2200x1440 Light and Dark PNG SHA-256 values were respectively
+  `43d2e14345d84ef64e276eb5153754c8a2c3c0d8d886e4398f744dccd978a0ce`
+  and
+  `49244d85e0b6cf604aee2f2cf9e1a860ccb8dab0b583193afa6e11aa8a05031d`.
+  Direct inspection confirmed readable native contrast and the same loaded
+  GitHub.com identity, selected collapsed conversation row, focus, and
+  content. The shell recorded original `true` and restored `true`; the
+  transient images and log remain local inspection evidence and are not
+  checked in.
 - Windows target-native verification remains BPR-0036 and is nonblocking for
   this available-platform implementation and test work.
