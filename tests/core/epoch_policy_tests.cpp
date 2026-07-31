@@ -862,7 +862,11 @@ auto test_prepare_commit_visibility_and_linearization() -> void
     expect(
         state.RequestedSelection == named_selection(named_comparison::whole_pr)
             && request_from<invalidate_epoch_authority_request>(accepted_output)
-                != nullptr,
+                != nullptr
+            && accepted_output.Catalog.has_value()
+            && !accepted_output.Catalog->Catalog.has_value()
+            && accepted_output.Comparison.has_value()
+            && !accepted_output.Comparison->Pair.has_value(),
         "new authority resets to semantic Whole PR and invalidates prior "
         "scope");
     const auto* load =
@@ -1131,13 +1135,62 @@ auto test_commit_payload_binding_and_cancellation_point() -> void
                 && reload != nullptr
                 && reload->Context.Generation != old_generation
                 && !state.Catalog.has_value()
+                && !state.AcceptedComparison.has_value()
+                && state.AcceptedComparisonRevision
+                    == comparison_revision{}
+                && state.RequestedSelection
+                    == named_selection(named_comparison::whole_pr)
+                && result.Catalog.has_value()
+                && !result.Catalog->Catalog.has_value()
+                && result.Selection.has_value()
+                && result.Comparison.has_value()
+                && !result.Comparison->Pair.has_value()
+                && has_changed(
+                    result.Changed, epoch_changed_domain::catalog)
+                && has_changed(
+                    result.Changed, epoch_changed_domain::selection)
+                && has_changed(
+                    result.Changed, epoch_changed_domain::comparison)
                 && state.PendingIngestion.has_value()
                 && state.PendingIngestion->Phase
                     == epoch_ingestion_phase::loading_catalog
                 && state.Status == epoch_status::loading_catalog,
-            "catalog conflict invalidates the cached revision and loads a "
-            "fresh "
-            "bounded catalog");
+            "catalog conflict clears every catalog-bound projection and "
+            "loads a fresh bounded catalog");
+
+        auto new_catalog = catalog(7);
+        new_catalog.Incarnation =
+            opaque<epoch_catalog_incarnation_id>(42U);
+        const auto loaded = transition(
+            state,
+            epoch_catalog_loaded_event{
+                .Context = reload->Context,
+                .Catalog = new_catalog,
+            });
+        expect(
+            request_from<prepare_epoch_revision_request>(loaded) != nullptr
+                && state.Catalog == new_catalog
+                && !state.AcceptedComparison.has_value(),
+            "a replacement catalog incarnation cannot inherit an old pair");
+
+        const auto replacement_epoch =
+            summary(authority(), new_catalog, 1, 10U, 20U);
+        const auto replacement_head =
+            anchor(replacement_epoch, comparison_anchor_kind::epoch_head);
+        const auto before_selection = state;
+        const auto one_sided = transition(
+            state,
+            select_comparison_anchor_intent{
+                .Side = comparison_side::right,
+                .Anchor = replacement_head.Identity,
+                .ExpectedCatalogRevision = new_catalog.Revision,
+            });
+        expect(
+            diagnostic_is(
+                one_sided, epoch_reason_code::no_resolved_comparison)
+                && state == before_selection,
+            "one-sided selection cannot combine a new catalog anchor with "
+            "an old-incarnation pair");
     }
 }
 
@@ -1273,6 +1326,37 @@ auto test_current_malformed_terminals_close_work() -> void
 
 auto test_noop_discard_and_exact_invalidation() -> void
 {
+    {
+        auto switched = make_ready_fixture();
+        const auto replacement = authority(9U);
+        const auto result = transition(
+            switched.State,
+            pull_request_revision_accepted_event{
+                .ApplicationSession = switched.State.ApplicationSession,
+                .Authority = replacement,
+                .Revision = revision(2U, 11U, 21U, 31U),
+            });
+        expect(
+            switched.State.Authority == replacement
+                && !switched.State.Catalog.has_value()
+                && !switched.State.AcceptedComparison.has_value()
+                && result.Catalog.has_value()
+                && !result.Catalog->Catalog.has_value()
+                && result.Selection.has_value()
+                && result.Selection->Selection
+                    == named_selection(named_comparison::whole_pr)
+                && result.Comparison.has_value()
+                && !result.Comparison->Pair.has_value()
+                && has_changed(
+                    result.Changed, epoch_changed_domain::catalog)
+                && has_changed(
+                    result.Changed, epoch_changed_domain::selection)
+                && has_changed(
+                    result.Changed, epoch_changed_domain::comparison),
+            "authority switch publishes every catalog-bound projection "
+            "clear");
+    }
+
     auto fixture = make_ready_fixture();
     const auto old_revision = fixture.State.AcceptedRevision;
     const auto old_generation = fixture.State.EpochGeneration;
@@ -1333,9 +1417,22 @@ auto test_noop_discard_and_exact_invalidation() -> void
     expect(
         invalidated.Authority.has_value()
             && !invalidated.Authority->Authority.has_value()
+            && invalidated.Catalog.has_value()
+            && !invalidated.Catalog->Catalog.has_value()
+            && invalidated.Selection.has_value()
+            && invalidated.Selection->Selection
+                == named_selection(named_comparison::whole_pr)
+            && invalidated.Comparison.has_value()
+            && !invalidated.Comparison->Pair.has_value()
+            && has_changed(
+                invalidated.Changed, epoch_changed_domain::catalog)
+            && has_changed(
+                invalidated.Changed, epoch_changed_domain::selection)
+            && has_changed(
+                invalidated.Changed, epoch_changed_domain::comparison)
             && !fixture.State.Authority.has_value()
             && !fixture.State.AcceptedComparison.has_value(),
-        "exact invalidation clears every authority-sensitive selection");
+        "exact invalidation publishes every authority-sensitive clear");
 }
 
 auto test_association_only_commit_transition() -> void
@@ -1568,6 +1665,22 @@ auto test_invalid_cross_facts_and_command_policy() -> void
             epoch_reason_code::invalid_revision)
             && state == before,
         "review actor must equal exact accepted viewer authority");
+
+    {
+        epoch_state invalid_session;
+        const auto before = invalid_session;
+        const auto result = transition(
+            invalid_session,
+            pull_request_revision_accepted_event{
+                .ApplicationSession = application_session_id{},
+                .Authority = owner,
+                .Revision = revision(),
+            });
+        expect(
+            diagnostic_is(result, epoch_reason_code::invalid_revision)
+                && invalid_session == before && result.Requests.empty(),
+            "zero application session cannot enter a host request context");
+    }
 
     auto fixture = make_ready_fixture();
     const auto ready_commands = epoch_commands(fixture.State);
@@ -1849,8 +1962,20 @@ auto test_overflow_is_checked_and_invalidation_fails_closed() -> void
         expect(
             diagnostic_is(second, epoch_reason_code::request_counter_exhausted)
                 && !state.Authority.has_value()
-                && !state.AcceptedComparison.has_value(),
-            "exhausted refresh request clears obsolete authority fail-closed");
+                && !state.AcceptedComparison.has_value()
+                && second.Catalog.has_value()
+                && !second.Catalog->Catalog.has_value()
+                && second.Selection.has_value()
+                && second.Comparison.has_value()
+                && !second.Comparison->Pair.has_value()
+                && has_changed(
+                    second.Changed, epoch_changed_domain::catalog)
+                && has_changed(
+                    second.Changed, epoch_changed_domain::selection)
+                && has_changed(
+                    second.Changed, epoch_changed_domain::comparison),
+            "exhausted refresh request publishes fail-closed projection "
+            "clears");
     }
     {
         auto state = initial_state();

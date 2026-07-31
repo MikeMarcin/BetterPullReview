@@ -994,7 +994,7 @@ struct epoch_authority_delta
 
 struct epoch_catalog_delta
 {
-    epoch_catalog_identity Catalog;
+    std::optional<epoch_catalog_identity> Catalog;
     std::optional<review_epoch_id> InsertedEpoch;
     std::optional<review_association_id> ChangedReviewAssociation;
 

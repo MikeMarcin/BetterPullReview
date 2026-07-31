@@ -424,7 +424,8 @@ template<typename Context>
             : epoch_reason_code::stale_completion);
 }
 
-auto cancel_pending(const epoch_state& state, epoch_transition_output& output)
+auto cancel_pending_ingestion(
+    const epoch_state& state, epoch_transition_output& output)
     -> void
 {
     if(state.PendingIngestion.has_value())
@@ -437,29 +438,54 @@ auto cancel_pending(const epoch_state& state, epoch_transition_output& output)
     }
 }
 
+auto retire_pending_comparison(
+    epoch_state& state, epoch_transition_output& output) -> void
+{
+    if(!state.PendingComparison.has_value())
+    {
+        return;
+    }
+    output.Requests.emplace_back(
+        cancel_epoch_work_request{
+            .Request = state.PendingComparison->Request,
+            .Generation = state.PendingComparison->Generation,
+        });
+    state.PendingComparison.reset();
+}
+
+auto clear_catalog_bound_state(
+    epoch_state& state, epoch_transition_output& output) -> void
+{
+    state.Catalog.reset();
+    state.RequestedSelection = named_selection(named_comparison::whole_pr);
+    state.AcceptedComparison.reset();
+    state.AcceptedComparisonRevision = comparison_revision{};
+
+    output.Catalog = epoch_catalog_delta{};
+    output.Selection = comparison_selection_delta{
+        .Selection = state.RequestedSelection,
+    };
+    output.Comparison = comparison_resolution_delta{
+        .Selection = state.RequestedSelection,
+        .Revision = state.AcceptedComparisonRevision,
+    };
+    output.Changed = output.Changed | epoch_changed_domain::catalog
+        | epoch_changed_domain::selection
+        | epoch_changed_domain::comparison;
+}
+
 [[nodiscard]] auto clear_authority_fail_closed(
     epoch_state& state, const epoch_reason_code reason)
     -> epoch_transition_output
 {
     epoch_transition_output output;
-    cancel_pending(state, output);
-    if(state.PendingComparison.has_value())
-    {
-        output.Requests.emplace_back(
-            cancel_epoch_work_request{
-                .Request = state.PendingComparison->Request,
-                .Generation = state.PendingComparison->Generation,
-            });
-    }
+    cancel_pending_ingestion(state, output);
+    retire_pending_comparison(state, output);
     const auto previous = state.Authority;
     state.Authority.reset();
     state.AcceptedRevision.reset();
-    state.Catalog.reset();
-    state.RequestedSelection = named_selection(named_comparison::whole_pr);
-    state.AcceptedComparison.reset();
-    state.AcceptedComparisonRevision = comparison_revision{};
     state.PendingIngestion.reset();
-    state.PendingComparison.reset();
+    clear_catalog_bound_state(state, output);
     output.Requests.insert(
         output.Requests.begin(),
         invalidate_epoch_authority_request{
@@ -469,12 +495,7 @@ auto cancel_pending(const epoch_state& state, epoch_transition_output& output)
         });
     output.Authority =
         epoch_authority_delta{.Generation = state.EpochGeneration};
-    output.Comparison = comparison_resolution_delta{
-        .Selection = state.RequestedSelection,
-        .Revision = state.AcceptedComparisonRevision,
-    };
-    output.Changed =
-        epoch_changed_domain::authority | epoch_changed_domain::comparison;
+    output.Changed = output.Changed | epoch_changed_domain::authority;
     diagnose(output, reason);
     set_status(state, output, epoch_status::unavailable);
     return output;
@@ -489,15 +510,7 @@ auto cancel_pending(const epoch_state& state, epoch_transition_output& output)
     const auto generation = advanced(state.ComparisonGeneration);
     if(!generation.has_value())
     {
-        if(state.PendingComparison.has_value())
-        {
-            output.Requests.emplace_back(
-                cancel_epoch_work_request{
-                    .Request = state.PendingComparison->Request,
-                    .Generation = state.PendingComparison->Generation,
-                });
-            state.PendingComparison.reset();
-        }
+        retire_pending_comparison(state, output);
         state.AcceptedComparison.reset();
         output.Comparison = comparison_resolution_delta{
             .Selection = state.RequestedSelection,
@@ -509,14 +522,7 @@ auto cancel_pending(const epoch_state& state, epoch_transition_output& output)
         return false;
     }
 
-    if(state.PendingComparison.has_value())
-    {
-        output.Requests.emplace_back(
-            cancel_epoch_work_request{
-                .Request = state.PendingComparison->Request,
-                .Generation = state.PendingComparison->Generation,
-            });
-    }
+    retire_pending_comparison(state, output);
 
     state.ComparisonGeneration = *generation;
     state.PendingComparison = pending_comparison_resolution{
@@ -695,6 +701,7 @@ auto clear_ingestion(
     -> epoch_transition_output
 {
     if(event.ApplicationSession != state.ApplicationSession
+       || !valid_nonzero(state.ApplicationSession.value())
        || !valid(event.Authority) || !valid(event.Revision)
        || (event.Revision.CurrentViewerReview.has_value()
            && event.Revision.CurrentViewerReview->Actor
@@ -739,15 +746,8 @@ auto clear_ingestion(
     }
 
     auto output = epoch_transition_output{};
-    cancel_pending(state, output);
-    if(state.PendingComparison.has_value())
-    {
-        output.Requests.emplace_back(
-            cancel_epoch_work_request{
-                .Request = state.PendingComparison->Request,
-                .Generation = state.PendingComparison->Generation,
-            });
-    }
+    cancel_pending_ingestion(state, output);
+    retire_pending_comparison(state, output);
 
     const auto previous_authority = state.Authority;
     state.EpochGeneration = *next_epoch_generation;
@@ -758,14 +758,10 @@ auto clear_ingestion(
     state.Authority = event.Authority;
     state.AcceptedRevision = event.Revision;
     state.PendingIngestion.reset();
-    state.PendingComparison.reset();
 
     if(authority_changed)
     {
-        state.Catalog.reset();
-        state.RequestedSelection = named_selection(named_comparison::whole_pr);
-        state.AcceptedComparison.reset();
-        state.AcceptedComparisonRevision = comparison_revision{};
+        clear_catalog_bound_state(state, output);
         output.Requests.insert(
             output.Requests.begin(),
             invalidate_epoch_authority_request{
@@ -773,10 +769,6 @@ auto clear_ingestion(
                 .PreviousAuthority = previous_authority,
                 .NewGeneration = state.EpochGeneration,
             });
-        output.Selection = comparison_selection_delta{
-            .Selection = state.RequestedSelection,
-        };
-        output.Changed = output.Changed | epoch_changed_domain::selection;
     }
 
     const auto request = take_request(state);
@@ -833,16 +825,8 @@ auto clear_ingestion(
     }
 
     auto output = epoch_transition_output{};
-    cancel_pending(state, output);
-    if(state.PendingComparison.has_value())
-    {
-        output.Requests.emplace_back(
-            cancel_epoch_work_request{
-                .Request = state.PendingComparison->Request,
-                .Generation = state.PendingComparison->Generation,
-            });
-        state.PendingComparison.reset();
-    }
+    cancel_pending_ingestion(state, output);
+    retire_pending_comparison(state, output);
     state.EpochGeneration = *next_generation;
     const auto request = take_request(state);
     state.PendingIngestion = pending_epoch_ingestion{
@@ -892,15 +876,8 @@ auto clear_ingestion(
     }
 
     auto output = epoch_transition_output{};
-    cancel_pending(state, output);
-    if(state.PendingComparison.has_value())
-    {
-        output.Requests.emplace_back(
-            cancel_epoch_work_request{
-                .Request = state.PendingComparison->Request,
-                .Generation = state.PendingComparison->Generation,
-            });
-    }
+    cancel_pending_ingestion(state, output);
+    retire_pending_comparison(state, output);
 
     const auto previous = state.Authority;
     const auto next_epoch = advanced(state.EpochGeneration);
@@ -924,12 +901,8 @@ auto clear_ingestion(
 
     state.Authority.reset();
     state.AcceptedRevision.reset();
-    state.Catalog.reset();
-    state.RequestedSelection = named_selection(named_comparison::whole_pr);
-    state.AcceptedComparison.reset();
-    state.AcceptedComparisonRevision = comparison_revision{};
     state.PendingIngestion.reset();
-    state.PendingComparison.reset();
+    clear_catalog_bound_state(state, output);
 
     output.Requests.insert(
         output.Requests.begin(),
@@ -1210,16 +1183,8 @@ template<typename Event>
     {
         auto output = epoch_transition_output{};
         state.PendingIngestion.reset();
-        if(state.PendingComparison.has_value())
-        {
-            output.Requests.emplace_back(
-                cancel_epoch_work_request{
-                    .Request = state.PendingComparison->Request,
-                    .Generation = state.PendingComparison->Generation,
-                });
-            state.PendingComparison.reset();
-        }
-        state.Catalog.reset();
+        retire_pending_comparison(state, output);
+        clear_catalog_bound_state(state, output);
         diagnose(output, epoch_reason_code::catalog_conflict);
 
         const auto next_generation = advanced(state.EpochGeneration);
@@ -1426,14 +1391,7 @@ template<typename Event>
     }
 
     epoch_transition_output output;
-    if(state.PendingComparison.has_value())
-    {
-        output.Requests.emplace_back(
-            cancel_epoch_work_request{
-                .Request = state.PendingComparison->Request,
-                .Generation = state.PendingComparison->Generation,
-            });
-    }
+    retire_pending_comparison(state, output);
     const bool changed = selection != state.RequestedSelection;
     state.RequestedSelection = selection;
     state.ComparisonGeneration = *generation;
