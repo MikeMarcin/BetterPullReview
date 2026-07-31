@@ -1218,7 +1218,8 @@ auto git_protocol_v2_fetch_parser::finish()
         return std::unexpected(error);
     }
     if(
-        !agrees(*receipt) || receipt->Bytes != PackBytes
+        !agrees(*receipt)
+        || receipt->Spool.Bytes != PackBytes
         || receipt->ExpectedPack.Algorithm != ExpectedFormat)
     {
         const auto error = make_error(git_pack_stream_failure::invalid_state);

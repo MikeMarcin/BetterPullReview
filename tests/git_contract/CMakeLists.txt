@@ -48,3 +48,36 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 90
 )
+
+add_executable(
+    better_pull_review_git_cache_contract_tests
+    git_cache_contract_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_git_cache_contract_tests
+    PRIVATE
+        BetterPullReview::AdapterGit
+        Qt6::Core
+        Threads::Threads
+)
+target_compile_definitions(
+    better_pull_review_git_cache_contract_tests
+    PRIVATE
+        BPR_TEST_GIT_EXECUTABLE="${GIT_EXECUTABLE}"
+)
+bpr_enable_hardening(
+    better_pull_review_git_cache_contract_tests
+)
+bpr_enable_warnings(
+    better_pull_review_git_cache_contract_tests
+)
+
+add_test(
+    NAME git_cache_contract
+    COMMAND better_pull_review_git_cache_contract_tests
+)
+set_tests_properties(
+    git_cache_contract
+    PROPERTIES
+        TIMEOUT 300
+)

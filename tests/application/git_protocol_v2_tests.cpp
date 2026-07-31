@@ -229,11 +229,24 @@ public:
         }
         auto token = std::array<std::uint8_t, 32U>{};
         token.front() = 0x71U;
+        auto spool_identity =
+            application::git_artifact_identity{};
+        spool_identity.Bytes.front() = 1U;
+        spool_identity.Bytes[1U] = 1U;
+        spool_identity.Bytes[2U] = 0x7fU;
+        spool_identity.Bytes.back() = 0x51U;
         return application::completed_git_pack_receipt{
             .Operation = opaque<core::epoch_operation_id>(41U),
             .ExpectedPack = pack,
             .ObservedPack = observed,
-            .Bytes = Received.size(),
+            .Spool =
+                {
+                    .Role =
+                        application::git_artifact_role::
+                            completed_spool,
+                    .Identity = spool_identity,
+                    .Bytes = Received.size(),
+                },
             .OpaqueToken = token,
         };
     }

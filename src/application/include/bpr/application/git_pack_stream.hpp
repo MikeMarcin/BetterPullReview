@@ -12,6 +12,65 @@
 
 namespace bpr::application
 {
+inline constexpr std::size_t git_artifact_identity_size = 32U;
+
+enum class git_artifact_role : std::uint8_t
+{
+    completed_spool = 1U,
+    installed_pack = 2U,
+    installed_index = 3U,
+};
+
+struct git_artifact_identity
+{
+    std::array<std::uint8_t, git_artifact_identity_size> Bytes{};
+
+    auto operator<=>(const git_artifact_identity&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const git_artifact_identity& identity) noexcept -> bool
+{
+    if(
+        identity.Bytes[0] != 1U
+        || identity.Bytes[1] != 1U
+        || identity.Bytes[2] == 0U)
+    {
+        return false;
+    }
+    for(std::size_t index = 3U; index < 8U; ++index)
+    {
+        if(identity.Bytes[index] != 0U)
+        {
+            return false;
+        }
+    }
+    bool exact_identity_nonzero = false;
+    for(std::size_t index = 8U; index < identity.Bytes.size(); ++index)
+    {
+        exact_identity_nonzero =
+            exact_identity_nonzero || identity.Bytes[index] != 0U;
+    }
+    return exact_identity_nonzero;
+}
+
+struct git_artifact_fact
+{
+    git_artifact_role Role = git_artifact_role::completed_spool;
+    git_artifact_identity Identity;
+    std::uint64_t Bytes = 0U;
+
+    auto operator<=>(const git_artifact_fact&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const git_artifact_fact& artifact,
+    const git_artifact_role expected_role) noexcept -> bool
+{
+    return artifact.Role == expected_role
+        && valid(artifact.Identity) && artifact.Bytes != 0U;
+}
+
 struct git_pack_oid
 {
     core::git_hash_algorithm Algorithm = core::git_hash_algorithm::invalid;
@@ -50,7 +109,8 @@ struct completed_git_pack_receipt
     core::epoch_operation_id Operation;
     git_pack_oid ExpectedPack;
     git_pack_oid ObservedPack;
-    std::uint64_t Bytes = 0U;
+    git_artifact_fact Spool{
+        .Role = git_artifact_role::completed_spool};
     std::array<std::uint8_t, 32U> OpaqueToken{};
 
     auto operator<=>(const completed_git_pack_receipt&) const = default;
@@ -68,7 +128,10 @@ struct completed_git_pack_receipt
         && valid(receipt.ObservedPack)
         && receipt.ExpectedPack.Algorithm
             == receipt.ObservedPack.Algorithm
-        && receipt.Bytes != 0U && token_nonzero;
+        && valid(
+            receipt.Spool,
+            git_artifact_role::completed_spool)
+        && token_nonzero;
 }
 
 [[nodiscard]] constexpr auto agrees(
