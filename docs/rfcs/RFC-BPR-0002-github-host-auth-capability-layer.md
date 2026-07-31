@@ -52,7 +52,11 @@ BetterPullReview must operate against both GitHub.com and an older corporate GHE
 
 ## Provider design
 
-Host configuration includes hostname, API roots, product kind, authentication transport, account identity, trust/proxy mode, REST version, and probed capabilities. The active host and account are always visible in the application.
+Host profile configuration includes hostname, API roots, product kind,
+authentication transport, trust/proxy mode, REST version, and a profile
+revision. Authenticated account identity is a later `/user` observation, and
+capabilities are separately probed and cached observations. The active host and
+accepted account are always visible in the application.
 
 REST supplies the broad baseline. GraphQL is limited to review-thread and viewed-state features. The GHES floor uses the supported date-version header and recorded 3.18 contracts. GitHub.com uses its own fixture set and capability profile.
 
@@ -112,11 +116,11 @@ direct application, transport, vault, or process-boundary evidence.
 | Claim | Direct surface | Proof |
 |---|---|---|
 | GHES 3.18 path selected | Real provider facade with recorded contract | Inspect request/version/capability trace and normalized result |
-| Native HTTPS is the M1 production transport | Public application composition | Select GitHub.com and GHES profiles and observe native request/vault routing |
-| CLI choices are zero-launch | Public self-test, composition contract, provider counters, and process-port counters | Select CLI, require `CLI_UNAVAILABLE_OK`, prove the Release executable omits CLI transport/runner symbols, and observe zero factory, effect, wire, and process-port calls |
+| Native HTTPS is the M1 production transport | Tests-disabled public composition and direct native-wire contract | Inspect GitHub.com/GHES factory selection in the real composition, then separately exercise the native request/TLS/proxy path; the recorded QAction fixture may substitute its transport and is not real-network evidence |
+| CLI choices are zero-launch | Public self-test, composition contract, host lifecycle, provider counters, and process-port counters | Select every visible CLI choice from clean start, require `CLI_UNAVAILABLE_OK`, and observe one bounded noncredential profile-resolution effect per row; switch from authenticated native HTTPS and require exact deletion of only the predecessor binding; prove the Release executable omits CLI transport/runner symbols and both paths make zero CLI credential-enrollment/retrieval, transport-factory, wire, capability, CLI-specific-effect, and process-port calls |
 | Native vault storage | Platform credential adapter | Store/retrieve/delete test secret without settings/SQLite copies |
 | Redirects fail closed | Native transport contract | Exercise unknown-authority and query-bearing redirects and prove no redirected credential/body transmission |
-| Capability failure is safe | Application error state | Disable GraphQL mutation in fixture and verify action is unavailable, not approximated |
+| Capability failure is safe | Application error state | Remove required mutation-capability schema fields from the introspection fixture and verify the action is unavailable, not approximated |
 | Architecture boundaries hold | Core, fake-host, and Qt adapter tests | Prove core has no transport types, host owns effects, and Qt sees projections only |
 
 ## Documentation impact

@@ -192,8 +192,9 @@ hostname-bound authority. Production has no v1 read, enumeration, migration,
 or fallback. A separate BPR-0029 run in an Ubuntu 26.04 x86_64 full-system
 QEMU guest passed the current v2 setup/lifecycle/cleanup cases 3/3,
 independent exact cleanup, and hostile, unavailable, and locked cases. Both
-composed public-path fixtures also passed. This current-tree evidence is not
-inferred from or substituted for the historical v1 result.
+composed public-path fixtures also passed on that pinned BPR-0029 snapshot.
+This v2 evidence is not inferred from or substituted for the historical v1
+result.
 
 ## GitHub CLI process and trust fixtures
 
@@ -395,8 +396,9 @@ of only `success` under `strace` opened
 `qt6/plugins/tls/libqopensslbackend.so`, `libssl.so.3`, and `libcrypto.so.3`.
 A full-suite `strace` is not evidence: tracing perturbs cancellation timing,
 so functional evidence comes from the uninstrumented passes and the
-single-success trace proves only dependency selection. Source and generated
-build contained no workflow files or GitHub Actions references.
+single-success trace proves only dependency selection. Tracked and on-disk
+scans found no GitHub Actions workflow file, and the source/build
+configuration selected no GitHub Actions integration.
 
 Windows execution remains BPR-0036 work and is nonblocking for all other
 slices and later-RFC work; it blocks only affected Windows claims and final
@@ -422,6 +424,11 @@ overwritten but Qt-held copies cannot be exactly wiped. GraphQL
 HTTP-200/body-defined secondary-rate-limit interpretation and `ListChecks`
 expected-`HeadOid` binding are exercised by the BPR-0027 provider harnesses
 below.
+
+The loopback matrix directly exercises the response-body limit and one
+8-KiB-plus-one header-field limit. It has no separate 65-field-count or
+aggregate-header-only scenario; those two adapter checks remain
+source/contract evidence.
 
 ## Application host and provider harnesses
 
@@ -526,11 +533,14 @@ native operating-system appearance integration.
 
 The BPR-0029 test-enabled executable supports
 `--github-fixture github-com` and `--github-fixture ghes-3.18`. Each choice
-selects one recorded native-HTTPS profile and uses the same concrete
-composition as the interactive application: profile selection, QAction,
-provider facade, authenticated viewer observation, capability probe, complete
+selects one profile whose authentication mode is native HTTPS and uses the
+same concrete profile-selection, QAction, provider, host, core, and Qt
+composition as the interactive application. The test-enabled branch
+substitutes a recorded transport factory and fixture vault; it therefore
+verifies authenticated-viewer observation, capability probing, complete
 pull-request assembly, application-host staging, exact core acceptance,
-incremental Qt rendering, and orderly shutdown.
+incremental rendering, and orderly shutdown without making a real native
+network or native-vault lifecycle claim.
 
 The fixture transport separately records bootstrap and stored-account reads.
 Its vault retains the complete credential operation context and accepts
@@ -539,8 +549,8 @@ generation, profile, profile revision, host identity, canonical hostname,
 account, and server contract match. Success requires the recording and
 capability fixture to be consumed, both transport selections to be observed,
 the credential to be stored and retrieved, the exact shutdown delete to
-complete, and no secret to remain. Output contains only fixed markers and
-bounded structural evidence:
+complete, and no credential to remain in fixture-vault state. Output contains
+only fixed markers and bounded structural evidence:
 
 ```text
 PUBLIC_PATH_OK
@@ -556,13 +566,20 @@ system-Dark startup and controlled loaded-process appearance response; a real
 operating-system Light startup and live system toggle remain distinct native
 evidence.
 
-The tests-disabled `--self-test` selects the built-in GitHub.com CLI profile
-and requires the bounded `cli_unavailable` presentation. Provider counters
-independently require zero transport-factory and effect calls, and the CLI
-transport contract proves a fake successful process port receives zero calls.
-The optional GHES CLI profile follows the same source path but is not claimed
-as a second end-to-end selection case. Native HTTPS remains the sole
-milestone-one production authentication transport.
+The tests-disabled `--self-test` enumerates every visible CLI profile and
+requires the bounded `cli_unavailable` presentation for each. The default
+profile set reports `CLI_UNAVAILABLE_COUNT:1`; the explicit GHES case
+`application_public_path_ghes_cli_unavailable` reports
+`CLI_UNAVAILABLE_COUNT:2`. Provider counters independently require zero
+transport-factory, wire, capability, or CLI-specific effect calls after the
+provider receives each viewer request, and the CLI transport contract proves a
+fake successful process port receives zero calls. Public selection itself
+performs one bounded noncredential profile-resolution effect per row from
+clean start. Host lifecycle coverage separately proves that switching from an
+authenticated native profile first exact-deletes the predecessor credential
+binding and does not enroll or retrieve a credential for the CLI profile.
+Native HTTPS remains the sole milestone-one production authentication
+transport.
 
 The fixture implementation, command-line parser branch, vault, recordings,
 paths, labels, and evidence strings exist only when `BPR_BUILD_TESTS=ON`.
@@ -572,17 +589,20 @@ application bytes. It fails if the fixture translation unit, test
 definitions, fixture argument/status strings, recorded label/identity, fixture
 paths, or fixture-access symbols survive. It also rejects CLI process-runner
 factory symbols and requires production to compose only the native wire
-transport factory.
+transport factory. This proves structural production selection; the separate
+native HTTPS loopback fixture above supplies direct wire evidence.
 
 The macOS current-tree public fixture runs passed for both profiles and
-reported the fixed success markers above. The current-tree Linux v2 run also
-passed both profiles with the exact host labels and rendered state in an
-Ubuntu 26.04 x86_64 full-system QEMU guest. Its fresh tests-off Release build
-completed 36/36 targets, omitted the fixture seam, reported `PUBLIC_PATH_OK`
-and `NATIVE_PLATFORM_VAULT_SELECTED:true`, and passed dependency, runtime, and
-ELF audits. These Linux PNGs remain layout/composition evidence only, not
-presentation-polish or system-theme certification. Windows public-fixture
-execution remains BPR-0036.
+reported the fixed success markers above through the substituted fixture
+transport/vault. The pinned BPR-0029 Linux v2 run passed both recorded profiles
+with the exact host labels and rendered state in an Ubuntu 26.04 x86_64
+full-system QEMU guest. That snapshot's fresh tests-off Release build completed
+36/36 targets, omitted the fixture seam, reported `PUBLIC_PATH_OK` and
+`NATIVE_PLATFORM_VAULT_SELECTED:true`, and passed dependency, runtime, and ELF
+audits. Separate target-native HTTPS and Secret Service fixtures supply the
+wire and native-item lifecycle evidence. These Linux PNGs remain
+layout/composition evidence only, not presentation-polish or system-theme
+certification. Windows public-fixture execution remains BPR-0036.
 
 ## GitHub hosts
 

@@ -307,6 +307,13 @@ struct automated_run
     bool RenderSaved = true;
     bool VerifyNativePlatformVault = false;
     bool VerifyCliUnavailable = false;
+    std::optional<std::string> EnterpriseHostname;
+    int ActiveCliUnavailableRow = -1;
+    std::size_t CliUnavailableExpected = 0U;
+    std::size_t CliUnavailableObserved = 0U;
+    std::size_t CliIdentityUpdatesBeforeConnect = 0U;
+    std::size_t CliDiagnosticUpdatesBeforeConnect = 0U;
+    std::string ExpectedCliActiveHostText;
 #if defined(BPR_BUILD_TESTS)
     struct native_appearance_probe_state
     {
@@ -544,13 +551,110 @@ struct automated_run
 #endif
 
 [[nodiscard]] auto cli_fail_closed_presentation_passed(
-    const bpr::qt::github_window& window) -> bool
+    const bpr::qt::github_window& window,
+    const automated_run& run) -> bool
 {
-    return window.status_text() == "The GitHub connection failed."
-        && window.diagnostic_text().find("CLI connection is unavailable")
-               != std::string::npos
+    const auto statistics = window.statistics();
+    return window.profile_selector()->currentIndex()
+               == run.ActiveCliUnavailableRow
+        && window.active_host_text() == run.ExpectedCliActiveHostText
+        && statistics.IdentityUpdates
+               == run.CliIdentityUpdatesBeforeConnect + 1U
+        && statistics.DiagnosticUpdates
+               == run.CliDiagnosticUpdatesBeforeConnect + 1U
+        && window.status_text() == "The GitHub connection failed."
+        && window.diagnostic_text()
+               == "The selected GitHub CLI connection is unavailable."
+        && window.active_account_text() == "Not authenticated"
         && !window.open_action()->isEnabled()
-        && window.statistics().FullResets == 0U;
+        && statistics.FullResets == 0U;
+}
+
+[[nodiscard]] auto is_cli_unavailable_profile(
+    const QComboBox& selector,
+    const int row) -> bool
+{
+    return selector.itemText(row).endsWith(
+        QStringLiteral("GitHub CLI (unavailable)"));
+}
+
+[[nodiscard]] auto cli_unavailable_profile_count(
+    const QComboBox& selector) -> std::size_t
+{
+    auto count = std::size_t{0U};
+    for(auto row = 0; row < selector.count(); ++row)
+    {
+        if(is_cli_unavailable_profile(selector, row))
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+[[nodiscard]] auto next_cli_unavailable_profile(
+    const QComboBox& selector,
+    const int after_row) -> int
+{
+    for(auto row = after_row + 1; row < selector.count(); ++row)
+    {
+        if(is_cli_unavailable_profile(selector, row))
+        {
+            return row;
+        }
+    }
+    return -1;
+}
+
+[[nodiscard]] auto expected_cli_active_host_text(
+    const QComboBox& selector,
+    const int row,
+    const std::optional<std::string>& enterprise_hostname)
+    -> std::optional<std::string>
+{
+    const auto label = selector.itemText(row);
+    if(label == QStringLiteral("GitHub.com — GitHub CLI (unavailable)"))
+    {
+        return std::string{"Active host: github.com (GitHub.com)"};
+    }
+    if(
+        label == QStringLiteral("GHES 3.18 — GitHub CLI (unavailable)")
+        && enterprise_hostname.has_value())
+    {
+        return std::string{"Active host: "} + *enterprise_hostname
+            + " (GitHub Enterprise Server)";
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] auto activate_cli_unavailable_profile(
+    bpr::qt::github_window& window,
+    automated_run& run,
+    const int row) -> bool
+{
+    auto expected_host = expected_cli_active_host_text(
+        *window.profile_selector(), row, run.EnterpriseHostname);
+    if(!expected_host.has_value())
+    {
+        return false;
+    }
+
+    window.profile_selector()->setCurrentIndex(row);
+    if(
+        window.profile_selector()->currentIndex() != row
+        || !window.connect_action()->isEnabled())
+    {
+        return false;
+    }
+
+    const auto statistics = window.statistics();
+    run.ActiveCliUnavailableRow = row;
+    run.CliIdentityUpdatesBeforeConnect = statistics.IdentityUpdates;
+    run.CliDiagnosticUpdatesBeforeConnect =
+        statistics.DiagnosticUpdates;
+    run.ExpectedCliActiveHostText = std::move(*expected_host);
+    window.connect_action()->trigger();
+    return true;
 }
 
 void finish_automated_run(
@@ -562,9 +666,16 @@ void finish_automated_run(
         !run.VerifyNativePlatformVault
         || status.NativePlatformVaultSelected
                == native_platform_vault_expected();
+    const auto cli_unavailable_evidence_passed =
+        !run.VerifyCliUnavailable
+        || (
+            run.CliUnavailableExpected > 0U
+            && run.CliUnavailableObserved
+                   == run.CliUnavailableExpected);
     auto passed = run.PresentationPassed && status.ShutdownComplete
         && !status.ShutdownCleanupFailed
-        && native_vault_evidence_passed;
+        && native_vault_evidence_passed
+        && cli_unavailable_evidence_passed;
     auto render_saved = run.RenderSaved;
 
 #if defined(BPR_BUILD_TESTS)
@@ -617,7 +728,11 @@ void finish_automated_run(
     if(run.VerifyCliUnavailable)
     {
         stream << (passed ? "CLI_UNAVAILABLE_OK\n"
-                          : "CLI_UNAVAILABLE_FAILED\n");
+                          : "CLI_UNAVAILABLE_FAILED\n")
+                << "CLI_UNAVAILABLE_COUNT:"
+                << static_cast<unsigned long long>(
+                       run.CliUnavailableObserved)
+                << '\n';
     }
     if(!passed)
     {
@@ -759,14 +874,39 @@ void schedule_automated_run(
             else
 #endif
             {
-                if(window.profile_selector()->count() < 2)
+                const auto visible_cli_profiles =
+                    cli_unavailable_profile_count(
+                        *window.profile_selector());
+                const auto expected_cli_profiles =
+                    run->EnterpriseHostname.has_value() ? 2U : 1U;
+                if(
+                    run->VerifyCliUnavailable
+                    && (
+                        visible_cli_profiles != expected_cli_profiles
+                        || window.profile_selector()->count()
+                               != static_cast<int>(
+                                   expected_cli_profiles * 2U)))
                 {
                     run->PresentationPassed = false;
                     transition_to_shutdown(application, *run);
                     break;
                 }
-                window.profile_selector()->setCurrentIndex(1);
-                window.connect_action()->trigger();
+                run->CliUnavailableExpected =
+                    run->VerifyCliUnavailable
+                    ? expected_cli_profiles
+                    : 1U;
+                const auto first_cli_profile =
+                    next_cli_unavailable_profile(
+                        *window.profile_selector(), -1);
+                if(
+                    first_cli_profile < 0
+                    || !activate_cli_unavailable_profile(
+                        window, *run, first_cli_profile))
+                {
+                    run->PresentationPassed = false;
+                    transition_to_shutdown(application, *run);
+                    break;
+                }
                 run->Stage = automated_run::stage::connect;
             }
             break;
@@ -787,15 +927,36 @@ void schedule_automated_run(
                 window.open_action()->trigger();
                 run->Stage = automated_run::stage::open;
             }
-            else if(cli_fail_closed_presentation_passed(window))
+            else if(cli_fail_closed_presentation_passed(window, *run))
 #else
-            if(cli_fail_closed_presentation_passed(window))
+            if(cli_fail_closed_presentation_passed(window, *run))
 #endif
             {
-                run->PresentationPassed = true;
-                run->RenderSaved =
-                    save_render_evidence(window, run->RenderPath);
-                transition_to_shutdown(application, *run);
+                ++run->CliUnavailableObserved;
+                const auto next_cli_profile =
+                    run->VerifyCliUnavailable
+                    ? next_cli_unavailable_profile(
+                          *window.profile_selector(),
+                          run->ActiveCliUnavailableRow)
+                    : -1;
+                if(next_cli_profile >= 0)
+                {
+                    if(!activate_cli_unavailable_profile(
+                           window, *run, next_cli_profile))
+                    {
+                        run->PresentationPassed = false;
+                        transition_to_shutdown(application, *run);
+                    }
+                }
+                else
+                {
+                    run->PresentationPassed =
+                        run->CliUnavailableObserved
+                        == run->CliUnavailableExpected;
+                    run->RenderSaved =
+                        save_render_evidence(window, run->RenderPath);
+                    transition_to_shutdown(application, *run);
+                }
             }
             break;
 
@@ -943,6 +1104,7 @@ auto main(int argc, char** argv) -> int
         {
             config.EnterpriseHostname = std::string{*host};
         }
+        auto enterprise_hostname = config.EnterpriseHostname;
 
 #if defined(BPR_BUILD_TESTS)
         auto fixture_name = std::string{};
@@ -1059,6 +1221,8 @@ auto main(int argc, char** argv) -> int
                         .VerifyNativePlatformVault =
                             verify_native_platform_vault,
                         .VerifyCliUnavailable = verify_cli_unavailable,
+                        .EnterpriseHostname =
+                            std::move(enterprise_hostname),
 #if defined(BPR_BUILD_TESTS)
                         .Fixture = !fixture_name.empty(),
                         .FixtureName = std::move(fixture_name),

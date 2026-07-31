@@ -1,7 +1,7 @@
 ---
 id: BPR-0033
 title: Document RFC-BPR-0002 provider and credential behavior
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0002
 depends_on: [BPR-0029, BPR-0031, BPR-0032]
 ---

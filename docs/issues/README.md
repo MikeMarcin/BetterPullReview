@@ -50,10 +50,11 @@ explicit GitHub.com/GHES profiles and provenance, multi-profile provider
 routing, native HTTPS and platform-vault selection, Qt-owned sensitive input,
 hostname-bound v2 authority, orderly exact credential deletion, visible
 zero-launch CLI unavailability, public GitHub.com/GHES application fixtures,
-and a tests-disabled Release seam-absence contract. Its current-tree Linux v2
-matrix also passed in an Ubuntu 26.04 x86_64 full-system QEMU guest, including
-the native vault, both public fixtures, Release seam absence, exact cleanup,
-and dependency/runtime/ELF audits. `BPR-0030` is in `done/` with exact
+and a tests-disabled Release seam-absence contract. Its pinned Linux v2 matrix
+ran at the BPR-0029 snapshot in an Ubuntu 26.04 x86_64 full-system QEMU guest,
+including the native vault, both public fixtures, Release seam absence, exact
+cleanup, and dependency/runtime/ELF audits. `BPR-0030` is in `done/` with
+exact
 recorded-method and bounded GraphQL operation policy, canonical-body
 backstop, exhaustive provider-failure mapping, a checked-in deterministic Qt
 property corpus, and the current 32-scenario native HTTPS verifier. Its final
@@ -72,10 +73,11 @@ fonts, and syntax presentation.
 The open Windows task does not block later implementation, tests,
 documentation, security review, or simplification on available targets.
 BPR-0036 blocks only its affected Windows claims and final RFC-BPR-0002
-Auto-Verified closeout. It does not stop work on later RFCs. BPR-0032 is the
-next dependency-ready slice; it audits the fixed CLI zero-launch result as
-well as native HTTPS and credential authority before BPR-0033 documentation
-and BPR-0034 simplification.
+Auto-Verified closeout. It does not stop work on later RFCs. BPR-0032 is in
+`done/` with the current security/authority audit, exact one-row/two-row CLI
+self-test, tests-disabled Release symbol gate, native macOS checks, focused
+sanitizer matrix, and corrected evidence boundaries complete. BPR-0033 is the
+next dependency-ready documentation gate before BPR-0034 simplification.
 
 The public application has no durable credential selector or enumeration
 path. Orderly shutdown exact-deletes the retained credential before worker

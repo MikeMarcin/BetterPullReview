@@ -146,8 +146,8 @@ Both select REST version `2022-11-28`. Product kind, routes, roots, and
 version are derived from the validated contract rather than accepted again
 as request strings. A redirect is only a target-validation input: it cannot
 create or mutate a profile. GraphQL redirects are rejected; a REST redirect
-may proceed only when it remains HTTPS, on the exact REST authority, and
-inside the selected API namespace.
+may proceed only when it remains query-free HTTPS, on the exact REST
+authority, and inside the selected API namespace.
 
 Profiles contain no login, account, capability, or credential material.
 Authenticated account identity is a later `/user` observation, and
@@ -461,11 +461,12 @@ cancellation terminal. The lower process port receives only one validated
 absolute executable, an element-wise argument vector, a freshly constructed
 environment, a canonical working directory currently outside any worktree or
 bare-repository ancestry, bounded standard input, and fixed stream/time/reap
-limits. Its production runner is the only GitHub source that uses `QProcess`;
-it returns bounded standard output only on a clean success and otherwise
-discards every partial stream and returns a fixed failure category. This
-directory validation does not prove owner-controlled permissions or bind the
-directory identity through launch.
+limits. The concrete retained runner implementation is the only GitHub source
+that uses `QProcess`; it returns bounded standard output only on a clean
+success and otherwise discards every partial stream and returns a fixed
+failure category. It is tested scaffolding and is not composed into the
+milestone-one public executable. This directory validation does not prove
+owner-controlled permissions or bind the directory identity through launch.
 
 The runner owns one serialized worker and creates, uses, and destroys each
 `QProcess` there. An absolute deadline covers queueing and is checked again
@@ -577,7 +578,10 @@ and canonical wire request before network work, and returns only the original
 correlation plus a bounded success, typed error, or cancellation. BPR-0027
 adds pagination, normalization, host staging, and the application-facing
 provider path. BPR-0029 composes that provider and transport in the public
-executable for explicit GitHub.com and GHES profiles.
+executable for explicit GitHub.com and GHES profiles. The recorded public
+fixtures substitute their own transport factory behind that composition; they
+exercise the surrounding QAction/provider/host/core/Qt path, not a real native
+network request.
 
 The production transport asks `QNetworkProxyFactory::systemProxyForQuery` for
 each initial or redirected URL. It accepts at most 16 returned candidates,
@@ -590,6 +594,12 @@ only that candidate; no process-global proxy is mutated. On generic Unix,
 Qt's system policy may use libproxy/desktop sources or lowercase
 `http_proxy`, `https_proxy`, and `no_proxy`. Production code does not call
 `getenv`, but “system proxy” is not a claim of environment independence.
+
+The profile's validated authority governs the origin request. The underlying
+connection may instead target one of the bounded HTTP or SOCKS5 proxy
+endpoints returned by Qt system policy. Those proxy endpoints are routing
+intermediaries rather than validated GitHub origins, and a proxy challenge is
+never answered with the GitHub credential.
 
 System/PAC proxy discovery is synchronous inside Qt. System-root enumeration
 and request configuration are also synchronous. The absolute 30-second
@@ -664,12 +674,15 @@ credential-binding path but substitutes an ordered loopback proxy list and
 may add one disposable fixture CA to the system roots. The 15-case
 TLS-over-CONNECT fixture covers success, ordered proxy fallback, accepted
 same-authority REST redirect, rejected cross-authority and GraphQL redirects,
-untrusted certificate, response/header limits, in-flight and pre-start
-cancellation, timeout, HTTP 401/403/429 classification, and content-encoding
-rejection. Runtime facts separately report whether Qt supports TLS, its active
-TLS backend category, the first raw system-proxy candidate category, and raw
-candidate count; they do not contain credentials, proxy addresses, CA
-contents, or remote data, and they do not prove every candidate is reachable.
+untrusted certificate, a response-body limit, one 8-KiB-plus-one
+response-header-field limit, in-flight and pre-start cancellation, timeout,
+HTTP 401/403/429 classification, and content-encoding rejection. There is no
+separate 65-field or aggregate-header-only loopback scenario; those adapter
+checks are source/contract evidence. Runtime facts separately report whether
+Qt supports TLS, its active TLS backend category, the first raw system-proxy
+candidate category, and raw candidate count; they do not contain credentials,
+proxy addresses, CA contents, or remote data, and they do not prove every
+candidate is reachable.
 
 On the directly exercised macOS arm64 development host, the complete 15-case
 fixture passed. Runtime observation reported Qt Network 6.11.1 with the
@@ -697,8 +710,9 @@ the trusted-success case under `strace` observed the Qt OpenSSL backend plugin,
 `libssl.so.3`, and `libcrypto.so.3` being opened. A full fixture-suite
 `strace` is deliberately not evidence because tracing perturbs cancellation
 timing; behavioral evidence comes from the uninstrumented passes, while the
-single-success trace is dependency evidence only. Source and the generated
-build contained no workflow files or GitHub Actions references.
+single-success trace is dependency evidence only. Tracked and on-disk scans
+found no GitHub Actions workflow file, and the source/build configuration
+selected no GitHub Actions integration.
 
 Windows 10/11 x64 execution and dependency inspection remain BPR-0036 work;
 that platform-specific evidence is nonblocking for the other implementation,
@@ -944,8 +958,10 @@ scenarios passed, runtime selected the OpenSSL backend and one direct proxy
 candidate, and ELF plus a controlled single-success trace selected Qt6Network,
 Qt6Core, the Qt OpenSSL backend plugin, `libssl.so.3`, and `libcrypto.so.3`.
 That separate BPR-0026 evidence is not by itself composed-provider evidence.
-BPR-0029 now supplies the public executable trace on macOS and in an Ubuntu
-26.04 x86_64 full-system QEMU guest. The current Linux v2 run passed the
+BPR-0029 now supplies the recorded public executable trace on macOS and in an
+Ubuntu 26.04 x86_64 full-system QEMU guest. Its substituted fixture transport
+does not replace the direct internal native-wire evidence. The current Linux
+v2 run passed the
 Secret Service setup/lifecycle/cleanup cases 3/3, independent exact cleanup
 and hostile/unavailable/locked cases, both exact-host rendered public
 fixtures, fresh 81/81 tests-on and 36/36 tests-off Release build targets,
@@ -955,8 +971,8 @@ vault-only evidence cannot substitute for a retained platform claim.
 
 ## Read-only enforcement
 
-The RFC-BPR-0002 composition exposes provider reads only. Its verification
-transport inventory is backed by a rejecting no-mutation sink:
+The RFC-BPR-0002 composition exposes only narrow provider-read ports. Its
+request inventory and outbound admission checks require:
 
 - recorded methods must parse as exact uppercase `GET` or `POST`, with no
   fallback for any other value;
@@ -1154,11 +1170,19 @@ profiles have explicit-user provenance. CLI activation reaches the same
 semantic host path but returns `cli_unavailable` before the process port,
 which keeps the unavailable state visible and produces zero child launches.
 The tests-disabled composition contract also rejects CLI runner-factory
-symbols in the public application, while its self-test selects the built-in
-GitHub.com CLI profile and requires the bounded unavailable presentation.
-Provider and transport counter tests independently require zero factory,
-effect, and process-port calls. Optional GHES CLI selection follows the same
-source path but is not claimed as a separate end-to-end self-test case.
+symbols in the public application, while its self-test enumerates every
+visible CLI profile and requires the bounded unavailable presentation plus
+`CLI_UNAVAILABLE_COUNT:1` for the default set and
+`CLI_UNAVAILABLE_COUNT:2` with explicit GHES. Public selection performs one
+bounded noncredential profile-resolution effect per row from clean start.
+When an interactive selection replaces an authenticated native profile, host
+identity invalidation first exact-deletes the predecessor credential binding;
+the CLI profile itself is neither enrolled nor retrieved.
+After the provider receives the CLI viewer request, provider and transport
+counter tests independently require zero transport-factory, wire, capability,
+CLI-specific effect, and process-port calls. The
+`application_public_path_ghes_cli_unavailable` case supplies the direct
+two-row public-path evidence.
 
 The visible ownership order is:
 
@@ -1198,10 +1222,14 @@ transports, vault handles, the binding catalog, and the decision lane to be
 destroyed. A failed exact credential deletion is surfaced and leaves the
 catalog tombstone; it is not silently treated as successful cleanup.
 
-Recorded GitHub.com and GHES fixtures may replace the transport behind the same
-provider port in tests. They must use the same provider, host, core, Qt, and
-composition path as the real application; a direct normalizer helper or static
-mockup is not public-path evidence.
+Recorded GitHub.com and GHES fixtures replace the native transport factory
+behind the same provider port in test-enabled runs. They must use the same
+profile selection, provider, host, core, Qt, and composition path as the real
+application; a direct normalizer helper or static mockup is not public-path
+evidence. These fixtures prove the structural public path and rendered
+projection, not a real-network native-HTTPS request. Tests-disabled
+composition inspection proves production selects the native transport factory,
+and the separate native loopback fixture directly verifies its wire behavior.
 
 The fixture transport, fixture vault, fixture command-line choices, native
 appearance-probe choices and evidence, and fixture evidence types are compiled
@@ -1261,7 +1289,8 @@ RFC-BPR-0002 has no implementation impact on:
 - the private SQLite review ledger;
 - GitHub review/comment/viewed/resolve mutation execution;
 - queue, observer, AI, and notification workflows;
-- QML, WebEngine, browser, listener, plugin, telemetry, or updater surfaces;
+- QML, WebEngine, browser, product-owned listener, plugin, telemetry, or
+  updater implementations;
 - package formats, signing, notarization, or installer behavior.
 
 Git cache and epoch work remains RFC-BPR-0003. GitHub mutations remain
@@ -1272,13 +1301,17 @@ CLI broker's process/invocation boundary, and the native HTTPS internal wire
 path on macOS and Linux are directly verified. Positive CLI enablement is
 outside milestone-one scope under RFC-BPR-0015; the public profile is visibly
 unavailable and launches zero processes.
-BPR-0028 verifies the safe Qt projection and presentation. BPR-0029 composes
-the explicit profiles, native HTTPS, platform vault, provider, host, core, and
-Qt path and exact-deletes retained credentials during orderly shutdown; it
-makes no crash/restart recovery claim. Its current-tree Linux v2 execution
-passed in an Ubuntu 26.04 x86_64 full-system QEMU guest with exact shutdown
-cleanup and tests-disabled Release selection/seam evidence. Retained Windows
-target-native credential/HTTPS/public-fixture evidence remains BPR-0036 work.
+BPR-0028 verifies the safe Qt projection and presentation. BPR-0029
+structurally composes the explicit profiles, native HTTPS factory, platform
+vault factory, provider, host, core, and Qt path. Its recorded public fixtures
+substitute fixture transport/vault state and verify that orderly shutdown
+issues the exact delete and leaves no credential in that fixture vault. The
+separate target-native vault lifecycle verifies exact native-item cleanup; no
+crash/restart recovery claim is made. The pinned BPR-0029 Linux v2 snapshot
+passed in an Ubuntu 26.04 x86_64 full-system QEMU guest with exact native
+schema cleanup and tests-disabled Release selection/seam evidence. Retained
+Windows target-native credential/HTTPS/public-fixture evidence remains BPR-0036
+work.
 Query-bearing REST redirects remain rejected by the closed BPR-0038 design
 decision; any future relaxation requires new direct public-contract evidence
 and separately scoped work. The open Windows execution is nonblocking for all

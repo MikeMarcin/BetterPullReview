@@ -182,9 +182,12 @@ failed deletion are fake-backed/status-classification evidence rather than
 desktop-policy fixtures. This proves the historical v1 vault surface in the
 selected full-system Linux stack.
 
-BPR-0029 separately verified the current v2 Linux fixture and public
+BPR-0029 separately verified the current v2 Linux fixture and recorded public
 composition in an Ubuntu 26.04 x86_64 full-system QEMU guest; this does not
-relabel the historical result. The v2 Secret Service
+relabel the historical result. The public QAction/render path substitutes its
+fixture transport and vault state, so it is structural composition evidence
+rather than a native-network or native-vault lifecycle run. The v2 Secret
+Service
 setup/lifecycle/cleanup cases passed 3/3, independent exact cleanup passed,
 and the hostile, unavailable, and locked cases remained fail-closed. Both
 public fixtures completed with exact host and rendered state, and the
@@ -193,12 +196,20 @@ tests-disabled Release seam, dependency, runtime, and ELF audits passed.
 ## Baseline posture
 
 - No hosted BetterPullReview service.
-- No listening socket or local web server.
+- No product-owned listening-socket or local-web-server implementation.
 - No embedded browser, HTML renderer, JavaScript runtime, CDN, remote font, analytics, or telemetry.
 - No general plugin system or remote theme/highlighter download.
 - No repository code execution, hooks, submodules, filters, textconv, external diff, build, or test invocation.
 - No credential sharing between BetterPullReview and AI agents.
 - No automatic AI invocation or automatic AI publication.
+
+The runtime-surface script supports this listener boundary only as a
+point-in-time idle observation: it waits approximately 0.5 seconds, samples the
+application's sockets and direct children once, and then terminates the
+process. Together with the source boundary scan, that is evidence for the
+implemented idle path on platforms where it was run. It is not continuous
+monitoring, does not exercise active native-HTTPS mode or indirect descendants,
+and does not substitute for the open Windows run in BPR-0036.
 
 ## Input handling
 
@@ -220,8 +231,9 @@ retained CLI broker does not inherit and scrub the parent environment. It
 constructs a new child environment from fixed noninteractive settings and
 typed platform
 credential-session, trust, and proxy facts. Its standard-C++ process request
-contains explicit input/output/error/time/reap bounds; the sole `QProcess`
-runner uses one owner-managed worker and separate captured channels. On Unix,
+contains explicit input/output/error/time/reap bounds; the retained
+`QProcess` runner implementation uses one owner-managed worker and separate
+captured channels but is not public-composed in milestone one. On Unix,
 the child is created as a new session and initial
 process-group leader; a compiled child directly observes session/group
 identity, closed inherited descriptors, disabled core dumps, and reset signal
@@ -289,19 +301,21 @@ every blocker without privileged helpers or weakened security.
 
 ## Network handling
 
-- Connect only to explicitly configured hosts.
+- Send origin requests only to validated GitHub origins; bounded system-proxy
+  endpoints may carry those connections.
 - Require HTTPS and operating-system certificate validation.
 - Restrict redirects.
 - Respect approved system proxy configuration.
 - Do not provide certificate-error bypass.
-- Maintain a metadata-only network activity log.
+- A metadata-only network activity log is deferred to separately scoped work;
+  RFC-BPR-0002 implements and claims no such log.
 
 GitHub profile authority is established before transport execution. The
 selected v1 validator accepts only trusted explicit/builtin/managed
 provenance, canonical lowercase ASCII FQDNs, and the exact GitHub.com or GHES
 3.18 HTTPS roots. Provider content and redirect targets cannot create or
 rewrite a profile. GraphQL redirects are rejected; REST redirects require the
-same validated authority and API namespace.
+same validated authority, a query-free target, and the same API namespace.
 
 The BPR-0026 native HTTPS wire transport confines `QNetworkAccessManager`,
 requests, replies, TLS objects, and proxy objects to one dedicated adapter
@@ -323,6 +337,8 @@ libproxy/desktop sources or lowercase `http_proxy`, `https_proxy`, and
 authentication is never filled with the GitHub credential; a proxy challenge
 aborts that candidate and may select a later candidate. Origin
 authentication, TLS, HTTP, malformed-response, and policy failures do not.
+The validated profile controls the origin authority; a Qt-selected HTTP or
+SOCKS5 proxy endpoint is a routing intermediary, not a GitHub authority.
 
 TLS begins with an explicit operating-system root set, no local certificate or
 private key, `VerifyPeer`, TLS 1.2 or later, HTTP/1.1 ALPN, disabled session
@@ -376,17 +392,21 @@ therefore wait for synchronous discovery to return.
 
 The 15-case TLS-over-loopback-CONNECT fixture exercises trusted success,
 ordered proxy fallback, accepted same-authority redirect, rejected
-cross-authority and GraphQL redirects, certificate failure, header/body
-limits, cancellation before and during I/O, timeout, HTTP 401/403/429, and
-content-encoding rejection. It passed on the directly exercised macOS arm64
-host. The runtime fact probe reported Qt Network 6.11.1, the OpenSSL backend,
-TLS support, and one direct system-proxy candidate. A separate test-disabled
-build omitted the test-only proxy/CA factories. This fixture verifies the
-internal wire boundary; BPR-0027 separately verifies the application-facing
-provider and host, and BPR-0029 now supplies composed public traces on macOS
-and Linux. The Linux trace passed both exact-host rendered fixture states,
-orderly exact credential cleanup, and tests-disabled Release selection/seam
-inspection.
+cross-authority and GraphQL redirects, certificate failure, the response-body
+limit, one 8-KiB-plus-one header-field limit, cancellation before and during
+I/O, timeout, HTTP 401/403/429, and content-encoding rejection. It has no
+separate 65-field-count or aggregate-header-only scenario; those two adapter
+checks remain source/contract evidence. It passed on the directly exercised
+macOS arm64 host. The runtime fact probe reported Qt Network 6.11.1, the
+OpenSSL backend, TLS support, and one direct system-proxy candidate. A separate
+test-disabled build omitted the test-only proxy/CA factories. This fixture
+verifies the internal wire boundary; BPR-0027 separately verifies the
+application-facing provider and host, and BPR-0029 supplies recorded public
+composition traces on macOS and Linux using a substituted fixture transport.
+Those traces are not real-network evidence. The Linux trace passed both
+exact-host rendered fixture states, an exact delete in fixture-vault state,
+and tests-disabled Release selection/seam inspection. Separate target-native
+vault lifecycle checks establish native item/schema cleanup.
 
 The corresponding Linux verification used an Ubuntu 26.04 x86_64 full-system
 QEMU guest with Linux 7.0.0-28, GCC 15.2, and Qt 6.10.2. It froze
@@ -405,8 +425,9 @@ trusted-success case under `strace` opened the Qt OpenSSL backend plugin,
 `libssl.so.3`, and `libcrypto.so.3`. A full-suite `strace` is explicitly not
 evidence because instrumentation perturbs cancellation timing; the trace
 establishes only single-success dependency selection, while uninstrumented
-runs establish behavior. No workflow files or GitHub Actions references were
-present in source or the generated build.
+runs establish behavior. Tracked and on-disk scans found no GitHub Actions
+workflow file, and the source/build configuration selected no GitHub Actions
+integration.
 
 Windows target-native execution remains BPR-0036 work. It is nonblocking for
 all other implementation, security, documentation, simplification, and

@@ -34,7 +34,8 @@ only. GitHub.com is exactly `github.com` with REST
 `2022-11-28`. Profiles derived from provider content or redirects, hostname
 aliases, IP literals, ports, non-HTTPS roots, and root drift fail before a
 request can be compiled. GraphQL redirects are forbidden, and REST redirects
-remain on the exact validated authority and API namespace.
+remain query-free on the exact validated authority and inside its API
+namespace.
 
 The public composition provides built-in-provenance GitHub.com native-HTTPS
 and CLI profiles. An optional GHES 3.18 hostname supplied through the
@@ -77,7 +78,14 @@ The public CLI profiles remain visible, but the provider returns fixed typed
 `cli_unavailable` before transport construction, CLI executable/configuration
 discovery, or a process-port call. The broker below is retained, tested
 scaffolding and a constraint on any future implementation; it is not an
-enabled milestone-one transport.
+enabled milestone-one transport. The public self-test enumerates the visible
+rows and reports `CLI_UNAVAILABLE_COUNT:1` for the default profile set and
+`CLI_UNAVAILABLE_COUNT:2` with explicit GHES. Public row selection performs one
+bounded noncredential profile-resolution effect per row from clean start. An
+interactive switch from authenticated native HTTPS may first exact-delete the
+predecessor credential binding; it does not enroll or retrieve a credential
+for the CLI profile. Provider rejection schedules no transport, wire,
+capability, or CLI-specific effect.
 
 - Invoke an explicitly resolved `gh` executable.
 - Never request or print the token.
@@ -194,7 +202,11 @@ uses a credential or performs network work. BPR-0027 consumes it through the
 application-facing provider and owns pagination, normalization, body-aware
 failure interpretation, and staged snapshot delivery. BPR-0029 selects this
 native transport in the public executable for GitHub.com and explicitly
-configured GHES profiles.
+configured GHES profiles. Its recorded public QAction fixtures preserve that
+profile/provider/host/core/Qt composition but substitute a fixture transport
+factory; they are not real-network native-HTTPS runs. The direct native wire
+fixtures below verify the request, TLS, proxy, redirect, and credential-bearing
+transport separately.
 
 Production uses the system CA set and
 `QNetworkProxyFactory::systemProxyForQuery` for every hop. At most 16 proxy
@@ -208,6 +220,12 @@ call `getenv`, so this contract means the selected platform/Qt system policy,
 not environment independence. Proxy-authentication failure may try a later
 candidate; origin authentication, TLS, HTTP, malformed-response, and policy
 failures may not.
+
+The validated GitHub profile governs the origin authority and every origin
+request. Actual connections may instead terminate at bounded HTTP or SOCKS5
+proxy endpoints returned by the selected Qt system-proxy policy. Those routing
+intermediaries are not GitHub profile authorities and never receive the GitHub
+`Authorization` header as proxy authentication.
 
 TLS is configured for `VerifyPeer`, the explicit operating-system root set,
 TLS 1.2 or later, and HTTP/1.1 ALPN, without client identity, session reuse,
@@ -290,13 +308,15 @@ The test-enabled build exposes an adapter-private loopback proxy and
 single-fixture-CA seam; `BPR_BUILD_TESTS=OFF` omits those factories and
 symbols. A disposable TLS-over-CONNECT harness exercises 15 cases: success,
 ordered proxy fallback, same-authority redirect, cross-authority redirect,
-GraphQL redirect, untrusted certificate, response and header limits,
-in-flight cancellation, timeout, pre-cancellation, HTTP 401/403/429, and
-content-encoding rejection. It verifies the exact CONNECT authority, SNI,
-Host, request target, method/body, and Authorization placement without
-contacting GitHub. Runtime facts report TLS support/backend and the first raw
-system-proxy kind/count without addresses or secret material; they do not
-prove that every returned candidate is reachable.
+GraphQL redirect, untrusted certificate, a response-body limit, one
+8-KiB-plus-one response-header-field limit, in-flight cancellation, timeout,
+pre-cancellation, HTTP 401/403/429, and content-encoding rejection. It does not
+contain separate 65-field or aggregate-header-only runtime scenarios; those
+adapter checks remain source/contract evidence. The harness verifies the exact
+CONNECT authority, SNI, Host, request target, method/body, and Authorization
+placement without contacting GitHub. Runtime facts report TLS support/backend
+and the first raw system-proxy kind/count without addresses or secret
+material; they do not prove that every returned candidate is reachable.
 
 The 15-case fixture passed on macOS arm64 with Qt Network 6.11.1 and the
 OpenSSL runtime backend; the observed system-proxy result was one direct
@@ -323,8 +343,8 @@ single trusted-success case under `strace` opened
 A full-suite `strace` is not functional evidence because tracing perturbs
 cancellation timing; dependency tracing was intentionally restricted to one
 success, while behavior comes from the repeated uninstrumented suite.
-Neither source nor generated build contained workflow files or GitHub Actions
-references.
+Tracked and on-disk scans found no GitHub Actions workflow files, and the
+source/build configuration selected no GitHub Actions integration.
 
 Windows native-HTTPS execution remains BPR-0036 work. It does not block other
 implementation, security, documentation, simplification, or later-RFC work;
@@ -439,11 +459,13 @@ bare-metal evidence. BPR-0026 separately verified the internal Linux native
 HTTPS wire surface with the 15-case loopback fixture, runtime observation,
 ELF dependencies, and a controlled single-success dependency trace.
 
-BPR-0029 separately verified the current v2 fixture and composed public path
+BPR-0029 separately verified the current v2 fixture and recorded public
+composition path
 in an Ubuntu 26.04 x86_64 full-system QEMU guest. The Secret Service
 setup/lifecycle/cleanup cases passed 3/3 along with independent exact cleanup
 and hostile, unavailable, and locked cases. Both GitHub.com and GHES public
-fixtures passed with exact host and rendered state; fresh tests-on and
+fixtures passed with exact host and rendered state through the substituted
+fixture transport; fresh tests-on and
 tests-off Release builds completed 81/81 and 36/36 targets respectively, the
 fixture seam was absent, native platform-vault selection was reported, and
 dependency, runtime, and ELF audits passed.
@@ -575,20 +597,21 @@ PR metadata, files, commits, reviews, threads, comments, checks, search, and
 capability probing. The mutation operations above describe the stable future
 provider contract but are not callable through the RFC-BPR-0002 composition.
 
-Recorded fixture methods pass through one exact parser that accepts only
-uppercase `GET` and `POST`; invalid or unknown text is never coerced to a read.
-The no-mutation verification sink accepts REST catalog entries only as typed
-`GET` requests and admits GraphQL `POST` only after a shared bounded
-full-document scanner finds exactly one explicit `query` plus bounded
-fragments. A top-level `mutation` or `subscription` anywhere in the document,
-multiple operations, malformed scanned structure or token framing, or a byte,
-nesting, or definition limit fails closed. This bounded structural classifier
-is not a complete GraphQL grammar parser. Comments, strings, block strings,
-fields, and operation names containing words such as `mutation` do not create
-false write classifications, and the outbound contract still requires exact
-equality with the canonical compiled request body. The contract suite proves
-that backstop independently for every legacy/current GraphQL shape by adding a
-scanner-approved read selection and requiring the altered body to fail.
+RFC-BPR-0002 exposes narrow read-only provider ports. Recorded fixture methods
+pass through one exact parser that accepts only uppercase `GET` and `POST`;
+invalid or unknown text is never coerced to a read. REST catalog entries are
+admitted only as typed `GET` requests. GraphQL `POST` is admitted only after a
+shared bounded full-document scanner finds exactly one explicit `query` plus
+bounded fragments. A top-level `mutation` or `subscription` anywhere in the
+document, multiple operations, malformed scanned structure or token framing,
+or a byte, nesting, or definition limit fails closed. This bounded structural
+classifier is not a complete GraphQL grammar parser. Comments, strings, block
+strings, fields, and operation names containing words such as `mutation` do
+not create false write classifications, and the outbound contract still
+requires exact equality with the canonical compiled request body. The
+contract suite proves that backstop independently for every legacy/current
+GraphQL shape by adding a scanner-approved read selection and requiring the
+altered body to fail.
 
 ## Failure and diagnostic boundary
 

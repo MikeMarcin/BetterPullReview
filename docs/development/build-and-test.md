@@ -77,10 +77,12 @@ build/dev/src/app/better_pull_review --ghes-host ghe.example.com
 Activating native HTTPS opens the Qt-owned password prompt, then enrolls the
 credential through the selected platform vault and authenticated `/user`
 observation. Activating CLI shows the bounded unavailable state and starts
-zero processes. `--self-test` directly exercises that fail-closed CLI choice,
-then reports whether composition selected the native platform vault. On
-macOS, Windows, and Linux its successful fixed output includes
-`NATIVE_PLATFORM_VAULT_SELECTED:true`.
+zero processes. `--self-test` enumerates every visible CLI choice, requires the
+same bounded unavailable presentation for each, and reports
+`CLI_UNAVAILABLE_COUNT:1` for the default profile set or
+`CLI_UNAVAILABLE_COUNT:2` with `--ghes-host`. It then reports whether
+composition selected the native platform vault. On macOS, Windows, and Linux
+its successful fixed output includes `NATIVE_PLATFORM_VAULT_SELECTED:true`.
 
 The test-enabled application also exposes two deterministic recorded public
 paths:
@@ -101,14 +103,19 @@ On headless Linux, also set `QT_STYLE_OVERRIDE=Windows`. Each run must report
 `PUBLIC_PATH_OK`, the matching `GITHUB_FIXTURE_OK` marker, and `RENDER_OK`.
 The fixture drives a real QAction through the concrete provider, application
 host, core acceptance, Qt projection, and orderly exact credential deletion.
-It is deterministic integration/layout evidence, not final presentation
-polish or native system-theme certification; BPR-0031 retains that gate.
+The test-enabled composition substitutes a recorded transport and fixture
+vault, so the delete assertion means no credential remains in fixture-vault
+state. This is deterministic structural integration/layout evidence, not a
+real-network native-HTTPS run, native-vault lifecycle, final presentation
+polish, or native system-theme certification. Tests-disabled composition
+inspection separately proves selection of the native factory, and the native
+transport/vault fixtures below exercise those implementations directly.
 
 Run the focused composition group with:
 
 ```sh
 ctest --test-dir build/dev --output-on-failure \
-  -R '^application_(public_path|worker_executor|composition_contract|github_public_path_(github_com|ghes_3_18))$'
+  -R '^application_(public_path(_ghes_cli_unavailable)?|worker_executor|composition_contract|github_public_path_(github_com|ghes_3_18))$'
 ```
 
 `application_composition_contract` creates a fresh tests-disabled Release
@@ -117,11 +124,18 @@ the Release compile commands, build graph, symbols, and raw executable bytes
 contain no fixture translation unit, macro, argument, label, path, or evidence
 string. It also requires production to compose only
 `native_github_wire_transport_factory` and rejects CLI process-runner factory
-symbols in the application. The tests-disabled `--self-test` selects the
-built-in GitHub.com CLI profile and requires `CLI_UNAVAILABLE_OK`; provider
-counter tests prove the CLI rejection makes zero transport-factory or effect
-calls, while the transport contract proves a fake successful process port
-still receives zero calls.
+symbols in the application. The tests-disabled `--self-test` enumerates every
+visible CLI profile and requires `CLI_UNAVAILABLE_OK` plus the exact
+`CLI_UNAVAILABLE_COUNT`; provider
+counter tests prove the CLI viewer rejection makes zero transport-factory,
+wire, capability, or CLI-specific effect calls, while the transport contract
+proves a fake successful process port still receives zero calls. Public
+clean-start selection itself performs one bounded noncredential
+profile-resolution effect per row. Existing host lifecycle coverage separately
+proves a native-to-CLI switch exact-deletes the predecessor credential binding
+without enrolling or retrieving a credential for the CLI profile.
+`application_public_path_ghes_cli_unavailable` supplies the explicit two-row
+GitHub.com/GHES case.
 
 On macOS, the fake-backed contract test is non-mutating. The native fixture
 creates, replaces, retrieves, and deletes one disposable generic-password item
@@ -249,10 +263,10 @@ evidence from a full-system VM, not bare metal. The current fixture uses the
 disjoint hostname-bound v2 schema; its BPR-0029 result is separate and is not
 inferred from the v1 pass.
 
-The current-v2 BPR-0029 run used an Ubuntu 26.04 x86_64 full-system QEMU
-guest. A fresh tests-on Release build completed 81/81 targets, and all 40
-non-native registered test identities have passing current-tree evidence
-after the repaired dependency and composition gates. Secret Service
+The pinned BPR-0029 v2 run used an Ubuntu 26.04 x86_64 full-system QEMU guest.
+A fresh tests-on Release build completed 81/81 targets, and all 40 non-native
+registered test identities passed on that BPR-0029 snapshot after the repaired
+dependency and composition gates. Secret Service
 setup/lifecycle/cleanup passed 3/3, as did independent exact cleanup and the
 hostile, unavailable, and locked cases. The GitHub.com and GHES public
 fixtures passed with exact host and rendered state. A fresh tests-off Release
@@ -436,7 +450,7 @@ Authorization placement. The 15 scenarios are:
 - rejected cross-authority redirect;
 - rejected GraphQL redirect;
 - untrusted certificate;
-- response-body and response-header limits;
+- the response-body limit and one 8-KiB-plus-one response-header-field limit;
 - in-flight cancellation, timeout, and pre-cancellation with no network
   effect;
 - HTTP 401, 403, and 429 typed classification;
@@ -449,7 +463,10 @@ binding path. This distinction matters: the fallback scenario proves
 transport candidate ordering, while the `--runtime` observation and
 target-native inspection characterize the selected system proxy/TLS backend.
 Neither alone proves the composed public provider; the BPR-0029 fixture above
-supplies that separate executable path on the directly exercised platform.
+supplies that separate recorded executable path on the directly exercised
+platform, with a substituted fixture transport rather than a real native
+network request. There is no separate 65-field-count or aggregate-header-only
+loopback scenario; those adapter checks remain source/contract evidence.
 
 The default production deadline is 30 seconds, but synchronous Qt system/PAC
 proxy discovery and system-root enumeration cannot be interrupted by the stop
@@ -523,10 +540,10 @@ instrumentation perturbs the fixture's cancellation timing. The dependency
 trace intentionally runs one success, while the repeated uninstrumented suite
 is the functional evidence.
 
-Source and the generated Linux build contained no workflow files or GitHub
-Actions references. This scan reinforces the build-ownership rule below; no
-remote workflow contributed to configuration, compilation, tests, tracing, or
-verification.
+Tracked and on-disk scans found no GitHub Actions workflow files, and the
+source/build configuration selected no GitHub Actions integration. This
+reinforces the build-ownership rule below: no remote workflow contributed to
+configuration, compilation, tests, tracing, or verification.
 
 Windows 10/11 x64 execution, TLS/proxy/dependency inspection, and fixture
 registration remain BPR-0036 work. The open Windows task is nonblocking for
@@ -534,9 +551,15 @@ macOS/Linux implementation, tests, documentation, security review, and
 simplification or later-RFC work; it blocks only affected Windows claims and
 final RFC-BPR-0002 Auto-Verified closeout.
 
-`verify_runtime_surface.py` runs on macOS, Linux, and Windows. The
-binary-dependency script also supports all three platforms, using `dumpbin` on
-Windows when available, followed by `llvm-readobj` and `objdump` fallbacks.
+`verify_runtime_surface.py` supports macOS, Linux, and Windows. It launches the
+idle offscreen application, waits approximately 0.5 seconds, samples its
+network sockets and direct children once, checks captured output for a canary,
+and terminates it. A pass is a point-in-time idle observation, not continuous
+monitoring or evidence for active native-HTTPS mode, indirect descendants, or
+listener absence on a platform where the script was not run. The Windows run
+remains BPR-0036 work. The binary-dependency script also supports all three
+platforms, using `dumpbin` on Windows when available, followed by
+`llvm-readobj` and `objdump` fallbacks.
 
 For the BPR-0027 application host and provider, build the focused targets and
 run the complete local contract group:

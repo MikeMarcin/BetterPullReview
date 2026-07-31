@@ -92,7 +92,7 @@ lifetimes documented by their ports.
   lifecycle cleanup. The skeptical closeout audit found no P0/P1 defect.
 - In an Ubuntu 26.04 x86_64 full-system QEMU guest, a fresh tests-on Release
   build completed 81/81 targets. All 40 non-native registered test identities
-  have passing current-tree evidence after the repaired dependency and
+  passed on the committed BPR-0029 snapshot after the repaired dependency and
   composition gates.
 - The current v2 Secret Service setup/lifecycle/cleanup cases passed 3/3.
   Independent exact cleanup and the hostile, unavailable, and locked cases

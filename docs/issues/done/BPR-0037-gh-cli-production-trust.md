@@ -100,11 +100,16 @@ not satisfy the future eligibility gates:
 - the macOS keyring backend launches `/usr/bin/security`, so the selected
   credential cannot be used under the required no-descendant boundary.
 
-The public application composes only the native HTTPS transport factory. A CLI
-selection reaches the provider with no credential material and receives
-`cli_unavailable` synchronously before factory calls or scheduled effects.
-The dormant CLI transport remains compiled and testable for future work, but
-is not linked into the inspected tests-disabled Release executable.
+The public application composes only the native HTTPS transport factory. A
+clean-start CLI selection performs one bounded, noncredential
+profile-resolution observation, then reaches the provider with no credential
+material and receives `cli_unavailable`. Switching from an authenticated
+native profile may first exact-delete that prior native credential binding;
+it does not enroll or retrieve a credential for the CLI profile. Neither path
+constructs or invokes a transport factory, performs wire or capability work,
+schedules a CLI-specific effect, or launches a process. The dormant CLI
+transport remains compiled and testable for future work, but is not linked
+into the inspected tests-disabled Release executable.
 
 The typed availability contract now reports the milestone-one product-scope
 decision plus all seven unresolved technical properties:
@@ -134,9 +139,13 @@ Manager, public-composition, runtime, and dependency evidence.
 - `gh_cli_transport` passed and proved the exact eight reasons plus zero
   process-port calls for every supported read operation, cancellation, and
   invalid requests.
-- `github_provider` passed and proved CLI selection produces
+- `github_provider` passed and proved the CLI viewer observation produces
   `cli_unavailable` with zero transport-factory calls, wire requests,
-  capability probes, effect posts, or queued work.
+  capability probes, CLI-specific effect posts, or queued work. The public
+  clean-start selection path separately performs its bounded
+  profile-resolution effect before that viewer observation. Host lifecycle
+  coverage separately proves an authenticated native-to-CLI switch
+  exact-deletes the predecessor binding before resolving the CLI profile.
 - `application_public_path` and a direct tests-enabled `--self-test` passed
   with `PUBLIC_PATH_OK`, native-vault selection, and
   `CLI_UNAVAILABLE_OK`.

@@ -292,10 +292,45 @@ class CompositionContractTests(unittest.TestCase):
                     r"PUBLIC_PATH_OK[\r\n]+"
                     r"NATIVE_PLATFORM_VAULT_SELECTED:"
                     + expected_selection
-                    + r"[\r\n]+CLI_UNAVAILABLE_OK"
+                    + (
+                        r"[\r\n]+CLI_UNAVAILABLE_OK"
+                        r"[\r\n]+CLI_UNAVAILABLE_COUNT:1"
+                    )
                 ),
             )
             self.assertNotIn("GITHUB_FIXTURE", runtime.stdout)
+
+            ghes_runtime = subprocess.run(
+                [
+                    str(executable),
+                    "--self-test",
+                    "--ghes-host",
+                    "ghe.example.invalid",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=runtime_environment,
+            )
+            self.assertEqual(
+                ghes_runtime.returncode,
+                0,
+                ghes_runtime.stdout + ghes_runtime.stderr,
+            )
+            self.assertRegex(
+                ghes_runtime.stdout,
+                (
+                    r"PUBLIC_PATH_OK[\r\n]+"
+                    r"NATIVE_PLATFORM_VAULT_SELECTED:"
+                    + expected_selection
+                    + (
+                        r"[\r\n]+CLI_UNAVAILABLE_OK"
+                        r"[\r\n]+CLI_UNAVAILABLE_COUNT:2"
+                    )
+                ),
+            )
+            self.assertNotIn("GITHUB_FIXTURE", ghes_runtime.stdout)
 
             failed_render = subprocess.run(
                 [
