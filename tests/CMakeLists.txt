@@ -33,6 +33,13 @@ add_test(
 )
 
 add_test(
+    NAME git_protocol_boundary
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/git_protocol_boundary_tests.py"
+)
+
+add_test(
     NAME documentation_structure
     COMMAND
         "${Python3_EXECUTABLE}"
