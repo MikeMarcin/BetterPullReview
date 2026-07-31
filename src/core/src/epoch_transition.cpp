@@ -474,6 +474,34 @@ auto clear_catalog_bound_state(
         | epoch_changed_domain::comparison;
 }
 
+auto start_ingestion(
+    epoch_state& state,
+    epoch_transition_output& output,
+    const epoch_request_id request) -> void
+{
+    const bool catalog_ready = state.Catalog.has_value();
+    state.PendingIngestion = pending_epoch_ingestion{
+        .Request = request,
+        .Generation = state.EpochGeneration,
+        .Phase = catalog_ready ? epoch_ingestion_phase::preparing
+                               : epoch_ingestion_phase::loading_catalog,
+    };
+    if(catalog_ready)
+    {
+        output.Requests.emplace_back(
+            prepare_epoch_revision_request{
+                .Context = current_preparation_context(state, request),
+            });
+        set_status(state, output, epoch_status::preparing);
+        return;
+    }
+    output.Requests.emplace_back(
+        load_epoch_catalog_request{
+            .Context = current_load_context(state, request),
+        });
+    set_status(state, output, epoch_status::loading_catalog);
+}
+
 [[nodiscard]] auto clear_authority_fail_closed(
     epoch_state& state, const epoch_reason_code reason)
     -> epoch_transition_output
@@ -772,13 +800,6 @@ auto clear_ingestion(
     }
 
     const auto request = take_request(state);
-    state.PendingIngestion = pending_epoch_ingestion{
-        .Request = request,
-        .Generation = state.EpochGeneration,
-        .Phase = state.Catalog.has_value()
-            ? epoch_ingestion_phase::preparing
-            : epoch_ingestion_phase::loading_catalog,
-    };
 
     output.Authority = epoch_authority_delta{
         .Authority = state.Authority,
@@ -786,23 +807,7 @@ auto clear_ingestion(
         .Generation = state.EpochGeneration,
     };
     output.Changed = output.Changed | epoch_changed_domain::authority;
-
-    if(state.Catalog.has_value())
-    {
-        output.Requests.emplace_back(
-            prepare_epoch_revision_request{
-                .Context = current_preparation_context(state, request),
-            });
-        set_status(state, output, epoch_status::preparing);
-    }
-    else
-    {
-        output.Requests.emplace_back(
-            load_epoch_catalog_request{
-                .Context = current_load_context(state, request),
-            });
-        set_status(state, output, epoch_status::loading_catalog);
-    }
+    start_ingestion(state, output, request);
     return output;
 }
 
@@ -829,36 +834,13 @@ auto clear_ingestion(
     retire_pending_comparison(state, output);
     state.EpochGeneration = *next_generation;
     const auto request = take_request(state);
-    state.PendingIngestion = pending_epoch_ingestion{
-        .Request = request,
-        .Generation = state.EpochGeneration,
-        .Phase = state.Catalog.has_value()
-            ? epoch_ingestion_phase::preparing
-            : epoch_ingestion_phase::loading_catalog,
-    };
     output.Authority = epoch_authority_delta{
         .Authority = state.Authority,
         .Revision = state.AcceptedRevision,
         .Generation = state.EpochGeneration,
     };
     output.Changed = epoch_changed_domain::authority;
-
-    if(state.Catalog.has_value())
-    {
-        output.Requests.emplace_back(
-            prepare_epoch_revision_request{
-                .Context = current_preparation_context(state, request),
-            });
-        set_status(state, output, epoch_status::preparing);
-    }
-    else
-    {
-        output.Requests.emplace_back(
-            load_epoch_catalog_request{
-                .Context = current_load_context(state, request),
-            });
-        set_status(state, output, epoch_status::loading_catalog);
-    }
+    start_ingestion(state, output, request);
     return output;
 }
 
@@ -1203,22 +1185,13 @@ template<typename Event>
 
         state.EpochGeneration = *next_generation;
         const auto request = take_request(state);
-        state.PendingIngestion = pending_epoch_ingestion{
-            .Request = request,
-            .Generation = state.EpochGeneration,
-            .Phase = epoch_ingestion_phase::loading_catalog,
-        };
         output.Authority = epoch_authority_delta{
             .Authority = state.Authority,
             .Revision = state.AcceptedRevision,
             .Generation = state.EpochGeneration,
         };
         output.Changed = output.Changed | epoch_changed_domain::authority;
-        output.Requests.emplace_back(
-            load_epoch_catalog_request{
-                .Context = current_load_context(state, request),
-            });
-        set_status(state, output, epoch_status::loading_catalog);
+        start_ingestion(state, output, request);
         return output;
     }
     auto output = epoch_transition_output{};
