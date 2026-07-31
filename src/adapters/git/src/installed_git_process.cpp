@@ -1,7 +1,6 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
 
 #include <QByteArray>
-#include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -237,6 +236,162 @@ struct process_request
 #endif
 #endif
 }
+
+class private_input_file final
+{
+public:
+    private_input_file() = default;
+    private_input_file(const private_input_file&) = delete;
+    auto operator=(const private_input_file&) -> private_input_file& = delete;
+
+    ~private_input_file()
+    {
+#if defined(Q_OS_UNIX)
+        if(Descriptor >= 0)
+        {
+            static_cast<void>(::close(Descriptor));
+        }
+#elif defined(Q_OS_WIN)
+        if(Handle != INVALID_HANDLE_VALUE)
+        {
+            static_cast<void>(CloseHandle(Handle));
+        }
+#endif
+    }
+
+    [[nodiscard]] auto open(
+        const std::filesystem::path& path,
+        const std::uint64_t expected_bytes) -> bool
+    {
+        if(
+            path.empty() || !path.is_absolute()
+            || !private_directory(path.parent_path()))
+        {
+            return false;
+        }
+#if defined(Q_OS_UNIX)
+        Descriptor = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+        if(Descriptor < 0)
+        {
+            return false;
+        }
+        struct stat information
+        {
+        };
+        return ::fstat(Descriptor, &information) == 0
+            && S_ISREG(information.st_mode)
+            && information.st_uid == ::geteuid()
+            && information.st_nlink == 1
+            && (information.st_mode & (S_IRWXG | S_IRWXO)) == 0
+            && information.st_size >= 0
+            && static_cast<std::uint64_t>(information.st_size)
+                == expected_bytes;
+#elif defined(Q_OS_WIN)
+        Handle = CreateFileW(
+            path.c_str(),
+            GENERIC_READ,
+            0U,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT
+                | FILE_FLAG_SEQUENTIAL_SCAN,
+            nullptr);
+        if(Handle == INVALID_HANDLE_VALUE)
+        {
+            return false;
+        }
+        FILE_ATTRIBUTE_TAG_INFO tag{};
+        BY_HANDLE_FILE_INFORMATION information{};
+        LARGE_INTEGER size{};
+        return GetFileInformationByHandleEx(
+                   Handle,
+                   FileAttributeTagInfo,
+                   &tag,
+                   sizeof(tag))
+                != 0
+            && (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0U
+            && (tag.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0U
+            && GetFileInformationByHandle(Handle, &information) != 0
+            && information.nNumberOfLinks == 1U
+            && GetFileSizeEx(Handle, &size) != 0 && size.QuadPart >= 0
+            && static_cast<std::uint64_t>(size.QuadPart)
+                == expected_bytes;
+#else
+        if(!private_regular_file(path))
+        {
+            return false;
+        }
+        Input.open(path, std::ios::binary);
+        if(!Input)
+        {
+            return false;
+        }
+        std::error_code error;
+        return std::filesystem::file_size(path, error) == expected_bytes
+            && !error;
+#endif
+    }
+
+    [[nodiscard]] auto read(const std::span<char> destination)
+        -> std::optional<std::size_t>
+    {
+#if defined(Q_OS_UNIX)
+        for(;;)
+        {
+            const auto received = ::read(
+                Descriptor,
+                destination.data(),
+                destination.size());
+            if(received < 0 && errno == EINTR)
+            {
+                continue;
+            }
+            if(received < 0)
+            {
+                return std::nullopt;
+            }
+            return static_cast<std::size_t>(received);
+        }
+#elif defined(Q_OS_WIN)
+        const auto requested = static_cast<DWORD>(
+            std::min<std::size_t>(
+                destination.size(),
+                std::numeric_limits<DWORD>::max()));
+        DWORD received = 0U;
+        if(
+            ReadFile(
+                Handle,
+                destination.data(),
+                requested,
+                &received,
+                nullptr)
+            == 0)
+        {
+            return std::nullopt;
+        }
+        return static_cast<std::size_t>(received);
+#else
+        Input.read(
+            destination.data(),
+            static_cast<std::streamsize>(destination.size()));
+        const auto received = Input.gcount();
+        if(received < 0 || (received == 0 && Input.bad()))
+        {
+            return std::nullopt;
+        }
+        return static_cast<std::size_t>(received);
+#endif
+    }
+
+private:
+#if defined(Q_OS_UNIX)
+    int Descriptor = -1;
+#elif defined(Q_OS_WIN)
+    HANDLE Handle = INVALID_HANDLE_VALUE;
+#else
+    std::ifstream Input;
+#endif
+};
 
 [[nodiscard]] auto regular_executable(
     const std::filesystem::path& path) -> bool
@@ -1369,7 +1524,7 @@ struct runner_configuration
             return failed(git_process_failure::process_start);
         }
 
-        QFile input_file;
+        private_input_file input_file;
         const char* memory_data = nullptr;
         std::uint64_t input_size = 0U;
         if(const auto* memory = std::get_if<memory_input>(&request.Input))
@@ -1380,20 +1535,8 @@ struct runner_configuration
         else
         {
             const auto& file = std::get<file_input>(request.Input);
-            QString input_path;
             if(
-                !decode_text(path_text(file.Path), input_path)
-                || file.Bytes
-                    > static_cast<std::uint64_t>(
-                        std::numeric_limits<qint64>::max()))
-            {
-                return failed(git_process_failure::standard_input);
-            }
-            input_file.setFileName(input_path);
-            if(
-                !input_file.open(QIODevice::ReadOnly)
-                || static_cast<std::uint64_t>(input_file.size())
-                    != file.Bytes)
+                !input_file.open(file.Path, file.Bytes))
             {
                 return failed(git_process_failure::standard_input);
             }
@@ -1425,17 +1568,18 @@ struct runner_configuration
                 {
                     if(buffered_input_offset == buffered_input_size)
                     {
-                        const auto read = input_file.read(
-                            input_buffer.data(),
-                            static_cast<qint64>(requested));
-                        if(read != static_cast<qint64>(requested))
+                        const auto received = input_file.read(
+                            std::span{input_buffer}.first(
+                                static_cast<std::size_t>(requested)));
+                        if(
+                            !received.has_value()
+                            || *received == 0U)
                         {
                             return failed(
                                 git_process_failure::standard_input);
                         }
                         buffered_input_offset = 0U;
-                        buffered_input_size =
-                            static_cast<std::size_t>(requested);
+                        buffered_input_size = *received;
                     }
                     requested =
                         buffered_input_size - buffered_input_offset;

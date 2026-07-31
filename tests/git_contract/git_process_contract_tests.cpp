@@ -1343,14 +1343,68 @@ auto run_hostile_process_contract() -> void
                 cancellation.get_token());
         }};
     std::this_thread::sleep_for(std::chrono::milliseconds{150});
+
+#if defined(Q_OS_UNIX)
+    const auto swapped_operation = make_operation(0x66U);
+    write_spool(
+        *adapter,
+        swapped_operation,
+        std::as_bytes(std::span{sha1_pack}));
+    const auto swapped_spool =
+        adapter->pack_spool_path(swapped_operation);
+    require(
+        swapped_spool.has_value(),
+        "derive queued spool swap path");
+    const auto swapped_target = root.Path / "swapped-pack-target";
+    write_bytes(
+        swapped_target,
+        std::as_bytes(std::span{sha1_pack}));
+    std::optional<
+        application::git_process_result<
+            application::git_index_pack_success>> swapped;
+    std::thread swapped_call{
+        [&]
+        {
+            swapped = adapter->index_pack(
+                {
+                    .Repository = repository,
+                    .Operation = swapped_operation,
+                    .SpoolBytes = sha1_pack.size(),
+                    .MaximumInputBytes = sha1_pack.size(),
+                    .ExpectedPack =
+                        object<application::git_pack_id>(
+                            sha1_pack_hex,
+                            application::git_hash_algorithm::sha1),
+                },
+                {});
+        }};
+    std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    require(
+        std::filesystem::remove(*swapped_spool),
+        "remove validated queued spool");
+    std::filesystem::create_symlink(
+        swapped_target,
+        *swapped_spool);
+#endif
+
     cancellation.request_stop();
     call.join();
+#if defined(Q_OS_UNIX)
+    swapped_call.join();
+#endif
     require(
         cancelled.has_value()
             && !cancelled->has_value()
             && cancelled->error()
                 == application::git_process_failure::cancelled,
         "external stop token cancels blocked Git");
+#if defined(Q_OS_UNIX)
+    require(
+        swapped.has_value() && !swapped->has_value()
+            && swapped->error()
+                == application::git_process_failure::standard_input,
+        "queued spool swap is rejected by no-follow handle validation");
+#endif
     std::this_thread::sleep_for(std::chrono::milliseconds{1800});
     require(
         !std::filesystem::exists(root.Path / "descendant-survived"),
