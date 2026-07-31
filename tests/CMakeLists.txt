@@ -42,6 +42,13 @@ add_test(
 )
 
 add_test(
+    NAME project_source_dump_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/make_project_source_dumps_tests.py"
+)
+
+add_test(
     NAME runtime_audit_contract
     COMMAND
         "${Python3_EXECUTABLE}"

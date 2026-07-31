@@ -11,6 +11,7 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 .DS_Store
+/artifacts/
 /build/
 /out/
 __pycache__/

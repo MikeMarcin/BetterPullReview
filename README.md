@@ -99,6 +99,17 @@ activates that profile.
 Detailed commands, targets, runtime audits, and evidence expectations are in
 [Build and Test](docs/development/build-and-test.md).
 
+Create a single upload-ready Markdown snapshot of the repository source with:
+
+```sh
+python3 scripts/make_project_source_dumps.py
+```
+
+The generator writes
+`artifacts/better_pull_review_project_source.md`, excluding build output,
+caches, generated artifacts, and binary files. Use `--help` for alternate
+output, standard-output, and generated-file options.
+
 All configure, build, test, package, release, and verification work is local
 or target-native. GitHub Actions has zero role.
 
