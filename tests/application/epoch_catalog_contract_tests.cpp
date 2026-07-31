@@ -209,6 +209,12 @@ void phase_contract()
                     maximum_epoch_catalog_operation_revision}),
         "maximum signed operation revision is representable");
     expect(
+        !application::can_advance(
+            application::epoch_catalog_operation_revision{
+                application::
+                    maximum_epoch_catalog_operation_revision}),
+        "maximum operation revision cannot overflow on mutation");
+    expect(
         !application::valid(
             application::epoch_catalog_operation_revision{}),
         "zero operation revision is rejected");

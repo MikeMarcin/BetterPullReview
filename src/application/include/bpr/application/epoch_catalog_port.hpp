@@ -39,6 +39,14 @@ inline constexpr auto maximum_epoch_catalog_operation_revision =
             <= maximum_epoch_catalog_operation_revision;
 }
 
+[[nodiscard]] constexpr auto can_advance(
+    const epoch_catalog_operation_revision revision) noexcept -> bool
+{
+    return application::valid(revision)
+        && revision.value()
+            < maximum_epoch_catalog_operation_revision;
+}
+
 struct epoch_catalog_authority_key
 {
     core::host_profile_id Profile;
@@ -626,7 +634,8 @@ struct durable_git_spool_fact
         && fact.ExpectedPack == fact.ObservedPack
         && application::valid(
             fact.Spool,
-            git_artifact_role::completed_spool);
+            git_artifact_role::completed_spool)
+        && fact.Spool.Bytes <= maximum_git_cache_operation_pack_bytes;
 }
 
 [[nodiscard]] constexpr auto durable_fact(
@@ -669,6 +678,8 @@ struct durable_git_preimport_fact
         const auto& pack = fact.Packs[index];
         if(
             !application::valid(pack)
+            || pack.PackBytes > fact.RepositoryBytes
+            || pack.IndexBytes > fact.RepositoryBytes
             || pack.Pack.Algorithm != fact.ExpectedPack.Algorithm
             || (
                 index != 0U
@@ -722,6 +733,10 @@ struct durable_git_install_fact
         && application::valid(
             fact.InstalledIndex,
             git_artifact_role::installed_index)
+        && fact.InstalledPack.Bytes
+            <= maximum_git_cache_operation_pack_bytes
+        && fact.InstalledIndex.Bytes
+            <= maximum_git_repository_cache_bytes
         && fact.Base.valid() && fact.BaseTree.valid()
         && fact.Head.valid() && fact.HeadTree.valid()
         && fact.Base.algorithm() == fact.Pack.Algorithm
@@ -964,7 +979,7 @@ struct record_spool_request
     const record_spool_request& request) noexcept -> bool
 {
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::valid(request.ExpectedOperationRevision)
+        && application::can_advance(request.ExpectedOperationRevision)
         && application::valid(request.Spool)
         && application::valid(request.Preimport)
         && request.Spool.Operation == request.Operation
@@ -987,7 +1002,7 @@ struct record_install_request
     const record_install_request& request) noexcept -> bool
 {
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::valid(request.ExpectedOperationRevision)
+        && application::can_advance(request.ExpectedOperationRevision)
         && application::valid(request.Install)
         && request.Install.Operation == request.Operation;
 }
@@ -1006,7 +1021,7 @@ struct record_candidate_request
     const record_candidate_request& request) noexcept -> bool
 {
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::valid(request.ExpectedOperationRevision)
+        && application::can_advance(request.ExpectedOperationRevision)
         && application::valid(request.Candidate.Epoch)
         && (
             !request.Candidate.Review
@@ -1040,7 +1055,7 @@ struct operation_transition_request
         request.Expected,
         request.Next);
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::valid(request.ExpectedOperationRevision)
+        && application::can_advance(request.ExpectedOperationRevision)
         && generic_transition_allowed(
             request.Kind,
             request.Expected,
@@ -1064,7 +1079,7 @@ struct finalize_append_request
 {
     const auto& epoch = request.Mutation.Epoch;
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::valid(request.ExpectedOperationRevision)
+        && application::can_advance(request.ExpectedOperationRevision)
         && application::valid(epoch)
         && epoch.Id.Incarnation == request.Catalog.Incarnation
         && (
@@ -1317,7 +1332,7 @@ struct finalize_prune_request
     if(
         !core::valid(request.Transition.Catalog)
         || !request.Transition.Operation.valid()
-        || !application::valid(
+        || !application::can_advance(
             request.Transition.ExpectedOperationRevision)
         || request.Transition.Kind
             != epoch_catalog_operation_kind::prune
@@ -1362,7 +1377,7 @@ struct finalize_cache_delete_request
 {
     return core::valid(request.Transition.Catalog)
         && request.Transition.Operation.valid()
-        && application::valid(
+        && application::can_advance(
             request.Transition.ExpectedOperationRevision)
         && request.Transition.Kind
             == epoch_catalog_operation_kind::cache_delete
