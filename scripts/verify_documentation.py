@@ -50,6 +50,7 @@ def require_files(root: Path) -> None:
         "docs/development/build-and-test.md",
         "docs/security/foundation-security.md",
         "docs/verification/RFC-BPR-0002.md",
+        "docs/verification/RFC-BPR-0003.md",
         "src/core/AGENTS.md",
         "src/application/AGENTS.md",
         "src/adapters/AGENTS.md",
@@ -92,7 +93,7 @@ def verify_issue_board(root: Path) -> None:
         "in-progress": "In Progress",
         "done": "Done",
     }
-    seen: set[str] = set()
+    cards: dict[str, tuple[str, list[str], Path]] = {}
     highest = 0
     for lane, expected_status in lane_status.items():
         lane_path = issue_root / lane
@@ -105,14 +106,31 @@ def verify_issue_board(root: Path) -> None:
             match = ISSUE_ID_RE.fullmatch(issue_id)
             if not match:
                 fail(f"invalid issue id in {path}: {issue_id}")
-            if issue_id in seen:
+            if issue_id in cards:
                 fail(f"duplicate issue id: {issue_id}")
             if status != expected_status:
                 fail(
                     f"issue lane/status mismatch: {path} is {status}, "
                     f"expected {expected_status}"
                 )
-            seen.add(issue_id)
+            raw_dependencies = metadata.get("depends_on")
+            if (
+                raw_dependencies is None
+                or not raw_dependencies.startswith("[")
+                or not raw_dependencies.endswith("]")
+            ):
+                fail(f"invalid depends_on list in {path}: {raw_dependencies}")
+            dependency_text = raw_dependencies[1:-1].strip()
+            dependencies = (
+                [part.strip() for part in dependency_text.split(",")]
+                if dependency_text
+                else []
+            )
+            if any(not ISSUE_ID_RE.fullmatch(item) for item in dependencies):
+                fail(f"invalid dependency id in {path}: {raw_dependencies}")
+            if len(dependencies) != len(set(dependencies)):
+                fail(f"duplicate dependency in {path}: {raw_dependencies}")
+            cards[issue_id] = (lane, dependencies, path)
             highest = max(highest, int(match.group(1)))
 
     next_id = (issue_root / "NEXT_ID").read_text(encoding="utf-8").strip()
@@ -121,6 +139,40 @@ def verify_issue_board(root: Path) -> None:
         fail(f"invalid NEXT_ID: {next_id}")
     if int(next_match.group(1)) <= highest:
         fail(f"NEXT_ID {next_id} does not follow highest allocated issue")
+
+    for issue_id, (lane, dependencies, path) in cards.items():
+        for dependency in dependencies:
+            if dependency == issue_id:
+                fail(f"self dependency in {path}: {dependency}")
+            if dependency not in cards:
+                fail(f"missing dependency in {path}: {dependency}")
+            dependency_lane = cards[dependency][0]
+            if lane != "backlog" and dependency_lane != "done":
+                fail(
+                    f"{lane} card {issue_id} depends on {dependency} "
+                    f"in {dependency_lane}"
+                )
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(issue_id: str, trail: list[str]) -> None:
+        if issue_id in visited:
+            return
+        if issue_id in visiting:
+            cycle_start = trail.index(issue_id)
+            cycle = " -> ".join(trail[cycle_start:] + [issue_id])
+            fail(f"issue dependency cycle: {cycle}")
+        visiting.add(issue_id)
+        trail.append(issue_id)
+        for dependency in cards[issue_id][1]:
+            visit(dependency, trail)
+        trail.pop()
+        visiting.remove(issue_id)
+        visited.add(issue_id)
+
+    for issue_id in sorted(cards):
+        visit(issue_id, [])
 
 
 def markdown_files(root: Path) -> list[Path]:

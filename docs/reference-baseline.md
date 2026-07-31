@@ -29,6 +29,23 @@ Baseline date: 2026-07-30
 - `QAccessibilityHints`: https://doc.qt.io/qt-6/qaccessibilityhints.html
 - `QFontDatabase`: https://doc.qt.io/qt-6/qfontdatabase.html
 
+## Git process, smart transport, and retained refs
+
+- Git executable and environment contract:
+  https://git-scm.com/docs/git
+- Git configuration scopes and environment:
+  https://git-scm.com/docs/git-config
+- Git HTTP smart protocol:
+  https://git-scm.com/docs/gitprotocol-http
+- Git protocol version 2:
+  https://git-scm.com/docs/gitprotocol-v2
+- `git fetch-pack` and stateless RPC:
+  https://git-scm.com/docs/git-fetch-pack
+- Atomic ref transactions:
+  https://git-scm.com/docs/git-update-ref
+- GHES 3.18 pull-request ref checkout:
+  https://docs.github.com/en/enterprise-server@3.18/pull-requests/how-tos/review-pull-requests/checking-out-pull-requests-locally
+
 ## Syntax highlighting
 
 - KSyntaxHighlighting module: https://api.kde.org/ksyntaxhighlighting-module.html

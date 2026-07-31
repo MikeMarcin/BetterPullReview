@@ -42,6 +42,13 @@ add_test(
 )
 
 add_test(
+    NAME documentation_issue_graph_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_documentation_tests.py"
+)
+
+add_test(
     NAME project_source_dump_contract
     COMMAND
         "${Python3_EXECUTABLE}"

@@ -1,7 +1,16 @@
 # BetterPullReview RFC Index
 
-The RFCs are implemented and closed in the order below. An RFC may begin only
-after every listed dependency is `Auto-Verified`.
+The RFCs normally begin and always close in the order below. A dependent RFC
+does not become `Auto-Verified` before every listed dependency is
+`Auto-Verified`.
+
+Product-owner exception: real Windows x64 evidence retained by BPR-0036 is
+temporarily unavailable. RFC-BPR-0002 therefore remains the closure frontier,
+but that hardware-only gate does not block implementation, tests,
+documentation, security review, simplification, or later-RFC work on
+available targets. RFC-BPR-0003 is the implementation frontier. The exception
+does not waive any Windows claim, change an RFC status, permit out-of-order
+closeout, or make GitHub Actions an evidence surface.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|

@@ -31,3 +31,17 @@ implementation, security review, documentation, simplification, or work on
 later RFCs. BPR-0036 remains open until its real-machine evidence exists and
 therefore blocks only the affected Windows claims and this final
 Auto-Verified transition.
+
+## Available-platform checkpoint
+
+At `a600ab2c29d2b4088a3f2598dbb817c35af2eafd`, BPR-0016 through
+BPR-0034 plus BPR-0037/BPR-0038 are in `done/`. The current RFC-owned macOS
+matrix is 46/46, `core-only` is 17/17, and the final simplification's focused
+AddressSanitizer/UndefinedBehaviorSanitizer matrix is 7/7. Documentation,
+architecture, security, tests-disabled Release, native macOS, pinned Linux,
+original-pack, workflow-absence, and diff gates are recorded in the
+verification ledger.
+
+This checkpoint is not an RFC closeout and changes no `Planned` Windows row.
+BPR-0036 remains open for the product owner's real Windows run. This card
+remains in `backlog`, and RFC-BPR-0002 remains `Proposed`.

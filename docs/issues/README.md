@@ -19,10 +19,10 @@ Each card links one RFC, names its dependencies, defines completion evidence,
 and is committed with the implementation slice it tracks. RFC closeout is
 blocked while any required card remains outside `done/`.
 
-## Current RFC
+## Current frontiers
 
 RFC-BPR-0001 is `Auto-Verified`, and every linked card is in `done/`.
-RFC-BPR-0002 is the active RFC in canonical order. Its planning slice is
+RFC-BPR-0002 is the closure frontier in canonical order. Its planning slice is
 complete; its architecture, deterministic-core, normalized-contract,
 host-profile/capability, portable/native credential, and hardened GitHub CLI
 broker slices are verified. `BPR-0023` is in `done/` with its Windows
@@ -88,6 +88,22 @@ BPR-0035 and BPR-0036 remain in `backlog/`: BPR-0036 retains direct real
 Windows x64 evidence, and BPR-0035 cannot mark RFC-BPR-0002 Auto-Verified
 until that evidence exists. By product-owner direction, this does not block
 planning and implementing later RFCs in canonical order.
+
+RFC-BPR-0003 is the implementation frontier. BPR-0039 is in `done/` with the
+immutable-base architecture, authority, claim, platform, UX, documentation,
+performance, and security plan recorded in the
+[RFC-BPR-0003 verification ledger](../verification/RFC-BPR-0003.md).
+BPR-0040 is in `ready/`; BPR-0041 through BPR-0054 remain in `backlog/`.
+BPR-0053 reserves target-native Windows evidence for the product owner's real
+Windows machine without blocking available-platform implementation or later
+RFC work. BPR-0054 depends on BPR-0035 and BPR-0053, so canonical closeout and
+every Windows claim remain intact.
+
+The RFC-BPR-0003 comparison controls are an interim reusable surface, not
+final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench
+presentation-polish and native visual-acceptance slice. RFC-BPR-0006 owns
+selectable System/Light/Dark/high-contrast appearance, fonts, and syntax
+presentation; a fresh installation must default to System.
 
 The public application has no durable credential selector or enumeration
 path. Orderly shutdown exact-deletes the retained credential before worker
