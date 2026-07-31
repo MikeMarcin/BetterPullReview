@@ -76,8 +76,11 @@ BPR-0036 blocks only its affected Windows claims and final RFC-BPR-0002
 Auto-Verified closeout. It does not stop work on later RFCs. BPR-0032 is in
 `done/` with the current security/authority audit, exact one-row/two-row CLI
 self-test, tests-disabled Release symbol gate, native macOS checks, focused
-sanitizer matrix, and corrected evidence boundaries complete. BPR-0033 is the
-next dependency-ready documentation gate before BPR-0034 simplification.
+sanitizer matrix, and corrected evidence boundaries complete. BPR-0033 is in
+`done/` with the immutable-base documentation impact review, corrected native
+appearance record, operator-safe troubleshooting, resolved documentation
+ledger, and workflow-absence gate complete. BPR-0034 is the next
+dependency-ready simplification slice.
 
 The public application has no durable credential selector or enumeration
 path. Orderly shutdown exact-deletes the retained credential before worker

@@ -562,9 +562,9 @@ or the corresponding `ghes-3.18` marker. PNGs stay under the ignored build
 tree. Headless Linux additionally selects Qt's basic Windows style. These
 rasters prove deterministic composition and layout, not native light/dark
 following or runtime appearance switching. BPR-0031 separately records native
-system-Dark startup and controlled loaded-process appearance response; a real
-operating-system Light startup and live system toggle remain distinct native
-evidence.
+system-Dark startup, controlled application-local response, and the completed
+owner-authorized native gate in which one real process started under system
+Light and followed an operating-system-global transition to Dark.
 
 The tests-disabled `--self-test` enumerates every visible CLI profile and
 requires the bounded `cli_unavailable` presentation for each. The default

@@ -823,6 +823,38 @@ coverage, target-native platform evidence, documentation/source-pack gates,
 or `git diff --check`. Windows verification remains open under BPR-0036 and
 does not block running or completing the available-platform work.
 
+## Troubleshooting and safe verification
+
+- A GitHub CLI profile is visible but unavailable by design in milestone one.
+  Use the corresponding native-HTTPS profile. Positive CLI enablement remains
+  RFC-BPR-0015 work, and selecting the unavailable profile must launch no
+  process.
+- Supply GHES as a canonical hostname only, such as `ghe.example.com`, not as
+  a URL, path, query, fragment, credential-bearing authority, or GitHub.com
+  subdomain. Invalid host configuration fails before network or credential
+  work.
+- Native HTTPS uses the operating system and Qt network stack's authoritative
+  CA and proxy configuration. Retryable connection or proxy failures may
+  advance only to the next bounded system-provided proxy candidate. TLS,
+  hostname, origin-authentication, malformed-response, and policy failures
+  stop, and exhaustion fails closed. Cross-authority and every query-bearing
+  redirect fail closed. Do not bypass trust validation or weaken system policy
+  to make a fixture pass.
+- A locked, denied, unavailable, or failed native vault operation fails
+  closed. There is no plaintext, settings, SQLite, environment, or CLI
+  fallback. An orderly shutdown exact-deletes only the retained credential
+  binding; it never enumerates or broadly deletes credentials.
+- Prefer the recorded public fixtures and loopback native-transport fixtures
+  for operator-safe verification. They do not contact or mutate GitHub: the
+  recorded paths substitute transport and vault state, while loopback cases
+  exercise bounded read-only REST `GET` and GraphQL `query` admission.
+- An abrupt crash can leave an unenumerable native-vault item because the
+  application has no durable selector or recovery scan. Current macOS/Linux
+  native lifecycle and shared fixture-lifecycle evidence prove exact cleanup
+  after an orderly lifecycle, not crash recovery; Windows target-native
+  cleanup remains BPR-0036. Do not compensate with a broad credential
+  deletion.
+
 ## Build ownership
 
 GitHub Actions does not configure, build, test, package, release, or verify

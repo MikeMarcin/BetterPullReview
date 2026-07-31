@@ -49,9 +49,13 @@ Baseline date: 2026-07-30
   https://cli.github.com/manual/gh_config
 - GitHub CLI environment and default configuration directories:
   https://cli.github.com/manual/gh_help_environment
-- GitHub CLI 2.95.0 API URL construction:
+- GitHub CLI 2.96.0 API URL construction:
+  https://github.com/cli/cli/blob/v2.96.0/pkg/cmd/api/http.go
+- GitHub CLI 2.96.0 HTTP client and redirect-auth handling:
+  https://github.com/cli/cli/blob/v2.96.0/api/http_client.go
+- Historical GitHub CLI 2.95.0 API URL construction comparison:
   https://github.com/cli/cli/blob/v2.95.0/pkg/cmd/api/http.go
-- GitHub CLI 2.95.0 HTTP client and redirect-auth handling:
+- Historical GitHub CLI 2.95.0 HTTP client and redirect-auth comparison:
   https://github.com/cli/cli/blob/v2.95.0/api/http_client.go
 
 ## AI agent interfaces

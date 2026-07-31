@@ -1128,12 +1128,16 @@ status/diagnostic presentation update emits at most one combined polite
 accessible announcement, and identical announcement text is suppressed.
 
 Direct macOS evidence records system-default Dark startup under QMacStyle and
-a safe loaded-window application-local Dark-to-Light plus 13-to-17-point font
-exercise. The latter proves that the live event path responds; it is not
-evidence of a real operating-system-global appearance toggle. Deterministic
-offscreen forced-style renders remain layout and scaling evidence only.
-The test-enabled real-application fixture includes a fail-closed native
-appearance probe for the remaining gate. It reports readiness only after a
+an earlier safe loaded-window application-local Dark-to-Light plus
+13-to-17-point font exercise. The latter proves that the live event path
+responds but is not the native global-transition evidence. The completed
+owner-authorized native gate started the real application under system Light
+and observed the same process follow an operating-system-global change to
+Dark. Deterministic offscreen forced-style renders remain layout and scaling
+evidence only.
+
+The test-enabled real-application fixture includes the fail-closed native
+appearance probe used by that gate. It reports readiness only after a
 system-Light Cocoa/QMacStyle startup has loaded the public GitHub.com fixture,
 selected and collapsed a stable conversation, focused the conversation view,
 and retained an in-memory initial render. Qt's color-scheme signal alone is not
@@ -1146,11 +1150,13 @@ second render. The captures must have the same geometry and device-pixel ratio
 but different pixels. The probe then creates two fresh non-aliased PNGs from
 those exact captures and reloads both before reporting success; failed probes
 leave no render artifacts. The probe observes appearance and never changes the
-operating-system setting. The global preference key is evidence plumbing, not
-production appearance logic. Incomplete arguments, a non-GitHub.com fixture,
-aliased or existing paths, offscreen execution, the wrong startup scheme, a
-missing signal or global transition, identical pixels, or state drift discard
-the claim and fail.
+operating-system setting. The owner-authorized wrapper performed the external
+system change, required every marker, and restored the original Dark setting.
+The global preference key is evidence plumbing, not production appearance
+logic. Incomplete arguments, a non-GitHub.com fixture, aliased or existing
+paths, offscreen execution, the wrong startup scheme, a missing signal or
+global transition, identical pixels, or state drift discard the claim and
+fail.
 User-selectable System, Light, and Dark profiles remain RFC-BPR-0006 work.
 
 ## Composition and lifecycle

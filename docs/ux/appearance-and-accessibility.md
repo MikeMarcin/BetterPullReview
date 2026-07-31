@@ -18,12 +18,17 @@ lets the native style paint selection and focus, and wraps remote literal
 text without elision. Color is not used as the only state signal.
 
 Direct macOS evidence records startup under the system-default Dark
-appearance with QMacStyle. A safe loaded-window exercise also changed the
+appearance with QMacStyle. An earlier safe loaded-window exercise changed the
 application-local color scheme from Dark to Light and the application font
-from 13 to 17 points, with the corresponding live events handled. This is not
-a claim that a real operating-system-global Light switch has been exercised.
-Offscreen forced-style renders at controlled scales are layout evidence only
-and cannot certify native system-appearance integration.
+from 13 to 17 points, with the corresponding live events handled. The
+owner-authorized native gate then started the real application under system
+Light and observed the same process follow an operating-system-global change
+to Dark. It independently observed the global preference, retained
+QMacStyle, focus, selection, collapsed conversation state, model identity,
+geometry, and device-pixel ratio, persisted distinct inspected rasters, and
+restored the original Dark setting. Offscreen forced-style renders at
+controlled scales are layout evidence only and cannot certify native
+system-appearance integration.
 
 ## Appearance modes (RFC-BPR-0006)
 
