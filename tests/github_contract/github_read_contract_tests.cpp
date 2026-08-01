@@ -363,6 +363,7 @@ struct loaded_recording
         .Reviews =
             {
                 {
+                    .DatabaseId = 4001,
                     .Review =
                         application::github_review_id{"PRR_fixture_1"},
                     .Author =
@@ -527,6 +528,16 @@ auto test_manifest_catalog_and_normalization_are_one_contract() -> void
         load_recording("ghes-3.18", server_contract::ghes_3_18),
         server_contract::ghes_3_18);
     const auto expected = canonical_normalized_read();
+    const auto has_exact_review_identity = [](const auto& read)
+    {
+        return read.PullRequest.Reviews.size() == 1U
+            && read.PullRequest.Reviews.front().DatabaseId == 4001U;
+    };
+    expect(
+        has_exact_review_identity(cloud)
+            && has_exact_review_identity(enterprise)
+            && has_exact_review_identity(expected),
+        "paired host recordings and independent facts retain review identity");
     expect(cloud == expected, "GitHub.com matches independent C++ facts");
     expect(enterprise == expected, "GHES 3.18 matches independent C++ facts");
     expect(cloud == enterprise, "paired hosts normalize identically");
