@@ -439,10 +439,10 @@ class SmartProxy:
             "revoke",
             "active-shutdown",
         }:
-            time.sleep(2.0)
+            time.sleep(2.0 if self.scenario == "timeout" else 3.0)
             return
         if self.scenario == "revoke-isolation":
-            time.sleep(1.5)
+            time.sleep(2.5)
         if self.scenario.startswith("redirect"):
             status = self.scenario.removeprefix("redirect-").encode("ascii")
             hostile_headers = (

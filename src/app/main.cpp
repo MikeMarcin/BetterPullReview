@@ -630,6 +630,22 @@ struct automated_run
     return -1;
 }
 
+[[nodiscard]] auto fixture_epoch_cause_passed(
+    const bpr::qt::epoch_history_model& model,
+    const std::uint64_t ordinal,
+    const bpr::core::epoch_primary_cause expected) -> bool
+{
+    const auto row = fixture_anchor_row(
+        model,
+        ordinal,
+        bpr::core::comparison_anchor_kind::epoch_head);
+    return row >= 0
+        && model.index(row, 0)
+                   .data(bpr::qt::epoch_history_model::primary_cause_role)
+                   .toInt()
+            == static_cast<int>(expected);
+}
+
 [[nodiscard]] constexpr auto expected_fixture_smart_calls(
     const bpr::app::detail::github_epoch_fixture_phase phase) noexcept
     -> int
@@ -1259,7 +1275,11 @@ void schedule_automated_run(
             const auto evidence = bpr::app::detail::
                 github_application_fixture_access::evidence(application);
             if(fixture_epoch_pair_passed(
-                   window, evidence.BaseOid, evidence.HeadTwoOid))
+                   window, evidence.BaseOid, evidence.HeadTwoOid)
+               && fixture_epoch_cause_passed(
+                   *window.epoch_control()->history_model(),
+                   2U,
+                   bpr::core::epoch_primary_cause::force_push_rebase))
             {
                 window.epoch_control()->whole_pr_action()->trigger();
                 advance_fixture_stage(
@@ -1277,7 +1297,11 @@ void schedule_automated_run(
                && fixture_epoch_pair_passed(
                    window,
                    evidence.BaseOid,
-                   evidence.HeadTwoOid))
+                   evidence.HeadTwoOid)
+               && fixture_epoch_cause_passed(
+                   *window.epoch_control()->history_model(),
+                   2U,
+                   bpr::core::epoch_primary_cause::force_push_rebase))
             {
                 window.epoch_control()->whole_pr_action()->trigger();
                 advance_fixture_stage(

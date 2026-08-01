@@ -93,7 +93,7 @@ public:
         : PackOne{QByteArray::fromBase64(QByteArrayLiteral(
               "UEFDSwAAAAIAAAAGmxF4nK3MQYoDIRQE0L2ncD8Q/BpbhWEYssh6yA3UXxKh0x3ETnL89HTIDVKrWryq3gCpYsqRvHFsGKS8L8ki5AFFcxiY2Or9ANLiGhumLo12VjPlDMtw1kWyDl6Z4lViDq7oFIMOJOLSz3OTB/SO9reM4wm3irs81kdfGuR3eZXftInrKtomdnW6xbHyjySn9mTNoJT8UmtEni+X+q8/eyve4zMiy3mCeAJlmFx++QXcHI17MYyzpgBcUSfDps7iPwWv1Hicm830nFG3pCg1VcEs2cw4zSgxxdwwzcDAPM3EIDHVzCLRKNXAPNHU3NLUwMDU0sTEMsloYqwHi4GZudHElcHSINrAQEHbAAi4uNwyK0pKi1IVkhKLU7kAbA4YjaYCeJwzNDAwMzFRKEoty0wt1yupKGH4fPBX26vslbVSuyOFua10V+ycb/YVABWTD/23AXicS0osTuVKyywqLlEoSi3LTC1XyEhNTOECAGX8CDymAnicMzQwMDMxUShKLctMLdcrqShhuD+tetrSyidREjtUxY0uZrBsepoVCgAI0Q8jNXicS0osTuUCAAWgAaZd2MNtPA/zt//f/8VU8oXGklEwcw=="))}
         , PackTwo{QByteArray::fromBase64(QByteArrayLiteral(
-              "UEFDSwAAAAIAAAAJmxF4nK2OzQrCMBCE73mK3AXZNE3Tgoh48Cy+wWazoYH+EdLWx7et+AZehmH4ZpicmCU5ALCEqsHGeW0pNM40RQCtjCfFyiGbStViwsRDlltGtbdOq5qcxgrAkFGFpc0Tc6EDGAy+FDjndkzyzjlzes5d9+Il8iof8Z3nxPISvubmDmLaiHQQ5zgs2EV/lcpCWZTbP5CnXQWNfR93+r+z4lduGb3M6yg+qs9c5ZsReJytzEGKAyEUBNC9p3A/EPwaW4VhGLLIesgN1F8SodMdxE5y/PR0yA1Sq1q8qt4AqWLKkbxxbBikvC/JIuQBRXMYmNjq/QDS4hobpi6NdlYz5QzLcNZFsg5emeJVYg6u6BSDDiTi0s9zkwf0jva3jOMJt4q7PNZHXxrkd3mV37SJ6yraJnZ1usWx8o8kp/ZkzaCU/FJrRJ4vl/qvP3sr3uMzIst5gngCZZhcfvkF3ByNezGMs6YAXFEnw6bO4j8Fr9R4nJvN9JxRt6QoNVXBLNnMOM0oMcXcMM3AwDzNxCAx1cwi0SjVwDzR1NzS1MDA1NLExDLJaGKsB4uBmbnRxJXB0iDawEBB2wAIuLjcMitKSotSFZISi1O5AGwOGI2mAnicMzQwMDMxUShKLctMLdcrqShhcFjne/qkEb/Ql0Xxc11cujZIizxxBQD6eg4+uAF4nEtKLE7lKk5Nzs9LUShKLctMLVfISE1M4QIAblgIkKYCeJwzNDAwMzFRKEoty0wt1yupKGH4fPBX26vslbVSuyOFua10V+ycb/YVABWTD/23AXicS0osTuVKyywqLlEoSi3LTC1XyEhNTOECAGX8CDymAnicMzQwMDMxUShKLctMLdcrqShhuD+tetrSyidREjtUxY0uZrBsepoVCgAI0Q8jNXicS0osTuUCAAWgAaZYF/iPSkRZM7LhDWRJt/Byd2lT5g=="))}
+              "UEFDSwAAAAIAAAAGmxF4nK3OQQrCMBAF0H1Okb0gM2ljGhARF67FG0ySCQ3UtoS09fi2FW/gZviL9z9TMrP0DgCMJ7RkXaiMj9ZpqyJUqINHRkesT9iIkTL3RVbKaBXQe9aBjTaE2nADVWzAhWBNVI6ssihoKu2Q5Y1L4fyYuu7Jc+JF3tO7TJnlOX7D1e1iXEXexTH1M3UpXCQaqFW9/gfysF3hh9crbfq/s+JXbpmCLMsgPk0LXHT5BSXg/dX1MCL0Z6VsZnkXBoxG6fPSeJybzfScUbekKDVVwSzZzDjNKDHF3DDNwMA8zcQgMdXMItEo1cA80dTc0tTAwNTSxMQyyWhirAeLgZm50cSVwdIg2sBAQdsACLi43DIrSkqLUhWSEotTuQBsDhiNpgJ4nDM0MDAzMVEoSi3LTC3XK6koYXBY53v6pBG/0JdF8XNdXLo2SIs8cQUA+noOPrgBeJxLSixO5SpOTc7PS1EoSi3LTC1XyEhNTOECAG5YCJCmAnicMzQwMDMxUShKLctMLdcrqShhuD+tetrSyidREjtUxY0uZrBsepoVCgAI0Q8jNXicS0osTuUCAAWgAabOBSpG+n1eJ9/EhbGZcjobng6fzQ=="))}
     {
         if(PackOne.size() < 32 || PackTwo.size() < 32
            || !PackOne.startsWith("PACK") || !PackTwo.startsWith("PACK"))
@@ -104,7 +104,7 @@ public:
 
     std::string Base = "32752d1cce5de757a157e803f80bdd97f2ba9291";
     std::string HeadOne = "dc1c8d7b318cb3a6005c5127c3a6cee23f05afd4";
-    std::string HeadTwo = "f16d0557f942dd5359088238ada3cf8295cfabfc";
+    std::string HeadTwo = "25e0fdd5f53022f467a56c667917068c46e9f3d2";
     QByteArray PackOne;
     QByteArray PackTwo;
 };

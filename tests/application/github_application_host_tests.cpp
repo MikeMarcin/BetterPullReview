@@ -76,9 +76,85 @@ concept exposes_detail = requires(const Type& value)
     value.Detail;
 };
 
-struct fake_lease final : application::github_account_transport_lease
+class fake_smart_transport final
+    : public application::git_smart_transport_port
 {
+public:
+    void revoke() noexcept override { Revoked = true; }
+
+    [[nodiscard]] auto revoked() const noexcept -> bool override
+    {
+        return Revoked;
+    }
+
+    [[nodiscard]] auto discover(
+        const application::git_smart_discovery_request&,
+        std::stop_token)
+        -> application::git_smart_transport_result<
+            application::git_smart_discovery_response> override
+    {
+        return unavailable<application::git_smart_discovery_response>();
+    }
+
+    [[nodiscard]] auto ls_refs(
+        const application::git_smart_ls_refs_request&,
+        std::stop_token)
+        -> application::git_smart_transport_result<
+            application::git_smart_ls_refs_response> override
+    {
+        return unavailable<application::git_smart_ls_refs_response>();
+    }
+
+    [[nodiscard]] auto fetch(
+        const application::git_smart_fetch_request&,
+        application::git_smart_wire_consumer&,
+        std::stop_token)
+        -> application::git_smart_transport_result<void> override
+    {
+        return unavailable<void>();
+    }
+
+private:
+    template<typename Value>
+    [[nodiscard]] auto unavailable() const
+        -> application::git_smart_transport_result<Value>
+    {
+        return std::unexpected{application::git_smart_transport_error{
+            .Failure = Revoked
+                ? application::git_smart_transport_failure::cancelled
+                : application::git_smart_transport_failure::unavailable,
+        }};
+    }
+
+    bool Revoked = false;
 };
+
+struct fake_lease final
+    : application::github_account_transport_lease
+    , application::git_smart_transport_factory_port
+{
+    [[nodiscard]] auto acquire(
+        const application::git_smart_request_context& context)
+        -> application::git_smart_transport_result<
+            application::git_smart_transport> override
+    {
+        AcquiredContexts.push_back(context);
+        LastTransport = std::make_shared<fake_smart_transport>();
+        return LastTransport;
+    }
+
+    std::vector<application::git_smart_request_context> AcquiredContexts;
+    std::shared_ptr<fake_smart_transport> LastTransport;
+};
+
+template<typename Identity>
+[[nodiscard]] constexpr auto opaque(const std::uint8_t seed) -> Identity
+{
+    auto bytes = std::array<std::uint8_t, 32U>{};
+    bytes.front() = seed;
+    bytes.back() = static_cast<std::uint8_t>(seed ^ 0xA5U);
+    return Identity{bytes};
+}
 
 class fake_provider final : public application::github_provider_port
 {
@@ -994,7 +1070,7 @@ auto establish_native_session(
     const core::github_account_id account = core::github_account_id{51U},
     const std::optional<application::github_profile_authority>&
         resolved_profile = std::nullopt)
-    -> void
+    -> std::shared_ptr<fake_lease>
 {
     fixture.Host.enroll_profile(profile, credential());
     expect(fixture.Provider.Profiles.size() == 1U,
@@ -1091,6 +1167,50 @@ auto establish_native_session(
                && fixture.Host.capability_cache_size() == 1U
                && fixture.Projections.session_count() == 1U,
            "core acceptance precedes one exact capability-cache commit");
+    return lease;
+}
+
+[[nodiscard]] auto smart_context(
+    const application::accepted_pull_request_handoff& handoff)
+    -> application::git_smart_request_context
+{
+    return {
+        .ApplicationSession = handoff.ApplicationSession,
+        .Authority =
+            {
+                .Profile = handoff.Profile,
+                .ProfileRevision = handoff.ProfileRevision,
+                .Host = handoff.Host,
+                .HostAuthority = handoff.HostAuthority,
+                .Account = handoff.Account,
+                .Viewer = handoff.Viewer,
+                .Repository = handoff.Repository,
+                .Cache = opaque<core::repository_cache_scope_id>(1U),
+                .PullRequest = handoff.PullRequest,
+                .Number = handoff.Number,
+                .Scope =
+                    opaque<core::pull_request_authority_scope_id>(2U),
+            },
+        .Revision =
+            {
+                .Source =
+                    {
+                        .Observation =
+                            opaque<core::epoch_source_observation_id>(3U),
+                        .Snapshot = handoff.Snapshot,
+                        .IdentityGeneration = handoff.IdentityGeneration,
+                        .PullRequestGeneration =
+                            handoff.PullRequestGeneration,
+                    },
+                .Origin = handoff.Origin,
+                .BaseBranch = handoff.BaseBranch,
+                .Base = handoff.Base,
+                .Head = handoff.Head,
+                .CurrentViewerReview = handoff.CurrentViewerReview,
+            },
+        .Repository = handoff.Locator,
+        .BaseRef = handoff.BaseRef,
+    };
 }
 
 auto advance_resume_to_capability(
@@ -1216,7 +1336,7 @@ auto test_accepted_snapshot_handoff_and_exact_invalidation() -> void
 {
     recording_epoch_handoffs epochs;
     host_fixture fixture{epochs};
-    establish_native_session(fixture);
+    const auto account_lease = establish_native_session(fixture);
 
     fixture.Host.dispatch(core::open_pull_request_intent{
         .Repository = {.Owner = "openai", .Name = "better-pull-review"},
@@ -1307,6 +1427,16 @@ auto test_accepted_snapshot_handoff_and_exact_invalidation() -> void
                       == "3333333333333333333333333333333333333333",
            "refresh preserves stable authority identities while advancing "
            "the exact source generation and head");
+    expect(second.SmartGit != nullptr,
+           "accepted native-HTTPS handoff carries one smart authority lease");
+    const auto context = smart_context(second);
+    auto acquired = second.SmartGit->acquire(context);
+    expect(acquired.has_value()
+               && *acquired == account_lease->LastTransport
+               && account_lease->AcquiredContexts
+                      == std::vector{context}
+               && !(*acquired)->revoked(),
+           "the exact handoff authority acquires one bound transport");
 
     const auto expected_invalidation =
         application::pull_request_authority_invalidation{
@@ -1328,10 +1458,12 @@ auto test_accepted_snapshot_handoff_and_exact_invalidation() -> void
     });
     expect(epochs.Invalidated
                    == std::vector{expected_invalidation}
-               && fixture.Host.epoch_handoff_delivery_failed(),
+               && fixture.Host.epoch_handoff_delivery_failed()
+               && second.SmartGit->revoked()
+               && (*acquired)->revoked(),
            "opening an unrelated pull request invalidates only the exact "
-           "previous epoch authority before new provider work and contains "
-           "a failing observer");
+           "previous epoch authority, revokes its issued transport before "
+           "new provider work, and contains a failing observer");
 }
 
 auto test_success_projection_is_safe_atomic_and_conversation_complete() -> void

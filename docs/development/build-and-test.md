@@ -1083,6 +1083,34 @@ is complete in BPR-0056, while its Qt trigger/model remains BPR-0046. No live pr
 GitHub mutation, Windows-native execution, or GitHub Actions workflow is part
 of this verification.
 
+For the BPR-0048 focused epoch matrix, first build `dev`, then run the core,
+host, catalog, Git, smart transport, Qt, public persistence, and boundary
+targets selected in `docs/issues/done/BPR-0048-rfc-0003-focused-tests.md`.
+The fixed public force-push graph has its own quick semantic contract:
+
+```sh
+ctest --preset dev --output-on-failure \
+  -R '^epoch_history_fixture_contract$'
+```
+
+That contract reads
+`tests/fixtures/git/epoch-history/v1/manifest.json`, validates the exact
+test-only pack bytes embedded by the public fixture, and uses installed Git to
+prove the sibling-head topology and omission of the old head from the
+replacement pack. The public two-process cases then prove the real cache,
+catalog, core, and Qt path retains and presents that omitted head with the
+truthful force-push cause.
+
+The native smart timeout case uses a 1.5-second test-only absolute deadline
+against a two-second silent origin. Cancellation/revocation cases wait 1.5
+seconds before interruption while their origin remains silent for three
+seconds, allowing target-native proxy discovery and instrumented startup to
+complete before the asserted interruption. Production's 15-minute total and
+30-second no-progress deadlines are unchanged. The Git process/cache CTest
+ceilings are 180/600 seconds to admit the complete hostile and cross-process
+contracts on slower local hosts; those registration ceilings do not relax any
+production operation, pack, output, cancellation, or idle bound.
+
 For the BPR-0055 core-authorized maintenance slice, build and run the compact
 core policy, manual-executor host matrix, real installed-Git cache contract,
 and composed real Git/SQLite integration fixture with:

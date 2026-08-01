@@ -72,12 +72,25 @@ application-owned protocol client. Pack bytes then follow the production
 credential-free installed-Git cache path; the fixture never gives installed
 Git a URL, network, credential, hook, filter, or worktree authority.
 
+The exact graph is recorded in
+`tests/fixtures/git/epoch-history/v1/manifest.json` with its semantic
+regeneration recipe. Both heads are direct children of the base, and the
+replacement pack contains the base and head two but not head one. The
+`epoch_history_fixture_contract` target binds the embedded pack bytes to exact
+sizes and SHA-256 digests, imports each pack independently with installed Git,
+checks every commit/tree/blob/parent/identity/timestamp/message fact, and
+proves neither head is an ancestor of the other. This makes the second public
+observation a real non-fast-forward replacement rather than a label-only
+force-push simulation.
+
 The single-process rendered cases drive the real connect/open actions and
 require an exact visible base/head comparison. The two-process persistence
 cases share one disposable owner-private application-data root. `seed` accepts
 head one, triggers the real refresh action to head two, and requires two smart
-acquisitions. `reuse` reopens the durable SQLite catalog and bare cache, loads
-retained history, and requires zero smart acquisitions. Both phases exercise
+acquisitions plus the rendered ordinal-two `Force-push/rebase` cause. `reuse`
+reopens the durable SQLite catalog and bare cache, loads retained history, and
+requires zero smart acquisitions while head one remains selectable even
+though the replacement pack omitted it. Both phases exercise
 Whole PR, Previous upload, My last reviewed, arbitrary, reverse, and identical
 selections through the actual Qt control and verify their complete OIDs. The
 root is removed after the contract; recordings and evidence contain only
@@ -90,6 +103,13 @@ paths, strings, and symbols from the compile graph and executable. These
 fixtures are public-composition integration evidence, not live GitHub,
 target-native Windows, native system-theme, or final presentation-polish
 evidence.
+
+The GitHub application-host contract additionally acquires a transport from
+the exact accepted handoff, switches to an unrelated pull-request authority,
+and requires both the authority lease and already issued transport to be
+revoked before new provider work. The injected handoff observer failure is
+still contained and reported, so revocation does not depend on a successful
+observer callback.
 
 ## macOS Keychain integration fixture
 

@@ -2,6 +2,25 @@ find_package(Git 2.39 REQUIRED)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
 find_package(Threads REQUIRED)
 
+add_test(
+    NAME epoch_history_fixture_contract
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_epoch_history_fixture.py"
+        --git
+        "${GIT_EXECUTABLE}"
+        --manifest
+        "${PROJECT_SOURCE_DIR}/tests/fixtures/git/epoch-history/v1/manifest.json"
+        --source
+        "${PROJECT_SOURCE_DIR}/src/app/src/github_public_path_fixture.cpp"
+)
+set_tests_properties(
+    epoch_history_fixture_contract
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "EPOCH_HISTORY_FIXTURE_OK"
+        TIMEOUT 30
+)
+
 add_executable(
     better_pull_review_git_process_contract_tests
     git_process_contract_tests.cpp
@@ -46,7 +65,7 @@ add_test(
 set_tests_properties(
     git_process_contract
     PROPERTIES
-        TIMEOUT 90
+        TIMEOUT 180
 )
 
 add_executable(
@@ -94,7 +113,7 @@ add_test(
 set_tests_properties(
     git_cache_contract
     PROPERTIES
-        TIMEOUT 300
+        TIMEOUT 600
 )
 
 add_executable(

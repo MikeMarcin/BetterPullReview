@@ -371,7 +371,10 @@ void run_fixture(
         .DirectFirstProxyCandidate =
             scenario == "direct-fallback",
         .TrustedCaCertificatePem = std::move(ca),
-        .TotalTimeout = scenario == "timeout" ? 500ms : 5s,
+        // Leave enough time for target-native proxy discovery and TLS setup;
+        // the fixture origin remains silent for two seconds, so this still
+        // proves the configured absolute deadline rather than connect delay.
+        .TotalTimeout = scenario == "timeout" ? 1500ms : 5s,
     };
     auto transport = make_transport(*profile, credential, configuration);
     std::fill(credential.begin(), credential.end(), '\0');
@@ -392,7 +395,7 @@ void run_fixture(
         std::jthread worker{[&] {
             result = (*lease)->discover(request, {});
         }};
-        std::this_thread::sleep_for(750ms);
+        std::this_thread::sleep_for(1500ms);
         (*other)->revoke();
         worker.join();
         expect(
@@ -416,7 +419,7 @@ void run_fixture(
             result = (*lease)->discover(request, {});
             terminals.fetch_add(1U, std::memory_order_release);
         }};
-        std::this_thread::sleep_for(750ms);
+        std::this_thread::sleep_for(1500ms);
         (*lease)->revoke();
         worker.join();
         expect(
@@ -452,7 +455,7 @@ void run_fixture(
             std::jthread worker{[&] {
                 result = (*lease)->discover(request, stop.get_token());
             }};
-            std::this_thread::sleep_for(750ms);
+            std::this_thread::sleep_for(1500ms);
             if(scenario == "cancel")
             {
                 stop.request_stop();

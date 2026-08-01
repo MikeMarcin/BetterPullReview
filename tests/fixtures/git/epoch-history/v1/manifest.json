@@ -1,0 +1,52 @@
+{
+  "schema": "betterpullreview.git-epoch-history-fixture.v1",
+  "object_format": "sha1",
+  "repository": {
+    "owner": "octo-org",
+    "name": "review-repository",
+    "pull_request": 17,
+    "base_ref": "refs/heads/main"
+  },
+  "objects": {
+    "base": {
+      "oid": "32752d1cce5de757a157e803f80bdd97f2ba9291",
+      "tree": "6c63f2ad71f007f40ae68a2e07a57950059449b2",
+      "blob": "df967b96a579e45a18b8251732d16804b2e56a55",
+      "parent": null,
+      "timestamp": 1704067200,
+      "message": "Fixture base\n",
+      "content": "base\n"
+    },
+    "head_one": {
+      "oid": "dc1c8d7b318cb3a6005c5127c3a6cee23f05afd4",
+      "tree": "0abca1837d3de1088fb5e9c6ef2d96d1d5246e12",
+      "blob": "f3c1fa86ea6ba97d1abb59130b3a2da8b99f36f5",
+      "parent": "32752d1cce5de757a157e803f80bdd97f2ba9291",
+      "timestamp": 1704153600,
+      "message": "Fixture head one\n",
+      "content": "base\nfirst review head\n"
+    },
+    "head_two": {
+      "oid": "25e0fdd5f53022f467a56c667917068c46e9f3d2",
+      "tree": "cb0007ca19a9bd37cf9b592f0315dc1e1bae5618",
+      "blob": "40ae4dcbc9320f12f4a25f9d44448ab01b14e445",
+      "parent": "32752d1cce5de757a157e803f80bdd97f2ba9291",
+      "timestamp": 1704240000,
+      "message": "Fixture head two\n",
+      "content": "base\nsecond review head\n"
+    }
+  },
+  "packs": {
+    "initial": {
+      "head": "dc1c8d7b318cb3a6005c5127c3a6cee23f05afd4",
+      "bytes": 466,
+      "sha256": "533cbfd82a365dc420e751d09912fd0bfbcb06adb37ce45447f0e7339ced1571"
+    },
+    "force_push": {
+      "head": "25e0fdd5f53022f467a56c667917068c46e9f3d2",
+      "bytes": 466,
+      "sha256": "2df382081b677c6a7036875027973f0f12a00219d716fa4cae3bad33cbd07f21",
+      "contains_old_head": false
+    }
+  }
+}
