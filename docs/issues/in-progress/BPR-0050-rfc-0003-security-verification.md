@@ -1,7 +1,7 @@
 ---
 id: BPR-0050
 title: Verify RFC-BPR-0003 Git and cache security boundaries
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0047, BPR-0048, BPR-0055, BPR-0058, BPR-0060, BPR-0061, BPR-0062, BPR-0063, BPR-0064]
 ---
@@ -47,3 +47,6 @@ and architecture evidence, so the remaining matrix has resumed.
 The fresh tests-disabled GCC Release composition then exposed BPR-0064's
 optimizer-only protocol parser bounds and expected-conversion warnings. This
 card is temporarily blocked on that separately tracked remediation.
+BPR-0064 is done in `1132789` with direct Clang, GCC Debug, fresh GCC Release,
+sanitizer, tests-off production composition, dependency/runtime, architecture,
+and capability-critical review evidence, so this security matrix has resumed.

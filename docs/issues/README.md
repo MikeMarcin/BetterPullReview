@@ -161,8 +161,8 @@ every write and materializes successful client results without
 cross-error-type conversion. The final parser/transport matrix passes 4/4
 under Clang Debug, GCC Debug, GCC Release, and ASan/UBSan; fresh tests-off
 composition, dependency, runtime, architecture, and critical-review gates are
-complete. BPR-0050 remains temporarily in `backlog/` only until its explicit
-resume transition. BPR-0051 through BPR-0054 remain in `backlog/`.
+complete. BPR-0050 is again the current `in-progress/` security-verification
+slice. BPR-0051 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
