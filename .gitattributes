@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Preserve the verified SQLite amalgamation byte-for-byte. Upstream source
+# contains blank-at-EOL bytes; every other whitespace diagnostic stays active.
+third_party/sqlite/amalgamation/sqlite3.[ch] whitespace=-blank-at-eol

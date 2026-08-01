@@ -17,6 +17,11 @@ The archive digest and `sqlite3.c` digest are published by sqlite.org. The
 `sqlite3.h` digest is an additional repository intake measurement of the same
 verified archive.
 
+Both amalgamation inputs remain byte-for-byte copies of that verified archive.
+Their path-specific Git attributes disable only the `blank-at-eol` diagnostic
+because the published source contains those bytes; all other whitespace
+diagnostics remain active.
+
 The official ZIP also contains `shell.c` and `sqlite3ext.h`. They are not
 vendored: BetterPullReview builds no SQLite command-line shell and omits
 loadable extensions, so neither file is required by the static library or its
