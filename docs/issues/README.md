@@ -137,13 +137,16 @@ a live replacement namespace receives no effect. BPR-0049 is back in
 `in-progress/` with refreshed three-scale, public-path, Linux XCB/QFusionStyle,
 and macOS System Light/Dark state evidence. Its final gate now requires a real
 active macOS window and non-null existing focus; the prior inactive native run
-is not counted for that claim. BPR-0050 through BPR-0054 remain in `backlog/`.
+is not counted for that claim. BPR-0050 through BPR-0054 and newly allocated
+BPR-0059 remain in `backlog/`; BPR-0059 owns only the owner-activated macOS
+active-focus transition evidence rather than silently narrowing BPR-0049.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
-RFC work. BPR-0054 depends on BPR-0035 and BPR-0053, so canonical closeout and
-every Windows claim remain intact.
+RFC work. BPR-0054 depends on BPR-0035, BPR-0053, and BPR-0059, so canonical
+closeout, every Windows claim, and the native macOS active-focus claim remain
+intact.
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench
