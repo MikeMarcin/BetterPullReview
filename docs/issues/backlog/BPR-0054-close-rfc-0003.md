@@ -3,7 +3,7 @@ id: BPR-0054
 title: Verify and close RFC-BPR-0003
 status: Backlog
 rfc: RFC-BPR-0003
-depends_on: [BPR-0035, BPR-0048, BPR-0049, BPR-0050, BPR-0051, BPR-0052, BPR-0053, BPR-0055, BPR-0056, BPR-0059]
+depends_on: [BPR-0035, BPR-0048, BPR-0049, BPR-0050, BPR-0051, BPR-0052, BPR-0053, BPR-0055, BPR-0056, BPR-0059, BPR-0067, BPR-0068, BPR-0069]
 ---
 
 # Verify and close RFC-BPR-0003
@@ -41,7 +41,12 @@ documentation review; original-pack validation; workflow absence; and
   changed-render, and public-composition markers; inspection confirmed stable
   epoch/OID/Whole PR state in distinct 2200x1440 rasters, and the original
   System Dark setting was restored.
+- The final critical review reproduced two non-Windows blockers: the selected
+  application exposes no explicit maintenance command, and the repository
+  actor/job/ingress residency is not actually bounded. BPR-0067 and BPR-0068
+  own those repairs; BPR-0069 owns exact evidence, provenance, changed-path,
+  and ledger reconciliation after they close.
 - BPR-0035/BPR-0036 and BPR-0053 remain open for real Windows execution and
   canonical RFC-BPR-0002/RFC-BPR-0003 status transitions. This card remains in
-  backlog and makes no `Auto-Verified` claim while those dependencies remain
-  open.
+  backlog and makes no `Auto-Verified` claim while any of those or the new
+  critical-review dependencies remain open.

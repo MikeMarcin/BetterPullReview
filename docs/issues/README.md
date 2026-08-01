@@ -182,13 +182,22 @@ application timeout snapshot, deliberately retaining fail-closed authority
 structure, and replaying the clean developer, core-only, sanitizer,
 tests-disabled Release, documentation, and rendered integration matrices.
 BPR-0053 and BPR-0054 remain in `backlog/` pending their explicit board
-transitions.
+transitions. RFC-BPR-0003's final capability-critical review reproduced two
+available-platform blockers that earlier component evidence did not expose.
+Ready BPR-0067 owns explicit confirmed prune/cache-delete commands through the
+selected application and real Git/SQLite projection path. Ready BPR-0068 owns
+bounded epoch-host job, actor-FIFO, and reentrant-ingress residency with
+manual-executor flood and shutdown proof. Backlog BPR-0069 owns the final
+native-probe provenance, partial-claim wording, immutable-base changed-path,
+and documentation reconciliation after both repairs. BPR-0054 depends on all
+three and makes no closeout claim while they remain open.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
-RFC work. BPR-0054 now remains blocked only by BPR-0035/BPR-0036 and BPR-0053,
-so canonical closeout and every affected Windows claim remain intact.
+RFC work. BPR-0054 remains blocked by BPR-0035/BPR-0036, BPR-0053, and the
+new BPR-0067/BPR-0068/BPR-0069 remediation chain, so canonical closeout and
+every affected claim remain intact.
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench
