@@ -1,9 +1,9 @@
 ---
 id: BPR-0050
 title: Verify RFC-BPR-0003 Git and cache security boundaries
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0003
-depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0047, BPR-0048, BPR-0055, BPR-0058, BPR-0060, BPR-0061, BPR-0062]
+depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0047, BPR-0048, BPR-0055, BPR-0058, BPR-0060, BPR-0061, BPR-0062, BPR-0063]
 ---
 
 # Verify RFC-BPR-0003 Git and cache security boundaries
@@ -39,3 +39,6 @@ review database-ID expectation. This card is temporarily blocked on that
 separately tracked contract remediation. BPR-0062 is done in `65d95e5` with
 direct Clang, sanitizer, GCC, and architecture evidence, so the remaining
 slow target-native matrix has resumed.
+The refreshed installed-Git/cache group then exposed BPR-0063's dangling
+canonical-OID view in the force-push fixture. This card is temporarily blocked
+on that separately tracked contract remediation.

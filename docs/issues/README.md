@@ -150,8 +150,10 @@ and directly covers all three preparation terminals. BPR-0050's slow
 target-native group then exposed a stale independent review database-ID
 expectation. Done BPR-0062 now asserts the exact nonzero review identity in
 both host recordings and the independent normalized-read expectation.
-BPR-0050 is now the current `in-progress/` security-verification slice.
-BPR-0051 through BPR-0054 remain in `backlog/`.
+BPR-0050's refreshed installed-Git/cache group then exposed a dangling
+canonical-OID view in the force-push fixture. BPR-0063 is the current
+`in-progress/` contract remediation; BPR-0050 is temporarily back in
+`backlog/`. BPR-0051 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
