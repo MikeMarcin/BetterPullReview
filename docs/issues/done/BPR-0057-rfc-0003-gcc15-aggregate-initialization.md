@@ -1,9 +1,10 @@
 ---
 id: BPR-0057
 title: Support intentional aggregate defaults under GCC 15
-status: In Progress
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0048]
+completed: 2026-08-01
 ---
 
 # Support intentional aggregate defaults under GCC 15
@@ -26,3 +27,24 @@ surface.
   `-Wno-missing-field-initializers` for GNU C++.
 - The macOS developer build remains clean, documentation validation passes,
   no GitHub Actions workflow exists, and `git diff --check` passes.
+
+## Result
+
+`bpr_enable_warnings` retains `-Werror` and all existing warning groups while
+disabling only GCC C++'s `-Wmissing-field-initializers`. The exception is a
+CMake compile-language-and-compiler generator expression, so it does not
+alter C warnings, Clang, AppleClang, or MSVC.
+
+## Evidence
+
+- Ubuntu 26.04 aarch64 full-system QEMU guest, Linux 7.0.0-28, GCC 15.2,
+  Qt 6.10.2, Git 2.53, and libsecret 0.21.7: fresh
+  `build/gcc15-evidence` configure passed and the selected application and Qt
+  epoch targets completed all 57 build steps.
+- Ninja's effective `epoch_transition.cpp` command contains both `-Werror`
+  and `-Wno-missing-field-initializers`; the same source failed before the
+  scoped exception because GCC promoted only that warning family.
+- The macOS `dev` application and Qt epoch targets reconfigured and built
+  cleanly. `python3 scripts/verify_documentation.py --root .` reports
+  `DOCUMENTATION_OK`, the on-disk GitHub Actions workflow count is zero, and
+  `git diff --check` passes.
