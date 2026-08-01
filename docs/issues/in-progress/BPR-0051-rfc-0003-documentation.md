@@ -1,7 +1,7 @@
 ---
 id: BPR-0051
 title: Document RFC-BPR-0003 cache and epoch behavior
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0047, BPR-0049, BPR-0050, BPR-0055]
 ---

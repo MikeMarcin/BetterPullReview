@@ -165,8 +165,9 @@ complete. Done BPR-0050 now completes the current macOS and Ubuntu x86_64
 security matrix, including platform vault failure modes, public runtime and
 rendering, secret scans, source-manifest binding, and removal of the transient
 QEMU key/image/log harness. Its independent critical review has no unresolved
-blocking or high-risk implementation finding. BPR-0051 through BPR-0054
-remain in `backlog/` pending their explicit board transitions.
+blocking or high-risk implementation finding. BPR-0051 is now the current
+`in-progress/` immutable-base documentation-impact slice; BPR-0052 through
+BPR-0054 remain in `backlog/` pending their explicit board transitions.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
