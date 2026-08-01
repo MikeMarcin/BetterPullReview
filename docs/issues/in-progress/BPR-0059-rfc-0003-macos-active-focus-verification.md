@@ -1,7 +1,7 @@
 ---
 id: BPR-0059
 title: Run owner-activated macOS epoch focus-transition verification
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0049]
 ---

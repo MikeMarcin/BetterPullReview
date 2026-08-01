@@ -136,7 +136,7 @@ then directly exposed SQLite rejecting the catalog's deliberate retained
 path through a private per-catalog VFS, retains the directory chain, and proves
 a live replacement namespace receives no effect. BPR-0049's final probe now
 requires a real active macOS window and existing focus; its prior inactive
-native run is not counted for that claim. Ready BPR-0059 owns only that
+native run is not counted for that claim. In-progress BPR-0059 owns only that
 owner-activated transition proof rather than silently narrowing BPR-0049.
 BPR-0050's fresh Ubuntu 26.04 x86_64 GCC run exposed a real actor-capture
 evaluation-order defect. Done BPR-0060 now gives the scheduler and worker
