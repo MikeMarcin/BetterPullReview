@@ -270,8 +270,9 @@ commit_epoch_catalog_request
 discard_epoch_preparation_request
 load_epoch_history_page_request
 resolve_comparison_request
-prune_retained_epochs_request
-delete_repository_cache_request
+perform_epoch_maintenance_request
+    prune exact epoch IDs | delete exact repository-cache scope
+    expected catalog revision and deterministic target digest
 cancel_epoch_work_request
 ```
 
@@ -922,17 +923,26 @@ non-destructive review association `pruned`, advances the catalog revision,
 and releases the retained-epoch quota exactly once; replay performs no second
 decrement or mutation.
 
-The complete prune protocol blocks new comparison work for the target, asks
-the BPR-0055 host path to delete the paired refs with exact expected values,
-and then gives their exact absence back to the catalog for tombstone
+The complete BPR-0055 prune protocol blocks new comparison work, binds the
+strictly ordered target IDs into one domain-separated SHA-256 digest held in
+compact core state, loads their exact base/head anchors, and durably records
+the expected catalog revision, availability, OIDs, and paired refs before the
+point of no cancellation. The host then deletes each pair with its exact old
+values and the durable operation ID as the replay-stable authorization token,
+and gives their exact absence back to the catalog for one tombstone
 finalization. Adapter methods alone do not authorize the operation. The row
-and exact anchor identity remain. Cache deletion likewise remains BPR-0055
-work: it enumerates every PR scope in the one
-account/profile cache partition, records that exact set durably, takes the
-exclusive cache lock, atomically renames the validated repository to a
-transaction-named sibling quarantine path, finalizes `cache_deleted`
-tombstones and revisions, and then exact-deletes the quarantine directory.
-Failed physical cleanup remains a retryable tombstone and is never reopened.
+and exact anchor identity remain.
+
+BPR-0055 cache deletion enumerates every PR scope in the one account/profile
+cache partition and seals that complete bounded set before the point of no
+cancellation. The host closes its live cache session, uses the same durable
+operation authorization to quarantine and exact-delete the validated
+repository, finalizes `cache_deleted` tombstones and revisions, then retries
+the same physical cleanup idempotently before marking the operation complete.
+Restart aborts only pre-point-of-no-return intent; every later phase resumes
+mandatory exact completion. Ambiguous physical identity becomes durable
+`repair_required`. Failed physical cleanup remains a retryable tombstone and
+the deleted cache scope is never reopened.
 Secure physical erasure from WAL/journal files or SSD media is not claimed.
 When the same authenticated PR is later opened in a new cache lifetime, its
 stable PR scope and history are reparented rather than rewritten. The durable
@@ -1070,7 +1080,7 @@ epoch_status/command/diagnostic projections
 The projection contract can express revision-bound page delivery and
 stable-ID changes without provider, Git, SQLite, credential, or host-request
 records. BPR-0045 emits bounded append/authority/comparison/status updates;
-BPR-0056 emits bounded history-page updates, and BPR-0055 retains maintenance
+BPR-0056 emits bounded history-page updates, and BPR-0055 emits maintenance
 changes. Routine changes must use exact insert/remove/data-change signals
 rather than resetting the model or rebuilding all rows. A complete authority
 replacement may replace the model, while persistent indexes from an old

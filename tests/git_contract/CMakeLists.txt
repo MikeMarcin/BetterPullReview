@@ -96,3 +96,45 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 300
 )
+
+add_executable(
+    better_pull_review_epoch_maintenance_integration_tests
+    epoch_maintenance_integration_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_epoch_maintenance_integration_tests
+    PRIVATE
+        BetterPullReview::Application
+        BetterPullReview::AdapterGit
+        BetterPullReview::AdapterSQLite
+        Qt6::Core
+        Threads::Threads
+)
+target_compile_definitions(
+    better_pull_review_epoch_maintenance_integration_tests
+    PRIVATE
+        BPR_TEST_GIT_EXECUTABLE="${GIT_EXECUTABLE}"
+)
+if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_definitions(
+        better_pull_review_epoch_maintenance_integration_tests
+        PRIVATE
+            _LIBCPP_ENABLE_EXPERIMENTAL
+    )
+endif()
+bpr_enable_hardening(
+    better_pull_review_epoch_maintenance_integration_tests
+)
+bpr_enable_warnings(
+    better_pull_review_epoch_maintenance_integration_tests
+)
+
+add_test(
+    NAME epoch_maintenance_integration
+    COMMAND better_pull_review_epoch_maintenance_integration_tests
+)
+set_tests_properties(
+    epoch_maintenance_integration
+    PROPERTIES
+        TIMEOUT 90
+)

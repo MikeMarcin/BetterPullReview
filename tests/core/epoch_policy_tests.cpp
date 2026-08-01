@@ -497,8 +497,8 @@ auto test_binary_oid_types_and_compact_state() -> void
     static_assert(std::is_trivially_copyable_v<epoch_state>);
     static_assert(std::is_trivially_destructible_v<epoch_state>);
     static_assert(sizeof(epoch_state) <= 2'048U);
-    static_assert(std::variant_size_v<epoch_event> == 23U);
-    static_assert(std::variant_size_v<epoch_host_request> == 8U);
+    static_assert(std::variant_size_v<epoch_event> == 29U);
+    static_assert(std::variant_size_v<epoch_host_request> == 9U);
 
     const auto sha1 =
         parse_git_commit_oid("0123456789ABCDEF0123456789ABCDEF01234567");
@@ -2569,7 +2569,8 @@ auto test_bounded_epoch_history_paging() -> void
                     loading.Changed, epoch_changed_domain::history)
                 && fixture.State.PendingHistory
                 && fixture.State.Status == status,
-            "one initial intent emits one bounded request without disturbing comparison status");
+            "one initial intent emits one bounded request without disturbing "
+            "comparison status");
 
         const auto pending = fixture.State;
         const auto duplicate = transition(
@@ -2617,7 +2618,8 @@ auto test_bounded_epoch_history_paging() -> void
                 && fixture.State.HistoryContinuation == continuation
                 && !fixture.State.PendingHistory
                 && fixture.State.Status == status,
-            "a full initial page publishes rows transiently and retains only its exact continuation");
+            "a full initial page publishes rows transiently and retains only "
+            "its exact continuation");
 
         const auto wrong_continuation = transition(
             fixture.State,
@@ -3051,7 +3053,288 @@ auto test_bounded_epoch_history_paging() -> void
                 && fixture.State.PendingIngestion
                 && fixture.State.PendingIngestion->Phase
                     == epoch_ingestion_phase::loading_catalog,
-            "a changed catalog revision retires paging and reloads exact authority state");
+            "a changed catalog revision retires paging and reloads exact "
+            "authority state");
+    }
+}
+
+auto test_core_authorized_epoch_maintenance() -> void
+{
+    {
+        auto state = initial_state();
+        const auto result = transition(state,
+            prune_review_epochs_intent{
+                .Catalog = catalog(),
+                .Epochs = {},
+            });
+        expect(diagnostic_is(result, epoch_reason_code::no_active_authority),
+            "maintenance requires an active exact authority");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto before = fixture.State;
+        auto wrong_catalog = fixture.Catalog;
+        wrong_catalog.Revision = epoch_catalog_revision{99};
+        const auto wrong_revision = transition(fixture.State,
+            prune_review_epochs_intent{
+                .Catalog = wrong_catalog,
+                .Epochs = {fixture.Epoch.Id},
+            });
+        expect(diagnostic_is(wrong_revision,
+                   epoch_reason_code::catalog_revision_mismatch)
+                && fixture.State == before,
+            "maintenance rejects a stale catalog revision");
+
+        const auto empty = transition(fixture.State,
+            prune_review_epochs_intent{
+                .Catalog = fixture.Catalog,
+            });
+        expect(
+            diagnostic_is(empty, epoch_reason_code::invalid_maintenance_target)
+                && fixture.State == before,
+            "prune requires at least one exact epoch");
+
+        auto foreign = fixture.Epoch.Id;
+        foreign.Authority = authority(2U).Scope;
+        const auto crossed = transition(fixture.State,
+            prune_review_epochs_intent{
+                .Catalog = fixture.Catalog,
+                .Epochs = {foreign},
+            });
+        expect(diagnostic_is(crossed,
+                   epoch_reason_code::invalid_maintenance_target)
+                && fixture.State == before,
+            "prune cannot cross pull-request authority");
+
+        const auto duplicate = transition(fixture.State,
+            prune_review_epochs_intent{
+                .Catalog = fixture.Catalog,
+                .Epochs = {fixture.Epoch.Id, fixture.Epoch.Id},
+            });
+        expect(diagnostic_is(duplicate,
+                   epoch_reason_code::invalid_maintenance_target)
+                && fixture.State == before,
+            "prune targets are strictly ordered and unique");
+
+        std::vector<review_epoch_id> oversized;
+        oversized.reserve(maximum_epoch_maintenance_target_count + 1U);
+        for(std::uint16_t index = 0U;
+            index <= maximum_epoch_maintenance_target_count;
+            ++index)
+        {
+            auto id = fixture.Epoch.Id;
+            id.Ordinal = epoch_ordinal{static_cast<std::int64_t>(index) + 1};
+            oversized.push_back(id);
+        }
+        const auto too_many = transition(fixture.State,
+            prune_review_epochs_intent{
+                .Catalog = fixture.Catalog,
+                .Epochs = std::move(oversized),
+            });
+        expect(diagnostic_is(too_many,
+                   epoch_reason_code::invalid_maintenance_target)
+                && fixture.State == before,
+            "prune batches are bounded at one hundred exact epochs");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        auto second = fixture.Epoch.Id;
+        second.Ordinal = epoch_ordinal{2};
+        const auto started = transition(fixture.State,
+            prune_review_epochs_intent{
+                .Catalog = fixture.Catalog,
+                .Epochs = {fixture.Epoch.Id, second},
+            });
+        const auto* request =
+            request_from<perform_epoch_maintenance_request>(started);
+        static constexpr std::array<std::uint8_t, 32> expected_digest{
+            0x95U,
+            0xcdU,
+            0xd8U,
+            0x19U,
+            0xd2U,
+            0x58U,
+            0x99U,
+            0xfcU,
+            0x28U,
+            0x39U,
+            0xa3U,
+            0xfcU,
+            0xf2U,
+            0xacU,
+            0x24U,
+            0x1aU,
+            0xdaU,
+            0xcbU,
+            0x4eU,
+            0xbeU,
+            0xd4U,
+            0x45U,
+            0x3eU,
+            0xd3U,
+            0x9eU,
+            0x55U,
+            0x22U,
+            0xdaU,
+            0xc4U,
+            0xa0U,
+            0x28U,
+            0xa5U,
+        };
+        expect(request
+                && request->Context.Kind == epoch_maintenance_kind::prune_epochs
+                && request->Context.Cache == fixture.Authority.Cache
+                && request->Context.Epochs
+                    == std::vector{fixture.Epoch.Id, second}
+                && request->Context.TargetDigest.valid()
+                && request->Context.TargetDigest.bytes() == expected_digest
+                && fixture.State.PendingMaintenance
+                && fixture.State.PendingMaintenance->EpochCount == 2U
+                && fixture.State.Status == epoch_status::maintaining
+                && !fixture.State.PendingComparison
+                && has_changed(started.Changed,
+                    epoch_changed_domain::maintenance),
+            "one prune intent binds a bounded exact batch and retires stale "
+            "comparison work");
+
+        const auto pending = fixture.State;
+        const auto duplicate = transition(fixture.State,
+            prune_review_epochs_intent{
+                .Catalog = fixture.Catalog,
+                .Epochs = {fixture.Epoch.Id},
+            });
+        expect(
+            diagnostic_is(duplicate, epoch_reason_code::duplicate_maintenance)
+                && fixture.State == pending,
+            "only one maintenance action may be pending");
+
+        auto tampered = request->Context;
+        tampered.Epochs.back().Ordinal = epoch_ordinal{3};
+        const auto mismatch = transition(fixture.State,
+            epoch_maintenance_completed_event{
+                .Context = tampered,
+                .NewCatalog = catalog(2),
+            });
+        expect(diagnostic_is(mismatch,
+                   epoch_reason_code::completion_identity_mismatch)
+                && fixture.State == pending,
+            "a terminal cannot alter a digest-bound prune target");
+
+        const auto cancelling =
+            transition(fixture.State, cancel_epoch_maintenance_intent{});
+        expect(request_from<cancel_epoch_work_request>(cancelling) != nullptr
+                && fixture.State.PendingMaintenance->CancellationRequested,
+            "maintenance cancellation is an explicit request");
+        const auto after_point = transition(fixture.State,
+            epoch_maintenance_cancelled_event{
+                .Context = request->Context,
+                .Progress =
+                    epoch_maintenance_progress::after_point_of_no_return,
+            });
+        expect(diagnostic_is(after_point,
+                   epoch_reason_code::cancellation_after_point_of_no_return)
+                && fixture.State.PendingMaintenance,
+            "post-point-of-no-return cancellation cannot terminate "
+            "maintenance");
+
+        const auto completed = transition(fixture.State,
+            epoch_maintenance_completed_event{
+                .Context = request->Context,
+                .NewCatalog = catalog(2),
+            });
+        expect(!fixture.State.PendingMaintenance
+                && fixture.State.Catalog == std::optional{catalog(2)}
+                && completed.Catalog
+                && completed.Catalog->AvailabilityChangedEpochs
+                    == std::vector{fixture.Epoch.Id, second}
+                && !completed.Catalog->AllEpochAvailability
+                && request_from<resolve_comparison_request>(completed)
+                    != nullptr,
+            "durable prune success wins after the point of no return and "
+            "incrementally marks exact stable IDs");
+
+        const auto stale = transition(fixture.State,
+            epoch_maintenance_completed_event{
+                .Context = request->Context,
+                .NewCatalog = catalog(2),
+            });
+        expect(diagnostic_is(stale, epoch_reason_code::stale_completion),
+            "a duplicate maintenance terminal is inert");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto started = transition(fixture.State,
+            delete_repository_cache_intent{
+                .Catalog = fixture.Catalog,
+                .Cache = fixture.Authority.Cache,
+            });
+        const auto request =
+            *request_from<perform_epoch_maintenance_request>(started);
+        expect(request.Context.Kind
+                    == epoch_maintenance_kind::delete_repository_cache
+                && request.Context.Epochs.empty()
+                && request.Context.TargetDigest.valid(),
+            "cache deletion binds the exact active repository cache");
+
+        const auto completed = transition(fixture.State,
+            epoch_maintenance_completed_event{
+                .Context = request.Context,
+                .NewCatalog = catalog(2),
+            });
+        expect(completed.Catalog
+                && completed.Catalog->AllEpochAvailability
+                    == anchor_availability::cache_deleted
+                && completed.Catalog->AvailabilityChangedEpochs.empty(),
+            "whole-cache success publishes one bulk cache-deleted availability "
+            "delta");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto started = transition(fixture.State,
+            delete_repository_cache_intent{
+                .Catalog = fixture.Catalog,
+                .Cache = fixture.Authority.Cache,
+            });
+        const auto request =
+            *request_from<perform_epoch_maintenance_request>(started);
+        static_cast<void>(
+            transition(fixture.State, cancel_epoch_maintenance_intent{}));
+        const auto cancelled = transition(fixture.State,
+            epoch_maintenance_cancelled_event{
+                .Context = request.Context,
+            });
+        expect(diagnostic_is(cancelled, epoch_reason_code::cancelled)
+                && !fixture.State.PendingMaintenance
+                && fixture.State.Catalog == std::optional{fixture.Catalog}
+                && fixture.State.Status == epoch_status::cancelled,
+            "pre-point-of-no-return cancellation preserves the catalog");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto started = transition(fixture.State,
+            prune_review_epochs_intent{
+                .Catalog = fixture.Catalog,
+                .Epochs = {fixture.Epoch.Id},
+            });
+        const auto request =
+            *request_from<perform_epoch_maintenance_request>(started);
+        const auto refreshed =
+            transition(fixture.State, refresh_epochs_intent{});
+        expect(request_from<cancel_epoch_work_request>(refreshed) != nullptr
+                && !fixture.State.PendingMaintenance,
+            "refresh retires maintenance from the superseded generation");
+        const auto stale = transition(fixture.State,
+            epoch_maintenance_completed_event{
+                .Context = request.Context,
+                .NewCatalog = catalog(2),
+            });
+        expect(diagnostic_is(stale, epoch_reason_code::stale_completion),
+            "maintenance completion from a retired generation cannot publish");
     }
 }
 
@@ -3084,6 +3367,7 @@ auto main() -> int
     test_selection_transition_policy();
     test_overflow_is_checked_and_invalidation_fails_closed();
     test_bounded_epoch_history_paging();
+    test_core_authorized_epoch_maintenance();
     test_deterministic_replay();
     return EXIT_SUCCESS;
 }

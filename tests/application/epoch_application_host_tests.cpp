@@ -176,6 +176,7 @@ struct shared_state
         CatalogOpenFailures;
     std::deque<application::epoch_catalog_snapshot> CatalogOpenSnapshots;
     std::optional<application::append_operation_record> Operation;
+    std::optional<application::maintenance_operation_record> Maintenance;
     std::optional<application::git_retained_ref_pair> Retained;
     std::deque<application::epoch_recovery_page> RecoveryPages;
     std::vector<std::optional<core::epoch_operation_id>> RecoveryPageCursors;
@@ -192,8 +193,19 @@ struct shared_state
     std::vector<application::git_operation_recovery_request>
         RecoveryCompletionRequests;
     std::vector<application::git_cache_open_request> CacheOpenRequests;
+    std::vector<application::exact_anchor_lookup_request> ExactAnchorRequests;
+    std::vector<application::git_ref_prune_authorization> PruneRequests;
+    std::vector<application::git_cache_delete_authorization> DeleteRequests;
+    std::vector<application::begin_prune_request> BeginPruneRequests;
+    std::vector<application::begin_cache_delete_request>
+        BeginCacheDeleteRequests;
+    std::deque<std::pair<std::string, application::epoch_catalog_failure>>
+        MaintenanceCatalogFailures;
+    std::deque<std::pair<std::string, application::git_cache_failure>>
+        MaintenanceCacheFailures;
     bool PromoteAppliesThenFails = false;
     bool AssociationAppliesThenFails = false;
+    bool CacheDeleteFinalizesWithoutChange = false;
     bool ThrowRecoveryAbort = false;
     std::function<void()> AfterCommitAuthorized;
     std::function<void()> AfterRefCommitInProgress;
@@ -211,6 +223,20 @@ struct shared_state
     std::size_t ProjectionIngressCalls = 0U;
     std::function<void()> ProjectionIngress;
 };
+
+template <typename Failure>
+[[nodiscard]] auto take_failure(
+    std::deque<std::pair<std::string, Failure>>& failures,
+    const std::string_view call) -> std::optional<Failure>
+{
+    if(failures.empty() || failures.front().first != call)
+    {
+        return std::nullopt;
+    }
+    const auto failure = failures.front().second;
+    failures.pop_front();
+    return failure;
+}
 
 [[nodiscard]] auto authority() -> core::pull_request_authority
 {
@@ -391,7 +417,13 @@ public:
         State.Calls.emplace_back("catalog.snapshot");
         if(stop.stop_requested())
         {
-            return std::unexpected{application::epoch_catalog_failure::cancelled};
+            return std::unexpected{
+                application::epoch_catalog_failure::cancelled};
+        }
+        if(const auto failure = take_failure(State.MaintenanceCatalogFailures,
+               "catalog.snapshot"))
+        {
+            return std::unexpected{*failure};
         }
         return State.Snapshot;
     }
@@ -444,13 +476,50 @@ public:
             application::exact_anchor_lookup_result> override
     {
         State.Calls.emplace_back("catalog.exact-anchors");
+        State.ExactAnchorRequests.push_back(request);
         if(stop.stop_requested())
         {
             return std::unexpected{application::epoch_catalog_failure::cancelled};
         }
-        return application::exact_anchor_lookup_result{
+        if(const auto failure = take_failure(State.MaintenanceCatalogFailures,
+               "catalog.exact-anchors"))
+        {
+            return std::unexpected{*failure};
+        }
+        auto result = application::exact_anchor_lookup_result{
             .Catalog = request.Catalog,
         };
+        if(State.Snapshot.LatestLive)
+        {
+            const auto& epoch = *State.Snapshot.LatestLive;
+            for(const auto& identity : request.Anchors)
+            {
+                if(identity.Authority != epoch.Id.Authority
+                    || identity.Incarnation != epoch.Id.Incarnation
+                    || identity.Epoch != epoch.Id.Ordinal)
+                {
+                    continue;
+                }
+                if(identity.Kind == core::comparison_anchor_kind::epoch_base)
+                {
+                    result.Anchors.push_back(core::comparison_anchor{
+                        .Identity = identity,
+                        .Commit = epoch.Base,
+                        .Availability = epoch.BaseAvailability,
+                    });
+                }
+                else if(identity.Kind
+                    == core::comparison_anchor_kind::epoch_head)
+                {
+                    result.Anchors.push_back(core::comparison_anchor{
+                        .Identity = identity,
+                        .Commit = epoch.Head,
+                        .Availability = epoch.HeadAvailability,
+                    });
+                }
+            }
+        }
+        return result;
     }
 
     [[nodiscard]] auto history(
@@ -597,11 +666,58 @@ public:
         -> application::epoch_catalog_result<
             application::epoch_recovery_operation> override
     {
-        State.Calls.emplace_back(
-            "catalog.transition:" + phase_name(request.Next));
-        if(stop.stop_requested() || !State.Operation)
+        const auto call = "catalog.transition:" + phase_name(request.Next);
+        State.Calls.push_back(call);
+        if(stop.stop_requested())
         {
-            return std::unexpected{application::epoch_catalog_failure::cancelled};
+            return std::unexpected{
+                application::epoch_catalog_failure::cancelled};
+        }
+        if(const auto failure =
+                take_failure(State.MaintenanceCatalogFailures, call))
+        {
+            return std::unexpected{*failure};
+        }
+        if(request.Kind != application::epoch_catalog_operation_kind::append)
+        {
+            if(!State.Maintenance)
+            {
+                return std::unexpected{
+                    application::epoch_catalog_failure::phase_conflict};
+            }
+            expect(State.Maintenance->Phase == request.Expected
+                    && State.Maintenance->Operation == request.Operation
+                    && State.Maintenance->OperationRevision
+                        == request.ExpectedOperationRevision,
+                "catalog fake observes exact maintenance phase identity");
+            if(request.Next
+                == application::epoch_catalog_operation_phase::repair_required)
+            {
+                State.Maintenance->RepairFromPhase = State.Maintenance->Phase;
+            }
+            State.Maintenance->Phase = request.Next;
+            State.Maintenance->OperationRevision =
+                application::epoch_catalog_operation_revision{
+                    State.Maintenance->OperationRevision.value() + 1};
+            if(request.Next
+                    == application::epoch_catalog_operation_phase::
+                        ref_delete_in_progress
+                || request.Next
+                    == application::epoch_catalog_operation_phase::
+                        quarantine_rename_in_progress)
+            {
+                if(State.AfterRefCommitInProgress)
+                {
+                    auto callback = std::move(State.AfterRefCommitInProgress);
+                    callback();
+                }
+            }
+            return application::epoch_recovery_operation{*State.Maintenance};
+        }
+        if(!State.Operation)
+        {
+            return std::unexpected{
+                application::epoch_catalog_failure::phase_conflict};
         }
         if(State.Operation->Phase != request.Expected)
         {
@@ -704,47 +820,183 @@ public:
     }
 
     [[nodiscard]] auto begin_prune(
-        const application::begin_prune_request&,
-        const std::stop_token)
+        const application::begin_prune_request& request,
+        const std::stop_token stop)
         -> application::epoch_catalog_result<
             application::maintenance_operation_record> override
     {
-        return std::unexpected{application::epoch_catalog_failure::invalid_request};
+        State.Calls.emplace_back("catalog.begin-prune");
+        State.BeginPruneRequests.push_back(request);
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::epoch_catalog_failure::cancelled};
+        }
+        if(const auto failure = take_failure(State.MaintenanceCatalogFailures,
+               "catalog.begin-prune"))
+        {
+            return std::unexpected{*failure};
+        }
+        State.Maintenance = application::maintenance_operation_record{
+            .Incarnation = request.Catalog.Incarnation,
+            .Operation = request.Operation,
+            .Kind = application::epoch_catalog_operation_kind::prune,
+            .Phase = application::epoch_catalog_operation_phase::prune_intent,
+            .OperationRevision =
+                application::epoch_catalog_operation_revision{1},
+            .Cache = State.Binding.Authority.Cache,
+            .Epochs = request.Epochs,
+        };
+        return *State.Maintenance;
     }
 
     [[nodiscard]] auto finalize_prune(
-        const application::finalize_prune_request&,
+        const application::finalize_prune_request& request,
         const std::stop_token)
         -> application::epoch_catalog_result<
             application::catalog_commit_result> override
     {
-        return std::unexpected{application::epoch_catalog_failure::invalid_request};
+        State.Calls.emplace_back("catalog.finalize-prune");
+        if(const auto failure = take_failure(State.MaintenanceCatalogFailures,
+               "catalog.finalize-prune"))
+        {
+            return std::unexpected{*failure};
+        }
+        if(!State.Maintenance)
+        {
+            return std::unexpected{
+                application::epoch_catalog_failure::phase_conflict};
+        }
+        expect(State.Maintenance->Phase == request.Transition.Expected
+                && State.Maintenance->Operation == request.Transition.Operation,
+            "prune finalization matches the sealed operation");
+        State.Maintenance->Phase = request.Transition.Next;
+        State.Maintenance->OperationRevision =
+            application::epoch_catalog_operation_revision{
+                State.Maintenance->OperationRevision.value() + 1};
+        const auto next = core::epoch_catalog_identity{
+            .Incarnation = State.Binding.Catalog.Incarnation,
+            .Revision =
+                core::epoch_catalog_revision{
+                    State.Binding.Catalog.Revision.value() + 1},
+        };
+        State.Binding.Catalog = next;
+        State.Snapshot.Binding.Catalog = next;
+        if(State.Snapshot.LatestLive)
+        {
+            State.Snapshot.LatestLive->BaseAvailability =
+                core::anchor_availability::pruned;
+            State.Snapshot.LatestLive->HeadAvailability =
+                core::anchor_availability::pruned;
+        }
+        return application::catalog_commit_result{
+            .Catalog = next,
+            .Changed = true,
+        };
     }
 
     [[nodiscard]] auto begin_cache_delete(
-        const application::begin_cache_delete_request&,
-        const std::stop_token)
+        const application::begin_cache_delete_request& request,
+        const std::stop_token stop)
         -> application::epoch_catalog_result<
             application::maintenance_operation_record> override
     {
-        return std::unexpected{application::epoch_catalog_failure::invalid_request};
+        State.Calls.emplace_back("catalog.begin-cache-delete");
+        State.BeginCacheDeleteRequests.push_back(request);
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::epoch_catalog_failure::cancelled};
+        }
+        if(const auto failure = take_failure(State.MaintenanceCatalogFailures,
+               "catalog.begin-cache-delete"))
+        {
+            return std::unexpected{*failure};
+        }
+        State.Maintenance = application::maintenance_operation_record{
+            .Incarnation = request.Impact.Incarnation,
+            .Operation = request.Operation,
+            .Kind = application::epoch_catalog_operation_kind::cache_delete,
+            .Phase = application::epoch_catalog_operation_phase::
+                cache_delete_intent_sealed,
+            .OperationRevision =
+                application::epoch_catalog_operation_revision{1},
+            .Cache = request.Impact.Cache,
+            .Scopes = request.Impact.Scopes,
+        };
+        return *State.Maintenance;
     }
 
     [[nodiscard]] auto cache_delete_impact(
-        const core::repository_cache_scope_id,
-        const std::stop_token)
+        const core::repository_cache_scope_id cache,
+        const std::stop_token stop)
         -> application::epoch_catalog_result<
             application::cache_delete_impact> override
     {
-        return std::unexpected{application::epoch_catalog_failure::invalid_request};
+        State.Calls.emplace_back("catalog.cache-delete-impact");
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::epoch_catalog_failure::cancelled};
+        }
+        if(const auto failure = take_failure(State.MaintenanceCatalogFailures,
+               "catalog.cache-delete-impact"))
+        {
+            return std::unexpected{*failure};
+        }
+        return application::cache_delete_impact{
+            .Incarnation = State.Binding.Catalog.Incarnation,
+            .Cache = cache,
+            .Scopes =
+                {
+                    application::cache_delete_scope_fact{
+                        .Authority = State.Binding.Authority.Scope,
+                        .ExpectedRevision = State.Binding.Catalog.Revision,
+                    },
+                },
+            .RetainedEpochCount = State.Snapshot.LatestLive ? 1U : 0U,
+        };
     }
 
     [[nodiscard]] auto finalize_cache_delete(
-        const application::finalize_cache_delete_request&,
+        const application::finalize_cache_delete_request& request,
         const std::stop_token)
         -> application::epoch_catalog_result<void> override
     {
-        return std::unexpected{application::epoch_catalog_failure::invalid_request};
+        State.Calls.emplace_back("catalog.finalize-cache-delete");
+        if(const auto failure = take_failure(State.MaintenanceCatalogFailures,
+               "catalog.finalize-cache-delete"))
+        {
+            return std::unexpected{*failure};
+        }
+        if(!State.Maintenance)
+        {
+            return std::unexpected{
+                application::epoch_catalog_failure::phase_conflict};
+        }
+        expect(State.Maintenance->Phase == request.Transition.Expected
+                && State.Maintenance->Operation == request.Transition.Operation,
+            "cache-delete finalization matches the sealed operation");
+        if(State.CacheDeleteFinalizesWithoutChange)
+        {
+            State.CacheDeleteFinalizesWithoutChange = false;
+            return {};
+        }
+        State.Maintenance->Phase = request.Transition.Next;
+        State.Maintenance->OperationRevision =
+            application::epoch_catalog_operation_revision{
+                State.Maintenance->OperationRevision.value() + 1};
+        State.Binding.Catalog.Revision = core::epoch_catalog_revision{
+            State.Binding.Catalog.Revision.value() + 1};
+        State.Snapshot.Binding.Catalog = State.Binding.Catalog;
+        if(State.Snapshot.LatestLive)
+        {
+            State.Snapshot.LatestLive->BaseAvailability =
+                core::anchor_availability::cache_deleted;
+            State.Snapshot.LatestLive->HeadAvailability =
+                core::anchor_availability::cache_deleted;
+        }
+        return {};
     }
 
     [[nodiscard]] auto recovery_page(
@@ -780,6 +1032,18 @@ private:
         using enum application::epoch_catalog_operation_phase;
         switch(phase)
         {
+        case prune_intent:
+            return "prune-intent";
+        case ref_delete_in_progress:
+            return "ref-delete";
+        case cache_delete_intent_sealed:
+            return "cache-delete-sealed";
+        case quarantine_rename_in_progress:
+            return "quarantine-rename";
+        case quarantined:
+            return "quarantined";
+        case catalog_tombstoned_cleanup_pending:
+            return "catalog-tombstoned";
         case staging_ready:
             return "staging-ready";
         case ref_commit_in_progress:
@@ -1065,10 +1329,19 @@ public:
     }
 
     [[nodiscard]] auto prune_retained(
-        const application::git_ref_prune_authorization&,
+        const application::git_ref_prune_authorization& authorization,
         const std::stop_token) -> application::git_cache_result<void> override
     {
-        return std::unexpected{application::git_cache_failure::invalid_request};
+        State.Calls.emplace_back("cache.prune");
+        State.PruneRequests.push_back(authorization);
+        ++State.CacheMutationCalls;
+        if(const auto failure =
+                take_failure(State.MaintenanceCacheFailures, "cache.prune"))
+        {
+            return std::unexpected{*failure};
+        }
+        State.Retained.reset();
+        return {};
     }
 
     [[nodiscard]] auto abort_operation(
@@ -1146,12 +1419,21 @@ public:
         return std::make_unique<fake_cache_session>(State, request);
     }
 
-    [[nodiscard]] auto delete_cache(
-        const application::git_cache_open_request&,
-        const application::git_cache_delete_authorization&,
+    [[nodiscard]] auto delete_cache(const application::git_cache_open_request&,
+        const application::git_cache_delete_authorization& authorization,
         const std::stop_token) -> application::git_cache_result<void> override
     {
-        return std::unexpected{application::git_cache_failure::invalid_request};
+        State.Calls.emplace_back("cache.delete");
+        State.DeleteRequests.push_back(authorization);
+        ++State.CacheMutationCalls;
+        expect(State.ActiveCacheSessions == 0U,
+            "whole-cache deletion closes the live session before quarantine");
+        if(const auto failure =
+                take_failure(State.MaintenanceCacheFailures, "cache.delete"))
+        {
+            return std::unexpected{*failure};
+        }
+        return {};
     }
 
 private:
@@ -1504,6 +1786,69 @@ void seed_recovery(
     });
 }
 
+[[nodiscard]] auto maintenance_recovery_record(shared_state& state,
+    const application::epoch_catalog_operation_kind kind,
+    const application::epoch_catalog_operation_phase phase,
+    const std::uint8_t operation_seed = 0x61U)
+    -> application::maintenance_operation_record
+{
+    auto record = application::maintenance_operation_record{
+        .Incarnation = state.Binding.Catalog.Incarnation,
+        .Operation = opaque<core::epoch_operation_id>(operation_seed),
+        .Kind = kind,
+        .Phase = phase,
+        .OperationRevision = application::epoch_catalog_operation_revision{2},
+        .Cache = state.Binding.Authority.Cache,
+    };
+    if(kind == application::epoch_catalog_operation_kind::prune)
+    {
+        const auto epoch = core::review_epoch_id{
+            .Authority = state.Binding.Authority.Scope,
+            .Incarnation = state.Binding.Catalog.Incarnation,
+            .Ordinal = core::epoch_ordinal{1},
+        };
+        record.Epochs.push_back(application::prune_epoch_fact{
+            .Epoch = epoch,
+            .Retained =
+                application::git_retained_ref_pair{
+                    .Scope = epoch.Authority,
+                    .Ordinal = epoch.Ordinal,
+                    .Base = oid<core::git_commit_oid>(10U),
+                    .Head = oid<core::git_commit_oid>(20U),
+                },
+            .BaseRef =
+                application::epoch_catalog_ref_identity{
+                    .Authority = epoch.Authority,
+                    .Ordinal = epoch.Ordinal,
+                },
+            .HeadRef =
+                application::epoch_catalog_ref_identity{
+                    .Authority = epoch.Authority,
+                    .Ordinal = epoch.Ordinal,
+                    .Head = true,
+                },
+        });
+    }
+    else
+    {
+        record.Scopes.push_back(application::cache_delete_scope_fact{
+            .Authority = state.Binding.Authority.Scope,
+            .ExpectedRevision = state.Binding.Catalog.Revision,
+        });
+    }
+    return record;
+}
+
+void seed_maintenance_recovery(shared_state& state,
+    const application::maintenance_operation_record& record)
+{
+    state.Maintenance = record;
+    state.RecoveryPages.push_back(application::epoch_recovery_page{
+        .Incarnation = state.Binding.Catalog.Incarnation,
+        .Operations = {record},
+    });
+}
+
 struct fixture
 {
     shared_state State;
@@ -1726,13 +2071,15 @@ void projection_failure_is_contained_and_decision_progress_drains()
             && value.State.ProjectionFailuresRemaining == 0U
             && value.Host->state().AcceptedRevision.has_value()
             && value.Effects.pending() == 1U,
-        "a throwing projection is contained after core acceptance and cannot suppress the next host request");
+        "a throwing projection is contained after core acceptance and cannot "
+        "suppress the next host request");
 
     drain(value);
     expect(
         value.State.ProjectionCalls > 1U && !value.State.Updates.empty()
             && value.State.ProjectionOutsideDecision == 0U,
-        "decision-lane completions and later projections continue after a contained projection exception");
+        "decision-lane completions and later projections continue after a "
+        "contained projection exception");
 
     value.Decisions.post([&value]
     {
@@ -1743,7 +2090,8 @@ void projection_failure_is_contained_and_decision_progress_drains()
     expect(
         value.Host->is_closing() && value.Host->is_quiescent()
             && value.State.ProjectionOutsideDecision == 0U,
-        "a contained projection exception cannot prevent serialized shutdown quiescence");
+        "a contained projection exception cannot prevent serialized shutdown "
+        "quiescence");
 }
 
 void reentrant_projection_ingress_is_deferred_without_recursion()
@@ -1761,7 +2109,8 @@ void reentrant_projection_ingress_is_deferred_without_recursion()
             && value.State.MaximumProjectionDepth == 1U
             && value.State.ProjectionDepth == 0U
             && value.Effects.pending() == 1U,
-        "projection feedback queues semantic ingress without recursive publication or suppressing the accepted host request");
+        "projection feedback queues semantic ingress without recursive "
+        "publication or suppressing the accepted host request");
 
     drain(value);
     expect(
@@ -1771,7 +2120,8 @@ void reentrant_projection_ingress_is_deferred_without_recursion()
             && value.State.ProjectionIngressCalls == 1U
             && value.State.MaximumProjectionDepth == 1U
             && value.State.ProjectionOutsideDecision == 0U,
-        "deferred projection ingress reaches one serialized terminal without corrupting accepted authority state");
+        "deferred projection ingress reaches one serialized terminal without "
+        "corrupting accepted authority state");
 
     value.Decisions.post([&value]
     {
@@ -1783,7 +2133,8 @@ void reentrant_projection_ingress_is_deferred_without_recursion()
         value.Host->is_quiescent()
             && value.State.MaximumProjectionDepth == 1U
             && value.State.ProjectionOutsideDecision == 0U,
-        "reentrant projection ingress leaves no recursive or deferred work at shutdown");
+        "reentrant projection ingress leaves no recursive or deferred work at "
+        "shutdown");
 }
 
 void failed_same_authority_offer_preserves_active_comparison()
@@ -1809,10 +2160,9 @@ void failed_same_authority_offer_preserves_active_comparison()
             && value.State.Updates.back().Transition->Diagnostics.back().Code
                 == core::epoch_reason_code::unavailable,
         "current failed replacement reports one bounded diagnostic");
-    expect(
-        value.State.AuthorityRevocations
-            == std::vector<std::uint64_t>{2U},
-        "failed replacement revokes only its offered lease and preserves the active lease");
+    expect(value.State.AuthorityRevocations == std::vector<std::uint64_t>{2U},
+        "failed replacement revokes only its offered lease and preserves the "
+        "active lease");
 }
 
 void successful_same_authority_offer_swaps_on_exact_terminal()
@@ -1943,7 +2293,8 @@ void bounded_history_pages_project_incrementally()
             && value.State.Updates.back().Catalog->HistoryPage->Phase
                 == core::epoch_history_page_phase::loading
             && !value.State.Updates.back().Catalog->Replace,
-        "one history intent projects loading and schedules one bounded catalog effect");
+        "one history intent projects loading and schedules one bounded "
+        "catalog effect");
 
     value.Host->dispatch(core::request_epoch_history_page_intent{
         .Catalog = catalog,
@@ -2006,7 +2357,8 @@ void bounded_history_pages_project_incrementally()
                 == core::epoch_ordinal{1}
             && !value.State.Updates.back().Catalog->HistoryPage->Continuation
             && !value.Host->state().HistoryContinuation,
-        "the exact continuation appends a short terminal page without retaining complete history in core");
+        "the exact continuation appends a short terminal page without "
+        "retaining complete history in core");
 }
 
 void empty_one_and_exact_bound_history_pages_reach_public_projection()
@@ -2083,8 +2435,10 @@ void empty_one_and_exact_bound_history_pages_reach_public_projection()
                 && value.State.Updates.back().Catalog->HistoryPage
                 && value.State.Updates.back().Catalog->HistoryPage->Rows.size()
                     == 2U
-                && !value.State.Updates.back().Catalog->HistoryPage->Continuation,
-            "an exact-bound page remains terminal when the catalog advertises no continuation");
+                && !value.State.Updates.back()
+                    .Catalog->HistoryPage->Continuation,
+            "an exact-bound page remains terminal when the catalog advertises "
+            "no continuation");
     }
 }
 
@@ -2159,7 +2513,8 @@ void history_page_failures_and_catalog_revision_changes_are_typed()
                         return diagnostic.Code
                             == core::epoch_reason_code::catalog_conflict;
                     }),
-            "a changed live catalog binding rejects the page before SQLite access and starts an exact reload");
+            "a changed live catalog binding rejects the page before SQLite "
+            "access and starts an exact reload");
     }
 }
 
@@ -2183,9 +2538,9 @@ void reordered_history_completion_cannot_cross_source_identity()
 
     value.Host->accept(make_handoff(value.State, 2U, 21U, true));
     value.Effects.run_next();
-    expect(
-        value.Decisions.pending() == 2U,
-        "a replacement source and old history terminal can be deterministically reordered");
+    expect(value.Decisions.pending() == 2U,
+        "a replacement source and old history terminal can be "
+        "deterministically reordered");
     value.Decisions.run(1U);
     expect(
         value.Host->state().AcceptedRevision
@@ -2207,7 +2562,8 @@ void reordered_history_completion_cannot_cross_source_identity()
                 }
             && value.Host->state().AcceptedRevision->Source.Snapshot
                 == core::provider_snapshot_id{2U},
-        "the old loaded page becomes one stale diagnostic and cannot publish rows into the new source");
+         "the old loaded page becomes one stale diagnostic and cannot publish "
+         "rows into the new source");
 }
 
 void unchanged_and_association_only_skip_git()
@@ -2326,7 +2682,8 @@ void applied_association_error_reports_mandatory_success()
                 == 1
             && value.State.CacheMutationCalls == 0U
             && value.State.TransportCalls == 0U,
-        "an association committed before an adapter error is observed as mandatory success without Git work");
+        "an association committed before an adapter error is observed as "
+        "mandatory success without Git work");
 }
 
 void stale_load_terminal_is_inert_under_reordering()
@@ -2470,9 +2827,9 @@ void same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order()
                 == second_authority.Scope
             && value.State.MaximumActiveCacheSessions == 1U
             && value.State.ActiveCacheSessions == 1U
-            && value.Host->state().Authority
-                == std::optional{second_authority},
-        "one repository actor cleans A under A, closes it, then opens and uses the exact B PR session without overlap");
+            && value.Host->state().Authority == std::optional{second_authority},
+        "one repository actor cleans A under A, closes it, then opens and "
+        "uses the exact B PR session without overlap");
 }
 
 void cancellation_before_ponr_aborts_without_publication()
@@ -2568,7 +2925,8 @@ void stop_immediately_after_ponr_cannot_replace_committed_terminal()
             && value.Host->state().Catalog == catalog_identity(1)
             && committed_terminals == 1
             && value.State.ProjectionOutsideDecision == 0U,
-        "a stop requested after durable PONR still promotes, finalizes, and publishes one committed terminal");
+        "a stop requested after durable PONR still promotes, finalizes, and "
+        "publishes one committed terminal");
 }
 
 void applied_commit_authorization_error_aborts_exactly_before_ponr()
@@ -2603,7 +2961,8 @@ void applied_commit_authorization_error_aborts_exactly_before_ponr()
             && std::ranges::find(value.State.Calls, "catalog.finalize")
                 == value.State.Calls.end()
             && value.Host->state().Catalog == catalog_identity(),
-        "an ambiguous commit-authorization result pages the exact durable operation and aborts while cancellation is still legal");
+        "an ambiguous commit-authorization result pages the exact durable "
+        "operation and aborts while cancellation is still legal");
 }
 
 void applied_ponr_error_recovers_to_mandatory_success()
@@ -2651,7 +3010,8 @@ void applied_ponr_error_recovers_to_mandatory_success()
                 != value.State.Calls.end()
             && value.Host->state().Catalog == catalog_identity(1)
             && committed_terminals == 1,
-        "an applied-then-throw PONR transition resumes the exact durable operation and publishes mandatory success once");
+        "an applied-then-throw PONR transition resumes the exact durable "
+        "operation and publishes mandatory success once");
 }
 
 void throwing_exact_abort_degrades_to_a_bounded_terminal()
@@ -2928,7 +3288,8 @@ void recovery_identity_and_pagination_mismatches_fail_closed()
                 && std::ranges::find(
                        value.State.Calls, "catalog.source-probe")
                     == value.State.Calls.end(),
-            "mismatched physical operation identity is journaled for repair before acceptance");
+            "mismatched physical operation identity is journaled for repair "
+            "before acceptance");
     }
 
     {
@@ -2988,6 +3349,515 @@ void recovery_identity_and_pagination_mismatches_fail_closed()
     }
 }
 
+void core_authorized_prune_composes_exact_durable_cleanup()
+{
+    fixture value;
+    establish_ready_comparison(value);
+    const auto epoch = value.State.Snapshot.LatestLive->Id;
+    value.State.Calls.clear();
+    value.Host->dispatch(core::prune_review_epochs_intent{
+        .Catalog = *value.Host->state().Catalog,
+        .Epochs = {epoch},
+    });
+    run_effect_completion(value);
+
+    expect(value.State.BeginPruneRequests.size() == 1U
+            && value.State.BeginPruneRequests.front().Epochs.size() == 1U
+            && value.State.BeginPruneRequests.front().Epochs.front().Epoch
+                == epoch
+            && value.State.PruneRequests.size() == 1U
+            && value.State.PruneRequests.front().Expected
+                == value.State.BeginPruneRequests.front()
+                    .Epochs.front()
+                    .Retained
+            && value.State.PruneRequests.front().DurableIntentToken
+                == value.State.BeginPruneRequests.front().Operation.bytes()
+            && value.Host->state().Catalog == catalog_identity(2)
+            && !value.Host->state().PendingMaintenance,
+        "the host seals and executes one exact core-authorized prune batch");
+    expect_in_order(value.State.Calls,
+        {
+            "catalog.exact-anchors",
+            "catalog.begin-prune",
+            "catalog.transition:ref-delete",
+            "cache.prune",
+            "catalog.finalize-prune",
+            "catalog.transition:cleanup",
+        });
+    expect(std::ranges::any_of(value.State.Updates,
+               [epoch](const auto& update)
+               {
+                   return update.Catalog
+                       && update.Catalog->AvailabilityChangedEpochs
+                       == std::vector{epoch}
+                   && !update.Catalog->Replace;
+               }),
+        "prune publishes an incremental stable-ID availability projection");
+}
+
+void core_authorized_cache_delete_closes_session_and_projects_bulk_change()
+{
+    fixture value;
+    establish_ready_comparison(value);
+    expect(value.State.ActiveCacheSessions == 1U,
+        "the ready fixture owns one live cache session");
+    value.State.Calls.clear();
+    value.Host->dispatch(core::delete_repository_cache_intent{
+        .Catalog = *value.Host->state().Catalog,
+        .Cache = value.State.Binding.Authority.Cache,
+    });
+    run_effect_completion(value);
+
+    expect(value.State.BeginCacheDeleteRequests.size() == 1U
+            && value.State.BeginCacheDeleteRequests.front().Impact.Scopes
+                == std::vector{application::cache_delete_scope_fact{
+                    .Authority = value.State.Binding.Authority.Scope,
+                    .ExpectedRevision = core::epoch_catalog_revision{1},
+                }}
+            && value.State.DeleteRequests.size() == 2U
+            && value.State.DeleteRequests.front().DurableIntentToken
+                == value.State.BeginCacheDeleteRequests.front()
+                    .Operation.bytes()
+            && value.State.DeleteRequests.back()
+                == value.State.DeleteRequests.front()
+            && value.State.ActiveCacheSessions == 0U
+            && value.Host->state().Catalog == catalog_identity(2),
+        "cache delete seals every affected scope, closes the handle, and uses "
+        "one replay-stable authorization twice");
+    expect_in_order(value.State.Calls,
+        {
+            "catalog.cache-delete-impact",
+            "catalog.begin-cache-delete",
+            "catalog.transition:quarantine-rename",
+            "cache.session-close:71",
+            "cache.delete",
+            "catalog.transition:quarantined",
+            "catalog.finalize-cache-delete",
+            "cache.delete",
+            "catalog.transition:cleanup",
+        });
+    expect(std::ranges::any_of(value.State.Updates,
+               [](const auto& update)
+               {
+                   return update.Catalog
+                       && update.Catalog->AllEpochAvailability
+                       == core::anchor_availability::cache_deleted
+                       && !update.Catalog->Replace;
+               }),
+        "cache deletion publishes one bulk incremental tombstone projection");
+}
+
+void maintenance_cancellation_obeys_the_durable_point_of_no_return()
+{
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        value.State.Calls.clear();
+        value.Host->dispatch(core::delete_repository_cache_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Cache = value.State.Binding.Authority.Cache,
+        });
+        value.Host->dispatch(core::cancel_epoch_maintenance_intent{});
+        run_effect_completion(value);
+        expect(value.State.BeginCacheDeleteRequests.empty()
+                && value.State.DeleteRequests.empty()
+                && value.Host->state().Catalog == catalog_identity(1)
+                && value.Host->state().Status == core::epoch_status::cancelled,
+            "cancellation before durable sealing performs no destructive work");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto epoch = value.State.Snapshot.LatestLive->Id;
+        std::mutex gate;
+        std::condition_variable changed;
+        auto reached_point = false;
+        auto release_worker = false;
+        value.State.AfterRefCommitInProgress = [&]
+        {
+            std::unique_lock lock{gate};
+            reached_point = true;
+            changed.notify_one();
+            changed.wait(lock, [&release_worker] { return release_worker; });
+        };
+        value.Host->dispatch(core::prune_review_epochs_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Epochs = {epoch},
+        });
+        std::thread worker{[&value] { value.Effects.run_next(); }};
+        {
+            std::unique_lock lock{gate};
+            changed.wait(lock, [&reached_point] { return reached_point; });
+        }
+        value.Decisions.post([&]
+            { value.Host->dispatch(core::cancel_epoch_maintenance_intent{}); });
+        value.Decisions.run_next();
+        {
+            const std::lock_guard lock{gate};
+            release_worker = true;
+        }
+        changed.notify_one();
+        worker.join();
+        value.Decisions.run_next();
+        expect(value.State.PruneRequests.size() == 1U
+                && value.Host->state().Catalog == catalog_identity(2)
+                && !value.Host->state().PendingMaintenance,
+            "post-point-of-no-return cancellation cannot replace durable prune "
+            "success");
+    }
+}
+
+void maintenance_restart_recovery_aborts_or_completes_by_phase()
+{
+    {
+        fixture value;
+        const auto record = maintenance_recovery_record(value.State,
+            application::epoch_catalog_operation_kind::prune,
+            application::epoch_catalog_operation_phase::prune_intent);
+        seed_maintenance_recovery(value.State, record);
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+        expect(std::ranges::find(value.State.Calls,
+                   "catalog.transition:abort-requested")
+                    != value.State.Calls.end()
+                && std::ranges::find(value.State.Calls,
+                       "catalog.transition:aborted")
+                    != value.State.Calls.end()
+                && value.State.PruneRequests.empty()
+                && value.Host->state().Authority.has_value(),
+            "restart aborts a sealed pre-PONR maintenance intent before "
+            "authority acceptance");
+    }
+
+    {
+        fixture value;
+        const auto record = maintenance_recovery_record(value.State,
+            application::epoch_catalog_operation_kind::prune,
+            application::epoch_catalog_operation_phase::ref_delete_in_progress);
+        seed_maintenance_recovery(value.State, record);
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+        expect(value.State.PruneRequests.size() == 1U
+                && value.State.Binding.Catalog == catalog_identity(1)
+                && value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::complete
+                && value.Host->state().Authority.has_value(),
+            "restart completes an exact post-PONR prune before authority "
+            "acceptance");
+    }
+
+    {
+        fixture value;
+        const auto record = maintenance_recovery_record(value.State,
+            application::epoch_catalog_operation_kind::cache_delete,
+            application::epoch_catalog_operation_phase::
+                quarantine_rename_in_progress);
+        seed_maintenance_recovery(value.State, record);
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+        expect(value.State.DeleteRequests.size() == 2U
+                && value.State.Binding.Catalog == catalog_identity(1)
+                && value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::complete
+                && value.Host->state().Authority.has_value(),
+            "restart completes quarantine, catalog tombstone, and exact "
+            "cleanup "
+            "before authority acceptance");
+    }
+}
+
+void maintenance_restart_recovery_covers_every_durable_phase()
+{
+    using enum application::epoch_catalog_operation_phase;
+
+    for(const auto phase : {prune_intent, abort_requested})
+    {
+        fixture value;
+        seed_maintenance_recovery(value.State,
+            maintenance_recovery_record(value.State,
+                application::epoch_catalog_operation_kind::prune,
+                phase));
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+        expect(value.State.Maintenance->Phase == aborted
+                && value.State.PruneRequests.empty()
+                && value.Host->state().Authority.has_value(),
+            "every pre-PONR prune phase restarts by exact abort");
+    }
+
+    {
+        fixture value;
+        seed_maintenance_recovery(value.State,
+            maintenance_recovery_record(value.State,
+                application::epoch_catalog_operation_kind::prune,
+                visible_cleanup_pending));
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+        expect(value.State.Maintenance->Phase == complete
+                && value.State.PruneRequests.empty()
+                && std::ranges::find(value.State.Calls,
+                       "catalog.finalize-prune")
+                    == value.State.Calls.end(),
+            "restart after visible prune commit performs cleanup only");
+    }
+
+    for(const auto phase : {cache_delete_building_exact_set,
+            cache_delete_intent_sealed,
+            abort_requested})
+    {
+        fixture value;
+        seed_maintenance_recovery(value.State,
+            maintenance_recovery_record(value.State,
+                application::epoch_catalog_operation_kind::cache_delete,
+                phase));
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+        expect(value.State.Maintenance->Phase == aborted
+                && value.State.DeleteRequests.empty()
+                && value.Host->state().Authority.has_value(),
+            "every pre-PONR cache-delete phase restarts by exact abort");
+    }
+
+    for(const auto [phase, expected_deletes] : std::array{
+            std::pair{quarantined, std::size_t{1U}},
+            std::pair{catalog_tombstoned_cleanup_pending, std::size_t{1U}},
+        })
+    {
+        fixture value;
+        seed_maintenance_recovery(value.State,
+            maintenance_recovery_record(value.State,
+                application::epoch_catalog_operation_kind::cache_delete,
+                phase));
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+        expect(value.State.Maintenance->Phase == complete
+                && value.State.DeleteRequests.size() == expected_deletes
+                && value.Host->state().Authority.has_value(),
+            "every post-quarantine cache-delete phase resumes exact cleanup");
+    }
+
+    for(const auto kind : {application::epoch_catalog_operation_kind::prune,
+            application::epoch_catalog_operation_kind::cache_delete})
+    {
+        for(const auto phase : {complete, aborted})
+        {
+            fixture value;
+            seed_maintenance_recovery(value.State,
+                maintenance_recovery_record(value.State, kind, phase));
+            value.Host->accept(make_handoff(value.State));
+            run_effect_completion(value);
+            expect(value.State.Maintenance->Phase == phase
+                    && value.State.PruneRequests.empty()
+                    && value.State.DeleteRequests.empty()
+                    && value.Host->state().Authority.has_value(),
+                "terminal maintenance recovery is an inert replay");
+        }
+
+        fixture value;
+        auto repair =
+            maintenance_recovery_record(value.State, kind, repair_required);
+        repair.RepairFromPhase =
+            kind == application::epoch_catalog_operation_kind::prune
+            ? std::optional{ref_delete_in_progress}
+            : std::optional{quarantine_rename_in_progress};
+        seed_maintenance_recovery(value.State, repair);
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+        expect(!value.Host->state().Authority
+                && has_repair_diagnostic(value.State)
+                && value.State.PruneRequests.empty()
+                && value.State.DeleteRequests.empty(),
+            "repair-required maintenance blocks authority activation");
+    }
+}
+
+void maintenance_faults_fail_closed_and_restart_from_durable_phase()
+{
+    const auto restart = [](fixture& value)
+    {
+        expect(value.State.Maintenance.has_value(),
+            "fault leaves an exact durable maintenance record");
+        seed_maintenance_recovery(value.State, *value.State.Maintenance);
+        value.Host->accept(make_handoff(value.State));
+        run_effect_completion(value);
+    };
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto epoch = value.State.Snapshot.LatestLive->Id;
+        value.State.MaintenanceCatalogFailures.emplace_back(
+            "catalog.exact-anchors",
+            application::epoch_catalog_failure::unavailable);
+        value.Host->dispatch(core::prune_review_epochs_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Epochs = {epoch},
+        });
+        run_effect_completion(value);
+        expect(!value.State.Maintenance && value.State.PruneRequests.empty()
+                && value.Host->state().Catalog == catalog_identity(1)
+                && value.Host->state().Status == core::epoch_status::failed,
+            "pre-intent anchor lookup failure performs no destructive work");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto epoch = value.State.Snapshot.LatestLive->Id;
+        value.State.MaintenanceCatalogFailures.emplace_back(
+            "catalog.transition:ref-delete",
+            application::epoch_catalog_failure::unavailable);
+        value.Host->dispatch(core::prune_review_epochs_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Epochs = {epoch},
+        });
+        run_effect_completion(value);
+        expect(value.State.Maintenance
+                && value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::prune_intent
+                && value.State.PruneRequests.empty(),
+            "point-of-no-return transition failure preserves a sealed "
+            "abortable "
+            "prune intent");
+        restart(value);
+        expect(value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::aborted
+                && value.State.PruneRequests.empty(),
+            "restart aborts a prune whose point-of-no-return transition did "
+            "not "
+            "commit");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto epoch = value.State.Snapshot.LatestLive->Id;
+        value.State.MaintenanceCacheFailures.emplace_back("cache.prune",
+            application::git_cache_failure::ref_conflict);
+        value.Host->dispatch(core::prune_review_epochs_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Epochs = {epoch},
+        });
+        run_effect_completion(value);
+        expect(value.State.Maintenance
+                && value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::
+                        repair_required
+                && has_repair_diagnostic(value.State),
+            "ambiguous exact-ref failure is durably marked repair-required");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto epoch = value.State.Snapshot.LatestLive->Id;
+        value.State.MaintenanceCatalogFailures.emplace_back(
+            "catalog.finalize-prune",
+            application::epoch_catalog_failure::unavailable);
+        value.Host->dispatch(core::prune_review_epochs_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Epochs = {epoch},
+        });
+        run_effect_completion(value);
+        expect(value.State.Maintenance
+                && value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::
+                        ref_delete_in_progress
+                && value.State.PruneRequests.size() == 1U,
+            "catalog failure after exact ref deletion retains the post-PONR "
+            "phase");
+        const auto authorization = value.State.PruneRequests.front();
+        restart(value);
+        expect(value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::complete
+                && value.State.PruneRequests.size() == 2U
+                && value.State.PruneRequests.back() == authorization
+                && value.State.Binding.Catalog == catalog_identity(2),
+            "restart replays the same prune authorization and completes "
+            "visibility once");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        value.State.MaintenanceCacheFailures.emplace_back("cache.delete",
+            application::git_cache_failure::process_failure);
+        value.Host->dispatch(core::delete_repository_cache_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Cache = value.State.Binding.Authority.Cache,
+        });
+        run_effect_completion(value);
+        expect(value.State.Maintenance
+                && value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::
+                        quarantine_rename_in_progress
+                && value.State.DeleteRequests.size() == 1U,
+            "physical deletion failure retains the exact post-PONR quarantine "
+            "phase");
+        const auto authorization = value.State.DeleteRequests.front();
+        restart(value);
+        expect(value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::complete
+                && value.State.DeleteRequests.size() == 3U
+                && std::ranges::all_of(value.State.DeleteRequests,
+                    [&authorization](const auto& request)
+                    { return request == authorization; })
+                && value.State.Binding.Catalog == catalog_identity(2),
+            "restart replays one cache-delete authorization through "
+            "quarantine, "
+            "tombstone, and cleanup");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        value.State.CacheDeleteFinalizesWithoutChange = true;
+        value.Host->dispatch(core::delete_repository_cache_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Cache = value.State.Binding.Authority.Cache,
+        });
+        run_effect_completion(value);
+        expect(value.State.Maintenance
+                && value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::
+                        repair_required
+                && has_repair_diagnostic(value.State),
+            "cache-delete success without the exact catalog revision "
+            "postcondition "
+            "is marked repair-required");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        value.State.MaintenanceCatalogFailures.emplace_back(
+            "catalog.transition:cleanup",
+            application::epoch_catalog_failure::unavailable);
+        value.Host->dispatch(core::delete_repository_cache_intent{
+            .Catalog = *value.Host->state().Catalog,
+            .Cache = value.State.Binding.Authority.Cache,
+        });
+        run_effect_completion(value);
+        expect(value.State.Maintenance
+                && value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::
+                        catalog_tombstoned_cleanup_pending
+                && value.State.Binding.Catalog == catalog_identity(2),
+            "terminal bookkeeping failure preserves the already-visible cache "
+            "tombstone phase");
+        const auto authorization = value.State.DeleteRequests.front();
+        restart(value);
+        expect(value.State.Maintenance->Phase
+                    == application::epoch_catalog_operation_phase::complete
+                && std::ranges::all_of(value.State.DeleteRequests,
+                    [&authorization](const auto& request)
+                    { return request == authorization; })
+                && value.State.Binding.Catalog == catalog_identity(2),
+            "restart finishes bookkeeping without a second catalog revision");
+    }
+}
+
 void shutdown_waits_for_worker_and_decision_quiescence()
 {
     fixture value;
@@ -3037,6 +3907,12 @@ int main()
     post_ponr_recovery_resumes_every_durable_phase();
     promotion_error_is_resolved_by_exact_postcondition_inspection();
     recovery_identity_and_pagination_mismatches_fail_closed();
+    core_authorized_prune_composes_exact_durable_cleanup();
+    core_authorized_cache_delete_closes_session_and_projects_bulk_change();
+    maintenance_cancellation_obeys_the_durable_point_of_no_return();
+    maintenance_restart_recovery_aborts_or_completes_by_phase();
+    maintenance_restart_recovery_covers_every_durable_phase();
+    maintenance_faults_fail_closed_and_restart_from_durable_phase();
     shutdown_waits_for_worker_and_decision_quiescence();
     return EXIT_SUCCESS;
 }

@@ -1005,7 +1005,7 @@ compatibility only.
 This component evidence proves durable catalog facts and recovery decisions
 for exact host-supplied observations. The next section records the BPR-0045
 host composition of those facts; BPR-0047 owns public composition, BPR-0055
-owns maintenance authorization/recovery, BPR-0056 completes core/host history
+composes maintenance authorization/recovery, BPR-0056 completes core/host history
 paging, BPR-0046 owns its Qt consumption, and BPR-0053 owns target-native
 Windows behavior. GitHub Actions has no role in any of these commands or
 claims.
@@ -1059,11 +1059,48 @@ catalog page exactly once, publishes stable provider/Git/SQLite-free rows with
 
 This is component evidence. BPR-0047 still owns selection through the public
 BetterPullReview composition and a second-process persistence run; BPR-0048
-owns the broader combined failure/reordering matrix. BPR-0055 retains the
+owns the broader combined failure/reordering matrix. BPR-0055 completes the
 maintenance product path; the bounded history-page core/host/projection path
 is complete in BPR-0056, while its Qt trigger/model remains BPR-0046. No live private repository,
 GitHub mutation, Windows-native execution, or GitHub Actions workflow is part
 of this verification.
+
+For the BPR-0055 core-authorized maintenance slice, build and run the compact
+core policy, manual-executor host matrix, real installed-Git cache contract,
+and composed real Git/SQLite integration fixture with:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_epoch_core_tests \
+  better_pull_review_application_epoch_host_tests \
+  better_pull_review_git_cache_contract_tests \
+  better_pull_review_epoch_maintenance_integration_tests
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(core_epoch_policy|application_epoch_host|git_cache_contract|epoch_maintenance_integration)$'
+```
+
+The core table proves exact authority/catalog/cache targeting, strictly
+ordered unique batches of at most 100 epochs, digest-bound terminal identity,
+single-flight policy, stale and duplicate rejection, pre/post-point-of-no-
+return cancellation, incremental availability deltas, and compact trivially
+copyable state. The host matrix covers every durable maintenance restart
+phase plus injected lookup, transition, paired-ref, quarantine, catalog
+finalization, and terminal-bookkeeping failures. It requires pre-point intent
+to abort, post-point work to resume with one durable operation token, physical
+ambiguity to become `repair_required`, and cache deletion to close the live
+session before quarantine.
+
+`epoch_maintenance_integration` is the closest deterministic composed runtime
+surface for this non-UI lifecycle. It accepts a real handoff through the epoch
+host, streams a fixed valid SHA-1 smart-protocol pack into the real installed-
+Git cache, persists the initial epoch in the real SQLite catalog, dispatches
+the actual core prune/delete intents, shuts down, and reopens durable state.
+The prune case requires both catalog anchors to remain `pruned` while the exact
+retained pair is absent. The cache-delete case requires both anchors to remain
+`cache_deleted`, the exact repository directory to be absent, and the terminal
+deletion tombstone to reject reuse of that cache scope. The fixture uses only
+disposable local directories and no GitHub endpoint, credential, mutation, or
+GitHub Actions workflow.
 
 ## Troubleshooting and safe verification
 

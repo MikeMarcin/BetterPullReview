@@ -866,7 +866,7 @@ consequence summary. A BPR-0044 prune intent persists the exact base/head OIDs,
 retained-ref identities, expected catalog revision, and each anchor's expected
 starting availability. Only `available`, `unavailable`, and `corrupt` may enter
 the operation. Begin, replay, finalization, finalized replay, and restart reject
-any revision, identity, or availability drift. BPR-0055 owns the missing
+any revision, identity, or availability drift. BPR-0055 implements the
 core-authorized host path that supplies exact paired-ref absence before one
 catalog transaction marks both anchors and every linked non-destructive review
 association `pruned`, advances the revision, and releases the retained-epoch
@@ -876,13 +876,17 @@ replay cannot decrement quota or mutate rows a second time.
 The retained anchor/epoch identity remains as a pruned tombstone. Any named
 alias whose semantic candidate is that epoch becomes explicitly unavailable
 and never remaps to an older resident epoch. Repository-cache deletion
-enumerates and durably records every
-affected PR scope in the one exact account/profile cache partition and cannot
-touch another partition. Handles are closed, the exact validated directory is
+enumerates and durably records every affected PR scope in the one exact
+account/profile cache partition and cannot touch another partition. The exact
+bounded set is sealed before the point of no cancellation. Handles are closed,
+the exact validated directory is
 atomically renamed into a transaction-named app-owned quarantine,
 cache-deleted tombstones and revisions are finalized, and only that
 quarantined path is removed. A failed or interrupted physical delete remains
-a retryable unavailable tombstone and is never rediscovered as a cache.
+a retryable unavailable tombstone and is never rediscovered as a cache. The
+durable operation ID is the stable authorization token for every replay;
+mixed ref state, cache identity ambiguity, or phase drift becomes
+`repair_required` rather than broad cleanup.
 Secure erasure from WAL/journal files or SSD media is not claimed.
 
 Deleting a physical cache does not erase the stable PR authority or rewrite

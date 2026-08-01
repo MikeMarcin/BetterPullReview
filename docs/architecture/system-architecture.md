@@ -270,11 +270,13 @@ include the request, application session, complete pull-request authority,
 accepted pull-request revision, catalog incarnation/revision, and the lane
 generation. The host may temporarily retain up to 100 exact prepared
 operations so superseded or rejected preparation can be discarded by identity;
-that bounded effect state is not a second semantic lane. BPR-0055 still owns
-the core-authorized maintenance lanes. Authority replacement advances every
-applicable generation before cancellation and clears identity-sensitive epoch
-projections. Same-authority refresh may retain the last accepted exact pair as
-visibly refreshing.
+that bounded effect state is not a second semantic lane. BPR-0055 adds one
+compact core-authorized maintenance lane whose pending state retains only the
+exact catalog/cache identity, target count, and deterministic target digest;
+the bounded target batch remains in the request. Authority replacement
+advances every applicable generation before cancellation and clears
+identity-sensitive epoch projections. Same-authority refresh may retain the
+last accepted exact pair as visibly refreshing.
 
 Epoch cache/catalog effects are serialized by a host-lifetime registry of at
 most 1,000 actors, one per exact repository cache authority. Each actor owns
@@ -406,8 +408,11 @@ It journals exact spool/inventory facts before `index-pack`, records
 `ref_commit_in_progress` before ref promotion, and treats that phase as the
 point of no cancellation. Any error or exception after that point is resolved
 from exact durable and physical postconditions. Catalog visibility remains
-mandatory success even when cleanup is left for recovery. BPR-0055 retains
-core-authorized prune/cache-delete orchestration and recovery; BPR-0047 retains
+mandatory success even when cleanup is left for recovery. BPR-0055 applies
+the same rule to core-authorized prune/cache-delete orchestration: cancellation
+may abort only before durable ref deletion or quarantine begins, and restart
+must resume each later phase with the original operation authorization.
+BPR-0047 retains
 selection of the complete host path by the public application.
 
 When base, head, and branch are unchanged but the accepted

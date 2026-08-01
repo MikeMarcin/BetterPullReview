@@ -313,7 +313,7 @@ after interruption. BPR-0044 prune facts admit only available, unavailable,
 or corrupt starting anchors and retain exact expected availability, OIDs, ref
 identity, and revision through begin/replay/finalize/restart. Catalog
 finalization atomically marks both anchors and linked non-destructive review
-states pruned and releases logical quota exactly once. BPR-0055 retains the
+states pruned and releases logical quota exactly once. BPR-0055 implements the
 core-authorized paired-ref deletion and cache-maintenance host paths. No glob
 or broad credential/cache deletion is permitted.
 
@@ -372,9 +372,31 @@ terminal cases. Adjacent real installed-Git, cache, and SQLite
 contracts verify the physical and durable port implementations.
 BPR-0047 retains public executable selection and a second-process persistence
 run; BPR-0048 retains the broad combined fault/reordering matrix; BPR-0055
-retains maintenance authorization and recovery; BPR-0046 retains the Qt
+completes maintenance authorization and recovery; BPR-0046 retains the Qt
 history trigger/model; and BPR-0053 retains target-native Windows
 evidence.
+
+BPR-0055 adds one deterministic maintenance lane to the compact core. A prune
+request contains a strictly ordered unique batch of at most 100 exact epoch
+IDs; the pending state retains only its count and a domain-separated SHA-256
+target digest. Whole-cache deletion binds the exact active cache scope. Every
+terminal revalidates authority, accepted source, generation, catalog, kind,
+cache, target count, and digest. Duplicate, stale, cross-authority, and
+tampered terminals are inert. Success publishes exact stable-ID availability
+changes for prune or one bulk `cache_deleted` change, then re-resolves the
+semantic comparison.
+
+The host converts only that core request into durable action. It loads exact
+anchors before beginning prune, seals the complete bounded cache impact before
+deletion, and uses the durable operation ID as the replay-stable Git
+authorization token. Cancellation aborts only before `ref_delete_in_progress`
+or `quarantine_rename_in_progress`; every later phase resumes mandatory exact
+completion. Mixed ref/cache identity or phase ambiguity becomes durable
+`repair_required`. The manual-executor matrix covers every maintenance restart
+phase and injected lookup, transition, ref, quarantine, finalization, and
+cleanup failure. The real `epoch_maintenance_integration` composition drives
+core, host, SQLite, and installed Git together and reopens durable state after
+exact prune and cache deletion.
 
 ## Claim matrix
 
@@ -387,10 +409,10 @@ evidence.
 | Old observed head survives force-push | Local smart remote, cache, refs, catalog, public selector | Observe and retain the old head, then remove/prune the remote object, import the replacement, restart, and compare retained old head to latest | Partially verified: `2801241` retains and directly inspects both old and replacement cache revisions after remote pruning; BPR-0044 proves durable multi-epoch chronology/anchor restart round trips; BPR-0045 verifies append/recovery orchestration and direct commit inspection at the component boundary. BPR-0048 retains the broad combined matrix and BPR-0047 retains the public selector |
 | Repository behavior cannot execute | Hostile Git/config/repository fixtures | Arm hooks/helpers/askpass/filters/LFS/submodule/textconv/ext-diff/protocol canaries; require zero invocation | Verified for the directly exercised macOS BPR-0042 local-process surface through hostile real-Git state plus exact child argv/environment/cwd/port inspection; Linux/Windows and end-to-end transport/cache evidence remain open |
 | Epoch causes remain truthful | Core cause table with real Git facts | Replay initial, descendant upload, non-fast-forward rewrite, base-only, branch-change, simultaneous-change, equivalent, unknown-lineage, and retention-rehydration cases | Verified for deterministic core/catalog-component policy in BPR-0041/BPR-0044, including the one-shot durable rehydration requirement and explicit cause. BPR-0045 supplies bounded, directly inspected Git observations to core at the component boundary; BPR-0048 retains the broad combined real-adapter matrix |
-| Catalog/ref commit and recovery agree | Fault-injected catalog and Git refs | Fail or interrupt every phase; restart; require the catalog visibility authority to expose one exact committed epoch or an unavailable/recoverable pending state, never a ref-derived false success | Partially verified: BPR-0044 proves exact typed operation facts, phase/evidence/revision CAS, and idempotent catalog replay. BPR-0045 verifies journal-before-import, exact append-phase continuation, pre-PONR abort, post-PONR mandatory success, applied-then-error postconditions, cleanup, and stale rejection through component ports; adjacent real Git/cache/SQLite contracts verify those ports. BPR-0048 retains the broad combined matrix and BPR-0047 public composition |
+| Catalog/ref commit and recovery agree | Fault-injected catalog and Git refs | Fail or interrupt every phase; restart; require the catalog visibility authority to expose one exact committed epoch or an unavailable/recoverable pending state, never a ref-derived false success | Partially verified: BPR-0044 proves exact typed operation facts, phase/evidence/revision CAS, and idempotent catalog replay. BPR-0045 verifies append-phase continuation and postconditions. BPR-0055 covers every prune/cache-delete durable phase, failure injection, exact authorization replay, and real Git/SQLite composed cleanup. BPR-0048 retains the broad combined matrix and BPR-0047 public composition |
 | Defaults and arbitrary pairs use exact OIDs | Core + Qt + public application | Verify Whole PR and selected IDs/OIDs/context agree; accept same-authority reverse and identical pairs, with identical OIDs producing empty comparison | Partially verified: BPR-0041 proves exact core pair/alias policy and BPR-0044 restores exact anchor IDs/OIDs; BPR-0046/BPR-0047 retain Qt and public application evidence |
 | Named aliases resolve exactly | Catalog/core/public application | Verify Whole PR, nearest preceding distinct live head, newest ordered current-viewer review, and an association-only review update on an unchanged head; make the exact alias unavailable instead of falling back when its candidate is unavailable | Partially verified: BPR-0041 proves semantic candidate/no-fallback policy, and BPR-0044 persists chronology, availability, review order, and association-only updates. BPR-0046/BPR-0047 retain rendered/public agreement |
-| Pruned and never-observed history is honest | Catalog/core/Qt | Explicit prune/delete and unreachable unknown head stay visible/unavailable and never silently remap | Partially verified in BPR-0044: exact available/unavailable/corrupt prune facts survive replay/restart; finalization atomically prunes both anchors and linked review state and decrements quota once. BPR-0055 retains core-authorized real ref deletion; BPR-0046/BPR-0047 retain Qt/public presentation |
+| Pruned and never-observed history is honest | Catalog/core/Qt | Explicit prune/delete and unreachable unknown head stay visible/unavailable and never silently remap | Partially verified: BPR-0044 proves durable exact prune/cache-delete facts and idempotent finalization; BPR-0055 proves core authorization, exact paired-ref deletion, whole-cache cleanup, restart recovery, and matching incremental availability projection through fake-port and real Git/SQLite composition. BPR-0046/BPR-0047 retain Qt/public presentation |
 | Stale/canceled work cannot publish | Manual executor and real process cancellation | Reorder/duplicate/cancel Git, transport, catalog, and identity-switch completions | Partially verified at component boundaries: earlier protocol/process/cache slices reject canceled work and exact lease drift; BPR-0045 directly verifies pre/post-PONR cancellation policy and rejects stale load, preparation, and comparison terminals before core/projection publication. BPR-0056 rejects mismatched authority/source/catalog/cursor, cancels on revision or identity replacement, and proves a deliberately reordered loaded page cannot publish rows. BPR-0048 retains the broad combined fault matrix and BPR-0047 public composition |
 | Qt projection is incremental, accessible, and system-native | Stable-ID model and real widgets | Assert exact signals, persistent indexes, focus, keyboard, OID text, announcements, responsive layout, zero routine resets, and live native palette/style/font inheritance | Planned |
 | Public composition selects production pieces | Real executable | Recorded GitHub plus local Git protocol fixture reaches exact visible pair; second invocation proves persistence; Release excludes seams | Planned |
@@ -445,14 +467,14 @@ visual-polish or custom-theme claim.
 
 | Scope | Required documents | Disposition | Planned evidence |
 |---|---|---|---|
-| Core epoch state and typed flow | Domain/state model and Git/epoch architecture | Updated: exact revision/incarnation, composite cause facts, exact alias/pair policy, request/generation acceptance, and BPR-0056 bounded page/cursor/delta policy; no page rows retained | Core paging/cause/selection tables, replay tests, state-size and dependency scans |
-| Host/Git/transport boundary | System architecture, Git/epoch implementation, security model | Updated through component work: earlier slices harden installed Git, smart transport, cache/ref consumption, and durable catalog facts; BPR-0045 adds the source-free handoff/runtime ports, per-repository FIFO host, exact append/recovery sequencing, physical commit inspection, stale/cancel rejection, and projection/quiescence containment. BPR-0056 adds revision-bound catalog page execution and sanitized incremental projection. BPR-0047 retains public composition | `application_epoch_contract`, `application_epoch_host`, and adjacent real Git/cache/SQLite contracts; public composed runtime remains pending |
-| Cache privacy and operations | Git/epoch architecture, build/test and operator guidance | Updated: `2801241` implements physical authority isolation and exact cache/ref cleanup; BPR-0044 implements durable append/prune/cache-delete facts; BPR-0045 composes append authorization/recovery through exact component ports. BPR-0055 retains core-authorized prune/cache-delete maintenance orchestration | Hostile cache fixtures, catalog restart/corruption/quota contracts, and BPR-0045 append phase/recovery/postcondition tests |
+| Core epoch state and typed flow | Domain/state model and Git/epoch architecture | Updated: exact revision/incarnation, composite cause facts, exact alias/pair policy, request/generation acceptance, BPR-0056 bounded page/cursor/delta policy, and BPR-0055 digest-bound maintenance intent/request/terminal policy; no page rows or maintenance target vectors are retained | Core paging/cause/selection/maintenance tables, replay tests, state-size and dependency scans |
+| Host/Git/transport boundary | System architecture, Git/epoch implementation, security model | Updated through component work: earlier slices harden installed Git, smart transport, cache/ref consumption, and durable catalog facts; BPR-0045 adds the source-free handoff/runtime ports, per-repository FIFO host, exact append/recovery sequencing, physical commit inspection, stale/cancel rejection, and projection/quiescence containment. BPR-0055 composes exact prune/cache-delete authorization and every durable restart phase; BPR-0056 adds revision-bound catalog page execution and sanitized incremental projection. BPR-0047 retains public composition | `application_epoch_contract`, `application_epoch_host`, `epoch_maintenance_integration`, and adjacent real Git/cache/SQLite contracts; public composed runtime remains pending |
+| Cache privacy and operations | Git/epoch architecture, build/test and operator guidance | Updated: `2801241` implements physical authority isolation and exact cache/ref cleanup; BPR-0044 implements durable append/prune/cache-delete facts; BPR-0045 composes append authorization/recovery; BPR-0055 composes core-authorized paired-ref and whole-cache maintenance with exact durable tokens, cancellation boundary, recovery, repair, and incremental availability | Hostile cache fixtures, catalog restart/corruption/quota contracts, manual-executor maintenance failures/restarts, real `git_cache_contract`, and real Git/SQLite maintenance composition |
 | Epoch semantics | Product/UX reference and verification ledger | Selected: composite causes, unknown lineage, chronology, equivalence, exact anchors, aliases without fallback, reverse/identical pairs, and unavailable history | Core/host/public fixture matrix |
 | Qt presentation | Workbench and appearance/accessibility documents | Selected: reusable selectors, exact OIDs, states, incremental model, accessibility, and native System inheritance; no final-workbench claim | Qt signal/state/raster/native appearance evidence |
-| Build and packaging | Build/test guide and dependency inventory | Updated for repository-pinned static SQLite 3.53.4, the exact 18-table/16-index schema, platform storage/runtime-port boundaries, dedicated core/host/history commands, and isolation of fault seams. BPR-0056 adds no dependency, target, feature flag, schema, package, or runtime option. Public composition and platform-wide inspection remain later work | Focused application/core/SQLite commands and dependency/architecture scans; no Windows execution is claimed |
-| Tests and fixtures | Fixture catalog and test guide | Updated for BPR-0045 handoff/runtime and BPR-0056 core/manual-executor page fixtures, including page shapes/bounds, exact cursor/revision, duplicate/failure/cancellation, source replacement, stale reordering, sanitized rows, and zero model reset | `core_epoch_policy`, `application_epoch_contract`, `application_epoch_host`, SQLite contracts, architecture scans, documentation gate, and simplification review |
-| No-impact/deferred regions | RFC ledger, architecture, issue board | Recorded: BPR-0056 completes core/host/projection history paging without a Qt widget/model change; BPR-0046 retains that trigger/model, BPR-0047 public composition, BPR-0048 the broad combined matrix, BPR-0055 maintenance authorization/recovery, and BPR-0053 target-native Windows evidence. No GitHub mutation, RFC4 diff/line mapping, RFC5 final workbench, RFC6 themes/syntax/fonts, queue/AI/notification, CLI enablement, or package-format/signing/installer implementation is claimed | Immutable-base path/target audit and boundary scans |
+| Build and packaging | Build/test guide and dependency inventory | Updated for repository-pinned static SQLite 3.53.4, the exact 18-table/16-index schema, platform storage/runtime-port boundaries, dedicated core/host/history/maintenance commands, and isolation of fault seams. BPR-0055 adds one integration-test target but no dependency, feature flag, schema, package, or runtime option. Public composition and platform-wide inspection remain later work | Focused application/core/Git/SQLite commands and dependency/architecture scans; no Windows execution is claimed |
+| Tests and fixtures | Fixture catalog and test guide | Updated for BPR-0045 handoff/runtime, BPR-0055 core/manual-executor/real-composition maintenance fixtures, and BPR-0056 bounded page fixtures | `core_epoch_policy`, `application_epoch_contract`, `application_epoch_host`, `git_cache_contract`, `epoch_maintenance_integration`, SQLite contracts, architecture scans, documentation gate, and simplification review |
+| No-impact/deferred regions | RFC ledger, architecture, issue board | Recorded: BPR-0055 completes non-UI maintenance and BPR-0056 completes core/host/projection history paging without a Qt widget/model change; BPR-0046 retains Qt consumption, BPR-0047 public composition, BPR-0048 the broad combined matrix, and BPR-0053 target-native Windows evidence. No GitHub mutation, RFC4 diff/line mapping, RFC5 final workbench, RFC6 themes/syntax/fonts, queue/AI/notification, CLI enablement, or package-format/signing/installer implementation is claimed | Immutable-base path/target audit and boundary scans |
 | GitHub Actions | Build/test/package/release documentation | Updated and verified through completed BPR-0044: absolute prohibition and no workflow files | Documentation validator and tracked/on-disk workflow scans are 0/0; repeat at RFC closeout |
 
 ## Performance and projection plan
@@ -490,8 +512,9 @@ visual-polish or custom-theme claim.
 - Positive GitHub CLI enablement remains deferred RFC-BPR-0015. Installed Git
   is a different local object/protocol tool and receives no credential or
   network authority.
-- BPR-0055 owns core-authorized prune and cache-delete maintenance host paths,
-  including exact destructive recovery. BPR-0056 completes history paging
+- BPR-0055 completes core-authorized prune and cache-delete maintenance host
+  paths, including exact destructive recovery; it adds no Qt confirmation or
+  command surface. BPR-0056 completes history paging
   through core, host, and projection; BPR-0046 owns the Qt trigger and row
   model that consume it.
 - Package formats, signing, notarization, installers, and distribution

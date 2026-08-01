@@ -341,6 +341,60 @@ template<typename Identity>
         && next.FinalHead == prior.FinalHead;
 }
 
+[[nodiscard]] auto same_maintenance_identity(
+    const maintenance_operation_record& prior,
+    const maintenance_operation_record& next) noexcept -> bool
+{
+    return application::valid(next) && next.Incarnation == prior.Incarnation
+        && next.Operation == prior.Operation && next.Kind == prior.Kind
+        && next.Cache == prior.Cache && next.Epochs == prior.Epochs
+        && next.Scopes == prior.Scopes;
+}
+
+[[nodiscard]] auto exact_maintenance_transition(
+    const maintenance_operation_record& prior,
+    const maintenance_operation_record& next,
+    const epoch_catalog_operation_phase phase) noexcept -> bool
+{
+    return same_maintenance_identity(prior, next)
+        && application::can_advance(prior.OperationRevision)
+        && next.OperationRevision.value() == prior.OperationRevision.value() + 1
+        && next.Phase == phase
+        && (phase == epoch_catalog_operation_phase::repair_required
+                ? next.RepairFromPhase == std::optional{prior.Phase}
+                : !next.RepairFromPhase);
+}
+
+[[nodiscard]] auto exact_prune_intent(
+    const maintenance_operation_record& record,
+    const begin_prune_request& request,
+    const core::repository_cache_scope_id cache) noexcept -> bool
+{
+    return application::valid(record)
+        && record.Incarnation == request.Catalog.Incarnation
+        && record.Operation == request.Operation
+        && record.Kind == epoch_catalog_operation_kind::prune
+        && record.Phase == epoch_catalog_operation_phase::prune_intent
+        && record.OperationRevision == epoch_catalog_operation_revision{1}
+        && record.Cache == cache && record.Epochs == request.Epochs
+        && record.Scopes.empty() && !record.RepairFromPhase;
+}
+
+[[nodiscard]] auto exact_cache_delete_intent(
+    const maintenance_operation_record& record,
+    const begin_cache_delete_request& request) noexcept -> bool
+{
+    return application::valid(record)
+        && record.Incarnation == request.Impact.Incarnation
+        && record.Operation == request.Operation
+        && record.Kind == epoch_catalog_operation_kind::cache_delete
+        && record.Phase
+            == epoch_catalog_operation_phase::cache_delete_intent_sealed
+        && record.OperationRevision == epoch_catalog_operation_revision{1}
+        && record.Cache == request.Impact.Cache && record.Epochs.empty()
+        && record.Scopes == request.Impact.Scopes && !record.RepairFromPhase;
+}
+
 [[nodiscard]] auto recovery_operation_identity(
     const epoch_recovery_operation& operation) noexcept
     -> core::epoch_operation_id
@@ -1074,8 +1128,46 @@ struct epoch_application_host::implementation
             *context.Catalog, record, catalog, next, stop);
     }
 
-    [[nodiscard]] static auto open_actor_cache(
-        authority_effect_actor& actor,
+    [[nodiscard]] static auto advance_maintenance(
+        epoch_catalog_session& catalog,
+        const maintenance_operation_record& record,
+        const core::epoch_catalog_identity expected_catalog,
+        const epoch_catalog_operation_phase next,
+        const std::stop_token stop)
+        -> epoch_catalog_result<maintenance_operation_record>
+    {
+        const auto evidence =
+            required_transition_evidence(record.Kind, record.Phase, next);
+        if(!evidence)
+        {
+            return std::unexpected{epoch_catalog_failure::phase_conflict};
+        }
+        auto advanced = catalog.transition_operation(
+            operation_transition_request{
+                .Catalog = expected_catalog,
+                .Operation = record.Operation,
+                .Kind = record.Kind,
+                .Expected = record.Phase,
+                .Next = next,
+                .Evidence = *evidence,
+                .ExpectedOperationRevision = record.OperationRevision,
+            },
+            stop);
+        if(!advanced)
+        {
+            return std::unexpected{advanced.error()};
+        }
+        const auto* maintenance =
+            std::get_if<maintenance_operation_record>(&*advanced);
+        if(maintenance == nullptr
+            || !exact_maintenance_transition(record, *maintenance, next))
+        {
+            return std::unexpected{epoch_catalog_failure::operation_conflict};
+        }
+        return *maintenance;
+    }
+
+    [[nodiscard]] static auto open_actor_cache(authority_effect_actor& actor,
         git_cache_port& caches,
         const git_cache_open_request& expected,
         const std::stop_token stop)
@@ -1115,6 +1207,20 @@ struct epoch_application_host::implementation
         }
         static_cast<void>(advance_append(
             catalog,
+            record,
+            catalog.binding().Catalog,
+            epoch_catalog_operation_phase::repair_required,
+            {}));
+    }
+
+    static void mark_maintenance_repair(epoch_catalog_session& catalog,
+        const maintenance_operation_record& record)
+    {
+        if(record.Phase == epoch_catalog_operation_phase::repair_required)
+        {
+            return;
+        }
+        static_cast<void>(advance_maintenance(catalog,
             record,
             catalog.binding().Catalog,
             epoch_catalog_operation_phase::repair_required,
@@ -1490,8 +1596,290 @@ struct epoch_application_host::implementation
         return {};
     }
 
-    [[nodiscard]] static auto recover_catalog(
+    [[nodiscard]] static auto recover_maintenance(
         epoch_catalog_session& catalog,
+        git_cache_port& caches,
+        const accepted_pull_request_handoff& handoff,
+        std::unique_ptr<git_cache_session>& cache,
+        maintenance_operation_record record,
+        const std::stop_token stop)
+        -> std::expected<core::epoch_catalog_identity, core::epoch_failure>
+    {
+        const auto fail_catalog = [&](const epoch_catalog_failure failure)
+            -> std::expected<core::epoch_catalog_identity, core::epoch_failure>
+        {
+            const auto mapped = catalog_failure(failure);
+            if(mapped == core::epoch_failure::repair_required)
+            {
+                mark_maintenance_repair(catalog, record);
+            }
+            return std::unexpected{mapped};
+        };
+        const auto fail_cache = [&](const git_cache_failure failure)
+            -> std::expected<core::epoch_catalog_identity, core::epoch_failure>
+        {
+            const auto mapped = cache_failure(failure);
+            if(mapped == core::epoch_failure::repair_required)
+            {
+                mark_maintenance_repair(catalog, record);
+            }
+            return std::unexpected{mapped};
+        };
+        if(!application::valid(record)
+            || record.Incarnation != catalog.binding().Catalog.Incarnation
+            || record.Cache != catalog.binding().Authority.Cache)
+        {
+            mark_maintenance_repair(catalog, record);
+            return std::unexpected{core::epoch_failure::repair_required};
+        }
+        if(record.Phase == epoch_catalog_operation_phase::repair_required)
+        {
+            return std::unexpected{core::epoch_failure::repair_required};
+        }
+        if(record.Phase == epoch_catalog_operation_phase::complete
+            || record.Phase == epoch_catalog_operation_phase::aborted)
+        {
+            return catalog.binding().Catalog;
+        }
+
+        const auto before_point_of_no_return =
+            !point_of_no_cancellation(record.Phase);
+        if(before_point_of_no_return)
+        {
+            if(record.Phase != epoch_catalog_operation_phase::abort_requested)
+            {
+                const auto requested = advance_maintenance(catalog,
+                    record,
+                    catalog.binding().Catalog,
+                    epoch_catalog_operation_phase::abort_requested,
+                    stop);
+                if(!requested)
+                {
+                    return fail_catalog(requested.error());
+                }
+                record = *requested;
+            }
+            const auto aborted = advance_maintenance(catalog,
+                record,
+                catalog.binding().Catalog,
+                epoch_catalog_operation_phase::aborted,
+                stop);
+            if(!aborted)
+            {
+                return fail_catalog(aborted.error());
+            }
+            return catalog.binding().Catalog;
+        }
+
+        const auto expected_cache = git_cache_open_request{
+            .ApplicationSession = handoff.ApplicationSession,
+            .Authority = catalog.binding().Authority,
+            .ObjectFormat = handoff.ObjectFormat,
+        };
+        const auto durable_token = record.Operation.bytes();
+        const auto post_point_stop = std::stop_token{};
+
+        if(record.Kind == epoch_catalog_operation_kind::prune)
+        {
+            if(record.Phase
+                == epoch_catalog_operation_phase::ref_delete_in_progress)
+            {
+                if(!cache)
+                {
+                    auto opened = caches.open(expected_cache, post_point_stop);
+                    if(!opened)
+                    {
+                        return fail_cache(opened.error());
+                    }
+                    if(!*opened || !application::valid((*opened)->request())
+                        || (*opened)->request() != expected_cache)
+                    {
+                        mark_maintenance_repair(catalog, record);
+                        return std::unexpected{
+                            core::epoch_failure::repair_required};
+                    }
+                    cache = std::move(*opened);
+                }
+                std::vector<git_retained_ref_pair> absent;
+                absent.reserve(record.Epochs.size());
+                for(const auto& fact : record.Epochs)
+                {
+                    const auto pruned = cache->prune_retained(
+                        git_ref_prune_authorization{
+                            .CatalogIncarnation = record.Incarnation,
+                            .ExpectedCatalogRevision =
+                                catalog.binding().Catalog.Revision,
+                            .Expected = fact.Retained,
+                            .DurableIntentToken = durable_token,
+                        },
+                        post_point_stop);
+                    if(!pruned)
+                    {
+                        return fail_cache(pruned.error());
+                    }
+                    absent.push_back(fact.Retained);
+                }
+                const auto before = catalog.binding().Catalog;
+                const auto finalized = catalog.finalize_prune(
+                    finalize_prune_request{
+                        .Transition =
+                            operation_transition_request{
+                                .Catalog = before,
+                                .Operation = record.Operation,
+                                .Kind = record.Kind,
+                                .Expected = record.Phase,
+                                .Next = epoch_catalog_operation_phase::
+                                    visible_cleanup_pending,
+                                .Evidence = epoch_catalog_transition_evidence::
+                                    exact_refs_absent,
+                                .ExpectedOperationRevision =
+                                    record.OperationRevision,
+                            },
+                        .ObservedAbsent = std::move(absent),
+                    },
+                    post_point_stop);
+                if(!finalized)
+                {
+                    return fail_catalog(finalized.error());
+                }
+                if(!exact_catalog_commit(*finalized, before, std::nullopt))
+                {
+                    mark_maintenance_repair(catalog, record);
+                    return std::unexpected{
+                        core::epoch_failure::repair_required};
+                }
+                record.Phase =
+                    epoch_catalog_operation_phase::visible_cleanup_pending;
+                record.OperationRevision = epoch_catalog_operation_revision{
+                    record.OperationRevision.value() + 1};
+            }
+            if(record.Phase
+                != epoch_catalog_operation_phase::visible_cleanup_pending)
+            {
+                mark_maintenance_repair(catalog, record);
+                return std::unexpected{core::epoch_failure::repair_required};
+            }
+            const auto completed = advance_maintenance(catalog,
+                record,
+                catalog.binding().Catalog,
+                epoch_catalog_operation_phase::complete,
+                post_point_stop);
+            if(!completed)
+            {
+                return fail_catalog(completed.error());
+            }
+            return catalog.binding().Catalog;
+        }
+
+        if(record.Kind != epoch_catalog_operation_kind::cache_delete)
+        {
+            mark_maintenance_repair(catalog, record);
+            return std::unexpected{core::epoch_failure::repair_required};
+        }
+        const auto delete_physical_cache =
+            [&]() -> std::expected<void, core::epoch_failure>
+        {
+            cache.reset();
+            const auto deleted = caches.delete_cache(expected_cache,
+                git_cache_delete_authorization{
+                    .ApplicationSession = handoff.ApplicationSession,
+                    .Cache = record.Cache,
+                    .DurableIntentToken = durable_token,
+                },
+                post_point_stop);
+            if(!deleted)
+            {
+                const auto mapped = cache_failure(deleted.error());
+                if(mapped == core::epoch_failure::repair_required)
+                {
+                    mark_maintenance_repair(catalog, record);
+                }
+                return std::unexpected{mapped};
+            }
+            return {};
+        };
+        if(record.Phase
+            == epoch_catalog_operation_phase::quarantine_rename_in_progress)
+        {
+            if(const auto deleted = delete_physical_cache(); !deleted)
+            {
+                return std::unexpected{deleted.error()};
+            }
+            const auto quarantined = advance_maintenance(catalog,
+                record,
+                catalog.binding().Catalog,
+                epoch_catalog_operation_phase::quarantined,
+                post_point_stop);
+            if(!quarantined)
+            {
+                return fail_catalog(quarantined.error());
+            }
+            record = *quarantined;
+        }
+        if(record.Phase == epoch_catalog_operation_phase::quarantined)
+        {
+            const auto before = catalog.binding();
+            const auto finalized = catalog.finalize_cache_delete(
+                finalize_cache_delete_request{
+                    .Transition =
+                        operation_transition_request{
+                            .Catalog = before.Catalog,
+                            .Operation = record.Operation,
+                            .Kind = record.Kind,
+                            .Expected = record.Phase,
+                            .Next = epoch_catalog_operation_phase::
+                                catalog_tombstoned_cleanup_pending,
+                            .Evidence = epoch_catalog_transition_evidence::
+                                catalog_transaction,
+                            .ExpectedOperationRevision =
+                                record.OperationRevision,
+                        },
+                },
+                post_point_stop);
+            if(!finalized)
+            {
+                return fail_catalog(finalized.error());
+            }
+            const auto& after = catalog.binding();
+            if(!application::valid(after) || after.Authority != before.Authority
+                || after.Catalog.Incarnation != before.Catalog.Incarnation
+                || before.Catalog.Revision.value()
+                    >= core::maximum_epoch_catalog_revision
+                || after.Catalog.Revision.value()
+                    != before.Catalog.Revision.value() + 1)
+            {
+                mark_maintenance_repair(catalog, record);
+                return std::unexpected{core::epoch_failure::repair_required};
+            }
+            record.Phase = epoch_catalog_operation_phase::
+                catalog_tombstoned_cleanup_pending;
+            record.OperationRevision = epoch_catalog_operation_revision{
+                record.OperationRevision.value() + 1};
+        }
+        if(record.Phase
+            != epoch_catalog_operation_phase::
+                catalog_tombstoned_cleanup_pending)
+        {
+            mark_maintenance_repair(catalog, record);
+            return std::unexpected{core::epoch_failure::repair_required};
+        }
+        if(const auto deleted = delete_physical_cache(); !deleted)
+        {
+            return std::unexpected{deleted.error()};
+        }
+        const auto completed = advance_maintenance(catalog,
+            record,
+            catalog.binding().Catalog,
+            epoch_catalog_operation_phase::complete,
+            post_point_stop);
+        if(!completed)
+        {
+            return fail_catalog(completed.error());
+        }
+        return catalog.binding().Catalog;
+    }
+
+    [[nodiscard]] static auto recover_catalog(epoch_catalog_session& catalog,
         git_cache_port& caches,
         epoch_entropy_port& entropy,
         const accepted_pull_request_handoff& handoff,
@@ -1544,9 +1932,24 @@ struct epoch_application_host::implementation
                     std::get_if<append_operation_record>(&operation);
                 if(append == nullptr)
                 {
-                    // BPR-0055 owns core-authorized maintenance recovery.
-                    return std::unexpected{
-                        core::epoch_failure::repair_required};
+                    const auto* maintenance =
+                        std::get_if<maintenance_operation_record>(&operation);
+                    if(maintenance == nullptr)
+                    {
+                        return std::unexpected{
+                            core::epoch_failure::repair_required};
+                    }
+                    const auto recovered = recover_maintenance(catalog,
+                        caches,
+                        handoff,
+                        cache,
+                        *maintenance,
+                        stop);
+                    if(!recovered)
+                    {
+                        return std::unexpected{recovered.error()};
+                    }
+                    continue;
                 }
                 if(!cache)
                 {
@@ -1874,6 +2277,10 @@ struct epoch_application_host::implementation
                 update.Catalog->Catalog = output.Catalog->Catalog;
                 update.Catalog->Replace =
                     !output.Catalog->Catalog.has_value();
+                update.Catalog->AvailabilityChangedEpochs =
+                    output.Catalog->AvailabilityChangedEpochs;
+                update.Catalog->AllEpochAvailability =
+                    output.Catalog->AllEpochAvailability;
             }
             if(output.AcceptedEpoch)
             {
@@ -1979,6 +2386,11 @@ struct epoch_application_host::implementation
                                       core::load_epoch_history_page_request>)
                 {
                     start_history_page(value);
+                }
+                else if constexpr(std::is_same_v<request_type,
+                                      core::perform_epoch_maintenance_request>)
+                {
+                    start_epoch_maintenance(value);
                 }
                 else
                 {
@@ -3724,6 +4136,388 @@ struct epoch_application_host::implementation
         }
         discard_context_preparation(
             std::move(context), request.Context.Operation);
+    }
+
+    void start_epoch_maintenance(
+        const core::perform_epoch_maintenance_request& request)
+    {
+        auto context = Active;
+        if(!context || context->Authority != request.Context.Authority
+            || context->Revision.Source != request.Context.Source)
+        {
+            return;
+        }
+        auto* const caches = &Caches;
+        auto* const entropy = &Entropy;
+        auto actor = context->Actor;
+        submit_effect(
+            [context, request, caches, entropy](
+                const std::stop_token stop) -> worker_completion
+            {
+                const auto completed =
+                    [request](const core::epoch_catalog_identity catalog)
+                    -> worker_completion
+                {
+                    return [request, catalog](implementation& host)
+                    {
+                        host.dispatch_core(
+                            core::epoch_maintenance_completed_event{
+                                .Context = request.Context,
+                                .NewCatalog = catalog,
+                            });
+                    };
+                };
+                const auto failed =
+                    [request](
+                        const core::epoch_failure failure) -> worker_completion
+                {
+                    return [request, failure](implementation& host)
+                    {
+                        host.dispatch_core(core::epoch_maintenance_failed_event{
+                            .Context = request.Context,
+                            .Failure = failure,
+                        });
+                    };
+                };
+                const auto cancelled = [request]() -> worker_completion
+                {
+                    return [request](implementation& host)
+                    {
+                        host.dispatch_core(
+                            core::epoch_maintenance_cancelled_event{
+                                .Context = request.Context,
+                            });
+                    };
+                };
+                const auto& binding = context->Catalog->binding();
+                if(!application::valid(binding)
+                    || binding.Authority != request.Context.Authority
+                    || binding.Catalog != request.Context.Catalog
+                    || request.Context.Cache != binding.Authority.Cache
+                    || request.Context.ApplicationSession
+                        != context->Handoff.ApplicationSession
+                    || request.Context.Generation.value() == 0U
+                    || request.Context.Request.value() == 0U
+                    || !request.Context.TargetDigest.valid())
+                {
+                    return failed(core::epoch_failure::catalog_conflict);
+                }
+
+                const auto snapshot = context->Catalog->snapshot(stop);
+                if(!snapshot)
+                {
+                    return snapshot.error() == epoch_catalog_failure::cancelled
+                        ? cancelled()
+                        : failed(catalog_failure(snapshot.error()));
+                }
+                if(!application::valid(snapshot->Binding)
+                    || snapshot->Binding != binding)
+                {
+                    return failed(core::epoch_failure::repair_required);
+                }
+
+                std::optional<maintenance_operation_record> operation;
+                for(std::size_t attempt = 0U;
+                    attempt < maximum_identity_attempts;
+                    ++attempt)
+                {
+                    const auto identity =
+                        mint_identity<core::epoch_operation_id>(*entropy);
+                    if(!identity)
+                    {
+                        return failed(core::epoch_failure::unavailable);
+                    }
+
+                    if(request.Context.Kind
+                        == core::epoch_maintenance_kind::prune_epochs)
+                    {
+                        if(request.Context.Epochs.empty()
+                            || request.Context.Epochs.size()
+                                > maximum_prune_epoch_count)
+                        {
+                            return failed(
+                                core::epoch_failure::malformed_observation);
+                        }
+                        std::vector<core::comparison_anchor_identity>
+                            identities;
+                        identities.reserve(request.Context.Epochs.size() * 2U);
+                        for(std::size_t index = 0U;
+                            index < request.Context.Epochs.size();
+                            ++index)
+                        {
+                            const auto& epoch = request.Context.Epochs[index];
+                            if(!core::valid(epoch)
+                                || epoch.Authority != binding.Authority.Scope
+                                || epoch.Incarnation
+                                    != binding.Catalog.Incarnation
+                                || (index != 0U
+                                    && !(request.Context.Epochs[index - 1U]
+                                        < epoch)))
+                            {
+                                return failed(
+                                    core::epoch_failure::malformed_observation);
+                            }
+                            identities.push_back(
+                                core::comparison_anchor_identity{
+                                    .Authority = epoch.Authority,
+                                    .Incarnation = epoch.Incarnation,
+                                    .Kind = core::comparison_anchor_kind::
+                                        epoch_base,
+                                    .Epoch = epoch.Ordinal,
+                                });
+                            identities.push_back(
+                                core::comparison_anchor_identity{
+                                    .Authority = epoch.Authority,
+                                    .Incarnation = epoch.Incarnation,
+                                    .Kind = core::comparison_anchor_kind::
+                                        epoch_head,
+                                    .Epoch = epoch.Ordinal,
+                                });
+                        }
+                        std::ranges::sort(identities);
+                        const auto anchors = context->Catalog->exact_anchors(
+                            exact_anchor_lookup_request{
+                                .Catalog = request.Context.Catalog,
+                                .Anchors = identities,
+                            },
+                            stop);
+                        if(!anchors)
+                        {
+                            return anchors.error()
+                                    == epoch_catalog_failure::cancelled
+                                ? cancelled()
+                                : failed(catalog_failure(anchors.error()));
+                        }
+                        if(anchors->Catalog != request.Context.Catalog
+                            || anchors->Anchors.size() != identities.size())
+                        {
+                            return failed(core::epoch_failure::repair_required);
+                        }
+                        std::vector<prune_epoch_fact> facts;
+                        facts.reserve(request.Context.Epochs.size());
+                        for(const auto& epoch : request.Context.Epochs)
+                        {
+                            const auto find = [&](const auto kind)
+                                -> const core::comparison_anchor*
+                            {
+                                const auto identity =
+                                    core::comparison_anchor_identity{
+                                        .Authority = epoch.Authority,
+                                        .Incarnation = epoch.Incarnation,
+                                        .Kind = kind,
+                                        .Epoch = epoch.Ordinal,
+                                    };
+                                const auto found =
+                                    std::ranges::find(anchors->Anchors,
+                                        identity,
+                                        &core::comparison_anchor::Identity);
+                                return found == anchors->Anchors.end()
+                                    ? nullptr
+                                    : &*found;
+                            };
+                            const auto* base =
+                                find(core::comparison_anchor_kind::epoch_base);
+                            const auto* head =
+                                find(core::comparison_anchor_kind::epoch_head);
+                            if(base == nullptr || head == nullptr
+                                || !core::valid(*base) || !core::valid(*head)
+                                || !valid_prune_anchor_availability(
+                                    base->Availability)
+                                || !valid_prune_anchor_availability(
+                                    head->Availability)
+                                || base->Commit.algorithm()
+                                    != context->Handoff.ObjectFormat
+                                || head->Commit.algorithm()
+                                    != context->Handoff.ObjectFormat)
+                            {
+                                return failed(
+                                    core::epoch_failure::repair_required);
+                            }
+                            facts.push_back(prune_epoch_fact{
+                                .Epoch = epoch,
+                                .Retained =
+                                    git_retained_ref_pair{
+                                        .Scope = epoch.Authority,
+                                        .Ordinal = epoch.Ordinal,
+                                        .Base = base->Commit,
+                                        .Head = head->Commit,
+                                    },
+                                .BaseRef =
+                                    epoch_catalog_ref_identity{
+                                        .Authority = epoch.Authority,
+                                        .Ordinal = epoch.Ordinal,
+                                    },
+                                .HeadRef =
+                                    epoch_catalog_ref_identity{
+                                        .Authority = epoch.Authority,
+                                        .Ordinal = epoch.Ordinal,
+                                        .Head = true,
+                                    },
+                                .ExpectedBaseAvailability = base->Availability,
+                                .ExpectedHeadAvailability = head->Availability,
+                            });
+                        }
+                        const auto begin = begin_prune_request{
+                            .Catalog = request.Context.Catalog,
+                            .Operation = *identity,
+                            .Epochs = std::move(facts),
+                        };
+                        auto begun = context->Catalog->begin_prune(begin, stop);
+                        if(begun)
+                        {
+                            if(!exact_prune_intent(*begun,
+                                   begin,
+                                   binding.Authority.Cache))
+                            {
+                                return failed(
+                                    core::epoch_failure::repair_required);
+                            }
+                            operation = std::move(*begun);
+                            break;
+                        }
+                        if(begun.error() == epoch_catalog_failure::cancelled)
+                        {
+                            return cancelled();
+                        }
+                        if(begun.error()
+                                != epoch_catalog_failure::operation_conflict
+                            && begun.error()
+                                != epoch_catalog_failure::
+                                    operation_identity_conflict)
+                        {
+                            return failed(catalog_failure(begun.error()));
+                        }
+                    }
+                    else if(request.Context.Kind
+                        == core::epoch_maintenance_kind::
+                            delete_repository_cache)
+                    {
+                        if(!request.Context.Epochs.empty())
+                        {
+                            return failed(
+                                core::epoch_failure::malformed_observation);
+                        }
+                        const auto impact =
+                            context->Catalog->cache_delete_impact(
+                                request.Context.Cache,
+                                stop);
+                        if(!impact)
+                        {
+                            return impact.error()
+                                    == epoch_catalog_failure::cancelled
+                                ? cancelled()
+                                : failed(catalog_failure(impact.error()));
+                        }
+                        const auto current_scope =
+                            std::ranges::find(impact->Scopes,
+                                binding.Authority.Scope,
+                                &cache_delete_scope_fact::Authority);
+                        if(!application::valid(*impact)
+                            || impact->Incarnation
+                                != binding.Catalog.Incarnation
+                            || impact->Cache != binding.Authority.Cache
+                            || current_scope == impact->Scopes.end()
+                            || current_scope->ExpectedRevision
+                                != binding.Catalog.Revision)
+                        {
+                            return failed(core::epoch_failure::repair_required);
+                        }
+                        const auto begin = begin_cache_delete_request{
+                            .Operation = *identity,
+                            .Impact = *impact,
+                        };
+                        auto begun =
+                            context->Catalog->begin_cache_delete(begin, stop);
+                        if(begun)
+                        {
+                            if(!exact_cache_delete_intent(*begun, begin))
+                            {
+                                return failed(
+                                    core::epoch_failure::repair_required);
+                            }
+                            operation = std::move(*begun);
+                            break;
+                        }
+                        if(begun.error() == epoch_catalog_failure::cancelled)
+                        {
+                            return cancelled();
+                        }
+                        if(begun.error()
+                                != epoch_catalog_failure::operation_conflict
+                            && begun.error()
+                                != epoch_catalog_failure::
+                                    operation_identity_conflict)
+                        {
+                            return failed(catalog_failure(begun.error()));
+                        }
+                    }
+                    else
+                    {
+                        return failed(
+                            core::epoch_failure::malformed_observation);
+                    }
+                }
+                if(!operation)
+                {
+                    return failed(core::epoch_failure::catalog_conflict);
+                }
+
+                if(stop.stop_requested())
+                {
+                    const auto aborted = recover_maintenance(*context->Catalog,
+                        *caches,
+                        context->Handoff,
+                        context->Actor->Cache,
+                        *operation,
+                        {});
+                    return aborted ? cancelled() : failed(aborted.error());
+                }
+                const auto next =
+                    operation->Kind == epoch_catalog_operation_kind::prune
+                    ? epoch_catalog_operation_phase::ref_delete_in_progress
+                    : epoch_catalog_operation_phase::
+                          quarantine_rename_in_progress;
+                auto authorized = advance_maintenance(*context->Catalog,
+                    *operation,
+                    request.Context.Catalog,
+                    next,
+                    stop);
+                if(!authorized)
+                {
+                    if(authorized.error() == epoch_catalog_failure::cancelled)
+                    {
+                        const auto aborted =
+                            recover_maintenance(*context->Catalog,
+                                *caches,
+                                context->Handoff,
+                                context->Actor->Cache,
+                                *operation,
+                                {});
+                        return aborted ? cancelled() : failed(aborted.error());
+                    }
+                    return failed(catalog_failure(authorized.error()));
+                }
+                const auto recovered = recover_maintenance(*context->Catalog,
+                    *caches,
+                    context->Handoff,
+                    context->Actor->Cache,
+                    *authorized,
+                    {});
+                return recovered ? completed(*recovered)
+                                 : failed(recovered.error());
+            },
+            [request](implementation& host)
+            {
+                host.dispatch_core(core::epoch_maintenance_failed_event{
+                    .Context = request.Context,
+                    .Failure = core::epoch_failure::unavailable,
+                });
+            },
+            request.Context.Request,
+            request.Context.Generation,
+            std::nullopt,
+            std::nullopt,
+            std::move(actor));
     }
 
     void start_history_page(

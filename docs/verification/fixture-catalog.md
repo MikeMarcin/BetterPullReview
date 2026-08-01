@@ -536,7 +536,7 @@ These fixtures supply synthetic exact ref/object outcomes to the catalog; they
 do not themselves perform or recover real Git mutations. The BPR-0045 host
 fixture composes their durable facts with the installed-Git/cache capabilities
 described earlier; BPR-0047 owns selection through the public BetterPullReview
-composition, BPR-0055 owns maintenance authorization/recovery, BPR-0056
+composition, BPR-0055 composes maintenance authorization/recovery, BPR-0056
 completes history paging through the host/projection path, BPR-0046 owns its Qt
 consumption, and BPR-0053 owns all native Windows behavior. No live private
 repository, GitHub mutation, or GitHub Actions workflow is involved.
@@ -566,7 +566,12 @@ preparation, and comparison terminals, pre-PONR cancel and abort, post-PONR
 mandatory success, applied-then-error postcondition resolution, recovery
 mismatch-to-repair, decision-lane-only projection, projection-exception
 containment, deferred reentrant ingress without recursive publication, and
-shutdown quiescence. BPR-0056 adds bounded fake-catalog pages and records the
+shutdown quiescence. BPR-0055 adds exact core-authorized prune/cache-delete
+composition, replay-stable durable authorization, session-close-before-delete,
+incremental exact-ID/bulk availability projection, cancellation on both sides
+of the durable point of no return, every maintenance restart phase, and
+fault-injected lookup/ref/quarantine/catalog/cleanup failures. BPR-0056 adds
+bounded fake-catalog pages and records the
 exact revision-bound request. Its manual-executor cases cover empty, one-row,
 multi-page, exact-bound, failure, cancellation, catalog-revision drift, and a
 loaded terminal deliberately reordered after source replacement. The matching
@@ -580,11 +585,25 @@ and behavior contracts provide the real physical and durable operations used
 by that fake-port orchestration. Together they are direct component evidence,
 not proof that the public executable selects the composition. BPR-0047 retains
 that public path, BPR-0048 retains the broad combined fault/reordering matrix,
-BPR-0055 retains prune/cache-delete maintenance orchestration, and BPR-0046
+BPR-0055 completes prune/cache-delete maintenance orchestration, and BPR-0046
 retains the Qt history trigger and row model. BPR-0056 completes paging beyond
 the catalog port. These fixtures use disposable
 local data and no live private repository, GitHub mutation, or GitHub Actions
 workflow.
+
+`tests/git_contract/epoch_maintenance_integration_tests.cpp` is registered as
+`epoch_maintenance_integration`; its executable target is
+`better_pull_review_epoch_maintenance_integration_tests`. It is a real
+component-composition fixture: the production epoch host drives the production
+SQLite catalog and installed-Git cache while a deterministic smart-protocol
+transport supplies one fixed valid SHA-1 pack. In separate disposable roots it
+dispatches the real core prune and whole-cache-delete intents, drains the
+serialized host lanes, shuts down, and reopens durable state. It requires the
+pruned catalog tombstones and exact paired-ref absence to agree; for cache
+deletion it requires `cache_deleted` anchor tombstones, exact repository
+absence, a terminal deletion tombstone, and refusal to reopen that cache
+scope. It does not contact GitHub, use credentials, mutate a remote, or invoke
+GitHub Actions.
 
 ## Native HTTPS loopback transport fixture
 

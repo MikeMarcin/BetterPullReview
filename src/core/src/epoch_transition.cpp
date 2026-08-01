@@ -1,5 +1,7 @@
 #include "bpr/core/epoch_transition.hpp"
 
+#include <array>
+#include <bit>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -16,6 +18,256 @@ enum class completion_match : std::uint8_t
     stale,
     identity_mismatch,
 };
+
+class sha256_accumulator final
+{
+public:
+    void add(const std::uint8_t value) noexcept
+    {
+        ++ByteCount;
+        push(value);
+    }
+
+    template<std::size_t Size>
+    void add(const std::array<std::uint8_t, Size>& values) noexcept
+    {
+        for(const auto value : values)
+        {
+            add(value);
+        }
+    }
+
+    void add_u64(const std::uint64_t value) noexcept
+    {
+        for(std::size_t shift = 8U; shift != 0U; --shift)
+        {
+            add(static_cast<std::uint8_t>(value >> ((shift - 1U) * 8U)));
+        }
+    }
+
+    [[nodiscard]] auto finish() noexcept -> std::array<std::uint8_t, 32>
+    {
+        const auto bit_count = ByteCount * 8U;
+        push(0x80U);
+        while(BlockSize != 56U)
+        {
+            push(0U);
+        }
+        for(std::size_t shift = 8U; shift != 0U; --shift)
+        {
+            push(static_cast<std::uint8_t>(bit_count >> ((shift - 1U) * 8U)));
+        }
+        std::array<std::uint8_t, 32> result{};
+        for(std::size_t index = 0U; index < State.size(); ++index)
+        {
+            result[index * 4U] = static_cast<std::uint8_t>(State[index] >> 24U);
+            result[index * 4U + 1U] =
+                static_cast<std::uint8_t>(State[index] >> 16U);
+            result[index * 4U + 2U] =
+                static_cast<std::uint8_t>(State[index] >> 8U);
+            result[index * 4U + 3U] = static_cast<std::uint8_t>(State[index]);
+        }
+        return result;
+    }
+
+private:
+    void push(const std::uint8_t value) noexcept
+    {
+        Block[BlockSize++] = value;
+        if(BlockSize == Block.size())
+        {
+            transform();
+            BlockSize = 0U;
+        }
+    }
+
+    void transform() noexcept
+    {
+        static constexpr std::array<std::uint32_t, 64> constants{
+            0x428a2f98U,
+            0x71374491U,
+            0xb5c0fbcfU,
+            0xe9b5dba5U,
+            0x3956c25bU,
+            0x59f111f1U,
+            0x923f82a4U,
+            0xab1c5ed5U,
+            0xd807aa98U,
+            0x12835b01U,
+            0x243185beU,
+            0x550c7dc3U,
+            0x72be5d74U,
+            0x80deb1feU,
+            0x9bdc06a7U,
+            0xc19bf174U,
+            0xe49b69c1U,
+            0xefbe4786U,
+            0x0fc19dc6U,
+            0x240ca1ccU,
+            0x2de92c6fU,
+            0x4a7484aaU,
+            0x5cb0a9dcU,
+            0x76f988daU,
+            0x983e5152U,
+            0xa831c66dU,
+            0xb00327c8U,
+            0xbf597fc7U,
+            0xc6e00bf3U,
+            0xd5a79147U,
+            0x06ca6351U,
+            0x14292967U,
+            0x27b70a85U,
+            0x2e1b2138U,
+            0x4d2c6dfcU,
+            0x53380d13U,
+            0x650a7354U,
+            0x766a0abbU,
+            0x81c2c92eU,
+            0x92722c85U,
+            0xa2bfe8a1U,
+            0xa81a664bU,
+            0xc24b8b70U,
+            0xc76c51a3U,
+            0xd192e819U,
+            0xd6990624U,
+            0xf40e3585U,
+            0x106aa070U,
+            0x19a4c116U,
+            0x1e376c08U,
+            0x2748774cU,
+            0x34b0bcb5U,
+            0x391c0cb3U,
+            0x4ed8aa4aU,
+            0x5b9cca4fU,
+            0x682e6ff3U,
+            0x748f82eeU,
+            0x78a5636fU,
+            0x84c87814U,
+            0x8cc70208U,
+            0x90befffaU,
+            0xa4506cebU,
+            0xbef9a3f7U,
+            0xc67178f2U,
+        };
+        std::array<std::uint32_t, 64> words{};
+        for(std::size_t index = 0U; index < 16U; ++index)
+        {
+            const auto offset = index * 4U;
+            words[index] = static_cast<std::uint32_t>(Block[offset]) << 24U
+                | static_cast<std::uint32_t>(Block[offset + 1U]) << 16U
+                | static_cast<std::uint32_t>(Block[offset + 2U]) << 8U
+                | static_cast<std::uint32_t>(Block[offset + 3U]);
+        }
+        for(std::size_t index = 16U; index < words.size(); ++index)
+        {
+            const auto s0 = std::rotr(words[index - 15U], 7)
+                ^ std::rotr(words[index - 15U], 18)
+                ^ (words[index - 15U] >> 3U);
+            const auto s1 = std::rotr(words[index - 2U], 17)
+                ^ std::rotr(words[index - 2U], 19) ^ (words[index - 2U] >> 10U);
+            words[index] = words[index - 16U] + s0 + words[index - 7U] + s1;
+        }
+
+        auto a = State[0];
+        auto b = State[1];
+        auto c = State[2];
+        auto d = State[3];
+        auto e = State[4];
+        auto f = State[5];
+        auto g = State[6];
+        auto h = State[7];
+        for(std::size_t index = 0U; index < words.size(); ++index)
+        {
+            const auto sum1 =
+                std::rotr(e, 6) ^ std::rotr(e, 11) ^ std::rotr(e, 25);
+            const auto choice = (e & f) ^ (~e & g);
+            const auto first =
+                h + sum1 + choice + constants[index] + words[index];
+            const auto sum0 =
+                std::rotr(a, 2) ^ std::rotr(a, 13) ^ std::rotr(a, 22);
+            const auto majority = (a & b) ^ (a & c) ^ (b & c);
+            const auto second = sum0 + majority;
+            h = g;
+            g = f;
+            f = e;
+            e = d + first;
+            d = c;
+            c = b;
+            b = a;
+            a = first + second;
+        }
+        State[0] += a;
+        State[1] += b;
+        State[2] += c;
+        State[3] += d;
+        State[4] += e;
+        State[5] += f;
+        State[6] += g;
+        State[7] += h;
+    }
+
+    std::array<std::uint32_t, 8> State{
+        0x6a09e667U,
+        0xbb67ae85U,
+        0x3c6ef372U,
+        0xa54ff53aU,
+        0x510e527fU,
+        0x9b05688cU,
+        0x1f83d9abU,
+        0x5be0cd19U,
+    };
+    std::array<std::uint8_t, 64> Block{};
+    std::size_t BlockSize = 0U;
+    std::uint64_t ByteCount = 0U;
+};
+
+[[nodiscard]] auto maintenance_target_digest(const epoch_maintenance_kind kind,
+    const epoch_catalog_identity& catalog,
+    const repository_cache_scope_id cache,
+    const std::vector<review_epoch_id>& epochs) noexcept
+    -> epoch_maintenance_target_digest
+{
+    sha256_accumulator digest;
+    static constexpr std::array<std::uint8_t, 24> domain{
+        'B',
+        'P',
+        'R',
+        '-',
+        'e',
+        'p',
+        'o',
+        'c',
+        'h',
+        '-',
+        'm',
+        'a',
+        'i',
+        'n',
+        't',
+        'e',
+        'n',
+        'a',
+        'n',
+        'c',
+        'e',
+        '-',
+        'v',
+        '1',
+    };
+    digest.add(domain);
+    digest.add(static_cast<std::uint8_t>(kind));
+    digest.add(catalog.Incarnation.bytes());
+    digest.add_u64(static_cast<std::uint64_t>(catalog.Revision.value()));
+    digest.add(cache.bytes());
+    digest.add_u64(static_cast<std::uint64_t>(epochs.size()));
+    for(const auto& epoch : epochs)
+    {
+        digest.add(epoch.Authority.bytes());
+        digest.add(epoch.Incarnation.bytes());
+        digest.add_u64(static_cast<std::uint64_t>(epoch.Ordinal.value()));
+    }
+    return epoch_maintenance_target_digest{digest.finish()};
+}
 
 [[nodiscard]] constexpr auto valid_nonzero(const std::uint64_t value) noexcept
     -> bool
@@ -405,6 +657,77 @@ auto set_status(
     };
 }
 
+[[nodiscard]] auto valid_maintenance_target(
+    const pull_request_authority& authority,
+    const epoch_catalog_identity& catalog,
+    const epoch_maintenance_kind kind,
+    const repository_cache_scope_id cache,
+    const std::vector<review_epoch_id>& epochs) noexcept -> bool
+{
+    if(cache != authority.Cache)
+    {
+        return false;
+    }
+    if(kind == epoch_maintenance_kind::delete_repository_cache)
+    {
+        return epochs.empty();
+    }
+    if(kind != epoch_maintenance_kind::prune_epochs || epochs.empty()
+        || epochs.size() > maximum_epoch_maintenance_target_count)
+    {
+        return false;
+    }
+    for(std::size_t index = 0U; index < epochs.size(); ++index)
+    {
+        const auto& epoch = epochs[index];
+        if(!valid(epoch) || epoch.Authority != authority.Scope
+            || epoch.Incarnation != catalog.Incarnation
+            || (index != 0U && !(epochs[index - 1U] < epoch)))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] auto maintenance_context_match(const epoch_state& state,
+    const epoch_maintenance_context& actual) -> completion_match
+{
+    if(!state.PendingMaintenance.has_value())
+    {
+        return completion_match::stale;
+    }
+    const auto& pending = *state.PendingMaintenance;
+    if(actual.Request != pending.Request
+        || actual.Generation != pending.Generation)
+    {
+        return completion_match::stale;
+    }
+    if(!state.Authority || !state.AcceptedRevision || !state.Catalog
+        || actual.ApplicationSession != state.ApplicationSession
+        || actual.Authority != *state.Authority
+        || actual.Source != state.AcceptedRevision->Source
+        || actual.Generation != state.EpochGeneration
+        || actual.Catalog != *state.Catalog || actual.Catalog != pending.Catalog
+        || actual.Kind != pending.Kind || actual.Cache != pending.Cache
+        || actual.Epochs.size() != pending.EpochCount
+        || !valid_maintenance_target(actual.Authority,
+            actual.Catalog,
+            actual.Kind,
+            actual.Cache,
+            actual.Epochs)
+        || actual.TargetDigest != pending.TargetDigest
+        || actual.TargetDigest
+            != maintenance_target_digest(actual.Kind,
+                actual.Catalog,
+                actual.Cache,
+                actual.Epochs))
+    {
+        return completion_match::identity_mismatch;
+    }
+    return completion_match::current;
+}
+
 template<typename Context>
 [[nodiscard]] auto context_match(
     const std::optional<pending_epoch_ingestion>& pending,
@@ -525,10 +848,26 @@ auto retire_pending_history(
     state.PendingHistory.reset();
 }
 
+auto retire_pending_maintenance(epoch_state& state,
+    epoch_transition_output& output) -> void
+{
+    if(!state.PendingMaintenance.has_value())
+    {
+        return;
+    }
+    output.Requests.emplace_back(cancel_epoch_work_request{
+        .Request = state.PendingMaintenance->Request,
+        .Generation = state.PendingMaintenance->Generation,
+    });
+    state.PendingMaintenance.reset();
+    output.Changed = output.Changed | epoch_changed_domain::maintenance;
+}
+
 auto clear_catalog_bound_state(
     epoch_state& state, epoch_transition_output& output) -> void
 {
     retire_pending_history(state, output);
+    retire_pending_maintenance(state, output);
     state.Catalog.reset();
     state.HistoryCatalog.reset();
     state.HistoryContinuation.reset();
@@ -887,6 +1226,7 @@ auto clear_ingestion(
     cancel_pending_ingestion(state, output);
     retire_pending_comparison(state, output);
     retire_pending_history(state, output);
+    retire_pending_maintenance(state, output);
 
     const auto previous_authority = state.Authority;
     state.EpochGeneration = *next_epoch_generation;
@@ -944,6 +1284,7 @@ auto clear_ingestion(
     cancel_pending_ingestion(state, output);
     retire_pending_comparison(state, output);
     retire_pending_history(state, output);
+    retire_pending_maintenance(state, output);
     state.EpochGeneration = *next_generation;
     const auto request = take_request(state);
     output.Authority = epoch_authority_delta{
@@ -973,6 +1314,7 @@ auto clear_ingestion(
     cancel_pending_ingestion(state, output);
     retire_pending_comparison(state, output);
     retire_pending_history(state, output);
+    retire_pending_maintenance(state, output);
 
     const auto previous = state.Authority;
     const auto next_epoch = advanced(state.EpochGeneration);
@@ -1704,6 +2046,215 @@ template<typename Event>
         .Limit = intent.Limit,
     };
     output.Changed = epoch_changed_domain::history;
+    return output;
+}
+
+[[nodiscard]] auto start_maintenance(epoch_state& state,
+    const epoch_maintenance_kind kind,
+    const epoch_catalog_identity catalog,
+    const repository_cache_scope_id cache,
+    std::vector<review_epoch_id> epochs) -> epoch_transition_output
+{
+    if(!state.Authority.has_value() || !state.AcceptedRevision.has_value())
+    {
+        return reject(epoch_reason_code::no_active_authority);
+    }
+    if(!state.Catalog.has_value())
+    {
+        return reject(epoch_reason_code::no_catalog);
+    }
+    if(!valid(catalog))
+    {
+        return reject(epoch_reason_code::invalid_catalog);
+    }
+    if(catalog != *state.Catalog)
+    {
+        return reject(epoch_reason_code::catalog_revision_mismatch);
+    }
+    if(!valid_maintenance_target(*state.Authority,
+           catalog,
+           kind,
+           cache,
+           epochs))
+    {
+        return reject(epoch_reason_code::invalid_maintenance_target);
+    }
+    if(state.PendingMaintenance.has_value())
+    {
+        return reject(epoch_reason_code::duplicate_maintenance);
+    }
+    if(state.PendingIngestion.has_value())
+    {
+        return reject(epoch_reason_code::unavailable);
+    }
+    if(!request_available(state))
+    {
+        return reject(epoch_reason_code::request_counter_exhausted);
+    }
+
+    const auto request = take_request(state);
+    const auto digest = maintenance_target_digest(kind, catalog, cache, epochs);
+    state.PendingMaintenance = pending_epoch_maintenance{
+        .Request = request,
+        .Generation = state.EpochGeneration,
+        .Catalog = catalog,
+        .Kind = kind,
+        .Cache = cache,
+        .EpochCount = static_cast<std::uint16_t>(epochs.size()),
+        .TargetDigest = digest,
+    };
+    epoch_transition_output output;
+    retire_pending_comparison(state, output);
+    retire_pending_history(state, output);
+    output.Requests.emplace_back(perform_epoch_maintenance_request{
+        .Context =
+            epoch_maintenance_context{
+                .Request = request,
+                .ApplicationSession = state.ApplicationSession,
+                .Authority = *state.Authority,
+                .Source = state.AcceptedRevision->Source,
+                .Generation = state.EpochGeneration,
+                .Catalog = catalog,
+                .Kind = kind,
+                .Cache = cache,
+                .Epochs = std::move(epochs),
+                .TargetDigest = digest,
+            },
+    });
+    output.Changed = output.Changed | epoch_changed_domain::maintenance;
+    set_status(state, output, epoch_status::maintaining);
+    return output;
+}
+
+[[nodiscard]] auto handle(epoch_state& state,
+    const prune_review_epochs_intent& intent) -> epoch_transition_output
+{
+    const auto cache =
+        state.Authority ? state.Authority->Cache : repository_cache_scope_id{};
+    return start_maintenance(state,
+        epoch_maintenance_kind::prune_epochs,
+        intent.Catalog,
+        cache,
+        intent.Epochs);
+}
+
+[[nodiscard]] auto handle(epoch_state& state,
+    const delete_repository_cache_intent& intent) -> epoch_transition_output
+{
+    return start_maintenance(state,
+        epoch_maintenance_kind::delete_repository_cache,
+        intent.Catalog,
+        intent.Cache,
+        {});
+}
+
+[[nodiscard]] auto handle(epoch_state& state,
+    const cancel_epoch_maintenance_intent&) -> epoch_transition_output
+{
+    if(!state.PendingMaintenance.has_value())
+    {
+        return reject(epoch_reason_code::stale_completion);
+    }
+    if(state.PendingMaintenance->CancellationRequested)
+    {
+        return {};
+    }
+    state.PendingMaintenance->CancellationRequested = true;
+    epoch_transition_output output;
+    output.Requests.emplace_back(cancel_epoch_work_request{
+        .Request = state.PendingMaintenance->Request,
+        .Generation = state.PendingMaintenance->Generation,
+    });
+    output.Changed = epoch_changed_domain::maintenance;
+    return output;
+}
+
+[[nodiscard]] auto handle(epoch_state& state,
+    const epoch_maintenance_completed_event& event) -> epoch_transition_output
+{
+    const auto match = maintenance_context_match(state, event.Context);
+    if(match != completion_match::current)
+    {
+        return reject_match(match);
+    }
+    if(!valid(event.NewCatalog)
+        || event.NewCatalog.Incarnation != state.Catalog->Incarnation
+        || !next_catalog_revision(state.Catalog->Revision,
+            event.NewCatalog.Revision))
+    {
+        state.PendingMaintenance.reset();
+        auto output = reject(epoch_reason_code::completion_identity_mismatch);
+        output.Changed = output.Changed | epoch_changed_domain::maintenance;
+        set_status(state, output, epoch_status::failed);
+        return output;
+    }
+
+    const auto request = state.PendingMaintenance->Request;
+    const auto kind = state.PendingMaintenance->Kind;
+    epoch_transition_output output;
+    retire_pending_comparison(state, output);
+    retire_pending_history(state, output);
+    state.PendingMaintenance.reset();
+    state.HistoryCatalog.reset();
+    state.HistoryContinuation.reset();
+    state.Catalog = event.NewCatalog;
+    output.Catalog = epoch_catalog_delta{
+        .Catalog = event.NewCatalog,
+        .AvailabilityChangedEpochs =
+            kind == epoch_maintenance_kind::prune_epochs
+            ? event.Context.Epochs
+            : std::vector<review_epoch_id>{},
+        .AllEpochAvailability =
+            kind == epoch_maintenance_kind::delete_repository_cache
+            ? std::optional{anchor_availability::cache_deleted}
+            : std::nullopt,
+    };
+    output.Changed = output.Changed | epoch_changed_domain::catalog
+        | epoch_changed_domain::maintenance;
+    static_cast<void>(start_comparison(state, output, request, true));
+    return output;
+}
+
+[[nodiscard]] auto handle(epoch_state& state,
+    const epoch_maintenance_failed_event& event) -> epoch_transition_output
+{
+    const auto match = maintenance_context_match(state, event.Context);
+    if(match != completion_match::current)
+    {
+        return reject_match(match);
+    }
+    if(event.Failure == epoch_failure::catalog_conflict)
+    {
+        state.PendingMaintenance.reset();
+        return restart_after_catalog_conflict(state);
+    }
+    state.PendingMaintenance.reset();
+    auto output = reject(reason_for(event.Failure));
+    output.Changed = output.Changed | epoch_changed_domain::maintenance;
+    set_status(state, output, epoch_status::failed);
+    return output;
+}
+
+[[nodiscard]] auto handle(epoch_state& state,
+    const epoch_maintenance_cancelled_event& event) -> epoch_transition_output
+{
+    const auto match = maintenance_context_match(state, event.Context);
+    if(match != completion_match::current)
+    {
+        return reject_match(match);
+    }
+    if(event.Progress == epoch_maintenance_progress::after_point_of_no_return)
+    {
+        return reject(epoch_reason_code::cancellation_after_point_of_no_return);
+    }
+    if(event.Progress != epoch_maintenance_progress::before_point_of_no_return)
+    {
+        return reject(epoch_reason_code::invalid_observation);
+    }
+    state.PendingMaintenance.reset();
+    auto output = reject(epoch_reason_code::cancelled);
+    output.Changed = output.Changed | epoch_changed_domain::maintenance;
+    set_status(state, output, epoch_status::cancelled);
     return output;
 }
 

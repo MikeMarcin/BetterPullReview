@@ -113,10 +113,12 @@ stale/cancel rejection, projection containment, and quiescence directly
 verified. BPR-0056 is in `done/` with the single revision-bound core cursor,
 bounded intent/request/terminal algebra, repository-actor catalog execution,
 sanitized incremental page projection, stale/revision/cancellation rejection,
-and direct core/manual-executor/SQLite evidence complete. BPR-0055 is the sole
-`in-progress/` card; BPR-0046 through BPR-0054 remain in `backlog/`. BPR-0055 records the
-identified missing core-authorized prune/cache-delete product path; the
-existing adapter methods are not counted as completed lifecycle behavior.
+and direct core/manual-executor/SQLite evidence complete. BPR-0055 is in
+`done/` with deterministic core authorization, exact durable prune/cache-delete
+orchestration, every maintenance restart phase, fault-injected failure policy,
+incremental availability projection, and real installed-Git/SQLite composition
+evidence complete. There is no current `in-progress/` card; BPR-0046 through
+BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra required by the
 future BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real

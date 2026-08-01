@@ -3571,6 +3571,18 @@ auto run_cache_contract() -> void
             && absent.error()
                 == application::git_cache_failure::ref_conflict,
         "pruned retained pair is absent without remapping");
+    const auto replayed_prune = (*primary)->prune_retained(
+        application::git_ref_prune_authorization{
+            .CatalogIncarnation = incarnation,
+            .ExpectedCatalogRevision =
+                core::epoch_catalog_revision{1},
+            .Expected = *retained,
+            .DurableIntentToken = token(0x66U),
+        },
+        {});
+    require(
+        replayed_prune.has_value(),
+        "exact paired prune is idempotent after both refs are absent");
 
     const auto locked_delete = (*cache)->delete_cache(
         primary_request,

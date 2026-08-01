@@ -4445,49 +4445,36 @@ public:
         {
             return std::unexpected{inventory.error()};
         }
+        const auto base_ref = retained_ref(authorization.Expected.Scope, authorization.Expected.Ordinal,
+        application::git_private_ref_endpoint::base);
+        const auto head_ref = retained_ref(authorization.Expected.Scope, authorization.Expected.Ordinal,
+        application::git_private_ref_endpoint::head);
+    const auto pair = inspect_pair_optional(base_ref, head_ref, stop);
+    if(!pair.has_value()) {
+      return std::unexpected{pair.error()};
+    }
+    if (!pair->first.has_value() && !pair->second.has_value()) {
+            return {};
+        }
         const auto base =
             process_commit(authorization.Expected.Base);
         const auto head =
             process_commit(authorization.Expected.Head);
-        if(!base.has_value() || !head.has_value())
+        if(!base.has_value() || !head.has_value() || !pair->first.has_value() ||
+        !pair->second.has_value() || *pair->first != *base
+            ||
+        *pair->second != *head)
         {
-            return std::unexpected{
-                application::git_cache_failure::
-                    object_mismatch};
-        }
-        const auto pair = inspect_pair(
-            retained_ref(
-                authorization.Expected.Scope,
-                authorization.Expected.Ordinal,
-                application::git_private_ref_endpoint::base),
-            retained_ref(
-                authorization.Expected.Scope,
-                authorization.Expected.Ordinal,
-                application::git_private_ref_endpoint::head),
-            stop);
-        if(
-            !pair.has_value() || pair->first != *base
-            || pair->second != *head)
-        {
-            return std::unexpected{
-                pair.has_value()
-                    ? application::git_cache_failure::ref_conflict
-                    : pair.error()};
+            return std::unexpected{application::git_cache_failure::ref_conflict};
         }
         const std::array<application::git_ref_mutation, 2U>
             mutations{
                 application::git_ref_remove{
-                    .Ref = retained_ref(
-                        authorization.Expected.Scope,
-                        authorization.Expected.Ordinal,
-                        application::git_private_ref_endpoint::base),
+                    .Ref = base_ref,
                     .ExpectedOld = *base,
                 },
                 application::git_ref_remove{
-                    .Ref = retained_ref(
-                        authorization.Expected.Scope,
-                        authorization.Expected.Ordinal,
-                        application::git_private_ref_endpoint::head),
+                    .Ref = head_ref,
                     .ExpectedOld = *head,
                 },
             };
@@ -6242,7 +6229,7 @@ public:
 private:
     installed_git_cache_configuration Configuration;
 };
-}
+} // namespace
 
 auto make_installed_git_cache(
     const installed_git_cache_configuration& configuration)
@@ -6263,4 +6250,4 @@ auto make_installed_git_cache(
     return std::unique_ptr<application::git_cache_port>{
         std::make_unique<installed_git_cache>(configuration)};
 }
-}
+} // namespace bpr::adapters::git

@@ -18,6 +18,9 @@ using epoch_intent = std::variant<
     core::select_comparison_anchors_intent,
     core::select_comparison_anchor_intent,
     core::request_epoch_history_page_intent,
+    core::prune_review_epochs_intent,
+    core::delete_repository_cache_intent,
+    core::cancel_epoch_maintenance_intent,
     core::cancel_epoch_refresh_intent>;
 using epoch_intent_dispatch = std::function<void(epoch_intent)>;
 
@@ -106,6 +109,8 @@ struct epoch_catalog_projection
     bool Replace = false;
     std::vector<epoch_row_projection> Replacement;
     std::vector<epoch_row_change_projection> Changes;
+    std::vector<core::review_epoch_id> AvailabilityChangedEpochs;
+    std::optional<core::anchor_availability> AllEpochAvailability;
     std::optional<epoch_history_page_projection> HistoryPage;
 
     auto operator<=>(const epoch_catalog_projection&) const = default;

@@ -210,6 +210,7 @@ struct repository_cache_scope_id_tag;
 struct host_authority_fingerprint_tag;
 struct epoch_operation_id_tag;
 struct epoch_source_observation_id_tag;
+struct epoch_maintenance_target_digest_tag;
 
 using github_profile_revision = strong_id<github_profile_revision_tag>;
 using github_viewer_actor_id = strong_id<github_viewer_actor_id_tag>;
@@ -240,6 +241,8 @@ using host_authority_fingerprint =
 using epoch_operation_id = fixed_identity_256<epoch_operation_id_tag>;
 using epoch_source_observation_id =
     fixed_identity_256<epoch_source_observation_id_tag>;
+using epoch_maintenance_target_digest =
+    fixed_identity_256<epoch_maintenance_target_digest_tag>;
 
 inline constexpr auto maximum_epoch_ordinal =
     std::numeric_limits<std::int64_t>::max();
@@ -248,6 +251,7 @@ inline constexpr auto maximum_epoch_catalog_revision =
 inline constexpr auto maximum_comparison_revision =
     std::numeric_limits<std::int64_t>::max();
 inline constexpr std::uint16_t maximum_epoch_history_page_size = 100U;
+inline constexpr std::uint16_t maximum_epoch_maintenance_target_count = 100U;
 inline constexpr std::int64_t maximum_observed_utc_milliseconds =
     253'402'300'799'999LL;
 inline constexpr std::uint16_t maximum_github_review_order = 10'000U;
@@ -710,6 +714,28 @@ struct epoch_history_page_observation
     auto operator<=>(const epoch_history_page_observation&) const = default;
 };
 
+enum class epoch_maintenance_kind : std::uint8_t
+{
+    prune_epochs,
+    delete_repository_cache,
+};
+
+struct epoch_maintenance_context
+{
+    epoch_request_id Request;
+    application_session_id ApplicationSession;
+    pull_request_authority Authority;
+    pull_request_source_revision Source;
+    epoch_generation Generation;
+    epoch_catalog_identity Catalog;
+    epoch_maintenance_kind Kind = epoch_maintenance_kind::prune_epochs;
+    repository_cache_scope_id Cache;
+    std::vector<review_epoch_id> Epochs;
+    epoch_maintenance_target_digest TargetDigest;
+
+    auto operator<=>(const epoch_maintenance_context&) const = default;
+};
+
 struct pull_request_revision_accepted_event
 {
     application_session_id ApplicationSession;
@@ -872,6 +898,39 @@ struct epoch_history_page_load_cancelled_event
         default;
 };
 
+struct epoch_maintenance_completed_event
+{
+    epoch_maintenance_context Context;
+    epoch_catalog_identity NewCatalog;
+
+    auto operator<=>(const epoch_maintenance_completed_event&) const =
+        default;
+};
+
+struct epoch_maintenance_failed_event
+{
+    epoch_maintenance_context Context;
+    epoch_failure Failure = epoch_failure::unavailable;
+
+    auto operator<=>(const epoch_maintenance_failed_event&) const = default;
+};
+
+enum class epoch_maintenance_progress : std::uint8_t
+{
+    before_point_of_no_return,
+    after_point_of_no_return,
+};
+
+struct epoch_maintenance_cancelled_event
+{
+    epoch_maintenance_context Context;
+    epoch_maintenance_progress Progress =
+        epoch_maintenance_progress::before_point_of_no_return;
+
+    auto operator<=>(const epoch_maintenance_cancelled_event&) const =
+        default;
+};
+
 struct select_named_comparison_intent
 {
     named_comparison Alias = named_comparison::whole_pr;
@@ -892,6 +951,27 @@ struct request_epoch_history_page_intent
     std::uint16_t Limit = maximum_epoch_history_page_size;
 
     auto operator<=>(const request_epoch_history_page_intent&) const = default;
+};
+
+struct prune_review_epochs_intent
+{
+    epoch_catalog_identity Catalog;
+    std::vector<review_epoch_id> Epochs;
+
+    auto operator<=>(const prune_review_epochs_intent&) const = default;
+};
+
+struct delete_repository_cache_intent
+{
+    epoch_catalog_identity Catalog;
+    repository_cache_scope_id Cache;
+
+    auto operator<=>(const delete_repository_cache_intent&) const = default;
+};
+
+struct cancel_epoch_maintenance_intent
+{
+    auto operator<=>(const cancel_epoch_maintenance_intent&) const = default;
 };
 
 struct select_comparison_anchors_intent
@@ -941,8 +1021,14 @@ using epoch_event = std::variant<
     epoch_history_page_loaded_event,
     epoch_history_page_load_failed_event,
     epoch_history_page_load_cancelled_event,
+    epoch_maintenance_completed_event,
+    epoch_maintenance_failed_event,
+    epoch_maintenance_cancelled_event,
     refresh_epochs_intent,
     request_epoch_history_page_intent,
+    prune_review_epochs_intent,
+    delete_repository_cache_intent,
+    cancel_epoch_maintenance_intent,
     select_named_comparison_intent,
     select_comparison_anchors_intent,
     select_comparison_anchor_intent,
@@ -1000,6 +1086,14 @@ struct load_epoch_history_page_request
     auto operator<=>(const load_epoch_history_page_request&) const = default;
 };
 
+struct perform_epoch_maintenance_request
+{
+    epoch_maintenance_context Context;
+
+    auto operator<=>(const perform_epoch_maintenance_request&) const =
+        default;
+};
+
 struct cancel_epoch_work_request
 {
     epoch_request_id Request;
@@ -1016,6 +1110,7 @@ using epoch_host_request = std::variant<
     discard_epoch_preparation_request,
     resolve_comparison_request,
     load_epoch_history_page_request,
+    perform_epoch_maintenance_request,
     cancel_epoch_work_request>;
 
 enum class epoch_reason_code : std::uint8_t
@@ -1026,6 +1121,7 @@ enum class epoch_reason_code : std::uint8_t
     invalid_revision,
     invalid_catalog,
     invalid_history_cursor,
+    invalid_maintenance_target,
     invalid_observation,
     invalid_selection,
     no_active_authority,
@@ -1034,6 +1130,7 @@ enum class epoch_reason_code : std::uint8_t
     catalog_revision_mismatch,
     stale_completion,
     duplicate_history_page,
+    duplicate_maintenance,
     completion_identity_mismatch,
     request_counter_exhausted,
     epoch_generation_exhausted,
@@ -1059,6 +1156,7 @@ enum class epoch_status : std::uint8_t
     preparing,
     committing,
     resolving,
+    maintaining,
     ready,
     unavailable,
     failed,
@@ -1102,6 +1200,8 @@ struct epoch_catalog_delta
     std::optional<epoch_catalog_identity> Catalog;
     std::optional<review_epoch_id> InsertedEpoch;
     std::optional<review_association_id> ChangedReviewAssociation;
+    std::vector<review_epoch_id> AvailabilityChangedEpochs;
+    std::optional<anchor_availability> AllEpochAvailability;
 
     auto operator<=>(const epoch_catalog_delta&) const = default;
 };
@@ -1178,6 +1278,7 @@ enum class epoch_changed_domain : std::uint16_t
     diagnostics = 1U << 6U,
     commands = 1U << 7U,
     history = 1U << 8U,
+    maintenance = 1U << 9U,
 };
 
 [[nodiscard]] constexpr auto operator|(
@@ -1253,6 +1354,20 @@ struct pending_epoch_history_page
     auto operator<=>(const pending_epoch_history_page&) const = default;
 };
 
+struct pending_epoch_maintenance
+{
+    epoch_request_id Request;
+    epoch_generation Generation;
+    epoch_catalog_identity Catalog;
+    epoch_maintenance_kind Kind = epoch_maintenance_kind::prune_epochs;
+    repository_cache_scope_id Cache;
+    std::uint16_t EpochCount = 0U;
+    epoch_maintenance_target_digest TargetDigest;
+    bool CancellationRequested = false;
+
+    auto operator<=>(const pending_epoch_maintenance&) const = default;
+};
+
 struct epoch_state
 {
     application_session_id ApplicationSession;
@@ -1270,6 +1385,7 @@ struct epoch_state
     std::optional<pending_epoch_ingestion> PendingIngestion;
     std::optional<pending_comparison_resolution> PendingComparison;
     std::optional<pending_epoch_history_page> PendingHistory;
+    std::optional<pending_epoch_maintenance> PendingMaintenance;
     std::optional<epoch_catalog_identity> HistoryCatalog;
     std::optional<epoch_history_cursor> HistoryContinuation;
     epoch_status Status = epoch_status::inactive;
