@@ -136,8 +136,11 @@ then directly exposed SQLite rejecting the catalog's deliberate retained
 path through a private per-catalog VFS, retains the directory chain, and proves
 a live replacement namespace receives no effect. BPR-0049's final probe now
 requires a real active macOS window and existing focus; its prior inactive
-native run is not counted for that claim. In-progress BPR-0059 owns only that
-owner-activated transition proof rather than silently narrowing BPR-0049.
+native run is not counted for that claim. Done BPR-0059 now supplies that exact
+owner-activated proof through the real Cocoa/QMacStyle composition: active
+focus, stable epoch identities/OIDs/Whole PR selection, readable native
+palettes, zero model resets, distinct inspected 2200x1440 Light/Dark rasters,
+and restoration of the owner's original System Dark setting.
 BPR-0050's fresh Ubuntu 26.04 x86_64 GCC run exposed a real actor-capture
 evaluation-order defect. Done BPR-0060 now gives the scheduler and worker
 distinct actor owners before the call, directly passes the prior GCC
@@ -184,9 +187,8 @@ BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
-RFC work. BPR-0054 depends on BPR-0035, BPR-0053, and BPR-0059, so canonical
-closeout, every Windows claim, and the native macOS active-focus claim remain
-intact.
+RFC work. BPR-0054 now remains blocked only by BPR-0035/BPR-0036 and BPR-0053,
+so canonical closeout and every affected Windows claim remain intact.
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench

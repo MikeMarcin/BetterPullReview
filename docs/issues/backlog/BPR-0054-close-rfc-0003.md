@@ -36,10 +36,12 @@ documentation review; original-pack validation; workflow absence; and
   platform-configuration suite, original source-pack validator, tracked and
   on-disk workflow-absence scans, and diff hygiene are green. GitHub Actions
   workflow counts remain 0/0.
-- BPR-0059 is in progress. Its first real Cocoa/QMacStyle probe waited for an
-  owner click and timed out fail-closed, accepted no image evidence, and
-  restored the original System Dark setting.
+- BPR-0059 is done. Its owner-activated Cocoa/QMacStyle rerun directly passed
+  active-focus, local/global Light-to-Dark transition, state, pixel,
+  changed-render, and public-composition markers; inspection confirmed stable
+  epoch/OID/Whole PR state in distinct 2200x1440 rasters, and the original
+  System Dark setting was restored.
 - BPR-0035/BPR-0036 and BPR-0053 remain open for real Windows execution and
   canonical RFC-BPR-0002/RFC-BPR-0003 status transitions. This card remains in
-  backlog and makes no `Auto-Verified` claim while those dependencies or the
-  owner-active macOS focus proof are open.
+  backlog and makes no `Auto-Verified` claim while those dependencies remain
+  open.

@@ -1,7 +1,7 @@
 ---
 id: BPR-0059
 title: Run owner-activated macOS epoch focus-transition verification
-status: In Progress
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0049]
 ---
@@ -45,3 +45,47 @@ documentation, security review, simplification, or later RFC work.
   It reported `NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED`, accepted no PNG
   evidence, and the shell trap restored the original System Dark appearance.
   This is a clean unverified attempt, not acceptance evidence.
+
+## Direct verification
+
+The owner-activated rerun loaded the real recorded GitHub.com composition,
+accepted an existing focused native widget, captured System Light, followed
+the same-process operating-system transition to System Dark, and reported:
+
+- `PUBLIC_PATH_OK` and `GITHUB_FIXTURE_OK:github.com`;
+- `GITHUB_FIXTURE_QT_PLATFORM:cocoa` and
+  `GITHUB_FIXTURE_QT_STYLE:QMacStyle`;
+- `NATIVE_APPEARANCE_ACTIVE_FOCUS_OK`;
+- both local and global `Light->Dark` transition markers;
+- signal, semantic-state, pixel-difference, render, and changed-render success
+  markers.
+
+Both inspected images are 2200x1440 at the same device-pixel geometry. They
+show the same loaded pull request, Whole PR selection, exact left/right epoch
+rows and OIDs, comparison status, conversation state, layout, and focused
+owner field. The Light image has SHA-256
+`66c1e75d69b8656de8cccde876cec98e0fe865420d41ae085ffda5361c40b2bb`;
+the Dark image has SHA-256
+`4d1b79b3237475f63b6dd19e3fdc2c302cb9e7eb7c2a207ba1eb384a7b058354`.
+The files differ, remain readable, and were retained only in the transient
+local evidence directory. The shell trap restored the owner's original System
+Dark setting after the run.
+
+The checked-in offscreen contract remains the deterministic rejection guard;
+its final replay passed 1/1 in 11.59 seconds. No live GitHub request,
+credential, private content, workflow, synthetic activation, or programmatic
+focus action was used.
+
+## Documentation disposition
+
+The RFC verification ledger, issue board, closeout preparation, and current
+appearance/accessibility evidence now record the completed native epoch-focus
+claim. The result does not claim final workbench polish or a selectable theme;
+those remain RFC-BPR-0005 and RFC-BPR-0006 respectively.
+
+## Result
+
+The real Cocoa/QMacStyle epoch composition now directly proves that active
+focus, persistent semantic selection, exact OIDs, accessible state, readable
+native palettes, and zero model-reset behavior survive an owner-driven System
+Light-to-Dark transition. BPR-0059 is complete.

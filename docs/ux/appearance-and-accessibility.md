@@ -60,9 +60,13 @@ explicit stale text and disabled selection rather than being silently mixed
 with the new revision.
 
 The deterministic 1.0x, 1.25x, and 2.0x offscreen renders exercise the actual
-loaded pull-request composition and verify geometry only. Target-native macOS
-system Light/Dark interaction remains BPR-0049 evidence; these renders do not
-claim it.
+loaded pull-request composition and verify geometry only. BPR-0049's native
+palette evidence and BPR-0059's owner-activated Cocoa/QMacStyle run directly
+cover the target-native macOS System Light-to-Dark behavior. The latter retains
+the active focused widget, exact epoch identities and OIDs, Whole PR selection,
+readable palettes, accessibility state, geometry, and zero model resets in the
+same process; its distinct inspected 2200x1440 rasters are transient local
+evidence, and the owner's original System Dark setting is restored afterward.
 
 This inheritance and incremental-behavior proof is not the final-workbench
 appearance gate. RFC-BPR-0005 retains a distinct integrated-workbench
