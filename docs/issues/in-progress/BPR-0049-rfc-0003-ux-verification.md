@@ -1,7 +1,7 @@
 ---
 id: BPR-0049
 title: Verify RFC-BPR-0003 epoch UX and accessibility
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0046, BPR-0047, BPR-0048]
 ---
@@ -24,3 +24,14 @@ available target; real Windows UI evidence remains the dedicated open card.
 This is not final presentation-polish acceptance. Preserve RFC-BPR-0005's
 distinct integrated-workbench polish/native-visual card and RFC-BPR-0006's
 System/Light/Dark/high-contrast, font, and syntax ownership.
+
+## Implementation audit frontier
+
+Begin with the actual public GitHub.com/GHES application path and the reusable
+epoch control already selected by BPR-0047. Reconcile the three scale-specific
+Qt signal/accessibility cases with rendered force-push persistence evidence,
+then add only the missing target-native focus/selection/model/palette proof.
+Do not treat offscreen rasters as native appearance, redesign the interim
+workbench, add a product theme selector, or claim RFC-BPR-0005 presentation
+polish. Preserve exact OID and stable semantic identity assertions across any
+live appearance transition.
