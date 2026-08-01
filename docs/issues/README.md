@@ -142,9 +142,11 @@ BPR-0050's fresh Ubuntu 26.04 x86_64 GCC run exposed a real actor-capture
 evaluation-order defect. Done BPR-0060 now gives the scheduler and worker
 distinct actor owners before the call, directly passes the prior GCC
 reproduction, and corrects the stale-terminal regression that had hidden an
-empty-optional access under libc++. BPR-0050 is now the current
-`in-progress/` security-verification slice. BPR-0051 through BPR-0054 remain
-in `backlog/`.
+empty-optional access under libc++. BPR-0050's resumed 26-case GCC matrix then
+exposed an eager catalog-optional dereference when a stale preparation
+terminal arrives during conflict reload. BPR-0061 is the current
+`in-progress/` core remediation; BPR-0050 is temporarily back in `backlog/`.
+BPR-0051 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real

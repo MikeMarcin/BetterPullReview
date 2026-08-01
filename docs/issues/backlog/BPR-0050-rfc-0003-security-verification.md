@@ -1,9 +1,9 @@
 ---
 id: BPR-0050
 title: Verify RFC-BPR-0003 Git and cache security boundaries
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0003
-depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0047, BPR-0048, BPR-0055, BPR-0058, BPR-0060]
+depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0047, BPR-0048, BPR-0055, BPR-0058, BPR-0060, BPR-0061]
 ---
 
 # Verify RFC-BPR-0003 Git and cache security boundaries
@@ -29,3 +29,6 @@ role.
 The fresh Ubuntu x86_64 GCC matrix exposed BPR-0060's actor-capture evaluation-
 order defect. BPR-0060 is done in `a34d1b4` with direct GCC, Clang, sanitizer,
 and architecture evidence, so this target-native security matrix has resumed.
+The resumed 26-case GCC matrix then exposed BPR-0061's eager stale-preparation
+context dereference. This card is temporarily blocked on that separately
+tracked core remediation.
