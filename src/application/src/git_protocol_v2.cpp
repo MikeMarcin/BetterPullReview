@@ -1010,17 +1010,25 @@ auto git_protocol_v2_fetch_parser::consume_payload(
 {
     if(State == response_state::packfile_header)
     {
-        std::transform(
-            bytes.begin(),
-            bytes.end(),
-            SectionHeader.begin()
-                + static_cast<std::ptrdiff_t>(SectionHeaderBytes),
-            [](const std::byte byte)
+        if(
+            SectionHeaderBytes > SectionHeader.size()
+            || bytes.size() > SectionHeader.size() - SectionHeaderBytes)
+        {
+            return fail(
+                protocol_error(git_protocol_v2_failure::malformed_packet));
+        }
+        for(const auto byte : bytes)
+        {
+            if(SectionHeaderBytes == SectionHeader.size())
             {
-                return static_cast<char>(
-                    std::to_integer<unsigned char>(byte));
-            });
-        SectionHeaderBytes += bytes.size();
+                return fail(
+                    protocol_error(
+                        git_protocol_v2_failure::malformed_packet));
+            }
+            SectionHeader[SectionHeaderBytes] = static_cast<char>(
+                std::to_integer<unsigned char>(byte));
+            ++SectionHeaderBytes;
+        }
         PayloadConsumed += static_cast<std::uint32_t>(bytes.size());
         if(PayloadConsumed == PayloadBytes)
         {
@@ -1313,7 +1321,7 @@ static auto discover_git_protocol_v2(
         return std::unexpected(
             git_protocol_v2_client_error{response.error()});
     }
-    const auto parsed = parse_git_protocol_v2_advertisement(
+    auto parsed = parse_git_protocol_v2_advertisement(
         response->Body,
         expected_object_format(context));
     if(!parsed.has_value())
@@ -1321,7 +1329,9 @@ static auto discover_git_protocol_v2(
         return std::unexpected(
             git_protocol_v2_client_error{parsed.error()});
     }
-    return *parsed;
+    git_protocol_v2_client_result<git_protocol_v2_capabilities> result;
+    *result = std::move(*parsed);
+    return result;
 }
 
 static auto list_git_protocol_v2_refs(
@@ -1349,7 +1359,7 @@ static auto list_git_protocol_v2_refs(
         return std::unexpected(
             git_protocol_v2_client_error{response.error()});
     }
-    const auto parsed = parse_git_protocol_v2_ls_refs(
+    auto parsed = parse_git_protocol_v2_ls_refs(
         response->Body,
         context);
     if(!parsed.has_value())
@@ -1357,7 +1367,9 @@ static auto list_git_protocol_v2_refs(
         return std::unexpected(
             git_protocol_v2_client_error{parsed.error()});
     }
-    return *parsed;
+    git_protocol_v2_client_result<git_protocol_v2_refs> result;
+    *result = std::move(*parsed);
+    return result;
 }
 
 static auto fetch_git_protocol_v2(
@@ -1414,13 +1426,15 @@ static auto fetch_git_protocol_v2(
             git_protocol_v2_client_error{transported.error()});
     }
 
-    const auto parsed = parser.finish();
+    auto parsed = parser.finish();
     if(!parsed.has_value())
     {
         return std::unexpected(
             git_protocol_v2_client_error{parsed.error()});
     }
-    return *parsed;
+    git_protocol_v2_client_result<git_protocol_v2_fetch_result> result;
+    *result = std::move(*parsed);
+    return result;
 }
 
 } // namespace detail
