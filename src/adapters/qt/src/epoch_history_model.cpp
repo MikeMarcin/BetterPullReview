@@ -19,9 +19,10 @@ namespace
 {
 [[nodiscard]] auto oid_text(const core::git_commit_oid& oid) -> QString
 {
-    const auto canonical = core::canonical_hex(oid).view();
+    const auto canonical = core::canonical_hex(oid);
+    const auto view = canonical.view();
     return QString::fromLatin1(
-        canonical.data(), static_cast<qsizetype>(canonical.size()));
+        view.data(), static_cast<qsizetype>(view.size()));
 }
 
 [[nodiscard]] auto availability_text(

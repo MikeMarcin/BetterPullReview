@@ -645,8 +645,8 @@ auto force_push_and_prune(
 {
     const auto git_dir =
         "--git-dir=" + QString::fromStdString(fixture.Remote.string());
-    const auto new_head =
-        core::canonical_hex(fixture.NewCommit).view();
+    const auto new_head = core::canonical_hex(fixture.NewCommit);
+    const auto new_head_view = new_head.view();
     static_cast<void>(run_fixture_git(
         executable,
         root,
@@ -655,8 +655,8 @@ auto force_push_and_prune(
             "update-ref",
             "refs/heads/main",
             QString::fromUtf8(
-                new_head.data(),
-                static_cast<qsizetype>(new_head.size())),
+                new_head_view.data(),
+                static_cast<qsizetype>(new_head_view.size())),
             QString::fromUtf8(sha1_commit_hex.data()),
         }));
     static_cast<void>(run_fixture_git(
