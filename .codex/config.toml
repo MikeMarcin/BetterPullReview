@@ -1,0 +1,4 @@
+# Two concurrent child threads are enough for the default RFC policy.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 2

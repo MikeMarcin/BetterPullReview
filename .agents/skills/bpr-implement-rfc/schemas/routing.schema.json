@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://betterpullreview.local/schemas/bpr-implement-rfc-routing.v1.json",
+  "$defs": {
+    "modelRoute": {
+      "type": "object",
+      "required": [
+        "model",
+        "effort"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "provider": {
+      "type": "object",
+      "required": [
+        "classes"
+      ],
+      "properties": {
+        "minimum_cli_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "classes": {
+          "type": "object",
+          "required": [
+            "mechanical",
+            "balanced",
+            "deep",
+            "deep-max"
+          ],
+          "properties": {
+            "mechanical": {
+              "$ref": "#/$defs/modelRoute"
+            },
+            "balanced": {
+              "$ref": "#/$defs/modelRoute"
+            },
+            "deep": {
+              "$ref": "#/$defs/modelRoute"
+            },
+            "deep-max": {
+              "$ref": "#/$defs/modelRoute"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "required": [
+    "schema",
+    "verified_as_of",
+    "assignments",
+    "providers"
+  ],
+  "properties": {
+    "schema": {
+      "const": "betterpullreview.implement-rfc.routing.v1"
+    },
+    "verified_as_of": {
+      "type": "string",
+      "format": "date"
+    },
+    "assignments": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "enum": [
+          "mechanical",
+          "balanced",
+          "deep",
+          "deep-max"
+        ]
+      }
+    },
+    "providers": {
+      "type": "object",
+      "required": [
+        "codex",
+        "claude"
+      ],
+      "properties": {
+        "codex": {
+          "$ref": "#/$defs/provider"
+        },
+        "claude": {
+          "$ref": "#/$defs/provider"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

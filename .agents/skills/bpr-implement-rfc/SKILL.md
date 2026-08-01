@@ -1,6 +1,6 @@
 ---
 name: betterpullreview-implement-rfc
-description: Implement one or more BetterPullReview RFCs end to end. Use when the user asks to implement a BetterPullReview RFC, implement an RFC by ID, work through an ordered RFC set, import and implement a downloaded BetterPullReview RFC pack, break RFCs into tracked tasks, commit each completed slice, keep affected agent and product documentation current, simplify the finished change set, directly verify the claimed GitHub/GHE, diff, UI, build, package, and runtime surfaces, and mark an RFC Auto-Verified only when code, tests, documentation, tracker state, and direct claim verification agree.
+description: Implement one or more BetterPullReview RFCs end to end with bounded portable delegation. Use when the user asks to implement a BetterPullReview RFC, implement an RFC by ID, work through an ordered RFC set, import and implement a downloaded BetterPullReview RFC pack, break RFCs into tracked tasks, delegate exact utility work, semantic scouting, one defined issue slice, or independent closeout review, commit each completed slice, keep affected agent and product documentation current, simplify the finished change set, directly verify the claimed GitHub/GHE, diff, UI, build, package, and runtime surfaces, and mark an RFC Auto-Verified only when code, tests, documentation, tracker state, delegated-review findings, and direct claim verification agree.
 ---
 
 # Implement BetterPullReview RFC
@@ -29,6 +29,19 @@ Carry requested BetterPullReview RFCs from live RFC text or an imported RFC pack
 8. If the user supplied a downloaded RFC-pack directory, complete Pack Folder Intake before planning from the imported live files.
 9. Read every requested RFC and confirm its current status in the canonical RFC index. Read the issue-board index, the relevant next-ID source, dependencies, and all active cards linked to the RFC before creating tasks.
 
+## Portable Delegation
+
+For any nontrivial RFC, read `references/delegated-execution.md` before deciding whether to delegate. Read `references/model-routing.md` when selecting or changing role-to-model routing assignments, and `references/runtime-compatibility.md` when runtime behavior or generated adapters are uncertain.
+
+1. Keep the primary agent as the sole RFC integrator. It owns RFC interpretation, `RFC_BASE_SHA`, issue-ID allocation, `docs/issues/NEXT_ID`, board transitions, task order, staging, commits, verification sufficiency, RFC status, and `Auto-Verified` closeout.
+2. Delegate only bounded work that replaces primary-agent exploration, isolates noisy output, adds an independent quality check, or safely shortens elapsed time. Do not create duplicate same-prompt agents merely to obtain a vote.
+3. Prefer the generated `rfc-utility` for exact locating, inventory, prescribed command execution, schema or drift checks, and log condensation; `rfc-scout` for semantic ownership, execution-path, build-selection, verification-surface, or root-cause analysis; `rfc-worker` for one already-defined current issue slice; `rfc-reviewer` for a fresh ordinary closeout review; and `rfc-critical-reviewer` for a capability-critical closeout review.
+4. Preserve one issue-card slice at a time. At most one writing agent may be active, and the primary agent must not edit concurrently with it. The primary agent reviews all changes, reproduces focused verification, updates tracker state, and commits.
+5. Permit at most two concurrent read-only agents by default, and only for genuinely independent questions. Delegated agents must not spawn additional agents.
+6. Use the external role-to-model routing assignments rather than naming vendor models in this skill. When the runtime exposes primary-session model choice, keep the RFC integrator on the deep route or stronger. Preserve the quality-biased delegated defaults: the mechanical route only for directly checkable utility work, the balanced route for semantic scouting, the deep route for implementation and ordinary review, and the deep-max route only for critical review.
+7. Put no credential material, tokens, cookies, secret-bearing evidence, or unnecessary source bodies into delegation messages. Delegated agents may inspect the repository within the same local trust boundary, but they must not quote, persist, or export private repository content beyond the exact file, symbol, and evidence references needed for the assignment. Every delegated role remains subject to the root and nested `AGENTS.md` files and the remote-side-effect rules above.
+8. When the current runtime cannot provide a requested agent, model override, or safe permission boundary, execute the same role serially in the primary agent. Never weaken acceptance, documentation, verification, security, or closeout gates as a fallback.
+
 ## Pack Folder Intake
 
 When the user gives a directory such as `/Users/jaeger/Downloads/betterpullreview_review_epochs_rfc_pack`, treat it as source material to inspect and import, not as reference-only text.
@@ -54,9 +67,10 @@ When the user gives a directory such as `/Users/jaeger/Downloads/betterpullrevie
    - a simplification task or closeout checkpoint;
    - verification and RFC closeout.
 3. The documentation-impact task is mandatory even when the RFC omits documentation. It may conclude `no-impact` only when repository policy permits that disposition and the changed surfaces genuinely leave no semantic documentation obligation.
-4. Create or update issue files in the correct board lanes, advance the next-ID source atomically, link every task to the RFC, and encode task dependencies in front matter or the repository's canonical format.
-5. Build the initial verification matrix during planning. Do not postpone deciding how each acceptance claim will be proven until closeout.
-6. Commit the complete planning slice before implementation.
+4. Classify the RFC's delegation needs. Use `rfc-utility` for exact mechanical inventories or prescribed command/evidence collection, and `rfc-scout` for broad or ambiguous ownership, public-path selection, root-cause, or verification planning. Use two read-only agents only when their questions do not overlap. Classify closeout as ordinary or capability-critical using `references/model-routing.md`, and record any delegated lane and its expected evidence in the planning or closeout task.
+5. Create or update issue files in the correct board lanes, advance the next-ID source atomically, link every task to the RFC, and encode task dependencies in front matter or the repository's canonical format.
+6. Build the initial verification matrix during planning. Do not postpone deciding how each acceptance claim will be proven until closeout.
+7. Commit the complete planning slice before implementation.
 
 ## Work Tasks
 
@@ -69,13 +83,15 @@ For each task in the RFC task set:
 5. Run focused verification for the slice before moving it to done.
 6. Move the issue card to the terminal done lane, update status metadata, and commit the completed task before beginning the next task.
 
+If the current slice is delegated to `rfc-worker`, give it the issue card, relevant RFC acceptance criteria, applicable instruction files, allowed paths or scopes, explicit non-goals, and focused verification. The primary agent must refrain from editing while the worker runs. Afterward, inspect the complete diff, reject out-of-scope changes, reproduce focused verification, and retain sole ownership of `docs/issues/NEXT_ID`, board moves, staging, and commits.
+
 If implementation exposes missing requirements, create additional issue cards and continue the same loop instead of folding untracked work into a later closeout commit.
 
 For agent documentation, use a BetterPullReview-local documentation skill or canonical script when one exists. Otherwise perform the review manually from live source, build, test, and runtime evidence. Never invoke another project's documentation skill, copy foreign scope names, or make a dummy documentation edit merely to satisfy a checklist.
 
 ## Verification Planning
 
-Before implementation gets close to completion, refine the verification matrix from the RFC's actual claims. Each row must contain `claim`, `direct surface`, `command or interaction`, `what proves the claim`, `result`, and `evidence`.
+Before implementation gets close to completion, refine the verification matrix from the RFC's actual claims. Each row must contain `claim`, `direct surface`, `command or interaction`, `what proves the claim`, `result`, and `evidence`. A bounded `rfc-utility` may run prescribed commands and collect exact results, and `rfc-scout` may map live selection and verification surfaces, but the primary agent owns the matrix and confirms its evidence.
 
 Extract every material user-visible, architectural, integration, security, and operational claim, including applicable items from the following BetterPullReview domains:
 
@@ -149,10 +165,11 @@ Before marking an RFC Auto-Verified:
 6. Re-run GitHub/GHE contract and remote-mutation-boundary tests. Confirm no command can target an unintended repository or PR under the tested configuration and no evidence contains credentials.
 7. Run relevant builds and tests plus `git diff --check`. Include dependency and boundary scans when the RFC claims optional integration, package isolation, provider independence, or absence of a dependency.
 8. Check for overclaiming. If the result is a shell, adapter stub, direct-helper prototype, static mockup, evidence wrapper, or parity harness that does not exercise the claimed public/default path, leave the RFC open or record the narrower truth.
-9. Review the final committed-or-to-be-committed diff as a skeptical reviewer. List the highest-risk claims and ensure each has a direct failing-if-wrong command, interaction, or inspection. Reopen work when any gap remains.
-10. Confirm all issue cards required by the RFC are in the terminal done lane and no active lane contains required work.
-11. Update RFC front matter to `status: Auto-Verified` when that is the live BetterPullReview closeout status, update implementation-status text, update the canonical RFC index, and update any combined RFC-set document that embeds the same status.
-12. Commit the verification and closeout slice.
+9. Run a final independent review gate before changing status. For a substantial ordinary RFC, delegate to `rfc-reviewer`; for a capability-critical RFC as classified in `references/model-routing.md`, delegate to `rfc-critical-reviewer` instead. Do not run both by default. Give the selected reviewer the live RFC, `RFC_BASE_SHA..HEAD`, verification matrix, documentation ledger, commands run, and concise evidence locations, but not the implementation transcript or rationale. Require it to identify claims that could remain false while recorded commands pass. Reproduce every blocking finding directly. When no independent agent is available, perform a separate skeptical review pass in the primary agent. If review finds a gap, create or reopen issue cards before status changes.
+10. Review the final committed-or-to-be-committed diff as the integrator. List the highest-risk claims and ensure each has a direct failing-if-wrong command, interaction, or inspection. Reopen work when any gap remains.
+11. Confirm all issue cards required by the RFC are in the terminal done lane and no active lane contains required work.
+12. Update RFC front matter to `status: Auto-Verified` when that is the live BetterPullReview closeout status, update implementation-status text, update the canonical RFC index, and update any combined RFC-set document that embeds the same status.
+13. Commit the verification and closeout slice.
 
 If review finds a gap, do not mark the RFC Auto-Verified. Create or reactivate tasks and return to the task loop until the direct evidence supports closeout.
 
@@ -161,6 +178,6 @@ If review finds a gap, do not mark the RFC Auto-Verified. Create or reactivate t
 Begin the next requested RFC only after the current RFC is committed and Auto-Verified. At the end of the requested set:
 
 1. Verify the worktree and identify any intentional unrelated changes still present.
-2. Summarize planning/import commits, task commits, simplification, closeout, verification commands and interactions, UI evidence, GitHub/GHE contract coverage, documentation updates, generated facts refreshed, approved no-impact results, and omitted or deferred lanes.
+2. Summarize planning/import commits, task commits, simplification, closeout, verification commands and interactions, UI evidence, GitHub/GHE contract coverage, documentation updates, generated facts refreshed, approved no-impact results, delegated roles used, serial fallbacks, and omitted or deferred lanes.
 3. Mark the goal complete only when every requested RFC has actually closed, every documentation obligation is satisfied, every required issue card is done, and every material verification-matrix claim has direct passing evidence.
 4. If a later review exposes a blocking gap, reopen or add issue cards and correct the RFC status before continuing dependent work.

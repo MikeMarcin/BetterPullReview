@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://betterpullreview.local/schemas/bpr-implement-rfc-roles.v1.json",
+  "type": "object",
+  "required": [
+    "schema",
+    "roles"
+  ],
+  "properties": {
+    "schema": {
+      "const": "betterpullreview.implement-rfc.roles.v1"
+    },
+    "roles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "description",
+          "mutation",
+          "max_turns",
+          "instructions"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mutation": {
+            "enum": [
+              "read-only",
+              "workspace-write"
+            ]
+          },
+          "max_turns": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "instructions": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
