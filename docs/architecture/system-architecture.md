@@ -422,8 +422,15 @@ mandatory success even when cleanup is left for recovery. BPR-0055 applies
 the same rule to core-authorized prune/cache-delete orchestration: cancellation
 may abort only before durable ref deletion or quarantine begins, and restart
 must resume each later phase with the original operation authorization.
-BPR-0047 retains
-selection of the complete host path by the public application.
+BPR-0047 selects that complete path in the public application. The composition
+root resolves the owner-private application-data directory and installed Git,
+constructs the authority-partitioned cache and SQLite catalog, supplies native
+entropy and UTC ports, and wires the dedicated epoch host between the accepted
+GitHub handoff and the existing Qt comparison control. Provider, vault, and
+epoch effects remain on separate owned workers; the Qt event loop remains the
+single decision lane. Orderly shutdown revokes the smart authority, drains
+both hosts to quiescence, then closes and joins epoch, provider, and vault
+workers without letting a worker touch Qt.
 
 When base, head, and branch are unchanged but the accepted
 newest-current-viewer review fact changes, the core issues the

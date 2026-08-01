@@ -1336,6 +1336,7 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
                 {
                     "body",
                     "commit_id",
+                    "id",
                     "node_id",
                     "state",
                     "user",
@@ -1344,7 +1345,8 @@ constexpr double maximum_exact_json_integer = 9'007'199'254'740'991.0;
             return false;
         }
         const auto object = value.toObject();
-        return nonempty_string(object.value("node_id"))
+        return exact_integer(object.value("id"), true)
+            && nonempty_string(object.value("node_id"))
             && optional_rest_actor(object.value("user"))
             && object.value("body").isString()
             && one_of(

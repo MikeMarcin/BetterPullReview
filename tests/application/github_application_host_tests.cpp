@@ -438,6 +438,30 @@ public:
     std::function<void()> OnEveryOutput;
 };
 
+class recording_epoch_handoffs final
+    : public application::github_epoch_handoff_port
+{
+public:
+    void accept(application::accepted_pull_request_handoff handoff) override
+    {
+        Accepted.push_back(std::move(handoff));
+    }
+
+    void invalidate(
+        application::pull_request_authority_invalidation invalidation) override
+    {
+        Invalidated.push_back(invalidation);
+        if(ThrowInvalidation)
+        {
+            throw std::runtime_error{"injected epoch invalidation failure"};
+        }
+    }
+
+    std::vector<application::accepted_pull_request_handoff> Accepted;
+    std::vector<application::pull_request_authority_invalidation> Invalidated;
+    bool ThrowInvalidation = false;
+};
+
 [[nodiscard]] auto initial_state() -> core::github_state
 {
     return core::github_state{
@@ -800,6 +824,7 @@ snapshot(const application::github_pull_request_provider_request& request)
         .ViewedState = application::github_file_viewed_state::viewed,
     });
     result.Reviews.push_back(application::github_review_record{
+        .DatabaseId = 4'001U,
         .Review = application::github_review_id{"review-1"},
         .Author = reviewer,
         .State = application::github_review_state::changes_requested,
@@ -908,6 +933,22 @@ struct host_fixture
                Lane,
                Projections,
                shutdown_policy}
+    {
+    }
+
+    explicit host_fixture(application::github_epoch_handoff_port& epochs)
+        : Bindings{OwnedBindings}
+        , Host{initial_state(),
+               Provider,
+               Provider,
+               Provider,
+               Provider,
+               Vault,
+               Bindings,
+               Lane,
+               Projections,
+               application::github_credential_shutdown_policy::retain,
+               &epochs}
     {
     }
 };
@@ -1169,6 +1210,128 @@ auto test_enrollment_acceptance_snapshot_and_exact_delete() -> void
                && fixture.Projections.last_host_diagnostic().Reason
                       == core::github_reason_code::vault_unavailable,
            "delete failure is visible and blocks new session establishment");
+}
+
+auto test_accepted_snapshot_handoff_and_exact_invalidation() -> void
+{
+    recording_epoch_handoffs epochs;
+    host_fixture fixture{epochs};
+    establish_native_session(fixture);
+
+    fixture.Host.dispatch(core::open_pull_request_intent{
+        .Repository = {.Owner = "openai", .Name = "better-pull-review"},
+        .Number = core::pull_request_number{27U},
+    });
+    const auto first_request = fixture.Provider.PullRequests.front().Request;
+    auto first_snapshot = snapshot(first_request);
+    first_snapshot.Reviews.push_back(application::github_review_record{
+        .DatabaseId = 4'001U,
+        .Review = application::github_review_id{"review-1"},
+        .Author = application::github_actor_record{
+            .Actor = first_snapshot.Viewer.Actor,
+            .Login = first_snapshot.Viewer.Login,
+        },
+        .State = application::github_review_state::approved,
+        .Commit = first_snapshot.PullRequest.HeadOid,
+        .Body = "Reviewed",
+    });
+    fixture.Provider.PullRequests.front().Completion(
+        application::github_pull_request_success{
+            .Request = first_request,
+            .Snapshot = first_snapshot,
+        });
+    expect(epochs.Accepted.empty(),
+           "provider completion cannot reach epoch ingestion off lane");
+    fixture.Lane.run_next();
+    expect(epochs.Accepted.size() == 1U && epochs.Invalidated.empty(),
+           "only the core-accepted snapshot reaches epoch ingestion");
+
+    const auto& first = epochs.Accepted.front();
+    expect(application::valid(first)
+               && first.ApplicationSession
+                      == core::application_session_id{41U}
+               && first.Profile == core::host_profile_id{11U}
+               && first.ProfileRevision == core::github_profile_revision{31U}
+               && first.Host == core::git_host_id{21U}
+               && first.Account == core::github_account_id{51U}
+               && first.Viewer == core::github_viewer_actor_id{51U}
+               && first.Repository == core::repository_id{71U}
+               && first.PullRequest == core::pull_request_id{81U}
+               && first.Number == core::pull_request_number{27U}
+               && first.Locator
+                      == core::repository_locator{
+                          .Owner = "openai",
+                          .Name = "better-pull-review",
+                      }
+               && first.BaseRef.view() == "refs/heads/main"
+               && first.ObjectFormat == core::git_hash_algorithm::sha1
+               && core::canonical_hex(first.Base).view()
+                      == "1111111111111111111111111111111111111111"
+               && core::canonical_hex(first.Head).view()
+                      == "2222222222222222222222222222222222222222"
+               && first.HostAuthority.valid() && first.BaseBranch.valid()
+               && first.CurrentViewerReview.has_value()
+               && first.CurrentViewerReview->Review
+                      == core::github_review_id{4'001U}
+               && first.CurrentViewerReview->Actor == first.Viewer
+               && first.CurrentViewerReview->Commit == first.Head,
+           "handoff contains one exact provider-free authority, revision, "
+           "base ref, and current-viewer review identity");
+    const auto first_host_authority = first.HostAuthority;
+    const auto first_base_branch = first.BaseBranch;
+    const auto first_pull_request_generation =
+        first.PullRequestGeneration;
+
+    fixture.Host.dispatch(core::refresh_pull_request_intent{});
+    const auto second_request = fixture.Provider.PullRequests.back().Request;
+    auto second_snapshot = snapshot(second_request);
+    second_snapshot.Snapshot = core::provider_snapshot_id{92U};
+    second_snapshot.PullRequest.HeadOid = application::commit_oid{
+        "3333333333333333333333333333333333333333"};
+    fixture.Provider.PullRequests.back().Completion(
+        application::github_pull_request_success{
+            .Request = second_request,
+            .Snapshot = second_snapshot,
+        });
+    fixture.Lane.run_next();
+    expect(epochs.Accepted.size() == 2U && epochs.Invalidated.empty(),
+           "same-authority refresh hands off the new revision without an "
+           "authority invalidation");
+    const auto& second = epochs.Accepted.back();
+    expect(second.HostAuthority == first_host_authority
+               && second.BaseBranch == first_base_branch
+               && second.PullRequestGeneration.value()
+                      > first_pull_request_generation.value()
+               && second.Snapshot == core::provider_snapshot_id{92U}
+               && core::canonical_hex(second.Head).view()
+                      == "3333333333333333333333333333333333333333",
+           "refresh preserves stable authority identities while advancing "
+           "the exact source generation and head");
+
+    const auto expected_invalidation =
+        application::pull_request_authority_invalidation{
+            .ApplicationSession = second.ApplicationSession,
+            .Profile = second.Profile,
+            .ProfileRevision = second.ProfileRevision,
+            .Host = second.Host,
+            .HostAuthority = second.HostAuthority,
+            .Account = second.Account,
+            .Viewer = second.Viewer,
+            .Repository = second.Repository,
+            .PullRequest = second.PullRequest,
+            .IdentityGeneration = second.IdentityGeneration,
+        };
+    epochs.ThrowInvalidation = true;
+    fixture.Host.dispatch(core::open_pull_request_intent{
+        .Repository = {.Owner = "openai", .Name = "another-repository"},
+        .Number = core::pull_request_number{28U},
+    });
+    expect(epochs.Invalidated
+                   == std::vector{expected_invalidation}
+               && fixture.Host.epoch_handoff_delivery_failed(),
+           "opening an unrelated pull request invalidates only the exact "
+           "previous epoch authority before new provider work and contains "
+           "a failing observer");
 }
 
 auto test_success_projection_is_safe_atomic_and_conversation_complete() -> void
@@ -4011,6 +4174,7 @@ auto test_destroyed_host_suppresses_late_callbacks_before_posting() -> void
 auto main() -> int
 {
     test_enrollment_acceptance_snapshot_and_exact_delete();
+    test_accepted_snapshot_handoff_and_exact_invalidation();
     test_success_projection_is_safe_atomic_and_conversation_complete();
     test_every_provider_failure_maps_to_safe_pull_request_failure();
     test_retries_are_bounded_and_stale_work_is_cancelled();

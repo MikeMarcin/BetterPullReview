@@ -34,7 +34,9 @@
 #endif
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -296,6 +298,17 @@ struct automated_run
         connect,
         open,
 #if defined(BPR_BUILD_TESTS)
+        epoch_history,
+        epoch_refresh,
+        epoch_whole_pr,
+        epoch_previous_upload,
+        epoch_last_reviewed,
+        epoch_arbitrary_left,
+        epoch_arbitrary,
+        epoch_reverse_left,
+        epoch_reverse,
+        epoch_identical_left,
+        epoch_identical,
         appearance,
 #endif
         shutdown,
@@ -318,6 +331,16 @@ struct automated_run
     bool PresentationPassed = false;
     bool RenderSaved = true;
     bool VerifyNativePlatformVault = false;
+    QString LastEpochStatus;
+    QString LastEpochComparison;
+    QString LastEpochLeft;
+    QString LastEpochRight;
+    int LastEpochCoreStatus = -1;
+    int LastEpochLeftRow = -1;
+    int LastEpochRightRow = -1;
+    std::size_t LastEpochCount = 0U;
+    bool LastEpochHistoryEnabled = false;
+    int FailedStage = -1;
     cli_unavailable_probe_state Cli;
 #if defined(BPR_BUILD_TESTS)
     struct native_appearance_probe_state
@@ -347,6 +370,10 @@ struct automated_run
     bool Fixture = false;
     std::string FixtureName;
     std::string ExpectedActiveHostText;
+    bpr::app::detail::github_epoch_fixture_phase EpochPhase =
+        bpr::app::detail::github_epoch_fixture_phase::single;
+    int EpochLeftRow = -1;
+    int EpochRightRow = -1;
     native_appearance_probe_state Appearance;
 #endif
     std::optional<std::string_view> RenderPath;
@@ -553,6 +580,78 @@ struct automated_run
                .isValid()
         && window.statistics().FullResets == 0U;
 }
+
+[[nodiscard]] auto fixture_epoch_presentation_passed(
+    const bpr::qt::github_window& window,
+    const std::size_t minimum_epochs = 1U) -> bool
+{
+    const auto* const control = window.epoch_control();
+    return control->status_text().startsWith(
+               QStringLiteral("Review history is ready."))
+        && control->comparison_text().endsWith(
+            QStringLiteral("Ready for diff."))
+        && control->history_model()->epoch_count() >= minimum_epochs
+        && !control->left_oid_editor()->text().isEmpty()
+        && !control->right_oid_editor()->text().isEmpty();
+}
+
+[[nodiscard]] auto fixture_epoch_pair_passed(
+    const bpr::qt::github_window& window,
+    const std::string& left,
+    const std::string& right,
+    const std::size_t minimum_epochs = 2U) -> bool
+{
+    const auto* const control = window.epoch_control();
+    return fixture_epoch_presentation_passed(window, minimum_epochs)
+        && control->left_oid_editor()->text()
+               == QString::fromStdString(left)
+        && control->right_oid_editor()->text()
+               == QString::fromStdString(right);
+}
+
+[[nodiscard]] auto fixture_anchor_row(
+    const bpr::qt::epoch_history_model& model,
+    const std::uint64_t ordinal,
+    const bpr::core::comparison_anchor_kind kind) -> int
+{
+    for(auto row = 0; row < model.rowCount(); ++row)
+    {
+        const auto index = model.index(row, 0);
+        if(index.data(bpr::qt::epoch_history_model::epoch_ordinal_role)
+                   .toULongLong()
+               == ordinal
+           && index.data(bpr::qt::epoch_history_model::anchor_kind_role)
+                      .toInt()
+               == static_cast<int>(kind))
+        {
+            return row;
+        }
+    }
+    return -1;
+}
+
+[[nodiscard]] constexpr auto expected_fixture_smart_calls(
+    const bpr::app::detail::github_epoch_fixture_phase phase) noexcept
+    -> int
+{
+    switch(phase)
+    {
+    case bpr::app::detail::github_epoch_fixture_phase::single:
+        return 1U;
+    case bpr::app::detail::github_epoch_fixture_phase::seed:
+        return 2U;
+    case bpr::app::detail::github_epoch_fixture_phase::reuse:
+        return 0U;
+    }
+    return 0U;
+}
+
+void advance_fixture_stage(
+    automated_run& run, const automated_run::stage next) noexcept
+{
+    run.Stage = next;
+    run.Attempts = 0U;
+}
 #endif
 
 [[nodiscard]] auto cli_fail_closed_presentation_passed(
@@ -680,6 +779,8 @@ void finish_automated_run(
             && run.Cli.Observed == run.Cli.Expected);
     auto passed = run.PresentationPassed && status.ShutdownComplete
         && !status.ShutdownCleanupFailed
+        && !status.EpochProjectionDeliveryFailed
+        && !status.EpochHandoffDeliveryFailed
         && native_vault_evidence_passed
         && cli_unavailable_evidence_passed;
     auto render_saved = run.RenderSaved;
@@ -692,6 +793,8 @@ void finish_automated_run(
         : bpr::app::detail::github_public_path_fixture_evidence{};
     if(run.Fixture)
     {
+        const auto expected_smart_calls =
+            expected_fixture_smart_calls(run.EpochPhase);
         passed = passed && fixture_evidence.RecordingConsumed
             && fixture_evidence.CapabilityProbeConsumed
             && fixture_evidence.BootstrapTransportSelected
@@ -699,7 +802,15 @@ void finish_automated_run(
             && fixture_evidence.CredentialStored
             && fixture_evidence.CredentialRetrieved
             && fixture_evidence.CredentialDeleted
-            && !fixture_evidence.SecretRetained;
+            && !fixture_evidence.SecretRetained
+            && fixture_evidence.SmartAcquireCount
+                == expected_smart_calls
+            && fixture_evidence.SmartDiscoveryCount
+                == expected_smart_calls
+            && fixture_evidence.SmartLsRefsCount
+                == expected_smart_calls
+            && fixture_evidence.SmartFetchCount
+                == expected_smart_calls;
     }
     if(run.Appearance.Enabled)
     {
@@ -740,17 +851,74 @@ void finish_automated_run(
                        run.Cli.Observed)
                 << '\n';
     }
+#if defined(BPR_BUILD_TESTS)
+    if(run.Fixture
+       && run.EpochPhase
+              != bpr::app::detail::github_epoch_fixture_phase::single)
+    {
+        const auto phase = run.EpochPhase
+                == bpr::app::detail::github_epoch_fixture_phase::seed
+            ? QStringLiteral("SEED")
+            : QStringLiteral("REUSE");
+        stream << "EPOCH_FIXTURE_" << phase << (passed ? "_OK\n" : "_FAILED\n");
+    }
+#endif
     if(!passed)
     {
         const auto& window = application.window();
         stream << "PUBLIC_PATH_STAGE:"
-               << static_cast<int>(run.Stage) << '\n'
+               << (run.FailedStage >= 0 ? run.FailedStage
+                                        : static_cast<int>(run.Stage))
+               << '\n'
                << "PUBLIC_PATH_STATUS:"
                << QString::fromStdString(window.status_text()) << '\n'
                << "PUBLIC_PATH_DIAGNOSTIC:"
                << QString::fromStdString(window.diagnostic_text()) << '\n'
                << "PUBLIC_PATH_ACCOUNT:"
-               << QString::fromStdString(window.active_account_text()) << '\n';
+               << QString::fromStdString(window.active_account_text()) << '\n'
+               << "PUBLIC_PATH_EPOCH_STATUS:"
+               << (run.LastEpochStatus.isEmpty()
+                       ? window.epoch_control()->status_text()
+                       : run.LastEpochStatus)
+               << '\n'
+               << "PUBLIC_PATH_EPOCH_COMPARISON:"
+               << (run.LastEpochComparison.isEmpty()
+                       ? window.epoch_control()->comparison_text()
+                       : run.LastEpochComparison)
+               << '\n'
+               << "PUBLIC_PATH_EPOCH_PAIR:"
+               << (run.LastEpochLeft.isEmpty()
+                       ? window.epoch_control()->left_oid_editor()->text()
+                       : run.LastEpochLeft)
+               << ':'
+               << (run.LastEpochRight.isEmpty()
+                       ? window.epoch_control()->right_oid_editor()->text()
+                       : run.LastEpochRight)
+               << ':'
+               << (run.LastEpochLeftRow >= 0
+                       ? run.LastEpochLeftRow
+                       : window.epoch_control()->left_selector()->currentIndex())
+               << ':'
+               << (run.LastEpochRightRow >= 0
+                       ? run.LastEpochRightRow
+                       : window.epoch_control()->right_selector()->currentIndex())
+               << ':'
+               << static_cast<unsigned long long>(
+                      run.LastEpochCount != 0U
+                          ? run.LastEpochCount
+                          : window.epoch_control()
+                                ->history_model()
+                                ->epoch_count())
+               << ':'
+               << (run.LastEpochHistoryEnabled
+                           || window.epoch_control()
+                                  ->load_history_action()
+                                  ->isEnabled()
+                       ? 1
+                       : 0)
+               << '\n'
+               << "PUBLIC_PATH_EPOCH_CORE_STATUS:"
+               << run.LastEpochCoreStatus << '\n';
     }
 #if defined(BPR_BUILD_TESTS)
     if(run.Fixture)
@@ -771,6 +939,11 @@ void finish_automated_run(
                    << fixture_evidence.RecordingFailure << ':'
                    << fixture_evidence.AccountReadCount << ':'
                    << fixture_evidence.LastReadOperation << '\n';
+            stream << "GITHUB_FIXTURE_SMART_EVIDENCE:"
+                   << fixture_evidence.SmartAcquireCount << ':'
+                   << fixture_evidence.SmartDiscoveryCount << ':'
+                   << fixture_evidence.SmartLsRefsCount << ':'
+                   << fixture_evidence.SmartFetchCount << '\n';
         }
     }
 #endif
@@ -860,12 +1033,39 @@ void schedule_automated_run(
         auto& window = application.window();
         const auto maximum_attempts =
 #if defined(BPR_BUILD_TESTS)
-            run->Appearance.Enabled ? 6'000U :
+            run->Fixture
+                && (run->Stage == automated_run::stage::start
+                    || run->Stage == automated_run::stage::connect
+                    || run->Stage == automated_run::stage::open
+                    || run->Stage == automated_run::stage::epoch_history
+                    || run->Stage == automated_run::stage::epoch_refresh
+                    || run->Stage == automated_run::stage::appearance)
+                ? 6'000U
+                :
 #endif
                                       1'000U;
-        if(++run->Attempts > maximum_attempts)
+        if(run->Stage != automated_run::stage::shutdown
+           && ++run->Attempts > maximum_attempts)
         {
             run->PresentationPassed = false;
+            run->FailedStage = static_cast<int>(run->Stage);
+            run->LastEpochStatus = window.epoch_control()->status_text();
+            run->LastEpochComparison =
+                window.epoch_control()->comparison_text();
+            run->LastEpochLeft =
+                window.epoch_control()->left_oid_editor()->text();
+            run->LastEpochRight =
+                window.epoch_control()->right_oid_editor()->text();
+            run->LastEpochLeftRow =
+                window.epoch_control()->left_selector()->currentIndex();
+            run->LastEpochRightRow =
+                window.epoch_control()->right_selector()->currentIndex();
+            run->LastEpochCount =
+                window.epoch_control()->history_model()->epoch_count();
+            run->LastEpochHistoryEnabled =
+                window.epoch_control()->load_history_action()->isEnabled();
+            run->LastEpochCoreStatus = static_cast<int>(
+                application.status().EpochStatus);
 #if defined(BPR_BUILD_TESTS)
             if(!run->Appearance.Enabled)
 #endif
@@ -883,7 +1083,8 @@ void schedule_automated_run(
             if(run->Fixture)
             {
                 window.connect_action()->trigger();
-                run->Stage = automated_run::stage::connect;
+                advance_fixture_stage(
+                    *run, automated_run::stage::connect);
             }
             else
 #endif
@@ -937,7 +1138,7 @@ void schedule_automated_run(
                     QStringLiteral("review-repository"));
                 window.pull_request_editor()->setValue(17);
                 window.open_action()->trigger();
-                run->Stage = automated_run::stage::open;
+                advance_fixture_stage(*run, automated_run::stage::open);
             }
             else if(cli_fail_closed_presentation_passed(window, *run))
 #else
@@ -975,7 +1176,60 @@ void schedule_automated_run(
             if(fixture_presentation_passed(
                    window, run->ExpectedActiveHostText))
             {
-                if(run->Appearance.Enabled)
+                const auto evidence = bpr::app::detail::
+                    github_application_fixture_access::evidence(application);
+                const auto persistent_phase =
+                    run->EpochPhase
+                    != bpr::app::detail::
+                        github_epoch_fixture_phase::single;
+                const auto initial_head =
+                    run->EpochPhase
+                            == bpr::app::detail::
+                                github_epoch_fixture_phase::reuse
+                        ? evidence.HeadTwoOid
+                        : evidence.HeadOneOid;
+                const auto initial_epochs =
+                    run->EpochPhase
+                            == bpr::app::detail::
+                                github_epoch_fixture_phase::reuse
+                        ? 0U
+                        : 1U;
+                if(!fixture_epoch_pair_passed(
+                       window,
+                       evidence.BaseOid,
+                       initial_head,
+                       initial_epochs))
+                {
+                    break;
+                }
+                if(run->EpochPhase
+                   == bpr::app::detail::github_epoch_fixture_phase::seed)
+                {
+                    window.refresh_action()->trigger();
+                    advance_fixture_stage(
+                        *run, automated_run::stage::epoch_refresh);
+                }
+                else if(persistent_phase)
+                {
+                    auto* const control = window.epoch_control();
+                    if(control->history_model()->epoch_count() < 2U)
+                    {
+                        if(!control->load_history_action()->isEnabled())
+                        {
+                            break;
+                        }
+                        control->load_history_action()->trigger();
+                        advance_fixture_stage(
+                            *run, automated_run::stage::epoch_history);
+                    }
+                    else
+                    {
+                        control->whole_pr_action()->trigger();
+                        advance_fixture_stage(
+                            *run, automated_run::stage::epoch_whole_pr);
+                    }
+                }
+                else if(run->Appearance.Enabled)
                 {
                     if(prepare_native_appearance_probe(window, *run))
                     {
@@ -1000,6 +1254,235 @@ void schedule_automated_run(
             break;
 
 #if defined(BPR_BUILD_TESTS)
+        case automated_run::stage::epoch_history:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            if(fixture_epoch_pair_passed(
+                   window, evidence.BaseOid, evidence.HeadTwoOid))
+            {
+                window.epoch_control()->whole_pr_action()->trigger();
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_whole_pr);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_refresh:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            if(fixture_presentation_passed(
+                   window, run->ExpectedActiveHostText)
+               && fixture_epoch_pair_passed(
+                   window,
+                   evidence.BaseOid,
+                   evidence.HeadTwoOid))
+            {
+                window.epoch_control()->whole_pr_action()->trigger();
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_whole_pr);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_whole_pr:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.BaseOid, evidence.HeadTwoOid)
+               && control->whole_pr_action()->isChecked())
+            {
+                control->previous_upload_action()->trigger();
+                advance_fixture_stage(
+                    *run,
+                    automated_run::stage::epoch_previous_upload);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_previous_upload:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.HeadOneOid, evidence.HeadTwoOid)
+               && control->previous_upload_action()->isChecked())
+            {
+                control->last_reviewed_action()->trigger();
+                advance_fixture_stage(
+                    *run,
+                    automated_run::stage::epoch_last_reviewed);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_last_reviewed:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.HeadOneOid, evidence.HeadTwoOid)
+               && control->last_reviewed_action()->isChecked())
+            {
+                run->EpochLeftRow = fixture_anchor_row(
+                    *control->history_model(),
+                    1U,
+                    bpr::core::comparison_anchor_kind::epoch_head);
+                run->EpochRightRow = fixture_anchor_row(
+                    *control->history_model(),
+                    2U,
+                    bpr::core::comparison_anchor_kind::epoch_base);
+                if(run->EpochLeftRow < 0 || run->EpochRightRow < 0)
+                {
+                    fail_automated_run(application, *run);
+                    break;
+                }
+                control->left_selector()->setCurrentIndex(
+                    run->EpochLeftRow);
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_arbitrary_left);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_arbitrary_left:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.HeadOneOid, evidence.HeadTwoOid)
+               && control->left_selector()->currentIndex()
+                      == run->EpochLeftRow
+               && !control->whole_pr_action()->isChecked()
+               && !control->previous_upload_action()->isChecked()
+               && !control->last_reviewed_action()->isChecked())
+            {
+                control->right_selector()->setCurrentIndex(
+                    run->EpochRightRow);
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_arbitrary);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_arbitrary:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.HeadOneOid, evidence.BaseOid)
+               && control->left_selector()->currentIndex()
+                      == run->EpochLeftRow
+               && control->right_selector()->currentIndex()
+                      == run->EpochRightRow
+               && !control->whole_pr_action()->isChecked()
+               && !control->previous_upload_action()->isChecked()
+               && !control->last_reviewed_action()->isChecked())
+            {
+                std::swap(run->EpochLeftRow, run->EpochRightRow);
+                control->left_selector()->setCurrentIndex(
+                    run->EpochLeftRow);
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_reverse_left);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_reverse_left:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.BaseOid, evidence.BaseOid)
+               && control->left_selector()->currentIndex()
+                      == run->EpochLeftRow
+               && control->right_selector()->currentIndex()
+                      == run->EpochLeftRow)
+            {
+                control->right_selector()->setCurrentIndex(
+                    run->EpochRightRow);
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_reverse);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_reverse:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.BaseOid, evidence.HeadOneOid)
+               && control->left_selector()->currentIndex()
+                      == run->EpochLeftRow
+               && control->right_selector()->currentIndex()
+                      == run->EpochRightRow)
+            {
+                const auto identical = fixture_anchor_row(
+                    *control->history_model(),
+                    2U,
+                    bpr::core::comparison_anchor_kind::epoch_head);
+                if(identical < 0)
+                {
+                    fail_automated_run(application, *run);
+                    break;
+                }
+                run->EpochLeftRow = identical;
+                run->EpochRightRow = identical;
+                control->left_selector()->setCurrentIndex(identical);
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_identical_left);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_identical_left:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.HeadTwoOid, evidence.HeadOneOid)
+               && control->left_selector()->currentIndex()
+                      == run->EpochLeftRow)
+            {
+                control->right_selector()->setCurrentIndex(
+                    run->EpochRightRow);
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_identical);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_identical:
+        {
+            const auto evidence = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            auto* const control = window.epoch_control();
+            if(fixture_epoch_pair_passed(
+                   window, evidence.HeadTwoOid, evidence.HeadTwoOid)
+               && control->left_selector()->currentIndex()
+                      == run->EpochLeftRow
+               && control->right_selector()->currentIndex()
+                      == run->EpochRightRow)
+            {
+                run->PresentationPassed = true;
+                run->RenderSaved =
+                    save_render_evidence(window, run->RenderPath);
+                transition_to_shutdown(application, *run);
+            }
+            break;
+        }
+
         case automated_run::stage::appearance:
             if(
                 run->Appearance.SignalObserved
@@ -1119,6 +1602,8 @@ auto main(int argc, char** argv) -> int
         auto expected_active_host_text = std::string{};
         auto selected_fixture = std::optional<
             bpr::app::detail::github_public_path_fixture>{};
+        auto fixture_options =
+            bpr::app::detail::github_public_path_fixture_options{};
         if(const auto fixture =
                argument_value(argc, argv, "--github-fixture");
            fixture.has_value())
@@ -1143,6 +1628,39 @@ auto main(int argc, char** argv) -> int
             else
             {
                 QTextStream{stdout} << "PUBLIC_PATH_FAILED\n";
+                return EXIT_FAILURE;
+            }
+        }
+        const auto epoch_fixture_root =
+            argument_value(argc, argv, "--epoch-fixture-root");
+        const auto epoch_fixture_phase =
+            argument_value(argc, argv, "--epoch-fixture-phase");
+        if(epoch_fixture_root.has_value() != epoch_fixture_phase.has_value()
+           || (epoch_fixture_root.has_value()
+               && !selected_fixture.has_value()))
+        {
+            QTextStream{stdout}
+                << "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
+            return EXIT_FAILURE;
+        }
+        if(epoch_fixture_root)
+        {
+            fixture_options.ApplicationDataRoot =
+                std::filesystem::path{std::string{*epoch_fixture_root}};
+            if(*epoch_fixture_phase == "seed")
+            {
+                fixture_options.EpochPhase =
+                    bpr::app::detail::github_epoch_fixture_phase::seed;
+            }
+            else if(*epoch_fixture_phase == "reuse")
+            {
+                fixture_options.EpochPhase =
+                    bpr::app::detail::github_epoch_fixture_phase::reuse;
+            }
+            else
+            {
+                QTextStream{stdout}
+                    << "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
                 return EXIT_FAILURE;
             }
         }
@@ -1184,13 +1702,21 @@ auto main(int argc, char** argv) -> int
                 << "NATIVE_APPEARANCE_CONFIGURATION_FAILED\n";
             return EXIT_FAILURE;
         }
+        if(native_appearance_probe
+           && fixture_options.EpochPhase
+                  != bpr::app::detail::github_epoch_fixture_phase::single)
+        {
+            QTextStream{stdout}
+                << "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
+            return EXIT_FAILURE;
+        }
 #endif
 
         auto application =
 #if defined(BPR_BUILD_TESTS)
             selected_fixture.has_value()
             ? bpr::app::detail::github_application_fixture_access::make(
-                  *selected_fixture)
+                  *selected_fixture, fixture_options)
             :
 #endif
             std::make_unique<bpr::app::github_application>(
@@ -1239,6 +1765,7 @@ auto main(int argc, char** argv) -> int
                         .FixtureName = std::move(fixture_name),
                         .ExpectedActiveHostText =
                             std::move(expected_active_host_text),
+                        .EpochPhase = fixture_options.EpochPhase,
                         .Appearance =
                             automated_run::
                                 native_appearance_probe_state{

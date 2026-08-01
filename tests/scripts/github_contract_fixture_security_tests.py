@@ -230,6 +230,7 @@ EXPECTED_RESPONSE_FIELDS = {
         "login",
     },
     "ListReviews": {
+        "id",
         "node_id",
         "user",
         "login",

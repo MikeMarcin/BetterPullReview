@@ -19,16 +19,24 @@
 
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/epoch_application_host.hpp"
+#include "bpr/application/epoch_runtime_ports.hpp"
+#include "bpr/adapters/git/installed_git_cache.hpp"
+#include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 
 #include <QCoreApplication>
 #include <QEventLoop>
+#include <QFileInfo>
+#include <QStandardPaths>
 #include <QTimer>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <deque>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <span>
@@ -39,6 +47,10 @@
 #include <utility>
 #include <variant>
 #include <vector>
+
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 namespace bpr::app
 {
@@ -52,6 +64,82 @@ using adapters::github::detail::github_provider;
 using adapters::github::detail::github_wire_transport_factory_port;
 using adapters::github::detail::make_github_provider;
 using adapters::github::detail::native_github_wire_transport_factory;
+
+[[nodiscard]] auto native_filesystem_path(const QString& value)
+    -> std::filesystem::path
+{
+#if defined(_WIN32)
+    return std::filesystem::path{value.toStdWString()};
+#else
+    return std::filesystem::path{value.toStdString()};
+#endif
+}
+
+[[nodiscard]] auto native_application_data_root(
+    const github_application_config& config) -> std::filesystem::path
+{
+    if(config.ApplicationDataRoot)
+    {
+        return config.ApplicationDataRoot->lexically_normal();
+    }
+    return native_filesystem_path(QStandardPaths::writableLocation(
+        QStandardPaths::AppLocalDataLocation));
+}
+
+[[nodiscard]] auto native_git_executable(
+    const github_application_config& config) -> std::filesystem::path
+{
+    if(config.GitExecutable)
+    {
+        return config.GitExecutable->lexically_normal();
+    }
+    return native_filesystem_path(
+        QFileInfo{QStandardPaths::findExecutable(QStringLiteral("git"))}
+            .canonicalFilePath());
+}
+
+[[nodiscard]] auto prepare_application_data_root(
+    const std::filesystem::path& root) -> std::filesystem::path
+{
+    if(root.empty() || !root.is_absolute())
+    {
+        return {};
+    }
+    std::error_code error;
+    static_cast<void>(std::filesystem::create_directories(root, error));
+    if(error)
+    {
+        return {};
+    }
+    std::filesystem::permissions(root,
+                                 std::filesystem::perms::owner_all,
+                                 std::filesystem::perm_options::replace,
+                                 error);
+    if(error)
+    {
+        return {};
+    }
+    const auto canonical = std::filesystem::canonical(root, error);
+    return !error && canonical == root.lexically_normal() ? canonical
+                                                          : std::filesystem::path{};
+}
+
+[[nodiscard]] auto windows_system_root()
+    -> std::optional<std::filesystem::path>
+{
+#if defined(_WIN32)
+    auto value = std::array<wchar_t, MAX_PATH + 1U>{};
+    const auto length = GetWindowsDirectoryW(
+        value.data(), static_cast<UINT>(value.size()));
+    if(length == 0U || length >= value.size())
+    {
+        return std::nullopt;
+    }
+    return std::filesystem::path{value.data()};
+#else
+    return std::nullopt;
+#endif
+}
 
 class unavailable_credential_vault final
     : public application::github_credential_vault_port
@@ -270,7 +358,8 @@ public:
 #if defined(BPR_BUILD_TESTS)
         ,
         const std::optional<detail::github_public_path_fixture> fixture =
-            std::nullopt
+            std::nullopt,
+        detail::github_public_path_fixture_options fixture_options = {}
 #endif
     )
     {
@@ -299,7 +388,10 @@ public:
                            : "GitHub.com — Recorded native HTTPS");
             Fixture = std::make_unique<
                 detail::github_public_path_fixture_components>(
-                *fixture, Profiles.front(), VaultEffects);
+                *fixture,
+                Profiles.front(),
+                VaultEffects,
+                std::move(fixture_options));
         }
         else
 #endif
@@ -407,10 +499,69 @@ public:
             }
         }
 
+        auto application_data_root = std::filesystem::path{};
+        auto git_executable = std::filesystem::path{};
+#if defined(BPR_BUILD_TESTS)
+        if(Fixture != nullptr)
+        {
+            application_data_root = Fixture->application_data_root();
+            git_executable = Fixture->git_executable();
+        }
+        else
+#endif
+        {
+            application_data_root =
+                prepare_application_data_root(
+                    native_application_data_root(config));
+            git_executable = native_git_executable(config);
+        }
+        if(application_data_root.empty() || git_executable.empty())
+        {
+            throw std::runtime_error{
+                "Application data or installed Git is unavailable"};
+        }
+
+        auto cache = adapters::git::make_installed_git_cache({
+            .GitExecutable = git_executable,
+            .StorageRoot = application_data_root,
+            .WindowsSystemRoot = windows_system_root(),
+        });
+        auto catalog = adapters::sqlite::make_epoch_catalog({
+            .StorageRoot = application_data_root,
+        });
+        if(!cache || !catalog)
+        {
+            throw std::runtime_error{
+                "Git cache or epoch catalog composition failed"};
+        }
+        GitCaches = std::move(*cache);
+        EpochCatalogs = std::move(*catalog);
+        EpochEntropy = application::make_system_epoch_entropy();
+        EpochClock = application::make_system_epoch_clock();
+        if(!EpochEntropy || !EpochClock)
+        {
+            throw std::runtime_error{"Epoch runtime ports are unavailable"};
+        }
+
         Window = std::make_unique<qt::github_window>(
             qt::github_view_config{.Profiles = ProfileOptions},
             [this](application::github_intent intent)
             { dispatch_intent(std::move(intent)); });
+
+        EpochHost = std::make_unique<application::epoch_application_host>(
+            core::epoch_state{
+                .ApplicationSession = core::application_session_id{1U},
+            },
+            *GitCaches,
+            *EpochCatalogs,
+            *EpochEntropy,
+            *EpochClock,
+            EpochEffects,
+            DecisionLane,
+            *Window->epoch_control());
+        Window->epoch_control()->set_dispatch(
+            [this](application::epoch_intent intent)
+            { dispatch_epoch_intent(std::move(intent)); });
 
         Host = std::make_unique<application::github_application_host>(
             initial_github_state(),
@@ -423,7 +574,8 @@ public:
             DecisionLane,
             *Window,
             application::github_credential_shutdown_policy::
-                delete_retained_on_shutdown);
+                delete_retained_on_shutdown,
+            EpochHost.get());
     }
 
     ~implementation()
@@ -513,6 +665,15 @@ public:
             std::move(intent));
     }
 
+    void dispatch_epoch_intent(application::epoch_intent intent)
+    {
+        if(Closing || EpochHost == nullptr)
+        {
+            return;
+        }
+        EpochHost->dispatch(std::move(intent));
+    }
+
     void begin_shutdown()
     {
         if(Closing)
@@ -520,6 +681,7 @@ public:
             return;
         }
         Closing = true;
+        EpochHost->shutdown();
         Host->shutdown();
         schedule_shutdown_poll();
     }
@@ -547,13 +709,16 @@ public:
         {
             return;
         }
-        if(!Host->is_quiescent())
+        if(!EpochHost->is_quiescent() || !Host->is_quiescent())
         {
             schedule_shutdown_poll();
             return;
         }
 
         ShutdownCleanupFailed = Host->shutdown_cleanup_failed();
+        EpochProjectionDeliveryFailed =
+            EpochHost->projection_delivery_failed();
+        EpochEffects.close_and_drain();
         Provider->shutdown();
         ProviderEffects.close_and_drain();
         VaultEffects.close_and_drain();
@@ -573,12 +738,19 @@ public:
     qt::event_loop_executor DecisionLane;
     std::unique_ptr<qt::github_window> Window;
     application::github_credential_binding_catalog CredentialBindings;
+    std::unique_ptr<application::git_cache_port> GitCaches;
+    std::unique_ptr<application::epoch_catalog_port> EpochCatalogs;
+    std::unique_ptr<application::epoch_entropy_port> EpochEntropy;
+    std::unique_ptr<application::epoch_clock_port> EpochClock;
+    worker_executor EpochEffects;
+    std::unique_ptr<application::epoch_application_host> EpochHost;
     std::unique_ptr<application::github_application_host> Host;
     bool Closing = false;
     bool ShutdownPollScheduled = false;
     bool ShutdownComplete = false;
     bool ShutdownCleanupFailed = false;
     bool NativePlatformVaultSelected = false;
+    bool EpochProjectionDeliveryFailed = false;
 };
 
 github_application::github_application(github_application_config config)
@@ -618,17 +790,23 @@ auto github_application::status() const noexcept -> github_application_status
         .ShutdownCleanupFailed = Implementation->ShutdownCleanupFailed,
         .NativePlatformVaultSelected =
             Implementation->NativePlatformVaultSelected,
+        .EpochProjectionDeliveryFailed =
+            Implementation->EpochProjectionDeliveryFailed,
+        .EpochHandoffDeliveryFailed =
+            Implementation->Host->epoch_handoff_delivery_failed(),
+        .EpochStatus = Implementation->EpochHost->state().Status,
     };
 }
 
 #if defined(BPR_BUILD_TESTS)
 auto detail::github_application_fixture_access::make(
-    const detail::github_public_path_fixture fixture)
+    const detail::github_public_path_fixture fixture,
+    detail::github_public_path_fixture_options options)
     -> std::unique_ptr<github_application>
 {
     return std::unique_ptr<github_application>{new github_application{
         std::make_unique<github_application::implementation>(
-            github_application_config{}, fixture)}};
+            github_application_config{}, fixture, std::move(options))}};
 }
 
 auto detail::github_application_fixture_access::evidence(

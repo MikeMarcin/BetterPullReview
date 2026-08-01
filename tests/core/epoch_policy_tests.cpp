@@ -1,4 +1,5 @@
 #include "bpr/core/epoch_transition.hpp"
+#include "bpr/core/sha256.hpp"
 
 #include <array>
 #include <cstdint>
@@ -24,6 +25,27 @@ auto expect(const bool condition, const std::string_view message) -> void
         std::cerr << "FAILED: " << message << '\n';
         std::exit(EXIT_FAILURE);
     }
+}
+
+auto test_sha256_known_vectors() -> void
+{
+    static constexpr std::array<std::uint8_t, 32> empty_digest{
+        0xe3U, 0xb0U, 0xc4U, 0x42U, 0x98U, 0xfcU, 0x1cU, 0x14U,
+        0x9aU, 0xfbU, 0xf4U, 0xc8U, 0x99U, 0x6fU, 0xb9U, 0x24U,
+        0x27U, 0xaeU, 0x41U, 0xe4U, 0x64U, 0x9bU, 0x93U, 0x4cU,
+        0xa4U, 0x95U, 0x99U, 0x1bU, 0x78U, 0x52U, 0xb8U, 0x55U,
+    };
+    static constexpr std::array<std::uint8_t, 3> abc{'a', 'b', 'c'};
+    static constexpr std::array<std::uint8_t, 32> abc_digest{
+        0xbaU, 0x78U, 0x16U, 0xbfU, 0x8fU, 0x01U, 0xcfU, 0xeaU,
+        0x41U, 0x41U, 0x40U, 0xdeU, 0x5dU, 0xaeU, 0x22U, 0x23U,
+        0xb0U, 0x03U, 0x61U, 0xa3U, 0x96U, 0x17U, 0x7aU, 0x9cU,
+        0xb4U, 0x10U, 0xffU, 0x61U, 0xf2U, 0x00U, 0x15U, 0xadU,
+    };
+    expect(sha256(std::span<const std::uint8_t>{}) == empty_digest,
+        "SHA-256 hashes the empty message canonically");
+    expect(sha256(abc) == abc_digest,
+        "SHA-256 hashes a non-empty message canonically");
 }
 
 template<typename Identity>
@@ -3352,6 +3374,7 @@ auto test_deterministic_replay() -> void
 
 auto main() -> int
 {
+    test_sha256_known_vectors();
     test_binary_oid_types_and_compact_state();
     test_preparation_effect_policy();
     test_cause_precedence_and_material_policy();

@@ -684,6 +684,15 @@ the delete terminal is required for quiescence before workers are closed and
 joined. No durable selector or enumeration path exists, so an abrupt crash can
 leave a v2 item that the next process cannot recover.
 
+RFC-BPR-0003 adds a separately owned epoch worker and composes the concrete
+installed-Git cache, SQLite catalog, system entropy/clock ports, epoch host,
+and existing Qt epoch projection. The GitHub host calls the narrow handoff
+port only on the serialized lane after core snapshot acceptance. The retained
+smart authority wraps the accepted account transport, checks the complete
+authority and object-format binding on every acquisition, and revokes all
+issued transports on identity replacement or shutdown. Epoch and GitHub hosts
+must both report quiescence before their workers and provider are drained.
+
 ## Normalized provider surface
 
 ```text

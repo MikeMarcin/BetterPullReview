@@ -2686,13 +2686,19 @@ parse_pull_request(const parsed_page& page,
 {
     if(!value.isObject()
        || !has_required_keys(value.toObject(),
-                             {"body", "commit_id", "node_id", "state", "user"}))
+                             {"body",
+                              "commit_id",
+                              "id",
+                              "node_id",
+                              "state",
+                              "user"}))
     {
         return failed(application::github_provider_failure::malformed_response);
     }
     const auto object = value.toObject();
     const auto author = optional_rest_actor(object.value("user"));
-    if(!nonempty_string(object.value("node_id"))
+    if(!exact_integer(object.value("id"), true)
+       || !nonempty_string(object.value("node_id"))
        || !object.value("body").isString() || !author.Valid
        || !one_of(object.value("state"),
                   {
@@ -2713,6 +2719,7 @@ parse_pull_request(const parsed_page& page,
         commit = application::commit_oid{text(object.value("commit_id"))};
     }
     return application::github_review_record{
+        .DatabaseId = integer(object.value("id")),
         .Review = application::github_review_id{text(object.value("node_id"))},
         .Author = author.Actor,
         .State = review_state(object.value("state").toString()),

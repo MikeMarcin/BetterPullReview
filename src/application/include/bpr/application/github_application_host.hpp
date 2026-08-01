@@ -2,6 +2,7 @@
 
 #include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/port.hpp"
@@ -73,7 +74,8 @@ public:
         decision_executor& decision_lane,
         github_projection_port& projections,
         github_credential_shutdown_policy credential_shutdown_policy =
-            github_credential_shutdown_policy::retain);
+            github_credential_shutdown_policy::retain,
+        github_epoch_handoff_port* epochs = nullptr);
     ~github_application_host();
 
     github_application_host(const github_application_host&) = delete;
@@ -105,6 +107,7 @@ public:
     [[nodiscard]] auto is_quiescent() const noexcept -> bool;
     [[nodiscard]] auto shutdown_cleanup_failed() const noexcept -> bool;
     [[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+    [[nodiscard]] auto epoch_handoff_delivery_failed() const noexcept -> bool;
 
 private:
     struct implementation;

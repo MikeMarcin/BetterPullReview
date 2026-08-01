@@ -169,7 +169,9 @@ public:
         std::stop_token stop) -> git_smart_transport_result<void> = 0;
 };
 
-using git_smart_transport = std::unique_ptr<git_smart_transport_port>;
+// The authority retains only weak ownership so it can revoke every issued
+// transport without forwarding protocol rounds or extending a job lifetime.
+using git_smart_transport = std::shared_ptr<git_smart_transport_port>;
 
 class git_smart_transport_factory_port
 {

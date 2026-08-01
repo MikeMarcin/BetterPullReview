@@ -458,7 +458,7 @@ public:
                 .Failure = application::git_smart_transport_failure::cancelled,
             }};
         }
-        return std::make_unique<fixture_transport>(context);
+        return std::make_shared<fixture_transport>(context);
     }
 
     void revoke() noexcept override { Revoked = true; }

@@ -220,6 +220,7 @@ struct github_commit_record
 
 struct github_review_record
 {
+    std::uint64_t DatabaseId = 0U;
     github_review_id Review;
     std::optional<github_actor_record> Author;
     github_review_state State = github_review_state::uninitialized;
@@ -1160,7 +1161,7 @@ private:
     const github_read_limits& limits) noexcept
     -> github_read_validation_error
 {
-    if(!valid_enum(record.State))
+    if(record.DatabaseId == 0U || !valid_enum(record.State))
     {
         return github_read_validation_error::invalid_enum;
     }

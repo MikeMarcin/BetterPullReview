@@ -13,6 +13,7 @@
 #include "bpr/application/port.hpp"
 
 #include <memory>
+#include <filesystem>
 
 namespace bpr::app::detail
 {
@@ -22,7 +23,8 @@ public:
     github_public_path_fixture_components(
         github_public_path_fixture fixture,
         const adapters::github::validated_github_host_profile& profile,
-        application::effect_executor& vault_effects);
+        application::effect_executor& vault_effects,
+        github_public_path_fixture_options options);
     ~github_public_path_fixture_components();
 
     github_public_path_fixture_components(
@@ -43,6 +45,10 @@ public:
         -> application::github_credential_material;
     [[nodiscard]] auto evidence() const noexcept
         -> github_public_path_fixture_evidence;
+    [[nodiscard]] auto application_data_root() const
+        -> const std::filesystem::path&;
+    [[nodiscard]] auto git_executable() const
+        -> const std::filesystem::path&;
 
 private:
     class implementation;

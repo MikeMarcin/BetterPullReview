@@ -2,21 +2,221 @@
 
 #include "github_projection_mapping.hpp"
 
+#include "bpr/core/sha256.hpp"
+
+#include <algorithm>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <expected>
 #include <limits>
 #include <memory>
 #include <mutex>
 #include <new>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace bpr::application
 {
 namespace
 {
+void append_u64(std::vector<std::uint8_t>& bytes,
+                const std::uint64_t value)
+{
+    for(std::size_t shift = 8U; shift != 0U; --shift)
+    {
+        bytes.push_back(
+            static_cast<std::uint8_t>(value >> ((shift - 1U) * 8U)));
+    }
+}
+
+void append_text(std::vector<std::uint8_t>& bytes,
+                 const std::string_view value)
+{
+    append_u64(bytes, value.size());
+    bytes.insert(bytes.end(), value.begin(), value.end());
+}
+
+[[nodiscard]] auto host_authority_fingerprint(
+    const github_profile_authority& profile)
+    -> core::host_authority_fingerprint
+{
+    auto bytes = std::vector<std::uint8_t>{};
+    bytes.reserve(128U + profile.Hostname.value().size());
+    append_text(bytes, "BetterPullReview/github-host-authority/v1");
+    append_u64(bytes, profile.Profile.value());
+    append_u64(bytes, profile.ProfileRevision.value());
+    append_u64(bytes, profile.Host.value());
+    append_text(bytes, profile.Hostname.value());
+    append_u64(bytes, static_cast<std::uint8_t>(profile.ServerContract));
+    append_u64(bytes, static_cast<std::uint8_t>(profile.Authentication));
+    append_u64(bytes, profile.ProbeContractRevision.value());
+    return core::host_authority_fingerprint{core::sha256(bytes)};
+}
+
+[[nodiscard]] auto base_branch_identity(
+    const core::repository_id repository,
+    const git_base_branch_ref& ref) -> core::base_branch_id
+{
+    auto bytes = std::vector<std::uint8_t>{};
+    bytes.reserve(96U + ref.view().size());
+    append_text(bytes, "BetterPullReview/base-branch/v1");
+    append_u64(bytes, repository.value());
+    append_text(bytes, ref.view());
+    return core::base_branch_id{core::sha256(bytes)};
+}
+
+[[nodiscard]] constexpr auto epoch_review_state(
+    const github_review_state state) noexcept
+    -> std::optional<core::github_review_state>
+{
+    switch(state)
+    {
+    case github_review_state::pending:
+        return core::github_review_state::pending;
+    case github_review_state::approved:
+        return core::github_review_state::approved;
+    case github_review_state::changes_requested:
+        return core::github_review_state::changes_requested;
+    case github_review_state::commented:
+        return core::github_review_state::commented;
+    case github_review_state::dismissed:
+        return core::github_review_state::dismissed;
+    case github_review_state::uninitialized:
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+struct smart_authority_state final
+{
+    void retain(const git_smart_transport& transport)
+    {
+        const std::scoped_lock lock{Mutex};
+        std::erase_if(Transports,
+                      [](const auto& candidate)
+                      { return candidate.expired(); });
+        Transports.emplace_back(transport);
+    }
+
+    void revoke() noexcept
+    {
+        if(Revoked.exchange(true, std::memory_order_acq_rel))
+        {
+            return;
+        }
+        auto transports = std::vector<git_smart_transport>{};
+        {
+            const std::scoped_lock lock{Mutex};
+            transports.reserve(Transports.size());
+            for(const auto& candidate : Transports)
+            {
+                if(auto transport = candidate.lock())
+                {
+                    transports.push_back(std::move(transport));
+                }
+            }
+            Transports.clear();
+        }
+        for(const auto& transport : transports)
+        {
+            if(transport)
+            {
+                transport->revoke();
+            }
+        }
+    }
+
+    std::atomic_bool Revoked = false;
+    std::mutex Mutex;
+    std::vector<std::weak_ptr<git_smart_transport_port>> Transports;
+};
+
+class bound_git_smart_authority final : public git_smart_authority_lease
+{
+public:
+    bound_git_smart_authority(git_smart_authority_binding binding,
+                              github_account_transport account,
+                              std::shared_ptr<smart_authority_state> state)
+        : Binding{std::move(binding)}, Account{std::move(account)},
+          State{std::move(state)}
+    {
+    }
+
+    ~bound_git_smart_authority() override { revoke(); }
+
+    [[nodiscard]] auto binding() const noexcept
+        -> const git_smart_authority_binding& override
+    {
+        return Binding;
+    }
+
+    [[nodiscard]] auto acquire(const git_smart_request_context& context)
+        -> git_smart_transport_result<git_smart_transport> override
+    {
+        if(State->Revoked.load(std::memory_order_acquire)
+           || !application::valid(context)
+           || context.ApplicationSession != Binding.ApplicationSession
+           || context.Authority.Profile != Binding.Profile
+           || context.Authority.ProfileRevision != Binding.ProfileRevision
+           || context.Authority.Host != Binding.Host
+           || context.Authority.HostAuthority != Binding.HostAuthority
+           || context.Authority.Account != Binding.Account
+           || context.Authority.Repository != Binding.Repository
+           || context.Repository != Binding.Locator
+           || context.Revision.Base.algorithm() != Binding.ObjectFormat
+           || context.Revision.Head.algorithm() != Binding.ObjectFormat)
+        {
+            return std::unexpected{git_smart_transport_error{
+                .Failure = git_smart_transport_failure::invalid_request}};
+        }
+        auto* const factory =
+            dynamic_cast<git_smart_transport_factory_port*>(Account.get());
+        if(factory == nullptr)
+        {
+            return std::unexpected{git_smart_transport_error{
+                .Failure = git_smart_transport_failure::unavailable}};
+        }
+        auto acquired = factory->acquire(context);
+        if(!acquired)
+        {
+            return std::unexpected{acquired.error()};
+        }
+        State->retain(*acquired);
+        if(State->Revoked.load(std::memory_order_acquire))
+        {
+            (*acquired)->revoke();
+            return std::unexpected{git_smart_transport_error{
+                .Failure = git_smart_transport_failure::cancelled}};
+        }
+        return std::move(*acquired);
+    }
+
+    void revoke() noexcept override { State->revoke(); }
+
+    [[nodiscard]] auto revoked() const noexcept -> bool override
+    {
+        return State->Revoked.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] auto state() const noexcept
+        -> std::shared_ptr<smart_authority_state>
+    {
+        return State;
+    }
+
+private:
+    git_smart_authority_binding Binding;
+    github_account_transport Account;
+    std::shared_ptr<smart_authority_state> State;
+};
+
 [[nodiscard]] constexpr auto
 retryable(const github_provider_error& error) noexcept -> bool
 {
@@ -396,7 +596,8 @@ struct github_application_host::implementation final
                    decision_executor& decision_lane,
                    github_projection_port& projections,
                    const github_credential_shutdown_policy
-                       credential_shutdown_policy)
+                       credential_shutdown_policy,
+                   github_epoch_handoff_port* const epochs)
         : State{std::move(initial_state)}
         , Profiles{profiles}
         , Viewers{viewers}
@@ -408,6 +609,7 @@ struct github_application_host::implementation final
         , DecisionLane{decision_lane}
         , Projections{projections}
         , CredentialShutdownPolicy{credential_shutdown_policy}
+        , Epochs{epochs}
         , CompletionGate{std::make_shared<completion_gate>()}
     {
         CompletionGate->Host.store(this, std::memory_order_release);
@@ -653,6 +855,182 @@ struct github_application_host::implementation final
         NextResumeProfile.reset();
     }
 
+    [[nodiscard]] auto make_epoch_handoff(
+        const github_pull_request_snapshot& snapshot)
+        -> std::optional<accepted_pull_request_handoff>
+    {
+        if(!AcceptedSession || !AcceptedProfileAuthority
+           || snapshot.Profile != AcceptedProfileAuthority->Profile
+           || snapshot.Host != AcceptedProfileAuthority->Host
+           || snapshot.Account != AcceptedSession->Viewer.Account
+           || snapshot.Viewer.Actor != AcceptedSession->Viewer.Node)
+        {
+            return std::nullopt;
+        }
+
+        const auto base = core::parse_git_commit_oid(
+            snapshot.PullRequest.BaseOid.value());
+        const auto head = core::parse_git_commit_oid(
+            snapshot.PullRequest.HeadOid.value());
+        auto base_ref_text = std::string{"refs/heads/"};
+        base_ref_text += snapshot.PullRequest.BaseRef;
+        const auto base_ref = parse_git_base_branch_ref(base_ref_text);
+        if(!base || !head || !base_ref
+           || base->algorithm() != head->algorithm())
+        {
+            return std::nullopt;
+        }
+
+        const auto viewer =
+            core::github_viewer_actor_id{snapshot.Account.value()};
+        auto current_review =
+            std::optional<core::current_viewer_review_candidate>{};
+        for(std::size_t index = 0U; index < snapshot.Reviews.size(); ++index)
+        {
+            const auto& review = snapshot.Reviews[index];
+            const auto state = epoch_review_state(review.State);
+            const auto commit = review.Commit
+                ? core::parse_git_commit_oid(review.Commit->value())
+                : std::nullopt;
+            if(review.DatabaseId == 0U || !review.Author || !state || !commit
+               || review.Author->Actor != snapshot.Viewer.Actor
+               || *state == core::github_review_state::pending
+               || commit->algorithm() != base->algorithm()
+               || index >= core::maximum_github_review_order)
+            {
+                continue;
+            }
+            current_review = core::current_viewer_review_candidate{
+                .Review = core::github_review_id{review.DatabaseId},
+                .Actor = viewer,
+                .Order = core::github_review_order{
+                    static_cast<std::uint16_t>(index + 1U)},
+                .State = *state,
+                .Commit = *commit,
+            };
+        }
+
+        auto handoff = accepted_pull_request_handoff{
+            .ApplicationSession = State.ApplicationSession,
+            .Profile = snapshot.Profile,
+            .ProfileRevision = core::github_profile_revision{
+                AcceptedProfileAuthority->ProfileRevision.value()},
+            .Host = snapshot.Host,
+            .HostAuthority =
+                host_authority_fingerprint(*AcceptedProfileAuthority),
+            .Hostname = AcceptedProfileAuthority->Hostname,
+            .ServerContract = AcceptedProfileAuthority->ServerContract,
+            .Account = snapshot.Account,
+            .Viewer = viewer,
+            .Repository = snapshot.Repository.Repository,
+            .Locator =
+                {
+                    .Owner = snapshot.Repository.Owner,
+                    .Name = snapshot.Repository.Name,
+                },
+            .PullRequest = snapshot.PullRequest.PullRequest,
+            .Number = snapshot.PullRequest.Number,
+            .Snapshot = snapshot.Snapshot,
+            .IdentityGeneration = State.IdentityGeneration,
+            .PullRequestGeneration = State.PullRequestGeneration,
+            .Origin = core::pull_request_revision_origin::live,
+            .ObjectFormat = base->algorithm(),
+            .BaseBranch =
+                base_branch_identity(snapshot.Repository.Repository,
+                                     *base_ref),
+            .BaseRef = *base_ref,
+            .Base = *base,
+            .Head = *head,
+            .CurrentViewerReview = std::move(current_review),
+        };
+
+        if(dynamic_cast<git_smart_transport_factory_port*>(
+               AccountTransport.get())
+           != nullptr)
+        {
+            auto state = std::make_shared<smart_authority_state>();
+            handoff.SmartGit = std::make_unique<bound_git_smart_authority>(
+                authority_binding(handoff), AccountTransport, state);
+        }
+        return valid(handoff) ? std::optional{std::move(handoff)}
+                              : std::nullopt;
+    }
+
+    [[nodiscard]] static auto invalidation_for(
+        const accepted_pull_request_handoff& handoff)
+        -> pull_request_authority_invalidation
+    {
+        return {
+            .ApplicationSession = handoff.ApplicationSession,
+            .Profile = handoff.Profile,
+            .ProfileRevision = handoff.ProfileRevision,
+            .Host = handoff.Host,
+            .HostAuthority = handoff.HostAuthority,
+            .Account = handoff.Account,
+            .Viewer = handoff.Viewer,
+            .Repository = handoff.Repository,
+            .PullRequest = handoff.PullRequest,
+            .IdentityGeneration = handoff.IdentityGeneration,
+        };
+    }
+
+    void invalidate_epoch_authority() noexcept
+    {
+        if(ActiveEpochSmartAuthority)
+        {
+            ActiveEpochSmartAuthority->revoke();
+        }
+        if(Epochs && ActiveEpochAuthority)
+        {
+            try
+            {
+                Epochs->invalidate(*ActiveEpochAuthority);
+            }
+            catch(...)
+            {
+                EpochHandoffDeliveryFailed = true;
+            }
+        }
+        ActiveEpochSmartAuthority.reset();
+        ActiveEpochAuthority.reset();
+    }
+
+    void deliver_epoch_handoff(
+        const github_pull_request_snapshot& snapshot) noexcept
+    {
+        if(Epochs == nullptr)
+        {
+            return;
+        }
+        try
+        {
+            auto handoff = make_epoch_handoff(snapshot);
+            if(!handoff)
+            {
+                EpochHandoffDeliveryFailed = true;
+                return;
+            }
+            const auto authority = invalidation_for(*handoff);
+            if(ActiveEpochAuthority && *ActiveEpochAuthority != authority)
+            {
+                invalidate_epoch_authority();
+            }
+            auto smart_state = std::shared_ptr<smart_authority_state>{};
+            if(auto* lease = dynamic_cast<bound_git_smart_authority*>(
+                   handoff->SmartGit.get()))
+            {
+                smart_state = lease->state();
+            }
+            Epochs->accept(std::move(*handoff));
+            ActiveEpochAuthority = authority;
+            ActiveEpochSmartAuthority = std::move(smart_state);
+        }
+        catch(...)
+        {
+            EpochHandoffDeliveryFailed = true;
+        }
+    }
+
     void dispatch_core(const core::github_event& event)
     {
         auto output = core::transition(State, event);
@@ -664,6 +1042,7 @@ struct github_application_host::implementation final
                && !fetch->Context.ExpectedRepository.has_value()
                && !fetch->Context.ExpectedPullRequest.has_value())
             {
+                invalidate_epoch_authority();
                 StagedSnapshot.reset();
                 AcceptedSnapshot.reset();
             }
@@ -810,6 +1189,7 @@ struct github_application_host::implementation final
 
     void invalidate(const core::invalidate_github_identity_request& request)
     {
+        invalidate_epoch_authority();
         cancel_provider();
         const auto* resume_binding =
             NextResumeProfile.has_value()
@@ -2884,6 +3264,7 @@ struct github_application_host::implementation final
                     output,
                     nullptr,
                     &*AcceptedSnapshot);
+                deliver_epoch_handoff(*AcceptedSnapshot);
             }
             else
             {
@@ -3051,6 +3432,7 @@ struct github_application_host::implementation final
         // Never call an external port while holding the completion gate.
         // A cancellation implementation may wait for a worker callback that
         // itself needs the gate in order to enqueue its terminal.
+        invalidate_epoch_authority();
         cancel_provider();
         if((ActiveVaultOperation == vault_operation::store
             || ActiveVaultOperation == vault_operation::retrieve)
@@ -3101,6 +3483,7 @@ struct github_application_host::implementation final
     github_projection_port& Projections;
     github_credential_shutdown_policy CredentialShutdownPolicy =
         github_credential_shutdown_policy::retain;
+    github_epoch_handoff_port* Epochs = nullptr;
     std::shared_ptr<completion_gate> CompletionGate;
     std::deque<deferred_ingress> DeferredIngress;
     bool TurnActive = false;
@@ -3143,6 +3526,9 @@ struct github_application_host::implementation final
     bool Closing = false;
     bool ShutdownCleanupFailed = false;
     bool ProjectionDeliveryFailed = false;
+    bool EpochHandoffDeliveryFailed = false;
+    std::optional<pull_request_authority_invalidation> ActiveEpochAuthority;
+    std::shared_ptr<smart_authority_state> ActiveEpochSmartAuthority;
 };
 
 github_application_host::github_application_host(
@@ -3155,7 +3541,8 @@ github_application_host::github_application_host(
     github_credential_binding_catalog& credential_bindings,
     decision_executor& decision_lane,
     github_projection_port& projections,
-    const github_credential_shutdown_policy credential_shutdown_policy)
+    const github_credential_shutdown_policy credential_shutdown_policy,
+    github_epoch_handoff_port* const epochs)
     : Implementation{std::make_unique<implementation>(std::move(initial_state),
                                                       profiles,
                                                       viewers,
@@ -3165,7 +3552,8 @@ github_application_host::github_application_host(
                                                       credential_bindings,
                                                       decision_lane,
                                                       projections,
-                                                      credential_shutdown_policy)}
+                                                      credential_shutdown_policy,
+                                                      epochs)}
 {
 }
 
@@ -3249,5 +3637,11 @@ auto github_application_host::projection_delivery_failed() const noexcept
     -> bool
 {
     return Implementation->ProjectionDeliveryFailed;
+}
+
+auto github_application_host::epoch_handoff_delivery_failed() const noexcept
+    -> bool
+{
+    return Implementation->EpochHandoffDeliveryFailed;
 }
 }

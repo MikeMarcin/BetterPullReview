@@ -6,6 +6,7 @@ add_library(
         src/github_model.cpp
         src/github_transition.cpp
         src/model.cpp
+        src/sha256.cpp
         src/transition.cpp
 )
 add_library(BetterPullReview::Core ALIAS better_pull_review_core)

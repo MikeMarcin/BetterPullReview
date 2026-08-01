@@ -4,15 +4,21 @@
 #include "github_read_contract.hpp"
 #include "github_wire_transport.hpp"
 
+#include "bpr/application/git_smart_transport_port.hpp"
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QFileInfo>
+#include <QStandardPaths>
+#include <QTemporaryDir>
 
 #include <array>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -75,6 +81,44 @@ using adapters::github::detail::wire_response;
         std::istreambuf_iterator<char>{input},
         std::istreambuf_iterator<char>{},
     };
+}
+
+class deterministic_git_fixture final
+{
+public:
+    // Fixed packs from the documented synthetic three-commit graph keep
+    // process ownership in the installed-Git adapter while still exercising
+    // strict connected-pack import through the public application.
+    deterministic_git_fixture()
+        : PackOne{QByteArray::fromBase64(QByteArrayLiteral(
+              "UEFDSwAAAAIAAAAGmxF4nK3MQYoDIRQE0L2ncD8Q/BpbhWEYssh6yA3UXxKh0x3ETnL89HTIDVKrWryq3gCpYsqRvHFsGKS8L8ki5AFFcxiY2Or9ANLiGhumLo12VjPlDMtw1kWyDl6Z4lViDq7oFIMOJOLSz3OTB/SO9reM4wm3irs81kdfGuR3eZXftInrKtomdnW6xbHyjySn9mTNoJT8UmtEni+X+q8/eyve4zMiy3mCeAJlmFx++QXcHI17MYyzpgBcUSfDps7iPwWv1Hicm830nFG3pCg1VcEs2cw4zSgxxdwwzcDAPM3EIDHVzCLRKNXAPNHU3NLUwMDU0sTEMsloYqwHi4GZudHElcHSINrAQEHbAAi4uNwyK0pKi1IVkhKLU7kAbA4YjaYCeJwzNDAwMzFRKEoty0wt1yupKGH4fPBX26vslbVSuyOFua10V+ycb/YVABWTD/23AXicS0osTuVKyywqLlEoSi3LTC1XyEhNTOECAGX8CDymAnicMzQwMDMxUShKLctMLdcrqShhuD+tetrSyidREjtUxY0uZrBsepoVCgAI0Q8jNXicS0osTuUCAAWgAaZd2MNtPA/zt//f/8VU8oXGklEwcw=="))}
+        , PackTwo{QByteArray::fromBase64(QByteArrayLiteral(
+              "UEFDSwAAAAIAAAAJmxF4nK2OzQrCMBCE73mK3AXZNE3Tgoh48Cy+wWazoYH+EdLWx7et+AZehmH4ZpicmCU5ALCEqsHGeW0pNM40RQCtjCfFyiGbStViwsRDlltGtbdOq5qcxgrAkFGFpc0Tc6EDGAy+FDjndkzyzjlzes5d9+Il8iof8Z3nxPISvubmDmLaiHQQ5zgs2EV/lcpCWZTbP5CnXQWNfR93+r+z4lduGb3M6yg+qs9c5ZsReJytzEGKAyEUBNC9p3A/EPwaW4VhGLLIesgN1F8SodMdxE5y/PR0yA1Sq1q8qt4AqWLKkbxxbBikvC/JIuQBRXMYmNjq/QDS4hobpi6NdlYz5QzLcNZFsg5emeJVYg6u6BSDDiTi0s9zkwf0jva3jOMJt4q7PNZHXxrkd3mV37SJ6yraJnZ1usWx8o8kp/ZkzaCU/FJrRJ4vl/qvP3sr3uMzIst5gngCZZhcfvkF3ByNezGMs6YAXFEnw6bO4j8Fr9R4nJvN9JxRt6QoNVXBLNnMOM0oMcXcMM3AwDzNxCAx1cwi0SjVwDzR1NzS1MDA1NLExDLJaGKsB4uBmbnRxJXB0iDawEBB2wAIuLjcMitKSotSFZISi1O5AGwOGI2mAnicMzQwMDMxUShKLctMLdcrqShhcFjne/qkEb/Ql0Xxc11cujZIizxxBQD6eg4+uAF4nEtKLE7lKk5Nzs9LUShKLctMLVfISE1M4QIAblgIkKYCeJwzNDAwMzFRKEoty0wt1yupKGH4fPBX26vslbVSuyOFua10V+ycb/YVABWTD/23AXicS0osTuVKyywqLlEoSi3LTC1XyEhNTOECAGX8CDymAnicMzQwMDMxUShKLctMLdcrqShhuD+tetrSyidREjtUxY0uZrBsepoVCgAI0Q8jNXicS0osTuUCAAWgAaZYF/iPSkRZM7LhDWRJt/Byd2lT5g=="))}
+    {
+        if(PackOne.size() < 32 || PackTwo.size() < 32
+           || !PackOne.startsWith("PACK") || !PackTwo.startsWith("PACK"))
+        {
+            throw std::runtime_error{"Git fixture packs are invalid"};
+        }
+    }
+
+    std::string Base = "32752d1cce5de757a157e803f80bdd97f2ba9291";
+    std::string HeadOne = "dc1c8d7b318cb3a6005c5127c3a6cee23f05afd4";
+    std::string HeadTwo = "f16d0557f942dd5359088238ada3cf8295cfabfc";
+    QByteArray PackOne;
+    QByteArray PackTwo;
+};
+
+void replace_all(std::string& value,
+                 const std::string_view from,
+                 const std::string_view to)
+{
+    auto position = std::size_t{0U};
+    while((position = value.find(from, position)) != std::string::npos)
+    {
+        value.replace(position, from.size(), to);
+        position += to.size();
+    }
 }
 
 [[nodiscard]] auto parse_object(const std::filesystem::path& path)
@@ -159,7 +203,9 @@ void append_rate_limit_headers(wire_response& response,
 }
 
 [[nodiscard]] auto load_recording(
-    const github_public_path_fixture fixture)
+    const github_public_path_fixture fixture,
+    const deterministic_git_fixture& git,
+    const std::string_view head)
     -> std::vector<recorded_exchange>
 {
     const auto root =
@@ -213,6 +259,32 @@ void append_rate_limit_headers(wire_response& response,
             throw std::runtime_error{
                 "GitHub public-path fixture method is invalid"};
         }
+        auto request_path = utf8(interaction.value("path").toString());
+        auto request_query =
+            utf8(interaction.value("canonical_query").toString());
+        auto request_body = body.isNull()
+            ? std::string{}
+            : utf8(body.toString());
+        replace_all(request_path,
+                    "2222222222222222222222222222222222222222",
+                    head);
+        replace_all(request_query,
+                    "2222222222222222222222222222222222222222",
+                    head);
+        replace_all(request_body,
+                    "2222222222222222222222222222222222222222",
+                    head);
+        auto response_body = read_all(response_file);
+        replace_all(response_body,
+                    "1111111111111111111111111111111111111111",
+                    git.Base);
+        const auto observed_head =
+            *operation == read_operation::list_reviews
+            ? std::string_view{git.HeadOne}
+            : head;
+        replace_all(response_body,
+                    "2222222222222222222222222222222222222222",
+                    observed_head);
         exchanges.push_back(
             {
                 .Request =
@@ -221,20 +293,16 @@ void append_rate_limit_headers(wire_response& response,
                         .Server = fixture_server(fixture),
                         .Operation = *operation,
                         .Method = *method,
-                        .Path =
-                            utf8(interaction.value("path").toString()),
-                        .Query = utf8(
-                            interaction.value("canonical_query").toString()),
+                        .Path = std::move(request_path),
+                        .Query = std::move(request_query),
                         .Headers = std::move(headers),
-                        .Body = body.isNull()
-                            ? std::string{}
-                            : utf8(body.toString()),
+                        .Body = std::move(request_body),
                     },
                 .Response =
                     {
                         .Status = 200,
                         .Headers = response_headers(),
-                        .Body = read_all(response_file),
+                        .Body = std::move(response_body),
                         .Completeness = page_completeness::complete,
                     },
             });
@@ -269,10 +337,11 @@ void append_rate_limit_headers(wire_response& response,
 }
 
 [[nodiscard]] auto load_bootstrap_recording(
-    const github_public_path_fixture fixture)
+    const github_public_path_fixture fixture,
+    const deterministic_git_fixture& git)
     -> std::vector<recorded_exchange>
 {
-    auto exchanges = load_recording(fixture);
+    auto exchanges = load_recording(fixture, git, git.HeadOne);
     exchanges.resize(1U);
     return exchanges;
 }
@@ -281,15 +350,43 @@ struct fixture_recording_state
 {
     fixture_recording_state(
         const github_public_path_fixture selected_fixture,
-        const adapters::github::validated_github_host_profile& selected_profile)
+        const adapters::github::validated_github_host_profile& selected_profile,
+        std::shared_ptr<deterministic_git_fixture> git,
+        const github_epoch_fixture_phase phase)
         : Profile{selected_profile}
-        , BootstrapRecording{load_bootstrap_recording(selected_fixture)}
-        , Recording{load_recording(selected_fixture)}
+        , Git{std::move(git)}
+        , BootstrapRecording{load_bootstrap_recording(selected_fixture, *Git)}
+        , Recording{[&]
+              {
+                  auto result = load_recording(
+                      selected_fixture,
+                      *Git,
+                      phase == github_epoch_fixture_phase::reuse
+                          ? std::string_view{Git->HeadTwo}
+                          : std::string_view{Git->HeadOne});
+                  if(phase == github_epoch_fixture_phase::seed)
+                  {
+                      auto second = load_recording(
+                          selected_fixture, *Git, Git->HeadTwo);
+                      if(second.empty())
+                      {
+                          throw std::runtime_error{
+                              "GitHub fixture refresh recording is empty"};
+                      }
+                      second.erase(second.begin());
+                      result.insert(result.end(),
+                                    std::make_move_iterator(
+                                        second.begin()),
+                                    std::make_move_iterator(second.end()));
+                  }
+                  return result;
+              }()}
         , CapabilityBody{load_capability_response(selected_fixture)}
     {
     }
 
     adapters::github::validated_github_host_profile Profile;
+    std::shared_ptr<deterministic_git_fixture> Git;
     strict_recorded_transport BootstrapRecording;
     strict_recorded_transport Recording;
     std::string CapabilityBody;
@@ -297,6 +394,10 @@ struct fixture_recording_state
     std::size_t BootstrapFactoryCalls = 0U;
     std::size_t AccountFactoryCalls = 0U;
     std::size_t AccountReadCalls = 0U;
+    std::size_t SmartAcquireCalls = 0U;
+    std::size_t SmartDiscoveryCalls = 0U;
+    std::size_t SmartLsRefsCalls = 0U;
+    std::size_t SmartFetchCalls = 0U;
     int LastReadOperation = -1;
     int RecordingFailure = -1;
     mutable std::mutex Mutex;
@@ -308,8 +409,223 @@ enum class fixture_transport_role
     account,
 };
 
+[[nodiscard]] auto byte_vector(const std::string_view value)
+    -> std::vector<std::byte>
+{
+    return {
+        reinterpret_cast<const std::byte*>(value.data()),
+        reinterpret_cast<const std::byte*>(value.data() + value.size()),
+    };
+}
+
+void append_packet(std::vector<std::byte>& output,
+                   const std::span<const std::byte> payload)
+{
+    constexpr std::string_view digits = "0123456789abcdef";
+    const auto total = payload.size() + 4U;
+    if(total > 0xffffU)
+    {
+        throw std::runtime_error{"Git fixture packet is too large"};
+    }
+    auto header = std::array<char, 4U>{};
+    auto remaining = total;
+    for(auto index = header.size(); index-- > 0U;)
+    {
+        header[index] = digits[remaining & 0x0fU];
+        remaining >>= 4U;
+    }
+    const auto header_bytes = std::as_bytes(std::span{header});
+    output.insert(output.end(), header_bytes.begin(), header_bytes.end());
+    output.insert(output.end(), payload.begin(), payload.end());
+}
+
+void append_packet(std::vector<std::byte>& output,
+                   const std::string_view payload)
+{
+    append_packet(output, std::as_bytes(std::span{payload}));
+}
+
+void append_flush(std::vector<std::byte>& output)
+{
+    const auto flush = byte_vector("0000");
+    output.insert(output.end(), flush.begin(), flush.end());
+}
+
+[[nodiscard]] auto discovery_body() -> std::vector<std::byte>
+{
+    auto result = std::vector<std::byte>{};
+    append_packet(result, "version 2\n");
+    append_packet(result, "ls-refs=unborn\n");
+    append_packet(result, "fetch=shallow wait-for-done\n");
+    append_packet(result, "object-format=sha1\n");
+    append_flush(result);
+    return result;
+}
+
+[[nodiscard]] auto refs_body(
+    const application::git_smart_request_context& context)
+    -> std::vector<std::byte>
+{
+    auto result = std::vector<std::byte>{};
+    append_packet(
+        result,
+        std::string{core::canonical_hex(context.Revision.Base).view()}
+            + " " + std::string{context.BaseRef.view()} + "\n");
+    append_packet(
+        result,
+        std::string{core::canonical_hex(context.Revision.Head).view()}
+            + " refs/pull/" + std::to_string(context.Authority.Number.value())
+            + "/head\n");
+    append_flush(result);
+    return result;
+}
+
+[[nodiscard]] auto fetch_body(const QByteArray& pack)
+    -> std::vector<std::byte>
+{
+    auto result = std::vector<std::byte>{};
+    append_packet(result, "packfile\n");
+    constexpr auto maximum_chunk = std::size_t{60U * 1024U};
+    const auto pack_bytes = std::span{
+        reinterpret_cast<const std::byte*>(pack.constData()),
+        static_cast<std::size_t>(pack.size())};
+    for(auto offset = std::size_t{0U}; offset < pack_bytes.size();)
+    {
+        const auto size = std::min(maximum_chunk, pack_bytes.size() - offset);
+        auto payload = std::vector<std::byte>{};
+        payload.reserve(size + 1U);
+        payload.push_back(std::byte{1U});
+        payload.insert(payload.end(),
+                       pack_bytes.begin() + static_cast<std::ptrdiff_t>(offset),
+                       pack_bytes.begin()
+                           + static_cast<std::ptrdiff_t>(offset + size));
+        append_packet(result, payload);
+        offset += size;
+    }
+    append_flush(result);
+    return result;
+}
+
+class fixture_smart_transport final
+    : public application::git_smart_transport_port
+{
+public:
+    fixture_smart_transport(
+        std::shared_ptr<fixture_recording_state> state,
+        application::git_smart_request_context context)
+        : State{std::move(state)}, Context{std::move(context)}
+    {
+    }
+
+    void revoke() noexcept override { Revoked.store(true); }
+
+    [[nodiscard]] auto revoked() const noexcept -> bool override
+    {
+        return Revoked.load();
+    }
+
+    [[nodiscard]] auto discover(
+        const application::git_smart_discovery_request& request,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<
+            application::git_smart_discovery_response> override
+    {
+        if(stop.stop_requested() || revoked())
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::cancelled}};
+        }
+        if(request.Context != Context)
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::
+                    invalid_request}};
+        }
+        {
+            const std::scoped_lock lock{State->Mutex};
+            ++State->SmartDiscoveryCalls;
+        }
+        return application::git_smart_discovery_response{
+            .Body = discovery_body()};
+    }
+
+    [[nodiscard]] auto ls_refs(
+        const application::git_smart_ls_refs_request& request,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<
+            application::git_smart_ls_refs_response> override
+    {
+        if(stop.stop_requested() || revoked())
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::cancelled}};
+        }
+        if(request.Context != Context)
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::
+                    invalid_request}};
+        }
+        {
+            const std::scoped_lock lock{State->Mutex};
+            ++State->SmartLsRefsCalls;
+        }
+        return application::git_smart_ls_refs_response{
+            .Body = refs_body(Context)};
+    }
+
+    [[nodiscard]] auto fetch(
+        const application::git_smart_fetch_request& request,
+        application::git_smart_wire_consumer& consumer,
+        const std::stop_token stop)
+        -> application::git_smart_transport_result<void> override
+    {
+        if(stop.stop_requested() || revoked())
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::cancelled}};
+        }
+        if(request.Context != Context)
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::
+                    invalid_request}};
+        }
+        const auto head = std::string{
+            core::canonical_hex(Context.Revision.Head).view()};
+        const auto& pack = head == State->Git->HeadOne
+            ? State->Git->PackOne
+            : head == State->Git->HeadTwo ? State->Git->PackTwo
+                                          : QByteArray{};
+        if(pack.isEmpty())
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::
+                    invalid_request}};
+        }
+        const auto body = fetch_body(pack);
+        if(!consumer.consume(body))
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::
+                    consumer_rejected}};
+        }
+        {
+            const std::scoped_lock lock{State->Mutex};
+            ++State->SmartFetchCalls;
+        }
+        return {};
+    }
+
+private:
+    std::shared_ptr<fixture_recording_state> State;
+    application::git_smart_request_context Context;
+    std::atomic_bool Revoked = false;
+};
+
 class fixture_recorded_wire_transport final
-    : public github_wire_transport_port
+    : public github_wire_transport_port,
+      public application::git_smart_transport_factory_port
 {
 public:
     explicit fixture_recorded_wire_transport(
@@ -426,6 +742,42 @@ public:
             .Correlation = request.Correlation,
             .Response = std::move(response),
         };
+    }
+
+    [[nodiscard]] auto acquire(
+        const application::git_smart_request_context& context)
+        -> application::git_smart_transport_result<
+            application::git_smart_transport> override
+    {
+        const auto base =
+            std::string{core::canonical_hex(context.Revision.Base).view()};
+        const auto head =
+            std::string{core::canonical_hex(context.Revision.Head).view()};
+        if(Role != fixture_transport_role::account
+           || !application::valid(context)
+           || context.Authority.Account != core::github_account_id{1001U}
+           || context.Authority.Repository != core::repository_id{2001U}
+           || context.Authority.PullRequest != core::pull_request_id{3001U}
+           || context.Authority.Number != core::pull_request_number{17U}
+           || context.Repository
+                  != core::repository_locator{
+                      .Owner = "octo-org",
+                      .Name = "review-repository",
+                  }
+           || context.BaseRef.view() != "refs/heads/main"
+           || base != State->Git->Base
+           || (head != State->Git->HeadOne && head != State->Git->HeadTwo))
+        {
+            return std::unexpected{application::git_smart_transport_error{
+                .Failure = application::git_smart_transport_failure::
+                    invalid_request}};
+        }
+        {
+            const std::scoped_lock lock{State->Mutex};
+            ++State->SmartAcquireCalls;
+        }
+        return application::git_smart_transport{
+            new fixture_smart_transport{State, context}};
     }
 
 private:
@@ -685,30 +1037,87 @@ public:
     implementation(
         const github_public_path_fixture fixture,
         const adapters::github::validated_github_host_profile& profile,
-        application::effect_executor& vault_effects)
-        : Recording{
-              std::make_shared<fixture_recording_state>(fixture, profile)}
-        , Factory{std::make_shared<fixture_transport_factory>(Recording)}
-        , VaultState{std::make_shared<fixture_vault_state>()}
-        , Vault{
-              std::make_unique<fixture_credential_vault>(
-                  vault_effects, VaultState)}
+        application::effect_executor& vault_effects,
+        github_public_path_fixture_options options)
     {
+        GitExecutable = QFileInfo{
+            QStandardPaths::findExecutable(QStringLiteral("git"))}
+                            .canonicalFilePath()
+                            .toStdString();
+        if(GitExecutable.empty())
+        {
+            throw std::runtime_error{
+                "GitHub public-path installed Git is unavailable"};
+        }
+        Git = std::make_shared<deterministic_git_fixture>();
+        Recording = std::make_shared<fixture_recording_state>(
+            fixture, profile, Git, options.EpochPhase);
+        Factory = std::make_shared<fixture_transport_factory>(Recording);
+        VaultState = std::make_shared<fixture_vault_state>();
+        Vault = std::make_unique<fixture_credential_vault>(
+            vault_effects, VaultState);
+
+        if(options.ApplicationDataRoot)
+        {
+            ApplicationDataRoot =
+                options.ApplicationDataRoot->lexically_normal();
+            std::error_code error;
+            static_cast<void>(std::filesystem::create_directories(
+                ApplicationDataRoot, error));
+            std::filesystem::permissions(
+                ApplicationDataRoot,
+                std::filesystem::perms::owner_all,
+                std::filesystem::perm_options::replace,
+                error);
+            if(error)
+            {
+                throw std::runtime_error{
+                    "GitHub public-path application data is unavailable"};
+            }
+            ApplicationDataRoot =
+                std::filesystem::canonical(ApplicationDataRoot, error);
+            if(error)
+            {
+                throw std::runtime_error{
+                    "GitHub public-path application data is unavailable"};
+            }
+            return;
+        }
+
+        ApplicationData = std::make_unique<QTemporaryDir>(
+            QStringLiteral("bpr-public-path-XXXXXX"));
+        if(!ApplicationData->isValid())
+        {
+            throw std::runtime_error{
+                "GitHub public-path application data is unavailable"};
+        }
+        ApplicationDataRoot =
+            QFileInfo{ApplicationData->path()}.canonicalFilePath().toStdString();
+        if(ApplicationDataRoot.empty())
+        {
+            throw std::runtime_error{
+                "GitHub public-path installed Git is unavailable"};
+        }
     }
 
     std::shared_ptr<fixture_recording_state> Recording;
+    std::shared_ptr<deterministic_git_fixture> Git;
     std::shared_ptr<fixture_transport_factory> Factory;
     std::shared_ptr<fixture_vault_state> VaultState;
     std::unique_ptr<fixture_credential_vault> Vault;
+    std::unique_ptr<QTemporaryDir> ApplicationData;
+    std::filesystem::path ApplicationDataRoot;
+    std::filesystem::path GitExecutable;
 };
 
 github_public_path_fixture_components::
     github_public_path_fixture_components(
         const github_public_path_fixture fixture,
         const adapters::github::validated_github_host_profile& profile,
-        application::effect_executor& vault_effects)
+        application::effect_executor& vault_effects,
+        github_public_path_fixture_options options)
     : Implementation{std::make_unique<implementation>(
-          fixture, profile, vault_effects)}
+          fixture, profile, vault_effects, std::move(options))}
 {
 }
 
@@ -754,6 +1163,17 @@ auto github_public_path_fixture_components::evidence() const noexcept
             Implementation->Recording->AccountReadCalls);
         result.LastReadOperation =
             Implementation->Recording->LastReadOperation;
+        result.SmartAcquireCount = static_cast<int>(
+            Implementation->Recording->SmartAcquireCalls);
+        result.SmartDiscoveryCount = static_cast<int>(
+            Implementation->Recording->SmartDiscoveryCalls);
+        result.SmartLsRefsCount = static_cast<int>(
+            Implementation->Recording->SmartLsRefsCalls);
+        result.SmartFetchCount = static_cast<int>(
+            Implementation->Recording->SmartFetchCalls);
+        result.BaseOid = Implementation->Git->Base;
+        result.HeadOneOid = Implementation->Git->HeadOne;
+        result.HeadTwoOid = Implementation->Git->HeadTwo;
     }
     {
         const std::scoped_lock lock{Implementation->VaultState->Mutex};
@@ -764,5 +1184,17 @@ auto github_public_path_fixture_components::evidence() const noexcept
             Implementation->VaultState->Credential.has_value();
     }
     return result;
+}
+
+auto github_public_path_fixture_components::application_data_root() const
+    -> const std::filesystem::path&
+{
+    return Implementation->ApplicationDataRoot;
+}
+
+auto github_public_path_fixture_components::git_executable() const
+    -> const std::filesystem::path&
+{
+    return Implementation->GitExecutable;
 }
 }

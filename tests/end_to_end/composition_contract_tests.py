@@ -25,8 +25,14 @@ CONCRETE_SELECTION_PATTERNS = (
 )
 RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"--github-fixture",
+    b"--epoch-fixture-root",
+    b"--epoch-fixture-phase",
     b"--native-appearance-probe",
     b"--changed-render-evidence",
+    b"EPOCH_FIXTURE_SEED_OK",
+    b"EPOCH_FIXTURE_REUSE_OK",
+    b"EPOCH_FIXTURE_SEED_FAILED",
+    b"EPOCH_FIXTURE_REUSE_FAILED",
     b"GITHUB_FIXTURE_OK",
     b"GITHUB_FIXTURE_FAILED",
     b"GITHUB_FIXTURE_EVIDENCE",

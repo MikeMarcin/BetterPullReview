@@ -142,6 +142,37 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+foreach(
+    fixture_case
+    IN ITEMS
+        "github-com|github.com"
+        "ghes-3.18|ghes-3.18"
+)
+    string(REPLACE "|" ";" fixture_fields "${fixture_case}")
+    list(GET fixture_fields 0 fixture_name)
+    list(GET fixture_fields 1 fixture_label)
+    string(REPLACE "." "_" fixture_test_name "${fixture_name}")
+    add_test(
+        NAME application_epoch_persistence_${fixture_test_name}
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DBPR_APPLICATION=$<TARGET_FILE:better_pull_review>"
+            "-DBPR_FIXTURE=${fixture_name}"
+            "-DBPR_FIXTURE_LABEL=${fixture_label}"
+            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/epoch-persistence-${fixture_test_name}"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/epoch_persistence_contract.cmake"
+    )
+    set_tests_properties(
+        application_epoch_persistence_${fixture_test_name}
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment}"
+            PASS_REGULAR_EXPRESSION
+                "EPOCH_PERSISTENCE_CONTRACT_OK:${fixture_label}"
+            TIMEOUT 240
+    )
+endforeach()
+
 add_test(
     NAME binary_dependency_surface
     COMMAND

@@ -2,6 +2,7 @@
 
 #include "bpr/qt/github_window.hpp"
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -16,6 +17,8 @@ class github_application_fixture_access;
 struct github_application_config
 {
     std::optional<std::string> EnterpriseHostname = std::nullopt;
+    std::optional<std::filesystem::path> ApplicationDataRoot = std::nullopt;
+    std::optional<std::filesystem::path> GitExecutable = std::nullopt;
 };
 
 struct github_application_status
@@ -24,6 +27,9 @@ struct github_application_status
     bool ShutdownComplete = false;
     bool ShutdownCleanupFailed = false;
     bool NativePlatformVaultSelected = false;
+    bool EpochProjectionDeliveryFailed = false;
+    bool EpochHandoffDeliveryFailed = false;
+    core::epoch_status EpochStatus = core::epoch_status::inactive;
 };
 
 class github_application final

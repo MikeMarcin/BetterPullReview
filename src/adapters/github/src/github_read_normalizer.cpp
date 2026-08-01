@@ -749,6 +749,7 @@ auto normalize_github_read(
             }
             result.PullRequest.Reviews.push_back(
                 application::github_review_record{
+                    .DatabaseId = integer(object.value("id")),
                     .Review = application::github_review_id{
                         text(object.value("node_id"))},
                     .Author = optional_rest_actor(object.value("user")),

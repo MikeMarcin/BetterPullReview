@@ -258,6 +258,7 @@ auto valid_snapshot() -> application::github_pull_request_snapshot
         .Reviews =
             {
                 {
+                    .DatabaseId = 4'001U,
                     .Review = application::github_review_id{"review-node"},
                     .Author =
                         application::github_actor_record{

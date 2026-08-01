@@ -123,6 +123,12 @@ public:
         -> application::git_smart_transport_result<
             application::git_smart_transport> override
     {
+        if(auto* const factory =
+               dynamic_cast<application::git_smart_transport_factory_port*>(
+                   Transport.get()))
+        {
+            return factory->acquire(context);
+        }
         const auto native =
             std::dynamic_pointer_cast<native_https_transport>(Transport);
         if(native == nullptr)

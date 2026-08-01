@@ -122,11 +122,29 @@ ctest --test-dir build/dev --output-on-failure \
   -R '^application_(public_path(_ghes_cli_unavailable)?|worker_executor|composition_contract|github_public_path_(github_com|ghes_3_18))$'
 ```
 
+Run the durable public epoch path with:
+
+```sh
+ctest --test-dir build/dev --output-on-failure \
+  -R '^application_epoch_persistence_(github-com|ghes-3_18)$'
+```
+
+Each case launches the real test-enabled BetterPullReview executable twice
+against one disposable application-data root. The seed process accepts the
+first revision, triggers the real refresh action, imports two complete local
+protocol-v2 packs through installed Git, and selects Whole PR, Previous
+upload, My last reviewed, arbitrary, reverse, and identical pairs through the
+real Qt controls. The reuse process reopens the same SQLite catalog and bare
+cache, explicitly loads retained history, repeats the selections, and must
+make zero smart acquire, discovery, `ls-refs`, or fetch calls. Both authority
+shapes use sanitized recorded GitHub responses plus a deterministic local Git
+repository; no GitHub endpoint, credential, or private content is involved.
+
 `application_composition_contract` creates a fresh tests-disabled Release
 tree. It proves the public application header has no testing conditional and
 the Release compile commands, build graph, symbols, and raw executable bytes
-contain no fixture translation unit, macro, argument, label, path, or evidence
-string. It also requires production to compose only
+contain no fixture translation unit, macro, epoch fixture argument/marker,
+label, path, or evidence string. It also requires production to compose only
 `native_github_wire_transport_factory` and rejects CLI process-runner factory
 symbols in the application. The tests-disabled `--self-test` enumerates every
 visible CLI profile and requires `CLI_UNAVAILABLE_OK` plus the exact
@@ -1057,9 +1075,9 @@ cases. It requires each host request to call the existing revision-bound
 catalog page exactly once, publishes stable provider/Git/SQLite-free rows with
 `Replace == false`, and proves core state retains no complete history.
 
-This is component evidence. BPR-0047 still owns selection through the public
-BetterPullReview composition and a second-process persistence run; BPR-0048
-owns the broader combined failure/reordering matrix. BPR-0055 completes the
+The public BetterPullReview composition and two-process GitHub.com/GHES
+persistence paths are complete in BPR-0047; BPR-0048 owns the broader combined
+failure/reordering matrix. BPR-0055 completes the
 maintenance product path; the bounded history-page core/host/projection path
 is complete in BPR-0056, while its Qt trigger/model remains BPR-0046. No live private repository,
 GitHub mutation, Windows-native execution, or GitHub Actions workflow is part
@@ -1121,8 +1139,9 @@ accessibility, deduplicated bounded announcements, and live font-event
 handling. It then embeds the same control in the real loaded GitHub window and
 saves scale-specific PNGs beneath the ignored build tree. Offscreen output is
 deterministic interaction and geometry evidence, not target-native system
-Light/Dark proof; BPR-0049 retains that gate. BPR-0047 retains production
-epoch-host composition and persistence.
+Light/Dark proof; BPR-0049 retains that gate. BPR-0047 selects the same
+control through the production epoch-host composition and proves durable
+persistence.
 
 ## Troubleshooting and safe verification
 

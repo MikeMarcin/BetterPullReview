@@ -618,11 +618,13 @@ are only live-session state and are not durable evidence.
 
 BPR-0044 durably stores the exact completed-spool, expected-pack,
 pack-inventory, preexisting-pack, and installed head-lineage facts. BPR-0045
-now commits those facts before local import and enforces the remaining
-ref/catalog/recovery order through the dedicated host component. BPR-0047 must
-still select the complete path in the public application, and BPR-0053 retains
-target-native Windows execution. Component evidence is not yet a claim of a
-public end-to-end fetch path or Windows runtime behavior.
+commits those facts before local import and enforces the remaining
+ref/catalog/recovery order through the dedicated host component. BPR-0047
+selects the same native smart-transport, credential-free installed-Git,
+cache, catalog, host, core, and Qt path in the public application. Its
+two-process GitHub.com and GHES fixtures prove exact retained-cache reuse;
+BPR-0048 retains the broader fault matrix, and BPR-0053 retains target-native
+Windows execution.
 
 ### App-owned bare repository and private refs
 
@@ -829,8 +831,9 @@ paging, idempotent catalog finalization, destructive tombstones, and repair
 provenance. BPR-0045 composes those facts with the cache/ref port through exact
 pre-PONR abort and post-PONR continuation, mandatory-success postcondition
 inspection, recovery-before-acceptance, serialized publication, and stale
-completion rejection. BPR-0047 retains selection through the public
-executable; BPR-0048 retains the broader cross-component fault matrix.
+completion rejection. BPR-0047 selects the component through the public
+executable and proves durable seed/reuse behavior across two processes;
+BPR-0048 retains the broader cross-component fault matrix.
 
 A bounded host-lifetime registry retains at most 1,000 exact repository-cache
 actors. One FIFO and one exact PR-scoped cache session serialize all effects

@@ -62,6 +62,35 @@ tree, provenance and response digests, rejects duplicate JSON members and
 secret-bearing content, proves the host responses are independent, and keeps
 every relative descriptor reference inside the capability fixture root.
 
+## Public epoch composition and persistence fixture
+
+The test-enabled public application combines the sanitized GitHub.com or GHES
+recording with a deterministic local three-commit Git repository and a strict
+in-process smart-protocol-v2 transport. The transport serves only the accepted
+base/head advertisement and complete self-contained pack requested by the
+application-owned protocol client. Pack bytes then follow the production
+credential-free installed-Git cache path; the fixture never gives installed
+Git a URL, network, credential, hook, filter, or worktree authority.
+
+The single-process rendered cases drive the real connect/open actions and
+require an exact visible base/head comparison. The two-process persistence
+cases share one disposable owner-private application-data root. `seed` accepts
+head one, triggers the real refresh action to head two, and requires two smart
+acquisitions. `reuse` reopens the durable SQLite catalog and bare cache, loads
+retained history, and requires zero smart acquisitions. Both phases exercise
+Whole PR, Previous upload, My last reviewed, arbitrary, reverse, and identical
+selections through the actual Qt control and verify their complete OIDs. The
+root is removed after the contract; recordings and evidence contain only
+synthetic identities and fixed counters.
+
+The `--epoch-fixture-root` and `--epoch-fixture-phase` arguments, phase
+markers, fixture factory, recordings, and deterministic Git recipe are
+test-build-only. The tests-disabled Release contract rejects all of their
+paths, strings, and symbols from the compile graph and executable. These
+fixtures are public-composition integration evidence, not live GitHub,
+target-native Windows, native system-theme, or final presentation-polish
+evidence.
+
 ## macOS Keychain integration fixture
 
 The BPR-0022 target-native fixture uses the fixed
