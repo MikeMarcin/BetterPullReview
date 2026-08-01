@@ -139,10 +139,12 @@ requires a real active macOS window and existing focus; its prior inactive
 native run is not counted for that claim. Ready BPR-0059 owns only that
 owner-activated transition proof rather than silently narrowing BPR-0049.
 BPR-0050's fresh Ubuntu 26.04 x86_64 GCC run exposed a real actor-capture
-evaluation-order defect and is temporarily back in `backlog/`. BPR-0060 is
-the current `in-progress/` remediation; it makes scheduling and worker actor
-ownership unambiguous before BPR-0050 resumes. BPR-0051 through BPR-0054
-remain in `backlog/`.
+evaluation-order defect. Done BPR-0060 now gives the scheduler and worker
+distinct actor owners before the call, directly passes the prior GCC
+reproduction, and corrects the stale-terminal regression that had hidden an
+empty-optional access under libc++. BPR-0050 remains in `backlog/` until the
+remediation commit, then resumes as the current security-verification slice.
+BPR-0051 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real

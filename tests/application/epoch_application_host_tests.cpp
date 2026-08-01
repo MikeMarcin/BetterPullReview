@@ -2701,7 +2701,7 @@ void stale_load_terminal_is_inert_under_reordering()
     expect(
         value.Decisions.pending() == 2U,
         "the actor emits A cancellation before the queued B offer terminal");
-    value.Decisions.run_next();
+    value.Decisions.run(1U);
     value.Decisions.run_next();
     value.Effects.run_next();
     while(value.Decisions.pending() != 0U)
@@ -2711,9 +2711,10 @@ void stale_load_terminal_is_inert_under_reordering()
     expect(
         value.Host->state().AcceptedRevision->Source.Snapshot
                 == core::provider_snapshot_id{2U}
+            && value.Host->state().PendingIngestion.has_value()
             && value.Host->state().PendingIngestion->Phase
                 == core::epoch_ingestion_phase::preparing,
-        "A cancellation followed by B load leaves only B preparation active");
+        "a reordered A load cancellation leaves only B preparation active");
 }
 
 void stale_prepare_and_comparison_terminals_are_inert()
@@ -2732,19 +2733,15 @@ void stale_prepare_and_comparison_terminals_are_inert()
         expect(
             value.Decisions.pending() == 2U,
             "A preparation cancellation precedes B offer completion");
+        value.Decisions.run(1U);
         value.Decisions.run_next();
-        value.Decisions.run_next();
-        value.Effects.run_next();
-        while(value.Decisions.pending() != 0U)
-        {
-            value.Decisions.run_next();
-        }
         expect(
             value.Host->state().AcceptedRevision->Source.Snapshot
                     == core::provider_snapshot_id{2U}
+                && value.Host->state().PendingIngestion.has_value()
                 && value.Host->state().PendingIngestion->Phase
                     == core::epoch_ingestion_phase::preparing,
-            "FIFO A cancellation cannot clear subsequent B preparation");
+            "a reordered A cancellation cannot clear B preparation");
     }
 
     {
@@ -2761,13 +2758,13 @@ void stale_prepare_and_comparison_terminals_are_inert()
         expect(
             value.Decisions.pending() == 2U,
             "A comparison cancellation precedes B offer completion");
-        value.Decisions.run_next();
+        value.Decisions.run(1U);
         value.Decisions.run_next();
         expect(
             value.Host->state().AcceptedRevision->Source.Snapshot
                     == core::provider_snapshot_id{2U}
                 && !value.Host->state().AcceptedComparison,
-            "FIFO A comparison cancellation cannot publish into B");
+            "a reordered A comparison cancellation cannot publish into B");
     }
 }
 

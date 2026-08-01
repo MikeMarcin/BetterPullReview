@@ -2510,10 +2510,19 @@ struct epoch_application_host::implementation
         auto* const catalogs = &Catalogs;
         auto* const caches = &Caches;
         auto* const entropy = &Entropy;
+        // Keep worker and scheduling ownership distinct before entering the
+        // call. Capturing and moving one local in separate arguments would
+        // make the worker's actor depend on argument evaluation order.
+        auto worker_actor = actor;
         const auto submitted = submit_effect(
-            [offered, actor, catalogs, caches, entropy, token](
+            [offered,
+             actor = std::move(worker_actor),
+             catalogs,
+             caches,
+             entropy,
+             token](
                 const std::stop_token stop)
-                -> worker_completion
+                mutable -> worker_completion
             {
                 struct lease_guard final
                 {
