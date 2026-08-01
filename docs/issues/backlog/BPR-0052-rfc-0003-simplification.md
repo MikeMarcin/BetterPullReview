@@ -1,9 +1,9 @@
 ---
 id: BPR-0052
 title: Simplify the RFC-BPR-0003 change set
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0003
-depends_on: [BPR-0048, BPR-0049, BPR-0050, BPR-0051]
+depends_on: [BPR-0048, BPR-0049, BPR-0050, BPR-0051, BPR-0066]
 ---
 
 # Simplify the RFC-BPR-0003 change set
@@ -38,4 +38,4 @@ available-platform verification after simplification.
   anchor rows and repeated linear scans. This requires a bounded/virtual
   selector design and direct integration evidence, not a behavior-preserving
   micro-refactor. BPR-0052 remains open until that work is tracked and
-  resolved.
+  resolved by BPR-0066.
