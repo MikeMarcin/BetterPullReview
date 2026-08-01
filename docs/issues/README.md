@@ -113,8 +113,8 @@ stale/cancel rejection, projection containment, and quiescence directly
 verified. BPR-0056 is in `done/` with the single revision-bound core cursor,
 bounded intent/request/terminal algebra, repository-actor catalog execution,
 sanitized incremental page projection, stale/revision/cancellation rejection,
-and direct core/manual-executor/SQLite evidence complete. BPR-0046 through
-BPR-0055 remain in `backlog/`. BPR-0055 records the
+and direct core/manual-executor/SQLite evidence complete. BPR-0055 is the sole
+`in-progress/` card; BPR-0046 through BPR-0054 remain in `backlog/`. BPR-0055 records the
 identified missing core-authorized prune/cache-delete product path; the
 existing adapter methods are not counted as completed lifecycle behavior.
 BPR-0056 supplies the bounded core/host history-page algebra required by the
