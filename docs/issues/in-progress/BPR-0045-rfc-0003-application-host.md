@@ -1,7 +1,7 @@
 ---
 id: BPR-0045
 title: Implement RFC-BPR-0003 application host orchestration
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0041, BPR-0042, BPR-0043, BPR-0044]
 ---
