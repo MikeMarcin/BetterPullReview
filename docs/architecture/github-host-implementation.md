@@ -855,8 +855,8 @@ client, `edd762e` implements the native smart-HTTPS lease and wire path, and
 component that consumes their validated pack. Its direct cache contract
 passed 1/1 in 162.58 seconds; the adjacent protocol/native/process/
 architecture replay passed 7/7 in 92.95 seconds. These remain component
-contracts. BPR-0044 and BPR-0045 still own durable operation state and
-orchestration, and BPR-0047 still owns selection through the public
+contracts. BPR-0044 and BPR-0045 supply durable operation state and
+orchestration, and BPR-0047 supplies selection through the public
 BetterPullReview composition.
 
 The fixed `index-pack` import child receives only the bounded pack stream on

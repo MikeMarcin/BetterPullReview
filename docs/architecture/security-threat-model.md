@@ -623,7 +623,7 @@ ref/catalog/recovery order through the dedicated host component. BPR-0047
 selects the same native smart-transport, credential-free installed-Git,
 cache, catalog, host, core, and Qt path in the public application. Its
 two-process GitHub.com and GHES fixtures prove exact retained-cache reuse;
-BPR-0048 retains the broader fault matrix, and BPR-0053 retains target-native
+BPR-0048 supplies the broader fault matrix, and BPR-0053 retains target-native
 Windows execution.
 
 ### App-owned bare repository and private refs
@@ -842,7 +842,7 @@ pre-PONR abort and post-PONR continuation, mandatory-success postcondition
 inspection, recovery-before-acceptance, serialized publication, and stale
 completion rejection. BPR-0047 selects the component through the public
 executable and proves durable seed/reuse behavior across two processes;
-BPR-0048 retains the broader cross-component fault matrix.
+BPR-0048 supplies the broader cross-component fault matrix.
 
 A bounded host-lifetime registry retains at most 1,000 exact repository-cache
 actors. One FIFO and one exact PR-scoped cache session serialize all effects
@@ -940,5 +940,5 @@ inventory listed 25 tests, exactly two labeled `BPR-0053` and
 `target-native-windows`, but no Windows executable was run. Those results
 establish source/link compatibility only. BPR-0045 adds component-level
 Git/ref recovery orchestration plus guarded runtime-port source and current-
-host contract evidence; BPR-0047 retains public composition, and BPR-0053
+host contract evidence; BPR-0047 supplies public composition, and BPR-0053
 retains every target-native Windows claim.

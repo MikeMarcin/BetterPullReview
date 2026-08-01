@@ -646,7 +646,8 @@ exact pack-identity agreement, accepted commits, object closure, and paired
 staging/ref transactions only after receiving typed authorizations. BPR-0045
 supplies those authorizations, journals before `index-pack`, and orders the
 staging/ref/catalog transitions so an interrupted append is recoverable. The
-public application still does not select this component until BPR-0047.
+public application selects this component through the completed BPR-0047
+composition.
 
 The adapter performs a fixed version/capability probe and supports Git 2.39 or
 newer only when this exact `index-pack`, object-inspection, and ref-transaction
@@ -681,9 +682,10 @@ retains the process wrapper instead of invoking a potentially unbounded Qt
 destructor wait. It does not spawn an unbounded background reaper or admit
 later work onto the lane, and the application must not free repository or
 transport resources underneath that ownership. BPR-0045 implements the epoch
-host's close-ingress, cancel, actor-drain, and quiescence contract; BPR-0047
-owns final composition-root destruction order. No privileged helper, daemon,
-service, listener, or weakened platform-security setting is introduced.
+host's close-ingress, cancel, actor-drain, and quiescence contract; completed
+BPR-0047 supplies the final composition-root destruction order. No privileged
+helper, daemon, service, listener, or weakened platform-security setting is
+introduced.
 
 BPR-0042 implements the credential-free local process boundary and exact
 secure consumption of
@@ -716,10 +718,10 @@ BPR-0044 now supplies the durable operation record containing those artifact,
 expected-pack, inventory, preexisting-pack, and installed head-lineage facts.
 BPR-0045 composes that record with the import/ref/catalog/recovery sequence and
 directly verifies every returned identity and phase transition before using
-it. BPR-0047 owns public composition, BPR-0048 owns the broader cross-component
-fault matrix, and BPR-0053 owns target-native Windows execution. The completed
-component path is not evidence that the public executable or Windows runtime
-selects it.
+it. Completed BPR-0047 supplies public composition and BPR-0048 supplies the
+broader cross-component fault matrix. BPR-0053 retains target-native Windows
+execution. Component-only evidence does not establish Windows runtime
+behavior.
 
 ## Catalog and recoverable commit protocol
 
@@ -910,8 +912,8 @@ tombstones. BPR-0045 now orders the append calls around real Git/cache port
 mutations, resumes or cleans exact artifacts after restart, and rejects stale
 host publication. Its manual-executor fixture composes fake ports, while the
 adjacent Git/cache and catalog contracts directly exercise the physical and
-durable component operations. BPR-0048 retains the broad combined fault
-matrix, and BPR-0047 retains selection through the public composition.
+durable component operations. Completed BPR-0048 supplies the broad combined
+fault matrix, and BPR-0047 supplies selection through the public composition.
 
 The BPR-0044 prune fact records exact authority, incarnation, ordinal, base and
 head OIDs, retained-ref identities, expected catalog revision, and the
@@ -1101,8 +1103,8 @@ base and head as distinct typed anchor choices while keeping one stable epoch
 row projection as their source. A resolved current-viewer review anchor may
 remain selected and expose its exact OID without being invented as an epoch
 row. The control is embedded in the interim loaded pull-request surface;
-BPR-0047 still owns production epoch-host wiring and second-process public
-composition.
+completed BPR-0047 supplies production epoch-host wiring and second-process
+public composition.
 
 The control inherits the current system palette and native style. It adds no
 custom theme or final-workbench visual claim. RFC-BPR-0005 retains its
@@ -1132,10 +1134,10 @@ A clean MinGW cross-build compiled and linked 47/47 targets. Its CTest
 inventory contained 25 tests, exactly two labeled `BPR-0053` and
 `target-native-windows`. The inventory was inspected but no Windows executable
 was run, so this proves source and link compatibility only and is not evidence
-for a BPR-0053 target-native claim. BPR-0045 now supplies the dedicated host,
-native runtime ports, append/recovery orchestration, and component tests.
-BPR-0047 remains necessary before catalog durability can be described as the
-selected public end-to-end application path.
+for a BPR-0053 target-native claim. BPR-0045 supplies the dedicated host,
+native runtime ports, append/recovery orchestration, and component tests;
+completed BPR-0047 demonstrates catalog durability through the selected
+public end-to-end application path on the available verified targets.
 
 RFC-BPR-0003 does not add:
 

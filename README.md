@@ -5,14 +5,17 @@ GitHub pull requests. GitHub remains the sole collaborative source of truth;
 BetterPullReview stores only private workflow state and derived projections
 that GitHub does not represent.
 
-The current implementation includes the RFC-BPR-0001 repository foundation
-and RFC-BPR-0002's implemented public read-only GitHub path. The public
+The current implementation includes the RFC-BPR-0001 repository foundation,
+RFC-BPR-0002's implemented public read-only GitHub path, and RFC-BPR-0003's
+available-platform retained-revision and epoch-comparison path. The public
 executable composes explicit GitHub.com and optional GHES 3.18 profiles,
 native HTTPS as the sole milestone-one production authentication transport,
 the target platform's credential vault, the normalized provider and
-application host, and the Qt 6 Widgets presentation. A pull request's metadata
-and conversations can traverse the real
-QAction-to-provider-to-core-acceptance-to-rendered-window path.
+application hosts, an isolated installed-Git object engine, an
+authority-partitioned private cache and epoch catalog, and the Qt 6 Widgets
+presentation. Pull-request metadata, conversations, and accepted revision
+history can traverse the real `QAction` -> provider -> core acceptance ->
+rendered-window path.
 
 GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the
@@ -23,13 +26,23 @@ Native credentials are entered through a Qt-owned password input, stored under
 a hostname-bound authority, and exact-deleted before an orderly
 public-application shutdown completes. There is no durable credential
 selector; a crash can leave an item that BetterPullReview cannot enumerate or
-recover. Diff, review-mutation, private-ledger, and packaging work remains in
-later RFCs. The GitHub window now presents that path through a compact,
-responsive hierarchy with explicit request states, retained accepted content
-during refresh, and read-only conversation rendering. It inherits the active
-native palette, style, and font without forcing a palette, style, or QSS, and
-responds to application appearance and font changes. User-selectable
-appearance profiles remain RFC-BPR-0006 work.
+recover. The Git history path retains only revisions BetterPullReview actually
+observed. Private refs keep an observed old head comparable after a force-push
+while that epoch remains retained rather than explicitly pruned or
+cache-deleted, but never-observed history cannot be reconstructed. Cache and
+catalog identities are opaque and isolated by
+profile, account, and repository; hard limits refuse new retention instead of
+automatically pruning prior history. The current public UI exposes comparison
+selection but no prune or whole-cache-delete command, so users must not edit
+the private Git repository or SQLite catalog by hand.
+
+Semantic diff/line mapping, review mutation and private-ledger behavior, and
+packaging remain later RFC work. The GitHub window now presents the available
+path through a compact, responsive hierarchy with explicit request states,
+retained accepted content during refresh, and read-only conversation
+rendering. It inherits the active native palette, style, and font without
+forcing a palette, style, or QSS, and responds to application appearance and
+font changes. User-selectable appearance profiles remain RFC-BPR-0006 work.
 
 This GitHub window is an interim RFC-BPR-0002 integration surface, not the
 final review workbench. RFC-BPR-0005 owns the complete native workbench and
@@ -44,11 +57,14 @@ System, Light, Dark, and high-contrast appearance profiles.
   deltas, diagnostics, and shared/private authority policy. It has no Qt or
   effectful dependency.
 - `src/application/` owns bounded observations, typed request execution,
-  serialized completion delivery, cancellation, credential lifecycle, and
-  shutdown quiescence.
+  serialized completion delivery, cancellation, credential lifecycle, epoch
+  jobs, recovery, and shutdown quiescence.
 - `src/adapters/github/` owns validated profiles, normalized GitHub.com/GHES
   contracts, native HTTPS, the fail-closed CLI broker, and platform-vault
   adapters.
+- `src/adapters/git/` and `src/adapters/sqlite/` own the narrow installed-Git,
+  private bare-cache/ref, and durable epoch-catalog mechanisms authorized by
+  the application host.
 - `src/adapters/qt/` translates Qt events into semantic intents and applies
   projections incrementally. It also owns credential input, focus,
   accessibility, layout, and appearance.
@@ -61,8 +77,10 @@ architecture](docs/architecture/github-host-implementation.md) and
 
 ## Build and test
 
-Prerequisites are CMake 3.25+, Ninja, a C++23 compiler, and Qt 6.8+ for the
-native application.
+Prerequisites are CMake 3.25+, Ninja, a C++23 compiler, Qt 6.8+ for the native
+application, and an installed Git 2.39+ that passes BetterPullReview's fixed
+SHA-1/SHA-256 capability probe. Version text alone does not admit an
+installation.
 
 ```sh
 cmake --preset dev
@@ -120,3 +138,4 @@ or target-native. GitHub Actions has zero role.
 - [Contributing](CONTRIBUTING.md)
 - [Security baseline](docs/security/foundation-security.md)
 - [RFC-BPR-0002 verification ledger](docs/verification/RFC-BPR-0002.md)
+- [RFC-BPR-0003 verification ledger](docs/verification/RFC-BPR-0003.md)

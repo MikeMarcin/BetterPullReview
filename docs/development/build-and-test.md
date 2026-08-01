@@ -950,10 +950,10 @@ fail-closed invariants rather than safely collapsible duplication.
 These earlier commands verify committed application-protocol, native-wire,
 installed-Git, and cache/ref component boundaries, not durable operation
 facts. BPR-0044 catalog and BPR-0045 host evidence are recorded separately
-below. BPR-0047 owns public composition, and BPR-0053 owns target-native
-Windows execution. No BPR-0043 result above proves durable authorization,
-host restart orchestration, selection by the BetterPullReview executable, or
-Windows behavior.
+below. Completed BPR-0047 supplies public composition, and BPR-0053 retains
+target-native Windows execution. No BPR-0043 result above proves durable
+authorization, host restart orchestration, selection by the BetterPullReview
+executable, or Windows behavior.
 
 For the BPR-0044 durable epoch-catalog component, build and run the exact core,
 application-port, storage, and behavior contracts with:
@@ -1022,11 +1022,11 @@ compatibility only.
 
 This component evidence proves durable catalog facts and recovery decisions
 for exact host-supplied observations. The next section records the BPR-0045
-host composition of those facts; BPR-0047 owns public composition, BPR-0055
-composes maintenance authorization/recovery, BPR-0056 completes core/host history
-paging, BPR-0046 owns its Qt consumption, and BPR-0053 owns target-native
-Windows behavior. GitHub Actions has no role in any of these commands or
-claims.
+host composition of those facts; completed BPR-0047 supplies public
+composition, BPR-0055 supplies maintenance authorization/recovery, BPR-0056
+supplies core/host history paging, BPR-0046 supplies its Qt consumption, and
+BPR-0053 retains target-native Windows behavior. GitHub Actions has no role in
+any of these commands or claims.
 
 For the BPR-0045 epoch application-host component, build and run the source-
 free handoff/runtime-port contract, manual-executor host contract, core policy,
@@ -1076,10 +1076,10 @@ catalog page exactly once, publishes stable provider/Git/SQLite-free rows with
 `Replace == false`, and proves core state retains no complete history.
 
 The public BetterPullReview composition and two-process GitHub.com/GHES
-persistence paths are complete in BPR-0047; BPR-0048 owns the broader combined
-failure/reordering matrix. BPR-0055 completes the
-maintenance product path; the bounded history-page core/host/projection path
-is complete in BPR-0056, while its Qt trigger/model remains BPR-0046. No live private repository,
+persistence paths are complete in BPR-0047; completed BPR-0048 supplies the
+broader combined failure/reordering matrix. BPR-0055 supplies the maintenance
+product path; BPR-0056 supplies the bounded history-page core/host/projection
+path, while BPR-0046 supplies its Qt trigger/model. No live private repository,
 GitHub mutation, Windows-native execution, or GitHub Actions workflow is part
 of this verification.
 
@@ -1173,6 +1173,8 @@ persistence.
 
 ## Troubleshooting and safe verification
 
+### GitHub and native credentials
+
 - A GitHub CLI profile is visible but unavailable by design in milestone one.
   Use the corresponding native-HTTPS profile. Positive CLI enablement remains
   RFC-BPR-0015 work, and selecting the unavailable profile must launch no
@@ -1202,6 +1204,44 @@ persistence.
   after an orderly lifecycle, not crash recovery; Windows target-native
   cleanup remains BPR-0036. Do not compensate with a broad credential
   deletion.
+
+### Retained Git history and epoch storage
+
+- BetterPullReview admits Git 2.39 or newer only after the fixed production
+  SHA-1 and SHA-256 pack/object/ref capability probes pass under the isolated
+  child policy. A version string is insufficient. If admission fails, repair
+  or replace the installed Git distribution; do not add inherited Git
+  configuration, credential helpers, environment variables, or alternate
+  executables to bypass the probe.
+- The private bare repositories and epoch catalog use opaque app-owned
+  identities beneath BetterPullReview's application-data root. They are not
+  worktrees or operator databases. Do not run Git commands, Git maintenance,
+  SQLite tools, filesystem cleanup, or manual ref edits against them: raw
+  topology is not authority, and a mismatched identity or operation phase
+  correctly fails closed.
+- Restart recovery examines the exact durable operation and physical
+  postconditions. It aborts only work still before its point of no return and
+  completes or reports later work precisely. `repair_required` means the
+  application could not prove a safe exact result; do not guess, delete a
+  subset of files, or relabel the affected history as current.
+- Cache, catalog, and retained-epoch limits are hard refusal boundaries. They
+  never trigger automatic pruning, Git GC, or eviction of committed history.
+  Epoch pruning releases logical retained-epoch quota but does not promise
+  immediate byte reclamation; exact whole-cache deletion reclaims the
+  repository bytes but leaves explicit cache-deleted history. Neither action
+  claims secure media erasure.
+- The core and host implement exact, revision-bound prune and whole-cache
+  deletion protocols, but the current public Qt composition exposes no
+  maintenance command or confirmation surface. Do not emulate those commands
+  by deleting storage manually. A future public surface must dispatch the
+  existing typed authorization path and report exact affected counts before
+  its durable point of no return.
+- An observed old head remains rooted by private refs after a force-push and
+  may be selected after restart while its epoch remains retained rather than
+  explicitly pruned or cache-deleted. BetterPullReview cannot recover commits
+  from before its first successful observation, or any revision it never
+  observed; present that case as `never-observed`, not as an empty or current
+  comparison.
 
 ## Build ownership
 

@@ -9,10 +9,15 @@ BetterPullReview is an alternative native client for reviewing code contained in
 | State class | Authority | Examples |
 |---|---|---|
 | Shared collaborative state | GitHub pull request | Commits, files, comments, replies, reviews, approvals, requested changes, thread resolution, checks |
+| Private retained revision history | Local BetterPullReview Git cache and epoch catalog | Exact base/head objects that BetterPullReview observed, epoch identity and cause, availability, and current-viewer review associations |
 | Private workflow state | Local BetterPullReview ledger | Read receipts, acceptance receipts, observer rules, private notes, local defect classification, AI drafts |
-| Derived state | Recomputed from GitHub plus local state | Changed since my review, unread conversation, needs verification, next actionable item |
+| Derived state | Recomputed from GitHub plus private retained/local state | Selected retained comparison, changed since my review, unread conversation, needs verification, next actionable item |
 
-When local and GitHub state disagree about a shared fact, GitHub wins.
+When local and GitHub state disagree about a shared fact, GitHub wins. A
+retained epoch is an immutable private record of a revision BetterPullReview
+actually observed, not a claim that the revision is still GitHub's current
+head. A force-pushed observed head may therefore remain comparable, while
+history that was never observed is never invented.
 
 ## Application architecture invariant
 
@@ -21,7 +26,7 @@ BetterPullReview is implemented as a deterministic functional core inside an imp
 - The core owns compact interaction state, semantic policy, transitions, request identity, and stale-result decisions.
 - The host owns GitHub, Git, SQLite, AI processes, clocks, jobs, caches, persistence, cancellation, and lifecycle.
 - The Qt adapter owns widgets, actions, models, focus, layout, accessibility, themes, and event translation.
-- GitHub and the local ledger remain authorities for their respective state classes; neither a widget nor a cache becomes a competing authority.
+- GitHub, the private retained-revision catalog, and the local workflow ledger remain authorities for their respective state classes; neither a widget nor raw cache topology becomes a competing authority.
 - Effects and asynchronous completions cross the boundary as typed requests and events, while Qt receives incremental projections and semantic deltas.
 
 ## Interoperability invariants
