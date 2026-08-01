@@ -127,19 +127,19 @@ persistence and cache reuse, tests-disabled Release exclusion, and quiescent
 shutdown directly verified. BPR-0048 is in `done/` with the manifest-bound
 sibling-head force-push fixture, public retained-old-head/cause evidence,
 issued-transport revocation, broad combined 25/25 matrix, and fresh sanitizer
-coverage complete. BPR-0049 remains the target-native epoch UX/accessibility
-verification frontier. Its fresh Ubuntu 26.04 GCC 15.2 build exposed the
+coverage complete. BPR-0049 is in `done/` with refreshed scale-specific,
+public-path, Linux XCB/QFusionStyle, and macOS Cocoa/QMacStyle epoch UX and
+accessibility evidence. Its fresh Ubuntu 26.04 GCC 15.2 build exposed the
 intentional aggregate-default warning policy now resolved by done BPR-0057,
 then directly exposed SQLite rejecting the catalog's deliberate retained
 `/proc/self/fd` directory path. Done BPR-0058 now preserves that descriptor
 path through a private per-catalog VFS, retains the directory chain, and proves
-a live replacement namespace receives no effect. BPR-0049 is back in
-`in-progress/` with refreshed three-scale, public-path, Linux XCB/QFusionStyle,
-and macOS System Light/Dark state evidence. Its final gate now requires a real
-active macOS window and non-null existing focus; the prior inactive native run
-is not counted for that claim. BPR-0050 through BPR-0054 and newly allocated
-BPR-0059 remain in `backlog/`; BPR-0059 owns only the owner-activated macOS
-active-focus transition evidence rather than silently narrowing BPR-0049.
+a live replacement namespace receives no effect. BPR-0049's final probe now
+requires a real active macOS window and existing focus; its prior inactive
+native run is not counted for that claim. Ready BPR-0059 owns only that
+owner-activated transition proof rather than silently narrowing BPR-0049.
+BPR-0050 is the current `in-progress/` security-verification slice; BPR-0051
+through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real

@@ -1,7 +1,7 @@
 ---
 id: BPR-0049
 title: Verify RFC-BPR-0003 epoch UX and accessibility
-status: In Progress
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0046, BPR-0047, BPR-0048, BPR-0057, BPR-0058]
 ---
@@ -74,11 +74,29 @@ live appearance transition.
   produced an inspected 1100x720 raster with the exact epoch pair and complete
   40-character OIDs visible.
 
-## Open claim
+## Transferred claim
 
 The owner-activated macOS active-focus transition remains intentionally open.
 Accessibility injection, `activateIgnoringOtherApps`, LaunchServices,
 Command-Tab scripting, and synthetic clicks could not make the unbundled test
 process active in the current desktop permission context. They are not
 substitutes for a real focused window, and the final probe now fails rather
-than accepting the inactive state. No screenshot or log is checked in.
+than accepting the inactive state. BPR-0059 now owns this exact proof and is a
+required RFC closeout dependency; completing this available-platform card does
+not claim it. No screenshot or log is checked in.
+
+## Completion evidence
+
+- Commit `ad8dd55` retains stable epoch identity/OID/alias/model/accessibility
+  assertions, native palette contrast, real-window activity, and exact focus
+  across a live appearance change. It also makes the offscreen contract prove
+  rejection rather than native success.
+- The current `dev` build completed, and the refreshed 1.0x/1.25x/2.0x plus
+  native-probe contract group passed 4/4 in 25.98 seconds. The documentation
+  validator and `git diff --check` passed.
+- The Linux XCB/QFusionStyle application and macOS Cocoa/QMacStyle
+  Light-to-Dark evidence described above were directly rendered and inspected.
+  The macOS inactive run is limited to its non-focus facts, and BPR-0059 owns
+  the missing active-focus result.
+- Tracked and on-disk GitHub workflow counts remain zero; no hosted workflow
+  evidence was used.
