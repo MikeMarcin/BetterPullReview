@@ -1,7 +1,7 @@
 ---
 id: BPR-0049
 title: Verify RFC-BPR-0003 epoch UX and accessibility
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0046, BPR-0047, BPR-0048, BPR-0057, BPR-0058]
 ---

@@ -752,6 +752,15 @@ tmpfs, F2FS, and overlay set. Bootstrap and orphan cleanup use no-follow,
 descriptor-relative, identity-checked operations and delete only the exact
 random bootstrap grammar before atomic no-replace publication.
 
+Linux keeps the private root, state, and version directory descriptors alive
+for the catalog lifetime. A private per-catalog VFS preserves only the exact
+`/proc/self/fd/<retained-version>/<single-name>` spelling through SQLite full-
+pathname resolution; main, bootstrap, WAL, SHM, and journal opens therefore
+remain rooted in the retained directory and keep `O_NOFOLLOW` on the final
+component. Renaming the live version directory and installing a replacement
+namespace cannot redirect a catalog operation; the retained catalog continues
+and the replacement canary remains unchanged.
+
 Guarded Windows source accepts only a canonical drive path on a fixed NTFS or
 ReFS volume with persistent ACL, Unicode, case-preservation, and open-by-ID
 support. The storage root, state/version directories, database, sidecars,

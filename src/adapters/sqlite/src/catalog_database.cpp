@@ -1276,9 +1276,8 @@ auto runtime_authorizer(
         return std::unexpected(failure::invalid_path);
     }
 #else
-    (void)requested_vfs;
     const auto native = path.string();
-    constexpr const char* vfs = nullptr;
+    const auto* vfs = requested_vfs;
 #endif
     const auto code =
         ::sqlite3_open_v2(native.c_str(), &database, flags, vfs);
@@ -1487,6 +1486,124 @@ public:
     result.append(".sqlite3");
     return result;
 }
+
+#if defined(__linux__)
+class retained_linux_vfs final
+{
+public:
+    retained_linux_vfs(const retained_linux_vfs&) = delete;
+    auto operator=(const retained_linux_vfs&)
+        -> retained_linux_vfs& = delete;
+
+    ~retained_linux_vfs()
+    {
+        if(Registered)
+        {
+            (void)::sqlite3_vfs_unregister(&Interface);
+        }
+    }
+
+    [[nodiscard]] static auto create()
+        -> std::expected<std::unique_ptr<retained_linux_vfs>, failure>
+    {
+        if(sqlite_runtime().Result != SQLITE_OK)
+        {
+            return std::unexpected(failure::unavailable);
+        }
+        auto* const base = ::sqlite3_vfs_find(nullptr);
+        if(base == nullptr || base->xFullPathname == nullptr)
+        {
+            return std::unexpected(failure::platform_unsupported);
+        }
+
+        auto random = std::array<std::uint8_t, 16U>{};
+        if(!random_bytes(random))
+        {
+            return std::unexpected(failure::unavailable);
+        }
+        auto name = std::string{"bpr-retained-linux-catalog-"};
+        constexpr std::string_view Digits = "0123456789abcdef";
+        name.reserve(name.size() + random.size() * 2U);
+        for(const auto byte : random)
+        {
+            name.push_back(Digits[byte >> 4U]);
+            name.push_back(Digits[byte & 0x0FU]);
+        }
+
+        auto result = std::unique_ptr<retained_linux_vfs>{
+            new retained_linux_vfs{*base, std::move(name)}};
+        if(::sqlite3_vfs_register(&result->Interface, 0) != SQLITE_OK)
+        {
+            return std::unexpected(failure::unavailable);
+        }
+        result->Registered = true;
+        return result;
+    }
+
+    [[nodiscard]] auto name() const noexcept -> const char*
+    {
+        return Name.c_str();
+    }
+
+private:
+    retained_linux_vfs(::sqlite3_vfs& base, std::string name)
+        : Interface{base}, Name{std::move(name)}
+    {
+        Interface.pNext = nullptr;
+        Interface.zName = Name.c_str();
+        Interface.xFullPathname = &full_pathname;
+    }
+
+    [[nodiscard]] static auto descriptor_path(
+        const std::string_view path) noexcept -> bool
+    {
+        constexpr std::string_view Prefix = "/proc/self/fd/";
+        if(!path.starts_with(Prefix))
+        {
+            return false;
+        }
+        const auto separator = path.find('/', Prefix.size());
+        if(separator == std::string_view::npos
+           || separator == Prefix.size())
+        {
+            return false;
+        }
+        const auto descriptor = path.substr(
+            Prefix.size(), separator - Prefix.size());
+        const auto name = path.substr(separator + 1U);
+        return std::ranges::all_of(descriptor, [](const char value) {
+                   return value >= '0' && value <= '9';
+               })
+            && !name.empty() && name != "." && name != ".."
+            && name.find('/') == std::string_view::npos;
+    }
+
+    static auto full_pathname(
+        ::sqlite3_vfs*,
+        const char* input,
+        const int output_size,
+        char* output) noexcept -> int
+    {
+        if(input == nullptr || output == nullptr || output_size <= 0)
+        {
+            return SQLITE_CANTOPEN;
+        }
+        const auto path = std::string_view{input};
+        if(!descriptor_path(path)
+           || path.size() + 1U > static_cast<std::size_t>(output_size))
+        {
+            return SQLITE_CANTOPEN;
+        }
+        std::memcpy(output, path.data(), path.size());
+        output[path.size()] = '\0';
+        return SQLITE_OK;
+    }
+
+    ::sqlite3_vfs Interface{};
+    std::string Name;
+    bool Registered = false;
+};
+#endif
 
 [[nodiscard]] auto bootstrap_artifact_name(std::string_view name) noexcept
     -> bool
@@ -1734,7 +1851,8 @@ struct file_identity final
 
 [[nodiscard]] auto create_bootstrap(
     const file_descriptor& parent,
-    std::stop_token stop) -> std::expected<bool, failure>
+    std::stop_token stop,
+    const char* requested_vfs = nullptr) -> std::expected<bool, failure>
 {
     std::array<std::uint8_t, 32> name_random{};
     std::array<std::uint8_t, 32> incarnation{};
@@ -1759,7 +1877,7 @@ struct file_identity final
         return std::unexpected(expected_temporary.error());
     }
     const auto temporary_path = descriptor_child_path(parent, temporary_name);
-    auto opened = open_sqlite(temporary_path);
+    auto opened = open_sqlite(temporary_path, requested_vfs);
     if(!opened)
     {
         (void)::unlinkat(parent.Value, temporary_name.c_str(), 0);
@@ -4220,6 +4338,9 @@ struct catalog_database_platform_state final
 #if defined(_WIN32)
     std::vector<private_windows_object> Directories;
     std::unique_ptr<secure_windows_vfs> Vfs;
+#elif defined(__linux__)
+    std::vector<file_descriptor> Directories;
+    std::unique_ptr<retained_linux_vfs> Vfs;
 #endif
 };
 
@@ -4550,6 +4671,16 @@ auto catalog_database::open(
     {
         return std::unexpected(version.error());
     }
+#if defined(__linux__)
+    auto retained_vfs = retained_linux_vfs::create();
+    if(!retained_vfs)
+    {
+        return std::unexpected(retained_vfs.error());
+    }
+    const auto* const requested_vfs = (*retained_vfs)->name();
+#else
+    constexpr const char* requested_vfs = nullptr;
+#endif
     while(::flock(version->Value, LOCK_EX) != 0)
     {
         if(errno != EINTR)
@@ -4579,7 +4710,7 @@ auto catalog_database::open(
     }
     if(status != 0)
     {
-        auto created = create_bootstrap(*version, stop);
+        auto created = create_bootstrap(*version, stop, requested_vfs);
         if(!created)
         {
             return std::unexpected(created.error());
@@ -4597,7 +4728,8 @@ auto catalog_database::open(
             expected_file ? expected_directory.error() : expected_file.error());
     }
     const auto final_path = parent_path / CatalogName;
-    auto opened = open_sqlite(descriptor_child_path(*version, CatalogName));
+    auto opened = open_sqlite(
+        descriptor_child_path(*version, CatalogName), requested_vfs);
     if(!opened)
     {
         return std::unexpected(opened.error());
@@ -4640,7 +4772,19 @@ auto catalog_database::open(
         (void)::sqlite3_close_v2(database);
         return std::unexpected(authorizer.error());
     }
+#if defined(__linux__)
+    auto platform_state =
+        std::make_unique<catalog_database_platform_state>();
+    platform_state->Directories.reserve(3U);
+    platform_state->Directories.push_back(std::move(*root));
+    platform_state->Directories.push_back(std::move(*state));
+    platform_state->Directories.push_back(std::move(*version));
+    platform_state->Vfs = std::move(*retained_vfs);
+    return catalog_database{
+        database, final_path, std::move(platform_state)};
+#else
     return catalog_database{database, final_path};
+#endif
 #endif
 }
 

@@ -887,6 +887,45 @@ void permission_and_symlink_contract()
 #endif
 }
 
+#if defined(__linux__)
+void linux_live_catalog_directory_contract()
+{
+    temporary_root root{"linux-live-catalog-directory"};
+    auto made = sqlite::make_epoch_catalog({.StorageRoot = root.path()});
+    expect(made.has_value(), "Linux live-directory fixture bootstraps");
+    auto port = std::move(*made);
+
+    const auto state = root.path() / "state";
+    const auto version = state / "v1";
+    const auto retained_version = state / "v1-retained";
+    std::filesystem::rename(version, retained_version);
+    std::filesystem::create_directory(version);
+    expect(
+        test_platform::make_owner_private(version, true),
+        "replacement catalog directory becomes owner-private");
+    const auto replacement_catalog = version / "epoch-catalog.sqlite3";
+    {
+        auto output = std::ofstream{replacement_catalog, std::ios::binary};
+        output << "replacement-catalog-canary";
+    }
+    expect(
+        test_platform::make_owner_private(replacement_catalog, false),
+        "replacement catalog canary becomes owner-private");
+
+    auto opened = port->open(open_request(authority_key()), {});
+    expect(
+        opened.has_value(),
+        "live Linux catalog continues through the retained directory");
+    expect(
+        read_binary(replacement_catalog) == "replacement-catalog-canary",
+        "replacement catalog namespace receives no SQLite effect");
+    expect(
+        std::filesystem::is_regular_file(
+            retained_version / "epoch-catalog.sqlite3"),
+        "live SQLite state remains in the retained catalog directory");
+}
+#endif
+
 #if defined(_WIN32)
 void windows_live_namespace_and_sidecar_contract()
 {
@@ -1347,6 +1386,9 @@ int main()
     bootstrap_authority_and_storage_contract();
     cancellation_and_path_contract();
     permission_and_symlink_contract();
+#if defined(__linux__)
+    linux_live_catalog_directory_contract();
+#endif
 #if defined(_WIN32)
     windows_live_namespace_and_sidecar_contract();
 #endif

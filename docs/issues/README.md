@@ -131,9 +131,10 @@ coverage complete. BPR-0049 remains the target-native epoch UX/accessibility
 verification frontier. Its fresh Ubuntu 26.04 GCC 15.2 build exposed the
 intentional aggregate-default warning policy now resolved by done BPR-0057,
 then directly exposed SQLite rejecting the catalog's deliberate retained
-`/proc/self/fd` directory path. BPR-0058 now tracks that Linux startup and
-security remediation; BPR-0049 is temporarily back in `backlog/` until it is
-done. BPR-0050 through BPR-0054 remain in `backlog/`.
+`/proc/self/fd` directory path. Done BPR-0058 now preserves that descriptor
+path through a private per-catalog VFS, retains the directory chain, and proves
+a live replacement namespace receives no effect. BPR-0049 is back in
+`in-progress/`; BPR-0050 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
