@@ -120,9 +120,9 @@ incremental availability projection, and real installed-Git/SQLite composition
 evidence complete. BPR-0046 is in `done/` with the provider/effect-free stable
 epoch model, independent exact selectors, alias actions, full OIDs, explicit
 availability/history states, accessibility, native-System inheritance, and
-three-scale rendered loaded-window evidence complete. BPR-0047 is `ready/` as
-the next production-composition slice; BPR-0048 through BPR-0054 remain in
-`backlog/`. There is no current `in-progress/` card.
+three-scale rendered loaded-window evidence complete. BPR-0047 is now
+`in-progress/` at the production epoch-composition and second-process
+persistence frontier; BPR-0048 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real

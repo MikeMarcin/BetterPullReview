@@ -1,7 +1,7 @@
 ---
 id: BPR-0047
 title: Compose the public Git cache and epoch path
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0046, BPR-0055]
 ---
@@ -22,3 +22,13 @@ process invocation must prove persistence and cache reuse.
 The tests-disabled Release application must select production factories while
 excluding fixture flags, paths, symbols, and fake factories. No GitHub
 mutation or live private repository is required.
+
+## Implementation audit frontier
+
+Begin at the live `github_application` composition root and its recorded public
+fixture seam. Inventory construction/destruction order, accepted pull-request
+handoff delivery, native smart-transport leases, application-data ownership,
+worker/decision executors, test-only command-line admission, and the rendered
+self-test path before adding the epoch host. Reuse the BPR-0042 through
+BPR-0046 ports and controls; do not introduce a parallel cache, catalog,
+selection reducer, fixture-only window, or GitHub Actions path.
