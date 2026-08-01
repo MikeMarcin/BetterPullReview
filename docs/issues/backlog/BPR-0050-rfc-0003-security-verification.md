@@ -1,9 +1,9 @@
 ---
 id: BPR-0050
 title: Verify RFC-BPR-0003 Git and cache security boundaries
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0003
-depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0047, BPR-0048, BPR-0055, BPR-0058]
+depends_on: [BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0047, BPR-0048, BPR-0055, BPR-0058, BPR-0060]
 ---
 
 # Verify RFC-BPR-0003 Git and cache security boundaries
@@ -25,3 +25,7 @@ Complete macOS and available Linux target-native checks locally. Windows
 execution remains BPR-0053 and is nonblocking for later implementation while
 blocking only affected Windows claims and RFC closeout. GitHub Actions has no
 role.
+
+The fresh Ubuntu x86_64 GCC matrix exposed BPR-0060's actor-capture evaluation-
+order defect. This card remains blocked until that remediation is directly
+verified on both GCC and Clang.
