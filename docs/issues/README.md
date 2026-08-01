@@ -161,8 +161,12 @@ every write and materializes successful client results without
 cross-error-type conversion. The final parser/transport matrix passes 4/4
 under Clang Debug, GCC Debug, GCC Release, and ASan/UBSan; fresh tests-off
 composition, dependency, runtime, architecture, and critical-review gates are
-complete. BPR-0050 is again the current `in-progress/` security-verification
-slice. BPR-0051 through BPR-0054 remain in `backlog/`.
+complete. Done BPR-0050 now completes the current macOS and Ubuntu x86_64
+security matrix, including platform vault failure modes, public runtime and
+rendering, secret scans, source-manifest binding, and removal of the transient
+QEMU key/image/log harness. Its independent critical review has no unresolved
+blocking or high-risk implementation finding. BPR-0051 through BPR-0054
+remain in `backlog/` pending their explicit board transitions.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
