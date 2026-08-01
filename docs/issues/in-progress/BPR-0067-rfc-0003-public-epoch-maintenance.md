@@ -1,7 +1,7 @@
 ---
 id: BPR-0067
 title: Expose confirmed public epoch maintenance commands
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0046, BPR-0047, BPR-0055]
 ---
