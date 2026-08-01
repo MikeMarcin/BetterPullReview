@@ -128,11 +128,12 @@ shutdown directly verified. BPR-0048 is in `done/` with the manifest-bound
 sibling-head force-push fixture, public retained-old-head/cause evidence,
 issued-transport revocation, broad combined 25/25 matrix, and fresh sanitizer
 coverage complete. BPR-0049 remains the target-native epoch UX/accessibility
-verification frontier and is back in `in-progress/`. Its fresh Ubuntu 26.04
-GCC 15.2 build exposed the intentional aggregate-default warning policy now
-resolved by done BPR-0057: warnings-as-errors remains active while GNU C++
-alone suppresses that default-initialization warning. BPR-0050 through
-BPR-0054 remain in `backlog/`.
+verification frontier. Its fresh Ubuntu 26.04 GCC 15.2 build exposed the
+intentional aggregate-default warning policy now resolved by done BPR-0057,
+then directly exposed SQLite rejecting the catalog's deliberate retained
+`/proc/self/fd` directory path. BPR-0058 now tracks that Linux startup and
+security remediation; BPR-0049 is temporarily back in `backlog/` until it is
+done. BPR-0050 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
