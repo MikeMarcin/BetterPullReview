@@ -155,8 +155,10 @@ canonical-OID view in the force-push fixture. BPR-0063 is the current
 `in-progress/` contract remediation. Done BPR-0063 now retains canonical-hex
 owners across fixture Git argument construction and both Qt OID renderers;
 the full focused matrices pass under Clang, GCC, and sanitizers. BPR-0050
-is now the current `in-progress/` security-verification slice. BPR-0051
-through BPR-0054 remain in `backlog/`.
+then reached its fresh tests-disabled GCC Release composition, which exposed
+optimizer-only protocol parser bounds and expected-conversion warnings.
+BPR-0064 is the current `in-progress/` remediation; BPR-0050 is temporarily
+back in `backlog/`. BPR-0051 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
