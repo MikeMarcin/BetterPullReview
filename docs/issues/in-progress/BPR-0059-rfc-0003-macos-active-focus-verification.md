@@ -28,3 +28,20 @@ owns only the active-focus evidence split from BPR-0049; it does not add final
 presentation polish or a product theme selector. It blocks that macOS claim
 and RFC-BPR-0003 closeout, not available-platform implementation,
 documentation, security review, simplification, or later RFC work.
+
+## Progress
+
+- The checked-in Cocoa probe now reports
+  `NATIVE_APPEARANCE_WAITING_FOR_OWNER_FOCUS` and waits before collecting its
+  initial evidence while the real window lacks either active-window state or
+  a non-null focus widget. It does not call an activation API, synthesize
+  input, or relax any post-focus assertion. Non-Cocoa probes still enter the
+  existing fail-closed check immediately.
+- The deterministic offscreen appearance-probe contract still passes 1/1 in
+  12.73 seconds with its complete inactive/signal/state/pixel/render rejection
+  and zero-evidence requirements.
+- The first real Cocoa/QMacStyle attempt reached the explicit owner-focus wait
+  with the loaded GitHub.com fixture, then timed out without an owner click.
+  It reported `NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED`, accepted no PNG
+  evidence, and the shell trap restored the original System Dark appearance.
+  This is a clean unverified attempt, not acceptance evidence.

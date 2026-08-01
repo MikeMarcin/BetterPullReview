@@ -346,6 +346,7 @@ struct automated_run
     struct native_appearance_probe_state
     {
         bool Enabled = false;
+        bool WaitingForOwnerFocusReported = false;
         bool SignalObserved = false;
         bool StatePassed = false;
         bool PixelsDiffer = false;
@@ -1461,6 +1462,24 @@ void schedule_automated_run(
                         QString::fromStdString(evidence.BaseOid);
                     run->Appearance.ExpectedEpochRightOid =
                         QString::fromStdString(evidence.HeadOneOid);
+                    const auto waiting_for_owner_focus =
+                        QGuiApplication::platformName() == "cocoa"
+                        && (
+                            !window.isActiveWindow()
+                            || QApplication::focusWidget() == nullptr);
+                    if(waiting_for_owner_focus)
+                    {
+                        if(!run->Appearance.WaitingForOwnerFocusReported)
+                        {
+                            QTextStream stream{stdout};
+                            stream
+                                << "NATIVE_APPEARANCE_WAITING_FOR_OWNER_FOCUS\n";
+                            stream.flush();
+                            run->Appearance.WaitingForOwnerFocusReported =
+                                true;
+                        }
+                        break;
+                    }
                     if(prepare_native_appearance_probe(window, *run))
                     {
                         run->Stage = automated_run::stage::appearance;
