@@ -1540,14 +1540,36 @@ auto test_catalog_conflict_reloads_catalog() -> void
             "and reloads from fail-closed catalog state");
 
         const auto before_stale = fixture.State;
-        const auto stale = transition(
+        const auto stale_prepared = transition(
+            fixture.State,
+            epoch_revision_prepared_event{
+                .Context = prepare.Context,
+                .Operation = opaque<epoch_operation_id>(72U),
+                .Observation =
+                    epoch_preparation_observation{
+                        .ProposedOrdinal = epoch_ordinal{1},
+                        .ObservedAt = observed_utc_milliseconds{101},
+                        .Material = material(),
+                    },
+            });
+        const auto stale_failed = transition(
             fixture.State,
             epoch_revision_prepare_failed_event{
                 .Context = prepare.Context,
                 .Failure = epoch_failure::unavailable,
             });
+        const auto stale_cancelled = transition(
+            fixture.State,
+            epoch_revision_prepare_cancelled_event{
+                .Context = prepare.Context,
+            });
         expect(
-            diagnostic_is(stale, epoch_reason_code::stale_completion)
+            diagnostic_is(
+                stale_prepared, epoch_reason_code::stale_completion)
+                && diagnostic_is(
+                    stale_failed, epoch_reason_code::stale_completion)
+                && diagnostic_is(
+                    stale_cancelled, epoch_reason_code::stale_completion)
                 && fixture.State == before_stale,
             "pre-conflict preparation terminals cannot disturb the fresh "
             "catalog load");

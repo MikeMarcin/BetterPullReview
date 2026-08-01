@@ -573,6 +573,35 @@ template<typename Context>
                               : completion_match::identity_mismatch;
 }
 
+[[nodiscard]] auto preparation_context_match(
+    const epoch_state& state, const epoch_preparation_context& actual)
+    -> completion_match
+{
+    if(
+        !state.PendingIngestion.has_value()
+        || state.PendingIngestion->Phase != epoch_ingestion_phase::preparing)
+    {
+        return completion_match::stale;
+    }
+    if(
+        actual.Request != state.PendingIngestion->Request
+        || actual.Generation != state.PendingIngestion->Generation)
+    {
+        return completion_match::stale;
+    }
+    if(
+        !state.Authority.has_value() || !state.AcceptedRevision.has_value()
+        || !state.Catalog.has_value())
+    {
+        return completion_match::identity_mismatch;
+    }
+    return actual
+            == current_preparation_context(
+                state, state.PendingIngestion->Request)
+        ? completion_match::current
+        : completion_match::identity_mismatch;
+}
+
 [[nodiscard]] auto comparison_context_match(
     const epoch_state& state, const comparison_context& actual)
     -> completion_match
@@ -1292,15 +1321,7 @@ template<typename Event>
     epoch_state& state, const epoch_revision_prepared_event& event)
     -> epoch_transition_output
 {
-    if(!state.PendingIngestion.has_value())
-    {
-        return reject(epoch_reason_code::stale_completion);
-    }
-    const auto match = context_match(
-        state.PendingIngestion,
-        epoch_ingestion_phase::preparing,
-        event.Context,
-        current_preparation_context(state, state.PendingIngestion->Request));
+    const auto match = preparation_context_match(state, event.Context);
     if(match != completion_match::current)
     {
         return reject_match(match);
@@ -1381,15 +1402,7 @@ template<typename Event>
     const epoch_status status,
     const epoch_reason_code reason) -> epoch_transition_output
 {
-    if(!state.PendingIngestion.has_value())
-    {
-        return reject(epoch_reason_code::stale_completion);
-    }
-    const auto match = context_match(
-        state.PendingIngestion,
-        epoch_ingestion_phase::preparing,
-        event.Context,
-        current_preparation_context(state, state.PendingIngestion->Request));
+    const auto match = preparation_context_match(state, event.Context);
     if(match != completion_match::current)
     {
         return reject_match(match);
@@ -1411,16 +1424,7 @@ template<typename Event>
 {
     if(event.Failure == epoch_failure::catalog_conflict)
     {
-        if(!state.PendingIngestion.has_value())
-        {
-            return reject(epoch_reason_code::stale_completion);
-        }
-        const auto match = context_match(
-            state.PendingIngestion,
-            epoch_ingestion_phase::preparing,
-            event.Context,
-            current_preparation_context(
-                state, state.PendingIngestion->Request));
+        const auto match = preparation_context_match(state, event.Context);
         if(match != completion_match::current)
         {
             return reject_match(match);
