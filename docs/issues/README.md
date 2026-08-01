@@ -117,8 +117,8 @@ and direct core/manual-executor/SQLite evidence complete. BPR-0055 is in
 `done/` with deterministic core authorization, exact durable prune/cache-delete
 orchestration, every maintenance restart phase, fault-injected failure policy,
 incremental availability projection, and real installed-Git/SQLite composition
-evidence complete. There is no current `in-progress/` card; BPR-0046 through
-BPR-0054 remain in `backlog/`.
+evidence complete. BPR-0046 is now `in-progress/` at the reusable Qt epoch
+comparison-control frontier; BPR-0047 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra required by the
 future BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real

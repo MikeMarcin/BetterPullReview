@@ -1,7 +1,7 @@
 ---
 id: BPR-0046
 title: Implement exact epoch comparison controls in Qt
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0041, BPR-0045, BPR-0056]
 ---
@@ -25,3 +25,13 @@ announcement.
 Embed the controls in the interim loaded-content surface for public reachability
 without claiming RFC-BPR-0005's final workbench or RFC-BPR-0006's selectable
 themes/fonts/syntax.
+
+## Implementation audit frontier
+
+Begin from the provider/Git/filesystem-free epoch projection introduced by
+BPR-0045 and the bounded history-page deltas introduced by BPR-0056. Audit the
+live GitHub window's retained-content composition, model-update conventions,
+focus/accessibility behavior, appearance invalidations, and deterministic
+render harness before selecting widget boundaries. Reuse the existing public
+window only as the interim reachability surface; do not make it an epoch
+authority or pre-implement the final RFC-BPR-0005 workbench.
