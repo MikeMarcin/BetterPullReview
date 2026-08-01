@@ -10,7 +10,12 @@ This directory contains the canonical BetterPullReview RFC implementation skill 
 - `config/routing.json` maps semantic capability classes to current Codex and Claude models.
 - `scripts/render_runtime_adapters.py` generates native `.codex/agents`, `.claude/agents`, and the small Claude skill entrypoint.
 - The primary agent remains the only RFC integrator and the only authority for `RFC_BASE_SHA`, issue IDs, `docs/issues/NEXT_ID`, board transitions, staging, commits, verification sufficiency, and RFC status.
-- The default policy allows at most two independent read-only agents or one total writer. Utility work is isolated from semantic scouting, implementation uses the deep route, and capability-critical review has a separate max-effort role.
+- The default policy allows either at most two independent read-only agents or
+  one total writer, never both. The primary recursively counts nonterminal
+  descendants before every spawn, restart, or follow-up, and a worker receives
+  explicit exclusive file ownership. Utility work is isolated from semantic
+  scouting, implementation uses the deep route, and capability-critical
+  review has a separate max-effort role.
 - A missing runtime feature falls back to serial primary-agent execution without weakening BetterPullReview's verification, documentation, security, or remote-side-effect gates.
 
 ## Install Or Refresh

@@ -51,6 +51,8 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             self.assertEqual(worker["model"], worker_route["model"])
             self.assertEqual(worker["model_reasoning_effort"], "xhigh")
             self.assertEqual(worker["sandbox_mode"], "workspace-write")
+            self.assertFalse(worker["agents"]["enabled"])
+            self.assertIn("explicit exclusive allowed files", worker["developer_instructions"])
 
             reviewer_route = self.expected_route("rfc-reviewer", "codex")
             reviewer = tomllib.loads((root / ".codex/agents/rfc-reviewer.toml").read_text())
@@ -159,6 +161,9 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
         worker = " ".join(roles["rfc-worker"]["instructions"])
         critical = " ".join(roles["rfc-critical-reviewer"]["instructions"])
         self.assertIn("core decides, the host performs, Qt presents", worker)
+        self.assertIn("explicit exclusive allowed files", worker)
+        self.assertIn("Edit no file outside them", worker)
+        self.assertIn("every modified file", worker)
         self.assertIn("docs/issues/NEXT_ID", worker)
         self.assertIn("live GitHub or GHES pull request", worker)
         self.assertIn("credentials and authentication authority", critical)

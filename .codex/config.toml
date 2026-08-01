@@ -1,4 +1,5 @@
-# Two concurrent child threads are enough for the default RFC policy.
+# Supported global ceiling. The RFC skill separately enforces either two
+# readers or one writer, never both, after a recursive nonterminal-agent audit.
 [agents]
 enabled = true
 max_concurrent_threads_per_session = 2

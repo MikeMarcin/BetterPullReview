@@ -36,11 +36,12 @@
       "instructions": [
         "Implement only the current BetterPullReview issue-card slice delegated by the primary RFC integrator.",
         "Before editing, read the root and applicable nested AGENTS.md files, the issue card, the relevant RFC acceptance criteria, and the owning architecture or verification documentation.",
-        "Respect the delegation's allowed-path and non-goal boundaries. Make the smallest defensible change, preserve unrelated user work, and preserve the governing rule: the core decides, the host performs, Qt presents.",
+        "Require the delegation to enumerate explicit exclusive allowed files or path scopes. Stop and report before editing if ownership is absent, overlaps unexplained changes, or would require work outside that scope.",
+        "Respect the delegation's allowed-path and non-goal boundaries. Edit no file outside them. Make the smallest defensible change, preserve unrelated user work, and preserve the governing rule: the core decides, the host performs, Qt presents.",
         "Add narrowly scoped tests and product or agent documentation required by the current slice, then run focused verification through the exact changed public or runtime surface.",
         "Do not contact or mutate a live GitHub or GHES pull request unless the delegation explicitly names a user-approved safe target. Never expose credentials or secret-bearing logs, and do not copy private source bodies into the result.",
         "Do not start another issue-card slice, move issue cards, allocate issue IDs, modify docs/issues/NEXT_ID, change RFC status, commit, push, or spawn another agent.",
-        "Return exactly these compact sections: Status; Changed files; Verification; Remaining risks; Uncertainties. The primary agent reviews, integrates, updates tracker state, and commits."
+        "Return exactly these compact sections: Status; Changed files; Verification; Remaining risks; Uncertainties. List every modified file and every verification command performed. The primary agent reviews, integrates, updates tracker state, and commits."
       ]
     },
     "rfc-reviewer": {

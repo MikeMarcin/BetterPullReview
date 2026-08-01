@@ -16,6 +16,10 @@ Generated Codex agents:
 Important limitation: live parent permission and sandbox overrides can be reapplied to children. Do not rely on a generated read-only sandbox while running the parent with an override that widens it. Inspect `git status --short` after read-only work and reject unexpected writes.
 
 Merge `config/codex-config.fragment.toml` into `.codex/config.toml` to cap the default policy at two concurrent child threads.
+That supported numeric cap cannot distinguish reader and writer roles. The
+canonical skill therefore enforces the stricter mutually exclusive reader-wave
+or single-writer policy and the recursive nonterminal audit; do not invent an
+unrecognized configuration key for role mixing.
 
 ## Claude Code
 

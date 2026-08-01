@@ -61,6 +61,11 @@ A scout should replace the corresponding primary-agent exploration. The primary 
 
 Use only after the current issue-card slice, ownership, architecture, non-goals, and focused verification are already clear. The worker may edit the shared workspace, but the primary agent must refrain from editing while it runs. Only one writing agent may be active.
 
+The delegation must name an explicit exclusive file list or path scope. If
+that ownership is missing, overlaps unexplained changes, or proves too narrow
+for the required fix, the worker stops and reports instead of broadening its
+writes.
+
 Do not delegate implementation when the slice involves unresolved architecture, broad tracker changes, credentials or live remote mutation, destructive migration, intertwined public contracts, or changes whose path ownership remains uncertain. Keep those with the primary agent.
 
 The worker does not commit or mutate tracker state. The primary agent reviews the complete diff, runs or reproduces focused verification, moves the issue card, and commits.
@@ -105,9 +110,14 @@ A second read-only agent must own a different question. Do not ask two agents to
 ## Concurrency And Mutation Rules
 
 - Preserve the skill's one-RFC-at-a-time and one-issue-slice-at-a-time discipline.
-- Permit at most two concurrent read-only agents by default.
-- Permit at most one writing agent, including the primary agent, at any moment.
-- Do not run multiple writing agents in the default policy.
+- Before every spawn, restart, or follow-up task, recursively count every
+  nonterminal descendant, including initializing or status-unknown agents, and
+  classify its role. Do not reuse a slot until the prior agent has left
+  Working/nonterminal status.
+- Use either a reader wave of at most two independent read-only agents or one
+  writing agent. Never mix the two modes.
+- Permit at most one writing agent, including the primary agent, at any moment;
+  the primary does not edit while a writing child runs.
 - Do not allow delegated agents to spawn additional agents. The generated native definitions remove or disable nested delegation where the runtime supports it.
 - Do not assume worktree isolation is safe or based on the current parent `HEAD`. Use it only after the active runtime proves the exact base and integration behavior needed for the current task.
 - Preserve unrelated user changes. A writing worker must stop and report when its required edit overlaps unexplained existing modifications.
@@ -130,7 +140,11 @@ Remote-side-effect boundary:
 Output requested:
 ```
 
-For a reviewer, identify the immutable base and final head. For a worker, explicitly state that it must not commit, move issue cards, change `docs/issues/NEXT_ID`, or change RFC status.
+For a reviewer, identify the immutable base and final head. For a worker,
+enumerate the exclusive allowed files or path scopes and explicitly state that
+it must stop if those scopes are insufficient or overlap unexplained changes.
+Also state that it must not commit, move issue cards, change
+`docs/issues/NEXT_ID`, or change RFC status.
 
 ## Result Contract
 
