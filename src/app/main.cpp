@@ -361,7 +361,18 @@ struct automated_run
         QString InitialPlatformName;
         QString InitialStyleClass;
         QPersistentModelIndex Thread;
+        bool InitialWindowActive = false;
+        QWidget* InitialFocus = nullptr;
         std::size_t InitialModelResets = 0U;
+        QString ExpectedEpochLeftOid;
+        QString ExpectedEpochRightOid;
+        QPersistentModelIndex EpochLeft;
+        QPersistentModelIndex EpochRight;
+        QString EpochLeftIdentity;
+        QString EpochRightIdentity;
+        QPalette InitialEpochPalette;
+        std::size_t InitialEpochModelResets = 0U;
+        std::size_t InitialEpochAppearanceUpdates = 0U;
         QImage InitialRender;
         QImage ChangedRender;
         native_appearance_evidence_paths EvidencePaths;
@@ -401,6 +412,58 @@ struct automated_run
 {
     const auto* const view = window.conversation_view();
     const auto* const model = window.conversation_model();
+    const auto* const control = window.epoch_control();
+    const auto* const epoch_model = control->history_model();
+    const auto* const left_selector = control->left_selector();
+    const auto* const right_selector = control->right_selector();
+    const auto* const left_oid = control->left_oid_editor();
+    const auto* const right_oid = control->right_oid_editor();
+
+    const auto epoch_context_preserved =
+        run.Appearance.EpochLeft.isValid()
+        && run.Appearance.EpochRight.isValid()
+        && left_selector->currentIndex()
+               == run.Appearance.EpochLeft.row()
+        && right_selector->currentIndex()
+               == run.Appearance.EpochRight.row()
+        && epoch_model->index(left_selector->currentIndex(), 0)
+               == run.Appearance.EpochLeft
+        && epoch_model->index(right_selector->currentIndex(), 0)
+               == run.Appearance.EpochRight
+        && run.Appearance.EpochLeft.data(
+               bpr::qt::epoch_history_model::identity_role)
+               .toString()
+               == run.Appearance.EpochLeftIdentity
+        && run.Appearance.EpochRight.data(
+               bpr::qt::epoch_history_model::identity_role)
+               .toString()
+               == run.Appearance.EpochRightIdentity
+        && left_oid->text() == run.Appearance.ExpectedEpochLeftOid
+        && right_oid->text() == run.Appearance.ExpectedEpochRightOid
+        && left_oid->isReadOnly() && right_oid->isReadOnly()
+        && control->whole_pr_action()->isChecked()
+        && epoch_model->statistics().ModelResets
+               == run.Appearance.InitialEpochModelResets
+        && !left_selector->accessibleName().isEmpty()
+        && !left_selector->accessibleDescription().isEmpty()
+        && !right_selector->accessibleName().isEmpty()
+        && !right_selector->accessibleDescription().isEmpty()
+        && !left_oid->accessibleName().isEmpty()
+        && !left_oid->accessibleDescription().isEmpty()
+        && !right_oid->accessibleName().isEmpty()
+        && !right_oid->accessibleDescription().isEmpty()
+        && !control->testAttribute(Qt::WA_SetPalette)
+        && !control->testAttribute(Qt::WA_SetStyle)
+        && !control->testAttribute(Qt::WA_SetFont)
+        && !left_selector->testAttribute(Qt::WA_SetPalette)
+        && !right_selector->testAttribute(Qt::WA_SetPalette)
+        && !left_oid->testAttribute(Qt::WA_SetPalette)
+        && !right_oid->testAttribute(Qt::WA_SetPalette)
+        && control->styleSheet().isEmpty()
+        && left_selector->styleSheet().isEmpty()
+        && right_selector->styleSheet().isEmpty()
+        && left_oid->styleSheet().isEmpty()
+        && right_oid->styleSheet().isEmpty();
 
     return run.Appearance.Thread.isValid()
         && QGuiApplication::platformName()
@@ -411,7 +474,13 @@ struct automated_run
         && view->currentIndex() == run.Appearance.Thread
         && view->selectionModel()->isSelected(run.Appearance.Thread)
         && !view->isExpanded(run.Appearance.Thread)
-        && QApplication::focusWidget() == view
+        && run.Appearance.InitialWindowActive
+        && run.Appearance.InitialFocus != nullptr
+        && run.Appearance.InitialFocus->window() == &window
+        && window.isActiveWindow()
+        && QApplication::activeWindow() == &window
+        && QApplication::focusWidget() == run.Appearance.InitialFocus
+        && epoch_context_preserved
         && model->statistics().ModelResets
                == run.Appearance.InitialModelResets
         && window.statistics().FullResets == 0U
@@ -419,6 +488,22 @@ struct automated_run
         && !window.testAttribute(Qt::WA_SetStyle)
         && !window.testAttribute(Qt::WA_SetFont)
         && window.styleSheet().isEmpty();
+}
+
+[[nodiscard]] auto native_palette_readable(
+    const QPalette& palette) noexcept -> bool
+{
+    const auto contrast = [&palette](
+        const QPalette::ColorRole background,
+        const QPalette::ColorRole foreground)
+    {
+        return std::abs(
+                   palette.color(background).lightness()
+                   - palette.color(foreground).lightness())
+            >= 80;
+    };
+    return contrast(QPalette::Window, QPalette::WindowText)
+        && contrast(QPalette::Base, QPalette::Text);
 }
 
 [[nodiscard]] auto native_appearance_light_state_passed(
@@ -434,6 +519,11 @@ struct automated_run
         && macos_global_color_scheme() == Qt::ColorScheme::Light
         && hints->colorScheme() == Qt::ColorScheme::Light
         && window.palette() == run.Appearance.InitialPalette
+        && window.epoch_control()->palette()
+               == run.Appearance.InitialEpochPalette
+        && native_palette_readable(window.epoch_control()->palette())
+        && window.epoch_control()->statistics().AppearanceUpdates
+               == run.Appearance.InitialEpochAppearanceUpdates
         && native_appearance_context_passed(window, run);
 }
 
@@ -454,6 +544,20 @@ struct automated_run
         final_palette.color(QPalette::Base).lightness();
     const auto final_text =
         final_palette.color(QPalette::Text).lightness();
+    const auto initial_epoch = run.Appearance.InitialEpochPalette;
+    const auto final_epoch = window.epoch_control()->palette();
+    const auto initial_epoch_window =
+        initial_epoch.color(QPalette::Window).lightness();
+    const auto initial_epoch_base =
+        initial_epoch.color(QPalette::Base).lightness();
+    const auto initial_epoch_text =
+        initial_epoch.color(QPalette::Text).lightness();
+    const auto final_epoch_window =
+        final_epoch.color(QPalette::Window).lightness();
+    const auto final_epoch_base =
+        final_epoch.color(QPalette::Base).lightness();
+    const auto final_epoch_text =
+        final_epoch.color(QPalette::Text).lightness();
 
     return run.Appearance.SignalObserved
         && run.Appearance.InitialColorScheme == Qt::ColorScheme::Light
@@ -468,6 +572,14 @@ struct automated_run
         && final_window < initial_window && final_base < initial_base
         && final_text > initial_text && final_window < final_text
         && final_base < final_text
+        && final_epoch_window < initial_epoch_window
+        && final_epoch_base < initial_epoch_base
+        && final_epoch_text > initial_epoch_text
+        && final_epoch_window < final_epoch_text
+        && final_epoch_base < final_epoch_text
+        && native_palette_readable(final_epoch)
+        && window.epoch_control()->statistics().AppearanceUpdates
+               > run.Appearance.InitialEpochAppearanceUpdates
         && native_appearance_context_passed(window, run);
 }
 
@@ -479,8 +591,14 @@ struct automated_run
     auto* const hints = QGuiApplication::styleHints();
     auto* const view = window.conversation_view();
     auto* const model = window.conversation_model();
+    auto* const control = window.epoch_control();
+    auto* const epoch_model = control->history_model();
     const auto thread =
         model->index_for_id("review-thread:PRRT_fixture_1");
+    const auto left_epoch = epoch_model->index(
+        control->left_selector()->currentIndex(), 0);
+    const auto right_epoch = epoch_model->index(
+        control->right_selector()->currentIndex(), 0);
     if(hints != nullptr)
     {
         run.Appearance.InitialColorScheme = hints->colorScheme();
@@ -507,24 +625,90 @@ struct automated_run
         || hints->colorScheme() != Qt::ColorScheme::Light
         || run.Appearance.InitialGlobalColorScheme
                != Qt::ColorScheme::Light
-        || !light_palette || !thread.isValid() || !run.RenderPath.has_value()
+        || !light_palette || !thread.isValid()
+        || !left_epoch.isValid() || !right_epoch.isValid()
+        || run.Appearance.ExpectedEpochLeftOid.isEmpty()
+        || run.Appearance.ExpectedEpochRightOid.isEmpty()
+        || control->left_oid_editor()->text()
+               != run.Appearance.ExpectedEpochLeftOid
+        || control->right_oid_editor()->text()
+               != run.Appearance.ExpectedEpochRightOid
+        || !control->whole_pr_action()->isChecked()
+        || !run.RenderPath.has_value()
         || run.Appearance.EvidencePaths.Initial.isEmpty()
         || run.Appearance.EvidencePaths.Changed.isEmpty())
     {
+        QTextStream{stdout}
+            << "NATIVE_APPEARANCE_PRECONDITION:"
+            << (hints != nullptr) << ':'
+            << (run.Appearance.InitialPlatformName == "cocoa") << ':'
+            << (run.Appearance.InitialStyleClass == "QMacStyle") << ':'
+            << (hints != nullptr
+                && hints->colorScheme() == Qt::ColorScheme::Light) << ':'
+            << (run.Appearance.InitialGlobalColorScheme
+                == Qt::ColorScheme::Light) << ':'
+            << light_palette << ':' << thread.isValid() << ':'
+            << left_epoch.isValid() << ':' << right_epoch.isValid() << ':'
+            << (!run.Appearance.ExpectedEpochLeftOid.isEmpty()) << ':'
+            << (!run.Appearance.ExpectedEpochRightOid.isEmpty()) << ':'
+            << (control->left_oid_editor()->text()
+                == run.Appearance.ExpectedEpochLeftOid) << ':'
+            << (control->right_oid_editor()->text()
+                == run.Appearance.ExpectedEpochRightOid) << ':'
+            << control->whole_pr_action()->isChecked() << ':'
+            << run.RenderPath.has_value() << ':'
+            << (!run.Appearance.EvidencePaths.Initial.isEmpty()) << ':'
+            << (!run.Appearance.EvidencePaths.Changed.isEmpty()) << '\n';
         return false;
     }
 
     run.Appearance.Thread = QPersistentModelIndex{thread};
     run.Appearance.InitialModelResets = model->statistics().ModelResets;
+    run.Appearance.EpochLeft = QPersistentModelIndex{left_epoch};
+    run.Appearance.EpochRight = QPersistentModelIndex{right_epoch};
+    run.Appearance.EpochLeftIdentity = left_epoch.data(
+        bpr::qt::epoch_history_model::identity_role).toString();
+    run.Appearance.EpochRightIdentity = right_epoch.data(
+        bpr::qt::epoch_history_model::identity_role).toString();
+    run.Appearance.InitialEpochModelResets =
+        epoch_model->statistics().ModelResets;
+    run.Appearance.InitialEpochPalette = control->palette();
+    run.Appearance.InitialEpochAppearanceUpdates =
+        control->statistics().AppearanceUpdates;
     view->setCurrentIndex(thread);
     view->selectionModel()->select(
         thread,
         QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
     view->collapse(thread);
-    view->setFocus(Qt::OtherFocusReason);
     QApplication::processEvents();
+    run.Appearance.InitialWindowActive = window.isActiveWindow();
+    run.Appearance.InitialFocus = QApplication::focusWidget();
     if(!native_appearance_light_state_passed(window, run))
     {
+        const auto* const focus = QApplication::focusWidget();
+        QTextStream{stdout}
+            << "NATIVE_APPEARANCE_EPOCH_CONTEXT:"
+            << (QApplication::focusWidget()
+                == run.Appearance.InitialFocus) << ':'
+            << (control->palette()
+                == run.Appearance.InitialEpochPalette) << ':'
+            << native_palette_readable(control->palette()) << ':'
+            << (control->statistics().AppearanceUpdates
+                == run.Appearance.InitialEpochAppearanceUpdates) << ':'
+            << native_appearance_context_passed(window, run) << '\n'
+            << "NATIVE_APPEARANCE_FOCUS:"
+            << window.isActiveWindow() << ':' << view->isVisible() << ':'
+            << control->isVisible() << ':'
+            << control->right_oid_editor()->isVisible() << ':'
+            << (focus != nullptr
+                    ? QString::fromLatin1(
+                          focus->metaObject()->className())
+                    : QStringLiteral("none"))
+            << ':'
+            << (focus != nullptr
+                    ? focus->objectName()
+                    : QStringLiteral("none"))
+            << ':' << static_cast<int>(view->focusPolicy()) << '\n';
         return false;
     }
 
@@ -851,6 +1035,16 @@ void finish_automated_run(
 #endif
 
     QTextStream stream{stdout};
+#if defined(BPR_BUILD_TESTS)
+    if(run.Fixture)
+    {
+        stream << "GITHUB_FIXTURE_QT_PLATFORM:"
+               << QGuiApplication::platformName() << '\n'
+               << "GITHUB_FIXTURE_QT_STYLE:"
+               << application.window().style()->metaObject()->className()
+               << '\n';
+    }
+#endif
     stream << (passed ? "PUBLIC_PATH_OK\n" : "PUBLIC_PATH_FAILED\n");
     if(run.VerifyNativePlatformVault)
     {
@@ -988,6 +1182,11 @@ void finish_automated_run(
                << run.Appearance.InitialPlatformName << '\n'
                << "NATIVE_APPEARANCE_STYLE:"
                << run.Appearance.InitialStyleClass << '\n'
+               << (run.Appearance.InitialWindowActive
+                           && run.Appearance.InitialFocus != nullptr
+                           && run.Appearance.StatePassed
+                       ? "NATIVE_APPEARANCE_ACTIVE_FOCUS_OK\n"
+                       : "NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED\n")
                << (run.Appearance.SignalObserved
                        ? "NATIVE_APPEARANCE_SIGNAL_OK\n"
                        : "NATIVE_APPEARANCE_SIGNAL_FAILED\n")
@@ -1247,6 +1446,10 @@ void schedule_automated_run(
                 }
                 else if(run->Appearance.Enabled)
                 {
+                    run->Appearance.ExpectedEpochLeftOid =
+                        QString::fromStdString(evidence.BaseOid);
+                    run->Appearance.ExpectedEpochRightOid =
+                        QString::fromStdString(evidence.HeadOneOid);
                     if(prepare_native_appearance_probe(window, *run))
                     {
                         run->Stage = automated_run::stage::appearance;

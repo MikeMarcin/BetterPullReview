@@ -134,7 +134,10 @@ then directly exposed SQLite rejecting the catalog's deliberate retained
 `/proc/self/fd` directory path. Done BPR-0058 now preserves that descriptor
 path through a private per-catalog VFS, retains the directory chain, and proves
 a live replacement namespace receives no effect. BPR-0049 is back in
-`in-progress/`; BPR-0050 through BPR-0054 remain in `backlog/`.
+`in-progress/` with refreshed three-scale, public-path, Linux XCB/QFusionStyle,
+and macOS System Light/Dark state evidence. Its final gate now requires a real
+active macOS window and non-null existing focus; the prior inactive native run
+is not counted for that claim. BPR-0050 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real

@@ -103,7 +103,7 @@ set_tests_properties(
     application_native_appearance_probe_contract
     PROPERTIES
         PASS_REGULAR_EXPRESSION "NATIVE_APPEARANCE_PROBE_CONTRACT_OK"
-        TIMEOUT 30
+        TIMEOUT 60
 )
 
 add_test(
