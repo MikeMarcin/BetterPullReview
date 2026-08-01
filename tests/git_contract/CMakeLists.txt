@@ -52,19 +52,34 @@ set_tests_properties(
 add_executable(
     better_pull_review_git_cache_contract_tests
     git_cache_contract_tests.cpp
+    ../../src/adapters/git/src/installed_git_cache.cpp
+    ../../src/adapters/git/src/installed_git_process.cpp
+)
+target_include_directories(
+    better_pull_review_git_cache_contract_tests
+    PRIVATE
+        ../../src/adapters/git/include
 )
 target_link_libraries(
     better_pull_review_git_cache_contract_tests
     PRIVATE
-        BetterPullReview::AdapterGit
+        BetterPullReview::Application
         Qt6::Core
         Threads::Threads
 )
 target_compile_definitions(
     better_pull_review_git_cache_contract_tests
     PRIVATE
+        BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION=1
         BPR_TEST_GIT_EXECUTABLE="${GIT_EXECUTABLE}"
 )
+if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_definitions(
+        better_pull_review_git_cache_contract_tests
+        PRIVATE
+            _LIBCPP_ENABLE_EXPERIMENTAL
+    )
+endif()
 bpr_enable_hardening(
     better_pull_review_git_cache_contract_tests
 )

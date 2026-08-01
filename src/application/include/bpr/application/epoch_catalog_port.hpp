@@ -23,6 +23,10 @@ inline constexpr std::uint16_t maximum_epoch_recovery_page_size = 100U;
 inline constexpr std::size_t maximum_exact_anchor_lookup_count = 100U;
 inline constexpr std::size_t maximum_prune_epoch_count = 100U;
 inline constexpr std::size_t maximum_cache_delete_scope_count = 10'000U;
+inline constexpr std::uint32_t
+    maximum_retained_epoch_count_per_pull_request =
+        maximum_git_cache_private_ref_count / 2U;
+static_assert(maximum_git_cache_private_ref_count % 2U == 0U);
 
 struct epoch_catalog_operation_revision_tag;
 using epoch_catalog_operation_revision = core::integral_identity<
@@ -45,6 +49,14 @@ inline constexpr auto maximum_epoch_catalog_operation_revision =
     return application::valid(revision)
         && revision.value()
             < maximum_epoch_catalog_operation_revision;
+}
+
+[[nodiscard]] constexpr auto can_advance_nonterminal(
+    const epoch_catalog_operation_revision revision) noexcept -> bool
+{
+    return application::valid(revision)
+        && revision.value()
+            < maximum_epoch_catalog_operation_revision - 1;
 }
 
 struct epoch_catalog_authority_key
@@ -119,6 +131,8 @@ struct epoch_catalog_snapshot
     std::optional<core::review_epoch_summary> LatestLive;
     std::optional<core::review_epoch_summary> PreviousDistinctHead;
     std::optional<core::catalog_review_association> CurrentViewerReview;
+    core::retention_rehydration_requirement RetentionRehydration =
+        core::retention_rehydration_requirement::not_required;
 
     auto operator<=>(const epoch_catalog_snapshot&) const = default;
 };
@@ -206,11 +220,19 @@ struct mark_anchor_availability_request
                 > static_cast<std::uint8_t>(
                     core::anchor_availability::never_observed)
             || (
-                change.Next != core::anchor_availability::unavailable
-                && change.Next != core::anchor_availability::pruned
-                && change.Next
-                    != core::anchor_availability::cache_deleted
-                && change.Next != core::anchor_availability::corrupt)
+                !(
+                    change.Expected
+                        == core::anchor_availability::available
+                    && (
+                        change.Next
+                            == core::anchor_availability::unavailable
+                        || change.Next
+                            == core::anchor_availability::corrupt))
+                && !(
+                    change.Expected
+                        == core::anchor_availability::unavailable
+                    && change.Next
+                        == core::anchor_availability::corrupt))
             || (
                 index != 0U
                 && !(request.Changes[index - 1U].Anchor
@@ -308,6 +330,14 @@ enum class epoch_catalog_operation_phase : std::uint8_t
     catalog_tombstoned_cleanup_pending = 19U,
 };
 
+[[nodiscard]] constexpr auto terminal(
+    const epoch_catalog_operation_phase phase) noexcept -> bool
+{
+    return phase == epoch_catalog_operation_phase::complete
+        || phase == epoch_catalog_operation_phase::aborted
+        || phase == epoch_catalog_operation_phase::repair_required;
+}
+
 enum class epoch_catalog_transition_evidence : std::uint8_t
 {
     catalog_transaction = 1U,
@@ -373,6 +403,27 @@ enum class epoch_catalog_transition_evidence : std::uint8_t
             || phase == abort_requested || phase == aborted;
     }
     return false;
+}
+
+[[nodiscard]] constexpr auto valid_repair_origin(
+    const epoch_catalog_operation_kind kind,
+    const epoch_catalog_operation_phase phase,
+    const std::optional<epoch_catalog_operation_phase> origin) noexcept
+    -> bool
+{
+    if(
+        (phase == epoch_catalog_operation_phase::repair_required)
+        != origin.has_value())
+    {
+        return false;
+    }
+    return !origin
+        || (
+            valid_phase(kind, *origin)
+            && *origin
+                != epoch_catalog_operation_phase::repair_required
+            && *origin != epoch_catalog_operation_phase::complete
+            && *origin != epoch_catalog_operation_phase::aborted);
 }
 
 [[nodiscard]] constexpr auto valid_phase_transition(
@@ -673,13 +724,17 @@ struct durable_git_preimport_fact
     }
 
     auto expected_present = false;
+    std::uint64_t inventory_bytes = 0U;
     for(std::size_t index = 0U; index < fact.Packs.size(); ++index)
     {
         const auto& pack = fact.Packs[index];
         if(
             !application::valid(pack)
-            || pack.PackBytes > fact.RepositoryBytes
-            || pack.IndexBytes > fact.RepositoryBytes
+            || pack.PackBytes
+                > fact.RepositoryBytes - inventory_bytes
+            || pack.IndexBytes
+                > fact.RepositoryBytes
+                    - inventory_bytes - pack.PackBytes
             || pack.Pack.Algorithm != fact.ExpectedPack.Algorithm
             || (
                 index != 0U
@@ -687,6 +742,7 @@ struct durable_git_preimport_fact
         {
             return false;
         }
+        inventory_bytes += pack.PackBytes + pack.IndexBytes;
         expected_present =
             expected_present || pack.Pack == fact.ExpectedPack;
     }
@@ -776,32 +832,28 @@ struct durable_git_install_fact
                 core::anchor_availability::never_observed);
 }
 
+[[nodiscard]] constexpr auto valid_new_review_association(
+    const core::catalog_review_association& review) noexcept -> bool
+{
+    return application::valid(review)
+        && (
+            review.Availability == core::anchor_availability::available
+            || review.Availability
+                == core::anchor_availability::unavailable
+            || review.Availability
+                == core::anchor_availability::never_observed);
+}
+
 [[nodiscard]] constexpr auto valid(
     const core::review_epoch_summary& epoch) noexcept -> bool
 {
     if(
-        !core::valid(epoch.Id) || epoch.Source.Snapshot.value() == 0U
-        || epoch.Source.IdentityGeneration.value() == 0U
-        || epoch.Source.PullRequestGeneration.value() == 0U
+        !core::valid(epoch.Id) || !core::valid(epoch.Source)
         || !epoch.BaseBranch.valid() || !epoch.Base.valid()
         || !epoch.Head.valid()
         || epoch.Base.algorithm() != epoch.Head.algorithm()
         || !core::valid(epoch.ObservedAt)
-        || static_cast<std::uint8_t>(epoch.Cause.Origin)
-            > static_cast<std::uint8_t>(
-                core::epoch_origin::explicit_historical_import)
-        || static_cast<std::uint8_t>(epoch.Cause.Base)
-            > static_cast<std::uint8_t>(
-                core::epoch_base_transition::base_branch_changed)
-        || static_cast<std::uint8_t>(epoch.Cause.Head)
-            > static_cast<std::uint8_t>(
-                core::epoch_head_transition::lineage_unknown)
-        || static_cast<std::uint8_t>(epoch.Cause.Material)
-            > static_cast<std::uint8_t>(
-                core::epoch_material_relation::unknown)
-        || static_cast<std::uint8_t>(epoch.Cause.Primary)
-            > static_cast<std::uint8_t>(
-                core::epoch_primary_cause::base_update)
+        || !core::valid(epoch.Cause)
         || static_cast<std::uint8_t>(epoch.BaseAvailability)
             > static_cast<std::uint8_t>(
                 core::anchor_availability::never_observed)
@@ -865,6 +917,8 @@ struct append_operation_record
     epoch_catalog_operation_revision OperationRevision;
     epoch_catalog_operation_phase Phase =
         epoch_catalog_operation_phase::preparing;
+    std::optional<epoch_catalog_operation_phase> RepairFromPhase;
+    bool RecoveryInputCompacted = false;
     epoch_catalog_ref_identity StagingBase;
     epoch_catalog_ref_identity StagingHead;
     epoch_catalog_ref_identity FinalBase;
@@ -886,6 +940,16 @@ struct append_operation_record
         || !valid_phase(
             epoch_catalog_operation_kind::append,
             record.Phase)
+        || !valid_repair_origin(
+            epoch_catalog_operation_kind::append,
+            record.Phase,
+            record.RepairFromPhase)
+        || record.RecoveryInputCompacted
+            != (
+                record.Phase
+                    == epoch_catalog_operation_phase::complete
+                || record.Phase
+                    == epoch_catalog_operation_phase::aborted)
         || !application::valid(record.StagingBase)
         || !application::valid(record.StagingHead)
         || !application::valid(record.FinalBase)
@@ -957,11 +1021,58 @@ struct append_operation_record
             return false;
         }
     }
-    return (!record.Spool && !record.Preimport)
+    const auto no_recovery_input =
+        !record.Spool && !record.Preimport;
+    const auto exact_recovery_input =
+        record.Spool && record.Preimport
+        && record.Spool->ExpectedPack
+            == record.Preimport->ExpectedPack;
+    if(
+        (!no_recovery_input && !exact_recovery_input)
+        || (record.Candidate && !record.Install)
         || (
-            record.Spool && record.Preimport
-            && record.Spool->ExpectedPack
-                == record.Preimport->ExpectedPack);
+            !record.RecoveryInputCompacted
+            && record.Install && !exact_recovery_input))
+    {
+        return false;
+    }
+
+    using enum epoch_catalog_operation_phase;
+    const auto phase_before_repair =
+        record.Phase == repair_required ? *record.RepairFromPhase
+                                        : record.Phase;
+    switch(phase_before_repair)
+    {
+    case preparing:
+        return no_recovery_input && !record.Install
+            && !record.Candidate;
+    case spool_recorded:
+        return exact_recovery_input && !record.Install
+            && !record.Candidate;
+    case imported:
+    case staging_ready:
+        return exact_recovery_input && record.Install
+            && !record.Candidate;
+    case commit_authorized:
+    case ref_commit_in_progress:
+    case refs_committed:
+    case visible_cleanup_pending:
+        return exact_recovery_input && record.Install
+            && record.Candidate;
+    case complete:
+        return record.RecoveryInputCompacted
+            && no_recovery_input && record.Install
+            && record.Candidate;
+    case abort_requested:
+        return no_recovery_input
+            ? !record.Install && !record.Candidate
+            : exact_recovery_input;
+    case aborted:
+        return record.RecoveryInputCompacted
+            && no_recovery_input;
+    default:
+        return false;
+    }
 }
 
 struct record_spool_request
@@ -978,14 +1089,30 @@ struct record_spool_request
 [[nodiscard]] inline auto valid(
     const record_spool_request& request) noexcept -> bool
 {
-    return core::valid(request.Catalog) && request.Operation.valid()
-        && application::can_advance(request.ExpectedOperationRevision)
-        && application::valid(request.Spool)
-        && application::valid(request.Preimport)
-        && request.Spool.Operation == request.Operation
-        && request.Preimport.Operation == request.Operation
-        && request.Spool.ExpectedPack
-            == request.Preimport.ExpectedPack;
+    if(
+        !core::valid(request.Catalog) || !request.Operation.valid()
+        || !application::can_advance_nonterminal(
+            request.ExpectedOperationRevision)
+        || !application::valid(request.Spool)
+        || !application::valid(request.Preimport)
+        || request.Spool.Operation != request.Operation
+        || request.Preimport.Operation != request.Operation
+        || request.Spool.ExpectedPack
+            != request.Preimport.ExpectedPack)
+    {
+        return false;
+    }
+    if(!request.Preimport.ExpectedPackPreexisting)
+    {
+        return true;
+    }
+    const auto expected = std::ranges::find_if(
+        request.Preimport.Packs,
+        [&request](const auto& entry) {
+            return entry.Pack == request.Spool.ExpectedPack;
+        });
+    return expected != request.Preimport.Packs.end()
+        && expected->PackBytes == request.Spool.Spool.Bytes;
 }
 
 struct record_install_request
@@ -1002,7 +1129,8 @@ struct record_install_request
     const record_install_request& request) noexcept -> bool
 {
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::can_advance(request.ExpectedOperationRevision)
+        && application::can_advance_nonterminal(
+            request.ExpectedOperationRevision)
         && application::valid(request.Install)
         && request.Install.Operation == request.Operation;
 }
@@ -1021,11 +1149,18 @@ struct record_candidate_request
     const record_candidate_request& request) noexcept -> bool
 {
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::can_advance(request.ExpectedOperationRevision)
+        && application::can_advance_nonterminal(
+            request.ExpectedOperationRevision)
         && application::valid(request.Candidate.Epoch)
+        && request.Candidate.Epoch.Material.has_value()
+        && request.Candidate.Epoch.BaseAvailability
+            == core::anchor_availability::available
+        && request.Candidate.Epoch.HeadAvailability
+            == core::anchor_availability::available
         && (
             !request.Candidate.Review
-            || application::valid(*request.Candidate.Review))
+            || application::valid_new_review_association(
+                *request.Candidate.Review))
         && request.Candidate.Epoch.Id.Incarnation
             == request.Catalog.Incarnation;
 }
@@ -1055,7 +1190,12 @@ struct operation_transition_request
         request.Expected,
         request.Next);
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::can_advance(request.ExpectedOperationRevision)
+        && (
+            application::terminal(request.Next)
+                ? application::can_advance(
+                    request.ExpectedOperationRevision)
+                : application::can_advance_nonterminal(
+                    request.ExpectedOperationRevision))
         && generic_transition_allowed(
             request.Kind,
             request.Expected,
@@ -1079,12 +1219,19 @@ struct finalize_append_request
 {
     const auto& epoch = request.Mutation.Epoch;
     return core::valid(request.Catalog) && request.Operation.valid()
-        && application::can_advance(request.ExpectedOperationRevision)
+        && application::can_advance_nonterminal(
+            request.ExpectedOperationRevision)
         && application::valid(epoch)
+        && epoch.Material.has_value()
+        && epoch.BaseAvailability
+            == core::anchor_availability::available
+        && epoch.HeadAvailability
+            == core::anchor_availability::available
         && epoch.Id.Incarnation == request.Catalog.Incarnation
         && (
             !request.Mutation.Review
-            || application::valid(*request.Mutation.Review))
+            || application::valid_new_review_association(
+                *request.Mutation.Review))
         && application::valid(request.ObservedRefs)
         && request.ObservedRefs.Scope == epoch.Id.Authority
         && request.ObservedRefs.Ordinal == epoch.Id.Ordinal
@@ -1105,7 +1252,7 @@ struct associate_review_request
     const associate_review_request& request) noexcept -> bool
 {
     return core::valid(request.Catalog)
-        && application::valid(request.Review)
+        && application::valid_new_review_association(request.Review)
         && request.AcceptedSnapshot.value() != 0U;
 }
 
@@ -1124,9 +1271,21 @@ struct prune_epoch_fact
     git_retained_ref_pair Retained;
     epoch_catalog_ref_identity BaseRef;
     epoch_catalog_ref_identity HeadRef;
+    core::anchor_availability ExpectedBaseAvailability =
+        core::anchor_availability::available;
+    core::anchor_availability ExpectedHeadAvailability =
+        core::anchor_availability::available;
 
     auto operator<=>(const prune_epoch_fact&) const = default;
 };
+
+[[nodiscard]] constexpr auto valid_prune_anchor_availability(
+    const core::anchor_availability availability) noexcept -> bool
+{
+    return availability == core::anchor_availability::available
+        || availability == core::anchor_availability::unavailable
+        || availability == core::anchor_availability::corrupt;
+}
 
 [[nodiscard]] constexpr auto valid(
     const prune_epoch_fact& fact) noexcept -> bool
@@ -1142,7 +1301,11 @@ struct prune_epoch_fact
         && fact.BaseRef.Ordinal == fact.Epoch.Ordinal
         && fact.HeadRef.Ordinal == fact.Epoch.Ordinal
         && !fact.BaseRef.Staging && !fact.HeadRef.Staging
-        && !fact.BaseRef.Head && fact.HeadRef.Head;
+        && !fact.BaseRef.Head && fact.HeadRef.Head
+        && application::valid_prune_anchor_availability(
+            fact.ExpectedBaseAvailability)
+        && application::valid_prune_anchor_availability(
+            fact.ExpectedHeadAvailability);
 }
 
 struct begin_prune_request
@@ -1212,7 +1375,10 @@ struct cache_delete_impact
     if(
         !impact.Incarnation.valid() || !impact.Cache.valid()
         || impact.Scopes.empty()
-        || impact.Scopes.size() > maximum_cache_delete_scope_count)
+        || impact.Scopes.size() > maximum_cache_delete_scope_count
+        || impact.RetainedEpochCount
+            > static_cast<std::uint64_t>(impact.Scopes.size())
+                * maximum_retained_epoch_count_per_pull_request)
     {
         return false;
     }
@@ -1253,6 +1419,7 @@ struct maintenance_operation_record
         epoch_catalog_operation_kind::prune;
     epoch_catalog_operation_phase Phase =
         epoch_catalog_operation_phase::prune_intent;
+    std::optional<epoch_catalog_operation_phase> RepairFromPhase;
     epoch_catalog_operation_revision OperationRevision;
     core::repository_cache_scope_id Cache;
     std::vector<prune_epoch_fact> Epochs;
@@ -1267,7 +1434,9 @@ struct maintenance_operation_record
     if(
         !record.Incarnation.valid() || !record.Operation.valid()
         || !application::valid(record.OperationRevision)
-        || !valid_phase(record.Kind, record.Phase))
+        || !valid_phase(record.Kind, record.Phase)
+        || !valid_repair_origin(
+            record.Kind, record.Phase, record.RepairFromPhase))
     {
         return false;
     }
@@ -1332,7 +1501,7 @@ struct finalize_prune_request
     if(
         !core::valid(request.Transition.Catalog)
         || !request.Transition.Operation.valid()
-        || !application::can_advance(
+        || !application::can_advance_nonterminal(
             request.Transition.ExpectedOperationRevision)
         || request.Transition.Kind
             != epoch_catalog_operation_kind::prune
@@ -1377,7 +1546,7 @@ struct finalize_cache_delete_request
 {
     return core::valid(request.Transition.Catalog)
         && request.Transition.Operation.valid()
-        && application::can_advance(
+        && application::can_advance_nonterminal(
             request.Transition.ExpectedOperationRevision)
         && request.Transition.Kind
             == epoch_catalog_operation_kind::cache_delete

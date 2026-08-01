@@ -465,9 +465,79 @@ invariants.
 The completed-spool receipt and prepared pack/index result expose versioned
 fixed-size no-path artifact identities, roles, and byte counts for later
 persistence. Opaque durable-record or intent tokens in this component test
-remain authorization-shape evidence only. BPR-0044 owns persistence,
-BPR-0045 owns journal-before-import and restart recovery sequencing, BPR-0047
-owns public composition, and BPR-0053 owns target-native Windows execution.
+remain authorization-shape evidence only. BPR-0044 persists those facts in the
+catalog component described below; BPR-0045 owns journal-before-import and
+restart recovery sequencing, BPR-0047 owns public composition, and BPR-0053
+owns target-native Windows execution.
+
+## SQLite epoch catalog fixtures
+
+`tests/sqlite_contract/epoch_catalog_storage_tests.cpp` is the direct storage
+fixture registered as `sqlite_epoch_catalog_storage_contract`; its executable
+target is `better_pull_review_sqlite_storage_contract_tests`. It creates only
+disposable synthetic app-data roots. The fixture covers the fixed
+`state/v1/epoch-catalog.sqlite3` path, nonzero random incarnation, authority
+allocation and reopen, private bootstrap and exact no-replace publication,
+interrupted-bootstrap orphan recovery, cancellation, canonical path and local-
+filesystem admission, owner permissions and single-link identity, hostile
+symlink/reparse and sidecar substitutions, BPEC application/version identity,
+the exact 18-table/15-index schema, unexpected-object and integrity failure,
+foreign keys, WAL/FULL policy, the 1-GiB main-database ceiling, and SQLite
+result classification. The bootstrap fault seam is compiled only when tests
+are enabled.
+
+`tests/sqlite_contract/epoch_catalog_behavior_tests.cpp` is registered as
+`sqlite_epoch_catalog_behavior_contract`; its executable target is
+`better_pull_review_sqlite_behavior_contract_tests`. It exercises exact
+repository/PR authority allocation and restart, append reservations and
+never-reused ordinals, history and recovery paging, exact anchors and
+availability, association-only review updates, semantic tuple and composite-
+scope corruption rejection, phase/evidence/operation-revision compare-and-
+swap, nonterminal revision reserve, catalog and logical quota exhaustion with
+zero mutation, sustained WAL checkpointing, exact prune and cache-delete sets,
+abort lifecycle restoration, tombstoned-cache repair, supersession and repair
+provenance, and repeated cache-delete/reparent/retention-rehydration cycles.
+Prune coverage admits only `available`, `unavailable`, or `corrupt` starting
+anchor states, persists their exact base/head expectations, rejects revision or
+availability drift on begin/replay/finalize/restart, atomically marks both
+anchors and linked non-destructive review associations `pruned`, and proves the
+retained quota is released exactly once across replay.
+
+The rehydration case preserves the old cache-delete tombstone, permits one
+semantically corresponding replacement with a nonzero host-supplied 256-bit
+source-observation identity not previously published in the catalog incarnation
+only while the requirement is set, and
+proves that finalization clears the requirement across restart. The fixtures
+use deterministic identities: they prove persistence and rejection of an
+already published identity, including the prior epoch's identity, not entropy
+generation. BPR-0045 must generate each accepted observation identity from
+operating-system entropy and retry a catalog-reported collision.
+
+The adjacent `application_epoch_catalog_contract` validates the bounded port,
+operation algebra, evidence requirements, durable artifact shapes, destructive
+availability restrictions, and rehydration cause. `core_epoch_policy` directly
+tests deterministic retention-rehydration planning in addition to the existing
+cause, alias, exact-pair, stale-completion, and overflow tables.
+
+On macOS, a fresh `dev` matrix passed 58/58, the focused
+core/application/storage/behavior matrix passed 20/20 across five repetitions,
+the AddressSanitizer/UndefinedBehaviorSanitizer matrix passed 4/4, and the
+Qt-free `core-only` matrix passed 25/25. A tests-disabled Release build retained
+the pinned static SQLite dependency and contained no catalog fault-injection
+seam. Tracked and on-disk GitHub Actions workflow counts were 0/0.
+
+A clean MinGW cross-build compiled and linked 47/47 targets. Its CTest
+inventory listed 25 tests, exactly two labeled `BPR-0053` and
+`target-native-windows`; no Windows executable was run. Windows-only live-
+namespace, sidecar, TokenUser/DACL, reparse, hard-link, delete-pending, and
+retained-handle cases remain BPR-0053 target-native work.
+
+These fixtures supply synthetic exact ref/object outcomes to the catalog; they
+do not perform or recover real Git mutations. BPR-0045 owns spool/import/ref/
+catalog orchestration and stale publication, BPR-0047 owns selection through
+the public BetterPullReview composition, and BPR-0053 owns all native Windows
+behavior. No live private repository, GitHub mutation, or GitHub Actions
+workflow is involved.
 
 ## Native HTTPS loopback transport fixture
 

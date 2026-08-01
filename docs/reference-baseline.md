@@ -96,11 +96,36 @@ Baseline date: 2026-07-30
   https://sqlite.org/pragma.html
 - SQLite atomic commit behavior:
   https://sqlite.org/atomiccommit.html
+- SQLite VFS registration and file-operation contract:
+  https://sqlite.org/c3ref/vfs.html
+- SQLite runtime limits:
+  https://sqlite.org/limits.html
+- Windows `CreateFileW`, including reparse-point and share-mode behavior:
+  https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
+- Windows file identity and delete-pending/link-count information:
+  https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfileinformationbyhandleex
+- Windows access tokens and file security information:
+  https://learn.microsoft.com/en-us/windows/win32/secauthz/access-tokens
+  and
+  https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo
+- Windows volume capability inspection:
+  https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getvolumeinformationbyhandlew
+- Windows handle-relative, no-replace file rename information:
+  https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_rename_info
 
-The exact vendored SQLite release, source checksum, compile options, and
-platform build proof are intentionally selected and reviewed by the
-RFC-BPR-0003 implementation/dependency card; this baseline does not pin an
-unreviewed release.
+BetterPullReview pins SQLite 3.53.4, released 2026-07-24, from the official
+`sqlite-amalgamation-3530400.zip`. Its `SQLITE_SOURCE_ID` is
+`2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc`.
+The official archive SHA3-256 is
+`628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e`,
+and the published `sqlite3.c` SHA3-256 is
+`67f423e9ebbbdc473cbc4772c872ee6b89f31fde4ed0279a5c25d5f65c043a16`.
+The repository intake measurement for `sqlite3.h` is
+`89d0de498b1012938bb78dc18b68fea52e26f7f7b6db6347d126a2e58b86a05c`.
+Reproducible intake, official URLs, and the compile/runtime policy are recorded
+in [`PROVENANCE.md`](../third_party/sqlite/PROVENANCE.md) and
+[`COMPILE_OPTIONS.md`](../third_party/sqlite/COMPILE_OPTIONS.md). The static
+target has no system-library fallback.
 
 ## AI agent interfaces
 

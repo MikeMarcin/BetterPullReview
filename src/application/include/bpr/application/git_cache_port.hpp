@@ -128,11 +128,17 @@ struct git_preimport_observation
         return false;
     }
     auto expected_pack_present = false;
+    std::uint64_t inventory_bytes = 0U;
     for(std::size_t index = 0U; index < observation.Packs.size(); ++index)
     {
         const auto& entry = observation.Packs[index];
         if(
             !valid(entry)
+            || entry.PackBytes
+                > observation.RepositoryBytes - inventory_bytes
+            || entry.IndexBytes
+                > observation.RepositoryBytes
+                    - inventory_bytes - entry.PackBytes
             || entry.Pack.Algorithm
                 != observation.ExpectedPack.Algorithm
             || (
@@ -142,6 +148,7 @@ struct git_preimport_observation
         {
             return false;
         }
+        inventory_bytes += entry.PackBytes + entry.IndexBytes;
         expected_pack_present =
             expected_pack_present
             || entry.Pack == observation.ExpectedPack;

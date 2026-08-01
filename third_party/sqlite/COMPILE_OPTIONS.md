@@ -13,6 +13,7 @@ so that `sqlite3.h` exposes the same feature surface as the library.
 | `SQLITE_OMIT_AUTOINIT=1` | Remove implicit global initialization; the owning adapter must call `sqlite3_initialize()` before any other SQLite API. |
 | `SQLITE_USE_URI=0` | Keep URI filename interpretation off by default; callers must not pass `SQLITE_OPEN_URI`. |
 | `SQLITE_MAX_ATTACHED=0` | Give the dedicated catalog zero attachment capacity; every `ATTACH` fails before another database can open. |
+| `SQLITE_MAX_PAGE_COUNT=262144` | Cap the compile-time page-count ceiling at 262,144; with the required 4,096-byte catalog page size, the main database is bounded to 1 GiB. |
 | `SQLITE_DEFAULT_FILE_PERMISSIONS=0600` | Create SQLite-owned files with owner-only permissions on Unix-like targets. |
 | `SQLITE_DEFAULT_FOREIGN_KEYS=1` | Make foreign-key enforcement fail-safe by default; the adapter must also enable and verify it per connection. |
 | `SQLITE_DEFAULT_SYNCHRONOUS=2` | Keep the non-WAL default at `FULL`. |
@@ -27,14 +28,32 @@ adapter remains responsible for all runtime policy:
 
 - call `sqlite3_initialize()` explicitly before any SQLite API and pair final
   process-wide teardown with `sqlite3_shutdown()` only after all handles close;
-- open only the fixed validated app-owned path with
-  `SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX |
-  SQLITE_OPEN_PRIVATECACHE | SQLITE_OPEN_NOFOLLOW`, never `SQLITE_OPEN_URI`;
-- enable and verify `SQLITE_DBCONFIG_DEFENSIVE`, disable and verify trusted
-  schema, and enable and verify foreign keys;
-- select and verify local WAL mode and `synchronous=FULL`;
-- use prepared allowlisted SQL and reject unexpected schema objects, versions,
-  paths, permissions, integrity results, or database identities.
+- securely pre-create a private bootstrap database, validate and checkpoint it,
+  and publish it without replacement; ordinary main-database opens use
+  `SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX |
+  SQLITE_OPEN_PRIVATECACHE | SQLITE_OPEN_NOFOLLOW | SQLITE_OPEN_EXRESCODE`,
+  without `SQLITE_OPEN_CREATE` or `SQLITE_OPEN_URI`;
+- enable and verify `SQLITE_DBCONFIG_DEFENSIVE`, foreign keys, and the
+  query-planner stability guarantee; disable and verify trusted schema,
+  double-quoted compatibility, views, triggers, writable schema, and SQLite
+  worker threads;
+- require a 4,096-byte page size and exact 262,144-page limit, disable memory
+  mapping, select and verify local WAL mode and `synchronous=FULL`, and set the
+  automatic-checkpoint threshold to 256 pages. The threshold triggers
+  checkpoint attempts; it is not a hard WAL-file-size limit;
+- set a 2-second busy timeout and exact connection limits: 1 MiB values,
+  256 KiB SQL, 128 columns, expression depth 64, eight compound-select terms,
+  250,000 virtual-machine operations, 32 function arguments, zero attached
+  databases, 256-byte `LIKE` patterns, 128 variables, zero trigger depth, and
+  zero worker threads;
+- prepare only fixed SQL with `SQLITE_PREPARE_PERSISTENT |
+  SQLITE_PREPARE_NO_VTAB`, install a runtime authorizer for the exact 18 BPEC
+  tables and required functions/actions, and reject unexpected schema objects,
+  versions, paths, permissions, integrity results, or database identities;
+- compare every one of the 18 tables and 15 indexes by type, name, and
+  canonical SQL, then require `integrity_check(1)` and an empty
+  `foreign_key_check` before installing the runtime authorizer; and
+- classify `SQLITE_FULL` as the typed catalog `quota_exceeded` failure.
 
 The compile contract intentionally retains the progress-handler API for
 bounded cancellation. Defensive mode remains a connection setting. The

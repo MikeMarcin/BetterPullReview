@@ -124,6 +124,8 @@ template<typename Identity>
             {
                 .Source =
                     {
+                        .Observation = opaque<
+                            core::epoch_source_observation_id>(22U),
                         .Snapshot = core::provider_snapshot_id{2U},
                         .IdentityGeneration =
                             core::github_identity_generation{3U},

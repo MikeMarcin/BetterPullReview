@@ -121,6 +121,8 @@ template<typename Oid>
     return accepted_pull_request_revision{
         .Source =
             pull_request_source_revision{
+                .Observation = opaque<epoch_source_observation_id>(
+                    static_cast<std::uint8_t>(snapshot)),
                 .Snapshot = provider_snapshot_id{snapshot},
                 .IdentityGeneration = github_identity_generation{3U},
                 .PullRequestGeneration = request_generation{4U},
@@ -178,6 +180,8 @@ template<typename Oid>
             },
         .Source =
             pull_request_source_revision{
+                .Observation = opaque<epoch_source_observation_id>(
+                    static_cast<std::uint8_t>(ordinal + 90)),
                 .Snapshot =
                     provider_snapshot_id{
                         static_cast<std::uint64_t>(ordinal) + 100U},
@@ -628,6 +632,159 @@ auto test_cause_precedence_and_material_policy() -> void
         !idempotent_at_max.Mutation.has_value()
             && idempotent_at_max.Rejection == epoch_reason_code::none,
         "catalog revision exhaustion still permits a true idempotent no-op");
+}
+
+auto test_retention_rehydration_policy() -> void
+{
+    const auto owner = authority();
+    const auto owner_catalog = catalog(8);
+    auto prior = summary(
+        owner,
+        owner_catalog,
+        4,
+        10U,
+        20U,
+        30U,
+        epoch_origin::live_observation,
+        anchor_availability::cache_deleted,
+        anchor_availability::cache_deleted,
+        material());
+    auto unchanged = revision(prior.Source.Snapshot.value());
+    unchanged.Source = prior.Source;
+    unchanged.Source.Observation =
+        opaque<epoch_source_observation_id>(91U);
+
+    const auto rehydration = plan_epoch_mutation(
+        owner,
+        unchanged,
+        owner_catalog,
+        epoch_preparation_observation{
+            .LatestLive = prior,
+            .ProposedOrdinal = epoch_ordinal{5},
+            .ObservedAt = observed_utc_milliseconds{500},
+            .Material = material(60U, 70U, 2U),
+            .RetentionRehydration =
+                retention_rehydration_requirement::required,
+        });
+    const auto* append = append_from(rehydration);
+    expect(
+        rehydration.Rejection == epoch_reason_code::none && append
+            && append->Epoch.Source.Observation
+                != prior.Source.Observation
+            && append->Epoch.Source.Snapshot == prior.Source.Snapshot
+            && append->Epoch.Source.IdentityGeneration
+                == prior.Source.IdentityGeneration
+            && append->Epoch.Source.PullRequestGeneration
+                == prior.Source.PullRequestGeneration
+            && append->Epoch.Id.Ordinal == epoch_ordinal{5}
+            && append->Epoch.Cause
+                == epoch_cause{
+                    .Origin = epoch_origin::retention_rehydration,
+                    .Base = epoch_base_transition::unchanged,
+                    .Head = epoch_head_transition::unchanged,
+                    .Material = epoch_material_relation::different,
+                    .Primary =
+                        epoch_primary_cause::retention_rehydration,
+                },
+        "durable retention loss deliberately creates one fresh-observation "
+        "replacement epoch with an explicit cause even after counters reset");
+    expect(
+        prior.BaseAvailability == anchor_availability::cache_deleted
+            && prior.HeadAvailability == anchor_availability::cache_deleted,
+        "planning a replacement leaves the prior cache-delete tombstone "
+        "unchanged");
+
+    auto not_required = epoch_preparation_observation{
+        .LatestLive = prior,
+        .ObservedAt = observed_utc_milliseconds{500},
+        .Material = material(),
+    };
+    const auto ordinary_noop = plan_epoch_mutation(
+        owner, unchanged, owner_catalog, not_required);
+    expect(
+        ordinary_noop.Rejection == epoch_reason_code::none
+            && !ordinary_noop.Mutation,
+        "an unchanged source remains a no-op without the durable requirement");
+
+    auto malformed = epoch_preparation_observation{
+        .LatestLive = prior,
+        .ProposedOrdinal = epoch_ordinal{5},
+        .ObservedAt = observed_utc_milliseconds{500},
+        .Material = material(),
+        .RetentionRehydration =
+            retention_rehydration_requirement::required,
+    };
+    malformed.LatestLive->HeadAvailability = anchor_availability::available;
+    expect(
+        plan_epoch_mutation(owner, unchanged, owner_catalog, malformed)
+                .Rejection
+            == epoch_reason_code::invalid_observation,
+        "required rehydration must name an exact cache-deleted comparison "
+        "point");
+
+    malformed.LatestLive = prior;
+    auto reused_source = unchanged;
+    reused_source.Source.Observation = prior.Source.Observation;
+    reused_source.Source.Snapshot = provider_snapshot_id{999U};
+    expect(
+        plan_epoch_mutation(
+            owner, reused_source, owner_catalog, malformed)
+                .Rejection
+            == epoch_reason_code::invalid_observation,
+        "retention rehydration rejects reuse of the prior durable source-"
+        "observation identity regardless of process-local counters");
+
+    auto newer = unchanged;
+    newer.Base = oid<git_commit_oid>(11U);
+    const auto changed = plan_epoch_mutation(
+        owner,
+        newer,
+        owner_catalog,
+        epoch_preparation_observation{
+            .LatestLive = prior,
+            .ProposedOrdinal = epoch_ordinal{5},
+            .ObservedAt = observed_utc_milliseconds{500},
+            .Material = material(61U, 70U),
+            .RetentionRehydration =
+                retention_rehydration_requirement::required,
+        });
+    const auto* changed_append = append_from(changed);
+    expect(
+        changed.Rejection == epoch_reason_code::none && changed_append
+            && changed_append->Epoch.Cause.Origin
+                == epoch_origin::live_observation
+            && changed_append->Epoch.Cause.Primary
+                == epoch_primary_cause::base_update,
+        "a genuine newer live revision replaces missing retention using its "
+        "ordinary semantic cause");
+
+    auto duplicate_observation = newer;
+    duplicate_observation.Source.Observation = prior.Source.Observation;
+    expect(
+        plan_epoch_mutation(
+            owner,
+            duplicate_observation,
+            owner_catalog,
+            epoch_preparation_observation{
+                .LatestLive = prior,
+                .ProposedOrdinal = epoch_ordinal{5},
+                .ObservedAt = observed_utc_milliseconds{500},
+                .HeadLineage = head_lineage::not_applicable,
+                .Material = material(61U, 70U),
+                .RetentionRehydration =
+                    retention_rehydration_requirement::required,
+            })
+                .Rejection
+            == epoch_reason_code::invalid_observation,
+        "one source-observation identity cannot publish a changed semantic "
+        "revision");
+
+    malformed.LatestLive.reset();
+    expect(
+        plan_epoch_mutation(owner, unchanged, owner_catalog, malformed)
+                .Rejection
+            == epoch_reason_code::invalid_observation,
+        "a never-retained pull request cannot claim rehydration");
 }
 
 auto test_association_only_policy() -> void
@@ -2049,6 +2206,7 @@ auto main() -> int
 {
     test_binary_oid_types_and_compact_state();
     test_cause_precedence_and_material_policy();
+    test_retention_rehydration_policy();
     test_association_only_policy();
     test_alias_resolution_and_exact_pairs();
     test_prepare_commit_visibility_and_linearization();

@@ -50,7 +50,9 @@ ctest --preset windows-dev --output-on-failure
 | `better_pull_review_application` | Host, effect/decision ports, serialized completion, manual executor |
 | `better_pull_review_adapter_github` | Normalized provider, native-HTTPS, credential-vault, and recorded-test adapters |
 | `better_pull_review_adapter_git` | Concrete Qt Core/`QProcess` installed-Git local pack/object/ref adapter |
-| `better_pull_review_adapter_{sqlite,ai}` | Capability boundaries established for later RFCs |
+| `better_pull_review_sqlite3` | Pinned static SQLite 3.53.4 amalgamation, exposed as `BetterPullReview::SQLite3` |
+| `better_pull_review_adapter_sqlite` | Concrete BPEC v1 epoch-catalog storage and operation-state adapter |
+| `better_pull_review_adapter_ai` | Capability boundary established for a later RFC |
 | `better_pull_review_adapter_qt` | Native Qt presentation adapter |
 | `better_pull_review_composition` | Explicit profile, transport, vault, provider, worker, host, and Qt wiring |
 | `better_pull_review` | Native read-only GitHub application executable |
@@ -927,13 +929,85 @@ review completed cleanly. A conservative simplification review made no code
 change: the repeated explicit guards and cleanup branches are the executable
 fail-closed invariants rather than safely collapsible duplication.
 
-These commands verify committed application-protocol, native-wire,
-installed-Git, and cache/ref component boundaries. BPR-0044 still owns durable
-operation facts, BPR-0045 owns journal-before-`index-pack`, restart recovery,
-and ref/catalog orchestration, BPR-0047 owns public composition, and BPR-0053
-owns target-native Windows execution. No result above proves durable
+These earlier commands verify committed application-protocol, native-wire,
+installed-Git, and cache/ref component boundaries, not durable operation
+facts. BPR-0044 catalog evidence is recorded separately below. BPR-0045 owns
+journal-before-`index-pack`, real-artifact restart recovery, and ref/catalog
+orchestration; BPR-0047 owns public composition; and BPR-0053 owns target-
+native Windows execution. No BPR-0043 result above proves durable
 authorization, crash recovery, selection by the BetterPullReview executable,
 or Windows behavior.
+
+For the BPR-0044 durable epoch-catalog component, build and run the exact core,
+application-port, storage, and behavior contracts with:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_epoch_core_tests \
+  better_pull_review_application_epoch_catalog_contract_tests \
+  better_pull_review_sqlite_storage_contract_tests \
+  better_pull_review_sqlite_behavior_contract_tests
+ctest --preset dev --output-on-failure \
+  -R '^(core_epoch_policy|application_epoch_catalog_contract|sqlite_epoch_catalog_(storage|behavior)_contract)$'
+ctest --preset dev --output-on-failure \
+  -R '^sqlite_epoch_catalog_(storage|behavior)_contract$' \
+  --repeat until-fail:5
+```
+
+A fresh macOS `dev` matrix passed 58/58. The focused
+core/application/storage/behavior matrix passed 20/20 across five repetitions,
+the AddressSanitizer/UndefinedBehaviorSanitizer matrix passed 4/4, and the
+Qt-free `core-only` matrix passed 25/25. The storage executable verifies private
+fixed-path bootstrap, no-replace publication, exact schema and integrity
+admission, permissions/identity/symlink rejection, cancellation, and exact
+bootstrap-orphan cleanup. The behavior executable verifies authority allocation
+and restart, append/history/anchor/review facts, phase and evidence
+compare-and-swap, revision exhaustion with zero mutation, exact quotas,
+sustained WAL checkpointing, recovery paging, prune/cache-delete intent and
+finalization, abort lifecycle restoration, repair provenance, and repeated
+retention-rehydration cycles.
+
+Prune facts admit only `available`, `unavailable`, or `corrupt` base/head
+starting states and persist those expectations with the exact epoch, OIDs,
+refs, and catalog revision. Begin/replay/finalize/restart drift fails closed.
+Successful finalization marks both anchors and linked non-destructive reviews
+`pruned` and releases retained quota once; replay neither decrements quota nor
+mutates rows again. These tests feed exact absent-ref evidence into the catalog
+and do not perform the BPR-0045 Git ref deletion.
+
+The source-observation fixtures use deterministic nonzero 256-bit values. They
+prove exact persistence, restart round-trip, and rejection of a previously
+published identity within the catalog incarnation. BPR-0045 must generate a
+fresh value from operating-system entropy
+for every accepted observation and retry a catalog-reported collision; no
+BPR-0044 test claims entropy quality.
+
+The catalog builds the pinned SQLite 3.53.4 static amalgamation without a
+system fallback. Runtime admission verifies BPEC application/schema identity,
+the exact 18-table/15-index schema, integrity and foreign keys, prepared
+allowlisted SQL, defensive/trusted-schema policy, 4,096-byte pages, the
+262,144-page 1-GiB main-database limit, local WAL with `synchronous=FULL`, a
+256-page automatic-checkpoint threshold, and disabled memory mapping. History,
+recovery, exact-anchor, and prune batches are bounded to 100; a cache-delete
+set is bounded to 10,000 PR scopes; retained epochs are bounded to 100,000 per
+PR.
+
+A tests-disabled Release build kept SQLite as the pinned static dependency and
+contained no catalog fault-injection symbol or test-only classifier. The
+component does not have a system-SQLite fallback. Tracked and on-disk GitHub
+Actions workflow counts were 0/0.
+
+A clean MinGW cross-build compiled and linked 47/47 targets. `ctest -N` listed
+25 tests, exactly two labeled `BPR-0053` and `target-native-windows`. It did not
+execute a Windows catalog test or any product binary. Only a real Windows x64
+run may satisfy those native cases; the cross-build establishes source and link
+compatibility only.
+
+This component evidence proves durable catalog facts and recovery decisions
+for exact host-supplied observations. BPR-0045 still owns sequencing those
+transactions around real spools, packs, refs, cancellation, and restart;
+BPR-0047 owns public composition; BPR-0053 owns target-native Windows behavior.
+GitHub Actions has no role in any of these commands or claims.
 
 ## Troubleshooting and safe verification
 

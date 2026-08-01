@@ -31,13 +31,6 @@ if(BPR_BUILD_QT)
         PUBLIC
             cxx_std_23
     )
-    if(BUILD_TESTING)
-        target_compile_definitions(
-            better_pull_review_adapter_git
-            PRIVATE
-                BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION=1
-        )
-    endif()
     if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_definitions(
             better_pull_review_adapter_git

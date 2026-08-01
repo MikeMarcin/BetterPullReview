@@ -69,6 +69,13 @@ enum class completion_match : std::uint8_t
         || lineage == head_lineage::unknown;
 }
 
+[[nodiscard]] constexpr auto valid_rehydration_requirement(
+    const retention_rehydration_requirement requirement) noexcept -> bool
+{
+    return requirement == retention_rehydration_requirement::not_required
+        || requirement == retention_rehydration_requirement::required;
+}
+
 [[nodiscard]] constexpr auto valid_alias(const named_comparison alias) noexcept
     -> bool
 {
@@ -116,7 +123,8 @@ enum class completion_match : std::uint8_t
 {
     const bool origin = cause.Origin == epoch_origin::initial_observation
         || cause.Origin == epoch_origin::live_observation
-        || cause.Origin == epoch_origin::explicit_historical_import;
+        || cause.Origin == epoch_origin::explicit_historical_import
+        || cause.Origin == epoch_origin::retention_rehydration;
     const bool base = cause.Base == epoch_base_transition::not_applicable
         || cause.Base == epoch_base_transition::unchanged
         || cause.Base == epoch_base_transition::base_oid_changed
@@ -136,7 +144,8 @@ enum class completion_match : std::uint8_t
         || cause.Primary == epoch_primary_cause::force_push_rebase
         || cause.Primary == epoch_primary_cause::author_upload
         || cause.Primary == epoch_primary_cause::head_change_lineage_unavailable
-        || cause.Primary == epoch_primary_cause::base_update;
+        || cause.Primary == epoch_primary_cause::base_update
+        || cause.Primary == epoch_primary_cause::retention_rehydration;
     if(!(origin && base && head && material && primary))
     {
         return false;
@@ -145,6 +154,7 @@ enum class completion_match : std::uint8_t
     {
         return cause.Base == epoch_base_transition::not_applicable
             && cause.Head == epoch_head_transition::not_applicable
+            && cause.Material == epoch_material_relation::unknown
             && cause.Primary == epoch_primary_cause::initial_observation;
     }
     if(cause.Origin == epoch_origin::explicit_historical_import)
@@ -152,6 +162,12 @@ enum class completion_match : std::uint8_t
         return cause.Base == epoch_base_transition::not_applicable
             && cause.Head == epoch_head_transition::not_applicable
             && cause.Primary == epoch_primary_cause::explicit_historical_import;
+    }
+    if(cause.Origin == epoch_origin::retention_rehydration)
+    {
+        return cause.Base == epoch_base_transition::unchanged
+            && cause.Head == epoch_head_transition::unchanged
+            && cause.Primary == epoch_primary_cause::retention_rehydration;
     }
     if(cause.Base == epoch_base_transition::not_applicable
        || cause.Head == epoch_head_transition::not_applicable)
@@ -193,9 +209,7 @@ enum class completion_match : std::uint8_t
 {
     return valid(epoch.Id) && epoch.Id.Authority == authority.Scope
         && epoch.Id.Incarnation == catalog.Incarnation
-        && valid_nonzero(epoch.Source.Snapshot.value())
-        && valid_nonzero(epoch.Source.IdentityGeneration.value())
-        && valid_nonzero(epoch.Source.PullRequestGeneration.value())
+        && valid(epoch.Source)
         && epoch.BaseBranch.valid() && epoch.Base.valid() && epoch.Head.valid()
         && epoch.Base.algorithm() == epoch.Head.algorithm()
         && (!epoch.Material.has_value()
@@ -1505,6 +1519,14 @@ auto valid(const pull_request_authority& authority) noexcept -> bool
         && authority.Number.valid() && authority.Scope.valid();
 }
 
+auto valid(const pull_request_source_revision& revision) noexcept -> bool
+{
+    return revision.Observation.valid()
+        && valid_nonzero(revision.Snapshot.value())
+        && valid_nonzero(revision.IdentityGeneration.value())
+        && valid_nonzero(revision.PullRequestGeneration.value());
+}
+
 auto valid(const accepted_pull_request_revision& revision) noexcept -> bool
 {
     const bool valid_origin =
@@ -1520,13 +1542,16 @@ auto valid(const accepted_pull_request_revision& revision) noexcept -> bool
             && revision.CurrentViewerReview->Commit.algorithm()
                 == revision.Base.algorithm());
 
-    return valid_nonzero(revision.Source.Snapshot.value())
-        && valid_nonzero(revision.Source.IdentityGeneration.value())
-        && valid_nonzero(revision.Source.PullRequestGeneration.value())
-        && valid_origin && revision.BaseBranch.valid() && revision.Base.valid()
+    return valid(revision.Source) && valid_origin
+        && revision.BaseBranch.valid() && revision.Base.valid()
         && revision.Head.valid()
         && revision.Base.algorithm() == revision.Head.algorithm()
         && valid_review;
+}
+
+auto valid(const epoch_cause& cause) noexcept -> bool
+{
+    return valid_cause(cause);
 }
 
 auto valid(const epoch_catalog_identity& catalog) noexcept -> bool
@@ -1675,6 +1700,8 @@ auto plan_epoch_mutation(
        || (revision.CurrentViewerReview.has_value()
            && revision.CurrentViewerReview->Actor != authority.Viewer)
        || !valid_lineage(observation.HeadLineage)
+       || !valid_rehydration_requirement(
+           observation.RetentionRehydration)
        || (observation.CatalogCurrentViewerReview.has_value()
            && (!valid_catalog_review(*observation.CatalogCurrentViewerReview)
                || observation.CatalogCurrentViewerReview->Actor
@@ -1721,8 +1748,34 @@ auto plan_epoch_mutation(
             observation.LatestLive->Material);
     }
 
-    const bool revision_changed =
-        historical || initial || branch_changed || base_changed || head_changed;
+    const bool retention_required = observation.RetentionRehydration
+        == retention_rehydration_requirement::required;
+    if(retention_required
+       && (historical || !observation.LatestLive.has_value()
+           || observation.LatestLive->BaseAvailability
+               != anchor_availability::cache_deleted
+           || observation.LatestLive->HeadAvailability
+               != anchor_availability::cache_deleted))
+    {
+        return {.Rejection = epoch_reason_code::invalid_observation};
+    }
+    const bool source_observation_reused = observation.LatestLive
+        && revision.Source.Observation
+            == observation.LatestLive->Source.Observation;
+    const bool rehydrating = retention_required && !branch_changed
+        && !base_changed && !head_changed && !source_observation_reused;
+    if(retention_required && !branch_changed && !base_changed && !head_changed
+       && !rehydrating)
+    {
+        return {.Rejection = epoch_reason_code::invalid_observation};
+    }
+
+    const bool revision_changed = historical || initial || retention_required
+        || branch_changed || base_changed || head_changed;
+    if(revision_changed && !initial && source_observation_reused)
+    {
+        return {.Rejection = epoch_reason_code::invalid_observation};
+    }
     if(revision_changed)
     {
         if(!observation.ProposedOrdinal.has_value()
@@ -1775,8 +1828,8 @@ auto plan_epoch_mutation(
         return {.Rejection = epoch_reason_code::invalid_observation};
     }
 
-    if(!historical && !initial && !branch_changed && !base_changed
-       && !head_changed)
+    if(!historical && !initial && !retention_required && !branch_changed
+       && !base_changed && !head_changed)
     {
         if(!revision.CurrentViewerReview.has_value())
         {
@@ -1823,6 +1876,13 @@ auto plan_epoch_mutation(
         cause.Base = epoch_base_transition::not_applicable;
         cause.Head = epoch_head_transition::not_applicable;
         cause.Primary = epoch_primary_cause::initial_observation;
+    }
+    else if(rehydrating)
+    {
+        cause.Origin = epoch_origin::retention_rehydration;
+        cause.Base = epoch_base_transition::unchanged;
+        cause.Head = epoch_head_transition::unchanged;
+        cause.Primary = epoch_primary_cause::retention_rehydration;
     }
     else
     {

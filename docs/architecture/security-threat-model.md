@@ -543,9 +543,9 @@ repository are resolved and validated before launch. The received pack is
 first bounded into the exact private request-owned
 `incoming/v1/<operation64>.pack.part` spool. BPR-0043's cache/ref contract
 validates the completed spool and exposes opaque pack-receipt and pre-import
-inventory facts, but does not durably record them. BPR-0044 must persist the
-pack identity, pre-import pack inventory, and preexisting-pack fact before
-BPR-0045 may authorize streaming that spool to this fixed import shape with
+inventory facts, but does not durably record them. BPR-0044 persists the pack
+identity, pre-import pack inventory, and preexisting-pack fact. BPR-0045 must
+prove that record before authorizing streaming to this fixed import shape with
 the validated numeric bound:
 
 ```text
@@ -564,10 +564,10 @@ git -c core.fsync=all
 `fetch-pack`, `--keep`, `--fix-thin`, network subcommands, arbitrary
 arguments, and a shell are not admitted. Exact bounded output and on-disk
 pack/index paths are validated before staging refs are created, then the spool
-is exact-deleted. The future composed recovery path can identify a newly
-created pack before deleting it only after BPR-0044 and BPR-0045 supply the
-required durable facts and sequencing; BPR-0043 alone does not prove that
-recovery. The child environment is constructed from nothing, selects
+is exact-deleted. BPR-0044 supplies the durable facts that can identify a newly
+created pack; BPR-0045 must consume them in the composed sequencing before
+recovery may delete that pack. BPR-0043 alone does not prove that recovery.
+The child environment is constructed from nothing, selects
 app-owned empty system and global configuration/template roots, and admits
 only the exact validated app-owned local bare-repository configuration.
 Command overrides and source boundaries exclude credential helpers, askpass,
@@ -605,7 +605,7 @@ records whether the expected pack already existed. These facts are
 serializable recovery inputs; their accompanying opaque authorization tokens
 are only live-session state and are not durable evidence.
 
-BPR-0044 must durably store the exact completed-spool, expected-pack,
+BPR-0044 durably stores the exact completed-spool, expected-pack,
 pack-inventory, and preexisting-pack facts. BPR-0045 must commit that record
 before local import and enforce the remaining ref/catalog/recovery order,
 BPR-0047 must select the complete path in the public application, and
@@ -664,6 +664,21 @@ cache-delete operation state. Named aliases are core policy resolved from
 these exact facts, not a caller-editable or independently authoritative alias
 table. Composite-identity tables use `WITHOUT ROWID` where applicable.
 
+The v1 schema is closed: 18 `STRICT, WITHOUT ROWID` tables and 15 indexes are
+matched by type, name, and canonical SQL on every open. The adapter also
+verifies the singleton incarnation, `integrity_check(1)`, and
+`foreign_key_check`. Operation-detail tables carry a fixed kind and a
+composite foreign key to a parent operation of that same kind, preventing a
+wrong-kind detail row from acquiring authority. Each epoch also carries the
+exact nonzero 256-bit source-observation identity supplied by the host, and the
+catalog enforces uniqueness among published epochs within one catalog
+incarnation. A retention replacement must not reuse an identity even when its
+semantic provider revision and Git anchors correspond to the cache-deleted
+latest epoch; there is no source-identity reuse exception. BPR-0045 owns
+operating-system-entropy generation for every accepted observation and retry
+after a catalog-reported collision. Deterministic BPR-0044 fixtures prove
+persistence, restart behavior, and collision rejection, not entropy quality.
+
 The catalog does not contain credentials, Authorization data, source bodies,
 patches, comments/review bodies, pack data, raw provider payloads, logins,
 hostnames, repository names, clone URLs, generic JSON payloads, or unrestricted
@@ -672,25 +687,61 @@ OIDs are stored as algorithm plus binary digest.
 
 The catalog opens only its fixed validated app-owned local path through
 [`sqlite3_open_v2`](https://sqlite.org/c3ref/open.html), with read/write,
-create, serialized mutex, private-cache, and no-follow behavior and without
-URI filename interpretation. Loadable extensions and shared cache are
-disabled. The connection enables
+extended-result-code, serialized-mutex, private-cache, and no-follow behavior,
+without `SQLITE_OPEN_CREATE` or URI filename interpretation. First creation is
+a separate secure bootstrap that pre-creates a private file, initializes and
+validates it, checkpoints it, and publishes it without replacement. Loadable
+extensions, shared cache, and attachments are disabled. The connection enables
 [`SQLITE_DBCONFIG_DEFENSIVE`](https://sqlite.org/c3ref/c_dbconfig_defensive.html),
 `trusted_schema=OFF`, foreign keys, a fixed nonzero
 [`application_id`](https://sqlite.org/pragma.html#pragma_application_id) of
 `0x42504543`, and an exact
 [`user_version`](https://sqlite.org/pragma.html#pragma_user_version) of `1`.
-A single serialized writer uses prepared statements and bounded values.
-Local [WAL](https://sqlite.org/wal.html) mode with
+A runtime authorizer restricts reads and mutations to the 18 exact tables and
+admits only the required aggregate/scalar functions and transaction actions.
+Views, triggers, writable schema, memory mapping, SQLite worker threads, and
+caller-provided SQL are unavailable. A single serialized writer uses prepared
+statements and bounded values. Local [WAL](https://sqlite.org/wal.html) mode with
 [`synchronous=FULL`](https://sqlite.org/pragma.html#pragma_synchronous) is
 required; a network filesystem is not supported.
 
-The exact vendored SQLite release, source checksum, compile options, and
-platform build proof are deliberately selected and reviewed in the
-implementation/dependency card. This architecture does not pin an unreviewed
-release or digest. Whatever release is selected must directly support the
-open flags and defensive configuration above, and the dependency record must
-prove those options in the built artifact.
+BetterPullReview builds the pinned SQLite 3.53.4 amalgamation as one static
+library without a system fallback. The exact `SQLITE_SOURCE_ID`, official
+archive and source SHA3-256 values, repository intake measurement, and compile
+contract are recorded under `third_party/sqlite/`. The runtime verifies the
+security-relevant compile options before admitting the catalog.
+
+The main database has an exact 4,096-byte page size and 262,144-page ceiling,
+so it cannot exceed 1 GiB. WAL uses a 256-page automatic-checkpoint threshold;
+that threshold is not a hard WAL-file-size promise. The connection also sets a
+2-second busy timeout, disables attachments and memory mapping, and applies
+fixed SQLite limits to values, SQL, columns, expression depth, compound
+selects, virtual-machine operations, function arguments, patterns, variables,
+triggers, and workers. Product-level requests admit at most 100 history or
+recovery rows, 100 exact anchors, 100 prune targets, 10,000 cache-delete PR
+scopes, and 100,000 retained epochs per PR. Exhausted page or logical quota
+maps to a typed `quota_exceeded` result.
+
+On POSIX, the canonical storage root and `state/v1` directories must be owned
+by the effective user at mode `0700`; the database and admitted sidecars must
+be owner `0600`, regular, single-link files. macOS requires a local
+`MNT_LOCAL` filesystem. Linux admits only the configured ext4, XFS, Btrfs,
+tmpfs, F2FS, and overlay set. Bootstrap and orphan cleanup use no-follow,
+descriptor-relative, identity-checked operations and delete only the exact
+random bootstrap grammar before atomic no-replace publication.
+
+Guarded Windows source accepts only a canonical drive path on a fixed NTFS or
+ReFS volume with persistent ACL, Unicode, case-preservation, and open-by-ID
+support. The storage root, state/version directories, database, sidecars,
+lock, and bootstrap artifacts require the exact `TokenUser` owner and a
+protected one-ACE owner-only DACL. Reparse, delete-pending, multi-link, and
+identity-substituted leaves fail closed. Retained no-delete-share directory
+handles protect the live ancestor chain, and a private per-catalog VFS admits
+only the exact main, WAL, SHM, and journal names, pre-creates private sidecars,
+and compares the underlying SQLite native handle to the guarded file identity.
+Bootstrap publication uses a verified source handle and a retained parent
+handle with no replacement. These statements describe implemented and
+cross-compiled Windows source; BPR-0053 still owns target-native execution.
 
 SQLite is the publication authority; refs alone are not catalog records.
 The host performs one recoverable two-resource protocol:
@@ -750,6 +801,14 @@ never guesses, and never exposes a scope before fresh matching authenticated
 authority is accepted. Schema drift, SQLite integrity failure, or
 repository-manifest drift also fails closed.
 
+BPR-0044 implements and directly exercises the durable catalog state machine,
+including exact operation facts, phase/evidence compare-and-swap, restart
+paging, idempotent catalog finalization, destructive tombstones, and repair
+provenance. Its fixtures pass exact ref/object outcomes in as typed host
+evidence; they do not mutate or recover real Git refs. BPR-0045 retains the
+two-resource orchestration and stale-publication boundary, and BPR-0047 retains
+selection through the public executable.
+
 ### Quotas, pruning, and deletion
 
 Wire, temporary-storage, repository, object, ref, epoch, catalog-row, text,
@@ -766,11 +825,20 @@ GC. Exact whole-cache deletion is the only guaranteed repository-byte
 reclamation path.
 
 Prune and delete are explicit exact-scope commands with a user-visible
-consequence summary. Pruning an epoch uses the same durable-intent/ref/catalog
-protocol, removes only its paired refs, and records the retained anchor/epoch
-identity as a pruned tombstone. Any named alias whose semantic candidate is
-that epoch becomes explicitly unavailable and never remaps to an older
-resident epoch. Repository-cache deletion enumerates and durably records every
+consequence summary. A BPR-0044 prune intent persists the exact base/head OIDs,
+retained-ref identities, expected catalog revision, and each anchor's expected
+starting availability. Only `available`, `unavailable`, and `corrupt` may enter
+the operation. Begin, replay, finalization, finalized replay, and restart reject
+any revision, identity, or availability drift. After BPR-0045 supplies exact
+paired-ref absence, one catalog transaction marks both anchors and every linked
+non-destructive review association `pruned`, advances the revision, and releases
+the retained-epoch quota exactly once. BPR-0044 does not mutate Git refs, and
+replay cannot decrement quota or mutate rows a second time.
+
+The retained anchor/epoch identity remains as a pruned tombstone. Any named
+alias whose semantic candidate is that epoch becomes explicitly unavailable
+and never remaps to an older resident epoch. Repository-cache deletion
+enumerates and durably records every
 affected PR scope in the one exact account/profile cache partition and cannot
 touch another partition. Handles are closed, the exact validated directory is
 atomically renamed into a transaction-named app-owned quarantine,
@@ -778,6 +846,18 @@ cache-deleted tombstones and revisions are finalized, and only that
 quarantined path is removed. A failed or interrupted physical delete remains
 a retryable unavailable tombstone and is never rediscovered as a cache.
 Secure erasure from WAL/journal files or SSD media is not claimed.
+
+Deleting a physical cache does not erase the stable PR authority or rewrite
+its history. Reopening the same authenticated PR reparents that stable scope to
+a fresh physical cache. Only when its latest live epoch has both anchors
+durably marked `cache_deleted` does the catalog expose
+`retention_rehydration_required`. That exact fact permits one higher-ordinal,
+semantically corresponding epoch with a nonzero host-issued 256-bit source-
+observation identity not previously published in the catalog incarnation and
+an explicit retention-rehydration cause;
+finalization clears the flag atomically and preserves the old tombstone. A PR
+with no latest live epoch, a partially deleted pair, or an ordinary unchanged
+observation cannot use this exception.
 
 Credentials and sensitive source content are absent from ref names, SQLite,
 process arguments and environments, diagnostics, logs, crash artifacts,
@@ -793,3 +873,17 @@ GitHub Actions is not a build, test, package, release, or security-verification
 surface for BetterPullReview. Native transport evidence is produced by local
 and target-native CMake/CTest runs, loopback fixtures, dependency inspection,
 and runtime observation.
+
+The BPR-0044 fresh macOS `dev` matrix passed 58/58, its focused
+core/application/storage/behavior matrix passed 20/20 across five repetitions,
+the AddressSanitizer/UndefinedBehaviorSanitizer matrix passed 4/4, and the
+Qt-free `core-only` matrix passed 25/25. A tests-disabled Release build used the
+pinned static SQLite dependency and exposed no catalog fault-injection seam.
+Tracked and on-disk GitHub Actions workflow counts were 0/0.
+
+A clean MinGW cross-build compiled and linked 47/47 targets. Its inventory
+listed 25 tests, exactly two labeled `BPR-0053` and `target-native-windows`, but
+no Windows executable was run. Those results establish source/link
+compatibility only. BPR-0045 retains real Git/ref recovery orchestration,
+BPR-0047 retains public composition, and BPR-0053 retains every target-native
+Windows catalog claim.

@@ -6,8 +6,11 @@ namespace bpr::core
 {
 [[nodiscard]] auto valid(const pull_request_authority& authority) noexcept
     -> bool;
+[[nodiscard]] auto valid(const pull_request_source_revision& revision) noexcept
+    -> bool;
 [[nodiscard]] auto valid(
     const accepted_pull_request_revision& revision) noexcept -> bool;
+[[nodiscard]] auto valid(const epoch_cause& cause) noexcept -> bool;
 [[nodiscard]] auto valid(const epoch_catalog_identity& catalog) noexcept
     -> bool;
 [[nodiscard]] auto valid(const review_epoch_id& epoch) noexcept -> bool;

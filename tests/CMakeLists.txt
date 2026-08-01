@@ -108,6 +108,7 @@ add_custom_target(
 add_subdirectory(core)
 add_subdirectory(application)
 add_subdirectory(contract)
+add_subdirectory(sqlite_contract)
 
 if(BPR_BUILD_QT)
     add_subdirectory(adapters_qt)

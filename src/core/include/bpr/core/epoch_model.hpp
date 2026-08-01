@@ -209,6 +209,7 @@ struct review_association_id_tag;
 struct repository_cache_scope_id_tag;
 struct host_authority_fingerprint_tag;
 struct epoch_operation_id_tag;
+struct epoch_source_observation_id_tag;
 
 using github_profile_revision = strong_id<github_profile_revision_tag>;
 using github_viewer_actor_id = strong_id<github_viewer_actor_id_tag>;
@@ -237,6 +238,8 @@ using repository_cache_scope_id =
 using host_authority_fingerprint =
     fixed_identity_256<host_authority_fingerprint_tag>;
 using epoch_operation_id = fixed_identity_256<epoch_operation_id_tag>;
+using epoch_source_observation_id =
+    fixed_identity_256<epoch_source_observation_id_tag>;
 
 inline constexpr auto maximum_epoch_ordinal =
     std::numeric_limits<std::int64_t>::max();
@@ -303,6 +306,7 @@ struct pull_request_authority
 
 struct pull_request_source_revision
 {
+    epoch_source_observation_id Observation;
     provider_snapshot_id Snapshot;
     github_identity_generation IdentityGeneration;
     request_generation PullRequestGeneration;
@@ -396,6 +400,7 @@ enum class epoch_origin : std::uint8_t
     initial_observation,
     live_observation,
     explicit_historical_import,
+    retention_rehydration,
 };
 
 enum class epoch_base_transition : std::uint8_t
@@ -431,6 +436,7 @@ enum class epoch_primary_cause : std::uint8_t
     author_upload,
     head_change_lineage_unavailable,
     base_update,
+    retention_rehydration,
 };
 
 struct epoch_cause
@@ -556,6 +562,12 @@ struct comparison_candidates
     auto operator<=>(const comparison_candidates&) const = default;
 };
 
+enum class retention_rehydration_requirement : std::uint8_t
+{
+    not_required,
+    required,
+};
+
 struct epoch_preparation_observation
 {
     std::optional<review_epoch_summary> LatestLive;
@@ -565,6 +577,8 @@ struct epoch_preparation_observation
     observed_utc_milliseconds ObservedAt;
     head_lineage HeadLineage = head_lineage::not_applicable;
     std::optional<epoch_material_identity> Material;
+    retention_rehydration_requirement RetentionRehydration =
+        retention_rehydration_requirement::not_required;
 
     auto operator<=>(const epoch_preparation_observation&) const = default;
 };

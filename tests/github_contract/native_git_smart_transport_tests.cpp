@@ -151,6 +151,8 @@ template<typename Oid>
             core::accepted_pull_request_revision{
                 .Source =
                     core::pull_request_source_revision{
+                        .Observation = opaque<
+                            core::epoch_source_observation_id>(9U),
                         .Snapshot = core::provider_snapshot_id{301U},
                         .IdentityGeneration =
                             core::github_identity_generation{207U},

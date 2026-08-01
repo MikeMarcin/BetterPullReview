@@ -19,6 +19,14 @@ presentation mapping. Every operation carries application session, profile,
 host, account, repository, pull request, provider snapshot, identity/PR/epoch
 generation, request, and expected catalog revision.
 
+Mint a fresh nonzero 256-bit source-observation identity from operating-system
+entropy for every accepted observation, including a semantically corresponding
+retention rehydration. Retry a catalog-incarnation-wide collision with a newly
+minted identity; never derive the identity from provider fields, process-local
+counters, catalog ordinals, or durable semantic revision values. BPR-0044
+persists the host-issued identity and rejects reuse but does not generate or
+prove its entropy.
+
 Enforce the recoverable phase order: validate and durably complete the spool;
 persist the BPR-0044 operation record with expected-pack, pre-import inventory,
 and preexisting-pack facts; only then call BPR-0042 `index-pack`; independently

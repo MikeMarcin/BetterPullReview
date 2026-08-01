@@ -1,0 +1,45 @@
+add_library(
+    better_pull_review_adapter_sqlite
+    STATIC
+        src/catalog_database.cpp
+        src/epoch_catalog.cpp
+)
+add_library(
+    BetterPullReview::AdapterSQLite
+    ALIAS
+    better_pull_review_adapter_sqlite
+)
+target_include_directories(
+    better_pull_review_adapter_sqlite
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+)
+target_link_libraries(
+    better_pull_review_adapter_sqlite
+    PUBLIC
+        BetterPullReview::Application
+    PRIVATE
+        BetterPullReview::SQLite3
+)
+target_compile_features(
+    better_pull_review_adapter_sqlite
+    PUBLIC
+        cxx_std_23
+)
+if(WIN32)
+    target_link_libraries(
+        better_pull_review_adapter_sqlite
+        PRIVATE
+            Advapi32
+            Bcrypt
+    )
+endif()
+if(BPR_BUILD_TESTS)
+    target_compile_definitions(
+        better_pull_review_adapter_sqlite
+        PRIVATE
+            BPR_SQLITE_TESTING=1
+    )
+endif()
+bpr_enable_hardening(better_pull_review_adapter_sqlite)
+bpr_enable_warnings(better_pull_review_adapter_sqlite)
