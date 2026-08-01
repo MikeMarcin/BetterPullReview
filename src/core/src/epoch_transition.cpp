@@ -2204,6 +2204,10 @@ template<typename Event>
             kind == epoch_maintenance_kind::prune_epochs
             ? event.Context.Epochs
             : std::vector<review_epoch_id>{},
+        .AvailabilityChangedTo =
+            kind == epoch_maintenance_kind::prune_epochs
+            ? std::optional{anchor_availability::pruned}
+            : std::nullopt,
         .AllEpochAvailability =
             kind == epoch_maintenance_kind::delete_repository_cache
             ? std::optional{anchor_availability::cache_deleted}

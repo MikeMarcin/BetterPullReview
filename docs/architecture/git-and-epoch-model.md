@@ -1068,7 +1068,8 @@ comparison_projection
     alias/reason, availability, comparison generation
 
 epoch_catalog_changed_projection
-    inserted/removed/changed stable IDs and catalog revision
+    inserted/removed/changed stable IDs, exact resulting availability,
+    and catalog revision
 
 epoch_history_page_projection
     requested cursor/limit, phase/reason, stable sanitized rows,
@@ -1081,10 +1082,12 @@ The projection contract can express revision-bound page delivery and
 stable-ID changes without provider, Git, SQLite, credential, or host-request
 records. BPR-0045 emits bounded append/authority/comparison/status updates;
 BPR-0056 emits bounded history-page updates, and BPR-0055 emits maintenance
-changes. Routine changes must use exact insert/remove/data-change signals
-rather than resetting the model or rebuilding all rows. A complete authority
-replacement may replace the model, while persistent indexes from an old
-authority are never reused.
+changes. The maintenance delta carries both the exact changed epoch IDs and
+their resulting availability, so Qt never infers `pruned` from a prior command;
+whole-cache deletion remains one explicit bulk `cache_deleted` value. Routine
+changes use exact insert/remove/move/data-change signals rather than resetting
+the model or rebuilding all rows. A complete authority replacement may replace
+the model, while persistent indexes from an old authority are never reused.
 
 The reusable RFC-BPR-0003 control contains two independent selectors, named
 comparison actions, exact non-elided/copyable OID fields, explicit unavailable
@@ -1092,6 +1095,14 @@ states, keyboard operation, visible native focus, accessible relationships,
 and one bounded deduplicated announcement. Qt dispatches typed IDs/aliases and
 never compares OIDs, resolves aliases, classifies causes, queries SQLite,
 reads the cache, or launches Git.
+
+The live model retains only pages delivered to Qt and exposes each epoch's
+base and head as distinct typed anchor choices while keeping one stable epoch
+row projection as their source. A resolved current-viewer review anchor may
+remain selected and expose its exact OID without being invented as an epoch
+row. The control is embedded in the interim loaded pull-request surface;
+BPR-0047 still owns production epoch-host wiring and second-process public
+composition.
 
 The control inherits the current system palette and native style. It adds no
 custom theme or final-workbench visual claim. RFC-BPR-0005 retains its

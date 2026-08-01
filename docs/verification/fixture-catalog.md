@@ -824,6 +824,32 @@ or private repository data and performs no GitHub effect. Its forced
 offscreen style remains deterministic layout evidence only; it cannot certify
 native operating-system appearance integration.
 
+## Epoch comparison Qt harness
+
+`tests/adapters_qt/epoch_comparison_control_tests.cpp` is the BPR-0046
+provider/Git/filesystem-free projection consumer. Its stable model expands
+each delivered epoch into exact base/head anchor choices and proves page and
+catalog insert/remove/move/data-change signals, persistent indexes, exact
+per-epoch `pruned` and bulk `cache_deleted` values, and zero routine resets.
+The widget cases drive both selectors, all three named comparison actions,
+bounded history paging, refresh/cancel actions, reverse and identical pairs,
+a distinct current-viewer review anchor, unavailable/no-fallback state, and
+complete 40- and 64-character OID presentation. Loading, retained refresh,
+empty, failed, canceled, pruned, cache-deleted, and never-observed states are
+asserted as visible text.
+
+The same executable checks native focus retention, label/buddy and accessible
+name/read-only surfaces, one bounded deduplicated announcement, and a live font
+change without a model reset. It then publishes the control into the real
+loaded `github_window`, interacts with the actual widgets, and renders the
+complete composition. CTest registers `qt_epoch_comparison_scale_100`,
+`qt_epoch_comparison_scale_125`, and `qt_epoch_comparison_scale_200`; PNGs stay
+under the ignored build tree. These offscreen runs prove deterministic layout
+and interaction only. BPR-0049 retains target-native system Light/Dark UX,
+BPR-0047 retains production host wiring, and BPR-0053 retains real Windows UI
+execution. No GitHub endpoint, mutation, credential, private repository, or
+GitHub Actions workflow is involved.
+
 ## GitHub public application composition fixture
 
 The BPR-0029 test-enabled executable supports

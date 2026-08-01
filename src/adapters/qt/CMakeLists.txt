@@ -2,6 +2,8 @@ add_library(
     better_pull_review_adapter_qt
     STATIC
         src/event_loop_executor.cpp
+        src/epoch_comparison_control.cpp
+        src/epoch_history_model.cpp
         src/foundation_window.cpp
         src/github_conversation_delegate.cpp
         src/github_conversation_model.cpp

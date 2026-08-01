@@ -823,6 +823,17 @@ github_window::github_window(
     metadata_layout->addWidget(TechnicalDetails, 5, 0, 1, 2);
     pull_request_layout->addWidget(metadata_group);
 
+    auto* const comparison_group =
+        new QGroupBox{QStringLiteral("Review comparison"), pull_request_content};
+    comparison_group->setObjectName(
+        QStringLiteral("epochComparisonGroup"));
+    comparison_group->setAccessibleName(
+        QStringLiteral("Review epoch comparison controls"));
+    auto* const comparison_layout = new QVBoxLayout{comparison_group};
+    EpochControl = new epoch_comparison_control{{}, comparison_group};
+    comparison_layout->addWidget(EpochControl);
+    pull_request_layout->addWidget(comparison_group);
+
     ContentSplitter = new QSplitter{
         Qt::Horizontal,
         pull_request_content,
@@ -1118,6 +1129,12 @@ auto github_window::conversation_model() const noexcept
     -> github_conversation_model*
 {
     return ConversationModel;
+}
+
+auto github_window::epoch_control() const noexcept
+    -> epoch_comparison_control*
+{
+    return EpochControl;
 }
 
 auto github_window::status_text() const -> std::string

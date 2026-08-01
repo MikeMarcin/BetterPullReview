@@ -2279,6 +2279,8 @@ struct epoch_application_host::implementation
                     !output.Catalog->Catalog.has_value();
                 update.Catalog->AvailabilityChangedEpochs =
                     output.Catalog->AvailabilityChangedEpochs;
+                update.Catalog->AvailabilityChangedTo =
+                    output.Catalog->AvailabilityChangedTo;
                 update.Catalog->AllEpochAvailability =
                     output.Catalog->AllEpochAvailability;
             }

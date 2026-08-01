@@ -1102,6 +1102,28 @@ deletion tombstone to reject reuse of that cache scope. The fixture uses only
 disposable local directories and no GitHub endpoint, credential, mutation, or
 GitHub Actions workflow.
 
+For the BPR-0046 reusable Qt comparison control, build the actual adapter and
+run its stable-model, interaction, accessibility, and rendered loaded-window
+cases at all three deterministic scales:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_qt_epoch_comparison_tests
+ctest --test-dir build/dev --output-on-failure \
+  -R '^qt_epoch_comparison_scale_(100|125|200)$'
+```
+
+The harness requires exact insert/remove/move/data-change signals, persistent
+anchor indexes, zero routine resets, two catalog-bound selector intents,
+named aliases, reverse/identical/review-anchor pairs, complete SHA-1/SHA-256
+OID text, explicit retained/error/cancel/availability states, focus and
+accessibility, deduplicated bounded announcements, and live font-event
+handling. It then embeds the same control in the real loaded GitHub window and
+saves scale-specific PNGs beneath the ignored build tree. Offscreen output is
+deterministic interaction and geometry evidence, not target-native system
+Light/Dark proof; BPR-0049 retains that gate. BPR-0047 retains production
+epoch-host composition and persistence.
+
 ## Troubleshooting and safe verification
 
 - A GitHub CLI profile is visible but unavailable by design in milestone one.

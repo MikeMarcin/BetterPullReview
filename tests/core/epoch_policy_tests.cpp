@@ -3249,6 +3249,8 @@ auto test_core_authorized_epoch_maintenance() -> void
                 && completed.Catalog
                 && completed.Catalog->AvailabilityChangedEpochs
                     == std::vector{fixture.Epoch.Id, second}
+                && completed.Catalog->AvailabilityChangedTo
+                    == anchor_availability::pruned
                 && !completed.Catalog->AllEpochAvailability
                 && request_from<resolve_comparison_request>(completed)
                     != nullptr,

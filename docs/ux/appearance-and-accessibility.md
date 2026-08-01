@@ -41,12 +41,20 @@ accessible relationships remain legible in both actual system Light and Dark.
 
 Epoch rows are stable projections identified by authority, catalog
 incarnation, and epoch identity. Routine append, prune, availability, cause,
-and selection changes use exact insert/remove/data-change signals rather than
-resetting the model. The row presents the primary cause together with the
+and selection changes use exact insert/remove/move/data-change signals rather
+than resetting the model. The row presents the primary cause together with the
 independent base/head transition facts, including explicit unknown lineage.
-Unavailable aliases remain visibly unavailable and do not fall back to a
-different resident epoch. Color is not the only signal for any of these
-states.
+Both selectors have label/buddy relationships and keyboard actions; the full
+OID fields are named, read-only, and copyable. Unavailable aliases remain
+visibly unavailable and do not fall back to a different resident epoch. One
+bounded polite status-plus-comparison announcement is emitted for a changed
+projection and identical text is suppressed. Color is not the only signal for
+any of these states.
+
+The deterministic 1.0x, 1.25x, and 2.0x offscreen renders exercise the actual
+loaded pull-request composition and verify geometry only. Target-native macOS
+system Light/Dark interaction remains BPR-0049 evidence; these renders do not
+claim it.
 
 This inheritance and incremental-behavior proof is not the final-workbench
 appearance gate. RFC-BPR-0005 retains a distinct integrated-workbench

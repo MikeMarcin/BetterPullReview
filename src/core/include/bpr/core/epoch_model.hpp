@@ -1201,6 +1201,7 @@ struct epoch_catalog_delta
     std::optional<review_epoch_id> InsertedEpoch;
     std::optional<review_association_id> ChangedReviewAssociation;
     std::vector<review_epoch_id> AvailabilityChangedEpochs;
+    std::optional<anchor_availability> AvailabilityChangedTo;
     std::optional<anchor_availability> AllEpochAvailability;
 
     auto operator<=>(const epoch_catalog_delta&) const = default;

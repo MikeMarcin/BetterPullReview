@@ -127,3 +127,38 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "sensitive-text-input-tests:pass"
         TIMEOUT 15
 )
+
+add_executable(
+    better_pull_review_qt_epoch_comparison_tests
+    epoch_comparison_control_tests.cpp
+)
+
+target_link_libraries(
+    better_pull_review_qt_epoch_comparison_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(better_pull_review_qt_epoch_comparison_tests)
+bpr_enable_warnings(better_pull_review_qt_epoch_comparison_tests)
+
+foreach(bpr_epoch_scale IN ITEMS 100 125 200)
+    if(bpr_epoch_scale STREQUAL "100")
+        set(bpr_epoch_scale_factor "1.0")
+    elseif(bpr_epoch_scale STREQUAL "125")
+        set(bpr_epoch_scale_factor "1.25")
+    else()
+        set(bpr_epoch_scale_factor "2.0")
+    endif()
+    add_test(
+        NAME qt_epoch_comparison_scale_${bpr_epoch_scale}
+        COMMAND better_pull_review_qt_epoch_comparison_tests
+    )
+    set_tests_properties(
+        qt_epoch_comparison_scale_${bpr_epoch_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_epoch_scale_factor};BPR_QT_EPOCH_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/epoch-comparison-${bpr_epoch_scale}.png"
+            PASS_REGULAR_EXPRESSION "epoch-comparison-control-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()

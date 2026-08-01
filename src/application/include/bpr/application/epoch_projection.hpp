@@ -110,6 +110,7 @@ struct epoch_catalog_projection
     std::vector<epoch_row_projection> Replacement;
     std::vector<epoch_row_change_projection> Changes;
     std::vector<core::review_epoch_id> AvailabilityChangedEpochs;
+    std::optional<core::anchor_availability> AvailabilityChangedTo;
     std::optional<core::anchor_availability> AllEpochAvailability;
     std::optional<epoch_history_page_projection> HistoryPage;
 

@@ -123,6 +123,15 @@ rather than guessed as an upload or force-push. Append, availability, and
 selection changes update stable rows incrementally without a routine model
 reset.
 
+The interim loaded pull-request surface now hosts this reusable control. Each
+selector lists the exact base and head anchor supplied for a stable epoch, and
+read-only text fields expose the complete selected SHA-1 or SHA-256 OIDs for
+keyboard or pointer copying. A distinct review anchor selected by `My last
+reviewed` remains visible through its exact OID without being presented as a
+fabricated epoch. Loading, retained refresh, empty, failed, canceled, pruned,
+cache-deleted, corrupt, unavailable, and never-observed states use text as well
+as enabled state; color is not their only distinction.
+
 This RFC-BPR-0003 control is the reusable semantic and accessibility surface,
 not final visual acceptance. RFC-BPR-0005 still owns the integrated workbench
 presentation-polish and native visual-acceptance slice. RFC-BPR-0006 owns

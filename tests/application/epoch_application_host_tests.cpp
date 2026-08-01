@@ -3389,8 +3389,10 @@ void core_authorized_prune_composes_exact_durable_cleanup()
                {
                    return update.Catalog
                        && update.Catalog->AvailabilityChangedEpochs
-                       == std::vector{epoch}
-                   && !update.Catalog->Replace;
+                           == std::vector{epoch}
+                       && update.Catalog->AvailabilityChangedTo
+                           == core::anchor_availability::pruned
+                       && !update.Catalog->Replace;
                }),
         "prune publishes an incremental stable-ID availability projection");
 }

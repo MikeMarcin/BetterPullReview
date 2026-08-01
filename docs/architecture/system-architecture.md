@@ -357,6 +357,16 @@ bounded core/host page algebra that exposes at most 100 sanitized rows at a
 time; core state retains only the accepted catalog and continuation, and the
 projection never requests a whole-model reset.
 
+BPR-0046 consumes that projection in one provider/Git/filesystem-free Qt
+control embedded in the interim loaded pull-request window. Its shared stable
+model exposes each epoch's typed base and head anchors to two independent
+selectors, applies routine page/catalog changes with insert/remove/move/data
+signals, and preserves exact selection and copyable SHA-1/SHA-256 OIDs. Named
+actions and selector gestures dispatch only semantic core intents. The
+control owns focus, accessibility, announcements, and live palette/font/style
+invalidation; it does not resolve aliases, compare OIDs, inspect availability,
+or perform an effect.
+
 An epoch ID is scoped by exact authority, catalog incarnation, and a nonzero
 ordinal no greater than `INT64_MAX`. Recreating a deleted catalog creates a
 new incarnation before ordinal reuse. The host presents at most one latest

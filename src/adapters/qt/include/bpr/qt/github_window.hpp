@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 
 #include <QMainWindow>
@@ -70,6 +71,8 @@ public:
     [[nodiscard]] auto conversation_view() const noexcept -> QTreeView*;
     [[nodiscard]] auto conversation_model() const noexcept
         -> github_conversation_model*;
+    [[nodiscard]] auto epoch_control() const noexcept
+        -> epoch_comparison_control*;
     [[nodiscard]] auto status_text() const -> std::string;
     [[nodiscard]] auto diagnostic_text() const -> std::string;
     [[nodiscard]] auto active_host_text() const -> std::string;
@@ -164,6 +167,7 @@ private:
     QSplitter* ContentSplitter = nullptr;
     QTreeView* ConversationView = nullptr;
     github_conversation_model* ConversationModel = nullptr;
+    epoch_comparison_control* EpochControl = nullptr;
 
     std::optional<core::host_profile_id> ActiveProfile;
     std::optional<core::github_account_id> SessionAccount;
