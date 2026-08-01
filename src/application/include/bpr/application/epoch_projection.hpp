@@ -106,10 +106,7 @@ struct epoch_history_page_projection
 struct epoch_catalog_projection
 {
     std::optional<core::epoch_catalog_identity> Catalog;
-    // A replacement is reserved for an exact authority replacement or an
-    // explicitly requested page bootstrap. Routine changes use Changes.
     bool Replace = false;
-    std::vector<epoch_row_projection> Replacement;
     std::vector<epoch_row_change_projection> Changes;
     std::vector<core::review_epoch_id> AvailabilityChangedEpochs;
     std::optional<core::anchor_availability> AvailabilityChangedTo;

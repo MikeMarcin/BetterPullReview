@@ -173,9 +173,13 @@ product/authority/operator updates, explicit no-impact dispositions, focused
 direct reruns, and independent accuracy review. BPR-0066 is now in `done/`
 with core-authorized newest/older navigation, one 100-epoch/200-anchor Qt
 page, stale-page invalidation, out-of-window exact selection, 1,000+ page
-traversal, and real rendered/restart evidence complete. BPR-0052 is unblocked
-in `backlog/` pending its explicit next-task transition. BPR-0053 and BPR-0054
-remain in `backlog/` pending their explicit board transitions.
+traversal, and real rendered/restart evidence complete. BPR-0052 is now in
+`done/` after removing the unused catalog-replacement payload, extracting the
+application timeout snapshot, deliberately retaining fail-closed authority
+structure, and replaying the clean developer, core-only, sanitizer,
+tests-disabled Release, documentation, and rendered integration matrices.
+BPR-0053 and BPR-0054 remain in `backlog/` pending their explicit board
+transitions.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real

@@ -1220,6 +1220,36 @@ void fail_automated_run(
     transition_to_shutdown(application, run);
 }
 
+void capture_automated_timeout_evidence(
+    bpr::app::github_application& application,
+    automated_run& run)
+{
+    auto& window = application.window();
+    run.PresentationPassed = false;
+    run.FailedStage = static_cast<int>(run.Stage);
+    run.LastEpochStatus = window.epoch_control()->status_text();
+    run.LastEpochComparison = window.epoch_control()->comparison_text();
+    run.LastEpochLeft = window.epoch_control()->left_oid_editor()->text();
+    run.LastEpochRight = window.epoch_control()->right_oid_editor()->text();
+    run.LastEpochLeftRow =
+        window.epoch_control()->left_selector()->currentIndex();
+    run.LastEpochRightRow =
+        window.epoch_control()->right_selector()->currentIndex();
+    run.LastEpochCount =
+        window.epoch_control()->history_model()->epoch_count();
+    run.LastEpochHistoryEnabled =
+        window.epoch_control()->load_history_action()->isEnabled();
+    run.LastEpochCoreStatus =
+        static_cast<int>(application.status().EpochStatus);
+#if defined(BPR_BUILD_TESTS)
+    if(!run.Appearance.Enabled)
+#endif
+    {
+        run.RenderSaved = save_render_evidence(window, run.RenderPath);
+    }
+    transition_to_shutdown(application, run);
+}
+
 void schedule_automated_run(
     bpr::app::github_application& application,
     std::shared_ptr<automated_run> run)
@@ -1262,33 +1292,7 @@ void schedule_automated_run(
         if(run->Stage != automated_run::stage::shutdown
            && ++run->Attempts > maximum_attempts)
         {
-            run->PresentationPassed = false;
-            run->FailedStage = static_cast<int>(run->Stage);
-            run->LastEpochStatus = window.epoch_control()->status_text();
-            run->LastEpochComparison =
-                window.epoch_control()->comparison_text();
-            run->LastEpochLeft =
-                window.epoch_control()->left_oid_editor()->text();
-            run->LastEpochRight =
-                window.epoch_control()->right_oid_editor()->text();
-            run->LastEpochLeftRow =
-                window.epoch_control()->left_selector()->currentIndex();
-            run->LastEpochRightRow =
-                window.epoch_control()->right_selector()->currentIndex();
-            run->LastEpochCount =
-                window.epoch_control()->history_model()->epoch_count();
-            run->LastEpochHistoryEnabled =
-                window.epoch_control()->load_history_action()->isEnabled();
-            run->LastEpochCoreStatus = static_cast<int>(
-                application.status().EpochStatus);
-#if defined(BPR_BUILD_TESTS)
-            if(!run->Appearance.Enabled)
-#endif
-            {
-                run->RenderSaved =
-                    save_render_evidence(window, run->RenderPath);
-            }
-            transition_to_shutdown(application, *run);
+            capture_automated_timeout_evidence(application, *run);
         }
 
         switch(run->Stage)

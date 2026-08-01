@@ -324,7 +324,7 @@ void epoch_history_model::apply(
     if(projection.Replace)
     {
         Catalog = projection.Catalog;
-        replace(projection.Replacement);
+        replace({});
     }
     else if(projection.Catalog)
     {
