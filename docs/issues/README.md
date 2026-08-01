@@ -146,8 +146,8 @@ empty-optional access under libc++. BPR-0050's resumed 26-case GCC matrix then
 exposed an eager catalog-optional dereference when a stale preparation
 terminal arrives during conflict reload. Done BPR-0061 now rejects stale
 phase/request/generation values before forming the catalog-dependent context
-and directly covers all three preparation terminals. BPR-0050 remains in
-`backlog/` until that remediation commit, then resumes. BPR-0051 through
+and directly covers all three preparation terminals. BPR-0050 is now in
+`in-progress/` as the resumed security-verification slice. BPR-0051 through
 BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
