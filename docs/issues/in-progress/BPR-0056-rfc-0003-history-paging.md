@@ -1,7 +1,7 @@
 ---
 id: BPR-0056
 title: Implement bounded epoch history paging
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0041, BPR-0044, BPR-0045]
 ---
