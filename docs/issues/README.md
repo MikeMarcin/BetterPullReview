@@ -124,7 +124,9 @@ three-scale rendered loaded-window evidence complete. BPR-0047 is in `done/`
 with the exact accepted GitHub handoff, revocable smart authority, concrete
 Git/cache/catalog/epoch/Qt composition, two-process GitHub.com/GHES
 persistence and cache reuse, tests-disabled Release exclusion, and quiescent
-shutdown directly verified; BPR-0048 through BPR-0054 remain in `backlog/`.
+shutdown directly verified. BPR-0048 is now `in-progress/` at the broad
+combined failure/reordering/resource and clean-matrix verification frontier;
+BPR-0049 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
