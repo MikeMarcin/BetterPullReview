@@ -504,10 +504,11 @@ void epoch_history_model::insert_or_move(
     application::epoch_row_projection row)
 {
     const auto existing = epoch_index_for_id(row.Id);
-    auto target = std::min(requested_index, Rows.size());
+    const auto target = std::min(requested_index, Rows.size());
     if(existing)
     {
         const auto source = *existing;
+        auto current = source;
         if(source != target && target < Rows.size())
         {
             const auto source_first = static_cast<int>(source * 2U);
@@ -523,13 +524,13 @@ void epoch_history_model::insert_or_move(
             Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(target),
                 std::move(moved));
             endMoveRows();
+            current = target;
             Statistics.RowsMoved += 2U;
         }
-        const auto current = epoch_index_for_id(row.Id);
-        if(current && Rows[*current] != row)
+        if(Rows[current] != row)
         {
-            Rows[*current] = std::move(row);
-            const auto first = static_cast<int>(*current * 2U);
+            Rows[current] = std::move(row);
+            const auto first = static_cast<int>(current * 2U);
             emit dataChanged(index(first, 0),
                 index(first + 1, 0),
                 changed_roles());
@@ -538,7 +539,6 @@ void epoch_history_model::insert_or_move(
         return;
     }
 
-    target = std::min(target, Rows.size());
     const auto first = static_cast<int>(target * 2U);
     beginInsertRows({}, first, first + 1);
     Rows.insert(Rows.begin() + static_cast<std::ptrdiff_t>(target),

@@ -123,7 +123,6 @@ add_executable(
 target_link_libraries(
     better_pull_review_epoch_maintenance_integration_tests
     PRIVATE
-        BetterPullReview::Application
         BetterPullReview::AdapterGit
         BetterPullReview::AdapterSQLite
         Qt6::Core
