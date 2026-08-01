@@ -1866,7 +1866,7 @@ struct epoch_application_host::implementation
         }
         update.Transition = std::move(transition);
 
-        if(output.Catalog || output.AcceptedEpoch)
+        if(output.Catalog || output.AcceptedEpoch || output.History)
         {
             update.Catalog = epoch_catalog_projection{};
             if(output.Catalog)
@@ -1887,6 +1887,27 @@ struct epoch_application_host::implementation
                         .Id = output.AcceptedEpoch->Epoch.Id,
                         .Row = projected_row(output.AcceptedEpoch->Epoch),
                     });
+            }
+            if(output.History)
+            {
+                if(!output.Catalog)
+                {
+                    update.Catalog->Catalog = output.History->Catalog;
+                }
+                auto page = epoch_history_page_projection{
+                    .Phase = output.History->Phase,
+                    .Catalog = output.History->Catalog,
+                    .RequestedCursor = output.History->RequestedCursor,
+                    .Limit = output.History->Limit,
+                    .Continuation = output.History->Continuation,
+                    .Reason = output.History->Reason,
+                };
+                page.Rows.reserve(output.History->Epochs.size());
+                for(const auto& epoch : output.History->Epochs)
+                {
+                    page.Rows.push_back(projected_row(epoch));
+                }
+                update.Catalog->HistoryPage = std::move(page);
             }
         }
         publish(update);
@@ -1952,6 +1973,12 @@ struct epoch_application_host::implementation
                                       core::discard_epoch_preparation_request>)
                 {
                     discard_preparation(value);
+                }
+                else if constexpr(std::is_same_v<
+                                      request_type,
+                                      core::load_epoch_history_page_request>)
+                {
+                    start_history_page(value);
                 }
                 else
                 {
@@ -3697,6 +3724,96 @@ struct epoch_application_host::implementation
         }
         discard_context_preparation(
             std::move(context), request.Context.Operation);
+    }
+
+    void start_history_page(
+        const core::load_epoch_history_page_request& request)
+    {
+        auto context = Active;
+        if(!context || context->Authority != request.Context.Authority
+           || context->Revision.Source != request.Context.Source)
+        {
+            return;
+        }
+        auto actor = context->Actor;
+        submit_effect(
+            [context, request](const std::stop_token stop)
+                -> worker_completion
+            {
+                if(
+                    !application::valid(context->Catalog->binding())
+                    || context->Catalog->binding().Authority
+                        != request.Context.Authority
+                    || context->Catalog->binding().Catalog
+                        != request.Context.Catalog)
+                {
+                    return [request](implementation& host)
+                    {
+                        host.dispatch_core(
+                            core::epoch_history_page_load_failed_event{
+                                .Context = request.Context,
+                                .Failure =
+                                    core::epoch_failure::catalog_conflict,
+                            });
+                    };
+                }
+                auto page = context->Catalog->history(
+                    epoch_history_page_request{
+                        .Catalog = request.Context.Catalog,
+                        .Cursor = request.Context.Cursor,
+                        .Limit = request.Context.Limit,
+                    },
+                    stop);
+                if(!page)
+                {
+                    if(page.error() == epoch_catalog_failure::cancelled)
+                    {
+                        return [request](implementation& host)
+                        {
+                            host.dispatch_core(
+                                core::epoch_history_page_load_cancelled_event{
+                                    .Context = request.Context,
+                                });
+                        };
+                    }
+                    const auto failure = catalog_failure(page.error());
+                    return [request, failure](implementation& host)
+                    {
+                        host.dispatch_core(
+                            core::epoch_history_page_load_failed_event{
+                                .Context = request.Context,
+                                .Failure = failure,
+                            });
+                    };
+                }
+                auto observation = core::epoch_history_page_observation{
+                    .Authority = page->Authority,
+                    .Catalog = page->Catalog,
+                    .Epochs = std::move(page->Epochs),
+                    .Continuation = page->Continuation,
+                };
+                return [request, observation = std::move(observation)](
+                           implementation& host)
+                {
+                    host.dispatch_core(core::epoch_history_page_loaded_event{
+                        .Context = request.Context,
+                        .Page = observation,
+                    });
+                };
+            },
+            [request](implementation& host)
+            {
+                host.dispatch_core(
+                    core::epoch_history_page_load_failed_event{
+                        .Context = request.Context,
+                        .Failure = core::epoch_failure::unavailable,
+                    });
+            },
+            request.Context.Request,
+            request.Context.Generation,
+            std::nullopt,
+            std::nullopt,
+            std::move(actor));
     }
 
     void start_comparison_resolution(

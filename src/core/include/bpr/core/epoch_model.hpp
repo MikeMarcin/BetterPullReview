@@ -247,6 +247,7 @@ inline constexpr auto maximum_epoch_catalog_revision =
     std::numeric_limits<std::int64_t>::max();
 inline constexpr auto maximum_comparison_revision =
     std::numeric_limits<std::int64_t>::max();
+inline constexpr std::uint16_t maximum_epoch_history_page_size = 100U;
 inline constexpr std::int64_t maximum_observed_utc_milliseconds =
     253'402'300'799'999LL;
 inline constexpr std::uint16_t maximum_github_review_order = 10'000U;
@@ -376,6 +377,23 @@ struct epoch_catalog_identity
 
     auto operator<=>(const epoch_catalog_identity&) const = default;
 };
+
+struct epoch_history_cursor
+{
+    pull_request_authority_scope_id Authority;
+    epoch_catalog_incarnation_id Incarnation;
+    epoch_catalog_revision Revision;
+    epoch_ordinal Before;
+
+    auto operator<=>(const epoch_history_cursor&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const epoch_history_cursor& cursor) noexcept -> bool
+{
+    return cursor.Authority.valid() && cursor.Incarnation.valid()
+        && core::valid(cursor.Revision) && core::valid(cursor.Before);
+}
 
 struct review_epoch_id
 {
@@ -668,6 +686,30 @@ struct comparison_context
     auto operator<=>(const comparison_context&) const = default;
 };
 
+struct epoch_history_page_context
+{
+    epoch_request_id Request;
+    application_session_id ApplicationSession;
+    pull_request_authority Authority;
+    pull_request_source_revision Source;
+    epoch_generation Generation;
+    epoch_catalog_identity Catalog;
+    std::optional<epoch_history_cursor> Cursor;
+    std::uint16_t Limit = maximum_epoch_history_page_size;
+
+    auto operator<=>(const epoch_history_page_context&) const = default;
+};
+
+struct epoch_history_page_observation
+{
+    pull_request_authority_scope_id Authority;
+    epoch_catalog_identity Catalog;
+    std::vector<review_epoch_summary> Epochs;
+    std::optional<epoch_history_cursor> Continuation;
+
+    auto operator<=>(const epoch_history_page_observation&) const = default;
+};
+
 struct pull_request_revision_accepted_event
 {
     application_session_id ApplicationSession;
@@ -805,6 +847,31 @@ struct comparison_resolve_cancelled_event
     auto operator<=>(const comparison_resolve_cancelled_event&) const = default;
 };
 
+struct epoch_history_page_loaded_event
+{
+    epoch_history_page_context Context;
+    epoch_history_page_observation Page;
+
+    auto operator<=>(const epoch_history_page_loaded_event&) const = default;
+};
+
+struct epoch_history_page_load_failed_event
+{
+    epoch_history_page_context Context;
+    epoch_failure Failure = epoch_failure::unavailable;
+
+    auto operator<=>(const epoch_history_page_load_failed_event&) const =
+        default;
+};
+
+struct epoch_history_page_load_cancelled_event
+{
+    epoch_history_page_context Context;
+
+    auto operator<=>(const epoch_history_page_load_cancelled_event&) const =
+        default;
+};
+
 struct select_named_comparison_intent
 {
     named_comparison Alias = named_comparison::whole_pr;
@@ -816,6 +883,15 @@ struct select_named_comparison_intent
 struct refresh_epochs_intent
 {
     auto operator<=>(const refresh_epochs_intent&) const = default;
+};
+
+struct request_epoch_history_page_intent
+{
+    epoch_catalog_identity Catalog;
+    std::optional<epoch_history_cursor> Cursor;
+    std::uint16_t Limit = maximum_epoch_history_page_size;
+
+    auto operator<=>(const request_epoch_history_page_intent&) const = default;
 };
 
 struct select_comparison_anchors_intent
@@ -862,7 +938,11 @@ using epoch_event = std::variant<
     comparison_resolved_event,
     comparison_resolve_failed_event,
     comparison_resolve_cancelled_event,
+    epoch_history_page_loaded_event,
+    epoch_history_page_load_failed_event,
+    epoch_history_page_load_cancelled_event,
     refresh_epochs_intent,
+    request_epoch_history_page_intent,
     select_named_comparison_intent,
     select_comparison_anchors_intent,
     select_comparison_anchor_intent,
@@ -913,6 +993,13 @@ struct resolve_comparison_request
     auto operator<=>(const resolve_comparison_request&) const = default;
 };
 
+struct load_epoch_history_page_request
+{
+    epoch_history_page_context Context;
+
+    auto operator<=>(const load_epoch_history_page_request&) const = default;
+};
+
 struct cancel_epoch_work_request
 {
     epoch_request_id Request;
@@ -928,6 +1015,7 @@ using epoch_host_request = std::variant<
     commit_epoch_catalog_request,
     discard_epoch_preparation_request,
     resolve_comparison_request,
+    load_epoch_history_page_request,
     cancel_epoch_work_request>;
 
 enum class epoch_reason_code : std::uint8_t
@@ -937,6 +1025,7 @@ enum class epoch_reason_code : std::uint8_t
     invalid_oid,
     invalid_revision,
     invalid_catalog,
+    invalid_history_cursor,
     invalid_observation,
     invalid_selection,
     no_active_authority,
@@ -944,6 +1033,7 @@ enum class epoch_reason_code : std::uint8_t
     no_resolved_comparison,
     catalog_revision_mismatch,
     stale_completion,
+    duplicate_history_page,
     completion_identity_mismatch,
     request_counter_exhausted,
     epoch_generation_exhausted,
@@ -1048,6 +1138,27 @@ struct epoch_status_delta
     auto operator<=>(const epoch_status_delta&) const = default;
 };
 
+enum class epoch_history_page_phase : std::uint8_t
+{
+    loading,
+    loaded,
+    failed,
+    cancelled,
+};
+
+struct epoch_history_page_delta
+{
+    epoch_history_page_phase Phase = epoch_history_page_phase::loading;
+    epoch_catalog_identity Catalog;
+    std::optional<epoch_history_cursor> RequestedCursor;
+    std::uint16_t Limit = maximum_epoch_history_page_size;
+    std::vector<review_epoch_summary> Epochs;
+    std::optional<epoch_history_cursor> Continuation;
+    epoch_reason_code Reason = epoch_reason_code::none;
+
+    auto operator<=>(const epoch_history_page_delta&) const = default;
+};
+
 struct epoch_diagnostic
 {
     epoch_reason_code Code = epoch_reason_code::none;
@@ -1066,6 +1177,7 @@ enum class epoch_changed_domain : std::uint16_t
     status = 1U << 5U,
     diagnostics = 1U << 6U,
     commands = 1U << 7U,
+    history = 1U << 8U,
 };
 
 [[nodiscard]] constexpr auto operator|(
@@ -1094,6 +1206,7 @@ struct epoch_transition_output
     std::optional<accepted_epoch_delta> AcceptedEpoch;
     std::optional<comparison_selection_delta> Selection;
     std::optional<comparison_resolution_delta> Comparison;
+    std::optional<epoch_history_page_delta> History;
     std::optional<epoch_status_delta> Status;
     std::optional<epoch_command_delta> Commands;
     std::vector<epoch_diagnostic> Diagnostics;
@@ -1129,6 +1242,17 @@ struct pending_comparison_resolution
     auto operator<=>(const pending_comparison_resolution&) const = default;
 };
 
+struct pending_epoch_history_page
+{
+    epoch_request_id Request;
+    epoch_generation Generation;
+    epoch_catalog_identity Catalog;
+    std::optional<epoch_history_cursor> Cursor;
+    std::uint16_t Limit = maximum_epoch_history_page_size;
+
+    auto operator<=>(const pending_epoch_history_page&) const = default;
+};
+
 struct epoch_state
 {
     application_session_id ApplicationSession;
@@ -1145,6 +1269,9 @@ struct epoch_state
     comparison_revision AcceptedComparisonRevision;
     std::optional<pending_epoch_ingestion> PendingIngestion;
     std::optional<pending_comparison_resolution> PendingComparison;
+    std::optional<pending_epoch_history_page> PendingHistory;
+    std::optional<epoch_catalog_identity> HistoryCatalog;
+    std::optional<epoch_history_cursor> HistoryContinuation;
     epoch_status Status = epoch_status::inactive;
 
     auto operator<=>(const epoch_state&) const = default;

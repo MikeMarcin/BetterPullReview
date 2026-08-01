@@ -110,13 +110,15 @@ and guarded-Windows cross-compile/link evidence complete. BPR-0045 is in
 `done/` with the source-free application host, production entropy/clock ports,
 exact append/recovery sequencing, repository FIFO/session isolation,
 stale/cancel rejection, projection containment, and quiescence directly
-verified. BPR-0056 is the sole `in-progress/` card because it is a prerequisite
-for BPR-0046. BPR-0046 through BPR-0055 remain in `backlog/`. BPR-0055 records the
+verified. BPR-0056 is in `done/` with the single revision-bound core cursor,
+bounded intent/request/terminal algebra, repository-actor catalog execution,
+sanitized incremental page projection, stale/revision/cancellation rejection,
+and direct core/manual-executor/SQLite evidence complete. BPR-0046 through
+BPR-0055 remain in `backlog/`. BPR-0055 records the
 identified missing core-authorized prune/cache-delete product path; the
 existing adapter methods are not counted as completed lifecycle behavior.
-BPR-0056 implements the missing bounded core/host history-page algebra required
-before the Qt selector model can present durable history without a reset or an
-unbounded core copy.
+BPR-0056 supplies the bounded core/host history-page algebra required by the
+future BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
 RFC work. BPR-0054 depends on BPR-0035 and BPR-0053, so canonical closeout and

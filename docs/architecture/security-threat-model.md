@@ -848,9 +848,13 @@ page, and transaction counts have hard configured ceilings. Exhaustion fails
 the candidate without publishing and without evicting accepted history.
 There is no TTL, LRU, automatic epoch pruning, or automatic Git maintenance
 that can discard a retained object. Catalog history pages are
-snapshot/revision bound and reject stale cursors. BPR-0056 still owns the
-core-authorized host request/terminal and incremental projection path; the
-catalog method alone is not a completed product paging surface.
+snapshot/revision bound and reject stale cursors. BPR-0056 completes the
+core-authorized host request/terminal and incremental projection path. The
+core requires the exact authority, accepted source, generation, catalog,
+cursor, and 1..100 limit; the host rechecks the live catalog binding before
+querying; stale or reordered terminals cannot publish rows. The projection
+removes the source-observation identity and requests no routine model reset.
+Qt triggering and stable-row consumption remain BPR-0046.
 
 Ref pruning releases a retention root and may reclaim the logical epoch quota,
 but milestone one claims no immediate physical-byte reclamation without Git

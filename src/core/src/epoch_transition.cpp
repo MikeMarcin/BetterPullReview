@@ -389,6 +389,22 @@ auto set_status(
     };
 }
 
+[[nodiscard]] auto current_history_context(
+    const epoch_state& state, const pending_epoch_history_page& pending)
+    -> epoch_history_page_context
+{
+    return epoch_history_page_context{
+        .Request = pending.Request,
+        .ApplicationSession = state.ApplicationSession,
+        .Authority = *state.Authority,
+        .Source = state.AcceptedRevision->Source,
+        .Generation = pending.Generation,
+        .Catalog = pending.Catalog,
+        .Cursor = pending.Cursor,
+        .Limit = pending.Limit,
+    };
+}
+
 template<typename Context>
 [[nodiscard]] auto context_match(
     const std::optional<pending_epoch_ingestion>& pending,
@@ -425,6 +441,24 @@ template<typename Context>
     return actual
             == current_comparison_context(
                 state, state.PendingComparison->Request)
+        ? completion_match::current
+        : completion_match::identity_mismatch;
+}
+
+[[nodiscard]] auto history_context_match(
+    const epoch_state& state, const epoch_history_page_context& actual)
+    -> completion_match
+{
+    if(!state.PendingHistory.has_value())
+    {
+        return completion_match::stale;
+    }
+    if(actual.Request != state.PendingHistory->Request
+       || actual.Generation != state.PendingHistory->Generation)
+    {
+        return completion_match::stale;
+    }
+    return actual == current_history_context(state, *state.PendingHistory)
         ? completion_match::current
         : completion_match::identity_mismatch;
 }
@@ -467,10 +501,37 @@ auto retire_pending_comparison(
     state.PendingComparison.reset();
 }
 
+auto retire_pending_history(
+    epoch_state& state, epoch_transition_output& output) -> void
+{
+    if(!state.PendingHistory.has_value())
+    {
+        return;
+    }
+    const auto pending = *state.PendingHistory;
+    output.Requests.emplace_back(
+        cancel_epoch_work_request{
+            .Request = pending.Request,
+            .Generation = pending.Generation,
+        });
+    output.History = epoch_history_page_delta{
+        .Phase = epoch_history_page_phase::cancelled,
+        .Catalog = pending.Catalog,
+        .RequestedCursor = pending.Cursor,
+        .Limit = pending.Limit,
+        .Reason = epoch_reason_code::cancelled,
+    };
+    output.Changed = output.Changed | epoch_changed_domain::history;
+    state.PendingHistory.reset();
+}
+
 auto clear_catalog_bound_state(
     epoch_state& state, epoch_transition_output& output) -> void
 {
+    retire_pending_history(state, output);
     state.Catalog.reset();
+    state.HistoryCatalog.reset();
+    state.HistoryContinuation.reset();
     state.RequestedSelection = named_selection(named_comparison::whole_pr);
     state.AcceptedComparison.reset();
     state.AcceptedComparisonRevision = comparison_revision{};
@@ -825,6 +886,7 @@ auto clear_ingestion(
     auto output = epoch_transition_output{};
     cancel_pending_ingestion(state, output);
     retire_pending_comparison(state, output);
+    retire_pending_history(state, output);
 
     const auto previous_authority = state.Authority;
     state.EpochGeneration = *next_epoch_generation;
@@ -881,6 +943,7 @@ auto clear_ingestion(
     auto output = epoch_transition_output{};
     cancel_pending_ingestion(state, output);
     retire_pending_comparison(state, output);
+    retire_pending_history(state, output);
     state.EpochGeneration = *next_generation;
     const auto request = take_request(state);
     output.Authority = epoch_authority_delta{
@@ -888,7 +951,7 @@ auto clear_ingestion(
         .Revision = state.AcceptedRevision,
         .Generation = state.EpochGeneration,
     };
-    output.Changed = epoch_changed_domain::authority;
+    output.Changed = output.Changed | epoch_changed_domain::authority;
     start_ingestion(state, output, request);
     return output;
 }
@@ -909,6 +972,7 @@ auto clear_ingestion(
     auto output = epoch_transition_output{};
     cancel_pending_ingestion(state, output);
     retire_pending_comparison(state, output);
+    retire_pending_history(state, output);
 
     const auto previous = state.Authority;
     const auto next_epoch = advanced(state.EpochGeneration);
@@ -990,11 +1054,17 @@ auto clear_ingestion(
         return output;
     }
 
+    epoch_transition_output output;
+    if(state.Catalog != std::optional{event.Catalog})
+    {
+        retire_pending_history(state, output);
+        state.HistoryCatalog.reset();
+        state.HistoryContinuation.reset();
+    }
     state.Catalog = event.Catalog;
     state.PendingIngestion->Phase = epoch_ingestion_phase::preparing;
-    epoch_transition_output output;
     output.Catalog = epoch_catalog_delta{.Catalog = event.Catalog};
-    output.Changed = epoch_changed_domain::catalog;
+    output.Changed = output.Changed | epoch_changed_domain::catalog;
     output.Requests.emplace_back(
         prepare_epoch_revision_request{
             .Context = current_preparation_context(
@@ -1225,12 +1295,14 @@ template<typename Event>
 
     const auto request = state.PendingIngestion->Request;
     const auto mutation = *state.PendingIngestion->Mutation;
+    epoch_transition_output output;
+    retire_pending_history(state, output);
+    state.HistoryCatalog.reset();
+    state.HistoryContinuation.reset();
     state.Catalog->Revision = event.NewRevision;
     state.PendingIngestion.reset();
-
-    epoch_transition_output output;
     output.Catalog = epoch_catalog_delta{.Catalog = *state.Catalog};
-    output.Changed = epoch_changed_domain::catalog;
+    output.Changed = output.Changed | epoch_changed_domain::catalog;
     if(const auto* append = std::get_if<append_epoch_mutation>(&mutation))
     {
         output.AcceptedEpoch = accepted_epoch_delta{
@@ -1417,6 +1489,222 @@ template<typename Event>
 {
     return finish_comparison(
         state, event, epoch_status::cancelled, epoch_reason_code::cancelled);
+}
+
+[[nodiscard]] auto valid_history_page(
+    const epoch_state& state,
+    const epoch_history_page_context& context,
+    const epoch_history_page_observation& page) noexcept -> bool
+{
+    if(
+        !state.Authority.has_value() || !state.Catalog.has_value()
+        || page.Authority != state.Authority->Scope
+        || page.Catalog != context.Catalog
+        || page.Catalog != *state.Catalog
+        || page.Epochs.size() > context.Limit
+        || (page.Continuation.has_value()
+            && (page.Epochs.empty()
+                || page.Epochs.size() != context.Limit
+                || !valid(*page.Continuation)
+                || page.Continuation->Authority != page.Authority
+                || page.Continuation->Incarnation
+                    != page.Catalog.Incarnation
+                || page.Continuation->Revision != page.Catalog.Revision
+                || page.Continuation->Before
+                    != page.Epochs.back().Id.Ordinal)))
+    {
+        return false;
+    }
+
+    std::optional<epoch_ordinal> prior;
+    for(const auto& epoch : page.Epochs)
+    {
+        if(!valid_summary(*state.Authority, page.Catalog, epoch)
+           || (context.Cursor
+               && epoch.Id.Ordinal.value()
+                   >= context.Cursor->Before.value())
+           || (prior && epoch.Id.Ordinal.value() >= prior->value()))
+        {
+            return false;
+        }
+        prior = epoch.Id.Ordinal;
+    }
+    return true;
+}
+
+[[nodiscard]] auto handle(
+    epoch_state& state, const epoch_history_page_loaded_event& event)
+    -> epoch_transition_output
+{
+    const auto match = history_context_match(state, event.Context);
+    if(match != completion_match::current)
+    {
+        return reject_match(match);
+    }
+    const auto pending = *state.PendingHistory;
+    if(!valid_history_page(state, event.Context, event.Page))
+    {
+        state.PendingHistory.reset();
+        epoch_transition_output output;
+        output.History = epoch_history_page_delta{
+            .Phase = epoch_history_page_phase::failed,
+            .Catalog = pending.Catalog,
+            .RequestedCursor = pending.Cursor,
+            .Limit = pending.Limit,
+            .Reason = epoch_reason_code::invalid_observation,
+        };
+        output.Changed = epoch_changed_domain::history;
+        diagnose(output, epoch_reason_code::invalid_observation);
+        return output;
+    }
+
+    state.PendingHistory.reset();
+    state.HistoryCatalog = event.Page.Catalog;
+    state.HistoryContinuation = event.Page.Continuation;
+    epoch_transition_output output;
+    output.History = epoch_history_page_delta{
+        .Phase = epoch_history_page_phase::loaded,
+        .Catalog = event.Page.Catalog,
+        .RequestedCursor = pending.Cursor,
+        .Limit = pending.Limit,
+        .Epochs = event.Page.Epochs,
+        .Continuation = event.Page.Continuation,
+    };
+    output.Changed = epoch_changed_domain::history;
+    return output;
+}
+
+template<typename Event>
+[[nodiscard]] auto finish_history_page(
+    epoch_state& state,
+    const Event& event,
+    const epoch_history_page_phase phase,
+    const epoch_reason_code reason) -> epoch_transition_output
+{
+    const auto match = history_context_match(state, event.Context);
+    if(match != completion_match::current)
+    {
+        return reject_match(match);
+    }
+    const auto pending = *state.PendingHistory;
+    state.PendingHistory.reset();
+    epoch_transition_output output;
+    output.History = epoch_history_page_delta{
+        .Phase = phase,
+        .Catalog = pending.Catalog,
+        .RequestedCursor = pending.Cursor,
+        .Limit = pending.Limit,
+        .Reason = reason,
+    };
+    output.Changed = epoch_changed_domain::history;
+    diagnose(output, reason);
+    return output;
+}
+
+[[nodiscard]] auto handle(
+    epoch_state& state, const epoch_history_page_load_failed_event& event)
+    -> epoch_transition_output
+{
+    if(event.Failure == epoch_failure::catalog_conflict)
+    {
+        const auto match = history_context_match(state, event.Context);
+        if(match != completion_match::current)
+        {
+            return reject_match(match);
+        }
+        return restart_after_catalog_conflict(state);
+    }
+    return finish_history_page(
+        state,
+        event,
+        epoch_history_page_phase::failed,
+        reason_for(event.Failure));
+}
+
+[[nodiscard]] auto handle(
+    epoch_state& state, const epoch_history_page_load_cancelled_event& event)
+    -> epoch_transition_output
+{
+    return finish_history_page(
+        state,
+        event,
+        epoch_history_page_phase::cancelled,
+        epoch_reason_code::cancelled);
+}
+
+[[nodiscard]] auto handle(
+    epoch_state& state, const request_epoch_history_page_intent& intent)
+    -> epoch_transition_output
+{
+    if(!state.Authority.has_value() || !state.AcceptedRevision.has_value())
+    {
+        return reject(epoch_reason_code::no_active_authority);
+    }
+    if(!state.Catalog.has_value())
+    {
+        return reject(epoch_reason_code::no_catalog);
+    }
+    if(!valid(intent.Catalog))
+    {
+        return reject(epoch_reason_code::invalid_catalog);
+    }
+    if(intent.Catalog != *state.Catalog)
+    {
+        return reject(epoch_reason_code::catalog_revision_mismatch);
+    }
+    if(intent.Limit == 0U
+       || intent.Limit > maximum_epoch_history_page_size)
+    {
+        return reject(epoch_reason_code::invalid_observation);
+    }
+    if(state.PendingHistory.has_value())
+    {
+        return reject(epoch_reason_code::duplicate_history_page);
+    }
+    if(intent.Cursor.has_value())
+    {
+        if(
+            !valid(*intent.Cursor)
+            || intent.Cursor->Authority != state.Authority->Scope
+            || intent.Cursor->Incarnation != intent.Catalog.Incarnation
+            || intent.Cursor->Revision != intent.Catalog.Revision
+            || state.HistoryCatalog != std::optional{intent.Catalog}
+            || state.HistoryContinuation != intent.Cursor)
+        {
+            return reject(epoch_reason_code::invalid_history_cursor);
+        }
+    }
+    else if(state.HistoryCatalog == std::optional{intent.Catalog})
+    {
+        return reject(epoch_reason_code::duplicate_history_page);
+    }
+    if(!request_available(state))
+    {
+        return reject(epoch_reason_code::request_counter_exhausted);
+    }
+
+    const auto request = take_request(state);
+    state.PendingHistory = pending_epoch_history_page{
+        .Request = request,
+        .Generation = state.EpochGeneration,
+        .Catalog = intent.Catalog,
+        .Cursor = intent.Cursor,
+        .Limit = intent.Limit,
+    };
+    epoch_transition_output output;
+    output.Requests.emplace_back(
+        load_epoch_history_page_request{
+            .Context = current_history_context(
+                state, *state.PendingHistory),
+        });
+    output.History = epoch_history_page_delta{
+        .Phase = epoch_history_page_phase::loading,
+        .Catalog = intent.Catalog,
+        .RequestedCursor = intent.Cursor,
+        .Limit = intent.Limit,
+    };
+    output.Changed = epoch_changed_domain::history;
+    return output;
 }
 
 [[nodiscard]] auto start_selection(

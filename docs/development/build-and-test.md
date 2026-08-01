@@ -1005,9 +1005,10 @@ compatibility only.
 This component evidence proves durable catalog facts and recovery decisions
 for exact host-supplied observations. The next section records the BPR-0045
 host composition of those facts; BPR-0047 owns public composition, BPR-0055
-owns maintenance authorization/recovery, BPR-0056 owns history paging, and
-BPR-0053 owns target-native Windows behavior. GitHub Actions has no role in any
-of these commands or claims.
+owns maintenance authorization/recovery, BPR-0056 completes core/host history
+paging, BPR-0046 owns its Qt consumption, and BPR-0053 owns target-native
+Windows behavior. GitHub Actions has no role in any of these commands or
+claims.
 
 For the BPR-0045 epoch application-host component, build and run the source-
 free handoff/runtime-port contract, manual-executor host contract, core policy,
@@ -1048,10 +1049,19 @@ reentrant ingress without recursive publication, and shutdown quiescence. The re
 exercise the installed-Git, physical recovery-inspection/cleanup, and durable
 catalog operations used by that fake-port orchestration.
 
+BPR-0056 extends the same focused core and host contracts with the public
+history-page intent/request/terminal path. The table covers empty, one-row,
+multi-page, exact-bound, invalid-cursor, malformed-page, catalog-revision,
+identity-switch, failure, cancellation, duplicate, and reordered-completion
+cases. It requires each host request to call the existing revision-bound
+catalog page exactly once, publishes stable provider/Git/SQLite-free rows with
+`Replace == false`, and proves core state retains no complete history.
+
 This is component evidence. BPR-0047 still owns selection through the public
 BetterPullReview composition and a second-process persistence run; BPR-0048
-owns the broader combined failure/reordering matrix. BPR-0055 and BPR-0056
-retain maintenance and history-page product paths. No live private repository,
+owns the broader combined failure/reordering matrix. BPR-0055 retains the
+maintenance product path; the bounded history-page core/host/projection path
+is complete in BPR-0056, while its Qt trigger/model remains BPR-0046. No live private repository,
 GitHub mutation, Windows-native execution, or GitHub Actions workflow is part
 of this verification.
 

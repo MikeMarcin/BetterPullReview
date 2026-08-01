@@ -188,6 +188,7 @@ optional active PR authority and accepted revision identity
 epoch generation and next epoch request
 accepted catalog revision
 optional pending prepare/commit/prune/delete context
+optional pending history-page context and last accepted catalog/cursor
 selection mode: named alias or exact explicit pair
 resolved left/right anchors and availability
 comparison generation
@@ -255,8 +256,10 @@ epoch_destructive_operation_observation
     exact affected IDs/counts and expected revisions
 ```
 
-The full history remains host/catalog-owned and paged. The core receives no
-unbounded vector.
+The full history remains host/catalog-owned and paged. One transition may
+receive and emit at most 100 summaries, but `epoch_state` retains no page rows;
+it remembers only the exact accepted catalog and continuation cursor needed to
+validate the next request.
 
 ### Requests
 
@@ -291,11 +294,13 @@ epoch_catalog_committed | epoch_catalog_commit_failed
     | epoch_catalog_commit_cancelled
 comparison_resolved | comparison_resolve_failed
     | comparison_resolve_cancelled
+epoch_history_page_loaded | epoch_history_page_load_failed
+    | epoch_history_page_load_cancelled
 maintenance_completed | maintenance_failed | maintenance_cancelled
 ```
 
-The catalog-load algebra covers both the initial window and a requested page.
-The catalog-commit algebra identifies `append_epoch` versus
+The history-page algebra is distinct from catalog activation and carries its
+requested cursor and limit. The catalog-commit algebra identifies `append_epoch` versus
 `associate_review`; the maintenance algebra identifies prune versus cache
 delete. Every terminal carries the complete application/profile/host/account/
 repository/PR/snapshot/generation/request/catalog context applicable at
@@ -309,6 +314,9 @@ accepted_epoch_delta
 epoch_catalog_delta
     optional catalog identity; absence explicitly clears catalog projection
     inserted, removed, and availability-changed stable IDs
+epoch_history_page_delta
+    loading/loaded/failed/cancelled, requested cursor and limit,
+    at most 100 transient rows, and the exact continuation
 comparison_selection_delta
     semantic selection
 comparison_resolution_delta
@@ -971,11 +979,15 @@ order by ordinal descending
 
 Every page repeats the exact revision and returns an opaque continuation. A
 revision mismatch invalidates the page and requires refresh. Core retains only
-the active pair, one latest live summary, one preceding distinct-head
-candidate, one current-viewer review candidate, and bounded pending contexts.
-BPR-0056 still owns the missing core intent, host request/terminal algebra, and
-incremental presentation-page projection; until then neither the host nor Qt
-claims a completed history-page product path.
+the active pair, bounded pending contexts, and the last accepted
+catalog/continuation needed to authorize the next page. BPR-0056 implements
+one `request_epoch_history_page_intent`, exact cursor/limit validation, one
+typed host request, loaded/failed/cancelled terminals, and a sanitized
+incremental page projection. Empty, short, exact-bound, and continued pages
+all use the same path. Duplicate initial or in-flight requests, skipped or
+rewritten cursors, non-descending/oversized rows, and authority/source/
+generation/incarnation/revision drift fail closed. Catalog conflict retires
+the page and starts a bounded catalog reload.
 
 Every asynchronous context includes the exact application session,
 profile/revision, host/account/repository/PR authority, source snapshot and
@@ -1048,14 +1060,18 @@ comparison_projection
 epoch_catalog_changed_projection
     inserted/removed/changed stable IDs and catalog revision
 
+epoch_history_page_projection
+    requested cursor/limit, phase/reason, stable sanitized rows,
+    exact continuation; never a whole-model reset
+
 epoch_status/command/diagnostic projections
 ```
 
-The projection contract can express revision-bound page replacement and
+The projection contract can express revision-bound page delivery and
 stable-ID changes without provider, Git, SQLite, credential, or host-request
 records. BPR-0045 emits bounded append/authority/comparison/status updates;
-BPR-0055 retains maintenance changes and BPR-0056 retains history-page
-updates. Routine changes must use exact insert/remove/data-change signals
+BPR-0056 emits bounded history-page updates, and BPR-0055 retains maintenance
+changes. Routine changes must use exact insert/remove/data-change signals
 rather than resetting the model or rebuilding all rows. A complete authority
 replacement may replace the model, while persistent indexes from an old
 authority are never reused.

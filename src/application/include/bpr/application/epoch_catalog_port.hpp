@@ -18,7 +18,8 @@
 
 namespace bpr::application
 {
-inline constexpr std::uint16_t maximum_epoch_history_page_size = 100U;
+inline constexpr std::uint16_t maximum_epoch_history_page_size =
+    core::maximum_epoch_history_page_size;
 inline constexpr std::uint16_t maximum_epoch_recovery_page_size = 100U;
 inline constexpr std::size_t maximum_exact_anchor_lookup_count = 100U;
 inline constexpr std::size_t maximum_prune_epoch_count = 100U;
@@ -293,22 +294,7 @@ struct mark_anchor_availability_request
     return true;
 }
 
-struct epoch_history_cursor
-{
-    core::pull_request_authority_scope_id Authority;
-    core::epoch_catalog_incarnation_id Incarnation;
-    core::epoch_catalog_revision Revision;
-    core::epoch_ordinal Before;
-
-    auto operator<=>(const epoch_history_cursor&) const = default;
-};
-
-[[nodiscard]] constexpr auto valid(
-    const epoch_history_cursor& cursor) noexcept -> bool
-{
-    return cursor.Authority.valid() && cursor.Incarnation.valid()
-        && core::valid(cursor.Revision) && core::valid(cursor.Before);
-}
+using epoch_history_cursor = core::epoch_history_cursor;
 
 struct epoch_history_page_request
 {
@@ -332,7 +318,7 @@ struct epoch_history_page_request
     }
     return !request.Cursor
         || (
-            valid(*request.Cursor)
+            core::valid(*request.Cursor)
             && request.Cursor->Authority == binding.Authority.Scope
             && request.Cursor->Incarnation
                 == binding.Catalog.Incarnation

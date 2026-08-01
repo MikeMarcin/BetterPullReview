@@ -179,6 +179,9 @@ struct shared_state
     std::optional<application::git_retained_ref_pair> Retained;
     std::deque<application::epoch_recovery_page> RecoveryPages;
     std::vector<std::optional<core::epoch_operation_id>> RecoveryPageCursors;
+    std::deque<application::epoch_catalog_result<
+        application::epoch_history_page>> HistoryPages;
+    std::vector<application::epoch_history_page_request> HistoryRequests;
     std::deque<application::git_cache_result<
         application::git_operation_recovery_observation>>
         RecoveryInspections;
@@ -269,6 +272,18 @@ struct shared_state
         .ObservedAt = core::observed_utc_milliseconds{100U},
         .BaseAvailability = core::anchor_availability::available,
         .HeadAvailability = core::anchor_availability::available,
+    };
+}
+
+[[nodiscard]] auto history_cursor_for(
+    const core::epoch_catalog_identity catalog,
+    const core::epoch_ordinal before) -> core::epoch_history_cursor
+{
+    return {
+        .Authority = authority().Scope,
+        .Incarnation = catalog.Incarnation,
+        .Revision = catalog.Revision,
+        .Before = before,
     };
 }
 
@@ -439,12 +454,26 @@ public:
     }
 
     [[nodiscard]] auto history(
-        const application::epoch_history_page_request&,
-        const std::stop_token)
+        const application::epoch_history_page_request& request,
+        const std::stop_token stop)
         -> application::epoch_catalog_result<
             application::epoch_history_page> override
     {
-        return std::unexpected{application::epoch_catalog_failure::invalid_request};
+        State.Calls.emplace_back("catalog.history");
+        State.HistoryRequests.push_back(request);
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::epoch_catalog_failure::cancelled};
+        }
+        if(State.HistoryPages.empty())
+        {
+            return std::unexpected{
+                application::epoch_catalog_failure::invalid_request};
+        }
+        auto page = std::move(State.HistoryPages.front());
+        State.HistoryPages.pop_front();
+        return page;
     }
 
     [[nodiscard]] auto mark_anchor_availability(
@@ -1882,6 +1911,305 @@ void matching_invalidation_cancels_pending_offer_and_active_context()
         "cancelled matching offer never opens or resurrects its context");
 }
 
+void bounded_history_pages_project_incrementally()
+{
+    fixture value;
+    establish_ready_comparison(value);
+    const auto catalog = *value.Host->state().Catalog;
+    const auto revision = *value.Host->state().AcceptedRevision;
+    const auto continuation =
+        history_cursor_for(catalog, core::epoch_ordinal{2});
+    value.State.HistoryPages.push_back(application::epoch_history_page{
+        .Authority = authority().Scope,
+        .Catalog = catalog,
+        .Epochs =
+            {
+                summary_for(revision, catalog, core::epoch_ordinal{3}),
+                summary_for(revision, catalog, core::epoch_ordinal{2}),
+            },
+        .Continuation = continuation,
+    });
+
+    const auto updates_before = value.State.Updates.size();
+    value.Host->dispatch(core::request_epoch_history_page_intent{
+        .Catalog = catalog,
+        .Limit = 2U,
+    });
+    expect(
+        value.Effects.pending() == 1U
+            && value.State.Updates.size() == updates_before + 1U
+            && value.State.Updates.back().Catalog
+            && value.State.Updates.back().Catalog->HistoryPage
+            && value.State.Updates.back().Catalog->HistoryPage->Phase
+                == core::epoch_history_page_phase::loading
+            && !value.State.Updates.back().Catalog->Replace,
+        "one history intent projects loading and schedules one bounded catalog effect");
+
+    value.Host->dispatch(core::request_epoch_history_page_intent{
+        .Catalog = catalog,
+        .Limit = 2U,
+    });
+    expect(
+        value.Effects.pending() == 1U,
+        "a duplicate history intent cannot schedule a second worker");
+
+    run_effect_completion(value);
+    expect(
+        value.State.HistoryRequests
+                == std::vector{
+                    application::epoch_history_page_request{
+                        .Catalog = catalog,
+                        .Limit = 2U,
+                    },
+                }
+            && value.State.Updates.back().Catalog
+            && !value.State.Updates.back().Catalog->Replace
+            && value.State.Updates.back().Catalog->Changes.empty()
+            && value.State.Updates.back().Catalog->HistoryPage
+            && value.State.Updates.back().Catalog->HistoryPage->Phase
+                == core::epoch_history_page_phase::loaded
+            && value.State.Updates.back().Catalog->HistoryPage->Rows.size()
+                == 2U
+            && value.State.Updates.back()
+                    .Catalog->HistoryPage->Rows[0U]
+                    .Id.Ordinal
+                == core::epoch_ordinal{3}
+            && value.State.Updates.back().Catalog->HistoryPage->Continuation
+                == continuation
+            && value.Host->state().HistoryContinuation == continuation,
+        "a loaded page emits sanitized stable rows without a model replacement");
+
+    value.State.HistoryPages.push_back(application::epoch_history_page{
+        .Authority = authority().Scope,
+        .Catalog = catalog,
+        .Epochs =
+            {
+                summary_for(revision, catalog, core::epoch_ordinal{1}),
+            },
+    });
+    value.Host->dispatch(core::request_epoch_history_page_intent{
+        .Catalog = catalog,
+        .Cursor = continuation,
+        .Limit = 2U,
+    });
+    run_effect_completion(value);
+    expect(
+        value.State.HistoryRequests.size() == 2U
+            && value.State.HistoryRequests.back().Cursor == continuation
+            && value.State.Updates.back().Catalog
+            && value.State.Updates.back().Catalog->HistoryPage
+            && value.State.Updates.back().Catalog->HistoryPage->Rows.size()
+                == 1U
+            && value.State.Updates.back()
+                    .Catalog->HistoryPage->Rows.front()
+                    .Id.Ordinal
+                == core::epoch_ordinal{1}
+            && !value.State.Updates.back().Catalog->HistoryPage->Continuation
+            && !value.Host->state().HistoryContinuation,
+        "the exact continuation appends a short terminal page without retaining complete history in core");
+}
+
+void empty_one_and_exact_bound_history_pages_reach_public_projection()
+{
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto catalog = *value.Host->state().Catalog;
+        value.State.HistoryPages.push_back(application::epoch_history_page{
+            .Authority = authority().Scope,
+            .Catalog = catalog,
+        });
+        value.Host->dispatch(core::request_epoch_history_page_intent{
+            .Catalog = catalog,
+            .Limit = 2U,
+        });
+        run_effect_completion(value);
+        expect(
+            value.State.Updates.back().Catalog
+                && value.State.Updates.back().Catalog->HistoryPage
+                && value.State.Updates.back().Catalog->HistoryPage->Rows.empty()
+                && !value.State.Updates.back().Catalog->HistoryPage->Continuation,
+            "an empty bounded catalog page reaches the incremental projection");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto catalog = *value.Host->state().Catalog;
+        const auto revision = *value.Host->state().AcceptedRevision;
+        value.State.HistoryPages.push_back(application::epoch_history_page{
+            .Authority = authority().Scope,
+            .Catalog = catalog,
+            .Epochs =
+                {
+                    summary_for(revision, catalog, core::epoch_ordinal{1}),
+                },
+        });
+        value.Host->dispatch(core::request_epoch_history_page_intent{
+            .Catalog = catalog,
+            .Limit = 2U,
+        });
+        run_effect_completion(value);
+        expect(
+            value.State.Updates.back().Catalog
+                && value.State.Updates.back().Catalog->HistoryPage
+                && value.State.Updates.back().Catalog->HistoryPage->Rows.size()
+                    == 1U
+                && !value.State.Updates.back().Catalog->HistoryPage->Continuation,
+            "a one-row page reaches the projection as a terminal page");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto catalog = *value.Host->state().Catalog;
+        const auto revision = *value.Host->state().AcceptedRevision;
+        value.State.HistoryPages.push_back(application::epoch_history_page{
+            .Authority = authority().Scope,
+            .Catalog = catalog,
+            .Epochs =
+                {
+                    summary_for(revision, catalog, core::epoch_ordinal{2}),
+                    summary_for(revision, catalog, core::epoch_ordinal{1}),
+                },
+        });
+        value.Host->dispatch(core::request_epoch_history_page_intent{
+            .Catalog = catalog,
+            .Limit = 2U,
+        });
+        run_effect_completion(value);
+        expect(
+            value.State.Updates.back().Catalog
+                && value.State.Updates.back().Catalog->HistoryPage
+                && value.State.Updates.back().Catalog->HistoryPage->Rows.size()
+                    == 2U
+                && !value.State.Updates.back().Catalog->HistoryPage->Continuation,
+            "an exact-bound page remains terminal when the catalog advertises no continuation");
+    }
+}
+
+void history_page_failures_and_catalog_revision_changes_are_typed()
+{
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto catalog = *value.Host->state().Catalog;
+        value.State.HistoryPages.emplace_back(std::unexpected{
+            application::epoch_catalog_failure::unavailable});
+        value.Host->dispatch(core::request_epoch_history_page_intent{
+            .Catalog = catalog,
+            .Limit = 4U,
+        });
+        run_effect_completion(value);
+        expect(
+            value.State.Updates.back().Catalog
+                && value.State.Updates.back().Catalog->HistoryPage
+                && value.State.Updates.back().Catalog->HistoryPage->Phase
+                    == core::epoch_history_page_phase::failed
+                && value.State.Updates.back().Catalog->HistoryPage->Reason
+                    == core::epoch_reason_code::unavailable
+                && !value.Host->state().PendingHistory,
+            "a catalog paging failure reaches one typed retryable projection");
+
+        value.State.HistoryPages.emplace_back(std::unexpected{
+            application::epoch_catalog_failure::cancelled});
+        value.Host->dispatch(core::request_epoch_history_page_intent{
+            .Catalog = catalog,
+            .Limit = 4U,
+        });
+        run_effect_completion(value);
+        expect(
+            value.State.Updates.back().Catalog
+                && value.State.Updates.back().Catalog->HistoryPage
+                && value.State.Updates.back().Catalog->HistoryPage->Phase
+                    == core::epoch_history_page_phase::cancelled
+                && value.State.Updates.back().Catalog->HistoryPage->Reason
+                    == core::epoch_reason_code::cancelled
+                && !value.Host->state().PendingHistory,
+            "a catalog paging cancellation reaches one typed retryable projection");
+    }
+
+    {
+        fixture value;
+        establish_ready_comparison(value);
+        const auto requested_catalog = *value.Host->state().Catalog;
+        value.Host->dispatch(core::request_epoch_history_page_intent{
+            .Catalog = requested_catalog,
+            .Limit = 4U,
+        });
+        const auto changed_catalog = core::epoch_catalog_identity{
+            .Incarnation = requested_catalog.Incarnation,
+            .Revision = core::epoch_catalog_revision{
+                requested_catalog.Revision.value() + 1},
+        };
+        value.State.Binding.Catalog = changed_catalog;
+        value.State.Snapshot.Binding.Catalog = changed_catalog;
+        run_effect_completion(value);
+        expect(
+            std::ranges::count(value.State.Calls, "catalog.history") == 0
+                && !value.Host->state().Catalog
+                && value.Host->state().PendingIngestion
+                && value.Host->state().PendingIngestion->Phase
+                    == core::epoch_ingestion_phase::loading_catalog
+                && value.State.Updates.back().Transition
+                && std::ranges::any_of(
+                    value.State.Updates.back().Transition->Diagnostics,
+                    [](const core::epoch_diagnostic& diagnostic)
+                    {
+                        return diagnostic.Code
+                            == core::epoch_reason_code::catalog_conflict;
+                    }),
+            "a changed live catalog binding rejects the page before SQLite access and starts an exact reload");
+    }
+}
+
+void reordered_history_completion_cannot_cross_source_identity()
+{
+    fixture value;
+    establish_ready_comparison(value);
+    const auto catalog = *value.Host->state().Catalog;
+    value.State.HistoryPages.push_back(application::epoch_history_page{
+        .Authority = authority().Scope,
+        .Catalog = catalog,
+    });
+    value.Host->dispatch(core::request_epoch_history_page_intent{
+        .Catalog = catalog,
+        .Limit = 4U,
+    });
+    value.Effects.run_next();
+    expect(
+        value.Decisions.pending() == 1U,
+        "history worker completion waits on the serialized decision lane");
+
+    value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+    value.Effects.run_next();
+    expect(
+        value.Decisions.pending() == 2U,
+        "a replacement source and old history terminal can be deterministically reordered");
+    value.Decisions.run(1U);
+    expect(
+        value.Host->state().AcceptedRevision
+            && value.Host->state().AcceptedRevision->Source.Snapshot
+                == core::provider_snapshot_id{2U}
+            && !value.Host->state().PendingHistory,
+        "the replacement source retires old paging before its terminal runs");
+    const auto updates_before_stale = value.State.Updates.size();
+    value.Decisions.run_next();
+    expect(
+        value.State.Updates.size() == updates_before_stale + 1U
+            && !value.State.Updates.back().Catalog
+            && value.State.Updates.back().Transition
+            && value.State.Updates.back().Transition->Diagnostics
+                == std::vector{
+                    core::epoch_diagnostic{
+                        .Code = core::epoch_reason_code::stale_completion,
+                    },
+                }
+            && value.Host->state().AcceptedRevision->Source.Snapshot
+                == core::provider_snapshot_id{2U},
+        "the old loaded page becomes one stale diagnostic and cannot publish rows into the new source");
+}
+
 void unchanged_and_association_only_skip_git()
 {
     {
@@ -2691,6 +3019,10 @@ int main()
     historical_origin_reaches_authority_projection();
     superseded_offer_failure_emits_no_diagnostic();
     matching_invalidation_cancels_pending_offer_and_active_context();
+    bounded_history_pages_project_incrementally();
+    empty_one_and_exact_bound_history_pages_reach_public_projection();
+    history_page_failures_and_catalog_revision_changes_are_typed();
+    reordered_history_completion_cannot_cross_source_identity();
     unchanged_and_association_only_skip_git();
     applied_association_error_reports_mandatory_success();
     stale_load_terminal_is_inert_under_reordering();

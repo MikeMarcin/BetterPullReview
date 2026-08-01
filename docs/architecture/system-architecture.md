@@ -350,8 +350,10 @@ monotonic revision, composite epoch cause, exact base/head or review anchors,
 and checked request/epoch/comparison generations. Its state retains no catalog
 page or Git object and is bounded to 2,048 bytes. The host owns refs, object
 residency, ancestry/material observations, time, persistence, append recovery,
-and cancellation. The catalog owns full durable history; BPR-0056 still owns
-the bounded core/host page algebra that exposes it incrementally.
+and cancellation. The catalog owns full durable history. BPR-0056 adds the
+bounded core/host page algebra that exposes at most 100 sanitized rows at a
+time; core state retains only the accepted catalog and continuation, and the
+projection never requests a whole-model reset.
 
 An epoch ID is scoped by exact authority, catalog incarnation, and a nonzero
 ordinal no greater than `INT64_MAX`. Recreating a deleted catalog creates a

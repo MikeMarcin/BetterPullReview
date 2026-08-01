@@ -4,6 +4,7 @@
 
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <variant>
@@ -16,6 +17,7 @@ using epoch_intent = std::variant<
     core::select_named_comparison_intent,
     core::select_comparison_anchors_intent,
     core::select_comparison_anchor_intent,
+    core::request_epoch_history_page_intent,
     core::cancel_epoch_refresh_intent>;
 using epoch_intent_dispatch = std::function<void(epoch_intent)>;
 
@@ -82,6 +84,20 @@ struct epoch_row_change_projection
     auto operator<=>(const epoch_row_change_projection&) const = default;
 };
 
+struct epoch_history_page_projection
+{
+    core::epoch_history_page_phase Phase =
+        core::epoch_history_page_phase::loading;
+    core::epoch_catalog_identity Catalog;
+    std::optional<core::epoch_history_cursor> RequestedCursor;
+    std::uint16_t Limit = core::maximum_epoch_history_page_size;
+    std::vector<epoch_row_projection> Rows;
+    std::optional<core::epoch_history_cursor> Continuation;
+    core::epoch_reason_code Reason = core::epoch_reason_code::none;
+
+    auto operator<=>(const epoch_history_page_projection&) const = default;
+};
+
 struct epoch_catalog_projection
 {
     std::optional<core::epoch_catalog_identity> Catalog;
@@ -90,6 +106,7 @@ struct epoch_catalog_projection
     bool Replace = false;
     std::vector<epoch_row_projection> Replacement;
     std::vector<epoch_row_change_projection> Changes;
+    std::optional<epoch_history_page_projection> HistoryPage;
 
     auto operator<=>(const epoch_catalog_projection&) const = default;
 };

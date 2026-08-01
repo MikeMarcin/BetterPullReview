@@ -11,6 +11,7 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace
 {
@@ -371,6 +372,32 @@ struct ready_fixture
     return output.Diagnostics == std::vector{epoch_diagnostic{.Code = reason}};
 }
 
+[[nodiscard]] auto history_cursor(
+    const ready_fixture& fixture, const std::int64_t before)
+    -> epoch_history_cursor
+{
+    return {
+        .Authority = fixture.Authority.Scope,
+        .Incarnation = fixture.Catalog.Incarnation,
+        .Revision = fixture.Catalog.Revision,
+        .Before = epoch_ordinal{before},
+    };
+}
+
+[[nodiscard]] auto history_page(
+    const ready_fixture& fixture,
+    std::vector<review_epoch_summary> epochs,
+    std::optional<epoch_history_cursor> continuation = std::nullopt)
+    -> epoch_history_page_observation
+{
+    return {
+        .Authority = fixture.Authority.Scope,
+        .Catalog = fixture.Catalog,
+        .Epochs = std::move(epochs),
+        .Continuation = continuation,
+    };
+}
+
 [[nodiscard]] auto append_from(const planned_epoch_mutation& plan)
     -> const append_epoch_mutation*
 {
@@ -470,8 +497,8 @@ auto test_binary_oid_types_and_compact_state() -> void
     static_assert(std::is_trivially_copyable_v<epoch_state>);
     static_assert(std::is_trivially_destructible_v<epoch_state>);
     static_assert(sizeof(epoch_state) <= 2'048U);
-    static_assert(std::variant_size_v<epoch_event> == 19U);
-    static_assert(std::variant_size_v<epoch_host_request> == 7U);
+    static_assert(std::variant_size_v<epoch_event> == 23U);
+    static_assert(std::variant_size_v<epoch_host_request> == 8U);
 
     const auto sha1 =
         parse_git_commit_oid("0123456789ABCDEF0123456789ABCDEF01234567");
@@ -2444,6 +2471,590 @@ auto test_overflow_is_checked_and_invalidation_fails_closed() -> void
     }
 }
 
+auto test_bounded_epoch_history_paging() -> void
+{
+    {
+        auto state = initial_state();
+        const auto result = transition(
+            state,
+            request_epoch_history_page_intent{
+                .Catalog = catalog(),
+                .Limit = 10U,
+            });
+        expect(
+            diagnostic_is(result, epoch_reason_code::no_active_authority)
+                && !state.PendingHistory,
+            "history paging requires an active pull-request authority");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto before = fixture.State;
+        const std::array invalid_requests{
+            request_epoch_history_page_intent{
+                .Catalog = {},
+                .Limit = 10U,
+            },
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 0U,
+            },
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = static_cast<std::uint16_t>(
+                    maximum_epoch_history_page_size + 1U),
+            },
+        };
+        const std::array expected{
+            epoch_reason_code::invalid_catalog,
+            epoch_reason_code::invalid_observation,
+            epoch_reason_code::invalid_observation,
+        };
+        for(std::size_t index = 0U; index < invalid_requests.size(); ++index)
+        {
+            const auto result =
+                transition(fixture.State, invalid_requests[index]);
+            expect(
+                diagnostic_is(result, expected[index])
+                    && fixture.State == before,
+                "invalid history catalog and page bounds are inert");
+        }
+
+        auto wrong_catalog = fixture.Catalog;
+        wrong_catalog.Revision = epoch_catalog_revision{99};
+        const auto wrong_revision = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = wrong_catalog,
+                .Limit = 10U,
+            });
+        expect(
+            diagnostic_is(
+                wrong_revision,
+                epoch_reason_code::catalog_revision_mismatch)
+                && fixture.State == before,
+            "history paging rejects a stale catalog revision");
+
+        const auto wrong_cursor = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Cursor = history_cursor(fixture, 4),
+                .Limit = 2U,
+            });
+        expect(
+            diagnostic_is(
+                wrong_cursor, epoch_reason_code::invalid_history_cursor)
+                && fixture.State == before,
+            "a continuation cursor is valid only after the exact prior page");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto status = fixture.State.Status;
+        const auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto* request =
+            request_from<load_epoch_history_page_request>(loading);
+        expect(
+            request != nullptr && loading.Requests.size() == 1U
+                && loading.History
+                && loading.History->Phase == epoch_history_page_phase::loading
+                && loading.History->Epochs.empty()
+                && has_changed(
+                    loading.Changed, epoch_changed_domain::history)
+                && fixture.State.PendingHistory
+                && fixture.State.Status == status,
+            "one initial intent emits one bounded request without disturbing comparison status");
+
+        const auto pending = fixture.State;
+        const auto duplicate = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        expect(
+            diagnostic_is(
+                duplicate, epoch_reason_code::duplicate_history_page)
+                && fixture.State == pending,
+            "an in-flight history page cannot be scheduled twice");
+
+        const auto continuation = history_cursor(fixture, 2);
+        const auto loaded = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = request->Context,
+                .Page = history_page(
+                    fixture,
+                    {
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            3,
+                            10U,
+                            23U),
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            2,
+                            10U,
+                            22U),
+                    },
+                    continuation),
+            });
+        expect(
+            loaded.History
+                && loaded.History->Phase == epoch_history_page_phase::loaded
+                && loaded.History->Epochs.size() == 2U
+                && loaded.History->Continuation == continuation
+                && fixture.State.HistoryCatalog
+                    == std::optional{fixture.Catalog}
+                && fixture.State.HistoryContinuation == continuation
+                && !fixture.State.PendingHistory
+                && fixture.State.Status == status,
+            "a full initial page publishes rows transiently and retains only its exact continuation");
+
+        const auto wrong_continuation = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Cursor = history_cursor(fixture, 1),
+                .Limit = 2U,
+            });
+        expect(
+            diagnostic_is(
+                wrong_continuation,
+                epoch_reason_code::invalid_history_cursor)
+                && !fixture.State.PendingHistory,
+            "a caller cannot skip or rewrite the retained continuation");
+
+        const auto continuing = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Cursor = continuation,
+                .Limit = 2U,
+            });
+        const auto* continuation_request =
+            request_from<load_epoch_history_page_request>(continuing);
+        expect(
+            continuation_request
+                && continuation_request->Context.Cursor == continuation,
+            "the next page request carries the exact revision-bound cursor");
+
+        auto mismatched_authority = continuation_request->Context;
+        mismatched_authority.Authority = authority(2U);
+        const auto before_authority_mismatch = fixture.State;
+        const auto authority_mismatch = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = mismatched_authority,
+                .Page = history_page(fixture, {}),
+            });
+        expect(
+            diagnostic_is(
+                authority_mismatch,
+                epoch_reason_code::completion_identity_mismatch)
+                && fixture.State == before_authority_mismatch,
+            "a history terminal with mismatched authority is inert");
+
+        auto mismatched_context = continuation_request->Context;
+        mismatched_context.Source.Snapshot = provider_snapshot_id{999U};
+        const auto before_mismatch = fixture.State;
+        const auto mismatch = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = mismatched_context,
+                .Page = history_page(fixture, {}),
+            });
+        expect(
+            diagnostic_is(
+                mismatch,
+                epoch_reason_code::completion_identity_mismatch)
+                && fixture.State == before_mismatch,
+            "a history terminal with mismatched source identity is inert");
+
+        const auto final_page = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = continuation_request->Context,
+                .Page = history_page(
+                    fixture,
+                    {
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            1,
+                            10U,
+                            21U),
+                    }),
+            });
+        expect(
+            final_page.History && final_page.History->Epochs.size() == 1U
+                && !final_page.History->Continuation
+                && !fixture.State.HistoryContinuation
+                && !fixture.State.PendingHistory,
+            "a short continuation page terminates the bounded sequence");
+
+        const auto repeat = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        expect(
+            diagnostic_is(
+                repeat, epoch_reason_code::duplicate_history_page),
+            "an already-completed initial page cannot be replayed");
+    }
+
+    {
+        const auto reject_malformed_page = [](
+            const auto& mutate, const std::string_view claim)
+        {
+            auto fixture = make_ready_fixture();
+            const auto loading = transition(
+                fixture.State,
+                request_epoch_history_page_intent{
+                    .Catalog = fixture.Catalog,
+                    .Limit = 2U,
+                });
+            const auto request =
+                *request_from<load_epoch_history_page_request>(loading);
+            auto page = history_page(fixture, {});
+            mutate(page, fixture);
+            const auto rejected = transition(
+                fixture.State,
+                epoch_history_page_loaded_event{
+                    .Context = request.Context,
+                    .Page = std::move(page),
+                });
+            expect(
+                diagnostic_is(
+                    rejected, epoch_reason_code::invalid_observation)
+                    && rejected.History
+                    && rejected.History->Phase
+                        == epoch_history_page_phase::failed
+                    && !fixture.State.PendingHistory
+                    && !fixture.State.HistoryCatalog,
+                claim);
+        };
+
+        reject_malformed_page(
+            [](auto& page, const auto&)
+            {
+                page.Authority = authority(2U).Scope;
+            },
+            "a page cannot cross pull-request authority");
+        reject_malformed_page(
+            [](auto& page, const auto&)
+            {
+                page.Catalog.Revision = epoch_catalog_revision{99};
+            },
+            "a page cannot cross catalog revision");
+        reject_malformed_page(
+            [](auto& page, const auto& fixture)
+            {
+                page.Epochs = {
+                    summary(
+                        fixture.Authority,
+                        fixture.Catalog,
+                        3,
+                        10U,
+                        23U),
+                    summary(
+                        fixture.Authority,
+                        fixture.Catalog,
+                        2,
+                        10U,
+                        22U),
+                    summary(
+                        fixture.Authority,
+                        fixture.Catalog,
+                        1,
+                        10U,
+                        21U),
+                };
+            },
+            "a page cannot exceed its requested bound");
+        reject_malformed_page(
+            [](auto& page, const auto& fixture)
+            {
+                page.Epochs = {
+                    summary(
+                        fixture.Authority,
+                        fixture.Catalog,
+                        2,
+                        10U,
+                        22U),
+                    summary(
+                        fixture.Authority,
+                        fixture.Catalog,
+                        1,
+                        10U,
+                        21U),
+                };
+                page.Continuation = history_cursor(fixture, 2);
+            },
+            "a continuation must equal the last returned stable ordinal");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto request =
+            *request_from<load_epoch_history_page_request>(loading);
+        const auto exact_bound = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = request.Context,
+                .Page = history_page(
+                    fixture,
+                    {
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            2,
+                            10U,
+                            22U),
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            1,
+                            10U,
+                            21U),
+                    }),
+            });
+        expect(
+            exact_bound.History && exact_bound.History->Epochs.size() == 2U
+                && !exact_bound.History->Continuation
+                && !fixture.State.HistoryContinuation,
+            "an exact-bound terminal page needs no invented continuation");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto request =
+            *request_from<load_epoch_history_page_request>(loading);
+        const auto empty = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = request.Context,
+                .Page = history_page(fixture, {}),
+            });
+        expect(
+            empty.History && empty.History->Epochs.empty()
+                && !empty.History->Continuation
+                && fixture.State.HistoryCatalog
+                    == std::optional{fixture.Catalog},
+            "an empty first page is a valid completed history sequence");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto request =
+            *request_from<load_epoch_history_page_request>(loading);
+        const auto malformed = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = request.Context,
+                .Page = history_page(
+                    fixture,
+                    {
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            1,
+                            10U,
+                            21U),
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            2,
+                            10U,
+                            22U),
+                    }),
+            });
+        expect(
+            diagnostic_is(
+                malformed, epoch_reason_code::invalid_observation)
+                && malformed.History
+                && malformed.History->Phase
+                    == epoch_history_page_phase::failed
+                && !fixture.State.PendingHistory
+                && !fixture.State.HistoryCatalog,
+            "duplicate or non-descending stable identities fail closed");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto request =
+            *request_from<load_epoch_history_page_request>(loading);
+        const auto failed = transition(
+            fixture.State,
+            epoch_history_page_load_failed_event{
+                .Context = request.Context,
+                .Failure = epoch_failure::unavailable,
+            });
+        expect(
+            diagnostic_is(failed, epoch_reason_code::unavailable)
+                && failed.History
+                && failed.History->Phase == epoch_history_page_phase::failed
+                && !fixture.State.PendingHistory,
+            "a failed history page produces one terminal and remains retryable");
+
+        const auto retry = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto retry_request =
+            *request_from<load_epoch_history_page_request>(retry);
+        const auto cancelled = transition(
+            fixture.State,
+            epoch_history_page_load_cancelled_event{
+                .Context = retry_request.Context,
+            });
+        expect(
+            diagnostic_is(cancelled, epoch_reason_code::cancelled)
+                && cancelled.History
+                && cancelled.History->Phase
+                    == epoch_history_page_phase::cancelled
+                && !fixture.State.PendingHistory,
+            "a cancelled history page produces one terminal and remains retryable");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto request =
+            *request_from<load_epoch_history_page_request>(loading);
+        const auto refresh = transition(fixture.State, refresh_epochs_intent{});
+        expect(
+            refresh.History
+                && refresh.History->Phase
+                    == epoch_history_page_phase::cancelled
+                && has_changed(
+                    refresh.Changed, epoch_changed_domain::history)
+                && has_changed(
+                    refresh.Changed, epoch_changed_domain::authority)
+                && !fixture.State.PendingHistory,
+            "a new epoch generation explicitly cancels the pending page");
+        const auto before_stale = fixture.State;
+        const auto stale = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = request.Context,
+                .Page = history_page(fixture, {}),
+            });
+        expect(
+            diagnostic_is(stale, epoch_reason_code::stale_completion)
+                && fixture.State == before_stale,
+            "a page from the prior generation cannot publish after refresh");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto request =
+            *request_from<load_epoch_history_page_request>(loading);
+        const auto invalidated = transition(
+            fixture.State,
+            pull_request_revision_invalidated_event{
+                .ApplicationSession = fixture.State.ApplicationSession,
+                .Authority = fixture.Authority,
+                .Revision = fixture.Revision,
+                .Generation = fixture.State.EpochGeneration,
+            });
+        expect(
+            invalidated.History
+                && invalidated.History->Phase
+                    == epoch_history_page_phase::cancelled
+                && !fixture.State.Authority && !fixture.State.Catalog
+                && !fixture.State.HistoryCatalog
+                && !fixture.State.HistoryContinuation,
+            "an authority switch clears every history-page binding");
+        const auto stale = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = request.Context,
+                .Page = history_page(fixture, {}),
+            });
+        expect(
+            diagnostic_is(stale, epoch_reason_code::stale_completion),
+            "an invalidated authority rejects a late page terminal");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        const auto request =
+            *request_from<load_epoch_history_page_request>(loading);
+        const auto conflict = transition(
+            fixture.State,
+            epoch_history_page_load_failed_event{
+                .Context = request.Context,
+                .Failure = epoch_failure::catalog_conflict,
+            });
+        expect(
+            diagnostic_is(conflict, epoch_reason_code::catalog_conflict)
+                && conflict.History
+                && conflict.History->Phase
+                    == epoch_history_page_phase::cancelled
+                && request_from<load_epoch_catalog_request>(conflict)
+                    != nullptr
+                && !fixture.State.Catalog
+                && fixture.State.PendingIngestion
+                && fixture.State.PendingIngestion->Phase
+                    == epoch_ingestion_phase::loading_catalog,
+            "a changed catalog revision retires paging and reloads exact authority state");
+    }
+}
+
 auto test_deterministic_replay() -> void
 {
     const auto first = make_ready_fixture();
@@ -2472,6 +3083,7 @@ auto main() -> int
     test_invalid_cross_facts_and_command_policy();
     test_selection_transition_policy();
     test_overflow_is_checked_and_invalidation_fails_closed();
+    test_bounded_epoch_history_paging();
     test_deterministic_replay();
     return EXIT_SUCCESS;
 }
