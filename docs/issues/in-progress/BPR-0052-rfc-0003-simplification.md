@@ -1,7 +1,7 @@
 ---
 id: BPR-0052
 title: Simplify the RFC-BPR-0003 change set
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0048, BPR-0049, BPR-0050, BPR-0051]
 ---

@@ -170,8 +170,10 @@ verified SQLite amalgamation bytes while excluding only their upstream
 blank-at-EOL bytes from Git's path-specific diagnostic. Done BPR-0051 now
 completes the 186-path immutable-base documentation-impact classification,
 product/authority/operator updates, explicit no-impact dispositions, focused
-direct reruns, and independent accuracy review. BPR-0052 through BPR-0054
-remain in `backlog/` pending their explicit board transitions.
+direct reruns, and independent accuracy review. BPR-0052 is now the current
+`in-progress/` behavior-preserving simplification and maintainability audit;
+BPR-0053 and BPR-0054 remain in `backlog/` pending their explicit board
+transitions.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
