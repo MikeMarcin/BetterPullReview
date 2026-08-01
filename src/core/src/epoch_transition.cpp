@@ -477,6 +477,7 @@ auto set_status(
         .Source = state.AcceptedRevision->Source,
         .Generation = pending.Generation,
         .Catalog = pending.Catalog,
+        .Navigation = pending.Navigation,
         .Cursor = pending.Cursor,
         .Limit = pending.Limit,
     };
@@ -694,12 +695,33 @@ auto retire_pending_history(
     output.History = epoch_history_page_delta{
         .Phase = epoch_history_page_phase::cancelled,
         .Catalog = pending.Catalog,
+        .Navigation = pending.Navigation,
         .RequestedCursor = pending.Cursor,
         .Limit = pending.Limit,
         .Reason = epoch_reason_code::cancelled,
     };
     output.Changed = output.Changed | epoch_changed_domain::history;
     state.PendingHistory.reset();
+}
+
+auto invalidate_history_window(
+    epoch_state& state, epoch_transition_output& output) -> void
+{
+    retire_pending_history(state, output);
+    if(state.HistoryCatalog.has_value())
+    {
+        output.History = epoch_history_page_delta{
+            .Phase = epoch_history_page_phase::invalidated,
+            .Catalog = *state.HistoryCatalog,
+            .Navigation = state.HistoryNavigation.value_or(
+                epoch_history_navigation::newest),
+            .Reason = epoch_reason_code::catalog_revision_mismatch,
+        };
+        output.Changed = output.Changed | epoch_changed_domain::history;
+    }
+    state.HistoryCatalog.reset();
+    state.HistoryNavigation.reset();
+    state.HistoryContinuation.reset();
 }
 
 auto retire_pending_maintenance(epoch_state& state,
@@ -720,11 +742,9 @@ auto retire_pending_maintenance(epoch_state& state,
 auto clear_catalog_bound_state(
     epoch_state& state, epoch_transition_output& output) -> void
 {
-    retire_pending_history(state, output);
+    invalidate_history_window(state, output);
     retire_pending_maintenance(state, output);
     state.Catalog.reset();
-    state.HistoryCatalog.reset();
-    state.HistoryContinuation.reset();
     state.RequestedSelection = named_selection(named_comparison::whole_pr);
     state.AcceptedComparison.reset();
     state.AcceptedComparisonRevision = comparison_revision{};
@@ -1253,9 +1273,7 @@ auto clear_ingestion(
     epoch_transition_output output;
     if(state.Catalog != std::optional{event.Catalog})
     {
-        retire_pending_history(state, output);
-        state.HistoryCatalog.reset();
-        state.HistoryContinuation.reset();
+        invalidate_history_window(state, output);
     }
     state.Catalog = event.Catalog;
     state.PendingIngestion->Phase = epoch_ingestion_phase::preparing;
@@ -1467,9 +1485,7 @@ template<typename Event>
     const auto request = state.PendingIngestion->Request;
     const auto mutation = *state.PendingIngestion->Mutation;
     epoch_transition_output output;
-    retire_pending_history(state, output);
-    state.HistoryCatalog.reset();
-    state.HistoryContinuation.reset();
+    invalidate_history_window(state, output);
     state.Catalog->Revision = event.NewRevision;
     state.PendingIngestion.reset();
     output.Catalog = epoch_catalog_delta{.Catalog = *state.Catalog};
@@ -1720,6 +1736,7 @@ template<typename Event>
         output.History = epoch_history_page_delta{
             .Phase = epoch_history_page_phase::failed,
             .Catalog = pending.Catalog,
+            .Navigation = pending.Navigation,
             .RequestedCursor = pending.Cursor,
             .Limit = pending.Limit,
             .Reason = epoch_reason_code::invalid_observation,
@@ -1731,11 +1748,13 @@ template<typename Event>
 
     state.PendingHistory.reset();
     state.HistoryCatalog = event.Page.Catalog;
+    state.HistoryNavigation = pending.Navigation;
     state.HistoryContinuation = event.Page.Continuation;
     epoch_transition_output output;
     output.History = epoch_history_page_delta{
         .Phase = epoch_history_page_phase::loaded,
         .Catalog = event.Page.Catalog,
+        .Navigation = pending.Navigation,
         .RequestedCursor = pending.Cursor,
         .Limit = pending.Limit,
         .Epochs = event.Page.Epochs,
@@ -1763,6 +1782,7 @@ template<typename Event>
     output.History = epoch_history_page_delta{
         .Phase = phase,
         .Catalog = pending.Catalog,
+        .Navigation = pending.Navigation,
         .RequestedCursor = pending.Cursor,
         .Limit = pending.Limit,
         .Reason = reason,
@@ -1832,10 +1852,11 @@ template<typename Event>
     {
         return reject(epoch_reason_code::duplicate_history_page);
     }
-    if(intent.Cursor.has_value())
+    if(intent.Navigation == epoch_history_navigation::older)
     {
         if(
-            !valid(*intent.Cursor)
+            !intent.Cursor.has_value()
+            || !valid(*intent.Cursor)
             || intent.Cursor->Authority != state.Authority->Scope
             || intent.Cursor->Incarnation != intent.Catalog.Incarnation
             || intent.Cursor->Revision != intent.Catalog.Revision
@@ -1845,7 +1866,13 @@ template<typename Event>
             return reject(epoch_reason_code::invalid_history_cursor);
         }
     }
-    else if(state.HistoryCatalog == std::optional{intent.Catalog})
+    else if(intent.Cursor.has_value())
+    {
+        return reject(epoch_reason_code::invalid_history_cursor);
+    }
+    else if(state.HistoryCatalog == std::optional{intent.Catalog}
+        && state.HistoryNavigation
+            == epoch_history_navigation::newest)
     {
         return reject(epoch_reason_code::duplicate_history_page);
     }
@@ -1859,6 +1886,7 @@ template<typename Event>
         .Request = request,
         .Generation = state.EpochGeneration,
         .Catalog = intent.Catalog,
+        .Navigation = intent.Navigation,
         .Cursor = intent.Cursor,
         .Limit = intent.Limit,
     };
@@ -1871,6 +1899,7 @@ template<typename Event>
     output.History = epoch_history_page_delta{
         .Phase = epoch_history_page_phase::loading,
         .Catalog = intent.Catalog,
+        .Navigation = intent.Navigation,
         .RequestedCursor = intent.Cursor,
         .Limit = intent.Limit,
     };
@@ -2022,10 +2051,8 @@ template<typename Event>
     const auto kind = state.PendingMaintenance->Kind;
     epoch_transition_output output;
     retire_pending_comparison(state, output);
-    retire_pending_history(state, output);
+    invalidate_history_window(state, output);
     state.PendingMaintenance.reset();
-    state.HistoryCatalog.reset();
-    state.HistoryContinuation.reset();
     state.Catalog = event.NewCatalog;
     output.Catalog = epoch_catalog_delta{
         .Catalog = event.NewCatalog,

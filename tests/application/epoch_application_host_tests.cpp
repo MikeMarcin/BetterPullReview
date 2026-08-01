@@ -2319,6 +2319,8 @@ void bounded_history_pages_project_incrementally()
             && value.State.Updates.back().Catalog->HistoryPage
             && value.State.Updates.back().Catalog->HistoryPage->Phase
                 == core::epoch_history_page_phase::loaded
+            && value.State.Updates.back().Catalog->HistoryPage->Navigation
+                == core::epoch_history_navigation::newest
             && value.State.Updates.back().Catalog->HistoryPage->Rows.size()
                 == 2U
             && value.State.Updates.back()
@@ -2340,6 +2342,7 @@ void bounded_history_pages_project_incrementally()
     });
     value.Host->dispatch(core::request_epoch_history_page_intent{
         .Catalog = catalog,
+        .Navigation = core::epoch_history_navigation::older,
         .Cursor = continuation,
         .Limit = 2U,
     });
@@ -2349,6 +2352,8 @@ void bounded_history_pages_project_incrementally()
             && value.State.HistoryRequests.back().Cursor == continuation
             && value.State.Updates.back().Catalog
             && value.State.Updates.back().Catalog->HistoryPage
+            && value.State.Updates.back().Catalog->HistoryPage->Navigation
+                == core::epoch_history_navigation::older
             && value.State.Updates.back().Catalog->HistoryPage->Rows.size()
                 == 1U
             && value.State.Updates.back()
@@ -2357,8 +2362,64 @@ void bounded_history_pages_project_incrementally()
                 == core::epoch_ordinal{1}
             && !value.State.Updates.back().Catalog->HistoryPage->Continuation
             && !value.Host->state().HistoryContinuation,
-        "the exact continuation appends a short terminal page without "
+        "the exact continuation replaces the window with a short terminal page "
+        "without "
         "retaining complete history in core");
+
+    value.State.HistoryPages.push_back(application::epoch_history_page{
+        .Authority = authority().Scope,
+        .Catalog = catalog,
+        .Epochs =
+            {
+                summary_for(revision, catalog, core::epoch_ordinal{3}),
+                summary_for(revision, catalog, core::epoch_ordinal{2}),
+            },
+        .Continuation = continuation,
+    });
+    value.Host->dispatch(core::request_epoch_history_page_intent{
+        .Catalog = catalog,
+        .Limit = 2U,
+    });
+    run_effect_completion(value);
+    expect(value.State.HistoryRequests.size() == 3U
+            && !value.State.HistoryRequests.back().Cursor
+            && value.State.Updates.back().Catalog
+            && value.State.Updates.back().Catalog->HistoryPage
+            && value.State.Updates.back().Catalog->HistoryPage->Navigation
+                == core::epoch_history_navigation::newest
+            && value.State.Updates.back().Catalog->HistoryPage->Rows.front()
+                       .Id.Ordinal
+                == core::epoch_ordinal{3}
+            && value.Host->state().HistoryNavigation
+                == core::epoch_history_navigation::newest,
+        "a core-authorized newest request returns from the terminal older "
+        "page without a cursor or host-invented navigation policy");
+
+    const auto updates_before_catalog_advance = value.State.Updates.size();
+    value.Host->dispatch(core::prune_review_epochs_intent{
+        .Catalog = catalog,
+        .Epochs = {value.State.Snapshot.LatestLive->Id},
+    });
+    run_effect_completion(value);
+    const auto invalidated = std::ranges::find_if(
+        value.State.Updates.begin()
+            + static_cast<std::ptrdiff_t>(updates_before_catalog_advance),
+        value.State.Updates.end(),
+        [&catalog](const application::epoch_presentation_update& update)
+        {
+            return update.Catalog && update.Catalog->HistoryPage
+                && update.Catalog->HistoryPage->Phase
+                    == core::epoch_history_page_phase::invalidated
+                && update.Catalog->HistoryPage->Catalog == catalog
+                && update.Catalog->Changes.empty();
+        });
+    expect(!value.Host->state().HistoryCatalog
+            && !value.Host->state().HistoryNavigation
+            && !value.Host->state().HistoryContinuation,
+        "a live catalog revision clears every core history-window binding");
+    expect(invalidated != value.State.Updates.end(),
+        "a live catalog revision invalidates the accepted page and never "
+        "invents a new-epoch row in the stale resident window");
 }
 
 void empty_one_and_exact_bound_history_pages_reach_public_projection()
@@ -2905,8 +2966,8 @@ void stop_immediately_after_ponr_cannot_replace_committed_terminal()
         [](const application::epoch_presentation_update& update)
         {
             return update.Catalog
-                && std::ranges::any_of(
-                    update.Catalog->Changes,
+                && update.Catalog->Catalog == catalog_identity(1)
+                && std::ranges::any_of(update.Catalog->Changes,
                     [](const application::epoch_row_change_projection& change)
                     {
                         return change.Kind
@@ -2923,7 +2984,7 @@ void stop_immediately_after_ponr_cannot_replace_committed_terminal()
             && committed_terminals == 1
             && value.State.ProjectionOutsideDecision == 0U,
         "a stop requested after durable PONR still promotes, finalizes, and "
-        "publishes one committed terminal");
+        "publishes one initial newest-row terminal");
 }
 
 void applied_commit_authorization_error_aborts_exactly_before_ponr()
@@ -2990,8 +3051,8 @@ void applied_ponr_error_recovers_to_mandatory_success()
         [](const application::epoch_presentation_update& update)
         {
             return update.Catalog
-                && std::ranges::any_of(
-                    update.Catalog->Changes,
+                && update.Catalog->Catalog == catalog_identity(1)
+                && std::ranges::any_of(update.Catalog->Changes,
                     [](const application::epoch_row_change_projection& change)
                     {
                         return change.Kind
@@ -3008,7 +3069,7 @@ void applied_ponr_error_recovers_to_mandatory_success()
             && value.Host->state().Catalog == catalog_identity(1)
             && committed_terminals == 1,
         "an applied-then-throw PONR transition resumes the exact durable "
-        "operation and publishes mandatory success once");
+        "operation and publishes one initial newest-row terminal");
 }
 
 void throwing_exact_abort_degrades_to_a_bounded_terminal()

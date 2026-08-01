@@ -131,7 +131,10 @@ template<typename Identity>
 [[nodiscard]] auto loaded_catalog_update(
     std::vector<application::epoch_row_projection> rows,
     const std::optional<core::epoch_history_cursor>& continuation =
-        std::nullopt) -> application::epoch_presentation_update
+        std::nullopt,
+    const core::epoch_history_navigation navigation =
+        core::epoch_history_navigation::newest)
+    -> application::epoch_presentation_update
 {
     const auto current_catalog = catalog();
     return {
@@ -142,6 +145,7 @@ template<typename Identity>
                     application::epoch_history_page_projection{
                         .Phase = core::epoch_history_page_phase::loaded,
                         .Catalog = current_catalog,
+                        .Navigation = navigation,
                         .Limit = core::maximum_epoch_history_page_size,
                         .Rows = std::move(rows),
                         .Continuation = continuation,
@@ -345,6 +349,105 @@ auto test_model_applies_stable_incremental_rows() -> void
         "bulk cache deletion updates resident rows without a model reset");
 }
 
+auto test_model_replaces_more_than_one_thousand_bounded_pages() -> void
+{
+    qt::epoch_history_model model;
+    std::vector<application::epoch_row_projection> newest;
+    newest.reserve(core::maximum_epoch_history_page_size);
+    for(std::int64_t ordinal = 1'100; ordinal >= 1'001; --ordinal)
+    {
+        newest.push_back(epoch_row(ordinal, '1', '2'));
+    }
+    model.apply(*loaded_catalog_update(std::move(newest)).Catalog);
+    expect(model.epoch_count() == core::maximum_epoch_history_page_size
+            && model.rowCount()
+                == static_cast<int>(
+                    core::maximum_epoch_history_page_size * 2U)
+            && model.statistics().ModelResets == 0U,
+        "the newest page retains exactly the fixed 100-epoch/200-anchor "
+        "working set without reset");
+
+    const auto retained = epoch_row(1'001U, '1', '2');
+    const QPersistentModelIndex retained_head{model.index_for_anchor(
+        anchor(retained, core::comparison_anchor_kind::epoch_head).Identity)};
+    std::vector<application::epoch_row_projection> overlapping;
+    overlapping.reserve(core::maximum_epoch_history_page_size);
+    for(std::int64_t ordinal = 1'001; ordinal >= 902; --ordinal)
+    {
+        overlapping.push_back(epoch_row(ordinal, '1', '2'));
+    }
+    model.apply(*loaded_catalog_update(std::move(overlapping),
+                     std::nullopt,
+                     core::epoch_history_navigation::older)
+                     .Catalog);
+    expect(retained_head.isValid() && retained_head.row() == 1
+            && model.epoch_count() == core::maximum_epoch_history_page_size
+            && model.statistics().ModelResets == 0U,
+        "page replacement preserves an overlapping stable anchor through "
+        "incremental removal and movement");
+
+    for(std::int64_t ordinal = 1'001; ordinal != 0; --ordinal)
+    {
+        const auto before = model.statistics();
+        model.apply(*loaded_catalog_update(
+                         {epoch_row(ordinal, '1', '2')},
+                         std::nullopt,
+                         core::epoch_history_navigation::older)
+                         .Catalog);
+        const auto after = model.statistics();
+        expect(model.epoch_count() == 1U && model.rowCount() == 2
+                && model.data(model.index(0, 0),
+                             qt::epoch_history_model::epoch_ordinal_role)
+                           .toLongLong()
+                    == ordinal
+                && after.ModelResets == 0U
+                && after.RowsRemoved - before.RowsRemoved <= 200U
+                && after.RowsInserted - before.RowsInserted <= 2U
+                && after.RowsMoved - before.RowsMoved <= 2U
+                && after.RowsChanged - before.RowsChanged <= 2U,
+            "each of more than one thousand older pages performs bounded "
+            "resident work without accumulating history");
+    }
+    expect(!retained_head.isValid() && model.epoch_count() == 1U
+            && model.data(model.index(0, 0),
+                         qt::epoch_history_model::epoch_ordinal_role)
+                       .toULongLong()
+                == 1U,
+        "incremental paging reaches ordinal one and legally invalidates an "
+        "anchor only after it leaves the resident page");
+
+    std::vector<application::epoch_row_projection> exact_bound;
+    exact_bound.reserve(core::maximum_epoch_history_page_size);
+    for(std::int64_t ordinal = 200; ordinal >= 101; --ordinal)
+    {
+        exact_bound.push_back(epoch_row(ordinal, '1', '2'));
+    }
+    model.apply(*loaded_catalog_update(std::move(exact_bound)).Catalog);
+    const auto latest = epoch_row(300U, '1', '2');
+    model.apply(application::epoch_catalog_projection{
+        .Catalog = catalog(8),
+        .Changes =
+            {
+                application::epoch_row_change_projection{
+                    .Kind = application::epoch_row_change_kind::insert,
+                    .Index = 0U,
+                    .Id = latest.Id,
+                    .Row = latest,
+                },
+            },
+    });
+    expect(model.epoch_count() == core::maximum_epoch_history_page_size
+            && model.index_for_anchor(
+                        anchor(latest,
+                            core::comparison_anchor_kind::epoch_base)
+                            .Identity)
+                   .row()
+                == 0
+            && model.statistics().ModelResets == 0U,
+        "an incremental newest-row projection evicts the resident tail and "
+        "cannot exceed the fixed working-set cap");
+}
+
 auto test_control_translates_exact_selection_and_preserves_projection() -> void
 {
     std::vector<application::epoch_intent> intents;
@@ -380,7 +483,8 @@ auto test_control_translates_exact_selection_and_preserves_projection() -> void
     expect(control.whole_pr_action()->isChecked()
             && control.whole_pr_action()->isEnabled()
             && !control.whole_pr_action()->shortcut().isEmpty()
-            && !control.load_history_action()->shortcut().isEmpty(),
+            && !control.load_history_action()->shortcut().isEmpty()
+            && !control.return_to_newest_action()->shortcut().isEmpty(),
         "named comparisons and history paging expose keyboard actions");
 
     control.previous_upload_action()->trigger();
@@ -410,6 +514,7 @@ auto test_control_translates_exact_selection_and_preserves_projection() -> void
     const auto* page = std::get_if<core::request_epoch_history_page_intent>(
         &intents.back());
     expect(page != nullptr && page->Catalog == catalog()
+            && page->Navigation == core::epoch_history_navigation::older
             && page->Cursor == continuation
             && page->Limit == core::maximum_epoch_history_page_size,
         "history action dispatches the exact bounded continuation");
@@ -417,14 +522,55 @@ auto test_control_translates_exact_selection_and_preserves_projection() -> void
     control.publish(application::epoch_presentation_update{
         .Catalog = application::epoch_catalog_projection{
             .Catalog = catalog(8),
+            .HistoryPage = application::epoch_history_page_projection{
+                .Phase = core::epoch_history_page_phase::invalidated,
+                .Catalog = catalog(),
+                .Navigation = core::epoch_history_navigation::newest,
+                .Reason = core::epoch_reason_code::catalog_revision_mismatch,
+            },
         },
     });
-    control.load_history_action()->trigger();
+    expect(control.history_model()->epoch_count() == 2U
+            && !control.load_history_action()->isEnabled()
+            && control.return_to_newest_action()->isEnabled()
+            && !control.left_selector()->isEnabled()
+            && !control.right_selector()->isEnabled(),
+        "a catalog revision retains the stale page read-only until an exact "
+        "newest restart");
+    control.return_to_newest_action()->trigger();
     page = std::get_if<core::request_epoch_history_page_intent>(
         &intents.back());
-    expect(page != nullptr && page->Catalog == catalog(8) && !page->Cursor,
+    expect(page != nullptr && page->Catalog == catalog(8)
+            && page->Navigation == core::epoch_history_navigation::newest
+            && !page->Cursor,
         "a catalog revision change discards the stale cursor and reloads "
         "from the exact new revision");
+    const auto newest_continuation = core::epoch_history_cursor{
+        .Authority = third.Id.Authority,
+        .Incarnation = third.Id.Incarnation,
+        .Revision = catalog(8).Revision,
+        .Before = core::epoch_ordinal{2},
+    };
+    control.publish(application::epoch_presentation_update{
+        .Catalog = application::epoch_catalog_projection{
+            .Catalog = catalog(8),
+            .HistoryPage = application::epoch_history_page_projection{
+                .Phase = core::epoch_history_page_phase::loaded,
+                .Catalog = catalog(8),
+                .Navigation = core::epoch_history_navigation::newest,
+                .Limit = core::maximum_epoch_history_page_size,
+                .Rows = {third, second},
+                .Continuation = newest_continuation,
+            },
+        },
+    });
+    expect(control.history_model()->epoch_count() == 2U
+            && control.left_selector()->isEnabled()
+            && control.right_selector()->isEnabled()
+            && control.load_history_action()->isEnabled()
+            && !control.return_to_newest_action()->isEnabled(),
+        "a successful newest page incrementally replaces stale content and "
+        "restores selection plus exact older navigation");
     control.refresh_action()->trigger();
     expect(std::holds_alternative<core::refresh_epochs_intent>(intents.back()),
         "refresh action emits only the semantic refresh intent");
@@ -510,6 +656,32 @@ auto test_control_translates_exact_selection_and_preserves_projection() -> void
             && control.right_oid_editor()->text().size() == 64
             && control.left_oid_editor()->text() == QString(64, QLatin1Char('a')),
         "SHA-256 comparisons preserve every exact OID character");
+
+    control.publish(comparison_update(
+        core::named_selection(core::named_comparison::whole_pr), whole_pair));
+    control.publish(application::epoch_presentation_update{
+        .Catalog = application::epoch_catalog_projection{
+            .Catalog = catalog(8),
+            .HistoryPage = application::epoch_history_page_projection{
+                .Phase = core::epoch_history_page_phase::loaded,
+                .Catalog = catalog(8),
+                .Navigation = core::epoch_history_navigation::older,
+                .Limit = core::maximum_epoch_history_page_size,
+                .Rows = {second},
+            },
+        },
+    });
+    expect(control.left_selector()->currentIndex() == -1
+            && control.right_selector()->currentIndex() == -1
+            && control.left_oid_editor()->text() == QString(40, QLatin1Char('1'))
+            && control.right_oid_editor()->text() == QString(40, QLatin1Char('2'))
+            && control.left_selector()->accessibleDescription().contains(
+                QStringLiteral("outside the loaded history window"))
+            && control.right_selector()->accessibleDescription().contains(
+                QStringLiteral("outside the loaded history window"))
+            && control.return_to_newest_action()->isEnabled(),
+        "an exact selected pair remains fully copyable and accessibly "
+        "identified after both anchors leave the one-page working set");
 }
 
 auto test_explicit_loading_empty_failure_and_availability_states() -> void
@@ -744,22 +916,38 @@ auto test_real_loaded_window_composition_renders() -> void
             },
         .PullRequest = pull_request_projection(),
     });
-    const auto third = epoch_row(3, '1', '2');
-    const auto second = epoch_row(2, '1', '3');
-    window.epoch_control()->publish(loaded_catalog_update({third, second}));
+    std::vector<application::epoch_row_projection> page;
+    page.reserve(core::maximum_epoch_history_page_size);
+    for(std::int64_t ordinal = 1'100; ordinal >= 1'001; --ordinal)
+    {
+        page.push_back(epoch_row(ordinal, '1', '2'));
+    }
+    const auto render_top = page.front();
+    window.epoch_control()->publish(
+        loaded_catalog_update(std::move(page)));
     window.epoch_control()->publish(comparison_update(
         core::named_selection(core::named_comparison::whole_pr),
         {
-            .Left = anchor(third, core::comparison_anchor_kind::epoch_base),
-            .Right = anchor(third, core::comparison_anchor_kind::epoch_head),
+            .Left = anchor(
+                render_top, core::comparison_anchor_kind::epoch_base),
+            .Right = anchor(
+                render_top, core::comparison_anchor_kind::epoch_head),
         }));
     window.resize(1'100, 820);
     window.show();
     QApplication::processEvents();
     expect(window.epoch_control()->isVisible()
             && window.epoch_control()->left_selector()->isVisible()
-            && window.epoch_control()->right_selector()->isVisible(),
-        "the reusable control is reachable in the real loaded-content window");
+            && window.epoch_control()->right_selector()->isVisible()
+            && window.epoch_control()->history_model()->epoch_count()
+                == core::maximum_epoch_history_page_size
+            && window.epoch_control()->history_model()->rowCount()
+                == static_cast<int>(
+                    core::maximum_epoch_history_page_size * 2U)
+            && window.epoch_control()->left_selector()->currentIndex() == 0
+            && window.epoch_control()->right_selector()->currentIndex() == 1,
+        "the exact 100-epoch/200-anchor working set is reachable in the real "
+        "loaded-content window");
 
     const QPixmap rendered = window.grab();
     const auto scale = window.devicePixelRatioF();
@@ -782,6 +970,7 @@ auto main(int argc, char** argv) -> int
 {
     QApplication application{argc, argv};
     test_model_applies_stable_incremental_rows();
+    test_model_replaces_more_than_one_thousand_bounded_pages();
     test_control_translates_exact_selection_and_preserves_projection();
     test_explicit_loading_empty_failure_and_availability_states();
     test_focus_appearance_accessibility_and_announcements();

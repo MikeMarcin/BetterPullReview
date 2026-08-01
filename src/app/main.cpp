@@ -1429,11 +1429,18 @@ void schedule_automated_run(
                     auto* const control = window.epoch_control();
                     if(control->history_model()->epoch_count() < 2U)
                     {
-                        if(!control->load_history_action()->isEnabled())
+                        if(control->return_to_newest_action()->isEnabled())
+                        {
+                            control->return_to_newest_action()->trigger();
+                        }
+                        else if(control->load_history_action()->isEnabled())
+                        {
+                            control->load_history_action()->trigger();
+                        }
+                        else
                         {
                             break;
                         }
-                        control->load_history_action()->trigger();
                         advance_fixture_stage(
                             *run, automated_run::stage::epoch_history);
                     }

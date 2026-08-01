@@ -360,6 +360,10 @@ void epoch_history_model::apply(
             break;
         }
     }
+    while(Rows.size() > core::maximum_epoch_history_page_size)
+    {
+        remove(Rows.back().Id);
+    }
 
     if(projection.AvailabilityChangedTo)
     {
@@ -374,18 +378,13 @@ void epoch_history_model::apply(
     if(projection.HistoryPage
         && projection.HistoryPage->Phase
             == core::epoch_history_page_phase::loaded
+        && projection.HistoryPage->Rows.size()
+            <= core::maximum_epoch_history_page_size
         && (!Catalog
             || same_incarnation(*Catalog, projection.HistoryPage->Catalog)))
     {
         Catalog = projection.HistoryPage->Catalog;
-        auto insertion = projection.HistoryPage->RequestedCursor
-            ? Rows.size()
-            : 0U;
-        for(const auto& row : projection.HistoryPage->Rows)
-        {
-            insert_or_move(insertion, row);
-            ++insertion;
-        }
+        reconcile_page(projection.HistoryPage->Rows);
     }
 }
 
@@ -493,10 +492,36 @@ auto epoch_history_model::epoch_index_for_id(
 void epoch_history_model::replace(
     std::vector<application::epoch_row_projection> rows)
 {
+    if(Rows == rows)
+    {
+        return;
+    }
     beginResetModel();
     Rows = std::move(rows);
     endResetModel();
     ++Statistics.ModelResets;
+}
+
+void epoch_history_model::reconcile_page(
+    std::vector<application::epoch_row_projection> rows)
+{
+    for(auto index = Rows.size(); index != 0U; --index)
+    {
+        const auto& identity = Rows[index - 1U].Id;
+        const auto retained = std::ranges::any_of(rows,
+            [&identity](const application::epoch_row_projection& row)
+            {
+                return row.Id == identity;
+            });
+        if(!retained)
+        {
+            remove(identity);
+        }
+    }
+    for(std::size_t index = 0U; index < rows.size(); ++index)
+    {
+        insert_or_move(index, std::move(rows[index]));
+    }
 }
 
 void epoch_history_model::insert_or_move(

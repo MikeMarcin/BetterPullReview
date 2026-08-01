@@ -36,9 +36,9 @@ Review quality depends on knowing exactly which revision was inspected. Mutable 
 
 ## Architectural allocation
 
-- **Core:** owns the current PR identity, selected left/right epochs, default `Branch base`/`Latest` policy, comparison legality, navigation context, and acceptance of Git/epoch completions by request/revision/generation.
+- **Core:** owns the current PR identity, selected left/right epochs, default `Branch base`/`Latest` policy, comparison legality, explicit newest/older history-page navigation, and acceptance of Git/epoch completions by request/revision/generation.
 - **Host:** owns the installed-Git process boundary, app-owned bare repositories, retained refs, Git-object residency, observed-time input, epoch persistence, cancellation, and cache pruning. Time is passed to decisions explicitly rather than read by the core.
-- **Qt adapter:** owns the independent epoch selectors, exact-OID presentation, unavailable/history states, popup mechanics, and translation of epoch choices into semantic intents.
+- **Qt adapter:** owns the independent epoch selectors, one 100-epoch/200-anchor resident page, exact-OID presentation, unavailable/stale history states, popup mechanics, and translation of epoch choices into semantic intents.
 - The core stores stable epoch identities and bounded summaries rather than Git blobs or complete history.
 
 ## Git policy
@@ -56,7 +56,7 @@ The default pane choices are left `Branch base` and right `Latest`. Named compar
 - Opening a fixture PR creates/reuses the correct app-owned bare repository.
 - Observed heads receive durable private refs and remain available after the simulated remote force-push removes them.
 - Base update, author upload, force-push, and base-branch-change cases receive distinct cause labels.
-- Left and right selectors enumerate retained epochs and show exact OIDs.
+- Left and right selectors reach all retained epochs through core-authorized bounded pages and show exact OIDs even when the selected anchors leave the resident page.
 - `Previous upload -> latest` and `My last reviewed -> latest` resolve to expected OIDs.
 - Git process tests prove hooks, textconv, external diff, submodules, filters, and worktree execution are disabled.
 - Repository cache deletion and ref pruning are explicit user/admin operations with documented consequences.
@@ -71,6 +71,7 @@ The default pane choices are left `Branch base` and right `Latest`. Named compar
 | Selector identity is exact | Workbench projection | Chosen label, base OID, head OID, and diff request agree |
 | Git does not execute repo behavior | Process policy fixture | Malicious hooks/filters/ext-diff canaries are never invoked |
 | Epoch work follows request identity | Manual-executor integration | Reorder Git/epoch completions and prove only matching generation updates selection |
+| Large retained history remains bounded and reachable | Core/host paging plus rendered Qt composition | Traverse more than 1,000 pages to ordinal one, return to newest, and retain at most 100 epochs/200 anchor rows with zero routine resets |
 
 ## Documentation impact
 

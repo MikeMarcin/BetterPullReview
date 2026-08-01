@@ -3619,6 +3619,41 @@ void quota_boundaries_contract()
         auto reopened = port->open(open_request(222U), {});
         expect(reopened.has_value(), "full retained-epoch authority reopens");
         session = std::move(*reopened);
+
+        std::optional<core::epoch_history_cursor> cursor;
+        std::size_t page_count = 0U;
+        std::size_t epoch_count = 0U;
+        auto expected_ordinal = static_cast<std::int64_t>(
+            app::maximum_retained_epoch_count_per_pull_request);
+        do
+        {
+            auto page = session->history(
+                app::epoch_history_page_request{
+                    .Catalog = session->binding().Catalog,
+                    .Cursor = cursor,
+                    .Limit = 99U,
+                },
+                {});
+            expect(page.has_value() && !page->Epochs.empty()
+                    && page->Epochs.size() <= 99U,
+                "one real SQLite history page remains bounded");
+            for(const auto& epoch : page->Epochs)
+            {
+                expect(epoch.Id.Ordinal.value() == expected_ordinal,
+                    "real SQLite history has no gap, duplicate, or reorder");
+                --expected_ordinal;
+            }
+            epoch_count += page->Epochs.size();
+            ++page_count;
+            cursor = page->Continuation;
+        } while(cursor);
+        expect(page_count > 1'000U
+                && epoch_count
+                    == app::maximum_retained_epoch_count_per_pull_request
+                && expected_ordinal == 0,
+            "more than one thousand real SQLite pages reach ordinal one "
+            "without a whole-history query");
+
         auto blocked = session->reserve_append(
             app::append_reservation_request{
                 .Context = context(

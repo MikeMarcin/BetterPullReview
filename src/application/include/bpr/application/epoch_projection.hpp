@@ -92,6 +92,8 @@ struct epoch_history_page_projection
     core::epoch_history_page_phase Phase =
         core::epoch_history_page_phase::loading;
     core::epoch_catalog_identity Catalog;
+    core::epoch_history_navigation Navigation =
+        core::epoch_history_navigation::newest;
     std::optional<core::epoch_history_cursor> RequestedCursor;
     std::uint16_t Limit = core::maximum_epoch_history_page_size;
     std::vector<epoch_row_projection> Rows;

@@ -51,6 +51,14 @@ bounded polite status-plus-comparison announcement is emitted for a changed
 projection and identical text is suppressed. Color is not the only signal for
 any of these states.
 
+The bounded history control exposes separate `Load earlier epochs` and `Return
+to newest epochs` actions with keyboard shortcuts and enabled-state
+descriptions. When a selected anchor is outside the one-page working set, the
+selector's accessible description identifies that condition and the complete
+OID remains available below it. A catalog-invalidated page is retained with
+explicit stale text and disabled selection rather than being silently mixed
+with the new revision.
+
 The deterministic 1.0x, 1.25x, and 2.0x offscreen renders exercise the actual
 loaded pull-request composition and verify geometry only. Target-native macOS
 system Light/Dark interaction remains BPR-0049 evidence; these renders do not

@@ -226,6 +226,11 @@ epoch_comparison_control::epoch_comparison_control(
     configure_action(LoadHistoryAction,
         QStringLiteral("loadEpochHistoryAction"),
         QKeySequence{QStringLiteral("Ctrl+Alt+Down")});
+    ReturnNewestAction =
+        new QAction{QStringLiteral("Return to &newest epochs"), this};
+    configure_action(ReturnNewestAction,
+        QStringLiteral("returnToNewestEpochsAction"),
+        QKeySequence{QStringLiteral("Ctrl+Alt+Up")});
     RefreshAction = new QAction{QStringLiteral("Refresh review &history"), this};
     configure_action(RefreshAction,
         QStringLiteral("refreshEpochsAction"),
@@ -235,6 +240,7 @@ epoch_comparison_control::epoch_comparison_control(
         QStringLiteral("cancelEpochRefreshAction"),
         QKeySequence{QStringLiteral("Escape")});
     addAction(LoadHistoryAction);
+    addAction(ReturnNewestAction);
     addAction(RefreshAction);
     addAction(CancelAction);
 
@@ -331,6 +337,11 @@ epoch_comparison_control::epoch_comparison_control(
     LoadHistoryButton->setObjectName(QStringLiteral("loadEpochHistoryButton"));
     LoadHistoryButton->setDefaultAction(LoadHistoryAction);
     LoadHistoryButton->setFocusPolicy(Qt::StrongFocus);
+    ReturnNewestButton = new QToolButton{this};
+    ReturnNewestButton->setObjectName(
+        QStringLiteral("returnToNewestEpochsButton"));
+    ReturnNewestButton->setDefaultAction(ReturnNewestAction);
+    ReturnNewestButton->setFocusPolicy(Qt::StrongFocus);
     RefreshButton = new QToolButton{this};
     RefreshButton->setObjectName(QStringLiteral("refreshEpochsButton"));
     RefreshButton->setDefaultAction(RefreshAction);
@@ -340,6 +351,7 @@ epoch_comparison_control::epoch_comparison_control(
     CancelButton->setDefaultAction(CancelAction);
     CancelButton->setFocusPolicy(Qt::StrongFocus);
     footer->addWidget(LoadHistoryButton);
+    footer->addWidget(ReturnNewestButton);
     footer->addWidget(RefreshButton);
     footer->addWidget(CancelButton);
     layout->addLayout(footer);
@@ -372,7 +384,11 @@ epoch_comparison_control::epoch_comparison_control(
         });
     connect(LoadHistoryAction, &QAction::triggered, this, [this]
     {
-        dispatch_history_page();
+        dispatch_older_history_page();
+    });
+    connect(ReturnNewestAction, &QAction::triggered, this, [this]
+    {
+        dispatch_newest_history_page();
     });
     connect(RefreshAction, &QAction::triggered, this, [this]
     {
@@ -465,6 +481,12 @@ auto epoch_comparison_control::load_history_action() const noexcept -> QAction*
     return LoadHistoryAction;
 }
 
+auto epoch_comparison_control::return_to_newest_action() const noexcept
+    -> QAction*
+{
+    return ReturnNewestAction;
+}
+
 auto epoch_comparison_control::refresh_action() const noexcept -> QAction*
 {
     return RefreshAction;
@@ -550,7 +572,26 @@ void epoch_comparison_control::dispatch_anchor(
     update_selection_controls();
 }
 
-void epoch_comparison_control::dispatch_history_page()
+void epoch_comparison_control::dispatch_older_history_page()
+{
+    if(!Dispatch || !Continuation)
+    {
+        return;
+    }
+    const auto catalog = HistoryModel->catalog();
+    if(!catalog)
+    {
+        return;
+    }
+    Dispatch(core::request_epoch_history_page_intent{
+        .Catalog = *catalog,
+        .Navigation = core::epoch_history_navigation::older,
+        .Cursor = Continuation,
+        .Limit = core::maximum_epoch_history_page_size,
+    });
+}
+
+void epoch_comparison_control::dispatch_newest_history_page()
 {
     if(!Dispatch)
     {
@@ -563,7 +604,7 @@ void epoch_comparison_control::dispatch_history_page()
     }
     Dispatch(core::request_epoch_history_page_intent{
         .Catalog = *catalog,
-        .Cursor = Continuation,
+        .Navigation = core::epoch_history_navigation::newest,
         .Limit = core::maximum_epoch_history_page_size,
     });
 }
@@ -576,16 +617,16 @@ void epoch_comparison_control::apply_catalog(
     if(projection.Replace && !projection.Catalog)
     {
         Continuation.reset();
+        HistoryNavigation.reset();
         HistoryPhase.reset();
         HistoryReason = core::epoch_reason_code::none;
+        HistoryWindowStale = false;
     }
     else if(projection.Catalog && previous_catalog
         && *projection.Catalog != *previous_catalog
         && !projection.HistoryPage)
     {
         Continuation.reset();
-        HistoryPhase.reset();
-        HistoryReason = core::epoch_reason_code::none;
     }
     if(projection.HistoryPage)
     {
@@ -594,7 +635,15 @@ void epoch_comparison_control::apply_catalog(
         if(projection.HistoryPage->Phase
             == core::epoch_history_page_phase::loaded)
         {
+            HistoryNavigation = projection.HistoryPage->Navigation;
             Continuation = projection.HistoryPage->Continuation;
+            HistoryWindowStale = false;
+        }
+        else if(projection.HistoryPage->Phase
+            == core::epoch_history_page_phase::invalidated)
+        {
+            Continuation.reset();
+            HistoryWindowStale = true;
         }
     }
 }
@@ -610,7 +659,9 @@ void epoch_comparison_control::apply_transition(
             Selection.reset();
             Comparison.reset();
             Continuation.reset();
+            HistoryNavigation.reset();
             HistoryPhase.reset();
+            HistoryWindowStale = false;
         }
     }
     if(projection.Selection)
@@ -665,6 +716,10 @@ void epoch_comparison_control::update_selection_controls()
     auto left_description = QStringLiteral(
         "Complete lowercase commit OID; read-only and copyable");
     auto right_description = left_description;
+    auto left_selector_description = QStringLiteral(
+        "Select the exact base or head anchor for the left side");
+    auto right_selector_description = QStringLiteral(
+        "Select the exact base or head anchor for the right side");
 
     if(Comparison && Comparison->Pair)
     {
@@ -675,9 +730,21 @@ void epoch_comparison_control::update_selection_controls()
         {
             left_index = left.row();
         }
+        else
+        {
+            left_selector_description = QStringLiteral(
+                "The exact selected left anchor is outside the loaded "
+                "history window; its complete OID remains available below");
+        }
         if(right.isValid())
         {
             right_index = right.row();
+        }
+        else
+        {
+            right_selector_description = QStringLiteral(
+                "The exact selected right anchor is outside the loaded "
+                "history window; its complete OID remains available below");
         }
         left_oid = oid_text(pair.Left.Commit);
         right_oid = oid_text(pair.Right.Commit);
@@ -706,6 +773,8 @@ void epoch_comparison_control::update_selection_controls()
     }
     LeftOid->setAccessibleDescription(left_description);
     RightOid->setAccessibleDescription(right_description);
+    LeftSelector->setAccessibleDescription(left_selector_description);
+    RightSelector->setAccessibleDescription(right_selector_description);
 
     WholePrAction->setChecked(false);
     PreviousUploadAction->setChecked(false);
@@ -764,6 +833,15 @@ void epoch_comparison_control::update_status_text()
                   "History loading was canceled; retained epochs remain "
                   "visible.")
             : QStringLiteral("Review-history loading was canceled.");
+    }
+    else if(HistoryPhase == core::epoch_history_page_phase::invalidated)
+    {
+        status = retained
+            ? QStringLiteral(
+                  "Retained history changed; the visible page is stale. "
+                  "Return to newest epochs to refresh it.")
+            : QStringLiteral(
+                  "Retained history changed; load the newest epoch page.");
     }
     else if(HistoryPhase == core::epoch_history_page_phase::loaded
         && !retained)
@@ -832,16 +910,21 @@ void epoch_comparison_control::update_action_state()
     WholePrAction->setEnabled(select_enabled);
     PreviousUploadAction->setEnabled(select_enabled);
     LastReviewedAction->setEnabled(select_enabled);
-    LeftSelector->setEnabled(select_enabled && HistoryModel->rowCount() != 0);
-    RightSelector->setEnabled(select_enabled && HistoryModel->rowCount() != 0);
+    LeftSelector->setEnabled(select_enabled && !HistoryWindowStale
+        && HistoryModel->rowCount() != 0);
+    RightSelector->setEnabled(select_enabled && !HistoryWindowStale
+        && HistoryModel->rowCount() != 0);
     RefreshAction->setEnabled(refresh && refresh->Enabled);
     CancelAction->setEnabled(cancel && cancel->Enabled);
     const bool page_loading = HistoryPhase
         == core::epoch_history_page_phase::loading;
     LoadHistoryAction->setEnabled(
         HistoryModel->catalog().has_value() && !page_loading
-        && (!HistoryPhase.has_value() || HistoryModel->epoch_count() == 0U
-            || Continuation.has_value()));
+        && !HistoryWindowStale && Continuation.has_value());
+    ReturnNewestAction->setEnabled(
+        HistoryModel->catalog().has_value() && !page_loading
+        && (HistoryWindowStale || !HistoryNavigation.has_value()
+            || *HistoryNavigation == core::epoch_history_navigation::older));
 
     const auto describe =
         [](QAction* const action,
@@ -874,6 +957,11 @@ void epoch_comparison_control::update_action_state()
     LoadHistoryAction->setToolTip(LoadHistoryAction->isEnabled()
             ? QStringLiteral("Load the next bounded page of retained epochs.")
             : QStringLiteral("No earlier retained epoch page is available."));
+    LoadHistoryAction->setStatusTip(LoadHistoryAction->toolTip());
+    ReturnNewestAction->setToolTip(ReturnNewestAction->isEnabled()
+            ? QStringLiteral("Load the newest bounded page of retained epochs.")
+            : QStringLiteral("The newest retained epoch page is visible."));
+    ReturnNewestAction->setStatusTip(ReturnNewestAction->toolTip());
 }
 
 void epoch_comparison_control::refresh_native_appearance()

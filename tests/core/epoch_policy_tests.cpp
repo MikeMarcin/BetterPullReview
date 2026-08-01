@@ -2583,6 +2583,7 @@ auto test_bounded_epoch_history_paging() -> void
             fixture.State,
             request_epoch_history_page_intent{
                 .Catalog = fixture.Catalog,
+                .Navigation = epoch_history_navigation::older,
                 .Cursor = history_cursor(fixture, 4),
                 .Limit = 2U,
             });
@@ -2659,6 +2660,8 @@ auto test_bounded_epoch_history_paging() -> void
                 && loaded.History->Continuation == continuation
                 && fixture.State.HistoryCatalog
                     == std::optional{fixture.Catalog}
+                && fixture.State.HistoryNavigation
+                    == epoch_history_navigation::newest
                 && fixture.State.HistoryContinuation == continuation
                 && !fixture.State.PendingHistory
                 && fixture.State.Status == status,
@@ -2669,6 +2672,7 @@ auto test_bounded_epoch_history_paging() -> void
             fixture.State,
             request_epoch_history_page_intent{
                 .Catalog = fixture.Catalog,
+                .Navigation = epoch_history_navigation::older,
                 .Cursor = history_cursor(fixture, 1),
                 .Limit = 2U,
             });
@@ -2683,6 +2687,7 @@ auto test_bounded_epoch_history_paging() -> void
             fixture.State,
             request_epoch_history_page_intent{
                 .Catalog = fixture.Catalog,
+                .Navigation = epoch_history_navigation::older,
                 .Cursor = continuation,
                 .Limit = 2U,
             });
@@ -2690,6 +2695,8 @@ auto test_bounded_epoch_history_paging() -> void
             request_from<load_epoch_history_page_request>(continuing);
         expect(
             continuation_request
+                && continuation_request->Context.Navigation
+                    == epoch_history_navigation::older
                 && continuation_request->Context.Cursor == continuation,
             "the next page request carries the exact revision-bound cursor");
 
@@ -2744,19 +2751,160 @@ auto test_bounded_epoch_history_paging() -> void
             final_page.History && final_page.History->Epochs.size() == 1U
                 && !final_page.History->Continuation
                 && !fixture.State.HistoryContinuation
+                && fixture.State.HistoryNavigation
+                    == epoch_history_navigation::older
                 && !fixture.State.PendingHistory,
             "a short continuation page terminates the bounded sequence");
 
-        const auto repeat = transition(
+        const auto newest = transition(
             fixture.State,
             request_epoch_history_page_intent{
                 .Catalog = fixture.Catalog,
                 .Limit = 2U,
             });
+        const auto* newest_request =
+            request_from<load_epoch_history_page_request>(newest);
         expect(
-            diagnostic_is(
-                repeat, epoch_reason_code::duplicate_history_page),
-            "an already-completed initial page cannot be replayed");
+            newest_request
+                && newest_request->Context.Navigation
+                    == epoch_history_navigation::newest
+                && !newest_request->Context.Cursor,
+            "core explicitly authorizes returning from an older window to "
+            "the newest page without a fabricated cursor");
+        const auto newest_loaded = transition(
+            fixture.State,
+            epoch_history_page_loaded_event{
+                .Context = newest_request->Context,
+                .Page = history_page(
+                    fixture,
+                    {
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            3,
+                            10U,
+                            23U),
+                        summary(
+                            fixture.Authority,
+                            fixture.Catalog,
+                            2,
+                            10U,
+                            22U),
+                    },
+                    continuation),
+            });
+        expect(newest_loaded.History
+                && fixture.State.HistoryNavigation
+                    == epoch_history_navigation::newest,
+            "a successful newest restart replaces the retained navigation "
+            "position");
+
+        const auto duplicate_newest = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 2U,
+            });
+        expect(diagnostic_is(duplicate_newest,
+                   epoch_reason_code::duplicate_history_page),
+            "an already-visible newest page cannot be loaded twice");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        auto loading = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 1U,
+            });
+        auto context =
+            request_from<load_epoch_history_page_request>(loading)->Context;
+
+        constexpr std::int64_t newest_ordinal = 1'002;
+        for(std::int64_t ordinal = newest_ordinal; ordinal >= 1; --ordinal)
+        {
+            const auto continuation = ordinal == 1
+                ? std::optional<epoch_history_cursor>{}
+                : std::optional{history_cursor(fixture, ordinal)};
+            const auto loaded = transition(
+                fixture.State,
+                epoch_history_page_loaded_event{
+                    .Context = context,
+                    .Page = history_page(
+                        fixture,
+                        {
+                            summary(fixture.Authority,
+                                fixture.Catalog,
+                                ordinal,
+                                10U,
+                                20U),
+                        },
+                        continuation),
+                });
+            expect(loaded.History && loaded.History->Epochs.size() == 1U
+                    && loaded.History->Epochs.front().Id.Ordinal
+                        == epoch_ordinal{ordinal}
+                    && fixture.State.HistoryCatalog
+                        == std::optional{fixture.Catalog}
+                    && fixture.State.HistoryContinuation == continuation
+                    && !fixture.State.PendingHistory,
+                "each catalog terminal publishes only its bounded page and "
+                "one continuation");
+            if(ordinal == 1)
+            {
+                expect(loaded.History->Epochs.front().Id.Ordinal
+                        == epoch_ordinal{1}
+                        && fixture.State.HistoryNavigation
+                            == epoch_history_navigation::older,
+                    "more than one thousand exact continuations reach "
+                    "ordinal one without retaining prior rows in core");
+                break;
+            }
+
+            loading = transition(
+                fixture.State,
+                request_epoch_history_page_intent{
+                    .Catalog = fixture.Catalog,
+                    .Navigation = epoch_history_navigation::older,
+                    .Cursor = continuation,
+                    .Limit = 1U,
+                });
+            const auto* request =
+                request_from<load_epoch_history_page_request>(loading);
+            expect(request && request->Context.Cursor == continuation
+                    && request->Context.Navigation
+                        == epoch_history_navigation::older,
+                "each older request is authorized only from the exact "
+                "retained continuation");
+            context = request->Context;
+        }
+
+        const auto no_continuation = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Navigation = epoch_history_navigation::older,
+                .Limit = 1U,
+            });
+        expect(diagnostic_is(no_continuation,
+                   epoch_reason_code::invalid_history_cursor),
+            "older navigation is disabled once ordinal one has no exact "
+            "continuation");
+
+        const auto newest = transition(
+            fixture.State,
+            request_epoch_history_page_intent{
+                .Catalog = fixture.Catalog,
+                .Limit = 1U,
+            });
+        const auto* newest_request =
+            request_from<load_epoch_history_page_request>(newest);
+        expect(newest_request && !newest_request->Context.Cursor
+                && newest_request->Context.Navigation
+                    == epoch_history_navigation::newest,
+            "the core can restart the newest page exactly after traversing "
+            "more than one thousand older pages");
     }
 
     {

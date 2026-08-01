@@ -2290,12 +2290,18 @@ struct epoch_application_host::implementation
                     .Incarnation = output.AcceptedEpoch->Epoch.Id.Incarnation,
                     .Revision = output.AcceptedEpoch->CatalogRevision,
                 };
-                update.Catalog->Changes.push_back(
-                    epoch_row_change_projection{
-                        .Kind = epoch_row_change_kind::insert,
-                        .Id = output.AcceptedEpoch->Epoch.Id,
-                        .Row = projected_row(output.AcceptedEpoch->Epoch),
-                    });
+                const bool history_window_invalidated = output.History
+                    && output.History->Phase
+                        == core::epoch_history_page_phase::invalidated;
+                if(!history_window_invalidated)
+                {
+                    update.Catalog->Changes.push_back(
+                        epoch_row_change_projection{
+                            .Kind = epoch_row_change_kind::insert,
+                            .Id = output.AcceptedEpoch->Epoch.Id,
+                            .Row = projected_row(output.AcceptedEpoch->Epoch),
+                        });
+                }
             }
             if(output.History)
             {
@@ -2306,6 +2312,7 @@ struct epoch_application_host::implementation
                 auto page = epoch_history_page_projection{
                     .Phase = output.History->Phase,
                     .Catalog = output.History->Catalog,
+                    .Navigation = output.History->Navigation,
                     .RequestedCursor = output.History->RequestedCursor,
                     .Limit = output.History->Limit,
                     .Continuation = output.History->Continuation,

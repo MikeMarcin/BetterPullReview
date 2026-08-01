@@ -123,6 +123,20 @@ rather than guessed as an upload or force-push. Append, availability, and
 selection changes update stable rows incrementally without a routine model
 reset.
 
+The selectors retain one bounded page at a time: at most 100 epochs and 200
+base/head anchor rows, independent of the durable catalog size. `Load earlier
+epochs` follows only the exact continuation authorized by the core, while
+`Return to newest epochs` requests the newest page without a cursor. Replacing
+a page uses stable-ID row signals, not a model reset. If the exact selected pair
+leaves the resident page, both selector indices become nonresident while the
+complete selected OIDs, availability, comparison identity, and accessible
+explanation remain visible. No pinned or synthetic epoch row is created.
+
+A live catalog revision does not mix a newly accepted epoch into an older
+resident page. The visible page is retained as read-only and identified as
+stale; earlier navigation and selector gestures are disabled until the
+core-authorized newest request succeeds against the new revision.
+
 The interim loaded pull-request surface now hosts this reusable control. Each
 selector lists the exact base and head anchor supplied for a stable epoch, and
 read-only text fields expose the complete selected SHA-1 or SHA-256 OIDs for

@@ -354,18 +354,24 @@ page or Git object and is bounded to 2,048 bytes. The host owns refs, object
 residency, ancestry/material observations, time, persistence, append recovery,
 and cancellation. The catalog owns full durable history. BPR-0056 adds the
 bounded core/host page algebra that exposes at most 100 sanitized rows at a
-time; core state retains only the accepted catalog and continuation, and the
-projection never requests a whole-model reset.
+time. BPR-0066 makes page direction explicit: core authorizes either an exact
+revision-bound `older` continuation or a cursor-free `newest` restart. Core
+state retains only the accepted catalog, navigation kind, and continuation;
+it never retains page rows or complete history.
 
 BPR-0046 consumes that projection in one provider/Git/filesystem-free Qt
 control embedded in the interim loaded pull-request window. Its shared stable
-model exposes each epoch's typed base and head anchors to two independent
-selectors, applies routine page/catalog changes with insert/remove/move/data
-signals, and preserves exact selection and copyable SHA-1/SHA-256 OIDs. Named
-actions and selector gestures dispatch only semantic core intents. The
-control owns focus, accessibility, announcements, and live palette/font/style
-invalidation; it does not resolve aliases, compare OIDs, inspect availability,
-or perform an effect.
+model retains exactly one accepted page, capped at 100 epochs and 200 anchor
+rows, and reconciles page replacement by stable-ID insert/remove/move/data
+signals without a routine reset. `Load earlier epochs` dispatches only the
+accepted continuation; `Return to newest epochs` dispatches a cursor-free
+semantic restart. A catalog revision retains the old page visibly but marks it
+read-only and stale until that newest request succeeds. The exact selected pair
+and complete SHA-1/SHA-256 OIDs remain in the independent comparison projection
+when either anchor leaves the resident page; Qt does not fabricate pinned rows.
+The control owns focus, accessibility, announcements, and live
+palette/font/style invalidation; it does not resolve aliases, compare OIDs,
+inspect availability, choose a paging cursor, or perform an effect.
 
 An epoch ID is scoped by exact authority, catalog incarnation, and a nonzero
 ordinal no greater than `INT64_MAX`. Recreating a deleted catalog creates a

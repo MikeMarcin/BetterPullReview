@@ -690,6 +690,12 @@ struct comparison_context
     auto operator<=>(const comparison_context&) const = default;
 };
 
+enum class epoch_history_navigation : std::uint8_t
+{
+    newest,
+    older,
+};
+
 struct epoch_history_page_context
 {
     epoch_request_id Request;
@@ -698,6 +704,7 @@ struct epoch_history_page_context
     pull_request_source_revision Source;
     epoch_generation Generation;
     epoch_catalog_identity Catalog;
+    epoch_history_navigation Navigation = epoch_history_navigation::newest;
     std::optional<epoch_history_cursor> Cursor;
     std::uint16_t Limit = maximum_epoch_history_page_size;
 
@@ -947,6 +954,7 @@ struct refresh_epochs_intent
 struct request_epoch_history_page_intent
 {
     epoch_catalog_identity Catalog;
+    epoch_history_navigation Navigation = epoch_history_navigation::newest;
     std::optional<epoch_history_cursor> Cursor;
     std::uint16_t Limit = maximum_epoch_history_page_size;
 
@@ -1245,12 +1253,14 @@ enum class epoch_history_page_phase : std::uint8_t
     loaded,
     failed,
     cancelled,
+    invalidated,
 };
 
 struct epoch_history_page_delta
 {
     epoch_history_page_phase Phase = epoch_history_page_phase::loading;
     epoch_catalog_identity Catalog;
+    epoch_history_navigation Navigation = epoch_history_navigation::newest;
     std::optional<epoch_history_cursor> RequestedCursor;
     std::uint16_t Limit = maximum_epoch_history_page_size;
     std::vector<review_epoch_summary> Epochs;
@@ -1349,6 +1359,7 @@ struct pending_epoch_history_page
     epoch_request_id Request;
     epoch_generation Generation;
     epoch_catalog_identity Catalog;
+    epoch_history_navigation Navigation = epoch_history_navigation::newest;
     std::optional<epoch_history_cursor> Cursor;
     std::uint16_t Limit = maximum_epoch_history_page_size;
 
@@ -1388,6 +1399,7 @@ struct epoch_state
     std::optional<pending_epoch_history_page> PendingHistory;
     std::optional<pending_epoch_maintenance> PendingMaintenance;
     std::optional<epoch_catalog_identity> HistoryCatalog;
+    std::optional<epoch_history_navigation> HistoryNavigation;
     std::optional<epoch_history_cursor> HistoryContinuation;
     epoch_status Status = epoch_status::inactive;
 

@@ -68,6 +68,8 @@ private:
         const core::review_epoch_id& identity) const
         -> std::optional<std::size_t>;
     void replace(std::vector<application::epoch_row_projection> rows);
+    void reconcile_page(
+        std::vector<application::epoch_row_projection> rows);
     void insert_or_move(
         std::size_t index,
         application::epoch_row_projection row);

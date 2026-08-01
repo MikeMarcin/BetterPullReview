@@ -47,6 +47,7 @@ public:
     [[nodiscard]] auto previous_upload_action() const noexcept -> QAction*;
     [[nodiscard]] auto last_reviewed_action() const noexcept -> QAction*;
     [[nodiscard]] auto load_history_action() const noexcept -> QAction*;
+    [[nodiscard]] auto return_to_newest_action() const noexcept -> QAction*;
     [[nodiscard]] auto refresh_action() const noexcept -> QAction*;
     [[nodiscard]] auto cancel_action() const noexcept -> QAction*;
     [[nodiscard]] auto status_text() const -> QString;
@@ -60,7 +61,8 @@ protected:
 private:
     void dispatch_alias(core::named_comparison alias);
     void dispatch_anchor(core::comparison_side side, int row);
-    void dispatch_history_page();
+    void dispatch_older_history_page();
+    void dispatch_newest_history_page();
     void apply_catalog(
         const application::epoch_catalog_projection& projection);
     void apply_transition(
@@ -88,15 +90,18 @@ private:
     QAction* PreviousUploadAction = nullptr;
     QAction* LastReviewedAction = nullptr;
     QAction* LoadHistoryAction = nullptr;
+    QAction* ReturnNewestAction = nullptr;
     QAction* RefreshAction = nullptr;
     QAction* CancelAction = nullptr;
     QToolButton* LoadHistoryButton = nullptr;
+    QToolButton* ReturnNewestButton = nullptr;
     QToolButton* RefreshButton = nullptr;
     QToolButton* CancelButton = nullptr;
 
     std::optional<core::comparison_selection> Selection;
     std::optional<application::epoch_comparison_projection> Comparison;
     std::optional<core::epoch_history_cursor> Continuation;
+    std::optional<core::epoch_history_navigation> HistoryNavigation;
     std::optional<core::epoch_history_page_phase> HistoryPhase;
     core::epoch_reason_code HistoryReason = core::epoch_reason_code::none;
     core::epoch_reason_code DiagnosticReason = core::epoch_reason_code::none;
@@ -104,6 +109,7 @@ private:
     std::array<core::epoch_command_projection, 3> Commands{};
     bool HasCommands = false;
     bool ApplyingProjection = false;
+    bool HistoryWindowStale = false;
     QString LastAnnouncement;
     epoch_comparison_control_statistics Statistics;
 };
