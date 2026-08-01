@@ -37,6 +37,17 @@ template<typename Identity>
     };
 }
 
+[[nodiscard]] constexpr auto tree(const std::uint8_t seed)
+    -> core::git_tree_oid
+{
+    auto digest = std::array<std::uint8_t, 32U>{};
+    digest.front() = seed;
+    return core::git_tree_oid{
+        core::git_hash_algorithm::sha1,
+        digest,
+    };
+}
+
 [[nodiscard]] constexpr auto pack(const std::uint8_t seed)
     -> application::git_pack_oid
 {
@@ -136,6 +147,66 @@ void source_observation_identity_contract()
     expect(
         !core::valid(restarted_process),
         "zero source-observation identity is rejected at the port boundary");
+}
+
+void bounded_catalog_read_contract()
+{
+    const auto catalog = core::epoch_catalog_identity{
+        .Incarnation =
+            opaque<core::epoch_catalog_incarnation_id>(0x31U),
+        .Revision = core::epoch_catalog_revision{2},
+    };
+    const auto snapshot = application::epoch_catalog_snapshot{
+        .Binding = application::epoch_catalog_binding{
+            .Catalog = catalog,
+            .ObjectFormat = core::git_hash_algorithm::sha1,
+        },
+        .NextOrdinal = core::epoch_ordinal{7},
+    };
+    expect(
+        snapshot.NextOrdinal == core::epoch_ordinal{7},
+        "the bounded snapshot carries the exact durable next ordinal");
+
+    auto request = application::canonical_review_request{
+        .Catalog = catalog,
+        .Candidate =
+            core::current_viewer_review_candidate{
+                .Review = core::github_review_id{41U},
+                .Actor = core::github_viewer_actor_id{42U},
+                .Order = core::github_review_order{3U},
+                .State = core::github_review_state::approved,
+                .Commit = commit(43U),
+            },
+        .ProposedAssociation =
+            opaque<core::review_association_id>(44U),
+        .ProjectedHead =
+            application::projected_append_head{
+                .Ordinal = core::epoch_ordinal{7},
+                .Head = commit(45U),
+            },
+    };
+    expect(
+        application::valid(request),
+        "canonical review reads carry exact catalog and optional append head");
+    request.ProposedAssociation = {};
+    expect(
+        !application::valid(request),
+        "canonical review reads reject a zero proposed local identity");
+    request.ProposedAssociation =
+        opaque<core::review_association_id>(44U);
+    request.Candidate.State = core::github_review_state::pending;
+    expect(
+        !application::valid(request),
+        "pending provider reviews are not canonical retained reviews");
+
+    expect(
+        application::epoch_catalog_failure::operation_identity_conflict
+                != application::epoch_catalog_failure::
+                    source_observation_conflict
+            && application::epoch_catalog_failure::
+                    source_observation_conflict
+                != application::epoch_catalog_failure::operation_conflict,
+        "operation and source identity collisions have distinct terminals");
 }
 
 void quota_contract()
@@ -561,6 +632,38 @@ void durable_fact_contract()
         !application::valid(underreported),
         "durable inventory bytes cannot exceed the observed repository");
 
+    const auto prepared = application::git_prepared_revision{
+        .Operation = operation,
+        .Pack = pack(19U),
+        .InstalledPack = artifact(
+            application::git_artifact_role::installed_pack,
+            20U,
+            1024U),
+        .InstalledIndex = artifact(
+            application::git_artifact_role::installed_index,
+            21U,
+            256U),
+        .Base = commit(22U),
+        .BaseTree = tree(23U),
+        .Head = commit(24U),
+        .HeadTree = tree(25U),
+        .HeadLineage = core::head_lineage::non_fast_forward,
+        .ImportedBytes = 1024U,
+    };
+    expect(
+        application::valid(prepared),
+        "prepared revision carries a bounded head-lineage fact");
+    auto install = application::durable_fact(prepared);
+    expect(
+        application::valid(install)
+            && install.HeadLineage
+                == core::head_lineage::non_fast_forward,
+        "durable install preserves the prepared head-lineage fact");
+    install.HeadLineage = static_cast<core::head_lineage>(0xFFU);
+    expect(
+        !application::valid(install),
+        "durable install rejects an unknown head-lineage encoding");
+
     auto request = application::record_spool_request{
         .Catalog =
             core::epoch_catalog_identity{
@@ -675,6 +778,7 @@ int main()
 {
     authority_contract();
     source_observation_identity_contract();
+    bounded_catalog_read_contract();
     quota_contract();
     destructive_availability_contract();
     creation_availability_contract();

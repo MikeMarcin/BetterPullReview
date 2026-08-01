@@ -43,21 +43,24 @@ Automatic retention loss is forbidden.
 Implemented the host-owned BPEC v1 catalog as a repository-pinned, statically
 linked SQLite 3.53.4 adapter. The fixed
 `state/v1/epoch-catalog.sqlite3` database has application ID `BPEC`, schema
-version 1, 18 closed `STRICT, WITHOUT ROWID` tables, 15 closed indexes, a
+version 1, 18 closed `STRICT, WITHOUT ROWID` tables, 16 closed indexes, a
 nonzero catalog incarnation, exact authority mappings, checked ordinal and
 catalog revisions, epochs, review associations, retained anchors,
-availability, and typed append, prune, and cache-delete operation state.
+availability, and typed append, prune, and cache-delete operation state. The
+BPR-0045 host-remediation slice added the canonical durable-append source-
+observation index and checked durable installed-head-lineage fact before
+RFC-BPR-0003 closeout.
 Every open verifies the complete schema, singleton incarnation, integrity,
 foreign keys, compile/runtime policy, fixed path, ownership, identity, and
 local-filesystem contract.
 
 The application port and catalog persist exact spool, expected-pack,
-pre-import inventory, preexisting-pack, ref, OID, review, source-observation,
-phase, evidence, operation-revision, and repair-provenance facts. Restart
-paging and compare-and-swap transitions preserve one linearized terminal
-outcome. Nonterminal revisions reserve the last increment for terminal or
-repair state, bounded requests fail without mutation, and destructive facts
-remain durable tombstones.
+pre-import inventory, preexisting-pack, installed head-lineage, ref, OID,
+review, source-observation, phase, evidence, operation-revision, and repair-
+provenance facts. Restart paging and compare-and-swap transitions preserve one
+linearized terminal outcome. Nonterminal revisions reserve the last increment
+for terminal or repair state, bounded requests fail without mutation, and
+destructive facts remain durable tombstones.
 
 A cache-deleted latest epoch can expose one typed retention-rehydration
 requirement. A matching higher-ordinal replacement must carry a different
@@ -122,8 +125,10 @@ RFC-BPR-0003 verification ledger. README, AGENTS, product contract, system
 architecture, and UX ownership were reviewed with no BPR-0044-specific change:
 the catalog is not yet selected by the public application.
 
-BPR-0041 owns deterministic semantic alias and cause policy. BPR-0045 owns
-OS-entropy source-observation generation, real spool/import/ref orchestration,
-restart cleanup, and stale-result rejection. BPR-0047 owns public composition.
-BPR-0053 retains every target-native Windows runtime, ACL, filesystem, crash,
-and adversarial claim; the cross-build is source/compile/link evidence only.
+BPR-0041 owns deterministic semantic alias and cause policy. BPR-0045 now
+supplies OS-entropy source-observation generation, real spool/import/ref
+orchestration, append recovery, and stale-result rejection. BPR-0055 retains
+core-authorized prune/cache-delete orchestration, BPR-0056 retains bounded
+history paging, and BPR-0047 owns public composition. BPR-0053 retains every
+target-native Windows runtime, ACL, filesystem, crash, and adversarial claim;
+cross-builds are source/compile/link evidence only.

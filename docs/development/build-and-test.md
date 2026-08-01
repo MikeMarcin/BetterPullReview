@@ -931,12 +931,11 @@ fail-closed invariants rather than safely collapsible duplication.
 
 These earlier commands verify committed application-protocol, native-wire,
 installed-Git, and cache/ref component boundaries, not durable operation
-facts. BPR-0044 catalog evidence is recorded separately below. BPR-0045 owns
-journal-before-`index-pack`, real-artifact restart recovery, and ref/catalog
-orchestration; BPR-0047 owns public composition; and BPR-0053 owns target-
-native Windows execution. No BPR-0043 result above proves durable
-authorization, crash recovery, selection by the BetterPullReview executable,
-or Windows behavior.
+facts. BPR-0044 catalog and BPR-0045 host evidence are recorded separately
+below. BPR-0047 owns public composition, and BPR-0053 owns target-native
+Windows execution. No BPR-0043 result above proves durable authorization,
+host restart orchestration, selection by the BetterPullReview executable, or
+Windows behavior.
 
 For the BPR-0044 durable epoch-catalog component, build and run the exact core,
 application-port, storage, and behavior contracts with:
@@ -973,18 +972,18 @@ refs, and catalog revision. Begin/replay/finalize/restart drift fails closed.
 Successful finalization marks both anchors and linked non-destructive reviews
 `pruned` and releases retained quota once; replay neither decrements quota nor
 mutates rows again. These tests feed exact absent-ref evidence into the catalog
-and do not perform the BPR-0045 Git ref deletion.
+and do not perform the BPR-0055 core-authorized Git ref deletion.
 
 The source-observation fixtures use deterministic nonzero 256-bit values. They
 prove exact persistence, restart round-trip, and rejection of a previously
-published identity within the catalog incarnation. BPR-0045 must generate a
-fresh value from operating-system entropy
-for every accepted observation and retry a catalog-reported collision; no
-BPR-0044 test claims entropy quality.
+published identity within the catalog incarnation. BPR-0045 supplies the
+production operating-system CSPRNG, recovery-before-mint ordering, and fresh
+retry after a catalog-reported collision; no BPR-0044 test claims entropy
+quality.
 
 The catalog builds the pinned SQLite 3.53.4 static amalgamation without a
 system fallback. Runtime admission verifies BPEC application/schema identity,
-the exact 18-table/15-index schema, integrity and foreign keys, prepared
+the exact 18-table/16-index schema, integrity and foreign keys, prepared
 allowlisted SQL, defensive/trusted-schema policy, 4,096-byte pages, the
 262,144-page 1-GiB main-database limit, local WAL with `synchronous=FULL`, a
 256-page automatic-checkpoint threshold, and disabled memory mapping. History,
@@ -1004,10 +1003,57 @@ run may satisfy those native cases; the cross-build establishes source and link
 compatibility only.
 
 This component evidence proves durable catalog facts and recovery decisions
-for exact host-supplied observations. BPR-0045 still owns sequencing those
-transactions around real spools, packs, refs, cancellation, and restart;
-BPR-0047 owns public composition; BPR-0053 owns target-native Windows behavior.
-GitHub Actions has no role in any of these commands or claims.
+for exact host-supplied observations. The next section records the BPR-0045
+host composition of those facts; BPR-0047 owns public composition, BPR-0055
+owns maintenance authorization/recovery, BPR-0056 owns history paging, and
+BPR-0053 owns target-native Windows behavior. GitHub Actions has no role in any
+of these commands or claims.
+
+For the BPR-0045 epoch application-host component, build and run the source-
+free handoff/runtime-port contract, manual-executor host contract, core policy,
+and adjacent durable/physical contracts with:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_epoch_core_tests \
+  better_pull_review_application_epoch_catalog_contract_tests \
+  better_pull_review_application_epoch_contract_tests \
+  better_pull_review_application_epoch_host_tests \
+  better_pull_review_sqlite_storage_contract_tests \
+  better_pull_review_sqlite_behavior_contract_tests \
+  better_pull_review_git_process_contract_tests \
+  better_pull_review_git_cache_contract_tests
+ctest --preset dev --output-on-failure \
+  -R '^(core_epoch_policy|application_epoch_(catalog_contract|contract|host)|sqlite_epoch_catalog_(storage|behavior)_contract|git_(process|cache)_contract)$'
+```
+
+`application_epoch_contract` validates the exact
+`accepted_pull_request_handoff`, matching/revoked smart authority, absence of a
+caller-supplied source identity or time, bounded invalidation, nonzero entropy,
+and the production runtime ports. The latter call `getentropy` on macOS,
+`getrandom` on Linux, and system-preferred `BCryptGenRandom` on Windows, while
+the clock rejects values outside the core UTC domain. A current-host native
+run proves only that host; guarded Windows code remains BPR-0053 evidence.
+
+`application_epoch_host` uses deterministic fake capability ports and separate
+manual effect/decision executors. It proves recovery before source mint/core
+acceptance, fresh collision retry, no-op and association-only Git avoidance,
+exact journal-before-import and durable phase order, same-repository FIFO with
+exact PR cache-session switching, stale/cancel rejection, pre-PONR abort,
+post-PONR mandatory success, applied-then-error postcondition resolution,
+restart continuation across every durable append phase, mismatch-to-repair,
+decision-lane-only projection, projection-exception containment, deferred
+reentrant ingress without recursive publication, and shutdown quiescence. The real
+`git_process_contract`, `git_cache_contract`, and SQLite contracts separately
+exercise the installed-Git, physical recovery-inspection/cleanup, and durable
+catalog operations used by that fake-port orchestration.
+
+This is component evidence. BPR-0047 still owns selection through the public
+BetterPullReview composition and a second-process persistence run; BPR-0048
+owns the broader combined failure/reordering matrix. BPR-0055 and BPR-0056
+retain maintenance and history-page product paths. No live private repository,
+GitHub mutation, Windows-native execution, or GitHub Actions workflow is part
+of this verification.
 
 ## Troubleshooting and safe verification
 

@@ -247,6 +247,7 @@ enum class git_process_failure : std::uint8_t
     cancelled,
     process_crashed,
     nonzero_exit,
+    object_unavailable,
     malformed_output,
     reap_failure,
 };
@@ -287,6 +288,14 @@ public:
         const git_update_refs_request& request,
         std::stop_token stop) -> git_process_result<void> = 0;
     [[nodiscard]] virtual auto inspect_ref(
+        const git_inspect_ref_request& request,
+        std::stop_token stop)
+        -> git_process_result<std::optional<git_commit_id>> = 0;
+
+    // Reads only the exact direct ref target. Recovery uses this separately
+    // from object inspection so a ref whose object is missing or corrupt is
+    // still reported as physical ref evidence rather than as an absent ref.
+    [[nodiscard]] virtual auto inspect_ref_target(
         const git_inspect_ref_request& request,
         std::stop_token stop)
         -> git_process_result<std::optional<git_commit_id>> = 0;

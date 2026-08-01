@@ -106,9 +106,16 @@ protocol-v2/native-HTTPS, authority-partitioned bare-cache, and retained-ref
 component slice verified through commit `2801241`. BPR-0044's durable
 epoch-catalog and operation-record persistence slice is in
 `done/`, with fresh macOS Debug, core-only, sanitizer, tests-disabled Release,
-and guarded-Windows cross-compile/link evidence complete. BPR-0045 is the next
-RFC-BPR-0003 implementation slice and is the sole `in-progress/` card.
-BPR-0046 through BPR-0054 remain in `backlog/`.
+and guarded-Windows cross-compile/link evidence complete. BPR-0045 is in
+`done/` with the source-free application host, production entropy/clock ports,
+exact append/recovery sequencing, repository FIFO/session isolation,
+stale/cancel rejection, projection containment, and quiescence directly
+verified. BPR-0046 through BPR-0056 remain in `backlog/`. BPR-0055 records the
+identified missing core-authorized prune/cache-delete product path; the
+existing adapter methods are not counted as completed lifecycle behavior.
+BPR-0056 records the missing bounded core/host history-page algebra required
+before the Qt selector model can present durable history without a reset or an
+unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
 RFC work. BPR-0054 depends on BPR-0035 and BPR-0053, so canonical closeout and

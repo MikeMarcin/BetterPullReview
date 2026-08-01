@@ -64,6 +64,8 @@ static_assert(!exposes_path<application::completed_git_pack_receipt>);
 static_assert(!exposes_path<application::git_preimport_observation>);
 static_assert(!exposes_path<application::git_prepared_revision>);
 static_assert(!exposes_path<application::git_retained_ref_pair>);
+static_assert(!exposes_path<application::git_operation_recovery_request>);
+static_assert(!exposes_path<application::git_operation_recovery_observation>);
 static_assert(!exposes_url<application::completed_git_pack_receipt>);
 static_assert(!exposes_url<application::git_preimport_observation>);
 static_assert(!exposes_credential<application::completed_git_pack_receipt>);
@@ -763,6 +765,67 @@ auto force_push_and_prune(
     };
 }
 
+[[nodiscard]] auto make_descendant_fixture(
+    const std::filesystem::path& executable,
+    const std::filesystem::path& root,
+    const std::filesystem::path& remote) -> force_push_fixture
+{
+    const auto git_dir =
+        "--git-dir=" + QString::fromStdString(remote.string());
+    const auto tree_text = trimmed_hex(
+        run_fixture_git(
+            executable,
+            root,
+            {
+                git_dir,
+                "rev-parse",
+                QString::fromStdString(
+                    std::string{sha1_commit_hex} + "^{tree}"),
+            }),
+        40);
+    const auto commit_text = trimmed_hex(
+        run_fixture_git(
+            executable,
+            root,
+            {
+                git_dir,
+                "commit-tree",
+                QString::fromStdString(tree_text),
+                "-p",
+                QString::fromUtf8(sha1_commit_hex.data()),
+            },
+            QByteArray{"descendant upload\n"}),
+        40);
+    const auto pack = run_fixture_git(
+        executable,
+        root,
+        {git_dir, "pack-objects", "--stdout", "--revs"},
+        QByteArray::fromStdString(commit_text + "\n"));
+    const auto commit = core::parse_git_commit_oid(commit_text);
+    const auto tree = core::parse_git_tree_oid(tree_text);
+    require(
+        pack.Output.size() > 32 && commit.has_value()
+            && tree.has_value(),
+        "build complete descendant pack fixture");
+    auto pack_bytes = std::vector<std::uint8_t>(
+        static_cast<std::size_t>(pack.Output.size()));
+    std::transform(
+        pack.Output.begin(),
+        pack.Output.end(),
+        pack_bytes.begin(),
+        [](const char value)
+        {
+            return static_cast<std::uint8_t>(
+                static_cast<unsigned char>(value));
+        });
+    return {
+        .Remote = remote,
+        .NewPack = std::move(pack_bytes),
+        .NewCommit = *commit,
+        .NewTree = *tree,
+    };
+}
+
 auto append_pack(
     application::git_pack_stream_sink& sink,
     const std::span<const std::uint8_t> bytes) -> void
@@ -781,6 +844,140 @@ auto append_pack(
     const auto last =
         sink.append(all.subspan(first_size + middle_size), {});
     require(last.has_value(), "append final pack fragment");
+}
+
+auto verify_descendant_lineage(
+    application::git_cache_port& cache,
+    const force_push_fixture& descendant) -> void
+{
+    const auto cache_request = request(0x34U, 0x44U);
+    auto opened = cache.open(cache_request, {});
+    require(opened.has_value(), "open isolated lineage cache");
+    auto& session = **opened;
+    const auto baseline_operation =
+        identity<core::epoch_operation_id>(0x6aU);
+    auto baseline_sink = session.create_pack_sink(
+        baseline_operation,
+        sha1_pack.size(),
+        {});
+    require(baseline_sink.has_value(), "create lineage baseline spool");
+    append_pack(**baseline_sink, sha1_pack);
+    const auto baseline_receipt = (*baseline_sink)->finish({});
+    require(baseline_receipt.has_value(), "finish lineage baseline spool");
+    baseline_sink->reset();
+    const auto baseline_inventory = session.observe_preimport(
+        *baseline_receipt,
+        {});
+    const auto baseline_commit = core::parse_git_commit_oid(
+        sha1_commit_hex);
+    const auto incarnation =
+        identity<core::epoch_catalog_incarnation_id>(0x6aU);
+    require(
+        baseline_inventory.has_value()
+            && baseline_commit.has_value(),
+        "observe lineage baseline inventory");
+    const auto baseline_prepared = session.prepare_revision(
+        application::git_prepare_revision_request{
+            .Receipt = *baseline_receipt,
+            .Inventory = *baseline_inventory,
+            .Authorization =
+                {
+                    .CatalogIncarnation = incarnation,
+                    .ExpectedCatalogRevision =
+                        core::epoch_catalog_revision{0},
+                    .Operation = baseline_operation,
+                    .ExpectedPack = baseline_receipt->ExpectedPack,
+                    .ReceiptToken = baseline_receipt->OpaqueToken,
+                    .InventoryToken = baseline_inventory->OpaqueToken,
+                    .DurableRecordToken = token(0x6aU),
+                },
+            .Base = *baseline_commit,
+            .Head = *baseline_commit,
+        },
+        {});
+    require(
+        baseline_prepared.has_value()
+            && baseline_prepared->HeadLineage
+                == core::head_lineage::not_applicable,
+        "prepare isolated lineage baseline");
+    require(
+        session
+            .promote_retained(
+                *baseline_prepared,
+                application::git_ref_promotion_authorization{
+                    .CatalogIncarnation = incarnation,
+                    .ExpectedCatalogRevision =
+                        core::epoch_catalog_revision{0},
+                    .Operation = baseline_operation,
+                    .Scope = cache_request.Authority.Scope,
+                    .Ordinal = core::epoch_ordinal{1},
+                    .Base = *baseline_commit,
+                    .Head = *baseline_commit,
+                    .DurableCommitToken = token(0x6bU),
+                },
+                {})
+            .has_value(),
+        "retain isolated lineage baseline");
+
+    const auto descendant_operation =
+        identity<core::epoch_operation_id>(0x6cU);
+    auto descendant_sink = session.create_pack_sink(
+        descendant_operation,
+        descendant.NewPack.size(),
+        {});
+    require(descendant_sink.has_value(), "create descendant lineage spool");
+    append_pack(**descendant_sink, descendant.NewPack);
+    const auto descendant_receipt = (*descendant_sink)->finish({});
+    require(descendant_receipt.has_value(), "finish descendant lineage spool");
+    descendant_sink->reset();
+    const auto descendant_inventory = session.observe_preimport(
+        *descendant_receipt,
+        {});
+    require(
+        descendant_inventory.has_value(),
+        "observe descendant lineage inventory");
+    const auto descendant_prepared = session.prepare_revision(
+        application::git_prepare_revision_request{
+            .Receipt = *descendant_receipt,
+            .Inventory = *descendant_inventory,
+            .Authorization =
+                {
+                    .CatalogIncarnation = incarnation,
+                    .ExpectedCatalogRevision =
+                        core::epoch_catalog_revision{1},
+                    .Operation = descendant_operation,
+                    .ExpectedPack = descendant_receipt->ExpectedPack,
+                    .ReceiptToken = descendant_receipt->OpaqueToken,
+                    .InventoryToken = descendant_inventory->OpaqueToken,
+                    .DurableRecordToken = token(0x6cU),
+                },
+            .Base = descendant.NewCommit,
+            .Head = descendant.NewCommit,
+            .PriorHead = *baseline_commit,
+        },
+        {});
+    require(
+        descendant_prepared.has_value()
+            && descendant_prepared->HeadLineage
+                == core::head_lineage::descendant,
+        "exact prior-to-current ancestry classifies a descendant upload");
+    require(
+        session.abort_operation(descendant_operation, {}).has_value(),
+        "descendant lineage prepare exact-cleans staging refs");
+    opened->reset();
+    require(
+        cache
+            .delete_cache(
+                cache_request,
+                application::git_cache_delete_authorization{
+                    .ApplicationSession =
+                        cache_request.ApplicationSession,
+                    .Cache = cache_request.Authority.Cache,
+                    .DurableIntentToken = token(0x6dU),
+                },
+                {})
+            .has_value(),
+        "delete isolated lineage cache after direct verification");
 }
 
 auto run_lock_holder(
@@ -827,6 +1024,10 @@ auto run_cache_contract() -> void
     auto root = temporary_root{};
     const auto force_push =
         make_force_push_fixture(executable, root.Path);
+    const auto descendant = make_descendant_fixture(
+        executable,
+        root.Path,
+        force_push.Remote);
     const auto sha256_fixture =
         make_sha256_fixture(executable, root.Path);
     auto cache = git_adapter::make_installed_git_cache({
@@ -834,6 +1035,7 @@ auto run_cache_contract() -> void
         .StorageRoot = root.Path,
     });
     require(cache.has_value(), "construct installed Git cache");
+    verify_descendant_lineage(**cache, descendant);
 
     const auto cross_process_request = request(0x36U, 0x46U);
     const auto lock_ready = root.Path / "cross-process-lock-ready";
@@ -2131,6 +2333,21 @@ auto run_cache_contract() -> void
     auto forged_authorization = authorization;
     forged_authorization.InventoryToken =
         forged_observation.OpaqueToken;
+    const auto sha256_prior = core::parse_git_commit_oid(
+        std::string(64U, 'f'));
+    auto mixed_algorithm_request =
+        application::git_prepare_revision_request{
+            .Receipt = *receipt,
+            .Inventory = *observation,
+            .Authorization = authorization,
+            .Base = *commit,
+            .Head = *commit,
+            .PriorHead = sha256_prior,
+        };
+    require(
+        sha256_prior.has_value()
+            && !application::valid(mixed_algorithm_request),
+        "prior head must use the exact current object format");
     const auto unauthorized = (*primary)->prepare_revision(
         application::git_prepare_revision_request{
             .Receipt = *receipt,
@@ -2172,11 +2389,309 @@ auto run_cache_contract() -> void
                     installed_index
             && prepared->InstalledIndex.Bytes != 0U
             && prepared->InstalledPack.Identity
-                != prepared->InstalledIndex.Identity,
-        "authorized import exposes exact durable pack/index facts and stages refs");
+                != prepared->InstalledIndex.Identity
+            && prepared->HeadLineage
+                == core::head_lineage::not_applicable,
+        "authorized import exposes exact durable pack/index facts, "
+        "no-prior lineage, and stages refs");
+    auto invalid_lineage = *prepared;
+    invalid_lineage.HeadLineage =
+        static_cast<core::head_lineage>(0xffU);
+    require(
+        !application::valid(invalid_lineage),
+        "prepared revision rejects an out-of-domain lineage");
     require(
         !std::filesystem::exists(completed_spool),
         "successful import exact-deletes its completed spool");
+
+    const auto recovery_request =
+        application::git_operation_recovery_request{
+            .Operation = operation,
+            .Scope = primary_request.Authority.Scope,
+            .Ordinal = core::epoch_ordinal{1},
+            .Base = *commit,
+            .Head = *commit,
+            .Spool =
+                application::git_recovery_spool_expectation{
+                    .ExpectedPack = receipt->ExpectedPack,
+                    .CompletedSpool = receipt->Spool,
+                    .PreimportPacks = observation->Packs,
+                    .PreimportRepositoryBytes =
+                        observation->RepositoryBytes,
+                    .ExpectedPackPreexisting =
+                        observation->ExpectedPackPreexisting,
+                },
+            .Install =
+                application::git_recovery_install_expectation{
+                    .Pack = prepared->Pack,
+                    .InstalledPack = prepared->InstalledPack,
+                    .InstalledIndex = prepared->InstalledIndex,
+                    .BaseTree = prepared->BaseTree,
+                    .HeadTree = prepared->HeadTree,
+                },
+        };
+    require(
+        application::valid(recovery_request),
+        "durable append facts form a valid recovery request");
+    const auto live_recovery =
+        (*primary)->inspect_operation_recovery(recovery_request, {});
+    require(
+        live_recovery.has_value()
+            && live_recovery->Spool
+                == application::git_recovery_match::absent
+            && live_recovery->Installed
+                == application::git_recovery_match::exact
+            && live_recovery->Staging
+                == application::git_recovery_match::exact
+            && live_recovery->Final
+                == application::git_recovery_match::absent
+            && live_recovery->Objects
+                == application::git_recovery_object_match::exact
+            && live_recovery->Refs
+                == application::git_recovery_ref_topology::staging,
+        "live recovery inspection agrees with exact staged durable facts");
+    auto recovery_cancel = std::stop_source{};
+    recovery_cancel.request_stop();
+    const auto cancelled_recovery =
+        (*primary)->inspect_operation_recovery(
+            recovery_request,
+            recovery_cancel.get_token());
+    const auto cancelled_commit = (*primary)->inspect_commit_object(
+        *commit,
+        recovery_cancel.get_token());
+    const auto cancelled_abort = (*primary)->abort_recovered_operation(
+        recovery_request,
+        recovery_cancel.get_token());
+    const auto cancelled_completion =
+        (*primary)->complete_recovered_operation(
+            recovery_request,
+            recovery_cancel.get_token());
+    require(
+        !cancelled_recovery.has_value()
+            && cancelled_recovery.error()
+                == application::git_cache_failure::cancelled
+            && !cancelled_commit.has_value()
+            && cancelled_commit.error()
+                == application::git_cache_failure::cancelled
+            && !cancelled_abort.has_value()
+            && cancelled_abort.error()
+                == application::git_cache_failure::cancelled
+            && !cancelled_completion.has_value()
+            && cancelled_completion.error()
+                == application::git_cache_failure::cancelled,
+        "restart inspection and cleanup entry points honor cancellation without mutation");
+    primary->reset();
+    primary = (*cache)->open(primary_request, {});
+    require(primary.has_value(), "reopen cache for restart recovery");
+    const auto restarted_recovery =
+        (*primary)->inspect_operation_recovery(recovery_request, {});
+    require(
+        restarted_recovery == live_recovery,
+        "restart reconstructs the same spool/install/staging/final evidence without process-local records");
+    const auto installed_index_path =
+        primary_repository / "objects" / "pack"
+        / ("pack-" + std::string{sha1_pack_hex} + ".idx");
+    const auto saved_installed_index =
+        root.Path / "saved-recovery-index";
+    std::filesystem::rename(
+        installed_index_path,
+        saved_installed_index);
+    require(
+        std::filesystem::copy_file(
+            saved_installed_index,
+            installed_index_path),
+        "substitute installed recovery index identity");
+    std::filesystem::permissions(
+        installed_index_path,
+        std::filesystem::perms::owner_read,
+        std::filesystem::perm_options::replace);
+    const auto substituted_install =
+        (*primary)->inspect_operation_recovery(recovery_request, {});
+    const auto refused_substituted_install_abort =
+        (*primary)->abort_recovered_operation(recovery_request, {});
+    require(
+        substituted_install.has_value()
+            && substituted_install->Installed
+                == application::git_recovery_match::mismatch
+            && !refused_substituted_install_abort.has_value()
+            && refused_substituted_install_abort.error()
+                == application::git_cache_failure::repair_required,
+        "restart inspection rejects a byte-identical installed artifact with the wrong durable identity");
+    require(
+        std::filesystem::remove(installed_index_path),
+        "remove substituted recovery index");
+    std::filesystem::rename(
+        saved_installed_index,
+        installed_index_path);
+    require(
+        (*primary)->inspect_operation_recovery(recovery_request, {})
+            == live_recovery,
+        "restoring the exact installed artifact restores recovery evidence");
+    const auto verified_commit =
+        (*primary)->inspect_commit_object(*commit, {});
+    const auto unavailable_commit = core::parse_git_commit_oid(
+        std::string(40U, 'f'));
+    require(
+        unavailable_commit.has_value(),
+        "parse unavailable exact commit fixture");
+    const auto rejected_unavailable =
+        (*primary)->inspect_commit_object(*unavailable_commit, {});
+    require(
+        verified_commit.has_value()
+            && verified_commit->Commit == *commit
+            && verified_commit->Tree == *tree
+            && !rejected_unavailable.has_value()
+            && rejected_unavailable.error()
+                == application::git_cache_failure::object_mismatch,
+        "exact commit inspection verifies tree/closure and rejects catalog-only availability");
+
+    const auto git_dir =
+        "--git-dir=" + QString::fromStdString(primary_repository.string());
+    const auto staging_prefix =
+        "refs/betterpullreview/v1/stage/"
+        + lower_hex(operation.bytes());
+    const auto staging_head = staging_prefix + "/head";
+    const auto final_prefix =
+        "refs/betterpullreview/v1/scope/"
+        + lower_hex(primary_request.Authority.Scope.bytes())
+        + "/epoch/0000000000000001";
+    const auto final_base = final_prefix + "/base";
+    const auto make_ref_private = [&](const std::string_view ref)
+    {
+        std::error_code error;
+        auto directory = (primary_repository / ref).parent_path();
+        while(directory != primary_repository)
+        {
+            std::filesystem::permissions(
+                directory,
+                std::filesystem::perms::owner_all,
+                std::filesystem::perm_options::replace,
+                error);
+            require(!error, "make fixture recovery ref directory private");
+            directory = directory.parent_path();
+        }
+        std::filesystem::permissions(
+            primary_repository / ref,
+            std::filesystem::perms::owner_read
+                | std::filesystem::perms::owner_write,
+            std::filesystem::perm_options::replace,
+            error);
+        require(!error, "make fixture recovery ref private");
+    };
+    static_cast<void>(run_fixture_git(
+        executable,
+        root.Path,
+        {
+            git_dir,
+            "update-ref",
+            "-d",
+            QString::fromStdString(staging_head),
+            QString::fromUtf8(sha1_commit_hex.data()),
+        }));
+    const auto mixed_staging =
+        (*primary)->inspect_operation_recovery(recovery_request, {});
+    const auto refused_mixed_abort =
+        (*primary)->abort_recovered_operation(recovery_request, {});
+    require(
+        mixed_staging.has_value()
+            && mixed_staging->Staging
+                == application::git_recovery_match::ambiguous
+            && mixed_staging->Refs
+                == application::git_recovery_ref_topology::ambiguous
+            && !refused_mixed_abort.has_value()
+            && refused_mixed_abort.error()
+                == application::git_cache_failure::repair_required,
+        "one-sided staging state is ambiguous and exact abort preserves it");
+    static_cast<void>(run_fixture_git(
+        executable,
+        root.Path,
+        {
+            git_dir,
+            "update-ref",
+            QString::fromStdString(staging_head),
+            QString::fromUtf8(sha1_commit_hex.data()),
+        }));
+    make_ref_private(staging_head);
+    const auto wrong_ref_oid = std::string{sha1_tree_hex};
+    static_cast<void>(run_fixture_git(
+        executable,
+        root.Path,
+        {
+            git_dir,
+            "update-ref",
+            QString::fromStdString(staging_head),
+            QString::fromStdString(wrong_ref_oid),
+            QString::fromUtf8(sha1_commit_hex.data()),
+        }));
+    make_ref_private(staging_head);
+    const auto wrong_staging =
+        (*primary)->inspect_operation_recovery(recovery_request, {});
+    const auto refused_wrong_abort =
+        (*primary)->abort_recovered_operation(recovery_request, {});
+    require(
+        wrong_staging.has_value()
+            && wrong_staging->Staging
+                == application::git_recovery_match::mismatch
+            && !refused_wrong_abort.has_value()
+            && refused_wrong_abort.error()
+                == application::git_cache_failure::repair_required,
+        "wrong staging target remains visible as mismatch and is never exact-cleaned");
+    static_cast<void>(run_fixture_git(
+        executable,
+        root.Path,
+        {
+            git_dir,
+            "update-ref",
+            QString::fromStdString(staging_head),
+            QString::fromUtf8(sha1_commit_hex.data()),
+            QString::fromStdString(wrong_ref_oid),
+        }));
+    make_ref_private(staging_head);
+    static_cast<void>(run_fixture_git(
+        executable,
+        root.Path,
+        {
+            git_dir,
+            "update-ref",
+            QString::fromStdString(final_base),
+            QString::fromUtf8(sha1_commit_hex.data()),
+        }));
+    make_ref_private(final_base);
+    const auto mixed_final =
+        (*primary)->inspect_operation_recovery(recovery_request, {});
+    const auto refused_mixed_completion =
+        (*primary)->complete_recovered_operation(recovery_request, {});
+    require(
+        mixed_final.has_value()
+            && mixed_final->Staging
+                == application::git_recovery_match::exact
+            && mixed_final->Final
+                == application::git_recovery_match::ambiguous
+            && mixed_final->Refs
+                == application::git_recovery_ref_topology::ambiguous
+            && !refused_mixed_completion.has_value()
+            && refused_mixed_completion.error()
+                == application::git_cache_failure::repair_required,
+        "one-sided final state never authorizes catalog success or cleanup");
+    static_cast<void>(run_fixture_git(
+        executable,
+        root.Path,
+        {
+            git_dir,
+            "update-ref",
+            "-d",
+            QString::fromStdString(final_base),
+            QString::fromUtf8(sha1_commit_hex.data()),
+        }));
+    const auto restored_staging =
+        (*primary)->inspect_operation_recovery(recovery_request, {});
+    require(
+        restored_staging.has_value()
+            && restored_staging->Staging
+                == application::git_recovery_match::exact
+            && restored_staging->Final
+                == application::git_recovery_match::absent,
+        "restoring exact refs restores deterministic recovery evidence");
 
     auto wrong_promotion =
         application::git_ref_promotion_authorization{
@@ -2227,6 +2742,51 @@ auto run_cache_contract() -> void
             && retained->Head == *commit
             && retained->Ordinal == core::epoch_ordinal{1},
         "paired staging refs atomically promote to final refs");
+    static_cast<void>(run_fixture_git(
+        executable,
+        root.Path,
+        {
+            git_dir,
+            "update-ref",
+            QString::fromStdString(staging_prefix + "/base"),
+            QString::fromUtf8(sha1_commit_hex.data()),
+        }));
+    make_ref_private(staging_prefix + "/base");
+    static_cast<void>(run_fixture_git(
+        executable,
+        root.Path,
+        {
+            git_dir,
+            "update-ref",
+            QString::fromStdString(staging_head),
+            QString::fromUtf8(sha1_commit_hex.data()),
+        }));
+    make_ref_private(staging_head);
+    const auto committed_with_residue =
+        (*primary)->inspect_operation_recovery(recovery_request, {});
+    const auto completed_recovery =
+        (*primary)->complete_recovered_operation(recovery_request, {});
+    const auto completed_replay =
+        (*primary)->complete_recovered_operation(recovery_request, {});
+    require(
+        committed_with_residue.has_value()
+            && committed_with_residue->Staging
+                == application::git_recovery_match::exact
+            && committed_with_residue->Final
+                == application::git_recovery_match::exact
+            && committed_with_residue->Refs
+                == application::git_recovery_ref_topology::ambiguous
+            && completed_recovery.has_value()
+            && completed_replay.has_value(),
+        "successful cleanup exact-deletes committed staging residue, is idempotent, and never enters abort lifecycle");
+    auto operation_after_success = (*primary)->create_pack_sink(
+        operation,
+        sha1_pack.size(),
+        {});
+    require(
+        operation_after_success.has_value(),
+        "successful cleanup leaves its operation identity outside the bounded abort history");
+    operation_after_success->reset();
     const auto inspected =
         (*primary)->inspect_retained(core::epoch_ordinal{1}, {});
     require(
@@ -2329,6 +2889,7 @@ auto run_cache_contract() -> void
                     },
                 .Base = *commit,
                 .Head = *commit,
+                .PriorHead = *commit,
             },
             {});
     require(
@@ -2336,8 +2897,10 @@ auto run_cache_contract() -> void
             && preexisting_prepared->InstalledPack
                 == prepared->InstalledPack
             && preexisting_prepared->InstalledIndex
-                == prepared->InstalledIndex,
-        "preexisting prepare returns the same exact durable pack/index facts");
+                == prepared->InstalledIndex
+            && preexisting_prepared->HeadLineage
+                == core::head_lineage::not_applicable,
+        "same-head prepare returns durable facts with not-applicable lineage");
     require(
         (*primary)
             ->abort_operation(
@@ -2345,6 +2908,65 @@ auto run_cache_contract() -> void
                 {})
             .has_value(),
         "preexisting durable-fact prepare exact-cleans staging refs");
+
+    const auto unavailable_prior_operation =
+        identity<core::epoch_operation_id>(0x69U);
+    auto unavailable_prior_sink = (*primary)->create_pack_sink(
+        unavailable_prior_operation,
+        sha1_pack.size(),
+        {});
+    require(
+        unavailable_prior_sink.has_value(),
+        "create unavailable-prior pack sink");
+    append_pack(**unavailable_prior_sink, sha1_pack);
+    const auto unavailable_prior_receipt =
+        (*unavailable_prior_sink)->finish({});
+    require(
+        unavailable_prior_receipt.has_value(),
+        "finish unavailable-prior pack receipt");
+    unavailable_prior_sink->reset();
+    const auto unavailable_prior_observation =
+        (*primary)->observe_preimport(*unavailable_prior_receipt, {});
+    const auto unavailable_prior_oid = core::parse_git_commit_oid(
+        std::string(40U, 'f'));
+    require(
+        unavailable_prior_observation.has_value()
+            && unavailable_prior_oid.has_value(),
+        "observe unavailable-prior pre-import facts");
+    const auto unavailable_prior_prepared =
+        (*primary)->prepare_revision(
+            application::git_prepare_revision_request{
+                .Receipt = *unavailable_prior_receipt,
+                .Inventory = *unavailable_prior_observation,
+                .Authorization =
+                    {
+                        .CatalogIncarnation = incarnation,
+                        .ExpectedCatalogRevision =
+                            core::epoch_catalog_revision{1},
+                        .Operation = unavailable_prior_operation,
+                        .ExpectedPack =
+                            unavailable_prior_receipt->ExpectedPack,
+                        .ReceiptToken =
+                            unavailable_prior_receipt->OpaqueToken,
+                        .InventoryToken =
+                            unavailable_prior_observation->OpaqueToken,
+                        .DurableRecordToken = token(0x69U),
+                    },
+                .Base = *commit,
+                .Head = *commit,
+                .PriorHead = *unavailable_prior_oid,
+            },
+            {});
+    require(
+        unavailable_prior_prepared.has_value()
+            && unavailable_prior_prepared->HeadLineage
+                == core::head_lineage::unknown,
+        "missing exact prior head yields unknown lineage without failing import");
+    require(
+        (*primary)
+            ->abort_operation(unavailable_prior_operation, {})
+            .has_value(),
+        "unavailable-prior prepare exact-cleans staging refs");
 
     const auto cancelled_token = cancelled_source.get_token();
     const auto cache_cancelled = [](const auto& result)
@@ -2492,13 +3114,16 @@ auto run_cache_contract() -> void
             .Authorization = force_authorization,
             .Base = force_push.NewCommit,
             .Head = force_push.NewCommit,
+            .PriorHead = *commit,
         },
         {});
     require(
         force_prepared.has_value()
             && force_prepared->BaseTree == force_push.NewTree
-            && force_prepared->HeadTree == force_push.NewTree,
-        "import force-pushed commit and inspect its exact tree");
+            && force_prepared->HeadTree == force_push.NewTree
+            && force_prepared->HeadLineage
+                == core::head_lineage::non_fast_forward,
+        "import force-pushed commit and classify its prior head as non-fast-forward");
     const auto force_retained = (*primary)->promote_retained(
         *force_prepared,
         application::git_ref_promotion_authorization{
@@ -2569,16 +3194,53 @@ auto run_cache_contract() -> void
     require(
         std::filesystem::is_regular_file(abandoned_path),
         "completed abandoned operation remains exact and recoverable");
+    const auto abandoned_recovery =
+        application::git_operation_recovery_request{
+            .Operation = abandoned_operation,
+            .Scope = primary_request.Authority.Scope,
+            .Ordinal = core::epoch_ordinal{4},
+            .Base = *commit,
+            .Head = *commit,
+            .Spool =
+                application::git_recovery_spool_expectation{
+                    .ExpectedPack =
+                        abandoned_receipt->ExpectedPack,
+                    .CompletedSpool = abandoned_receipt->Spool,
+                    .PreimportPacks =
+                        preexisting_observation->Packs,
+                    .PreimportRepositoryBytes =
+                        preexisting_observation->RepositoryBytes,
+                    .ExpectedPackPreexisting = true,
+                },
+        };
+    const auto abandoned_observation =
+        (*primary)->inspect_operation_recovery(
+            abandoned_recovery,
+            {});
+    require(
+        application::valid(abandoned_recovery)
+            && abandoned_observation.has_value()
+            && abandoned_observation->Spool
+                == application::git_recovery_match::exact
+            && abandoned_observation->Installed
+                == application::git_recovery_match::exact
+            && abandoned_observation->Refs
+                == application::git_recovery_ref_topology::absent
+            && abandoned_observation->Objects
+                == application::git_recovery_object_match::exact,
+        "durable preexisting-pack facts identify exact abortable spool residue");
     const auto abandoned_original =
         abandoned_path.parent_path() / "abandoned-original.pack";
     std::filesystem::rename(abandoned_path, abandoned_original);
     write_file(abandoned_path, "replacement-canary");
     const auto substituted_abort =
-        (*primary)->abort_operation(abandoned_operation, {});
+        (*primary)->abort_recovered_operation(
+            abandoned_recovery,
+            {});
     require(
         !substituted_abort.has_value()
             && substituted_abort.error()
-                == application::git_cache_failure::spool_failure
+                == application::git_cache_failure::repair_required
             && read_file(abandoned_path)
                 == std::vector<std::uint8_t>{
                     'r', 'e', 'p', 'l', 'a', 'c', 'e', 'm',
@@ -2587,8 +3249,12 @@ auto run_cache_contract() -> void
         "abort refuses and preserves a substituted completed spool");
     std::filesystem::remove(abandoned_path);
     std::filesystem::rename(abandoned_original, abandoned_path);
-    const auto aborted =
-        (*primary)->abort_operation(abandoned_operation, {});
+    primary->reset();
+    primary = (*cache)->open(primary_request, {});
+    require(primary.has_value(), "reopen for exact durable spool abort");
+    const auto aborted = (*primary)->abort_recovered_operation(
+        abandoned_recovery,
+        {});
     require(
         aborted.has_value()
             && !std::filesystem::exists(abandoned_path),

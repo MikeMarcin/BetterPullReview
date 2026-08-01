@@ -48,6 +48,10 @@ class effect_executor
 public:
     virtual ~effect_executor() = default;
 
+    // A successful return retains the task exactly once for later off-lane
+    // invocation. If post throws, it must do so before retaining the task.
+    // This gives hosts an exact synchronous rejection boundary without a
+    // possible enqueue-then-throw duplicate terminal.
     virtual void post(std::function<void()> task) = 0;
 };
 

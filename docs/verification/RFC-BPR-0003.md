@@ -14,7 +14,7 @@ depends on BPR-0035, so no RFC can become `Auto-Verified` out of order.
 | Region | Selected responsibility | Direct evidence |
 |---|---|---|
 | Functional core | Exact active PR revision, epoch identity/cause policy, named and explicit comparison selection, alias legality, request/generation acceptance, compact status/commands/deltas | Qt-free transition tables, replay/property tests, state-size assertion, forbidden-dependency scan |
-| Application host | Typed accepted-PR handoff, bounded Git/epoch observations, Git/catalog jobs, explicit time, staging, serialized completion, cancellation, persistence, cache authority, lifecycle, incremental projection mapping | Fake-port/manual-executor tests with reordered, stale, duplicate, failed, canceled, identity-switch, restart, and commit-failure paths |
+| Application host | Source-free/clock-free accepted-PR handoff, bounded Git/epoch observations, OS entropy and system clock, Git/catalog jobs, staging, serialized completion, cancellation, persistence, cache authority, lifecycle, and incremental projection mapping | Runtime-port contracts plus fake-port/manual-executor tests with reordered, stale, duplicate, failed, canceled, identity-switch, restart, commit-failure, decision-lane projection, and quiescence paths |
 | Installed-Git local-process adapter | Validated installed-Git image and exec path, isolated `QProcess`, fixed local initialization/pack/object/ancestry/ref operations, secure completed-spool consumption, exact output and pack/index validation, process containment | BPR-0042 real local Git fixtures, hostile configuration/process/path canaries, exact child inspection, and architecture scans |
 | Cache and retained-ref adapter | Authority-partitioned app-owned bare repositories, cache manifest/locking/reuse, completed-spool production, pre-import observations, object residency/connectivity, and paired private-ref retention | BPR-0043 real cache and local protocol fixtures, force-push residency, cross-authority isolation, quota, and exact ref inspection |
 | Native Git smart transport | Minimal app-owned protocol-v2 discovery/fetch client and credential-bearing HTTPS requests under the exact RFC-BPR-0002 profile/account authority; exact refs/wants, authority-scoped haves, streaming bounds, and no redirects/cookies | Loopback TLS/proxy/protocol fixtures and exact request/body/header/authority counters |
@@ -33,14 +33,20 @@ The complete asynchronous context includes:
 ```text
 application session
 host profile + profile revision
-Git host + canonical hostname
-authenticated GitHub account
-repository + pull request
-provider snapshot + GitHub identity/PR generation
+Git host + authority fingerprint + canonical hostname + server contract
+authenticated GitHub account + exact viewer actor
+repository + validated locator + pull request/number
+provider snapshot + typed revision origin + GitHub identity/PR generation
+object format + base branch/ref + exact base/head OIDs
 epoch request + epoch generation
 catalog incarnation + expected catalog revision
 source observation identity
 ```
+
+The accepted handoff carries the provider-side context through the PR
+generation, but carries neither the source-observation identity nor UTC. The
+BPR-0045 host performs recovery first, then mints the source identity and
+observes time only when the deterministic core plan requires them.
 
 Physical Git objects are never shared across accounts or profile revisions.
 Each bare repository partition is bound one-to-one to the exact profile,
@@ -68,7 +74,9 @@ pairs always resolve to exact OIDs.
 
 ```text
 accepted GitHub pull-request revision
-  -> typed application handoff to epoch host
+  -> source-free/clock-free typed handoff to epoch host
+  -> bounded durable recovery before source mint or core acceptance
+  -> fresh host-minted source identity + host-observed UTC when required
   -> bounded prior-catalog + ancestry/material observations
   -> deterministic core request with exact authority/generation
   -> native-HTTPS protocol-v2 discovery/fetch + isolated Git pack indexing
@@ -243,12 +251,13 @@ plus canonical bounded pre-import inventory facts. Those are serializable
 inputs for BPR-0044; the accompanying opaque authorization tokens remain
 in-memory state and are not durable-operation evidence.
 
-This is component evidence only. BPR-0044 owns durable operation facts,
-BPR-0045 owns journal-before-`index-pack`, ref/catalog sequencing, stale host
-publication, and restart recovery, BPR-0047 owns selection through the public
-BetterPullReview composition, and BPR-0053 owns target-native Windows
-execution. No evidence above proves durable authorization, crash recovery,
-public composition, Windows behavior, or RFC-BPR-0003 completion.
+This earlier evidence is component evidence only. BPR-0044 supplies durable
+operation facts, and the BPR-0045 component described below composes them with
+journal-before-`index-pack`, ref/catalog sequencing, stale host rejection, and
+restart recovery. BPR-0047 owns selection through the public BetterPullReview
+composition, and BPR-0053 owns target-native Windows execution. The evidence
+above alone does not prove those later component or public claims, Windows
+behavior, or RFC-BPR-0003 completion.
 
 ## Cache, retention, and persistence
 
@@ -282,15 +291,15 @@ binds it one-to-one to that authority. It contains no raw provider text and
 cannot collide merely because two accounts observe the same PR number. An
 absent, colliding, or mismatched scope/manifest binding fails closed.
 
-BPR-0044 implements the BPEC v1 durable component: a closed 18-table/15-index
+BPR-0044 implements the BPEC v1 durable component: a closed 18-table/16-index
 schema, authority/incarnation/revision facts, epoch/review/anchor state, and
 typed append, prune, and cache-delete operation records. It persists a
 host-issued nonzero 256-bit source-observation identity exactly and rejects
 reuse among published epochs in one catalog incarnation. Its deterministic
 fixtures prove persistence, freshness relative to prior stored identities,
-and collision rejection, not entropy generation. BPR-0045 must mint every
-accepted observation identity from operating-system entropy and retry a
-catalog collision.
+and collision rejection, not entropy generation. BPR-0045 adds recovery before
+minting, production operating-system CSPRNG ports, and a fresh retry after a
+catalog-reported collision.
 
 Private refs are retention roots. A hard quota refuses new material rather
 than silently deleting history. Pruning and repository deletion are explicit
@@ -300,30 +309,86 @@ after interruption. BPR-0044 prune facts admit only available, unavailable,
 or corrupt starting anchors and retain exact expected availability, OIDs, ref
 identity, and revision through begin/replay/finalize/restart. Catalog
 finalization atomically marks both anchors and linked non-destructive review
-states pruned and releases logical quota exactly once. BPR-0045 still owns the
-real paired-ref deletion. No glob or broad credential/cache deletion is
-permitted.
+states pruned and releases logical quota exactly once. BPR-0055 retains the
+core-authorized paired-ref deletion and cache-maintenance host paths. No glob
+or broad credential/cache deletion is permitted.
+
+## Application-host component
+
+BPR-0045 implements the source-free/clock-free
+`accepted_pull_request_handoff`, production runtime ports, and epoch host
+component. The production entropy port uses `getentropy` on macOS,
+`getrandom` on Linux, and system-preferred `BCryptGenRandom` on Windows; the
+system-clock port rejects values outside the core UTC domain. Recovery runs
+before source mint or core acceptance, and a catalog-reported identity
+collision causes a fresh CSPRNG sample, bounded to 32 attempts.
+
+The host retains at most 100 prepared observations and 1,000 repository actors,
+and scans at most 1,000 recovery operations in pages of 100. Each repository
+authority has one bounded FIFO actor and one exact PR cache session at a time;
+switching PRs closes and reopens that session, while unrelated repositories
+can progress independently. Before offering haves or comparison endpoints, the
+host requires catalog availability and direct commit-object inspection. It
+does not treat a catalog row as proof that an object still exists.
+
+Append work records `preparing` before import and advances through exact durable
+spool, import, staging, commit-authorization, ref-commit, visibility/cleanup,
+and terminal phases. Restart recovery resumes the recorded phase rather than
+guessing. Failures and cancellation before the point of no return use exact
+abort; after durable commit authorization, the host must resolve the operation
+to success or an explicit repair state. Applied-then-error results are resolved
+through physical/catalog postconditions before the host publishes an outcome.
+
+Effect work never publishes directly. Decision-lane completion rechecks its
+exact pending authority, accepted provider revision, and generation before
+core acceptance or projection. The host source defers reentrant ingress behind
+the current decision and contains projection exceptions. Quiescence waits for
+actors, preparations, decisions, and deferred work to drain.
+
+The focused component command is:
+
+```sh
+cmake --build --preset dev --target \
+  better_pull_review_application_epoch_contract_tests \
+  better_pull_review_application_epoch_host_tests
+ctest --preset dev --output-on-failure \
+  -R '^(application_epoch_contract|application_epoch_host)$'
+```
+
+`application_epoch_contract` directly verifies the handoff and production
+runtime-port boundary. `application_epoch_host` uses deterministic capability
+fakes and manual effect/decision executors to verify exact ordering, all append
+restart phases, mandatory-success/postcondition resolution, repository FIFO and
+PR-session switching, stale/cancel rejection, decision-lane-only projection,
+projection-exception containment, deferred reentrant ingress without recursive
+publication, and quiescence. Adjacent real installed-Git, cache, and SQLite
+contracts verify the physical and durable port implementations.
+BPR-0047 retains public executable selection and a second-process persistence
+run; BPR-0048 retains the broad combined fault/reordering matrix; BPR-0055
+retains maintenance authorization and recovery; BPR-0056 retains
+host/projection history paging; and BPR-0053 retains target-native Windows
+evidence.
 
 ## Claim matrix
 
 | Claim | Direct surface | Proof | Result |
 |---|---|---|---|
 | Core policy is deterministic and compact | Qt-free epoch reducer | Exhaust cause, alias, pair, idempotence, overflow, replay, and mismatch tables; inspect state size/dependencies | Verified in BPR-0041: core-only 20/20, focused core/architecture 2/2, explicit catalog-incarnation/projection-clear/session canaries, independent final review |
-| PR/epoch authority is exact | Core/host/cache/catalog contexts | Cross profile revision, host, account, repository, PR, snapshot, generation, catalog incarnation, and catalog revision | Partially verified: BPR-0041 covers deterministic core identity; `d903290` and `edd762e` cover accepted refs/OIDs and native lease authority; `2801241` covers physical cache/PR-ref scope isolation; BPR-0044 directly persists and rejects mismatched repository-cache/PR authority, incarnation, revision, ordinal, operation, ref, and source-observation identities. Host publication and public selection remain BPR-0045/BPR-0047 |
+| PR/epoch authority is exact | Core/host/cache/catalog contexts | Cross profile revision, host, account, repository, PR, snapshot, generation, catalog incarnation, and catalog revision | Partially verified: BPR-0041 covers deterministic core identity; `d903290` and `edd762e` cover accepted refs/OIDs and native lease authority; `2801241` covers physical cache/PR-ref scope isolation; BPR-0044 persists and rejects mismatched durable identities; BPR-0045 verifies source-free handoff binding, host-minted identity, exact PR-session switching, and stale host rejection. BPR-0047 retains public selection |
 | App-owned bare cache is created and reused safely | Real Git adapter and temporary app-data root | Open fixture twice under one authority, then cross account/profile revision; inspect exact manifest/config/path/object format, reuse, and physical isolation | Verified for the BPR-0043 component in `2801241`: `git_cache_contract` passed 1/1 in 162.58 seconds with SHA-1/SHA-256 reuse, physical authority isolation, exact identity and topology drift checks, cross-process locking, quota refusal, and substituted-state preservation. Durable catalog authorization and public composition remain later slices |
-| Installed Git receives no credential or network authority | Process and app-owned smart-transport canaries | Inspect exact protocol-v2 requests, fixed `index-pack` image/argv, environment, cwd, config, streams, descendants, sockets, native-HTTPS counters, bounded same-scope haves, and rejected alternate retrieval capabilities | Partially verified across BPR-0042/BPR-0043: the fixed child has no credential/network authority, `d903290` admits only the closed protocol acquisition, `edd762e` proves the native HTTPS wire/lease boundary in 19 GHES plus 3 GitHub.com scenarios, and `2801241` directly exercises the validated spool/inventory/cache handoff. Public composition remains open |
-| Old observed head survives force-push | Local smart remote, cache, refs, catalog, public selector | Observe and retain the old head, then remove/prune the remote object, import the replacement, restart, and compare retained old head to latest | Partially verified: `2801241` retains and directly inspects both old and replacement cache revisions after remote pruning; BPR-0044 proves exact durable multi-epoch chronology/anchor restart round trips. BPR-0045 must compose those facts with real refs and BPR-0047 must expose the public selector |
+| Installed Git receives no credential or network authority | Process and app-owned smart-transport canaries | Inspect exact protocol-v2 requests, fixed `index-pack` image/argv, environment, cwd, config, streams, descendants, sockets, native-HTTPS counters, bounded same-scope haves, and rejected alternate retrieval capabilities | Partially verified across BPR-0042/BPR-0043: the fixed child has no credential/network authority, `d903290` admits only the closed protocol acquisition, `edd762e` proves the native HTTPS wire/lease boundary in 19 GHES plus 3 GitHub.com scenarios, and `2801241` directly exercises the validated spool/inventory/cache handoff. BPR-0045 additionally requires direct commit inspection before haves or comparisons. Public composition remains BPR-0047 |
+| Old observed head survives force-push | Local smart remote, cache, refs, catalog, public selector | Observe and retain the old head, then remove/prune the remote object, import the replacement, restart, and compare retained old head to latest | Partially verified: `2801241` retains and directly inspects both old and replacement cache revisions after remote pruning; BPR-0044 proves durable multi-epoch chronology/anchor restart round trips; BPR-0045 verifies append/recovery orchestration and direct commit inspection at the component boundary. BPR-0048 retains the broad combined matrix and BPR-0047 retains the public selector |
 | Repository behavior cannot execute | Hostile Git/config/repository fixtures | Arm hooks/helpers/askpass/filters/LFS/submodule/textconv/ext-diff/protocol canaries; require zero invocation | Verified for the directly exercised macOS BPR-0042 local-process surface through hostile real-Git state plus exact child argv/environment/cwd/port inspection; Linux/Windows and end-to-end transport/cache evidence remain open |
-| Epoch causes remain truthful | Core cause table with real Git facts | Replay initial, descendant upload, non-fast-forward rewrite, base-only, branch-change, simultaneous-change, equivalent, unknown-lineage, and retention-rehydration cases | Verified for deterministic core/catalog-component policy in BPR-0041/BPR-0044, including the one-shot durable rehydration requirement and explicit cause; BPR-0045 still must supply real accepted Git facts |
-| Catalog/ref commit and recovery agree | Fault-injected catalog and Git refs | Fail or interrupt every phase; restart; require the catalog visibility authority to expose one exact committed epoch or an unavailable/recoverable pending state, never a ref-derived false success | Partially verified in BPR-0044: exact typed operation facts, phase/evidence/revision CAS, abort/repair/finalized replay, restart paging, and idempotent catalog finalization passed. BPR-0045 retains real ref mutation, two-resource ordering, artifact cleanup, and stale publication |
+| Epoch causes remain truthful | Core cause table with real Git facts | Replay initial, descendant upload, non-fast-forward rewrite, base-only, branch-change, simultaneous-change, equivalent, unknown-lineage, and retention-rehydration cases | Verified for deterministic core/catalog-component policy in BPR-0041/BPR-0044, including the one-shot durable rehydration requirement and explicit cause. BPR-0045 supplies bounded, directly inspected Git observations to core at the component boundary; BPR-0048 retains the broad combined real-adapter matrix |
+| Catalog/ref commit and recovery agree | Fault-injected catalog and Git refs | Fail or interrupt every phase; restart; require the catalog visibility authority to expose one exact committed epoch or an unavailable/recoverable pending state, never a ref-derived false success | Partially verified: BPR-0044 proves exact typed operation facts, phase/evidence/revision CAS, and idempotent catalog replay. BPR-0045 verifies journal-before-import, exact append-phase continuation, pre-PONR abort, post-PONR mandatory success, applied-then-error postconditions, cleanup, and stale rejection through component ports; adjacent real Git/cache/SQLite contracts verify those ports. BPR-0048 retains the broad combined matrix and BPR-0047 public composition |
 | Defaults and arbitrary pairs use exact OIDs | Core + Qt + public application | Verify Whole PR and selected IDs/OIDs/context agree; accept same-authority reverse and identical pairs, with identical OIDs producing empty comparison | Partially verified: BPR-0041 proves exact core pair/alias policy and BPR-0044 restores exact anchor IDs/OIDs; BPR-0046/BPR-0047 retain Qt and public application evidence |
 | Named aliases resolve exactly | Catalog/core/public application | Verify Whole PR, nearest preceding distinct live head, newest ordered current-viewer review, and an association-only review update on an unchanged head; make the exact alias unavailable instead of falling back when its candidate is unavailable | Partially verified: BPR-0041 proves semantic candidate/no-fallback policy, and BPR-0044 persists chronology, availability, review order, and association-only updates. BPR-0046/BPR-0047 retain rendered/public agreement |
-| Pruned and never-observed history is honest | Catalog/core/Qt | Explicit prune/delete and unreachable unknown head stay visible/unavailable and never silently remap | Partially verified in BPR-0044: exact available/unavailable/corrupt prune facts survive replay/restart; finalization atomically prunes both anchors and linked review state and decrements quota once. Real ref deletion and Qt/public presentation remain BPR-0045/BPR-0046/BPR-0047 |
-| Stale/canceled work cannot publish | Manual executor and real process cancellation | Reorder/duplicate/cancel Git, transport, catalog, and identity-switch completions | Partially verified at component boundaries: `d903290` aborts its pack sink on canceled/failed acquisition, `edd762e` verifies cancellation and exact lease revocation/isolation, BPR-0042/`b65b0a9` cover process cancellation/cleanup, and `2801241` covers pre-canceled cache operations plus abort/finish and import-terminal races without resurrection. BPR-0045 still owns stale-result rejection across host publication |
+| Pruned and never-observed history is honest | Catalog/core/Qt | Explicit prune/delete and unreachable unknown head stay visible/unavailable and never silently remap | Partially verified in BPR-0044: exact available/unavailable/corrupt prune facts survive replay/restart; finalization atomically prunes both anchors and linked review state and decrements quota once. BPR-0055 retains core-authorized real ref deletion; BPR-0046/BPR-0047 retain Qt/public presentation |
+| Stale/canceled work cannot publish | Manual executor and real process cancellation | Reorder/duplicate/cancel Git, transport, catalog, and identity-switch completions | Partially verified at component boundaries: earlier protocol/process/cache slices reject canceled work and exact lease drift; BPR-0045 directly verifies pre/post-PONR cancellation policy and rejects stale load, preparation, and comparison terminals before core/projection publication. BPR-0048 retains the broad combined fault matrix and BPR-0047 public composition |
 | Qt projection is incremental, accessible, and system-native | Stable-ID model and real widgets | Assert exact signals, persistent indexes, focus, keyboard, OID text, announcements, responsive layout, zero routine resets, and live native palette/style/font inheritance | Planned |
 | Public composition selects production pieces | Real executable | Recorded GitHub plus local Git protocol fixture reaches exact visible pair; second invocation proves persistence; Release excludes seams | Planned |
-| Resource use is bounded without silent retention loss | Protocol/process/cache/catalog/history fixtures | Exceed packet, stream, pack, disk, ref, row/page, output, time, and process limits; require bounded failure and no automatic prune | Partially verified: BPR-0042/`b65b0a9`, `d903290`, `edd762e`, and `2801241` cover process/protocol/cache bounds; BPR-0044 covers the 1-GiB main-database limit, fixed SQLite limits, bounded history/recovery/anchor/prune/cache-delete requests, 100,000 epochs per PR, checked revision reserve, sustained WAL checkpointing, and zero-mutation quota failures. The production 30-second elapsed idle case remains open |
-| Platform claims are target-native | macOS, Linux, and Windows | Run configure/build/tests, Git/process/network/cache/catalog/Qt/runtime/dependency evidence on each claimed target | Partially verified: prior slices have direct macOS process/protocol/native-loopback/cache evidence; BPR-0044 adds direct macOS catalog storage/behavior, ASan/UBSan, and Release dependency evidence. Its clean MinGW PE cross-build is compile/link evidence only. Linux remains planned and every affected Windows runtime claim remains open in BPR-0053 |
+| Resource use is bounded without silent retention loss | Protocol/process/cache/catalog/history fixtures | Exceed packet, stream, pack, disk, ref, row/page, output, time, and process limits; require bounded failure and no automatic prune | Partially verified: earlier slices cover process/protocol/cache bounds; BPR-0044 covers the 1-GiB database limit, fixed SQLite limits, bounded catalog requests, 100,000 epochs per PR, revision reserve, checkpointing, and quota failures. BPR-0045 adds 32 source attempts, 100 preparations, 1,000 recovery operations, and 1,000 repository actors. BPR-0056 retains host/projection history paging; the production 30-second elapsed idle case remains open |
+| Platform claims are target-native | macOS, Linux, and Windows | Run configure/build/tests, Git/process/network/cache/catalog/Qt/runtime/dependency evidence on each claimed target | Partially verified: prior slices have direct macOS process/protocol/native-loopback/cache/catalog evidence; BPR-0045 adds guarded production CSPRNG/system-clock ports and current-host native contract evidence. MinGW builds remain compile/link evidence only. Linux remains planned and every affected Windows runtime claim remains open in BPR-0053 |
 | GitHub Actions is absent | Repository and documentation | Tracked/on-disk workflow scans plus documentation validator | Verified through completed BPR-0044: tracked and on-disk workflow counts are 0/0 and no source/build integration selects GitHub Actions; repeat at RFC closeout |
 
 ## Platform and safe-target plan
@@ -374,24 +439,27 @@ visual-polish or custom-theme claim.
 | Scope | Required documents | Disposition | Planned evidence |
 |---|---|---|---|
 | Core epoch state and typed flow | Domain/state model and Git/epoch architecture | Selected: exact revision/incarnation, composite cause facts, exact alias/pair policy, request/generation acceptance, and deltas | Core tables, replay/property tests, state/dependency scans |
-| Host/Git/transport boundary | System architecture, Git/epoch implementation, security model | Updated through committed component work: `b65b0a9` hardens installed Git, `d903290`/`edd762e` implement closed protocol-v2/native smart HTTPS, `2801241` implements the authority cache/ref consumer, and BPR-0044 supplies exact durable operation/catalog facts. BPR-0045 retains sequencing/lifecycle and BPR-0047 public composition | BPR-0044 fresh dev 58/58, focused repeat 20/20, core-only 25/25, and ASan/UBSan 4/4; composed runtime remains pending |
-| Cache privacy and operations | Git/epoch architecture, build/test and operator guidance | Updated: `2801241` implements physical authority isolation and exact cache/ref cleanup; BPR-0044 implements durable append/prune/cache-delete intent, exact replay, repair provenance, tombstones, one-shot retention rehydration, and logical quota release. BPR-0045 retains real two-resource orchestration | Hostile cache fixtures plus BPR-0044 storage/behavior restart, corruption, quota, prune, delete, and rehydration contracts |
+| Host/Git/transport boundary | System architecture, Git/epoch implementation, security model | Updated through component work: earlier slices harden installed Git, smart transport, cache/ref consumption, and durable catalog facts; BPR-0045 adds the source-free handoff/runtime ports, per-repository FIFO host, exact append/recovery sequencing, physical commit inspection, stale/cancel rejection, and projection/quiescence containment. BPR-0047 retains public composition | `application_epoch_contract`, `application_epoch_host`, and adjacent real Git/cache/SQLite contracts; public composed runtime remains pending |
+| Cache privacy and operations | Git/epoch architecture, build/test and operator guidance | Updated: `2801241` implements physical authority isolation and exact cache/ref cleanup; BPR-0044 implements durable append/prune/cache-delete facts; BPR-0045 composes append authorization/recovery through exact component ports. BPR-0055 retains core-authorized prune/cache-delete maintenance orchestration | Hostile cache fixtures, catalog restart/corruption/quota contracts, and BPR-0045 append phase/recovery/postcondition tests |
 | Epoch semantics | Product/UX reference and verification ledger | Selected: composite causes, unknown lineage, chronology, equivalence, exact anchors, aliases without fallback, reverse/identical pairs, and unavailable history | Core/host/public fixture matrix |
 | Qt presentation | Workbench and appearance/accessibility documents | Selected: reusable selectors, exact OIDs, states, incremental model, accessibility, and native System inheritance; no final-workbench claim | Qt signal/state/raster/native appearance evidence |
-| Build and packaging | Build/test guide and dependency inventory | Updated for repository-pinned static SQLite 3.53.4, exact compile/runtime policy, BPEC schema, platform storage boundary, and isolation of Git-cache fault injection in its dedicated contract target. Public composed runtime and platform-wide inspection remain later work | Fresh tests-disabled Release 49/49, zero registered tests, zero catalog seam symbols/strings, static SQLite/no dynamic libsqlite; tests-on to tests-off reconfigure leaves zero Git-cache fault definitions; MinGW cross-build 47/47 with zero Windows execution |
-| Tests and fixtures | Fixture catalog and test guide | Updated for the BPR-0044 storage and behavior contracts, deterministic source-ID persistence/collision evidence, exact prune replay, cache-delete rehydration, schema/bootstrap hostility, and cross-vs-native Windows boundary | Fresh dev 58/58; focused repeat 20/20; core-only 25/25; ASan/UBSan 4/4; architecture mutations 104/104; independent correctness and simplification reviews clean |
-| No-impact/deferred regions | RFC ledger, architecture, issue board | Recorded: BPR-0044 supplies durable facts; BPR-0045 owns OS-entropy observation IDs and journal-before-import/ref orchestration; BPR-0047 owns public composition; BPR-0053 retains target-native Windows evidence. No GitHub mutation, RFC4 diff/line mapping, RFC5 final workbench, RFC6 themes/syntax/fonts, queue/AI/notification, CLI enablement, or package-format/signing/installer implementation is claimed | Immutable-base path/target audit and boundary scans |
+| Build and packaging | Build/test guide and dependency inventory | Updated for repository-pinned static SQLite 3.53.4, the exact 18-table/16-index schema, platform storage/runtime-port boundaries, dedicated BPR-0045 build/test commands, and isolation of fault seams. Public composition and platform-wide inspection remain later work | Focused application/core/Git/cache/SQLite commands plus earlier tests-disabled Release and MinGW compile/link evidence; no Windows execution is claimed |
+| Tests and fixtures | Fixture catalog and test guide | Updated for BPR-0045 handoff/runtime and manual-executor host fixtures, including recovery ordering, collision retry, exact append/restart phases, mandatory success, actor/session isolation, direct inspection, stale/cancel rejection, decision-lane projection, projection-exception containment, reentrant deferral, and quiescence | `application_epoch_contract`, `application_epoch_host`, adjacent real capability contracts, architecture scans, documentation gate, and simplification review |
+| No-impact/deferred regions | RFC ledger, architecture, issue board | Recorded: BPR-0045 implements the append host component; BPR-0047 retains public composition, BPR-0048 the broad combined matrix, BPR-0055 maintenance authorization/recovery, BPR-0056 history paging, and BPR-0053 target-native Windows evidence. No GitHub mutation, RFC4 diff/line mapping, RFC5 final workbench, RFC6 themes/syntax/fonts, queue/AI/notification, CLI enablement, or package-format/signing/installer implementation is claimed | Immutable-base path/target audit and boundary scans |
 | GitHub Actions | Build/test/package/release documentation | Updated and verified through completed BPR-0044: absolute prohibition and no workflow files | Documentation validator and tracked/on-disk workflow scans are 0/0; repeat at RFC closeout |
 
 ## Performance and projection plan
 
 - Core state remains fixed-size apart from bounded transition storage and
   retains no catalog, ref list, Git object, pack, blob, or path.
-- Catalog history is paged/incremental; core sees only active pair and bounded
+- The catalog port exposes bounded history pages; BPR-0056 retains the
+  host/projection paging algebra. Core sees only the active pair and bounded
   alias candidates.
-- Fetch/pack/object work is keyed by exact authority and coalesced per
-  repository/revision. One writer serializes durable mutation without
-  serializing unrelated repositories.
+- BPR-0045 retains at most 1,000 repository actors. Each exact repository
+  authority has one bounded FIFO and one PR cache session at a time, while
+  unrelated repositories can progress independently.
+- Source collision retry is bounded to 32 attempts, prepared observations to
+  100, and one recovery scan to 1,000 operations in pages of 100.
 - Routine epoch append or availability change performs changed-set catalog and
   Qt work, not a whole-PR scan or model reset.
 - Smart protocol and process streams use bounded buffers/backpressure and
@@ -415,6 +483,10 @@ visual-polish or custom-theme claim.
 - Positive GitHub CLI enablement remains deferred RFC-BPR-0015. Installed Git
   is a different local object/protocol tool and receives no credential or
   network authority.
+- BPR-0055 owns core-authorized prune and cache-delete maintenance host paths,
+  including exact destructive recovery. BPR-0056 owns history paging through
+  host and projection; the BPR-0044 catalog page port alone is not that product
+  path.
 - Package formats, signing, notarization, installers, and distribution
   certification remain RFC-BPR-0014, while accurate new dependency/runtime
   accounting is required now.

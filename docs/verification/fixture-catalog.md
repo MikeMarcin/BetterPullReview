@@ -428,8 +428,8 @@ adapter's accepted/retained-byte claims.
 The focused `native_git_smart_transport_contract` and
 `native_git_smart_transport_fixture` cases passed after `edd762e`. They prove
 the component wire and lease boundary, not the BPR-0044 durable operation
-record, BPR-0045 orchestration/recovery sequence, BPR-0047 public application
-selection, or BPR-0053 Windows behavior.
+record, the BPR-0045 application-host sequence, BPR-0047 public application
+selection, or BPR-0053 target-native Windows behavior.
 
 ## App-owned cache and retained-ref fixture
 
@@ -466,9 +466,9 @@ The completed-spool receipt and prepared pack/index result expose versioned
 fixed-size no-path artifact identities, roles, and byte counts for later
 persistence. Opaque durable-record or intent tokens in this component test
 remain authorization-shape evidence only. BPR-0044 persists those facts in the
-catalog component described below; BPR-0045 owns journal-before-import and
-restart recovery sequencing, BPR-0047 owns public composition, and BPR-0053
-owns target-native Windows execution.
+catalog component described below. The BPR-0045 host fixture composes these
+ports with journal-before-import and restart recovery sequencing; BPR-0047
+owns public composition, and BPR-0053 owns target-native Windows execution.
 
 ## SQLite epoch catalog fixtures
 
@@ -481,7 +481,7 @@ allocation and reopen, private bootstrap and exact no-replace publication,
 interrupted-bootstrap orphan recovery, cancellation, canonical path and local-
 filesystem admission, owner permissions and single-link identity, hostile
 symlink/reparse and sidecar substitutions, BPEC application/version identity,
-the exact 18-table/15-index schema, unexpected-object and integrity failure,
+the exact 18-table/16-index schema, unexpected-object and integrity failure,
 foreign keys, WAL/FULL policy, the 1-GiB main-database ceiling, and SQLite
 result classification. The bootstrap fault seam is compiled only when tests
 are enabled.
@@ -510,8 +510,8 @@ only while the requirement is set, and
 proves that finalization clears the requirement across restart. The fixtures
 use deterministic identities: they prove persistence and rejection of an
 already published identity, including the prior epoch's identity, not entropy
-generation. BPR-0045 must generate each accepted observation identity from
-operating-system entropy and retry a catalog-reported collision.
+generation. BPR-0045 adds recovery-before-mint ordering, production operating-
+system CSPRNG ports, and a fresh retry after a catalog-reported collision.
 
 The adjacent `application_epoch_catalog_contract` validates the bounded port,
 operation algebra, evidence requirements, durable artifact shapes, destructive
@@ -533,11 +533,50 @@ namespace, sidecar, TokenUser/DACL, reparse, hard-link, delete-pending, and
 retained-handle cases remain BPR-0053 target-native work.
 
 These fixtures supply synthetic exact ref/object outcomes to the catalog; they
-do not perform or recover real Git mutations. BPR-0045 owns spool/import/ref/
-catalog orchestration and stale publication, BPR-0047 owns selection through
-the public BetterPullReview composition, and BPR-0053 owns all native Windows
-behavior. No live private repository, GitHub mutation, or GitHub Actions
-workflow is involved.
+do not themselves perform or recover real Git mutations. The BPR-0045 host
+fixture composes their durable facts with the installed-Git/cache capabilities
+described earlier; BPR-0047 owns selection through the public BetterPullReview
+composition, BPR-0055 owns maintenance authorization/recovery, BPR-0056 owns
+history paging through the host/projection path, and BPR-0053 owns all native
+Windows behavior. No live private repository, GitHub mutation, or GitHub
+Actions workflow is involved.
+
+## Epoch application-host fixtures
+
+`tests/application/epoch_application_contract_tests.cpp` is registered as
+`application_epoch_contract`; its executable target is
+`better_pull_review_application_epoch_contract_tests`. It proves that
+`accepted_pull_request_handoff` carries exact accepted authority, lease, and
+provider identity without a caller-supplied source-observation identity or
+clock value. It also exercises bounded invalidation and the production runtime
+ports: nonzero operating-system entropy and a system-clock value within the
+core UTC domain. The entropy port uses `getentropy` on macOS, `getrandom` on
+Linux, and system-preferred `BCryptGenRandom` on Windows. Only the current host
+is exercised by a native run; BPR-0053 retains Windows-native verification.
+
+`tests/application/epoch_application_host_tests.cpp` is registered as
+`application_epoch_host`; its executable target is
+`better_pull_review_application_epoch_host_tests`. Deterministic capability
+fakes and separate manual effect/decision executors prove recovery before
+source mint and core acceptance, fresh collision retry, journal-before-import,
+the exact durable phase sequence, direct commit-object inspection, and exact
+restart continuation. The matrix covers no-op and association-only paths,
+same-repository FIFO with exact PR cache-session switching, stale load,
+preparation, and comparison terminals, pre-PONR cancel and abort, post-PONR
+mandatory success, applied-then-error postcondition resolution, recovery
+mismatch-to-repair, decision-lane-only projection, projection-exception
+containment, deferred reentrant ingress without recursive publication, and
+shutdown quiescence.
+
+The adjacent `git_process_contract`, `git_cache_contract`, and SQLite storage
+and behavior contracts provide the real physical and durable operations used
+by that fake-port orchestration. Together they are direct component evidence,
+not proof that the public executable selects the composition. BPR-0047 retains
+that public path, BPR-0048 retains the broad combined fault/reordering matrix,
+BPR-0055 retains prune/cache-delete maintenance orchestration, and BPR-0056
+retains history paging beyond the catalog port. These fixtures use disposable
+local data and no live private repository, GitHub mutation, or GitHub Actions
+workflow.
 
 ## Native HTTPS loopback transport fixture
 

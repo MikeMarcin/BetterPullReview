@@ -381,6 +381,85 @@ struct ready_fixture
     return std::get_if<append_epoch_mutation>(&*plan.Mutation);
 }
 
+auto test_preparation_effect_policy() -> void
+{
+    const auto owner = authority();
+    const auto owner_catalog = catalog(4);
+    const auto prior = summary(owner, owner_catalog, 4, 10U, 20U);
+
+    expect(
+        plan_epoch_preparation(
+            owner,
+            revision(),
+            owner_catalog,
+            {})
+                == planned_epoch_preparation{
+                    .Effect = epoch_preparation_effect::retain_revision,
+                },
+        "initial observation requires retained-revision preparation");
+
+    auto unchanged = revision(2U, 10U, 20U);
+    expect(
+        plan_epoch_preparation(
+            owner,
+            unchanged,
+            owner_catalog,
+            epoch_preparation_catalog_observation{.LatestLive = prior})
+                == planned_epoch_preparation{},
+        "unchanged observation requires no Git preparation");
+
+    unchanged.CurrentViewerReview = provider_review(7U, unchanged.Head);
+    expect(
+        plan_epoch_preparation(
+            owner,
+            unchanged,
+            owner_catalog,
+            epoch_preparation_catalog_observation{.LatestLive = prior})
+                == planned_epoch_preparation{},
+        "association-only observation requires no Git preparation");
+
+    auto changed = revision(2U, 10U, 21U);
+    expect(
+        plan_epoch_preparation(
+            owner,
+            changed,
+            owner_catalog,
+            epoch_preparation_catalog_observation{.LatestLive = prior})
+                == planned_epoch_preparation{
+                    .Effect = epoch_preparation_effect::retain_revision,
+                },
+        "changed head requires retained-revision preparation");
+
+    changed.Source.Observation = prior.Source.Observation;
+    expect(
+        plan_epoch_preparation(
+            owner,
+            changed,
+            owner_catalog,
+            epoch_preparation_catalog_observation{.LatestLive = prior})
+                .Rejection == epoch_reason_code::invalid_observation,
+        "changed revision rejects reuse of the latest source observation");
+
+    auto deleted = prior;
+    deleted.BaseAvailability = anchor_availability::cache_deleted;
+    deleted.HeadAvailability = anchor_availability::cache_deleted;
+    auto rehydrated = revision(3U, 10U, 20U);
+    expect(
+        plan_epoch_preparation(
+            owner,
+            rehydrated,
+            owner_catalog,
+            epoch_preparation_catalog_observation{
+                .LatestLive = deleted,
+                .RetentionRehydration =
+                    retention_rehydration_requirement::required,
+            })
+                == planned_epoch_preparation{
+                    .Effect = epoch_preparation_effect::retain_revision,
+                },
+        "durable cache-delete requirement requests exact rehydration work");
+}
+
 auto test_binary_oid_types_and_compact_state() -> void
 {
     static_assert(!std::is_same_v<git_commit_oid, git_tree_oid>);
@@ -1351,6 +1430,179 @@ auto test_commit_payload_binding_and_cancellation_point() -> void
     }
 }
 
+auto test_catalog_conflict_reloads_catalog() -> void
+{
+    {
+        auto fixture = make_ready_fixture();
+        const auto old_generation = fixture.State.EpochGeneration;
+        const auto refresh =
+            transition(fixture.State, refresh_epochs_intent{});
+        const auto prepare =
+            *request_from<prepare_epoch_revision_request>(refresh);
+        static_cast<void>(
+            transition(fixture.State, cancel_epoch_refresh_intent{}));
+
+        auto wrong_context = prepare.Context;
+        wrong_context.CatalogIncarnation =
+            opaque<epoch_catalog_incarnation_id>(99U);
+        const auto before_mismatch = fixture.State;
+        const auto mismatch = transition(
+            fixture.State,
+            epoch_revision_prepare_failed_event{
+                .Context = wrong_context,
+                .Failure = epoch_failure::catalog_conflict,
+            });
+        expect(
+            diagnostic_is(
+                mismatch, epoch_reason_code::completion_identity_mismatch)
+                && fixture.State == before_mismatch,
+            "mismatched preparation conflict cannot clear catalog state");
+
+        const auto conflict = transition(
+            fixture.State,
+            epoch_revision_prepare_failed_event{
+                .Context = prepare.Context,
+                .Failure = epoch_failure::catalog_conflict,
+            });
+        const auto* reload =
+            request_from<load_epoch_catalog_request>(conflict);
+        expect(
+            diagnostic_is(conflict, epoch_reason_code::catalog_conflict)
+                && reload != nullptr
+                && reload->Context.Generation != old_generation
+                && reload->Context.Authority == fixture.Authority
+                && reload->Context.Revision == fixture.Revision
+                && !fixture.State.Catalog.has_value()
+                && !fixture.State.AcceptedComparison.has_value()
+                && fixture.State.AcceptedComparisonRevision
+                    == comparison_revision{}
+                && fixture.State.RequestedSelection
+                    == named_selection(named_comparison::whole_pr)
+                && fixture.State.PendingIngestion.has_value()
+                && fixture.State.PendingIngestion->Phase
+                    == epoch_ingestion_phase::loading_catalog
+                && fixture.State.Status == epoch_status::loading_catalog
+                && conflict.Catalog.has_value()
+                && !conflict.Catalog->Catalog.has_value()
+                && conflict.Selection.has_value()
+                && conflict.Comparison.has_value()
+                && !conflict.Comparison->Pair.has_value(),
+            "preparation catalog conflict supersedes advisory cancellation "
+            "and reloads from fail-closed catalog state");
+
+        const auto before_stale = fixture.State;
+        const auto stale = transition(
+            fixture.State,
+            epoch_revision_prepare_failed_event{
+                .Context = prepare.Context,
+                .Failure = epoch_failure::unavailable,
+            });
+        expect(
+            diagnostic_is(stale, epoch_reason_code::stale_completion)
+                && fixture.State == before_stale,
+            "pre-conflict preparation terminals cannot disturb the fresh "
+            "catalog load");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        const auto old_generation = fixture.State.EpochGeneration;
+        const auto selected = transition(
+            fixture.State,
+            select_named_comparison_intent{
+                .Alias = named_comparison::previous_upload_to_latest,
+                .ExpectedCatalogRevision = fixture.Catalog.Revision,
+            });
+        const auto resolve =
+            *request_from<resolve_comparison_request>(selected);
+
+        const auto conflict = transition(
+            fixture.State,
+            comparison_resolve_failed_event{
+                .Context = resolve.Context,
+                .Failure = epoch_failure::catalog_conflict,
+            });
+        const auto* reload =
+            request_from<load_epoch_catalog_request>(conflict);
+        expect(
+            diagnostic_is(conflict, epoch_reason_code::catalog_conflict)
+                && conflict.Requests.size() == 1U && reload != nullptr
+                && reload->Context.Generation != old_generation
+                && !fixture.State.Catalog.has_value()
+                && !fixture.State.AcceptedComparison.has_value()
+                && fixture.State.AcceptedComparisonRevision
+                    == comparison_revision{}
+                && fixture.State.RequestedSelection
+                    == named_selection(named_comparison::whole_pr)
+                && !fixture.State.PendingComparison.has_value()
+                && fixture.State.PendingIngestion.has_value()
+                && fixture.State.PendingIngestion->Phase
+                    == epoch_ingestion_phase::loading_catalog
+                && fixture.State.Status == epoch_status::loading_catalog,
+            "comparison catalog conflict retires its terminal lane and "
+            "starts the same bounded catalog reload path");
+
+        const auto before_stale = fixture.State;
+        const auto stale = transition(
+            fixture.State,
+            comparison_resolved_event{
+                .Context = resolve.Context,
+                .Candidates =
+                    comparison_candidates{
+                        .Catalog = fixture.Catalog,
+                        .LatestLive = fixture.Epoch,
+                    },
+            });
+        expect(
+            diagnostic_is(stale, epoch_reason_code::stale_completion)
+                && fixture.State == before_stale,
+            "pre-conflict comparison results cannot overwrite the fresh "
+            "catalog load");
+    }
+
+    {
+        auto fixture = make_ready_fixture();
+        fixture.State.NextRequest = epoch_request_id{
+            std::numeric_limits<std::uint64_t>::max()};
+        const auto selected = transition(
+            fixture.State,
+            select_named_comparison_intent{
+                .Alias = named_comparison::previous_upload_to_latest,
+                .ExpectedCatalogRevision = fixture.Catalog.Revision,
+            });
+        const auto resolve =
+            *request_from<resolve_comparison_request>(selected);
+        expect(
+            fixture.State.RequestCounterExhausted,
+            "comparison can consume the final bounded request identity");
+
+        const auto conflict = transition(
+            fixture.State,
+            comparison_resolve_failed_event{
+                .Context = resolve.Context,
+                .Failure = epoch_failure::catalog_conflict,
+            });
+        expect(
+            conflict.Diagnostics
+                    == std::vector{
+                        epoch_diagnostic{
+                            .Code = epoch_reason_code::catalog_conflict,
+                        },
+                        epoch_diagnostic{
+                            .Code =
+                                epoch_reason_code::request_counter_exhausted,
+                        },
+                    }
+                && conflict.Requests.empty()
+                && !fixture.State.Catalog.has_value()
+                && !fixture.State.PendingComparison.has_value()
+                && !fixture.State.PendingIngestion.has_value()
+                && fixture.State.Status == epoch_status::failed,
+            "catalog conflict fails closed when the bounded reload request "
+            "space is exhausted");
+    }
+}
+
 auto test_current_malformed_terminals_close_work() -> void
 {
     {
@@ -2205,12 +2457,14 @@ auto test_deterministic_replay() -> void
 auto main() -> int
 {
     test_binary_oid_types_and_compact_state();
+    test_preparation_effect_policy();
     test_cause_precedence_and_material_policy();
     test_retention_rehydration_policy();
     test_association_only_policy();
     test_alias_resolution_and_exact_pairs();
     test_prepare_commit_visibility_and_linearization();
     test_commit_payload_binding_and_cancellation_point();
+    test_catalog_conflict_reloads_catalog();
     test_current_malformed_terminals_close_work();
     test_noop_discard_and_exact_invalidation();
     test_association_only_commit_transition();

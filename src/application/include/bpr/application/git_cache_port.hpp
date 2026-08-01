@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stop_token>
 #include <vector>
@@ -189,6 +190,7 @@ struct git_prepare_revision_request
     git_import_authorization Authorization;
     core::git_commit_oid Base;
     core::git_commit_oid Head;
+    std::optional<core::git_commit_oid> PriorHead;
 
     auto operator<=>(const git_prepare_revision_request&) const = default;
 };
@@ -200,6 +202,12 @@ struct git_prepare_revision_request
         && valid(request.Authorization) && request.Base.valid()
         && request.Head.valid()
         && request.Base.algorithm() == request.Head.algorithm()
+        && (
+            !request.PriorHead.has_value()
+            || (
+                request.PriorHead->valid()
+                && request.PriorHead->algorithm()
+                    == request.Head.algorithm()))
         && request.Base.algorithm()
             == request.Receipt.ExpectedPack.Algorithm
         && request.Receipt.Operation == request.Inventory.Operation
@@ -227,6 +235,8 @@ struct git_prepared_revision
     core::git_tree_oid BaseTree;
     core::git_commit_oid Head;
     core::git_tree_oid HeadTree;
+    core::head_lineage HeadLineage =
+        core::head_lineage::not_applicable;
     std::uint64_t ImportedBytes = 0U;
 
     auto operator<=>(const git_prepared_revision&) const = default;
@@ -248,10 +258,197 @@ struct git_prepared_revision
         && revision.Base.algorithm() == revision.BaseTree.algorithm()
         && revision.Base.algorithm() == revision.Head.algorithm()
         && revision.Base.algorithm() == revision.HeadTree.algorithm()
+        && (
+            revision.HeadLineage
+                == core::head_lineage::not_applicable
+            || revision.HeadLineage
+                == core::head_lineage::descendant
+            || revision.HeadLineage
+                == core::head_lineage::non_fast_forward
+            || revision.HeadLineage
+                == core::head_lineage::unknown)
         && revision.ImportedBytes != 0U
         && revision.ImportedBytes
             == revision.InstalledPack.Bytes;
 }
+
+// Durable catalog facts are projected into this Git-owned recovery contract.
+// The cache never interprets a physical final ref as catalog visibility or
+// durable success; it only reports exact physical evidence to the host.
+struct git_recovery_spool_expectation
+{
+    git_pack_oid ExpectedPack;
+    git_artifact_fact CompletedSpool{
+        .Role = git_artifact_role::completed_spool};
+    std::vector<git_pack_inventory_entry> PreimportPacks;
+    std::uint64_t PreimportRepositoryBytes = 0U;
+    bool ExpectedPackPreexisting = false;
+
+    auto operator<=>(const git_recovery_spool_expectation&) const =
+        default;
+};
+
+[[nodiscard]] inline auto valid(
+    const git_recovery_spool_expectation& expectation) noexcept -> bool
+{
+    if(
+        !valid(expectation.ExpectedPack)
+        || !valid(
+            expectation.CompletedSpool,
+            git_artifact_role::completed_spool)
+        || expectation.CompletedSpool.Bytes
+            > maximum_git_cache_operation_pack_bytes
+        || expectation.PreimportPacks.size()
+            > maximum_git_cache_pack_count
+        || expectation.PreimportRepositoryBytes
+            > maximum_git_repository_cache_bytes)
+    {
+        return false;
+    }
+    auto expected_present = false;
+    std::uint64_t inventory_bytes = 0U;
+    for(
+        std::size_t index = 0U;
+        index < expectation.PreimportPacks.size();
+        ++index)
+    {
+        const auto& entry = expectation.PreimportPacks[index];
+        if(
+            !valid(entry)
+            || entry.PackBytes
+                > expectation.PreimportRepositoryBytes - inventory_bytes
+            || entry.IndexBytes
+                > expectation.PreimportRepositoryBytes
+                    - inventory_bytes - entry.PackBytes
+            || entry.Pack.Algorithm
+                != expectation.ExpectedPack.Algorithm
+            || (
+                index != 0U
+                && !(expectation.PreimportPacks[index - 1U].Pack
+                    < entry.Pack)))
+        {
+            return false;
+        }
+        inventory_bytes += entry.PackBytes + entry.IndexBytes;
+        expected_present =
+            expected_present || entry.Pack == expectation.ExpectedPack;
+    }
+    return expected_present == expectation.ExpectedPackPreexisting;
+}
+
+struct git_recovery_install_expectation
+{
+    git_pack_oid Pack;
+    git_artifact_fact InstalledPack{
+        .Role = git_artifact_role::installed_pack};
+    git_artifact_fact InstalledIndex{
+        .Role = git_artifact_role::installed_index};
+    core::git_tree_oid BaseTree;
+    core::git_tree_oid HeadTree;
+
+    auto operator<=>(const git_recovery_install_expectation&) const =
+        default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const git_recovery_install_expectation& expectation) noexcept -> bool
+{
+    return valid(expectation.Pack)
+        && valid(
+            expectation.InstalledPack,
+            git_artifact_role::installed_pack)
+        && valid(
+            expectation.InstalledIndex,
+            git_artifact_role::installed_index)
+        && expectation.InstalledPack.Bytes
+            <= maximum_git_cache_operation_pack_bytes
+        && expectation.InstalledIndex.Bytes
+            <= maximum_git_repository_cache_bytes
+        && expectation.BaseTree.valid() && expectation.HeadTree.valid()
+        && expectation.BaseTree.algorithm() == expectation.Pack.Algorithm
+        && expectation.HeadTree.algorithm() == expectation.Pack.Algorithm;
+}
+
+struct git_operation_recovery_request
+{
+    core::epoch_operation_id Operation;
+    core::pull_request_authority_scope_id Scope;
+    core::epoch_ordinal Ordinal;
+    core::git_commit_oid Base;
+    core::git_commit_oid Head;
+    std::optional<git_recovery_spool_expectation> Spool;
+    std::optional<git_recovery_install_expectation> Install;
+
+    auto operator<=>(const git_operation_recovery_request&) const =
+        default;
+};
+
+[[nodiscard]] inline auto valid(
+    const git_operation_recovery_request& request) noexcept -> bool
+{
+    return request.Operation.valid() && request.Scope.valid()
+        && core::valid(request.Ordinal) && request.Base.valid()
+        && request.Head.valid()
+        && request.Base.algorithm() == request.Head.algorithm()
+        && (
+            !request.Spool
+            || (
+                valid(*request.Spool)
+                && request.Spool->ExpectedPack.Algorithm
+                    == request.Base.algorithm()))
+        && (
+            !request.Install
+            || (
+                valid(*request.Install)
+                && request.Install->Pack.Algorithm
+                    == request.Base.algorithm()))
+        && (
+            !request.Spool || !request.Install
+            || (
+                request.Spool->ExpectedPack == request.Install->Pack
+                && request.Spool->CompletedSpool.Bytes
+                    == request.Install->InstalledPack.Bytes));
+}
+
+enum class git_recovery_match : std::uint8_t
+{
+    absent,
+    exact,
+    mismatch,
+    ambiguous,
+};
+
+enum class git_recovery_object_match : std::uint8_t
+{
+    not_checked,
+    exact,
+    unavailable,
+    mismatch,
+};
+
+enum class git_recovery_ref_topology : std::uint8_t
+{
+    absent,
+    staging,
+    final,
+    ambiguous,
+};
+
+struct git_operation_recovery_observation
+{
+    core::epoch_operation_id Operation;
+    git_recovery_match Spool = git_recovery_match::absent;
+    git_recovery_match Installed = git_recovery_match::absent;
+    git_recovery_match Staging = git_recovery_match::absent;
+    git_recovery_match Final = git_recovery_match::absent;
+    git_recovery_object_match Objects =
+        git_recovery_object_match::not_checked;
+    git_recovery_ref_topology Refs =
+        git_recovery_ref_topology::absent;
+
+    auto operator<=>(const git_operation_recovery_observation&) const =
+        default;
+};
 
 struct git_retained_ref_pair
 {
@@ -269,6 +466,21 @@ struct git_retained_ref_pair
     return pair.Scope.valid() && core::valid(pair.Ordinal)
         && pair.Base.valid() && pair.Head.valid()
         && pair.Base.algorithm() == pair.Head.algorithm();
+}
+
+struct git_cache_commit_inspection
+{
+    core::git_commit_oid Commit;
+    core::git_tree_oid Tree;
+
+    auto operator<=>(const git_cache_commit_inspection&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const git_cache_commit_inspection& inspection) noexcept -> bool
+{
+    return inspection.Commit.valid() && inspection.Tree.valid()
+        && inspection.Commit.algorithm() == inspection.Tree.algorithm();
 }
 
 struct git_ref_promotion_authorization
@@ -396,12 +608,46 @@ public:
         std::stop_token stop)
         -> git_cache_result<git_retained_ref_pair> = 0;
 
+    // Verifies an exact commit independently of catalog availability or a
+    // retained epoch ref. This is the restart-safe gate for protocol-v2 haves
+    // and review-commit anchors: commit type, tree, and reachable closure are
+    // checked under the exact cache writer lock.
+    [[nodiscard]] virtual auto inspect_commit_object(
+        core::git_commit_oid commit,
+        std::stop_token stop)
+        -> git_cache_result<git_cache_commit_inspection> = 0;
+
     [[nodiscard]] virtual auto prune_retained(
         const git_ref_prune_authorization& authorization,
         std::stop_token stop) -> git_cache_result<void> = 0;
 
     [[nodiscard]] virtual auto abort_operation(
         core::epoch_operation_id operation,
+        std::stop_token stop) -> git_cache_result<void> = 0;
+
+    // This is a physical recovery inspection only. The catalog phase remains
+    // the sole durable visibility/success authority even when final refs are
+    // exact. Every filesystem scan and Git subprocess remains bounded and
+    // cancellable under the exact cache writer lock.
+    [[nodiscard]] virtual auto inspect_operation_recovery(
+        const git_operation_recovery_request& request,
+        std::stop_token stop)
+        -> git_cache_result<git_operation_recovery_observation> = 0;
+
+    // Re-inspects under the session's operation lock and removes only an
+    // exact completed spool and exact operation staging pair. Final refs,
+    // installed packs/indexes, mismatches, and ambiguous residue are never
+    // deleted by this operation-scoped abort.
+    [[nodiscard]] virtual auto abort_recovered_operation(
+        const git_operation_recovery_request& request,
+        std::stop_token stop) -> git_cache_result<void> = 0;
+
+    // Successful catalog cleanup is intentionally distinct from abort. It
+    // requires the exact final pair and object closure, removes only an exact
+    // completed spool/staging residue, and never marks the operation aborted
+    // or consumes bounded abort-history capacity.
+    [[nodiscard]] virtual auto complete_recovered_operation(
+        const git_operation_recovery_request& request,
         std::stop_token stop) -> git_cache_result<void> = 0;
 };
 

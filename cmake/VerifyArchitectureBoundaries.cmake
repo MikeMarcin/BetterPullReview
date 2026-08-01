@@ -61,14 +61,12 @@ set(
     git_process_factory_relative
     "src/adapters/git/include/bpr/adapters/git/installed_git_process.hpp"
 )
-
 if(NOT EXISTS "${github_adapter_cmake}")
     message(FATAL_ERROR "GitHub adapter must own a dedicated CMake target")
 endif()
 if(NOT EXISTS "${git_adapter_cmake}")
     message(FATAL_ERROR "Git adapter must own a dedicated CMake target")
 endif()
-
 file(READ "${adapters_cmake}" adapters_cmake_contents)
 if(
     NOT adapters_cmake_contents
@@ -1134,7 +1132,7 @@ set(
     "\"merge-base\""
     "\"update-ref\""
     "\"--no-deref\""
-    "\"show-ref\""
+    "\"for-each-ref\""
     "transaction_success"
     "probe_pack_sha256"
     "capability_probe[ \t\r\n]*\\("

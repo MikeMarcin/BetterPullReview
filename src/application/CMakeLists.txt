@@ -2,6 +2,8 @@ add_library(
     better_pull_review_application
     STATIC
         src/github_capability_cache.cpp
+        src/epoch_application_host.cpp
+        src/epoch_runtime_ports.cpp
         src/github_application_host.cpp
         src/github_credential_vault.cpp
         src/github_projection_mapping.cpp
@@ -28,6 +30,13 @@ if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         better_pull_review_application
         PUBLIC
             _LIBCPP_ENABLE_EXPERIMENTAL
+    )
+endif()
+if(WIN32)
+    target_link_libraries(
+        better_pull_review_application
+        PRIVATE
+            Bcrypt
     )
 endif()
 

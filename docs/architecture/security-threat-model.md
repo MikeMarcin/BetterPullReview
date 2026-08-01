@@ -456,17 +456,21 @@ profile/host/account/server/probe-contract cache.
 
 ### Accepted authority and account isolation
 
-The epoch host receives one typed `accepted_pull_request_revision` only after
+The epoch host receives one typed `accepted_pull_request_handoff` only after
 the GitHub core emitted the exact `accepted_snapshot_delta` and the GitHub
 host committed that snapshot. It is not derived from Qt state or a public
 snapshot getter. The handoff carries the complete application session,
-profile identity/revision, Git host/canonical hostname/server contract, GitHub
-identity generation, authenticated account/exact viewer actor, repository
-identity/validated locator, pull-request identity/number/generation, provider
-snapshot identity, algorithm-tagged base/head binary OIDs, opaque base-branch
-identity, the one bounded newest-current-viewer review candidate with typed
-provider order, and an optional opaque native smart-HTTPS lease. It contains
-no credential, URL, provider record, or raw branch/ref string.
+profile identity/revision, Git host/authority fingerprint/canonical hostname/
+server contract, GitHub identity generation, authenticated account/exact
+viewer actor, repository identity/validated locator, pull-request identity/
+number/generation, provider snapshot identity/typed revision origin, object
+format and algorithm-tagged base/head binary OIDs, opaque base-branch identity,
+its validated typed base ref, the one bounded newest-current-viewer review
+candidate with typed provider order, and an optional opaque native smart-HTTPS
+lease. It contains no source-observation identity, observed time, credential,
+URL, provider record, or unvalidated branch/ref string. The epoch host obtains
+source identity and time from its operating-system entropy and clock ports
+after durable recovery.
 
 When any authority component changes, the GitHub host revokes the lease,
 sends `pull_request_authority_invalidated`, and only then clears the old
@@ -496,6 +500,12 @@ Invalidation immediately removes visibility. A catalog/ref scope mismatch,
 algorithm mismatch, or stale generation is corruption or staleness, never a
 cache hit. Provider clone URLs, locator casing, login text, and raw `HeadRef`
 values do not select storage or authority.
+
+Catalog availability is not accepted as physical object proof. The BPR-0045
+host directly inspects every candidate commit before admitting a smart-protocol
+`have` or resolving a named or explicit comparison. Missing or mismatched
+objects are omitted or downgraded to unavailable; a catalog row cannot cause
+an arbitrary OID to be read or negotiated.
 
 ### Native smart HTTPS and installed Git
 
@@ -544,9 +554,9 @@ first bounded into the exact private request-owned
 `incoming/v1/<operation64>.pack.part` spool. BPR-0043's cache/ref contract
 validates the completed spool and exposes opaque pack-receipt and pre-import
 inventory facts, but does not durably record them. BPR-0044 persists the pack
-identity, pre-import pack inventory, and preexisting-pack fact. BPR-0045 must
-prove that record before authorizing streaming to this fixed import shape with
-the validated numeric bound:
+identity, pre-import pack inventory, and preexisting-pack fact. The BPR-0045
+host records those exact facts before authorizing streaming to this fixed
+import shape with the validated numeric bound:
 
 ```text
 git -c core.fsync=all
@@ -563,10 +573,10 @@ git -c core.fsync=all
 
 `fetch-pack`, `--keep`, `--fix-thin`, network subcommands, arbitrary
 arguments, and a shell are not admitted. Exact bounded output and on-disk
-pack/index paths are validated before staging refs are created, then the spool
-is exact-deleted. BPR-0044 supplies the durable facts that can identify a newly
-created pack; BPR-0045 must consume them in the composed sequencing before
-recovery may delete that pack. BPR-0043 alone does not prove that recovery.
+pack/index paths are validated before staging refs are created. The BPR-0045
+host consumes BPR-0044's exact ownership facts in its import, staging, commit,
+and recovery sequence; cleanup exact-deletes only matching operation residue.
+BPR-0043 alone does not prove that recovery.
 The child environment is constructed from nothing, selects
 app-owned empty system and global configuration/template roots, and admits
 only the exact validated app-owned local bare-repository configuration.
@@ -600,18 +610,19 @@ contained zero cache fault-injection markers.
 
 The cache port exports no filesystem path. Its versioned, scheme-tagged
 fixed-size artifact facts bind the completed spool and installed pack/index
-to roles and exact sizes, while a canonical bounded pre-import inventory
-records whether the expected pack already existed. These facts are
+to roles and exact sizes, and its prepared result reports the validated head
+relationship to the prior retained head. A canonical bounded pre-import
+inventory records whether the expected pack already existed. These facts are
 serializable recovery inputs; their accompanying opaque authorization tokens
 are only live-session state and are not durable evidence.
 
 BPR-0044 durably stores the exact completed-spool, expected-pack,
-pack-inventory, and preexisting-pack facts. BPR-0045 must commit that record
-before local import and enforce the remaining ref/catalog/recovery order,
-BPR-0047 must select the complete path in the public application, and
-BPR-0053 retains target-native Windows execution. Until those slices
-complete, the architecture above is not a claim of durable authorization,
-end-to-end fetch, crash recovery, public composition, or Windows behavior.
+pack-inventory, preexisting-pack, and installed head-lineage facts. BPR-0045
+now commits those facts before local import and enforces the remaining
+ref/catalog/recovery order through the dedicated host component. BPR-0047 must
+still select the complete path in the public application, and BPR-0053 retains
+target-native Windows execution. Component evidence is not yet a claim of a
+public end-to-end fetch path or Windows runtime behavior.
 
 ### App-owned bare repository and private refs
 
@@ -664,20 +675,29 @@ cache-delete operation state. Named aliases are core policy resolved from
 these exact facts, not a caller-editable or independently authoritative alias
 table. Composite-identity tables use `WITHOUT ROWID` where applicable.
 
-The v1 schema is closed: 18 `STRICT, WITHOUT ROWID` tables and 15 indexes are
+The v1 schema is closed: 18 `STRICT, WITHOUT ROWID` tables and 16 indexes are
 matched by type, name, and canonical SQL on every open. The adapter also
 verifies the singleton incarnation, `integrity_check(1)`, and
 `foreign_key_check`. Operation-detail tables carry a fixed kind and a
 composite foreign key to a parent operation of that same kind, preventing a
 wrong-kind detail row from acquiring authority. Each epoch also carries the
 exact nonzero 256-bit source-observation identity supplied by the host, and the
-catalog enforces uniqueness among published epochs within one catalog
-incarnation. A retention replacement must not reuse an identity even when its
-semantic provider revision and Git anchors correspond to the cache-deleted
-latest epoch; there is no source-identity reuse exception. BPR-0045 owns
-operating-system-entropy generation for every accepted observation and retry
-after a catalog-reported collision. Deterministic BPR-0044 fixtures prove
-persistence, restart behavior, and collision rejection, not entropy quality.
+catalog enforces uniqueness across published epochs and every durable append
+operation within one catalog incarnation. Indexed read-before-dispatch and
+transactional reservation checks classify source-observation collisions
+without scanning epoch history. A retention replacement must not reuse an
+identity even when its semantic provider revision and Git anchors correspond
+to the cache-deleted
+latest epoch; there is no source-identity reuse exception. BPR-0045 implements
+operating-system CSPRNG generation for every accepted observation and bounded
+retry after a catalog-reported collision. Deterministic catalog/host fixtures
+prove persistence, restart behavior, collision rejection, and retry ordering;
+native runtime-port evidence proves the production source independently of
+those fakes.
+Because RFC-BPR-0003 is still open, this definition supersedes earlier interim
+development catalogs whose canonical operation-source or install schema
+predates these amendments; those transient catalogs fail closed and must be
+recreated rather than silently migrated.
 
 The catalog does not contain credentials, Authorization data, source bodies,
 patches, comments/review bodies, pack data, raw provider payloads, logins,
@@ -777,14 +797,16 @@ An association-only review update uses one expected-revision SQLite
 transaction and no pack, Git, or ref phase.
 
 Recovery takes the same lock and compares typed operation phase, catalog row,
-and exact ref/object values:
+and exact operation/spool/install/ref/object values:
 
 - an exact operation-owned spool may be resumed or deleted;
 - an interrupted import may delete only a recorded nonpreexisting pack/index
   and operation-attributable temporary files when no staged, final, or
   catalog ref can reach them;
-- `preparing` or `commit_authorized` with no final refs and the exact staging
-  pair is resumed or exact-aborted only as recorded;
+- `preparing`, `spool_recorded`, `imported`, `staging_ready`, or
+  `abort_requested` residue is exact-aborted only through its recorded
+  recovery identity;
+- `commit_authorized` with the exact staging pair resumes toward promotion;
 - `ref_commit_in_progress` with no final refs and the exact staging pair
   retries the fixed ref transaction and finalizes;
 - an exact final pair is object-validated and finalized exactly once;
@@ -804,10 +826,20 @@ repository-manifest drift also fails closed.
 BPR-0044 implements and directly exercises the durable catalog state machine,
 including exact operation facts, phase/evidence compare-and-swap, restart
 paging, idempotent catalog finalization, destructive tombstones, and repair
-provenance. Its fixtures pass exact ref/object outcomes in as typed host
-evidence; they do not mutate or recover real Git refs. BPR-0045 retains the
-two-resource orchestration and stale-publication boundary, and BPR-0047 retains
-selection through the public executable.
+provenance. BPR-0045 composes those facts with the cache/ref port through exact
+pre-PONR abort and post-PONR continuation, mandatory-success postcondition
+inspection, recovery-before-acceptance, serialized publication, and stale
+completion rejection. BPR-0047 retains selection through the public
+executable; BPR-0048 retains the broader cross-component fault matrix.
+
+A bounded host-lifetime registry retains at most 1,000 exact repository-cache
+actors. One FIFO and one exact PR-scoped cache session serialize all effects
+within an actor; switching PRs closes the old session only after its queued
+cleanup, while unrelated repository actors may run in parallel. One context
+retains at most 100 exact preparations and one recovery pass admits at most
+1,000 operations. Reentrant ingress is deferred, projection exceptions are
+contained, and shutdown cannot report quiescence until jobs, pending offers,
+decision turns, deferred ingress, and every actor queue are idle.
 
 ### Quotas, pruning, and deletion
 
@@ -815,9 +847,10 @@ Wire, temporary-storage, repository, object, ref, epoch, catalog-row, text,
 page, and transaction counts have hard configured ceilings. Exhaustion fails
 the candidate without publishing and without evicting accepted history.
 There is no TTL, LRU, automatic epoch pruning, or automatic Git maintenance
-that can discard a retained object. Paged history is snapshot/revision bound;
-a stale cursor is rejected rather than continued against a different catalog
-revision.
+that can discard a retained object. Catalog history pages are
+snapshot/revision bound and reject stale cursors. BPR-0056 still owns the
+core-authorized host request/terminal and incremental projection path; the
+catalog method alone is not a completed product paging surface.
 
 Ref pruning releases a retention root and may reclaim the logical epoch quota,
 but milestone one claims no immediate physical-byte reclamation without Git
@@ -829,10 +862,11 @@ consequence summary. A BPR-0044 prune intent persists the exact base/head OIDs,
 retained-ref identities, expected catalog revision, and each anchor's expected
 starting availability. Only `available`, `unavailable`, and `corrupt` may enter
 the operation. Begin, replay, finalization, finalized replay, and restart reject
-any revision, identity, or availability drift. After BPR-0045 supplies exact
-paired-ref absence, one catalog transaction marks both anchors and every linked
-non-destructive review association `pruned`, advances the revision, and releases
-the retained-epoch quota exactly once. BPR-0044 does not mutate Git refs, and
+any revision, identity, or availability drift. BPR-0055 owns the missing
+core-authorized host path that supplies exact paired-ref absence before one
+catalog transaction marks both anchors and every linked non-destructive review
+association `pruned`, advances the revision, and releases the retained-epoch
+quota exactly once. Adapter methods alone are not product authorization;
 replay cannot decrement quota or mutate rows a second time.
 
 The retained anchor/epoch identity remains as a pruned tombstone. Any named
@@ -881,9 +915,10 @@ Qt-free `core-only` matrix passed 25/25. A tests-disabled Release build used the
 pinned static SQLite dependency and exposed no catalog fault-injection seam.
 Tracked and on-disk GitHub Actions workflow counts were 0/0.
 
-A clean MinGW cross-build compiled and linked 47/47 targets. Its inventory
-listed 25 tests, exactly two labeled `BPR-0053` and `target-native-windows`, but
-no Windows executable was run. Those results establish source/link
-compatibility only. BPR-0045 retains real Git/ref recovery orchestration,
-BPR-0047 retains public composition, and BPR-0053 retains every target-native
-Windows catalog claim.
+A clean BPR-0044 MinGW cross-build compiled and linked 47/47 targets. Its
+inventory listed 25 tests, exactly two labeled `BPR-0053` and
+`target-native-windows`, but no Windows executable was run. Those results
+establish source/link compatibility only. BPR-0045 adds component-level
+Git/ref recovery orchestration plus guarded runtime-port source and current-
+host contract evidence; BPR-0047 retains public composition, and BPR-0053
+retains every target-native Windows claim.

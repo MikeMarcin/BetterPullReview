@@ -516,6 +516,41 @@ auto start_ingestion(
     set_status(state, output, epoch_status::loading_catalog);
 }
 
+[[nodiscard]] auto restart_after_catalog_conflict(epoch_state& state)
+    -> epoch_transition_output
+{
+    auto output = epoch_transition_output{};
+    state.PendingIngestion.reset();
+    retire_pending_comparison(state, output);
+    clear_catalog_bound_state(state, output);
+    diagnose(output, epoch_reason_code::catalog_conflict);
+
+    const auto next_generation = advanced(state.EpochGeneration);
+    if(!next_generation.has_value())
+    {
+        diagnose(output, epoch_reason_code::epoch_generation_exhausted);
+        set_status(state, output, epoch_status::failed);
+        return output;
+    }
+    if(!request_available(state))
+    {
+        diagnose(output, epoch_reason_code::request_counter_exhausted);
+        set_status(state, output, epoch_status::failed);
+        return output;
+    }
+
+    state.EpochGeneration = *next_generation;
+    const auto request = take_request(state);
+    output.Authority = epoch_authority_delta{
+        .Authority = state.Authority,
+        .Revision = state.AcceptedRevision,
+        .Generation = state.EpochGeneration,
+    };
+    output.Changed = output.Changed | epoch_changed_domain::authority;
+    start_ingestion(state, output, request);
+    return output;
+}
+
 [[nodiscard]] auto clear_authority_fail_closed(
     epoch_state& state, const epoch_reason_code reason)
     -> epoch_transition_output
@@ -944,6 +979,16 @@ auto clear_ingestion(
             epoch_reason_code::invalid_catalog);
         return output;
     }
+    if(state.PendingIngestion->CancellationRequested)
+    {
+        auto output = epoch_transition_output{};
+        clear_ingestion(
+            state,
+            output,
+            epoch_status::cancelled,
+            epoch_reason_code::cancelled);
+        return output;
+    }
 
     state.Catalog = event.Catalog;
     state.PendingIngestion->Phase = epoch_ingestion_phase::preparing;
@@ -980,7 +1025,13 @@ template<typename Event>
         return reject_match(match);
     }
     auto output = epoch_transition_output{};
-    clear_ingestion(state, output, status, reason);
+    const auto cancellation_wins =
+        state.PendingIngestion->CancellationRequested;
+    clear_ingestion(
+        state,
+        output,
+        cancellation_wins ? epoch_status::cancelled : status,
+        cancellation_wins ? epoch_reason_code::cancelled : reason);
     return output;
 }
 
@@ -1036,6 +1087,20 @@ template<typename Event>
     state.PendingIngestion->Operation = event.Operation;
     const auto operation_context =
         current_operation_context(state, *state.PendingIngestion);
+    if(state.PendingIngestion->CancellationRequested)
+    {
+        auto output = epoch_transition_output{};
+        output.Requests.emplace_back(
+            discard_epoch_preparation_request{
+                .Context = operation_context,
+            });
+        clear_ingestion(
+            state,
+            output,
+            epoch_status::cancelled,
+            epoch_reason_code::cancelled);
+        return output;
+    }
     if(plan.Rejection != epoch_reason_code::none)
     {
         auto output = epoch_transition_output{};
@@ -1093,7 +1158,13 @@ template<typename Event>
         return reject_match(match);
     }
     auto output = epoch_transition_output{};
-    clear_ingestion(state, output, status, reason);
+    const auto cancellation_wins =
+        state.PendingIngestion->CancellationRequested;
+    clear_ingestion(
+        state,
+        output,
+        cancellation_wins ? epoch_status::cancelled : status,
+        cancellation_wins ? epoch_reason_code::cancelled : reason);
     return output;
 }
 
@@ -1101,6 +1172,24 @@ template<typename Event>
     epoch_state& state, const epoch_revision_prepare_failed_event& event)
     -> epoch_transition_output
 {
+    if(event.Failure == epoch_failure::catalog_conflict)
+    {
+        if(!state.PendingIngestion.has_value())
+        {
+            return reject(epoch_reason_code::stale_completion);
+        }
+        const auto match = context_match(
+            state.PendingIngestion,
+            epoch_ingestion_phase::preparing,
+            event.Context,
+            current_preparation_context(
+                state, state.PendingIngestion->Request));
+        if(match != completion_match::current)
+        {
+            return reject_match(match);
+        }
+        return restart_after_catalog_conflict(state);
+    }
     return finish_preparation(
         state, event, epoch_status::failed, reason_for(event.Failure));
 }
@@ -1177,36 +1266,7 @@ template<typename Event>
     }
     if(event.Failure == epoch_failure::catalog_conflict)
     {
-        auto output = epoch_transition_output{};
-        state.PendingIngestion.reset();
-        retire_pending_comparison(state, output);
-        clear_catalog_bound_state(state, output);
-        diagnose(output, epoch_reason_code::catalog_conflict);
-
-        const auto next_generation = advanced(state.EpochGeneration);
-        if(!next_generation.has_value())
-        {
-            diagnose(output, epoch_reason_code::epoch_generation_exhausted);
-            set_status(state, output, epoch_status::failed);
-            return output;
-        }
-        if(!request_available(state))
-        {
-            diagnose(output, epoch_reason_code::request_counter_exhausted);
-            set_status(state, output, epoch_status::failed);
-            return output;
-        }
-
-        state.EpochGeneration = *next_generation;
-        const auto request = take_request(state);
-        output.Authority = epoch_authority_delta{
-            .Authority = state.Authority,
-            .Revision = state.AcceptedRevision,
-            .Generation = state.EpochGeneration,
-        };
-        output.Changed = output.Changed | epoch_changed_domain::authority;
-        start_ingestion(state, output, request);
-        return output;
+        return restart_after_catalog_conflict(state);
     }
     auto output = epoch_transition_output{};
     clear_ingestion(
@@ -1337,6 +1397,16 @@ template<typename Event>
     epoch_state& state, const comparison_resolve_failed_event& event)
     -> epoch_transition_output
 {
+    if(event.Failure == epoch_failure::catalog_conflict)
+    {
+        const auto match = comparison_context_match(state, event.Context);
+        if(match != completion_match::current)
+        {
+            return reject_match(match);
+        }
+        state.PendingComparison.reset();
+        return restart_after_catalog_conflict(state);
+    }
     return finish_comparison(
         state, event, epoch_status::failed, reason_for(event.Failure));
 }
@@ -1689,6 +1759,71 @@ auto material_relation(
                               : epoch_material_relation::different;
 }
 
+auto plan_epoch_preparation(
+    const pull_request_authority& authority,
+    const accepted_pull_request_revision& revision,
+    const epoch_catalog_identity& catalog,
+    const epoch_preparation_catalog_observation& observation) noexcept
+    -> planned_epoch_preparation
+{
+    if(!valid(authority) || !valid(revision) || !valid(catalog)
+       || (revision.CurrentViewerReview.has_value()
+           && revision.CurrentViewerReview->Actor != authority.Viewer)
+       || !valid_rehydration_requirement(
+           observation.RetentionRehydration)
+       || (observation.LatestLive.has_value()
+           && (!valid_summary(
+               authority, catalog, *observation.LatestLive)
+               || !live(*observation.LatestLive))))
+    {
+        return {.Rejection = epoch_reason_code::invalid_observation};
+    }
+
+    const bool historical = revision.Origin
+        == pull_request_revision_origin::explicit_historical_import;
+    const bool initial = !historical && !observation.LatestLive.has_value();
+    const bool branch_changed = observation.LatestLive.has_value()
+        && revision.BaseBranch != observation.LatestLive->BaseBranch;
+    const bool base_changed = observation.LatestLive.has_value()
+        && revision.Base != observation.LatestLive->Base;
+    const bool head_changed = observation.LatestLive.has_value()
+        && revision.Head != observation.LatestLive->Head;
+    const bool retention_required = observation.RetentionRehydration
+        == retention_rehydration_requirement::required;
+
+    if(retention_required
+       && (historical || !observation.LatestLive.has_value()
+           || observation.LatestLive->BaseAvailability
+               != anchor_availability::cache_deleted
+           || observation.LatestLive->HeadAvailability
+               != anchor_availability::cache_deleted))
+    {
+        return {.Rejection = epoch_reason_code::invalid_observation};
+    }
+
+    const bool source_observation_reused = observation.LatestLive
+        && revision.Source.Observation
+            == observation.LatestLive->Source.Observation;
+    const bool rehydrating = retention_required && !branch_changed
+        && !base_changed && !head_changed && !source_observation_reused;
+    if(retention_required && !branch_changed && !base_changed && !head_changed
+       && !rehydrating)
+    {
+        return {.Rejection = epoch_reason_code::invalid_observation};
+    }
+
+    const bool retain_revision = historical || initial || retention_required
+        || branch_changed || base_changed || head_changed;
+    if(retain_revision && !initial && source_observation_reused)
+    {
+        return {.Rejection = epoch_reason_code::invalid_observation};
+    }
+    return {
+        .Effect = retain_revision ? epoch_preparation_effect::retain_revision
+                                  : epoch_preparation_effect::none,
+    };
+}
+
 auto plan_epoch_mutation(
     const pull_request_authority& authority,
     const accepted_pull_request_revision& revision,
@@ -1696,12 +1831,22 @@ auto plan_epoch_mutation(
     const epoch_preparation_observation& observation) noexcept
     -> planned_epoch_mutation
 {
+    const auto preparation = plan_epoch_preparation(
+        authority,
+        revision,
+        catalog,
+        epoch_preparation_catalog_observation{
+            .LatestLive = observation.LatestLive,
+            .RetentionRehydration = observation.RetentionRehydration,
+        });
+    if(preparation.Rejection != epoch_reason_code::none)
+    {
+        return {.Rejection = preparation.Rejection};
+    }
     if(!valid(authority) || !valid(revision) || !valid(catalog)
        || (revision.CurrentViewerReview.has_value()
            && revision.CurrentViewerReview->Actor != authority.Viewer)
        || !valid_lineage(observation.HeadLineage)
-       || !valid_rehydration_requirement(
-           observation.RetentionRehydration)
        || (observation.CatalogCurrentViewerReview.has_value()
            && (!valid_catalog_review(*observation.CatalogCurrentViewerReview)
                || observation.CatalogCurrentViewerReview->Actor
@@ -1721,13 +1866,6 @@ auto plan_epoch_mutation(
     {
         return {.Rejection = epoch_reason_code::invalid_observation};
     }
-    if(observation.LatestLive.has_value()
-       && (!valid_summary(authority, catalog, *observation.LatestLive)
-           || !live(*observation.LatestLive)))
-    {
-        return {.Rejection = epoch_reason_code::invalid_observation};
-    }
-
     const bool historical = revision.Origin
         == pull_request_revision_origin::explicit_historical_import;
     const bool initial = !historical && !observation.LatestLive.has_value();
@@ -1750,32 +1888,10 @@ auto plan_epoch_mutation(
 
     const bool retention_required = observation.RetentionRehydration
         == retention_rehydration_requirement::required;
-    if(retention_required
-       && (historical || !observation.LatestLive.has_value()
-           || observation.LatestLive->BaseAvailability
-               != anchor_availability::cache_deleted
-           || observation.LatestLive->HeadAvailability
-               != anchor_availability::cache_deleted))
-    {
-        return {.Rejection = epoch_reason_code::invalid_observation};
-    }
-    const bool source_observation_reused = observation.LatestLive
-        && revision.Source.Observation
-            == observation.LatestLive->Source.Observation;
     const bool rehydrating = retention_required && !branch_changed
-        && !base_changed && !head_changed && !source_observation_reused;
-    if(retention_required && !branch_changed && !base_changed && !head_changed
-       && !rehydrating)
-    {
-        return {.Rejection = epoch_reason_code::invalid_observation};
-    }
-
-    const bool revision_changed = historical || initial || retention_required
-        || branch_changed || base_changed || head_changed;
-    if(revision_changed && !initial && source_observation_reused)
-    {
-        return {.Rejection = epoch_reason_code::invalid_observation};
-    }
+        && !base_changed && !head_changed;
+    const bool revision_changed = preparation.Effect
+        == epoch_preparation_effect::retain_revision;
     if(revision_changed)
     {
         if(!observation.ProposedOrdinal.has_value()

@@ -233,13 +233,21 @@ For GitHub reads, an `accepted_snapshot_delta` is the explicit commit signal;
 a broad changed-domain bit cannot substitute for acceptance.
 
 RFC-BPR-0003 begins only after that signal and host commit. The GitHub host
-then emits a provider-free accepted-revision observation containing the exact
-profile/profile-revision, host, account, repository, pull request, provider
-snapshot, GitHub identity/request generations, base-branch identity,
-algorithm-tagged base/head OIDs, observed time, and bounded current-viewer
-review candidate. It emits an invalidation before a previous identity can be
-replaced. This narrow handoff performs no Git, persistence, or Qt work and
-does not make the RFC-BPR-0002 GitHub host an epoch controller.
+then emits one provider-free `accepted_pull_request_handoff` containing the
+exact application session, profile/profile-revision, host/authority-fingerprint/
+hostname/server contract, account/viewer, repository/validated locator, pull
+request/number, provider snapshot, typed revision origin, GitHub identity/
+request generations, object format, base-branch identity, validated typed base
+ref, algorithm-tagged base/head OIDs, bounded current-viewer review candidate,
+and optional native smart-Git lease.
+The handoff deliberately contains neither a source-observation identity nor
+observed time.
+After exact catalog recovery, the epoch host mints the source identity from
+the operating-system CSPRNG; it observes UTC time only when preparing a
+candidate. The GitHub host emits an invalidation before a previous identity
+can be replaced. This narrow handoff performs no Git, persistence, clock,
+entropy, or Qt work and does not make the RFC-BPR-0002 GitHub host an epoch
+controller.
 
 ## Concurrency and stale work
 
@@ -256,14 +264,30 @@ does not make the RFC-BPR-0002 GitHub host an epoch controller.
   still preserving their separate effect-execution and decision-serialization
   roles.
 
-Epoch ingestion, comparison resolution, and explicit maintenance use separate
-typed generations and at most one pending operation in each lane. Their
-contexts include the request, application session, complete pull-request
-authority, accepted pull-request revision, catalog incarnation/revision, and the
-lane generation. Authority replacement advances every applicable generation
-before cancellation and clears identity-sensitive epoch projections.
-Same-authority refresh may retain the last accepted exact pair as visibly
-refreshing.
+Epoch ingestion and comparison resolution use separate typed generations and
+at most one semantic pending operation in each core lane. Their contexts
+include the request, application session, complete pull-request authority,
+accepted pull-request revision, catalog incarnation/revision, and the lane
+generation. The host may temporarily retain up to 100 exact prepared
+operations so superseded or rejected preparation can be discarded by identity;
+that bounded effect state is not a second semantic lane. BPR-0055 still owns
+the core-authorized maintenance lanes. Authority replacement advances every
+applicable generation before cancellation and clears identity-sensitive epoch
+projections. Same-authority refresh may retain the last accepted exact pair as
+visibly refreshing.
+
+Epoch cache/catalog effects are serialized by a host-lifetime registry of at
+most 1,000 actors, one per exact repository cache authority. Each actor owns
+one FIFO and at most one live cache session. Switching pull requests in the
+same repository first runs the old context's exact cleanup under its old PR
+session, closes that session, and opens the full new PR request; unrelated
+repository actors may run in parallel. Reentrant ingress is deferred until the
+current decision turn completes. Projection delivery is synchronous and
+observational: its exceptions are contained and cannot veto core acceptance,
+durable success, cleanup, or actor progress. All ingress and state/quiescence
+inspection remain decision-lane confined. Shutdown is quiescent only after
+jobs, deferred ingress, pending offers, decision turns, and every actor queue
+are idle.
 
 Every normally accepted Git/catalog submission during the live host lifetime
 produces exactly one typed success, failure, or cancellation terminal. An
@@ -309,7 +333,7 @@ It does not grow the GitHub reducer/host into a cross-feature controller and
 does not use a Qt projection as an internal event bus.
 
 ```text
-accepted RFC-BPR-0002 pull-request revision
+accepted RFC-BPR-0002 pull-request handoff
     -> dedicated epoch host
     -> bounded catalog and Git observations
     -> deterministic epoch core
@@ -324,9 +348,10 @@ The core uses fixed algorithm-tagged commit/tree identities, a complete
 pull-request authority and source revision, a catalog incarnation plus
 monotonic revision, composite epoch cause, exact base/head or review anchors,
 and checked request/epoch/comparison generations. Its state retains no catalog
-page or Git object and is bounded to 2,048 bytes. The host owns full paged
-history, refs, object residency, ancestry/material observations, time,
-persistence, recovery, and cancellation.
+page or Git object and is bounded to 2,048 bytes. The host owns refs, object
+residency, ancestry/material observations, time, persistence, append recovery,
+and cancellation. The catalog owns full durable history; BPR-0056 still owns
+the bounded core/host page algebra that exposes it incrementally.
 
 An epoch ID is scoped by exact authority, catalog incarnation, and a nonzero
 ordinal no greater than `INT64_MAX`. Recreating a deleted catalog creates a
@@ -361,12 +386,27 @@ missing, pruned, or unavailable pairs are illegal. Every later diff request
 uses the accepted anchor identities, exact OIDs, catalog revision, and
 comparison revision rather than selector labels.
 
+Catalog availability is necessary but not physical proof. Before admitting a
+same-cache `have` or resolving a named or explicit comparison, the epoch host
+directly inspects each candidate commit through the credential-free Git-cache
+port. A missing or mismatched object is omitted from negotiation or projected
+as unavailable; the host never upgrades catalog metadata into object residency.
+
 The host stages request-scoped Git objects/refs and a bounded candidate before
 the core issues `CommitEpochCatalogRequest`. The request carries the expected
 catalog revision. Ref/catalog publication is failure-atomic and recoverable:
 the core changes accepted epoch/catalog/comparison state only after an exact
 durable success terminal. A compare-and-swap conflict commits nothing and
 requires a fresh bounded catalog observation.
+
+The BPR-0045 component implements append orchestration and restart recovery.
+It journals exact spool/inventory facts before `index-pack`, records
+`ref_commit_in_progress` before ref promotion, and treats that phase as the
+point of no cancellation. Any error or exception after that point is resolved
+from exact durable and physical postconditions. Catalog visibility remains
+mandatory success even when cleanup is left for recovery. BPR-0055 retains
+core-authorized prune/cache-delete orchestration and recovery; BPR-0047 retains
+selection of the complete host path by the public application.
 
 When base, head, and branch are unchanged but the accepted
 newest-current-viewer review fact changes, the core issues the

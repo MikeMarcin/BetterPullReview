@@ -529,7 +529,8 @@ An app-owned minimal protocol-v2 client, not installed Git, constructs the
 closed `ls-refs` and `fetch` requests for the validated accepted base and
 fixed pull-request-head refs and validates every advertisement and response.
 Its `want` set is exactly the deduplicated accepted base/head pair; any bounded
-`have` is a catalog-visible exact object from the same repository cache scope.
+`have` is both catalog-visible and directly commit-object-verified in the same
+repository cache scope.
 The fixed installed-Git `index-pack` child receives the bounded pack stream
 and validated bare-repository path but no protocol advertisement, remote ref,
 credential, Authorization header, URL, proxy, trust, cookie, provider
@@ -542,9 +543,10 @@ application-protocol and native-wire component boundaries. Commit `2801241`
 implements their authority-partitioned cache/ref consumer; its direct cache
 contract passed 1/1 in 162.58 seconds, while the adjacent protocol,
 native-transport, process, and architecture replay passed 7/7 in 92.95
-seconds. These component results do not prove durable catalog authorization,
-journal-before-import sequencing, crash recovery, or selection by the public
-executable; those remain BPR-0044, BPR-0045, and BPR-0047 work.
+seconds. BPR-0044 adds the durable catalog state machine, and BPR-0045 adds the
+dedicated host's journal-before-import sequencing, exact append recovery, and
+stale-publication boundary. Those component results still do not prove
+selection by the public executable; that remains BPR-0047 work.
 
 ## Normalized application boundary
 
@@ -649,15 +651,21 @@ decision lane remains available through host quiescence and invokes every
 accepted post exactly once without inline execution.
 
 Only after that exact accepted snapshot commit may the GitHub host emit the
-provider-free `accepted_pull_request_revision` handoff to the dedicated epoch
-host. It carries the application session; profile identity/revision; Git host,
-canonical hostname, and server contract; GitHub identity generation;
-authenticated account and exact viewer actor; repository identity and
-validated locator; pull-request identity/number/generation; provider snapshot
-identity; algorithm-tagged base/head object identities; opaque base-branch
-identity; the one bounded newest-current-viewer review candidate with typed
-provider order; and the optional native smart-HTTPS lease. Provider records,
-raw branch/ref text, URLs, credentials, and Qt projections do not cross.
+provider-free `accepted_pull_request_handoff` to the dedicated epoch host. It
+carries the application session; profile identity/revision; Git host,
+authority fingerprint, canonical hostname, and server contract; GitHub
+identity generation; authenticated account and exact viewer actor; repository
+identity and validated locator; pull-request identity/number/generation;
+provider snapshot identity and typed revision origin; object format and
+algorithm-tagged base/head object identities; opaque base-branch identity plus
+its validated typed base ref; the one bounded newest-current-viewer review
+candidate with typed provider order; and the optional native smart-HTTPS lease.
+Source-observation identity and observed time do not cross:
+the epoch host obtains those from its operating-system entropy and clock ports
+after recovery. Source identity is minted and collision-probed before the
+handoff reaches the epoch core; UTC is observed only for a preparation that
+requires it. Provider records, unvalidated branch/ref text, URLs, credentials,
+and Qt projections do not cross.
 
 The GitHub host revokes the lease, sends the matching
 `pull_request_authority_invalidated` handoff, and only then clears the old

@@ -2746,16 +2746,23 @@ public:
         append_arguments(
             arguments,
             "cat-file",
-            "-e",
-            commit + "^{commit}");
+            "--batch-check=%(objectname) %(objecttype)");
         const auto exists = submit(
-            process_request{.Arguments = std::move(arguments)},
+            process_request{
+                .Arguments = std::move(arguments),
+                .Input = memory_input{commit + "\n"},
+            },
             stop);
         if(!exists.has_value())
         {
             return std::unexpected{exists.error()};
         }
-        if(!exists->StandardOutput.empty())
+        if(exists->StandardOutput == commit + " missing\n")
+        {
+            return std::unexpected{
+                git_process_failure::object_unavailable};
+        }
+        if(exists->StandardOutput != commit + " commit\n")
         {
             return std::unexpected{
                 git_process_failure::malformed_output};
@@ -2837,6 +2844,16 @@ public:
         {
             return std::unexpected{
                 git_process_failure::invalid_repository};
+        }
+        const auto ancestor = inspect_commit(
+            application::git_commit_request{
+                .Repository = request.Repository,
+                .Commit = request.Ancestor,
+            },
+            stop);
+        if(!ancestor.has_value())
+        {
+            return std::unexpected{ancestor.error()};
         }
         auto arguments =
             common_git_arguments(request.Repository, HooksRoot);
@@ -3050,6 +3067,29 @@ public:
         const std::stop_token stop)
         -> git_process_result<std::optional<git_commit_id>> override
     {
+        const auto target = inspect_ref_target(request, stop);
+        if(!target.has_value() || !target->has_value())
+        {
+            return target;
+        }
+        const auto inspection = inspect_commit(
+            application::git_commit_request{
+                .Repository = request.Repository,
+                .Commit = **target,
+            },
+            stop);
+        if(!inspection.has_value())
+        {
+            return std::unexpected{inspection.error()};
+        }
+        return target;
+    }
+
+    [[nodiscard]] auto inspect_ref_target(
+        const application::git_inspect_ref_request& request,
+        const std::stop_token stop)
+        -> git_process_result<std::optional<git_commit_id>> override
+    {
         const auto ref = ref_text(request.Ref);
         if(!ref.has_value())
         {
@@ -3066,36 +3106,9 @@ public:
             common_git_arguments(request.Repository, HooksRoot);
         append_arguments(
             arguments,
-            "show-ref",
-            "--verify",
-            "--quiet",
-            *ref);
-        const auto presence = submit(
-            process_request{
-                .Arguments = std::move(arguments),
-                .AllowExitOne = true,
-            },
-            stop);
-        if(!presence.has_value())
-        {
-            return std::unexpected{presence.error()};
-        }
-        if(!presence->StandardOutput.empty())
-        {
-            return std::unexpected{
-                git_process_failure::malformed_output};
-        }
-        if(presence->ExitCode == 1)
-        {
-            return std::optional<git_commit_id>{};
-        }
-        arguments =
-            common_git_arguments(request.Repository, HooksRoot);
-        append_arguments(
-            arguments,
-            "show-ref",
-            "--verify",
-            "--hash",
+            "for-each-ref",
+            "--format=%(refname)%00%(objectname)%00%(symref)",
+            "--count=2",
             *ref);
         const auto result = submit(
             process_request{.Arguments = std::move(arguments)},
@@ -3104,32 +3117,39 @@ public:
         {
             return std::unexpected{result.error()};
         }
+        if(result->StandardOutput.empty())
+        {
+            return std::optional<git_commit_id>{};
+        }
+        const auto name_separator = result->StandardOutput.find('\0');
+        const auto object_separator = name_separator == std::string::npos
+            ? std::string::npos
+            : result->StandardOutput.find('\0', name_separator + 1U);
         if(
-            result->StandardOutput.empty()
-            || result->StandardOutput.back() != '\n')
+            name_separator == std::string::npos
+            || object_separator == std::string::npos
+            || std::string_view{result->StandardOutput}.substr(
+                   0U,
+                   name_separator)
+                != *ref
+            || result->StandardOutput.back() != '\n'
+            || result->StandardOutput.find('\n')
+                != result->StandardOutput.size() - 1U
+            || object_separator + 1U
+                != result->StandardOutput.size() - 1U)
         {
             return std::unexpected{
                 git_process_failure::malformed_output};
         }
         const auto object = parse_object<git_commit_id>(
             std::string_view{result->StandardOutput}.substr(
-                0U,
-                result->StandardOutput.size() - 1U),
+                name_separator + 1U,
+                object_separator - name_separator - 1U),
             *algorithm);
         if(!object.has_value())
         {
             return std::unexpected{
                 git_process_failure::malformed_output};
-        }
-        const auto inspection = inspect_commit(
-            application::git_commit_request{
-                .Repository = request.Repository,
-                .Commit = *object,
-            },
-            stop);
-        if(!inspection.has_value())
-        {
-            return std::unexpected{inspection.error()};
         }
         return std::optional<git_commit_id>{*object};
     }

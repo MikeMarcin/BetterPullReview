@@ -128,6 +128,10 @@ struct epoch_catalog_binding
 struct epoch_catalog_snapshot
 {
     epoch_catalog_binding Binding;
+    // The exact next never-used ordinal. An empty value means the durable
+    // ordinal space is exhausted; callers must not infer this from live
+    // history because aborted reservations intentionally leave gaps.
+    std::optional<core::epoch_ordinal> NextOrdinal;
     std::optional<core::review_epoch_summary> LatestLive;
     std::optional<core::review_epoch_summary> PreviousDistinctHead;
     std::optional<core::catalog_review_association> CurrentViewerReview;
@@ -136,6 +140,51 @@ struct epoch_catalog_snapshot
 
     auto operator<=>(const epoch_catalog_snapshot&) const = default;
 };
+
+struct projected_append_head
+{
+    core::epoch_ordinal Ordinal;
+    core::git_commit_oid Head;
+
+    auto operator<=>(const projected_append_head&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const projected_append_head& projected) noexcept -> bool
+{
+    return core::valid(projected.Ordinal) && projected.Head.valid();
+}
+
+struct canonical_review_request
+{
+    core::epoch_catalog_identity Catalog;
+    core::current_viewer_review_candidate Candidate;
+    core::review_association_id ProposedAssociation;
+    std::optional<projected_append_head> ProjectedHead;
+
+    auto operator<=>(const canonical_review_request&) const = default;
+};
+
+[[nodiscard]] constexpr auto valid(
+    const canonical_review_request& request) noexcept -> bool
+{
+    const auto& candidate = request.Candidate;
+    return core::valid(request.Catalog)
+        && request.ProposedAssociation.valid()
+        && candidate.Review.value() != 0U
+        && candidate.Actor.value() != 0U && core::valid(candidate.Order)
+        && candidate.State != core::github_review_state::pending
+        && static_cast<std::uint8_t>(candidate.State)
+            <= static_cast<std::uint8_t>(
+                core::github_review_state::dismissed)
+        && candidate.Commit.valid()
+        && (
+            !request.ProjectedHead
+            || (
+                application::valid(*request.ProjectedHead)
+                && request.ProjectedHead->Head.algorithm()
+                    == candidate.Commit.algorithm()));
+}
 
 struct exact_anchor_lookup_request
 {
@@ -775,6 +824,8 @@ struct durable_git_install_fact
     core::git_tree_oid BaseTree;
     core::git_commit_oid Head;
     core::git_tree_oid HeadTree;
+    core::head_lineage HeadLineage =
+        core::head_lineage::not_applicable;
 
     auto operator<=>(const durable_git_install_fact&) const = default;
 };
@@ -798,7 +849,13 @@ struct durable_git_install_fact
         && fact.Base.algorithm() == fact.Pack.Algorithm
         && fact.Base.algorithm() == fact.BaseTree.algorithm()
         && fact.Base.algorithm() == fact.Head.algorithm()
-        && fact.Base.algorithm() == fact.HeadTree.algorithm();
+        && fact.Base.algorithm() == fact.HeadTree.algorithm()
+        && (
+            fact.HeadLineage == core::head_lineage::not_applicable
+            || fact.HeadLineage == core::head_lineage::descendant
+            || fact.HeadLineage
+                == core::head_lineage::non_fast_forward
+            || fact.HeadLineage == core::head_lineage::unknown);
 }
 
 [[nodiscard]] constexpr auto durable_fact(
@@ -814,6 +871,7 @@ struct durable_git_install_fact
         .BaseTree = revision.BaseTree,
         .Head = revision.Head,
         .HeadTree = revision.HeadTree,
+        .HeadLineage = revision.HeadLineage,
     };
 }
 
@@ -1646,6 +1704,8 @@ enum class epoch_catalog_failure : std::uint8_t
     authority_mismatch,
     catalog_mismatch,
     revision_conflict,
+    operation_identity_conflict,
+    source_observation_conflict,
     operation_conflict,
     phase_conflict,
     quota_exceeded,
@@ -1677,6 +1737,21 @@ public:
 
     [[nodiscard]] virtual auto snapshot(std::stop_token stop)
         -> epoch_catalog_result<epoch_catalog_snapshot> = 0;
+
+    // Incarnation-wide collision probe for every accepted observation,
+    // including paths that do not reserve an append. reserve_append repeats
+    // this check inside its writer transaction.
+    [[nodiscard]] virtual auto source_observation_exists(
+        core::epoch_source_observation_id observation,
+        std::stop_token stop) -> epoch_catalog_result<bool> = 0;
+
+    // Resolves stable local identity and anchor availability without writing
+    // the catalog or scanning history. A matching provider review reuses its
+    // existing association even when ProposedAssociation differs.
+    [[nodiscard]] virtual auto canonical_review(
+        const canonical_review_request& request,
+        std::stop_token stop)
+        -> epoch_catalog_result<core::catalog_review_association> = 0;
 
     [[nodiscard]] virtual auto exact_anchors(
         const exact_anchor_lookup_request& request,

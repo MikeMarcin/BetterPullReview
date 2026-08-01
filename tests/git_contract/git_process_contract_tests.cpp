@@ -605,7 +605,21 @@ auto write_fake_refs(
     }
     if(arguments.contains("cat-file"))
     {
-        static_cast<void>(read_standard_input());
+        const auto input = read_standard_input();
+        if(std::ranges::any_of(
+               arguments,
+               [](const QString& argument)
+               {
+                   return argument.startsWith("--batch-check=");
+               }))
+        {
+            if(input.empty() || input.back() != '\n')
+            {
+                return 4;
+            }
+            std::cout << input.substr(0U, input.size() - 1U)
+                      << " commit\n";
+        }
         return 0;
     }
     if(arguments.contains("rev-parse"))
@@ -631,18 +645,15 @@ auto write_fake_refs(
             repository,
             read_standard_input());
     }
-    if(arguments.contains("show-ref"))
+    if(arguments.contains("for-each-ref"))
     {
         const auto refs = fake_refs(repository);
         const auto ref = arguments.back().toStdString();
         const auto found = refs.find(ref);
-        if(found == refs.end())
+        if(found != refs.end())
         {
-            return 1;
-        }
-        if(!arguments.contains("--quiet"))
-        {
-            std::cout << found->second << '\n';
+            std::cout << found->first << '\0' << found->second
+                      << '\0' << '\n';
         }
         return 0;
     }
@@ -698,7 +709,8 @@ auto write_fake_refs(
 [[nodiscard]] auto run_fixture_git(
     const std::filesystem::path& repository,
     const std::vector<std::string>& arguments,
-    const std::string_view input = {}) -> std::string
+    const std::string_view input = {},
+    const bool expect_identity = true) -> std::string
 {
     QProcess process;
     process.setProgram(QString::fromStdString(BPR_TEST_GIT_EXECUTABLE));
@@ -764,6 +776,13 @@ auto write_fake_refs(
             && standard_error.isEmpty(),
         "local connectivity fixture Git succeeds silently");
     auto result = standard_output.toStdString();
+    if(!expect_identity)
+    {
+        require(
+            result.empty(),
+            "local connectivity fixture mutation is silent");
+        return {};
+    }
     require(
         !result.empty() && result.back() == '\n'
             && result.find('\n') == result.size() - 1U,
@@ -987,6 +1006,9 @@ auto run_real_git_contract() -> void
     require(
         !std::filesystem::exists(hook_marker),
         "repository reference-transaction hook not invoked");
+    require(
+        std::filesystem::remove(hook),
+        "remove hostile repository hook after isolation proof");
 
     const auto scope = make_scope(0x33U);
     const application::git_epoch_ref final_base{
@@ -1037,6 +1059,99 @@ auto run_real_git_contract() -> void
     require(
         staging.has_value() && !staging->has_value(),
         "exact staging ref removed");
+
+    const auto recovery_operation = make_operation(0x24U);
+    const application::git_staging_ref recovery_ref{
+        .Operation = recovery_operation,
+        .Endpoint = application::git_private_ref_endpoint::base,
+    };
+    const auto recovery_commit_text = run_fixture_git(
+        repository,
+        {"commit-tree", std::string{sha1_tree_hex}},
+        "recovery target\n");
+    const auto recovery_commit = object<application::git_commit_id>(
+        recovery_commit_text,
+        application::git_hash_algorithm::sha1);
+    const std::array<application::git_ref_mutation, 1U> recovery_create{
+        application::git_ref_write{
+            .Ref = recovery_ref,
+            .DesiredObject = recovery_commit,
+            .ExpectedOld = application::git_ref_expected_absent{},
+        }};
+    require(
+        adapter
+            ->update_refs(
+                {.Repository = repository, .Mutations = recovery_create},
+                {})
+            .has_value(),
+        "create recovery ref with an exact target");
+    const auto recovery_object =
+        repository / "objects"
+        / recovery_commit_text.substr(0U, 2U)
+        / recovery_commit_text.substr(2U);
+    require(
+        std::filesystem::remove(recovery_object),
+        "remove recovery ref target object");
+    const auto raw_recovery_target = adapter->inspect_ref_target(
+        {.Repository = repository, .Ref = recovery_ref},
+        {});
+    const auto verified_recovery_target = adapter->inspect_ref(
+        {.Repository = repository, .Ref = recovery_ref},
+        {});
+    require(
+        raw_recovery_target.has_value()
+            && *raw_recovery_target == recovery_commit
+            && !verified_recovery_target.has_value()
+            && verified_recovery_target.error()
+                == application::git_process_failure::object_unavailable,
+        "recovery reads a wrong physical target separately from missing-object verification");
+    const std::array<application::git_ref_mutation, 1U> recovery_remove{
+        application::git_ref_remove{
+            .Ref = recovery_ref,
+            .ExpectedOld = recovery_commit,
+        }};
+    require(
+        adapter
+            ->update_refs(
+                {.Repository = repository, .Mutations = recovery_remove},
+                {})
+            .has_value(),
+        "exact expected target removes missing-object recovery ref");
+    const auto repeated_identity_hex = [](const std::string_view byte)
+    {
+        auto result = std::string{};
+        result.reserve(64U);
+        for(auto index = 0U; index < 32U; ++index)
+        {
+            result += byte;
+        }
+        return result;
+    };
+    const auto recovery_base_name =
+        "refs/betterpullreview/v1/stage/"
+        + repeated_identity_hex("24") + "/base";
+    const auto final_head_name =
+        "refs/betterpullreview/v1/scope/"
+        + repeated_identity_hex("33")
+        + "/epoch/0000000000000001/head";
+    static_cast<void>(run_fixture_git(
+        repository,
+        {"symbolic-ref", recovery_base_name, final_head_name},
+        {},
+        false));
+    const auto indirect_recovery_target = adapter->inspect_ref_target(
+        {.Repository = repository, .Ref = recovery_ref},
+        {});
+    require(
+        !indirect_recovery_target.has_value()
+            && indirect_recovery_target.error()
+                == application::git_process_failure::malformed_output,
+        "recovery target inspection rejects indirect symbolic refs");
+    static_cast<void>(run_fixture_git(
+        repository,
+        {"symbolic-ref", "--delete", recovery_base_name},
+        {},
+        false));
 
     auto wrong_commit = commit;
     wrong_commit.Digest.front() ^= 0x01U;
@@ -1171,6 +1286,27 @@ auto run_connectivity_contract() -> void
             verify().has_value(),
             "base/head graph is completely connected");
 
+        const auto missing_identity = std::string(
+            algorithm == application::git_hash_algorithm::sha1
+                ? 40U
+                : 64U,
+            'f');
+        const auto unavailable_ancestor = adapter->is_ancestor(
+            {
+                .Repository = repository,
+                .Ancestor = object<application::git_commit_id>(
+                    missing_identity,
+                    algorithm),
+                .Descendant = fixture.Head,
+            },
+            {});
+        expect(
+            !unavailable_ancestor.has_value()
+                && unavailable_ancestor.error()
+                    == application::git_process_failure::
+                        object_unavailable,
+            "missing exact ancestor is distinguished from other process failures");
+
         expect(
             std::filesystem::remove(
                 loose_object_path(
@@ -1237,6 +1373,33 @@ auto run_connectivity_contract() -> void
         expect(
             verify().has_value(),
             "restored blob restores complete connectivity");
+
+        expect(
+            std::filesystem::remove(
+                loose_object_path(repository, fixture.RootTree)),
+            "remove exact commit tree fixture");
+        const auto corrupt_commit = adapter->inspect_commit(
+            {
+                .Repository = repository,
+                .Commit = fixture.Head,
+            },
+            {});
+        expect(
+            !corrupt_commit.has_value()
+                && corrupt_commit.error()
+                    == application::git_process_failure::nonzero_exit,
+            "missing tree is not weakened into object-unavailable ancestry");
+        expect(
+            run_fixture_git(
+                repository,
+                {"mktree"},
+                "040000 tree " + fixture.NestedTree
+                    + "\tdirectory\n")
+                == fixture.RootTree,
+            "restore exact commit tree fixture");
+        expect(
+            verify().has_value(),
+            "restored commit tree restores complete connectivity");
         return fixture;
     };
 

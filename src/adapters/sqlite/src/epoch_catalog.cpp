@@ -568,6 +568,13 @@ public:
 
     [[nodiscard]] auto snapshot(std::stop_token stop)
         -> result<app::epoch_catalog_snapshot> override;
+    [[nodiscard]] auto source_observation_exists(
+        core::epoch_source_observation_id observation,
+        std::stop_token stop) -> result<bool> override;
+    [[nodiscard]] auto canonical_review(
+        const app::canonical_review_request& request,
+        std::stop_token stop)
+        -> result<core::catalog_review_association> override;
     [[nodiscard]] auto exact_anchors(
         const app::exact_anchor_lookup_request& request,
         std::stop_token stop) -> result<app::exact_anchor_lookup_result> override;
@@ -1716,6 +1723,42 @@ struct canonical_review_fact final
     return output;
 }
 
+[[nodiscard]] auto catalog_contains_source_observation(
+    ::sqlite3* database,
+    const core::epoch_catalog_incarnation_id& incarnation,
+    const core::epoch_source_observation_id& observation,
+    std::stop_token stop) -> result<bool>
+{
+    auto query = prepare(
+        database,
+        "SELECT EXISTS(SELECT 1 FROM epoch "
+        "INDEXED BY epoch_source_revision "
+        "WHERE incarnation = ?1 AND source_observation = ?2) "
+        "OR EXISTS(SELECT 1 FROM operation "
+        "INDEXED BY operation_source_observation "
+        "WHERE incarnation = ?3 AND kind = 1 "
+        "AND source_observation = ?4)");
+    if(!query || !bind_fixed(query->Value, 1, incarnation)
+       || !bind_fixed(query->Value, 2, observation)
+       || !bind_fixed(query->Value, 3, incarnation)
+       || !bind_fixed(query->Value, 4, observation))
+    {
+        return std::unexpected(query ? failure::unavailable : query.error());
+    }
+    if(::sqlite3_step(query->Value) != SQLITE_ROW
+       || ::sqlite3_column_type(query->Value, 0) != SQLITE_INTEGER)
+    {
+        return std::unexpected(sql_failure(database, stop));
+    }
+    const auto exists = ::sqlite3_column_int(query->Value, 0);
+    if((exists != 0 && exists != 1)
+       || ::sqlite3_step(query->Value) != SQLITE_DONE)
+    {
+        return std::unexpected(failure::schema_mismatch);
+    }
+    return exists != 0;
+}
+
 auto sqlite_epoch_catalog_session::snapshot(std::stop_token stop)
     -> result<app::epoch_catalog_snapshot>
 {
@@ -1748,7 +1791,8 @@ auto sqlite_epoch_catalog_session::snapshot(std::stop_token stop)
     auto query = prepare(
         database,
         "SELECT catalog_revision, latest_live_ordinal, "
-        "previous_distinct_head_ordinal, retention_rehydration_required "
+        "previous_distinct_head_ordinal, retention_rehydration_required, "
+        "next_ordinal "
         "FROM pull_request_scope "
         "WHERE incarnation = ?1 AND pr_scope = ?2");
     if(!query || !bind_fixed(query->Value, 1, Binding.Catalog.Incarnation)
@@ -1773,8 +1817,25 @@ auto sqlite_epoch_catalog_session::snapshot(std::stop_token stop)
             ::sqlite3_column_int64(query->Value, 2)};
     }
     const auto rehydration_required = ::sqlite3_column_int(query->Value, 3);
+    std::optional<core::epoch_ordinal> next_ordinal;
+    const auto next_ordinal_type = ::sqlite3_column_type(query->Value, 4);
+    if(next_ordinal_type == SQLITE_INTEGER)
+    {
+        next_ordinal = core::epoch_ordinal{
+            ::sqlite3_column_int64(query->Value, 4)};
+    }
     if(revision < 0
        || (rehydration_required != 0 && rehydration_required != 1)
+       || (latest && !core::valid(*latest))
+       || (previous && !core::valid(*previous))
+       || (
+           next_ordinal_type != SQLITE_NULL
+           && (next_ordinal_type != SQLITE_INTEGER
+               || !next_ordinal || !core::valid(*next_ordinal)))
+       || (latest && next_ordinal && latest->value() >= next_ordinal->value())
+       || (
+           previous && next_ordinal
+           && previous->value() >= next_ordinal->value())
        || ::sqlite3_step(query->Value) != SQLITE_DONE)
     {
         return std::unexpected(failure::schema_mismatch);
@@ -1784,6 +1845,7 @@ auto sqlite_epoch_catalog_session::snapshot(std::stop_token stop)
         core::epoch_catalog_revision{revision};
     app::epoch_catalog_snapshot output{
         .Binding = snapshot_binding,
+        .NextOrdinal = next_ordinal,
         .RetentionRehydration = rehydration_required != 0
             ? core::retention_rehydration_requirement::required
             : core::retention_rehydration_requirement::not_required,
@@ -1863,6 +1925,220 @@ auto sqlite_epoch_catalog_session::snapshot(std::stop_token stop)
     }
     Binding = snapshot_binding;
     return output;
+}
+
+auto sqlite_epoch_catalog_session::source_observation_exists(
+    const core::epoch_source_observation_id observation,
+    std::stop_token stop) -> result<bool>
+{
+    if(!observation.valid())
+    {
+        return std::unexpected(failure::invalid_request);
+    }
+    if(stop.stop_requested())
+    {
+        return std::unexpected(failure::cancelled);
+    }
+    std::scoped_lock lock{State->Mutex};
+    auto* database = State->Database.handle();
+    progress_guard progress{database, stop};
+    read_transaction read{database, stop};
+    if(auto begun = read.begin(); !begun)
+    {
+        return std::unexpected(begun.error());
+    }
+    auto exists = catalog_contains_source_observation(
+        database,
+        Binding.Catalog.Incarnation,
+        observation,
+        stop);
+    if(!exists)
+    {
+        return std::unexpected(exists.error());
+    }
+    if(auto committed = read.commit(); !committed)
+    {
+        return std::unexpected(committed.error());
+    }
+    return *exists;
+}
+
+auto sqlite_epoch_catalog_session::canonical_review(
+    const app::canonical_review_request& request,
+    std::stop_token stop) -> result<core::catalog_review_association>
+{
+    if(!app::valid(request) || request.Catalog != Binding.Catalog
+       || request.Candidate.Actor != Binding.Authority.Viewer
+       || request.Candidate.Commit.algorithm() != Binding.ObjectFormat
+       || (
+           request.ProjectedHead
+           && request.ProjectedHead->Head.algorithm()
+               != Binding.ObjectFormat))
+    {
+        return std::unexpected(failure::invalid_request);
+    }
+    if(stop.stop_requested())
+    {
+        return std::unexpected(failure::cancelled);
+    }
+    std::scoped_lock lock{State->Mutex};
+    auto* database = State->Database.handle();
+    progress_guard progress{database, stop};
+    read_transaction read{database, stop};
+    if(auto begun = read.begin(); !begun)
+    {
+        return std::unexpected(begun.error());
+    }
+    auto state = load_pull_request_scope_state(
+        database,
+        Binding.Catalog.Incarnation,
+        Binding.Authority.Scope);
+    if(!state)
+    {
+        return std::unexpected(state.error());
+    }
+    if(auto readable = require_readable_pull_request_scope(
+           *state, Binding, request.Catalog.Revision);
+       !readable)
+    {
+        return std::unexpected(readable.error());
+    }
+
+    auto existing = prepare(
+        database,
+        "SELECT association FROM review_association "
+        "WHERE incarnation = ?1 AND pr_scope = ?2 AND review_id = ?3");
+    if(!existing
+       || !bind_fixed(
+           existing->Value, 1, Binding.Catalog.Incarnation)
+       || !bind_fixed(existing->Value, 2, Binding.Authority.Scope)
+       || !bind_u64(existing->Value, 3, request.Candidate.Review.value()))
+    {
+        return std::unexpected(
+            existing ? failure::unavailable : existing.error());
+    }
+    std::optional<core::review_association_id> association;
+    const auto existing_code = ::sqlite3_step(existing->Value);
+    if(existing_code == SQLITE_ROW)
+    {
+        association = read_fixed<core::review_association_id>(
+            existing->Value, 0);
+        if(!association || ::sqlite3_step(existing->Value) != SQLITE_DONE)
+        {
+            return std::unexpected(failure::schema_mismatch);
+        }
+        auto loaded = load_review_association(
+            database,
+            Binding.Catalog.Incarnation,
+            Binding.Authority.Scope,
+            Binding.Authority.Viewer,
+            *association);
+        if(!loaded || loaded->Review != request.Candidate.Review)
+        {
+            return std::unexpected(
+                loaded ? failure::schema_mismatch : loaded.error());
+        }
+    }
+    else if(existing_code != SQLITE_DONE)
+    {
+        return std::unexpected(sql_failure(database, stop));
+    }
+
+    if(!association)
+    {
+        auto identity_collision = prepare(
+            database,
+            "SELECT 1 FROM review_association WHERE incarnation = ?1 "
+            "AND pr_scope = ?2 AND association = ?3 LIMIT 1");
+        if(!identity_collision
+           || !bind_fixed(
+               identity_collision->Value,
+               1,
+               Binding.Catalog.Incarnation)
+           || !bind_fixed(
+               identity_collision->Value, 2, Binding.Authority.Scope)
+           || !bind_fixed(
+               identity_collision->Value,
+               3,
+               request.ProposedAssociation))
+        {
+            return std::unexpected(
+                identity_collision ? failure::unavailable
+                                   : identity_collision.error());
+        }
+        const auto collision_code = ::sqlite3_step(identity_collision->Value);
+        if(collision_code == SQLITE_ROW)
+        {
+            return std::unexpected(failure::operation_conflict);
+        }
+        if(collision_code != SQLITE_DONE)
+        {
+            return std::unexpected(sql_failure(database, stop));
+        }
+        association = request.ProposedAssociation;
+    }
+
+    auto order_collision = prepare(
+        database,
+        "SELECT 1 FROM review_association WHERE incarnation = ?1 "
+        "AND pr_scope = ?2 AND review_order = ?3 AND review_id != ?4 "
+        "LIMIT 1");
+    if(!order_collision
+       || !bind_fixed(
+           order_collision->Value, 1, Binding.Catalog.Incarnation)
+       || !bind_fixed(order_collision->Value, 2, Binding.Authority.Scope)
+       || ::sqlite3_bind_int(
+              order_collision->Value, 3, request.Candidate.Order.value())
+            != SQLITE_OK
+       || !bind_u64(
+           order_collision->Value, 4, request.Candidate.Review.value()))
+    {
+        return std::unexpected(
+            order_collision ? failure::unavailable
+                            : order_collision.error());
+    }
+    const auto order_code = ::sqlite3_step(order_collision->Value);
+    if(order_code == SQLITE_ROW)
+    {
+        return std::unexpected(failure::operation_conflict);
+    }
+    if(order_code != SQLITE_DONE)
+    {
+        return std::unexpected(sql_failure(database, stop));
+    }
+
+    auto candidate = core::catalog_review_association{
+        .Association = *association,
+        .Review = request.Candidate.Review,
+        .Actor = request.Candidate.Actor,
+        .Order = request.Candidate.Order,
+        .State = request.Candidate.State,
+        .Commit = request.Candidate.Commit,
+        .Availability = core::anchor_availability::never_observed,
+    };
+    std::optional<std::pair<core::epoch_ordinal, core::git_commit_oid>>
+        projected;
+    if(request.ProjectedHead)
+    {
+        projected = std::pair{
+            request.ProjectedHead->Ordinal,
+            request.ProjectedHead->Head};
+    }
+    auto canonical = canonicalize_review(
+        database,
+        Binding.Catalog.Incarnation,
+        Binding.Authority.Scope,
+        candidate,
+        projected);
+    if(!canonical)
+    {
+        return std::unexpected(canonical.error());
+    }
+    if(auto committed = read.commit(); !committed)
+    {
+        return std::unexpected(committed.error());
+    }
+    return canonical->Review;
 }
 
 auto sqlite_epoch_catalog_session::exact_anchors(
@@ -2567,8 +2843,8 @@ auto sqlite_epoch_catalog_session::load_append(
         "SELECT i.pack_algorithm, i.pack_digest, i.base_algorithm, "
         "i.base_digest, i.base_tree_algorithm, i.base_tree_digest, "
         "i.head_algorithm, i.head_digest, i.head_tree_algorithm, "
-        "i.head_tree_digest, p.artifact_identity, p.artifact_bytes, "
-        "x.artifact_identity, x.artifact_bytes "
+        "i.head_tree_digest, i.head_lineage, p.artifact_identity, "
+        "p.artifact_bytes, x.artifact_identity, x.artifact_bytes "
         "FROM append_install i "
         "JOIN append_installed_artifact p ON p.incarnation = i.incarnation "
         "AND p.operation = i.operation AND p.artifact_role = 2 "
@@ -2592,17 +2868,24 @@ auto sqlite_epoch_catalog_session::load_append(
             read_oid<core::git_commit_oid>(install->Value, 6, 7);
         const auto head_tree =
             read_oid<core::git_tree_oid>(install->Value, 8, 9);
+        const auto lineage_value = ::sqlite3_column_int(install->Value, 10);
         std::array<std::uint8_t, 32> pack_identity{};
         std::array<std::uint8_t, 32> index_identity{};
-        const auto pack_bytes = ::sqlite3_column_int64(install->Value, 11);
-        const auto index_bytes = ::sqlite3_column_int64(install->Value, 13);
+        const auto pack_bytes = ::sqlite3_column_int64(install->Value, 12);
+        const auto index_bytes = ::sqlite3_column_int64(install->Value, 14);
         if(!pack || !install_base || !base_tree || !install_head || !head_tree
-           || !read_blob(install->Value, 10, pack_identity)
-           || !read_blob(install->Value, 12, index_identity)
+           || ::sqlite3_column_type(install->Value, 10) != SQLITE_INTEGER
+           || lineage_value
+               < stored_enum(core::head_lineage::not_applicable)
+           || lineage_value > stored_enum(core::head_lineage::unknown)
+           || !read_blob(install->Value, 11, pack_identity)
+           || !read_blob(install->Value, 13, index_identity)
            || ::sqlite3_step(install->Value) != SQLITE_DONE)
         {
             return std::unexpected(failure::schema_mismatch);
         }
+        const auto lineage =
+            restored_enum<core::head_lineage>(lineage_value);
         output.Install = app::durable_git_install_fact{
             .Operation = operation,
             .Pack = *pack,
@@ -2622,6 +2905,7 @@ auto sqlite_epoch_catalog_session::load_append(
             .BaseTree = *base_tree,
             .Head = *install_head,
             .HeadTree = *head_tree,
+            .HeadLineage = lineage,
         };
     }
     else if(install_code != SQLITE_DONE)
@@ -2928,41 +3212,69 @@ auto sqlite_epoch_catalog_session::reserve_append(
     {
         return std::unexpected(active.error());
     }
-    auto existing = load_append(request.Context.Operation);
-    if(existing)
-    {
-        if(existing->Context == request.Context
-           && existing->ReservedOrdinal == request.ProposedOrdinal)
-        {
-            return existing;
-        }
-        return std::unexpected(failure::operation_conflict);
-    }
-    auto published_source = prepare(
+    auto existing_identity = prepare(
         database,
-        "SELECT 1 FROM epoch WHERE incarnation = ?1 "
-        "AND source_observation = ?2 LIMIT 1");
-    if(!published_source
+        "SELECT kind FROM operation WHERE incarnation = ?1 "
+        "AND operation = ?2");
+    if(!existing_identity
        || !bind_fixed(
-           published_source->Value, 1, Binding.Catalog.Incarnation)
-       || !bind_fixed(
-           published_source->Value,
-           2,
-           request.Context.Revision.Source.Observation))
+           existing_identity->Value,
+           1,
+           Binding.Catalog.Incarnation)
+       || !bind_operation(
+           existing_identity->Value, 2, request.Context.Operation))
     {
         return std::unexpected(
-            published_source ? failure::unavailable
-                             : published_source.error());
+            existing_identity ? failure::unavailable
+                              : existing_identity.error());
     }
-    const auto published_source_code =
-        ::sqlite3_step(published_source->Value);
-    if(published_source_code == SQLITE_ROW)
+    const auto existing_identity_code =
+        ::sqlite3_step(existing_identity->Value);
+    if(existing_identity_code == SQLITE_ROW)
     {
-        return std::unexpected(failure::operation_conflict);
+        const auto kind = ::sqlite3_column_int(existing_identity->Value, 0);
+        if(
+            ::sqlite3_column_type(existing_identity->Value, 0)
+                != SQLITE_INTEGER
+            || kind < 1 || kind > 3
+            || ::sqlite3_step(existing_identity->Value) != SQLITE_DONE)
+        {
+            return std::unexpected(failure::schema_mismatch);
+        }
+        if(kind == 1)
+        {
+            auto existing = load_append(request.Context.Operation);
+            if(
+                existing && existing->Context == request.Context
+                && existing->ReservedOrdinal == request.ProposedOrdinal)
+            {
+                return existing;
+            }
+            if(!existing
+               && existing.error() != failure::operation_conflict)
+            {
+                return std::unexpected(existing.error());
+            }
+        }
+        return std::unexpected(failure::operation_identity_conflict);
     }
-    if(published_source_code != SQLITE_DONE)
+    if(existing_identity_code != SQLITE_DONE)
     {
         return std::unexpected(sql_failure(database, stop));
+    }
+
+    auto used_source = catalog_contains_source_observation(
+        database,
+        Binding.Catalog.Incarnation,
+        request.Context.Revision.Source.Observation,
+        stop);
+    if(!used_source)
+    {
+        return std::unexpected(used_source.error());
+    }
+    if(*used_source)
+    {
+        return std::unexpected(failure::source_observation_conflict);
     }
     auto scope = prepare(
         database,
@@ -2985,6 +3297,11 @@ auto sqlite_epoch_catalog_session::reserve_append(
        || ::sqlite3_step(scope->Value) != SQLITE_DONE)
     {
         return std::unexpected(failure::revision_conflict);
+    }
+    if(auto idle = require_no_blocking_operation(database, Binding, false);
+       !idle)
+    {
+        return std::unexpected(idle.error());
     }
     auto operation = prepare(
         database,
@@ -3031,7 +3348,7 @@ auto sqlite_epoch_catalog_session::reserve_append(
        || ::sqlite3_step(operation->Value) != SQLITE_DONE)
     {
         return std::unexpected(sql_failure(
-            database, {}, failure::operation_conflict));
+            database, {}, failure::operation_identity_conflict));
     }
     auto append = prepare(
         database,
@@ -3329,8 +3646,9 @@ auto sqlite_epoch_catalog_session::record_install(
         "INSERT INTO append_install(incarnation, operation, pack_algorithm, "
         "pack_digest, base_algorithm, base_digest, base_tree_algorithm, "
         "base_tree_digest, head_algorithm, head_digest, "
-        "head_tree_algorithm, head_tree_digest) "
-        "VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)");
+        "head_tree_algorithm, head_tree_digest, head_lineage) "
+        "VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, "
+        "?13)");
     if(!insert || !bind_fixed(insert->Value, 1, Binding.Catalog.Incarnation)
        || !bind_operation(insert->Value, 2, request.Operation)
        || !bind_pack(insert->Value, 3, 4, install.Pack)
@@ -3338,6 +3656,9 @@ auto sqlite_epoch_catalog_session::record_install(
        || !bind_oid(insert->Value, 7, 8, install.BaseTree)
        || !bind_oid(insert->Value, 9, 10, install.Head)
        || !bind_oid(insert->Value, 11, 12, install.HeadTree)
+       || ::sqlite3_bind_int(
+              insert->Value, 13, stored_enum(install.HeadLineage))
+           != SQLITE_OK
        || ::sqlite3_step(insert->Value) != SQLITE_DONE)
     {
         return std::unexpected(sql_failure(database, stop));

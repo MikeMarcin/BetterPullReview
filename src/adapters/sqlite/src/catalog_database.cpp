@@ -378,6 +378,12 @@ constexpr std::array SchemaObjects{
         ))sql"},
     schema_object{
         "index",
+        "operation_source_observation",
+        R"sql(CREATE UNIQUE INDEX operation_source_observation ON operation(
+            incarnation, source_observation
+        ) WHERE kind = 1)sql"},
+    schema_object{
+        "index",
         "operation_active_pull_request",
         R"sql(CREATE UNIQUE INDEX operation_active_pull_request ON operation(
             incarnation, pr_scope
@@ -491,6 +497,7 @@ constexpr std::array SchemaObjects{
             head_digest BLOB NOT NULL CHECK(length(head_digest) = CASE head_algorithm WHEN 1 THEN 20 ELSE 32 END AND head_digest != zeroblob(length(head_digest))),
             head_tree_algorithm INTEGER NOT NULL CHECK(head_tree_algorithm = pack_algorithm),
             head_tree_digest BLOB NOT NULL CHECK(length(head_tree_digest) = CASE head_tree_algorithm WHEN 1 THEN 20 ELSE 32 END AND head_tree_digest != zeroblob(length(head_tree_digest))),
+            head_lineage INTEGER NOT NULL CHECK(head_lineage BETWEEN 1 AND 4),
             PRIMARY KEY(incarnation, operation),
             FOREIGN KEY(incarnation, operation)
                 REFERENCES append_operation(incarnation, operation)

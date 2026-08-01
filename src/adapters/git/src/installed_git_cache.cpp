@@ -2659,10 +2659,17 @@ struct installed_pack_artifacts
     auto operator<=>(const installed_pack_artifacts&) const = default;
 };
 
-[[nodiscard]] auto inspect_installed_pack_artifacts(
+struct installed_pack_paths
+{
+    std::filesystem::path Pack;
+    std::filesystem::path Index;
+    std::filesystem::path ReverseIndex;
+};
+
+[[nodiscard]] auto paths_for_installed_pack(
     const std::filesystem::path& repository,
     const application::git_pack_oid& pack)
-    -> std::optional<installed_pack_artifacts>
+    -> std::optional<installed_pack_paths>
 {
     if(!application::valid(pack))
     {
@@ -2670,24 +2677,130 @@ struct installed_pack_artifacts
     }
     const auto digest_bytes =
         pack.Algorithm == core::git_hash_algorithm::sha1 ? 20U : 32U;
-    const auto pack_directory = repository / "objects" / "pack";
     const auto stem =
         "pack-"
-        + lower_hex(
-            std::span{pack.Digest}.first(digest_bytes));
-    const auto pack_path = pack_directory / (stem + ".pack");
-    const auto index_path = pack_directory / (stem + ".idx");
-    const auto reverse_path = pack_directory / (stem + ".rev");
+        + lower_hex(std::span{pack.Digest}.first(digest_bytes));
+    const auto directory = repository / "objects" / "pack";
+    return installed_pack_paths{
+        .Pack = directory / (stem + ".pack"),
+        .Index = directory / (stem + ".idx"),
+        .ReverseIndex = directory / (stem + ".rev"),
+    };
+}
+
+enum class recovery_file_kind : std::uint8_t
+{
+    absent,
+    private_regular,
+    invalid,
+};
+
+struct recovery_file_observation
+{
+    recovery_file_kind Kind = recovery_file_kind::absent;
+    std::optional<exact_artifact_identity> Identity;
+    std::uint64_t Bytes = 0U;
+};
+
+using recovery_ref_pair = std::pair<
+    std::optional<application::git_commit_id>,
+    std::optional<application::git_commit_id>>;
+
+[[nodiscard]] constexpr auto classify_recovery_ref_pair(
+    const recovery_ref_pair& pair,
+    const application::git_commit_id& expected_base,
+    const application::git_commit_id& expected_head)
+    -> application::git_recovery_match
+{
+    using application::git_recovery_match;
+    if(!pair.first && !pair.second)
+    {
+        return git_recovery_match::absent;
+    }
+    if(pair.first.has_value() != pair.second.has_value())
+    {
+        return git_recovery_match::ambiguous;
+    }
+    return pair.first == expected_base && pair.second == expected_head
+        ? git_recovery_match::exact
+        : git_recovery_match::mismatch;
+}
+
+[[nodiscard]] constexpr auto classify_recovery_ref_topology(
+    const application::git_recovery_match staging,
+    const application::git_recovery_match final)
+    -> application::git_recovery_ref_topology
+{
+    using application::git_recovery_match;
+    using application::git_recovery_ref_topology;
+    if(
+        staging == git_recovery_match::absent
+        && final == git_recovery_match::absent)
+    {
+        return git_recovery_ref_topology::absent;
+    }
+    if(
+        staging == git_recovery_match::exact
+        && final == git_recovery_match::absent)
+    {
+        return git_recovery_ref_topology::staging;
+    }
+    if(
+        staging == git_recovery_match::absent
+        && final == git_recovery_match::exact)
+    {
+        return git_recovery_ref_topology::final;
+    }
+    return git_recovery_ref_topology::ambiguous;
+}
+
+[[nodiscard]] auto inspect_recovery_file(
+    const std::filesystem::path& path) -> recovery_file_observation
+{
+    if(missing(path))
+    {
+        return {};
+    }
+    if(!private_regular_file(path))
+    {
+        return {.Kind = recovery_file_kind::invalid};
+    }
+    const auto identity = exact_identity(
+        path,
+        exact_artifact_kind::regular_file);
+    std::error_code error;
+    const auto bytes = std::filesystem::file_size(path, error);
+    return !error && identity.has_value()
+        ? recovery_file_observation{
+              .Kind = recovery_file_kind::private_regular,
+              .Identity = *identity,
+              .Bytes = bytes,
+          }
+        : recovery_file_observation{
+              .Kind = recovery_file_kind::invalid};
+}
+
+[[nodiscard]] auto inspect_installed_pack_artifacts(
+    const std::filesystem::path& repository,
+    const application::git_pack_oid& pack)
+    -> std::optional<installed_pack_artifacts>
+{
+    const auto paths = paths_for_installed_pack(repository, pack);
+    if(!paths.has_value())
+    {
+        return std::nullopt;
+    }
+    const auto pack_directory = paths->Pack.parent_path();
     const auto pack_identity = exact_identity(
-        pack_path,
+        paths->Pack,
         exact_artifact_kind::regular_file);
     const auto index_identity = exact_identity(
-        index_path,
+        paths->Index,
         exact_artifact_kind::regular_file);
     return private_directory(pack_directory)
-            && private_regular_file(pack_path)
-            && private_regular_file(index_path)
-            && missing(reverse_path) && pack_identity.has_value()
+            && private_regular_file(paths->Pack)
+            && private_regular_file(paths->Index)
+            && missing(paths->ReverseIndex) && pack_identity.has_value()
             && index_identity.has_value()
         ? std::optional<installed_pack_artifacts>{
               installed_pack_artifacts{
@@ -3718,6 +3831,76 @@ public:
                 application::git_cache_failure::
                     repair_required};
         }
+        auto head_lineage = core::head_lineage::not_applicable;
+        if(
+            request.PriorHead.has_value()
+            && *request.PriorHead != request.Head)
+        {
+            const auto prior_head = process_commit(*request.PriorHead);
+            if(!prior_head.has_value())
+            {
+                return rollback_failure(
+                    application::git_cache_failure::object_mismatch);
+            }
+            const auto ancestry = State->Process->is_ancestor(
+                application::git_ancestry_request{
+                    .Repository = State->Repository,
+                    .Ancestor = *prior_head,
+                    .Descendant = *head,
+                },
+                stop);
+            if(!State->active_boundary_still_owned())
+            {
+                if(
+                    !ancestry.has_value()
+                    && ancestry.error()
+                        == application::git_process_failure::
+                            reap_failure)
+                {
+                    static_cast<void>(
+                        State->process_failure(ancestry.error()));
+                }
+                return std::unexpected{
+                    application::git_cache_failure::
+                        repair_required};
+            }
+            if(!ancestry.has_value())
+            {
+                if(
+                    ancestry.error()
+                    == application::git_process_failure::
+                        object_unavailable)
+                {
+                    head_lineage = core::head_lineage::unknown;
+                }
+                else if(
+                    ancestry.error()
+                    != application::git_process_failure::
+                        reap_failure)
+                {
+                    return rollback_failure(
+                        State->process_failure(ancestry.error()));
+                }
+                else
+                {
+                    return std::unexpected{
+                        State->process_failure(ancestry.error())};
+                }
+            }
+            else
+            {
+                head_lineage =
+                    *ancestry == application::git_ancestry::ancestor
+                    ? core::head_lineage::descendant
+                    : core::head_lineage::non_fast_forward;
+            }
+        }
+        if(!State->active_boundary_still_owned())
+        {
+            return std::unexpected{
+                application::git_cache_failure::
+                    repair_required};
+        }
         const std::array<application::git_ref_mutation, 2U>
             staging{
                 application::git_ref_write{
@@ -3809,6 +3992,7 @@ public:
             .BaseTree = core_tree(base_inspection->Tree),
             .Head = request.Head,
             .HeadTree = core_tree(head_inspection->Tree),
+            .HeadLineage = head_lineage,
             .ImportedBytes = request.Receipt.Spool.Bytes,
         };
     }
@@ -4138,6 +4322,101 @@ public:
         };
     }
 
+    [[nodiscard]] auto inspect_commit_object(
+        const core::git_commit_oid commit,
+        const std::stop_token stop)
+        -> application::git_cache_result<
+            application::git_cache_commit_inspection> override
+    {
+        std::lock_guard operation_guard{State->OperationMutex};
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::git_cache_failure::cancelled};
+        }
+        const auto expected = process_commit(commit);
+        if(
+            !expected.has_value()
+            || commit.algorithm() != State->Request.ObjectFormat)
+        {
+            return std::unexpected{
+                application::git_cache_failure::invalid_request};
+        }
+        const auto inventory = State->validated_inventory(stop, false);
+        if(!inventory.has_value())
+        {
+            return std::unexpected{inventory.error()};
+        }
+        if(!State->active_boundary_still_owned())
+        {
+            return std::unexpected{
+                application::git_cache_failure::invalid_repository};
+        }
+        const auto inspected = State->Process->inspect_commit(
+            application::git_commit_request{
+                .Repository = State->Repository,
+                .Commit = *expected,
+            },
+            stop);
+        if(!State->active_boundary_still_owned())
+        {
+            if(
+                !inspected.has_value()
+                && inspected.error()
+                    == application::git_process_failure::reap_failure)
+            {
+                static_cast<void>(
+                    State->process_failure(inspected.error()));
+            }
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(!inspected.has_value())
+        {
+            return std::unexpected{
+                inspected.error()
+                        == application::git_process_failure::object_unavailable
+                    || inspected.error()
+                        == application::git_process_failure::nonzero_exit
+                ? application::git_cache_failure::object_mismatch
+                : State->process_failure(inspected.error())};
+        }
+        const auto connected = State->Process->verify_connectivity(
+            application::git_connectivity_request{
+                .Repository = State->Repository,
+                .Base = *expected,
+                .Head = *expected,
+            },
+            stop);
+        if(!State->active_boundary_still_owned())
+        {
+            if(
+                !connected.has_value()
+                && connected.error()
+                    == application::git_process_failure::reap_failure)
+            {
+                static_cast<void>(
+                    State->process_failure(connected.error()));
+            }
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(!connected.has_value())
+        {
+            return std::unexpected{
+                connected.error()
+                        == application::git_process_failure::object_unavailable
+                    || connected.error()
+                        == application::git_process_failure::nonzero_exit
+                ? application::git_cache_failure::object_mismatch
+                : State->process_failure(connected.error())};
+        }
+        return application::git_cache_commit_inspection{
+            .Commit = commit,
+            .Tree = core_tree(inspected->Tree),
+        };
+    }
+
     [[nodiscard]] auto prune_retained(
         const application::git_ref_prune_authorization&
             authorization,
@@ -4386,7 +4665,774 @@ public:
         return {};
     }
 
+    [[nodiscard]] auto inspect_operation_recovery(
+        const application::git_operation_recovery_request& request,
+        const std::stop_token stop)
+        -> application::git_cache_result<
+            application::git_operation_recovery_observation> override
+    {
+        std::lock_guard operation_guard{State->OperationMutex};
+        return inspect_operation_recovery_locked(request, stop);
+    }
+
+    [[nodiscard]] auto abort_recovered_operation(
+        const application::git_operation_recovery_request& request,
+        const std::stop_token stop)
+        -> application::git_cache_result<void> override
+    {
+        std::lock_guard operation_guard{State->OperationMutex};
+        const auto observed =
+            inspect_operation_recovery_locked(request, stop);
+        if(!observed.has_value())
+        {
+            return std::unexpected{observed.error()};
+        }
+        const auto spool_safe =
+            observed->Spool == application::git_recovery_match::absent
+            || observed->Spool == application::git_recovery_match::exact;
+        const auto staging_safe =
+            observed->Staging == application::git_recovery_match::absent
+            || observed->Staging == application::git_recovery_match::exact;
+        const auto expected_pack_preexisting =
+            request.Spool
+            && request.Spool->ExpectedPackPreexisting;
+        const auto install_safe = request.Install
+            ? observed->Installed
+                == application::git_recovery_match::exact
+            : expected_pack_preexisting
+                ? observed->Installed
+                    == application::git_recovery_match::exact
+                : observed->Installed
+                    == application::git_recovery_match::absent;
+        const auto requires_objects =
+            observed->Installed == application::git_recovery_match::exact
+            || observed->Staging == application::git_recovery_match::exact;
+        const auto objects_safe = requires_objects
+            ? observed->Objects
+                == application::git_recovery_object_match::exact
+            : observed->Objects
+                    == application::git_recovery_object_match::not_checked
+                || observed->Objects
+                    == application::git_recovery_object_match::exact;
+        if(
+            observed->Final != application::git_recovery_match::absent
+            || !spool_safe || !staging_safe || !install_safe
+            || !objects_safe
+            || (
+                observed->Staging == application::git_recovery_match::exact
+                && !request.Install && !expected_pack_preexisting)
+            || (
+                observed->Refs
+                    != application::git_recovery_ref_topology::absent
+                && observed->Refs
+                    != application::git_recovery_ref_topology::staging))
+        {
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::git_cache_failure::cancelled};
+        }
+        if(!State->mark_operation_aborted(request.Operation))
+        {
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        const auto staging_removed =
+            observed->Staging == application::git_recovery_match::exact
+            ? remove_exact_recovery_staging(request, stop)
+            : application::git_cache_result<void>{};
+        if(!staging_removed.has_value())
+        {
+            return std::unexpected{staging_removed.error()};
+        }
+        const auto spool_removed =
+            observed->Spool == application::git_recovery_match::exact
+            ? remove_exact_recovery_spool(request, stop)
+            : application::git_cache_result<void>{};
+        if(!spool_removed.has_value())
+        {
+            return std::unexpected{spool_removed.error()};
+        }
+        State->forget_operation(request.Operation);
+        const auto reconciled =
+            inspect_operation_recovery_locked(request, stop);
+        if(
+            !reconciled.has_value()
+            || reconciled->Spool
+                != application::git_recovery_match::absent
+            || reconciled->Staging
+                != application::git_recovery_match::absent
+            || reconciled->Final
+                != application::git_recovery_match::absent
+            || reconciled->Refs
+                != application::git_recovery_ref_topology::absent)
+        {
+            return std::unexpected{
+                reconciled.has_value()
+                    ? application::git_cache_failure::repair_required
+                    : reconciled.error()};
+        }
+        return {};
+    }
+
+    [[nodiscard]] auto complete_recovered_operation(
+        const application::git_operation_recovery_request& request,
+        const std::stop_token stop)
+        -> application::git_cache_result<void> override
+    {
+        std::lock_guard operation_guard{State->OperationMutex};
+        const auto observed =
+            inspect_operation_recovery_locked(request, stop);
+        if(!observed.has_value())
+        {
+            return std::unexpected{observed.error()};
+        }
+        if(
+            !request.Install
+            || observed->Installed
+                != application::git_recovery_match::exact
+            || observed->Final != application::git_recovery_match::exact
+            || observed->Objects
+                != application::git_recovery_object_match::exact
+            || (
+                observed->Spool != application::git_recovery_match::absent
+                && observed->Spool
+                    != application::git_recovery_match::exact)
+            || (
+                observed->Staging
+                    != application::git_recovery_match::absent
+                && observed->Staging
+                    != application::git_recovery_match::exact))
+        {
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::git_cache_failure::cancelled};
+        }
+        const auto staging_removed =
+            observed->Staging == application::git_recovery_match::exact
+            ? remove_exact_recovery_staging(request, stop)
+            : application::git_cache_result<void>{};
+        if(!staging_removed.has_value())
+        {
+            return std::unexpected{staging_removed.error()};
+        }
+        const auto spool_removed =
+            observed->Spool == application::git_recovery_match::exact
+            ? remove_exact_recovery_spool(request, stop)
+            : application::git_cache_result<void>{};
+        if(!spool_removed.has_value())
+        {
+            return std::unexpected{spool_removed.error()};
+        }
+        State->forget_operation(request.Operation);
+        const auto reconciled =
+            inspect_operation_recovery_locked(request, stop);
+        if(
+            !reconciled.has_value()
+            || reconciled->Spool
+                != application::git_recovery_match::absent
+            || reconciled->Staging
+                != application::git_recovery_match::absent
+            || reconciled->Final
+                != application::git_recovery_match::exact
+            || reconciled->Installed
+                != application::git_recovery_match::exact
+            || reconciled->Objects
+                != application::git_recovery_object_match::exact
+            || reconciled->Refs
+                != application::git_recovery_ref_topology::final)
+        {
+            return std::unexpected{
+                reconciled.has_value()
+                    ? application::git_cache_failure::repair_required
+                    : reconciled.error()};
+        }
+        return {};
+    }
+
 private:
+    [[nodiscard]] auto inspect_operation_recovery_locked(
+        const application::git_operation_recovery_request& request,
+        const std::stop_token stop)
+        -> application::git_cache_result<
+            application::git_operation_recovery_observation>
+    {
+        using application::git_recovery_match;
+
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::git_cache_failure::cancelled};
+        }
+        if(!application::valid(request))
+        {
+            return std::unexpected{
+                application::git_cache_failure::invalid_request};
+        }
+        if(
+            request.Scope != State->Request.Authority.Scope
+            || request.Base.algorithm() != State->Request.ObjectFormat)
+        {
+            return std::unexpected{
+                application::git_cache_failure::authorization_mismatch};
+        }
+        if(!State->validate_topology(stop))
+        {
+            return std::unexpected{
+                stop.stop_requested()
+                    ? application::git_cache_failure::cancelled
+                    : application::git_cache_failure::invalid_repository};
+        }
+
+        auto result = application::git_operation_recovery_observation{
+            .Operation = request.Operation,
+        };
+        const auto spool_path = State->Process->pack_spool_path(
+            process_operation(request.Operation));
+        if(!spool_path.has_value())
+        {
+            return std::unexpected{
+                State->process_failure(spool_path.error())};
+        }
+        const auto receiving_path =
+            spool_path->parent_path()
+            / ("." + lower_hex(request.Operation.bytes())
+                + ".pack.receiving");
+        const auto completed_spool = inspect_recovery_file(*spool_path);
+        const auto receiving_spool =
+            inspect_recovery_file(receiving_path);
+        if(
+            completed_spool.Kind == recovery_file_kind::absent
+            && receiving_spool.Kind == recovery_file_kind::absent)
+        {
+            result.Spool = git_recovery_match::absent;
+        }
+        else if(receiving_spool.Kind != recovery_file_kind::absent)
+        {
+            result.Spool = git_recovery_match::ambiguous;
+        }
+        else if(
+            completed_spool.Kind != recovery_file_kind::private_regular)
+        {
+            result.Spool = git_recovery_match::mismatch;
+        }
+        else if(!request.Spool)
+        {
+            result.Spool = git_recovery_match::ambiguous;
+        }
+        else
+        {
+            const auto expected = exact_identity(
+                request.Spool->CompletedSpool.Identity);
+            result.Spool = expected.has_value()
+                    && completed_spool.Identity == expected
+                    && completed_spool.Bytes
+                        == request.Spool->CompletedSpool.Bytes
+                ? git_recovery_match::exact
+                : git_recovery_match::mismatch;
+        }
+
+        auto expected_pack = std::optional<application::git_pack_oid>{};
+        if(request.Install)
+        {
+            expected_pack = request.Install->Pack;
+        }
+        else if(request.Spool)
+        {
+            expected_pack = request.Spool->ExpectedPack;
+        }
+        if(expected_pack)
+        {
+            const auto paths = paths_for_installed_pack(
+                State->Repository,
+                *expected_pack);
+            if(!paths.has_value())
+            {
+                return std::unexpected{
+                    application::git_cache_failure::invalid_request};
+            }
+            const auto pack_file = inspect_recovery_file(paths->Pack);
+            const auto index_file = inspect_recovery_file(paths->Index);
+            const auto reverse_file =
+                inspect_recovery_file(paths->ReverseIndex);
+            if(
+                pack_file.Kind == recovery_file_kind::absent
+                && index_file.Kind == recovery_file_kind::absent
+                && reverse_file.Kind == recovery_file_kind::absent)
+            {
+                result.Installed = git_recovery_match::absent;
+            }
+            else if(
+                reverse_file.Kind != recovery_file_kind::absent
+                || (
+                    pack_file.Kind == recovery_file_kind::absent
+                    && index_file.Kind
+                        != recovery_file_kind::absent)
+                || (
+                    pack_file.Kind != recovery_file_kind::absent
+                    && index_file.Kind
+                        == recovery_file_kind::absent))
+            {
+                result.Installed = git_recovery_match::ambiguous;
+            }
+            else if(
+                pack_file.Kind != recovery_file_kind::private_regular
+                || index_file.Kind
+                    != recovery_file_kind::private_regular)
+            {
+                result.Installed = git_recovery_match::mismatch;
+            }
+            else
+            {
+                const auto inventory =
+                    State->validated_inventory(stop, false);
+                if(!inventory.has_value())
+                {
+                    return std::unexpected{inventory.error()};
+                }
+                const auto entry = std::ranges::find_if(
+                    inventory->Packs,
+                    [&](const auto& candidate)
+                    {
+                        return candidate.Pack == *expected_pack;
+                    });
+                if(entry == inventory->Packs.end())
+                {
+                    result.Installed = git_recovery_match::mismatch;
+                }
+                else if(request.Install)
+                {
+                    const auto expected_pack_identity = exact_identity(
+                        request.Install->InstalledPack.Identity);
+                    const auto expected_index_identity = exact_identity(
+                        request.Install->InstalledIndex.Identity);
+                    auto inventory_agrees = true;
+                    if(request.Spool)
+                    {
+                        auto expected_inventory =
+                            request.Spool->PreimportPacks;
+                        if(!request.Spool->ExpectedPackPreexisting)
+                        {
+                            const auto position = std::ranges::lower_bound(
+                                expected_inventory,
+                                *expected_pack,
+                                {},
+                                &application::git_pack_inventory_entry::Pack);
+                            expected_inventory.insert(
+                                position,
+                                application::git_pack_inventory_entry{
+                                    .Pack = *expected_pack,
+                                    .PackBytes = request.Install
+                                        ->InstalledPack.Bytes,
+                                    .IndexBytes = request.Install
+                                        ->InstalledIndex.Bytes,
+                                });
+                        }
+                        inventory_agrees =
+                            inventory->Packs == expected_inventory;
+                    }
+                    result.Installed =
+                        expected_pack_identity.has_value()
+                            && expected_index_identity.has_value()
+                            && pack_file.Identity
+                                == expected_pack_identity
+                            && index_file.Identity
+                                == expected_index_identity
+                            && pack_file.Bytes
+                                == request.Install->InstalledPack.Bytes
+                            && index_file.Bytes
+                                == request.Install->InstalledIndex.Bytes
+                            && entry->PackBytes == pack_file.Bytes
+                            && entry->IndexBytes == index_file.Bytes
+                            && inventory_agrees
+                        ? git_recovery_match::exact
+                        : git_recovery_match::mismatch;
+                }
+                else if(request.Spool->ExpectedPackPreexisting)
+                {
+                    const auto prior = std::ranges::find_if(
+                        request.Spool->PreimportPacks,
+                        [&](const auto& candidate)
+                        {
+                            return candidate.Pack == *expected_pack;
+                        });
+                    result.Installed =
+                        prior != request.Spool->PreimportPacks.end()
+                            && inventory->Packs
+                                == request.Spool->PreimportPacks
+                            && prior->PackBytes == pack_file.Bytes
+                            && prior->IndexBytes == index_file.Bytes
+                        ? git_recovery_match::exact
+                        : git_recovery_match::mismatch;
+                }
+                else
+                {
+                    const auto prior_unchanged = std::ranges::all_of(
+                        request.Spool->PreimportPacks,
+                        [&](const auto& prior)
+                        {
+                            return std::ranges::find(
+                                       inventory->Packs,
+                                       prior)
+                                != inventory->Packs.end();
+                        });
+                    result.Installed =
+                        prior_unchanged
+                            && inventory->Packs.size()
+                                == request.Spool->PreimportPacks.size()
+                                    + 1U
+                        ? git_recovery_match::ambiguous
+                        : git_recovery_match::mismatch;
+                }
+            }
+        }
+
+        const auto base = process_commit(request.Base);
+        const auto head = process_commit(request.Head);
+        if(!base.has_value() || !head.has_value())
+        {
+            return std::unexpected{
+                application::git_cache_failure::object_mismatch};
+        }
+        const auto staging = inspect_pair_target_optional(
+            staging_ref(
+                request.Operation,
+                application::git_private_ref_endpoint::base),
+            staging_ref(
+                request.Operation,
+                application::git_private_ref_endpoint::head),
+            stop);
+        if(!staging.has_value())
+        {
+            return std::unexpected{staging.error()};
+        }
+        const auto final = inspect_pair_target_optional(
+            retained_ref(
+                request.Scope,
+                request.Ordinal,
+                application::git_private_ref_endpoint::base),
+            retained_ref(
+                request.Scope,
+                request.Ordinal,
+                application::git_private_ref_endpoint::head),
+            stop);
+        if(!final.has_value())
+        {
+            return std::unexpected{final.error()};
+        }
+        result.Staging = classify_recovery_ref_pair(
+            *staging,
+            *base,
+            *head);
+        result.Final = classify_recovery_ref_pair(
+            *final,
+            *base,
+            *head);
+        result.Refs = classify_recovery_ref_topology(
+            result.Staging,
+            result.Final);
+
+        const auto check_objects =
+            result.Installed == git_recovery_match::exact
+            || result.Staging == git_recovery_match::exact
+            || result.Final == git_recovery_match::exact;
+        if(check_objects)
+        {
+            const auto objects = inspect_recovery_objects(
+                request,
+                *base,
+                *head,
+                stop);
+            if(!objects.has_value())
+            {
+                return std::unexpected{objects.error()};
+            }
+            result.Objects = *objects;
+        }
+        return result;
+    }
+
+    [[nodiscard]] auto recovery_object_failure(
+        const application::git_process_failure failure)
+        -> application::git_cache_result<
+            application::git_recovery_object_match>
+    {
+        if(
+            failure
+            == application::git_process_failure::object_unavailable)
+        {
+            return application::git_recovery_object_match::unavailable;
+        }
+        if(failure == application::git_process_failure::nonzero_exit)
+        {
+            return application::git_recovery_object_match::mismatch;
+        }
+        return std::unexpected{State->process_failure(failure)};
+    }
+
+    [[nodiscard]] auto inspect_recovery_objects(
+        const application::git_operation_recovery_request& request,
+        const application::git_commit_id& base,
+        const application::git_commit_id& head,
+        const std::stop_token stop)
+        -> application::git_cache_result<
+            application::git_recovery_object_match>
+    {
+        using application::git_process_failure;
+        using application::git_recovery_object_match;
+        if(!State->active_boundary_still_owned())
+        {
+            return std::unexpected{
+                application::git_cache_failure::invalid_repository};
+        }
+        const auto base_inspection = State->Process->inspect_commit(
+            {.Repository = State->Repository, .Commit = base},
+            stop);
+        if(!State->active_boundary_still_owned())
+        {
+            if(
+                !base_inspection.has_value()
+                && base_inspection.error()
+                    == git_process_failure::reap_failure)
+            {
+                static_cast<void>(
+                    State->process_failure(base_inspection.error()));
+            }
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(!base_inspection.has_value())
+        {
+            return recovery_object_failure(base_inspection.error());
+        }
+        const auto head_inspection = State->Process->inspect_commit(
+            {.Repository = State->Repository, .Commit = head},
+            stop);
+        if(!State->active_boundary_still_owned())
+        {
+            if(
+                !head_inspection.has_value()
+                && head_inspection.error()
+                    == git_process_failure::reap_failure)
+            {
+                static_cast<void>(
+                    State->process_failure(head_inspection.error()));
+            }
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(!head_inspection.has_value())
+        {
+            return recovery_object_failure(head_inspection.error());
+        }
+        if(request.Install)
+        {
+            if(
+                core_tree(base_inspection->Tree)
+                    != request.Install->BaseTree
+                || core_tree(head_inspection->Tree)
+                    != request.Install->HeadTree)
+            {
+                return git_recovery_object_match::mismatch;
+            }
+        }
+        if(!State->active_boundary_still_owned())
+        {
+            return std::unexpected{
+                application::git_cache_failure::invalid_repository};
+        }
+        const auto connected = State->Process->verify_connectivity(
+            application::git_connectivity_request{
+                .Repository = State->Repository,
+                .Base = base,
+                .Head = head,
+            },
+            stop);
+        if(!State->active_boundary_still_owned())
+        {
+            if(
+                !connected.has_value()
+                && connected.error() == git_process_failure::reap_failure)
+            {
+                static_cast<void>(
+                    State->process_failure(connected.error()));
+            }
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(!connected.has_value())
+        {
+            return recovery_object_failure(connected.error());
+        }
+        return git_recovery_object_match::exact;
+    }
+
+    [[nodiscard]] auto remove_exact_recovery_staging(
+        const application::git_operation_recovery_request& request,
+        const std::stop_token stop) -> application::git_cache_result<void>
+    {
+        const auto base = process_commit(request.Base);
+        const auto head = process_commit(request.Head);
+        if(!base.has_value() || !head.has_value())
+        {
+            return std::unexpected{
+                application::git_cache_failure::object_mismatch};
+        }
+        const std::array<application::git_ref_mutation, 2U> removals{
+            application::git_ref_remove{
+                .Ref = staging_ref(
+                    request.Operation,
+                    application::git_private_ref_endpoint::base),
+                .ExpectedOld = *base,
+            },
+            application::git_ref_remove{
+                .Ref = staging_ref(
+                    request.Operation,
+                    application::git_private_ref_endpoint::head),
+                .ExpectedOld = *head,
+            },
+        };
+        if(!State->active_boundary_still_owned())
+        {
+            return std::unexpected{
+                application::git_cache_failure::invalid_repository};
+        }
+        const auto removed = State->Process->update_refs(
+            application::git_update_refs_request{
+                .Repository = State->Repository,
+                .Mutations = removals,
+            },
+            stop);
+        if(!State->active_boundary_still_owned())
+        {
+            if(
+                !removed.has_value()
+                && removed.error()
+                    == application::git_process_failure::reap_failure)
+            {
+                static_cast<void>(
+                    State->process_failure(removed.error()));
+            }
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        return removed.has_value()
+            ? application::git_cache_result<void>{}
+            : application::git_cache_result<void>{
+                  std::unexpected{
+                      State->process_failure(removed.error())}};
+    }
+
+    [[nodiscard]] auto remove_exact_recovery_spool(
+        const application::git_operation_recovery_request& request,
+        const std::stop_token stop)
+        -> application::git_cache_result<void>
+    {
+        if(stop.stop_requested())
+        {
+            return std::unexpected{
+                application::git_cache_failure::cancelled};
+        }
+        if(!request.Spool)
+        {
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        const auto expected = exact_identity(
+            request.Spool->CompletedSpool.Identity);
+        const auto path = State->Process->pack_spool_path(
+            process_operation(request.Operation));
+        if(!expected.has_value() || !path.has_value())
+        {
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        const auto receiving =
+            path->parent_path()
+            / ("." + lower_hex(request.Operation.bytes())
+                + ".pack.receiving");
+        if(
+            !missing(receiving)
+            || !remove_exact_private_file(*path, *expected))
+        {
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        return {};
+    }
+
+    [[nodiscard]] auto inspect_pair_target_optional(
+        const application::git_private_ref& base_ref,
+        const application::git_private_ref& head_ref,
+        const std::stop_token stop)
+        -> application::git_cache_result<
+            std::pair<
+                std::optional<application::git_commit_id>,
+                std::optional<application::git_commit_id>>>
+    {
+        if(!State->active_boundary_still_owned())
+        {
+            return std::unexpected{
+                application::git_cache_failure::invalid_repository};
+        }
+        const auto base = State->Process->inspect_ref_target(
+            application::git_inspect_ref_request{
+                .Repository = State->Repository,
+                .Ref = base_ref,
+            },
+            stop);
+        if(!State->active_boundary_still_owned())
+        {
+            if(
+                !base.has_value()
+                && base.error()
+                    == application::git_process_failure::reap_failure)
+            {
+                static_cast<void>(
+                    State->process_failure(base.error()));
+            }
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(!base.has_value())
+        {
+            return std::unexpected{
+                State->process_failure(base.error())};
+        }
+        const auto head = State->Process->inspect_ref_target(
+            application::git_inspect_ref_request{
+                .Repository = State->Repository,
+                .Ref = head_ref,
+            },
+            stop);
+        if(!State->active_boundary_still_owned())
+        {
+            if(
+                !head.has_value()
+                && head.error()
+                    == application::git_process_failure::reap_failure)
+            {
+                static_cast<void>(
+                    State->process_failure(head.error()));
+            }
+            return std::unexpected{
+                application::git_cache_failure::repair_required};
+        }
+        if(!head.has_value())
+        {
+            return std::unexpected{
+                State->process_failure(head.error())};
+        }
+        return std::pair{*base, *head};
+    }
+
     [[nodiscard]] auto inspect_pair_optional(
         const application::git_private_ref& base_ref,
         const application::git_private_ref& head_ref,

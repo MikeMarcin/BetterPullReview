@@ -135,3 +135,45 @@ add_test(
     NAME application_epoch_catalog_contract
     COMMAND better_pull_review_application_epoch_catalog_contract_tests
 )
+
+add_executable(
+    better_pull_review_application_epoch_contract_tests
+    epoch_application_contract_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_application_epoch_contract_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(
+    better_pull_review_application_epoch_contract_tests
+)
+bpr_enable_warnings(
+    better_pull_review_application_epoch_contract_tests
+)
+
+add_test(
+    NAME application_epoch_contract
+    COMMAND better_pull_review_application_epoch_contract_tests
+)
+
+add_executable(
+    better_pull_review_application_epoch_host_tests
+    epoch_application_host_tests.cpp
+)
+target_link_libraries(
+    better_pull_review_application_epoch_host_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(
+    better_pull_review_application_epoch_host_tests
+)
+bpr_enable_warnings(
+    better_pull_review_application_epoch_host_tests
+)
+
+add_test(
+    NAME application_epoch_host
+    COMMAND better_pull_review_application_epoch_host_tests
+)

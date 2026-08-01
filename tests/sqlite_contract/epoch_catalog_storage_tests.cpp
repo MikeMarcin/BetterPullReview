@@ -535,6 +535,30 @@ void bootstrap_authority_and_storage_contract()
             "catalog has no views or triggers");
         expect(
             database.integer(
+                "SELECT count(*) FROM sqlite_schema WHERE type = 'table' "
+                "AND name NOT LIKE 'sqlite_%'")
+                    == 18
+                && database.integer(
+                       "SELECT count(*) FROM sqlite_schema "
+                       "WHERE type = 'index' AND sql IS NOT NULL "
+                       "AND name NOT LIKE 'sqlite_%'")
+                    == 16
+                && database.integer(
+                       "SELECT count(*) FROM sqlite_schema "
+                       "WHERE type = 'index' "
+                       "AND name = 'operation_source_observation' "
+                       "AND instr(sql, 'WHERE kind = 1') != 0")
+                    == 1
+                && database.integer(
+                       "SELECT count(*) FROM sqlite_schema "
+                       "WHERE type = 'table' AND name = 'append_install' "
+                       "AND instr(sql, 'head_lineage INTEGER NOT NULL "
+                       "CHECK(head_lineage BETWEEN 1 AND 4)') != 0")
+                    == 1,
+            "closed BPEC v1 schema includes the append-source identity index "
+            "and checked durable head lineage");
+        expect(
+            database.integer(
                 "SELECT count(*) FROM sqlite_schema WHERE sql IS NOT NULL "
                 "AND instr(upper(sql), ' TEXT') != 0")
                 == 0,

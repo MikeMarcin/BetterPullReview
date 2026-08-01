@@ -3,7 +3,7 @@ id: BPR-0048
 title: Add RFC-BPR-0003 focused tests and Git fixtures
 status: Backlog
 rfc: RFC-BPR-0003
-depends_on: [BPR-0041, BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0046, BPR-0047]
+depends_on: [BPR-0041, BPR-0042, BPR-0043, BPR-0044, BPR-0045, BPR-0046, BPR-0047, BPR-0055]
 ---
 
 # Add RFC-BPR-0003 focused tests and Git fixtures

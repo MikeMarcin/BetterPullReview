@@ -144,6 +144,8 @@ auto reason_for(const epoch_failure failure) noexcept -> epoch_reason_code
         return epoch_reason_code::catalog_conflict;
     case epoch_failure::quota_exceeded:
         return epoch_reason_code::quota_exceeded;
+    case epoch_failure::ordinal_exhausted:
+        return epoch_reason_code::epoch_ordinal_exhausted;
     case epoch_failure::repair_required:
         return epoch_reason_code::repair_required;
     }

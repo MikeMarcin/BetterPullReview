@@ -312,7 +312,9 @@ private:
 
 [[nodiscard]] auto install_request(
     const app::append_operation_record& record,
-    const std::uint8_t seed) -> app::record_install_request
+    const std::uint8_t seed,
+    const core::head_lineage lineage =
+        core::head_lineage::not_applicable) -> app::record_install_request
 {
     expect(
         record.Spool.has_value(),
@@ -339,6 +341,7 @@ private:
                 .Head = record.Context.Revision.Head,
                 .HeadTree = oid<core::git_tree_oid>(
                     static_cast<std::uint8_t>(0x90U + seed)),
+                .HeadLineage = lineage,
             },
     };
 }
@@ -1774,7 +1777,21 @@ void reservation_conflict_and_never_reuse_contract()
         "two independent sessions open one authority");
     auto first = std::move(*first_open);
     auto second = std::move(*second_open);
+    auto fresh_snapshot = first->snapshot({});
+    expect(
+        fresh_snapshot
+            && fresh_snapshot->NextOrdinal == core::epoch_ordinal{1},
+        "fresh catalog exposes ordinal one as the exact next reservation");
     const auto accepted = revision(30U);
+    auto unused_source = first->source_observation_exists(
+        accepted.Source.Observation, {});
+    expect(
+        unused_source && !*unused_source,
+        "indexed source probe reports a fresh observation as unused");
+    expect_failure(
+        first->source_observation_exists({}, {}),
+        app::epoch_catalog_failure::invalid_request,
+        "source probe rejects the reserved zero identity");
     const auto first_request = app::append_reservation_request{
         .Context = context(
             first->binding(),
@@ -1788,7 +1805,7 @@ void reservation_conflict_and_never_reuse_contract()
         .Context = context(
             second->binding(),
             operation(31U),
-            accepted,
+            revision(31U),
             31U,
             core::application_session_id{102U}),
         .ProposedOrdinal = core::epoch_ordinal{1},
@@ -1830,6 +1847,71 @@ void reservation_conflict_and_never_reuse_contract()
         : core::application_session_id{102U};
     auto winner_record = first_result->has_value() ? **first_result
                                                     : **second_result;
+    const auto winning_revision = winner_record.Context.Revision;
+    const auto& winner_request = first_result->has_value() ? first_request
+                                                            : second_request;
+    auto exact_retry = winner->reserve_append(winner_request, {});
+    expect(
+        exact_retry && *exact_retry == winner_record,
+        "exact operation reservation retry remains idempotent");
+    auto durable_source = winner->source_observation_exists(
+        winning_revision.Source.Observation, {});
+    expect(
+        durable_source && *durable_source,
+        "indexed source probe includes an unpublished durable append");
+    std::stop_source cancelled_probe;
+    cancelled_probe.request_stop();
+    expect_failure(
+        winner->source_observation_exists(
+            winning_revision.Source.Observation,
+            cancelled_probe.get_token()),
+        app::epoch_catalog_failure::cancelled,
+        "pre-cancelled source probe returns cancellation");
+
+    const auto sibling_authority = authority_key(
+        authority_key().Repository.value(),
+        0xF2000000000000A7ULL,
+        4342U);
+    auto sibling_open = port->open(open_request(103U, sibling_authority), {});
+    expect(
+        sibling_open.has_value(),
+        "collision fixture opens a sibling PR in the catalog incarnation");
+    auto sibling = std::move(*sibling_open);
+    auto sibling_collision = sibling->reserve_append(
+        app::append_reservation_request{
+            .Context = context(
+                sibling->binding(),
+                operation(34U),
+                winning_revision,
+                34U,
+                core::application_session_id{103U}),
+            .ProposedOrdinal = core::epoch_ordinal{1},
+        },
+        {});
+    expect_failure(
+        sibling_collision,
+        app::epoch_catalog_failure::source_observation_conflict,
+        "source collision crosses PR scopes within one catalog incarnation");
+    auto operation_collision = sibling->reserve_append(
+        app::append_reservation_request{
+            .Context = context(
+                sibling->binding(),
+                winner_record.Context.Operation,
+                revision(35U),
+                35U,
+                core::application_session_id{103U}),
+            .ProposedOrdinal = core::epoch_ordinal{1},
+        },
+        {});
+    expect_failure(
+        operation_collision,
+        app::epoch_catalog_failure::operation_identity_conflict,
+        "operation identity collision is distinct across PR scopes");
+    auto reserved_snapshot = winner->snapshot({});
+    expect(
+        reserved_snapshot
+            && reserved_snapshot->NextOrdinal == core::epoch_ordinal{2},
+        "reservation advances the durable next ordinal before publication");
     auto spooled = winner->record_spool(
         spool_request(winner_record, 30U), {});
     expect(spooled.has_value(), "aborted-operation spool facts record");
@@ -1858,6 +1940,21 @@ void reservation_conflict_and_never_reuse_contract()
             && aborted.RecoveryInputCompacted && !aborted.Spool
             && !aborted.Preimport,
         "aborted append compacts its recovery-only receipt and inventory");
+    auto aborted_source_collision = sibling->reserve_append(
+        app::append_reservation_request{
+            .Context = context(
+                sibling->binding(),
+                operation(36U),
+                winning_revision,
+                36U,
+                core::application_session_id{103U}),
+            .ProposedOrdinal = core::epoch_ordinal{1},
+        },
+        {});
+    expect_failure(
+        aborted_source_collision,
+        app::epoch_catalog_failure::source_observation_conflict,
+        "terminal aborted append retains its source identity collision");
     auto aborted_retry = winner->transition_operation(abort_transition, {});
     expect(
         aborted_retry
@@ -1887,6 +1984,11 @@ void reservation_conflict_and_never_reuse_contract()
     expect(
         next && next->ReservedOrdinal == core::epoch_ordinal{2},
         "aborted ordinal is never reused");
+    auto next_snapshot = winner->snapshot({});
+    expect(
+        next_snapshot
+            && next_snapshot->NextOrdinal == core::epoch_ordinal{3},
+        "aborted gap remains visible in the exact never-reused sequence");
     auto reused = winner->reserve_append(
         app::append_reservation_request{
             .Context = context(
@@ -1902,6 +2004,192 @@ void reservation_conflict_and_never_reuse_contract()
         reused,
         app::epoch_catalog_failure::revision_conflict,
         "previously reserved ordinal cannot be reused");
+}
+
+void canonical_review_read_contract()
+{
+    temporary_root root{"canonical-review-read"};
+    auto made = sqlite::make_epoch_catalog({.StorageRoot = root.path()});
+    expect(made.has_value(), "canonical-review fixture bootstraps");
+    auto port = std::move(*made);
+    auto opened = port->open(open_request(111U), {});
+    expect(opened.has_value(), "canonical-review authority opens");
+    auto session = std::move(*opened);
+
+    const auto accepted = revision(90U);
+    const auto proposed = review_association(90U, accepted.Head);
+    auto provider = core::current_viewer_review_candidate{
+        .Review = proposed.Review,
+        .Actor = proposed.Actor,
+        .Order = proposed.Order,
+        .State = proposed.State,
+        .Commit = proposed.Commit,
+    };
+    auto request = app::canonical_review_request{
+        .Catalog = session->binding().Catalog,
+        .Candidate = provider,
+        .ProposedAssociation = proposed.Association,
+    };
+    const auto before =
+        catalog_logical_fingerprint(database_path(root.path()));
+    auto never_observed = session->canonical_review(request, {});
+    expect(
+        never_observed
+            && never_observed->Association == proposed.Association
+            && never_observed->Availability
+                == core::anchor_availability::never_observed,
+        "unretained provider review receives proposed identity and an honest "
+        "never-observed anchor state");
+
+    request.ProjectedHead = app::projected_append_head{
+        .Ordinal = core::epoch_ordinal{1},
+        .Head = accepted.Head,
+    };
+    auto projected = session->canonical_review(request, {});
+    expect(
+        projected
+            && projected->Availability
+                == core::anchor_availability::available,
+        "matching projected append head canonicalizes review availability");
+    expect(
+        catalog_logical_fingerprint(database_path(root.path())) == before,
+        "canonical review lookup and projected availability perform no write");
+
+    const auto epoch = complete_append(
+        *session,
+        core::epoch_ordinal{1},
+        90U,
+        core::application_session_id{111U},
+        true,
+        false,
+        nullptr,
+        append_fixture_options{.Accepted = accepted});
+    request.Catalog = session->binding().Catalog;
+    request.ProjectedHead.reset();
+    auto retained = session->canonical_review(request, {});
+    expect(
+        retained
+            && retained->Availability
+                == core::anchor_availability::available
+            && retained->Commit == epoch.Mutation.Epoch.Head,
+        "indexed retained head canonicalizes the review without history paging");
+
+    auto associated = session->associate_review(
+        app::associate_review_request{
+            .Catalog = session->binding().Catalog,
+            .Review = *retained,
+            .AcceptedSnapshot = accepted.Source.Snapshot,
+        },
+        {});
+    expect(associated && associated->Changed, "review association persists");
+    request.Catalog = session->binding().Catalog;
+    request.ProposedAssociation =
+        opaque<core::review_association_id>(91U);
+    request.Candidate.State = core::github_review_state::dismissed;
+    const auto before_reuse =
+        catalog_logical_fingerprint(database_path(root.path()));
+    auto reused = session->canonical_review(request, {});
+    expect(
+        reused && reused->Association == proposed.Association
+            && reused->State == core::github_review_state::dismissed
+            && reused->Availability
+                == core::anchor_availability::available,
+        "same provider review reuses durable local identity while projecting "
+        "the newly observed provider facts");
+    expect(
+        catalog_logical_fingerprint(database_path(root.path()))
+            == before_reuse,
+        "stable review identity reuse remains read-only");
+
+    auto identity_collision = request;
+    identity_collision.Candidate.Review = core::github_review_id{91U};
+    identity_collision.Candidate.Order = core::github_review_order{91U};
+    identity_collision.ProposedAssociation = proposed.Association;
+    expect_failure(
+        session->canonical_review(identity_collision, {}),
+        app::epoch_catalog_failure::operation_conflict,
+        "new provider review cannot claim another review association identity");
+
+    auto order_collision = identity_collision;
+    order_collision.ProposedAssociation =
+        opaque<core::review_association_id>(92U);
+    order_collision.Candidate.Order = proposed.Order;
+    expect_failure(
+        session->canonical_review(order_collision, {}),
+        app::epoch_catalog_failure::operation_conflict,
+        "new provider review cannot claim another review order");
+
+    std::stop_source cancelled;
+    cancelled.request_stop();
+    expect_failure(
+        session->canonical_review(request, cancelled.get_token()),
+        app::epoch_catalog_failure::cancelled,
+        "pre-cancelled canonical review read returns cancellation");
+}
+
+void ordinal_exhaustion_snapshot_contract()
+{
+    temporary_root root{"ordinal-exhaustion-snapshot"};
+    auto made = sqlite::make_epoch_catalog({.StorageRoot = root.path()});
+    expect(made.has_value(), "ordinal-exhaustion fixture bootstraps");
+    auto port = std::move(*made);
+    auto opened = port->open(open_request(121U), {});
+    expect(opened.has_value(), "ordinal-exhaustion authority opens");
+    auto session = std::move(*opened);
+    session.reset();
+    port.reset();
+    {
+        const direct_database database{database_path(root.path()), true};
+        database.execute(
+            "UPDATE pull_request_scope SET next_ordinal = "
+            "9223372036854775807");
+    }
+    made = sqlite::make_epoch_catalog({.StorageRoot = root.path()});
+    expect(made.has_value(), "maximum-ordinal catalog reopens");
+    port = std::move(*made);
+    opened = port->open(open_request(122U), {});
+    expect(opened.has_value(), "maximum-ordinal authority reopens");
+    session = std::move(*opened);
+    auto boundary = session->snapshot({});
+    expect(
+        boundary
+            && boundary->NextOrdinal
+                == core::epoch_ordinal{
+                    std::numeric_limits<std::int64_t>::max()},
+        "snapshot exposes the exact final reservable ordinal");
+
+    auto reserved = session->reserve_append(
+        app::append_reservation_request{
+            .Context = context(
+                session->binding(),
+                operation(37U),
+                revision(37U),
+                37U,
+                core::application_session_id{122U}),
+            .ProposedOrdinal = core::epoch_ordinal{
+                std::numeric_limits<std::int64_t>::max()},
+        },
+        {});
+    expect(reserved.has_value(), "final ordinal reserves exactly once");
+    auto exhausted = session->snapshot({});
+    expect(
+        exhausted && !exhausted->NextOrdinal,
+        "empty next ordinal is the explicit durable exhaustion state");
+    expect_failure(
+        session->reserve_append(
+            app::append_reservation_request{
+                .Context = context(
+                    session->binding(),
+                    operation(38U),
+                    revision(38U),
+                    38U,
+                    core::application_session_id{122U}),
+                .ProposedOrdinal = core::epoch_ordinal{
+                    std::numeric_limits<std::int64_t>::max()},
+            },
+            {}),
+        app::epoch_catalog_failure::ordinal_exhausted,
+        "exhausted catalog rejects every later ordinal reservation");
 }
 
 void stale_session_and_association_noop_contract()
@@ -2092,6 +2380,86 @@ void creation_validation_atomicity_contract()
         "invalid candidate variants leave phase, facts, and SQL unchanged");
 }
 
+void install_lineage_durability_contract()
+{
+    temporary_root root{"install-lineage"};
+    auto made = sqlite::make_epoch_catalog({.StorageRoot = root.path()});
+    expect(made.has_value(), "install-lineage fixture bootstraps");
+    auto port = std::move(*made);
+    auto opened = port->open(open_request(171U), {});
+    expect(opened.has_value(), "install-lineage authority opens");
+    auto session = std::move(*opened);
+
+    auto reserved = session->reserve_append(
+        app::append_reservation_request{
+            .Context = context(
+                session->binding(),
+                operation(50U),
+                revision(50U),
+                50U,
+                core::application_session_id{171U}),
+            .ProposedOrdinal = core::epoch_ordinal{1},
+        },
+        {});
+    expect(reserved.has_value(), "install-lineage append reserves");
+    auto spooled = session->record_spool(spool_request(*reserved, 50U), {});
+    expect(spooled.has_value(), "install-lineage spool records");
+
+    const auto request = install_request(
+        *spooled, 50U, core::head_lineage::descendant);
+    auto invalid = request;
+    invalid.Install.HeadLineage = static_cast<core::head_lineage>(0xFFU);
+    expect_failure(
+        session->record_install(invalid, {}),
+        app::epoch_catalog_failure::invalid_request,
+        "install rejects an unknown durable head-lineage encoding");
+
+    auto installed = session->record_install(request, {});
+    expect(
+        installed && installed->Install
+            && installed->Install->HeadLineage
+                == core::head_lineage::descendant,
+        "install result preserves the exact durable head lineage");
+    auto retry = session->record_install(request, {});
+    expect(
+        retry && *retry == *installed,
+        "exact install-lineage replay is idempotent");
+
+    auto conflicting = request;
+    conflicting.Install.HeadLineage =
+        core::head_lineage::non_fast_forward;
+    expect_failure(
+        session->record_install(conflicting, {}),
+        app::epoch_catalog_failure::phase_conflict,
+        "a changed lineage cannot replay an already durable install");
+
+    const auto binding = session->binding();
+    session.reset();
+    port.reset();
+    made = sqlite::make_epoch_catalog({.StorageRoot = root.path()});
+    expect(made.has_value(), "install-lineage catalog restarts");
+    port = std::move(*made);
+    opened = port->open(open_request(172U), {});
+    expect(opened.has_value(), "install-lineage authority reopens");
+    session = std::move(*opened);
+    auto recovery = session->recovery_page(std::nullopt, 100U, {});
+    expect(
+        session->binding() == binding && recovery
+            && recovery->Operations.size() == 1U,
+        "install-lineage restart exposes one recoverable append");
+    const auto* recovered = std::get_if<app::append_operation_record>(
+        &recovery->Operations.front());
+    expect(
+        recovered != nullptr
+            && recovered->Phase
+                == app::epoch_catalog_operation_phase::imported
+            && recovered->Install
+            && *recovered->Install == request.Install
+            && recovered->Install->HeadLineage
+                == core::head_lineage::descendant,
+        "recovery round-trips the exact durable head lineage");
+}
+
 void semantic_corruption_fail_closed_contract()
 {
     const auto to_staging = [](
@@ -2215,6 +2583,31 @@ void semantic_corruption_fail_closed_contract()
             186U,
             app::epoch_catalog_failure::schema_mismatch,
             "installed endpoints that disagree with source fail closed");
+    }
+
+    {
+        temporary_root root{"corrupt-install-lineage"};
+        auto made = sqlite::make_epoch_catalog({.StorageRoot = root.path()});
+        expect(made.has_value(), "install-lineage fixture bootstraps");
+        auto port = std::move(*made);
+        auto opened = port->open(open_request(1861U), {});
+        expect(opened.has_value(), "install-lineage authority opens");
+        auto session = std::move(*opened);
+        (void)to_staging(*session, revision(67U), 67U, 1861U);
+        session.reset();
+        port.reset();
+        {
+            const direct_database database{database_path(root.path()), true};
+            database.execute(
+                "PRAGMA ignore_check_constraints = ON;"
+                "UPDATE append_install SET head_lineage = 9");
+        }
+        auto rejected =
+            sqlite::make_epoch_catalog({.StorageRoot = root.path()});
+        expect_failure(
+            rejected,
+            app::epoch_catalog_failure::integrity_failure,
+            "out-of-range durable head lineage fails bootstrap integrity");
     }
 
     {
@@ -2538,10 +2931,28 @@ void composite_scope_integrity_contract()
         core::application_session_id{502U},
         true);
     const auto first_append = operation(100U);
+    const auto second_append = operation(101U);
     const auto first_pr = hex_identity(first->binding().Authority.Scope);
     const auto second_pr = hex_identity(second->binding().Authority.Scope);
     const auto first_cache = hex_identity(first->binding().Authority.Cache);
     const auto second_cache = hex_identity(second->binding().Authority.Cache);
+
+    {
+        const direct_database database{database_path(root.path()), true};
+        const auto code = database.execute_code(
+            std::string{"UPDATE operation SET source_observation=(SELECT "
+                        "source_observation FROM operation WHERE operation=x'"}
+            + hex_identity(first_append) + "') WHERE operation=x'"
+            + hex_identity(second_append) + "'");
+        expect(
+            (code & 0xFF) == SQLITE_CONSTRAINT
+                && database.integer(
+                       "SELECT count(DISTINCT source_observation) "
+                       "FROM operation WHERE kind=1")
+                    == 2,
+            "canonical unique index rejects a durable append source collision "
+            "at the database writer boundary");
+    }
 
     {
         const direct_database database{database_path(root.path()), true};
@@ -4254,7 +4665,7 @@ void retention_rehydration_restart_contract()
                 .ProposedOrdinal = core::epoch_ordinal{4},
             },
             {}),
-        app::epoch_catalog_failure::operation_conflict,
+        app::epoch_catalog_failure::source_observation_conflict,
         "a source-observation identity already published before restart is "
         "rejected before a second operation reserves");
     expect(
@@ -4937,13 +5348,16 @@ void cache_delete_abort_restores_active_contract()
     auto restart_impact = session->cache_delete_impact(
         session->binding().Authority.Cache, {});
     auto recovery = session->recovery_page(std::nullopt, 100U, {});
+    auto expected_restart_snapshot = *restored_snapshot;
+    expected_restart_snapshot.NextOrdinal = core::epoch_ordinal{3};
     expect(
         session->binding() == active_binding && restart_snapshot
-            && *restart_snapshot == *restored_snapshot
+            && restored_snapshot->NextOrdinal == core::epoch_ordinal{2}
+            && *restart_snapshot == expected_restart_snapshot
             && restart_impact && *restart_impact == *impact && recovery
             && recovery->Operations.empty(),
-        "aborted cache restart preserves the exact restored snapshot and "
-        "impact with no recovery handoff");
+        "aborted cache restart preserves the restored snapshot and impact, "
+        "advances the never-reused ordinal, and has no recovery handoff");
 }
 
 void tombstoned_cache_repair_contract()
@@ -5639,8 +6053,11 @@ int main()
 {
     append_snapshot_history_anchor_contract();
     reservation_conflict_and_never_reuse_contract();
+    canonical_review_read_contract();
+    ordinal_exhaustion_snapshot_contract();
     stale_session_and_association_noop_contract();
     creation_validation_atomicity_contract();
+    install_lineage_durability_contract();
     semantic_corruption_fail_closed_contract();
     composite_scope_integrity_contract();
     revision_exhaustion_zero_mutation_contract();

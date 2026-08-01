@@ -1,0 +1,142 @@
+#pragma once
+
+#include "bpr/core/epoch_model.hpp"
+
+#include <compare>
+#include <cstddef>
+#include <functional>
+#include <optional>
+#include <variant>
+#include <vector>
+
+namespace bpr::application
+{
+using epoch_intent = std::variant<
+    core::refresh_epochs_intent,
+    core::select_named_comparison_intent,
+    core::select_comparison_anchors_intent,
+    core::select_comparison_anchor_intent,
+    core::cancel_epoch_refresh_intent>;
+using epoch_intent_dispatch = std::function<void(epoch_intent)>;
+
+// This is the presentation form of an accepted revision. The host-owned
+// source-observation identity deliberately stops before the projection edge.
+struct epoch_revision_projection
+{
+    core::provider_snapshot_id Snapshot;
+    core::github_identity_generation IdentityGeneration;
+    core::request_generation PullRequestGeneration;
+    core::pull_request_revision_origin Origin =
+        core::pull_request_revision_origin::live;
+    core::base_branch_id BaseBranch;
+    core::git_commit_oid Base;
+    core::git_commit_oid Head;
+    std::optional<core::current_viewer_review_candidate> CurrentViewerReview;
+
+    auto operator<=>(const epoch_revision_projection&) const = default;
+};
+
+struct epoch_authority_projection
+{
+    std::optional<core::pull_request_authority> Authority;
+    std::optional<epoch_revision_projection> Revision;
+    core::epoch_generation Generation;
+
+    auto operator<=>(const epoch_authority_projection&) const = default;
+};
+
+struct epoch_row_projection
+{
+    core::review_epoch_id Id;
+    core::provider_snapshot_id Snapshot;
+    core::github_identity_generation IdentityGeneration;
+    core::request_generation PullRequestGeneration;
+    core::base_branch_id BaseBranch;
+    core::git_commit_oid Base;
+    core::git_commit_oid Head;
+    std::optional<core::epoch_material_identity> Material;
+    core::epoch_cause Cause;
+    core::observed_utc_milliseconds ObservedAt;
+    core::anchor_availability BaseAvailability =
+        core::anchor_availability::unavailable;
+    core::anchor_availability HeadAvailability =
+        core::anchor_availability::unavailable;
+
+    auto operator<=>(const epoch_row_projection&) const = default;
+};
+
+enum class epoch_row_change_kind
+{
+    insert,
+    remove,
+    update,
+};
+
+struct epoch_row_change_projection
+{
+    epoch_row_change_kind Kind = epoch_row_change_kind::update;
+    std::size_t Index = 0U;
+    core::review_epoch_id Id;
+    std::optional<epoch_row_projection> Row;
+
+    auto operator<=>(const epoch_row_change_projection&) const = default;
+};
+
+struct epoch_catalog_projection
+{
+    std::optional<core::epoch_catalog_identity> Catalog;
+    // A replacement is reserved for an exact authority replacement or an
+    // explicitly requested page bootstrap. Routine changes use Changes.
+    bool Replace = false;
+    std::vector<epoch_row_projection> Replacement;
+    std::vector<epoch_row_change_projection> Changes;
+
+    auto operator<=>(const epoch_catalog_projection&) const = default;
+};
+
+struct epoch_comparison_projection
+{
+    core::comparison_selection Selection =
+        core::named_selection(core::named_comparison::whole_pr);
+    std::optional<core::comparison_pair> Pair;
+    core::comparison_generation Generation;
+    core::comparison_revision Revision;
+    bool AvailableForDiff = false;
+    core::epoch_reason_code Reason = core::epoch_reason_code::none;
+
+    auto operator<=>(const epoch_comparison_projection&) const = default;
+};
+
+struct epoch_transition_projection
+{
+    core::epoch_changed_domain Changed = core::epoch_changed_domain::none;
+    std::optional<epoch_authority_projection> Authority;
+    std::optional<core::comparison_selection_delta> Selection;
+    std::optional<epoch_comparison_projection> Comparison;
+    std::optional<core::epoch_status_delta> Status;
+    std::optional<core::epoch_command_delta> Commands;
+    std::vector<core::epoch_diagnostic> Diagnostics;
+
+    auto operator<=>(const epoch_transition_projection&) const = default;
+};
+
+struct epoch_presentation_update
+{
+    std::optional<epoch_transition_projection> Transition;
+    std::optional<epoch_catalog_projection> Catalog;
+
+    auto operator<=>(const epoch_presentation_update&) const = default;
+};
+
+class epoch_projection_port
+{
+public:
+    virtual ~epoch_projection_port() = default;
+
+    // Delivery is synchronous and observational. The host contains projection
+    // exceptions; presentation cannot veto accepted core or durable state.
+    // The update contains no provider, Git, SQLite, credential, transport, or
+    // host-request record.
+    virtual void publish(const epoch_presentation_update& update) = 0;
+};
+} // namespace bpr::application

@@ -3,7 +3,7 @@ id: BPR-0046
 title: Implement exact epoch comparison controls in Qt
 status: Backlog
 rfc: RFC-BPR-0003
-depends_on: [BPR-0041, BPR-0045]
+depends_on: [BPR-0041, BPR-0045, BPR-0056]
 ---
 
 # Implement exact epoch comparison controls in Qt

@@ -703,6 +703,7 @@ enum class epoch_failure : std::uint8_t
     malformed_observation,
     catalog_conflict,
     quota_exceeded,
+    ordinal_exhausted,
     repair_required,
 };
 
