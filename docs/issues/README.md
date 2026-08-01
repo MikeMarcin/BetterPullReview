@@ -127,9 +127,12 @@ persistence and cache reuse, tests-disabled Release exclusion, and quiescent
 shutdown directly verified. BPR-0048 is in `done/` with the manifest-bound
 sibling-head force-push fixture, public retained-old-head/cause evidence,
 issued-transport revocation, broad combined 25/25 matrix, and fresh sanitizer
-coverage complete. BPR-0049 is now `in-progress/` at the target-native epoch
-UX/accessibility verification frontier; BPR-0050 through BPR-0054 remain in
-`backlog/`.
+coverage complete. BPR-0049 remains the target-native epoch UX/accessibility
+verification frontier. Its fresh Ubuntu 26.04 GCC 15.2 build
+exposed the intentional aggregate-default warning-policy remediation tracked
+by in-progress BPR-0057. BPR-0049 is temporarily back in `backlog/` and depends
+on that explicit portability slice rather than hiding a compiler override in
+its UX evidence. BPR-0050 through BPR-0054 remain in `backlog/`.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
