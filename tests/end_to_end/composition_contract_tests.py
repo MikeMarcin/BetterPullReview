@@ -239,26 +239,6 @@ class CompositionContractTests(unittest.TestCase):
             )
             self.assertNotIn("Python3|", dependency_audit)
             self.assertNotIn("Git|", dependency_audit)
-            bootstrap_cache = read_from(
-                build_directory / "_bpr/dependency-bootstrap/CMakeCache.txt"
-            )
-            self.assertRegex(
-                bootstrap_cache,
-                r"(?m)^BPR_BOOTSTRAP_TEST_TOOLS:BOOL=OFF$",
-            )
-            self.assertRegex(
-                bootstrap_cache,
-                r"(?m)^BPR_BOOTSTRAP_GIT:BOOL=OFF$",
-            )
-            cps_packages = {
-                path.parent.name
-                for path in (build_directory / "_bpr/cps-overlay/cps").glob(
-                    "*/*.cps"
-                )
-            }
-            self.assertNotIn("Python3", cps_packages)
-            self.assertNotIn("Git", cps_packages)
-
             compilation = json.loads(
                 read_from(build_directory / "compile_commands.json")
             )

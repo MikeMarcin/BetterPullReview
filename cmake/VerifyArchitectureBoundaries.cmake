@@ -72,7 +72,16 @@ if(NOT EXISTS "${dependencies_cmake}")
     message(FATAL_ERROR "The root dependency resolver is required")
 endif()
 file(READ "${dependencies_cmake}" dependencies_cmake_contents)
-foreach(pattern IN ITEMS "find_package(Threads REQUIRED)" "bpr_find_cps_package" "Qt6" "LibSecret" "Python3" "Git")
+foreach(
+    pattern
+    IN ITEMS
+        "function(bpr_configure_dependencies)"
+        "find_package(Threads REQUIRED)"
+        "Qt6::"
+        "LibSecret::LibSecret"
+        "Python3::Interpreter"
+        "Git::Git"
+)
     string(FIND "${dependencies_cmake_contents}" "${pattern}" pattern_index)
     if(pattern_index EQUAL -1)
         message(FATAL_ERROR "Root dependency ownership is incomplete: ${pattern}")

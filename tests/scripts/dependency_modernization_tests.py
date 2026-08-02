@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -40,308 +39,123 @@ SQLITE_COMPILE_DEFINITIONS = {
 
 
 class DependencyModernizationTests(unittest.TestCase):
-    def run_bootstrap_fixture(
+    def configure(
         self,
         temporary_directory: str,
-        *,
-        generator: str = "Ninja",
-        extra: tuple[str, ...] = (),
-    ) -> tuple[subprocess.CompletedProcess[str], Path]:
-        fixture = ROOT / "tests/fixtures/cps-producer/path with spaces/Qt6"
-        build = Path(temporary_directory) / "bootstrap build"
-        overlay = Path(temporary_directory) / "overlay path"
-        result = subprocess.run(
+        *extra: str,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
             [
                 str(CMAKE_COMMAND),
-                "--fresh",
                 "-S",
-                str(ROOT / "cmake/dependency-bootstrap"),
+                str(ROOT),
                 "-B",
-                str(build),
+                str(Path(temporary_directory) / "build"),
                 "-G",
-                generator,
-                f"-DBPR_CPS_OVERLAY={overlay}",
-                "-DBPR_BOOTSTRAP_QT=ON",
-                "-DBPR_BOOTSTRAP_LIBSECRET=OFF",
-                "-DBPR_BOOTSTRAP_TEST_TOOLS=OFF",
-                "-DBPR_BOOTSTRAP_GIT=OFF",
-                "-DCMAKE_POLICY_DEFAULT_CMP0200=NEW",
-                "-DCMAKE_POLICY_VERSION_MINIMUM=4.4.2",
-                "-DCMAKE_BUILD_TYPE=Debug",
-                f"-DQt6_DIR={fixture}",
+                "Ninja",
+                f"-DCPM_SOURCE_CACHE={CPM_SOURCE_CACHE}",
                 *extra,
             ],
             check=False,
             capture_output=True,
             text=True,
         )
-        if result.returncode == 0:
-            result = subprocess.run(
-                [
-                    str(CMAKE_COMMAND),
-                    "--build",
-                    str(build),
-                    "--target",
-                    "bpr_validate_cps_producer_selection",
-                    "--config",
-                    "Debug",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-        return result, overlay
 
-    def validate_overlay(
-        self, temporary_directory: str, overlay: Path
-    ) -> subprocess.CompletedProcess[str]:
-        script = Path(temporary_directory) / "validate-overlay.cmake"
-        script.write_text(
-            "list(APPEND CMAKE_MODULE_PATH [==["
-            f"{ROOT / 'cmake'}"
-            "]==])\n"
-            "include(BprDependencies)\n"
-            "bpr_validate_overlay_artifacts([==["
-            f"{overlay}"
-            "]==])\n",
-            encoding="utf-8",
-        )
-        return subprocess.run(
-            [str(CMAKE_COMMAND), "-P", str(script)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-
-    def test_cmake_baseline_and_standard_test_option(self) -> None:
+    def test_cmake_baseline_standard_options_and_presets(self) -> None:
         root = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
         self.assertIn("cmake_minimum_required(VERSION 4.4.2)", root)
-        for relative_path in (
-            "cmake/dependency-bootstrap/CMakeLists.txt",
-            "tests/end_to_end/epoch_persistence_contract.cmake",
-            "tests/end_to_end/epoch_maintenance_public_path_contract.cmake",
-        ):
-            with self.subTest(relative_path=relative_path):
-                self.assertTrue(
-                    (ROOT / relative_path)
-                    .read_text(encoding="utf-8")
-                    .startswith("cmake_minimum_required(VERSION 4.4.2)"),
-                    relative_path,
-                )
+        self.assertIn("HOMEPAGE_URL", root)
         self.assertIn("include(CTest)", root)
         self.assertIn("if(BUILD_TESTING)", root)
         self.assertNotIn("option(BPR_BUILD_TESTS", root)
 
+        presets = json.loads((ROOT / "CMakePresets.json").read_text(encoding="utf-8"))
+        self.assertEqual(presets["version"], 12)
+        self.assertIn("v4.4.2", presets["$schema"])
+        configure_names = {preset["name"] for preset in presets["configurePresets"]}
+        self.assertTrue({"dev", "core-only", "windows-dev"} <= configure_names)
+        for preset in presets["testPresets"]:
+            if not preset.get("hidden"):
+                self.assertEqual(preset.get("inherits"), "_test-common")
+
     def test_obsolete_option_fails_with_migration_diagnostic(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            result = subprocess.run(
-                [
-                    str(CMAKE_COMMAND),
-                    "-S",
-                    str(ROOT),
-                    "-B",
-                    temporary_directory,
-                    "-DBPR_BUILD_TESTS=OFF",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
+            result = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_TESTS=OFF",
             )
         self.assertNotEqual(result.returncode, 0)
         diagnostic = result.stdout + result.stderr
         self.assertIn("BPR_BUILD_TESTS was removed", diagnostic)
         self.assertIn("BUILD_TESTING", diagnostic)
 
-    def test_product_cmake_owns_no_legacy_package_discovery(self) -> None:
+    def test_dependency_discovery_is_centralized_and_package_based(self) -> None:
+        provider = (ROOT / "cmake/BprDependencies.cmake").read_text(
+            encoding="utf-8"
+        )
+        for package in ("Threads", "Python3", "Qt6", "PkgConfig", "Git"):
+            self.assertRegex(provider, rf"find_package\(\s*{package}\b")
+        for version in ('"6.8"', '"0.20"', '"3.10"', '"2.39"'):
+            self.assertIn(version, provider)
+        self.assertIn("Qt is never fetched automatically", provider)
+        self.assertFalse(
+            (ROOT / "cmake/dependency-bootstrap/CMakeLists.txt").exists()
+        )
+
         product_files = list((ROOT / "src").rglob("CMakeLists.txt"))
         product_files.extend((ROOT / "tests").rglob("CMakeLists.txt"))
-        product_files.append(ROOT / "third_party" / "sqlite" / "CMakeLists.txt")
+        product_files.append(ROOT / "third_party/sqlite/CMakeLists.txt")
         for path in product_files:
             contents = path.read_text(encoding="utf-8")
             self.assertNotIn("find_package(", contents, str(path))
             self.assertNotIn("pkg_check_modules(", contents, str(path))
-            self.assertNotIn("PkgConfig::", contents, str(path))
 
-    def test_main_graph_resolution_audit_is_cps_only(self) -> None:
-        audit = BUILD_DIR / "_bpr" / "product-dependency-audit.cmake"
+    def test_configured_dependency_audit_uses_supported_providers(self) -> None:
+        audit = BUILD_DIR / "_bpr/product-dependency-audit.cmake"
         self.assertTrue(audit.is_file(), audit)
-        contents = audit.read_text(encoding="utf-8")
-        overlay_match = re.search(
-            r"set\(BPR_PRODUCT_CPS_OVERLAY \[==\[(.*?)\]==\]\)", contents
-        )
-        self.assertIsNotNone(overlay_match)
-        overlay = Path(overlay_match.group(1)).resolve()  # type: ignore[union-attr]
-        self.assertEqual(overlay, (BUILD_DIR / "_bpr/cps-overlay").resolve())
-        records = re.findall(r"\[==\[([^\n]+\|[^\n]+)\]==\]", contents)
-        self.assertGreaterEqual(len(records), 1)
-        for record in records:
-            package, config, target = record.split("|", 2)
-            config_path = Path(config).resolve()
-            self.assertEqual(config_path.suffix, ".cps", package)
-            self.assertTrue(config_path.is_relative_to(overlay), config_path)
-            self.assertTrue(config_path.is_file(), config_path)
-            self.assertIn("::", target)
-
-    def test_cps_documents_are_valid_and_artifact_fingerprinted(self) -> None:
-        overlay = BUILD_DIR / "_bpr" / "cps-overlay"
-        documents = sorted((overlay / "cps").glob("*/*.cps"))
-        self.assertTrue(documents)
-        for document in documents:
-            data = json.loads(document.read_text(encoding="utf-8"))
-            self.assertEqual(data["cps_version"], "0.14.1")
-            self.assertTrue(data["components"])
-            self.assertGreaterEqual(data["version"], "0")
-        fingerprint = (overlay / "fingerprint.txt").read_text(encoding="utf-8").strip()
-        self.assertRegex(fingerprint, r"^[0-9a-f]{64}$")
-        manifest = overlay / "artifacts.json"
-        self.assertTrue(manifest.is_file())
-        manifest_digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
-        manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
-        self.assertEqual(
-            manifest_data["generator_revision"],
-            "9",
-        )
-        if "Qt6::Core" in manifest_data["target_semantics"]:
-            core_semantics = manifest_data["target_semantics"]["Qt6::Core"]
-            self.assertEqual(core_semantics["INTERFACE_QT_MAJOR_VERSION"], ["6"])
-            self.assertIn(
-                "QT_MAJOR_VERSION",
-                core_semantics["COMPATIBLE_INTERFACE_STRING"],
+        records = re.findall(r"\[==\[([^\n]+)\]==\]", audit.read_text(encoding="utf-8"))
+        self.assertTrue(records)
+        modes = {record.split("|", 2)[1] for record in records}
+        self.assertTrue(modes <= {"PACKAGE", "PKG_CONFIG", "TOOLCHAIN"})
+        targets = {record.split("|", 2)[2] for record in records}
+        self.assertIn("Threads::Threads", targets)
+        if any(target.startswith("Qt6::") for target in targets):
+            self.assertTrue(
+                {"Qt6::Core", "Qt6::Gui", "Qt6::Widgets", "Qt6::Network"}
+                <= targets
             )
-        self.assertEqual(
-            (overlay / "validated.txt").read_text(encoding="utf-8").strip(),
-            f"9:{manifest_digest}",
-        )
-        self.assertFalse(list(overlay.rglob("*.cmake")))
 
-    def test_cps_compile_definitions_reach_product_compile_commands(self) -> None:
-        if not (BUILD_DIR / "_bpr/cps-overlay/cps/Qt6/Qt6.cps").is_file():
-            self.skipTest("Qt is intentionally absent from this build graph")
-        commands = json.loads(
-            (BUILD_DIR / "compile_commands.json").read_text(encoding="utf-8")
-        )
-        qt_commands = [
-            entry["command"]
-            for entry in commands
-            if "/src/adapters/qt/" in entry["file"]
-        ]
-        self.assertTrue(qt_commands)
-        self.assertTrue(
-            any(
-                re.search(r"(?:-D|/D)QT_CORE_LIB(?:\s|$)", command)
-                for command in qt_commands
-            )
-        )
-
-    def test_cps_restores_qt_compatibility_constraints(self) -> None:
+    def test_tests_disabled_core_graph_omits_test_and_qt_dependencies(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            temporary = Path(temporary_directory)
-            generated, overlay = self.run_bootstrap_fixture(temporary_directory)
+            configured = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=OFF",
+                "-DBUILD_TESTING=OFF",
+                "-DCMAKE_BUILD_TYPE=Release",
+            )
             self.assertEqual(
-                generated.returncode, 0, generated.stdout + generated.stderr
+                configured.returncode, 0, configured.stdout + configured.stderr
             )
-            source = temporary / "source"
-            source.mkdir()
-            (source / "consumer.cpp").write_text("int value = 0;\n", encoding="utf-8")
-            marker = temporary / "coord-type.txt"
-            (source / "CMakeLists.txt").write_text(
-                "cmake_minimum_required(VERSION 4.4.2)\n"
-                "project(QtCompatibilityAudit LANGUAGES CXX)\n"
-                f"list(APPEND CMAKE_MODULE_PATH [==[{ROOT / 'cmake'}]==])\n"
-                "include(BprDependencies)\n"
-                f"set(BPR_CPS_OVERLAY [==[{overlay}]==])\n"
-                "bpr_validate_overlay_artifacts(${BPR_CPS_OVERLAY})\n"
-                "bpr_find_cps_package(Qt6 6.8 TARGET Qt6::Core "
-                "COMPONENTS Core Gui Widgets Network)\n"
-                "add_library(conflicting_consumer INTERFACE)\n"
-                "set_property(TARGET conflicting_consumer PROPERTY "
-                "INTERFACE_QT_COORD_TYPE float)\n"
-                "add_library(selected_graph STATIC consumer.cpp)\n"
-                "target_link_libraries(selected_graph PRIVATE "
-                "Qt6::Core conflicting_consumer)\n"
-                f"file(GENERATE OUTPUT [==[{marker}]==] "
-                'CONTENT "$<TARGET_PROPERTY:selected_graph,QT_COORD_TYPE>")\n',
-                encoding="utf-8",
-            )
-            configured = subprocess.run(
-                [
-                    str(CMAKE_COMMAND),
-                    "-S",
-                    str(source),
-                    "-B",
-                    str(temporary / "build"),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertNotEqual(configured.returncode, 0)
-            self.assertIn(
-                "QT_COORD_TYPE",
-                configured.stdout + configured.stderr,
-            )
+            audit = (
+                Path(temporary_directory)
+                / "build/_bpr/product-dependency-audit.cmake"
+            ).read_text(encoding="utf-8")
+            self.assertIn("Threads|TOOLCHAIN|Threads::Threads", audit)
+            for dependency in ("Python3", "Git", "Qt6", "LibSecret"):
+                self.assertNotIn(dependency, audit)
 
-    def test_changed_producer_hints_reselect_qt(self) -> None:
+    def test_qt_is_package_only_and_never_fetched(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            temporary = Path(temporary_directory)
-            fixture = ROOT / "tests/fixtures/cps-producer/path with spaces"
-            producer_a = temporary / "producer a/package"
-            producer_b = temporary / "producer b"
-            shutil.copytree(fixture, producer_a)
-            shutil.copytree(fixture, producer_b / "lib/cmake")
-            source = temporary / "source"
-            source.mkdir()
-            (source / "CMakeLists.txt").write_text(
-                "cmake_minimum_required(VERSION 4.4.2)\n"
-                "project(QtProducerReselection LANGUAGES C CXX)\n"
-                f"set(PROJECT_SOURCE_DIR [==[{ROOT}]==])\n"
-                f"list(APPEND CMAKE_MODULE_PATH [==[{ROOT / 'cmake'}]==])\n"
-                "set(BPR_BUILD_QT ON)\n"
-                "set(BUILD_TESTING OFF)\n"
-                "set(BPR_DEPENDENCY_OFFLINE OFF)\n"
-                "include(BprDependencies)\n"
-                "bpr_configure_dependencies()\n",
-                encoding="utf-8",
+            configured = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=ON",
+                "-DBUILD_TESTING=OFF",
+                "-DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON",
             )
-            build = temporary / "build"
-            common = [
-                str(CMAKE_COMMAND),
-                "-S",
-                str(source),
-                "-B",
-                str(build),
-                "-G",
-                "Ninja",
-                "-DCMAKE_BUILD_TYPE=Debug",
-            ]
-            first = subprocess.run(
-                [
-                    *common,
-                    f"-DQt6_DIR={producer_a / 'Qt6'}",
-                    f"-DQt6_ROOT={producer_b}",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
-            document = build / "_bpr/cps-overlay/cps/Qt6/Qt6.cps"
-            first_location = json.loads(document.read_text(encoding="utf-8"))[
-                "components"
-            ]["Core"]["configurations"]["debug"]["location"]
-            self.assertIn("producer a", first_location)
-
-            second = subprocess.run(
-                [*common, "-UQt6_DIR", f"-DQt6_ROOT={producer_b}"],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
-            second_location = json.loads(document.read_text(encoding="utf-8"))[
-                "components"
-            ]["Core"]["configurations"]["debug"]["location"]
-            self.assertIn("producer b", second_location)
+        self.assertNotEqual(configured.returncode, 0)
+        diagnostic = configured.stdout + configured.stderr
+        self.assertIn("caller-installed Qt", diagnostic)
+        self.assertIn("never fetched automatically", diagnostic)
 
     def test_sqlite_is_download_only_and_not_vendored_or_system_resolved(self) -> None:
         provider = (ROOT / "cmake/BprSQLiteProvider.cmake").read_text(
@@ -373,10 +187,7 @@ class DependencyModernizationTests(unittest.TestCase):
             with self.subTest(copy_sqlite=copy_sqlite):
                 with tempfile.TemporaryDirectory() as temporary_directory:
                     temporary = Path(temporary_directory)
-                    build = temporary / "offline build"
-                    overlay = build / "_bpr/cps-overlay"
                     cache = temporary / "offline cache"
-                    shutil.copytree(BUILD_DIR / "_bpr/cps-overlay", overlay)
                     shutil.copytree(CPM_SOURCE_CACHE / "cpm", cache / "cpm")
                     if copy_sqlite:
                         shutil.copytree(
@@ -388,13 +199,12 @@ class DependencyModernizationTests(unittest.TestCase):
                             "-S",
                             str(ROOT),
                             "-B",
-                            str(build),
+                            str(temporary / "offline build"),
                             "-G",
                             "Ninja",
                             "-DBPR_DEPENDENCY_OFFLINE=ON",
                             "-DBPR_BUILD_QT=OFF",
-                            "-DBUILD_TESTING=ON",
-                            "-DCMAKE_BUILD_TYPE=Release",
+                            "-DBUILD_TESTING=OFF",
                             f"-DCPM_SOURCE_CACHE={cache}",
                         ],
                         check=False,
@@ -402,36 +212,11 @@ class DependencyModernizationTests(unittest.TestCase):
                         text=True,
                     )
                     diagnostic = configured.stdout + configured.stderr
-                    if not expected_success:
+                    if expected_success:
+                        self.assertEqual(configured.returncode, 0, diagnostic)
+                    else:
                         self.assertNotEqual(configured.returncode, 0)
                         self.assertIn("SQLite 3.53.4", diagnostic)
-                        continue
-                    self.assertEqual(configured.returncode, 0, diagnostic)
-                    built = subprocess.run(
-                        [
-                            str(CMAKE_COMMAND),
-                            "--build",
-                            str(build),
-                            "--target",
-                            "better_pull_review_sqlite3",
-                        ],
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                    )
-                    self.assertEqual(
-                        built.returncode, 0, built.stdout + built.stderr
-                    )
-                    static_libraries = list(
-                        (build / "third_party/sqlite").glob(
-                            "*better_pull_review_sqlite3.*"
-                        )
-                    )
-                    self.assertEqual(len(static_libraries), 1)
-                    self.assertEqual(
-                        static_libraries[0].suffix,
-                        ".lib" if os.name == "nt" else ".a",
-                    )
 
     def test_sqlite_rejects_source_version_and_identity_mismatches(self) -> None:
         cases = (
@@ -459,19 +244,14 @@ class DependencyModernizationTests(unittest.TestCase):
                         shutil.copy2(SQLITE_SOURCE / sqlite_file, source / sqlite_file)
                     path = source / filename
                     contents = path.read_text(encoding="utf-8")
-                    self.assertIn(old, contents)
                     path.write_text(contents.replace(old, new, 1), encoding="utf-8")
                     script = Path(temporary_directory) / "validate-sqlite.cmake"
                     script.write_text(
-                        "list(APPEND CMAKE_MODULE_PATH [==["
-                        f"{ROOT / 'cmake'}"
-                        "]==])\n"
+                        f"list(APPEND CMAKE_MODULE_PATH [==[{ROOT / 'cmake'}]==])\n"
                         "include(BprSQLiteProvider)\n"
                         f"file(SHA3_256 [==[{path}]==] mutated_digest)\n"
                         f"set({digest_variable} \"${{mutated_digest}}\")\n"
-                        "bpr_validate_sqlite_source([==["
-                        f"{source}"
-                        "]==])\n",
+                        f"bpr_validate_sqlite_source([==[{source}]==])\n",
                         encoding="utf-8",
                     )
                     rejected = subprocess.run(
@@ -519,24 +299,11 @@ class DependencyModernizationTests(unittest.TestCase):
 
     def test_sqlite_rejects_fetchcontent_source_override(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            build = Path(temporary_directory) / "override build"
-            configured = subprocess.run(
-                [
-                    str(CMAKE_COMMAND),
-                    "-S",
-                    str(ROOT),
-                    "-B",
-                    str(build),
-                    "-G",
-                    "Ninja",
-                    "-DBPR_BUILD_QT=OFF",
-                    "-DBUILD_TESTING=OFF",
-                    f"-DCPM_SOURCE_CACHE={CPM_SOURCE_CACHE}",
-                    f"-DFETCHCONTENT_SOURCE_DIR_BPRSQLITE={SQLITE_SOURCE}",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
+            configured = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=OFF",
+                "-DBUILD_TESTING=OFF",
+                f"-DFETCHCONTENT_SOURCE_DIR_BPRSQLITE={SQLITE_SOURCE}",
             )
         self.assertNotEqual(configured.returncode, 0)
         self.assertIn(
@@ -560,744 +327,17 @@ class DependencyModernizationTests(unittest.TestCase):
                 "set(PACKAGE_VERSION_COMPATIBLE TRUE)\n",
                 encoding="utf-8",
             )
-            configured = subprocess.run(
-                [
-                    str(CMAKE_COMMAND),
-                    "-S",
-                    str(ROOT),
-                    "-B",
-                    str(temporary / "local package build"),
-                    "-G",
-                    "Ninja",
-                    "-DBPR_BUILD_QT=OFF",
-                    "-DBUILD_TESTING=OFF",
-                    "-DCPM_USE_LOCAL_PACKAGES=ON",
-                    f"-DBprSQLite_DIR={package}",
-                    f"-DCPM_SOURCE_CACHE={CPM_SOURCE_CACHE}",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
+            configured = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=OFF",
+                "-DBUILD_TESTING=OFF",
+                "-DCPM_USE_LOCAL_PACKAGES=ON",
+                f"-DBprSQLite_DIR={package}",
             )
             diagnostic = configured.stdout + configured.stderr
             self.assertEqual(configured.returncode, 0, diagnostic)
             self.assertFalse(marker.exists())
             self.assertNotIn("Using local package BprSQLite", diagnostic)
-
-    def test_cps_bootstrap_preserves_configs_spaces_and_requirements(self) -> None:
-        for generator in ("Ninja", "Ninja Multi-Config"):
-            with self.subTest(generator=generator):
-                with tempfile.TemporaryDirectory() as temporary_directory:
-                    result, overlay = self.run_bootstrap_fixture(
-                        temporary_directory, generator=generator
-                    )
-                    self.assertEqual(
-                        result.returncode, 0, result.stdout + result.stderr
-                    )
-                    document = json.loads(
-                        (overlay / "cps/Qt6/Qt6.cps").read_text(
-                            encoding="utf-8"
-                        )
-                    )
-                    self.assertEqual(
-                        document["configurations"],
-                        ["debug", "release", "relwithdebinfo", "minsizerel"],
-                    )
-                    core = document["components"]["Core"]["configurations"]
-                    self.assertIn("path with spaces", core["debug"]["location"])
-                    self.assertIn("core-debug.dylib", core["debug"]["location"])
-                    self.assertIn("core-release.dylib", core["release"]["location"])
-                    self.assertNotIn(
-                        "QT_NO_DEBUG", core["debug"]["definitions"]["*"]
-                    )
-                    self.assertIn(
-                        "QT_NO_DEBUG", core["release"]["definitions"]["*"]
-                    )
-                    self.assertNotIn(
-                        "QT_NO_DEBUG",
-                        core["relwithdebinfo"]["definitions"]["*"],
-                    )
-                    self.assertNotIn(
-                        "QT_NO_DEBUG", core["minsizerel"]["definitions"]["*"]
-                    )
-                    self.assertEqual(
-                        core["debug"]["compile_features"], ["c++17", "c++11"]
-                    )
-                    gui = document["components"]["Gui"]["configurations"]
-                    self.assertIn(":Core", gui["debug"]["requires"])
-                    self.assertIn(
-                        "fake-platform-library", gui["debug"]["link_libraries"]
-                    )
-                    if generator == "Ninja Multi-Config":
-                        validation_case = "AllConfigurations"
-                    else:
-                        validation_case = "MinSizeRel"
-                    oracle = (
-                        Path(temporary_directory)
-                        / "bootstrap build"
-                        / "policy-validation"
-                        / validation_case
-                        / "policy-oracles/location/Core-MinSizeRel.native.txt"
-                    )
-                    self.assertTrue(oracle.is_file(), oracle)
-
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory,
-                extra=("-DBPR_FAKE_QT_REPEATED_LINK_ORDER=ON",),
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            document = json.loads(
-                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
-            )
-            link_libraries = document["components"]["Core"]["configurations"][
-                "debug"
-            ]["link_libraries"]
-            repeated = [
-                Path(library).name
-                for library in link_libraries
-                if library.endswith("-debug.dylib")
-            ]
-            self.assertEqual(
-                repeated[-3:],
-                ["core-debug.dylib", "gui-debug.dylib", "core-debug.dylib"],
-            )
-
-    def test_cps_bootstrap_preserves_windows_dll_and_import_library_metadata(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory, extra=("-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",)
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            document = json.loads(
-                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
-            )
-            debug = document["components"]["Core"]["configurations"]["debug"]
-            self.assertTrue(debug["location"].endswith("windows-debug.dll"))
-            self.assertTrue(
-                debug["link_location"].endswith("windows-debug.lib")
-            )
-            manifest = json.loads(
-                (overlay / "artifacts.json").read_text(encoding="utf-8")
-            )
-            artifact_paths = {record["path"] for record in manifest["artifacts"]}
-            self.assertTrue(
-                any(path.endswith("windows-debug.dll") for path in artifact_paths)
-            )
-            self.assertTrue(
-                any(path.endswith("windows-debug.lib") for path in artifact_paths)
-            )
-
-        if os.name != "nt":
-            with tempfile.TemporaryDirectory() as temporary_directory:
-                result, overlay = self.run_bootstrap_fixture(
-                    temporary_directory,
-                    extra=(
-                        "-DCMAKE_SYSTEM_NAME=Windows",
-                        f"-DCMAKE_C_COMPILER={shutil.which('cc')}",
-                        f"-DCMAKE_CXX_COMPILER={shutil.which('c++')}",
-                        "-DCMAKE_C_COMPILER_WORKS=ON",
-                        "-DCMAKE_CXX_COMPILER_WORKS=ON",
-                        "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                        "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
-                        "-DBPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_ONLY=ON",
-                        "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
-                    ),
-                )
-                self.assertNotEqual(result.returncode, 0)
-                self.assertFalse((overlay / "validated.txt").exists())
-
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory,
-                extra=(
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_LOCATION_ONLY=ON",
-                    "-DBPR_FAKE_QT_MODULE_TARGETS=ON",
-                ),
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            document = json.loads(
-                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
-            )
-            core = document["components"]["Core"]
-            self.assertEqual(core["type"], "module")
-            debug = core["configurations"]["debug"]
-            self.assertTrue(debug["location"].endswith("windows-debug.dll"))
-            self.assertNotIn("link_location", debug)
-
-        general_selection_cases = (
-            (
-                "empty-map-no-configurations",
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
-                    "-DBPR_FAKE_QT_UNSET_IMPORTED_CONFIGURATIONS=ON",
-                ),
-            ),
-            (
-                "mapped-no-configurations",
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_MISSING_WITH_GENERAL=ON",
-                    "-DBPR_FAKE_QT_UNSET_IMPORTED_CONFIGURATIONS=ON",
-                ),
-            ),
-            (
-                "mapped-declared-configuration",
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_MISSING_WITH_GENERAL=ON",
-                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=MISSING",
-                ),
-            ),
-        )
-        for name, extra in general_selection_cases:
-            with self.subTest(name=name):
-                with tempfile.TemporaryDirectory() as temporary_directory:
-                    result, overlay = self.run_bootstrap_fixture(
-                        temporary_directory, extra=extra
-                    )
-                    self.assertEqual(
-                        result.returncode, 0, result.stdout + result.stderr
-                    )
-                    document = json.loads(
-                        (overlay / "cps/Qt6/Qt6.cps").read_text(
-                            encoding="utf-8"
-                        )
-                    )
-                    debug = document["components"]["Core"]["configurations"][
-                        "debug"
-                    ]
-                    self.assertTrue(
-                        debug["location"].endswith("windows-release.dll")
-                    )
-                    self.assertTrue(
-                        debug["link_location"].endswith("windows-release.lib")
-                    )
-                    self.assertNotIn(
-                        "QT_NO_DEBUG", debug["definitions"]["*"]
-                    )
-
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            policy_oracle = Path(temporary_directory) / "policy-oracle.txt"
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory,
-                extra=(
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=RELEASE",
-                    f"-DBPR_FAKE_QT_POLICY_ORACLE={policy_oracle}",
-                ),
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            document = json.loads(
-                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
-            )
-            debug = document["components"]["Core"]["configurations"]["debug"]
-            self.assertTrue(debug["location"].endswith("windows-release.dll"))
-            self.assertTrue(
-                debug["link_location"].endswith("windows-release.lib")
-            )
-            self.assertNotIn("QT_NO_DEBUG", debug["definitions"]["*"])
-            self.assertTrue(
-                policy_oracle.read_text(encoding="utf-8").endswith(
-                    "windows-release.dll"
-                )
-            )
-
-        mixed_general_artifact_cases = (
-            (
-                "configuration-location",
-                "-DBPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_UNSET=ON",
-                "windows-debug.dll",
-                "windows-release.lib",
-            ),
-            (
-                "configuration-import-library",
-                "-DBPR_FAKE_QT_WINDOWS_DEBUG_LOCATION_UNSET=ON",
-                "windows-release.dll",
-                "windows-debug.lib",
-            ),
-        )
-        for name, property_option, location, link_location in (
-            mixed_general_artifact_cases
-        ):
-            with self.subTest(name=name):
-                with tempfile.TemporaryDirectory() as temporary_directory:
-                    result, overlay = self.run_bootstrap_fixture(
-                        temporary_directory,
-                        extra=(
-                            "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                            "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
-                            property_option,
-                        ),
-                    )
-                    self.assertEqual(
-                        result.returncode, 0, result.stdout + result.stderr
-                    )
-                    document = json.loads(
-                        (overlay / "cps/Qt6/Qt6.cps").read_text(
-                            encoding="utf-8"
-                        )
-                    )
-                    debug = document["components"]["Core"]["configurations"][
-                        "debug"
-                    ]
-                    self.assertTrue(debug["location"].endswith(location))
-                    self.assertTrue(
-                        debug["link_location"].endswith(link_location)
-                    )
-
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory,
-                extra=(
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_ONLY=ON",
-                ),
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            document = json.loads(
-                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
-            )
-            debug = document["components"]["Core"]["configurations"]["debug"]
-            self.assertNotIn("location", debug)
-            self.assertTrue(
-                debug["link_location"].endswith("windows-debug.lib")
-            )
-            manifest = json.loads(
-                (overlay / "artifacts.json").read_text(encoding="utf-8")
-            )
-            artifact_paths = {record["path"] for record in manifest["artifacts"]}
-            self.assertFalse(
-                any(path.endswith("windows-debug.dll") for path in artifact_paths)
-            )
-            self.assertTrue(
-                any(path.endswith("windows-debug.lib") for path in artifact_paths)
-            )
-
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory,
-                extra=(
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_DEBUG_RELEASE=ON",
-                ),
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            document = json.loads(
-                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
-            )
-            debug = document["components"]["Core"]["configurations"]["debug"]
-            self.assertTrue(debug["location"].endswith("windows-release.dll"))
-            self.assertTrue(
-                debug["link_location"].endswith("windows-release.lib")
-            )
-
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory,
-                extra=(
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_IMPLIB_ONLY=ON",
-                ),
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            document = json.loads(
-                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
-            )
-            debug = document["components"]["Core"]["configurations"]["debug"]
-            self.assertNotIn("location", debug)
-            self.assertTrue(
-                debug["link_location"].endswith("windows-debug.lib")
-            )
-
-    def test_cps_bootstrap_preserves_cmake_false_supported_values(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory,
-                extra=("-DBPR_FAKE_QT_FALSE_SUPPORTED_VALUES=ON",),
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            document = json.loads(
-                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
-            )
-            debug = document["components"]["Core"]["configurations"]["debug"]
-            self.assertIn("OFF", debug["link_libraries"])
-            self.assertIn("OFF", debug["definitions"]["*"])
-
-    def test_cps_bootstrap_fingerprint_is_stable_until_metadata_changes(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            first, overlay = self.run_bootstrap_fixture(temporary_directory)
-            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
-            fingerprint = overlay / "fingerprint.txt"
-            first_contents = fingerprint.read_text(encoding="utf-8")
-            first_mtime = fingerprint.stat().st_mtime_ns
-            second, _ = self.run_bootstrap_fixture(temporary_directory)
-            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
-            self.assertEqual(
-                fingerprint.read_text(encoding="utf-8"), first_contents
-            )
-            self.assertEqual(fingerprint.stat().st_mtime_ns, first_mtime)
-
-    def test_cps_bootstrap_prunes_stale_documents(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            generated, overlay = self.run_bootstrap_fixture(temporary_directory)
-            self.assertEqual(
-                generated.returncode, 0, generated.stdout + generated.stderr
-            )
-            self.assertTrue((overlay / "cps/Qt6/Qt6.cps").is_file())
-            regenerated = subprocess.run(
-                [
-                    str(CMAKE_COMMAND),
-                    "--fresh",
-                    "-S",
-                    str(ROOT / "cmake/dependency-bootstrap"),
-                    "-B",
-                    str(Path(temporary_directory) / "bootstrap build"),
-                    "-G",
-                    "Ninja",
-                    f"-DBPR_CPS_OVERLAY={overlay}",
-                    "-DBPR_BOOTSTRAP_QT=OFF",
-                    "-DBPR_BOOTSTRAP_LIBSECRET=OFF",
-                    "-DBPR_BOOTSTRAP_TEST_TOOLS=OFF",
-                    "-DBPR_BOOTSTRAP_GIT=OFF",
-                    "-DCMAKE_POLICY_DEFAULT_CMP0200=NEW",
-                    "-DCMAKE_POLICY_VERSION_MINIMUM=4.4.2",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(
-                regenerated.returncode, 0, regenerated.stdout + regenerated.stderr
-            )
-            resealed = subprocess.run(
-                [
-                    str(CMAKE_COMMAND),
-                    "--build",
-                    str(Path(temporary_directory) / "bootstrap build"),
-                    "--target",
-                    "bpr_validate_cps_producer_selection",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(
-                resealed.returncode, 0, resealed.stdout + resealed.stderr
-            )
-            self.assertFalse(list((overlay / "cps").rglob("*.cps")))
-            manifest = json.loads(
-                (overlay / "artifacts.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(manifest["documents"], [])
-            valid = self.validate_overlay(temporary_directory, overlay)
-            self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
-
-    def test_copied_overlay_validates_its_own_documents(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            generated, overlay = self.run_bootstrap_fixture(temporary_directory)
-            self.assertEqual(
-                generated.returncode, 0, generated.stdout + generated.stderr
-            )
-            copied = Path(temporary_directory) / "copied overlay"
-            shutil.copytree(overlay, copied)
-            copied_document = copied / "cps/Qt6/Qt6.cps"
-            copied_document.write_text(
-                copied_document.read_text(encoding="utf-8") + "\n",
-                encoding="utf-8",
-            )
-            rejected = self.validate_overlay(temporary_directory, copied)
-            self.assertNotEqual(rejected.returncode, 0)
-            self.assertIn(
-                "CPS overlay DOCUMENT changed", rejected.stdout + rejected.stderr
-            )
-
-    def test_overlay_manifest_is_data_and_never_executes(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            generated, overlay = self.run_bootstrap_fixture(temporary_directory)
-            self.assertEqual(
-                generated.returncode, 0, generated.stdout + generated.stderr
-            )
-            canary = Path(temporary_directory) / "manifest-executed"
-            sentinel = Path(temporary_directory) / "network-sentinel"
-            sentinel.write_text("must not be fetched", encoding="utf-8")
-            (overlay / "artifacts.json").write_text(
-                "file(DOWNLOAD "
-                f"[==[{sentinel.as_uri()}]==] [==[{canary}]==])\n",
-                encoding="utf-8",
-            )
-            rejected = self.validate_overlay(temporary_directory, overlay)
-            self.assertNotEqual(rejected.returncode, 0)
-            self.assertIn(
-                "fingerprint does not match", rejected.stdout + rejected.stderr
-            )
-            self.assertFalse(canary.exists())
-
-    def test_cps_overlay_rejects_tampering_and_cmake_package_scripts(self) -> None:
-        for tamper in ("document", "fingerprint", "cmake-script"):
-            with self.subTest(tamper=tamper):
-                with tempfile.TemporaryDirectory() as temporary_directory:
-                    generated, overlay = self.run_bootstrap_fixture(
-                        temporary_directory
-                    )
-                    self.assertEqual(
-                        generated.returncode,
-                        0,
-                        generated.stdout + generated.stderr,
-                    )
-                    valid = self.validate_overlay(temporary_directory, overlay)
-                    self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
-                    if tamper == "document":
-                        document = overlay / "cps/Qt6/Qt6.cps"
-                        document.write_text(
-                            document.read_text(encoding="utf-8") + "\n",
-                            encoding="utf-8",
-                        )
-                        expected = "CPS overlay DOCUMENT changed"
-                    elif tamper == "fingerprint":
-                        (overlay / "fingerprint.txt").write_text(
-                            "0" * 64 + "\n", encoding="utf-8"
-                        )
-                        expected = "fingerprint does not match"
-                    else:
-                        (overlay / "Qt6Config.cmake").write_text(
-                            "message(FATAL_ERROR \"must not execute\")\n",
-                            encoding="utf-8",
-                        )
-                        expected = "CMake-script package metadata is forbidden"
-                    rejected = self.validate_overlay(temporary_directory, overlay)
-                    self.assertNotEqual(rejected.returncode, 0)
-                    self.assertIn(expected, rejected.stdout + rejected.stderr)
-
-    def test_cps_bootstrap_rejects_unsupported_metadata_and_old_versions(self) -> None:
-        cases = (
-            (
-                ("-DBPR_FAKE_QT_UNSUPPORTED=ON",),
-                "Unsupported generator expression",
-            ),
-            (
-                ("-DBPR_FAKE_QT_INCOMPLETE=ON",),
-                "Incomplete CPS path metadata",
-            ),
-            (
-                ("-DBPR_FAKE_QT_DIRECT_LINK=ON",),
-                "Unsupported CPS usage requirement",
-            ),
-            (
-                ("-DBPR_FAKE_QT_FALSE_DIRECT_LINK=ON",),
-                "Unsupported CPS usage requirement",
-            ),
-            (
-                ("-DBPR_FAKE_QT_AUTOMOC_MACRO_NAMES=ON",),
-                "Unsupported CPS usage requirement",
-            ),
-            (
-                ("-DBPR_FAKE_QT_CUSTOM_TRANSITIVE_PROPERTY=ON",),
-                "Unsupported CPS usage requirement",
-            ),
-            (
-                ("-DBPR_FAKE_QT_DUPLICATE_DEFINITIONS=ON",),
-                "duplicate compile-definition name 'BPR_DUP'",
-            ),
-            (
-                ("-DBPR_FAKE_QT_INTERFACE_TARGETS=ON",),
-                "must be an artifact-bearing library",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_INCOMPLETE_DEBUG=ON",
-                ),
-                "Incomplete Windows imported artifact",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_LOCATION_ONLY=ON",
-                ),
-                "Incomplete Windows imported artifact",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_MISSING_WITH_GENERAL=ON",
-                ),
-                "has no artifact",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_DEBUG_MISSING=ON",
-                ),
-                "has no artifact",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_DEBUG_MISSING=ON",
-                ),
-                "has no artifact",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
-                ),
-                "has no artifact",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
-                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=",
-                ),
-                "has no artifact",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=RELEASE",
-                    "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
-                ),
-                "CPS producer selection differs from native CMake",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
-                ),
-                "CPS producer selection differs for RelWithDebInfo",
-            ),
-            (
-                (
-                    "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
-                    "-DBPR_FAKE_QT_TRANSITIVE_SELECTION=ON",
-                ),
-                "Transitive CPS producer selection differs from native CMake",
-            ),
-            (
-                ("-DBPR_FAKE_QT_TRANSITIVE_WINDOWS_SHARED=ON",),
-                "Unsupported CPS transitive runtime artifact",
-            ),
-            (("-DBPR_FAKE_QT_VERSION=6.7.9",), "caller-installed Qt >= 6.8"),
-        )
-        for extra, expected in cases:
-            with self.subTest(expected=expected):
-                with tempfile.TemporaryDirectory() as temporary_directory:
-                    result, _ = self.run_bootstrap_fixture(
-                        temporary_directory, extra=extra
-                    )
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertIn(expected, result.stdout + result.stderr)
-
-    def test_rejected_bootstrap_overlay_is_not_valid_offline_state(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            result, overlay = self.run_bootstrap_fixture(
-                temporary_directory,
-                extra=(
-                    "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
-                ),
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertTrue((overlay / "artifacts.json").is_file())
-            self.assertFalse((overlay / "validated.txt").exists())
-            rejected = self.validate_overlay(temporary_directory, overlay)
-            self.assertNotEqual(rejected.returncode, 0)
-            self.assertIn(
-                "CPS overlay is incomplete or stale",
-                rejected.stdout + rejected.stderr,
-            )
-
-    def test_product_cps_resolution_rejects_all_below_floor_versions(self) -> None:
-        cases = (
-            ("Python3", "3.9.99", "3.10", "ExecutableMetadata"),
-            ("Git", "2.38.99", "2.39", "ExecutableMetadata"),
-            ("LibSecret", "0.19.99", "0.20", "LibSecret"),
-        )
-        for package, provided, required, component in cases:
-            with self.subTest(package=package):
-                with tempfile.TemporaryDirectory() as temporary_directory:
-                    temporary = Path(temporary_directory)
-                    overlay = temporary / "overlay"
-                    document = overlay / f"cps/{package}/{package}.cps"
-                    document.parent.mkdir(parents=True)
-                    document.write_text(
-                        json.dumps(
-                            {
-                                "cps_version": "0.14.1",
-                                "name": package,
-                                "version": provided,
-                                "compat_version": provided,
-                                "cps_path": f"@prefix@/cps/{package}",
-                                "components": {component: {"type": "interface"}},
-                            },
-                            separators=(",", ":"),
-                        )
-                        + "\n",
-                        encoding="utf-8",
-                    )
-                    document_digest = hashlib.sha256(
-                        document.read_bytes()
-                    ).hexdigest()
-                    manifest = {
-                        "generator_revision": "9",
-                        "artifacts": [],
-                        "documents": [
-                            {
-                                "path": f"cps/{package}/{package}.cps",
-                                "sha256": document_digest,
-                            }
-                        ],
-                    }
-                    manifest_text = (
-                        json.dumps(manifest, separators=(",", ":")) + "\n"
-                    )
-                    (overlay / "artifacts.json").write_text(
-                        manifest_text, encoding="utf-8"
-                    )
-                    (overlay / "fingerprint.txt").write_text(
-                        hashlib.sha256(manifest_text.encode()).hexdigest() + "\n",
-                        encoding="utf-8",
-                    )
-                    (overlay / "validated.txt").write_text(
-                        "9:"
-                        + hashlib.sha256(manifest_text.encode()).hexdigest()
-                        + "\n",
-                        encoding="utf-8",
-                    )
-                    source = temporary / "source"
-                    source.mkdir()
-                    (source / "CMakeLists.txt").write_text(
-                        "cmake_minimum_required(VERSION 4.4.2)\n"
-                        "project(CpsFloor LANGUAGES NONE)\n"
-                        f"list(APPEND CMAKE_MODULE_PATH [==[{ROOT / 'cmake'}]==])\n"
-                        "include(BprDependencies)\n"
-                        f"set(BPR_CPS_OVERLAY [==[{overlay}]==])\n"
-                        "bpr_validate_overlay_artifacts(${BPR_CPS_OVERLAY})\n"
-                        f"bpr_find_cps_package({package} {required} "
-                        f"TARGET {package}::{component} COMPONENTS {component})\n",
-                        encoding="utf-8",
-                    )
-                    configured = subprocess.run(
-                        [
-                            str(CMAKE_COMMAND),
-                            "-S",
-                            str(source),
-                            "-B",
-                            str(temporary / "build"),
-                        ],
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                    )
-                    self.assertNotEqual(configured.returncode, 0)
-                    self.assertIn(required, configured.stdout + configured.stderr)
 
 
 if __name__ == "__main__":

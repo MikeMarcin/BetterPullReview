@@ -19,7 +19,7 @@ project(
 option(BPR_BUILD_QT "Build the Qt presentation adapter" ON)
 option(
     BPR_DEPENDENCY_OFFLINE
-    "Require cached CPM content and an existing valid CPS dependency overlay"
+    "Require all CPM-managed source dependencies to exist in CPM_SOURCE_CACHE"
     OFF
 )
 

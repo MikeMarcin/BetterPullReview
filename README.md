@@ -86,13 +86,13 @@ application, Python 3.10+ for tests, and Git 2.39+ for installed-Git contract
 tests. On Linux, libsecret 0.20+ development metadata is also required.
 Compatible newer installations are supported.
 
-Configuration generates a machine-local CPS overlay under the build tree.
-Only the isolated bootstrap reads producer CMake, Find-module, or `pkg-config`
-metadata; the product graph imports Qt, libsecret, Python, and Git exclusively
-from `.cps` files in that overlay. SQLite 3.53.4 is instead source-acquired
-through a verified, download-only CPM 0.43.1 provider and built as the existing
-`BetterPullReview::SQLite3` static target. Set standard producer hints such as
-`Qt6_ROOT`, `Python3_ROOT_DIR`, `Git_ROOT`, `CMAKE_PREFIX_PATH`,
+Dependency discovery is centralized before product targets are declared.
+Caller-installed Qt is resolved in package mode and is never fetched;
+Python, Git, and Linux libsecret use their standard CMake or `pkg-config`
+providers only when their selected graph needs them. SQLite 3.53.4 is
+source-acquired through a verified, download-only CPM 0.43.1 provider and
+built as the existing `BetterPullReview::SQLite3` static target. Set standard
+hints such as `Qt6_ROOT`, `Python3_ROOT_DIR`, `Git_ROOT`, `CMAKE_PREFIX_PATH`,
 `PKG_CONFIG_PATH`, and `CPM_SOURCE_CACHE` when discovery needs help.
 
 ```sh
@@ -117,8 +117,8 @@ ctest --preset core-only --output-on-failure
 
 Use `-DBUILD_TESTING=OFF` for a tests-disabled graph. The obsolete
 `BPR_BUILD_TESTS` cache variable is rejected with a migration diagnostic.
-`-DBPR_DEPENDENCY_OFFLINE=ON` permits no bootstrap downloads and requires both
-the existing CPS overlay and the selected `CPM_SOURCE_CACHE` content to verify.
+`-DBPR_DEPENDENCY_OFFLINE=ON` permits no CPM downloads and requires the pinned
+CPM script and SQLite source to exist in the selected `CPM_SOURCE_CACHE`.
 
 Run the application:
 

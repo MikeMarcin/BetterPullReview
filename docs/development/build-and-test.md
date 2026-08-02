@@ -15,40 +15,23 @@ Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
 
 ## Dependency boundary
 
-The root configures dependencies before product subdirectories. An isolated
-bootstrap may read caller-installed Qt CMake metadata, the CMake Python/Git
-find modules, and Linux `pkg-config` libsecret metadata. It flattens supported
-target usage requirements into a fingerprinted CPS 0.14.1 overlay at
-`build/<preset>/_bpr/cps-overlay`. The product graph searches only that prefix,
-requires every selected config path to end in `.cps`, and rejects package
-redirects, stale artifacts, unsupported generator expressions, and legacy
-fallbacks.
+The root resolves dependencies before product subdirectories. Qt uses the
+caller-installed CMake package and is never fetched. Python and Git use the
+standard CMake find modules, while Linux libsecret uses `pkg-config`; each is
+discovered only when its selected target graph needs it. The centralized
+provider requires `Qt6::*`, `Python3::Interpreter`, `Git::Git`, and
+`LibSecret::LibSecret` before product targets are declared, so adapters and
+tests never repeat package discovery.
 
-The bootstrap is forced to CMake 4.4.2 policies and validates its translation
-against CMake's native imported-target selection before the product configure
-continues. Single- and multi-configuration generators independently check
-Debug, Release, RelWithDebInfo, and MinSizeRel root locations, Windows linker
-artifacts, and every flattened imported artifact in the transitive closure.
-Ordered usage arrays retain multiplicity. A generated overlay receives its
-validation seal only after those checks pass; offline mode rejects an unsealed
-or mismatched overlay left by an interrupted or failed refresh.
-
-CPS has no native representation for Qt's custom `QT_MAJOR_VERSION` and
-`QT_COORD_TYPE` CMake compatibility properties. The bootstrap therefore
-records them in the authenticated inert manifest, and the resolver restores
-them on the CPS-imported Qt targets. CMake continues to reject a conflicting
-consumer even when that consumer is added late in the configure.
-
-CMake 4.4.2 does not import CPS components whose type is `executable`.
-Accordingly, the Python and Git CPS adapters expose one interface metadata
-component containing exactly one fingerprinted executable path. The strict
-resolver validates that path and materializes the conventional imported
-`Python3::Interpreter` or `Git::Git` executable target. The product graph still
-receives no Find-module variables or producer CMake package script.
+CPM.cmake 0.43.1 is the source-dependency provider. Its loader and SQLite
+archive are pinned by cryptographic digests. SQLite remains `DOWNLOAD_ONLY`,
+is validated by archive, source-file, version, and source-ID checks, and is
+then built locally as the static `BetterPullReview::SQLite3` target. CPM is not
+used to fetch Qt or to replace caller-installed platform packages.
 
 Producer hints are `Qt6_ROOT`/`Qt6_DIR`, `Python3_ROOT_DIR`, `Git_ROOT`,
-`CMAKE_PREFIX_PATH`, and `PKG_CONFIG_PATH`. They are passed only to the isolated
-bootstrap. `CPM_SOURCE_CACHE` selects the shared source cache used by the exact
+`CMAKE_PREFIX_PATH`, and `PKG_CONFIG_PATH`. `CPM_SOURCE_CACHE` selects the
+shared source cache used by the exact
 CPM 0.43.1 loader and SQLite 3.53.4 download-only provider. Presets use
 `build/.cpm-cache` so `dev` and `core-only` reuse the same verified source.
 
@@ -59,11 +42,10 @@ cache:
 cmake --preset dev -DBPR_DEPENDENCY_OFFLINE=ON
 ```
 
-Offline mode validates the CPS fingerprint, post-generation validation seal,
-and every recorded artifact before package resolution, validates the pinned
-CPM script, and uses only existing SQLite cache content. A missing overlay,
-CPM script, archive extraction, or changed artifact is fatal before any
-download is attempted.
+Offline mode validates the pinned CPM script and uses only existing SQLite
+cache content. A missing CPM script, archive extraction, or changed source is
+fatal before any download is attempted. Caller-installed package discovery is
+local and remains available in offline mode.
 
 ## Presets
 

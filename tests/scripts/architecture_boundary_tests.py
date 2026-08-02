@@ -17,11 +17,13 @@ add_subdirectory(git)
 """
 
 DEPENDENCIES_TARGET = """\
+function(bpr_configure_dependencies)
 find_package(Threads REQUIRED)
-bpr_find_cps_package(Qt6 6.8)
-bpr_find_cps_package(LibSecret 0.20)
-bpr_find_cps_package(Python3 3.10)
-bpr_find_cps_package(Git 2.39)
+target_link_libraries(example PRIVATE Qt6::Core)
+target_link_libraries(example PRIVATE LibSecret::LibSecret)
+target_link_libraries(example PRIVATE Python3::Interpreter)
+target_link_libraries(example PRIVATE Git::Git)
+endfunction()
 """
 
 GIT_TARGET = (

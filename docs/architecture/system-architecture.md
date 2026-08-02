@@ -29,7 +29,7 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
 - C++23
 - Qt 6 Widgets, Core, Gui, Network, and required platform integration
 - CMake 4.4.2 and Ninja
-- Strict generated CPS imports for prebuilt Qt, libsecret, Python, and Git
+- Centralized package discovery for prebuilt Qt, libsecret, Python, and Git
 - SQLite 3.53.4 through a verified CPM-acquired, directly linked C API
 - Installed Git executable through `QProcess`
 - Native HTTPS as the sole milestone-one production GitHub authentication
@@ -115,21 +115,17 @@ The live repository may use different target names, but it must enforce these ru
 - In-process communication uses typed C++ calls and records. JSON/RPC is added only at a real process boundary such as an agent protocol.
 
 Build dependency ownership is centralized before these product targets are
-declared. Only the isolated bootstrap may read producer CMake packages,
-Find-modules, or Linux `pkg-config` metadata. It writes a fingerprinted,
-machine-local CPS overlay under the build tree. The product graph searches
-that prefix with default paths disabled, admits only `.cps` configs, and links
-the resulting `Qt6::*`, `LibSecret::LibSecret`, `Python3::Interpreter`, and
-`Git::Git` targets. A generator-independent native-selection matrix validates
-all declared configurations, Windows runtime/linker artifact pairs, and
-flattened transitive imports before sealing the overlay for online or offline
-use. Ordered usage requirements retain link multiplicity. Qt's two
-CMake-specific compatibility constraints travel in the authenticated inert
-manifest and are restored on the CPS-imported targets.
+declared. Caller-installed Qt is required in CMake package mode and is never
+fetched; Python, Git, and Linux libsecret use the standard CMake or
+`pkg-config` providers only when the selected graph needs them. The centralized
+provider verifies the resulting `Qt6::*`, `LibSecret::LibSecret`,
+`Python3::Interpreter`, and `Git::Git` targets before product subdirectories
+are evaluated. CPM owns verified source acquisition rather than prebuilt
+platform-package discovery.
 `Threads::Threads` and native frameworks remain explicit toolchain/platform
-capabilities. SQLite is the deliberate exception to CPS: verified source
-becomes the first-party static `BetterPullReview::SQLite3` target and is never
-replaced by a system library.
+capabilities. SQLite is download-only CPM source that becomes the first-party
+static `BetterPullReview::SQLite3` target and is never replaced by a system
+library.
 
 ## Repository shape
 
