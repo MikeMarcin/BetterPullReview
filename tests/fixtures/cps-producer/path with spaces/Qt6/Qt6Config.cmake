@@ -85,6 +85,18 @@ foreach(component IN ITEMS Core Gui Widgets Network)
                 IMPORTED_IMPLIB_DEBUG ""
         )
     endif()
+    if(BPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_UNSET)
+        set_property(
+            TARGET "Qt6::${component}"
+            PROPERTY IMPORTED_IMPLIB_DEBUG
+        )
+    endif()
+    if(BPR_FAKE_QT_WINDOWS_DEBUG_LOCATION_UNSET)
+        set_property(
+            TARGET "Qt6::${component}"
+            PROPERTY IMPORTED_LOCATION_DEBUG
+        )
+    endif()
     if(BPR_FAKE_QT_WINDOWS_IMPLIB_ONLY)
         set_target_properties(
             "Qt6::${component}"

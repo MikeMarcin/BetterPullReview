@@ -6,7 +6,7 @@ if(NOT DEFINED BPR_CPS_OVERLAY OR BPR_CPS_OVERLAY STREQUAL "")
     message(FATAL_ERROR "BPR_CPS_OVERLAY is required")
 endif()
 
-set(BPR_CPS_GENERATOR_REVISION "3")
+set(BPR_CPS_GENERATOR_REVISION "4")
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -78,6 +78,49 @@ function(bpr_target_property_list output target property)
         set(value "")
     endif()
     set(${output} "${value}" PARENT_SCOPE)
+endfunction()
+
+function(bpr_target_property output output_is_set target property)
+    get_property(property_is_set TARGET "${target}" PROPERTY "${property}" SET)
+    if(property_is_set)
+        get_target_property(value "${target}" "${property}")
+    else()
+        set(value "")
+    endif()
+    set(${output} "${value}" PARENT_SCOPE)
+    set(${output_is_set} "${property_is_set}" PARENT_SCOPE)
+endfunction()
+
+function(
+    bpr_target_config_artifacts
+    output_location
+    output_link_location
+    target
+    configuration
+    general_location
+    general_link_location
+)
+    string(TOUPPER "${configuration}" config_upper)
+    bpr_target_property(
+        location
+        location_is_set
+        "${target}"
+        "IMPORTED_LOCATION_${config_upper}"
+    )
+    bpr_target_property(
+        link_location
+        link_location_is_set
+        "${target}"
+        "IMPORTED_IMPLIB_${config_upper}"
+    )
+    if(NOT location_is_set)
+        set(location "${general_location}")
+    endif()
+    if(NOT link_location_is_set)
+        set(link_location "${general_link_location}")
+    endif()
+    set(${output_location} "${location}" PARENT_SCOPE)
+    set(${output_link_location} "${link_location}" PARENT_SCOPE)
 endfunction()
 
 function(bpr_validate_usage_property_coverage target)
@@ -191,7 +234,16 @@ function(bpr_target_location output_location output_link_location target configu
     )
     bpr_target_property_list(general_location "${target}" IMPORTED_LOCATION)
     bpr_target_property_list(general_implib "${target}" IMPORTED_IMPLIB)
+    set(general_artifact_available FALSE)
+    if(
+        NOT "${general_location}" STREQUAL ""
+        OR NOT "${general_implib}" STREQUAL ""
+    )
+        set(general_artifact_available TRUE)
+    endif()
 
+    # Mirror CMP0200 NEW: select exactly one authoritative producer
+    # configuration, then resolve each artifact property independently.
     set(selection_found FALSE)
     set(selected_configless FALSE)
     set(selected_config "")
@@ -203,15 +255,19 @@ function(bpr_target_location output_location output_link_location target configu
         )
         list(LENGTH mapped_configs mapped_config_count)
         if(mapped_config_count EQUAL 0)
-            set(selection_found TRUE)
-            set(selected_configless TRUE)
+            if(NOT has_imported_configs AND general_artifact_available)
+                set(selection_found TRUE)
+                set(selected_configless TRUE)
+            endif()
         else()
             math(EXPR mapped_config_last "${mapped_config_count} - 1")
             foreach(mapped_config_index RANGE 0 ${mapped_config_last})
                 list(GET mapped_configs ${mapped_config_index} mapped_config)
                 if(mapped_config STREQUAL "")
-                    set(selection_found TRUE)
-                    set(selected_configless TRUE)
+                    if(NOT has_imported_configs AND general_artifact_available)
+                        set(selection_found TRUE)
+                        set(selected_configless TRUE)
+                    endif()
                 elseif(has_imported_configs)
                     string(TOUPPER "${mapped_config}" mapped_config_upper)
                     foreach(imported_config IN LISTS imported_configs)
@@ -223,22 +279,17 @@ function(bpr_target_location output_location output_link_location target configu
                         endif()
                     endforeach()
                 else()
-                    string(TOUPPER "${mapped_config}" mapped_config_upper)
-                    bpr_target_property_list(
+                    bpr_target_config_artifacts(
                         mapped_location
-                        "${target}"
-                        "IMPORTED_LOCATION_${mapped_config_upper}"
-                    )
-                    bpr_target_property_list(
                         mapped_implib
                         "${target}"
-                        "IMPORTED_IMPLIB_${mapped_config_upper}"
+                        "${mapped_config}"
+                        "${general_location}"
+                        "${general_implib}"
                     )
                     if(
                         NOT "${mapped_location}" STREQUAL ""
                         OR NOT "${mapped_implib}" STREQUAL ""
-                        OR NOT "${general_location}" STREQUAL ""
-                        OR NOT "${general_implib}" STREQUAL ""
                     )
                         set(selection_found TRUE)
                         set(selected_config "${mapped_config}")
@@ -263,21 +314,17 @@ function(bpr_target_location output_location output_link_location target configu
             set(selection_found TRUE)
         endif()
     else()
-        bpr_target_property_list(
+        bpr_target_config_artifacts(
             requested_location
-            "${target}"
-            "IMPORTED_LOCATION_${config_upper}"
-        )
-        bpr_target_property_list(
             requested_implib
             "${target}"
-            "IMPORTED_IMPLIB_${config_upper}"
+            "${configuration}"
+            "${general_location}"
+            "${general_implib}"
         )
         if(
             NOT "${requested_location}" STREQUAL ""
             OR NOT "${requested_implib}" STREQUAL ""
-            OR NOT "${general_location}" STREQUAL ""
-            OR NOT "${general_implib}" STREQUAL ""
         )
             set(selection_found TRUE)
             set(selected_config "${configuration}")
@@ -287,23 +334,15 @@ function(bpr_target_location output_location output_link_location target configu
     set(location "")
     set(link_location "")
     if(selection_found AND NOT selected_configless)
-        string(TOUPPER "${selected_config}" selected_config_upper)
-        bpr_target_property_list(
+        bpr_target_config_artifacts(
             location
-            "${target}"
-            "IMPORTED_LOCATION_${selected_config_upper}"
-        )
-        bpr_target_property_list(
             link_location
             "${target}"
-            "IMPORTED_IMPLIB_${selected_config_upper}"
+            "${selected_config}"
+            "${general_location}"
+            "${general_implib}"
         )
-    endif()
-    if(
-        selection_found
-        AND "${location}" STREQUAL ""
-        AND "${link_location}" STREQUAL ""
-    )
+    elseif(selection_found)
         set(location "${general_location}")
         set(link_location "${general_implib}")
     endif()

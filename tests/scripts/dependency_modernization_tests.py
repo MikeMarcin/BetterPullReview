@@ -179,7 +179,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertTrue(manifest.is_file())
         self.assertEqual(
             json.loads(manifest.read_text(encoding="utf-8"))["generator_revision"],
-            "3",
+            "4",
         )
         self.assertFalse(list(overlay.rglob("*.cmake")))
 
@@ -510,13 +510,6 @@ class DependencyModernizationTests(unittest.TestCase):
 
         general_selection_cases = (
             (
-                "empty-map",
-                (
-                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
-                ),
-            ),
-            (
                 "empty-map-no-configurations",
                 (
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
@@ -582,6 +575,49 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertTrue(
                 debug["link_location"].endswith("windows-release.lib")
             )
+
+        mixed_general_artifact_cases = (
+            (
+                "configuration-location",
+                "-DBPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_UNSET=ON",
+                "windows-debug.dll",
+                "windows-release.lib",
+            ),
+            (
+                "configuration-import-library",
+                "-DBPR_FAKE_QT_WINDOWS_DEBUG_LOCATION_UNSET=ON",
+                "windows-release.dll",
+                "windows-debug.lib",
+            ),
+        )
+        for name, property_option, location, link_location in (
+            mixed_general_artifact_cases
+        ):
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    result, overlay = self.run_bootstrap_fixture(
+                        temporary_directory,
+                        extra=(
+                            "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                            "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
+                            property_option,
+                        ),
+                    )
+                    self.assertEqual(
+                        result.returncode, 0, result.stdout + result.stderr
+                    )
+                    document = json.loads(
+                        (overlay / "cps/Qt6/Qt6.cps").read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                    debug = document["components"]["Core"]["configurations"][
+                        "debug"
+                    ]
+                    self.assertTrue(debug["location"].endswith(location))
+                    self.assertTrue(
+                        debug["link_location"].endswith(link_location)
+                    )
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             result, overlay = self.run_bootstrap_fixture(
@@ -843,6 +879,21 @@ class DependencyModernizationTests(unittest.TestCase):
                 ),
                 "has no artifact",
             ),
+            (
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_DEBUG_MISSING=ON",
+                ),
+                "has no artifact",
+            ),
+            (
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
+                ),
+                "has no artifact",
+            ),
             (("-DBPR_FAKE_QT_VERSION=6.7.9",), "caller-installed Qt >= 6.8"),
         )
         for extra, expected in cases:
@@ -886,7 +937,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         document.read_bytes()
                     ).hexdigest()
                     manifest = {
-                        "generator_revision": "3",
+                        "generator_revision": "4",
                         "artifacts": [],
                         "documents": [
                             {
