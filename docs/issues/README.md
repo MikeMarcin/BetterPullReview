@@ -219,9 +219,11 @@ whole-segment move metadata, mechanical changed-run groups, and public
 retained-result validation. Done BPR-0074 supplies the one exact/similar/span/
 boundary mapping source, separate move correspondence, canonical group
 projection and navigation order, semantic selection, fail-closed detail
-inputs, and retained exact-content validation. In-progress BPR-0075 owns exact
-host execution, cache identity, cancellation, and stale-result rejection. Backlog
-BPR-0076 through BPR-0078 own Qt measured max-extent geometry, the shared
+inputs, and retained exact-content validation. Done BPR-0075 supplies exact
+request/generation acceptance, byte-bounded immutable blob materialization,
+separate effect/decision lanes, bounded exact caching, cancellation/shutdown,
+fixed-snapshot reentrant feedback, and deterministic stale-result rejection.
+Backlog BPR-0076 through BPR-0078 own Qt measured max-extent geometry, the shared
 comparison controller/scrollbar, and the custom-painted `DiffLinkMap`.
 BPR-0079 composes the real interaction path; BPR-0080 supplies scale evidence,
 bounded/indexed move discovery, and moved sub-block refinement;

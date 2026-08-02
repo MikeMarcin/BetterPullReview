@@ -18,6 +18,15 @@ focus, and accessibility.
 A shell widget, static screenshot, isolated painter, or view-model-only test
 does not satisfy this card.
 
+The BPR-0075 host seam deliberately stops at an exact blob-materialization
+port. This card must select and compose the real installed-Git/cache path
+without opening a competing lifetime-exclusive cache session. It must connect
+epoch/file/options changes and repository-cache deletion to exact diff-host
+invalidation, retain the configured materialization ceiling through the real
+adapter, and prove that shutdown makes destroyed Qt state unreachable after
+the host and cache actor quiesce. Fake-port host evidence is not evidence for
+that selected application path.
+
 ## Required direct evidence
 
 Drive wheel input over left and right panes and divider; insertion/deletion

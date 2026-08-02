@@ -9,8 +9,11 @@ record and structural-validation foundation. BPR-0073 now supplies the public
 bounded deterministic text-computation path and directly closes its core-only
 portions of D-01 through D-05 and D-08. BPR-0074 supplies the one public
 mapping/group/navigation/selection/detail projection and closes the core-only
-portions of D-05 through D-08 and I-01. Host, scale, Qt, and all rendered
-interaction claims remain open on later cards. RFC-BPR-0003 retains
+portions of D-05 through D-08 and I-01. BPR-0075 supplies the bounded
+core/application request, materialization, cache, cancellation, shutdown, and
+stale-acceptance seam and closes H-01, H-02, and the non-Qt portions of H-03
+and H-04. Scale, Qt, installed-Git composition, and all rendered interaction
+claims remain open on later cards. RFC-BPR-0003 retains
 explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
 until its dependency can close.
 
@@ -94,8 +97,45 @@ moves, fail-closed mutations, and a generated small-file/options corpus.
 
 BPR-0080 explicitly retains indexing and bounded high-frequency semantic
 lookup work. BPR-0074 does not claim Qt geometry, scrolling, ribbon painting,
-host stale-result rejection, or composed visual agreement; those direct
-surfaces remain on BPR-0075 through BPR-0080.
+or composed visual agreement; those direct surfaces remain on BPR-0076 through
+BPR-0080.
+
+## BPR-0075 bounded-host evidence
+
+The public `diff_transition` core boundary owns compact exact request,
+application-session, generation, full comparison-key, cancellation,
+invalidation, and acceptance state. Every newer request first revokes older
+pending work, including when the replacement key, options, or algorithm is
+invalid. The application host alone materializes blobs, owns immutable worker
+bytes, invokes the fixed supported algorithm revision, validates the exact
+key/options/digest/result, and returns typed completions to a separate
+serialized decision lane.
+
+The exact cache includes full authority, repository, pull request, both
+anchors, both optional blobs, stable file identity, option digest, and
+algorithm revision. Jobs, entries, retained capacity bytes, compute limits,
+and pre-allocation materialization requests are bounded. Cache hits remain
+serialized; authority invalidation clears core, cache, and presentation state.
+Fixed-snapshot feedback prevents projection callbacks from nesting delivery or
+monopolizing one application turn, and the lifetime gate rejects terminals
+after host destruction.
+
+Validated binary and unavailable computation records publish with their
+canonical content state and diagnostic rather than being replaced by fake
+text or discarded. Transient port, missing-object, generated-policy,
+cancellation, and host failures remain exact typed failures. The host checks
+for stop before acquisition, between sides, and after pure computation; the
+architecture permits that cooperative cancellation to suppress publication
+without adding nondeterministic observation to the functional core.
+
+The deterministic `core_diff_transition` and `application_diff_host` targets
+cover cache hit/miss and identity collisions, reordered and same-key
+generations, malformed replacement requests, cancellation stages, shutdown,
+pending-effect destruction, fixed-snapshot reentry, byte/job/cache bounds,
+absent-versus-empty sides, nontext results, typed port/compute failures,
+authority invalidation, and projection exceptions. The real installed-Git
+blob materializer/cache-session arbitration and destroyed-Qt composition remain
+explicit BPR-0079 work; BPR-0075 makes no selected-application-path claim.
 
 ## Direct claim matrix
 

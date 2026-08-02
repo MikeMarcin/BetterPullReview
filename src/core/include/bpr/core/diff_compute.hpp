@@ -12,6 +12,9 @@
 
 namespace bpr::core
 {
+inline constexpr auto supported_diff_algorithm_revision =
+    diff_algorithm_revision{1U};
+
 enum class text_line_ending : std::uint8_t
 {
     none,

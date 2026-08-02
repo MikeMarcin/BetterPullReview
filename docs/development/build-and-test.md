@@ -33,6 +33,20 @@ ctest --preset core-only --output-on-failure
 
 Both presets use out-of-source directories under ignored `build/`.
 
+Run the RFC-BPR-0004 core/host diff seam and its Qt-free architecture checks
+with:
+
+```sh
+cmake --build --preset core-only --target \
+  better_pull_review_diff_transition_core_tests \
+  better_pull_review_application_diff_host_tests
+ctest --preset core-only --output-on-failure \
+  -R '^(core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract|binary_dependency_audit_contract|core_diff_transition|application_diff_host)$'
+```
+
+`application_diff_host` uses separate deterministic effect and decision lanes;
+it does not contact GitHub, launch Git, or require Qt.
+
 Windows developers and release operators use the conditional
 multi-configuration preset that selects the Visual Studio 2022 x64 generator:
 

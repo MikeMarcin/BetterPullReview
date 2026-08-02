@@ -239,6 +239,30 @@ Completion after widget destruction is harmless.
 
 Same path and line count but different blobs/options must miss.
 
+### D7. Bounded host execution corpus
+
+The checked-in `core_diff_transition` and `application_diff_host` targets
+supply the BPR-0075 core/application evidence for D1-D6:
+
+- exact request, session, generation, authority, repository, pull request,
+  left/right anchor, file, left/right blob, option-digest, and supported-
+  algorithm identity;
+- fixed-snapshot serialized feedback, same-key supersession, reordered late
+  completion, cancellation before acquisition and after computation, pending-
+  effect destruction, and quiescent shutdown;
+- a blob-port byte ceiling before allocation, immutable worker-owned bytes,
+  bounded jobs/cache entries/cache bytes, deterministic eviction, and exact
+  authority invalidation;
+- validated text, binary, and unavailable results plus typed missing,
+  generated-policy, cancellation, materialization, invariant, and host
+  failures;
+- exact cache hits without blob acquisition and collision misses without
+  path-only or active-view identity.
+
+The target uses a deterministic capability port and separate manual effect and
+decision executors. The real installed-Git/cache-session adapter and Qt
+composition remain BPR-0079 evidence.
+
 ## E. Scale fixtures
 
 ### E1. Large mostly-equal file

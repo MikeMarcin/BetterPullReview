@@ -4,6 +4,7 @@ add_library(
         src/diff_compute.cpp
         src/diff_model.cpp
         src/diff_semantics.cpp
+        src/diff_transition.cpp
         src/epoch_model.cpp
         src/epoch_transition.cpp
         src/github_model.cpp
