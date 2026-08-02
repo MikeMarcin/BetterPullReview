@@ -1,7 +1,7 @@
 ---
 id: BPR-0084
 title: Modernize CMake, CPS dependencies, and SQLite acquisition
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0004
 depends_on: [BPR-0075]
 ---
