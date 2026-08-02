@@ -99,8 +99,8 @@ Use this default decision table.
 | Small, single-surface, directly verifiable change | Primary agent only |
 | Exact locating, inventory, command execution, schema/drift check, or log condensation | One `rfc-utility` |
 | Broad ownership, public execution-path, build-selection, verification, documentation-impact, or root-cause analysis | One `rfc-scout` |
-| Two genuinely independent read-only questions | Up to two utility/scout runs concurrently |
-| Clear current issue-card slice | Optional single `rfc-worker`; primary agent does not edit concurrently |
+| Two genuinely independent semantic read-only questions | Up to two direct scout/reviewer lanes; nested utilities may support them within the five-lane cap |
+| Clear current issue-card slice | Optional single `rfc-worker`; primary agent does not edit concurrently; worker should offload prescribed tests or inventories to utility lanes when useful |
 | Substantial non-critical public behavior, provider, diff, UI, persistence, package, integration, migration, or application RFC | One `rfc-reviewer` before status closeout |
 | Capability-critical RFC under `references/model-routing.md` | One `rfc-critical-reviewer` instead of the ordinary reviewer |
 | Missing native agent capability | Execute the same role serially in the primary agent |
@@ -112,13 +112,21 @@ A second read-only agent must own a different question. Do not ask two agents to
 - Preserve the skill's one-RFC-at-a-time and one-issue-slice-at-a-time discipline.
 - Before every spawn, restart, or follow-up task, recursively count every
   nonterminal descendant, including initializing or status-unknown agents, and
-  classify its role. Do not reuse a slot until the prior agent has left
-  Working/nonterminal status.
-- Use either a reader wave of at most two independent read-only agents or one
-  writing agent. Never mix the two modes.
-- Permit at most one writing agent, including the primary agent, at any moment;
-  the primary does not edit while a writing child runs.
-- Do not allow delegated agents to spawn additional agents. The generated native definitions remove or disable nested delegation where the runtime supports it.
+  classify its role. Across the complete descendant tree, schedule at most five
+  concurrent child lanes, excluding the primary agent. Do not reuse a lane
+  until the prior agent has left Working/nonterminal status.
+- Permit at most one writing agent across the complete tree. The primary does
+  not edit while a writing child runs. Read-only work may coexist only when it
+  cannot overlap or redirect the settled writer assignment.
+- Permit scouts, workers, ordinary reviewers, and critical reviewers to spawn
+  only read-only `rfc-utility` descendants for exact locating, inventories,
+  prescribed commands/tests, schema or generated drift checks, and log
+  condensation. Each of those roles has a runtime-local nested cap of two,
+  while the recursive workflow cap of five remains authoritative.
+- A nested utility must receive the exact command or mechanical question,
+  cannot spawn descendants, and cannot decide architecture, root cause,
+  implementation, verification sufficiency, or closeout. Its parent remains
+  responsible for interpreting and reporting the evidence.
 - Do not assume worktree isolation is safe or based on the current parent `HEAD`. Use it only after the active runtime proves the exact base and integration behavior needed for the current task.
 - Preserve unrelated user changes. A writing worker must stop and report when its required edit overlaps unexplained existing modifications.
 - Never put credentials, tokens, cookies, secret-bearing logs, or unnecessary source bodies into a delegation message. A delegated agent may inspect the repository under the same local trust boundary, but its result should cite paths and symbols rather than reproduce private source.
@@ -144,7 +152,9 @@ For a reviewer, identify the immutable base and final head. For a worker,
 enumerate the exclusive allowed files or path scopes and explicitly state that
 it must stop if those scopes are insufficient or overlap unexplained changes.
 Also state that it must not commit, move issue cards, change
-`docs/issues/NEXT_ID`, or change RFC status.
+`docs/issues/NEXT_ID`, or change RFC status. Tell scouts, workers, and reviewers
+whether nested utility work is expected, and remind them that utilities are
+read-only, mechanical, childless, and counted in the recursive five-lane cap.
 
 ## Result Contract
 
@@ -164,7 +174,7 @@ Require the compact role-specific result format defined in `config/roles.json`. 
 - Keep deterministic searching, filtering, schema validation, and command execution in scripts when the script already exists; the utility role is for orchestrating or condensing such work, not replacing deterministic tools.
 - Keep the primary integrator and implementation worker at the deep route by default. Do not opt either down merely because an issue card is bounded.
 - Do not silently downgrade ordinary or critical review to save tokens.
-- Stop after one useful delegation round unless new evidence exposes a distinct unresolved question.
+- Stop after one useful semantic delegation round unless new evidence exposes a distinct unresolved question. Use utility lanes as needed for prescribed mechanical evidence without duplicating commands.
 - Prefer one appropriately strong independent reviewer over several same-prompt reviewers.
 - Measure success by correctly verified closeout and avoided rework, not by lowest raw token count.
 

@@ -1,6 +1,6 @@
 # Merge this table into the BetterPullReview repository's .codex/config.toml.
-# Supported global ceiling. The skill separately enforces either two readers
-# or one writer, never both, after a recursive nonterminal-agent audit.
+# Supported runtime ceiling. The skill separately caps its recursively active
+# child lanes at five and permits at most one writer.
 [agents]
 enabled = true
-max_concurrent_threads_per_session = 2
+max_concurrent_threads_per_session = 10

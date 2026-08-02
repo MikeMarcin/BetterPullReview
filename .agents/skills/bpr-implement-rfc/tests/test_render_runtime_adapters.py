@@ -45,19 +45,24 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             scout = tomllib.loads((root / ".codex/agents/rfc-scout.toml").read_text())
             self.assertEqual(scout["model"], scout_route["model"])
             self.assertEqual(scout["model_reasoning_effort"], scout_route["effort"])
+            self.assertTrue(scout["agents"]["enabled"])
+            self.assertEqual(scout["agents"]["max_concurrent_threads_per_session"], 2)
 
             worker_route = self.expected_route("rfc-worker", "codex")
             worker = tomllib.loads((root / ".codex/agents/rfc-worker.toml").read_text())
             self.assertEqual(worker["model"], worker_route["model"])
             self.assertEqual(worker["model_reasoning_effort"], "xhigh")
             self.assertEqual(worker["sandbox_mode"], "workspace-write")
-            self.assertFalse(worker["agents"]["enabled"])
+            self.assertTrue(worker["agents"]["enabled"])
+            self.assertEqual(worker["agents"]["max_concurrent_threads_per_session"], 2)
             self.assertIn("explicit exclusive allowed files", worker["developer_instructions"])
+            self.assertIn("prescribed test/build matrices", worker["developer_instructions"])
 
             reviewer_route = self.expected_route("rfc-reviewer", "codex")
             reviewer = tomllib.loads((root / ".codex/agents/rfc-reviewer.toml").read_text())
             self.assertEqual(reviewer["model"], reviewer_route["model"])
             self.assertEqual(reviewer["model_reasoning_effort"], "xhigh")
+            self.assertTrue(reviewer["agents"]["enabled"])
 
             critical_route = self.expected_route("rfc-critical-reviewer", "codex")
             critical = tomllib.loads(
@@ -65,6 +70,7 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             )
             self.assertEqual(critical["model"], critical_route["model"])
             self.assertEqual(critical["model_reasoning_effort"], "max")
+            self.assertTrue(critical["agents"]["enabled"])
 
             claude_utility_route = self.expected_route("rfc-utility", "claude")
             claude_utility = (root / ".claude/agents/rfc-utility.md").read_text()
@@ -72,6 +78,15 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             self.assertIn("permissionMode: plan", claude_utility)
             self.assertNotIn("tools: Agent", claude_utility)
             self.assertNotIn("\neffort:", claude_utility)
+
+            claude_scout = (root / ".claude/agents/rfc-scout.md").read_text()
+            self.assertIn("tools: Read, Grep, Glob, Bash, Agent", claude_scout)
+
+            claude_worker = (root / ".claude/agents/rfc-worker.md").read_text()
+            self.assertIn(
+                "tools: Read, Grep, Glob, Bash, Edit, Write, Skill, Agent",
+                claude_worker,
+            )
 
             claude_critical_route = self.expected_route("rfc-critical-reviewer", "claude")
             claude_critical = (root / ".claude/agents/rfc-critical-reviewer.md").read_text()
@@ -166,8 +181,34 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
         self.assertIn("every modified file", worker)
         self.assertIn("docs/issues/NEXT_ID", worker)
         self.assertIn("live GitHub or GHES pull request", worker)
+        self.assertIn("stop at five workflow child lanes", worker)
+        self.assertIn("only read-only rfc-utility descendants", worker)
         self.assertIn("credentials and authentication authority", critical)
         self.assertIn("Git cache and SQLite durability", critical)
+        self.assertIn("only read-only rfc-utility descendants", critical)
+
+    def test_skill_and_config_keep_runtime_headroom_and_workflow_caps(self) -> None:
+        skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
+        fragment = tomllib.loads(
+            (SKILL_DIR / "config/codex-config.fragment.toml").read_text(
+                encoding="utf-8"
+            )
+        )
+        roles = json.loads(
+            (SKILL_DIR / "config/roles.json").read_text(encoding="utf-8")
+        )["roles"]
+
+        self.assertEqual(fragment["agents"]["max_concurrent_threads_per_session"], 10)
+        self.assertIn("no more than five concurrent child lanes", skill)
+        self.assertIn("at most one writer", skill)
+        self.assertFalse(roles["rfc-utility"]["nested_utility"])
+        for role in (
+            "rfc-scout",
+            "rfc-worker",
+            "rfc-reviewer",
+            "rfc-critical-reviewer",
+        ):
+            self.assertTrue(roles[role]["nested_utility"])
 
 
 if __name__ == "__main__":

@@ -10,16 +10,21 @@ Generated Codex agents:
 
 - use `sandbox_mode = "read-only"` for utility, scout, and reviewer roles;
 - use `sandbox_mode = "workspace-write"` for the bounded worker;
-- set `[agents] enabled = false` inside every child to prevent recursive delegation;
+- keep multi-agent tools disabled inside `rfc-utility`;
+- enable at most two nested threads inside scouts, workers, and reviewers, whose
+  role instructions permit only read-only `rfc-utility` descendants;
 - select models from `config/routing.json`.
 
 Important limitation: live parent permission and sandbox overrides can be reapplied to children. Do not rely on a generated read-only sandbox while running the parent with an override that widens it. Inspect `git status --short` after read-only work and reject unexpected writes.
 
-Merge `config/codex-config.fragment.toml` into `.codex/config.toml` to cap the default policy at two concurrent child threads.
-That supported numeric cap cannot distinguish reader and writer roles. The
-canonical skill therefore enforces the stricter mutually exclusive reader-wave
-or single-writer policy and the recursive nonterminal audit; do not invent an
-unrecognized configuration key for role mixing.
+Merge `config/codex-config.fragment.toml` into `.codex/config.toml` to set the
+supported runtime ceiling to ten concurrent spawned threads, excluding the
+primary. The skill deliberately schedules at most five nonterminal child lanes
+across the recursive workflow and permits at most one writer. The remaining
+runtime capacity is headroom for nested utility and tool behavior, not
+permission for uncontrolled fan-out. The supported numeric cap cannot enforce
+role or ownership policy, so keep those rules in the canonical skill rather
+than inventing configuration keys.
 
 ## Claude Code
 
@@ -29,8 +34,11 @@ Generated Claude agents:
 
 - use `permissionMode: plan` plus a read-focused tool allowlist for utility, scout, and reviewer roles;
 - use `permissionMode: acceptEdits` for the bounded worker;
-- omit the `Agent` tool so children cannot recursively delegate;
-- leave foreground/background selection to the parent so one review can block while two independent scouts can run concurrently;
+- omit the `Agent` tool from `rfc-utility`, and expose it to scouts, workers,
+  and reviewers whose generated instructions permit only childless read-only
+  utility descendants;
+- leave foreground/background selection to the parent while the portable skill
+  enforces the recursive five-lane and single-writer rules;
 - select stable Anthropic model IDs from `config/routing.json`.
 
 Parent permission modes can take precedence over a subagent's `permissionMode`. Before relying on read-only scouting or review, keep the parent in a permission mode that does not widen the child, and inspect `git status --short` after the run. The read-focused agents retain Bash so they can inspect Git state and execute verification; unexpected writes invalidate the result.

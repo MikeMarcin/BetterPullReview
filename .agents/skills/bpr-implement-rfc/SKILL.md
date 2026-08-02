@@ -36,9 +36,9 @@ For any nontrivial RFC, read `references/delegated-execution.md` before deciding
 1. Keep the primary agent as the sole RFC integrator. It owns RFC interpretation, `RFC_BASE_SHA`, issue-ID allocation, `docs/issues/NEXT_ID`, board transitions, task order, staging, commits, verification sufficiency, RFC status, and `Auto-Verified` closeout.
 2. Delegate only bounded work that replaces primary-agent exploration, isolates noisy output, adds an independent quality check, or safely shortens elapsed time. Do not create duplicate same-prompt agents merely to obtain a vote.
 3. Prefer the generated `rfc-utility` for exact locating, inventory, prescribed command execution, schema or drift checks, and log condensation; `rfc-scout` for semantic ownership, execution-path, build-selection, verification-surface, or root-cause analysis; `rfc-worker` for one already-defined current issue slice; `rfc-reviewer` for a fresh ordinary closeout review; and `rfc-critical-reviewer` for a capability-critical closeout review.
-4. Before every spawn, restart, or follow-up task, recursively inventory every nonterminal descendant and classify it as read-only or writing. Treat an unknown or initializing descendant as occupying a slot until it finishes or its role is proven. Do not open a replacement slot until the prior agent has left Working/nonterminal status.
-5. Use one exclusive delegation mode at a time: either at most two genuinely independent read-only agents or exactly one writing agent, never both. While a writing agent runs, the primary agent must not edit. While read-only agents run, the primary may integrate only when no writer can overlap. The primary reviews all changes, reproduces focused verification, updates tracker state, and commits.
-6. Every writing delegation must enumerate explicit allowed files or path scopes. A worker must stop before editing if ownership is absent, overlaps unexplained changes, or would require work outside that scope. Delegated agents must not spawn descendants.
+4. Before every spawn, restart, or follow-up task, recursively inventory every nonterminal descendant and classify it as read-only or writing. Treat an unknown or initializing descendant as occupying a lane until it finishes or its role is proven. Schedule no more than five concurrent child lanes across the complete descendant tree, excluding the primary agent; the repository Codex ceiling is intentionally higher to leave runtime headroom.
+5. Permit at most one writer across the complete tree. Every writing delegation must enumerate explicit allowed files or path scopes, and a worker must stop before editing if ownership is absent, overlaps unexplained changes, or would require work outside that scope. The primary agent does not edit while a writing child runs; other read-only lanes may continue only when they cannot overlap or redirect the settled writing assignment. The primary reviews all changes, reproduces focused verification, updates tracker state, and commits.
+6. Permit `rfc-scout`, `rfc-worker`, `rfc-reviewer`, and `rfc-critical-reviewer` to spawn only read-only `rfc-utility` descendants for exact locating, inventory, prescribed command or test execution, schema/drift checks, and log condensation. Encourage this for noisy build/test matrices. A parent must audit the recursive five-lane cap before each nested spawn, remain responsible for the result, and never delegate architecture, root cause, edits, verification sufficiency, tracker authority, commits, or another utility generation. `rfc-utility` cannot spawn descendants.
 7. Use the external role-to-model routing assignments rather than naming vendor models in this skill. When the runtime exposes primary-session model choice, keep the RFC integrator on the deep route or stronger. Preserve the quality-biased delegated defaults: the mechanical route only for directly checkable utility work, the balanced route for semantic scouting, the deep route for implementation and ordinary review, and the deep-max route only for critical review.
 8. Put no credential material, tokens, cookies, secret-bearing evidence, or unnecessary source bodies into delegation messages. Delegated agents may inspect the repository within the same local trust boundary, but they must not quote, persist, or export private repository content beyond the exact file, symbol, and evidence references needed for the assignment. Every delegated role remains subject to the root and nested `AGENTS.md` files and the remote-side-effect rules above.
 9. When the current runtime cannot provide a requested agent, model override, or safe permission boundary, execute the same role serially in the primary agent. Never weaken acceptance, documentation, verification, security, or closeout gates as a fallback.
@@ -68,7 +68,7 @@ When the user gives a directory such as `/Users/jaeger/Downloads/betterpullrevie
    - a simplification task or closeout checkpoint;
    - verification and RFC closeout.
 3. The documentation-impact task is mandatory even when the RFC omits documentation. It may conclude `no-impact` only when repository policy permits that disposition and the changed surfaces genuinely leave no semantic documentation obligation.
-4. Classify the RFC's delegation needs. Use `rfc-utility` for exact mechanical inventories or prescribed command/evidence collection, and `rfc-scout` for broad or ambiguous ownership, public-path selection, root-cause, or verification planning. Use two read-only agents only when their questions do not overlap. Classify closeout as ordinary or capability-critical using `references/model-routing.md`, and record any delegated lane and its expected evidence in the planning or closeout task.
+4. Classify the RFC's delegation needs. Use `rfc-utility` for exact mechanical inventories or prescribed command/evidence collection, and `rfc-scout` for broad or ambiguous ownership, public-path selection, root-cause, or verification planning. Run only genuinely independent lanes and keep the recursively active total at five or fewer. Classify closeout as ordinary or capability-critical using `references/model-routing.md`, and record any delegated lane and its expected evidence in the planning or closeout task.
 5. Create or update issue files in the correct board lanes, advance the next-ID source atomically, link every task to the RFC, and encode task dependencies in front matter or the repository's canonical format.
 6. Build the initial verification matrix during planning. Do not postpone deciding how each acceptance claim will be proven until closeout.
 7. Commit the complete planning slice before implementation.
@@ -84,15 +84,17 @@ For each task in the RFC task set:
 5. Run focused verification for the slice before moving it to done.
 6. Move the issue card to the terminal done lane, update status metadata, and commit the completed task before beginning the next task.
 
-If the current slice is delegated to `rfc-worker`, first prove that no read-only
-or writing descendant remains nonterminal. Give the worker the issue card,
-relevant RFC acceptance criteria, applicable instruction files, an explicit
-exclusive list of allowed files or path scopes, explicit non-goals, and
-focused verification. The primary agent must refrain from editing while the
-worker runs. Afterward, wait for the worker to leave Working status, inspect
-the complete diff, reject out-of-scope changes, reproduce focused
-verification, and retain sole ownership of `docs/issues/NEXT_ID`, board moves,
-staging, and commits.
+If the current slice is delegated to `rfc-worker`, first finish any semantic
+scout whose result could redirect the assignment, prove that no other writer
+remains nonterminal, and confirm the recursive five-lane cap. Give the worker
+the issue card, relevant RFC acceptance criteria, applicable instruction
+files, an explicit exclusive list of allowed files or path scopes, explicit
+non-goals, and focused verification. The worker may use read-only
+`rfc-utility` descendants for prescribed tests and other mechanical evidence;
+the primary agent must refrain from editing while the worker runs. Afterward,
+wait for the worker to leave Working status, inspect the complete diff, reject
+out-of-scope changes, reproduce focused verification, and retain sole
+ownership of `docs/issues/NEXT_ID`, board moves, staging, and commits.
 
 If implementation exposes missing requirements, create additional issue cards and continue the same loop instead of folding untracked work into a later closeout commit.
 
@@ -100,7 +102,7 @@ For agent documentation, use a BetterPullReview-local documentation skill or can
 
 ## Verification Planning
 
-Before implementation gets close to completion, refine the verification matrix from the RFC's actual claims. Each row must contain `claim`, `direct surface`, `command or interaction`, `what proves the claim`, `result`, and `evidence`. A bounded `rfc-utility` may run prescribed commands and collect exact results, and `rfc-scout` may map live selection and verification surfaces, but the primary agent owns the matrix and confirms its evidence.
+Before implementation gets close to completion, refine the verification matrix from the RFC's actual claims. Each row must contain `claim`, `direct surface`, `command or interaction`, `what proves the claim`, `result`, and `evidence`. Use bounded `rfc-utility` lanes proactively for prescribed build/test commands, exact inventories, and compact log collection when slots permit, including as descendants of the worker or reviewer. `rfc-scout` may map live selection and verification surfaces, but the primary agent owns the matrix and confirms its evidence.
 
 Extract every material user-visible, architectural, integration, security, and operational claim, including applicable items from the following BetterPullReview domains:
 

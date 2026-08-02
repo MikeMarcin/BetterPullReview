@@ -56,6 +56,8 @@ def validate_roles(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
             raise ValueError(f"role {name} has invalid mutation")
         if not isinstance(role.get("max_turns"), int) or role["max_turns"] < 1:
             raise ValueError(f"role {name} has invalid max_turns")
+        if not isinstance(role.get("nested_utility"), bool):
+            raise ValueError(f"role {name} has invalid nested_utility")
         instructions = role.get("instructions")
         if not isinstance(instructions, list) or not instructions or not all(
             isinstance(item, str) and item.strip() for item in instructions
@@ -130,16 +132,20 @@ def render_codex_agent(name: str, role: dict[str, Any], route: dict[str, Any], d
             f"developer_instructions = {q(role_prompt(role))}",
             "",
             "[agents]",
-            "enabled = false",
+            f"enabled = {'true' if role['nested_utility'] else 'false'}",
             "",
         ]
     )
+    if role["nested_utility"]:
+        lines.insert(-1, "max_concurrent_threads_per_session = 2")
     return "\n".join(lines)
 
 
 def render_claude_agent(name: str, role: dict[str, Any], route: dict[str, Any], digest: str) -> str:
     read_only = role["mutation"] == "read-only"
     tools = "Read, Grep, Glob, Bash" if read_only else "Read, Grep, Glob, Bash, Edit, Write, Skill"
+    if role["nested_utility"]:
+        tools += ", Agent"
     permission_mode = "plan" if read_only else "acceptEdits"
     frontmatter = [
         "---",

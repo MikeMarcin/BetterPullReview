@@ -19,6 +19,7 @@
           "description",
           "mutation",
           "max_turns",
+          "nested_utility",
           "instructions"
         ],
         "properties": {
@@ -35,6 +36,9 @@
           "max_turns": {
             "type": "integer",
             "minimum": 1
+          },
+          "nested_utility": {
+            "type": "boolean"
           },
           "instructions": {
             "type": "array",

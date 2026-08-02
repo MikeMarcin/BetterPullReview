@@ -10,12 +10,13 @@ This directory contains the canonical BetterPullReview RFC implementation skill 
 - `config/routing.json` maps semantic capability classes to current Codex and Claude models.
 - `scripts/render_runtime_adapters.py` generates native `.codex/agents`, `.claude/agents`, and the small Claude skill entrypoint.
 - The primary agent remains the only RFC integrator and the only authority for `RFC_BASE_SHA`, issue IDs, `docs/issues/NEXT_ID`, board transitions, staging, commits, verification sufficiency, and RFC status.
-- The default policy allows either at most two independent read-only agents or
-  one total writer, never both. The primary recursively counts nonterminal
-  descendants before every spawn, restart, or follow-up, and a worker receives
-  explicit exclusive file ownership. Utility work is isolated from semantic
-  scouting, implementation uses the deep route, and capability-critical
-  review has a separate max-effort role.
+- The workflow schedules at most five recursively active child lanes while the
+  repository Codex ceiling remains ten for runtime headroom. It permits one
+  total writer with explicit exclusive file ownership. Scouts, workers, and
+  reviewers may spawn only childless read-only utility agents for exact
+  inventories, prescribed tests, drift checks, and log condensation. Utility
+  work remains isolated from semantic judgment; implementation uses the deep
+  route, and capability-critical review has a separate max-effort role.
 - A missing runtime feature falls back to serial primary-agent execution without weakening BetterPullReview's verification, documentation, security, or remote-side-effect gates.
 
 ## Install Or Refresh
@@ -32,7 +33,7 @@ Merge the following fragment into `.codex/config.toml` when the table is not alr
 ```toml
 [agents]
 enabled = true
-max_concurrent_threads_per_session = 2
+max_concurrent_threads_per_session = 10
 ```
 
 The canonical fragment is at `config/codex-config.fragment.toml`.

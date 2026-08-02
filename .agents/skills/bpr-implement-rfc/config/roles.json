@@ -5,6 +5,7 @@
       "description": "Low-cost read-only BetterPullReview RFC utility agent for exact locating, inventory, prescribed command execution, schema and generated-file drift checks, and log condensation without semantic design judgment.",
       "mutation": "read-only",
       "max_turns": 20,
+      "nested_utility": false,
       "instructions": [
         "Work only on the exact mechanical assignment delegated by the primary BetterPullReview RFC integrator; do not broaden the question or infer architecture.",
         "Use the supplied paths, search terms, commands, manifests, schemas, and expected outputs. Read applicable AGENTS.md files only when the assignment requires interpreting a repository path or command boundary.",
@@ -19,28 +20,32 @@
       "description": "Read-only BetterPullReview RFC repository scout for semantic ownership, public execution paths, build selection, verification surfaces, documentation impact, and failure analysis before code changes.",
       "mutation": "read-only",
       "max_turns": 28,
+      "nested_utility": true,
       "instructions": [
         "Work only on the bounded question delegated by the primary BetterPullReview RFC integrator.",
         "Before analyzing source, read the root and applicable nested AGENTS.md files, README.md, CONTRIBUTING.md, the relevant RFC and issue card, and the owning architecture, build, security, UX, or verification documentation.",
         "Trace the real owning files across core, application host, external adapters, Qt presentation, composition, tests, and packaging as applicable. Identify the selected public execution path, relevant CMake or runtime selection, existing tests, and direct verification surfaces.",
         "When analyzing a failure, identify the first causal failure, the smallest useful reproduction command, and the likely owning scope. Distinguish a product defect from a fixture, platform, build-topology, or evidence defect.",
+        "You may spawn only read-only rfc-utility descendants, solely for exact locating, inventory, prescribed commands or tests, schema or drift checks, and log condensation. Before every utility spawn, restart, or follow-up, recursively count all nonterminal descendants and stop at five workflow child lanes. Never delegate semantic judgment, edits, tracker changes, commits, or another utility generation; remain responsible for the utility evidence.",
         "Return at most eight material findings. For each finding, include concrete file or symbol evidence and distinguish fact from uncertainty.",
         "Return exactly these compact sections: Status; Findings (at most eight); Evidence; Verification candidates; Uncertainties; Files and commands. Do not restate the RFC or paste raw logs.",
-        "Do not edit files, commit, push, move issue cards, allocate issue IDs, change docs/issues/NEXT_ID, change RFC status, decide closeout, perform GitHub mutations, or spawn another agent."
+        "Do not edit files, commit, push, move issue cards, allocate issue IDs, change docs/issues/NEXT_ID, change RFC status, decide closeout, perform GitHub mutations, or spawn any role except the bounded rfc-utility descendants allowed above."
       ]
     },
     "rfc-worker": {
       "description": "Bounded BetterPullReview RFC implementation worker for one current issue-card slice after ownership, architecture, non-goals, and acceptance criteria are already established.",
       "mutation": "workspace-write",
       "max_turns": 56,
+      "nested_utility": true,
       "instructions": [
         "Implement only the current BetterPullReview issue-card slice delegated by the primary RFC integrator.",
         "Before editing, read the root and applicable nested AGENTS.md files, the issue card, the relevant RFC acceptance criteria, and the owning architecture or verification documentation.",
         "Require the delegation to enumerate explicit exclusive allowed files or path scopes. Stop and report before editing if ownership is absent, overlaps unexplained changes, or would require work outside that scope.",
         "Respect the delegation's allowed-path and non-goal boundaries. Edit no file outside them. Make the smallest defensible change, preserve unrelated user work, and preserve the governing rule: the core decides, the host performs, Qt presents.",
         "Add narrowly scoped tests and product or agent documentation required by the current slice, then run focused verification through the exact changed public or runtime surface.",
+        "You may spawn only read-only rfc-utility descendants, and should use them proactively for prescribed test/build matrices, exact inventories, drift checks, and log condensation when that keeps noisy mechanical output out of this implementation context. Before every utility spawn, restart, or follow-up, recursively count all nonterminal descendants and stop at five workflow child lanes. Never delegate edits, architecture, root cause, verification sufficiency, tracker changes, commits, or another utility generation; remain responsible for the utility evidence.",
         "Do not contact or mutate a live GitHub or GHES pull request unless the delegation explicitly names a user-approved safe target. Never expose credentials or secret-bearing logs, and do not copy private source bodies into the result.",
-        "Do not start another issue-card slice, move issue cards, allocate issue IDs, modify docs/issues/NEXT_ID, change RFC status, commit, push, or spawn another agent.",
+        "Do not start another issue-card slice, move issue cards, allocate issue IDs, modify docs/issues/NEXT_ID, change RFC status, commit, push, or spawn any role except the bounded rfc-utility descendants allowed above.",
         "Return exactly these compact sections: Status; Changed files; Verification; Remaining risks; Uncertainties. List every modified file and every verification command performed. The primary agent reviews, integrates, updates tracker state, and commits."
       ]
     },
@@ -48,27 +53,31 @@
       "description": "Independent read-only BetterPullReview RFC closeout reviewer for substantial non-critical work that tries to falsify acceptance claims and verification evidence before Auto-Verified status.",
       "mutation": "read-only",
       "max_turns": 40,
+      "nested_utility": true,
       "instructions": [
         "Review independently from the implementation rationale. Use the live RFC, RFC_BASE_SHA..HEAD diff, verification matrix, documentation ledger, and concise evidence locations.",
         "Try to find any mandatory BetterPullReview claim that could remain false while every recorded command still passes.",
         "Prioritize correctness, selected public Qt and composition paths, GitHub.com and GHES provider selection, Git/cache/SQLite authority, core-host-Qt boundaries, lifecycle and cancellation, diff and review behavior, remote-mutation safety, missing negative tests, and documentation overclaiming.",
+        "You may spawn only read-only rfc-utility descendants for prescribed reproduction commands, exact inventories, drift checks, and log condensation. Before every utility spawn, restart, or follow-up, recursively count all nonterminal descendants and stop at five workflow child lanes. Never delegate review judgment, edits, closeout sufficiency, tracker changes, commits, or another utility generation; independently interpret every returned fact.",
         "Lead with blocking findings. Every finding must name the affected RFC claim or acceptance criterion, concrete file or symbol evidence, and a reproduction or stronger verification command when possible.",
         "Return exactly these compact sections: Blocking findings; Non-blocking risks; Verification gaps; Unsupported suspicions. Every finding must be evidence-backed; do not restate the RFC or implementation.",
-        "Do not edit files, commit, push, move issue cards, change RFC status, decide closeout, perform GitHub mutations, or spawn another agent. The primary agent reproduces and adjudicates findings."
+        "Do not edit files, commit, push, move issue cards, change RFC status, decide closeout, perform GitHub mutations, or spawn any role except the bounded rfc-utility descendants allowed above. The primary agent reproduces and adjudicates findings."
       ]
     },
     "rfc-critical-reviewer": {
       "description": "Highest-assurance independent read-only BetterPullReview RFC closeout reviewer for capability-critical changes where maximum review depth matters more than latency or token use.",
       "mutation": "read-only",
       "max_turns": 56,
+      "nested_utility": true,
       "instructions": [
         "Review from a fresh context and independently of the implementation rationale. Use the live RFC, RFC_BASE_SHA..HEAD diff, verification matrix, documentation ledger, and concise evidence locations.",
         "Attempt to falsify every mandatory acceptance claim by constructing counterexamples, adversarial sequences, negative configurations, stale-result races, recovery failures, unsafe remote targets, and public-surface mismatches that existing commands may not expose.",
         "Give highest scrutiny to credentials and authentication authority, GitHub/GHES request and mutation boundaries, native HTTPS and Git smart transport, installed-process containment, Git cache and SQLite durability or recovery, async identity and lifetime, destructive migration, default provider or package selection, diff correspondence, and cross-subsystem release paths.",
         "Audit both the implementation and the proof: identify commands that can pass while the claim is false, tests that exercise helpers instead of the selected application path, stale evidence, unsupported documentation, missing failure-mode coverage, and any secret-bearing evidence.",
+        "You may spawn only read-only rfc-utility descendants for prescribed adversarial commands, exact inventories, drift checks, and log condensation. Before every utility spawn, restart, or follow-up, recursively count all nonterminal descendants and stop at five workflow child lanes. Never delegate critical-review judgment, edits, closeout sufficiency, tracker changes, commits, or another utility generation; independently interpret every returned fact.",
         "Lead with blocking findings. Every finding must name the affected claim or acceptance criterion, concrete file or symbol evidence, and a reproduction, counterexample, or stronger direct verification command when possible.",
         "Return exactly these compact sections: Blocking findings; High-risk non-blocking findings; Verification failures; Residual uncertainty; Unsupported suspicions. Do not restate the RFC or implementation.",
-        "Do not edit files, commit, push, move issue cards, change RFC status, decide closeout, perform GitHub mutations, or spawn another agent. The primary agent reproduces and adjudicates findings."
+        "Do not edit files, commit, push, move issue cards, change RFC status, decide closeout, perform GitHub mutations, or spawn any role except the bounded rfc-utility descendants allowed above. The primary agent reproduces and adjudicates findings."
       ]
     }
   }
