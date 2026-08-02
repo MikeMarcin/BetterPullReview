@@ -504,6 +504,18 @@ auto test_moves_identity_and_limits() -> void
                    alignment_kind::right_only,
            "move remains deletion plus insertion in monotonic primary path");
 
+    auto wrong_move_content = moved;
+    const auto destination_line = static_cast<std::size_t>(
+        wrong_move_content.Alignment.Segments.back().Right.Begin);
+    const auto destination_byte = static_cast<std::size_t>(
+        wrong_move_content.RightDocument->Lines[destination_line]
+            .Content.Begin);
+    wrong_move_content.RightDocument->Bytes[destination_byte] = 'x';
+    expect_compute_error(
+        wrong_move_content,
+        diff_compute_validation_error::invalid_move_content,
+        "validator rejects move metadata whose retained text is not equal");
+
     auto disabled = moves;
     disabled.Moves = move_detection_policy::disabled;
     const auto& no_move =
@@ -645,6 +657,39 @@ auto test_computed_result_validator() -> void
         exact_pair,
         diff_compute_validation_error::intraline_for_exact_pair,
         "validator rejects intraline edits on an exact pair");
+
+    auto unequal_equal_segment = text_result(
+        run("same\n", "same\n"), "equal validator fixture computes");
+    unequal_equal_segment.RightDocument->Bytes.front() = 'x';
+    expect_compute_error(
+        unequal_equal_segment,
+        diff_compute_validation_error::invalid_exact_content,
+        "validator rejects unequal retained text in an equal segment");
+
+    auto exact_pair_content =
+        text_result(run("prefix one\n", "prefix two\n"),
+                    "exact pair content validator fixture computes");
+    expect(exact_pair_content.Alignment.Pairs.size() == 1U,
+           "exact pair content fixture starts with one similar pair");
+    auto& content_pair = exact_pair_content.Alignment.Pairs.front();
+    content_pair.Kind = line_pair_kind::exact;
+    content_pair.Id = pair_identity(exact_pair_content.Alignment.Digest,
+                                    content_pair.Segment,
+                                    content_pair.LeftLine,
+                                    content_pair.RightLine,
+                                    content_pair.Kind,
+                                    0U);
+    exact_pair_content.Intraline.clear();
+    auto& right_bytes = exact_pair_content.RightDocument->Bytes;
+    const auto right_text = std::string_view{"prefix one\n"};
+    std::ranges::copy(right_text, right_bytes.begin());
+    expect(validate_computed_file_diff(exact_pair_content).valid(),
+           "validator accepts normalized-equal retained exact-pair text");
+    right_bytes[7U] = 't';
+    expect_compute_error(
+        exact_pair_content,
+        diff_compute_validation_error::invalid_exact_content,
+        "validator rejects unequal retained text in an exact pair");
 }
 
 auto test_generated_replay_validation() -> void

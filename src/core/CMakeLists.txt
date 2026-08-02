@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/diff_compute.cpp
         src/diff_model.cpp
+        src/diff_semantics.cpp
         src/epoch_model.cpp
         src/epoch_transition.cpp
         src/github_model.cpp

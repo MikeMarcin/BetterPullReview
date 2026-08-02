@@ -1194,16 +1194,18 @@ BPR-0072 introduces the Qt/provider/effect-free full-authority comparison key,
 retained normalized diff options and their digest, half-open semantic spans,
 stable record identities, and public structural alignment validator.
 BPR-0073 adds the pure byte-faithful decoder and bounded deterministic
-line-diff, secondary-pairing, intraline, and exact-move computation. Build and
-run both focused targets without Qt:
+line-diff, secondary-pairing, intraline, and exact-move computation. BPR-0074
+adds the canonical mapping, group projection, navigation, semantic selection,
+and lower-detail boundary. Build and run all focused targets without Qt:
 
 ```sh
 cmake --preset core-only
 cmake --build --preset core-only --target \
   better_pull_review_diff_core_tests \
-  better_pull_review_diff_compute_core_tests
+  better_pull_review_diff_compute_core_tests \
+  better_pull_review_diff_semantics_core_tests
 ctest --test-dir build/core-only --output-on-failure \
-  -R '^(core_diff_model|core_diff_compute|core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract)$'
+  -R '^(core_diff_model|core_diff_compute|core_diff_semantics|core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract)$'
 ```
 
 `core_diff_model` contains exact empty/equal/insertion/deletion/replacement/
@@ -1217,8 +1219,14 @@ rejection, whitespace and line-ending modes without display-byte mutation,
 final-newline identity, strict malformed and multibyte UTF-8, valid intraline
 boundaries, absent added/deleted sides, binary/unavailable diagnostics,
 unambiguous/ambiguous moves, exact resource limits, stable file identity, and
-generated replay. BPR-0074 owns mapping result variants, navigation,
-selection, and lower-detail semantics over these records.
+generated replay. Its validator additionally rejects retained-text mutations
+that would make equal segments, exact pairs, or exact move relations false.
+`core_diff_semantics` covers every mapping kind, exact opposing boundaries,
+unpaired replacement spans, separate move correspondence, canonical change
+projection and traversal, stop/wrap endpoints, line/group selection and
+reconciliation, lower-detail identity agreement, nontext/invalid/fabricated
+inputs, 4:7 accepted anchors and tail pinning, and a generated cross-product
+of small files and option policies.
 
 ## Troubleshooting and safe verification
 

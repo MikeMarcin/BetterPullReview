@@ -66,9 +66,17 @@ secondary pairs, UTF-8-boundary intraline ranges, and optional unambiguous
 exact move metadata. It assigns IDs only after refinement, constructs the
 maximal contiguous changed-run groups required by the live structural model,
 and invokes both the alignment and retained-document/intraline validators
-before publishing. BPR-0074 owns the
-mapping variants, navigation, selection, and lower-detail projection over
-this one result; it does not get a second pairing or grouping heuristic.
+before publishing. Retained-result validation also proves normalized equality
+for every equal segment, accepted exact pair, and exact move relation, so a
+stale or mutated document cannot preserve a false exact correspondence.
+
+The live `diff_semantics` core boundary derives exact-line, similar-line,
+opposing-span, opposing-boundary, and unavailable mapping results from that
+validated result. It projects the canonical group vector without regrouping,
+navigates directly over that vector, retains segment/group identity in line
+and group selections, and builds lower-detail inputs by re-resolving the
+canonical mapping. Separate exact move correspondence may annotate a selected
+line, but never replaces its monotonic primary boundary mapping.
 
 BPR-0073 move detection is deliberately conservative: only an unambiguous
 exact whole one-sided segment receives relation metadata. BPR-0080 retains the
@@ -94,7 +102,8 @@ Canonicalization should coalesce compatible adjacent operations while retaining 
 
 ### 2.2 Mapping result
 
-Use a tagged result rather than sentinel line numbers:
+Use a tagged result rather than sentinel line numbers. The live public shape
+uses an enum plus optionals equivalent to:
 
 ```cpp
 using mapped_target = std::variant<
@@ -102,11 +111,15 @@ using mapped_target = std::variant<
     similar_line_target,
     opposing_span_target,
     opposing_boundary_target,
-    moved_target,
     unavailable_target>;
 ```
 
 An insertion maps to a boundary. Returning the nearest line as though it were exact would contaminate detail, comments, and review receipts.
+
+Move correspondence is a separate optional relation from an exact deletion
+line to an exact insertion line. This preserves delete-plus-insert primary
+topology and prevents navigation, detail, or ordinary ribbons from acquiring a
+crossing alternative mapping.
 
 ### 2.3 Group projection
 

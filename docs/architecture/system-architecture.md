@@ -345,6 +345,14 @@ boundaries, the measured alignment axis, the retained subpixel comparison
 position, shared-scrollbar projection, hover paths, and splitter geometry.
 Measured pixels and the live scroll position are not core or durable state.
 
+The live core `diff_semantics` boundary consumes only a validated
+`computed_file_diff`. Exact/similar line correspondence, opposing spans and
+boundaries, canonical group projection/order, previous/next stop-or-wrap
+navigation, semantic selection, detail input, and optional move annotation all
+resolve from the same alignment IDs. Navigation does not accept a mutable
+presentation projection, and rejected caller-supplied mappings or selections
+cannot carry fabricated identities or diagnostics forward.
+
 The default linked view prohibits copying or normalizing independent pane
 scrollbar values, active/follower chase heuristics, synthetic alignment rows,
 separate mappings for ribbons/detail/navigation/scroll, full semantic

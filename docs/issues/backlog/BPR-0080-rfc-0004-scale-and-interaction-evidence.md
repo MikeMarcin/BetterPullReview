@@ -29,3 +29,9 @@ does not scan/paint all segments. Rapid input/resizes preserve motion and final
 position. Move detection is bounded under adversarial many-segment input and
 either emits stable sub-block metadata or explicitly leaves ambiguous content
 unrelated. Record facts without overclaiming universal frame-rate guarantees.
+
+Index the BPR-0074 semantic lookup path so repeated line mapping, pair/group/
+move resolution, detail projection, and change projection do not repeatedly
+validate or linearly scan the complete immutable result. Preserve the current
+fail-closed public boundary and exact semantic answers while proving ordinary
+selection/navigation work scales with indexed or affected records.

@@ -123,8 +123,29 @@ evidence for A1-A5 and A12-A15:
 - exact/over resource-limit cases and generated complete-result replay through
   the public computation boundary and structural validator.
 
-This evidence does not claim that the BPR-0074 mapping/navigation surface or
-the later host and rendered interaction paths already exist.
+This evidence does not claim the later host and rendered interaction paths.
+
+### A18. Canonical semantic-projection corpus
+
+The checked-in `core_diff_semantics` target supplies the BPR-0074 core portion
+of A1-A8, A12, A14, and A15:
+
+- exact and similar mappings retain canonical pair/segment/group identity;
+- unpaired replacement lines expose the full opposing span, while one-sided
+  lines expose the exact empty-side boundary without a guessed source line;
+- move correspondence remains a separate exact annotation over the monotonic
+  deletion-plus-insertion path;
+- change projection preserves the canonical group vector and member slices,
+  and previous/next navigation consumes the validated diff rather than a
+  mutable presentation projection;
+- line/group selections and lower-detail input agree on stable semantic
+  identity, clear on invalid replacement, and reject fabricated mappings and
+  diagnostics;
+- generated small-file/option cases replay every source line through mapping,
+  detail, selection, and exact group traversal.
+
+Measured geometry, shared scrolling, painted ribbons, and composed interaction
+claims remain on BPR-0076 through BPR-0080.
 
 ## B. Measured geometry fixtures
 

@@ -1,7 +1,7 @@
 ---
 id: BPR-0075
 title: Implement host diff execution cache and stale rejection
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0004
 depends_on: [BPR-0074]
 ---

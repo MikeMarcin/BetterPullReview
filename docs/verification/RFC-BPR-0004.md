@@ -7,8 +7,10 @@ Replacement source: `betterpullreview-rfc-bpr-0004-diff-alignment-scroll-replace
 Status: implementation active. BPR-0072 supplies the directly tested canonical
 record and structural-validation foundation. BPR-0073 now supplies the public
 bounded deterministic text-computation path and directly closes its core-only
-portions of D-01 through D-05 and D-08. Mapping/detail, host, scale, and all
-rendered interaction claims remain open on later cards. RFC-BPR-0003 retains
+portions of D-01 through D-05 and D-08. BPR-0074 supplies the one public
+mapping/group/navigation/selection/detail projection and closes the core-only
+portions of D-05 through D-08 and I-01. Host, scale, Qt, and all rendered
+interaction claims remain open on later cards. RFC-BPR-0003 retains
 explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
 until its dependency can close.
 
@@ -63,6 +65,37 @@ Whole-segment move metadata is the conservative BPR-0073 boundary. BPR-0080
 explicitly retains moved sub-block decomposition and bounded/indexed
 many-segment move work before RFC closeout; BPR-0073 does not claim those
 later scale/completeness properties.
+
+## BPR-0074 canonical-semantics evidence
+
+The public `diff_semantics` boundary accepts only the validated BPR-0073
+result. It maps equal and accepted replacement pairs exactly, reports similar
+pairs distinctly, gives an unpaired replacement line the complete opposing
+span, and gives a one-sided line the precise empty-side boundary. Exact move
+correspondence remains separate metadata and never replaces that primary
+mapping. The computed-result validator now also proves normalized equality for
+equal segments, exact pairs, and move relations before any semantic projection
+can publish them.
+
+Change projection copies the canonical ordered group vector and exact member
+slices; navigation reads the validated diff directly rather than trusting that
+mutable projection. Line and group selections retain stable segment/group
+identity, lower detail re-resolves the canonical mapping, and nontext,
+comparison-mismatched, out-of-range, mutated, or fabricated input fails closed
+without forwarding caller-controlled identity or diagnostics.
+
+The clean core-only, developer, and Darwin ASan/UBSan focused matrices each
+pass 7/7, including `core_diff_semantics`, `core_diff_compute`,
+`core_diff_model`, both core dependency/boundary tests, and both architecture
+boundary tests. The semantic fixture covers every mapping/detail kind,
+one-sided and unpaired states, 4:7 anchors and tail boundaries, canonical
+group order, stop/wrap navigation, selection preservation/clearing, separate
+moves, fail-closed mutations, and a generated small-file/options corpus.
+
+BPR-0080 explicitly retains indexing and bounded high-frequency semantic
+lookup work. BPR-0074 does not claim Qt geometry, scrolling, ribbon painting,
+host stale-result rejection, or composed visual agreement; those direct
+surfaces remain on BPR-0075 through BPR-0080.
 
 ## Direct claim matrix
 

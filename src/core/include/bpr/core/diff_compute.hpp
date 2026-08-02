@@ -114,6 +114,8 @@ enum class diff_compute_validation_error : std::uint8_t
     intraline_for_exact_pair,
     invalid_intraline_span,
     nonmonotonic_intraline,
+    invalid_exact_content,
+    invalid_move_content,
 };
 
 struct diff_compute_validation_result

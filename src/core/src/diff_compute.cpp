@@ -288,6 +288,20 @@ struct matrix_budget
     return result;
 }
 
+[[nodiscard]] auto normalized_lines_equal(const decoded_text_document& left,
+                                          const std::uint32_t left_line,
+                                          const decoded_text_document& right,
+                                          const std::uint32_t right_line,
+                                          const diff_options& options) -> bool
+{
+    return normalize_line(left,
+                          left.Lines[static_cast<std::size_t>(left_line)],
+                          options) ==
+           normalize_line(right,
+                          right.Lines[static_cast<std::size_t>(right_line)],
+                          options);
+}
+
 [[nodiscard]] auto prepare_document(const std::span<const std::uint8_t> bytes,
                                     const diff_options& options,
                                     const std::uint32_t maximum_lines)
@@ -837,6 +851,41 @@ auto validate_computed_file_diff(const computed_file_diff& diff)
         return compute_failure(diff_compute_validation_error::invalid_document);
     }
 
+    for(std::size_t index = 0U; index < diff.Alignment.Moves.size(); ++index)
+    {
+        const auto& move = diff.Alignment.Moves[index];
+        const auto source = std::ranges::find(diff.Alignment.Segments,
+                                              move.SourceDeletion,
+                                              &alignment_segment::Id);
+        const auto destination = std::ranges::find(diff.Alignment.Segments,
+                                                   move.DestinationInsertion,
+                                                   &alignment_segment::Id);
+        if(!diff.LeftDocument.has_value() || !diff.RightDocument.has_value() ||
+           source == diff.Alignment.Segments.end() ||
+           destination == diff.Alignment.Segments.end() ||
+           source->Left.extent() != destination->Right.extent())
+        {
+            return compute_failure(
+                diff_compute_validation_error::invalid_move_content, index);
+        }
+        for(std::uint64_t offset = 0U; offset < source->Left.extent(); ++offset)
+        {
+            const auto left_line = static_cast<std::uint32_t>(
+                static_cast<std::uint64_t>(source->Left.Begin) + offset);
+            const auto right_line = static_cast<std::uint32_t>(
+                static_cast<std::uint64_t>(destination->Right.Begin) + offset);
+            if(!normalized_lines_equal(*diff.LeftDocument,
+                                       left_line,
+                                       *diff.RightDocument,
+                                       right_line,
+                                       diff.Alignment.Options))
+            {
+                return compute_failure(
+                    diff_compute_validation_error::invalid_move_content, index);
+            }
+        }
+    }
+
     auto pair_index = std::size_t{0U};
     auto prior_pair_index = diff_compute_validation_result::no_record;
     auto prior_left_end = std::uint64_t{0U};
@@ -889,6 +938,46 @@ auto validate_computed_file_diff(const computed_file_diff& diff)
         }
         prior_left_end = edit.Left.End;
         prior_right_end = edit.Right.End;
+    }
+
+    for(std::size_t index = 0U; index < diff.Alignment.Segments.size(); ++index)
+    {
+        const auto& segment = diff.Alignment.Segments[index];
+        if(segment.Kind != alignment_kind::equal)
+        {
+            continue;
+        }
+        for(std::uint64_t offset = 0U; offset < segment.Left.extent(); ++offset)
+        {
+            const auto left_line = static_cast<std::uint32_t>(
+                static_cast<std::uint64_t>(segment.Left.Begin) + offset);
+            const auto right_line = static_cast<std::uint32_t>(
+                static_cast<std::uint64_t>(segment.Right.Begin) + offset);
+            if(!normalized_lines_equal(*diff.LeftDocument,
+                                       left_line,
+                                       *diff.RightDocument,
+                                       right_line,
+                                       diff.Alignment.Options))
+            {
+                return compute_failure(
+                    diff_compute_validation_error::invalid_exact_content,
+                    index);
+            }
+        }
+    }
+    for(std::size_t index = 0U; index < diff.Alignment.Pairs.size(); ++index)
+    {
+        const auto& pair = diff.Alignment.Pairs[index];
+        if(pair.Kind == line_pair_kind::exact &&
+           !normalized_lines_equal(*diff.LeftDocument,
+                                   pair.LeftLine,
+                                   *diff.RightDocument,
+                                   pair.RightLine,
+                                   diff.Alignment.Options))
+        {
+            return compute_failure(
+                diff_compute_validation_error::invalid_exact_content, index);
+        }
     }
     return {};
 }
