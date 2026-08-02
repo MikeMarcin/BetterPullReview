@@ -67,6 +67,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 "-DBPR_BOOTSTRAP_GIT=OFF",
                 "-DCMAKE_POLICY_DEFAULT_CMP0200=NEW",
                 "-DCMAKE_POLICY_VERSION_MINIMUM=4.4.2",
+                "-DCMAKE_BUILD_TYPE=Debug",
                 f"-DQt6_DIR={fixture}",
                 *extra,
             ],
@@ -74,6 +75,21 @@ class DependencyModernizationTests(unittest.TestCase):
             capture_output=True,
             text=True,
         )
+        if result.returncode == 0:
+            result = subprocess.run(
+                [
+                    str(CMAKE_COMMAND),
+                    "--build",
+                    str(build),
+                    "--target",
+                    "bpr_validate_cps_producer_selection",
+                    "--config",
+                    "Debug",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
         return result, overlay
 
     def validate_overlay(
@@ -181,7 +197,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertTrue(manifest.is_file())
         self.assertEqual(
             json.loads(manifest.read_text(encoding="utf-8"))["generator_revision"],
-            "5",
+            "6",
         )
         self.assertFalse(list(overlay.rglob("*.cmake")))
 
@@ -523,7 +539,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 (
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
-                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=",
+                    "-DBPR_FAKE_QT_UNSET_IMPORTED_CONFIGURATIONS=ON",
                 ),
             ),
             (
@@ -531,7 +547,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 (
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_MAP_MISSING_WITH_GENERAL=ON",
-                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=",
+                    "-DBPR_FAKE_QT_UNSET_IMPORTED_CONFIGURATIONS=ON",
                 ),
             ),
             (
@@ -566,6 +582,9 @@ class DependencyModernizationTests(unittest.TestCase):
                     self.assertTrue(
                         debug["link_location"].endswith("windows-release.lib")
                     )
+                    self.assertNotIn(
+                        "QT_NO_DEBUG", debug["definitions"]["*"]
+                    )
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             policy_oracle = Path(temporary_directory) / "policy-oracle.txt"
@@ -586,6 +605,7 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertTrue(
                 debug["link_location"].endswith("windows-release.lib")
             )
+            self.assertNotIn("QT_NO_DEBUG", debug["definitions"]["*"])
             self.assertTrue(
                 policy_oracle.read_text(encoding="utf-8").endswith(
                     "windows-release.dll"
@@ -912,6 +932,22 @@ class DependencyModernizationTests(unittest.TestCase):
                 ),
                 "has no artifact",
             ),
+            (
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
+                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=",
+                ),
+                "has no artifact",
+            ),
+            (
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=RELEASE",
+                    "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
+                ),
+                "CPS producer selection differs from native CMake",
+            ),
             (("-DBPR_FAKE_QT_VERSION=6.7.9",), "caller-installed Qt >= 6.8"),
         )
         for extra, expected in cases:
@@ -955,7 +991,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         document.read_bytes()
                     ).hexdigest()
                     manifest = {
-                        "generator_revision": "5",
+                        "generator_revision": "6",
                         "artifacts": [],
                         "documents": [
                             {

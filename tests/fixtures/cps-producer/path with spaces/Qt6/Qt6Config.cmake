@@ -1,5 +1,8 @@
 cmake_policy(PUSH)
 cmake_policy(VERSION 3.1.0...4.1)
+if(BPR_FAKE_QT_FORCE_CMP0200_OLD)
+    cmake_policy(SET CMP0200 OLD)
+endif()
 
 if(NOT BPR_FAKE_QT_VERSION)
     set(BPR_FAKE_QT_VERSION "6.8.1")
@@ -48,6 +51,12 @@ foreach(component IN ITEMS Core Gui Widgets Network)
         PROPERTY IMPORTED_CONFIGURATIONS
             "${BPR_FAKE_QT_IMPORTED_CONFIGURATIONS}"
     )
+    if(BPR_FAKE_QT_UNSET_IMPORTED_CONFIGURATIONS)
+        set_property(
+            TARGET "Qt6::${component}"
+            PROPERTY IMPORTED_CONFIGURATIONS
+        )
+    endif()
     if(BPR_FAKE_QT_GENERAL_ARTIFACTS)
         set_target_properties(
             "Qt6::${component}"

@@ -4,7 +4,7 @@ set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
 set(BPR_GIT_MINIMUM_VERSION "2.39")
-set(BPR_CPS_GENERATOR_REVISION "5")
+set(BPR_CPS_GENERATOR_REVISION "6")
 
 function(bpr_assert_empty_redirects)
     file(GLOB redirect_entries LIST_DIRECTORIES TRUE "${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/*")
@@ -193,6 +193,29 @@ function(bpr_bootstrap_cps overlay)
         message(
             FATAL_ERROR
             "CPS dependency bootstrap failed (${result}).\n${output}${error}"
+        )
+    endif()
+
+    set(validation_command
+        "${CMAKE_COMMAND}"
+        --build "${bootstrap_binary}"
+        --target bpr_validate_cps_producer_selection
+    )
+    if(CMAKE_BUILD_TYPE)
+        list(APPEND validation_command --config "${CMAKE_BUILD_TYPE}")
+    endif()
+    execute_process(
+        COMMAND ${validation_command}
+        RESULT_VARIABLE validation_result
+        OUTPUT_VARIABLE validation_output
+        ERROR_VARIABLE validation_error
+        COMMAND_ECHO STDOUT
+    )
+    if(NOT validation_result EQUAL 0)
+        message(
+            FATAL_ERROR
+            "CPS producer-selection validation failed (${validation_result}).\n"
+            "${validation_output}${validation_error}"
         )
     endif()
 endfunction()

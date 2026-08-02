@@ -16,7 +16,9 @@ if(NOT DEFINED BPR_CPS_OVERLAY OR BPR_CPS_OVERLAY STREQUAL "")
     message(FATAL_ERROR "BPR_CPS_OVERLAY is required")
 endif()
 
-set(BPR_CPS_GENERATOR_REVISION "5")
+file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/policy-oracles")
+
+set(BPR_CPS_GENERATOR_REVISION "6")
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -238,11 +240,12 @@ function(
     configuration
 )
     string(TOUPPER "${configuration}" config_upper)
-    bpr_target_property_list(imported_configs "${target}" IMPORTED_CONFIGURATIONS)
-    set(has_imported_configs FALSE)
-    if(NOT "${imported_configs}" STREQUAL "")
-        set(has_imported_configs TRUE)
-    endif()
+    bpr_target_property(
+        imported_configs
+        imported_configs_is_set
+        "${target}"
+        IMPORTED_CONFIGURATIONS
+    )
     get_property(
         map_is_set
         TARGET "${target}"
@@ -272,7 +275,7 @@ function(
         )
         list(LENGTH mapped_configs mapped_config_count)
         if(mapped_config_count EQUAL 0)
-            if(NOT has_imported_configs AND general_artifact_available)
+            if(NOT imported_configs_is_set AND general_artifact_available)
                 set(selection_found TRUE)
                 set(selected_configless TRUE)
             endif()
@@ -281,11 +284,11 @@ function(
             foreach(mapped_config_index RANGE 0 ${mapped_config_last})
                 list(GET mapped_configs ${mapped_config_index} mapped_config)
                 if(mapped_config STREQUAL "")
-                    if(NOT has_imported_configs AND general_artifact_available)
+                    if(NOT imported_configs_is_set AND general_artifact_available)
                         set(selection_found TRUE)
                         set(selected_configless TRUE)
                     endif()
-                elseif(has_imported_configs)
+                elseif(imported_configs_is_set)
                     string(TOUPPER "${mapped_config}" mapped_config_upper)
                     foreach(imported_config IN LISTS imported_configs)
                         string(TOUPPER "${imported_config}" imported_config_upper)
@@ -317,7 +320,7 @@ function(
                 endif()
             endforeach()
         endif()
-    elseif(has_imported_configs)
+    elseif(imported_configs_is_set AND NOT "${imported_configs}" STREQUAL "")
         foreach(imported_config IN LISTS imported_configs)
             string(TOUPPER "${imported_config}" imported_config_upper)
             if(config_upper STREQUAL imported_config_upper)
@@ -411,8 +414,12 @@ function(bpr_collect_plain_property key target property output_property)
                     "${target}"
                     "${configuration}"
                 )
+                string(TOUPPER "${configuration}" requested_config_upper)
                 string(TOUPPER "${imported_configuration}" imported_config_upper)
-                if(NOT imported_config_upper STREQUAL "DEBUG")
+                if(
+                    NOT requested_config_upper STREQUAL "DEBUG"
+                    AND NOT imported_config_upper STREQUAL "DEBUG"
+                )
                     bpr_append_metadata("${key}" "${output_property}" QT_NO_DEBUG)
                 endif()
             else()
@@ -636,6 +643,31 @@ endfunction()
 
 function(bpr_library_component output component target)
     bpr_cps_type(type "${target}")
+    if(target MATCHES "^Qt6::" AND NOT type STREQUAL "interface")
+        set(can_validate_native_selection TRUE)
+        foreach(configuration IN LISTS BPR_CPS_CONFIGURATIONS)
+            bpr_target_location(
+                oracle_location
+                oracle_link_location
+                oracle_configuration
+                "${target}"
+                "${configuration}"
+            )
+            if("${oracle_location}" STREQUAL "")
+                set(can_validate_native_selection FALSE)
+                break()
+            endif()
+        endforeach()
+        if(can_validate_native_selection)
+            file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/policy-oracles")
+            file(
+                GENERATE
+                OUTPUT
+                    "${CMAKE_BINARY_DIR}/policy-oracles/${component}-$<CONFIG>.txt"
+                CONTENT "$<TARGET_FILE:${target}>"
+            )
+        endif()
+    endif()
     set(result "{\"type\":\"${type}\",\"configurations\":{")
     set(separator "")
     foreach(configuration IN LISTS BPR_CPS_CONFIGURATIONS)
@@ -818,3 +850,13 @@ bpr_write_if_different("${BPR_CPS_OVERLAY}/artifacts.json" "${overlay_manifest}"
 file(REMOVE "${BPR_CPS_OVERLAY}/artifacts.cmake")
 string(SHA256 fingerprint "${overlay_manifest}")
 bpr_write_if_different("${BPR_CPS_OVERLAY}/fingerprint.txt" "${fingerprint}\n")
+
+add_custom_target(
+    bpr_validate_cps_producer_selection
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_CPS_DOCUMENT=${BPR_CPS_OVERLAY}/cps/Qt6/Qt6.cps"
+        "-DBPR_POLICY_ORACLE_DIRECTORY=${CMAKE_BINARY_DIR}/policy-oracles"
+        -P "${CMAKE_CURRENT_LIST_DIR}/ValidateProducerSelection.cmake"
+    VERBATIM
+)
