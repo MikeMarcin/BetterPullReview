@@ -216,7 +216,7 @@ one contiguous group range, canonical move order, and the public structural
 validator. Done BPR-0073 supplies byte-faithful decoding, bounded deterministic
 primary alignment, monotonic pairing, UTF-8-boundary intraline edits, unique
 whole-segment move metadata, mechanical changed-run groups, and public
-retained-result validation. Ready BPR-0074 owns the one mapping/group/
+retained-result validation. In-progress BPR-0074 owns the one mapping/group/
 navigation/detail source. Backlog BPR-0075 through
 BPR-0078 own exact host execution, Qt measured max-extent geometry, the shared
 comparison controller/scrollbar, and the custom-painted `DiffLinkMap`.
