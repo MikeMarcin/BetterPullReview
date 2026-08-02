@@ -24,7 +24,8 @@ set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
 set(BPR_GIT_MINIMUM_VERSION "2.39")
-set(BPR_CPS_CONFIGURATIONS Debug Release RelWithDebInfo MinSizeRel)
+set(BPR_QT_CPS_CONFIGURATIONS Debug Release RelWithDebInfo MinSizeRel)
+set(BPR_CPS_CONFIGURATIONS ${BPR_QT_CPS_CONFIGURATIONS})
 
 function(bpr_json_quote output value)
     if(value MATCHES ";")
@@ -970,7 +971,7 @@ if(
     if(CMAKE_CONFIGURATION_TYPES)
         set(validation_configurations AllConfigurations)
     else()
-        set(validation_configurations ${BPR_CPS_CONFIGURATIONS})
+        set(validation_configurations ${BPR_QT_CPS_CONFIGURATIONS})
     endif()
     foreach(validation_configuration IN LISTS validation_configurations)
         set(
@@ -997,7 +998,7 @@ if(
             -DCMAKE_POLICY_VERSION_MINIMUM:STRING=4.4.2
         )
         if(CMAKE_CONFIGURATION_TYPES)
-            string(REPLACE ";" "\\;" validation_matrix "${BPR_CPS_CONFIGURATIONS}")
+            string(REPLACE ";" "\\;" validation_matrix "${BPR_QT_CPS_CONFIGURATIONS}")
             list(
                 APPEND validation_configure_command
                 "-DCMAKE_CONFIGURATION_TYPES:STRING=${validation_matrix}"

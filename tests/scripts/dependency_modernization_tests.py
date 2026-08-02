@@ -207,6 +207,8 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertFalse(list(overlay.rglob("*.cmake")))
 
     def test_cps_compile_definitions_reach_product_compile_commands(self) -> None:
+        if not (BUILD_DIR / "_bpr/cps-overlay/cps/Qt6/Qt6.cps").is_file():
+            self.skipTest("Qt is intentionally absent from this build graph")
         commands = json.loads(
             (BUILD_DIR / "compile_commands.json").read_text(encoding="utf-8")
         )
