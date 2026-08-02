@@ -124,8 +124,8 @@ the resulting `Qt6::*`, `LibSecret::LibSecret`, `Python3::Interpreter`, and
 all declared configurations, Windows runtime/linker artifact pairs, and
 flattened transitive imports before sealing the overlay for online or offline
 use. Ordered usage requirements retain link multiplicity. Qt's two
-CMake-specific compatibility constraints are omitted only while a deferred
-whole-product audit proves that no non-Qt target participates in them.
+CMake-specific compatibility constraints travel in the authenticated inert
+manifest and are restored on the CPS-imported targets.
 `Threads::Threads` and native frameworks remain explicit toolchain/platform
 capabilities. SQLite is the deliberate exception to CPS: verified source
 becomes the first-party static `BetterPullReview::SQLite3` target and is never

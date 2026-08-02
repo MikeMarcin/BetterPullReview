@@ -4,43 +4,7 @@ set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
 set(BPR_GIT_MINIMUM_VERSION "2.39")
-set(BPR_CPS_GENERATOR_REVISION "8")
-
-function(bpr_collect_directory_targets output directory)
-    get_property(targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
-    get_property(imported_targets DIRECTORY "${directory}" PROPERTY IMPORTED_TARGETS)
-    list(APPEND targets ${imported_targets})
-    get_property(subdirectories DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
-    foreach(subdirectory IN LISTS subdirectories)
-        bpr_collect_directory_targets(nested_targets "${subdirectory}")
-        list(APPEND targets ${nested_targets})
-    endforeach()
-    set(${output} "${targets}" PARENT_SCOPE)
-endfunction()
-
-function(bpr_validate_qt_compatibility_nonparticipation)
-    bpr_collect_directory_targets(product_targets "${CMAKE_SOURCE_DIR}")
-    list(REMOVE_DUPLICATES product_targets)
-    foreach(target IN LISTS product_targets)
-        if(target MATCHES "^Qt6::")
-            continue()
-        endif()
-        foreach(property IN ITEMS QT_MAJOR_VERSION QT_COORD_TYPE)
-            foreach(candidate IN ITEMS "${property}" "INTERFACE_${property}")
-                get_property(is_set TARGET "${target}" PROPERTY "${candidate}" SET)
-                if(is_set)
-                    get_target_property(value "${target}" "${candidate}")
-                    message(
-                        FATAL_ERROR
-                        "Qt's CMake-only ${property} compatibility constraint cannot "
-                        "be represented by CPS, but product target '${target}' sets "
-                        "${candidate}='${value}'"
-                    )
-                endif()
-            endforeach()
-        endforeach()
-    endforeach()
-endfunction()
+set(BPR_CPS_GENERATOR_REVISION "9")
 
 function(bpr_assert_empty_redirects)
     file(GLOB redirect_entries LIST_DIRECTORIES TRUE "${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/*")
@@ -169,8 +133,114 @@ function(bpr_validate_overlay_artifacts overlay)
     if(NOT "${canonical_overlay_documents}" STREQUAL "${manifest_documents}")
         message(FATAL_ERROR "CPS overlay contains unverified or missing package documents")
     endif()
+    set_property(GLOBAL PROPERTY BPR_CPS_VALIDATED_MANIFEST "${manifest_content}")
     set_property(GLOBAL PROPERTY BPR_CPS_VALIDATED_ARTIFACTS "${manifest_artifacts}")
     set_property(GLOBAL PROPERTY BPR_CPS_VALIDATED_DOCUMENTS "${manifest_documents}")
+endfunction()
+
+function(bpr_apply_cps_target_semantics package)
+    get_property(manifest GLOBAL PROPERTY BPR_CPS_VALIDATED_MANIFEST)
+    string(
+        JSON semantics_type
+        ERROR_VARIABLE semantics_error
+        TYPE "${manifest}" target_semantics
+    )
+    if(semantics_error OR NOT semantics_type STREQUAL "OBJECT")
+        message(FATAL_ERROR "CPS target-semantics manifest is malformed")
+    endif()
+    string(JSON target_count LENGTH "${manifest}" target_semantics)
+    if(target_count EQUAL 0)
+        return()
+    endif()
+    math(EXPR target_last "${target_count} - 1")
+    foreach(target_index RANGE 0 ${target_last})
+        string(JSON target MEMBER "${manifest}" target_semantics ${target_index})
+        if(NOT target MATCHES "^${package}::")
+            continue()
+        endif()
+        if(NOT TARGET "${target}")
+            message(FATAL_ERROR "CPS target semantics reference missing target '${target}'")
+        endif()
+        string(JSON property_count LENGTH "${manifest}" target_semantics "${target}")
+        set(compatible_names)
+        set(interface_properties)
+        if(property_count GREATER 0)
+            math(EXPR property_last "${property_count} - 1")
+            foreach(property_index RANGE 0 ${property_last})
+                string(
+                    JSON property
+                    MEMBER
+                        "${manifest}" target_semantics "${target}"
+                        ${property_index}
+                )
+                string(
+                    JSON value_count
+                    ERROR_VARIABLE value_error
+                    LENGTH
+                        "${manifest}" target_semantics "${target}" "${property}"
+                )
+                if(value_error)
+                    message(FATAL_ERROR "CPS target semantic '${target}/${property}' is not an array")
+                endif()
+                set(values)
+                if(value_count GREATER 0)
+                    math(EXPR value_last "${value_count} - 1")
+                    foreach(value_index RANGE 0 ${value_last})
+                        string(
+                            JSON value
+                            GET
+                                "${manifest}" target_semantics "${target}"
+                                "${property}" ${value_index}
+                        )
+                        list(APPEND values "${value}")
+                    endforeach()
+                endif()
+                if(property MATCHES "^COMPATIBLE_INTERFACE_(BOOL|STRING|NUMBER_MAX|NUMBER_MIN)$")
+                    foreach(value IN LISTS values)
+                        if(NOT value MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
+                            message(FATAL_ERROR "Invalid CPS compatibility property name '${value}'")
+                        endif()
+                        list(APPEND compatible_names "${value}")
+                    endforeach()
+                    set_property(TARGET "${target}" PROPERTY "${property}" ${values})
+                elseif(property MATCHES "^INTERFACE_([A-Za-z_][A-Za-z0-9_]*)$")
+                    list(APPEND interface_properties "${CMAKE_MATCH_1}")
+                else()
+                    message(FATAL_ERROR "Unsupported CPS target semantic '${property}'")
+                endif()
+            endforeach()
+        endif()
+        foreach(name IN LISTS interface_properties)
+            set(property "INTERFACE_${name}")
+            if(NOT name IN_LIST compatible_names)
+                message(FATAL_ERROR "Undeclared CPS compatibility value '${target}/${property}'")
+            endif()
+            string(
+                JSON value_count
+                LENGTH
+                    "${manifest}" target_semantics "${target}" "${property}"
+            )
+            set(values)
+            if(value_count GREATER 0)
+                math(EXPR value_last "${value_count} - 1")
+                foreach(value_index RANGE 0 ${value_last})
+                    string(
+                        JSON value
+                        GET
+                            "${manifest}" target_semantics "${target}"
+                            "${property}" ${value_index}
+                    )
+                    list(APPEND values "${value}")
+                endforeach()
+            endif()
+            set_property(TARGET "${target}" PROPERTY "${property}" ${values})
+        endforeach()
+        foreach(name IN LISTS compatible_names)
+            if(NOT name IN_LIST interface_properties)
+                message(FATAL_ERROR "Missing CPS compatibility value '${target}/INTERFACE_${name}'")
+            endif()
+        endforeach()
+    endforeach()
 endfunction()
 
 function(bpr_bootstrap_cps overlay)
@@ -310,6 +380,7 @@ function(bpr_find_cps_package package version)
     if(arg_TARGET AND NOT TARGET "${arg_TARGET}")
         message(FATAL_ERROR "${package} CPS config did not define '${arg_TARGET}'")
     endif()
+    bpr_apply_cps_target_semantics("${package}")
     set_property(
         GLOBAL
         APPEND
@@ -370,6 +441,7 @@ function(bpr_configure_dependencies)
     )
     string(SHA256 producer_hint_fingerprint "${producer_hint_material}")
     set(current_external_qt_dir FALSE)
+    set(qt_dir_authority absent)
     if(Qt6_DIR)
         file(REAL_PATH "${Qt6_DIR}" candidate_qt_dir)
         cmake_path(
@@ -380,6 +452,7 @@ function(bpr_configure_dependencies)
         string(FIND "${candidate_qt_dir}" "${candidate_overlay}/" overlay_index)
         if(NOT overlay_index EQUAL 0)
             set(current_external_qt_dir TRUE)
+            set(qt_dir_authority external)
             set(
                 BPR_PRODUCER_QT6_DIR
                 "${Qt6_DIR}"
@@ -387,6 +460,8 @@ function(bpr_configure_dependencies)
                 "Qt producer package used only by the isolated CPS bootstrap"
                 FORCE
             )
+        else()
+            set(qt_dir_authority managed-overlay)
         endif()
     endif()
     if(current_external_qt_dir)
@@ -399,7 +474,9 @@ function(bpr_configure_dependencies)
         )
     elseif(BPR_PRODUCER_QT6_DIR)
         set(stale_producer_hint FALSE)
-        if(NOT DEFINED BPR_PRODUCER_HINT_FINGERPRINT)
+        if(qt_dir_authority STREQUAL absent)
+            set(stale_producer_hint TRUE)
+        elseif(NOT DEFINED BPR_PRODUCER_HINT_FINGERPRINT)
             set(stale_producer_hint TRUE)
         elseif(
             NOT "${BPR_PRODUCER_HINT_FINGERPRINT}"
@@ -461,7 +538,6 @@ function(bpr_configure_dependencies)
             )
             bpr_materialize_cps_executable(Git::ExecutableMetadata Git::Git)
         endif()
-        cmake_language(DEFER CALL bpr_validate_qt_compatibility_nonparticipation)
     endif()
 
     get_property(records GLOBAL PROPERTY BPR_CPS_RESOLUTION_RECORDS)

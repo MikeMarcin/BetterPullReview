@@ -33,11 +33,11 @@ Ordered usage arrays retain multiplicity. A generated overlay receives its
 validation seal only after those checks pass; offline mode rejects an unsealed
 or mismatched overlay left by an interrupted or failed refresh.
 
-CPS has no representation for Qt's custom `QT_MAJOR_VERSION` and
-`QT_COORD_TYPE` CMake compatibility properties. The shared-Qt adapter omits
-them only under a deferred whole-product audit that proves no non-Qt target
-participates in either constraint. Adding such a consumer or dependency is a
-fatal configuration error rather than a silent semantic change.
+CPS has no native representation for Qt's custom `QT_MAJOR_VERSION` and
+`QT_COORD_TYPE` CMake compatibility properties. The bootstrap therefore
+records them in the authenticated inert manifest, and the resolver restores
+them on the CPS-imported Qt targets. CMake continues to reject a conflicting
+consumer even when that consumer is added late in the configure.
 
 CMake 4.4.2 does not import CPS components whose type is `executable`.
 Accordingly, the Python and Git CPS adapters expose one interface metadata

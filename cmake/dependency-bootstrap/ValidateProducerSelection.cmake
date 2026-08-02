@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 4.4.2)
 if(
     NOT DEFINED BPR_CPS_DOCUMENT
     OR NOT DEFINED BPR_GENERATED_CPS_DOCUMENT
+    OR NOT DEFINED BPR_CPS_MANIFEST
+    OR NOT DEFINED BPR_GENERATED_CPS_MANIFEST
     OR NOT DEFINED BPR_POLICY_ORACLE_DIRECTORY
 )
     message(FATAL_ERROR "CPS producer-selection validation inputs are incomplete")
@@ -18,6 +20,21 @@ if(NOT EXISTS "${BPR_CPS_DOCUMENT}")
 endif()
 if(NOT EXISTS "${BPR_GENERATED_CPS_DOCUMENT}")
     message(FATAL_ERROR "Generated CPS producer metadata is missing")
+endif()
+foreach(manifest IN ITEMS "${BPR_CPS_MANIFEST}" "${BPR_GENERATED_CPS_MANIFEST}")
+    if(NOT EXISTS "${manifest}")
+        message(FATAL_ERROR "CPS producer-selection manifest is missing")
+    endif()
+endforeach()
+file(READ "${BPR_CPS_MANIFEST}" reference_manifest)
+file(READ "${BPR_GENERATED_CPS_MANIFEST}" generated_manifest)
+string(JSON reference_semantics GET "${reference_manifest}" target_semantics)
+string(JSON generated_semantics GET "${generated_manifest}" target_semantics)
+if(NOT generated_semantics STREQUAL reference_semantics)
+    message(
+        FATAL_ERROR
+        "CPS target semantics change across native consumer configurations"
+    )
 endif()
 file(SHA256 "${BPR_CPS_DOCUMENT}" reference_document_sha256)
 file(SHA256 "${BPR_GENERATED_CPS_DOCUMENT}" generated_document_sha256)

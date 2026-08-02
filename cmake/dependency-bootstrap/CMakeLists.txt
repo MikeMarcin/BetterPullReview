@@ -19,7 +19,7 @@ endif()
 file(REMOVE "${BPR_CPS_OVERLAY}/validated.txt")
 file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/policy-oracles")
 
-set(BPR_CPS_GENERATOR_REVISION "8")
+set(BPR_CPS_GENERATOR_REVISION "9")
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -80,6 +80,42 @@ function(bpr_json_definitions output)
         set(separator ",")
     endforeach()
     string(APPEND result "}}")
+    set(${output} "${result}" PARENT_SCOPE)
+endfunction()
+
+function(bpr_compatibility_semantics_json output target)
+    set(result "{")
+    set(separator "")
+    foreach(property IN ITEMS
+        COMPATIBLE_INTERFACE_BOOL
+        COMPATIBLE_INTERFACE_STRING
+        COMPATIBLE_INTERFACE_NUMBER_MAX
+        COMPATIBLE_INTERFACE_NUMBER_MIN
+    )
+        bpr_target_property_list(values "${target}" "${property}")
+        if("${values}" STREQUAL "")
+            continue()
+        endif()
+        bpr_json_array(values_json ${values})
+        string(APPEND result "${separator}\"${property}\":${values_json}")
+        set(separator ",")
+        foreach(name IN LISTS values)
+            if(NOT name MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
+                message(FATAL_ERROR "Invalid CMake compatibility property name '${name}'")
+            endif()
+            bpr_target_property(interface_value interface_is_set "${target}" "INTERFACE_${name}")
+            if(NOT interface_is_set)
+                message(FATAL_ERROR "Incomplete CMake compatibility property '${target}/INTERFACE_${name}'")
+            endif()
+            bpr_json_array(interface_json ${interface_value})
+            string(
+                APPEND result
+                "${separator}\"INTERFACE_${name}\":${interface_json}"
+            )
+            set(separator ",")
+        endforeach()
+    endforeach()
+    string(APPEND result "}")
     set(${output} "${result}" PARENT_SCOPE)
 endfunction()
 
@@ -224,9 +260,6 @@ function(bpr_validate_usage_property_coverage target)
             AND compatible_string STREQUAL "QT_MAJOR_VERSION"
             AND interface_value STREQUAL "6"
         )
-            # CPS cannot encode CMake custom compatible-interface properties.
-            # The product graph performs a deferred, whole-target audit and
-            # fails if anything outside Qt participates in this constraint.
             continue()
         endif()
         if(
@@ -234,7 +267,6 @@ function(bpr_validate_usage_property_coverage target)
             AND compatible_string STREQUAL "QT_COORD_TYPE"
             AND NOT interface_value MATCHES "-NOTFOUND$"
         )
-            # See the matching product-graph audit in BprDependencies.cmake.
             continue()
         endif()
         message(
@@ -717,6 +749,12 @@ endfunction()
 
 function(bpr_library_component output component target)
     bpr_cps_type(type "${target}")
+    if(target MATCHES "^Qt6::" AND type STREQUAL "interface")
+        message(
+            FATAL_ERROR
+            "Qt producer component '${target}' must be an artifact-bearing library"
+        )
+    endif()
     if(target MATCHES "^Qt6::" AND NOT type STREQUAL "interface")
         get_target_property(native_target_type "${target}" TYPE)
         foreach(configuration IN LISTS BPR_CPS_CONFIGURATIONS)
@@ -828,6 +866,7 @@ if(BPR_BOOTSTRAP_GIT)
     )
 endif()
 
+set(target_semantics "")
 if(BPR_BOOTSTRAP_QT)
     find_package(
         Qt6
@@ -852,6 +891,19 @@ if(BPR_BOOTSTRAP_QT)
             message(FATAL_ERROR "Qt producer did not define Qt6::${component}")
         endif()
         bpr_library_component(component_json "${component}" "Qt6::${component}")
+        bpr_compatibility_semantics_json(
+            component_semantics
+            "Qt6::${component}"
+        )
+        if(NOT component_semantics STREQUAL "{}")
+            if(target_semantics)
+                string(APPEND target_semantics ",")
+            endif()
+            string(
+                APPEND target_semantics
+                "\"Qt6::${component}\":${component_semantics}"
+            )
+        endif()
         if(qt_components)
             string(APPEND qt_components ",")
         endif()
@@ -902,7 +954,7 @@ if(artifacts)
 endif()
 set(
     overlay_manifest
-    "{\n  \"generator_revision\":\"${BPR_CPS_GENERATOR_REVISION}\",\n  \"artifacts\":["
+    "{\n  \"generator_revision\":\"${BPR_CPS_GENERATOR_REVISION}\",\n  \"target_semantics\":{${target_semantics}},\n  \"artifacts\":["
 )
 set(separator "")
 foreach(artifact IN LISTS artifacts)
@@ -956,10 +1008,13 @@ string(SHA256 fingerprint "${overlay_manifest}")
 bpr_write_if_different("${BPR_CPS_OVERLAY}/fingerprint.txt" "${fingerprint}\n")
 
 set(generated_qt_document "${BPR_CPS_OVERLAY}/cps/Qt6/Qt6.cps")
+set(generated_manifest "${BPR_CPS_OVERLAY}/artifacts.json")
 if(BPR_PRODUCER_VALIDATION_REFERENCE_CPS_DOCUMENT)
     set(validation_qt_document "${BPR_PRODUCER_VALIDATION_REFERENCE_CPS_DOCUMENT}")
+    set(validation_manifest "${BPR_PRODUCER_VALIDATION_REFERENCE_MANIFEST}")
 else()
     set(validation_qt_document "${generated_qt_document}")
+    set(validation_manifest "${generated_manifest}")
 endif()
 
 add_custom_target(
@@ -968,6 +1023,8 @@ add_custom_target(
         "${CMAKE_COMMAND}"
         "-DBPR_CPS_DOCUMENT=${validation_qt_document}"
         "-DBPR_GENERATED_CPS_DOCUMENT=${generated_qt_document}"
+        "-DBPR_CPS_MANIFEST=${validation_manifest}"
+        "-DBPR_GENERATED_CPS_MANIFEST=${generated_manifest}"
         "-DBPR_POLICY_ORACLE_DIRECTORY=${CMAKE_BINARY_DIR}/policy-oracles"
         -P "${CMAKE_CURRENT_LIST_DIR}/ValidateProducerSelection.cmake"
     COMMAND
@@ -1014,6 +1071,7 @@ if(
             -DBPR_BOOTSTRAP_TEST_TOOLS:BOOL=OFF
             -DBPR_BOOTSTRAP_GIT:BOOL=OFF
             "-DBPR_PRODUCER_VALIDATION_REFERENCE_CPS_DOCUMENT:FILEPATH=${generated_qt_document}"
+            "-DBPR_PRODUCER_VALIDATION_REFERENCE_MANIFEST:FILEPATH=${generated_manifest}"
             -DCMAKE_POLICY_DEFAULT_CMP0200:STRING=NEW
             -DCMAKE_POLICY_VERSION_MINIMUM:STRING=4.4.2
         )

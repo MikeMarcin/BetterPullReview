@@ -14,7 +14,19 @@ set(Qt6_VERSION "${BPR_FAKE_QT_VERSION}")
 get_filename_component(_bpr_fake_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 foreach(component IN ITEMS Core Gui Widgets Network)
-    if(BPR_FAKE_QT_MODULE_TARGETS)
+    if(BPR_FAKE_QT_INTERFACE_TARGETS)
+        add_library("Qt6::${component}" INTERFACE IMPORTED GLOBAL)
+        string(TOUPPER "${component}" component_upper)
+        set_target_properties(
+            "Qt6::${component}"
+            PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES
+                    "${_bpr_fake_root}/include path/${component}"
+                INTERFACE_COMPILE_DEFINITIONS "QT_${component_upper}_LIB"
+        )
+        set("Qt6_${component}_FOUND" TRUE)
+        continue()
+    elseif(BPR_FAKE_QT_MODULE_TARGETS)
         add_library("Qt6::${component}" MODULE IMPORTED GLOBAL)
     else()
         add_library("Qt6::${component}" SHARED IMPORTED GLOBAL)
@@ -143,6 +155,13 @@ set_property(
 set_property(
     TARGET Qt6::Core
     PROPERTY INTERFACE_COMPILE_FEATURES "cxx_std_17;cxx_decltype"
+)
+set_target_properties(
+    Qt6::Core
+    PROPERTIES
+        COMPATIBLE_INTERFACE_STRING "QT_MAJOR_VERSION;QT_COORD_TYPE"
+        INTERFACE_QT_MAJOR_VERSION 6
+        INTERFACE_QT_COORD_TYPE double
 )
 set_property(
     TARGET Qt6::Core

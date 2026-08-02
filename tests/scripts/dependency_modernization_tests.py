@@ -196,13 +196,21 @@ class DependencyModernizationTests(unittest.TestCase):
         manifest = overlay / "artifacts.json"
         self.assertTrue(manifest.is_file())
         manifest_digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+        manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
         self.assertEqual(
-            json.loads(manifest.read_text(encoding="utf-8"))["generator_revision"],
-            "8",
+            manifest_data["generator_revision"],
+            "9",
         )
+        if "Qt6::Core" in manifest_data["target_semantics"]:
+            core_semantics = manifest_data["target_semantics"]["Qt6::Core"]
+            self.assertEqual(core_semantics["INTERFACE_QT_MAJOR_VERSION"], ["6"])
+            self.assertIn(
+                "QT_MAJOR_VERSION",
+                core_semantics["COMPATIBLE_INTERFACE_STRING"],
+            )
         self.assertEqual(
             (overlay / "validated.txt").read_text(encoding="utf-8").strip(),
-            f"8:{manifest_digest}",
+            f"9:{manifest_digest}",
         )
         self.assertFalse(list(overlay.rglob("*.cmake")))
 
@@ -225,20 +233,34 @@ class DependencyModernizationTests(unittest.TestCase):
             )
         )
 
-    def test_product_graph_rejects_qt_compatibility_participation(self) -> None:
+    def test_cps_restores_qt_compatibility_constraints(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary = Path(temporary_directory)
+            generated, overlay = self.run_bootstrap_fixture(temporary_directory)
+            self.assertEqual(
+                generated.returncode, 0, generated.stdout + generated.stderr
+            )
             source = temporary / "source"
             source.mkdir()
+            (source / "consumer.cpp").write_text("int value = 0;\n", encoding="utf-8")
+            marker = temporary / "coord-type.txt"
             (source / "CMakeLists.txt").write_text(
                 "cmake_minimum_required(VERSION 4.4.2)\n"
-                "project(QtCompatibilityAudit LANGUAGES NONE)\n"
+                "project(QtCompatibilityAudit LANGUAGES CXX)\n"
                 f"list(APPEND CMAKE_MODULE_PATH [==[{ROOT / 'cmake'}]==])\n"
                 "include(BprDependencies)\n"
+                f"set(BPR_CPS_OVERLAY [==[{overlay}]==])\n"
+                "bpr_validate_overlay_artifacts(${BPR_CPS_OVERLAY})\n"
+                "bpr_find_cps_package(Qt6 6.8 TARGET Qt6::Core "
+                "COMPONENTS Core Gui Widgets Network)\n"
                 "add_library(conflicting_consumer INTERFACE)\n"
                 "set_property(TARGET conflicting_consumer PROPERTY "
                 "INTERFACE_QT_COORD_TYPE float)\n"
-                "bpr_validate_qt_compatibility_nonparticipation()\n",
+                "add_library(selected_graph STATIC consumer.cpp)\n"
+                "target_link_libraries(selected_graph PRIVATE "
+                "Qt6::Core conflicting_consumer)\n"
+                f"file(GENERATE OUTPUT [==[{marker}]==] "
+                'CONTENT "$<TARGET_PROPERTY:selected_graph,QT_COORD_TYPE>")\n',
                 encoding="utf-8",
             )
             configured = subprocess.run(
@@ -255,7 +277,7 @@ class DependencyModernizationTests(unittest.TestCase):
             )
             self.assertNotEqual(configured.returncode, 0)
             self.assertIn(
-                "represented by CPS",
+                "QT_COORD_TYPE",
                 configured.stdout + configured.stderr,
             )
 
@@ -293,7 +315,11 @@ class DependencyModernizationTests(unittest.TestCase):
                 "-DCMAKE_BUILD_TYPE=Debug",
             ]
             first = subprocess.run(
-                [*common, f"-DQt6_DIR={producer_a / 'Qt6'}"],
+                [
+                    *common,
+                    f"-DQt6_DIR={producer_a / 'Qt6'}",
+                    f"-DQt6_ROOT={producer_b}",
+                ],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -1078,6 +1104,10 @@ class DependencyModernizationTests(unittest.TestCase):
                 "duplicate compile-definition name 'BPR_DUP'",
             ),
             (
+                ("-DBPR_FAKE_QT_INTERFACE_TARGETS=ON",),
+                "must be an artifact-bearing library",
+            ),
+            (
                 (
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_INCOMPLETE_DEBUG=ON",
@@ -1216,7 +1246,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         document.read_bytes()
                     ).hexdigest()
                     manifest = {
-                        "generator_revision": "8",
+                        "generator_revision": "9",
                         "artifacts": [],
                         "documents": [
                             {
@@ -1236,7 +1266,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         encoding="utf-8",
                     )
                     (overlay / "validated.txt").write_text(
-                        "8:"
+                        "9:"
                         + hashlib.sha256(manifest_text.encode()).hexdigest()
                         + "\n",
                         encoding="utf-8",
