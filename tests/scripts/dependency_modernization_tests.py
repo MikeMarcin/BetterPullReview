@@ -507,6 +507,38 @@ class DependencyModernizationTests(unittest.TestCase):
                 debug["link_location"].endswith("windows-release.lib")
             )
 
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result, overlay = self.run_bootstrap_fixture(
+                temporary_directory,
+                extra=(
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_IMPLIB_ONLY=ON",
+                ),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            document = json.loads(
+                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
+            )
+            debug = document["components"]["Core"]["configurations"]["debug"]
+            self.assertNotIn("location", debug)
+            self.assertTrue(
+                debug["link_location"].endswith("windows-debug.lib")
+            )
+
+    def test_cps_bootstrap_preserves_cmake_false_supported_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result, overlay = self.run_bootstrap_fixture(
+                temporary_directory,
+                extra=("-DBPR_FAKE_QT_FALSE_SUPPORTED_VALUES=ON",),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            document = json.loads(
+                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
+            )
+            debug = document["components"]["Core"]["configurations"]["debug"]
+            self.assertIn("OFF", debug["link_libraries"])
+            self.assertIn("OFF", debug["definitions"]["*"])
+
     def test_cps_bootstrap_fingerprint_is_stable_until_metadata_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             first, overlay = self.run_bootstrap_fixture(temporary_directory)
@@ -659,6 +691,13 @@ class DependencyModernizationTests(unittest.TestCase):
                     "-DBPR_FAKE_QT_WINDOWS_INCOMPLETE_DEBUG=ON",
                 ),
                 "Incomplete paired imported artifact",
+            ),
+            (
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_MISSING_WITH_GENERAL=ON",
+                ),
+                "has no artifact",
             ),
             (("-DBPR_FAKE_QT_VERSION=6.7.9",), "caller-installed Qt >= 6.8"),
         )
