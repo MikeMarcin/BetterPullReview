@@ -1,35 +1,35 @@
-add_executable(
-    better_pull_review_qt_tests
+bpr_add_executable(
+    test_better_pull_review_qt_tests
     foundation_window_tests.cpp
 )
 
 target_link_libraries(
-    better_pull_review_qt_tests
+    test_better_pull_review_qt_tests
     PRIVATE
         BetterPullReview::AdapterQt
 )
-bpr_enable_hardening(better_pull_review_qt_tests)
-bpr_enable_warnings(better_pull_review_qt_tests)
+bpr_enable_hardening(test_better_pull_review_qt_tests)
+bpr_enable_warnings(test_better_pull_review_qt_tests)
 
-add_test(NAME qt_foundation_window COMMAND better_pull_review_qt_tests)
+add_test(NAME qt_foundation_window COMMAND test_better_pull_review_qt_tests)
 set_tests_properties(
     qt_foundation_window
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=1.25"
 )
 
-add_executable(
-    better_pull_review_qt_github_tests
+bpr_add_executable(
+    test_better_pull_review_qt_github_tests
     github_window_tests.cpp
 )
 
 target_link_libraries(
-    better_pull_review_qt_github_tests
+    test_better_pull_review_qt_github_tests
     PRIVATE
         BetterPullReview::AdapterQt
 )
-bpr_enable_hardening(better_pull_review_qt_github_tests)
-bpr_enable_warnings(better_pull_review_qt_github_tests)
+bpr_enable_hardening(test_better_pull_review_qt_github_tests)
+bpr_enable_warnings(test_better_pull_review_qt_github_tests)
 
 set(bpr_qt_github_common_environment "QT_QPA_PLATFORM=offscreen")
 if(UNIX AND NOT APPLE)
@@ -40,7 +40,7 @@ endif()
 
 add_test(
     NAME qt_github_window_scale_100
-    COMMAND better_pull_review_qt_github_tests
+    COMMAND test_better_pull_review_qt_github_tests
 )
 set_tests_properties(
     qt_github_window_scale_100
@@ -52,7 +52,7 @@ set_tests_properties(
 
 add_test(
     NAME qt_github_window_scale_125
-    COMMAND better_pull_review_qt_github_tests
+    COMMAND test_better_pull_review_qt_github_tests
 )
 set_tests_properties(
     qt_github_window_scale_125
@@ -64,7 +64,7 @@ set_tests_properties(
 
 add_test(
     NAME qt_github_window_scale_200
-    COMMAND better_pull_review_qt_github_tests
+    COMMAND test_better_pull_review_qt_github_tests
 )
 set_tests_properties(
     qt_github_window_scale_200
@@ -74,26 +74,26 @@ set_tests_properties(
         TIMEOUT 120
 )
 
-add_executable(
-    better_pull_review_qt_github_conversation_model_property_tests
+bpr_add_executable(
+    test_better_pull_review_qt_github_conversation_model_property_tests
     github_conversation_model_property_tests.cpp
 )
 
 target_link_libraries(
-    better_pull_review_qt_github_conversation_model_property_tests
+    test_better_pull_review_qt_github_conversation_model_property_tests
     PRIVATE
         BetterPullReview::AdapterQt
 )
 bpr_enable_hardening(
-    better_pull_review_qt_github_conversation_model_property_tests
+    test_better_pull_review_qt_github_conversation_model_property_tests
 )
 bpr_enable_warnings(
-    better_pull_review_qt_github_conversation_model_property_tests
+    test_better_pull_review_qt_github_conversation_model_property_tests
 )
 
 add_test(
     NAME qt_github_conversation_model_property
-    COMMAND better_pull_review_qt_github_conversation_model_property_tests
+    COMMAND test_better_pull_review_qt_github_conversation_model_property_tests
 )
 set_tests_properties(
     qt_github_conversation_model_property
@@ -103,22 +103,22 @@ set_tests_properties(
         TIMEOUT 180
 )
 
-add_executable(
-    better_pull_review_qt_sensitive_text_input_tests
+bpr_add_executable(
+    test_better_pull_review_qt_sensitive_text_input_tests
     sensitive_text_input_tests.cpp
 )
 
 target_link_libraries(
-    better_pull_review_qt_sensitive_text_input_tests
+    test_better_pull_review_qt_sensitive_text_input_tests
     PRIVATE
         BetterPullReview::AdapterQt
 )
-bpr_enable_hardening(better_pull_review_qt_sensitive_text_input_tests)
-bpr_enable_warnings(better_pull_review_qt_sensitive_text_input_tests)
+bpr_enable_hardening(test_better_pull_review_qt_sensitive_text_input_tests)
+bpr_enable_warnings(test_better_pull_review_qt_sensitive_text_input_tests)
 
 add_test(
     NAME qt_sensitive_text_input
-    COMMAND better_pull_review_qt_sensitive_text_input_tests
+    COMMAND test_better_pull_review_qt_sensitive_text_input_tests
 )
 set_tests_properties(
     qt_sensitive_text_input
@@ -128,18 +128,18 @@ set_tests_properties(
         TIMEOUT 15
 )
 
-add_executable(
-    better_pull_review_qt_epoch_comparison_tests
+bpr_add_executable(
+    test_better_pull_review_qt_epoch_comparison_tests
     epoch_comparison_control_tests.cpp
 )
 
 target_link_libraries(
-    better_pull_review_qt_epoch_comparison_tests
+    test_better_pull_review_qt_epoch_comparison_tests
     PRIVATE
         BetterPullReview::AdapterQt
 )
-bpr_enable_hardening(better_pull_review_qt_epoch_comparison_tests)
-bpr_enable_warnings(better_pull_review_qt_epoch_comparison_tests)
+bpr_enable_hardening(test_better_pull_review_qt_epoch_comparison_tests)
+bpr_enable_warnings(test_better_pull_review_qt_epoch_comparison_tests)
 
 foreach(bpr_epoch_scale IN ITEMS 100 125 200)
     if(bpr_epoch_scale STREQUAL "100")
@@ -151,7 +151,7 @@ foreach(bpr_epoch_scale IN ITEMS 100 125 200)
     endif()
     add_test(
         NAME qt_epoch_comparison_scale_${bpr_epoch_scale}
-        COMMAND better_pull_review_qt_epoch_comparison_tests
+        COMMAND test_better_pull_review_qt_epoch_comparison_tests
     )
     set_tests_properties(
         qt_epoch_comparison_scale_${bpr_epoch_scale}

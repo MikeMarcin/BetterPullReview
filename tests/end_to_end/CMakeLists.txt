@@ -16,7 +16,7 @@ endif()
 add_test(
     NAME application_public_path
     COMMAND
-        $<TARGET_FILE:better_pull_review>
+        $<TARGET_FILE:app_better_pull_review>
         --self-test
 )
 set_tests_properties(
@@ -31,7 +31,7 @@ set_tests_properties(
 add_test(
     NAME application_public_path_ghes_cli_unavailable
     COMMAND
-        $<TARGET_FILE:better_pull_review>
+        $<TARGET_FILE:app_better_pull_review>
         --self-test
         --ghes-host
         ghe.example.invalid
@@ -45,26 +45,26 @@ set_tests_properties(
         TIMEOUT 15
 )
 
-add_executable(
-    better_pull_review_worker_executor_tests
+bpr_add_executable(
+    test_better_pull_review_worker_executor_tests
     worker_executor_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_worker_executor_tests
+    test_better_pull_review_worker_executor_tests
     PRIVATE
         BetterPullReview::Composition
 )
 target_compile_features(
-    better_pull_review_worker_executor_tests
+    test_better_pull_review_worker_executor_tests
     PRIVATE
         cxx_std_23
 )
-bpr_enable_hardening(better_pull_review_worker_executor_tests)
-bpr_enable_warnings(better_pull_review_worker_executor_tests)
+bpr_enable_hardening(test_better_pull_review_worker_executor_tests)
+bpr_enable_warnings(test_better_pull_review_worker_executor_tests)
 
 add_test(
     NAME application_worker_executor
-    COMMAND better_pull_review_worker_executor_tests
+    COMMAND test_better_pull_review_worker_executor_tests
 )
 set_tests_properties(
     application_worker_executor
@@ -106,7 +106,7 @@ add_test(
     NAME application_native_appearance_probe_contract
     COMMAND
         "${CMAKE_COMMAND}"
-        "-DBPR_APPLICATION=$<TARGET_FILE:better_pull_review>"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_BEFORE_RENDER=${CMAKE_CURRENT_BINARY_DIR}/native-appearance-before.png"
         "-DBPR_AFTER_RENDER=${CMAKE_CURRENT_BINARY_DIR}/native-appearance-after.png"
         -P
@@ -122,7 +122,7 @@ set_tests_properties(
 add_test(
     NAME application_github_public_path_github_com
     COMMAND
-        $<TARGET_FILE:better_pull_review>
+        $<TARGET_FILE:app_better_pull_review>
         --github-fixture
         github-com
         --render-evidence
@@ -140,7 +140,7 @@ set_tests_properties(
 add_test(
     NAME application_github_public_path_ghes_3_18
     COMMAND
-        $<TARGET_FILE:better_pull_review>
+        $<TARGET_FILE:app_better_pull_review>
         --github-fixture
         ghes-3.18
         --render-evidence
@@ -169,7 +169,7 @@ foreach(
         NAME application_epoch_persistence_${fixture_test_name}
         COMMAND
             "${CMAKE_COMMAND}"
-            "-DBPR_APPLICATION=$<TARGET_FILE:better_pull_review>"
+            "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
             "-DBPR_FIXTURE=${fixture_name}"
             "-DBPR_FIXTURE_LABEL=${fixture_label}"
             "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/epoch-persistence-${fixture_test_name}"
@@ -190,7 +190,7 @@ add_test(
     NAME application_epoch_maintenance_public_path
     COMMAND
         "${CMAKE_COMMAND}"
-        "-DBPR_APPLICATION=$<TARGET_FILE:better_pull_review>"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/epoch-maintenance-public-path"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/epoch_maintenance_public_path_contract.cmake"
@@ -208,7 +208,7 @@ add_test(
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_binary_dependencies.py"
-        $<TARGET_FILE:better_pull_review>
+        $<TARGET_FILE:app_better_pull_review>
 )
 set_tests_properties(
     binary_dependency_surface
@@ -222,7 +222,7 @@ add_test(
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_runtime_surface.py"
-        $<TARGET_FILE:better_pull_review>
+        $<TARGET_FILE:app_better_pull_review>
 )
 set_tests_properties(
     runtime_process_surface
@@ -234,7 +234,7 @@ set_tests_properties(
 add_test(
     NAME application_render
     COMMAND
-        $<TARGET_FILE:better_pull_review>
+        $<TARGET_FILE:app_better_pull_review>
         --render-evidence
         "${CMAKE_CURRENT_BINARY_DIR}/foundation-window.png"
 )

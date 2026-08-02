@@ -51,12 +51,13 @@ def run(
 
 def frozen_pack(source: str, name: str) -> bytes:
     match = re.search(
-        rf"{name}\{{QByteArray::fromBase64\(QByteArrayLiteral\(\s*"
-        r'"([A-Za-z0-9+/=]+)"\)\)\}',
+        rf"\b{re.escape(name)}\s*\{{\s*"
+        r"QByteArray::fromBase64\(QByteArrayLiteral\(\s*"
+        r'"([A-Za-z0-9+/=]+)"\s*\)\)\s*\}',
         source,
     )
     if match is None:
-        fail(f"cannot locate exactly formatted {name}")
+        fail(f"cannot locate frozen pack {name}")
     return base64.b64decode(match.group(1), validate=True)
 
 
@@ -118,7 +119,10 @@ def main() -> None:
             fail(f"{name} is not a Git pack")
 
     source_oids = dict(
-        re.findall(r'std::string (Base|HeadOne|HeadTwo) = "([0-9a-f]{40})";', source)
+        re.findall(
+            r'std::string\s+(Base|HeadOne|HeadTwo)\s*=\s*"([0-9a-f]{40})";',
+            source,
+        )
     )
     expected_oids = {
         "Base": objects["base"]["oid"],

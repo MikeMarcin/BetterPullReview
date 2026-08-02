@@ -24,6 +24,8 @@ project(
     LANGUAGES C CXX
 )
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(CMAKE_PROJECT_TOP_LEVEL_INCLUDES)
     message(
         FATAL_ERROR
@@ -48,13 +50,32 @@ option(
 )
 
 include("${CMAKE_ROOT}/Modules/CTest.cmake")
+option(
+    BPR_ENABLE_CODING_TARGETS
+    "Enable BetterPullReview coding-standard utility targets"
+    "${BUILD_TESTING}"
+)
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Hardening.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Warnings.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprDependencies.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprSQLiteProvider.cmake")
 
 bpr_configure_dependencies()
+include("${CMAKE_CURRENT_SOURCE_DIR}/_coding-standard/cmake/CodingStandard.cmake")
 bpr_acquire_sqlite(BPR_SQLITE_SOURCE_DIR)
+
+function(bpr_add_executable target)
+    if(NOT target MATCHES "^(app|bench|demo|fuzz|test|tool)_")
+        message(
+            FATAL_ERROR
+            "First-party executable target '${target}' requires a coding-standard category prefix"
+        )
+    endif()
+
+    add_executable("${target}" ${ARGN})
+    string(REGEX REPLACE "^[^_]+_" "" output_name "${target}")
+    set_target_properties("${target}" PROPERTIES OUTPUT_NAME "${output_name}")
+endfunction()
 
 add_subdirectory(third_party/sqlite)
 

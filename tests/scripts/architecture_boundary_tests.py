@@ -1333,7 +1333,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "O_NOFOLLOW",
             "FILE_FLAG_OPEN_REPARSE_POINT",
             "maximum_pending_input_bytes",
-            "buffered_input_offset",
+            "bufferedInputOffset",
             '"GIT_CONFIG_NOSYSTEM"',
             '"GIT_EXEC_PATH"',
             '"core.fsync=all"',

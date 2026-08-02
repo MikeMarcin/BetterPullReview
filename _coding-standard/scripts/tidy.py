@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import List, Optional, Sequence, Set
+
+from _coding_standard import (
+    TIDY_EXTENSIONS,
+    display_path,
+    iter_source_files,
+    normalize_input_paths,
+    repo_root,
+    resolve_tool,
+)
+
+
+def find_compile_commands(root: Path, build_dir: Optional[Path], compile_commands: Optional[Path]) -> Optional[Path]:
+    if compile_commands is not None:
+        candidate = compile_commands if compile_commands.is_absolute() else root / compile_commands
+        return candidate if candidate.is_file() else None
+
+    if build_dir is not None:
+        candidate_dir = build_dir if build_dir.is_absolute() else root / build_dir
+        candidate = candidate_dir / "compile_commands.json"
+        return candidate if candidate.is_file() else None
+
+    code_root = next(
+        (candidate for candidate in (root, *root.parents) if (candidate / "build-projects.json").is_file()),
+        None,
+    )
+    candidates = []
+    if code_root is not None:
+        candidates.extend(
+            sorted(
+                (code_root / ".build/projects").glob("**/compile_commands.json"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+        )
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def changed_paths(root: Path) -> List[str]:
+    completed = subprocess.run(
+        ["git", "diff", "--relative", "--name-only", "--diff-filter=ACMR", "HEAD", "--"],
+        cwd=str(root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        if completed.stderr:
+            print(completed.stderr, end="", file=sys.stderr)
+        return []
+    return [line for line in completed.stdout.splitlines() if line.strip()]
+
+
+def compile_command_files(compile_commands: Path) -> Set[Path]:
+    data = json.loads(compile_commands.read_text())
+    files: Set[Path] = set()
+    for entry in data:
+        raw_file = entry.get("file")
+        if not raw_file:
+            continue
+        path = Path(raw_file)
+        if not path.is_absolute():
+            directory = Path(entry.get("directory", compile_commands.parent))
+            path = directory / path
+        files.add(path.resolve())
+    return files
+
+
+def host_extra_args() -> List[str]:
+    # The compilation database deliberately carries the product build's
+    # -Werror policy. Keep compiler warnings as warnings here so
+    # --warnings-as-errors can remain scoped to clang-tidy diagnostics; syntax
+    # and semantic compiler errors still fail the invocation.
+    extra_args = ["--extra-arg=-Wno-error", "--extra-arg=-Wno-missing-designated-field-initializers"]
+
+    if sys.platform != "darwin":
+        return extra_args
+
+    completed = subprocess.run(
+        ["xcrun", "--show-sdk-path"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return extra_args
+
+    sdk_path = completed.stdout.strip()
+    if not sdk_path:
+        return extra_args
+    return [*extra_args, "--extra-arg=-isysroot", f"--extra-arg={sdk_path}"]
+
+
+def print_compile_commands_help(root: Path, build_dir: Optional[Path], compile_commands: Optional[Path]) -> None:
+    if compile_commands is not None:
+        print(f"compile_commands.json not found: {compile_commands}", file=sys.stderr)
+    elif build_dir is not None:
+        print(f"compile_commands.json not found under build directory: {build_dir}", file=sys.stderr)
+    else:
+        print("compile_commands.json not found.", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Generate one with CMake, for example:", file=sys.stderr)
+    print("  cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON", file=sys.stderr)
+    print("", file=sys.stderr)
+    print(f"Repository root: {root}", file=sys.stderr)
+
+
+def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run clang-tidy on selected project translation units.")
+    parser.add_argument("--root", type=Path, default=None, help="Project root to scan. Defaults to the current working directory.")
+    parser.add_argument("--build-dir", type=Path, default=None, help="Build directory containing compile_commands.json.")
+    parser.add_argument("--compile-commands", type=Path, default=None, help="Path to compile_commands.json.")
+    parser.add_argument("--clang-tidy", default="clang-tidy", help="clang-tidy executable path or PATH name.")
+    parser.add_argument("--fix", action="store_true", help="Allow clang-tidy to apply fixes.")
+    parser.add_argument("--paths", nargs="*", default=None, help="Files or directories to check. Defaults to normal project roots.")
+    parser.add_argument("--changed", action="store_true", help="Check changed translation units according to Git.")
+    parser.add_argument("--warnings-as-errors", action="store_true", help="Promote all clang-tidy warnings to errors.")
+    return parser.parse_args(argv)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    args = parse_args(argv)
+    root = repo_root(args.root)
+
+    try:
+        clang_tidy = resolve_tool(args.clang_tidy)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    compile_commands = find_compile_commands(root, args.build_dir, args.compile_commands)
+    if compile_commands is None:
+        print_compile_commands_help(root, args.build_dir, args.compile_commands)
+        return 2
+
+    if args.changed:
+        raw_paths = changed_paths(root)
+        if not raw_paths:
+            print("No changed C/C++ translation units found for clang-tidy.")
+            return 0
+    else:
+        raw_paths = args.paths if args.paths is not None else []
+
+    files = sorted(iter_source_files(normalize_input_paths(raw_paths, root), root, TIDY_EXTENSIONS))
+    if not files:
+        print("No C/C++ translation units found for clang-tidy.")
+        return 0
+
+    compile_files = compile_command_files(compile_commands)
+    files_in_database = [path for path in files if path.resolve() in compile_files]
+    skipped = len(files) - len(files_in_database)
+    if skipped:
+        print(f"Skipping {skipped} translation unit(s) absent from {compile_commands}.")
+    files = files_in_database
+    if not files:
+        print("No selected C/C++ translation units are present in the compilation database.")
+        return 0
+
+    build_root = compile_commands.parent
+    print(f"Running clang-tidy on {len(files)} translation unit(s)")
+    print(f"Compilation database: {compile_commands}")
+
+    extra_args = host_extra_args()
+    failures: List[Path] = []
+    for path in files:
+        cmd = [clang_tidy, str(path), "-p", str(build_root), *extra_args]
+        if args.warnings_as_errors:
+            cmd.append("--warnings-as-errors=*")
+        if args.fix:
+            cmd.append("--fix")
+        print("+", " ".join(cmd))
+        completed = subprocess.run(cmd, cwd=str(root))
+        if completed.returncode != 0:
+            failures.append(path)
+
+    if failures:
+        print("clang-tidy reported violations or tool failures:", file=sys.stderr)
+        for path in failures:
+            print(f"  {display_path(path, root)}", file=sys.stderr)
+        return 1
+
+    print("clang-tidy passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

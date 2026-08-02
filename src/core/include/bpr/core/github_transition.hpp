@@ -1,13 +1,17 @@
-#pragma once
+#ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_GITHUB_TRANSITION_HPP
+#define BPR_SRC_CORE_INCLUDE_BPR_CORE_GITHUB_TRANSITION_HPP
 
 #include "bpr/core/github_model.hpp"
 
-namespace bpr::core
-{
-[[nodiscard]] auto github_commands(const github_state& state)
-    -> std::vector<github_command_projection>;
+namespace bpr::core {
+	/// \brief Computes the github commands result.
+	[[nodiscard]] auto github_commands(const github_state& aState)
+		-> std::vector<github_command_projection>;
 
-[[nodiscard]] auto transition(
-    github_state& state,
-    const github_event& event) -> github_transition_output;
+	/// \brief Applies an accepted event to the supplied state.
+	[[nodiscard]] auto transition(
+		github_state&       aState,
+		const github_event& aEvent) -> github_transition_output;
 }
+
+#endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_GITHUB_TRANSITION_HPP

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_CACHE_HPP
+#define BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_CACHE_HPP
 
 #include "bpr/application/git_cache_port.hpp"
 
@@ -7,18 +8,21 @@
 #include <memory>
 #include <optional>
 
-namespace bpr::adapters::git
-{
-struct installed_git_cache_configuration
-{
-    std::filesystem::path GitExecutable;
-    std::filesystem::path StorageRoot;
-    std::optional<std::filesystem::path> WindowsSystemRoot;
-};
+namespace bpr::adapters::git {
+	/// \brief Describes the installed git cache configuration record.
+	struct installed_git_cache_configuration
+	{
+		std::filesystem::path                GitExecutable;
+		std::filesystem::path                StorageRoot;
+		std::optional<std::filesystem::path> WindowsSystemRoot;
+	};
 
-[[nodiscard]] auto make_installed_git_cache(
-    const installed_git_cache_configuration& configuration)
-    -> std::expected<
-        std::unique_ptr<application::git_cache_port>,
-        application::git_cache_failure>;
+	/// \brief Creates the installed git cache.
+	[[nodiscard]] auto make_installed_git_cache(
+		const installed_git_cache_configuration& aConfiguration)
+		-> std::expected<
+			std::unique_ptr<application::git_cache_port>,
+			application::git_cache_failure>;
 }
+
+#endif // BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_CACHE_HPP

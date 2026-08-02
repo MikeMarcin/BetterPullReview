@@ -83,7 +83,9 @@ architecture](docs/architecture/github-host-implementation.md) and
 
 Prerequisites are CMake 4.4.2, Ninja, a C++23 compiler, Qt 6.8+ for the native
 application, Python 3.10+ for tests, and Git 2.39+ for installed-Git contract
-tests. On Linux, libsecret 0.20+ development metadata is also required.
+tests. Clang-format and clang-tidy are required for the coding-standard gates;
+LLVM 22.1.8 is the validated tooling version. On Linux, libsecret 0.20+
+development metadata is also required.
 Compatible newer installations are supported.
 
 Dependency discovery is centralized before product targets are declared.
@@ -118,6 +120,18 @@ cmake --preset core-only
 cmake --build --preset core-only
 ctest --preset core-only --output-on-failure
 ```
+
+The canonical first-party C++ rules are in
+[`_coding-standard/STANDARD.md`](_coding-standard/STANDARD.md). Check the
+complete source and test tree with:
+
+```sh
+cmake --build --preset dev --target coding-format-check coding-tidy
+```
+
+`coding-format` applies the canonical formatter. The equivalent direct scripts
+and project-specific clang-tidy adaptations are documented in
+[`_coding-standard/README.md`](_coding-standard/README.md).
 
 Use `-DBUILD_TESTING=OFF` for a tests-disabled graph. The obsolete
 `BPR_BUILD_TESTS` cache variable is rejected with a migration diagnostic.

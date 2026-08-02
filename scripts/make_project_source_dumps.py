@@ -81,6 +81,8 @@ PREFERRED_FRONT = (
     "docs/architecture/system-architecture.md",
     "docs/rfcs/README.md",
     "docs/issues/README.md",
+    "_coding-standard/STANDARD.md",
+    "_coding-standard/ADOPTION.md",
     "CMakeLists.txt",
     "CMakePresets.json",
     ".gitignore",
@@ -181,6 +183,8 @@ def classify(path: Path, root: Path) -> str:
         return "agent"
     if top == "cmake":
         return "build"
+    if top == "_coding-standard":
+        return "coding-standard"
     if top == "docs":
         return "docs"
     if top == "packaging":

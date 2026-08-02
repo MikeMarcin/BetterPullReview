@@ -1,0 +1,82 @@
+---
+Checks: >
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  modernize-make-shared,
+  modernize-make-unique,
+  modernize-use-emplace,
+  modernize-use-nullptr,
+  modernize-use-override,
+  readability-braces-around-statements,
+  readability-const-return-type,
+  readability-container-size-empty,
+  readability-delete-null-pointer,
+  readability-inconsistent-declaration-parameter-name,
+  readability-identifier-naming,
+  readability-misleading-indentation,
+  readability-redundant-member-init,
+  readability-redundant-string-init,
+  readability-simplify-boolean-expr,
+  readability-static-accessed-through-instance,
+  readability-use-anyofallof,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-empty-catch,
+  -bugprone-exception-escape,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-macro-parentheses,
+  -bugprone-reserved-identifier,
+  -bugprone-unchecked-optional-access,
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
+  -clang-analyzer-optin.performance.Padding,
+  -modernize-avoid-c-arrays,
+  -modernize-pass-by-value,
+  -modernize-use-auto,
+  -modernize-use-nodiscard,
+  -modernize-use-trailing-return-type,
+  -performance-enum-size,
+  -performance-move-const-arg,
+  -performance-unnecessary-value-param,
+  -readability-redundant-member-init,
+  -readability-simplify-boolean-expr,
+  -readability-use-anyofallof
+WarningsAsErrors: ''
+HeaderFilterRegex: '(^|.*/)(include|src|examples|tests)/'
+ExcludeHeaderFilterRegex: '(^|.*/)(generated|_deps|build|cmake-build-[^/]*)/'
+FormatStyle: file
+CheckOptions:
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: '0'
+  - key: bugprone-unused-return-value.AllowCastToVoid
+    value: 'true'
+  - key: readability-identifier-naming.ClassCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassIgnoredRegexp
+    value: '^Q[A-Z].*'
+  - key: readability-identifier-naming.StructCase
+    value: lower_case
+  - key: readability-identifier-naming.EnumCase
+    value: lower_case
+  - key: readability-identifier-naming.TypeAliasCase
+    value: lower_case
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.MethodCase
+    value: lower_case
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: CamelCase
+  - key: readability-identifier-naming.ParameterPrefix
+    value: a
+  - key: readability-identifier-naming.LocalVariableCase
+    value: camelBack
+  - key: readability-identifier-naming.MemberCase
+    value: CamelCase
+  - key: readability-identifier-naming.PrivateMemberCase
+    value: CamelCase
+  - key: readability-identifier-naming.ProtectedMemberCase
+    value: CamelCase

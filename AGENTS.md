@@ -6,11 +6,12 @@ specific instructions.
 ## Read first
 
 1. `README.md` and `CONTRIBUTING.md`
-2. `docs/architecture/product-contract.md`
-3. `docs/architecture/system-architecture.md`
-4. The current RFC in `docs/rfcs/`
-5. The live board and current card in `docs/issues/`
-6. The nearest nested `AGENTS.md`
+2. `_coding-standard/STANDARD.md`
+3. `docs/architecture/product-contract.md`
+4. `docs/architecture/system-architecture.md`
+5. The current RFC in `docs/rfcs/`
+6. The live board and current card in `docs/issues/`
+7. The nearest nested `AGENTS.md`
 
 ## Governing architecture
 
@@ -47,6 +48,7 @@ network, or process effects.
 cmake --preset dev
 cmake --build --preset dev
 ctest --preset dev --output-on-failure
+cmake --build --preset dev --target coding-format-check coding-tidy
 
 cmake --preset core-only
 cmake --build --preset core-only

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_READ_MODEL_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_READ_MODEL_HPP
 
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/github_model.hpp"
@@ -15,1985 +16,1751 @@
 #include <utility>
 #include <vector>
 
-namespace bpr::application
-{
-template<typename Tag>
-class github_text_id
-{
-public:
-    github_text_id() = default;
-    explicit github_text_id(std::string value)
-        : Value{std::move(value)}
-    {
-    }
+namespace bpr::application {
+	/// \brief Provides the github text id contract.
+	template <typename Tag>
+	class github_text_id
+	{
+	public:
+		github_text_id() = default;
+		explicit github_text_id(std::string aValue)
+			: Value{ std::move(aValue) }
+		{
+		}
 
-    [[nodiscard]] auto value() const noexcept -> std::string_view
-    {
-        return Value;
-    }
+		[[nodiscard]] auto value() const noexcept -> std::string_view
+		{
+			return Value;
+		}
 
-    auto operator<=>(const github_text_id&) const = default;
+		auto operator<=>(const github_text_id&) const = default;
 
-private:
-    std::string Value;
-};
+	private:
+		std::string Value;
+	};
 
-struct github_node_id_tag;
-struct github_actor_id_tag;
-struct github_review_id_tag;
-struct github_thread_id_tag;
-struct github_comment_id_tag;
-struct github_check_id_tag;
-struct commit_oid_tag;
+	struct github_node_id_tag;
+	struct github_actor_id_tag;
+	struct github_review_id_tag;
+	struct github_thread_id_tag;
+	struct github_comment_id_tag;
+	struct github_check_id_tag;
+	struct commit_oid_tag;
 
-using github_node_id = github_text_id<github_node_id_tag>;
-using github_actor_id = github_text_id<github_actor_id_tag>;
-using github_review_id = github_text_id<github_review_id_tag>;
-using github_thread_id = github_text_id<github_thread_id_tag>;
-using github_comment_id = github_text_id<github_comment_id_tag>;
-using github_check_id = github_text_id<github_check_id_tag>;
-using commit_oid = github_text_id<commit_oid_tag>;
+	using github_node_id    = github_text_id<github_node_id_tag>;
+	using github_actor_id   = github_text_id<github_actor_id_tag>;
+	using github_review_id  = github_text_id<github_review_id_tag>;
+	using github_thread_id  = github_text_id<github_thread_id_tag>;
+	using github_comment_id = github_text_id<github_comment_id_tag>;
+	using github_check_id   = github_text_id<github_check_id_tag>;
+	using commit_oid        = github_text_id<commit_oid_tag>;
 
-inline constexpr std::uint32_t maximum_github_line = 2'147'483'647U;
+	inline constexpr std::uint32_t maximum_github_line = 2'147'483'647U;
 
-struct github_actor_record
-{
-    github_actor_id Actor;
-    std::string Login;
+	/// \brief Describes the github actor record record.
+	struct github_actor_record
+	{
+		github_actor_id Actor;
+		std::string     Login;
 
-    auto operator<=>(const github_actor_record&) const = default;
-};
+		auto operator<=>(const github_actor_record&) const = default;
+	};
 
-enum class github_pull_request_state : std::uint8_t
-{
-    open,
-    closed,
-    merged,
-};
+	enum class github_pull_request_state : std::uint8_t {
+		open,
+		closed,
+		merged,
+	};
 
-enum class github_file_change : std::uint8_t
-{
-    uninitialized,
-    added,
-    modified,
-    removed,
-    renamed,
-    copied,
-    type_changed,
-    unchanged,
-};
+	enum class github_file_change : std::uint8_t {
+		uninitialized,
+		added,
+		modified,
+		removed,
+		renamed,
+		copied,
+		type_changed,
+		unchanged,
+	};
 
-enum class github_file_content_kind : std::uint8_t
-{
-    unknown,
-    text,
-    binary,
-};
+	enum class github_file_content_kind : std::uint8_t {
+		unknown,
+		text,
+		binary,
+	};
 
-enum class github_file_viewed_state : std::uint8_t
-{
-    unavailable,
-    dismissed,
-    unviewed,
-    viewed,
-};
+	enum class github_file_viewed_state : std::uint8_t {
+		unavailable,
+		dismissed,
+		unviewed,
+		viewed,
+	};
 
-enum class github_collection_availability : std::uint8_t
-{
-    unavailable,
-    available,
-};
+	enum class github_collection_availability : std::uint8_t {
+		unavailable,
+		available,
+	};
 
-enum class github_permission_state : std::uint8_t
-{
-    unavailable,
-    denied,
-    allowed,
-};
+	enum class github_permission_state : std::uint8_t {
+		unavailable,
+		denied,
+		allowed,
+	};
 
-enum class github_review_state : std::uint8_t
-{
-    uninitialized,
-    pending,
-    commented,
-    approved,
-    changes_requested,
-    dismissed,
-};
+	enum class github_review_state : std::uint8_t {
+		uninitialized,
+		pending,
+		commented,
+		approved,
+		changes_requested,
+		dismissed,
+	};
 
-enum class github_review_thread_subject : std::uint8_t
-{
-    line,
-    file,
-};
+	enum class github_review_thread_subject : std::uint8_t {
+		line,
+		file,
+	};
 
-enum class github_check_status : std::uint8_t
-{
-    uninitialized,
-    queued,
-    in_progress,
-    completed,
-    waiting,
-    requested,
-    pending,
-};
+	enum class github_check_status : std::uint8_t {
+		uninitialized,
+		queued,
+		in_progress,
+		completed,
+		waiting,
+		requested,
+		pending,
+	};
 
-enum class github_check_conclusion : std::uint8_t
-{
-    uninitialized,
-    none,
-    success,
-    failure,
-    neutral,
-    cancelled,
-    skipped,
-    timed_out,
-    action_required,
-    stale,
-};
+	enum class github_check_conclusion : std::uint8_t {
+		uninitialized,
+		none,
+		success,
+		failure,
+		neutral,
+		cancelled,
+		skipped,
+		timed_out,
+		action_required,
+		stale,
+	};
 
-struct github_viewer_record
-{
-    core::github_account_id Account;
-    github_actor_id Node;
-    std::string Login;
-    std::string DisplayName;
+	/// \brief Describes the github viewer record record.
+	struct github_viewer_record
+	{
+		core::github_account_id Account;
+		github_actor_id         Node;
+		std::string             Login;
+		std::string             DisplayName;
 
-    auto operator<=>(const github_viewer_record&) const = default;
-};
+		auto operator<=>(const github_viewer_record&) const = default;
+	};
 
-struct github_repository_record
-{
-    core::repository_id Repository;
-    github_node_id Node;
-    std::string Owner;
-    std::string Name;
-    std::string DefaultBranch;
-    bool Private = false;
+	/// \brief Describes the github repository record record.
+	struct github_repository_record
+	{
+		core::repository_id Repository;
+		github_node_id      Node;
+		std::string         Owner;
+		std::string         Name;
+		std::string         DefaultBranch;
+		bool                Private = false;
 
-    auto operator<=>(const github_repository_record&) const = default;
-};
+		auto operator<=>(const github_repository_record&) const = default;
+	};
 
-struct github_pull_request_record
-{
-    core::pull_request_id PullRequest;
-    core::repository_id Repository;
-    core::pull_request_number Number;
-    github_node_id Node;
-    std::string Title;
-    std::string Body;
-    github_pull_request_state State = github_pull_request_state::open;
-    bool Draft = false;
-    std::optional<github_actor_record> Author;
-    commit_oid BaseOid;
-    commit_oid HeadOid;
-    std::string BaseRef;
-    std::string HeadRef;
+	/// \brief Describes the github pull request record record.
+	struct github_pull_request_record
+	{
+		core::pull_request_id              PullRequest;
+		core::repository_id                Repository;
+		core::pull_request_number          Number;
+		github_node_id                     Node;
+		std::string                        Title;
+		std::string                        Body;
+		github_pull_request_state          State = github_pull_request_state::open;
+		bool                               Draft = false;
+		std::optional<github_actor_record> Author;
+		commit_oid                         BaseOid;
+		commit_oid                         HeadOid;
+		std::string                        BaseRef;
+		std::string                        HeadRef;
 
-    auto operator<=>(const github_pull_request_record&) const = default;
-};
+		auto operator<=>(const github_pull_request_record&) const = default;
+	};
 
-struct github_file_record
-{
-    std::string Path;
-    std::optional<std::string> PreviousPath;
-    github_file_change Change = github_file_change::uninitialized;
-    std::uint64_t Additions = 0;
-    std::uint64_t Deletions = 0;
-    github_file_content_kind ContentKind =
-        github_file_content_kind::unknown;
-    github_file_viewed_state ViewedState =
-        github_file_viewed_state::unavailable;
+	/// \brief Describes the github file record record.
+	struct github_file_record
+	{
+		std::string                Path;
+		std::optional<std::string> PreviousPath;
+		github_file_change         Change      = github_file_change::uninitialized;
+		std::uint64_t              Additions   = 0;
+		std::uint64_t              Deletions   = 0;
+		github_file_content_kind   ContentKind = github_file_content_kind::unknown;
+		github_file_viewed_state   ViewedState = github_file_viewed_state::unavailable;
 
-    auto operator<=>(const github_file_record&) const = default;
-};
+		auto operator<=>(const github_file_record&) const = default;
+	};
 
-struct github_commit_record
-{
-    commit_oid Oid;
-    github_node_id Node;
-    std::optional<github_actor_record> Author;
-    std::string Headline;
+	/// \brief Describes the github commit record record.
+	struct github_commit_record
+	{
+		commit_oid                         Oid;
+		github_node_id                     Node;
+		std::optional<github_actor_record> Author;
+		std::string                        Headline;
 
-    auto operator<=>(const github_commit_record&) const = default;
-};
+		auto operator<=>(const github_commit_record&) const = default;
+	};
 
-struct github_review_record
-{
-    std::uint64_t DatabaseId = 0U;
-    github_review_id Review;
-    std::optional<github_actor_record> Author;
-    github_review_state State = github_review_state::uninitialized;
-    std::optional<commit_oid> Commit;
-    std::string Body;
+	/// \brief Describes the github review record record.
+	struct github_review_record
+	{
+		std::uint64_t                      DatabaseId = 0U;
+		github_review_id                   Review;
+		std::optional<github_actor_record> Author;
+		github_review_state                State = github_review_state::uninitialized;
+		std::optional<commit_oid>          Commit;
+		std::string                        Body;
 
-    auto operator<=>(const github_review_record&) const = default;
-};
+		auto operator<=>(const github_review_record&) const = default;
+	};
 
-struct github_review_comment_record
-{
-    github_comment_id Comment;
-    std::optional<github_comment_id> ReplyTo;
-    std::optional<github_actor_record> Author;
-    std::string Body;
-    std::string Path;
-    std::optional<std::uint32_t> Line;
-    bool Outdated = false;
-    bool Deleted = false;
+	/// \brief Describes the github review comment record record.
+	struct github_review_comment_record
+	{
+		github_comment_id                  Comment;
+		std::optional<github_comment_id>   ReplyTo;
+		std::optional<github_actor_record> Author;
+		std::string                        Body;
+		std::string                        Path;
+		std::optional<std::uint32_t>       Line;
+		bool                               Outdated = false;
+		bool                               Deleted  = false;
 
-    auto operator<=>(const github_review_comment_record&) const = default;
-};
+		auto operator<=>(const github_review_comment_record&) const = default;
+	};
 
-struct github_review_thread_record
-{
-    github_thread_id Thread;
-    github_review_thread_subject Subject =
-        github_review_thread_subject::line;
-    std::string Path;
-    std::optional<std::uint32_t> Line;
-    bool Resolved = false;
-    bool Outdated = false;
-    github_permission_state ViewerResolvePermission =
-        github_permission_state::unavailable;
-    github_permission_state ViewerUnresolvePermission =
-        github_permission_state::unavailable;
-    std::vector<github_review_comment_record> Comments;
+	/// \brief Describes the github review thread record record.
+	struct github_review_thread_record
+	{
+		github_thread_id                          Thread;
+		github_review_thread_subject              Subject = github_review_thread_subject::line;
+		std::string                               Path;
+		std::optional<std::uint32_t>              Line;
+		bool                                      Resolved                  = false;
+		bool                                      Outdated                  = false;
+		github_permission_state                   ViewerResolvePermission   = github_permission_state::unavailable;
+		github_permission_state                   ViewerUnresolvePermission = github_permission_state::unavailable;
+		std::vector<github_review_comment_record> Comments;
 
-    auto operator<=>(const github_review_thread_record&) const = default;
-};
+		auto operator<=>(const github_review_thread_record&) const = default;
+	};
 
-struct github_issue_comment_record
-{
-    github_comment_id Comment;
-    std::optional<github_actor_record> Author;
-    std::string Body;
-    bool Deleted = false;
+	/// \brief Describes the github issue comment record record.
+	struct github_issue_comment_record
+	{
+		github_comment_id                  Comment;
+		std::optional<github_actor_record> Author;
+		std::string                        Body;
+		bool                               Deleted = false;
 
-    auto operator<=>(const github_issue_comment_record&) const = default;
-};
+		auto operator<=>(const github_issue_comment_record&) const = default;
+	};
 
-struct github_check_record
-{
-    github_check_id Check;
-    std::string Name;
-    github_check_status Status = github_check_status::uninitialized;
-    github_check_conclusion Conclusion =
-        github_check_conclusion::uninitialized;
+	/// \brief Describes the github check record record.
+	struct github_check_record
+	{
+		github_check_id         Check;
+		std::string             Name;
+		github_check_status     Status     = github_check_status::uninitialized;
+		github_check_conclusion Conclusion = github_check_conclusion::uninitialized;
 
-    auto operator<=>(const github_check_record&) const = default;
-};
+		auto operator<=>(const github_check_record&) const = default;
+	};
 
-struct github_search_result_record
-{
-    core::repository_id Repository;
-    github_node_id PullRequestNode;
-    core::pull_request_number Number;
-    std::string Title;
-    github_pull_request_state State = github_pull_request_state::open;
-    bool Draft = false;
+	/// \brief Describes the github search result record record.
+	struct github_search_result_record
+	{
+		core::repository_id       Repository;
+		github_node_id            PullRequestNode;
+		core::pull_request_number Number;
+		std::string               Title;
+		github_pull_request_state State = github_pull_request_state::open;
+		bool                      Draft = false;
 
-    auto operator<=>(const github_search_result_record&) const = default;
-};
+		auto operator<=>(const github_search_result_record&) const = default;
+	};
 
-struct github_capability_evidence
-{
-    core::github_capabilities Capabilities;
-    core::capability_revision Revision;
-    github_read_shape ReadShape;
-    std::uint32_t ContractVersion = 1;
+	/// \brief Describes the github capability evidence record.
+	struct github_capability_evidence
+	{
+		core::github_capabilities Capabilities;
+		core::capability_revision Revision;
+		github_read_shape         ReadShape;
+		std::uint32_t             ContractVersion = 1;
 
-    auto operator<=>(const github_capability_evidence&) const = default;
-};
+		auto operator<=>(const github_capability_evidence&) const = default;
+	};
 
-enum class github_rate_limit_resource : std::uint8_t
-{
-    uninitialized,
-    core,
-    search,
-    graphql,
-};
+	enum class github_rate_limit_resource : std::uint8_t {
+		uninitialized,
+		core,
+		search,
+		graphql,
+	};
 
-[[nodiscard]] constexpr auto valid(
-    const github_rate_limit_resource resource) noexcept -> bool
-{
-    switch(resource)
-    {
-    case github_rate_limit_resource::core:
-    case github_rate_limit_resource::search:
-    case github_rate_limit_resource::graphql:
-        return true;
-    case github_rate_limit_resource::uninitialized:
-        return false;
-    }
-    return false;
+	/// \brief Checks whether the supplied value satisfies its contract.
+	[[nodiscard]] constexpr auto valid(
+		const github_rate_limit_resource aResource) noexcept -> bool
+	{
+		switch (aResource) {
+		case github_rate_limit_resource::core:
+		case github_rate_limit_resource::search:
+		case github_rate_limit_resource::graphql:
+			return true;
+		case github_rate_limit_resource::uninitialized:
+			return false;
+		}
+		return false;
+	}
+
+	/// \brief Describes the github rate limit record record.
+	struct github_rate_limit_record
+	{
+		github_rate_limit_resource Resource         = github_rate_limit_resource::uninitialized;
+		std::uint64_t              Limit            = 0;
+		std::uint64_t              Remaining        = 0;
+		std::uint64_t              ResetUnixSeconds = 0;
+		bool                       SecondaryLimited = false;
+
+		auto operator<=>(const github_rate_limit_record&) const = default;
+	};
+
+	/// \brief Checks whether the supplied value satisfies its contract.
+	[[nodiscard]] constexpr auto valid(
+		const github_rate_limit_record& aRecord) noexcept -> bool
+	{
+		return valid(aRecord.Resource)
+			&& aRecord.Remaining <= aRecord.Limit
+			&& (!aRecord.SecondaryLimited || aRecord.Remaining != 0U);
+	}
+
+	/// \brief Describes the github rate limit state record.
+	struct github_rate_limit_state
+	{
+		std::optional<github_rate_limit_record> Core;
+		std::optional<github_rate_limit_record> Search;
+		std::optional<github_rate_limit_record> Graphql;
+
+		auto operator<=>(const github_rate_limit_state&) const = default;
+	};
+
+	/// \brief Checks whether the supplied value satisfies its contract.
+	[[nodiscard]] constexpr auto valid(
+		const github_rate_limit_state& aState) noexcept -> bool
+	{
+		return (
+				   !aState.Core.has_value()
+				   || (valid(*aState.Core)
+					   && aState.Core->Resource
+						   == github_rate_limit_resource::core))
+			&& (!aState.Search.has_value()
+				|| (valid(*aState.Search)
+					&& aState.Search->Resource
+						== github_rate_limit_resource::search))
+			&& (!aState.Graphql.has_value()
+				|| (valid(*aState.Graphql)
+					&& aState.Graphql->Resource
+						== github_rate_limit_resource::graphql));
+	}
+
+	/// \brief Computes the observe result.
+	[[nodiscard]] constexpr auto observe(
+		github_rate_limit_state&        aState,
+		const github_rate_limit_record& aRecord) noexcept -> bool
+	{
+		if (!valid(aRecord)) {
+			return false;
+		}
+		switch (aRecord.Resource) {
+		case github_rate_limit_resource::core:
+			aState.Core = aRecord;
+			return true;
+		case github_rate_limit_resource::search:
+			aState.Search = aRecord;
+			return true;
+		case github_rate_limit_resource::graphql:
+			aState.Graphql = aRecord;
+			return true;
+		case github_rate_limit_resource::uninitialized:
+			return false;
+		}
+		return false;
+	}
+
+	/// \brief Computes the merge result.
+	[[nodiscard]] constexpr auto merge(
+		github_rate_limit_state&       aDestination,
+		const github_rate_limit_state& aSource) noexcept -> bool
+	{
+		if (!valid(aSource)) {
+			return false;
+		}
+		if (aSource.Core.has_value()) {
+			aDestination.Core = aSource.Core;
+		}
+		if (aSource.Search.has_value()) {
+			aDestination.Search = aSource.Search;
+		}
+		if (aSource.Graphql.has_value()) {
+			aDestination.Graphql = aSource.Graphql;
+		}
+		return true;
+	}
+
+	/// \brief Reports whether the has observations condition holds.
+	[[nodiscard]] constexpr auto has_observations(
+		const github_rate_limit_state& aState) noexcept -> bool
+	{
+		return aState.Core.has_value() || aState.Search.has_value()
+			|| aState.Graphql.has_value();
+	}
+
+	/// \brief Computes the find result.
+	[[nodiscard]] constexpr auto find(
+		const github_rate_limit_state&   aState,
+		const github_rate_limit_resource aResource) noexcept
+		-> const github_rate_limit_record*
+	{
+		switch (aResource) {
+		case github_rate_limit_resource::core:
+			return aState.Core.has_value() ? &*aState.Core : nullptr;
+		case github_rate_limit_resource::search:
+			return aState.Search.has_value() ? &*aState.Search : nullptr;
+		case github_rate_limit_resource::graphql:
+			return aState.Graphql.has_value() ? &*aState.Graphql : nullptr;
+		case github_rate_limit_resource::uninitialized:
+			return nullptr;
+		}
+		return nullptr;
+	}
+
+	/// \brief Reports whether the is limited condition holds.
+	[[nodiscard]] constexpr auto is_limited(
+		const github_rate_limit_record& aRecord) noexcept -> bool
+	{
+		return aRecord.Remaining == 0U || aRecord.SecondaryLimited;
+	}
+
+	/// \brief Reports whether the is secondary limited condition holds.
+	[[nodiscard]] constexpr auto is_secondary_limited(
+		const github_rate_limit_state& aState) noexcept -> bool
+	{
+		return (
+				   aState.Core.has_value()
+				   && aState.Core->SecondaryLimited)
+			|| (aState.Search.has_value()
+				&& aState.Search->SecondaryLimited)
+			|| (aState.Graphql.has_value()
+				&& aState.Graphql->SecondaryLimited);
+	}
+
+	/// \brief Reports whether the is limited condition holds.
+	[[nodiscard]] constexpr auto is_limited(
+		const github_rate_limit_state& aState) noexcept -> bool
+	{
+		return (aState.Core.has_value() && is_limited(*aState.Core))
+			|| (aState.Search.has_value() && is_limited(*aState.Search))
+			|| (aState.Graphql.has_value() && is_limited(*aState.Graphql));
+	}
+
+	/// \brief Describes the github session read model record.
+	struct github_session_read_model
+	{
+		core::host_profile_id      Profile;
+		core::git_host_id          Host;
+		github_viewer_record       Viewer;
+		github_capability_evidence CapabilityEvidence;
+		github_rate_limit_state    RateLimits;
+
+		auto operator<=>(const github_session_read_model&) const = default;
+	};
+
+	/// \brief Describes the github pull request snapshot record.
+	struct github_pull_request_snapshot
+	{
+		core::host_profile_id                    Profile;
+		core::git_host_id                        Host;
+		core::github_account_id                  Account;
+		github_actor_record                      Viewer;
+		core::provider_snapshot_id               Snapshot;
+		github_repository_record                 Repository;
+		github_pull_request_record               PullRequest;
+		std::vector<github_file_record>          Files;
+		std::vector<github_commit_record>        Commits;
+		std::vector<github_review_record>        Reviews;
+		github_collection_availability           ReviewThreadsAvailability = github_collection_availability::unavailable;
+		std::vector<github_review_thread_record> ReviewThreads;
+		std::vector<github_issue_comment_record> IssueComments;
+		std::vector<github_check_record>         Checks;
+		std::vector<github_search_result_record> SearchResults;
+		github_capability_evidence               CapabilityEvidence;
+		github_rate_limit_state                  RateLimits;
+
+		auto operator<=>(const github_pull_request_snapshot&) const = default;
+	};
+
+	/// \brief Describes the github read limits record.
+	struct github_read_limits
+	{
+		std::size_t MaximumIdentityBytes     = 256U;
+		std::size_t MaximumLoginBytes        = 256U;
+		std::size_t MaximumDisplayNameBytes  = 1024U;
+		std::size_t MaximumTitleBytes        = 1024U;
+		std::size_t MaximumBodyBytes         = 256U * 1024U;
+		std::size_t MaximumPathBytes         = 4U * 1024U;
+		std::size_t MaximumRefBytes          = 256U;
+		std::size_t MaximumHeadlineBytes     = 1024U;
+		std::size_t MaximumCheckNameBytes    = 1024U;
+		std::size_t MaximumFiles             = 3'000U;
+		std::size_t MaximumCommits           = 250U;
+		std::size_t MaximumReviews           = 10'000U;
+		std::size_t MaximumReviewThreads     = 10'000U;
+		std::size_t MaximumCommentsPerThread = 10'000U;
+		std::size_t MaximumIssueComments     = 10'000U;
+		std::size_t MaximumTotalComments     = 50'000U;
+		std::size_t MaximumChecks            = 10'000U;
+		std::size_t MaximumSearchResults     = 1'000U;
+		std::size_t MaximumTotalRecords      = 50'000U;
+		std::size_t MaximumTotalTextBytes    = 16U * 1024U * 1024U;
+
+		auto operator<=>(const github_read_limits&) const = default;
+	};
+
+	enum class github_read_validation_error : std::uint8_t {
+		none,
+		invalid_context,
+		invalid_limits,
+		missing_identity,
+		identity_mismatch,
+		missing_required_text,
+		invalid_text,
+		text_too_long,
+		invalid_repository,
+		invalid_pull_request_number,
+		invalid_commit_oid,
+		invalid_line,
+		invalid_enum,
+		invalid_capability_revision,
+		invalid_rate_limit,
+		collection_too_large,
+		duplicate_identity,
+		invalid_relationship,
+		allocation_limit,
+		total_text_too_large,
+	};
+
+	/// \brief Describes the github read validation record.
+	struct github_read_validation
+	{
+		github_read_validation_error Error = github_read_validation_error::none;
+
+		[[nodiscard]] constexpr auto valid() const noexcept -> bool
+		{
+			return Error == github_read_validation_error::none;
+		}
+
+		auto operator<=>(const github_read_validation&) const = default;
+	};
+
+	namespace detail {
+		/// \brief Provides the github text budget contract.
+		class github_text_budget
+		{
+		public:
+			explicit github_text_budget(const github_read_limits& aLimits)
+				: Limits{ aLimits }
+			{
+			}
+
+			[[nodiscard]] auto consume(
+				const std::string_view aText,
+				const std::size_t      aFieldLimit,
+				const bool             aRequired = false) noexcept
+				-> github_read_validation_error
+			{
+				if (aRequired && aText.empty()) {
+					return github_read_validation_error::missing_required_text;
+				}
+				if (aText.find('\0') != std::string_view::npos) {
+					return github_read_validation_error::invalid_text;
+				}
+				if (aText.size() > aFieldLimit) {
+					return github_read_validation_error::text_too_long;
+				}
+				if (
+					aText.size() > Limits.MaximumTotalTextBytes
+					|| Total > Limits.MaximumTotalTextBytes - aText.size()) {
+					return github_read_validation_error::total_text_too_large;
+				}
+				Total += aText.size();
+				return github_read_validation_error::none;
+			}
+
+		private:
+			const github_read_limits& Limits;
+			std::size_t               Total = 0;
+		};
+
+		[[nodiscard]] inline auto validation(
+			const github_read_validation_error aError) noexcept
+			-> github_read_validation
+		{
+			return github_read_validation{ .Error = aError };
+		}
+
+		[[nodiscard]] constexpr auto within_security_ceiling(
+			const github_read_limits& aLimits) noexcept -> bool
+		{
+			constexpr github_read_limits ceiling;
+			return aLimits.MaximumIdentityBytes <= ceiling.MaximumIdentityBytes
+				&& aLimits.MaximumLoginBytes <= ceiling.MaximumLoginBytes
+				&& aLimits.MaximumDisplayNameBytes
+				<= ceiling.MaximumDisplayNameBytes
+				&& aLimits.MaximumTitleBytes <= ceiling.MaximumTitleBytes
+				&& aLimits.MaximumBodyBytes <= ceiling.MaximumBodyBytes
+				&& aLimits.MaximumPathBytes <= ceiling.MaximumPathBytes
+				&& aLimits.MaximumRefBytes <= ceiling.MaximumRefBytes
+				&& aLimits.MaximumHeadlineBytes <= ceiling.MaximumHeadlineBytes
+				&& aLimits.MaximumCheckNameBytes <= ceiling.MaximumCheckNameBytes
+				&& aLimits.MaximumFiles <= ceiling.MaximumFiles
+				&& aLimits.MaximumCommits <= ceiling.MaximumCommits
+				&& aLimits.MaximumReviews <= ceiling.MaximumReviews
+				&& aLimits.MaximumReviewThreads <= ceiling.MaximumReviewThreads
+				&& aLimits.MaximumCommentsPerThread
+				<= ceiling.MaximumCommentsPerThread
+				&& aLimits.MaximumIssueComments <= ceiling.MaximumIssueComments
+				&& aLimits.MaximumTotalComments <= ceiling.MaximumTotalComments
+				&& aLimits.MaximumChecks <= ceiling.MaximumChecks
+				&& aLimits.MaximumSearchResults <= ceiling.MaximumSearchResults
+				&& aLimits.MaximumTotalRecords <= ceiling.MaximumTotalRecords
+				&& aLimits.MaximumTotalTextBytes <= ceiling.MaximumTotalTextBytes;
+		}
+
+		[[nodiscard]] inline auto valid_context(
+			const core::github_session_request_context& aContext) noexcept -> bool
+		{
+			return aContext.Request.value() != 0U
+				&& aContext.ApplicationSession.value() != 0U
+				&& aContext.Profile.value() != 0U
+				&& aContext.IdentityGeneration.value() != 0U;
+		}
+
+		[[nodiscard]] inline auto valid_context(
+			const core::pull_request_request_context& aContext) noexcept -> bool
+		{
+			return aContext.Request.value() != 0U
+				&& aContext.ApplicationSession.value() != 0U
+				&& aContext.Profile.value() != 0U && aContext.Host.value() != 0U
+				&& aContext.Account.value() != 0U && core::valid(aContext.Repository)
+				&& aContext.Number.valid()
+				&& (!aContext.ExpectedRepository.has_value()
+					|| aContext.ExpectedRepository->value() != 0U)
+				&& (!aContext.ExpectedPullRequest.has_value()
+					|| aContext.ExpectedPullRequest->value() != 0U)
+				&& aContext.Capabilities.value() != 0U
+				&& aContext.IdentityGeneration.value() != 0U
+				&& aContext.Generation.value() != 0U;
+		}
+
+		[[nodiscard]] inline auto ascii_equal_fold(
+			const std::string_view aLeft,
+			const std::string_view aRight) noexcept -> bool
+		{
+			if (aLeft.size() != aRight.size()) {
+				return false;
+			}
+
+			for (std::size_t index = 0; index < aLeft.size(); ++index) {
+				const auto fold = [](const char aValue) {
+					return aValue >= 'A' && aValue <= 'Z'
+						? static_cast<char>(aValue - 'A' + 'a')
+						: aValue;
+				};
+				if (fold(aLeft[index]) != fold(aRight[index])) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		[[nodiscard]] inline auto hexadecimal_oid(
+			const std::string_view aValue) noexcept -> bool
+		{
+			if (aValue.size() != 40U && aValue.size() != 64U) {
+				return false;
+			}
+			for (const auto character : aValue) {
+				const auto hexadecimal = (character >= '0' && character <= '9')
+					|| (character >= 'a' && character <= 'f')
+					|| (character >= 'A' && character <= 'F');
+				if (!hexadecimal) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_pull_request_state aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_pull_request_state::open:
+			case github_pull_request_state::closed:
+			case github_pull_request_state::merged:
+				return true;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_file_change aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_file_change::added:
+			case github_file_change::modified:
+			case github_file_change::removed:
+			case github_file_change::renamed:
+			case github_file_change::copied:
+			case github_file_change::type_changed:
+			case github_file_change::unchanged:
+				return true;
+			case github_file_change::uninitialized:
+				return false;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_file_content_kind aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_file_content_kind::unknown:
+			case github_file_content_kind::text:
+			case github_file_content_kind::binary:
+				return true;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_file_viewed_state aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_file_viewed_state::unavailable:
+			case github_file_viewed_state::dismissed:
+			case github_file_viewed_state::unviewed:
+			case github_file_viewed_state::viewed:
+				return true;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_collection_availability aValue) noexcept -> bool
+		{
+			return aValue == github_collection_availability::unavailable
+				|| aValue == github_collection_availability::available;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_permission_state aValue) noexcept -> bool
+		{
+			return aValue == github_permission_state::unavailable
+				|| aValue == github_permission_state::denied
+				|| aValue == github_permission_state::allowed;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_review_state aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_review_state::pending:
+			case github_review_state::commented:
+			case github_review_state::approved:
+			case github_review_state::changes_requested:
+			case github_review_state::dismissed:
+				return true;
+			case github_review_state::uninitialized:
+				return false;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_review_thread_subject aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_review_thread_subject::line:
+			case github_review_thread_subject::file:
+				return true;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_check_status aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_check_status::queued:
+			case github_check_status::in_progress:
+			case github_check_status::completed:
+			case github_check_status::waiting:
+			case github_check_status::requested:
+			case github_check_status::pending:
+				return true;
+			case github_check_status::uninitialized:
+				return false;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_check_conclusion aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case github_check_conclusion::none:
+			case github_check_conclusion::success:
+			case github_check_conclusion::failure:
+			case github_check_conclusion::neutral:
+			case github_check_conclusion::cancelled:
+			case github_check_conclusion::skipped:
+			case github_check_conclusion::timed_out:
+			case github_check_conclusion::action_required:
+			case github_check_conclusion::stale:
+				return true;
+			case github_check_conclusion::uninitialized:
+				return false;
+			}
+			return false;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const core::github_capability_state aValue) noexcept -> bool
+		{
+			switch (aValue) {
+			case core::github_capability_state::unknown:
+			case core::github_capability_state::supported:
+			case core::github_capability_state::unsupported:
+				return true;
+			}
+			return false;
+		}
+
+		[[nodiscard]] inline auto consume_id(
+			github_text_budget&       aBudget,
+			const std::string_view    aValue,
+			const github_read_limits& aLimits) noexcept
+			-> github_read_validation_error
+		{
+			return aBudget.consume(aValue, aLimits.MaximumIdentityBytes, true);
+		}
+
+		[[nodiscard]] inline auto validate_author(
+			const std::optional<github_actor_record>& aAuthor,
+			github_text_budget&                       aBudget,
+			const github_read_limits&                 aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (!aAuthor.has_value()) {
+				return github_read_validation_error::none;
+			}
+			if (aAuthor->Actor.value().empty()) {
+				return github_read_validation_error::missing_identity;
+			}
+			if (const auto error = consume_id(aBudget, aAuthor->Actor.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aAuthor->Login,
+				aLimits.MaximumLoginBytes,
+				true);
+		}
+
+		[[nodiscard]] inline auto validate_actor(
+			const github_actor_record& aActor,
+			github_text_budget&        aBudget,
+			const github_read_limits&  aLimits,
+			const bool                 aLoginRequired) noexcept
+			-> github_read_validation_error
+		{
+			if (aActor.Actor.value().empty()) {
+				return github_read_validation_error::missing_identity;
+			}
+			if (const auto error = consume_id(aBudget, aActor.Actor.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aActor.Login,
+				aLimits.MaximumLoginBytes,
+				aLoginRequired);
+		}
+
+		[[nodiscard]] inline auto validate_viewer(
+			const github_viewer_record& aRecord,
+			github_text_budget&         aBudget,
+			const github_read_limits&   aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (aRecord.Account.value() == 0U) {
+				return github_read_validation_error::missing_identity;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.Node.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = aBudget.consume(aRecord.Login, aLimits.MaximumLoginBytes, true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aRecord.DisplayName,
+				aLimits.MaximumDisplayNameBytes);
+		}
+
+		[[nodiscard]] inline auto validate_repository(
+			const github_repository_record& aRecord,
+			github_text_budget&             aBudget,
+			const github_read_limits&       aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (aRecord.Repository.value() == 0U) {
+				return github_read_validation_error::missing_identity;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.Node.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (!core::valid(
+					core::repository_locator{
+						.Owner = aRecord.Owner,
+						.Name  = aRecord.Name,
+					})) {
+				return github_read_validation_error::invalid_repository;
+			}
+			if (const auto error = aBudget.consume(
+					aRecord.Owner,
+					core::maximum_repository_owner_length,
+					true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = aBudget.consume(
+					aRecord.Name,
+					core::maximum_repository_name_length,
+					true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aRecord.DefaultBranch,
+				aLimits.MaximumRefBytes,
+				true);
+		}
+
+		[[nodiscard]] inline auto validate_pull_request(
+			const github_pull_request_record& aRecord,
+			github_text_budget&               aBudget,
+			const github_read_limits&         aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (
+				aRecord.PullRequest.value() == 0U
+				|| aRecord.Repository.value() == 0U) {
+				return github_read_validation_error::missing_identity;
+			}
+			if (!aRecord.Number.valid()) {
+				return github_read_validation_error::invalid_pull_request_number;
+			}
+			if (!valid_enum(aRecord.State)) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.Node.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = validate_author(aRecord.Author, aBudget, aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = aBudget.consume(aRecord.Title, aLimits.MaximumTitleBytes, true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = aBudget.consume(aRecord.Body, aLimits.MaximumBodyBytes);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (
+				!hexadecimal_oid(aRecord.BaseOid.value())
+				|| !hexadecimal_oid(aRecord.HeadOid.value())) {
+				return github_read_validation_error::invalid_commit_oid;
+			}
+			if (const auto error = aBudget.consume(aRecord.BaseOid.value(), 64U, true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = aBudget.consume(aRecord.HeadOid.value(), 64U, true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = aBudget.consume(aRecord.BaseRef, aLimits.MaximumRefBytes, true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aRecord.HeadRef,
+				aLimits.MaximumRefBytes,
+				true);
+		}
+
+		[[nodiscard]] inline auto validate_file(
+			const github_file_record& aRecord,
+			github_text_budget&       aBudget,
+			const github_read_limits& aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (
+				!valid_enum(aRecord.Change) || !valid_enum(aRecord.ContentKind)
+				|| !valid_enum(aRecord.ViewedState)) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (
+				aRecord.PreviousPath.has_value()
+				&& aRecord.Change != github_file_change::renamed
+				&& aRecord.Change != github_file_change::copied) {
+				return github_read_validation_error::invalid_relationship;
+			}
+			if (const auto error = aBudget.consume(aRecord.Path, aLimits.MaximumPathBytes, true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (aRecord.PreviousPath.has_value()) {
+				return aBudget.consume(
+					*aRecord.PreviousPath,
+					aLimits.MaximumPathBytes,
+					true);
+			}
+			return github_read_validation_error::none;
+		}
+
+		[[nodiscard]] inline auto validate_commit(
+			const github_commit_record& aRecord,
+			github_text_budget&         aBudget,
+			const github_read_limits&   aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (!hexadecimal_oid(aRecord.Oid.value())) {
+				return github_read_validation_error::invalid_commit_oid;
+			}
+			if (const auto error = aBudget.consume(aRecord.Oid.value(), 64U, true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.Node.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = validate_author(aRecord.Author, aBudget, aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aRecord.Headline,
+				aLimits.MaximumHeadlineBytes);
+		}
+
+		[[nodiscard]] inline auto validate_review(
+			const github_review_record& aRecord,
+			github_text_budget&         aBudget,
+			const github_read_limits&   aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (aRecord.DatabaseId == 0U || !valid_enum(aRecord.State)) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.Review.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = validate_author(aRecord.Author, aBudget, aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (aRecord.Commit.has_value()) {
+				if (!hexadecimal_oid(aRecord.Commit->value())) {
+					return github_read_validation_error::invalid_commit_oid;
+				}
+				if (const auto error = aBudget.consume(aRecord.Commit->value(), 64U, true);
+					error != github_read_validation_error::none) {
+					return error;
+				}
+			}
+			return aBudget.consume(aRecord.Body, aLimits.MaximumBodyBytes);
+		}
+
+		[[nodiscard]] inline auto validate_review_comment(
+			const github_review_comment_record& aRecord,
+			github_text_budget&                 aBudget,
+			const github_read_limits&           aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (
+				aRecord.Line.has_value()
+				&& (*aRecord.Line == 0U
+					|| *aRecord.Line > maximum_github_line)) {
+				return github_read_validation_error::invalid_line;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.Comment.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = validate_author(aRecord.Author, aBudget, aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (aRecord.ReplyTo.has_value()) {
+				if (const auto error = consume_id(aBudget, aRecord.ReplyTo->value(), aLimits);
+					error != github_read_validation_error::none) {
+					return error;
+				}
+			}
+			if (const auto error = aBudget.consume(aRecord.Body, aLimits.MaximumBodyBytes);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aRecord.Path,
+				aLimits.MaximumPathBytes,
+				true);
+		}
+
+		[[nodiscard]] inline auto validate_thread(
+			const github_review_thread_record& aRecord,
+			github_text_budget&                aBudget,
+			const github_read_limits&          aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (aRecord.Comments.size() > aLimits.MaximumCommentsPerThread) {
+				return github_read_validation_error::collection_too_large;
+			}
+			if (!valid_enum(aRecord.Subject)) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (
+				!valid_enum(aRecord.ViewerResolvePermission)
+				|| !valid_enum(aRecord.ViewerUnresolvePermission)) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (
+				(
+					aRecord.Subject == github_review_thread_subject::line
+					&& !aRecord.Line.has_value())
+				|| (aRecord.Subject == github_review_thread_subject::file
+					&& aRecord.Line.has_value())
+				|| (aRecord.Line.has_value()
+					&& (*aRecord.Line == 0U
+						|| *aRecord.Line > maximum_github_line))) {
+				return github_read_validation_error::invalid_line;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.Thread.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = aBudget.consume(aRecord.Path, aLimits.MaximumPathBytes, true);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			for (const auto& comment : aRecord.Comments) {
+				if (comment.Path != aRecord.Path) {
+					return github_read_validation_error::invalid_relationship;
+				}
+				if (
+					(
+						aRecord.Subject == github_review_thread_subject::line
+						&& !comment.Line.has_value())
+					|| (aRecord.Subject == github_review_thread_subject::file
+						&& comment.Line.has_value())) {
+					return github_read_validation_error::invalid_line;
+				}
+				if (const auto error = validate_review_comment(comment, aBudget, aLimits);
+					error != github_read_validation_error::none) {
+					return error;
+				}
+			}
+			return github_read_validation_error::none;
+		}
+
+		[[nodiscard]] inline auto validate_issue_comment(
+			const github_issue_comment_record& aRecord,
+			github_text_budget&                aBudget,
+			const github_read_limits&          aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (const auto error = consume_id(aBudget, aRecord.Comment.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			if (const auto error = validate_author(aRecord.Author, aBudget, aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(aRecord.Body, aLimits.MaximumBodyBytes);
+		}
+
+		[[nodiscard]] inline auto validate_check(
+			const github_check_record& aRecord,
+			github_text_budget&        aBudget,
+			const github_read_limits&  aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (!valid_enum(aRecord.Status) || !valid_enum(aRecord.Conclusion)) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (
+				(
+					aRecord.Status == github_check_status::completed
+					&& aRecord.Conclusion == github_check_conclusion::none)
+				|| (aRecord.Status != github_check_status::completed
+					&& aRecord.Conclusion != github_check_conclusion::none)) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.Check.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aRecord.Name,
+				aLimits.MaximumCheckNameBytes,
+				true);
+		}
+
+		[[nodiscard]] inline auto validate_search_result(
+			const github_search_result_record& aRecord,
+			github_text_budget&                aBudget,
+			const github_read_limits&          aLimits) noexcept
+			-> github_read_validation_error
+		{
+			if (aRecord.Repository.value() == 0U) {
+				return github_read_validation_error::missing_identity;
+			}
+			if (!aRecord.Number.valid()) {
+				return github_read_validation_error::invalid_pull_request_number;
+			}
+			if (
+				!valid_enum(aRecord.State)
+				|| aRecord.State != github_pull_request_state::open) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (const auto error = consume_id(aBudget, aRecord.PullRequestNode.value(), aLimits);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			return aBudget.consume(
+				aRecord.Title,
+				aLimits.MaximumTitleBytes,
+				true);
+		}
+
+		[[nodiscard]] inline auto validate_capabilities(
+			const github_capability_evidence& aEvidence) noexcept
+			-> github_read_validation_error
+		{
+			if (aEvidence.Revision.value() == 0U || aEvidence.ContractVersion != 1U) {
+				return github_read_validation_error::invalid_capability_revision;
+			}
+			if (
+				!valid_enum(aEvidence.Capabilities.ReviewThreads)
+				|| !valid_enum(aEvidence.Capabilities.ViewedFileMutations)
+				|| !valid_enum(aEvidence.Capabilities.ResolveThread)
+				|| !valid_enum(aEvidence.Capabilities.UnresolveThread)) {
+				return github_read_validation_error::invalid_enum;
+			}
+			return github_read_validation_error::none;
+		}
+
+		[[nodiscard]] inline auto validate_rate_limit(
+			const github_rate_limit_record& aRateLimit) noexcept
+			-> github_read_validation_error
+		{
+			if (!valid(aRateLimit)) {
+				return github_read_validation_error::invalid_rate_limit;
+			}
+			return github_read_validation_error::none;
+		}
+
+		[[nodiscard]] inline auto validate_rate_limits(
+			const github_rate_limit_state& aRateLimits,
+			const bool                     aRequireCore,
+			const bool                     aRequireSearch,
+			const bool                     aRequireGraphql) noexcept
+			-> github_read_validation_error
+		{
+			if (
+				!valid(aRateLimits)
+				|| (aRequireCore && !aRateLimits.Core.has_value())
+				|| (aRequireSearch && !aRateLimits.Search.has_value())
+				|| (aRequireGraphql && !aRateLimits.Graphql.has_value())) {
+				return github_read_validation_error::invalid_rate_limit;
+			}
+			return github_read_validation_error::none;
+		}
+
+		[[nodiscard]] inline auto validate_unique_identities(
+			const github_pull_request_snapshot& aSnapshot)
+			-> github_read_validation_error
+		{
+			std::unordered_map<std::string_view, std::string_view> actors;
+			actors.reserve(
+				aSnapshot.Commits.size() + aSnapshot.Reviews.size()
+				+ aSnapshot.ReviewThreads.size() + aSnapshot.IssueComments.size()
+				+ 2U);
+			actors.emplace(
+				aSnapshot.Viewer.Actor.value(),
+				aSnapshot.Viewer.Login);
+			const auto observeActor =
+				[&actors](
+					const std::optional<github_actor_record>& aAuthor)
+				-> github_read_validation_error {
+				if (!aAuthor.has_value()) {
+					return github_read_validation_error::none;
+				}
+				const auto [iterator, inserted] = actors.try_emplace(
+					aAuthor->Actor.value(),
+					aAuthor->Login);
+				if (!inserted && iterator->second != aAuthor->Login) {
+					return github_read_validation_error::invalid_relationship;
+				}
+				return github_read_validation_error::none;
+			};
+			if (const auto error = observeActor(aSnapshot.PullRequest.Author);
+				error != github_read_validation_error::none) {
+				return error;
+			}
+			for (const auto& commit : aSnapshot.Commits) {
+				if (const auto error = observeActor(commit.Author);
+					error != github_read_validation_error::none) {
+					return error;
+				}
+			}
+			for (const auto& review : aSnapshot.Reviews) {
+				if (const auto error = observeActor(review.Author);
+					error != github_read_validation_error::none) {
+					return error;
+				}
+			}
+			for (const auto& thread : aSnapshot.ReviewThreads) {
+				for (const auto& comment : thread.Comments) {
+					if (const auto error = observeActor(comment.Author);
+						error != github_read_validation_error::none) {
+						return error;
+					}
+				}
+			}
+			for (const auto& comment : aSnapshot.IssueComments) {
+				if (const auto error = observeActor(comment.Author);
+					error != github_read_validation_error::none) {
+					return error;
+				}
+			}
+
+			std::unordered_set<std::string_view> entityNodeIds;
+			entityNodeIds.reserve(
+				aSnapshot.Commits.size() + aSnapshot.Reviews.size()
+				+ aSnapshot.ReviewThreads.size() + aSnapshot.IssueComments.size()
+				+ aSnapshot.Checks.size() + 2U);
+			if (!entityNodeIds.emplace(aSnapshot.Repository.Node.value()).second
+				|| !entityNodeIds.emplace(aSnapshot.PullRequest.Node.value()).second) {
+				return github_read_validation_error::duplicate_identity;
+			}
+			for (const auto& commit : aSnapshot.Commits) {
+				if (!entityNodeIds.emplace(commit.Node.value()).second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+			}
+
+			std::unordered_set<std::string_view> paths;
+			paths.reserve(aSnapshot.Files.size());
+			for (const auto& file : aSnapshot.Files) {
+				if (!paths.emplace(file.Path).second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+			}
+
+			std::unordered_set<std::string_view> commitOids;
+			commitOids.reserve(aSnapshot.Commits.size());
+			for (const auto& commit : aSnapshot.Commits) {
+				if (!commitOids.emplace(commit.Oid.value()).second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+			}
+
+			for (const auto& review : aSnapshot.Reviews) {
+				if (!entityNodeIds.emplace(review.Review.value()).second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+			}
+
+			for (const auto& thread : aSnapshot.ReviewThreads) {
+				if (!entityNodeIds.emplace(thread.Thread.value()).second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+				std::unordered_set<std::string_view> threadCommentIds;
+				threadCommentIds.reserve(thread.Comments.size());
+				for (const auto& comment : thread.Comments) {
+					if (
+						comment.ReplyTo.has_value()
+						&& !threadCommentIds.contains(
+							comment.ReplyTo->value())) {
+						return github_read_validation_error::
+							invalid_relationship;
+					}
+					if (!entityNodeIds.emplace(comment.Comment.value()).second) {
+						return github_read_validation_error::duplicate_identity;
+					}
+					threadCommentIds.emplace(comment.Comment.value());
+				}
+			}
+			for (const auto& comment : aSnapshot.IssueComments) {
+				if (!entityNodeIds.emplace(comment.Comment.value()).second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+			}
+
+			for (const auto& check : aSnapshot.Checks) {
+				if (!entityNodeIds.emplace(check.Check.value()).second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+			}
+			for (const auto& actor : actors) {
+				if (!entityNodeIds.emplace(actor.first).second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+			}
+
+			std::unordered_set<std::string_view> searchPullRequests;
+			std::unordered_set<std::uint32_t>    searchPullRequestNumbers;
+			searchPullRequests.reserve(aSnapshot.SearchResults.size());
+			searchPullRequestNumbers.reserve(aSnapshot.SearchResults.size());
+			for (const auto& result : aSnapshot.SearchResults) {
+				if (result.Repository != aSnapshot.Repository.Repository) {
+					return github_read_validation_error::invalid_relationship;
+				}
+				const auto matchesSnapshotNode   = result.PullRequestNode == aSnapshot.PullRequest.Node;
+				const auto matchesSnapshotNumber = result.Number == aSnapshot.PullRequest.Number;
+				if (matchesSnapshotNode != matchesSnapshotNumber) {
+					return github_read_validation_error::invalid_relationship;
+				}
+				if (
+					matchesSnapshotNode
+					&& (result.Title != aSnapshot.PullRequest.Title
+						|| result.State != aSnapshot.PullRequest.State
+						|| result.Draft != aSnapshot.PullRequest.Draft)) {
+					return github_read_validation_error::invalid_relationship;
+				}
+				if (
+					!matchesSnapshotNode
+					&& !entityNodeIds
+							.emplace(result.PullRequestNode.value())
+							.second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+				if (
+					!searchPullRequests
+						 .emplace(result.PullRequestNode.value())
+						 .second
+					|| !searchPullRequestNumbers
+							.emplace(result.Number.value())
+							.second) {
+					return github_read_validation_error::duplicate_identity;
+				}
+			}
+			return github_read_validation_error::none;
+		}
+	}
+
+	[[nodiscard]] inline auto validate(
+		const github_session_read_model&            aModel,
+		const core::github_session_request_context& aContext,
+		const github_read_limits&                   aLimits = { }) noexcept
+		-> github_read_validation
+	{
+		if (!detail::within_security_ceiling(aLimits)) {
+			return detail::validation(
+				github_read_validation_error::invalid_limits);
+		}
+		if (!detail::valid_context(aContext)) {
+			return detail::validation(
+				github_read_validation_error::invalid_context);
+		}
+		if (
+			aModel.Profile.value() == 0U || aModel.Host.value() == 0U
+			|| aModel.Viewer.Account.value() == 0U) {
+			return detail::validation(
+				github_read_validation_error::missing_identity);
+		}
+		if (aModel.Profile != aContext.Profile) {
+			return detail::validation(
+				github_read_validation_error::identity_mismatch);
+		}
+
+		detail::github_text_budget budget{ aLimits };
+		if (const auto error = detail::validate_viewer(aModel.Viewer, budget, aLimits);
+			error != github_read_validation_error::none) {
+			return detail::validation(error);
+		}
+		if (const auto error = detail::validate_capabilities(aModel.CapabilityEvidence);
+			error != github_read_validation_error::none) {
+			return detail::validation(error);
+		}
+		return detail::validation(
+			detail::validate_rate_limits(
+				aModel.RateLimits,
+				false,
+				false,
+				false));
+	}
+
+	[[nodiscard]] inline auto validate(
+		const github_pull_request_snapshot&       aSnapshot,
+		const core::pull_request_request_context& aContext,
+		const github_read_limits&                 aLimits = { })
+		-> github_read_validation
+	{
+		if (!detail::within_security_ceiling(aLimits)) {
+			return detail::validation(
+				github_read_validation_error::invalid_limits);
+		}
+		if (!detail::valid_context(aContext)) {
+			return detail::validation(
+				github_read_validation_error::invalid_context);
+		}
+		if (
+			aSnapshot.Profile.value() == 0U || aSnapshot.Host.value() == 0U
+			|| aSnapshot.Account.value() == 0U
+			|| aSnapshot.Snapshot.value() == 0U) {
+			return detail::validation(
+				github_read_validation_error::missing_identity);
+		}
+		if (
+			aSnapshot.Profile != aContext.Profile
+			|| aSnapshot.Host != aContext.Host
+			|| aSnapshot.Account != aContext.Account
+			|| aSnapshot.PullRequest.Number != aContext.Number
+			|| aSnapshot.PullRequest.Repository
+				!= aSnapshot.Repository.Repository
+			|| !detail::ascii_equal_fold(
+				aSnapshot.Repository.Owner,
+				aContext.Repository.Owner)
+			|| !detail::ascii_equal_fold(
+				aSnapshot.Repository.Name,
+				aContext.Repository.Name)
+			|| (aContext.ExpectedRepository.has_value()
+				&& *aContext.ExpectedRepository
+					!= aSnapshot.Repository.Repository)
+			|| (aContext.ExpectedPullRequest.has_value()
+				&& *aContext.ExpectedPullRequest
+					!= aSnapshot.PullRequest.PullRequest)
+			|| aSnapshot.CapabilityEvidence.Revision
+				!= aContext.Capabilities) {
+			return detail::validation(
+				github_read_validation_error::identity_mismatch);
+		}
+		if (const auto error = detail::validate_capabilities(aSnapshot.CapabilityEvidence);
+			error != github_read_validation_error::none) {
+			return detail::validation(error);
+		}
+		if (!detail::valid_enum(aSnapshot.ReviewThreadsAvailability)) {
+			return detail::validation(
+				github_read_validation_error::invalid_enum);
+		}
+		const auto& readShape        = aSnapshot.CapabilityEvidence.ReadShape;
+		const auto  threadsAvailable = aSnapshot.ReviewThreadsAvailability
+			== github_collection_availability::available;
+		if (
+			threadsAvailable != readShape.ReviewThreads
+			|| (!threadsAvailable
+				&& !aSnapshot.ReviewThreads.empty())
+			|| (aSnapshot.CapabilityEvidence.Capabilities.ReviewThreads
+					== core::github_capability_state::supported
+				&& !readShape.ReviewThreads)
+			|| (aSnapshot.CapabilityEvidence.Capabilities.ReviewThreads
+					!= core::github_capability_state::supported
+				&& readShape.ReviewThreads)
+			|| (aSnapshot.CapabilityEvidence.Capabilities.ViewedFileMutations
+					== core::github_capability_state::supported
+				&& !readShape.ViewedFileState)
+			|| (aSnapshot.CapabilityEvidence.Capabilities.ResolveThread
+					== core::github_capability_state::supported
+				&& (!readShape.ReviewThreads
+					|| !readShape.ResolvePermission))
+			|| (aSnapshot.CapabilityEvidence.Capabilities.UnresolveThread
+					== core::github_capability_state::supported
+				&& (!readShape.ReviewThreads
+					|| !readShape.UnresolvePermission))) {
+			return detail::validation(
+				github_read_validation_error::invalid_relationship);
+		}
+		for (const auto& file : aSnapshot.Files) {
+			const auto viewedAvailable = file.ViewedState != github_file_viewed_state::unavailable;
+			if (viewedAvailable != readShape.ViewedFileState) {
+				return detail::validation(
+					github_read_validation_error::invalid_relationship);
+			}
+		}
+		for (const auto& thread : aSnapshot.ReviewThreads) {
+			const auto resolveAvailable = thread.ViewerResolvePermission
+				!= github_permission_state::unavailable;
+			const auto unresolveAvailable = thread.ViewerUnresolvePermission
+				!= github_permission_state::unavailable;
+			if (
+				resolveAvailable != readShape.ResolvePermission
+				|| unresolveAvailable != readShape.UnresolvePermission) {
+				return detail::validation(
+					github_read_validation_error::invalid_relationship);
+			}
+		}
+		if (aSnapshot.Files.size() > aLimits.MaximumFiles
+			|| aSnapshot.Commits.size() > aLimits.MaximumCommits
+			|| aSnapshot.Reviews.size() > aLimits.MaximumReviews
+			|| aSnapshot.ReviewThreads.size() > aLimits.MaximumReviewThreads
+			|| aSnapshot.IssueComments.size() > aLimits.MaximumIssueComments
+			|| aSnapshot.Checks.size() > aLimits.MaximumChecks
+			|| aSnapshot.SearchResults.size() > aLimits.MaximumSearchResults) {
+			return detail::validation(
+				github_read_validation_error::collection_too_large);
+		}
+
+		auto totalComments = aSnapshot.IssueComments.size();
+		if (totalComments > aLimits.MaximumTotalComments) {
+			return detail::validation(
+				github_read_validation_error::collection_too_large);
+		}
+		for (const auto& thread : aSnapshot.ReviewThreads) {
+			if (
+				thread.Comments.size()
+				> aLimits.MaximumTotalComments - totalComments) {
+				return detail::validation(
+					github_read_validation_error::collection_too_large);
+			}
+			totalComments += thread.Comments.size();
+		}
+
+		auto       totalRecords = aSnapshot.Files.size();
+		const auto addRecords   = [&](const std::size_t aCount) {
+			if (
+				aCount > aLimits.MaximumTotalRecords
+				|| totalRecords > aLimits.MaximumTotalRecords - aCount) {
+				return false;
+			}
+			totalRecords += aCount;
+			return true;
+		};
+		if (
+			!addRecords(aSnapshot.Commits.size())
+			|| !addRecords(aSnapshot.Reviews.size())
+			|| !addRecords(aSnapshot.ReviewThreads.size())
+			|| !addRecords(totalComments)
+			|| !addRecords(aSnapshot.Checks.size())
+			|| !addRecords(aSnapshot.SearchResults.size())) {
+			return detail::validation(
+				github_read_validation_error::collection_too_large);
+		}
+
+		detail::github_text_budget budget{ aLimits };
+		if (const auto error = detail::validate_actor(
+				aSnapshot.Viewer,
+				budget,
+				aLimits,
+				true);
+			error != github_read_validation_error::none) {
+			return detail::validation(error);
+		}
+		if (const auto error = detail::validate_repository(
+				aSnapshot.Repository,
+				budget,
+				aLimits);
+			error != github_read_validation_error::none) {
+			return detail::validation(error);
+		}
+		if (const auto error = detail::validate_pull_request(
+				aSnapshot.PullRequest,
+				budget,
+				aLimits);
+			error != github_read_validation_error::none) {
+			return detail::validation(error);
+		}
+		for (const auto& record : aSnapshot.Files) {
+			if (const auto error = detail::validate_file(record, budget, aLimits);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
+		}
+		for (const auto& record : aSnapshot.Commits) {
+			if (const auto error = detail::validate_commit(record, budget, aLimits);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
+		}
+		for (const auto& record : aSnapshot.Reviews) {
+			if (const auto error = detail::validate_review(record, budget, aLimits);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
+		}
+		for (const auto& record : aSnapshot.ReviewThreads) {
+			if (const auto error = detail::validate_thread(record, budget, aLimits);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
+		}
+		for (const auto& record : aSnapshot.IssueComments) {
+			if (const auto error = detail::validate_issue_comment(record, budget, aLimits);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
+		}
+		for (const auto& record : aSnapshot.Checks) {
+			if (const auto error = detail::validate_check(record, budget, aLimits);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
+		}
+		for (const auto& record : aSnapshot.SearchResults) {
+			if (const auto error = detail::validate_search_result(record, budget, aLimits);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
+		}
+		try {
+			if (const auto error = detail::validate_unique_identities(aSnapshot);
+				error != github_read_validation_error::none) {
+				return detail::validation(error);
+			}
+		} catch (const std::bad_alloc&) {
+			return detail::validation(
+				github_read_validation_error::allocation_limit);
+		}
+		return detail::validation(
+			detail::validate_rate_limits(
+				aSnapshot.RateLimits,
+				false,
+				false,
+				false));
+	}
 }
 
-struct github_rate_limit_record
-{
-    github_rate_limit_resource Resource =
-        github_rate_limit_resource::uninitialized;
-    std::uint64_t Limit = 0;
-    std::uint64_t Remaining = 0;
-    std::uint64_t ResetUnixSeconds = 0;
-    bool SecondaryLimited = false;
-
-    auto operator<=>(const github_rate_limit_record&) const = default;
-};
-
-[[nodiscard]] constexpr auto valid(
-    const github_rate_limit_record& record) noexcept -> bool
-{
-    return valid(record.Resource)
-        && record.Remaining <= record.Limit
-        && (!record.SecondaryLimited || record.Remaining != 0U);
-}
-
-struct github_rate_limit_state
-{
-    std::optional<github_rate_limit_record> Core;
-    std::optional<github_rate_limit_record> Search;
-    std::optional<github_rate_limit_record> Graphql;
-
-    auto operator<=>(const github_rate_limit_state&) const = default;
-};
-
-[[nodiscard]] constexpr auto valid(
-    const github_rate_limit_state& state) noexcept -> bool
-{
-    return (
-               !state.Core.has_value()
-               || (
-                   valid(*state.Core)
-                   && state.Core->Resource
-                       == github_rate_limit_resource::core))
-        && (
-            !state.Search.has_value()
-            || (
-                valid(*state.Search)
-                && state.Search->Resource
-                    == github_rate_limit_resource::search))
-        && (
-            !state.Graphql.has_value()
-            || (
-                valid(*state.Graphql)
-                && state.Graphql->Resource
-                    == github_rate_limit_resource::graphql));
-}
-
-[[nodiscard]] constexpr auto observe(
-    github_rate_limit_state& state,
-    const github_rate_limit_record& record) noexcept -> bool
-{
-    if(!valid(record))
-    {
-        return false;
-    }
-    switch(record.Resource)
-    {
-    case github_rate_limit_resource::core:
-        state.Core = record;
-        return true;
-    case github_rate_limit_resource::search:
-        state.Search = record;
-        return true;
-    case github_rate_limit_resource::graphql:
-        state.Graphql = record;
-        return true;
-    case github_rate_limit_resource::uninitialized:
-        return false;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto merge(
-    github_rate_limit_state& destination,
-    const github_rate_limit_state& source) noexcept -> bool
-{
-    if(!valid(source))
-    {
-        return false;
-    }
-    if(source.Core.has_value())
-    {
-        destination.Core = source.Core;
-    }
-    if(source.Search.has_value())
-    {
-        destination.Search = source.Search;
-    }
-    if(source.Graphql.has_value())
-    {
-        destination.Graphql = source.Graphql;
-    }
-    return true;
-}
-
-[[nodiscard]] constexpr auto has_observations(
-    const github_rate_limit_state& state) noexcept -> bool
-{
-    return state.Core.has_value() || state.Search.has_value()
-        || state.Graphql.has_value();
-}
-
-[[nodiscard]] constexpr auto find(
-    const github_rate_limit_state& state,
-    const github_rate_limit_resource resource) noexcept
-    -> const github_rate_limit_record*
-{
-    switch(resource)
-    {
-    case github_rate_limit_resource::core:
-        return state.Core.has_value() ? &*state.Core : nullptr;
-    case github_rate_limit_resource::search:
-        return state.Search.has_value() ? &*state.Search : nullptr;
-    case github_rate_limit_resource::graphql:
-        return state.Graphql.has_value() ? &*state.Graphql : nullptr;
-    case github_rate_limit_resource::uninitialized:
-        return nullptr;
-    }
-    return nullptr;
-}
-
-[[nodiscard]] constexpr auto is_limited(
-    const github_rate_limit_record& record) noexcept -> bool
-{
-    return record.Remaining == 0U || record.SecondaryLimited;
-}
-
-[[nodiscard]] constexpr auto is_secondary_limited(
-    const github_rate_limit_state& state) noexcept -> bool
-{
-    return (
-               state.Core.has_value()
-               && state.Core->SecondaryLimited)
-        || (
-            state.Search.has_value()
-            && state.Search->SecondaryLimited)
-        || (
-            state.Graphql.has_value()
-            && state.Graphql->SecondaryLimited);
-}
-
-[[nodiscard]] constexpr auto is_limited(
-    const github_rate_limit_state& state) noexcept -> bool
-{
-    return (state.Core.has_value() && is_limited(*state.Core))
-        || (state.Search.has_value() && is_limited(*state.Search))
-        || (state.Graphql.has_value() && is_limited(*state.Graphql));
-}
-
-struct github_session_read_model
-{
-    core::host_profile_id Profile;
-    core::git_host_id Host;
-    github_viewer_record Viewer;
-    github_capability_evidence CapabilityEvidence;
-    github_rate_limit_state RateLimits;
-
-    auto operator<=>(const github_session_read_model&) const = default;
-};
-
-struct github_pull_request_snapshot
-{
-    core::host_profile_id Profile;
-    core::git_host_id Host;
-    core::github_account_id Account;
-    github_actor_record Viewer;
-    core::provider_snapshot_id Snapshot;
-    github_repository_record Repository;
-    github_pull_request_record PullRequest;
-    std::vector<github_file_record> Files;
-    std::vector<github_commit_record> Commits;
-    std::vector<github_review_record> Reviews;
-    github_collection_availability ReviewThreadsAvailability =
-        github_collection_availability::unavailable;
-    std::vector<github_review_thread_record> ReviewThreads;
-    std::vector<github_issue_comment_record> IssueComments;
-    std::vector<github_check_record> Checks;
-    std::vector<github_search_result_record> SearchResults;
-    github_capability_evidence CapabilityEvidence;
-    github_rate_limit_state RateLimits;
-
-    auto operator<=>(const github_pull_request_snapshot&) const = default;
-};
-
-struct github_read_limits
-{
-    std::size_t MaximumIdentityBytes = 256U;
-    std::size_t MaximumLoginBytes = 256U;
-    std::size_t MaximumDisplayNameBytes = 1024U;
-    std::size_t MaximumTitleBytes = 1024U;
-    std::size_t MaximumBodyBytes = 256U * 1024U;
-    std::size_t MaximumPathBytes = 4U * 1024U;
-    std::size_t MaximumRefBytes = 256U;
-    std::size_t MaximumHeadlineBytes = 1024U;
-    std::size_t MaximumCheckNameBytes = 1024U;
-    std::size_t MaximumFiles = 3'000U;
-    std::size_t MaximumCommits = 250U;
-    std::size_t MaximumReviews = 10'000U;
-    std::size_t MaximumReviewThreads = 10'000U;
-    std::size_t MaximumCommentsPerThread = 10'000U;
-    std::size_t MaximumIssueComments = 10'000U;
-    std::size_t MaximumTotalComments = 50'000U;
-    std::size_t MaximumChecks = 10'000U;
-    std::size_t MaximumSearchResults = 1'000U;
-    std::size_t MaximumTotalRecords = 50'000U;
-    std::size_t MaximumTotalTextBytes = 16U * 1024U * 1024U;
-
-    auto operator<=>(const github_read_limits&) const = default;
-};
-
-enum class github_read_validation_error : std::uint8_t
-{
-    none,
-    invalid_context,
-    invalid_limits,
-    missing_identity,
-    identity_mismatch,
-    missing_required_text,
-    invalid_text,
-    text_too_long,
-    invalid_repository,
-    invalid_pull_request_number,
-    invalid_commit_oid,
-    invalid_line,
-    invalid_enum,
-    invalid_capability_revision,
-    invalid_rate_limit,
-    collection_too_large,
-    duplicate_identity,
-    invalid_relationship,
-    allocation_limit,
-    total_text_too_large,
-};
-
-struct github_read_validation
-{
-    github_read_validation_error Error =
-        github_read_validation_error::none;
-
-    [[nodiscard]] constexpr auto valid() const noexcept -> bool
-    {
-        return Error == github_read_validation_error::none;
-    }
-
-    auto operator<=>(const github_read_validation&) const = default;
-};
-
-namespace detail
-{
-class github_text_budget
-{
-public:
-    explicit github_text_budget(const github_read_limits& limits)
-        : Limits{limits}
-    {
-    }
-
-    [[nodiscard]] auto consume(
-        const std::string_view text,
-        const std::size_t field_limit,
-        const bool required = false) noexcept
-        -> github_read_validation_error
-    {
-        if(required && text.empty())
-        {
-            return github_read_validation_error::missing_required_text;
-        }
-        if(text.find('\0') != std::string_view::npos)
-        {
-            return github_read_validation_error::invalid_text;
-        }
-        if(text.size() > field_limit)
-        {
-            return github_read_validation_error::text_too_long;
-        }
-        if(
-            text.size() > Limits.MaximumTotalTextBytes
-            || Total > Limits.MaximumTotalTextBytes - text.size())
-        {
-            return github_read_validation_error::total_text_too_large;
-        }
-        Total += text.size();
-        return github_read_validation_error::none;
-    }
-
-private:
-    const github_read_limits& Limits;
-    std::size_t Total = 0;
-};
-
-[[nodiscard]] inline auto validation(
-    const github_read_validation_error error) noexcept
-    -> github_read_validation
-{
-    return github_read_validation{.Error = error};
-}
-
-[[nodiscard]] constexpr auto within_security_ceiling(
-    const github_read_limits& limits) noexcept -> bool
-{
-    constexpr github_read_limits ceiling;
-    return limits.MaximumIdentityBytes <= ceiling.MaximumIdentityBytes
-        && limits.MaximumLoginBytes <= ceiling.MaximumLoginBytes
-        && limits.MaximumDisplayNameBytes
-            <= ceiling.MaximumDisplayNameBytes
-        && limits.MaximumTitleBytes <= ceiling.MaximumTitleBytes
-        && limits.MaximumBodyBytes <= ceiling.MaximumBodyBytes
-        && limits.MaximumPathBytes <= ceiling.MaximumPathBytes
-        && limits.MaximumRefBytes <= ceiling.MaximumRefBytes
-        && limits.MaximumHeadlineBytes <= ceiling.MaximumHeadlineBytes
-        && limits.MaximumCheckNameBytes <= ceiling.MaximumCheckNameBytes
-        && limits.MaximumFiles <= ceiling.MaximumFiles
-        && limits.MaximumCommits <= ceiling.MaximumCommits
-        && limits.MaximumReviews <= ceiling.MaximumReviews
-        && limits.MaximumReviewThreads <= ceiling.MaximumReviewThreads
-        && limits.MaximumCommentsPerThread
-            <= ceiling.MaximumCommentsPerThread
-        && limits.MaximumIssueComments <= ceiling.MaximumIssueComments
-        && limits.MaximumTotalComments <= ceiling.MaximumTotalComments
-        && limits.MaximumChecks <= ceiling.MaximumChecks
-        && limits.MaximumSearchResults <= ceiling.MaximumSearchResults
-        && limits.MaximumTotalRecords <= ceiling.MaximumTotalRecords
-        && limits.MaximumTotalTextBytes <= ceiling.MaximumTotalTextBytes;
-}
-
-[[nodiscard]] inline auto valid_context(
-    const core::github_session_request_context& context) noexcept -> bool
-{
-    return context.Request.value() != 0U
-        && context.ApplicationSession.value() != 0U
-        && context.Profile.value() != 0U
-        && context.IdentityGeneration.value() != 0U;
-}
-
-[[nodiscard]] inline auto valid_context(
-    const core::pull_request_request_context& context) noexcept -> bool
-{
-    return context.Request.value() != 0U
-        && context.ApplicationSession.value() != 0U
-        && context.Profile.value() != 0U && context.Host.value() != 0U
-        && context.Account.value() != 0U && core::valid(context.Repository)
-        && context.Number.valid()
-        && (
-            !context.ExpectedRepository.has_value()
-            || context.ExpectedRepository->value() != 0U)
-        && (
-            !context.ExpectedPullRequest.has_value()
-            || context.ExpectedPullRequest->value() != 0U)
-        && context.Capabilities.value() != 0U
-        && context.IdentityGeneration.value() != 0U
-        && context.Generation.value() != 0U;
-}
-
-[[nodiscard]] inline auto ascii_equal_fold(
-    const std::string_view left,
-    const std::string_view right) noexcept -> bool
-{
-    if(left.size() != right.size())
-    {
-        return false;
-    }
-
-    for(std::size_t index = 0; index < left.size(); ++index)
-    {
-        const auto fold = [](const char value) {
-            return value >= 'A' && value <= 'Z'
-                ? static_cast<char>(value - 'A' + 'a')
-                : value;
-        };
-        if(fold(left[index]) != fold(right[index]))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-[[nodiscard]] inline auto hexadecimal_oid(
-    const std::string_view value) noexcept -> bool
-{
-    if(value.size() != 40U && value.size() != 64U)
-    {
-        return false;
-    }
-    for(const auto character : value)
-    {
-        const auto hexadecimal =
-            (character >= '0' && character <= '9')
-            || (character >= 'a' && character <= 'f')
-            || (character >= 'A' && character <= 'F');
-        if(!hexadecimal)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_pull_request_state value) noexcept -> bool
-{
-    switch(value)
-    {
-    case github_pull_request_state::open:
-    case github_pull_request_state::closed:
-    case github_pull_request_state::merged:
-        return true;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_file_change value) noexcept -> bool
-{
-    switch(value)
-    {
-    case github_file_change::added:
-    case github_file_change::modified:
-    case github_file_change::removed:
-    case github_file_change::renamed:
-    case github_file_change::copied:
-    case github_file_change::type_changed:
-    case github_file_change::unchanged:
-        return true;
-    case github_file_change::uninitialized:
-        return false;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_file_content_kind value) noexcept -> bool
-{
-    switch(value)
-    {
-    case github_file_content_kind::unknown:
-    case github_file_content_kind::text:
-    case github_file_content_kind::binary:
-        return true;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_file_viewed_state value) noexcept -> bool
-{
-    switch(value)
-    {
-    case github_file_viewed_state::unavailable:
-    case github_file_viewed_state::dismissed:
-    case github_file_viewed_state::unviewed:
-    case github_file_viewed_state::viewed:
-        return true;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_collection_availability value) noexcept -> bool
-{
-    return value == github_collection_availability::unavailable
-        || value == github_collection_availability::available;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_permission_state value) noexcept -> bool
-{
-    return value == github_permission_state::unavailable
-        || value == github_permission_state::denied
-        || value == github_permission_state::allowed;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_review_state value) noexcept -> bool
-{
-    switch(value)
-    {
-    case github_review_state::pending:
-    case github_review_state::commented:
-    case github_review_state::approved:
-    case github_review_state::changes_requested:
-    case github_review_state::dismissed:
-        return true;
-    case github_review_state::uninitialized:
-        return false;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_review_thread_subject value) noexcept -> bool
-{
-    switch(value)
-    {
-    case github_review_thread_subject::line:
-    case github_review_thread_subject::file:
-        return true;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_check_status value) noexcept -> bool
-{
-    switch(value)
-    {
-    case github_check_status::queued:
-    case github_check_status::in_progress:
-    case github_check_status::completed:
-    case github_check_status::waiting:
-    case github_check_status::requested:
-    case github_check_status::pending:
-        return true;
-    case github_check_status::uninitialized:
-        return false;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const github_check_conclusion value) noexcept -> bool
-{
-    switch(value)
-    {
-    case github_check_conclusion::none:
-    case github_check_conclusion::success:
-    case github_check_conclusion::failure:
-    case github_check_conclusion::neutral:
-    case github_check_conclusion::cancelled:
-    case github_check_conclusion::skipped:
-    case github_check_conclusion::timed_out:
-    case github_check_conclusion::action_required:
-    case github_check_conclusion::stale:
-        return true;
-    case github_check_conclusion::uninitialized:
-        return false;
-    }
-    return false;
-}
-
-[[nodiscard]] constexpr auto valid_enum(
-    const core::github_capability_state value) noexcept -> bool
-{
-    switch(value)
-    {
-    case core::github_capability_state::unknown:
-    case core::github_capability_state::supported:
-    case core::github_capability_state::unsupported:
-        return true;
-    }
-    return false;
-}
-
-[[nodiscard]] inline auto consume_id(
-    github_text_budget& budget,
-    const std::string_view value,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    return budget.consume(value, limits.MaximumIdentityBytes, true);
-}
-
-[[nodiscard]] inline auto validate_author(
-    const std::optional<github_actor_record>& author,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(!author.has_value())
-    {
-        return github_read_validation_error::none;
-    }
-    if(author->Actor.value().empty())
-    {
-        return github_read_validation_error::missing_identity;
-    }
-    if(const auto error =
-           consume_id(budget, author->Actor.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        author->Login,
-        limits.MaximumLoginBytes,
-        true);
-}
-
-[[nodiscard]] inline auto validate_actor(
-    const github_actor_record& actor,
-    github_text_budget& budget,
-    const github_read_limits& limits,
-    const bool login_required) noexcept
-    -> github_read_validation_error
-{
-    if(actor.Actor.value().empty())
-    {
-        return github_read_validation_error::missing_identity;
-    }
-    if(const auto error =
-           consume_id(budget, actor.Actor.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        actor.Login,
-        limits.MaximumLoginBytes,
-        login_required);
-}
-
-[[nodiscard]] inline auto validate_viewer(
-    const github_viewer_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(record.Account.value() == 0U)
-    {
-        return github_read_validation_error::missing_identity;
-    }
-    if(const auto error = consume_id(budget, record.Node.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           budget.consume(record.Login, limits.MaximumLoginBytes, true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        record.DisplayName,
-        limits.MaximumDisplayNameBytes);
-}
-
-[[nodiscard]] inline auto validate_repository(
-    const github_repository_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(record.Repository.value() == 0U)
-    {
-        return github_read_validation_error::missing_identity;
-    }
-    if(const auto error = consume_id(budget, record.Node.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(!core::valid(
-           core::repository_locator{
-               .Owner = record.Owner,
-               .Name = record.Name,
-           }))
-    {
-        return github_read_validation_error::invalid_repository;
-    }
-    if(const auto error = budget.consume(
-           record.Owner,
-           core::maximum_repository_owner_length,
-           true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error = budget.consume(
-           record.Name,
-           core::maximum_repository_name_length,
-           true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        record.DefaultBranch,
-        limits.MaximumRefBytes,
-        true);
-}
-
-[[nodiscard]] inline auto validate_pull_request(
-    const github_pull_request_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(
-        record.PullRequest.value() == 0U
-        || record.Repository.value() == 0U)
-    {
-        return github_read_validation_error::missing_identity;
-    }
-    if(!record.Number.valid())
-    {
-        return github_read_validation_error::invalid_pull_request_number;
-    }
-    if(!valid_enum(record.State))
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    if(const auto error = consume_id(budget, record.Node.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           validate_author(record.Author, budget, limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           budget.consume(record.Title, limits.MaximumTitleBytes, true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           budget.consume(record.Body, limits.MaximumBodyBytes);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(
-        !hexadecimal_oid(record.BaseOid.value())
-        || !hexadecimal_oid(record.HeadOid.value()))
-    {
-        return github_read_validation_error::invalid_commit_oid;
-    }
-    if(const auto error =
-           budget.consume(record.BaseOid.value(), 64U, true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           budget.consume(record.HeadOid.value(), 64U, true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           budget.consume(record.BaseRef, limits.MaximumRefBytes, true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        record.HeadRef,
-        limits.MaximumRefBytes,
-        true);
-}
-
-[[nodiscard]] inline auto validate_file(
-    const github_file_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(
-        !valid_enum(record.Change) || !valid_enum(record.ContentKind)
-        || !valid_enum(record.ViewedState))
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    if(
-        record.PreviousPath.has_value()
-        && record.Change != github_file_change::renamed
-        && record.Change != github_file_change::copied)
-    {
-        return github_read_validation_error::invalid_relationship;
-    }
-    if(const auto error =
-           budget.consume(record.Path, limits.MaximumPathBytes, true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(record.PreviousPath.has_value())
-    {
-        return budget.consume(
-            *record.PreviousPath,
-            limits.MaximumPathBytes,
-            true);
-    }
-    return github_read_validation_error::none;
-}
-
-[[nodiscard]] inline auto validate_commit(
-    const github_commit_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(!hexadecimal_oid(record.Oid.value()))
-    {
-        return github_read_validation_error::invalid_commit_oid;
-    }
-    if(const auto error =
-           budget.consume(record.Oid.value(), 64U, true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error = consume_id(budget, record.Node.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           validate_author(record.Author, budget, limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        record.Headline,
-        limits.MaximumHeadlineBytes);
-}
-
-[[nodiscard]] inline auto validate_review(
-    const github_review_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(record.DatabaseId == 0U || !valid_enum(record.State))
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    if(const auto error = consume_id(budget, record.Review.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           validate_author(record.Author, budget, limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(record.Commit.has_value())
-    {
-        if(!hexadecimal_oid(record.Commit->value()))
-        {
-            return github_read_validation_error::invalid_commit_oid;
-        }
-        if(const auto error =
-               budget.consume(record.Commit->value(), 64U, true);
-           error != github_read_validation_error::none)
-        {
-            return error;
-        }
-    }
-    return budget.consume(record.Body, limits.MaximumBodyBytes);
-}
-
-[[nodiscard]] inline auto validate_review_comment(
-    const github_review_comment_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(
-        record.Line.has_value()
-        && (
-            *record.Line == 0U
-            || *record.Line > maximum_github_line))
-    {
-        return github_read_validation_error::invalid_line;
-    }
-    if(const auto error = consume_id(budget, record.Comment.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           validate_author(record.Author, budget, limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(record.ReplyTo.has_value())
-    {
-        if(const auto error =
-               consume_id(budget, record.ReplyTo->value(), limits);
-           error != github_read_validation_error::none)
-        {
-            return error;
-        }
-    }
-    if(const auto error =
-           budget.consume(record.Body, limits.MaximumBodyBytes);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        record.Path,
-        limits.MaximumPathBytes,
-        true);
-}
-
-[[nodiscard]] inline auto validate_thread(
-    const github_review_thread_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(record.Comments.size() > limits.MaximumCommentsPerThread)
-    {
-        return github_read_validation_error::collection_too_large;
-    }
-    if(!valid_enum(record.Subject))
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    if(
-        !valid_enum(record.ViewerResolvePermission)
-        || !valid_enum(record.ViewerUnresolvePermission))
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    if(
-        (
-            record.Subject == github_review_thread_subject::line
-            && !record.Line.has_value())
-        || (
-            record.Subject == github_review_thread_subject::file
-            && record.Line.has_value())
-        || (
-            record.Line.has_value()
-            && (
-                *record.Line == 0U
-                || *record.Line > maximum_github_line)))
-    {
-        return github_read_validation_error::invalid_line;
-    }
-    if(const auto error = consume_id(budget, record.Thread.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           budget.consume(record.Path, limits.MaximumPathBytes, true);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    for(const auto& comment : record.Comments)
-    {
-        if(comment.Path != record.Path)
-        {
-            return github_read_validation_error::invalid_relationship;
-        }
-        if(
-            (
-                record.Subject == github_review_thread_subject::line
-                && !comment.Line.has_value())
-            || (
-                record.Subject == github_review_thread_subject::file
-                && comment.Line.has_value()))
-        {
-            return github_read_validation_error::invalid_line;
-        }
-        if(const auto error =
-               validate_review_comment(comment, budget, limits);
-           error != github_read_validation_error::none)
-        {
-            return error;
-        }
-    }
-    return github_read_validation_error::none;
-}
-
-[[nodiscard]] inline auto validate_issue_comment(
-    const github_issue_comment_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(const auto error = consume_id(budget, record.Comment.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    if(const auto error =
-           validate_author(record.Author, budget, limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(record.Body, limits.MaximumBodyBytes);
-}
-
-[[nodiscard]] inline auto validate_check(
-    const github_check_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(!valid_enum(record.Status) || !valid_enum(record.Conclusion))
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    if(
-        (
-            record.Status == github_check_status::completed
-            && record.Conclusion == github_check_conclusion::none)
-        || (
-            record.Status != github_check_status::completed
-            && record.Conclusion != github_check_conclusion::none))
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    if(const auto error = consume_id(budget, record.Check.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        record.Name,
-        limits.MaximumCheckNameBytes,
-        true);
-}
-
-[[nodiscard]] inline auto validate_search_result(
-    const github_search_result_record& record,
-    github_text_budget& budget,
-    const github_read_limits& limits) noexcept
-    -> github_read_validation_error
-{
-    if(record.Repository.value() == 0U)
-    {
-        return github_read_validation_error::missing_identity;
-    }
-    if(!record.Number.valid())
-    {
-        return github_read_validation_error::invalid_pull_request_number;
-    }
-    if(
-        !valid_enum(record.State)
-        || record.State != github_pull_request_state::open)
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    if(const auto error =
-           consume_id(budget, record.PullRequestNode.value(), limits);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    return budget.consume(
-        record.Title,
-        limits.MaximumTitleBytes,
-        true);
-}
-
-[[nodiscard]] inline auto validate_capabilities(
-    const github_capability_evidence& evidence) noexcept
-    -> github_read_validation_error
-{
-    if(evidence.Revision.value() == 0U || evidence.ContractVersion != 1U)
-    {
-        return github_read_validation_error::invalid_capability_revision;
-    }
-    if(
-        !valid_enum(evidence.Capabilities.ReviewThreads)
-        || !valid_enum(evidence.Capabilities.ViewedFileMutations)
-        || !valid_enum(evidence.Capabilities.ResolveThread)
-        || !valid_enum(evidence.Capabilities.UnresolveThread))
-    {
-        return github_read_validation_error::invalid_enum;
-    }
-    return github_read_validation_error::none;
-}
-
-[[nodiscard]] inline auto validate_rate_limit(
-    const github_rate_limit_record& rate_limit) noexcept
-    -> github_read_validation_error
-{
-    if(!valid(rate_limit))
-    {
-        return github_read_validation_error::invalid_rate_limit;
-    }
-    return github_read_validation_error::none;
-}
-
-[[nodiscard]] inline auto validate_rate_limits(
-    const github_rate_limit_state& rate_limits,
-    const bool require_core,
-    const bool require_search,
-    const bool require_graphql) noexcept
-    -> github_read_validation_error
-{
-    if(
-        !valid(rate_limits)
-        || (require_core && !rate_limits.Core.has_value())
-        || (require_search && !rate_limits.Search.has_value())
-        || (require_graphql && !rate_limits.Graphql.has_value()))
-    {
-        return github_read_validation_error::invalid_rate_limit;
-    }
-    return github_read_validation_error::none;
-}
-
-[[nodiscard]] inline auto validate_unique_identities(
-    const github_pull_request_snapshot& snapshot)
-    -> github_read_validation_error
-{
-    std::unordered_map<std::string_view, std::string_view> actors;
-    actors.reserve(
-        snapshot.Commits.size() + snapshot.Reviews.size()
-        + snapshot.ReviewThreads.size() + snapshot.IssueComments.size()
-        + 2U);
-    actors.emplace(
-        snapshot.Viewer.Actor.value(),
-        snapshot.Viewer.Login);
-    const auto observe_actor =
-        [&actors](
-            const std::optional<github_actor_record>& author)
-        -> github_read_validation_error {
-        if(!author.has_value())
-        {
-            return github_read_validation_error::none;
-        }
-        const auto [iterator, inserted] = actors.try_emplace(
-            author->Actor.value(),
-            author->Login);
-        if(!inserted && iterator->second != author->Login)
-        {
-            return github_read_validation_error::invalid_relationship;
-        }
-        return github_read_validation_error::none;
-    };
-    if(const auto error = observe_actor(snapshot.PullRequest.Author);
-       error != github_read_validation_error::none)
-    {
-        return error;
-    }
-    for(const auto& commit : snapshot.Commits)
-    {
-        if(const auto error = observe_actor(commit.Author);
-           error != github_read_validation_error::none)
-        {
-            return error;
-        }
-    }
-    for(const auto& review : snapshot.Reviews)
-    {
-        if(const auto error = observe_actor(review.Author);
-           error != github_read_validation_error::none)
-        {
-            return error;
-        }
-    }
-    for(const auto& thread : snapshot.ReviewThreads)
-    {
-        for(const auto& comment : thread.Comments)
-        {
-            if(const auto error = observe_actor(comment.Author);
-               error != github_read_validation_error::none)
-            {
-                return error;
-            }
-        }
-    }
-    for(const auto& comment : snapshot.IssueComments)
-    {
-        if(const auto error = observe_actor(comment.Author);
-           error != github_read_validation_error::none)
-        {
-            return error;
-        }
-    }
-
-    std::unordered_set<std::string_view> entity_node_ids;
-    entity_node_ids.reserve(
-        snapshot.Commits.size() + snapshot.Reviews.size()
-        + snapshot.ReviewThreads.size() + snapshot.IssueComments.size()
-        + snapshot.Checks.size() + 2U);
-    if(!entity_node_ids.emplace(snapshot.Repository.Node.value()).second
-       || !entity_node_ids.emplace(snapshot.PullRequest.Node.value()).second)
-    {
-        return github_read_validation_error::duplicate_identity;
-    }
-    for(const auto& commit : snapshot.Commits)
-    {
-        if(!entity_node_ids.emplace(commit.Node.value()).second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-    }
-
-    std::unordered_set<std::string_view> paths;
-    paths.reserve(snapshot.Files.size());
-    for(const auto& file : snapshot.Files)
-    {
-        if(!paths.emplace(file.Path).second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-    }
-
-    std::unordered_set<std::string_view> commit_oids;
-    commit_oids.reserve(snapshot.Commits.size());
-    for(const auto& commit : snapshot.Commits)
-    {
-        if(!commit_oids.emplace(commit.Oid.value()).second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-    }
-
-    for(const auto& review : snapshot.Reviews)
-    {
-        if(!entity_node_ids.emplace(review.Review.value()).second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-    }
-
-    for(const auto& thread : snapshot.ReviewThreads)
-    {
-        if(!entity_node_ids.emplace(thread.Thread.value()).second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-        std::unordered_set<std::string_view> thread_comment_ids;
-        thread_comment_ids.reserve(thread.Comments.size());
-        for(const auto& comment : thread.Comments)
-        {
-            if(
-                comment.ReplyTo.has_value()
-                && !thread_comment_ids.contains(
-                    comment.ReplyTo->value()))
-            {
-                return github_read_validation_error::
-                    invalid_relationship;
-            }
-            if(!entity_node_ids.emplace(comment.Comment.value()).second)
-            {
-                return github_read_validation_error::duplicate_identity;
-            }
-            thread_comment_ids.emplace(comment.Comment.value());
-        }
-    }
-    for(const auto& comment : snapshot.IssueComments)
-    {
-        if(!entity_node_ids.emplace(comment.Comment.value()).second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-    }
-
-    for(const auto& check : snapshot.Checks)
-    {
-        if(!entity_node_ids.emplace(check.Check.value()).second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-    }
-    for(const auto& actor : actors)
-    {
-        if(!entity_node_ids.emplace(actor.first).second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-    }
-
-    std::unordered_set<std::string_view> search_pull_requests;
-    std::unordered_set<std::uint32_t> search_pull_request_numbers;
-    search_pull_requests.reserve(snapshot.SearchResults.size());
-    search_pull_request_numbers.reserve(snapshot.SearchResults.size());
-    for(const auto& result : snapshot.SearchResults)
-    {
-        if(result.Repository != snapshot.Repository.Repository)
-        {
-            return github_read_validation_error::invalid_relationship;
-        }
-        const auto matches_snapshot_node =
-            result.PullRequestNode == snapshot.PullRequest.Node;
-        const auto matches_snapshot_number =
-            result.Number == snapshot.PullRequest.Number;
-        if(matches_snapshot_node != matches_snapshot_number)
-        {
-            return github_read_validation_error::invalid_relationship;
-        }
-        if(
-            matches_snapshot_node
-            && (
-                result.Title != snapshot.PullRequest.Title
-                || result.State != snapshot.PullRequest.State
-                || result.Draft != snapshot.PullRequest.Draft))
-        {
-            return github_read_validation_error::invalid_relationship;
-        }
-        if(
-            !matches_snapshot_node
-            && !entity_node_ids
-                    .emplace(result.PullRequestNode.value())
-                    .second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-        if(
-            !search_pull_requests
-                    .emplace(result.PullRequestNode.value())
-                    .second
-            || !search_pull_request_numbers
-                    .emplace(result.Number.value())
-                    .second)
-        {
-            return github_read_validation_error::duplicate_identity;
-        }
-    }
-    return github_read_validation_error::none;
-}
-}
-
-[[nodiscard]] inline auto validate(
-    const github_session_read_model& model,
-    const core::github_session_request_context& context,
-    const github_read_limits& limits = {}) noexcept
-    -> github_read_validation
-{
-    if(!detail::within_security_ceiling(limits))
-    {
-        return detail::validation(
-            github_read_validation_error::invalid_limits);
-    }
-    if(!detail::valid_context(context))
-    {
-        return detail::validation(
-            github_read_validation_error::invalid_context);
-    }
-    if(
-        model.Profile.value() == 0U || model.Host.value() == 0U
-        || model.Viewer.Account.value() == 0U)
-    {
-        return detail::validation(
-            github_read_validation_error::missing_identity);
-    }
-    if(model.Profile != context.Profile)
-    {
-        return detail::validation(
-            github_read_validation_error::identity_mismatch);
-    }
-
-    detail::github_text_budget budget{limits};
-    if(const auto error =
-           detail::validate_viewer(model.Viewer, budget, limits);
-       error != github_read_validation_error::none)
-    {
-        return detail::validation(error);
-    }
-    if(const auto error =
-           detail::validate_capabilities(model.CapabilityEvidence);
-       error != github_read_validation_error::none)
-    {
-        return detail::validation(error);
-    }
-    return detail::validation(
-        detail::validate_rate_limits(
-            model.RateLimits,
-            false,
-            false,
-            false));
-}
-
-[[nodiscard]] inline auto validate(
-    const github_pull_request_snapshot& snapshot,
-    const core::pull_request_request_context& context,
-    const github_read_limits& limits = {})
-    -> github_read_validation
-{
-    if(!detail::within_security_ceiling(limits))
-    {
-        return detail::validation(
-            github_read_validation_error::invalid_limits);
-    }
-    if(!detail::valid_context(context))
-    {
-        return detail::validation(
-            github_read_validation_error::invalid_context);
-    }
-    if(
-        snapshot.Profile.value() == 0U || snapshot.Host.value() == 0U
-        || snapshot.Account.value() == 0U
-        || snapshot.Snapshot.value() == 0U)
-    {
-        return detail::validation(
-            github_read_validation_error::missing_identity);
-    }
-    if(
-        snapshot.Profile != context.Profile
-        || snapshot.Host != context.Host
-        || snapshot.Account != context.Account
-        || snapshot.PullRequest.Number != context.Number
-        || snapshot.PullRequest.Repository
-            != snapshot.Repository.Repository
-        || !detail::ascii_equal_fold(
-            snapshot.Repository.Owner,
-            context.Repository.Owner)
-        || !detail::ascii_equal_fold(
-            snapshot.Repository.Name,
-            context.Repository.Name)
-        || (
-            context.ExpectedRepository.has_value()
-            && *context.ExpectedRepository
-                != snapshot.Repository.Repository)
-        || (
-            context.ExpectedPullRequest.has_value()
-            && *context.ExpectedPullRequest
-                != snapshot.PullRequest.PullRequest)
-        || snapshot.CapabilityEvidence.Revision
-            != context.Capabilities)
-    {
-        return detail::validation(
-            github_read_validation_error::identity_mismatch);
-    }
-    if(const auto error =
-           detail::validate_capabilities(snapshot.CapabilityEvidence);
-       error != github_read_validation_error::none)
-    {
-        return detail::validation(error);
-    }
-    if(!detail::valid_enum(snapshot.ReviewThreadsAvailability))
-    {
-        return detail::validation(
-            github_read_validation_error::invalid_enum);
-    }
-    const auto& read_shape = snapshot.CapabilityEvidence.ReadShape;
-    const auto threads_available =
-        snapshot.ReviewThreadsAvailability
-        == github_collection_availability::available;
-    if(
-        threads_available != read_shape.ReviewThreads
-        || (
-            !threads_available
-            && !snapshot.ReviewThreads.empty())
-        || (
-            snapshot.CapabilityEvidence.Capabilities.ReviewThreads
-                == core::github_capability_state::supported
-            && !read_shape.ReviewThreads)
-        || (
-            snapshot.CapabilityEvidence.Capabilities.ReviewThreads
-                != core::github_capability_state::supported
-            && read_shape.ReviewThreads)
-        || (
-            snapshot.CapabilityEvidence.Capabilities.ViewedFileMutations
-                == core::github_capability_state::supported
-            && !read_shape.ViewedFileState)
-        || (
-            snapshot.CapabilityEvidence.Capabilities.ResolveThread
-                == core::github_capability_state::supported
-            && (
-                !read_shape.ReviewThreads
-                || !read_shape.ResolvePermission))
-        || (
-            snapshot.CapabilityEvidence.Capabilities.UnresolveThread
-                == core::github_capability_state::supported
-            && (
-                !read_shape.ReviewThreads
-                || !read_shape.UnresolvePermission)))
-    {
-        return detail::validation(
-            github_read_validation_error::invalid_relationship);
-    }
-    for(const auto& file : snapshot.Files)
-    {
-        const auto viewed_available =
-            file.ViewedState != github_file_viewed_state::unavailable;
-        if(viewed_available != read_shape.ViewedFileState)
-        {
-            return detail::validation(
-                github_read_validation_error::invalid_relationship);
-        }
-    }
-    for(const auto& thread : snapshot.ReviewThreads)
-    {
-        const auto resolve_available =
-            thread.ViewerResolvePermission
-            != github_permission_state::unavailable;
-        const auto unresolve_available =
-            thread.ViewerUnresolvePermission
-            != github_permission_state::unavailable;
-        if(
-            resolve_available != read_shape.ResolvePermission
-            || unresolve_available != read_shape.UnresolvePermission)
-        {
-            return detail::validation(
-                github_read_validation_error::invalid_relationship);
-        }
-    }
-    if(snapshot.Files.size() > limits.MaximumFiles
-       || snapshot.Commits.size() > limits.MaximumCommits
-       || snapshot.Reviews.size() > limits.MaximumReviews
-       || snapshot.ReviewThreads.size() > limits.MaximumReviewThreads
-       || snapshot.IssueComments.size() > limits.MaximumIssueComments
-       || snapshot.Checks.size() > limits.MaximumChecks
-       || snapshot.SearchResults.size() > limits.MaximumSearchResults)
-    {
-        return detail::validation(
-            github_read_validation_error::collection_too_large);
-    }
-
-    auto total_comments = snapshot.IssueComments.size();
-    if(total_comments > limits.MaximumTotalComments)
-    {
-        return detail::validation(
-            github_read_validation_error::collection_too_large);
-    }
-    for(const auto& thread : snapshot.ReviewThreads)
-    {
-        if(
-            thread.Comments.size()
-                > limits.MaximumTotalComments - total_comments)
-        {
-            return detail::validation(
-                github_read_validation_error::collection_too_large);
-        }
-        total_comments += thread.Comments.size();
-    }
-
-    auto total_records = snapshot.Files.size();
-    const auto add_records = [&](const std::size_t count) {
-        if(
-            count > limits.MaximumTotalRecords
-            || total_records > limits.MaximumTotalRecords - count)
-        {
-            return false;
-        }
-        total_records += count;
-        return true;
-    };
-    if(
-        !add_records(snapshot.Commits.size())
-        || !add_records(snapshot.Reviews.size())
-        || !add_records(snapshot.ReviewThreads.size())
-        || !add_records(total_comments)
-        || !add_records(snapshot.Checks.size())
-        || !add_records(snapshot.SearchResults.size()))
-    {
-        return detail::validation(
-            github_read_validation_error::collection_too_large);
-    }
-
-    detail::github_text_budget budget{limits};
-    if(const auto error =
-           detail::validate_actor(
-               snapshot.Viewer,
-               budget,
-               limits,
-               true);
-       error != github_read_validation_error::none)
-    {
-        return detail::validation(error);
-    }
-    if(const auto error =
-           detail::validate_repository(
-               snapshot.Repository,
-               budget,
-               limits);
-       error != github_read_validation_error::none)
-    {
-        return detail::validation(error);
-    }
-    if(const auto error =
-           detail::validate_pull_request(
-               snapshot.PullRequest,
-               budget,
-               limits);
-       error != github_read_validation_error::none)
-    {
-        return detail::validation(error);
-    }
-    for(const auto& record : snapshot.Files)
-    {
-        if(const auto error =
-               detail::validate_file(record, budget, limits);
-           error != github_read_validation_error::none)
-        {
-            return detail::validation(error);
-        }
-    }
-    for(const auto& record : snapshot.Commits)
-    {
-        if(const auto error =
-               detail::validate_commit(record, budget, limits);
-           error != github_read_validation_error::none)
-        {
-            return detail::validation(error);
-        }
-    }
-    for(const auto& record : snapshot.Reviews)
-    {
-        if(const auto error =
-               detail::validate_review(record, budget, limits);
-           error != github_read_validation_error::none)
-        {
-            return detail::validation(error);
-        }
-    }
-    for(const auto& record : snapshot.ReviewThreads)
-    {
-        if(const auto error =
-               detail::validate_thread(record, budget, limits);
-           error != github_read_validation_error::none)
-        {
-            return detail::validation(error);
-        }
-    }
-    for(const auto& record : snapshot.IssueComments)
-    {
-        if(const auto error =
-               detail::validate_issue_comment(record, budget, limits);
-           error != github_read_validation_error::none)
-        {
-            return detail::validation(error);
-        }
-    }
-    for(const auto& record : snapshot.Checks)
-    {
-        if(const auto error =
-               detail::validate_check(record, budget, limits);
-           error != github_read_validation_error::none)
-        {
-            return detail::validation(error);
-        }
-    }
-    for(const auto& record : snapshot.SearchResults)
-    {
-        if(const auto error =
-               detail::validate_search_result(record, budget, limits);
-           error != github_read_validation_error::none)
-        {
-            return detail::validation(error);
-        }
-    }
-    try
-    {
-        if(const auto error =
-               detail::validate_unique_identities(snapshot);
-           error != github_read_validation_error::none)
-        {
-            return detail::validation(error);
-        }
-    }
-    catch(const std::bad_alloc&)
-    {
-        return detail::validation(
-            github_read_validation_error::allocation_limit);
-    }
-    return detail::validation(
-        detail::validate_rate_limits(
-            snapshot.RateLimits,
-            false,
-            false,
-            false));
-}
-}
+#endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_READ_MODEL_HPP

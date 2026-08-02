@@ -125,12 +125,12 @@ class CompositionContractTests(unittest.TestCase):
             "make_macos_keychain_vault(",
             "make_windows_credential_manager_vault(",
             "make_linux_secret_service_vault(",
-            "worker_executor ProviderEffects;",
-            "worker_executor VaultEffects;",
         )
         for selection in required_selection:
             with self.subTest(selection=selection):
                 self.assertIn(selection, composition_source)
+        self.assertRegex(composition_source, r"worker_executor\s+ProviderEffects;")
+        self.assertRegex(composition_source, r"worker_executor\s+VaultEffects;")
         self.assertNotIn(
             "make_github_cli_process_runner",
             composition_source,
@@ -281,7 +281,7 @@ class CompositionContractTests(unittest.TestCase):
                     "--config",
                     "Release",
                     "--target",
-                    "better_pull_review",
+                    "app_better_pull_review",
                     "--parallel",
                     "2",
                 ],

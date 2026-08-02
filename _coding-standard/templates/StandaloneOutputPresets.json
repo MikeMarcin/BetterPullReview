@@ -1,0 +1,23 @@
+{
+  "version": 5,
+  "configurePresets": [
+    {
+      "name": "better-pull-review-output",
+      "hidden": true,
+      "binaryDir": "$env{BPR_PROJECT_OUTPUT_ROOT}/${presetName}",
+      "toolchainFile": "${sourceDir}/_coding-standard/cmake/CodingStandardHostToolchain.cmake",
+      "environment": {
+        "BPR_OUTPUT_ROOT": "${sourceDir}/.build",
+        "BPR_PROJECT_OUTPUT_ROOT": "$env{BPR_OUTPUT_ROOT}/projects/better-pull-review",
+        "BPR_PACKAGE_ROOT": "$env{BPR_OUTPUT_ROOT}/packages",
+        "BPR_PACKAGE_SMOKE_ROOT": "$env{BPR_OUTPUT_ROOT}/package-smoke/better-pull-review",
+        "BPR_CACHE_ROOT": "$env{BPR_OUTPUT_ROOT}/cache",
+        "BPR_RUN_ROOT": "$env{BPR_OUTPUT_ROOT}/runs/better-pull-review",
+        "BPR_TEMP_ROOT": "$env{BPR_OUTPUT_ROOT}/tmp/better-pull-review",
+        "TMPDIR": "$env{BPR_TEMP_ROOT}",
+        "TMP": "$env{BPR_TEMP_ROOT}",
+        "TEMP": "$env{BPR_TEMP_ROOT}"
+      }
+    }
+  ]
+}

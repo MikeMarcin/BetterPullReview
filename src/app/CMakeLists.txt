@@ -51,29 +51,29 @@ if(BPR_BUILD_QT)
         )
     endif()
 
-    add_executable(
-        better_pull_review
+    bpr_add_executable(
+        app_better_pull_review
         main.cpp
     )
     target_link_libraries(
-        better_pull_review
+        app_better_pull_review
         PRIVATE
             BetterPullReview::Composition
     )
     target_compile_definitions(
-        better_pull_review
+        app_better_pull_review
         PRIVATE
             "BPR_VERSION=\"${PROJECT_VERSION}\""
             "BPR_BUILD_CONFIGURATION=\"$<CONFIG>\""
     )
     if(BUILD_TESTING)
         target_include_directories(
-            better_pull_review
+            app_better_pull_review
             PRIVATE
                 "${CMAKE_CURRENT_SOURCE_DIR}/src"
         )
         target_compile_definitions(
-            better_pull_review
+            app_better_pull_review
             PRIVATE
                 BPR_BUILD_TESTING=1
         )
@@ -84,14 +84,14 @@ if(BPR_BUILD_QT)
                 REQUIRED
             )
             target_link_libraries(
-                better_pull_review
+                app_better_pull_review
                 PRIVATE
                     "${BPR_MACOS_APPEARANCE_COREFOUNDATION_FRAMEWORK}"
             )
         endif()
     endif()
-    bpr_enable_hardening(better_pull_review)
-    bpr_enable_warnings(better_pull_review)
+    bpr_enable_hardening(app_better_pull_review)
+    bpr_enable_warnings(app_better_pull_review)
 else()
     add_library(better_pull_review_composition INTERFACE)
     add_library(

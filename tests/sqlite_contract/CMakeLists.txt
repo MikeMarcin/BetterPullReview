@@ -1,33 +1,33 @@
-add_executable(
-    better_pull_review_sqlite_storage_contract_tests
+bpr_add_executable(
+    test_better_pull_review_sqlite_storage_contract_tests
     epoch_catalog_storage_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_sqlite_storage_contract_tests
+    test_better_pull_review_sqlite_storage_contract_tests
     PRIVATE
         BetterPullReview::AdapterSQLite
         BetterPullReview::SQLite3
 )
 target_compile_definitions(
-    better_pull_review_sqlite_storage_contract_tests
+    test_better_pull_review_sqlite_storage_contract_tests
     PRIVATE BPR_SQLITE_TESTING=1
 )
 if(WIN32)
     target_link_libraries(
-        better_pull_review_sqlite_storage_contract_tests
+        test_better_pull_review_sqlite_storage_contract_tests
         PRIVATE advapi32
     )
 endif()
 bpr_enable_hardening(
-    better_pull_review_sqlite_storage_contract_tests
+    test_better_pull_review_sqlite_storage_contract_tests
 )
 bpr_enable_warnings(
-    better_pull_review_sqlite_storage_contract_tests
+    test_better_pull_review_sqlite_storage_contract_tests
 )
 
 add_test(
     NAME sqlite_epoch_catalog_storage_contract
-    COMMAND better_pull_review_sqlite_storage_contract_tests
+    COMMAND test_better_pull_review_sqlite_storage_contract_tests
 )
 set_tests_properties(
     sqlite_epoch_catalog_storage_contract
@@ -42,32 +42,32 @@ if(WIN32)
     )
 endif()
 
-add_executable(
-    better_pull_review_sqlite_behavior_contract_tests
+bpr_add_executable(
+    test_better_pull_review_sqlite_behavior_contract_tests
     epoch_catalog_behavior_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_sqlite_behavior_contract_tests
+    test_better_pull_review_sqlite_behavior_contract_tests
     PRIVATE
         BetterPullReview::AdapterSQLite
         BetterPullReview::SQLite3
 )
 if(WIN32)
     target_link_libraries(
-        better_pull_review_sqlite_behavior_contract_tests
+        test_better_pull_review_sqlite_behavior_contract_tests
         PRIVATE advapi32
     )
 endif()
 bpr_enable_hardening(
-    better_pull_review_sqlite_behavior_contract_tests
+    test_better_pull_review_sqlite_behavior_contract_tests
 )
 bpr_enable_warnings(
-    better_pull_review_sqlite_behavior_contract_tests
+    test_better_pull_review_sqlite_behavior_contract_tests
 )
 
 add_test(
     NAME sqlite_epoch_catalog_behavior_contract
-    COMMAND better_pull_review_sqlite_behavior_contract_tests
+    COMMAND test_better_pull_review_sqlite_behavior_contract_tests
 )
 set_tests_properties(
     sqlite_epoch_catalog_behavior_contract

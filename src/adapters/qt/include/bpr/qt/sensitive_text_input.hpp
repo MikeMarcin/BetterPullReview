@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_SENSITIVE_TEXT_INPUT_HPP
+#define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_SENSITIVE_TEXT_INPUT_HPP
 
 #include <cstddef>
 #include <memory>
@@ -7,38 +8,41 @@
 
 class QWidget;
 
-namespace bpr::qt
-{
-class sensitive_bytes final
-{
-public:
-    sensitive_bytes() = delete;
-    ~sensitive_bytes() noexcept;
+namespace bpr::qt {
+	/// \brief Provides the sensitive bytes contract.
+	class sensitive_bytes final
+	{
+	public:
+		sensitive_bytes() = delete;
+		~sensitive_bytes() noexcept;
 
-    sensitive_bytes(const sensitive_bytes&) = delete;
-    auto operator=(const sensitive_bytes&) -> sensitive_bytes& = delete;
-    sensitive_bytes(sensitive_bytes&& other) noexcept;
-    auto operator=(sensitive_bytes&& other) noexcept -> sensitive_bytes&;
+		sensitive_bytes(const sensitive_bytes&)                    = delete;
+		auto operator=(const sensitive_bytes&) -> sensitive_bytes& = delete;
+		sensitive_bytes(sensitive_bytes&& aOther) noexcept;
+		auto operator=(sensitive_bytes&& aOther) noexcept -> sensitive_bytes&;
 
-    [[nodiscard]] auto bytes() const noexcept -> std::span<const std::byte>;
-    [[nodiscard]] auto size() const noexcept -> std::size_t;
-    [[nodiscard]] auto empty() const noexcept -> bool;
-    void reset() noexcept;
+		[[nodiscard]] auto bytes() const noexcept -> std::span<const std::byte>;
+		[[nodiscard]] auto size() const noexcept -> std::size_t;
+		[[nodiscard]] auto empty() const noexcept -> bool;
+		void               reset() noexcept;
 
-private:
-    friend auto prompt_for_sensitive_text(
-        std::size_t maximum_bytes,
-        QWidget* parent) -> std::optional<sensitive_bytes>;
+	private:
+		friend auto prompt_for_sensitive_text(
+			std::size_t aMaximumBytes,
+			QWidget*    aParent) -> std::optional<sensitive_bytes>;
 
-    sensitive_bytes(
-        std::unique_ptr<std::byte[]> bytes,
-        std::size_t size) noexcept;
+		sensitive_bytes(
+			std::unique_ptr<std::byte[]> aBytes,
+			std::size_t                  aSize) noexcept;
 
-    std::unique_ptr<std::byte[]> Bytes;
-    std::size_t Size = 0U;
-};
+		std::unique_ptr<std::byte[]> Bytes;
+		std::size_t                  Size = 0U;
+	};
 
-[[nodiscard]] auto prompt_for_sensitive_text(
-    std::size_t maximum_bytes,
-    QWidget* parent = nullptr) -> std::optional<sensitive_bytes>;
+	/// \brief Computes the prompt for sensitive text result.
+	[[nodiscard]] auto prompt_for_sensitive_text(
+		std::size_t aMaximumBytes,
+		QWidget*    aParent = nullptr) -> std::optional<sensitive_bytes>;
 }
+
+#endif // BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_SENSITIVE_TEXT_INPUT_HPP

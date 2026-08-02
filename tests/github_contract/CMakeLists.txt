@@ -1,9 +1,9 @@
-add_executable(
-    better_pull_review_native_https_transport_tests
+bpr_add_executable(
+    test_better_pull_review_native_https_transport_tests
     native_https_transport_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_native_https_transport_tests
+    test_better_pull_review_native_https_transport_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
@@ -12,26 +12,26 @@ target_link_libraries(
         Threads::Threads
 )
 target_include_directories(
-    better_pull_review_native_https_transport_tests
+    test_better_pull_review_native_https_transport_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
 target_compile_definitions(
-    better_pull_review_native_https_transport_tests
+    test_better_pull_review_native_https_transport_tests
     PRIVATE
         BPR_NATIVE_HTTPS_TESTING=1
 )
 bpr_enable_hardening(
-    better_pull_review_native_https_transport_tests
+    test_better_pull_review_native_https_transport_tests
 )
 bpr_enable_warnings(
-    better_pull_review_native_https_transport_tests
+    test_better_pull_review_native_https_transport_tests
 )
 
 add_test(
     NAME native_https_transport_contract
     COMMAND
-        better_pull_review_native_https_transport_tests
+        test_better_pull_review_native_https_transport_tests
         --contract
 )
 set_tests_properties(
@@ -40,12 +40,12 @@ set_tests_properties(
         TIMEOUT 30
 )
 
-add_executable(
-    better_pull_review_native_git_smart_transport_tests
+bpr_add_executable(
+    test_better_pull_review_native_git_smart_transport_tests
     native_git_smart_transport_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_native_git_smart_transport_tests
+    test_better_pull_review_native_git_smart_transport_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
@@ -54,25 +54,25 @@ target_link_libraries(
         Threads::Threads
 )
 target_include_directories(
-    better_pull_review_native_git_smart_transport_tests
+    test_better_pull_review_native_git_smart_transport_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
 target_compile_definitions(
-    better_pull_review_native_git_smart_transport_tests
+    test_better_pull_review_native_git_smart_transport_tests
     PRIVATE
         BPR_NATIVE_HTTPS_TESTING=1
 )
 bpr_enable_hardening(
-    better_pull_review_native_git_smart_transport_tests
+    test_better_pull_review_native_git_smart_transport_tests
 )
 bpr_enable_warnings(
-    better_pull_review_native_git_smart_transport_tests
+    test_better_pull_review_native_git_smart_transport_tests
 )
 
 add_test(
     NAME native_git_smart_transport_contract
-    COMMAND better_pull_review_native_git_smart_transport_tests --contract
+    COMMAND test_better_pull_review_native_git_smart_transport_tests --contract
 )
 set_tests_properties(
     native_git_smart_transport_contract
@@ -92,7 +92,7 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/verify_native_https_transport.py"
             --executable
-            "$<TARGET_FILE:better_pull_review_native_https_transport_tests>"
+            "$<TARGET_FILE:test_better_pull_review_native_https_transport_tests>"
             --openssl
             "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
     )
@@ -109,7 +109,7 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_git_smart_transport.py"
             --executable
-            "$<TARGET_FILE:better_pull_review_native_git_smart_transport_tests>"
+            "$<TARGET_FILE:test_better_pull_review_native_git_smart_transport_tests>"
             --openssl
             "${BPR_TEST_NATIVE_HTTPS_OPENSSL}"
     )
@@ -121,31 +121,31 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
-add_executable(
-    better_pull_review_gh_cli_transport_tests
+bpr_add_executable(
+    test_better_pull_review_gh_cli_transport_tests
     gh_cli_transport_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_gh_cli_transport_tests
+    test_better_pull_review_gh_cli_transport_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
 )
 target_include_directories(
-    better_pull_review_gh_cli_transport_tests
+    test_better_pull_review_gh_cli_transport_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
 bpr_enable_hardening(
-    better_pull_review_gh_cli_transport_tests
+    test_better_pull_review_gh_cli_transport_tests
 )
 bpr_enable_warnings(
-    better_pull_review_gh_cli_transport_tests
+    test_better_pull_review_gh_cli_transport_tests
 )
 
 add_test(
     NAME gh_cli_transport
-    COMMAND better_pull_review_gh_cli_transport_tests
+    COMMAND test_better_pull_review_gh_cli_transport_tests
 )
 set_tests_properties(
     gh_cli_transport
@@ -153,32 +153,32 @@ set_tests_properties(
         TIMEOUT 30
 )
 
-add_executable(
-    better_pull_review_github_cli_process_runner_tests
+bpr_add_executable(
+    test_better_pull_review_github_cli_process_runner_tests
     github_cli_process_runner_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_github_cli_process_runner_tests
+    test_better_pull_review_github_cli_process_runner_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
         Qt6::Core
         Threads::Threads
 )
 target_include_directories(
-    better_pull_review_github_cli_process_runner_tests
+    test_better_pull_review_github_cli_process_runner_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
 bpr_enable_hardening(
-    better_pull_review_github_cli_process_runner_tests
+    test_better_pull_review_github_cli_process_runner_tests
 )
 bpr_enable_warnings(
-    better_pull_review_github_cli_process_runner_tests
+    test_better_pull_review_github_cli_process_runner_tests
 )
 
 add_test(
     NAME github_cli_process_runner
-    COMMAND better_pull_review_github_cli_process_runner_tests
+    COMMAND test_better_pull_review_github_cli_process_runner_tests
 )
 set_tests_properties(
     github_cli_process_runner
@@ -186,73 +186,73 @@ set_tests_properties(
         TIMEOUT 60
 )
 
-add_executable(
-    better_pull_review_github_contract_tests
+bpr_add_executable(
+    test_better_pull_review_github_contract_tests
     github_read_contract_tests.cpp
 )
 
 target_link_libraries(
-    better_pull_review_github_contract_tests
+    test_better_pull_review_github_contract_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
 )
 target_include_directories(
-    better_pull_review_github_contract_tests
+    test_better_pull_review_github_contract_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
 target_link_libraries(
-    better_pull_review_github_contract_tests
+    test_better_pull_review_github_contract_tests
     PRIVATE
         Qt6::Core
 )
 target_compile_definitions(
-    better_pull_review_github_contract_tests
+    test_better_pull_review_github_contract_tests
     PRIVATE
         BPR_GITHUB_CONTRACT_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/contracts/v1"
 )
-bpr_enable_hardening(better_pull_review_github_contract_tests)
-bpr_enable_warnings(better_pull_review_github_contract_tests)
+bpr_enable_hardening(test_better_pull_review_github_contract_tests)
+bpr_enable_warnings(test_better_pull_review_github_contract_tests)
 
 add_test(
     NAME github_read_contract
-    COMMAND better_pull_review_github_contract_tests
+    COMMAND test_better_pull_review_github_contract_tests
 )
 
-add_executable(
-    better_pull_review_github_paged_read_tests
+bpr_add_executable(
+    test_better_pull_review_github_paged_read_tests
     github_paged_read_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_github_paged_read_tests
+    test_better_pull_review_github_paged_read_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
         Qt6::Core
 )
 target_include_directories(
-    better_pull_review_github_paged_read_tests
+    test_better_pull_review_github_paged_read_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
 bpr_enable_hardening(
-    better_pull_review_github_paged_read_tests
+    test_better_pull_review_github_paged_read_tests
 )
 bpr_enable_warnings(
-    better_pull_review_github_paged_read_tests
+    test_better_pull_review_github_paged_read_tests
 )
 
 add_test(
     NAME github_paged_read
-    COMMAND better_pull_review_github_paged_read_tests
+    COMMAND test_better_pull_review_github_paged_read_tests
 )
 
-add_executable(
-    better_pull_review_github_provider_tests
+bpr_add_executable(
+    test_better_pull_review_github_provider_tests
     github_provider_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_github_provider_tests
+    test_better_pull_review_github_provider_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
@@ -261,25 +261,25 @@ target_link_libraries(
         Threads::Threads
 )
 target_include_directories(
-    better_pull_review_github_provider_tests
+    test_better_pull_review_github_provider_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
 target_compile_definitions(
-    better_pull_review_github_provider_tests
+    test_better_pull_review_github_provider_tests
     PRIVATE
         BPR_GITHUB_CAPABILITY_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1"
 )
 bpr_enable_hardening(
-    better_pull_review_github_provider_tests
+    test_better_pull_review_github_provider_tests
 )
 bpr_enable_warnings(
-    better_pull_review_github_provider_tests
+    test_better_pull_review_github_provider_tests
 )
 
 add_test(
     NAME github_provider
-    COMMAND better_pull_review_github_provider_tests
+    COMMAND test_better_pull_review_github_provider_tests
 )
 set_tests_properties(
     github_provider
@@ -287,58 +287,58 @@ set_tests_properties(
         TIMEOUT 30
 )
 
-add_executable(
-    better_pull_review_github_host_profile_tests
+bpr_add_executable(
+    test_better_pull_review_github_host_profile_tests
     github_host_profile_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_github_host_profile_tests
+    test_better_pull_review_github_host_profile_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
 )
 target_include_directories(
-    better_pull_review_github_host_profile_tests
+    test_better_pull_review_github_host_profile_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
-bpr_enable_hardening(better_pull_review_github_host_profile_tests)
-bpr_enable_warnings(better_pull_review_github_host_profile_tests)
+bpr_enable_hardening(test_better_pull_review_github_host_profile_tests)
+bpr_enable_warnings(test_better_pull_review_github_host_profile_tests)
 
 add_test(
     NAME github_host_profile
-    COMMAND better_pull_review_github_host_profile_tests
+    COMMAND test_better_pull_review_github_host_profile_tests
 )
 
-add_executable(
-    better_pull_review_github_capability_probe_tests
+bpr_add_executable(
+    test_better_pull_review_github_capability_probe_tests
     github_capability_probe_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_github_capability_probe_tests
+    test_better_pull_review_github_capability_probe_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
         Qt6::Core
 )
 target_include_directories(
-    better_pull_review_github_capability_probe_tests
+    test_better_pull_review_github_capability_probe_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
 target_compile_definitions(
-    better_pull_review_github_capability_probe_tests
+    test_better_pull_review_github_capability_probe_tests
     PRIVATE
         BPR_GITHUB_CAPABILITY_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1"
 )
 bpr_enable_hardening(
-    better_pull_review_github_capability_probe_tests
+    test_better_pull_review_github_capability_probe_tests
 )
 bpr_enable_warnings(
-    better_pull_review_github_capability_probe_tests
+    test_better_pull_review_github_capability_probe_tests
 )
 
 add_test(
     NAME github_capability_probe
-    COMMAND better_pull_review_github_capability_probe_tests
+    COMMAND test_better_pull_review_github_capability_probe_tests
 )
 
 if(APPLE)
@@ -353,12 +353,12 @@ if(APPLE)
         REQUIRED
     )
 
-    add_executable(
-        better_pull_review_macos_keychain_contract_tests
+    bpr_add_executable(
+        test_better_pull_review_macos_keychain_contract_tests
         macos_keychain_contract_tests.cpp
     )
     target_link_libraries(
-        better_pull_review_macos_keychain_contract_tests
+        test_better_pull_review_macos_keychain_contract_tests
         PRIVATE
             BetterPullReview::AdapterGitHub
             BetterPullReview::Application
@@ -366,28 +366,28 @@ if(APPLE)
             "${BPR_TEST_MACOS_COREFOUNDATION_FRAMEWORK}"
     )
     target_include_directories(
-        better_pull_review_macos_keychain_contract_tests
+        test_better_pull_review_macos_keychain_contract_tests
         PRIVATE
             "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
     )
     bpr_enable_hardening(
-        better_pull_review_macos_keychain_contract_tests
+        test_better_pull_review_macos_keychain_contract_tests
     )
     bpr_enable_warnings(
-        better_pull_review_macos_keychain_contract_tests
+        test_better_pull_review_macos_keychain_contract_tests
     )
 
     add_test(
         NAME macos_keychain_contract
-        COMMAND better_pull_review_macos_keychain_contract_tests
+        COMMAND test_better_pull_review_macos_keychain_contract_tests
     )
 
-    add_executable(
-        better_pull_review_macos_keychain_native_tests
+    bpr_add_executable(
+        test_better_pull_review_macos_keychain_native_tests
         macos_keychain_native_tests.cpp
     )
     target_link_libraries(
-        better_pull_review_macos_keychain_native_tests
+        test_better_pull_review_macos_keychain_native_tests
         PRIVATE
             BetterPullReview::AdapterGitHub
             BetterPullReview::Application
@@ -395,31 +395,31 @@ if(APPLE)
             "${BPR_TEST_MACOS_COREFOUNDATION_FRAMEWORK}"
     )
     target_include_directories(
-        better_pull_review_macos_keychain_native_tests
+        test_better_pull_review_macos_keychain_native_tests
         PRIVATE
             "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
     )
     bpr_enable_hardening(
-        better_pull_review_macos_keychain_native_tests
+        test_better_pull_review_macos_keychain_native_tests
     )
     bpr_enable_warnings(
-        better_pull_review_macos_keychain_native_tests
+        test_better_pull_review_macos_keychain_native_tests
     )
 
     add_test(
         NAME macos_keychain_native_setup
         COMMAND
-            better_pull_review_macos_keychain_native_tests
+            test_better_pull_review_macos_keychain_native_tests
             --fixture-setup
     )
     add_test(
         NAME macos_keychain_native
-        COMMAND better_pull_review_macos_keychain_native_tests
+        COMMAND test_better_pull_review_macos_keychain_native_tests
     )
     add_test(
         NAME macos_keychain_native_cleanup
         COMMAND
-            better_pull_review_macos_keychain_native_tests
+            test_better_pull_review_macos_keychain_native_tests
             --fixture-cleanup
     )
     set_tests_properties(
@@ -446,12 +446,12 @@ if(APPLE)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_executable(
-        better_pull_review_linux_secret_service_contract_tests
+    bpr_add_executable(
+        test_better_pull_review_linux_secret_service_contract_tests
         linux_secret_service_contract_tests.cpp
     )
     target_link_libraries(
-        better_pull_review_linux_secret_service_contract_tests
+        test_better_pull_review_linux_secret_service_contract_tests
         PRIVATE
             BetterPullReview::AdapterGitHub
             BetterPullReview::Application
@@ -459,29 +459,29 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             Threads::Threads
     )
     target_include_directories(
-        better_pull_review_linux_secret_service_contract_tests
+        test_better_pull_review_linux_secret_service_contract_tests
         PRIVATE
             "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
     )
     bpr_enable_hardening(
-        better_pull_review_linux_secret_service_contract_tests
+        test_better_pull_review_linux_secret_service_contract_tests
     )
     bpr_enable_warnings(
-        better_pull_review_linux_secret_service_contract_tests
+        test_better_pull_review_linux_secret_service_contract_tests
     )
 
     add_test(
         NAME linux_secret_service_contract
         COMMAND
-            better_pull_review_linux_secret_service_contract_tests
+            test_better_pull_review_linux_secret_service_contract_tests
     )
 
-    add_executable(
-        better_pull_review_linux_secret_service_native_tests
+    bpr_add_executable(
+        test_better_pull_review_linux_secret_service_native_tests
         linux_secret_service_native_tests.cpp
     )
     target_link_libraries(
-        better_pull_review_linux_secret_service_native_tests
+        test_better_pull_review_linux_secret_service_native_tests
         PRIVATE
             BetterPullReview::AdapterGitHub
             BetterPullReview::Application
@@ -489,32 +489,32 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             Threads::Threads
     )
     target_include_directories(
-        better_pull_review_linux_secret_service_native_tests
+        test_better_pull_review_linux_secret_service_native_tests
         PRIVATE
             "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
     )
     bpr_enable_hardening(
-        better_pull_review_linux_secret_service_native_tests
+        test_better_pull_review_linux_secret_service_native_tests
     )
     bpr_enable_warnings(
-        better_pull_review_linux_secret_service_native_tests
+        test_better_pull_review_linux_secret_service_native_tests
     )
 
     add_test(
         NAME linux_secret_service_native_setup
         COMMAND
-            better_pull_review_linux_secret_service_native_tests
+            test_better_pull_review_linux_secret_service_native_tests
             --fixture-setup
     )
     add_test(
         NAME linux_secret_service_native
         COMMAND
-            better_pull_review_linux_secret_service_native_tests
+            test_better_pull_review_linux_secret_service_native_tests
     )
     add_test(
         NAME linux_secret_service_native_cleanup
         COMMAND
-            better_pull_review_linux_secret_service_native_tests
+            test_better_pull_review_linux_secret_service_native_tests
             --fixture-cleanup
     )
     set_tests_properties(
@@ -541,41 +541,41 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 if(WIN32)
-    add_executable(
-        better_pull_review_windows_credential_manager_contract_tests
+    bpr_add_executable(
+        test_better_pull_review_windows_credential_manager_contract_tests
         windows_credential_manager_contract_tests.cpp
     )
     target_link_libraries(
-        better_pull_review_windows_credential_manager_contract_tests
+        test_better_pull_review_windows_credential_manager_contract_tests
         PRIVATE
             BetterPullReview::AdapterGitHub
             BetterPullReview::Application
             Advapi32
     )
     target_include_directories(
-        better_pull_review_windows_credential_manager_contract_tests
+        test_better_pull_review_windows_credential_manager_contract_tests
         PRIVATE
             "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
     )
     bpr_enable_hardening(
-        better_pull_review_windows_credential_manager_contract_tests
+        test_better_pull_review_windows_credential_manager_contract_tests
     )
     bpr_enable_warnings(
-        better_pull_review_windows_credential_manager_contract_tests
+        test_better_pull_review_windows_credential_manager_contract_tests
     )
 
     add_test(
         NAME windows_credential_manager_contract
         COMMAND
-            better_pull_review_windows_credential_manager_contract_tests
+            test_better_pull_review_windows_credential_manager_contract_tests
     )
 
-    add_executable(
-        better_pull_review_windows_credential_manager_native_tests
+    bpr_add_executable(
+        test_better_pull_review_windows_credential_manager_native_tests
         windows_credential_manager_native_tests.cpp
     )
     target_link_libraries(
-        better_pull_review_windows_credential_manager_native_tests
+        test_better_pull_review_windows_credential_manager_native_tests
         PRIVATE
             BetterPullReview::AdapterGitHub
             BetterPullReview::Application
@@ -583,32 +583,32 @@ if(WIN32)
             Bcrypt
     )
     target_include_directories(
-        better_pull_review_windows_credential_manager_native_tests
+        test_better_pull_review_windows_credential_manager_native_tests
         PRIVATE
             "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
     )
     bpr_enable_hardening(
-        better_pull_review_windows_credential_manager_native_tests
+        test_better_pull_review_windows_credential_manager_native_tests
     )
     bpr_enable_warnings(
-        better_pull_review_windows_credential_manager_native_tests
+        test_better_pull_review_windows_credential_manager_native_tests
     )
 
     add_test(
         NAME windows_credential_manager_native_setup
         COMMAND
-            better_pull_review_windows_credential_manager_native_tests
+            test_better_pull_review_windows_credential_manager_native_tests
             --fixture-setup
     )
     add_test(
         NAME windows_credential_manager_native
         COMMAND
-            better_pull_review_windows_credential_manager_native_tests
+            test_better_pull_review_windows_credential_manager_native_tests
     )
     add_test(
         NAME windows_credential_manager_native_cleanup
         COMMAND
-            better_pull_review_windows_credential_manager_native_tests
+            test_better_pull_review_windows_credential_manager_native_tests
             --fixture-cleanup
     )
     set_tests_properties(

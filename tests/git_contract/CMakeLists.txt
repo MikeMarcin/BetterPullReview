@@ -17,46 +17,46 @@ set_tests_properties(
         TIMEOUT 30
 )
 
-add_executable(
-    better_pull_review_git_process_contract_tests
+bpr_add_executable(
+    test_better_pull_review_git_process_contract_tests
     git_process_contract_tests.cpp
     ../../src/adapters/git/src/installed_git_process.cpp
 )
 target_include_directories(
-    better_pull_review_git_process_contract_tests
+    test_better_pull_review_git_process_contract_tests
     PRIVATE
         ../../src/adapters/git/include
 )
 target_link_libraries(
-    better_pull_review_git_process_contract_tests
+    test_better_pull_review_git_process_contract_tests
     PRIVATE
         BetterPullReview::Application
         Qt6::Core
         Threads::Threads
 )
 target_compile_definitions(
-    better_pull_review_git_process_contract_tests
+    test_better_pull_review_git_process_contract_tests
     PRIVATE
         BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION=1
         BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
 )
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(
-        better_pull_review_git_process_contract_tests
+        test_better_pull_review_git_process_contract_tests
         PRIVATE
             _LIBCPP_ENABLE_EXPERIMENTAL
     )
 endif()
 bpr_enable_hardening(
-    better_pull_review_git_process_contract_tests
+    test_better_pull_review_git_process_contract_tests
 )
 bpr_enable_warnings(
-    better_pull_review_git_process_contract_tests
+    test_better_pull_review_git_process_contract_tests
 )
 
 add_test(
     NAME git_process_contract
-    COMMAND better_pull_review_git_process_contract_tests
+    COMMAND test_better_pull_review_git_process_contract_tests
 )
 set_tests_properties(
     git_process_contract
@@ -64,47 +64,47 @@ set_tests_properties(
         TIMEOUT 180
 )
 
-add_executable(
-    better_pull_review_git_cache_contract_tests
+bpr_add_executable(
+    test_better_pull_review_git_cache_contract_tests
     git_cache_contract_tests.cpp
     ../../src/adapters/git/src/installed_git_cache.cpp
     ../../src/adapters/git/src/installed_git_process.cpp
 )
 target_include_directories(
-    better_pull_review_git_cache_contract_tests
+    test_better_pull_review_git_cache_contract_tests
     PRIVATE
         ../../src/adapters/git/include
 )
 target_link_libraries(
-    better_pull_review_git_cache_contract_tests
+    test_better_pull_review_git_cache_contract_tests
     PRIVATE
         BetterPullReview::Application
         Qt6::Core
         Threads::Threads
 )
 target_compile_definitions(
-    better_pull_review_git_cache_contract_tests
+    test_better_pull_review_git_cache_contract_tests
     PRIVATE
         BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION=1
         BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
 )
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(
-        better_pull_review_git_cache_contract_tests
+        test_better_pull_review_git_cache_contract_tests
         PRIVATE
             _LIBCPP_ENABLE_EXPERIMENTAL
     )
 endif()
 bpr_enable_hardening(
-    better_pull_review_git_cache_contract_tests
+    test_better_pull_review_git_cache_contract_tests
 )
 bpr_enable_warnings(
-    better_pull_review_git_cache_contract_tests
+    test_better_pull_review_git_cache_contract_tests
 )
 
 add_test(
     NAME git_cache_contract
-    COMMAND better_pull_review_git_cache_contract_tests
+    COMMAND test_better_pull_review_git_cache_contract_tests
 )
 set_tests_properties(
     git_cache_contract
@@ -112,12 +112,12 @@ set_tests_properties(
         TIMEOUT 600
 )
 
-add_executable(
-    better_pull_review_epoch_maintenance_integration_tests
+bpr_add_executable(
+    test_better_pull_review_epoch_maintenance_integration_tests
     epoch_maintenance_integration_tests.cpp
 )
 target_link_libraries(
-    better_pull_review_epoch_maintenance_integration_tests
+    test_better_pull_review_epoch_maintenance_integration_tests
     PRIVATE
         BetterPullReview::AdapterGit
         BetterPullReview::AdapterSQLite
@@ -125,27 +125,27 @@ target_link_libraries(
         Threads::Threads
 )
 target_compile_definitions(
-    better_pull_review_epoch_maintenance_integration_tests
+    test_better_pull_review_epoch_maintenance_integration_tests
     PRIVATE
         BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
 )
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(
-        better_pull_review_epoch_maintenance_integration_tests
+        test_better_pull_review_epoch_maintenance_integration_tests
         PRIVATE
             _LIBCPP_ENABLE_EXPERIMENTAL
     )
 endif()
 bpr_enable_hardening(
-    better_pull_review_epoch_maintenance_integration_tests
+    test_better_pull_review_epoch_maintenance_integration_tests
 )
 bpr_enable_warnings(
-    better_pull_review_epoch_maintenance_integration_tests
+    test_better_pull_review_epoch_maintenance_integration_tests
 )
 
 add_test(
     NAME epoch_maintenance_integration
-    COMMAND better_pull_review_epoch_maintenance_integration_tests
+    COMMAND test_better_pull_review_epoch_maintenance_integration_tests
 )
 set_tests_properties(
     epoch_maintenance_integration

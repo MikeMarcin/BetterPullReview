@@ -10,8 +10,8 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMessageBox>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QStyle>
@@ -26,1207 +26,1090 @@
 #include <utility>
 #include <variant>
 
-namespace bpr::qt
-{
-namespace
-{
-[[nodiscard]] auto oid_text(const core::git_commit_oid& oid) -> QString
-{
-    const auto canonical = core::canonical_hex(oid);
-    const auto view = canonical.view();
-    return QString::fromLatin1(
-        view.data(), static_cast<qsizetype>(view.size()));
-}
+namespace bpr::qt {
+	namespace {
+		[[nodiscard]] auto oid_text(const core::git_commit_oid& aOid) -> QString
+		{
+			const auto canonical = core::canonical_hex(aOid);
+			const auto view      = canonical.view();
+			return QString::fromLatin1(
+				view.data(), static_cast<qsizetype>(view.size()));
+		}
 
-[[nodiscard]] auto reason_text(const core::epoch_reason_code reason) -> QString
-{
-    switch(reason)
-    {
-    case core::epoch_reason_code::none:
-        return {};
-    case core::epoch_reason_code::invalid_identity:
-        return QStringLiteral("The review-history identity is invalid.");
-    case core::epoch_reason_code::invalid_oid:
-        return QStringLiteral("A commit identity is invalid.");
-    case core::epoch_reason_code::invalid_revision:
-        return QStringLiteral("The pull-request revision is invalid.");
-    case core::epoch_reason_code::invalid_catalog:
-        return QStringLiteral("The review-history catalog is invalid.");
-    case core::epoch_reason_code::invalid_history_cursor:
-        return QStringLiteral("The history-page position is invalid.");
-    case core::epoch_reason_code::invalid_maintenance_target:
-        return QStringLiteral("The maintenance target is invalid.");
-    case core::epoch_reason_code::invalid_observation:
-        return QStringLiteral("The review-history observation is invalid.");
-    case core::epoch_reason_code::invalid_selection:
-        return QStringLiteral("That comparison cannot be selected.");
-    case core::epoch_reason_code::no_active_authority:
-        return QStringLiteral("Open an authenticated pull request first.");
-    case core::epoch_reason_code::no_catalog:
-        return QStringLiteral("Review history is not available yet.");
-    case core::epoch_reason_code::no_resolved_comparison:
-        return QStringLiteral("No exact comparison is resolved.");
-    case core::epoch_reason_code::catalog_revision_mismatch:
-        return QStringLiteral("Review history changed; retry the selection.");
-    case core::epoch_reason_code::stale_completion:
-        return QStringLiteral("An obsolete review-history result was ignored.");
-    case core::epoch_reason_code::duplicate_history_page:
-        return QStringLiteral("That history page is already loading.");
-    case core::epoch_reason_code::duplicate_maintenance:
-        return QStringLiteral("Review-history maintenance is already running.");
-    case core::epoch_reason_code::completion_identity_mismatch:
-        return QStringLiteral("A mismatched review-history result was ignored.");
-    case core::epoch_reason_code::request_counter_exhausted:
-    case core::epoch_reason_code::epoch_generation_exhausted:
-    case core::epoch_reason_code::comparison_generation_exhausted:
-    case core::epoch_reason_code::epoch_ordinal_exhausted:
-    case core::epoch_reason_code::catalog_revision_exhausted:
-    case core::epoch_reason_code::comparison_revision_exhausted:
-        return QStringLiteral("A review-history identity limit was reached.");
-    case core::epoch_reason_code::unavailable:
-        return QStringLiteral("The exact comparison is unavailable.");
-    case core::epoch_reason_code::catalog_conflict:
-        return QStringLiteral("Review history changed concurrently.");
-    case core::epoch_reason_code::quota_exceeded:
-        return QStringLiteral("The local review-history limit was reached.");
-    case core::epoch_reason_code::repair_required:
-        return QStringLiteral("The local review history requires repair.");
-    case core::epoch_reason_code::cancelled:
-        return QStringLiteral("Review-history work was canceled.");
-    case core::epoch_reason_code::cancellation_after_point_of_no_return:
-        return QStringLiteral(
-            "Maintenance is finishing safely and cannot be canceled.");
-    }
-    return QStringLiteral("Review history is unavailable.");
-}
+		[[nodiscard]] auto reason_text(const core::epoch_reason_code aReason) -> QString
+		{
+			switch (aReason) {
+			case core::epoch_reason_code::none:
+				return { };
+			case core::epoch_reason_code::invalid_identity:
+				return QStringLiteral("The review-history identity is invalid.");
+			case core::epoch_reason_code::invalid_oid:
+				return QStringLiteral("A commit identity is invalid.");
+			case core::epoch_reason_code::invalid_revision:
+				return QStringLiteral("The pull-request revision is invalid.");
+			case core::epoch_reason_code::invalid_catalog:
+				return QStringLiteral("The review-history catalog is invalid.");
+			case core::epoch_reason_code::invalid_history_cursor:
+				return QStringLiteral("The history-page position is invalid.");
+			case core::epoch_reason_code::invalid_maintenance_target:
+				return QStringLiteral("The maintenance target is invalid.");
+			case core::epoch_reason_code::invalid_observation:
+				return QStringLiteral("The review-history observation is invalid.");
+			case core::epoch_reason_code::invalid_selection:
+				return QStringLiteral("That comparison cannot be selected.");
+			case core::epoch_reason_code::no_active_authority:
+				return QStringLiteral("Open an authenticated pull request first.");
+			case core::epoch_reason_code::no_catalog:
+				return QStringLiteral("Review history is not available yet.");
+			case core::epoch_reason_code::no_resolved_comparison:
+				return QStringLiteral("No exact comparison is resolved.");
+			case core::epoch_reason_code::catalog_revision_mismatch:
+				return QStringLiteral("Review history changed; retry the selection.");
+			case core::epoch_reason_code::stale_completion:
+				return QStringLiteral("An obsolete review-history result was ignored.");
+			case core::epoch_reason_code::duplicate_history_page:
+				return QStringLiteral("That history page is already loading.");
+			case core::epoch_reason_code::duplicate_maintenance:
+				return QStringLiteral("Review-history maintenance is already running.");
+			case core::epoch_reason_code::completion_identity_mismatch:
+				return QStringLiteral("A mismatched review-history result was ignored.");
+			case core::epoch_reason_code::request_counter_exhausted:
+			case core::epoch_reason_code::epoch_generation_exhausted:
+			case core::epoch_reason_code::comparison_generation_exhausted:
+			case core::epoch_reason_code::epoch_ordinal_exhausted:
+			case core::epoch_reason_code::catalog_revision_exhausted:
+			case core::epoch_reason_code::comparison_revision_exhausted:
+				return QStringLiteral("A review-history identity limit was reached.");
+			case core::epoch_reason_code::unavailable:
+				return QStringLiteral("The exact comparison is unavailable.");
+			case core::epoch_reason_code::catalog_conflict:
+				return QStringLiteral("Review history changed concurrently.");
+			case core::epoch_reason_code::quota_exceeded:
+				return QStringLiteral("The local review-history limit was reached.");
+			case core::epoch_reason_code::repair_required:
+				return QStringLiteral("The local review history requires repair.");
+			case core::epoch_reason_code::cancelled:
+				return QStringLiteral("Review-history work was canceled.");
+			case core::epoch_reason_code::cancellation_after_point_of_no_return:
+				return QStringLiteral(
+					"Maintenance is finishing safely and cannot be canceled.");
+			}
+			return QStringLiteral("Review history is unavailable.");
+		}
 
-[[nodiscard]] auto epoch_status_text(const core::epoch_status status) -> QString
-{
-    switch(status)
-    {
-    case core::epoch_status::inactive:
-        return QStringLiteral("Review history is inactive.");
-    case core::epoch_status::loading_catalog:
-        return QStringLiteral("Loading review history…");
-    case core::epoch_status::preparing:
-        return QStringLiteral("Refreshing retained revisions…");
-    case core::epoch_status::committing:
-        return QStringLiteral("Saving the observed revision…");
-    case core::epoch_status::resolving:
-        return QStringLiteral("Resolving the exact comparison…");
-    case core::epoch_status::maintaining:
-        return QStringLiteral("Updating retained review history…");
-    case core::epoch_status::ready:
-        return QStringLiteral("Review history is ready.");
-    case core::epoch_status::unavailable:
-        return QStringLiteral("Review history is unavailable.");
-    case core::epoch_status::failed:
-        return QStringLiteral("Review history could not be updated.");
-    case core::epoch_status::cancelled:
-        return QStringLiteral("Review-history refresh was canceled.");
-    }
-    return QStringLiteral("Review history is inactive.");
-}
+		[[nodiscard]] auto epoch_status_text(const core::epoch_status aStatus) -> QString
+		{
+			switch (aStatus) {
+			case core::epoch_status::inactive:
+				return QStringLiteral("Review history is inactive.");
+			case core::epoch_status::loading_catalog:
+				return QStringLiteral("Loading review history…");
+			case core::epoch_status::preparing:
+				return QStringLiteral("Refreshing retained revisions…");
+			case core::epoch_status::committing:
+				return QStringLiteral("Saving the observed revision…");
+			case core::epoch_status::resolving:
+				return QStringLiteral("Resolving the exact comparison…");
+			case core::epoch_status::maintaining:
+				return QStringLiteral("Updating retained review history…");
+			case core::epoch_status::ready:
+				return QStringLiteral("Review history is ready.");
+			case core::epoch_status::unavailable:
+				return QStringLiteral("Review history is unavailable.");
+			case core::epoch_status::failed:
+				return QStringLiteral("Review history could not be updated.");
+			case core::epoch_status::cancelled:
+				return QStringLiteral("Review-history refresh was canceled.");
+			}
+			return QStringLiteral("Review history is inactive.");
+		}
 
-[[nodiscard]] auto alias_text(const core::named_comparison alias) -> QString
-{
-    switch(alias)
-    {
-    case core::named_comparison::whole_pr:
-        return QStringLiteral("Whole PR");
-    case core::named_comparison::previous_upload_to_latest:
-        return QStringLiteral("Previous upload → latest");
-    case core::named_comparison::my_last_reviewed_to_latest:
-        return QStringLiteral("My last reviewed → latest");
-    }
-    return QStringLiteral("Comparison");
-}
+		[[nodiscard]] auto alias_text(const core::named_comparison aAlias) -> QString
+		{
+			switch (aAlias) {
+			case core::named_comparison::whole_pr:
+				return QStringLiteral("Whole PR");
+			case core::named_comparison::previous_upload_to_latest:
+				return QStringLiteral("Previous upload → latest");
+			case core::named_comparison::my_last_reviewed_to_latest:
+				return QStringLiteral("My last reviewed → latest");
+			}
+			return QStringLiteral("Comparison");
+		}
 
-[[nodiscard]] auto availability_text(
-    const core::anchor_availability availability) -> QString
-{
-    switch(availability)
-    {
-    case core::anchor_availability::available:
-        return QStringLiteral("available");
-    case core::anchor_availability::unavailable:
-        return QStringLiteral("unavailable");
-    case core::anchor_availability::pruned:
-        return QStringLiteral("pruned");
-    case core::anchor_availability::cache_deleted:
-        return QStringLiteral("cache deleted");
-    case core::anchor_availability::corrupt:
-        return QStringLiteral("corrupt");
-    case core::anchor_availability::never_observed:
-        return QStringLiteral("never observed");
-    }
-    return QStringLiteral("unavailable");
-}
+		[[nodiscard]] auto availability_text(
+			const core::anchor_availability aAvailability) -> QString
+		{
+			switch (aAvailability) {
+			case core::anchor_availability::available:
+				return QStringLiteral("available");
+			case core::anchor_availability::unavailable:
+				return QStringLiteral("unavailable");
+			case core::anchor_availability::pruned:
+				return QStringLiteral("pruned");
+			case core::anchor_availability::cache_deleted:
+				return QStringLiteral("cache deleted");
+			case core::anchor_availability::corrupt:
+				return QStringLiteral("corrupt");
+			case core::anchor_availability::never_observed:
+				return QStringLiteral("never observed");
+			}
+			return QStringLiteral("unavailable");
+		}
 
-void configure_action(
-    QAction* const action,
-    const QString& object_name,
-    const QKeySequence& shortcut)
-{
-    action->setObjectName(object_name);
-    action->setShortcut(shortcut);
-    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-}
+		void configure_action(
+			QAction* const      aAction,
+			const QString&      aObjectName,
+			const QKeySequence& aShortcut)
+		{
+			aAction->setObjectName(aObjectName);
+			aAction->setShortcut(aShortcut);
+			aAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+		}
 
-void configure_oid_editor(
-    QLineEdit* const editor,
-    const QString& object_name,
-    const QString& accessible_name)
-{
-    editor->setObjectName(object_name);
-    editor->setAccessibleName(accessible_name);
-    editor->setAccessibleDescription(
-        QStringLiteral("Complete lowercase commit OID; read-only and copyable"));
-    editor->setReadOnly(true);
-    editor->setClearButtonEnabled(false);
-    editor->setPlaceholderText(QStringLiteral("No exact commit selected"));
-}
+		void configure_oid_editor(
+			QLineEdit* const aEditor,
+			const QString&   aObjectName,
+			const QString&   aAccessibleName)
+		{
+			aEditor->setObjectName(aObjectName);
+			aEditor->setAccessibleName(aAccessibleName);
+			aEditor->setAccessibleDescription(
+				QStringLiteral("Complete lowercase commit OID; read-only and copyable"));
+			aEditor->setReadOnly(true);
+			aEditor->setClearButtonEnabled(false);
+			aEditor->setPlaceholderText(QStringLiteral("No exact commit selected"));
+		}
 
-[[nodiscard]] auto confirm_destructive_action(QWidget* const parent,
-    const QString& object_name,
-    const QString& title,
-    const QString& text,
-    const QString& confirmation_text) -> bool
-{
-    QMessageBox dialog{QMessageBox::Warning,
-        title,
-        text,
-        QMessageBox::Cancel,
-        parent};
-    dialog.setObjectName(object_name);
-    dialog.setAccessibleName(title);
-    dialog.setAccessibleDescription(text);
-    dialog.setWindowModality(Qt::WindowModal);
-    auto* const confirm = dialog.addButton(
-        confirmation_text, QMessageBox::DestructiveRole);
-    confirm->setObjectName(object_name + QStringLiteral("ConfirmButton"));
-    confirm->setAccessibleName(confirmation_text);
-    auto* const cancel =
-        qobject_cast<QPushButton*>(dialog.button(QMessageBox::Cancel));
-    cancel->setObjectName(object_name + QStringLiteral("CancelButton"));
-    dialog.setDefaultButton(cancel);
-    dialog.setEscapeButton(cancel);
-    static_cast<void>(dialog.exec());
-    return dialog.clickedButton() == confirm;
-}
-}
+		[[nodiscard]] auto confirm_destructive_action(QWidget* const aParent,
+													  const QString& aObjectName,
+													  const QString& aTitle,
+													  const QString& aText,
+													  const QString& aConfirmationText) -> bool
+		{
+			QMessageBox dialog{ QMessageBox::Warning,
+								aTitle,
+								aText,
+								QMessageBox::Cancel,
+								aParent };
+			dialog.setObjectName(aObjectName);
+			dialog.setAccessibleName(aTitle);
+			dialog.setAccessibleDescription(aText);
+			dialog.setWindowModality(Qt::WindowModal);
+			auto* const confirm = dialog.addButton(
+				aConfirmationText, QMessageBox::DestructiveRole);
+			confirm->setObjectName(aObjectName + QStringLiteral("ConfirmButton"));
+			confirm->setAccessibleName(aConfirmationText);
+			auto* const cancel = qobject_cast<QPushButton*>(dialog.button(QMessageBox::Cancel));
+			cancel->setObjectName(aObjectName + QStringLiteral("CancelButton"));
+			dialog.setDefaultButton(cancel);
+			dialog.setEscapeButton(cancel);
+			static_cast<void>(dialog.exec());
+			return dialog.clickedButton() == confirm;
+		}
+	}
 
-epoch_comparison_control::epoch_comparison_control(
-    application::epoch_intent_dispatch dispatch,
-    QWidget* const parent)
-    : QWidget{parent}
-    , Dispatch{std::move(dispatch)}
-{
-    setObjectName(QStringLiteral("epochComparisonControl"));
-    setAccessibleName(QStringLiteral("Review epoch comparison"));
-    setAccessibleDescription(QStringLiteral(
-        "Choose independent exact left and right retained revision anchors"));
+	epoch_comparison_control::epoch_comparison_control(
+		application::epoch_intent_dispatch aDispatch,
+		QWidget* const                     aParent)
+		: QWidget{ aParent }
+		, Dispatch{ std::move(aDispatch) }
+	{
+		setObjectName(QStringLiteral("epochComparisonControl"));
+		setAccessibleName(QStringLiteral("Review epoch comparison"));
+		setAccessibleDescription(QStringLiteral(
+			"Choose independent exact left and right retained revision anchors"));
 
-    HistoryModel = new epoch_history_model{this};
+		HistoryModel = new epoch_history_model{ this };
 
-    WholePrAction = new QAction{QStringLiteral("&Whole PR"), this};
-    configure_action(WholePrAction,
-        QStringLiteral("wholePrComparisonAction"),
-        QKeySequence{QStringLiteral("Alt+1")});
-    WholePrAction->setCheckable(true);
-    PreviousUploadAction =
-        new QAction{QStringLiteral("Previous &upload → latest"), this};
-    configure_action(PreviousUploadAction,
-        QStringLiteral("previousUploadComparisonAction"),
-        QKeySequence{QStringLiteral("Alt+2")});
-    PreviousUploadAction->setCheckable(true);
-    LastReviewedAction =
-        new QAction{QStringLiteral("My last &reviewed → latest"), this};
-    configure_action(LastReviewedAction,
-        QStringLiteral("lastReviewedComparisonAction"),
-        QKeySequence{QStringLiteral("Alt+3")});
-    LastReviewedAction->setCheckable(true);
-    auto* const aliases = new QActionGroup{this};
-    aliases->setExclusive(true);
-    aliases->addAction(WholePrAction);
-    aliases->addAction(PreviousUploadAction);
-    aliases->addAction(LastReviewedAction);
-    addActions(aliases->actions());
+		WholePrAction = new QAction{ QStringLiteral("&Whole PR"), this };
+		configure_action(WholePrAction,
+						 QStringLiteral("wholePrComparisonAction"),
+						 QKeySequence{ QStringLiteral("Alt+1") });
+		WholePrAction->setCheckable(true);
+		PreviousUploadAction = new QAction{ QStringLiteral("Previous &upload → latest"), this };
+		configure_action(PreviousUploadAction,
+						 QStringLiteral("previousUploadComparisonAction"),
+						 QKeySequence{ QStringLiteral("Alt+2") });
+		PreviousUploadAction->setCheckable(true);
+		LastReviewedAction = new QAction{ QStringLiteral("My last &reviewed → latest"), this };
+		configure_action(LastReviewedAction,
+						 QStringLiteral("lastReviewedComparisonAction"),
+						 QKeySequence{ QStringLiteral("Alt+3") });
+		LastReviewedAction->setCheckable(true);
+		auto* const aliases = new QActionGroup{ this };
+		aliases->setExclusive(true);
+		aliases->addAction(WholePrAction);
+		aliases->addAction(PreviousUploadAction);
+		aliases->addAction(LastReviewedAction);
+		addActions(aliases->actions());
 
-    LoadHistoryAction = new QAction{QStringLiteral("Load &earlier epochs"), this};
-    configure_action(LoadHistoryAction,
-        QStringLiteral("loadEpochHistoryAction"),
-        QKeySequence{QStringLiteral("Ctrl+Alt+Down")});
-    ReturnNewestAction =
-        new QAction{QStringLiteral("Return to &newest epochs"), this};
-    configure_action(ReturnNewestAction,
-        QStringLiteral("returnToNewestEpochsAction"),
-        QKeySequence{QStringLiteral("Ctrl+Alt+Up")});
-    RefreshAction = new QAction{QStringLiteral("Refresh review &history"), this};
-    configure_action(RefreshAction,
-        QStringLiteral("refreshEpochsAction"),
-        QKeySequence{QStringLiteral("Ctrl+Alt+R")});
-    CancelAction = new QAction{QStringLiteral("&Cancel history refresh"), this};
-    configure_action(CancelAction,
-        QStringLiteral("cancelEpochRefreshAction"),
-        QKeySequence{QStringLiteral("Escape")});
-    PruneAction = new QAction{QStringLiteral("&Prune selected epochs"), this};
-    configure_action(PruneAction,
-        QStringLiteral("pruneSelectedEpochsAction"),
-        QKeySequence{QStringLiteral("Ctrl+Alt+P")});
-    DeleteCacheAction =
-        new QAction{QStringLiteral("Delete repository &cache"), this};
-    configure_action(DeleteCacheAction,
-        QStringLiteral("deleteRepositoryCacheAction"),
-        QKeySequence{QStringLiteral("Ctrl+Alt+Shift+D")});
-    CancelMaintenanceAction =
-        new QAction{QStringLiteral("Cancel history &maintenance"), this};
-    configure_action(CancelMaintenanceAction,
-        QStringLiteral("cancelEpochMaintenanceAction"),
-        QKeySequence{QStringLiteral("Ctrl+Alt+Escape")});
-    addAction(LoadHistoryAction);
-    addAction(ReturnNewestAction);
-    addAction(RefreshAction);
-    addAction(CancelAction);
-    addAction(PruneAction);
-    addAction(DeleteCacheAction);
-    addAction(CancelMaintenanceAction);
+		LoadHistoryAction = new QAction{ QStringLiteral("Load &earlier epochs"), this };
+		configure_action(LoadHistoryAction,
+						 QStringLiteral("loadEpochHistoryAction"),
+						 QKeySequence{ QStringLiteral("Ctrl+Alt+Down") });
+		ReturnNewestAction = new QAction{ QStringLiteral("Return to &newest epochs"), this };
+		configure_action(ReturnNewestAction,
+						 QStringLiteral("returnToNewestEpochsAction"),
+						 QKeySequence{ QStringLiteral("Ctrl+Alt+Up") });
+		RefreshAction = new QAction{ QStringLiteral("Refresh review &history"), this };
+		configure_action(RefreshAction,
+						 QStringLiteral("refreshEpochsAction"),
+						 QKeySequence{ QStringLiteral("Ctrl+Alt+R") });
+		CancelAction = new QAction{ QStringLiteral("&Cancel history refresh"), this };
+		configure_action(CancelAction,
+						 QStringLiteral("cancelEpochRefreshAction"),
+						 QKeySequence{ QStringLiteral("Escape") });
+		PruneAction = new QAction{ QStringLiteral("&Prune selected epochs"), this };
+		configure_action(PruneAction,
+						 QStringLiteral("pruneSelectedEpochsAction"),
+						 QKeySequence{ QStringLiteral("Ctrl+Alt+P") });
+		DeleteCacheAction = new QAction{ QStringLiteral("Delete repository &cache"), this };
+		configure_action(DeleteCacheAction,
+						 QStringLiteral("deleteRepositoryCacheAction"),
+						 QKeySequence{ QStringLiteral("Ctrl+Alt+Shift+D") });
+		CancelMaintenanceAction = new QAction{ QStringLiteral("Cancel history &maintenance"), this };
+		configure_action(CancelMaintenanceAction,
+						 QStringLiteral("cancelEpochMaintenanceAction"),
+						 QKeySequence{ QStringLiteral("Ctrl+Alt+Escape") });
+		addAction(LoadHistoryAction);
+		addAction(ReturnNewestAction);
+		addAction(RefreshAction);
+		addAction(CancelAction);
+		addAction(PruneAction);
+		addAction(DeleteCacheAction);
+		addAction(CancelMaintenanceAction);
 
-    auto* const layout = new QVBoxLayout{this};
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing));
+		auto* const layout = new QVBoxLayout{ this };
+		layout->setContentsMargins(0, 0, 0, 0);
+		layout->setSpacing(style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing));
 
-    auto* const alias_row = new QHBoxLayout;
-    alias_row->setContentsMargins(0, 0, 0, 0);
-    const auto make_button = [this, alias_row](QAction* const action)
-    {
-        auto* const button = new QToolButton{this};
-        button->setDefaultAction(action);
-        button->setFocusPolicy(Qt::StrongFocus);
-        button->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        alias_row->addWidget(button);
-    };
-    make_button(WholePrAction);
-    make_button(PreviousUploadAction);
-    make_button(LastReviewedAction);
-    alias_row->addStretch(1);
-    layout->addLayout(alias_row);
+		auto* const aliasRow = new QHBoxLayout;
+		aliasRow->setContentsMargins(0, 0, 0, 0);
+		const auto makeButton = [this, aliasRow](QAction* const aAction) {
+			auto* const button = new QToolButton{ this };
+			button->setDefaultAction(aAction);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+			aliasRow->addWidget(button);
+		};
+		makeButton(WholePrAction);
+		makeButton(PreviousUploadAction);
+		makeButton(LastReviewedAction);
+		aliasRow->addStretch(1);
+		layout->addLayout(aliasRow);
 
-    auto* const selector_grid = new QGridLayout;
-    selector_grid->setContentsMargins(0, 0, 0, 0);
-    selector_grid->setColumnStretch(1, 1);
-    selector_grid->setColumnStretch(3, 1);
-    LeftSelector = new QComboBox{this};
-    LeftSelector->setObjectName(QStringLiteral("leftEpochSelector"));
-    LeftSelector->setAccessibleName(QStringLiteral("Left review epoch"));
-    LeftSelector->setAccessibleDescription(QStringLiteral(
-        "Select the exact base or head anchor for the left side"));
-    LeftSelector->setModel(HistoryModel);
-    LeftSelector->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    LeftSelector->setMinimumContentsLength(24);
-    RightSelector = new QComboBox{this};
-    RightSelector->setObjectName(QStringLiteral("rightEpochSelector"));
-    RightSelector->setAccessibleName(QStringLiteral("Right review epoch"));
-    RightSelector->setAccessibleDescription(QStringLiteral(
-        "Select the exact base or head anchor for the right side"));
-    RightSelector->setModel(HistoryModel);
-    RightSelector->setSizeAdjustPolicy(
-        QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    RightSelector->setMinimumContentsLength(24);
-    auto* const left_label = new QLabel{QStringLiteral("&Left:"), this};
-    left_label->setObjectName(QStringLiteral("leftEpochSelectorLabel"));
-    left_label->setBuddy(LeftSelector);
-    auto* const right_label = new QLabel{QStringLiteral("&Right:"), this};
-    right_label->setObjectName(QStringLiteral("rightEpochSelectorLabel"));
-    right_label->setBuddy(RightSelector);
-    selector_grid->addWidget(left_label, 0, 0);
-    selector_grid->addWidget(LeftSelector, 0, 1);
-    selector_grid->addWidget(right_label, 0, 2);
-    selector_grid->addWidget(RightSelector, 0, 3);
+		auto* const selectorGrid = new QGridLayout;
+		selectorGrid->setContentsMargins(0, 0, 0, 0);
+		selectorGrid->setColumnStretch(1, 1);
+		selectorGrid->setColumnStretch(3, 1);
+		LeftSelector = new QComboBox{ this };
+		LeftSelector->setObjectName(QStringLiteral("leftEpochSelector"));
+		LeftSelector->setAccessibleName(QStringLiteral("Left review epoch"));
+		LeftSelector->setAccessibleDescription(QStringLiteral(
+			"Select the exact base or head anchor for the left side"));
+		LeftSelector->setModel(HistoryModel);
+		LeftSelector->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+		LeftSelector->setMinimumContentsLength(24);
+		RightSelector = new QComboBox{ this };
+		RightSelector->setObjectName(QStringLiteral("rightEpochSelector"));
+		RightSelector->setAccessibleName(QStringLiteral("Right review epoch"));
+		RightSelector->setAccessibleDescription(QStringLiteral(
+			"Select the exact base or head anchor for the right side"));
+		RightSelector->setModel(HistoryModel);
+		RightSelector->setSizeAdjustPolicy(
+			QComboBox::AdjustToMinimumContentsLengthWithIcon);
+		RightSelector->setMinimumContentsLength(24);
+		auto* const leftLabel = new QLabel{ QStringLiteral("&Left:"), this };
+		leftLabel->setObjectName(QStringLiteral("leftEpochSelectorLabel"));
+		leftLabel->setBuddy(LeftSelector);
+		auto* const rightLabel = new QLabel{ QStringLiteral("&Right:"), this };
+		rightLabel->setObjectName(QStringLiteral("rightEpochSelectorLabel"));
+		rightLabel->setBuddy(RightSelector);
+		selectorGrid->addWidget(leftLabel, 0, 0);
+		selectorGrid->addWidget(LeftSelector, 0, 1);
+		selectorGrid->addWidget(rightLabel, 0, 2);
+		selectorGrid->addWidget(RightSelector, 0, 3);
 
-    LeftOid = new QLineEdit{this};
-    configure_oid_editor(LeftOid,
-        QStringLiteral("leftEpochOid"),
-        QStringLiteral("Exact left commit OID"));
-    RightOid = new QLineEdit{this};
-    configure_oid_editor(RightOid,
-        QStringLiteral("rightEpochOid"),
-        QStringLiteral("Exact right commit OID"));
-    auto* const left_oid_label = new QLabel{QStringLiteral("Left OID:"), this};
-    left_oid_label->setBuddy(LeftOid);
-    auto* const right_oid_label =
-        new QLabel{QStringLiteral("Right OID:"), this};
-    right_oid_label->setBuddy(RightOid);
-    selector_grid->addWidget(left_oid_label, 1, 0);
-    selector_grid->addWidget(LeftOid, 1, 1);
-    selector_grid->addWidget(right_oid_label, 1, 2);
-    selector_grid->addWidget(RightOid, 1, 3);
-    layout->addLayout(selector_grid);
+		LeftOid = new QLineEdit{ this };
+		configure_oid_editor(LeftOid,
+							 QStringLiteral("leftEpochOid"),
+							 QStringLiteral("Exact left commit OID"));
+		RightOid = new QLineEdit{ this };
+		configure_oid_editor(RightOid,
+							 QStringLiteral("rightEpochOid"),
+							 QStringLiteral("Exact right commit OID"));
+		auto* const leftOidLabel = new QLabel{ QStringLiteral("Left OID:"), this };
+		leftOidLabel->setBuddy(LeftOid);
+		auto* const rightOidLabel = new QLabel{ QStringLiteral("Right OID:"), this };
+		rightOidLabel->setBuddy(RightOid);
+		selectorGrid->addWidget(leftOidLabel, 1, 0);
+		selectorGrid->addWidget(LeftOid, 1, 1);
+		selectorGrid->addWidget(rightOidLabel, 1, 2);
+		selectorGrid->addWidget(RightOid, 1, 3);
+		layout->addLayout(selectorGrid);
 
-    auto* const footer = new QHBoxLayout;
-    footer->setContentsMargins(0, 0, 0, 0);
-    auto* const status_column = new QVBoxLayout;
-    StatusLabel = new QLabel{this};
-    StatusLabel->setObjectName(QStringLiteral("epochStatus"));
-    StatusLabel->setAccessibleName(QStringLiteral("Review-history status"));
-    StatusLabel->setWordWrap(true);
-    StatusLabel->setTextInteractionFlags(Qt::TextSelectableByKeyboard
-        | Qt::TextSelectableByMouse);
-    ComparisonLabel = new QLabel{this};
-    ComparisonLabel->setObjectName(QStringLiteral("epochComparisonStatus"));
-    ComparisonLabel->setAccessibleName(QStringLiteral("Comparison availability"));
-    ComparisonLabel->setWordWrap(true);
-    ComparisonLabel->setTextInteractionFlags(Qt::TextSelectableByKeyboard
-        | Qt::TextSelectableByMouse);
-    status_column->addWidget(StatusLabel);
-    status_column->addWidget(ComparisonLabel);
-    footer->addLayout(status_column, 1);
-    LoadHistoryButton = new QToolButton{this};
-    LoadHistoryButton->setObjectName(QStringLiteral("loadEpochHistoryButton"));
-    LoadHistoryButton->setDefaultAction(LoadHistoryAction);
-    LoadHistoryButton->setFocusPolicy(Qt::StrongFocus);
-    ReturnNewestButton = new QToolButton{this};
-    ReturnNewestButton->setObjectName(
-        QStringLiteral("returnToNewestEpochsButton"));
-    ReturnNewestButton->setDefaultAction(ReturnNewestAction);
-    ReturnNewestButton->setFocusPolicy(Qt::StrongFocus);
-    RefreshButton = new QToolButton{this};
-    RefreshButton->setObjectName(QStringLiteral("refreshEpochsButton"));
-    RefreshButton->setDefaultAction(RefreshAction);
-    RefreshButton->setFocusPolicy(Qt::StrongFocus);
-    CancelButton = new QToolButton{this};
-    CancelButton->setObjectName(QStringLiteral("cancelEpochRefreshButton"));
-    CancelButton->setDefaultAction(CancelAction);
-    CancelButton->setFocusPolicy(Qt::StrongFocus);
-    auto* const maintenance_menu = new QMenu{this};
-    maintenance_menu->setObjectName(
-        QStringLiteral("localHistoryMaintenanceMenu"));
-    maintenance_menu->addAction(PruneAction);
-    maintenance_menu->addAction(DeleteCacheAction);
-    maintenance_menu->addSeparator();
-    maintenance_menu->addAction(CancelMaintenanceAction);
-    MaintenanceButton = new QToolButton{this};
-    MaintenanceButton->setObjectName(
-        QStringLiteral("localHistoryMaintenanceButton"));
-    MaintenanceButton->setText(QStringLiteral("Local history maintenance"));
-    MaintenanceButton->setAccessibleName(
-        QStringLiteral("Local history maintenance"));
-    MaintenanceButton->setAccessibleDescription(QStringLiteral(
-        "Open confirmed local retention and repository-cache operations"));
-    MaintenanceButton->setMenu(maintenance_menu);
-    MaintenanceButton->setPopupMode(QToolButton::InstantPopup);
-    MaintenanceButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    MaintenanceButton->setFocusPolicy(Qt::StrongFocus);
-    footer->addWidget(LoadHistoryButton);
-    footer->addWidget(ReturnNewestButton);
-    footer->addWidget(RefreshButton);
-    footer->addWidget(CancelButton);
-    footer->addWidget(MaintenanceButton);
-    layout->addLayout(footer);
+		auto* const footer = new QHBoxLayout;
+		footer->setContentsMargins(0, 0, 0, 0);
+		auto* const statusColumn = new QVBoxLayout;
+		StatusLabel              = new QLabel{ this };
+		StatusLabel->setObjectName(QStringLiteral("epochStatus"));
+		StatusLabel->setAccessibleName(QStringLiteral("Review-history status"));
+		StatusLabel->setWordWrap(true);
+		StatusLabel->setTextInteractionFlags(Qt::TextSelectableByKeyboard
+											 | Qt::TextSelectableByMouse);
+		ComparisonLabel = new QLabel{ this };
+		ComparisonLabel->setObjectName(QStringLiteral("epochComparisonStatus"));
+		ComparisonLabel->setAccessibleName(QStringLiteral("Comparison availability"));
+		ComparisonLabel->setWordWrap(true);
+		ComparisonLabel->setTextInteractionFlags(Qt::TextSelectableByKeyboard
+												 | Qt::TextSelectableByMouse);
+		statusColumn->addWidget(StatusLabel);
+		statusColumn->addWidget(ComparisonLabel);
+		footer->addLayout(statusColumn, 1);
+		LoadHistoryButton = new QToolButton{ this };
+		LoadHistoryButton->setObjectName(QStringLiteral("loadEpochHistoryButton"));
+		LoadHistoryButton->setDefaultAction(LoadHistoryAction);
+		LoadHistoryButton->setFocusPolicy(Qt::StrongFocus);
+		ReturnNewestButton = new QToolButton{ this };
+		ReturnNewestButton->setObjectName(
+			QStringLiteral("returnToNewestEpochsButton"));
+		ReturnNewestButton->setDefaultAction(ReturnNewestAction);
+		ReturnNewestButton->setFocusPolicy(Qt::StrongFocus);
+		RefreshButton = new QToolButton{ this };
+		RefreshButton->setObjectName(QStringLiteral("refreshEpochsButton"));
+		RefreshButton->setDefaultAction(RefreshAction);
+		RefreshButton->setFocusPolicy(Qt::StrongFocus);
+		CancelButton = new QToolButton{ this };
+		CancelButton->setObjectName(QStringLiteral("cancelEpochRefreshButton"));
+		CancelButton->setDefaultAction(CancelAction);
+		CancelButton->setFocusPolicy(Qt::StrongFocus);
+		auto* const maintenanceMenu = new QMenu{ this };
+		maintenanceMenu->setObjectName(
+			QStringLiteral("localHistoryMaintenanceMenu"));
+		maintenanceMenu->addAction(PruneAction);
+		maintenanceMenu->addAction(DeleteCacheAction);
+		maintenanceMenu->addSeparator();
+		maintenanceMenu->addAction(CancelMaintenanceAction);
+		MaintenanceButton = new QToolButton{ this };
+		MaintenanceButton->setObjectName(
+			QStringLiteral("localHistoryMaintenanceButton"));
+		MaintenanceButton->setText(QStringLiteral("Local history maintenance"));
+		MaintenanceButton->setAccessibleName(
+			QStringLiteral("Local history maintenance"));
+		MaintenanceButton->setAccessibleDescription(QStringLiteral(
+			"Open confirmed local retention and repository-cache operations"));
+		MaintenanceButton->setMenu(maintenanceMenu);
+		MaintenanceButton->setPopupMode(QToolButton::InstantPopup);
+		MaintenanceButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		MaintenanceButton->setFocusPolicy(Qt::StrongFocus);
+		footer->addWidget(LoadHistoryButton);
+		footer->addWidget(ReturnNewestButton);
+		footer->addWidget(RefreshButton);
+		footer->addWidget(CancelButton);
+		footer->addWidget(MaintenanceButton);
+		layout->addLayout(footer);
 
-    connect(WholePrAction, &QAction::triggered, this, [this]
-    {
-        dispatch_alias(core::named_comparison::whole_pr);
-    });
-    connect(PreviousUploadAction, &QAction::triggered, this, [this]
-    {
-        dispatch_alias(core::named_comparison::previous_upload_to_latest);
-    });
-    connect(LastReviewedAction, &QAction::triggered, this, [this]
-    {
-        dispatch_alias(core::named_comparison::my_last_reviewed_to_latest);
-    });
-    connect(LeftSelector,
-        &QComboBox::currentIndexChanged,
-        this,
-        [this](const int row)
-        {
-            dispatch_anchor(core::comparison_side::left, row);
-        });
-    connect(RightSelector,
-        &QComboBox::currentIndexChanged,
-        this,
-        [this](const int row)
-        {
-            dispatch_anchor(core::comparison_side::right, row);
-        });
-    connect(LoadHistoryAction, &QAction::triggered, this, [this]
-    {
-        dispatch_older_history_page();
-    });
-    connect(ReturnNewestAction, &QAction::triggered, this, [this]
-    {
-        dispatch_newest_history_page();
-    });
-    connect(RefreshAction, &QAction::triggered, this, [this]
-    {
-        if(Dispatch)
-        {
-            Dispatch(core::refresh_epochs_intent{});
-        }
-    });
-    connect(CancelAction, &QAction::triggered, this, [this]
-    {
-        if(Dispatch)
-        {
-            Dispatch(core::cancel_epoch_refresh_intent{});
-        }
-    });
-    connect(PruneAction, &QAction::triggered, this, [this]
-    {
-        dispatch_prune();
-    });
-    connect(DeleteCacheAction, &QAction::triggered, this, [this]
-    {
-        dispatch_delete_cache();
-    });
-    connect(CancelMaintenanceAction, &QAction::triggered, this, [this]
-    {
-        if(Dispatch)
-        {
-            Dispatch(core::cancel_epoch_maintenance_intent{});
-        }
-    });
+		connect(WholePrAction, &QAction::triggered, this, [this] {
+			dispatch_alias(core::named_comparison::whole_pr);
+		});
+		connect(PreviousUploadAction, &QAction::triggered, this, [this] {
+			dispatch_alias(core::named_comparison::previous_upload_to_latest);
+		});
+		connect(LastReviewedAction, &QAction::triggered, this, [this] {
+			dispatch_alias(core::named_comparison::my_last_reviewed_to_latest);
+		});
+		connect(LeftSelector,
+				&QComboBox::currentIndexChanged,
+				this,
+				[this](const int aRow) {
+					dispatch_anchor(core::comparison_side::left, aRow);
+				});
+		connect(RightSelector,
+				&QComboBox::currentIndexChanged,
+				this,
+				[this](const int aRow) {
+					dispatch_anchor(core::comparison_side::right, aRow);
+				});
+		connect(LoadHistoryAction, &QAction::triggered, this, [this] {
+			dispatch_older_history_page();
+		});
+		connect(ReturnNewestAction, &QAction::triggered, this, [this] {
+			dispatch_newest_history_page();
+		});
+		connect(RefreshAction, &QAction::triggered, this, [this] {
+			if (Dispatch) {
+				Dispatch(core::refresh_epochs_intent{ });
+			}
+		});
+		connect(CancelAction, &QAction::triggered, this, [this] {
+			if (Dispatch) {
+				Dispatch(core::cancel_epoch_refresh_intent{ });
+			}
+		});
+		connect(PruneAction, &QAction::triggered, this, [this] {
+			dispatch_prune();
+		});
+		connect(DeleteCacheAction, &QAction::triggered, this, [this] {
+			dispatch_delete_cache();
+		});
+		connect(CancelMaintenanceAction, &QAction::triggered, this, [this] {
+			if (Dispatch) {
+				Dispatch(core::cancel_epoch_maintenance_intent{ });
+			}
+		});
 
-    WholePrAction->setChecked(true);
-    update_controls();
-    refresh_native_appearance();
-}
+		WholePrAction->setChecked(true);
+		update_controls();
+		refresh_native_appearance();
+	}
 
-void epoch_comparison_control::publish(
-    const application::epoch_presentation_update& update)
-{
-    ApplyingProjection = true;
-    if(update.Catalog)
-    {
-        apply_catalog(*update.Catalog);
-    }
-    if(update.Transition)
-    {
-        apply_transition(*update.Transition);
-    }
-    update_controls();
-    ApplyingProjection = false;
-    ++Statistics.PublishedUpdates;
-    announce_update();
-}
+	void epoch_comparison_control::publish(
+		const application::epoch_presentation_update& aUpdate)
+	{
+		ApplyingProjection = true;
+		if (aUpdate.Catalog) {
+			apply_catalog(*aUpdate.Catalog);
+		}
+		if (aUpdate.Transition) {
+			apply_transition(*aUpdate.Transition);
+		}
+		update_controls();
+		ApplyingProjection = false;
+		++Statistics.PublishedUpdates;
+		announce_update();
+	}
 
-void epoch_comparison_control::set_dispatch(
-    application::epoch_intent_dispatch dispatch)
-{
-    Dispatch = std::move(dispatch);
-}
+	void epoch_comparison_control::set_dispatch(
+		application::epoch_intent_dispatch aDispatch)
+	{
+		Dispatch = std::move(aDispatch);
+	}
 
-auto epoch_comparison_control::history_model() const noexcept
-    -> epoch_history_model*
-{
-    return HistoryModel;
-}
+	auto epoch_comparison_control::history_model() const noexcept
+		-> epoch_history_model*
+	{
+		return HistoryModel;
+	}
 
-auto epoch_comparison_control::left_selector() const noexcept -> QComboBox*
-{
-    return LeftSelector;
-}
+	auto epoch_comparison_control::left_selector() const noexcept -> QComboBox*
+	{
+		return LeftSelector;
+	}
 
-auto epoch_comparison_control::right_selector() const noexcept -> QComboBox*
-{
-    return RightSelector;
-}
+	auto epoch_comparison_control::right_selector() const noexcept -> QComboBox*
+	{
+		return RightSelector;
+	}
 
-auto epoch_comparison_control::left_oid_editor() const noexcept -> QLineEdit*
-{
-    return LeftOid;
-}
+	auto epoch_comparison_control::left_oid_editor() const noexcept -> QLineEdit*
+	{
+		return LeftOid;
+	}
 
-auto epoch_comparison_control::right_oid_editor() const noexcept -> QLineEdit*
-{
-    return RightOid;
-}
+	auto epoch_comparison_control::right_oid_editor() const noexcept -> QLineEdit*
+	{
+		return RightOid;
+	}
 
-auto epoch_comparison_control::whole_pr_action() const noexcept -> QAction*
-{
-    return WholePrAction;
-}
+	auto epoch_comparison_control::whole_pr_action() const noexcept -> QAction*
+	{
+		return WholePrAction;
+	}
 
-auto epoch_comparison_control::previous_upload_action() const noexcept
-    -> QAction*
-{
-    return PreviousUploadAction;
-}
+	auto epoch_comparison_control::previous_upload_action() const noexcept
+		-> QAction*
+	{
+		return PreviousUploadAction;
+	}
 
-auto epoch_comparison_control::last_reviewed_action() const noexcept -> QAction*
-{
-    return LastReviewedAction;
-}
+	auto epoch_comparison_control::last_reviewed_action() const noexcept -> QAction*
+	{
+		return LastReviewedAction;
+	}
 
-auto epoch_comparison_control::load_history_action() const noexcept -> QAction*
-{
-    return LoadHistoryAction;
-}
+	auto epoch_comparison_control::load_history_action() const noexcept -> QAction*
+	{
+		return LoadHistoryAction;
+	}
 
-auto epoch_comparison_control::return_to_newest_action() const noexcept
-    -> QAction*
-{
-    return ReturnNewestAction;
-}
+	auto epoch_comparison_control::return_to_newest_action() const noexcept
+		-> QAction*
+	{
+		return ReturnNewestAction;
+	}
 
-auto epoch_comparison_control::refresh_action() const noexcept -> QAction*
-{
-    return RefreshAction;
-}
+	auto epoch_comparison_control::refresh_action() const noexcept -> QAction*
+	{
+		return RefreshAction;
+	}
 
-auto epoch_comparison_control::cancel_action() const noexcept -> QAction*
-{
-    return CancelAction;
-}
+	auto epoch_comparison_control::cancel_action() const noexcept -> QAction*
+	{
+		return CancelAction;
+	}
 
-auto epoch_comparison_control::prune_action() const noexcept -> QAction*
-{
-    return PruneAction;
-}
+	auto epoch_comparison_control::prune_action() const noexcept -> QAction*
+	{
+		return PruneAction;
+	}
 
-auto epoch_comparison_control::delete_cache_action() const noexcept -> QAction*
-{
-    return DeleteCacheAction;
-}
+	auto epoch_comparison_control::delete_cache_action() const noexcept -> QAction*
+	{
+		return DeleteCacheAction;
+	}
 
-auto epoch_comparison_control::cancel_maintenance_action() const noexcept
-    -> QAction*
-{
-    return CancelMaintenanceAction;
-}
+	auto epoch_comparison_control::cancel_maintenance_action() const noexcept
+		-> QAction*
+	{
+		return CancelMaintenanceAction;
+	}
 
-auto epoch_comparison_control::status_text() const -> QString
-{
-    return StatusLabel->text();
-}
+	auto epoch_comparison_control::status_text() const -> QString
+	{
+		return StatusLabel->text();
+	}
 
-auto epoch_comparison_control::comparison_text() const -> QString
-{
-    return ComparisonLabel->text();
-}
+	auto epoch_comparison_control::comparison_text() const -> QString
+	{
+		return ComparisonLabel->text();
+	}
 
-auto epoch_comparison_control::statistics() const noexcept
-    -> epoch_comparison_control_statistics
-{
-    return Statistics;
-}
+	auto epoch_comparison_control::statistics() const noexcept
+		-> epoch_comparison_control_statistics
+	{
+		return Statistics;
+	}
 
-void epoch_comparison_control::changeEvent(QEvent* const event)
-{
-    QWidget::changeEvent(event);
-    switch(event->type())
-    {
-    case QEvent::ApplicationPaletteChange:
-    case QEvent::PaletteChange:
-    case QEvent::ApplicationFontChange:
-    case QEvent::FontChange:
-    case QEvent::StyleChange:
-    case QEvent::ThemeChange:
-        refresh_native_appearance();
-        break;
-    default:
-        break;
-    }
-}
+	void epoch_comparison_control::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		switch (aEvent->type()) {
+		case QEvent::ApplicationPaletteChange:
+		case QEvent::PaletteChange:
+		case QEvent::ApplicationFontChange:
+		case QEvent::FontChange:
+		case QEvent::StyleChange:
+		case QEvent::ThemeChange:
+			refresh_native_appearance();
+			break;
+		default:
+			break;
+		}
+	}
 
-void epoch_comparison_control::dispatch_alias(
-    const core::named_comparison alias)
-{
-    if(ApplyingProjection || !Dispatch)
-    {
-        return;
-    }
-    const auto catalog = HistoryModel->catalog();
-    if(!catalog)
-    {
-        return;
-    }
-    Dispatch(core::select_named_comparison_intent{
-        .Alias = alias,
-        .ExpectedCatalogRevision = catalog->Revision,
-    });
-    update_selection_controls();
-}
+	void epoch_comparison_control::dispatch_alias(
+		const core::named_comparison aAlias)
+	{
+		if (ApplyingProjection || !Dispatch) {
+			return;
+		}
+		const auto catalog = HistoryModel->catalog();
+		if (!catalog) {
+			return;
+		}
+		Dispatch(core::select_named_comparison_intent{
+			.Alias                   = aAlias,
+			.ExpectedCatalogRevision = catalog->Revision,
+		});
+		update_selection_controls();
+	}
 
-void epoch_comparison_control::dispatch_anchor(
-    const core::comparison_side side,
-    const int row)
-{
-    if(ApplyingProjection || !Dispatch || row < 0)
-    {
-        return;
-    }
-    const auto catalog = HistoryModel->catalog();
-    const auto anchor = HistoryModel->anchor_at(HistoryModel->index(row, 0));
-    if(!catalog || !anchor)
-    {
-        return;
-    }
-    Dispatch(core::select_comparison_anchor_intent{
-        .Side = side,
-        .Anchor = anchor->Identity,
-        .ExpectedCatalogRevision = catalog->Revision,
-    });
-    update_selection_controls();
-}
+	void epoch_comparison_control::dispatch_anchor(
+		const core::comparison_side aSide,
+		const int                   aRow)
+	{
+		if (ApplyingProjection || !Dispatch || aRow < 0) {
+			return;
+		}
+		const auto catalog = HistoryModel->catalog();
+		const auto anchor  = HistoryModel->anchor_at(HistoryModel->index(aRow, 0));
+		if (!catalog || !anchor) {
+			return;
+		}
+		Dispatch(core::select_comparison_anchor_intent{
+			.Side                    = aSide,
+			.Anchor                  = anchor->Identity,
+			.ExpectedCatalogRevision = catalog->Revision,
+		});
+		update_selection_controls();
+	}
 
-void epoch_comparison_control::dispatch_older_history_page()
-{
-    if(!Dispatch || !Continuation)
-    {
-        return;
-    }
-    const auto catalog = HistoryModel->catalog();
-    if(!catalog)
-    {
-        return;
-    }
-    Dispatch(core::request_epoch_history_page_intent{
-        .Catalog = *catalog,
-        .Navigation = core::epoch_history_navigation::older,
-        .Cursor = Continuation,
-        .Limit = core::maximum_epoch_history_page_size,
-    });
-}
+	void epoch_comparison_control::dispatch_older_history_page()
+	{
+		if (!Dispatch || !Continuation) {
+			return;
+		}
+		const auto catalog = HistoryModel->catalog();
+		if (!catalog) {
+			return;
+		}
+		Dispatch(core::request_epoch_history_page_intent{
+			.Catalog    = *catalog,
+			.Navigation = core::epoch_history_navigation::older,
+			.Cursor     = Continuation,
+			.Limit      = core::maximum_epoch_history_page_size,
+		});
+	}
 
-void epoch_comparison_control::dispatch_newest_history_page()
-{
-    if(!Dispatch)
-    {
-        return;
-    }
-    const auto catalog = HistoryModel->catalog();
-    if(!catalog)
-    {
-        return;
-    }
-    Dispatch(core::request_epoch_history_page_intent{
-        .Catalog = *catalog,
-        .Navigation = core::epoch_history_navigation::newest,
-        .Limit = core::maximum_epoch_history_page_size,
-    });
-}
+	void epoch_comparison_control::dispatch_newest_history_page()
+	{
+		if (!Dispatch) {
+			return;
+		}
+		const auto catalog = HistoryModel->catalog();
+		if (!catalog) {
+			return;
+		}
+		Dispatch(core::request_epoch_history_page_intent{
+			.Catalog    = *catalog,
+			.Navigation = core::epoch_history_navigation::newest,
+			.Limit      = core::maximum_epoch_history_page_size,
+		});
+	}
 
-void epoch_comparison_control::dispatch_prune()
-{
-    if(!Dispatch || !Authority || !Comparison || !Comparison->Pair)
-    {
-        return;
-    }
-    const auto catalog = HistoryModel->catalog();
-    if(!catalog)
-    {
-        return;
-    }
+	void epoch_comparison_control::dispatch_prune()
+	{
+		if (!Dispatch || !Authority || !Comparison || !Comparison->Pair) {
+			return;
+		}
+		const auto catalog = HistoryModel->catalog();
+		if (!catalog) {
+			return;
+		}
 
-    auto targets = std::vector<core::review_epoch_id>{};
-    const auto append_epoch = [&targets](const core::comparison_anchor& anchor)
-    {
-        if(anchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
-           && anchor.Identity.Kind
-               != core::comparison_anchor_kind::epoch_head)
-        {
-            return;
-        }
-        targets.push_back(core::review_epoch_id{
-            .Authority = anchor.Identity.Authority,
-            .Incarnation = anchor.Identity.Incarnation,
-            .Ordinal = anchor.Identity.Epoch,
-        });
-    };
-    append_epoch(Comparison->Pair->Left);
-    append_epoch(Comparison->Pair->Right);
-    std::ranges::sort(targets);
-    const auto duplicate = std::ranges::unique(targets);
-    targets.erase(duplicate.begin(), duplicate.end());
-    if(targets.empty())
-    {
-        return;
-    }
+		auto       targets     = std::vector<core::review_epoch_id>{ };
+		const auto appendEpoch = [&targets](const core::comparison_anchor& aAnchor) {
+			if (aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
+				&& aAnchor.Identity.Kind
+					!= core::comparison_anchor_kind::epoch_head) {
+				return;
+			}
+			targets.push_back(core::review_epoch_id{
+				.Authority   = aAnchor.Identity.Authority,
+				.Incarnation = aAnchor.Identity.Incarnation,
+				.Ordinal     = aAnchor.Identity.Epoch,
+			});
+		};
+		appendEpoch(Comparison->Pair->Left);
+		appendEpoch(Comparison->Pair->Right);
+		std::ranges::sort(targets);
+		const auto duplicate = std::ranges::unique(targets);
+		targets.erase(duplicate.begin(), duplicate.end());
+		if (targets.empty()) {
+			return;
+		}
 
-    const auto captured_catalog = *catalog;
-    const auto count = static_cast<qulonglong>(targets.size());
-    const auto text = QStringLiteral(
-        "Prune %1 selected review epoch(s) from this pull request. This removes "
-        "their private retention refs, so those revisions may become "
-        "unrecoverable after remote history changes. Pruned tombstones remain "
-        "visible. This does not modify GitHub or a developer worktree.")
-                          .arg(count);
-    if(!confirm_destructive_action(this,
-           QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
-           QStringLiteral("Prune selected review epochs?"),
-           text,
-           QStringLiteral("Prune selected epochs")))
-    {
-        return;
-    }
-    Dispatch(core::prune_review_epochs_intent{
-        .Catalog = captured_catalog,
-        .Epochs = std::move(targets),
-    });
-}
+		const auto capturedCatalog = *catalog;
+		const auto count           = static_cast<qulonglong>(targets.size());
+		const auto text            = QStringLiteral(
+										 "Prune %1 selected review epoch(s) from this pull request. This removes "
+										 "their private retention refs, so those revisions may become "
+										 "unrecoverable after remote history changes. Pruned tombstones remain "
+										 "visible. This does not modify GitHub or a developer worktree.")
+										 .arg(count);
+		if (!confirm_destructive_action(this,
+										QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
+										QStringLiteral("Prune selected review epochs?"),
+										text,
+										QStringLiteral("Prune selected epochs"))) {
+			return;
+		}
+		Dispatch(core::prune_review_epochs_intent{
+			.Catalog = capturedCatalog,
+			.Epochs  = std::move(targets),
+		});
+	}
 
-void epoch_comparison_control::dispatch_delete_cache()
-{
-    if(!Dispatch || !Authority)
-    {
-        return;
-    }
-    const auto catalog = HistoryModel->catalog();
-    if(!catalog)
-    {
-        return;
-    }
+	void epoch_comparison_control::dispatch_delete_cache()
+	{
+		if (!Dispatch || !Authority) {
+			return;
+		}
+		const auto catalog = HistoryModel->catalog();
+		if (!catalog) {
+			return;
+		}
 
-    const auto captured_catalog = *catalog;
-    const auto captured_cache = Authority->Cache;
-    const auto text = QStringLiteral(
-        "Delete the current repository cache. This affects every retained "
-        "pull request in this repository cache and removes its private "
-        "retained repository bytes. Cache-deleted tombstones remain visible. "
-        "This does not modify GitHub or a developer worktree.");
-    if(!confirm_destructive_action(this,
-           QStringLiteral("deleteRepositoryCacheConfirmationDialog"),
-           QStringLiteral("Delete repository cache?"),
-           text,
-           QStringLiteral("Delete repository cache")))
-    {
-        return;
-    }
-    Dispatch(core::delete_repository_cache_intent{
-        .Catalog = captured_catalog,
-        .Cache = captured_cache,
-    });
-}
+		const auto capturedCatalog = *catalog;
+		const auto capturedCache   = Authority->Cache;
+		const auto text            = QStringLiteral(
+			"Delete the current repository cache. This affects every retained "
+			"pull request in this repository cache and removes its private "
+			"retained repository bytes. Cache-deleted tombstones remain visible. "
+			"This does not modify GitHub or a developer worktree.");
+		if (!confirm_destructive_action(this,
+										QStringLiteral("deleteRepositoryCacheConfirmationDialog"),
+										QStringLiteral("Delete repository cache?"),
+										text,
+										QStringLiteral("Delete repository cache"))) {
+			return;
+		}
+		Dispatch(core::delete_repository_cache_intent{
+			.Catalog = capturedCatalog,
+			.Cache   = capturedCache,
+		});
+	}
 
-void epoch_comparison_control::apply_catalog(
-    const application::epoch_catalog_projection& projection)
-{
-    const auto previous_catalog = HistoryModel->catalog();
-    HistoryModel->apply(projection);
-    if(projection.Replace && !projection.Catalog)
-    {
-        Continuation.reset();
-        HistoryNavigation.reset();
-        HistoryPhase.reset();
-        HistoryReason = core::epoch_reason_code::none;
-        HistoryWindowStale = false;
-    }
-    else if(projection.Catalog && previous_catalog
-        && *projection.Catalog != *previous_catalog
-        && !projection.HistoryPage)
-    {
-        Continuation.reset();
-    }
-    if(projection.HistoryPage)
-    {
-        HistoryPhase = projection.HistoryPage->Phase;
-        HistoryReason = projection.HistoryPage->Reason;
-        if(projection.HistoryPage->Phase
-            == core::epoch_history_page_phase::loaded)
-        {
-            HistoryNavigation = projection.HistoryPage->Navigation;
-            Continuation = projection.HistoryPage->Continuation;
-            HistoryWindowStale = false;
-        }
-        else if(projection.HistoryPage->Phase
-            == core::epoch_history_page_phase::invalidated)
-        {
-            Continuation.reset();
-            HistoryWindowStale = true;
-        }
-    }
-}
+	void epoch_comparison_control::apply_catalog(
+		const application::epoch_catalog_projection& aProjection)
+	{
+		const auto previousCatalog = HistoryModel->catalog();
+		HistoryModel->apply(aProjection);
+		if (aProjection.Replace && !aProjection.Catalog) {
+			Continuation.reset();
+			HistoryNavigation.reset();
+			HistoryPhase.reset();
+			HistoryReason      = core::epoch_reason_code::none;
+			HistoryWindowStale = false;
+		} else if (aProjection.Catalog && previousCatalog
+				   && *aProjection.Catalog != *previousCatalog
+				   && !aProjection.HistoryPage) {
+			Continuation.reset();
+		}
+		if (aProjection.HistoryPage) {
+			HistoryPhase  = aProjection.HistoryPage->Phase;
+			HistoryReason = aProjection.HistoryPage->Reason;
+			if (aProjection.HistoryPage->Phase
+				== core::epoch_history_page_phase::loaded) {
+				HistoryNavigation  = aProjection.HistoryPage->Navigation;
+				Continuation       = aProjection.HistoryPage->Continuation;
+				HistoryWindowStale = false;
+			} else if (aProjection.HistoryPage->Phase
+					   == core::epoch_history_page_phase::invalidated) {
+				Continuation.reset();
+				HistoryWindowStale = true;
+			}
+		}
+	}
 
-void epoch_comparison_control::apply_transition(
-    const application::epoch_transition_projection& projection)
-{
-    if(projection.Authority)
-    {
-        Authority = projection.Authority->Authority;
-        if(!projection.Authority->Authority)
-        {
-            HistoryModel->clear();
-            Selection.reset();
-            Comparison.reset();
-            Continuation.reset();
-            HistoryNavigation.reset();
-            HistoryPhase.reset();
-            HistoryWindowStale = false;
-        }
-    }
-    if(projection.Selection)
-    {
-        Selection = projection.Selection->Selection;
-        if(Comparison && Comparison->Selection != *Selection)
-        {
-            Comparison.reset();
-        }
-    }
-    if(projection.Comparison)
-    {
-        Comparison = projection.Comparison;
-        Selection = projection.Comparison->Selection;
-    }
-    if(projection.Status)
-    {
-        Status = projection.Status->Status;
-    }
-    if(projection.Commands)
-    {
-        Commands = projection.Commands->Commands;
-        HasCommands = true;
-    }
-    if(!projection.Diagnostics.empty())
-    {
-        DiagnosticReason = projection.Diagnostics.back().Code;
-    }
-    else if(projection.Comparison
-        || (projection.Status
-            && projection.Status->Status == core::epoch_status::ready))
-    {
-        DiagnosticReason = core::epoch_reason_code::none;
-    }
-}
+	void epoch_comparison_control::apply_transition(
+		const application::epoch_transition_projection& aProjection)
+	{
+		if (aProjection.Authority) {
+			Authority = aProjection.Authority->Authority;
+			if (!aProjection.Authority->Authority) {
+				HistoryModel->clear();
+				Selection.reset();
+				Comparison.reset();
+				Continuation.reset();
+				HistoryNavigation.reset();
+				HistoryPhase.reset();
+				HistoryWindowStale = false;
+			}
+		}
+		if (aProjection.Selection) {
+			Selection = aProjection.Selection->Selection;
+			if (Comparison && Comparison->Selection != *Selection) {
+				Comparison.reset();
+			}
+		}
+		if (aProjection.Comparison) {
+			Comparison = aProjection.Comparison;
+			Selection  = aProjection.Comparison->Selection;
+		}
+		if (aProjection.Status) {
+			Status = aProjection.Status->Status;
+		}
+		if (aProjection.Commands) {
+			Commands    = aProjection.Commands->Commands;
+			HasCommands = true;
+		}
+		if (!aProjection.Diagnostics.empty()) {
+			DiagnosticReason = aProjection.Diagnostics.back().Code;
+		} else if (aProjection.Comparison
+				   || (aProjection.Status
+					   && aProjection.Status->Status == core::epoch_status::ready)) {
+			DiagnosticReason = core::epoch_reason_code::none;
+		}
+	}
 
-void epoch_comparison_control::update_controls()
-{
-    update_selection_controls();
-    update_status_text();
-    update_action_state();
-}
+	void epoch_comparison_control::update_controls()
+	{
+		update_selection_controls();
+		update_status_text();
+		update_action_state();
+	}
 
-void epoch_comparison_control::update_selection_controls()
-{
-    const QSignalBlocker left_blocker{LeftSelector};
-    const QSignalBlocker right_blocker{RightSelector};
-    auto left_index = -1;
-    auto right_index = -1;
-    auto left_oid = QString{};
-    auto right_oid = QString{};
-    auto left_description = QStringLiteral(
-        "Complete lowercase commit OID; read-only and copyable");
-    auto right_description = left_description;
-    auto left_selector_description = QStringLiteral(
-        "Select the exact base or head anchor for the left side");
-    auto right_selector_description = QStringLiteral(
-        "Select the exact base or head anchor for the right side");
+	void epoch_comparison_control::update_selection_controls()
+	{
+		const QSignalBlocker leftBlocker{ LeftSelector };
+		const QSignalBlocker rightBlocker{ RightSelector };
+		auto                 leftIndex       = -1;
+		auto                 rightIndex      = -1;
+		auto                 leftOid         = QString{ };
+		auto                 rightOid        = QString{ };
+		auto                 leftDescription = QStringLiteral(
+			"Complete lowercase commit OID; read-only and copyable");
+		auto rightDescription        = leftDescription;
+		auto leftSelectorDescription = QStringLiteral(
+			"Select the exact base or head anchor for the left side");
+		auto rightSelectorDescription = QStringLiteral(
+			"Select the exact base or head anchor for the right side");
 
-    if(Comparison && Comparison->Pair)
-    {
-        const auto& pair = *Comparison->Pair;
-        const auto left = HistoryModel->index_for_anchor(pair.Left.Identity);
-        const auto right = HistoryModel->index_for_anchor(pair.Right.Identity);
-        if(left.isValid())
-        {
-            left_index = left.row();
-        }
-        else
-        {
-            left_selector_description = QStringLiteral(
-                "The exact selected left anchor is outside the loaded "
-                "history window; its complete OID remains available below");
-        }
-        if(right.isValid())
-        {
-            right_index = right.row();
-        }
-        else
-        {
-            right_selector_description = QStringLiteral(
-                "The exact selected right anchor is outside the loaded "
-                "history window; its complete OID remains available below");
-        }
-        left_oid = oid_text(pair.Left.Commit);
-        right_oid = oid_text(pair.Right.Commit);
-        left_description =
-            QStringLiteral("Complete lowercase left commit OID; %1")
-                .arg(availability_text(pair.Left.Availability));
-        right_description =
-            QStringLiteral("Complete lowercase right commit OID; %1")
-                .arg(availability_text(pair.Right.Availability));
-    }
-    if(LeftSelector->currentIndex() != left_index)
-    {
-        LeftSelector->setCurrentIndex(left_index);
-    }
-    if(RightSelector->currentIndex() != right_index)
-    {
-        RightSelector->setCurrentIndex(right_index);
-    }
-    if(LeftOid->text() != left_oid)
-    {
-        LeftOid->setText(left_oid);
-    }
-    if(RightOid->text() != right_oid)
-    {
-        RightOid->setText(right_oid);
-    }
-    LeftOid->setAccessibleDescription(left_description);
-    RightOid->setAccessibleDescription(right_description);
-    LeftSelector->setAccessibleDescription(left_selector_description);
-    RightSelector->setAccessibleDescription(right_selector_description);
+		if (Comparison && Comparison->Pair) {
+			const auto& pair  = *Comparison->Pair;
+			const auto  left  = HistoryModel->index_for_anchor(pair.Left.Identity);
+			const auto  right = HistoryModel->index_for_anchor(pair.Right.Identity);
+			if (left.isValid()) {
+				leftIndex = left.row();
+			} else {
+				leftSelectorDescription = QStringLiteral(
+					"The exact selected left anchor is outside the loaded "
+					"history window; its complete OID remains available below");
+			}
+			if (right.isValid()) {
+				rightIndex = right.row();
+			} else {
+				rightSelectorDescription = QStringLiteral(
+					"The exact selected right anchor is outside the loaded "
+					"history window; its complete OID remains available below");
+			}
+			leftOid          = oid_text(pair.Left.Commit);
+			rightOid         = oid_text(pair.Right.Commit);
+			leftDescription  = QStringLiteral("Complete lowercase left commit OID; %1")
+								   .arg(availability_text(pair.Left.Availability));
+			rightDescription = QStringLiteral("Complete lowercase right commit OID; %1")
+								   .arg(availability_text(pair.Right.Availability));
+		}
+		if (LeftSelector->currentIndex() != leftIndex) {
+			LeftSelector->setCurrentIndex(leftIndex);
+		}
+		if (RightSelector->currentIndex() != rightIndex) {
+			RightSelector->setCurrentIndex(rightIndex);
+		}
+		if (LeftOid->text() != leftOid) {
+			LeftOid->setText(leftOid);
+		}
+		if (RightOid->text() != rightOid) {
+			RightOid->setText(rightOid);
+		}
+		LeftOid->setAccessibleDescription(leftDescription);
+		RightOid->setAccessibleDescription(rightDescription);
+		LeftSelector->setAccessibleDescription(leftSelectorDescription);
+		RightSelector->setAccessibleDescription(rightSelectorDescription);
 
-    WholePrAction->setChecked(false);
-    PreviousUploadAction->setChecked(false);
-    LastReviewedAction->setChecked(false);
-    if(Selection)
-    {
-        if(const auto* named =
-               std::get_if<core::named_comparison_selection>(&*Selection))
-        {
-            switch(named->Alias)
-            {
-            case core::named_comparison::whole_pr:
-                WholePrAction->setChecked(true);
-                break;
-            case core::named_comparison::previous_upload_to_latest:
-                PreviousUploadAction->setChecked(true);
-                break;
-            case core::named_comparison::my_last_reviewed_to_latest:
-                LastReviewedAction->setChecked(true);
-                break;
-            }
-        }
-    }
-}
+		WholePrAction->setChecked(false);
+		PreviousUploadAction->setChecked(false);
+		LastReviewedAction->setChecked(false);
+		if (Selection) {
+			if (const auto* named = std::get_if<core::named_comparison_selection>(&*Selection)) {
+				switch (named->Alias) {
+				case core::named_comparison::whole_pr:
+					WholePrAction->setChecked(true);
+					break;
+				case core::named_comparison::previous_upload_to_latest:
+					PreviousUploadAction->setChecked(true);
+					break;
+				case core::named_comparison::my_last_reviewed_to_latest:
+					LastReviewedAction->setChecked(true);
+					break;
+				}
+			}
+		}
+	}
 
-void epoch_comparison_control::update_status_text()
-{
-    auto status = epoch_status_text(Status);
-    const auto retained = HistoryModel->epoch_count() != 0U;
-    if(retained && (Status == core::epoch_status::loading_catalog
-                       || Status == core::epoch_status::preparing
-                       || Status == core::epoch_status::committing
-                       || Status == core::epoch_status::resolving))
-    {
-        status.append(QStringLiteral(" The retained comparison remains visible."));
-    }
-    if(HistoryPhase == core::epoch_history_page_phase::loading)
-    {
-        status = retained
-            ? QStringLiteral(
-                  "Loading earlier epochs; retained history remains visible.")
-            : QStringLiteral("Loading review history…");
-    }
-    else if(HistoryPhase == core::epoch_history_page_phase::failed)
-    {
-        status = retained
-            ? QStringLiteral(
-                  "Earlier history could not be loaded; retained epochs "
-                  "remain visible.")
-            : QStringLiteral("Review history could not be loaded.");
-    }
-    else if(HistoryPhase == core::epoch_history_page_phase::cancelled)
-    {
-        status = retained
-            ? QStringLiteral(
-                  "History loading was canceled; retained epochs remain "
-                  "visible.")
-            : QStringLiteral("Review-history loading was canceled.");
-    }
-    else if(HistoryPhase == core::epoch_history_page_phase::invalidated)
-    {
-        status = retained
-            ? QStringLiteral(
-                  "Retained history changed; the visible page is stale. "
-                  "Return to newest epochs to refresh it.")
-            : QStringLiteral(
-                  "Retained history changed; load the newest epoch page.");
-    }
-    else if(HistoryPhase == core::epoch_history_page_phase::loaded
-        && !retained)
-    {
-        status = QStringLiteral("No review epochs have been recorded.");
-    }
-    const auto history_reason = reason_text(HistoryReason);
-    if(!history_reason.isEmpty())
-    {
-        status.append(QStringLiteral(" %1").arg(history_reason));
-    }
-    const auto diagnostic = reason_text(DiagnosticReason);
-    if(!diagnostic.isEmpty() && DiagnosticReason != HistoryReason)
-    {
-        status.append(QStringLiteral(" %1").arg(diagnostic));
-    }
-    StatusLabel->setText(status);
+	void epoch_comparison_control::update_status_text()
+	{
+		auto       status   = epoch_status_text(Status);
+		const auto retained = HistoryModel->epoch_count() != 0U;
+		if (retained && (Status == core::epoch_status::loading_catalog || Status == core::epoch_status::preparing || Status == core::epoch_status::committing || Status == core::epoch_status::resolving)) {
+			status.append(QStringLiteral(" The retained comparison remains visible."));
+		}
+		if (HistoryPhase == core::epoch_history_page_phase::loading) {
+			status = retained
+				? QStringLiteral(
+					  "Loading earlier epochs; retained history remains visible.")
+				: QStringLiteral("Loading review history…");
+		} else if (HistoryPhase == core::epoch_history_page_phase::failed) {
+			status = retained
+				? QStringLiteral(
+					  "Earlier history could not be loaded; retained epochs "
+					  "remain visible.")
+				: QStringLiteral("Review history could not be loaded.");
+		} else if (HistoryPhase == core::epoch_history_page_phase::cancelled) {
+			status = retained
+				? QStringLiteral(
+					  "History loading was canceled; retained epochs remain "
+					  "visible.")
+				: QStringLiteral("Review-history loading was canceled.");
+		} else if (HistoryPhase == core::epoch_history_page_phase::invalidated) {
+			status = retained
+				? QStringLiteral(
+					  "Retained history changed; the visible page is stale. "
+					  "Return to newest epochs to refresh it.")
+				: QStringLiteral(
+					  "Retained history changed; load the newest epoch page.");
+		} else if (HistoryPhase == core::epoch_history_page_phase::loaded
+				   && !retained) {
+			status = QStringLiteral("No review epochs have been recorded.");
+		}
+		const auto historyReason = reason_text(HistoryReason);
+		if (!historyReason.isEmpty()) {
+			status.append(QStringLiteral(" %1").arg(historyReason));
+		}
+		const auto diagnostic = reason_text(DiagnosticReason);
+		if (!diagnostic.isEmpty() && DiagnosticReason != HistoryReason) {
+			status.append(QStringLiteral(" %1").arg(diagnostic));
+		}
+		StatusLabel->setText(status);
 
-    QString comparison;
-    if(Selection)
-    {
-        if(const auto* named =
-               std::get_if<core::named_comparison_selection>(&*Selection))
-        {
-            comparison = QStringLiteral("%1. ").arg(alias_text(named->Alias));
-        }
-        else
-        {
-            comparison = QStringLiteral("Exact epoch pair. ");
-        }
-    }
-    if(Comparison && Comparison->Pair)
-    {
-        comparison.append(QStringLiteral("Left %1; right %2. ")
-                              .arg(
-                                  availability_text(
-                                      Comparison->Pair->Left.Availability),
-                                  availability_text(
-                                      Comparison->Pair->Right.Availability)));
-        comparison.append(Comparison->AvailableForDiff
-                ? QStringLiteral("Ready for diff.")
-                : QStringLiteral(
-                      "The exact pair is retained but unavailable for diff."));
-    }
-    else
-    {
-        comparison.append(QStringLiteral("No exact pair is resolved."));
-    }
-    if(Comparison)
-    {
-        const auto reason = reason_text(Comparison->Reason);
-        if(!reason.isEmpty())
-        {
-            comparison.append(QStringLiteral(" %1").arg(reason));
-        }
-    }
-    ComparisonLabel->setText(comparison);
-}
+		QString comparison;
+		if (Selection) {
+			if (const auto* named = std::get_if<core::named_comparison_selection>(&*Selection)) {
+				comparison = QStringLiteral("%1. ").arg(alias_text(named->Alias));
+			} else {
+				comparison = QStringLiteral("Exact epoch pair. ");
+			}
+		}
+		if (Comparison && Comparison->Pair) {
+			comparison.append(QStringLiteral("Left %1; right %2. ")
+								  .arg(
+									  availability_text(
+										  Comparison->Pair->Left.Availability),
+									  availability_text(
+										  Comparison->Pair->Right.Availability)));
+			comparison.append(Comparison->AvailableForDiff
+								  ? QStringLiteral("Ready for diff.")
+								  : QStringLiteral(
+										"The exact pair is retained but unavailable for diff."));
+		} else {
+			comparison.append(QStringLiteral("No exact pair is resolved."));
+		}
+		if (Comparison) {
+			const auto reason = reason_text(Comparison->Reason);
+			if (!reason.isEmpty()) {
+				comparison.append(QStringLiteral(" %1").arg(reason));
+			}
+		}
+		ComparisonLabel->setText(comparison);
+	}
 
-void epoch_comparison_control::update_action_state()
-{
-    const auto select = command(core::epoch_command_id::select_comparison);
-    const auto refresh = command(core::epoch_command_id::refresh_epochs);
-    const auto cancel = command(core::epoch_command_id::cancel_epoch_refresh);
-    const auto prune =
-        command(core::epoch_command_id::prune_selected_epochs);
-    const auto delete_cache =
-        command(core::epoch_command_id::delete_repository_cache);
-    const auto cancel_maintenance =
-        command(core::epoch_command_id::cancel_epoch_maintenance);
-    const bool select_enabled = select && select->Enabled;
-    WholePrAction->setEnabled(select_enabled);
-    PreviousUploadAction->setEnabled(select_enabled);
-    LastReviewedAction->setEnabled(select_enabled);
-    LeftSelector->setEnabled(select_enabled && !HistoryWindowStale
-        && HistoryModel->rowCount() != 0);
-    RightSelector->setEnabled(select_enabled && !HistoryWindowStale
-        && HistoryModel->rowCount() != 0);
-    RefreshAction->setEnabled(refresh && refresh->Enabled);
-    CancelAction->setEnabled(cancel && cancel->Enabled);
-    PruneAction->setEnabled(prune && prune->Enabled);
-    DeleteCacheAction->setEnabled(delete_cache && delete_cache->Enabled);
-    CancelMaintenanceAction->setEnabled(
-        cancel_maintenance && cancel_maintenance->Enabled);
-    const bool page_loading = HistoryPhase
-        == core::epoch_history_page_phase::loading;
-    LoadHistoryAction->setEnabled(
-        HistoryModel->catalog().has_value() && !page_loading
-        && !HistoryWindowStale && Continuation.has_value());
-    ReturnNewestAction->setEnabled(
-        HistoryModel->catalog().has_value() && !page_loading
-        && (HistoryWindowStale || !HistoryNavigation.has_value()
-            || *HistoryNavigation == core::epoch_history_navigation::older));
+	void epoch_comparison_control::update_action_state()
+	{
+		const auto select            = command(core::epoch_command_id::select_comparison);
+		const auto refresh           = command(core::epoch_command_id::refresh_epochs);
+		const auto cancel            = command(core::epoch_command_id::cancel_epoch_refresh);
+		const auto prune             = command(core::epoch_command_id::prune_selected_epochs);
+		const auto deleteCache       = command(core::epoch_command_id::delete_repository_cache);
+		const auto cancelMaintenance = command(core::epoch_command_id::cancel_epoch_maintenance);
+		const bool selectEnabled     = select && select->Enabled;
+		WholePrAction->setEnabled(selectEnabled);
+		PreviousUploadAction->setEnabled(selectEnabled);
+		LastReviewedAction->setEnabled(selectEnabled);
+		LeftSelector->setEnabled(selectEnabled && !HistoryWindowStale
+								 && HistoryModel->rowCount() != 0);
+		RightSelector->setEnabled(selectEnabled && !HistoryWindowStale
+								  && HistoryModel->rowCount() != 0);
+		RefreshAction->setEnabled(refresh && refresh->Enabled);
+		CancelAction->setEnabled(cancel && cancel->Enabled);
+		PruneAction->setEnabled(prune && prune->Enabled);
+		DeleteCacheAction->setEnabled(deleteCache && deleteCache->Enabled);
+		CancelMaintenanceAction->setEnabled(
+			cancelMaintenance && cancelMaintenance->Enabled);
+		const bool pageLoading = HistoryPhase
+			== core::epoch_history_page_phase::loading;
+		LoadHistoryAction->setEnabled(
+			HistoryModel->catalog().has_value() && !pageLoading
+			&& !HistoryWindowStale && Continuation.has_value());
+		ReturnNewestAction->setEnabled(
+			HistoryModel->catalog().has_value() && !pageLoading
+			&& (HistoryWindowStale || !HistoryNavigation.has_value()
+				|| *HistoryNavigation == core::epoch_history_navigation::older));
 
-    const auto describe =
-        [](QAction* const action,
-            const std::optional<core::epoch_command_projection>& value,
-            const QString& enabled_text)
-        {
-            const auto description = value && value->Enabled
-                ? enabled_text
-                : reason_text(
-                      value ? value->DisabledReason
-                            : core::epoch_reason_code::no_active_authority);
-            action->setToolTip(description);
-            action->setStatusTip(description);
-        };
-    describe(WholePrAction,
-        select,
-        QStringLiteral("Compare branch base with latest."));
-    describe(PreviousUploadAction,
-        select,
-        QStringLiteral("Compare the exact previous upload with latest."));
-    describe(LastReviewedAction,
-        select,
-        QStringLiteral("Compare the exact last-reviewed commit with latest."));
-    describe(RefreshAction,
-        refresh,
-        QStringLiteral("Refresh retained review revisions."));
-    describe(CancelAction,
-        cancel,
-        QStringLiteral("Cancel the active review-history refresh."));
-    describe(PruneAction,
-        prune,
-        QStringLiteral(
-            "Prune private retention refs for the exact selected epochs."));
-    describe(DeleteCacheAction,
-        delete_cache,
-        QStringLiteral(
-            "Delete every retained pull request in this repository cache."));
-    describe(CancelMaintenanceAction,
-        cancel_maintenance,
-        QStringLiteral("Cancel maintenance before its point of no return."));
-    LoadHistoryAction->setToolTip(LoadHistoryAction->isEnabled()
-            ? QStringLiteral("Load the next bounded page of retained epochs.")
-            : QStringLiteral("No earlier retained epoch page is available."));
-    LoadHistoryAction->setStatusTip(LoadHistoryAction->toolTip());
-    ReturnNewestAction->setToolTip(ReturnNewestAction->isEnabled()
-            ? QStringLiteral("Load the newest bounded page of retained epochs.")
-            : QStringLiteral("The newest retained epoch page is visible."));
-    ReturnNewestAction->setStatusTip(ReturnNewestAction->toolTip());
-}
+		const auto describe =
+			[](QAction* const                                       aAction,
+			   const std::optional<core::epoch_command_projection>& aValue,
+			   const QString&                                       aEnabledText) {
+				const auto description = aValue && aValue->Enabled
+					? aEnabledText
+					: reason_text(
+						  aValue ? aValue->DisabledReason
+								 : core::epoch_reason_code::no_active_authority);
+				aAction->setToolTip(description);
+				aAction->setStatusTip(description);
+			};
+		describe(WholePrAction,
+				 select,
+				 QStringLiteral("Compare branch base with latest."));
+		describe(PreviousUploadAction,
+				 select,
+				 QStringLiteral("Compare the exact previous upload with latest."));
+		describe(LastReviewedAction,
+				 select,
+				 QStringLiteral("Compare the exact last-reviewed commit with latest."));
+		describe(RefreshAction,
+				 refresh,
+				 QStringLiteral("Refresh retained review revisions."));
+		describe(CancelAction,
+				 cancel,
+				 QStringLiteral("Cancel the active review-history refresh."));
+		describe(PruneAction,
+				 prune,
+				 QStringLiteral(
+					 "Prune private retention refs for the exact selected epochs."));
+		describe(DeleteCacheAction,
+				 deleteCache,
+				 QStringLiteral(
+					 "Delete every retained pull request in this repository cache."));
+		describe(CancelMaintenanceAction,
+				 cancelMaintenance,
+				 QStringLiteral("Cancel maintenance before its point of no return."));
+		LoadHistoryAction->setToolTip(LoadHistoryAction->isEnabled()
+										  ? QStringLiteral("Load the next bounded page of retained epochs.")
+										  : QStringLiteral("No earlier retained epoch page is available."));
+		LoadHistoryAction->setStatusTip(LoadHistoryAction->toolTip());
+		ReturnNewestAction->setToolTip(ReturnNewestAction->isEnabled()
+										   ? QStringLiteral("Load the newest bounded page of retained epochs.")
+										   : QStringLiteral("The newest retained epoch page is visible."));
+		ReturnNewestAction->setStatusTip(ReturnNewestAction->toolTip());
+	}
 
-void epoch_comparison_control::refresh_native_appearance()
-{
-    if(HistoryModel == nullptr)
-    {
-        return;
-    }
-    HistoryModel->refresh_presentation();
-    LeftSelector->updateGeometry();
-    RightSelector->updateGeometry();
-    updateGeometry();
-    ++Statistics.AppearanceUpdates;
-}
+	void epoch_comparison_control::refresh_native_appearance()
+	{
+		if (HistoryModel == nullptr) {
+			return;
+		}
+		HistoryModel->refresh_presentation();
+		LeftSelector->updateGeometry();
+		RightSelector->updateGeometry();
+		updateGeometry();
+		++Statistics.AppearanceUpdates;
+	}
 
-void epoch_comparison_control::announce_update()
-{
-    const auto announcement = summary_text();
-    if(announcement.isEmpty() || announcement == LastAnnouncement)
-    {
-        return;
-    }
-    LastAnnouncement = announcement;
-    ++Statistics.Announcements;
-    QAccessibleAnnouncementEvent event{this, announcement};
-    event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
-    QAccessible::updateAccessibility(&event);
-}
+	void epoch_comparison_control::announce_update()
+	{
+		const auto announcement = summary_text();
+		if (announcement.isEmpty() || announcement == LastAnnouncement) {
+			return;
+		}
+		LastAnnouncement = announcement;
+		++Statistics.Announcements;
+		QAccessibleAnnouncementEvent event{ this, announcement };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&event);
+	}
 
-auto epoch_comparison_control::summary_text() const -> QString
-{
-    auto summary = StatusLabel->text();
-    if(!ComparisonLabel->text().isEmpty())
-    {
-        summary.append(QStringLiteral(" %1").arg(ComparisonLabel->text()));
-    }
-    if(summary.size() > 1'024)
-    {
-        summary.truncate(1'024);
-    }
-    return summary;
-}
+	auto epoch_comparison_control::summary_text() const -> QString
+	{
+		auto summary = StatusLabel->text();
+		if (!ComparisonLabel->text().isEmpty()) {
+			summary.append(QStringLiteral(" %1").arg(ComparisonLabel->text()));
+		}
+		if (summary.size() > 1'024) {
+			summary.truncate(1'024);
+		}
+		return summary;
+	}
 
-auto epoch_comparison_control::command(const core::epoch_command_id id) const
-    -> std::optional<core::epoch_command_projection>
-{
-    if(!HasCommands)
-    {
-        return std::nullopt;
-    }
-    const auto found = std::ranges::find(Commands, id,
-        &core::epoch_command_projection::Id);
-    return found == Commands.end() ? std::nullopt : std::optional{*found};
-}
+	auto epoch_comparison_control::command(const core::epoch_command_id aId) const
+		-> std::optional<core::epoch_command_projection>
+	{
+		if (!HasCommands) {
+			return std::nullopt;
+		}
+		const auto found = std::ranges::find(Commands, aId,
+											 &core::epoch_command_projection::Id);
+		return found == Commands.end() ? std::nullopt : std::optional{ *found };
+	}
 }

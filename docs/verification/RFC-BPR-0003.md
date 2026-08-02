@@ -361,8 +361,8 @@ The focused component command is:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_application_epoch_contract_tests \
-  better_pull_review_application_epoch_host_tests
+  test_better_pull_review_application_epoch_contract_tests \
+  test_better_pull_review_application_epoch_host_tests
 ctest --preset dev --output-on-failure \
   -R '^(application_epoch_contract|application_epoch_host)$'
 ```

@@ -240,6 +240,14 @@ CPM source acquisition, and refreshes presets, direct dependency evidence, and
 build documentation without adding an RFC-BPR-0014 package format or release
 claim.
 
+Done BPR-0085 adopts the rendered project-neutral C++ standard as the
+repository source of truth. It applies canonical formatting, naming, include
+guards, and public API documentation across the first-party source and test
+tree; integrates local format and strict tidy targets; preserves emitted
+binary names; and updates structural contracts to assert semantics without
+depending on incidental whitespace. The developer and core-only matrices,
+strict first-party clang-tidy audit, format gate, and documentation gate pass.
+
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench
 presentation-polish and native visual-acceptance slice. RFC-BPR-0006 owns

@@ -1007,7 +1007,7 @@ verify_effect_owner(
     "${macos_keychain_relative}"
 )
 verify_effect_owner(
-    "(wincred\\.h|Cred[A-Z][A-Za-z0-9_]*|P?CREDENTIAL[A-Z0-9_]*|CRED_[A-Z0-9_]+)"
+    "(wincred\\.h|Cred(Read|Write|Delete|Free|Enumerate|Rename|Protect|Unprotect|Pack|UnPack|IsProtected|FindBest|GetSessionTypes|Marshal|Unmarshal)[A-Za-z0-9_]*|P?CREDENTIAL(A|W)?([^A-Z0-9_]|$)|CRED_[A-Z0-9_]+)"
     "Windows Credential Manager API"
     "${windows_credential_manager_relative}"
 )
@@ -1072,7 +1072,7 @@ set(
     "empty_private_directory"
     "stop\\.stop_requested\\(\\)"
     "maximum_pending_input_bytes"
-    "buffered_input_offset"
+    "bufferedInputOffset"
     "class[ \t]+private_input_file[ \t]+final"
     "O_NOFOLLOW"
     "FILE_FLAG_OPEN_REPARSE_POINT"
@@ -1270,39 +1270,39 @@ string(
 )
 set(
     required_github_request_shape_patterns
-    "valid_request_shape\\( const github_cli_process_request& request\\) noexcept -> bool"
-    "request\\.Executable\\.empty\\(\\)"
-    "request\\.Executable\\.size\\(\\) > github_cli_process_max_path_bytes"
-    "contains_nul\\(request\\.Executable\\)"
-    "request\\.WorkingDirectory\\.empty\\(\\)"
-    "request\\.WorkingDirectory\\.size\\(\\) > github_cli_process_max_path_bytes"
-    "contains_nul\\(request\\.WorkingDirectory\\)"
-    "request\\.Arguments\\.empty\\(\\)"
-    "request\\.Arguments\\.size\\(\\) > github_cli_process_max_argument_count"
-    "request\\.Environment\\.size\\(\\) > github_cli_process_max_environment_count"
-    "request\\.StandardInputLimit == 0"
-    "request\\.StandardInputLimit > github_cli_process_max_standard_input_bytes"
-    "request\\.StandardInput\\.size\\(\\) > request\\.StandardInputLimit"
-    "request\\.StandardOutputLimit == 0"
-    "request\\.StandardOutputLimit > github_cli_process_max_standard_output_bytes"
-    "request\\.StandardErrorLimit == 0"
-    "request\\.StandardErrorLimit > github_cli_process_max_standard_error_bytes"
-    "request\\.Timeout <= std::chrono::milliseconds::zero\\(\\)"
-    "request\\.Timeout > std::chrono::duration_cast<std::chrono::milliseconds>\\( github_cli_process_max_timeout\\)"
-    "request\\.ReapTimeout <= std::chrono::milliseconds::zero\\(\\)"
-    "request\\.ReapTimeout > std::chrono::duration_cast<std::chrono::milliseconds>\\( github_cli_process_max_reap_timeout\\)"
+    "valid_request_shape\\( const github_cli_process_request& (request|aRequest)\\) noexcept -> bool"
+    "(request|aRequest)\\.Executable\\.empty\\(\\)"
+    "(request|aRequest)\\.Executable\\.size\\(\\) > github_cli_process_max_path_bytes"
+    "contains_nul\\((request|aRequest)\\.Executable\\)"
+    "(request|aRequest)\\.WorkingDirectory\\.empty\\(\\)"
+    "(request|aRequest)\\.WorkingDirectory\\.size\\(\\) > github_cli_process_max_path_bytes"
+    "contains_nul\\((request|aRequest)\\.WorkingDirectory\\)"
+    "(request|aRequest)\\.Arguments\\.empty\\(\\)"
+    "(request|aRequest)\\.Arguments\\.size\\(\\) > github_cli_process_max_argument_count"
+    "(request|aRequest)\\.Environment\\.size\\(\\) > github_cli_process_max_environment_count"
+    "(request|aRequest)\\.StandardInputLimit == 0"
+    "(request|aRequest)\\.StandardInputLimit > github_cli_process_max_standard_input_bytes"
+    "(request|aRequest)\\.StandardInput\\.size\\(\\) > (request|aRequest)\\.StandardInputLimit"
+    "(request|aRequest)\\.StandardOutputLimit == 0"
+    "(request|aRequest)\\.StandardOutputLimit > github_cli_process_max_standard_output_bytes"
+    "(request|aRequest)\\.StandardErrorLimit == 0"
+    "(request|aRequest)\\.StandardErrorLimit > github_cli_process_max_standard_error_bytes"
+    "(request|aRequest)\\.Timeout <= std::chrono::milliseconds::zero\\(\\)"
+    "(request|aRequest)\\.Timeout > std::chrono::duration_cast<std::chrono::milliseconds>\\( github_cli_process_max_timeout\\)"
+    "(request|aRequest)\\.ReapTimeout <= std::chrono::milliseconds::zero\\(\\)"
+    "(request|aRequest)\\.ReapTimeout > std::chrono::duration_cast<std::chrono::milliseconds>\\( github_cli_process_max_reap_timeout\\)"
     "argument\\.empty\\(\\)"
     "argument\\.size\\(\\) > github_cli_process_max_argument_bytes"
     "contains_nul\\(argument\\)"
-    "add_bounded\\( argument_bytes, argument\\.size\\(\\), github_cli_process_max_arguments_bytes\\)"
+    "add_bounded\\( (argument_bytes|argumentBytes), argument\\.size\\(\\), github_cli_process_max_arguments_bytes\\)"
     "entry\\.Name\\.size\\(\\) > github_cli_process_max_environment_name_bytes"
     "valid_environment_name\\(entry\\.Name\\)"
     "entry\\.Value\\.size\\(\\) > github_cli_process_max_environment_value_bytes"
     "contains_nul\\(entry\\.Value\\)"
-    "add_bounded\\( environment_bytes, entry\\.Name\\.size\\(\\), github_cli_process_max_environment_bytes\\)"
-    "add_bounded\\( environment_bytes, entry\\.Value\\.size\\(\\), github_cli_process_max_environment_bytes\\)"
-    "equal_environment_names\\( entry\\.Name, request\\.Environment\\[prior\\]\\.Name\\)"
-    "!has_empty_path \\|\\| !has_system_root"
+    "add_bounded\\( (environment_bytes|environmentBytes), entry\\.Name\\.size\\(\\), github_cli_process_max_environment_bytes\\)"
+    "add_bounded\\( (environment_bytes|environmentBytes), entry\\.Value\\.size\\(\\), github_cli_process_max_environment_bytes\\)"
+    "equal_environment_names\\( entry\\.Name, (request|aRequest)\\.Environment\\[prior\\]\\.Name\\)"
+    "!(has_empty_path|hasEmptyPath) \\|\\| !(has_system_root|hasSystemRoot)"
 )
 foreach(
     required_request_shape_pattern
@@ -1348,7 +1348,10 @@ endforeach()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "if\\(total > limit \\|\\| amount > limit - total\\) \\{ return false; \\}"
+            "if[ ]*\\(total > limit \\|\\| amount > limit - total\\) \\{ return false; \\}"
+    AND NOT github_process_runner_compact
+        MATCHES
+            "if[ ]*\\(aTotal > aLimit \\|\\| aAmount > aLimit - aTotal\\) \\{ return false; \\}"
 )
     message(
         FATAL_ERROR
@@ -1359,7 +1362,7 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "if\\(!valid_request_shape\\(request\\)\\) \\{ return std::unexpected\\{ github_cli_process_failure::invalid_request\\}; \\} if\\(stop\\.stop_requested\\(\\)\\) \\{ return std::unexpected\\{ github_cli_process_failure::cancelled\\}; \\} std::shared_ptr<process_work_item> item; try \\{ item = std::make_shared<process_work_item>\\(\\); item->Request = request;"
+            "if[ ]*\\(!valid_request_shape\\((request|aRequest)\\)\\).*github_cli_process_failure::invalid_request.*if[ ]*\\((stop|aStop)\\.stop_requested\\(\\)\\).*github_cli_process_failure::cancelled.*std::shared_ptr<process_work_item> item; try \\{ item = std::make_shared<process_work_item>\\(\\); item->Request = (request|aRequest);"
 )
     message(
         FATAL_ERROR
@@ -1369,7 +1372,7 @@ if(
 endif()
 string(
     REGEX MATCHALL
-    "item->Request = request"
+    "item->Request = (request|aRequest)"
     github_request_work_item_copies
     "${github_process_runner_compact}"
 )
@@ -1401,7 +1404,7 @@ set(
     "waitForStarted[ \t\r\n]*\\("
     "waitForReadyRead[ \t\r\n]*\\("
     "waitForFinished[ \t\r\n]*\\("
-    "process\\.kill[ \t\r\n]*\\("
+    "(process|aProcess)\\.kill[ \t\r\n]*\\("
     "std::make_unique<QProcess>[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_])StandardInputLimit([^A-Za-z0-9_]|$)"
     "(^|[^A-Za-z0-9_])StandardOutputLimit([^A-Za-z0-9_]|$)"
@@ -1424,11 +1427,11 @@ endforeach()
 set(
     required_github_process_windows_environment_patterns
     "#if[ \t]+defined[ \t]*\\([ \t]*_WIN32[ \t]*\\)"
-    "bool[ \t]+has_empty_path[ \t]*=[ \t]*false"
-    "bool[ \t]+has_system_root[ \t]*=[ \t]*false"
-    "has_empty_path[ \t]*=[ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
-    "has_system_root[ \t]*=[ \t]*![ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
-    "![ \t]*has_empty_path[ \t]*\\|\\|[ \t]*![ \t]*has_system_root"
+    "bool[ \t]+(has_empty_path|hasEmptyPath)[ \t]*=[ \t]*false"
+    "bool[ \t]+(has_system_root|hasSystemRoot)[ \t]*=[ \t]*false"
+    "(has_empty_path|hasEmptyPath)[ \t]*=[ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
+    "(has_system_root|hasSystemRoot)[ \t]*=[ \t]*![ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
+    "![ \t]*(has_empty_path|hasEmptyPath)[ \t]*\\|\\|[ \t]*![ \t]*(has_system_root|hasSystemRoot)"
 )
 foreach(
     required_windows_environment_pattern
@@ -1454,10 +1457,10 @@ set(
     "QProcess::UnixProcessFlag::DisableCoreDumps"
     "QProcess::UnixProcessFlag::ResetSignalHandlers"
     "QProcess::UnixProcessFlag::CreateNewSession"
-    "const[ \t]+auto[ \t]+process_group[ \t\r\n]*=[ \t\r\n]*-[ \t]*static_cast<pid_t>[ \t\r\n]*\\([ \t\r\n]*process_group_id[ \t\r\n]*\\)"
-    "::kill[ \t\r\n]*\\([ \t\r\n]*process_group[ \t\r\n]*,[ \t\r\n]*SIGKILL[ \t\r\n]*\\)"
+    "const[ \t]+auto[ \t]+(process_group|processGroup)[ \t\r\n]*=[ \t\r\n]*-[ \t]*static_cast<pid_t>[ \t\r\n]*\\([ \t\r\n]*(process_group_id|aProcessGroupId)[ \t\r\n]*\\)"
+    "::kill[ \t\r\n]*\\([ \t\r\n]*(process_group|processGroup)[ \t\r\n]*,[ \t\r\n]*SIGKILL[ \t\r\n]*\\)"
     "QProcess::started"
-    "process_pointer->processId[ \t\r\n]*\\("
+    "(process_pointer|processPointer)->processId[ \t\r\n]*\\("
     "kill_process_group_and_reap[ \t\r\n]*\\("
     "finish_background_reap[ \t\r\n]*\\("
 )
@@ -1480,9 +1483,9 @@ endforeach()
 
 set(
     required_process_group_resolution_patterns
-    "resolve_process_group[ \t\r\n]*\\([ \t\r\n]*const[ \t]+QProcess&[ \t\r\n]+process[ \t\r\n]*,[ \t\r\n]*const[ \t]+qint64[ \t\r\n]+known_process_group_id[ \t\r\n]*\\)"
-    "const[ \t]+auto[ \t]+process_id[ \t\r\n]*=[ \t\r\n]*process\\.processId[ \t\r\n]*\\([ \t]*\\)"
-    "process_id[ \t\r\n]*>[ \t\r\n]*1[ \t\r\n]*\\?[ \t\r\n]*process_id[ \t\r\n]*:[ \t\r\n]*0"
+    "resolve_process_group[ \t\r\n]*\\([ \t\r\n]*const[ \t]+QProcess&[ \t\r\n]+(process|aProcess)[ \t\r\n]*,[ \t\r\n]*const[ \t]+qint64[ \t\r\n]+(known_process_group_id|aKnownProcessGroupId)[ \t\r\n]*\\)"
+    "const[ \t]+auto[ \t]+(process_id|processId)[ \t\r\n]*=[ \t\r\n]*(process|aProcess)\\.processId[ \t\r\n]*\\([ \t]*\\)"
+    "(process_id|processId)[ \t\r\n]*>[ \t\r\n]*1[ \t\r\n]*\\?[ \t\r\n]*(process_id|processId)[ \t\r\n]*:[ \t\r\n]*0"
 )
 foreach(
     required_group_resolution_pattern
@@ -1503,7 +1506,7 @@ endforeach()
 
 set(
     required_process_group_start_resolution
-    "process->start\\(\\); \\*process_group_id = resolve_process_group\\( \\*process, \\*process_group_id\\); for\\(;;\\) \\{ \\*process_group_id = resolve_process_group\\( \\*process, \\*process_group_id\\); if\\(const auto failure = terminal_failure\\(\\); failure\\.has_value\\(\\)\\)"
+    "process->start\\(\\); \\*(process_group_id|processGroupId) = resolve_process_group\\( \\*process, \\*(process_group_id|processGroupId)\\); for[ ]*\\(;;\\) \\{ \\*(process_group_id|processGroupId) = resolve_process_group\\( \\*process, \\*(process_group_id|processGroupId)\\); if[ ]*\\(const auto failure = (terminal_failure|terminalFailure)\\(\\); failure\\.has_value\\(\\)\\)"
 )
 if(
     NOT github_process_runner_compact
@@ -1519,10 +1522,10 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "auto process_group_id = resolve_process_group\\(process, known_process_group_id\\); kill_process_group\\(process_group_id\\);"
+            "auto (process_group_id|processGroupId) = resolve_process_group\\((process|aProcess), (known_process_group_id|aKnownProcessGroupId)\\); kill_process_group\\((process_group_id|processGroupId)\\);"
     OR NOT github_process_runner_compact
         MATCHES
-            "process\\.waitForFinished\\(wait\\)\\); if\\(process\\.state\\(\\) != QProcess::NotRunning\\) \\{ process_group_id = resolve_process_group\\(process, process_group_id\\); kill_process_group\\(process_group_id\\);"
+            "(process|aProcess)\\.waitForFinished\\(wait\\)\\); if[ ]*\\((process|aProcess)\\.state\\(\\) != QProcess::NotRunning\\) \\{ (process_group_id|processGroupId) = resolve_process_group\\((process|aProcess), (process_group_id|processGroupId)\\); kill_process_group\\((process_group_id|processGroupId)\\);"
 )
     message(
         FATAL_ERROR
@@ -1534,7 +1537,7 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "auto finish_background_reap\\( QProcess& process, const qint64 known_process_group_id\\) -> void \\{ auto process_group_id = resolve_process_group\\(process, known_process_group_id\\); while\\(process\\.state\\(\\) != QProcess::NotRunning\\) \\{ process_group_id = resolve_process_group\\(process, process_group_id\\); kill_process_group\\(process_group_id\\);"
+            "auto finish_background_reap\\( QProcess& (process|aProcess), const qint64 (known_process_group_id|aKnownProcessGroupId)\\) -> void \\{ auto (process_group_id|processGroupId) = resolve_process_group\\((process|aProcess), (known_process_group_id|aKnownProcessGroupId)\\); while[ ]*\\((process|aProcess)\\.state\\(\\) != QProcess::NotRunning\\) \\{ (process_group_id|processGroupId) = resolve_process_group\\((process|aProcess), (process_group_id|processGroupId)\\); kill_process_group\\((process_group_id|processGroupId)\\);"
 )
     message(
         FATAL_ERROR
@@ -1546,7 +1549,7 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "const auto process_group_id = resolve_process_group\\(\\*process, known_process_group_id\\); if\\( kill_process_group_and_reap\\( \\*process, process_group_id, reap_timeout\\)\\)"
+            "const auto (process_group_id|processGroupId) = resolve_process_group\\(\\*(process|aProcess), (known_process_group_id|aKnownProcessGroupId)\\); if[ ]*\\( kill_process_group_and_reap\\( \\*(process|aProcess), (process_group_id|processGroupId), (reap_timeout|aReapTimeout)\\)\\)"
 )
     message(
         FATAL_ERROR
@@ -1557,15 +1560,15 @@ endif()
 
 set(
     required_stable_process_group_state
-    "const auto process_group_id = std::make_shared<qint64>\\(0\\);"
+    "const auto (process_group_id|processGroupId) = std::make_shared<qint64>\\(0\\);"
 )
 set(
     required_started_process_group_capture
-    "QObject::connect\\( process\\.get\\(\\), &QProcess::started, process\\.get\\(\\), \\[ process_pointer = process\\.get\\(\\), process_group_id \\]\\(\\) noexcept \\{ \\*process_group_id = process_pointer->processId\\(\\); \\}, Qt::DirectConnection\\);"
+    "QObject::connect\\( process\\.get\\(\\), &QProcess::started, process\\.get\\(\\), \\[[ ]*(process_pointer|processPointer) = process\\.get\\(\\), (process_group_id|processGroupId)[ ]*\\]\\(\\) noexcept \\{ \\*(process_group_id|processGroupId) = (process_pointer|processPointer)->processId\\(\\); \\}, Qt::DirectConnection\\);"
 )
 set(
     required_finished_process_group_cleanup
-    "QObject::connect\\( process\\.get\\(\\), &QProcess::finished, process\\.get\\(\\), \\[process_group_id\\]\\( const int, const QProcess::ExitStatus\\) noexcept \\{ kill_process_group\\(\\*process_group_id\\); \\}, Qt::DirectConnection\\);"
+    "QObject::connect\\( process\\.get\\(\\), &QProcess::finished, process\\.get\\(\\), \\[[ ]*(process_group_id|processGroupId)[ ]*\\]\\( const int, const QProcess::ExitStatus\\) noexcept \\{ kill_process_group\\(\\*(process_group_id|processGroupId)\\); \\}, Qt::DirectConnection\\);"
 )
 if(
     NOT github_process_runner_compact
@@ -1608,7 +1611,7 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "kill_process_group\\(\\*process_group_id\\); return \\{ \\.Result = github_cli_process_success"
+            "kill_process_group\\(\\*(process_group_id|processGroupId)\\); return \\{ \\.Result = github_cli_process_success"
 )
     message(
         FATAL_ERROR
@@ -1627,7 +1630,7 @@ set(
     "Busy[ \t\r\n]*=[ \t\r\n]*true"
     "Pending[ \t\r\n]*=[ \t\r\n]*item"
     "WorkAvailable\\.notify_one[ \t\r\n]*\\("
-    "item->Deadline[ \t\r\n]*=[ \t\r\n]*clock::now[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*\\+[ \t\r\n]*request\\.Timeout"
+    "item->Deadline[ \t\r\n]*=[ \t\r\n]*clock::now[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*\\+[ \t\r\n]*(request|aRequest)\\.Timeout"
     "std::unique_ptr<process_worker>[ \t\r\n]+Worker"
     "Worker[ \t\r\n]*=[ \t\r\n]*std::make_unique<process_worker>[ \t\r\n]*\\("
     "std::mutex[ \t\r\n]+WorkerMutex"
@@ -1679,13 +1682,13 @@ if(
             "make_github_cli_process_runner[ \t\r\n]*\\([ \t\r\n]*\\)[ \t\r\n]*->[ \t\r\n]*std::unique_ptr<github_cli_process_port>"
     OR NOT github_process_runner_interface_contents
         MATCHES
-            "make_github_cli_process_runner_for_test[ \t\r\n]*\\([ \t\r\n]*std::shared_ptr<github_cli_process_runner_test_seam>[ \t\r\n]+test_seam[ \t\r\n]*\\)"
+            "make_github_cli_process_runner_for_test[ \t\r\n]*\\([ \t\r\n]*std::shared_ptr<github_cli_process_runner_test_seam>[ \t\r\n]+(test_seam|aTestSeam)[ \t\r\n]*\\)"
     OR NOT github_process_runner_compact
         MATCHES
             "auto make_github_cli_process_runner\\(\\) -> std::unique_ptr<github_cli_process_port> \\{ return make_qprocess_github_cli_process_runner\\(nullptr\\); \\}"
     OR NOT github_process_runner_compact
         MATCHES
-            "auto make_github_cli_process_runner_for_test\\( std::shared_ptr<github_cli_process_runner_test_seam> test_seam\\) -> std::unique_ptr<github_cli_process_port> \\{ return make_qprocess_github_cli_process_runner\\( std::move\\(test_seam\\)\\); \\}"
+            "auto make_github_cli_process_runner_for_test\\( std::shared_ptr<github_cli_process_runner_test_seam> (test_seam|aTestSeam)\\) -> std::unique_ptr<github_cli_process_port> \\{ return make_qprocess_github_cli_process_runner\\( std::move\\((test_seam|aTestSeam)\\)\\); \\}"
 )
     message(
         FATAL_ERROR
@@ -1711,7 +1714,7 @@ endif()
 
 set(
     required_pre_start_guard
-    "if\\( shutdown_requested\\.load\\([^;]*\\) \\|\\| stop\\.stop_requested\\(\\)\\) \\{ return failed\\( github_cli_process_failure::cancelled\\); \\} if\\(clock::now\\(\\) >= deadline\\) \\{ return failed\\(github_cli_process_failure::timeout\\); \\} process->start\\(\\);"
+    "if[ ]*\\( (shutdown_requested|aShutdownRequested)\\.load\\([^;]*\\) \\|\\| (stop|aStop)\\.stop_requested\\(\\)\\) \\{ return failed\\( github_cli_process_failure::cancelled\\); \\} if[ ]*\\(clock::now\\(\\) >= (deadline|aDeadline)\\) \\{ return failed\\(github_cli_process_failure::timeout\\); \\} process->start\\(\\);"
 )
 if(NOT github_process_runner_compact MATCHES "${required_pre_start_guard}")
     message(
@@ -1738,7 +1741,7 @@ endif()
 set(
     required_github_process_reap_ownership_patterns
     "std::unique_ptr<QProcess>[ \t\r\n]+AwaitingReap"
-    "\\.AwaitingReap[ \t\r\n]*=[ \t\r\n]*std::move[ \t\r\n]*\\([ \t\r\n]*process[ \t\r\n]*\\)"
+    "\\.AwaitingReap[ \t\r\n]*=[ \t\r\n]*std::move[ \t\r\n]*\\([ \t\r\n]*(process|aProcess)[ \t\r\n]*\\)"
     "Quarantined[ \t\r\n]*=[ \t\r\n]*true"
     "publish[ \t\r\n]*\\([ \t\r\n]*item"
     "finish_background_reap[ \t\r\n]*\\([ \t\r\n]*\\*execution->AwaitingReap"
@@ -1765,10 +1768,10 @@ endforeach()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "if\\(execution->AwaitingReap != nullptr\\) \\{ \\{ std::lock_guard lock\\{Mutex\\}; Quarantined = true; \\} SlotAvailable\\.notify_all\\(\\); \\} publish\\(item,"
+            "if[ ]*\\(execution->AwaitingReap != nullptr\\) \\{ \\{ std::lock_guard lock\\{[ ]*Mutex[ ]*\\}; Quarantined = true; \\} SlotAvailable\\.notify_all\\(\\); \\} publish\\(item,"
     OR NOT github_process_runner_compact
         MATCHES
-            "finish_background_reap\\( \\*execution->AwaitingReap, execution->ProcessGroupId\\); execution->AwaitingReap\\.reset\\(\\); \\} \\{ std::lock_guard lock\\{Mutex\\}; Quarantined = false; Busy = false;"
+            "finish_background_reap\\( \\*execution->AwaitingReap, execution->ProcessGroupId\\); execution->AwaitingReap\\.reset\\(\\); \\} \\{ std::lock_guard lock\\{[ ]*Mutex[ ]*\\}; Quarantined = false; Busy = false;"
 )
     message(
         FATAL_ERROR
@@ -1780,7 +1783,7 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "if\\( !item->Completed\\.wait_until\\( result_lock, completion_deadline, \\[&\\] \\{ return item->Result\\.has_value\\(\\); \\}\\)\\) \\{ \\{ std::lock_guard lock\\{Mutex\\}; if\\(Busy\\) \\{ Quarantined = true; \\} \\} SlotAvailable\\.notify_all\\(\\); return std::unexpected\\{ github_cli_process_failure::reap_failure\\}; \\}"
+            "if[ ]*\\( !item->Completed\\.wait_until\\( (result_lock|resultLock), (completion_deadline|completionDeadline), \\[&\\] \\{ return item->Result\\.has_value\\(\\); \\}\\)\\) \\{ \\{ std::lock_guard lock\\{[ ]*Mutex[ ]*\\}; if[ ]*\\(Busy\\) \\{ Quarantined = true; \\} \\} SlotAvailable\\.notify_all\\(\\); return std::unexpected\\{ github_cli_process_failure::reap_failure[ ]*\\}; \\}"
 )
     message(
         FATAL_ERROR
@@ -1792,7 +1795,7 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "catch\\(\\.\\.\\.\\) \\{ publish\\( item, std::unexpected\\{ github_cli_process_failure::start_failure\\}\\); \\{ std::lock_guard lock\\{Mutex\\}; Quarantined = false; Busy = false; \\} SlotAvailable\\.notify_all\\(\\); (continue|return); \\}"
+            "catch[ ]*\\(\\.\\.\\.\\) \\{ publish\\( item, std::unexpected\\{ github_cli_process_failure::start_failure[ ]*\\}\\); \\{ std::lock_guard lock\\{[ ]*Mutex[ ]*\\}; Quarantined = false; Busy = false; \\} SlotAvailable\\.notify_all\\(\\); (continue|return); \\}"
 )
     message(
         FATAL_ERROR
@@ -1823,11 +1826,11 @@ endif()
 set(
     required_github_process_bounded_read_patterns
     "std::array<char,[ \t\r\n]*16U[ \t]*\\*[ \t]*1024U>[ \t\r\n]+buffer"
-    "const[ \t]+auto[ \t]+remaining[ \t\r\n]*=[ \t\r\n]*limit[ \t\r\n]*-[ \t\r\n]*consumed"
+    "const[ \t]+auto[ \t]+remaining[ \t\r\n]*=[ \t\r\n]*(limit|aLimit)[ \t\r\n]*-[ \t\r\n]*(consumed|aConsumed)"
     "std::min<std::size_t>[ \t\r\n]*\\([ \t\r\n]*buffer\\.size[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*,[ \t\r\n]*remaining[ \t\r\n]*\\+[ \t\r\n]*1U[ \t\r\n]*\\)"
-    "process\\.read[ \t\r\n]*\\([ \t\r\n]*buffer\\.data[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*,[ \t\r\n]*static_cast<qint64>[ \t\r\n]*\\([ \t\r\n]*requested[ \t\r\n]*\\)[ \t\r\n]*\\)"
-    "byte_count[ \t\r\n]*>[ \t\r\n]*remaining"
-    "consumed[ \t\r\n]*\\+=[ \t\r\n]*byte_count"
+    "(process|aProcess)\\.read[ \t\r\n]*\\([ \t\r\n]*buffer\\.data[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*,[ \t\r\n]*static_cast<qint64>[ \t\r\n]*\\([ \t\r\n]*requested[ \t\r\n]*\\)[ \t\r\n]*\\)"
+    "(byte_count|byteCount)[ \t\r\n]*>[ \t\r\n]*remaining"
+    "(consumed|aConsumed)[ \t\r\n]*\\+=[ \t\r\n]*(byte_count|byteCount)"
 )
 foreach(
     required_bounded_read_pattern
@@ -1871,7 +1874,7 @@ set(
 )
 string(
     REGEX REPLACE
-    "process(\\.|->)[ \t\r\n]*setReadChannel[ \t\r\n]*\\([ \t\r\n]*channel[ \t\r\n]*\\)"
+    "(process|aProcess)(\\.|->)[ \t\r\n]*setReadChannel[ \t\r\n]*\\([ \t\r\n]*channel[ \t\r\n]*\\)"
     ""
     github_process_runner_without_selected_channels
     "${github_process_runner_without_selected_channels}"
@@ -1900,7 +1903,7 @@ set(
 )
 string(
     REGEX REPLACE
-    "process\\.read[ \t\r\n]*\\([ \t\r\n]*buffer\\.data[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*,[ \t\r\n]*static_cast<qint64>[ \t\r\n]*\\([ \t\r\n]*requested[ \t\r\n]*\\)[ \t\r\n]*\\)"
+    "(process|aProcess)\\.read[ \t\r\n]*\\([ \t\r\n]*buffer\\.data[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*,[ \t\r\n]*static_cast<qint64>[ \t\r\n]*\\([ \t\r\n]*requested[ \t\r\n]*\\)[ \t\r\n]*\\)"
     ""
     github_process_runner_without_bounded_read
     "${github_process_runner_without_bounded_read}"
@@ -2106,8 +2109,8 @@ set(
     "QSslSocket::VerifyPeer"
     "QSsl::TlsV1_2OrLater"
     "QSslConfiguration::systemCaCertificates[ \t\r\n]*\\("
-    "setLocalCertificateChain[ \t\r\n]*\\([ \t\r\n]*\\{\\}[ \t\r\n]*\\)"
-    "setBackendConfiguration[ \t\r\n]*\\([ \t\r\n]*\\{\\}[ \t\r\n]*\\)"
+    "setLocalCertificateChain[ \t\r\n]*\\([ \t\r\n]*\\{[ \t\r\n]*\\}[ \t\r\n]*\\)"
+    "setBackendConfiguration[ \t\r\n]*\\([ \t\r\n]*\\{[ \t\r\n]*\\}[ \t\r\n]*\\)"
     "QNetworkAccessManager::sslErrors"
     "QNetworkReply::encrypted"
     "QNetworkRequest::Http2AllowedAttribute"

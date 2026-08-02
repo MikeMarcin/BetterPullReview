@@ -4,13 +4,12 @@
 
 #include <utility>
 
-namespace bpr::qt
-{
-void event_loop_executor::post(std::function<void()> task)
-{
-    QMetaObject::invokeMethod(
-        &Context,
-        [task = std::move(task)]() mutable { task(); },
-        Qt::QueuedConnection);
-}
+namespace bpr::qt {
+	void event_loop_executor::post(std::function<void()> aTask)
+	{
+		QMetaObject::invokeMethod(
+			&Context,
+			[task = std::move(aTask)]() mutable { task(); },
+			Qt::QueuedConnection);
+	}
 }

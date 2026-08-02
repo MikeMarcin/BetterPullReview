@@ -523,7 +523,7 @@ owns public composition, and BPR-0053 owns target-native Windows execution.
 
 `tests/sqlite_contract/epoch_catalog_storage_tests.cpp` is the direct storage
 fixture registered as `sqlite_epoch_catalog_storage_contract`; its executable
-target is `better_pull_review_sqlite_storage_contract_tests`. It creates only
+target is `test_better_pull_review_sqlite_storage_contract_tests`. It creates only
 disposable synthetic app-data roots. The fixture covers the fixed
 `state/v1/epoch-catalog.sqlite3` path, nonzero random incarnation, authority
 allocation and reopen, private bootstrap and exact no-replace publication,
@@ -537,7 +537,7 @@ are enabled.
 
 `tests/sqlite_contract/epoch_catalog_behavior_tests.cpp` is registered as
 `sqlite_epoch_catalog_behavior_contract`; its executable target is
-`better_pull_review_sqlite_behavior_contract_tests`. It exercises exact
+`test_better_pull_review_sqlite_behavior_contract_tests`. It exercises exact
 repository/PR authority allocation and restart, append reservations and
 never-reused ordinals, history and recovery paging, exact anchors and
 availability, association-only review updates, semantic tuple and composite-
@@ -594,7 +594,7 @@ repository, GitHub mutation, or GitHub Actions workflow is involved.
 
 `tests/application/epoch_application_contract_tests.cpp` is registered as
 `application_epoch_contract`; its executable target is
-`better_pull_review_application_epoch_contract_tests`. It proves that
+`test_better_pull_review_application_epoch_contract_tests`. It proves that
 `accepted_pull_request_handoff` carries exact accepted authority, lease, and
 provider identity without a caller-supplied source-observation identity or
 clock value. It also exercises bounded invalidation and the production runtime
@@ -605,7 +605,7 @@ is exercised by a native run; BPR-0053 retains Windows-native verification.
 
 `tests/application/epoch_application_host_tests.cpp` is registered as
 `application_epoch_host`; its executable target is
-`better_pull_review_application_epoch_host_tests`. Deterministic capability
+`test_better_pull_review_application_epoch_host_tests`. Deterministic capability
 fakes and separate manual effect/decision executors prove recovery before
 source mint and core acceptance, fresh collision retry, journal-before-import,
 the exact durable phase sequence, direct commit-object inspection, and exact
@@ -642,7 +642,7 @@ workflow.
 
 `tests/git_contract/epoch_maintenance_integration_tests.cpp` is registered as
 `epoch_maintenance_integration`; its executable target is
-`better_pull_review_epoch_maintenance_integration_tests`. It is a real
+`test_better_pull_review_epoch_maintenance_integration_tests`. It is a real
 component-composition fixture: the production epoch host drives the production
 SQLite catalog and installed-Git cache while a deterministic smart-protocol
 transport supplies one fixed valid SHA-1 pack. In separate disposable roots it
@@ -657,7 +657,7 @@ GitHub Actions.
 ## Native HTTPS loopback transport fixture
 
 `tests/scripts/verify_native_https_transport.py` drives the compiled
-`better_pull_review_native_https_transport_tests` child through the real
+`test_better_pull_review_native_https_transport_tests` child through the real
 BPR-0026 request/TLS/redirect/cancellation/response path. It creates a
 disposable one-day CA and leaf certificate for the canonical synthetic
 `ghe.bpr.invalid` authority, starts loopback-only HTTP CONNECT proxies, and
@@ -833,7 +833,7 @@ BPR-0028 recorded a direct adversarial run covering 3,000 mixed cases, 5,000
 arbitrary 100-row permutations, and both 50,000-row rotations. That result
 remains historical BPR-0028 evidence; it was not a standalone checked-in
 property target in that slice. BPR-0030 checks the corpus into
-`better_pull_review_qt_github_conversation_model_property_tests`, registered
+`test_better_pull_review_qt_github_conversation_model_property_tests`, registered
 once as `qt_github_conversation_model_property`. Fixed seeds make the 3,000
 mixed projection updates and 5,000 permutations reproducible. The target
 requires exact tree/order and every public projection role, deletion-aware

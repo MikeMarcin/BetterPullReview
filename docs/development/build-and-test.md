@@ -8,6 +8,7 @@
 - Qt 6.8 or newer for the Qt adapter and application
 - Python 3.10 or newer for structural and runtime verification scripts
 - Git 2.39 or newer for installed-Git contract tests
+- Clang-format and clang-tidy 22.1.8 for coding-standard verification
 - On Linux, stable `libsecret-1>=0.20.0` and its development metadata
 
 The validated local foundation environment uses CMake 4.4.2, AppleClang 16,
@@ -90,8 +91,8 @@ with:
 
 ```sh
 cmake --build --preset core-only --target \
-  better_pull_review_diff_transition_core_tests \
-  better_pull_review_application_diff_host_tests
+  test_better_pull_review_diff_transition_core_tests \
+  test_better_pull_review_application_diff_host_tests
 ctest --preset core-only --output-on-failure \
   -R '^(core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract|binary_dependency_audit_contract|core_diff_transition|application_diff_host)$'
 ```
@@ -121,7 +122,38 @@ ctest --preset windows-dev --output-on-failure
 | `better_pull_review_adapter_ai` | Capability boundary established for a later RFC |
 | `better_pull_review_adapter_qt` | Native Qt presentation adapter |
 | `better_pull_review_composition` | Explicit profile, transport, vault, provider, worker, host, and Qt wiring |
-| `better_pull_review` | Native read-only GitHub application executable |
+| `app_better_pull_review` | Native read-only GitHub application target; emits `better_pull_review` |
+
+## Coding standard
+
+`_coding-standard/STANDARD.md` is the canonical first-party C++ standard. The
+root `.clang-format`, `.clang-tidy`, and `.editorconfig` files are its local
+enforcement configuration. The default scripts scan `src/` and `tests/` while
+excluding build output, generated sources, CMake dependency trees, and vendored
+code.
+
+After configuring `dev`, run the non-default CMake targets:
+
+```sh
+cmake --build --preset dev --target coding-format-check
+cmake --build --preset dev --target coding-tidy
+```
+
+`coding-format` rewrites the complete first-party tree. Direct invocation is
+available when explicit tool paths or a narrower path set are needed:
+
+```sh
+python3 _coding-standard/scripts/format_check.py --root .
+python3 _coding-standard/scripts/format.py --root .
+python3 _coding-standard/scripts/tidy.py \
+  --root . --build-dir build/dev --warnings-as-errors
+```
+
+Coding targets default to the value of `BUILD_TESTING`. A normal
+tests-disabled product graph therefore has no Python or coding-tool dependency;
+set `-DBPR_ENABLE_CODING_TARGETS=ON` to add the targets deliberately. The tidy
+profile's narrow compatibility exclusions and compilation-database adaptation
+are documented in `_coding-standard/README.md`.
 
 ## Focused evidence
 
@@ -233,8 +265,8 @@ service in the exact default Keychain:
 
 ```sh
 cmake --build build/dev --target \
-  better_pull_review_macos_keychain_contract_tests \
-  better_pull_review_macos_keychain_native_tests
+  test_better_pull_review_macos_keychain_contract_tests \
+  test_better_pull_review_macos_keychain_native_tests
 ctest --test-dir build/dev --output-on-failure \
   -R '^macos_keychain_(contract|native|native_setup|native_cleanup)$'
 ```
@@ -289,8 +321,8 @@ contract plus native Secret Service fixture:
 ```sh
 cmake --preset dev
 cmake --build build/dev --target \
-  better_pull_review_linux_secret_service_contract_tests \
-  better_pull_review_linux_secret_service_native_tests
+  test_better_pull_review_linux_secret_service_contract_tests \
+  test_better_pull_review_linux_secret_service_native_tests
 ctest --test-dir build/dev --output-on-failure \
   -R '^linux_secret_service_(contract|native|native_setup|native_cleanup)$'
 ```
@@ -370,8 +402,8 @@ contract executables:
 
 ```sh
 cmake --build build/dev --target \
-  better_pull_review_gh_cli_transport_tests \
-  better_pull_review_github_cli_process_runner_tests
+  test_better_pull_review_gh_cli_transport_tests \
+  test_better_pull_review_github_cli_process_runner_tests
 ctest --test-dir build/dev --output-on-failure \
   -R '^(gh_cli_transport|github_cli_process_runner)$'
 ```
@@ -504,7 +536,7 @@ executable and run the contract plus target-native loopback fixture:
 
 ```sh
 cmake --build build/dev --target \
-  better_pull_review_native_https_transport_tests
+  test_better_pull_review_native_https_transport_tests
 ctest --test-dir build/dev --output-on-failure \
   -R '^native_https_transport_(contract|fixture)$'
 
@@ -655,9 +687,9 @@ run the complete local contract group:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_application_github_host_tests \
-  better_pull_review_github_paged_read_tests \
-  better_pull_review_github_provider_tests
+  test_better_pull_review_application_github_host_tests \
+  test_better_pull_review_github_paged_read_tests \
+  test_better_pull_review_github_provider_tests
 
 ctest --test-dir build/dev --output-on-failure \
   -R '^(application_github_(host|contract|capability_cache)|github_(paged_read|provider|read_contract|capability_probe)|native_https_transport_(contract|fixture))$'
@@ -688,8 +720,8 @@ scale-specific presentation cases:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_application_github_host_tests \
-  better_pull_review_qt_github_tests
+  test_better_pull_review_application_github_host_tests \
+  test_better_pull_review_qt_github_tests
 
 ctest --test-dir build/dev --output-on-failure \
   -R '^(application_github_host|qt_github_window_scale_(100|125|200)|architecture_boundaries|architecture_boundary_contract)$'
@@ -708,8 +740,8 @@ Run the complete focused presentation group with:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_qt_github_tests \
-  better_pull_review_qt_github_conversation_model_property_tests
+  test_better_pull_review_qt_github_tests \
+  test_better_pull_review_qt_github_conversation_model_property_tests
 ctest --test-dir build/dev --output-on-failure \
   -R '^(qt_github_window_scale_(100|125|200)|qt_github_conversation_model_property)$'
 ```
@@ -886,7 +918,7 @@ CTest target:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_qt_github_conversation_model_property_tests
+  test_better_pull_review_qt_github_conversation_model_property_tests
 ctest --test-dir build/dev --output-on-failure \
   -R '^qt_github_conversation_model_property$'
 ```
@@ -917,7 +949,7 @@ preset and run:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_git_process_contract_tests
+  test_better_pull_review_git_process_contract_tests
 ctest --preset dev --output-on-failure \
   -R '^(git_process_contract|architecture_boundaries|architecture_boundary_contract)$'
 python3 tests/scripts/architecture_boundary_tests.py
@@ -948,9 +980,9 @@ For the committed BPR-0043 protocol-v2 and native smart-HTTPS components, run:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_application_git_protocol_v2_tests \
-  better_pull_review_native_git_smart_transport_tests \
-  better_pull_review_git_process_contract_tests
+  test_better_pull_review_application_git_protocol_v2_tests \
+  test_better_pull_review_native_git_smart_transport_tests \
+  test_better_pull_review_git_process_contract_tests
 ctest --preset dev --output-on-failure \
   -R '^(application_git_protocol_v2|git_protocol_boundary|native_git_smart_transport_(contract|fixture)|git_process_contract)$'
 ```
@@ -991,7 +1023,7 @@ long-running:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_git_cache_contract_tests
+  test_better_pull_review_git_cache_contract_tests
 ctest --preset dev --output-on-failure -R '^git_cache_contract$'
 ```
 
@@ -1027,10 +1059,10 @@ application-port, storage, and behavior contracts with:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_epoch_core_tests \
-  better_pull_review_application_epoch_catalog_contract_tests \
-  better_pull_review_sqlite_storage_contract_tests \
-  better_pull_review_sqlite_behavior_contract_tests
+  test_better_pull_review_epoch_core_tests \
+  test_better_pull_review_application_epoch_catalog_contract_tests \
+  test_better_pull_review_sqlite_storage_contract_tests \
+  test_better_pull_review_sqlite_behavior_contract_tests
 ctest --preset dev --output-on-failure \
   -R '^(core_epoch_policy|application_epoch_catalog_contract|sqlite_epoch_catalog_(storage|behavior)_contract)$'
 ctest --preset dev --output-on-failure \
@@ -1102,14 +1134,14 @@ and adjacent durable/physical contracts with:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_epoch_core_tests \
-  better_pull_review_application_epoch_catalog_contract_tests \
-  better_pull_review_application_epoch_contract_tests \
-  better_pull_review_application_epoch_host_tests \
-  better_pull_review_sqlite_storage_contract_tests \
-  better_pull_review_sqlite_behavior_contract_tests \
-  better_pull_review_git_process_contract_tests \
-  better_pull_review_git_cache_contract_tests
+  test_better_pull_review_epoch_core_tests \
+  test_better_pull_review_application_epoch_catalog_contract_tests \
+  test_better_pull_review_application_epoch_contract_tests \
+  test_better_pull_review_application_epoch_host_tests \
+  test_better_pull_review_sqlite_storage_contract_tests \
+  test_better_pull_review_sqlite_behavior_contract_tests \
+  test_better_pull_review_git_process_contract_tests \
+  test_better_pull_review_git_cache_contract_tests
 ctest --preset dev --output-on-failure \
   -R '^(core_epoch_policy|application_epoch_(catalog_contract|contract|host)|sqlite_epoch_catalog_(storage|behavior)_contract|git_(process|cache)_contract)$'
 ```
@@ -1185,10 +1217,10 @@ and composed real Git/SQLite integration fixture with:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_epoch_core_tests \
-  better_pull_review_application_epoch_host_tests \
-  better_pull_review_git_cache_contract_tests \
-  better_pull_review_epoch_maintenance_integration_tests
+  test_better_pull_review_epoch_core_tests \
+  test_better_pull_review_application_epoch_host_tests \
+  test_better_pull_review_git_cache_contract_tests \
+  test_better_pull_review_epoch_maintenance_integration_tests
 ctest --test-dir build/dev --output-on-failure \
   -R '^(core_epoch_policy|application_epoch_host|git_cache_contract|epoch_maintenance_integration)$'
 ```
@@ -1239,7 +1271,7 @@ cases at all three deterministic scales:
 
 ```sh
 cmake --build --preset dev --target \
-  better_pull_review_qt_epoch_comparison_tests
+  test_better_pull_review_qt_epoch_comparison_tests
 ctest --test-dir build/dev --output-on-failure \
   -R '^qt_epoch_comparison_scale_(100|125|200)$'
 ```
@@ -1269,9 +1301,9 @@ and lower-detail boundary. Build and run all focused targets without Qt:
 ```sh
 cmake --preset core-only
 cmake --build --preset core-only --target \
-  better_pull_review_diff_core_tests \
-  better_pull_review_diff_compute_core_tests \
-  better_pull_review_diff_semantics_core_tests
+  test_better_pull_review_diff_core_tests \
+  test_better_pull_review_diff_compute_core_tests \
+  test_better_pull_review_diff_semantics_core_tests
 ctest --test-dir build/core-only --output-on-failure \
   -R '^(core_diff_model|core_diff_compute|core_diff_semantics|core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract)$'
 ```

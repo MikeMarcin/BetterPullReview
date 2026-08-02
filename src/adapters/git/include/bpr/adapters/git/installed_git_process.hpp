@@ -1,4 +1,5 @@
-#pragma once
+#ifndef BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_PROCESS_HPP
+#define BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_PROCESS_HPP
 
 #include "bpr/application/git_process_port.hpp"
 
@@ -8,19 +9,22 @@
 #include <optional>
 #include <stop_token>
 
-namespace bpr::adapters::git
-{
-struct installed_git_process_configuration
-{
-    std::filesystem::path GitExecutable;
-    std::filesystem::path IsolationRoot;
-    std::optional<std::filesystem::path> WindowsSystemRoot;
-};
+namespace bpr::adapters::git {
+	/// \brief Describes the installed git process configuration record.
+	struct installed_git_process_configuration
+	{
+		std::filesystem::path                GitExecutable;
+		std::filesystem::path                IsolationRoot;
+		std::optional<std::filesystem::path> WindowsSystemRoot;
+	};
 
-[[nodiscard]] auto make_installed_git_process(
-    const installed_git_process_configuration& configuration,
-    std::stop_token stop = {})
-    -> std::expected<
-        std::unique_ptr<application::git_process_port>,
-        application::git_process_failure>;
+	/// \brief Creates the installed git process.
+	[[nodiscard]] auto make_installed_git_process(
+		const installed_git_process_configuration& aConfiguration,
+		std::stop_token                            aStop = { })
+		-> std::expected<
+			std::unique_ptr<application::git_process_port>,
+			application::git_process_failure>;
 }
+
+#endif // BPR_SRC_ADAPTERS_GIT_INCLUDE_BPR_ADAPTERS_GIT_INSTALLED_GIT_PROCESS_HPP

@@ -3,13 +3,13 @@
 ## Before changing code
 
 Read the root `AGENTS.md`, the nearest nested `AGENTS.md`, the relevant RFC,
-and its live issue card. Folder placement under `docs/issues/` is workflow
-state. Do not begin a dependent RFC while a prerequisite is open unless the
-canonical RFC index records a narrow product-owner exception. The current
-exception allows available-target implementation to advance past an open
-real-Windows verification card; it never waives that evidence, permits an
-out-of-order `Auto-Verified` transition, or makes hosted workflow output a
-substitute.
+its live issue card, and `_coding-standard/STANDARD.md`. Folder placement under
+`docs/issues/` is workflow state. Do not begin a dependent RFC while a
+prerequisite is open unless the canonical RFC index records a narrow
+product-owner exception. The current exception allows available-target
+implementation to advance past an open real-Windows verification card; it
+never waives that evidence, permits an out-of-order `Auto-Verified` transition,
+or makes hosted workflow output a substitute.
 
 Preserve unrelated work. Keep each issue-card slice narrow, move its card
 through the board, verify the changed public/runtime surface, and commit the
@@ -33,6 +33,7 @@ completed slice before starting the next one.
 cmake --preset dev
 cmake --build --preset dev
 ctest --preset dev --output-on-failure
+cmake --build --preset dev --target coding-format-check coding-tidy
 
 cmake --preset core-only
 cmake --build --preset core-only

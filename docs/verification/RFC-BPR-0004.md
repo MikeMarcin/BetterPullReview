@@ -186,6 +186,42 @@ matrix passed 33/33, and the tests-disabled Release graph passed its self-test,
 binary, and runtime audits. Ubuntu execution was explicitly deferred and is
 not claimed; Windows coverage is structural only.
 
+## BPR-0085 C++ coding-standard evidence
+
+BPR-0085 renders the project-neutral standard with the stable
+BetterPullReview/BPR/bpr identifiers and keeps the rendered policy under
+`_coding-standard/`. Root `.clang-format`, `.clang-tidy`, and `.editorconfig`
+files make that policy immediately available to editors and command-line
+tools. The installed discovery scripts cover first-party source and tests
+while excluding build, generated, and vendored trees. No unrendered package
+token remains.
+
+The complete 167-file C++ surface is canonically formatted. Public types and
+namespace-level functions carry API briefs, project headers use deterministic
+BPR include guards, and first-party identifiers follow the rendered naming
+policy. Documented local analysis adaptations exclude Qt-generated names,
+compiler/toolchain conflicts, and three intentional moved-from or nontrivial-
+destructor test probes; the final warnings-as-errors audit reports no
+first-party diagnostic.
+
+CMake exposes `coding-format`, `coding-format-check`, and `coding-tidy` when
+coding targets are enabled, reusing the centralized Python interpreter rather
+than rediscovering it. Application and test targets now use their required
+`app_` and `test_` categories while `OUTPUT_NAME` preserves every existing
+binary name. Structural source scanners accept canonical whitespace but retain
+their original semantic assertions. The behavior-preserving simplification
+review found no further justified cleanup.
+
+Final local evidence passed: the developer matrix built and passed 74/74
+tests; the Qt-free core-only matrix built and passed 33/33; strict clang-tidy
+completed with zero first-party diagnostics; `coding-format-check` checked all
+167 files; the documentation validator reported `DOCUMENTATION_OK`; and
+`git diff --check` was clean. The tests-disabled Release composition contract
+also rebuilt and audited the stable `better_pull_review` output through the
+renamed `app_better_pull_review` build target. Available-platform execution is
+macOS; Windows and Linux credential implementations retain structural contract
+coverage without a new target-native claim.
+
 ## Direct claim matrix
 
 Populate live commands, results, and evidence paths during implementation. A row remains open until its direct surface would fail or visibly disagree if the claim were false.
