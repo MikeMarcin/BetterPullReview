@@ -7,7 +7,7 @@ if(
     message(FATAL_ERROR "CPS producer-selection validation inputs are incomplete")
 endif()
 
-file(GLOB policy_oracles "${BPR_POLICY_ORACLE_DIRECTORY}/*.txt")
+file(GLOB_RECURSE policy_oracles "${BPR_POLICY_ORACLE_DIRECTORY}/*.txt")
 if(NOT policy_oracles)
     message(STATUS "CPS_PRODUCER_SELECTION_OK:0")
     return()
@@ -17,51 +17,55 @@ if(NOT EXISTS "${BPR_CPS_DOCUMENT}")
 endif()
 file(READ "${BPR_CPS_DOCUMENT}" cps_document)
 set(validated_count 0)
-foreach(policy_oracle IN LISTS policy_oracles)
-    get_filename_component(oracle_name "${policy_oracle}" NAME_WE)
-    if(NOT oracle_name MATCHES "^([A-Za-z0-9_]+)-(.+)$")
-        message(FATAL_ERROR "Malformed CPS producer-selection oracle: '${policy_oracle}'")
-    endif()
-    set(component "${CMAKE_MATCH_1}")
-    string(TOLOWER "${CMAKE_MATCH_2}" configuration)
-    file(READ "${policy_oracle}" producer_location)
-    string(STRIP "${producer_location}" producer_location)
-    string(
-        JSON cps_location
-        ERROR_VARIABLE location_error
-        GET
-            "${cps_document}"
-            components "${component}" configurations "${configuration}" location
-    )
-    if(location_error)
-        message(
-            FATAL_ERROR
-            "CPS producer-selection oracle has no matching document location: "
-            "${component}/${configuration}"
+foreach(field IN ITEMS location link_location)
+    file(GLOB field_oracles "${BPR_POLICY_ORACLE_DIRECTORY}/${field}/*.txt")
+    foreach(policy_oracle IN LISTS field_oracles)
+        get_filename_component(oracle_name "${policy_oracle}" NAME_WE)
+        if(NOT oracle_name MATCHES "^([A-Za-z0-9_]+)-(.+)$")
+            message(FATAL_ERROR "Malformed CPS producer-selection oracle: '${policy_oracle}'")
+        endif()
+        set(component "${CMAKE_MATCH_1}")
+        string(TOLOWER "${CMAKE_MATCH_2}" configuration)
+        file(READ "${policy_oracle}" producer_artifact)
+        string(STRIP "${producer_artifact}" producer_artifact)
+        string(
+            JSON cps_artifact
+            ERROR_VARIABLE artifact_error
+            GET
+                "${cps_document}"
+                components "${component}" configurations "${configuration}"
+                "${field}"
         )
-    endif()
-    if(
-        producer_location STREQUAL ""
-        OR producer_location MATCHES "-NOTFOUND$"
-        OR NOT EXISTS "${producer_location}"
-    )
-        message(
-            FATAL_ERROR
-            "Producer target has no valid native artifact for "
-            "${component}/${configuration}: '${producer_location}'"
+        if(artifact_error)
+            message(
+                FATAL_ERROR
+                "CPS producer-selection oracle has no matching document artifact: "
+                "${component}/${configuration}/${field}"
+            )
+        endif()
+        if(
+            producer_artifact STREQUAL ""
+            OR producer_artifact MATCHES "-NOTFOUND$"
+            OR NOT EXISTS "${producer_artifact}"
         )
-    endif()
-    file(REAL_PATH "${producer_location}" producer_location_real)
-    file(REAL_PATH "${cps_location}" cps_location_real)
-    if(NOT producer_location_real STREQUAL cps_location_real)
-        message(
-            FATAL_ERROR
-            "CPS producer selection differs from native CMake for "
-            "${component}/${configuration}: producer='${producer_location}', "
-            "cps='${cps_location}'"
-        )
-    endif()
-    math(EXPR validated_count "${validated_count} + 1")
+            message(
+                FATAL_ERROR
+                "Producer target has no valid native artifact for "
+                "${component}/${configuration}/${field}: '${producer_artifact}'"
+            )
+        endif()
+        file(REAL_PATH "${producer_artifact}" producer_artifact_real)
+        file(REAL_PATH "${cps_artifact}" cps_artifact_real)
+        if(NOT producer_artifact_real STREQUAL cps_artifact_real)
+            message(
+                FATAL_ERROR
+                "CPS producer selection differs from native CMake for "
+                "${component}/${configuration}/${field}: "
+                "producer='${producer_artifact}', cps='${cps_artifact}'"
+            )
+        endif()
+        math(EXPR validated_count "${validated_count} + 1")
+    endforeach()
 endforeach()
 
 message(STATUS "CPS_PRODUCER_SELECTION_OK:${validated_count}")

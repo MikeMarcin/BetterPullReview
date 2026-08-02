@@ -18,7 +18,7 @@ endif()
 
 file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/policy-oracles")
 
-set(BPR_CPS_GENERATOR_REVISION "6")
+set(BPR_CPS_GENERATOR_REVISION "7")
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -644,7 +644,15 @@ endfunction()
 function(bpr_library_component output component target)
     bpr_cps_type(type "${target}")
     if(target MATCHES "^Qt6::" AND NOT type STREQUAL "interface")
-        set(can_validate_native_selection TRUE)
+        set(can_validate_native_location TRUE)
+        set(can_validate_native_link_location FALSE)
+        get_target_property(native_target_type "${target}" TYPE)
+        if(
+            CMAKE_SYSTEM_NAME STREQUAL "Windows"
+            AND native_target_type STREQUAL "SHARED_LIBRARY"
+        )
+            set(can_validate_native_link_location TRUE)
+        endif()
         foreach(configuration IN LISTS BPR_CPS_CONFIGURATIONS)
             bpr_target_location(
                 oracle_location
@@ -654,17 +662,31 @@ function(bpr_library_component output component target)
                 "${configuration}"
             )
             if("${oracle_location}" STREQUAL "")
-                set(can_validate_native_selection FALSE)
-                break()
+                set(can_validate_native_location FALSE)
+            endif()
+            if("${oracle_link_location}" STREQUAL "")
+                set(can_validate_native_link_location FALSE)
             endif()
         endforeach()
-        if(can_validate_native_selection)
-            file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/policy-oracles")
+        if(can_validate_native_location)
+            file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/policy-oracles/location")
             file(
                 GENERATE
                 OUTPUT
-                    "${CMAKE_BINARY_DIR}/policy-oracles/${component}-$<CONFIG>.txt"
+                    "${CMAKE_BINARY_DIR}/policy-oracles/location/${component}-$<CONFIG>.txt"
                 CONTENT "$<TARGET_FILE:${target}>"
+            )
+        endif()
+        if(can_validate_native_link_location)
+            file(
+                MAKE_DIRECTORY
+                "${CMAKE_BINARY_DIR}/policy-oracles/link_location"
+            )
+            file(
+                GENERATE
+                OUTPUT
+                    "${CMAKE_BINARY_DIR}/policy-oracles/link_location/${component}-$<CONFIG>.txt"
+                CONTENT "$<TARGET_LINKER_FILE:${target}>"
             )
         endif()
     endif()

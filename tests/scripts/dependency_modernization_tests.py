@@ -197,7 +197,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertTrue(manifest.is_file())
         self.assertEqual(
             json.loads(manifest.read_text(encoding="utf-8"))["generator_revision"],
-            "6",
+            "7",
         )
         self.assertFalse(list(overlay.rglob("*.cmake")))
 
@@ -991,7 +991,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         document.read_bytes()
                     ).hexdigest()
                     manifest = {
-                        "generator_revision": "6",
+                        "generator_revision": "7",
                         "artifacts": [],
                         "documents": [
                             {
