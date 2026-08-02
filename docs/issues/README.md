@@ -210,7 +210,7 @@ downstream contracts, and records that no early RFC4 code or old follower/fake-
 row design exists to remediate. The external P4Merge screenshot/video remain
 non-product references outside the repository.
 
-Ready BPR-0072 owns canonical comparison/alignment records and invariants.
+In-progress BPR-0072 owns canonical comparison/alignment records and invariants.
 Backlog BPR-0073 through BPR-0074 own deterministic pairing/intraline work and
 the one mapping/group/navigation/detail source. Backlog BPR-0075 through
 BPR-0078 own exact host execution, Qt measured max-extent geometry, the shared

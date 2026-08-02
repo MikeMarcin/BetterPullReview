@@ -1,7 +1,7 @@
 ---
 id: BPR-0072
 title: Implement canonical diff and alignment records
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0004
 depends_on: [BPR-0071]
 ---
