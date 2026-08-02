@@ -259,6 +259,64 @@ class DependencyModernizationTests(unittest.TestCase):
                 configured.stdout + configured.stderr,
             )
 
+    def test_changed_producer_hints_reselect_qt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            fixture = ROOT / "tests/fixtures/cps-producer/path with spaces"
+            producer_a = temporary / "producer a/package"
+            producer_b = temporary / "producer b"
+            shutil.copytree(fixture, producer_a)
+            shutil.copytree(fixture, producer_b / "lib/cmake")
+            source = temporary / "source"
+            source.mkdir()
+            (source / "CMakeLists.txt").write_text(
+                "cmake_minimum_required(VERSION 4.4.2)\n"
+                "project(QtProducerReselection LANGUAGES C CXX)\n"
+                f"set(PROJECT_SOURCE_DIR [==[{ROOT}]==])\n"
+                f"list(APPEND CMAKE_MODULE_PATH [==[{ROOT / 'cmake'}]==])\n"
+                "set(BPR_BUILD_QT ON)\n"
+                "set(BUILD_TESTING OFF)\n"
+                "set(BPR_DEPENDENCY_OFFLINE OFF)\n"
+                "include(BprDependencies)\n"
+                "bpr_configure_dependencies()\n",
+                encoding="utf-8",
+            )
+            build = temporary / "build"
+            common = [
+                str(CMAKE_COMMAND),
+                "-S",
+                str(source),
+                "-B",
+                str(build),
+                "-G",
+                "Ninja",
+                "-DCMAKE_BUILD_TYPE=Debug",
+            ]
+            first = subprocess.run(
+                [*common, f"-DQt6_DIR={producer_a / 'Qt6'}"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            document = build / "_bpr/cps-overlay/cps/Qt6/Qt6.cps"
+            first_location = json.loads(document.read_text(encoding="utf-8"))[
+                "components"
+            ]["Core"]["configurations"]["debug"]["location"]
+            self.assertIn("producer a", first_location)
+
+            second = subprocess.run(
+                [*common, "-UQt6_DIR", f"-DQt6_ROOT={producer_b}"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+            second_location = json.loads(document.read_text(encoding="utf-8"))[
+                "components"
+            ]["Core"]["configurations"]["debug"]["location"]
+            self.assertIn("producer b", second_location)
+
     def test_sqlite_is_download_only_and_not_vendored_or_system_resolved(self) -> None:
         provider = (ROOT / "cmake/BprSQLiteProvider.cmake").read_text(
             encoding="utf-8"
@@ -1091,6 +1149,10 @@ class DependencyModernizationTests(unittest.TestCase):
                     "-DBPR_FAKE_QT_TRANSITIVE_SELECTION=ON",
                 ),
                 "Transitive CPS producer selection differs from native CMake",
+            ),
+            (
+                ("-DBPR_FAKE_QT_TRANSITIVE_WINDOWS_SHARED=ON",),
+                "Unsupported CPS transitive runtime artifact",
             ),
             (("-DBPR_FAKE_QT_VERSION=6.7.9",), "caller-installed Qt >= 6.8"),
         )

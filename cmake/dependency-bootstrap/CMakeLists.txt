@@ -502,6 +502,18 @@ function(bpr_append_imported_artifact key target root generate_oracle)
         "${target}"
         "${configuration}"
     )
+    if(
+        target_type STREQUAL "SHARED_LIBRARY"
+        AND NOT "${location}" STREQUAL ""
+        AND NOT "${link_location}" STREQUAL ""
+    )
+        message(
+            FATAL_ERROR
+            "Unsupported CPS transitive runtime artifact in ${target}: "
+            "a shared dependency with distinct runtime and linker artifacts "
+            "must be modeled as a CPS component"
+        )
+    endif()
     if(NOT "${link_location}" STREQUAL "")
         set(artifact "${link_location}")
         set(use_linker_file TRUE)

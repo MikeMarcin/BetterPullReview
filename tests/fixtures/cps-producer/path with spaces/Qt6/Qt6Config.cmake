@@ -247,6 +247,28 @@ if(BPR_FAKE_QT_TRANSITIVE_SELECTION)
     )
 endif()
 
+if(BPR_FAKE_QT_TRANSITIVE_WINDOWS_SHARED)
+    add_library(Vendor::Runtime SHARED IMPORTED GLOBAL)
+    set_target_properties(
+        Vendor::Runtime
+        PROPERTIES
+            IMPORTED_CONFIGURATIONS "DEBUG;RELEASE"
+            IMPORTED_LOCATION_DEBUG
+                "${_bpr_fake_root}/artifacts/windows-debug.dll"
+            IMPORTED_LOCATION_RELEASE
+                "${_bpr_fake_root}/artifacts/windows-release.dll"
+            IMPORTED_IMPLIB_DEBUG
+                "${_bpr_fake_root}/artifacts/windows-debug.lib"
+            IMPORTED_IMPLIB_RELEASE
+                "${_bpr_fake_root}/artifacts/windows-release.lib"
+    )
+    set_property(
+        TARGET Qt6::Core
+        APPEND
+        PROPERTY INTERFACE_LINK_LIBRARIES Vendor::Runtime
+    )
+endif()
+
 if(BPR_FAKE_QT_REPEATED_LINK_ORDER)
     foreach(dependency IN ITEMS Core Gui)
         add_library("Vendor::${dependency}" STATIC IMPORTED GLOBAL)

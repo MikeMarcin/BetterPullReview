@@ -19,7 +19,7 @@ function(bpr_collect_directory_targets output directory)
 endfunction()
 
 function(bpr_validate_qt_compatibility_nonparticipation)
-    bpr_collect_directory_targets(product_targets "${PROJECT_SOURCE_DIR}")
+    bpr_collect_directory_targets(product_targets "${CMAKE_SOURCE_DIR}")
     list(REMOVE_DUPLICATES product_targets)
     foreach(target IN LISTS product_targets)
         if(target MATCHES "^Qt6::")
@@ -345,11 +345,41 @@ endfunction()
 
 function(bpr_configure_dependencies)
     set(BPR_CPS_OVERLAY "${CMAKE_BINARY_DIR}/_bpr/cps-overlay" CACHE INTERNAL "BPR CPS overlay")
+    set(qt6_root_hint "")
+    if(DEFINED Qt6_ROOT)
+        set(qt6_root_hint "${Qt6_ROOT}")
+    endif()
+    set(prefix_path_hint "")
+    if(DEFINED CMAKE_PREFIX_PATH)
+        set(prefix_path_hint "${CMAKE_PREFIX_PATH}")
+    endif()
+    set(environment_qt6_root_hint "")
+    if(DEFINED ENV{Qt6_ROOT})
+        set(environment_qt6_root_hint "$ENV{Qt6_ROOT}")
+    endif()
+    set(environment_prefix_path_hint "")
+    if(DEFINED ENV{CMAKE_PREFIX_PATH})
+        set(environment_prefix_path_hint "$ENV{CMAKE_PREFIX_PATH}")
+    endif()
+    set(
+        producer_hint_material
+        "Qt6_ROOT=${qt6_root_hint}\n"
+        "CMAKE_PREFIX_PATH=${prefix_path_hint}\n"
+        "ENV_Qt6_ROOT=${environment_qt6_root_hint}\n"
+        "ENV_CMAKE_PREFIX_PATH=${environment_prefix_path_hint}\n"
+    )
+    string(SHA256 producer_hint_fingerprint "${producer_hint_material}")
+    set(current_external_qt_dir FALSE)
     if(Qt6_DIR)
         file(REAL_PATH "${Qt6_DIR}" candidate_qt_dir)
-        file(REAL_PATH "${BPR_CPS_OVERLAY}" candidate_overlay)
+        cmake_path(
+            ABSOLUTE_PATH BPR_CPS_OVERLAY
+            NORMALIZE
+            OUTPUT_VARIABLE candidate_overlay
+        )
         string(FIND "${candidate_qt_dir}" "${candidate_overlay}/" overlay_index)
         if(NOT overlay_index EQUAL 0)
+            set(current_external_qt_dir TRUE)
             set(
                 BPR_PRODUCER_QT6_DIR
                 "${Qt6_DIR}"
@@ -357,6 +387,29 @@ function(bpr_configure_dependencies)
                 "Qt producer package used only by the isolated CPS bootstrap"
                 FORCE
             )
+        endif()
+    endif()
+    if(current_external_qt_dir)
+        set(
+            BPR_PRODUCER_HINT_FINGERPRINT
+            "${producer_hint_fingerprint}"
+            CACHE INTERNAL
+            "Producer hints associated with the retained Qt package directory"
+            FORCE
+        )
+    elseif(BPR_PRODUCER_QT6_DIR)
+        set(stale_producer_hint FALSE)
+        if(NOT DEFINED BPR_PRODUCER_HINT_FINGERPRINT)
+            set(stale_producer_hint TRUE)
+        elseif(
+            NOT "${BPR_PRODUCER_HINT_FINGERPRINT}"
+                STREQUAL "${producer_hint_fingerprint}"
+        )
+            set(stale_producer_hint TRUE)
+        endif()
+        if(stale_producer_hint)
+            unset(BPR_PRODUCER_QT6_DIR CACHE)
+            unset(BPR_PRODUCER_HINT_FINGERPRINT CACHE)
         endif()
     endif()
     set(
