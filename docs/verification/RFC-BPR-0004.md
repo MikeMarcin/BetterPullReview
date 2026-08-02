@@ -15,8 +15,10 @@ stale-acceptance seam and closes H-01, H-02, and the non-Qt portions of H-03
 and H-04. Scale, Qt, installed-Git composition, and all rendered interaction
 claims remain open on later cards. BPR-0076 now supplies the Qt-local live-pane
 measurement, indexed max-extent axis, endpoint clamp, and explicit geometry-
-invalidation seam; shared input/scrollbar authority, link-map rendering, and
-selected application composition remain open on BPR-0077 through BPR-0079.
+invalidation seam. BPR-0077 now supplies the Qt-local retained comparison
+position, receiver-neutral input translation, shared scrollbar projection,
+guarded two-pane frames, and pane-local horizontal routing. Link-map painting
+and selected application composition remain open on BPR-0078 and BPR-0079.
 RFC-BPR-0003 retains
 explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
 until its dependency can close.
@@ -174,6 +176,61 @@ They do not claim a retained shared `q`, wheel/trackpad equivalence, scrollbar
 authority, painted ribbons, connector attachment, or public workbench
 composition; those claims remain on BPR-0077 through BPR-0079. Target-native
 Windows execution remains open and no GitHub or GHES mutation is performed.
+
+## BPR-0077 shared-controller evidence
+
+The Qt adapter now owns one finite subpixel comparison position and accepts
+vertical input only through that authority. Event filters installed on real
+left-pane, right-pane, and link-map `QWidget` surfaces bind both text viewports
+for wheel delivery and focused editors for Page/Home/End delivery. They prefer
+pixel deltas, fall back to platform-scaled angle deltas, preserve begin/end
+phases, and use Qt-delivered inverted values without applying a second
+inversion. Identical input sequences over all three receivers therefore
+produce identical retained position traces with no leader election or
+receiver-handoff reset.
+
+Every accepted position projects both panes through the BPR-0076 measured
+axis, then derives independent document origins around a 0.43 viewport rail
+with exact leading/trailing clamps. Frame publication is guarded against
+recursive controller input. Repaint delivery is queued and coalesced. The
+integer shared scrollbar is only a 100,000-step presentation projection;
+retained `q` remains authoritative across pixel/angle input, Page Up/Down,
+Home/End, scrollbar single/page/minimum/maximum actions and drag values, and
+stable-segment reveal. Native discrete scrollbar actions carry their exact
+`qreal` target across the Qt action/value signal pair, so opposing page or
+single steps do not round-trip through the integer projection; a user drag
+alone selects a new projected position. Same-comparison axis replacement
+retains stable segment/fraction before recomputing origins from changed
+geometry. Horizontal and Shift-wheel paths mutate only the receiving pane's
+horizontal scrollbar, including inward residual accumulation at either bound.
+
+The three selected Qt-scale controller tests pass at 1.0x, 1.25x, and 2.0x.
+They install the controller on live event receivers and a real shared
+`QScrollBar`, then directly cover identical left/right/link-map traces,
+right-insertion and left-deletion pinning, 4:7 and 7:4 proportional motion,
+1,000 forward/reverse subpixel cycles without drift, fine-angle retention,
+Qt inversion and phase handling, continuous positive-axis travel, first/final
+endpoint reachability, all controller and scrollbar navigation entries,
+non-commensurate exact page/single reversals, same-comparison remeasurement,
+serialized reentrant axis replacement/clear, callback exception/destruction
+safety, recursive-feedback suppression, coalesced repaint, and horizontal
+isolation. The same three runs build their axis from live `QPlainTextEdit`
+measurements, send wheel events through real text viewports and Page/Home/End
+through focused widgets, assert that neither native pane scrollbar becomes
+authority, and confirm the selected DPR. A separate ASan/UBSan build passes
+the same 3/3 matrix, including synchronous controller destruction from a
+shared-scrollbar action callback.
+The focused core/host/architecture/axis/controller matrix passes 13/13, strict
+analysis and formatting pass, and no Qt scroll state appears in core or
+application code.
+
+These results close the controller-level portions of Q-01 through Q-09. This
+slice performs no custom painting and makes no ribbon, rendered-workbench,
+system-theme, public runtime, or presentation-polish claim. BPR-0078 retains
+link-map paint and hit testing; BPR-0079 retains selected rendered composition
+and integration traces; RFC-BPR-0005 retains its dedicated presentation-polish
+and native visual-acceptance pass. Target-native Windows execution remains
+open without blocking available-platform work.
 
 ## BPR-0084 build-foundation evidence
 

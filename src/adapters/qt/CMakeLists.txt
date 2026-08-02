@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_adapter_qt
     STATIC
+        src/comparison_scroll_controller.cpp
         src/event_loop_executor.cpp
         src/epoch_comparison_control.cpp
         src/epoch_history_model.cpp
