@@ -218,6 +218,57 @@ if(BPR_FAKE_QT_FALSE_SUPPORTED_VALUES)
     )
 endif()
 
+if(BPR_FAKE_QT_DUPLICATE_DEFINITIONS)
+    set_property(
+        TARGET Qt6::Core
+        APPEND
+        PROPERTY INTERFACE_COMPILE_DEFINITIONS
+            "BPR_DUP=one;BPR_DUP=two"
+    )
+endif()
+
+if(BPR_FAKE_QT_TRANSITIVE_SELECTION)
+    add_library(Vendor::Dep SHARED IMPORTED GLOBAL)
+    set_target_properties(
+        Vendor::Dep
+        PROPERTIES
+            IMPORTED_CONFIGURATIONS RELEASE
+            IMPORTED_LOCATION
+                "${_bpr_fake_root}/artifacts/windows-release.dll"
+            IMPORTED_LOCATION_DEBUG
+                "${_bpr_fake_root}/artifacts/core-debug.dylib"
+            IMPORTED_LOCATION_RELEASE
+                "${_bpr_fake_root}/artifacts/core-release.dylib"
+    )
+    set_property(
+        TARGET Qt6::Core
+        APPEND
+        PROPERTY INTERFACE_LINK_LIBRARIES Vendor::Dep
+    )
+endif()
+
+if(BPR_FAKE_QT_REPEATED_LINK_ORDER)
+    foreach(dependency IN ITEMS Core Gui)
+        add_library("Vendor::${dependency}" STATIC IMPORTED GLOBAL)
+        string(TOLOWER "${dependency}" dependency_lower)
+        set_target_properties(
+            "Vendor::${dependency}"
+            PROPERTIES
+                IMPORTED_CONFIGURATIONS "DEBUG;RELEASE"
+                IMPORTED_LOCATION_DEBUG
+                    "${_bpr_fake_root}/artifacts/${dependency_lower}-debug.dylib"
+                IMPORTED_LOCATION_RELEASE
+                    "${_bpr_fake_root}/artifacts/${dependency_lower}-release.dylib"
+        )
+    endforeach()
+    set_property(
+        TARGET Qt6::Core
+        APPEND
+        PROPERTY INTERFACE_LINK_LIBRARIES
+            "Vendor::Core;Vendor::Gui;Vendor::Core"
+    )
+endif()
+
 if(BPR_FAKE_QT_POLICY_ORACLE)
     file(
         GENERATE

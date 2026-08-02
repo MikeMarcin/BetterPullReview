@@ -16,9 +16,10 @@ if(NOT DEFINED BPR_CPS_OVERLAY OR BPR_CPS_OVERLAY STREQUAL "")
     message(FATAL_ERROR "BPR_CPS_OVERLAY is required")
 endif()
 
+file(REMOVE "${BPR_CPS_OVERLAY}/validated.txt")
 file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/policy-oracles")
 
-set(BPR_CPS_GENERATOR_REVISION "7")
+set(BPR_CPS_GENERATOR_REVISION "8")
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -52,6 +53,7 @@ endfunction()
 function(bpr_json_definitions output)
     set(result "{\"*\":{")
     set(separator "")
+    set(definition_names)
     foreach(definition IN LISTS ARGN)
         string(REGEX REPLACE "^-D" "" definition "${definition}")
         if(definition MATCHES "^([^=]+)=(.*)$")
@@ -65,6 +67,13 @@ function(bpr_json_definitions output)
         if(name STREQUAL "")
             message(FATAL_ERROR "CPS compile definition has an empty name")
         endif()
+        if(name IN_LIST definition_names)
+            message(
+                FATAL_ERROR
+                "CPS metadata has duplicate compile-definition name '${name}'"
+            )
+        endif()
+        list(APPEND definition_names "${name}")
         bpr_json_quote(json_name "${name}")
         string(APPEND result "${separator}${json_name}:${json_value}")
         set(separator ",")
@@ -214,6 +223,9 @@ function(bpr_validate_usage_property_coverage target)
             AND compatible_string STREQUAL "QT_MAJOR_VERSION"
             AND interface_value STREQUAL "6"
         )
+            # CPS cannot encode CMake custom compatible-interface properties.
+            # The product graph performs a deferred, whole-target audit and
+            # fails if anything outside Qt participates in this constraint.
             continue()
         endif()
         if(
@@ -221,6 +233,7 @@ function(bpr_validate_usage_property_coverage target)
             AND compatible_string STREQUAL "QT_COORD_TYPE"
             AND NOT interface_value MATCHES "-NOTFOUND$"
         )
+            # See the matching product-graph audit in BprDependencies.cmake.
             continue()
         endif()
         message(
@@ -445,17 +458,94 @@ function(bpr_collect_plain_property key target property output_property)
     endforeach()
 endfunction()
 
-function(bpr_collect_target key target root)
-    string(SHA256 target_hash "${target}")
-    get_property(visited GLOBAL PROPERTY "BPR_CPS_${key}_VISITED_${target_hash}")
-    if(visited)
+function(
+    bpr_generate_closure_selection_oracle
+    key
+    target
+    root
+    configuration
+    expected_artifact
+    use_linker_file
+)
+    if(NOT root MATCHES "^Qt6::(Core|Gui|Widgets|Network)$")
         return()
     endif()
-    set_property(GLOBAL PROPERTY "BPR_CPS_${key}_VISITED_${target_hash}" TRUE)
+    set(component "${CMAKE_MATCH_1}")
+    string(SHA256 target_hash "${target}")
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/policy-oracles/closure")
+    if(use_linker_file)
+        set(native_artifact "$<TARGET_LINKER_FILE:${target}>")
+    else()
+        set(native_artifact "$<TARGET_FILE:${target}>")
+    endif()
+    file(
+        GENERATE
+        OUTPUT
+            "${CMAKE_BINARY_DIR}/policy-oracles/closure/${key}-${target_hash}.txt"
+        CONTENT
+            "${component}\n${configuration}\n${target}\n${expected_artifact}\n${native_artifact}"
+        CONDITION "$<CONFIG:${configuration}>"
+    )
+endfunction()
 
+function(bpr_append_imported_artifact key target root generate_oracle)
+    get_target_property(target_type "${target}" TYPE)
+    if(target_type STREQUAL "INTERFACE_LIBRARY")
+        return()
+    endif()
+    get_property(configuration GLOBAL PROPERTY "BPR_CPS_${key}_CONFIGURATION")
+    bpr_target_location(
+        location
+        link_location
+        imported_configuration
+        "${target}"
+        "${configuration}"
+    )
+    if(NOT "${link_location}" STREQUAL "")
+        set(artifact "${link_location}")
+        set(use_linker_file TRUE)
+    elseif(NOT "${location}" STREQUAL "")
+        set(artifact "${location}")
+        set(use_linker_file FALSE)
+    else()
+        message(FATAL_ERROR "Imported dependency target '${target}' has no usable artifact")
+    endif()
+    bpr_append_metadata("${key}" LINK_LIBRARIES "${artifact}")
+    set_property(GLOBAL APPEND PROPERTY BPR_CPS_ARTIFACTS "${artifact}")
+    if(generate_oracle)
+        bpr_generate_closure_selection_oracle(
+            "${key}"
+            "${target}"
+            "${root}"
+            "${configuration}"
+            "${artifact}"
+            "${use_linker_file}"
+        )
+    endif()
+endfunction()
+
+function(bpr_collect_target key target root)
     if(NOT TARGET "${target}")
         message(FATAL_ERROR "CPS metadata references missing target '${target}'")
     endif()
+    if(
+        target MATCHES "^Qt6::(Core|Gui|Widgets|Network)$"
+        AND NOT target STREQUAL root
+    )
+        string(REGEX REPLACE "^Qt6::" ":" requirement "${target}")
+        bpr_append_metadata("${key}" REQUIRES "${requirement}")
+        return()
+    endif()
+
+    string(SHA256 target_hash "${target}")
+    get_property(visited GLOBAL PROPERTY "BPR_CPS_${key}_VISITED_${target_hash}")
+    if(visited)
+        if(NOT target STREQUAL root AND NOT target STREQUAL "Threads::Threads")
+            bpr_append_imported_artifact("${key}" "${target}" "${root}" FALSE)
+        endif()
+        return()
+    endif()
+    set_property(GLOBAL PROPERTY "BPR_CPS_${key}_VISITED_${target_hash}" TRUE)
     bpr_validate_usage_property_coverage("${target}")
 
     if(target STREQUAL "Threads::Threads")
@@ -465,15 +555,6 @@ function(bpr_collect_target key target root)
         if(CMAKE_THREAD_LIBS_INIT)
             bpr_append_metadata("${key}" LINK_LIBRARIES "${CMAKE_THREAD_LIBS_INIT}")
         endif()
-        return()
-    endif()
-
-    if(
-        target MATCHES "^Qt6::(Core|Gui|Widgets|Network)$"
-        AND NOT target STREQUAL root
-    )
-        string(REGEX REPLACE "^Qt6::" ":" requirement "${target}")
-        bpr_append_metadata("${key}" REQUIRES "${requirement}")
         return()
     endif()
 
@@ -500,26 +581,7 @@ function(bpr_collect_target key target root)
     endforeach()
 
     if(NOT target STREQUAL root)
-        get_target_property(target_type "${target}" TYPE)
-        if(NOT target_type STREQUAL "INTERFACE_LIBRARY")
-            get_property(configuration GLOBAL PROPERTY "BPR_CPS_${key}_CONFIGURATION")
-            bpr_target_location(
-                location
-                link_location
-                imported_configuration
-                "${target}"
-                "${configuration}"
-            )
-            if(NOT "${link_location}" STREQUAL "")
-                bpr_append_metadata("${key}" LINK_LIBRARIES "${link_location}")
-                set_property(GLOBAL APPEND PROPERTY BPR_CPS_ARTIFACTS "${link_location}")
-            elseif(NOT "${location}" STREQUAL "")
-                bpr_append_metadata("${key}" LINK_LIBRARIES "${location}")
-                set_property(GLOBAL APPEND PROPERTY BPR_CPS_ARTIFACTS "${location}")
-            else()
-                message(FATAL_ERROR "Imported dependency target '${target}' has no usable artifact")
-            endif()
-        endif()
+        bpr_append_imported_artifact("${key}" "${target}" "${root}" TRUE)
     endif()
 
     bpr_target_property_list(link_libraries "${target}" INTERFACE_LINK_LIBRARIES)
@@ -624,7 +686,6 @@ function(bpr_component_configuration output component target configuration)
         list(GET mapping 1 field)
         get_property(values GLOBAL PROPERTY "BPR_CPS_${key}_${property}")
         if(NOT "${values}" STREQUAL "")
-            list(REMOVE_DUPLICATES values)
             bpr_json_array(array ${values})
             string(APPEND result "${separator}\"${field}\":${array}")
             set(separator ",")
@@ -873,12 +934,146 @@ file(REMOVE "${BPR_CPS_OVERLAY}/artifacts.cmake")
 string(SHA256 fingerprint "${overlay_manifest}")
 bpr_write_if_different("${BPR_CPS_OVERLAY}/fingerprint.txt" "${fingerprint}\n")
 
+set(generated_qt_document "${BPR_CPS_OVERLAY}/cps/Qt6/Qt6.cps")
+if(BPR_PRODUCER_VALIDATION_REFERENCE_CPS_DOCUMENT)
+    set(validation_qt_document "${BPR_PRODUCER_VALIDATION_REFERENCE_CPS_DOCUMENT}")
+else()
+    set(validation_qt_document "${generated_qt_document}")
+endif()
+
 add_custom_target(
     bpr_validate_cps_producer_selection
     COMMAND
         "${CMAKE_COMMAND}"
-        "-DBPR_CPS_DOCUMENT=${BPR_CPS_OVERLAY}/cps/Qt6/Qt6.cps"
+        "-DBPR_CPS_DOCUMENT=${validation_qt_document}"
+        "-DBPR_GENERATED_CPS_DOCUMENT=${generated_qt_document}"
         "-DBPR_POLICY_ORACLE_DIRECTORY=${CMAKE_BINARY_DIR}/policy-oracles"
         -P "${CMAKE_CURRENT_LIST_DIR}/ValidateProducerSelection.cmake"
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_CPS_OVERLAY=${BPR_CPS_OVERLAY}"
+        "-DBPR_CPS_GENERATOR_REVISION=${BPR_CPS_GENERATOR_REVISION}"
+        -P "${CMAKE_CURRENT_LIST_DIR}/MarkOverlayValidated.cmake"
     VERBATIM
 )
+
+# The generated CPS document advertises four standard consumer configurations,
+# which may not match the configurations enabled by the caller's generator.
+# Reconfigure the isolated producer with an explicit validation matrix and
+# compare every native selection with the primary CPS document. The reference
+# variable prevents recursive validation fan-out.
+if(
+    BPR_BOOTSTRAP_QT
+    AND NOT BPR_PRODUCER_VALIDATION_REFERENCE_CPS_DOCUMENT
+)
+    get_cmake_property(cache_variables CACHE_VARIABLES)
+    if(CMAKE_CONFIGURATION_TYPES)
+        set(validation_configurations AllConfigurations)
+    else()
+        set(validation_configurations ${BPR_CPS_CONFIGURATIONS})
+    endif()
+    foreach(validation_configuration IN LISTS validation_configurations)
+        set(
+            validation_binary
+            "${CMAKE_BINARY_DIR}/policy-validation/${validation_configuration}"
+        )
+        set(
+            validation_overlay
+            "${validation_binary}/cps-overlay"
+        )
+        set(validation_configure_command
+            "${CMAKE_COMMAND}"
+            --fresh
+            -S "${CMAKE_CURRENT_SOURCE_DIR}"
+            -B "${validation_binary}"
+            -G "${CMAKE_GENERATOR}"
+            "-DBPR_CPS_OVERLAY:PATH=${validation_overlay}"
+            -DBPR_BOOTSTRAP_QT:BOOL=ON
+            -DBPR_BOOTSTRAP_LIBSECRET:BOOL=OFF
+            -DBPR_BOOTSTRAP_TEST_TOOLS:BOOL=OFF
+            -DBPR_BOOTSTRAP_GIT:BOOL=OFF
+            "-DBPR_PRODUCER_VALIDATION_REFERENCE_CPS_DOCUMENT:FILEPATH=${generated_qt_document}"
+            -DCMAKE_POLICY_DEFAULT_CMP0200:STRING=NEW
+            -DCMAKE_POLICY_VERSION_MINIMUM:STRING=4.4.2
+        )
+        if(CMAKE_CONFIGURATION_TYPES)
+            string(REPLACE ";" "\\;" validation_matrix "${BPR_CPS_CONFIGURATIONS}")
+            list(
+                APPEND validation_configure_command
+                "-DCMAKE_CONFIGURATION_TYPES:STRING=${validation_matrix}"
+            )
+            set(validation_build_configuration Debug)
+        else()
+            list(
+                APPEND validation_configure_command
+                "-DCMAKE_BUILD_TYPE:STRING=${validation_configuration}"
+            )
+            set(validation_build_configuration "${validation_configuration}")
+        endif()
+        if(CMAKE_GENERATOR_PLATFORM)
+            list(APPEND validation_configure_command -A "${CMAKE_GENERATOR_PLATFORM}")
+        endif()
+        if(CMAKE_GENERATOR_TOOLSET)
+            list(APPEND validation_configure_command -T "${CMAKE_GENERATOR_TOOLSET}")
+        endif()
+        foreach(variable IN ITEMS
+            Qt6_DIR
+            Qt6_ROOT
+            CMAKE_PREFIX_PATH
+            CMAKE_TOOLCHAIN_FILE
+            CMAKE_FIND_ROOT_PATH
+            CMAKE_FIND_ROOT_PATH_MODE_PACKAGE
+            CMAKE_OSX_ARCHITECTURES
+            CMAKE_OSX_DEPLOYMENT_TARGET
+            CMAKE_OSX_SYSROOT
+            CMAKE_SYSROOT
+            CMAKE_MSVC_RUNTIME_LIBRARY
+        )
+            if(DEFINED ${variable})
+                string(REPLACE ";" "\\;" value "${${variable}}")
+                list(APPEND validation_configure_command "-D${variable}:STRING=${value}")
+            endif()
+        endforeach()
+        foreach(variable IN LISTS cache_variables)
+            if(variable MATCHES "^BPR_FAKE_QT_")
+                string(REPLACE ";" "\\;" value "${${variable}}")
+                list(APPEND validation_configure_command "-D${variable}:STRING=${value}")
+            endif()
+        endforeach()
+
+        execute_process(
+            COMMAND ${validation_configure_command}
+            RESULT_VARIABLE validation_configure_result
+            OUTPUT_VARIABLE validation_configure_output
+            ERROR_VARIABLE validation_configure_error
+        )
+        if(NOT validation_configure_result EQUAL 0)
+            message(
+                FATAL_ERROR
+                "Unable to configure the ${validation_configuration} "
+                "CPS producer-selection oracle "
+                "(${validation_configure_result}).\n"
+                "${validation_configure_output}${validation_configure_error}"
+            )
+        endif()
+
+        execute_process(
+            COMMAND
+                "${CMAKE_COMMAND}"
+                --build "${validation_binary}"
+                --target bpr_validate_cps_producer_selection
+                --config "${validation_build_configuration}"
+            RESULT_VARIABLE validation_build_result
+            OUTPUT_VARIABLE validation_build_output
+            ERROR_VARIABLE validation_build_error
+        )
+        if(NOT validation_build_result EQUAL 0)
+            message(
+                FATAL_ERROR
+                "CPS producer selection differs for ${validation_configuration} "
+                "(${validation_build_result}).\n"
+                "${validation_build_output}${validation_build_error}"
+            )
+        endif()
+    endforeach()
+endif()

@@ -195,11 +195,67 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertRegex(fingerprint, r"^[0-9a-f]{64}$")
         manifest = overlay / "artifacts.json"
         self.assertTrue(manifest.is_file())
+        manifest_digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
         self.assertEqual(
             json.loads(manifest.read_text(encoding="utf-8"))["generator_revision"],
-            "7",
+            "8",
+        )
+        self.assertEqual(
+            (overlay / "validated.txt").read_text(encoding="utf-8").strip(),
+            f"8:{manifest_digest}",
         )
         self.assertFalse(list(overlay.rglob("*.cmake")))
+
+    def test_cps_compile_definitions_reach_product_compile_commands(self) -> None:
+        commands = json.loads(
+            (BUILD_DIR / "compile_commands.json").read_text(encoding="utf-8")
+        )
+        qt_commands = [
+            entry["command"]
+            for entry in commands
+            if "/src/adapters/qt/" in entry["file"]
+        ]
+        self.assertTrue(qt_commands)
+        self.assertTrue(
+            any(
+                re.search(r"(?:-D|/D)QT_CORE_LIB(?:\s|$)", command)
+                for command in qt_commands
+            )
+        )
+
+    def test_product_graph_rejects_qt_compatibility_participation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            source = temporary / "source"
+            source.mkdir()
+            (source / "CMakeLists.txt").write_text(
+                "cmake_minimum_required(VERSION 4.4.2)\n"
+                "project(QtCompatibilityAudit LANGUAGES NONE)\n"
+                f"list(APPEND CMAKE_MODULE_PATH [==[{ROOT / 'cmake'}]==])\n"
+                "include(BprDependencies)\n"
+                "add_library(conflicting_consumer INTERFACE)\n"
+                "set_property(TARGET conflicting_consumer PROPERTY "
+                "INTERFACE_QT_COORD_TYPE float)\n"
+                "bpr_validate_qt_compatibility_nonparticipation()\n",
+                encoding="utf-8",
+            )
+            configured = subprocess.run(
+                [
+                    str(CMAKE_COMMAND),
+                    "-S",
+                    str(source),
+                    "-B",
+                    str(temporary / "build"),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(configured.returncode, 0)
+            self.assertIn(
+                "represented by CPS",
+                configured.stdout + configured.stderr,
+            )
 
     def test_sqlite_is_download_only_and_not_vendored_or_system_resolved(self) -> None:
         provider = (ROOT / "cmake/BprSQLiteProvider.cmake").read_text(
@@ -486,6 +542,40 @@ class DependencyModernizationTests(unittest.TestCase):
                     self.assertIn(
                         "fake-platform-library", gui["debug"]["link_libraries"]
                     )
+                    if generator == "Ninja Multi-Config":
+                        validation_case = "AllConfigurations"
+                    else:
+                        validation_case = "MinSizeRel"
+                    oracle = (
+                        Path(temporary_directory)
+                        / "bootstrap build"
+                        / "policy-validation"
+                        / validation_case
+                        / "policy-oracles/location/Core-MinSizeRel.txt"
+                    )
+                    self.assertTrue(oracle.is_file(), oracle)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result, overlay = self.run_bootstrap_fixture(
+                temporary_directory,
+                extra=("-DBPR_FAKE_QT_REPEATED_LINK_ORDER=ON",),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            document = json.loads(
+                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
+            )
+            link_libraries = document["components"]["Core"]["configurations"][
+                "debug"
+            ]["link_libraries"]
+            repeated = [
+                Path(library).name
+                for library in link_libraries
+                if library.endswith("-debug.dylib")
+            ]
+            self.assertEqual(
+                repeated[-3:],
+                ["core-debug.dylib", "gui-debug.dylib", "core-debug.dylib"],
+            )
 
     def test_cps_bootstrap_preserves_windows_dll_and_import_library_metadata(
         self,
@@ -779,6 +869,21 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertEqual(
                 regenerated.returncode, 0, regenerated.stdout + regenerated.stderr
             )
+            resealed = subprocess.run(
+                [
+                    str(CMAKE_COMMAND),
+                    "--build",
+                    str(Path(temporary_directory) / "bootstrap build"),
+                    "--target",
+                    "bpr_validate_cps_producer_selection",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                resealed.returncode, 0, resealed.stdout + resealed.stderr
+            )
             self.assertFalse(list((overlay / "cps").rglob("*.cps")))
             manifest = json.loads(
                 (overlay / "artifacts.json").read_text(encoding="utf-8")
@@ -890,6 +995,10 @@ class DependencyModernizationTests(unittest.TestCase):
                 "Unsupported CPS usage requirement",
             ),
             (
+                ("-DBPR_FAKE_QT_DUPLICATE_DEFINITIONS=ON",),
+                "duplicate compile-definition name 'BPR_DUP'",
+            ),
+            (
                 (
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_INCOMPLETE_DEBUG=ON",
@@ -948,6 +1057,20 @@ class DependencyModernizationTests(unittest.TestCase):
                 ),
                 "CPS producer selection differs from native CMake",
             ),
+            (
+                (
+                    "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
+                ),
+                "CPS producer selection differs for RelWithDebInfo",
+            ),
+            (
+                (
+                    "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
+                    "-DBPR_FAKE_QT_TRANSITIVE_SELECTION=ON",
+                ),
+                "Transitive CPS producer selection differs from native CMake",
+            ),
             (("-DBPR_FAKE_QT_VERSION=6.7.9",), "caller-installed Qt >= 6.8"),
         )
         for extra, expected in cases:
@@ -958,6 +1081,25 @@ class DependencyModernizationTests(unittest.TestCase):
                     )
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(expected, result.stdout + result.stderr)
+
+    def test_rejected_bootstrap_overlay_is_not_valid_offline_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result, overlay = self.run_bootstrap_fixture(
+                temporary_directory,
+                extra=(
+                    "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
+                ),
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue((overlay / "artifacts.json").is_file())
+            self.assertFalse((overlay / "validated.txt").exists())
+            rejected = self.validate_overlay(temporary_directory, overlay)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn(
+                "CPS overlay is incomplete or stale",
+                rejected.stdout + rejected.stderr,
+            )
 
     def test_product_cps_resolution_rejects_all_below_floor_versions(self) -> None:
         cases = (
@@ -991,7 +1133,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         document.read_bytes()
                     ).hexdigest()
                     manifest = {
-                        "generator_revision": "7",
+                        "generator_revision": "8",
                         "artifacts": [],
                         "documents": [
                             {
@@ -1008,6 +1150,12 @@ class DependencyModernizationTests(unittest.TestCase):
                     )
                     (overlay / "fingerprint.txt").write_text(
                         hashlib.sha256(manifest_text.encode()).hexdigest() + "\n",
+                        encoding="utf-8",
+                    )
+                    (overlay / "validated.txt").write_text(
+                        "8:"
+                        + hashlib.sha256(manifest_text.encode()).hexdigest()
+                        + "\n",
                         encoding="utf-8",
                     )
                     source = temporary / "source"
