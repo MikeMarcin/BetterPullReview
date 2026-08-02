@@ -41,6 +41,10 @@ Code-review readability requires editor-grade syntax treatment and user-controll
 - **Qt adapter:** resolves system/light/dark/high-contrast presentation, applies semantic color roles, owns font/layout mechanics, renders previews, and translates settings gestures.
 - **Core:** may receive only semantic settings-completion or availability facts when another command depends on them; it does not decide what color or font is rendered.
 - Theme/font changes invalidate only the affected presentation/layout caches and publish bounded deltas rather than rebuilding review state or reparsing source unnecessarily.
+- Any geometry-affecting font, zoom, line-spacing, tab, theme, screen, or DPI
+  change invalidates RFC-BPR-0004's Qt-local measured alignment axis and ribbon
+  geometry. It cannot change semantic mapping, pairing confidence, groups, or
+  stable identities; a fresh installation still defaults to System appearance.
 
 ## Highlighting design
 
@@ -57,7 +61,9 @@ Colors are semantic roles, including code background, gutters, additions, remova
 - C++, CMake, Markdown, JSON, Python, and plain-text fixture files select expected definitions.
 - A hunk beginning inside a multiline comment/string receives the same classification as the complete blob.
 - Switching theme or color does not re-run lexical parsing.
-- Changing font invalidates layout while preserving source selection and approximate scroll anchor.
+- Changing font invalidates the Qt-local measured axis and ribbon geometry
+  while preserving semantic selection, then reprojects the one shared
+  comparison position without changing mapping or confidence.
 - System mode responds to OS scheme changes; explicit mode does not.
 - UI and code fonts, sizes, line height, tab width, ligatures, bold, italic, and semantic colors persist and preview immediately.
 - Theme imports reject unknown fields, URLs, includes, oversized files, and executable/style payloads.

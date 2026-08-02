@@ -38,7 +38,10 @@ Implement and Auto-Verify **Native Workbench Shell and Virtualized Review Surfac
 2. Implement host observation/projection assembly, settings persistence requests, changed-domain publication, and cancellation/generation handling.
 3. Implement the native main window and top primary toolbar as Qt event/action adapters rather than controllers.
 4. Implement collapsible/resizable file and conversation drawers with stable-identity incremental model/view adapters.
-5. Implement virtualized old/new diff panes, synchronized scrolling/selection, and the clean center grouping band from RFC-0004 without presentation-side regrouping.
+5. Compose RFC-BPR-0004's virtualized natural-layout old/new panes, one shared
+   comparison controller and vertical scrollbar, and custom-painted
+   `DiffLinkMap` without presentation-side regrouping, follower-scroll
+   coupling, synthetic alignment rows, or a second mapping.
 6. Implement the full-width lower line-over-line detail pane.
 7. Implement independent epoch selectors, keyboard/focus/accessibility, loading/error states, and UI automation proving intent translation and incremental deltas.
 

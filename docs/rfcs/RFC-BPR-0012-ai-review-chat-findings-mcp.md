@@ -56,6 +56,11 @@ AI text remains a local proposal until the user converts it to a draft and publi
 
 The helper uses stdio, exposes only read-only frozen review tools, has no network listener, no credential, no arbitrary filesystem root, and no mutation operation.
 
+Finding and chat anchors consume RFC-BPR-0004 semantic source-line, boundary,
+segment, group, and move-relation identities. They never infer an exact line
+from measured y-coordinates or a ribbon path, and uncertain/opposing-span
+mapping remains visible.
+
 ## Acceptance criteria
 
 - Every AI action originates from an explicit visible user command.

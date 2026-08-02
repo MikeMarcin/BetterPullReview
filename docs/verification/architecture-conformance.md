@@ -46,6 +46,16 @@ This document turns the deterministic-functional-core / imperative-host / Qt-pre
 | ARCH-E10 | Epoch host lifecycle keeps the decision lane, Git transport/process, catalog, and projections alive through quiescence | Pending load/prepare/commit/resolve/maintenance shutdown tests and destruction-order instrumentation | Decision executor stops before a terminal, staged refs leak without recovery, or a callback reaches a destroyed projection |
 | ARCH-E11 | Full epoch history remains catalog-owned while core-authorized Qt paging stays bounded and reachable | Traverse more than 1,000 exact newest/older pages, reach ordinal one, restart newest, retain exact out-of-window OIDs, and assert a 100-epoch/200-anchor Qt cap with stable row signals and no routine reset | Qt accumulates pages, invents cursors, pins synthetic rows, loses selected OIDs, mixes catalog revisions, or cannot return from old history |
 
+## RFC-BPR-0004 diff and alignment checks
+
+| ID | Requirement | Direct proof | Failure examples |
+|---|---|---|---|
+| ARCH-D1 | One semantic alignment model drives mapping, groups, navigation, detail, ribbons, and scroll | Stable-ID trace across core and composed UI | Separate link/detail mapping, Qt regrouping, or selected surfaces disagree |
+| ARCH-D2 | Diff cache/completions use exact authority and comparison identity | Cache hit/miss plus reordered manual-executor matrix | Same path crosses repository/PR/blob/options/algorithm identity; stale result publishes |
+| ARCH-D3 | Qt alone owns measured geometry and the live comparison position | Type/state audit and core-only build | `qreal`, pane origins, scrollbar values, or live `q` enter core, worker, or durable state |
+| ARCH-D4 | One shared controller owns linked vertical scrolling | Rendered left/right/divider input trace | Active/follower coupling, normalized pane scrollbars, handoff jump, or fake alignment rows |
+| ARCH-D5 | Link-map work is custom-painted and visible-set bounded | Large sparse-change counters and rendered hit tests | One widget per ribbon, permanent crossing move ribbons, or full-segment scan per paint |
+
 ## Qt-adapter checks
 
 | ID | Requirement | Direct proof | Failure examples |

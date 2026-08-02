@@ -202,6 +202,25 @@ RFC work. BPR-0054 remains blocked by BPR-0035/BPR-0036, BPR-0053, BPR-0068,
 BPR-0069, and BPR-0070, so final RFC-BPR-0003 Auto-Verified closeout and every
 affected unverified claim remain intact without delaying RFC-BPR-0004.
 
+RFC-BPR-0004 revision 2 is now the implementation frontier from immutable base
+`243295a70756b2e63a785ed11b14647b6b0a4c6d`. Done BPR-0071 imports the
+validated replacement pack in place, preserves the canonical ID/filename and
+all downstream RFC numbers, updates active architecture/UX/verification and
+downstream contracts, and records that no early RFC4 code or old follower/fake-
+row design exists to remediate. The external P4Merge screenshot/video remain
+non-product references outside the repository.
+
+Ready BPR-0072 owns canonical comparison/alignment records and invariants.
+Backlog BPR-0073 through BPR-0074 own deterministic pairing/intraline work and
+the one mapping/group/navigation/detail source. Backlog BPR-0075 through
+BPR-0078 own exact host execution, Qt measured max-extent geometry, the shared
+comparison controller/scrollbar, and the custom-painted `DiffLinkMap`.
+BPR-0079 composes the real interaction path; BPR-0080 supplies scale evidence;
+BPR-0081 documentation/conformance, BPR-0082 simplification, and BPR-0083
+final direct verification/closeout follow. BPR-0083 depends on BPR-0054, so
+implementation can progress under the product-owner exception without an
+out-of-order Auto-Verified transition or beginning RFC-BPR-0005 early.
+
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench
 presentation-polish and native visual-acceptance slice. RFC-BPR-0006 owns

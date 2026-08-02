@@ -1011,6 +1011,14 @@ fixture root and no GitHub or developer worktree mutation occurs.
 
 ## Diffs
 
+RFC-BPR-0004's complete semantic, measured-geometry, input, lifecycle, and
+scale fixture definitions are in the dedicated
+[diff and scroll fixture catalog](diff-scroll-fixture-catalog.md). Its final
+rendered session follows the
+[manual interaction protocol](RFC-BPR-0004-manual-visual-verification.md) and
+must use the real application or closest deterministic composed harness; a
+static mockup or isolated painter does not satisfy the interaction claims.
+
 - Replace, insert, delete, and mixed hunks
 - Unequal old/new group heights
 - Multiple nearby groups

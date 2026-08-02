@@ -46,6 +46,11 @@ Publishing a defect creates an ordinary actionable review comment. Replies remai
 
 Local classification may enrich the UI with severity and category, but the published prose must stand on its own.
 
+Defect reveal and retained-context navigation use RFC-BPR-0004 stable semantic
+source-line, boundary, mapping, or change identity. A missing or uncertain
+mapping remains explicit and cannot be repaired with a visual row number,
+nearest-line guess, or independent pane scroll.
+
 ## Acceptance criteria
 
 - A GitHub-only collaborator can understand and respond to every published defect.

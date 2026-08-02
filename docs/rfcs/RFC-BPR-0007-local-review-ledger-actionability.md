@@ -49,6 +49,11 @@ SQLite contains identities, receipts, rules, notes, projections, and migration m
 
 File receipts attach to `FileMaterialId`. A new epoch preserves a receipt only when the compared material identity remains equivalent. Conversation receipts record the latest seen/accepted comment identity and edit version. New or edited comments reopen unread state.
 
+Where review state targets a diff location, it uses RFC-BPR-0004's stable file,
+epoch, source-line/boundary, change-group, or move-relation identity. The ledger
+never persists Qt indexes, visual row numbers, ribbon paths, measured
+y-coordinates, or comparison scroll positions.
+
 ## Actionability
 
 The domain derives an ordered actionable queue from GitHub state, local receipts, defect state, and current filters. The UI can explain why an item is next.

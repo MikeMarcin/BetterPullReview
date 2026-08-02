@@ -330,12 +330,28 @@ performs the storage operation itself.
 |---|---|---|---|
 | GitHub/GHES | host/account identity policy, command legality, completion acceptance | provider capability port, session/staging/cache lifecycle; external GitHub adapter implements authentication and transports | account/host selection, errors, capability presentation |
 | Git/epochs | epoch-selection rules, comparison intent, stale acceptance | Git process, bare cache, refs, clocks, persistence | epoch selectors, labels, unavailable states |
-| Diff/navigation | deterministic mapping/group planning, active change, navigation policy | blob residency, jobs, diff/syntax caches | virtualized panes, connectors, lower detail, focus |
+| Diff/navigation | exact comparison identity, ordered alignment segments, stable mapping/group/move identities, active change, navigation policy | blob residency, immutable worker inputs, jobs, exact diff caches, cancellation, stale-result rejection | natural-layout panes, measured max-extent axis, retained comparison position, shared scrollbar, `DiffLinkMap`, lower detail, focus |
 | Review ledger | receipt/actionability transitions | SQLite authority, queries, migrations | badges, filters, commands, explanations |
 | GitHub mutations | semantic proposal, target/head validation policy | mutation execution, idempotency, reconciliation | draft editor, confirmation, progress, diagnostics |
 | Queue/observers | rule matching and attention policy | refresh timers, API/cache, notification request execution | queue models, filters, native notification presentation |
 | AI | provider-host policy, context-scope decisions, staleness, finding promotion | process/session/workspace management and protocols | explicit invocation, approvals, chat/findings presentation |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
+
+For RFC-BPR-0004, interaction state in the core includes the active semantic
+change and selected source line, boundary, or mapping target. Host caches may
+retain immutable file-diff values and indexes only under exact blob, option,
+comparison, and algorithm identity. Qt-local state includes measured line
+boundaries, the measured alignment axis, the retained subpixel comparison
+position, shared-scrollbar projection, hover paths, and splitter geometry.
+Measured pixels and the live scroll position are not core or durable state.
+
+The default linked view prohibits copying or normalizing independent pane
+scrollbar values, active/follower chase heuristics, synthetic alignment rows,
+separate mappings for ribbons/detail/navigation/scroll, full semantic
+recomputation during wheel/resize/paint, and permanent crossing move ribbons.
+High-frequency input rebuilds neither semantic diff nor unchanged measured
+geometry; visible ribbon selection scales with visible or near-visible changed
+segments.
 
 ## RFC-BPR-0003 dedicated epoch vertical slice
 

@@ -55,6 +55,12 @@ The live implementation must establish platform-specific budgets for launch, ini
 - Fall back to plain text or truncated display for pathological content while preserving access to raw file metadata.
 - Cancel superseded requests and discard results whose identity no longer matches the current selection.
 
+RFC-BPR-0004 supplies dedicated scale gates for large-file semantic diff,
+measured-axis rebuilds, visible/near-visible ribbon selection, subpixel input,
+reverse-drift, stale completion, and lifecycle stress. Routine scrolling must
+not recompute semantic diff or scan/paint the entire file; environment and
+structural counters accompany latency results.
+
 ## Acceptance criteria
 
 - Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content.

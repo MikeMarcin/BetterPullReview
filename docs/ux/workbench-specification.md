@@ -17,8 +17,8 @@
 ├ Primary toolbar: Previous File | Next File | Previous Change | Next Change | view controls ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
 │ filters and review map       │ independent left/right epoch pickers  │ threads, defects, AI tabs   │
-│                              │ upper side-by-side panes               │                              │
-│                              │ clean center connector band            │                              │
+│                              │ natural-layout panes + DiffLinkMap      │                              │
+│                              │ one shared vertical scrollbar          │                              │
 │                              ├ full-width selected-change detail pane ┤                              │
 └──────────────────────────────┴────────────────────────────────────────┴──────────────────────────────┘
 ```
@@ -161,11 +161,27 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
 
 ## Comparison surface
 
-- Upper panes show side-by-side full-file context with synchronized scrolling where line mapping permits.
-- The center connector band groups changed blocks without visually confusing crossovers.
-- Selecting a line, hunk, connector, comment, or defect synchronizes all relevant surfaces.
+- Upper panes show both source documents in natural layout with no synthetic
+  alignment blanks or invented source rows.
+- One retained comparison-space position drives both pane origins and one
+  shared vertical scrollbar. Wheel/trackpad input over either pane or the
+  center divider, Page/Home/End, scrollbar drag, and programmatic reveal all
+  route through that controller; horizontal scrolling remains pane-local.
+- The center `DiffLinkMap` paints filled monotonic interval ribbons and
+  insertion/deletion wedges attached to actual pane boundaries. Moved-code
+  metadata uses markers or a temporary overlay, never permanent crossing
+  ordinary ribbons.
+- A one-sided block pins the empty side at the synchronization rail while the
+  populated side advances. Unequal replacements advance proportionally and
+  meet at one segment endpoint; reverse input retraces without accumulated
+  drift or an input-receiver handoff jump.
+- Selecting a line, hunk, ribbon, comment, or defect synchronizes all relevant
+  surfaces through the one semantic alignment model.
 - The lower pane is a full-width line-over-line detail view for the selected change group.
 - Comments are shown beside code in the right drawer, not inserted into the source layout.
+
+The complete normative interaction is in
+[Diff Link Map and Alignment-Space Scrolling](diff-link-map-and-alignment-space-scrolling.md).
 
 ## File drawer
 

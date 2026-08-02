@@ -51,6 +51,11 @@ Profiles include display name, executable, protocol, arguments, environment allo
 
 The supplement includes PR URL, expected base/head OIDs, selected epochs, previous upload, last-reviewed head, changed/unread/accepted file state, local defect state, current selection, and only explicitly included private notes or drafts.
 
+AI context may include RFC-BPR-0004 semantic segments, groups, mapping
+confidence, and selected source text. Measured pane coordinates, ribbon paths,
+Qt indexes, and the live comparison scroll position are presentation state and
+cannot become source truth or durable context identity.
+
 ## Acceptance criteria
 
 - Codex and corporate Claude fixture processes launch through their selected protocol with streamed output and cancellation.

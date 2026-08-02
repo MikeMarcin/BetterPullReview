@@ -48,6 +48,12 @@ GitHub IDs are canonical. BetterPullReview maintains local projections and refre
 
 Draft comments may remain local or be represented by GitHub's native pending-review facilities where supported. Publishing presents host, repository, PR, expected head, acting identity, and review disposition. A head mismatch requires explicit revalidation or remapping.
 
+Comment and draft reveal requests use RFC-BPR-0004 semantic source-line,
+boundary, mapping, or change-group identities and navigate through its shared
+comparison controller. Mapping uncertainty remains visible; the UI cannot
+attach a comment to an arbitrary neighboring line or independently position
+the two top panes.
+
 ## Acceptance criteria
 
 - A BetterPullReview comment is readable and replyable in the GitHub web UI with no tool-specific marker.

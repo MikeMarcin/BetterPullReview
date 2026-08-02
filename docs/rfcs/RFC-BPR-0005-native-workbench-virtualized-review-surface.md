@@ -12,7 +12,10 @@ pack_version: 2
 
 ## Summary
 
-Implement the native Qt workbench with top-level review navigation, collapsible file and conversation drawers, independently selectable epochs, virtualized top diff panes, a clean grouping connector bar, and a full-width lower detail pane.
+Implement the native Qt workbench around RFC-BPR-0004's natural-layout top
+panes, single `DiffLinkMap`, shared comparison controller and vertical
+scrollbar, top-level review navigation, collapsible file and conversation
+drawers, independently selectable epochs, and full-width lower detail pane.
 
 
 ## Motivation
@@ -24,7 +27,9 @@ The native workbench must directly address the presentation failures that motiva
 - Implement the complete central review layout in Qt Widgets.
 - Put previous/next file and previous/next change in the top primary toolbar.
 - Provide independently selectable left/right review epochs above the panes.
-- Render side-by-side top panes with a clean P4Merge-inspired center grouping band.
+- Compose RFC-BPR-0004's side-by-side natural-layout panes, custom-painted
+  `DiffLinkMap`, and one shared vertical scrollbar without a second mapping or
+  pane-owned vertical authority.
 - Render a full-width Beyond Compare-inspired line-over-line lower detail pane.
 - Implement collapsible/resizable file and conversation drawers.
 - Virtualize code rows for large files and high-DPI operation.
@@ -43,6 +48,10 @@ The native workbench must directly address the presentation failures that motiva
 - **Qt adapter:** owns the main window, top toolbar, collapsible drawers, splitters, epoch controls, `QAction` instances, `QAbstractItemModel` adapters, custom diff widgets, focus, keyboard, accessibility, high-DPI layout, and visual-only scroll/hover state.
 - A `QAction` trigger becomes a semantic intent. `QAction` enabled/checked state comes from one command projection. Qt models use stable identities and incremental insert/remove/move/data-change notifications; routine selection/comment/receipt changes must not reset the model.
 - No workbench widget may call GitHub, Git, SQLite, or AI services directly or decide review policy.
+- RFC-BPR-0004 remains the sole owner of semantic diff, mapping, grouping, and
+  linked-scroll behavior. The main window composes its projections and cannot
+  add fake alignment rows, follower-scroll coupling, or a separate detail/link
+  mapping.
 
 ## UI architecture
 
@@ -54,6 +63,8 @@ Custom diff views derive from `QAbstractScrollArea` and paint only visible rows 
 - Drawer collapse, resize, restore, and keyboard access.
 - Epoch selector changes that preserve file/selection when possible.
 - Selecting a connector, hunk, line, or conversation synchronizes the top panes and lower detail pane.
+- Wheel/trackpad input over either pane or the center divider and every
+  programmatic reveal continue through the one comparison-space controller.
 - Lower pane resize/collapse and context adjustment.
 - Split/unified top-view options may exist, but the default is side-by-side plus lower line-over-line detail.
 
@@ -63,7 +74,11 @@ Custom diff views derive from `QAbstractScrollArea` and paint only visible rows 
 - File and conversation drawers are independently collapsible and restore persisted widths.
 - Primary navigation is always visible at supported window sizes or moves into an explicit compact overflow without losing keyboard access.
 - Left/right epoch selectors show labels and exact OIDs and can select arbitrary retained epochs.
-- Connector shapes correspond to the diff group model and avoid confusing crossings.
+- Connector ribbons correspond to the RFC-BPR-0004 group model, attach to
+  measured pane intervals, render empty-span wedges, and keep ordinary
+  correspondence monotonic and noncrossing.
+- The default workbench exposes one shared vertical scrollbar; the two top
+  documents contain no synthetic alignment rows.
 - The lower pane spans the central width and shows the selected group line over line.
 - UI automation proves navigation, selection synchronization, focus order, loading, failure, cancellation, and restart persistence.
 - A large-file harness proves widget count remains bounded by visible UI structure rather than source-line count.
@@ -75,7 +90,7 @@ Custom diff views derive from `QAbstractScrollArea` and paint only visible rows 
 |---|---|---|
 | Primary actions are top-level | Real application | Inspect and invoke buttons/shortcuts at supported widths |
 | Drawers return space to center | Real application | Collapse/reopen each drawer and measure central viewport |
-| Connector band maps groups | Rendered fixture | Compare connector bounds to model group extents |
+| Link map maps groups | Rendered fixture | Compare ribbon/wedge bounds and selected identity to the RFC-BPR-0004 model through scroll and resize |
 | Lower pane is full-width detail | Real application | Select group and verify paired rows/central width |
 | Renderer is virtualized | Instrumented app | Load huge file and inspect widget count, frame time, and memory |
 | Qt is a presentation adapter | Qt adapter harness | QAction/model/widget events produce intents and consume incremental projections only |

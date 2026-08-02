@@ -61,6 +61,11 @@ records—not a hosted workflow name—are authoritative.
 - No telemetry or crash upload occurs automatically.
 - Diagnostic bundles are user-initiated, previewable, and source/secret-free by default.
 
+Package verification must prove that the selected real application path, not
+a test-only shell or isolated widget, composes RFC-BPR-0004's one shared
+alignment controller and `DiffLinkMap`. Target-native high-DPI rendering and
+runtime/dependency inspection cannot be replaced by hosted workflow output.
+
 ## Acceptance criteria
 
 - Clean Windows, macOS Intel/Apple Silicon, and Linux test environments install, launch, authenticate, open a fixture PR, and uninstall successfully.

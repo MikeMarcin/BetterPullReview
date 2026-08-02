@@ -8,16 +8,18 @@ Product-owner exception: real Windows x64 evidence retained by BPR-0036 is
 temporarily unavailable. RFC-BPR-0002 therefore remains the closure frontier,
 but that hardware-only gate does not block implementation, tests,
 documentation, security review, simplification, or later-RFC work on
-available targets. RFC-BPR-0003 is the implementation frontier. The exception
-does not waive any Windows claim, change an RFC status, permit out-of-order
-closeout, or make GitHub Actions an evidence surface.
+available targets. RFC-BPR-0003 retains explicit closeout cards, while
+RFC-BPR-0004 is the implementation frontier by product-owner direction. The
+exception does not waive any Windows claim, change an RFC status, permit
+out-of-order Auto-Verified closeout, or make GitHub Actions an evidence
+surface.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
 | [RFC-BPR-0001](RFC-BPR-0001-product-contract-native-architecture.md) | Product Contract, Native Architecture, and Repository Foundation | Auto-Verified | — |
 | [RFC-BPR-0002](RFC-BPR-0002-github-host-auth-capability-layer.md) | GitHub Host, Authentication, and Capability Layer | Proposed | RFC-BPR-0001 |
 | [RFC-BPR-0003](RFC-BPR-0003-git-cache-pr-identity-review-epochs.md) | Local Git Cache, Pull Request Identity, and Review Epochs | Proposed | RFC-BPR-0001, RFC-BPR-0002 |
-| [RFC-BPR-0004](RFC-BPR-0004-diff-computation-line-mapping-grouping.md) | Diff Computation, Line Mapping, and Change Grouping | Proposed | RFC-BPR-0003 |
+| [RFC-BPR-0004](RFC-BPR-0004-diff-computation-line-mapping-grouping.md) | Diff Computation, Correspondence Mapping, Grouping, and Alignment-Space Scrolling | Proposed | RFC-BPR-0003 |
 | [RFC-BPR-0005](RFC-BPR-0005-native-workbench-virtualized-review-surface.md) | Native Workbench Shell and Virtualized Review Surface | Proposed | RFC-BPR-0004 |
 | [RFC-BPR-0006](RFC-BPR-0006-syntax-highlighting-themes-appearance.md) | Syntax Highlighting, Themes, Fonts, and Appearance Profiles | Proposed | RFC-BPR-0005 |
 | [RFC-BPR-0007](RFC-BPR-0007-local-review-ledger-actionability.md) | Local Review Ledger, File and Conversation Receipts, and Actionability | Proposed | RFC-BPR-0003, RFC-BPR-0005 |

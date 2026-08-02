@@ -80,9 +80,9 @@ hashes provider text nor reads randomness.
 | GitHub shared state | GitHub/provider session in host | stable IDs, current revision facts, bounded observations | immutable cards/rows/actions |
 | Staged GitHub results | Application host until a core acceptance decision | pending request and generation identity | none |
 | Private durable state | SQLite ledger in host | current relevant receipt/actionability observations | badges, filters, commands |
-| Review interaction | Functional core | active PR/file/change, epoch pair, navigation mode, pending semantic action | selected indexes, focus, visible command state |
-| Git/GitHub/diff caches | Host | cache identities and availability observations | loading/unavailable projections |
-| Layout and focus | Qt adapter, persisted through host settings | only semantic state when behavior depends on it | drawer width, scroll, hover, expanded nodes, animation |
+| Review interaction | Functional core | active PR/file/change, epoch pair, selected semantic line/boundary/mapping, navigation mode, pending semantic action | selected indexes, focus, visible command state |
+| Git/GitHub/diff caches | Host | exact blob/options/algorithm cache identities and availability observations | loading/unavailable projections |
+| Layout and focus | Qt adapter, persisted through host settings | only semantic state when behavior depends on it | drawer width, measured alignment axis, live comparison scroll position, hover paths, expanded nodes, animation |
 | Pending work | Core and host | request/generation/revision correlation | progress/cancel presentation |
 
 Native credential authority is the exact tuple of profile, profile revision,
@@ -107,6 +107,7 @@ compact tri-state host capabilities plus capability revision
 accepted provider snapshot identity
 selected left/right review epochs
 active file material and change group
+ordered alignment and selected semantic line/boundary identity
 filtered navigation context
 semantic selection
 command state inputs
