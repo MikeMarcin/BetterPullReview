@@ -28,6 +28,11 @@ an installed package. Python, Git, Threads, and `PkgConfig` are selected
 explicitly from CMake's built-in module providers regardless of
 `CMAKE_FIND_PACKAGE_PREFER_CONFIG`; package redirects for provider-owned names
 are rejected before any redirect script can execute.
+BetterPullReview must be the top-level project until RFC-BPR-0014 adds its
+install/export development package. `CMAKE_PROJECT_TOP_LEVEL_INCLUDES` is
+rejected so a dependency provider cannot intercept audited discovery. The
+repository modules, CTest, and CMake's built-in find modules are loaded through
+trusted absolute paths rather than caller-controlled `CMAKE_MODULE_PATH`.
 
 CPM.cmake 0.43.1 is the source-dependency provider. Its loader and SQLite
 archive are pinned by cryptographic digests, and concurrent configurations

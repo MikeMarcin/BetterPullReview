@@ -149,10 +149,14 @@ declared. A collision with any provider-owned target name is fatal before
 discovery, preventing an injected target from being mislabeled in the audit.
 Python, Git, Threads, and `PkgConfig` use CMake's built-in module providers;
 Config-mode preference cannot change that selection, and package redirects for
-owned names are rejected without execution. Discovery follows graph selection:
-a Qt-free graph performs no Qt, libsecret, or Git lookup, and a tests-disabled
-graph performs no Python or Git lookup. A generated audit records each
-dependency, provider class, and imported target selected by the product graph.
+owned names are rejected without execution. BetterPullReview configures as the
+top-level project, rejects `CMAKE_PROJECT_TOP_LEVEL_INCLUDES`, and loads its
+repository, CTest, and built-in discovery modules from trusted absolute paths,
+so dependency providers and caller module paths cannot replace audited logic.
+Discovery follows graph selection: a Qt-free graph performs no Qt, libsecret,
+or Git lookup, and a tests-disabled graph performs no Python or Git lookup. A
+generated audit records each dependency, provider class, and imported target
+selected by the product graph.
 
 CPM.cmake 0.43.1 is reserved for source-managed dependencies. Its bootstrap
 verifies the pinned loader SHA-256, disables local-package and package-lock
@@ -169,16 +173,18 @@ installed packages remain available to local discovery. The tracked
 amalgamation and its whitespace exception are removed, and no system SQLite
 lookup exists.
 
-The direct 18-case dependency-modernization contract and 104-case architecture
+The direct 20-case dependency-modernization contract and 104-case architecture
 boundary contract pass. They cover the CMake baseline and presets, standard
 options, centralized target ownership, package-only Qt, graph-conditional
 discovery, provider auditing and target/config/redirect collision rejection,
-CPM/SQLite pins, cached offline reuse and uncached refusal, archive/source
-tamper rejection, poisoned cache-sibling exclusion, source identity,
+dependency-provider and module-path interception refusal, CPM/SQLite pins,
+cached offline reuse and uncached refusal, provider-path archive/source tamper
+rejection, poisoned cache-sibling exclusion, source identity,
 static-definition parity, and absence of vendored or system SQLite fallback.
-Clean target-native macOS and Ubuntu evidence, final documentation validation,
-and independent closeout review remain open; no native Windows execution is
-inferred.
+The clean macOS `dev` matrix passed 74/74 tests, the hardened `core-only`
+matrix passed 33/33, and the tests-disabled Release graph passed its self-test,
+binary, and runtime audits. Ubuntu execution was explicitly deferred and is
+not claimed; Windows coverage is structural only.
 
 ## Direct claim matrix
 

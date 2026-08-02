@@ -122,8 +122,11 @@ provider verifies the resulting `Qt6::*`, `LibSecret::LibSecret`,
 `Python3::Interpreter`, and `Git::Git` targets before product subdirectories
 are evaluated and rejects any predeclared collision with those owned names.
 Standard tool discovery uses CMake's built-in modules and rejects package
-redirects for provider-owned names. CPM owns verified source acquisition rather
-than prebuilt platform-package discovery.
+redirects for provider-owned names. The source tree configures only as the
+top-level project, rejects top-level dependency-provider hooks, and loads its
+repository and built-in modules by trusted absolute path; install/export
+composition remains RFC-BPR-0014 work. CPM owns verified source acquisition
+rather than prebuilt platform-package discovery.
 `Threads::Threads` and native frameworks remain explicit toolchain/platform
 capabilities. SQLite is download-only CPM source that becomes the first-party
 static `BetterPullReview::SQLite3` target and is never replaced by a system

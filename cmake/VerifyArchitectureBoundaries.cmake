@@ -76,7 +76,7 @@ foreach(
     pattern
     IN ITEMS
         "function(bpr_configure_dependencies)"
-        "find_package(Threads MODULE REQUIRED)"
+        "bpr_include_builtin_find_module(Threads)"
         "Qt6::"
         "LibSecret::LibSecret"
         "Python3::Interpreter"

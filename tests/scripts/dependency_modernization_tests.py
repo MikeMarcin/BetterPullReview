@@ -65,7 +65,7 @@ class DependencyModernizationTests(unittest.TestCase):
         root = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
         self.assertIn("cmake_minimum_required(VERSION 4.4.2)", root)
         self.assertIn("HOMEPAGE_URL", root)
-        self.assertIn("include(CTest)", root)
+        self.assertIn('include("${CMAKE_ROOT}/Modules/CTest.cmake")', root)
         self.assertIn("if(BUILD_TESTING)", root)
         self.assertNotIn("option(BPR_BUILD_TESTS", root)
 
@@ -93,8 +93,9 @@ class DependencyModernizationTests(unittest.TestCase):
         provider = (ROOT / "cmake/BprDependencies.cmake").read_text(
             encoding="utf-8"
         )
-        for package in ("Threads", "Python3", "Qt6", "PkgConfig", "Git"):
-            self.assertRegex(provider, rf"find_package\(\s*{package}\b")
+        self.assertRegex(provider, r"find_package\(\s*Qt6\b")
+        for package in ("Threads", "Python3", "PkgConfig", "Git"):
+            self.assertIn(f"bpr_include_builtin_find_module({package})", provider)
         for version in ('"6.8"', '"0.20"', '"3.10"', '"2.39"'):
             self.assertIn(version, provider)
         for target in (
@@ -128,13 +129,14 @@ class DependencyModernizationTests(unittest.TestCase):
             source.mkdir()
             (source / "CMakeLists.txt").write_text(
                 "cmake_minimum_required(VERSION 4.4.2)\n"
-                "project(InjectedDependency LANGUAGES NONE)\n"
+                "project(InjectedDependency LANGUAGES C CXX)\n"
                 "add_executable(Python3::Interpreter IMPORTED GLOBAL)\n"
                 "set_property(TARGET Python3::Interpreter PROPERTY "
                 "IMPORTED_LOCATION /usr/bin/false)\n"
-                "set(BPR_BUILD_QT OFF CACHE BOOL \"\" FORCE)\n"
-                "set(BUILD_TESTING ON CACHE BOOL \"\" FORCE)\n"
-                f"add_subdirectory([==[{ROOT}]==] bpr)\n",
+                "set(BPR_BUILD_QT OFF)\n"
+                "set(BUILD_TESTING ON)\n"
+                f"include([==[{ROOT / 'cmake/BprDependencies.cmake'}]==])\n"
+                "bpr_configure_dependencies()\n",
                 encoding="utf-8",
             )
             configured = subprocess.run(
@@ -181,12 +183,13 @@ class DependencyModernizationTests(unittest.TestCase):
             )
             (source / "CMakeLists.txt").write_text(
                 "cmake_minimum_required(VERSION 4.4.2)\n"
-                "project(ConfigPreference LANGUAGES NONE)\n"
+                "project(ConfigPreference LANGUAGES C CXX)\n"
                 "set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)\n"
-                "set(BPR_BUILD_QT OFF CACHE BOOL \"\" FORCE)\n"
-                "set(BUILD_TESTING ON CACHE BOOL \"\" FORCE)\n"
+                "set(BPR_BUILD_QT OFF)\n"
+                "set(BUILD_TESTING ON)\n"
                 f"list(PREPEND CMAKE_PREFIX_PATH [==[{package}]==])\n"
-                f"add_subdirectory([==[{ROOT}]==] bpr)\n",
+                f"include([==[{ROOT / 'cmake/BprDependencies.cmake'}]==])\n"
+                "bpr_configure_dependencies()\n",
                 encoding="utf-8",
             )
             configured = subprocess.run(
@@ -219,15 +222,16 @@ class DependencyModernizationTests(unittest.TestCase):
             marker = temporary / "redirect-executed"
             (source / "CMakeLists.txt").write_text(
                 "cmake_minimum_required(VERSION 4.4.2)\n"
-                "project(PackageRedirect LANGUAGES NONE)\n"
+                "project(PackageRedirect LANGUAGES C CXX)\n"
                 "file(MAKE_DIRECTORY \"${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}\")\n"
                 "file(WRITE \"${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/"
                 "python3-config.cmake\" \"file(WRITE [==["
                 f"{marker}"
                 "]==] executed)\\n\")\n"
-                "set(BPR_BUILD_QT OFF CACHE BOOL \"\" FORCE)\n"
-                "set(BUILD_TESTING ON CACHE BOOL \"\" FORCE)\n"
-                f"add_subdirectory([==[{ROOT}]==] bpr)\n",
+                "set(BPR_BUILD_QT OFF)\n"
+                "set(BUILD_TESTING ON)\n"
+                f"include([==[{ROOT / 'cmake/BprDependencies.cmake'}]==])\n"
+                "bpr_configure_dependencies()\n",
                 encoding="utf-8",
             )
             configured = subprocess.run(
@@ -248,6 +252,60 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertNotEqual(configured.returncode, 0)
         self.assertIn(
             "Package redirect for provider-owned Python3 is forbidden",
+            configured.stdout + configured.stderr,
+        )
+        self.assertFalse(marker.exists())
+
+    def test_top_level_dependency_provider_is_rejected_unexecuted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            marker = temporary / "dependency-provider-executed"
+            provider = temporary / "dependency-provider.cmake"
+            provider.write_text(
+                f"file(WRITE [==[{marker}]==] executed)\n",
+                encoding="utf-8",
+            )
+            configured = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=OFF",
+                "-DBUILD_TESTING=OFF",
+                f"-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES={provider}",
+            )
+        self.assertNotEqual(configured.returncode, 0)
+        self.assertIn(
+            "does not permit CMAKE_PROJECT_TOP_LEVEL_INCLUDES",
+            configured.stdout + configured.stderr,
+        )
+        self.assertFalse(marker.exists())
+
+    def test_repository_modules_ignore_caller_module_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            fake_modules = temporary / "fake modules"
+            fake_modules.mkdir()
+            marker = temporary / "caller-module-executed"
+            fake_module = (
+                f"file(WRITE [==[{marker}]==] executed)\n"
+                'message(FATAL_ERROR "caller module executed")\n'
+            )
+            for name in (
+                "AitoCpm.cmake",
+                "BprDependencies.cmake",
+                "BprSQLiteProvider.cmake",
+                "CTest.cmake",
+                "FetchContent.cmake",
+                "FindThreads.cmake",
+            ):
+                (fake_modules / name).write_text(fake_module, encoding="utf-8")
+            configured = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=OFF",
+                "-DBUILD_TESTING=OFF",
+                f"-DCMAKE_MODULE_PATH={fake_modules}",
+            )
+        self.assertEqual(
+            configured.returncode,
+            0,
             configured.stdout + configured.stderr,
         )
         self.assertFalse(marker.exists())
@@ -493,8 +551,7 @@ class DependencyModernizationTests(unittest.TestCase):
                     path.write_text(contents.replace(old, new, 1), encoding="utf-8")
                     script = Path(temporary_directory) / "validate-sqlite.cmake"
                     script.write_text(
-                        f"list(APPEND CMAKE_MODULE_PATH [==[{ROOT / 'cmake'}]==])\n"
-                        "include(BprSQLiteProvider)\n"
+                        f"include([==[{ROOT / 'cmake/BprSQLiteProvider.cmake'}]==])\n"
                         f"file(SHA3_256 [==[{path}]==] mutated_digest)\n"
                         f"set({digest_variable} \"${{mutated_digest}}\")\n"
                         f"bpr_validate_sqlite_source([==[{source}]==])\n",
@@ -525,25 +582,57 @@ class DependencyModernizationTests(unittest.TestCase):
             temporary = Path(temporary_directory)
             corrupt_archive = temporary / "sqlite-amalgamation-3530400.zip"
             corrupt_archive.write_bytes(b"not the verified SQLite archive")
-            destination = temporary / "downloaded.zip"
-            script = temporary / "verify-archive.cmake"
-            script.write_text(
-                "file(DOWNLOAD\n"
-                f"  [==[{corrupt_archive.as_uri()}]==]\n"
-                f"  [==[{destination}]==]\n"
-                "  EXPECTED_HASH "
-                "[==[SHA3_256=628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e]==]\n"
-                ")\n",
+            provider_directory = temporary / "cmake"
+            provider_directory.mkdir()
+            shutil.copy2(
+                ROOT / "cmake/AitoCpm.cmake",
+                provider_directory / "AitoCpm.cmake",
+            )
+            provider = (ROOT / "cmake/BprSQLiteProvider.cmake").read_text(
+                encoding="utf-8"
+            )
+            provider = provider.replace(
+                "https://sqlite.org/2026/sqlite-amalgamation-"
+                "${BPR_SQLITE_SOURCE_NUMBER}.zip",
+                corrupt_archive.as_uri(),
+            )
+            (provider_directory / "BprSQLiteProvider.cmake").write_text(
+                provider,
+                encoding="utf-8",
+            )
+            cache = temporary / "cache"
+            shutil.copytree(CPM_SOURCE_CACHE / "cpm", cache / "cpm")
+            source = temporary / "source"
+            source.mkdir()
+            (source / "CMakeLists.txt").write_text(
+                "cmake_minimum_required(VERSION 4.4.2)\n"
+                "project(CorruptSQLiteArchive LANGUAGES NONE)\n"
+                f"set(CPM_SOURCE_CACHE [==[{cache}]==] CACHE PATH \"\" FORCE)\n"
+                f"include([==[{provider_directory / 'BprSQLiteProvider.cmake'}]==])\n"
+                "bpr_acquire_sqlite(sqlite_source)\n",
                 encoding="utf-8",
             )
             rejected = subprocess.run(
-                [str(CMAKE_COMMAND), "-P", str(script)],
+                [
+                    str(CMAKE_COMMAND),
+                    "-S",
+                    str(source),
+                    "-B",
+                    str(temporary / "build"),
+                    "-G",
+                    "Ninja",
+                ],
                 check=False,
                 capture_output=True,
                 text=True,
             )
             self.assertNotEqual(rejected.returncode, 0)
-            self.assertIn("HASH mismatch", rejected.stdout + rejected.stderr)
+            diagnostic = rejected.stdout + rejected.stderr
+            self.assertIn("does not match expected value", diagnostic)
+            self.assertIn(
+                "628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e",
+                diagnostic,
+            )
 
     def test_sqlite_rejects_fetchcontent_source_override(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

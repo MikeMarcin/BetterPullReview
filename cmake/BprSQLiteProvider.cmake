@@ -1,6 +1,6 @@
 include_guard(GLOBAL)
 
-include(AitoCpm)
+include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
 set(BPR_SQLITE_VERSION "3.53.4")
 set(BPR_SQLITE_SOURCE_NUMBER "3530400")

@@ -51,12 +51,24 @@ function(bpr_reject_dependency_redirect package)
     endforeach()
 endfunction()
 
+macro(bpr_include_builtin_find_module package)
+    set(
+        _bpr_builtin_find_module
+        "${CMAKE_ROOT}/Modules/Find${package}.cmake"
+    )
+    if(NOT EXISTS "${_bpr_builtin_find_module}")
+        message(FATAL_ERROR "CMake built-in Find${package}.cmake is missing")
+    endif()
+    include("${_bpr_builtin_find_module}")
+    unset(_bpr_builtin_find_module)
+endmacro()
+
 function(bpr_configure_dependencies)
     set(records)
-    set(CMAKE_MODULE_PATH)
 
     bpr_reject_dependency_redirect(Threads)
-    find_package(Threads MODULE REQUIRED)
+    set(Threads_FIND_REQUIRED TRUE)
+    bpr_include_builtin_find_module(Threads)
     bpr_require_dependency_target(Threads::Threads Threads)
     list(APPEND records "Threads|TOOLCHAIN|Threads::Threads")
 
@@ -66,13 +78,17 @@ function(bpr_configure_dependencies)
             Python3::Interpreter
             Python3
         )
-        find_package(
-            Python3
-            ${BPR_PYTHON_MINIMUM_VERSION}
-            MODULE
-            REQUIRED
-            COMPONENTS Interpreter
-        )
+        set(Python3_FIND_COMPONENTS Interpreter)
+        set(Python3_FIND_REQUIRED TRUE)
+        set(Python3_FIND_REQUIRED_Interpreter TRUE)
+        bpr_include_builtin_find_module(Python3)
+        if(Python3_VERSION VERSION_LESS BPR_PYTHON_MINIMUM_VERSION)
+            message(
+                FATAL_ERROR
+                "Python3 ${Python3_VERSION} is below required version "
+                "${BPR_PYTHON_MINIMUM_VERSION}"
+            )
+        endif()
         bpr_require_dependency_target(Python3::Interpreter Python3)
         list(APPEND records "Python3|CMAKE_MODULE|Python3::Interpreter")
     endif()
@@ -116,7 +132,8 @@ function(bpr_configure_dependencies)
                 LibSecret::LibSecret
                 "libsecret ${BPR_LIBSECRET_MINIMUM_VERSION}"
             )
-            find_package(PkgConfig MODULE REQUIRED)
+            set(PkgConfig_FIND_REQUIRED TRUE)
+            bpr_include_builtin_find_module(PkgConfig)
             pkg_check_modules(
                 BPR_LIBSECRET
                 REQUIRED
@@ -140,7 +157,37 @@ function(bpr_configure_dependencies)
         if(BUILD_TESTING)
             bpr_reject_dependency_redirect(Git)
             bpr_require_dependency_target_absent(Git::Git Git)
-            find_package(Git ${BPR_GIT_MINIMUM_VERSION} MODULE REQUIRED)
+            if(NOT GIT_EXECUTABLE)
+                set(_bpr_git_roots)
+                if(Git_ROOT)
+                    list(APPEND _bpr_git_roots "${Git_ROOT}")
+                endif()
+                if(DEFINED ENV{Git_ROOT} AND NOT "$ENV{Git_ROOT}" STREQUAL "")
+                    list(APPEND _bpr_git_roots "$ENV{Git_ROOT}")
+                endif()
+                if(_bpr_git_roots)
+                    find_program(
+                        _bpr_git_from_root
+                        NAMES git git.cmd
+                        PATHS ${_bpr_git_roots}
+                        PATH_SUFFIXES bin cmd
+                        NO_DEFAULT_PATH
+                        NO_CACHE
+                    )
+                    if(_bpr_git_from_root)
+                        set(GIT_EXECUTABLE "${_bpr_git_from_root}")
+                    endif()
+                endif()
+            endif()
+            set(Git_FIND_REQUIRED TRUE)
+            bpr_include_builtin_find_module(Git)
+            if(Git_VERSION VERSION_LESS BPR_GIT_MINIMUM_VERSION)
+                message(
+                    FATAL_ERROR
+                    "Git ${Git_VERSION} is below required version "
+                    "${BPR_GIT_MINIMUM_VERSION}"
+                )
+            endif()
             bpr_require_dependency_target(Git::Git Git)
             list(APPEND records "Git|CMAKE_MODULE|Git::Git")
         endif()
