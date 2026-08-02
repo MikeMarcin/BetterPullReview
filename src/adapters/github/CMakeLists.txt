@@ -1,7 +1,4 @@
 if(BPR_BUILD_QT)
-    find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network)
-    find_package(Threads REQUIRED)
-
     add_library(
         better_pull_review_adapter_github
         STATIC
@@ -41,7 +38,7 @@ if(BPR_BUILD_QT)
         PUBLIC
             cxx_std_23
     )
-    if(BPR_BUILD_TESTS)
+    if(BUILD_TESTING)
         target_compile_definitions(
             better_pull_review_adapter_github
             PRIVATE
@@ -94,13 +91,6 @@ if(BPR_BUILD_QT)
     endif()
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(
-            BPR_LIBSECRET
-            REQUIRED
-            IMPORTED_TARGET
-            libsecret-1>=0.20.0
-        )
         target_sources(
             better_pull_review_adapter_github
             PRIVATE
@@ -109,7 +99,7 @@ if(BPR_BUILD_QT)
         target_link_libraries(
             better_pull_review_adapter_github
             PRIVATE
-                PkgConfig::BPR_LIBSECRET
+                LibSecret::LibSecret
         )
     endif()
 

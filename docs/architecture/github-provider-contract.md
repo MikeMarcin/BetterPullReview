@@ -305,7 +305,7 @@ failed-delete states remain typed; there is no plaintext, settings,
 environment, or SQLite fallback.
 
 The test-enabled build exposes an adapter-private loopback proxy and
-single-fixture-CA seam; `BPR_BUILD_TESTS=OFF` omits those factories and
+single-fixture-CA seam; `BUILD_TESTING=OFF` omits those factories and
 symbols. A disposable TLS-over-CONNECT harness exercises 15 cases: success,
 ordered proxy fallback, same-authority redirect, cross-authority redirect,
 GraphQL redirect, untrusted certificate, a response-body limit, one

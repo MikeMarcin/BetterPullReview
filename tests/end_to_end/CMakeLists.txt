@@ -4,6 +4,15 @@ else()
     set(bpr_native_platform_vault_self_test_result "false")
 endif()
 
+set(bpr_test_qt_root "")
+if(DEFINED Qt6_ROOT)
+    set(bpr_test_qt_root "${Qt6_ROOT}")
+endif()
+set(bpr_test_qt_dir "")
+if(DEFINED BPR_PRODUCER_QT6_DIR)
+    set(bpr_test_qt_dir "${BPR_PRODUCER_QT6_DIR}")
+endif()
+
 add_test(
     NAME application_public_path
     COMMAND
@@ -67,12 +76,16 @@ set_tests_properties(
 add_test(
     NAME application_composition_contract
     COMMAND
-        "${Python3_EXECUTABLE}"
+        Python3::Interpreter
         "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"
         --cmake
         "${CMAKE_COMMAND}"
+        --qt-root
+        "${bpr_test_qt_root}"
         --qt-dir
-        "${Qt6_DIR}"
+        "${bpr_test_qt_dir}"
+        --cpm-source-cache
+        "${CPM_SOURCE_CACHE}"
 )
 set_tests_properties(
     application_composition_contract
@@ -193,7 +206,7 @@ set_tests_properties(
 add_test(
     NAME binary_dependency_surface
     COMMAND
-        "${Python3_EXECUTABLE}"
+        Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_binary_dependencies.py"
         $<TARGET_FILE:better_pull_review>
 )
@@ -207,7 +220,7 @@ set_tests_properties(
 add_test(
     NAME runtime_process_surface
     COMMAND
-        "${Python3_EXECUTABLE}"
+        Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_runtime_surface.py"
         $<TARGET_FILE:better_pull_review>
 )

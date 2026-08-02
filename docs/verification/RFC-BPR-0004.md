@@ -137,6 +137,50 @@ authority invalidation, and projection exceptions. The real installed-Git
 blob materializer/cache-session arbitration and destroyed-Qt composition remain
 explicit BPR-0079 work; BPR-0075 makes no selected-application-path claim.
 
+## BPR-0084 build-foundation evidence
+
+BPR-0084 raises every live build entry point to CMake 4.4.2, replaces the
+private test option with `BUILD_TESTING`, and centralizes dependency ownership
+before product subdirectories. A nested isolated configure alone may inspect
+producer Qt/Find-module/pkg-config metadata. It emits machine-local CPS 0.14.1
+documents for Qt, libsecret, Python, and Git, preserving supported
+configuration-specific artifacts, usage requirements, transitive Qt
+requirements, toolchain thread flags, and platform frameworks. The main graph
+requires the exact generated document, searches with default paths disabled,
+rejects package redirects and CMake-script overlay content, and records every
+resolved `.cps` path in a generated audit.
+
+The overlay manifest fingerprints its generator revision, every CPS document,
+and every selected artifact. Online configuration refreshes files only when
+content changes; offline configuration verifies the manifest, documents,
+artifacts, pinned CPM loader, and cached SQLite source before package
+resolution or acquisition. Because CMake 4.4.2 rejects CPS components of type
+`executable`, Python and Git use one interface metadata component containing
+one fingerprinted path; the strict resolver validates that path and creates
+the conventional imported executable target without exposing producer
+Find-module variables to the product graph.
+
+SQLite 3.53.4 is download-only source rather than a prebuilt CPS dependency.
+The pinned CPM 0.43.1 bootstrap verifies its own SHA-256; the provider verifies
+the official archive SHA3-256 plus `sqlite3.c`, `sqlite3.h`, `SQLITE_VERSION`,
+and `SQLITE_SOURCE_ID`, then builds the unchanged static
+`BetterPullReview::SQLite3` compile/security contract. Offline mode preselects
+an already verified CPM cache directory so CPM cannot populate a missing
+source from the network. The tracked amalgamation and its whitespace exception
+are removed, and no system SQLite lookup exists.
+
+Native macOS arm64 evidence uses CMake 4.4.2, AppleClang 16, Ninja 1.13.2,
+Qt 6.11.1, Python 3.14.6, and Git 2.39.5. The clean full graph built 143 targets
+and passed 74/74 tests in 242.11 seconds; its nested tests-disabled Release
+composition built and passed production self-test, seam-absence, dependency,
+and runtime checks. The fresh Qt-free graph built 69 targets and passed 33/33
+tests in 40.04 seconds while its bootstrap and CPS audit contained Python only.
+The 14-case dependency contract covers configuration, spaces, transitive
+requirements, floors, refresh/tamper/fail-closed behavior, CPM/SQLite pins,
+offline reuse/refusal, source identity, static/definition parity, and absence
+of legacy/system fallback. Target-native Ubuntu evidence and independent
+closeout review remain open; no native Windows execution is inferred.
+
 ## Direct claim matrix
 
 Populate live commands, results, and evidence paths during implementation. A row remains open until its direct surface would fail or visibly disagree if the claim were false.

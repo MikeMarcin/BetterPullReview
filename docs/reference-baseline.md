@@ -113,7 +113,8 @@ Baseline date: 2026-07-30
 - Windows handle-relative, no-replace file rename information:
   https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_rename_info
 
-BetterPullReview pins SQLite 3.53.4, released 2026-07-24, from the official
+BetterPullReview acquires pinned SQLite 3.53.4 with download-only CPM 0.43.1,
+released 2026-07-24, from the official
 `sqlite-amalgamation-3530400.zip`. Its `SQLITE_SOURCE_ID` is
 `2026-07-24 19:02:57 bf7c7f30031888f4e796e429ab3978879485813aaca6f641c7b33e4e09459bcc`.
 The official archive SHA3-256 is
@@ -125,7 +126,8 @@ The repository intake measurement for `sqlite3.h` is
 Reproducible intake, official URLs, and the compile/runtime policy are recorded
 in [`PROVENANCE.md`](../third_party/sqlite/PROVENANCE.md) and
 [`COMPILE_OPTIONS.md`](../third_party/sqlite/COMPILE_OPTIONS.md). The static
-target has no system-library fallback.
+target has no system-library fallback, and no amalgamation input is tracked in
+the repository.
 
 ## AI agent interfaces
 

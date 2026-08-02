@@ -1,6 +1,4 @@
 if(BPR_BUILD_QT)
-    find_package(Threads REQUIRED)
-
     add_library(
         better_pull_review_composition
         STATIC
@@ -8,7 +6,7 @@ if(BPR_BUILD_QT)
             src/github_application.cpp
             src/worker_executor.cpp
     )
-    if(BPR_BUILD_TESTS)
+    if(BUILD_TESTING)
         target_sources(
             better_pull_review_composition
             PRIVATE
@@ -43,11 +41,11 @@ if(BPR_BUILD_QT)
     target_compile_features(better_pull_review_composition PUBLIC cxx_std_23)
     bpr_enable_hardening(better_pull_review_composition)
     bpr_enable_warnings(better_pull_review_composition)
-    if(BPR_BUILD_TESTS)
+    if(BUILD_TESTING)
         target_compile_definitions(
             better_pull_review_composition
             PRIVATE
-                BPR_BUILD_TESTS=1
+                BPR_BUILD_TESTING=1
                 "BPR_GITHUB_CONTRACT_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/contracts/v1\""
                 "BPR_GITHUB_CAPABILITY_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/capabilities/v1\""
         )
@@ -68,7 +66,7 @@ if(BPR_BUILD_QT)
             "BPR_VERSION=\"${PROJECT_VERSION}\""
             "BPR_BUILD_CONFIGURATION=\"$<CONFIG>\""
     )
-    if(BPR_BUILD_TESTS)
+    if(BUILD_TESTING)
         target_include_directories(
             better_pull_review
             PRIVATE
@@ -77,7 +75,7 @@ if(BPR_BUILD_QT)
         target_compile_definitions(
             better_pull_review
             PRIVATE
-                BPR_BUILD_TESTS=1
+                BPR_BUILD_TESTING=1
         )
         if(APPLE)
             find_library(

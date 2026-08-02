@@ -34,7 +34,7 @@ if(WIN32)
             Bcrypt
     )
 endif()
-if(BPR_BUILD_TESTS)
+if(BUILD_TESTING)
     target_compile_definitions(
         better_pull_review_adapter_sqlite
         PRIVATE

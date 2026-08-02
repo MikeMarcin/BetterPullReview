@@ -1,4 +1,7 @@
 function(bpr_enable_hardening target)
+    set_property(TARGET "${target}" PROPERTY C_EXTENSIONS OFF)
+    set_property(TARGET "${target}" PROPERTY CXX_EXTENSIONS OFF)
+
     if(MSVC)
         target_compile_options("${target}" PRIVATE /sdl /guard:cf)
         target_link_options("${target}" PRIVATE /guard:cf)

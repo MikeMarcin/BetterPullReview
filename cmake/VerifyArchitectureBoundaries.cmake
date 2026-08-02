@@ -5,6 +5,7 @@ endif()
 set(github_adapter_cmake "${BPR_ROOT}/src/adapters/github/CMakeLists.txt")
 set(git_adapter_cmake "${BPR_ROOT}/src/adapters/git/CMakeLists.txt")
 set(adapters_cmake "${BPR_ROOT}/src/adapters/CMakeLists.txt")
+set(dependencies_cmake "${BPR_ROOT}/cmake/BprDependencies.cmake")
 set(
     github_process_runner_relative
     "src/adapters/github/src/github_cli_process_runner.cpp"
@@ -67,6 +68,16 @@ endif()
 if(NOT EXISTS "${git_adapter_cmake}")
     message(FATAL_ERROR "Git adapter must own a dedicated CMake target")
 endif()
+if(NOT EXISTS "${dependencies_cmake}")
+    message(FATAL_ERROR "The root dependency resolver is required")
+endif()
+file(READ "${dependencies_cmake}" dependencies_cmake_contents)
+foreach(pattern IN ITEMS "find_package(Threads REQUIRED)" "bpr_find_cps_package" "Qt6" "LibSecret" "Python3" "Git")
+    string(FIND "${dependencies_cmake_contents}" "${pattern}" pattern_index)
+    if(pattern_index EQUAL -1)
+        message(FATAL_ERROR "Root dependency ownership is incomplete: ${pattern}")
+    endif()
+endforeach()
 file(READ "${adapters_cmake}" adapters_cmake_contents)
 if(
     NOT adapters_cmake_contents
@@ -104,7 +115,7 @@ if(git_cmake_contents MATCHES "Qt6::Network")
 endif()
 if(
     git_cmake_contents MATCHES "BPR_[A-Z0-9_]*TEST"
-    OR git_cmake_contents MATCHES "BPR_BUILD_TESTS"
+    OR git_cmake_contents MATCHES "BPR_BUILD_TESTING"
 )
     message(
         FATAL_ERROR
@@ -151,16 +162,6 @@ foreach(pattern IN LISTS github_target_patterns)
     endif()
 endforeach()
 
-if(
-    NOT github_cmake_contents
-        MATCHES
-            "find_package[ \t\r\n]*\\([ \t\r\n]*Threads[ \t\r\n]+REQUIRED[ \t\r\n]*\\)"
-)
-    message(
-        FATAL_ERROR
-        "GitHub adapter must resolve the required CMake Threads package"
-    )
-endif()
 if(
     NOT github_cmake_contents
         MATCHES
@@ -220,16 +221,6 @@ require_github_target_source("src/native_https_transport\\.cpp")
 if(
     NOT github_cmake_contents
         MATCHES
-            "find_package[ \t\r\n]*\\([ \t\r\n]*Qt6[^\\)]*COMPONENTS[^\\)]*Network[^\\)]*\\)"
-)
-    message(
-        FATAL_ERROR
-        "GitHub native HTTPS requires the Qt6 Network component"
-    )
-endif()
-if(
-    NOT github_cmake_contents
-        MATCHES
             "target_link_libraries[ \t\r\n]*\\([ \t\r\n]*better_pull_review_adapter_github[^\\)]*PRIVATE[^\\)]*Qt6::Network[^\\)]*\\)"
 )
     message(
@@ -240,7 +231,7 @@ endif()
 if(
     NOT github_cmake_compact
         MATCHES
-            "if\\(BPR_BUILD_TESTS\\) target_compile_definitions\\( better_pull_review_adapter_github PRIVATE BPR_NATIVE_HTTPS_TESTING=1 \\) endif\\(\\)"
+            "if\\(BUILD_TESTING\\) target_compile_definitions\\( better_pull_review_adapter_github PRIVATE BPR_NATIVE_HTTPS_TESTING=1 \\) endif\\(\\)"
 )
     message(
         FATAL_ERROR
@@ -528,31 +519,6 @@ if(
         "Linux GitHub adapter must compile src/linux_secret_service.cpp"
     )
 endif()
-if(
-    NOT github_linux_branch_contents
-        MATCHES
-            "find_package[ \t\r\n]*\\([ \t\r\n]*PkgConfig[ \t\r\n]+REQUIRED[ \t\r\n]*\\)"
-)
-    message(
-        FATAL_ERROR
-        "Linux GitHub adapter must require PkgConfig"
-    )
-endif()
-
-string(
-    REGEX MATCH
-    "pkg_check_modules[ \t\r\n]*\\([ \t\r\n]*([A-Za-z_][A-Za-z0-9_]*)[ \t\r\n]+REQUIRED[ \t\r\n]+IMPORTED_TARGET[ \t\r\n]+libsecret-1>=0\\.20\\.0[ \t\r\n]*\\)"
-    github_libsecret_pkg_check
-    "${github_linux_branch_contents}"
-)
-set(github_libsecret_pkg_variable "${CMAKE_MATCH_1}")
-if(github_libsecret_pkg_check STREQUAL "")
-    message(
-        FATAL_ERROR
-        "Linux GitHub adapter must import required libsecret-1>=0.20.0"
-    )
-endif()
-
 string(
     REGEX MATCH
     "target_link_libraries[ \t\r\n]*\\([^\\)]*better_pull_review_adapter_github[^\\)]*\\)"
@@ -562,7 +528,7 @@ string(
 if(
     github_linux_target_links STREQUAL ""
     OR NOT github_linux_target_links
-        MATCHES "PkgConfig::${github_libsecret_pkg_variable}"
+        MATCHES "LibSecret::LibSecret"
 )
     message(
         FATAL_ERROR
@@ -573,7 +539,7 @@ endif()
 if(
     github_non_linux_branch_contents
         MATCHES
-            "(linux_secret_service\\.cpp|libsecret-1|PkgConfig::${github_libsecret_pkg_variable})"
+            "(linux_secret_service\\.cpp|LibSecret::LibSecret)"
 )
     message(
         FATAL_ERROR
@@ -608,7 +574,7 @@ foreach(project_cmake_file IN LISTS project_cmake_files)
     if(
         contents
             MATCHES
-                "(linux_secret_service\\.cpp|PkgConfig::${github_libsecret_pkg_variable})"
+                "linux_secret_service\\.cpp"
     )
         file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${project_cmake_file}")
         message(

@@ -2,15 +2,52 @@
 
 ## Prerequisites
 
-- CMake 3.25 or newer
+- CMake 4.4.2
 - Ninja
 - A C++23 compiler
 - Qt 6.8 or newer for the Qt adapter and application
-- Python 3 for structural and runtime verification scripts
+- Python 3.10 or newer for structural and runtime verification scripts
+- Git 2.39 or newer for installed-Git contract tests
 - On Linux, stable `libsecret-1>=0.20.0` and its development metadata
 
-The validated local foundation environment uses CMake 4.3, AppleClang 16,
+The validated local foundation environment uses CMake 4.4.2, AppleClang 16,
 Ninja, Python 3.14, and Qt 6.11.1 on macOS arm64.
+
+## Dependency boundary
+
+The root configures dependencies before product subdirectories. An isolated
+bootstrap may read caller-installed Qt CMake metadata, the CMake Python/Git
+find modules, and Linux `pkg-config` libsecret metadata. It flattens supported
+target usage requirements into a fingerprinted CPS 0.14.1 overlay at
+`build/<preset>/_bpr/cps-overlay`. The product graph searches only that prefix,
+requires every selected config path to end in `.cps`, and rejects package
+redirects, stale artifacts, unsupported generator expressions, and legacy
+fallbacks.
+
+CMake 4.4.2 does not import CPS components whose type is `executable`.
+Accordingly, the Python and Git CPS adapters expose one interface metadata
+component containing exactly one fingerprinted executable path. The strict
+resolver validates that path and materializes the conventional imported
+`Python3::Interpreter` or `Git::Git` executable target. The product graph still
+receives no Find-module variables or producer CMake package script.
+
+Producer hints are `Qt6_ROOT`/`Qt6_DIR`, `Python3_ROOT_DIR`, `Git_ROOT`,
+`CMAKE_PREFIX_PATH`, and `PKG_CONFIG_PATH`. They are passed only to the isolated
+bootstrap. `CPM_SOURCE_CACHE` selects the shared source cache used by the exact
+CPM 0.43.1 loader and SQLite 3.53.4 download-only provider. Presets use
+`build/.cpm-cache` so `dev` and `core-only` reuse the same verified source.
+
+For a fail-closed cached configure, reuse an already generated build tree and
+cache:
+
+```sh
+cmake --preset dev -DBPR_DEPENDENCY_OFFLINE=ON
+```
+
+Offline mode validates the CPS fingerprint and every recorded artifact before
+package resolution, validates the pinned CPM script, and uses only existing
+SQLite cache content. A missing overlay, CPM script, archive extraction, or
+changed artifact is fatal before any download is attempted.
 
 ## Presets
 
@@ -32,6 +69,8 @@ ctest --preset core-only --output-on-failure
 ```
 
 Both presets use out-of-source directories under ignored `build/`.
+Both also have schema-12 workflow presets, for example
+`cmake --workflow --preset core-only`.
 
 Run the RFC-BPR-0004 core/host diff seam and its Qt-free architecture checks
 with:
@@ -64,7 +103,7 @@ ctest --preset windows-dev --output-on-failure
 | `better_pull_review_application` | Host, effect/decision ports, serialized completion, manual executor |
 | `better_pull_review_adapter_github` | Normalized provider, native-HTTPS, credential-vault, and recorded-test adapters |
 | `better_pull_review_adapter_git` | Concrete Qt Core/`QProcess` installed-Git local pack/object/ref adapter |
-| `better_pull_review_sqlite3` | Pinned static SQLite 3.53.4 amalgamation, exposed as `BetterPullReview::SQLite3` |
+| `better_pull_review_sqlite3` | Verified CPM-acquired static SQLite 3.53.4 provider, exposed as `BetterPullReview::SQLite3` |
 | `better_pull_review_adapter_sqlite` | Concrete BPEC v1 epoch-catalog storage and operation-state adapter |
 | `better_pull_review_adapter_ai` | Capability boundary established for a later RFC |
 | `better_pull_review_adapter_qt` | Native Qt presentation adapter |
@@ -518,8 +557,9 @@ separate tests-disabled tree and inspect the GitHub adapter symbols:
 ```sh
 cmake -S . -B build/native-https-production -G Ninja \
   -DBPR_BUILD_QT=ON \
-  -DBPR_BUILD_TESTS=OFF \
-  -DCMAKE_BUILD_TYPE=Release
+  -DBUILD_TESTING=OFF \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 cmake --build build/native-https-production
 
 nm -g \
@@ -1013,8 +1053,9 @@ production operating-system CSPRNG, recovery-before-mint ordering, and fresh
 retry after a catalog-reported collision; no BPR-0044 test claims entropy
 quality.
 
-The catalog builds the pinned SQLite 3.53.4 static amalgamation without a
-system fallback. Runtime admission verifies BPEC application/schema identity,
+The catalog builds verified, CPM-acquired SQLite 3.53.4 source as one static
+library without a system fallback. Runtime admission verifies BPEC
+application/schema identity,
 the exact 18-table/16-index schema, integrity and foreign keys, prepared
 allowlisted SQL, defensive/trusted-schema policy, 4,096-byte pages, the
 262,144-page 1-GiB main-database limit, local WAL with `synchronous=FULL`, a

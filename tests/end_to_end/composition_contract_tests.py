@@ -61,7 +61,9 @@ def parse_arguments() -> tuple[argparse.Namespace, list[str]]:
         "--cmake",
         default=shutil.which("cmake") or "cmake",
     )
+    parser.add_argument("--qt-root", default="")
     parser.add_argument("--qt-dir", default="")
+    parser.add_argument("--cpm-source-cache", default="")
     return parser.parse_known_args()
 
 
@@ -191,7 +193,7 @@ class CompositionContractTests(unittest.TestCase):
 
     def test_tests_off_release_graph_omits_public_path_fixture(self) -> None:
         public_header = read("src/app/include/bpr/app/github_application.hpp")
-        self.assertNotIn("BPR_BUILD_TESTS", public_header)
+        self.assertNotIn("BPR_BUILD_TESTING", public_header)
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             build_directory = Path(temporary_directory) / "release"
@@ -204,11 +206,18 @@ class CompositionContractTests(unittest.TestCase):
                 "-G",
                 "Ninja",
                 "-DBPR_BUILD_QT=ON",
-                "-DBPR_BUILD_TESTS=OFF",
+                "-DBUILD_TESTING=OFF",
                 "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
             ]
+            if ARGUMENTS.qt_root:
+                command.append(f"-DQt6_ROOT={ARGUMENTS.qt_root}")
             if ARGUMENTS.qt_dir:
                 command.append(f"-DQt6_DIR={ARGUMENTS.qt_dir}")
+            if ARGUMENTS.cpm_source_cache:
+                command.append(
+                    f"-DCPM_SOURCE_CACHE={ARGUMENTS.cpm_source_cache}"
+                )
 
             configured = subprocess.run(
                 command,
@@ -223,8 +232,32 @@ class CompositionContractTests(unittest.TestCase):
             )
 
             cache = read_from(build_directory / "CMakeCache.txt")
-            self.assertRegex(cache, r"(?m)^BPR_BUILD_TESTS:BOOL=OFF$")
+            self.assertRegex(cache, r"(?m)^BUILD_TESTING:BOOL=OFF$")
             self.assertRegex(cache, r"(?m)^CMAKE_BUILD_TYPE:STRING=Release$")
+            dependency_audit = read_from(
+                build_directory / "_bpr/product-dependency-audit.cmake"
+            )
+            self.assertNotIn("Python3|", dependency_audit)
+            self.assertNotIn("Git|", dependency_audit)
+            bootstrap_cache = read_from(
+                build_directory / "_bpr/dependency-bootstrap/CMakeCache.txt"
+            )
+            self.assertRegex(
+                bootstrap_cache,
+                r"(?m)^BPR_BOOTSTRAP_TEST_TOOLS:BOOL=OFF$",
+            )
+            self.assertRegex(
+                bootstrap_cache,
+                r"(?m)^BPR_BOOTSTRAP_GIT:BOOL=OFF$",
+            )
+            cps_packages = {
+                path.parent.name
+                for path in (build_directory / "_bpr/cps-overlay/cps").glob(
+                    "*/*.cps"
+                )
+            }
+            self.assertNotIn("Python3", cps_packages)
+            self.assertNotIn("Git", cps_packages)
 
             compilation = json.loads(
                 read_from(build_directory / "compile_commands.json")
@@ -254,7 +287,7 @@ class CompositionContractTests(unittest.TestCase):
                 or " ".join(entry.get("arguments", []))
                 for entry in compilation
             )
-            self.assertNotIn("BPR_BUILD_TESTS", compile_invocations)
+            self.assertNotIn("BPR_BUILD_TESTING", compile_invocations)
             self.assertNotIn("BPR_NATIVE_HTTPS_TESTING", compile_invocations)
 
             build_graph = read_from(build_directory / "build.ninja")

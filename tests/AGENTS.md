@@ -41,7 +41,7 @@ Tests are direct evidence, not naming evidence.
 - Native HTTPS fixtures use only loopback CONNECT proxies, a disposable CA
   and leaf, runtime-random framed standard-input credentials, fixed output,
   exact authority/SNI/Host/request observations, and bounded teardown. The
-  test-only proxy/CA seam must be absent with `BPR_BUILD_TESTS=OFF`; its
+  test-only proxy/CA seam must be absent with `BUILD_TESTING=OFF`; its
   candidate-fallback evidence is not system-proxy reachability, public
   provider composition, or permission to contact GitHub. Use uninstrumented
   runs for cancellation/timeout behavior; a dependency trace may isolate one

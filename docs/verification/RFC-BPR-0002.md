@@ -790,7 +790,7 @@ reported `CLI_UNAVAILABLE_COUNT:1` by default and
 At the BPR-0029 snapshot, the macOS `dev` matrix passed 43/43, and focused
 prompt, provider, host, worker, credential, public-path, architecture, and v2
 Keychain checks passed. The Release composition contract built a fresh
-`BPR_BUILD_TESTS=OFF` executable and found no public-header test conditional,
+`BUILD_TESTING=OFF` executable and found no public-header test conditional,
 fixture translation unit or macro in compile commands/build graph, and no
 fixture argument, status, label, identity, path, or access symbol in raw
 binary bytes.

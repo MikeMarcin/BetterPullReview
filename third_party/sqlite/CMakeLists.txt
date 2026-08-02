@@ -1,9 +1,7 @@
-find_package(Threads REQUIRED)
-
 add_library(
     better_pull_review_sqlite3
     STATIC
-        amalgamation/sqlite3.c
+        "${BPR_SQLITE_SOURCE_DIR}/sqlite3.c"
 )
 add_library(
     BetterPullReview::SQLite3
@@ -15,12 +13,17 @@ target_include_directories(
     better_pull_review_sqlite3
     SYSTEM
     PUBLIC
-        "${CMAKE_CURRENT_SOURCE_DIR}/amalgamation"
+        "${BPR_SQLITE_SOURCE_DIR}"
 )
 target_link_libraries(
     better_pull_review_sqlite3
     PUBLIC
         Threads::Threads
+)
+target_compile_features(
+    better_pull_review_sqlite3
+    PRIVATE
+        c_std_99
 )
 target_compile_definitions(
     better_pull_review_sqlite3
@@ -46,8 +49,6 @@ set_target_properties(
     better_pull_review_sqlite3
     PROPERTIES
         C_EXTENSIONS OFF
-        C_STANDARD 99
-        C_STANDARD_REQUIRED ON
         POSITION_INDEPENDENT_CODE ON
 )
 

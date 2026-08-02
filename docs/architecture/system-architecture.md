@@ -28,8 +28,9 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
 
 - C++23
 - Qt 6 Widgets, Core, Gui, Network, and required platform integration
-- CMake and Ninja
-- SQLite through a pinned, directly linked C API
+- CMake 4.4.2 and Ninja
+- Strict generated CPS imports for prebuilt Qt, libsecret, Python, and Git
+- SQLite 3.53.4 through a verified CPM-acquired, directly linked C API
 - Installed Git executable through `QProcess`
 - Native HTTPS as the sole milestone-one production GitHub authentication
   transport
@@ -112,6 +113,17 @@ The live repository may use different target names, but it must enforce these ru
 - The Qt adapter uses Qt idiomatically. It does not own canonical GitHub state, review policy, persistence, asynchronous orchestration, or stale-result policy.
 - The composition root is the only place that knows all concrete pieces.
 - In-process communication uses typed C++ calls and records. JSON/RPC is added only at a real process boundary such as an agent protocol.
+
+Build dependency ownership is centralized before these product targets are
+declared. Only the isolated bootstrap may read producer CMake packages,
+Find-modules, or Linux `pkg-config` metadata. It writes a fingerprinted,
+machine-local CPS overlay under the build tree. The product graph searches
+that prefix with default paths disabled, admits only `.cps` configs, and links
+the resulting `Qt6::*`, `LibSecret::LibSecret`, `Python3::Interpreter`, and
+`Git::Git` targets. `Threads::Threads` and native frameworks remain explicit
+toolchain/platform capabilities. SQLite is the deliberate exception to CPS:
+verified source becomes the first-party static `BetterPullReview::SQLite3`
+target and is never replaced by a system library.
 
 ## Repository shape
 

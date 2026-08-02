@@ -13,7 +13,7 @@
 #include "linux_secret_service.hpp"
 #endif
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
 #include "github_public_path_fixture.hpp"
 #endif
 
@@ -355,7 +355,7 @@ class github_application::implementation final
 public:
     explicit implementation(
         github_application_config config
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         ,
         const std::optional<detail::github_public_path_fixture> fixture =
             std::nullopt,
@@ -363,7 +363,7 @@ public:
 #endif
     )
     {
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         if(fixture.has_value())
         {
             const auto enterprise =
@@ -455,7 +455,7 @@ public:
             }
         }
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         if(Fixture != nullptr)
         {
             TransportFactory = Fixture->transport_factory();
@@ -485,7 +485,7 @@ public:
         }
         Provider = std::move(*provider);
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         if(Fixture == nullptr)
 #endif
         {
@@ -501,7 +501,7 @@ public:
 
         auto application_data_root = std::filesystem::path{};
         auto git_executable = std::filesystem::path{};
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         if(Fixture != nullptr)
         {
             application_data_root = Fixture->application_data_root();
@@ -592,7 +592,7 @@ public:
     [[nodiscard]] auto credential_vault() noexcept
         -> application::github_credential_vault_port&
     {
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         if(Fixture != nullptr)
         {
             return Fixture->credential_vault();
@@ -640,7 +640,7 @@ public:
 
                     auto credential = std::optional<
                         application::github_credential_material>{};
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
                     if(Fixture != nullptr)
                     {
                         credential.emplace(
@@ -671,7 +671,7 @@ public:
         {
             return;
         }
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         if(std::holds_alternative<core::prune_review_epochs_intent>(intent))
         {
             ++EpochPruneIntentDispatchCount;
@@ -745,7 +745,7 @@ public:
     std::vector<application::github_profile_option> ProfileOptions;
     worker_executor ProviderEffects;
     worker_executor VaultEffects;
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
     std::size_t EpochPruneIntentDispatchCount = 0U;
     std::size_t EpochDeleteIntentDispatchCount = 0U;
@@ -817,7 +817,7 @@ auto github_application::status() const noexcept -> github_application_status
     };
 }
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
 auto detail::github_application_fixture_access::make(
     const detail::github_public_path_fixture fixture,
     detail::github_public_path_fixture_options options)

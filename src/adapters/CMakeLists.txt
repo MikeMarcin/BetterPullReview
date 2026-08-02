@@ -14,6 +14,5 @@ foreach(
 endforeach()
 
 if(BPR_BUILD_QT)
-    find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets)
     add_subdirectory(qt)
 endif()

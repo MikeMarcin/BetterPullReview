@@ -706,7 +706,7 @@ authorization. The fixture therefore proves peer-verification rejection, not
 one particular server-side handshake timing.
 
 The fixture's adapter-private configuration is compiled only when
-`BPR_BUILD_TESTS=ON`. It replaces production system-proxy discovery with one
+`BUILD_TESTING=ON`. It replaces production system-proxy discovery with one
 or two ordered loopback proxies and may augment system roots with exactly one
 fixture CA. A separate tests-disabled build must contain no
 `make_native_https_*_transport_for_test` symbol. The fixture directly proves
@@ -952,7 +952,7 @@ Native HTTPS remains the sole milestone-one production authentication
 transport.
 
 The fixture implementation, command-line parser branch, vault, recordings,
-paths, labels, and evidence strings exist only when `BPR_BUILD_TESTS=ON`.
+paths, labels, and evidence strings exist only when `BUILD_TESTING=ON`.
 `application_composition_contract` creates a fresh tests-disabled Release
 tree and inspects its public header, compile commands, build graph, and raw
 application bytes. It fails if the fixture translation unit, test

@@ -1,6 +1,6 @@
 #include "bpr/app/github_application.hpp"
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
 #include "github_application_fixture_access.hpp"
 
 #if defined(__APPLE__)
@@ -19,7 +19,7 @@
 #include <QTextStream>
 #include <QTimer>
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -45,7 +45,7 @@
 #include <string>
 #include <string_view>
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
 #include <cstring>
 #endif
 
@@ -92,7 +92,7 @@ auto save_render_evidence(
     return window.grab().save(path, "PNG");
 }
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
 struct native_appearance_evidence_paths
 {
     QString Initial;
@@ -299,7 +299,7 @@ struct automated_run
         start,
         connect,
         open,
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         epoch_history,
         epoch_refresh,
         epoch_whole_pr,
@@ -349,7 +349,7 @@ struct automated_run
     bool LastEpochHistoryEnabled = false;
     int FailedStage = -1;
     cli_unavailable_probe_state Cli;
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     struct native_appearance_probe_state
     {
         bool Enabled = false;
@@ -412,7 +412,7 @@ struct automated_run
     std::optional<std::string_view> RenderPath;
 };
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
 [[nodiscard]] auto color_scheme_name(
     const Qt::ColorScheme scheme) noexcept -> const char*
 {
@@ -765,7 +765,7 @@ struct automated_run
 #endif
 }
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
 [[nodiscard]] auto fixture_presentation_passed(
     bpr::qt::github_window& window,
     const std::string_view expected_active_host_text) -> bool
@@ -1213,7 +1213,7 @@ void finish_automated_run(
         && cli_unavailable_evidence_passed;
     auto render_saved = run.RenderSaved;
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     const auto fixture_evidence =
         run.Fixture
         ? bpr::app::detail::github_application_fixture_access::evidence(
@@ -1279,7 +1279,7 @@ void finish_automated_run(
 #endif
 
     QTextStream stream{stdout};
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     if(run.Fixture)
     {
         stream << "GITHUB_FIXTURE_QT_PLATFORM:"
@@ -1305,7 +1305,7 @@ void finish_automated_run(
                        run.Cli.Observed)
                 << '\n';
     }
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     if(run.Fixture
        && run.EpochPhase
               != bpr::app::detail::github_epoch_fixture_phase::single)
@@ -1387,7 +1387,7 @@ void finish_automated_run(
                << '\n'
                << "PUBLIC_PATH_EPOCH_CORE_STATUS:"
                << run.LastEpochCoreStatus << '\n';
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         if(run.MaintenanceProbe
            != automated_run::epoch_maintenance_probe::none)
         {
@@ -1413,7 +1413,7 @@ void finish_automated_run(
         }
 #endif
     }
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     if(run.Fixture)
     {
         stream << (passed ? "GITHUB_FIXTURE_OK:" : "GITHUB_FIXTURE_FAILED:")
@@ -1444,7 +1444,7 @@ void finish_automated_run(
     {
         stream << (render_saved ? "RENDER_OK\n" : "RENDER_FAILED\n");
     }
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     if(run.Appearance.Enabled)
     {
         stream << "NATIVE_APPEARANCE_TRANSITION:"
@@ -1524,7 +1524,7 @@ void capture_automated_timeout_evidence(
         window.epoch_control()->load_history_action()->isEnabled();
     run.LastEpochCoreStatus =
         static_cast<int>(application.status().EpochStatus);
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     if(!run.Appearance.Enabled)
 #endif
     {
@@ -1537,7 +1537,7 @@ void schedule_automated_run(
     bpr::app::github_application& application,
     std::shared_ptr<automated_run> run)
 {
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
     if(run->Appearance.Enabled)
     {
         run->RenderSaved = false;
@@ -1560,7 +1560,7 @@ void schedule_automated_run(
     {
         auto& window = application.window();
         const auto maximum_attempts =
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
             run->Fixture
                 && (run->Stage == automated_run::stage::start
                     || run->Stage == automated_run::stage::connect
@@ -1587,7 +1587,7 @@ void schedule_automated_run(
         switch(run->Stage)
         {
         case automated_run::stage::start:
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
             if(run->Fixture)
             {
                 window.connect_action()->trigger();
@@ -1633,7 +1633,7 @@ void schedule_automated_run(
             break;
 
         case automated_run::stage::connect:
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
             if(run->Fixture)
             {
                 if(window.status_text() != "GitHub account connected."
@@ -1680,7 +1680,7 @@ void schedule_automated_run(
             break;
 
         case automated_run::stage::open:
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
             if(run->MaintenanceProbe
                == automated_run::epoch_maintenance_probe::verify_deleted)
             {
@@ -1808,7 +1808,7 @@ void schedule_automated_run(
 #endif
             break;
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         case automated_run::stage::epoch_history:
         {
             const auto evidence = bpr::app::detail::
@@ -2276,7 +2276,7 @@ auto main(int argc, char** argv) -> int
         }
         auto enterprise_hostname = config.EnterpriseHostname;
 
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         auto fixture_name = std::string{};
         auto expected_active_host_text = std::string{};
         auto selected_fixture = std::optional<
@@ -2384,7 +2384,7 @@ auto main(int argc, char** argv) -> int
         const auto self_test = has_argument(argc, argv, "--self-test");
         const auto render_path =
             argument_value(argc, argv, "--render-evidence");
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         const auto native_appearance_probe =
             has_argument(argc, argv, "--native-appearance-probe");
         const auto changed_render_path =
@@ -2428,7 +2428,7 @@ auto main(int argc, char** argv) -> int
 #endif
 
         auto application =
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
             selected_fixture.has_value()
             ? bpr::app::detail::github_application_fixture_access::make(
                   *selected_fixture, fixture_options)
@@ -2447,14 +2447,14 @@ auto main(int argc, char** argv) -> int
 
         auto verify_native_platform_vault = self_test;
         auto verify_cli_unavailable = self_test;
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
         verify_native_platform_vault =
             verify_native_platform_vault && fixture_name.empty();
         verify_cli_unavailable =
             verify_cli_unavailable && fixture_name.empty();
 #endif
         if(self_test || render_path.has_value()
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
            || !fixture_name.empty()
 #endif
         )
@@ -2475,7 +2475,7 @@ auto main(int argc, char** argv) -> int
                                 .EnterpriseHostname =
                                     std::move(enterprise_hostname),
                             },
-#if defined(BPR_BUILD_TESTS)
+#if defined(BPR_BUILD_TESTING)
                         .Fixture = !fixture_name.empty(),
                         .FixtureName = std::move(fixture_name),
                         .ExpectedActiveHostText =

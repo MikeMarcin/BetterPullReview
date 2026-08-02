@@ -81,15 +81,30 @@ architecture](docs/architecture/github-host-implementation.md) and
 
 ## Build and test
 
-Prerequisites are CMake 3.25+, Ninja, a C++23 compiler, Qt 6.8+ for the native
-application, and an installed Git 2.39+ that passes BetterPullReview's fixed
-SHA-1/SHA-256 capability probe. Version text alone does not admit an
-installation.
+Prerequisites are CMake 4.4.2, Ninja, a C++23 compiler, Qt 6.8+ for the native
+application, Python 3.10+ for tests, and Git 2.39+ for installed-Git contract
+tests. On Linux, libsecret 0.20+ development metadata is also required.
+Compatible newer installations are supported.
+
+Configuration generates a machine-local CPS overlay under the build tree.
+Only the isolated bootstrap reads producer CMake, Find-module, or `pkg-config`
+metadata; the product graph imports Qt, libsecret, Python, and Git exclusively
+from `.cps` files in that overlay. SQLite 3.53.4 is instead source-acquired
+through a verified, download-only CPM 0.43.1 provider and built as the existing
+`BetterPullReview::SQLite3` static target. Set standard producer hints such as
+`Qt6_ROOT`, `Python3_ROOT_DIR`, `Git_ROOT`, `CMAKE_PREFIX_PATH`,
+`PKG_CONFIG_PATH`, and `CPM_SOURCE_CACHE` when discovery needs help.
 
 ```sh
 cmake --preset dev
 cmake --build --preset dev
 ctest --preset dev --output-on-failure
+```
+
+The same configure/build/test sequence is available as one workflow:
+
+```sh
+cmake --workflow --preset dev
 ```
 
 Build and test the semantic core and application host without Qt:
@@ -99,6 +114,11 @@ cmake --preset core-only
 cmake --build --preset core-only
 ctest --preset core-only --output-on-failure
 ```
+
+Use `-DBUILD_TESTING=OFF` for a tests-disabled graph. The obsolete
+`BPR_BUILD_TESTS` cache variable is rejected with a migration diagnostic.
+`-DBPR_DEPENDENCY_OFFLINE=ON` permits no bootstrap downloads and requires both
+the existing CPS overlay and the selected `CPM_SOURCE_CACHE` content to verify.
 
 Run the application:
 

@@ -17,20 +17,20 @@ The archive digest and `sqlite3.c` digest are published by sqlite.org. The
 `sqlite3.h` digest is an additional repository intake measurement of the same
 verified archive.
 
-Both amalgamation inputs remain byte-for-byte copies of that verified archive.
-Their path-specific Git attributes disable only the `blank-at-eol` diagnostic
-because the published source contains those bytes; all other whitespace
-diagnostics remain active.
+The build downloads this archive without adding its upstream CMake project,
+then verifies `sqlite3.c` and `sqlite3.h` byte-for-byte in the CPM source cache
+before declaring `BetterPullReview::SQLite3`. No amalgamation source is tracked
+in this repository.
 
 The official ZIP also contains `shell.c` and `sqlite3ext.h`. They are not
-vendored: BetterPullReview builds no SQLite command-line shell and omits
+compiled: BetterPullReview builds no SQLite command-line shell and omits
 loadable extensions, so neither file is required by the static library or its
 consumers.
 
 ## Reproducible intake
 
-Run from a private temporary directory and compare every result exactly before
-replacing the vendored files:
+Run from a private temporary directory to independently reproduce the provider
+checks before changing a pin:
 
 ```sh
 curl --proto '=https' --tlsv1.2 --fail --location \
@@ -43,6 +43,7 @@ openssl dgst -sha3-256 \
   sqlite-amalgamation-3530400/sqlite3.h
 ```
 
-Reject a download if either upstream-published digest differs. Copy only
-`sqlite3.c` and `sqlite3.h`; do not carry generated tools, extension headers,
-archive metadata, or temporary download artifacts into the repository.
+Reject a download if either upstream-published digest differs. Update
+`cmake/BprSQLiteProvider.cmake` and this record together; do not carry generated
+tools, extension headers, archive metadata, or temporary download artifacts
+into the repository.

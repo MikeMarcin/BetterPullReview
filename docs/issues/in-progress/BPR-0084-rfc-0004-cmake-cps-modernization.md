@@ -46,3 +46,31 @@ records, SQLite provenance and license instructions, RFC-BPR-0004 verification
 ledger, issue board, and any agent-owned build-selection contracts affected by
 the migration. Run a conservative simplification pass and an independent
 capability-critical review before moving this card to `done/`.
+
+## Current evidence
+
+- Native macOS arm64 uses CMake 4.4.2, AppleClang 16, Ninja 1.13.2,
+  Qt 6.11.1, Python 3.14.6, and Git 2.39.5. A clean `dev` configure built all
+  143 targets and passed 74/74 tests in 242.11 seconds. Its nested
+  tests-disabled Release composition also built, ran both production
+  self-tests, and passed fixture-seam, dependency, and runtime audits.
+- The fresh `core-only` configure generated only the Python CPS adapter: Qt,
+  libsecret, and Git producer discovery were all disabled. Its 69-target build
+  and 33/33 test matrix passed in 40.04 seconds.
+- The 14-case dependency modernization contract covers single- and
+  multi-config CPS generation, paths with spaces, configurations, transitive
+  requirements, known feature translation, version floors, stable refresh,
+  stale/tampered documents and artifacts, injected CMake package scripts,
+  unsupported/incomplete producer metadata, CPM pinning, SQLite archive/source
+  identities, warm offline reuse, uncached offline failure before network
+  access, static linkage, compile-definition parity, and system-fallback
+  absence.
+- CMake 4.4.2 cannot import CPS `executable` components. The generated Python
+  and Git packages therefore carry exactly one fingerprinted executable path
+  in an interface metadata component; the strict resolver validates it before
+  materializing `Python3::Interpreter` or `Git::Git`. No Find-module variable
+  or producer CMake script enters the product graph.
+
+The target-native Ubuntu 26.04 matrix, conservative simplification pass, and
+capability-critical review remain open before closeout. Native Windows
+execution is not claimed by this card.

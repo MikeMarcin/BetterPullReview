@@ -16,6 +16,14 @@ add_subdirectory(github)
 add_subdirectory(git)
 """
 
+DEPENDENCIES_TARGET = """\
+find_package(Threads REQUIRED)
+bpr_find_cps_package(Qt6 6.8)
+bpr_find_cps_package(LibSecret 0.20)
+bpr_find_cps_package(Python3 3.10)
+bpr_find_cps_package(Git 2.39)
+"""
+
 GIT_TARGET = (
     REPOSITORY_ROOT / "src" / "adapters" / "git" / "CMakeLists.txt"
 ).read_text(encoding="utf-8")
@@ -87,13 +95,6 @@ endif()
 
 LINUX_SECRET_SERVICE_TARGET = """\
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(
-        BPR_TEST_LIBSECRET
-        REQUIRED
-        IMPORTED_TARGET
-        libsecret-1>=0.20.0
-    )
     target_sources(
         better_pull_review_adapter_github
         INTERFACE
@@ -102,14 +103,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(
         better_pull_review_adapter_github
         INTERFACE
-            PkgConfig::BPR_TEST_LIBSECRET
+            LibSecret::LibSecret
     )
 endif()
 """
 
 GITHUB_TARGET = """\
-find_package(Qt6 REQUIRED COMPONENTS Core Network)
-find_package(Threads REQUIRED)
 add_library(better_pull_review_adapter_github INTERFACE)
 add_library(BetterPullReview::AdapterGitHub ALIAS better_pull_review_adapter_github)
 target_link_libraries(
@@ -132,7 +131,7 @@ target_sources(
         src/github_wire_request_validation.cpp
         src/native_https_transport.cpp
 )
-if(BPR_BUILD_TESTS)
+if(BUILD_TESTING)
     target_compile_definitions(
         better_pull_review_adapter_github
         PRIVATE
@@ -1193,6 +1192,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             root = Path(temporary_directory)
             files = {
                 "CMakeLists.txt": "",
+                "cmake/BprDependencies.cmake": DEPENDENCIES_TARGET,
                 "src/application/CMakeLists.txt": "",
                 "src/adapters/CMakeLists.txt": adapter_root,
                 "src/adapters/github/CMakeLists.txt": github_target,
@@ -1802,17 +1802,12 @@ class ArchitectureBoundaryTests(unittest.TestCase):
     ) -> None:
         mutations = (
             (
-                "find_package(Qt6 REQUIRED COMPONENTS Core Network)\n",
-                "",
-                "requires the Qt6 Network component",
-            ),
-            (
                 "        Qt6::Network\n",
                 "",
                 "must link Qt6::Network privately",
             ),
             (
-                "if(BPR_BUILD_TESTS)",
+                "if(BUILD_TESTING)",
                 "if(TRUE)",
                 "fixture seams must compile privately",
             ),
@@ -2004,11 +1999,6 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 )
 
         thread_dependency_mutations = (
-            (
-                "find_package(Threads REQUIRED)\n",
-                "",
-                "must resolve the required CMake Threads package",
-            ),
             (
                 "        Threads::Threads\n",
                 "",
@@ -3296,28 +3286,7 @@ auto finish_background_reap(
         hostile_targets = (
             (
                 GITHUB_TARGET.replace(
-                    "    find_package(PkgConfig REQUIRED)\n",
-                    "",
-                ),
-                "must require PkgConfig",
-            ),
-            (
-                GITHUB_TARGET.replace(
-                    "        libsecret-1>=0.20.0\n",
-                    "        libsecret-1\n",
-                ),
-                "must import required libsecret-1>=0.20.0",
-            ),
-            (
-                GITHUB_TARGET.replace(
-                    "        IMPORTED_TARGET\n",
-                    "",
-                ),
-                "must import required libsecret-1>=0.20.0",
-            ),
-            (
-                GITHUB_TARGET.replace(
-                    "            PkgConfig::BPR_TEST_LIBSECRET\n",
+                    "            LibSecret::LibSecret\n",
                     "",
                 ),
                 "must link the imported libsecret target",

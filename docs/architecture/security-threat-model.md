@@ -727,8 +727,8 @@ statements and bounded values. Local [WAL](https://sqlite.org/wal.html) mode wit
 [`synchronous=FULL`](https://sqlite.org/pragma.html#pragma_synchronous) is
 required; a network filesystem is not supported.
 
-BetterPullReview builds the pinned SQLite 3.53.4 amalgamation as one static
-library without a system fallback. The exact `SQLITE_SOURCE_ID`, official
+BetterPullReview builds verified, download-only SQLite 3.53.4 source as one
+static library without a system fallback. The exact `SQLITE_SOURCE_ID`, official
 archive and source SHA3-256 values, repository intake measurement, and compile
 contract are recorded under `third_party/sqlite/`. The runtime verifies the
 security-relevant compile options before admitting the catalog.

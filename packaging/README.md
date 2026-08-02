@@ -59,9 +59,9 @@ fixture-vault state, while separate target-native lifecycle checks prove
 native-item cleanup. There is no durable selector or enumeration path, so no
 crash/restart recovery is claimed.
 
-`BPR_BUILD_TESTS=ON` adds the adapter-private native HTTPS seam and the
+`BUILD_TESTING=ON` adds the adapter-private native HTTPS seam and the
 GitHub.com/GHES public composition fixture. A directly inspected
-`BPR_BUILD_TESTS=OFF` macOS build exported no
+`BUILD_TESTING=OFF` macOS build exported no
 `make_native_https_*_transport_for_test` symbols, omitted the fixture
 translation unit and test definitions from its compile graph, and contained
 none of the fixture arguments, status strings, labels, identities, paths, or

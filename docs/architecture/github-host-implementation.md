@@ -738,7 +738,7 @@ the exact profile, profile revision, host identity, canonical hostname,
 account, and server contract, and each request must match its application
 session and identity generation. Mismatches fail before network execution.
 
-The target-native test seam exists only when `BPR_BUILD_TESTS=ON`. It keeps
+The target-native test seam exists only when `BUILD_TESTING=ON`. It keeps
 the production request, TLS, redirect, cancellation, response, and
 credential-binding path but substitutes an ordered loopback proxy list and
 may add one disposable fixture CA to the system roots. The 15-case
@@ -757,7 +757,7 @@ candidate is reachable.
 On the directly exercised macOS arm64 development host, the complete 15-case
 fixture passed. Runtime observation reported Qt Network 6.11.1 with the
 OpenSSL TLS backend, TLS supported, and one direct system-proxy candidate.
-A separate `BPR_BUILD_TESTS=OFF` build/dependency audit found no test-only
+A separate `BUILD_TESTING=OFF` build/dependency audit found no test-only
 factory symbols, retained the adapter's direct Security and CoreFoundation
 dependencies, and observed the current ad-hoc linker signature. These are
 development build and runtime facts, not package signing or distribution
@@ -1417,7 +1417,7 @@ The fixture transport, fixture vault, fixture command-line choices, native
 appearance-probe choices and evidence, and fixture evidence types are compiled
 only into test-enabled targets. The public application header is
 test-definition-free. A clean
-`BPR_BUILD_TESTS=OFF` Release configure/build inspects compile commands, the
+`BUILD_TESTING=OFF` Release configure/build inspects compile commands, the
 Ninja graph, symbols, and raw binary bytes to prove that the fixture
 translation unit, test macros, paths, arguments, labels, native appearance
 markers, and evidence strings are absent.

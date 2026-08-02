@@ -1,36 +1,70 @@
 {
-  "version": 6,
+  "$schema": "https://raw.githubusercontent.com/Kitware/CMake/v4.4.2/Help/manual/presets/schema.json",
+  "version": 12,
   "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 25,
-    "patch": 0
+    "major": 4,
+    "minor": 4,
+    "patch": 2
   },
   "configurePresets": [
     {
+      "name": "_common",
+      "hidden": true,
+      "cacheVariables": {
+        "BPR_DEPENDENCY_OFFLINE": "OFF",
+        "BUILD_TESTING": "ON",
+        "CMAKE_TEST_BUILD_DEPENDS": "ON",
+        "CPM_SOURCE_CACHE": "${sourceDir}/build/.cpm-cache"
+      },
+      "warnings": {
+        "author": true,
+        "deprecated": true,
+        "experimental": true,
+        "installAbsoluteDestination": true,
+        "policy": true,
+        "uninitialized": true,
+        "unusedCli": true,
+        "systemVars": false
+      },
+      "errors": {
+        "author": true,
+        "deprecated": true,
+        "policy": true
+      }
+    },
+    {
+      "name": "_ninja-common",
+      "hidden": true,
+      "inherits": "_common",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
       "name": "dev",
       "displayName": "Developer build",
-      "generator": "Ninja",
+      "inherits": "_ninja-common",
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "BPR_BUILD_QT": "ON",
-        "BPR_BUILD_TESTS": "ON",
         "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
       "name": "core-only",
       "displayName": "Qt-free core build",
-      "generator": "Ninja",
+      "inherits": "_ninja-common",
       "binaryDir": "${sourceDir}/build/core-only",
       "cacheVariables": {
         "BPR_BUILD_QT": "OFF",
-        "BPR_BUILD_TESTS": "ON",
         "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
       "name": "windows-dev",
       "displayName": "Windows developer build",
+      "inherits": "_common",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
       "binaryDir": "${sourceDir}/build/windows-dev",
@@ -40,48 +74,87 @@
         "rhs": "Windows"
       },
       "cacheVariables": {
-        "BPR_BUILD_QT": "ON",
-        "BPR_BUILD_TESTS": "ON"
+        "BPR_BUILD_QT": "ON"
       }
     }
   ],
   "buildPresets": [
     {
+      "name": "_build-common",
+      "hidden": true
+    },
+    {
       "name": "dev",
+      "inherits": "_build-common",
       "configurePreset": "dev"
     },
     {
       "name": "core-only",
+      "inherits": "_build-common",
       "configurePreset": "core-only"
     },
     {
       "name": "windows-dev",
+      "inherits": "_build-common",
       "configurePreset": "windows-dev",
       "configuration": "Debug"
     }
   ],
   "testPresets": [
     {
-      "name": "dev",
-      "configurePreset": "dev",
+      "name": "_test-common",
+      "hidden": true,
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
       }
+    },
+    {
+      "name": "dev",
+      "inherits": "_test-common",
+      "configurePreset": "dev"
     },
     {
       "name": "core-only",
-      "configurePreset": "core-only",
-      "output": {
-        "outputOnFailure": true
-      }
+      "inherits": "_test-common",
+      "configurePreset": "core-only"
     },
     {
       "name": "windows-dev",
+      "inherits": "_test-common",
       "configurePreset": "windows-dev",
-      "configuration": "Debug",
-      "output": {
-        "outputOnFailure": true
-      }
+      "configuration": "Debug"
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "dev",
+      "displayName": "Configure, build, and test developer graph",
+      "steps": [
+        { "type": "configure", "name": "dev" },
+        { "type": "build", "name": "dev" },
+        { "type": "test", "name": "dev" }
+      ]
+    },
+    {
+      "name": "core-only",
+      "displayName": "Configure, build, and test Qt-free graph",
+      "steps": [
+        { "type": "configure", "name": "core-only" },
+        { "type": "build", "name": "core-only" },
+        { "type": "test", "name": "core-only" }
+      ]
+    },
+    {
+      "name": "windows-dev",
+      "displayName": "Configure, build, and test Windows developer graph",
+      "steps": [
+        { "type": "configure", "name": "windows-dev" },
+        { "type": "build", "name": "windows-dev" },
+        { "type": "test", "name": "windows-dev" }
+      ]
     }
   ]
 }

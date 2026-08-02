@@ -1,6 +1,6 @@
 #pragma once
 
-#if !defined(BPR_BUILD_TESTS)
+#if !defined(BPR_BUILD_TESTING)
 #error "The GitHub application fixture access is test-build only"
 #endif
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 4.4.2)
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_FIXTURE BPR_FIXTURE_LABEL BPR_ROOT)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")

@@ -781,8 +781,8 @@ repository name, URL, raw process output, or raw provider error.
 There are no generic JSON payload rows, views, triggers, caller-provided SQL,
 or `ATTACH`.
 
-The adapter builds the repository-pinned SQLite 3.53.4 amalgamation as one
-static library with no system-library lookup or fallback. Its release, source
+The adapter builds verified, CPM-acquired SQLite 3.53.4 source as one static
+library with no system-library lookup or fallback. Its release, source
 identity, and SHA3-256 measurements are recorded in
 [`third_party/sqlite/PROVENANCE.md`](../../third_party/sqlite/PROVENANCE.md),
 and its compile/runtime contract is recorded in

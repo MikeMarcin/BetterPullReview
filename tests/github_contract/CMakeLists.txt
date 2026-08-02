@@ -1,6 +1,3 @@
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network)
-find_package(Threads REQUIRED)
-
 add_executable(
     better_pull_review_native_https_transport_tests
     native_https_transport_tests.cpp
@@ -92,7 +89,7 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(
         NAME native_https_transport_fixture
         COMMAND
-            "${Python3_EXECUTABLE}"
+            Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/verify_native_https_transport.py"
             --executable
             "$<TARGET_FILE:better_pull_review_native_https_transport_tests>"
@@ -109,7 +106,7 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(
         NAME native_git_smart_transport_fixture
         COMMAND
-            "${Python3_EXECUTABLE}"
+            Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_git_smart_transport.py"
             --executable
             "$<TARGET_FILE:better_pull_review_native_git_smart_transport_tests>"
@@ -449,15 +446,6 @@ if(APPLE)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    find_package(Threads REQUIRED)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(
-        BPR_TEST_LIBSECRET
-        REQUIRED
-        IMPORTED_TARGET
-        libsecret-1>=0.20.0
-    )
-
     add_executable(
         better_pull_review_linux_secret_service_contract_tests
         linux_secret_service_contract_tests.cpp
@@ -467,7 +455,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PRIVATE
             BetterPullReview::AdapterGitHub
             BetterPullReview::Application
-            PkgConfig::BPR_TEST_LIBSECRET
+            LibSecret::LibSecret
             Threads::Threads
     )
     target_include_directories(
@@ -497,7 +485,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         PRIVATE
             BetterPullReview::AdapterGitHub
             BetterPullReview::Application
-            PkgConfig::BPR_TEST_LIBSECRET
+            LibSecret::LibSecret
             Threads::Threads
     )
     target_include_directories(

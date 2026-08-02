@@ -1,14 +1,10 @@
-find_package(Git 2.39 REQUIRED)
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
-find_package(Threads REQUIRED)
-
 add_test(
     NAME epoch_history_fixture_contract
     COMMAND
-        "${Python3_EXECUTABLE}"
+        Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_epoch_history_fixture.py"
         --git
-        "${GIT_EXECUTABLE}"
+        "$<TARGET_FILE:Git::Git>"
         --manifest
         "${PROJECT_SOURCE_DIR}/tests/fixtures/git/epoch-history/v1/manifest.json"
         --source
@@ -42,7 +38,7 @@ target_compile_definitions(
     better_pull_review_git_process_contract_tests
     PRIVATE
         BPR_INSTALLED_GIT_PROCESS_FAULT_INJECTION=1
-        BPR_TEST_GIT_EXECUTABLE="${GIT_EXECUTABLE}"
+        BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
 )
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(
@@ -90,7 +86,7 @@ target_compile_definitions(
     better_pull_review_git_cache_contract_tests
     PRIVATE
         BPR_INSTALLED_GIT_CACHE_FAULT_INJECTION=1
-        BPR_TEST_GIT_EXECUTABLE="${GIT_EXECUTABLE}"
+        BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
 )
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(
@@ -131,7 +127,7 @@ target_link_libraries(
 target_compile_definitions(
     better_pull_review_epoch_maintenance_integration_tests
     PRIVATE
-        BPR_TEST_GIT_EXECUTABLE="${GIT_EXECUTABLE}"
+        BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
 )
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(

@@ -1,7 +1,4 @@
 if(BPR_BUILD_QT)
-    find_package(Qt6 6.8 REQUIRED COMPONENTS Core)
-    find_package(Threads REQUIRED)
-
     add_library(
         better_pull_review_adapter_git
         STATIC
