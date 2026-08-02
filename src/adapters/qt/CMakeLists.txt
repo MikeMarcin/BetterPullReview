@@ -8,6 +8,7 @@ add_library(
         src/github_conversation_delegate.cpp
         src/github_conversation_model.cpp
         src/github_window.cpp
+        src/measured_alignment_axis.cpp
         src/sensitive_text_input.cpp
 )
 add_library(BetterPullReview::AdapterQt ALIAS better_pull_review_adapter_qt)

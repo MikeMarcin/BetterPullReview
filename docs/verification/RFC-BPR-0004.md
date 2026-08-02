@@ -13,7 +13,11 @@ portions of D-05 through D-08 and I-01. BPR-0075 supplies the bounded
 core/application request, materialization, cache, cancellation, shutdown, and
 stale-acceptance seam and closes H-01, H-02, and the non-Qt portions of H-03
 and H-04. Scale, Qt, installed-Git composition, and all rendered interaction
-claims remain open on later cards. RFC-BPR-0003 retains
+claims remain open on later cards. BPR-0076 now supplies the Qt-local live-pane
+measurement, indexed max-extent axis, endpoint clamp, and explicit geometry-
+invalidation seam; shared input/scrollbar authority, link-map rendering, and
+selected application composition remain open on BPR-0077 through BPR-0079.
+RFC-BPR-0003 retains
 explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
 until its dependency can close.
 
@@ -136,6 +140,40 @@ absent-versus-empty sides, nontext results, typed port/compute failures,
 authority invalidation, and projection exceptions. The real installed-Git
 blob materializer/cache-session arbitration and destroyed-Qt composition remain
 explicit BPR-0079 work; BPR-0075 makes no selected-application-path claim.
+
+## BPR-0076 measured-axis evidence
+
+The public Qt adapter now measures accepted logical-line boundaries from a
+live natural-layout `QPlainTextEdit` without adding source rows. Measurement
+walks the document blocks once, treats Qt's optional trailing visual block as
+at most the final semantic boundary, and retains the pane's document extent,
+viewport extent, and device-pixel ratio as Qt-local facts.
+
+The immutable measured axis consumes only a structurally validated text
+alignment plus finite monotonic pane measurements. Every semantic segment ID
+is retained. Each comparison extent is the maximum of the two measured side
+extents; an empty side therefore projects to one constant boundary, and
+unequal replacements converge at one comparison endpoint. Zero-height
+segments remain inspectable but do not enter the positive-extent lookup index.
+Projection uses an indexed segment lookup, clamps to the exact start/end
+domain, and never divides by zero. The cache clears invalid geometry,
+coalesces accepted-diff, file/epoch, font, zoom, line-spacing, tab, DPI/screen,
+viewport/divider, wrap/fold, document-layout, and variable-height invalidation
+facts, and advances one generation only after a successful rebuild.
+
+The three selected Qt-scale tests pass at 1.0x, 1.25x, and 2.0x. They directly
+cover continuity, right-insertion/left-deletion pinning, 4:7 and 7:4
+replacement ratios, empty and zero-height geometry, endpoint reachability,
+invalid-measurement rejection, stable semantic identity, coalesced
+invalidation, independent viewport heights, and live font/tab/resize/DPI
+remeasurement. Each test generates a live two-pane raster; the 1.25x and 2.0x
+artifacts were directly inspected. These results close only the Qt-local
+mathematical and measurement portions of Q-03 through Q-05, Q-08, Q-14, Q-15,
+and A-02.
+They do not claim a retained shared `q`, wheel/trackpad equivalence, scrollbar
+authority, painted ribbons, connector attachment, or public workbench
+composition; those claims remain on BPR-0077 through BPR-0079. Target-native
+Windows execution remains open and no GitHub or GHES mutation is performed.
 
 ## BPR-0084 build-foundation evidence
 

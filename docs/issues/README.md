@@ -223,8 +223,11 @@ inputs, and retained exact-content validation. Done BPR-0075 supplies exact
 request/generation acceptance, byte-bounded immutable blob materialization,
 separate effect/decision lanes, bounded exact caching, cancellation/shutdown,
 fixed-snapshot reentrant feedback, and deterministic stale-result rejection.
-Backlog BPR-0076 through BPR-0078 own Qt measured max-extent geometry, the shared
-comparison controller/scrollbar, and the custom-painted `DiffLinkMap`.
+Done BPR-0076 supplies live natural-layout pane-boundary measurement, the
+Qt-local indexed max-extent axis, zero-extent-safe projection, exact endpoint
+clamping, stable semantic identity, and explicit coalesced invalidation, with
+three-scale live-pane evidence. Backlog BPR-0077 and BPR-0078 own the shared
+comparison controller/scrollbar and the custom-painted `DiffLinkMap`.
 BPR-0079 composes the real interaction path; BPR-0080 supplies scale evidence,
 bounded/indexed move discovery, and moved sub-block refinement;
 BPR-0081 documentation/conformance, BPR-0082 simplification, and BPR-0083

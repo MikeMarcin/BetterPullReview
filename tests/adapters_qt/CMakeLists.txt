@@ -162,3 +162,38 @@ foreach(bpr_epoch_scale IN ITEMS 100 125 200)
             TIMEOUT 120
     )
 endforeach()
+
+bpr_add_executable(
+    test_better_pull_review_qt_diff_axis_tests
+    measured_alignment_axis_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_diff_axis_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_diff_axis_tests)
+bpr_enable_warnings(test_better_pull_review_qt_diff_axis_tests)
+
+foreach(bpr_diff_axis_scale IN ITEMS 100 125 200)
+    if(bpr_diff_axis_scale STREQUAL "100")
+        set(bpr_diff_axis_scale_factor "1.0")
+    elseif(bpr_diff_axis_scale STREQUAL "125")
+        set(bpr_diff_axis_scale_factor "1.25")
+    else()
+        set(bpr_diff_axis_scale_factor "2.0")
+    endif()
+    add_test(
+        NAME qt_diff_axis_scale_${bpr_diff_axis_scale}
+        COMMAND test_better_pull_review_qt_diff_axis_tests
+    )
+    set_tests_properties(
+        qt_diff_axis_scale_${bpr_diff_axis_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_diff_axis_scale_factor};BPR_EXPECTED_QT_SCALE=${bpr_diff_axis_scale_factor};BPR_QT_DIFF_AXIS_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/diff-axis-pane-${bpr_diff_axis_scale}.png"
+            PASS_REGULAR_EXPRESSION "measured-alignment-axis-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
