@@ -4,7 +4,33 @@ RFC base: `243295a70756b2e63a785ed11b14647b6b0a4c6d`
 
 Replacement source: `betterpullreview-rfc-bpr-0004-diff-alignment-scroll-replacement-v1`
 
-Status: planning imported; every claim remains open until its direct live surface is implemented and verified. RFC-BPR-0003 retains explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified until its dependency can close.
+Status: implementation active. BPR-0072 supplies the directly tested canonical
+record and structural-validation foundation for D-02 and D-03. D-01 remains
+open because BPR-0073 must still compute canonical segments from exact text;
+all host and rendered interaction claims remain open. RFC-BPR-0003 retains
+explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
+until its dependency can close.
+
+## BPR-0072 canonical-record evidence
+
+The public core model now provides retained normalized diff options and their
+digest, a full-authority exact file-comparison cache key, half-open spans and line/boundary
+references, ordered alignment segments, contiguous group intervals and
+summaries, line pairs, separate move metadata, typed diagnostics, and
+domain-separated SHA-256 record identities. `core_diff_model` directly covers
+empty/equal/insertion/deletion/replacement/mixed/move tables, an entire added
+file without fake source lines, `UINT32_MAX` boundaries, malformed invariant
+mutations, stable replay, and 512 fixed-seed valid/malformed cases.
+
+The structural validator closes the BPR-0072 portion of D-02 and D-03: both
+documents must be covered exactly and monotonically, and one-sided changes
+must retain an empty opposing span. It also validates record identity, group
+membership/summary, pair order and option policy, equal-extent one-to-one move
+topology, diagnostics, and bounds. It
+does not inspect original line text, so exact normalized equality, primary
+operation canonicalization, deterministic secondary-pair construction, and
+intraline ranges remain explicitly assigned to BPR-0073 rather than being
+claimed here.
 
 ## Direct claim matrix
 

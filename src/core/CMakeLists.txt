@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_core
     STATIC
+        src/diff_model.cpp
         src/epoch_model.cpp
         src/epoch_transition.cpp
         src/github_model.cpp

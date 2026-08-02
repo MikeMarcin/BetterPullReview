@@ -1188,6 +1188,29 @@ Light/Dark proof; BPR-0049 retains that gate. BPR-0047 selects the same
 control through the production epoch-host composition and proves durable
 persistence.
 
+### Canonical diff and alignment records
+
+BPR-0072 introduces the Qt/provider/effect-free full-authority comparison key,
+retained normalized diff options and their digest, half-open semantic spans,
+stable record identities, and public structural alignment validator. Build
+and run its focused target without Qt:
+
+```sh
+cmake --preset core-only
+cmake --build --preset core-only --target \
+  better_pull_review_diff_core_tests
+ctest --test-dir build/core-only --output-on-failure \
+  -R '^(core_diff_model|core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract)$'
+```
+
+`core_diff_model` contains exact empty/equal/insertion/deletion/replacement/
+move tables, absent-side file identity, maximum line-boundary cases, malformed
+invariant cases, stable identity replay, and a fixed-seed 512-case generated
+valid/malformed corpus. This target validates the canonical publication
+contract only. BPR-0073 owns decoding, line splitting, primary diff,
+secondary pairing, and intraline computation; BPR-0074 owns mapping,
+group-construction policy, navigation, and selection semantics.
+
 ## Troubleshooting and safe verification
 
 ### GitHub and native credentials

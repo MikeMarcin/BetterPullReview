@@ -91,6 +91,25 @@ No text segments, no fake ribbons, explicit diagnostic.
 
 Primary path remains deletion plus insertion; move relation metadata exists; ordinary center ribbons do not cross.
 
+### A16. Canonical-record validator corpus
+
+The checked-in `core_diff_model` target supplies the BPR-0072 record-level
+foundation for A1-A5, A12, A14, and A15:
+
+- exact table cases for empty/equal/right-only/left-only/replacement/mixed and
+  moved-relation records;
+- an entire added file with no left blob or invented left source line;
+- zero and `UINT32_MAX` half-open boundaries without arithmetic overflow;
+- retained normalized option policy and exact authority/repository/PR/anchor/
+  blob/file/options/algorithm identity replay;
+- malformed coverage, span, kind, group, pair, move, diagnostic, and identity
+  mutations that the public validator rejects;
+- seeds 1 through 512 generating deterministic canonical alignments and one
+  rejected malformed derivative per seed.
+
+This is semantic-record evidence, not a claim that the BPR-0073 text-diff
+engine or the BPR-0074 mapping/navigation surface already exists.
+
 ## B. Measured geometry fixtures
 
 Use a deterministic test pane that supplies explicit line-boundary coordinates, then repeat selected cases through the live pane implementation.

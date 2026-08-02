@@ -40,6 +40,29 @@ struct file_diff
 
 The vectors are immutable after publication. Indexes may be built by the host or adapter, but they cannot change semantic meaning.
 
+The live standard-library-only record boundary is declared in
+`src/core/include/bpr/core/diff_model.hpp`. It binds every result to a complete
+validated pull-request authority, matching repository/PR and anchor scopes,
+optional added/deleted-file blobs, stable file, normalized option digest, and
+algorithm-revision identity. The publication retains those normalized options
+and validates their digest, so disabled pairing or move policy cannot publish
+the corresponding records. Its public validator proves
+structural coverage, bounds, kind/span consistency, group membership and
+summary, monotonic secondary-pair order, one-to-one equal-extent exact-move
+topology, and replay-stable
+record IDs before publication. It deliberately cannot prove that an `equal`
+segment's original text is equal under the selected normalization; the pure
+text computation in BPR-0073 must establish that content fact before invoking
+the same structural validator.
+
+A live `change_group` stores one half-open index interval into the immutable
+ordered segment vector instead of allocating a second member-ID vector. The
+group's ordered member IDs are exactly that segment slice; validation requires
+every slice member to name the group and every changed segment to resolve to
+one published slice. Same-kind adjacent segments are otherwise coalesced, but
+an accepted secondary pair or move relation may retain a finer boundary whose
+separate stable identity is semantically required.
+
 ### 2.1 Canonical segments
 
 Canonicalization should coalesce compatible adjacent operations while retaining internal anchors needed by mapping and scrolling. Avoid two extremes:
