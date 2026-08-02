@@ -10,6 +10,11 @@ Generated Codex agents:
 
 - use `sandbox_mode = "read-only"` for utility, scout, and reviewer roles;
 - use `sandbox_mode = "workspace-write"` for the bounded worker;
+- use role-named custom-agent definitions and require every parent-supplied
+  task name to retain the role prefix, normalized to underscores only when the
+  runtime syntax requires it;
+- make their first outward status message identify the role plus the selected
+  Codex model and effort before any tool call or task work;
 - keep multi-agent tools disabled inside `rfc-utility`;
 - enable at most two nested threads inside scouts, workers, and reviewers, whose
   role instructions permit only read-only `rfc-utility` descendants;
@@ -34,6 +39,11 @@ Generated Claude agents:
 
 - use `permissionMode: plan` plus a read-focused tool allowlist for utility, scout, and reviewer roles;
 - use `permissionMode: acceptEdits` for the bounded worker;
+- retain the semantic role in each native agent name and in any caller-supplied
+  session name;
+- make their first outward status message identify the role plus the selected
+  Claude model and effort, using `not-supported` for a route with no effort
+  setting;
 - omit the `Agent` tool from `rfc-utility`, and expose it to scouts, workers,
   and reviewers whose generated instructions permit only childless read-only
   utility descendants;

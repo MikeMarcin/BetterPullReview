@@ -34,6 +34,16 @@ The routes were verified on 2026-08-01:
 
 These are configuration defaults, not permanent architectural decisions.
 
+## Session Route Reporting
+
+The runtime adapter renderer places the selected provider route into every
+generated role prompt. Each newly spawned or restarted delegated session must
+state its semantic role, model, and effort in its first outward status message
+before any tool call or task work. When a runtime explicitly overrides a
+configured route, report the effective value instead of silently repeating the
+checked-in default. Use `runtime-not-exposed` when the effective value is not
+available and `not-supported` when the model has no effort setting.
+
 ## Why Luna-Max Exists
 
 Luna is reserved for work whose correctness is directly observable and whose output contract is narrow. Max effort is affordable enough under the current Codex allowance structure to improve diligence on mechanical work without spending Sol-class budget. The role must remain bounded: Luna must not decide architecture, implementation strategy, root cause, verification sufficiency, or RFC closeout.

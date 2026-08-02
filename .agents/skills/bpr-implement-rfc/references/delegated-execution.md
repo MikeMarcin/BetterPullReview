@@ -28,6 +28,29 @@ The primary agent is the BetterPullReview RFC integrator. It alone owns:
 
 Delegated agents may gather evidence or implement one bounded current slice. Their conclusions are inputs to the integrator, not authoritative tracker or closeout decisions.
 
+## Session Identity
+
+Give every delegated session a runtime-visible name beginning with its semantic
+role. Prefer the exact role prefix, such as `rfc-scout-public-path`. When a
+runtime permits only identifier-style names, normalize the prefix to
+underscores and retain a short purpose suffix, such as
+`rfc_scout_public_path`. Never use a purpose-only name that hides the role.
+
+At the start of every newly spawned or restarted session, before any tool call
+or task work, require the agent's first outward status message to use this
+field layout:
+
+```text
+Role: <role> | Model: <model> | Effort: <effort>
+```
+
+Use the effective runtime-selected model and effort when the runtime exposes
+them. Use `runtime-not-exposed` for a value the runtime does not disclose and
+`not-supported` when the selected model has no effort setting. If a runtime
+cannot set a separate session name, use the native agent definition whose name
+is the semantic role and record that limitation in the integrator's final
+delegation summary. Apply the same contract to nested `rfc-utility` sessions.
+
 ## Default Roles
 
 Use the generated native agents when available. Their shared semantics live in `config/roles.json`.
@@ -137,6 +160,9 @@ A second read-only agent must own a different question. Do not ask two agents to
 Every delegation message should be self-contained and short. Include only what the role needs:
 
 ```text
+Session name:
+Role:
+Runtime model / effort:
 RFC / issue:
 Objective:
 Relevant acceptance criteria:
@@ -155,6 +181,8 @@ Also state that it must not commit, move issue cards, change
 `docs/issues/NEXT_ID`, or change RFC status. Tell scouts, workers, and reviewers
 whether nested utility work is expected, and remind them that utilities are
 read-only, mechanical, childless, and counted in the recursive five-lane cap.
+The session name must retain the role prefix, and the model/effort entry must
+agree with the startup identity line or identify a runtime override.
 
 ## Result Contract
 

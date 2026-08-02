@@ -111,8 +111,33 @@ def q(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def role_prompt(role: dict[str, Any]) -> str:
-    return "\n\n".join(role["instructions"]) + "\n"
+def startup_identity(name: str, route: dict[str, Any]) -> str:
+    effort = route.get("effort") or "not-supported"
+    return f"Role: {name} | Model: {route['model']} | Effort: {effort}"
+
+
+def rendered_instructions(
+    name: str, role: dict[str, Any], route: dict[str, Any]
+) -> list[str]:
+    identity = startup_identity(name, route)
+    identity_instruction = (
+        f'Before any tool call or task work, make your first outward status message exactly "{identity}". '
+        "If the runtime explicitly reports an override, replace the affected configured value with the effective value; "
+        'use "runtime-not-exposed" when it cannot be determined and "not-supported" when the model has no effort setting.'
+    )
+    instructions = [identity_instruction]
+    if role["nested_utility"]:
+        instructions.append(
+            "Give every nested rfc-utility session a runtime-visible name beginning with rfc-utility. "
+            "If the runtime accepts only identifier-style names, use rfc_utility as the prefix and retain a short purpose suffix; "
+            "never use a purpose-only name."
+        )
+    instructions.extend(role["instructions"])
+    return instructions
+
+
+def role_prompt(name: str, role: dict[str, Any], route: dict[str, Any]) -> str:
+    return "\n\n".join(rendered_instructions(name, role, route)) + "\n"
 
 
 def render_codex_agent(name: str, role: dict[str, Any], route: dict[str, Any], digest: str) -> str:
@@ -129,7 +154,7 @@ def render_codex_agent(name: str, role: dict[str, Any], route: dict[str, Any], d
     lines.extend(
         [
             f"sandbox_mode = {q(sandbox)}",
-            f"developer_instructions = {q(role_prompt(role))}",
+            f"developer_instructions = {q(role_prompt(name, role, route))}",
             "",
             "[agents]",
             f"enabled = {'true' if role['nested_utility'] else 'false'}",
@@ -166,7 +191,7 @@ def render_claude_agent(name: str, role: dict[str, Any], route: dict[str, Any], 
         f"# {name}",
         "",
     ]
-    for instruction in role["instructions"]:
+    for instruction in rendered_instructions(name, role, route):
         body.append(f"- {instruction}")
     body.append("")
     return "\n".join(frontmatter + body)

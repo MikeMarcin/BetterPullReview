@@ -28,6 +28,11 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
         model_class = ROUTING["assignments"][role]
         return ROUTING["providers"][provider]["classes"][model_class]
 
+    def expected_startup_identity(self, role: str, provider: str) -> str:
+        route = self.expected_route(role, provider)
+        effort = route["effort"] or "not-supported"
+        return f'Role: {role} | Model: {route["model"]} | Effort: {effort}'
+
     def test_renders_deterministic_native_agents_from_shared_assignments(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -47,6 +52,7 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             self.assertEqual(scout["model_reasoning_effort"], scout_route["effort"])
             self.assertTrue(scout["agents"]["enabled"])
             self.assertEqual(scout["agents"]["max_concurrent_threads_per_session"], 2)
+            self.assertIn("name beginning with rfc-utility", scout["developer_instructions"])
 
             worker_route = self.expected_route("rfc-worker", "codex")
             worker = tomllib.loads((root / ".codex/agents/rfc-worker.toml").read_text())
@@ -93,6 +99,23 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             self.assertIn(f'model: "{claude_critical_route["model"]}"', claude_critical)
             self.assertIn("effort: max", claude_critical)
 
+            for role in sorted(ROUTING["assignments"]):
+                codex_agent = tomllib.loads(
+                    (root / ".codex/agents" / f"{role}.toml").read_text()
+                )
+                self.assertEqual(codex_agent["name"], role)
+                self.assertIn(
+                    self.expected_startup_identity(role, "codex"),
+                    codex_agent["developer_instructions"],
+                )
+
+                claude_agent = (root / ".claude/agents" / f"{role}.md").read_text()
+                self.assertIn(f"name: {role}", claude_agent)
+                self.assertIn(
+                    self.expected_startup_identity(role, "claude"),
+                    claude_agent,
+                )
+
             shim = (root / ".claude/skills/bpr-implement-rfc/SKILL.md").read_text()
             self.assertIn("name: betterpullreview-implement-rfc", shim)
             self.assertIn(".agents/skills/bpr-implement-rfc/SKILL.md", shim)
@@ -127,8 +150,16 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             self.assertEqual(rendered.returncode, 0, rendered.stderr)
             scout = tomllib.loads((root / ".codex/agents/rfc-scout.toml").read_text())
             self.assertEqual(scout["model"], "candidate-codex")
+            self.assertIn(
+                "Role: rfc-scout | Model: candidate-codex | Effort: high",
+                scout["developer_instructions"],
+            )
             claude_scout = (root / ".claude/agents/rfc-scout.md").read_text()
             self.assertIn('model: "claude-candidate"', claude_scout)
+            self.assertIn(
+                "Role: rfc-scout | Model: claude-candidate | Effort: high",
+                claude_scout,
+            )
             self.assertIn("Do not edit files", claude_scout)
 
     def test_check_detects_drift(self) -> None:
@@ -201,6 +232,8 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
         self.assertEqual(fragment["agents"]["max_concurrent_threads_per_session"], 10)
         self.assertIn("no more than five concurrent child lanes", skill)
         self.assertIn("at most one writer", skill)
+        self.assertIn("runtime-visible name that begins with its semantic role", skill)
+        self.assertIn("Role: <role> | Model: <model> | Effort: <effort>", skill)
         self.assertFalse(roles["rfc-utility"]["nested_utility"])
         for role in (
             "rfc-scout",

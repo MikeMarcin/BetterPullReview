@@ -10,6 +10,9 @@ This directory contains the canonical BetterPullReview RFC implementation skill 
 - `config/routing.json` maps semantic capability classes to current Codex and Claude models.
 - `scripts/render_runtime_adapters.py` generates native `.codex/agents`, `.claude/agents`, and the small Claude skill entrypoint.
 - The primary agent remains the only RFC integrator and the only authority for `RFC_BASE_SHA`, issue IDs, `docs/issues/NEXT_ID`, board transitions, staging, commits, verification sufficiency, and RFC status.
+- Every delegated session has a role-prefixed runtime name and opens with one
+  status line identifying its role, selected model, and effort before it uses
+  tools or begins task work.
 - The workflow schedules at most five recursively active child lanes while the
   repository Codex ceiling remains ten for runtime headroom. It permits one
   total writer with explicit exclusive file ownership. Scouts, workers, and
