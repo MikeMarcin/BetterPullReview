@@ -7,7 +7,7 @@ set(
 )
 
 function(bpr_load_cpm)
-    foreach(option IN ITEMS
+    set(bpr_cpm_options
         CPM_USE_LOCAL_PACKAGES
         CPM_LOCAL_PACKAGES_ONLY
         CPM_DOWNLOAD_ALL
@@ -16,6 +16,7 @@ function(bpr_load_cpm)
         CPM_INCLUDE_ALL_IN_PACKAGE_LOCK
         CPM_USE_NAMED_CACHE_DIRECTORIES
     )
+    foreach(option IN LISTS bpr_cpm_options)
         if(NOT DEFINED ${option})
             set(${option} OFF CACHE BOOL "CPM ${option} default" FORCE)
         endif()
@@ -74,15 +75,7 @@ function(bpr_load_cpm)
         set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "Offline dependency mode" FORCE)
     endif()
     include("${cpm_script}")
-    foreach(option IN ITEMS
-        CPM_USE_LOCAL_PACKAGES
-        CPM_LOCAL_PACKAGES_ONLY
-        CPM_DOWNLOAD_ALL
-        CPM_DONT_UPDATE_MODULE_PATH
-        CPM_DONT_CREATE_PACKAGE_LOCK
-        CPM_INCLUDE_ALL_IN_PACKAGE_LOCK
-        CPM_USE_NAMED_CACHE_DIRECTORIES
-    )
+    foreach(option IN LISTS bpr_cpm_options)
         if(bpr_saved_${option}_defined)
             set(ENV{${option}} "${bpr_saved_${option}}")
         else()

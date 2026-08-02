@@ -260,9 +260,10 @@ class DependencyModernizationTests(unittest.TestCase):
                             "*better_pull_review_sqlite3.*"
                         )
                     )
+                    self.assertEqual(len(static_libraries), 1)
                     self.assertEqual(
-                        [path.suffix for path in static_libraries],
-                        [".lib" if os.name == "nt" else ".a"],
+                        static_libraries[0].suffix,
+                        ".lib" if os.name == "nt" else ".a",
                     )
 
     def test_sqlite_rejects_source_version_and_identity_mismatches(self) -> None:

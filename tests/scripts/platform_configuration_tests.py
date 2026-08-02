@@ -23,23 +23,20 @@ class PlatformConfigurationTests(unittest.TestCase):
     def resolved_configure_preset(self, name: str) -> dict[str, object]:
         preset = self.configure_presets[name]
         resolved: dict[str, object] = {}
+        cache: dict[str, object] = {}
         inherited = preset.get("inherits", [])
         if isinstance(inherited, str):
             inherited = [inherited]
         for parent in inherited:
             parent_values = self.resolved_configure_preset(parent)
             resolved.update(parent_values)
-            if "cacheVariables" in parent_values:
-                resolved["cacheVariables"] = dict(
-                    parent_values["cacheVariables"]  # type: ignore[arg-type]
-                )
+            parent_cache = parent_values.get("cacheVariables")
+            if isinstance(parent_cache, dict):
+                cache.update(parent_cache)
         resolved.update(preset)
-        cache = dict(resolved.get("cacheVariables", {}))
-        for parent in inherited:
-            cache.update(
-                self.resolved_configure_preset(parent).get("cacheVariables", {})
-            )
-        cache.update(preset.get("cacheVariables", {}))
+        preset_cache = preset.get("cacheVariables")
+        if isinstance(preset_cache, dict):
+            cache.update(preset_cache)
         resolved["cacheVariables"] = cache
         return resolved
 
