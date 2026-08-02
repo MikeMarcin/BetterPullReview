@@ -65,6 +65,8 @@ class DependencyModernizationTests(unittest.TestCase):
                 "-DBPR_BOOTSTRAP_LIBSECRET=OFF",
                 "-DBPR_BOOTSTRAP_TEST_TOOLS=OFF",
                 "-DBPR_BOOTSTRAP_GIT=OFF",
+                "-DCMAKE_POLICY_DEFAULT_CMP0200=NEW",
+                "-DCMAKE_POLICY_VERSION_MINIMUM=4.4.2",
                 f"-DQt6_DIR={fixture}",
                 *extra,
             ],
@@ -179,7 +181,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertTrue(manifest.is_file())
         self.assertEqual(
             json.loads(manifest.read_text(encoding="utf-8"))["generator_revision"],
-            "4",
+            "5",
         )
         self.assertFalse(list(overlay.rglob("*.cmake")))
 
@@ -453,6 +455,13 @@ class DependencyModernizationTests(unittest.TestCase):
                     self.assertIn(
                         "QT_NO_DEBUG", core["release"]["definitions"]["*"]
                     )
+                    self.assertNotIn(
+                        "QT_NO_DEBUG",
+                        core["relwithdebinfo"]["definitions"]["*"],
+                    )
+                    self.assertNotIn(
+                        "QT_NO_DEBUG", core["minsizerel"]["definitions"]["*"]
+                    )
                     self.assertEqual(
                         core["debug"]["compile_features"], ["c++17", "c++11"]
                     )
@@ -559,11 +568,13 @@ class DependencyModernizationTests(unittest.TestCase):
                     )
 
         with tempfile.TemporaryDirectory() as temporary_directory:
+            policy_oracle = Path(temporary_directory) / "policy-oracle.txt"
             result, overlay = self.run_bootstrap_fixture(
                 temporary_directory,
                 extra=(
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=RELEASE",
+                    f"-DBPR_FAKE_QT_POLICY_ORACLE={policy_oracle}",
                 ),
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -574,6 +585,11 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertTrue(debug["location"].endswith("windows-release.dll"))
             self.assertTrue(
                 debug["link_location"].endswith("windows-release.lib")
+            )
+            self.assertTrue(
+                policy_oracle.read_text(encoding="utf-8").endswith(
+                    "windows-release.dll"
+                )
             )
 
         mixed_general_artifact_cases = (
@@ -733,6 +749,8 @@ class DependencyModernizationTests(unittest.TestCase):
                     "-DBPR_BOOTSTRAP_LIBSECRET=OFF",
                     "-DBPR_BOOTSTRAP_TEST_TOOLS=OFF",
                     "-DBPR_BOOTSTRAP_GIT=OFF",
+                    "-DCMAKE_POLICY_DEFAULT_CMP0200=NEW",
+                    "-DCMAKE_POLICY_VERSION_MINIMUM=4.4.2",
                 ],
                 check=False,
                 capture_output=True,
@@ -937,7 +955,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         document.read_bytes()
                     ).hexdigest()
                     manifest = {
-                        "generator_revision": "4",
+                        "generator_revision": "5",
                         "artifacts": [],
                         "documents": [
                             {

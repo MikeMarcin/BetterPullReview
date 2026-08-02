@@ -2,11 +2,21 @@ cmake_minimum_required(VERSION 4.4.2)
 
 project(BetterPullReviewDependencyBootstrap LANGUAGES C CXX)
 
+if(
+    NOT CMAKE_POLICY_DEFAULT_CMP0200 STREQUAL "NEW"
+    OR CMAKE_POLICY_VERSION_MINIMUM VERSION_LESS "4.4.2"
+)
+    message(
+        FATAL_ERROR
+        "The CPS bootstrap requires externally forced CMake 4.4.2/CMP0200 NEW producer semantics"
+    )
+endif()
+
 if(NOT DEFINED BPR_CPS_OVERLAY OR BPR_CPS_OVERLAY STREQUAL "")
     message(FATAL_ERROR "BPR_CPS_OVERLAY is required")
 endif()
 
-set(BPR_CPS_GENERATOR_REVISION "4")
+set(BPR_CPS_GENERATOR_REVISION "5")
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -219,7 +229,14 @@ function(bpr_validate_usage_property_coverage target)
     endforeach()
 endfunction()
 
-function(bpr_target_location output_location output_link_location target configuration)
+function(
+    bpr_target_location
+    output_location
+    output_link_location
+    output_configuration
+    target
+    configuration
+)
     string(TOUPPER "${configuration}" config_upper)
     bpr_target_property_list(imported_configs "${target}" IMPORTED_CONFIGURATIONS)
     set(has_imported_configs FALSE)
@@ -367,6 +384,7 @@ function(bpr_target_location output_location output_link_location target configu
     endif()
     set(${output_location} "${location}" PARENT_SCOPE)
     set(${output_link_location} "${link_location}" PARENT_SCOPE)
+    set(${output_configuration} "${selected_config}" PARENT_SCOPE)
 endfunction()
 
 function(bpr_append_metadata key property)
@@ -386,7 +404,15 @@ function(bpr_collect_plain_property key target property output_property)
                 AND value STREQUAL "$<$<NOT:$<CONFIG:Debug>>:QT_NO_DEBUG>"
             )
                 get_property(configuration GLOBAL PROPERTY "BPR_CPS_${key}_CONFIGURATION")
-                if(NOT configuration STREQUAL "Debug")
+                bpr_target_location(
+                    ignored_location
+                    ignored_link_location
+                    imported_configuration
+                    "${target}"
+                    "${configuration}"
+                )
+                string(TOUPPER "${imported_configuration}" imported_config_upper)
+                if(NOT imported_config_upper STREQUAL "DEBUG")
                     bpr_append_metadata("${key}" "${output_property}" QT_NO_DEBUG)
                 endif()
             else()
@@ -470,7 +496,13 @@ function(bpr_collect_target key target root)
         get_target_property(target_type "${target}" TYPE)
         if(NOT target_type STREQUAL "INTERFACE_LIBRARY")
             get_property(configuration GLOBAL PROPERTY "BPR_CPS_${key}_CONFIGURATION")
-            bpr_target_location(location link_location "${target}" "${configuration}")
+            bpr_target_location(
+                location
+                link_location
+                imported_configuration
+                "${target}"
+                "${configuration}"
+            )
             if(NOT "${link_location}" STREQUAL "")
                 bpr_append_metadata("${key}" LINK_LIBRARIES "${link_location}")
                 set_property(GLOBAL APPEND PROPERTY BPR_CPS_ARTIFACTS "${link_location}")
@@ -543,7 +575,13 @@ function(bpr_component_configuration output component target configuration)
     endforeach()
     set_property(GLOBAL PROPERTY "BPR_CPS_${key}_CONFIGURATION" "${configuration}")
     bpr_collect_target("${key}" "${target}" "${target}")
-    bpr_target_location(location link_location "${target}" "${configuration}")
+    bpr_target_location(
+        location
+        link_location
+        imported_configuration
+        "${target}"
+        "${configuration}"
+    )
     get_target_property(root_type "${target}" TYPE)
     if(
         NOT root_type STREQUAL "INTERFACE_LIBRARY"

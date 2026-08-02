@@ -1,3 +1,6 @@
+cmake_policy(PUSH)
+cmake_policy(VERSION 3.1.0...4.1)
+
 if(NOT BPR_FAKE_QT_VERSION)
     set(BPR_FAKE_QT_VERSION "6.8.1")
 endif()
@@ -206,4 +209,14 @@ if(BPR_FAKE_QT_FALSE_SUPPORTED_VALUES)
     )
 endif()
 
+if(BPR_FAKE_QT_POLICY_ORACLE)
+    file(
+        GENERATE
+        OUTPUT "${BPR_FAKE_QT_POLICY_ORACLE}"
+        CONTENT "$<TARGET_FILE:Qt6::Core>"
+    )
+endif()
+
 set(Qt6_FOUND TRUE)
+
+cmake_policy(POP)
