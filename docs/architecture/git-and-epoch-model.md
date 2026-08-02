@@ -972,11 +972,11 @@ immediate physical-byte reclamation. Exact whole-cache deletion is the only
 operation guaranteed to reclaim repository bytes.
 
 Pruning requires exact epoch IDs and expected catalog revision. Repository
-cache deletion requires the exact authenticated cache scope and reports its
-affected PR/epoch counts before confirmation. Deleting one account/profile
-partition cannot touch another partition. Unavailable historical rows remain
-honest metadata until explicitly removed; they never remap to a surviving
-OID.
+cache deletion requires the exact authenticated cache scope and identifies
+that every retained pull request in that repository scope is affected before
+confirmation. Deleting one account/profile partition cannot touch another
+partition. Unavailable historical rows remain honest metadata until explicitly
+removed; they never remap to a surviving OID.
 
 ## Catalog paging and acceptance
 
@@ -1090,6 +1090,16 @@ whole-cache deletion remains one explicit bulk `cache_deleted` value. Routine
 changes use exact insert/remove/move/data-change signals rather than resetting
 the model or rebuilding all rows. A complete authority replacement may replace
 the model, while persistent indexes from an old authority are never reused.
+
+The core projects six epoch command identities: refresh, comparison selection,
+selected-epoch prune, repository-cache delete, refresh cancellation, and
+maintenance cancellation. General availability comes from the current
+authority, catalog, request counters, accepted comparison, and pending lanes.
+For prune, Qt may capture only epoch anchors from the accepted pair, then sorts
+and deduplicates their stable epoch IDs; it cannot infer targets from visible
+history rows. For whole-cache deletion it captures the exact accepted catalog
+and cache authority. The existing transition still rejects stale confirmation
+targets or changed authority, revision, availability, and operation identity.
 
 The reusable RFC-BPR-0003 control contains two independent selectors, named
 comparison actions, exact non-elided/copyable OID fields, explicit unavailable

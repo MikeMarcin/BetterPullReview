@@ -1148,6 +1148,23 @@ deletion tombstone to reject reuse of that cache scope. The fixture uses only
 disposable local directories and no GitHub endpoint, credential, mutation, or
 GitHub Actions workflow.
 
+BPR-0067 adds the public Qt authorization path to that existing maintenance
+protocol. Build the selected executable and run its core, catalog, Qt,
+integration, and four-process public contract with:
+
+```sh
+cmake --build --preset dev -j 6
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(core_epoch_policy|sqlite_epoch_catalog_behavior_contract|qt_epoch_comparison_scale_100|qt_epoch_comparison_scale_125|qt_epoch_comparison_scale_200|epoch_maintenance_integration|application_epoch_maintenance_public_path)$'
+```
+
+The public contract drives QAction, default-Cancel/destructive confirmation,
+core acceptance, the application host, real installed Git and SQLite,
+incremental Qt projection, shutdown, and restart. It requires exact target
+identity, no extra GitHub or smart-transport traffic, no routine model reset,
+exact retained-ref/cache effects, and durable `pruned` then `cache_deleted`
+results across four processes.
+
 For the BPR-0046 reusable Qt comparison control, build the actual adapter and
 run its stable-model, interaction, accessibility, and rendered loaded-window
 cases at all three deterministic scales:
@@ -1230,12 +1247,13 @@ persistence.
   immediate byte reclamation; exact whole-cache deletion reclaims the
   repository bytes but leaves explicit cache-deleted history. Neither action
   claims secure media erasure.
-- The core and host implement exact, revision-bound prune and whole-cache
-  deletion protocols, but the current public Qt composition exposes no
-  maintenance command or confirmation surface. Do not emulate those commands
-  by deleting storage manually. A future public surface must dispatch the
-  existing typed authorization path and report exact affected counts before
-  its durable point of no return.
+- The public Qt composition exposes exact prune and whole-cache deletion under
+  `Local history maintenance`. Each operation captures its exact target before
+  a destructive confirmation whose default and Escape action are Cancel, then
+  dispatches the existing core-authorized protocol. Do not emulate either
+  command by deleting storage manually. Prune targets only the selected epoch
+  IDs; repository-cache deletion affects every retained pull request in the
+  current cache scope and leaves durable `cache_deleted` tombstones.
 - An observed old head remains rooted by private refs after a force-push and
   may be selected after restart while its epoch remains retained rather than
   explicitly pruned or cache-deleted. BetterPullReview cannot recover commits

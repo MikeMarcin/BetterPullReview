@@ -33,8 +33,12 @@ cache-deleted, but never-observed history cannot be reconstructed. Cache and
 catalog identities are opaque and isolated by
 profile, account, and repository; hard limits refuse new retention instead of
 automatically pruning prior history. The current public UI exposes comparison
-selection but no prune or whole-cache-delete command, so users must not edit
-the private Git repository or SQLite catalog by hand.
+selection plus a secondary `Local history maintenance` menu. Pruning captures
+the exact selected epoch IDs; whole-cache deletion captures the exact current
+repository-cache scope. Both require an explicit Qt confirmation whose default
+and Escape action are Cancel, leave durable tombstones, and state that GitHub
+and developer worktrees are not modified. Users must not edit the private Git
+repository or SQLite catalog by hand.
 
 Semantic diff/line mapping, review mutation and private-ledger behavior, and
 packaging remain later RFC work. The GitHub window now presents the available

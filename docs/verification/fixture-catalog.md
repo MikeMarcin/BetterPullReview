@@ -974,6 +974,19 @@ wire and native-item lifecycle evidence. These Linux PNGs remain
 layout/composition evidence only, not presentation-polish or system-theme
 certification. Windows public-fixture execution remains BPR-0036.
 
+`application_epoch_maintenance_public_path` extends the selected test-enabled
+executable with a four-process, persistent fixture-root contract. It seeds two
+retained epochs through the recorded GitHub path, triggers the real Qt prune
+action and confirmation, restarts to prove exact retained-ref absence and
+durable `pruned` state, triggers the real whole-cache-delete action and
+confirmation, then restarts again to prove durable `cache_deleted` state and
+the old physical cache scope's deletion marker. The contract requires no
+routine model reset, no extra smart/provider traffic during maintenance, exact
+typed targets, and orderly shutdown. Its fixed markers include
+`EPOCH_MAINTENANCE_PRUNED_RESTART_DELETE_OK` and
+`EPOCH_MAINTENANCE_DELETED_RESTART_OK`; all storage remains under the disposable
+fixture root and no GitHub or developer worktree mutation occurs.
+
 ## GitHub hosts
 
 - GitHub.com current contract

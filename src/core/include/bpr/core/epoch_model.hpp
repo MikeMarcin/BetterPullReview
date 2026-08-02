@@ -1175,7 +1175,10 @@ enum class epoch_command_id : std::uint8_t
 {
     refresh_epochs,
     select_comparison,
+    prune_selected_epochs,
+    delete_repository_cache,
     cancel_epoch_refresh,
+    cancel_epoch_maintenance,
 };
 
 struct epoch_command_projection
@@ -1189,7 +1192,7 @@ struct epoch_command_projection
 
 struct epoch_command_delta
 {
-    std::array<epoch_command_projection, 3> Commands{};
+    std::array<epoch_command_projection, 6> Commands{};
 
     auto operator<=>(const epoch_command_delta&) const = default;
 };

@@ -174,6 +174,23 @@ foreach(
 endforeach()
 
 add_test(
+    NAME application_epoch_maintenance_public_path
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/epoch-maintenance-public-path"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/epoch_maintenance_public_path_contract.cmake"
+)
+set_tests_properties(
+    application_epoch_maintenance_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "EPOCH_MAINTENANCE_PUBLIC_PATH_CONTRACT_OK"
+        TIMEOUT 360
+)
+
+add_test(
     NAME binary_dependency_surface
     COMMAND
         "${Python3_EXECUTABLE}"

@@ -26,8 +26,10 @@
 #include <QGuiApplication>
 #include <QImage>
 #include <QItemSelectionModel>
+#include <QMessageBox>
 #include <QPalette>
 #include <QPersistentModelIndex>
+#include <QPushButton>
 #include <QStyle>
 #include <QStyleHints>
 #include <QTreeView>
@@ -309,6 +311,11 @@ struct automated_run
         epoch_reverse,
         epoch_identical_left,
         epoch_identical,
+        epoch_maintenance_history,
+        epoch_maintenance_select_right,
+        epoch_maintenance_prune,
+        epoch_maintenance_prune_result,
+        epoch_maintenance_delete_result,
         appearance,
 #endif
         shutdown,
@@ -384,6 +391,20 @@ struct automated_run
     std::string ExpectedActiveHostText;
     bpr::app::detail::github_epoch_fixture_phase EpochPhase =
         bpr::app::detail::github_epoch_fixture_phase::single;
+    enum class epoch_maintenance_probe
+    {
+        none,
+        prune,
+        verify_pruned_and_delete,
+        verify_deleted,
+    };
+    epoch_maintenance_probe MaintenanceProbe = epoch_maintenance_probe::none;
+    bpr::core::review_epoch_id MaintenanceTarget;
+    int MaintenanceLeftRow = -1;
+    int MaintenanceRightRow = -1;
+    int MaintenanceAccountReads = 0;
+    int MaintenanceSmartAcquires = 0;
+    std::size_t MaintenanceModelResets = 0U;
     int EpochLeftRow = -1;
     int EpochRightRow = -1;
     native_appearance_probe_state Appearance;
@@ -831,6 +852,212 @@ struct automated_run
             == static_cast<int>(expected);
 }
 
+[[nodiscard]] auto fixture_epoch_id(
+    const bpr::qt::epoch_history_model& model,
+    const std::uint64_t ordinal) -> std::optional<bpr::core::review_epoch_id>
+{
+    const auto row = fixture_anchor_row(
+        model, ordinal, bpr::core::comparison_anchor_kind::epoch_base);
+    if(row < 0)
+    {
+        return std::nullopt;
+    }
+    const auto anchor = model.anchor_at(model.index(row, 0));
+    if(!anchor)
+    {
+        return std::nullopt;
+    }
+    return bpr::core::review_epoch_id{
+        .Authority = anchor->Identity.Authority,
+        .Incarnation = anchor->Identity.Incarnation,
+        .Ordinal = anchor->Identity.Epoch,
+    };
+}
+
+[[nodiscard]] auto fixture_epoch_availability_is(
+    const bpr::qt::epoch_history_model& model,
+    const std::uint64_t ordinal,
+    const bpr::core::anchor_availability expected) -> bool
+{
+    const auto base = fixture_anchor_row(
+        model, ordinal, bpr::core::comparison_anchor_kind::epoch_base);
+    const auto head = fixture_anchor_row(
+        model, ordinal, bpr::core::comparison_anchor_kind::epoch_head);
+    return base >= 0 && head >= 0
+        && model.index(base, 0)
+                   .data(bpr::qt::epoch_history_model::availability_role)
+                   .toInt()
+            == static_cast<int>(expected)
+        && model.index(head, 0)
+                   .data(bpr::qt::epoch_history_model::availability_role)
+                   .toInt()
+            == static_cast<int>(expected);
+}
+
+[[nodiscard]] auto fixture_all_epoch_availability_is(
+    const bpr::qt::epoch_history_model& model,
+    const bpr::core::anchor_availability expected) -> bool
+{
+    if(model.rowCount() == 0)
+    {
+        return false;
+    }
+    for(auto row = 0; row < model.rowCount(); ++row)
+    {
+        if(model.index(row, 0)
+                   .data(bpr::qt::epoch_history_model::availability_role)
+                   .toInt()
+           != static_cast<int>(expected))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void accept_maintenance_confirmation(const QString& object_name)
+{
+    auto attempts = std::make_shared<std::size_t>(0U);
+    auto poll = std::make_shared<std::function<void()>>();
+    *poll = [object_name, attempts, poll]
+    {
+        auto* const dialog = qobject_cast<QMessageBox*>(
+            QApplication::activeModalWidget());
+        if(dialog != nullptr && dialog->objectName() == object_name)
+        {
+            auto* const confirm = dialog->findChild<QPushButton*>(
+                object_name + QStringLiteral("ConfirmButton"));
+            if(confirm != nullptr)
+            {
+                confirm->click();
+                return;
+            }
+        }
+        if(++*attempts <= 100U)
+        {
+            QTimer::singleShot(1, qApp, *poll);
+        }
+    };
+    QTimer::singleShot(0, qApp, *poll);
+}
+
+void advance_fixture_stage(
+    automated_run& run, automated_run::stage next) noexcept;
+
+[[nodiscard]] auto begin_epoch_maintenance_probe(
+    bpr::app::github_application& application,
+    automated_run& run) -> bool
+{
+    auto* const control = application.window().epoch_control();
+    auto* const model = control->history_model();
+    if(run.MaintenanceProbe
+       == automated_run::epoch_maintenance_probe::verify_deleted)
+    {
+        const auto provider = bpr::app::detail::
+            github_application_fixture_access::evidence(application);
+        const auto maintenance = bpr::app::detail::
+            github_application_fixture_access::maintenance_evidence(
+                application, {});
+        return provider.SmartAcquireCount == 1
+            && provider.SmartDiscoveryCount == 1
+            && provider.SmartLsRefsCount == 1
+            && provider.SmartFetchCount == 1
+            && !maintenance.RetiredRepositoryPresent
+            && maintenance.RetiredCacheDeletionMarkerPresent
+            && maintenance.PruneIntentDispatchCount == 0U
+            && maintenance.DeleteIntentDispatchCount == 0U;
+    }
+    if(model->epoch_count() < 2U)
+    {
+        if(control->return_to_newest_action()->isEnabled())
+        {
+            control->return_to_newest_action()->trigger();
+        }
+        else if(control->load_history_action()->isEnabled())
+        {
+            control->load_history_action()->trigger();
+        }
+        else
+        {
+            return false;
+        }
+        advance_fixture_stage(
+            run, automated_run::stage::epoch_maintenance_history);
+        return true;
+    }
+
+    const auto target = fixture_epoch_id(*model, 1U);
+    if(!target)
+    {
+        return false;
+    }
+    run.MaintenanceTarget = *target;
+    const auto provider = bpr::app::detail::
+        github_application_fixture_access::evidence(application);
+    const auto maintenance = bpr::app::detail::
+        github_application_fixture_access::maintenance_evidence(
+            application, *target);
+
+    switch(run.MaintenanceProbe)
+    {
+    case automated_run::epoch_maintenance_probe::prune:
+        run.MaintenanceLeftRow = fixture_anchor_row(
+            *model, 1U, bpr::core::comparison_anchor_kind::epoch_base);
+        run.MaintenanceRightRow = fixture_anchor_row(
+            *model, 1U, bpr::core::comparison_anchor_kind::epoch_head);
+        if(run.MaintenanceLeftRow < 0 || run.MaintenanceRightRow < 0
+           || !maintenance.TargetBaseRefPresent
+           || !maintenance.TargetHeadRefPresent
+           || !maintenance.NonTargetBaseRefPresent
+           || !maintenance.NonTargetHeadRefPresent
+           || !maintenance.RepositoryPresent
+           || maintenance.CacheDeletionMarkerPresent)
+        {
+            return false;
+        }
+        run.MaintenanceAccountReads = provider.AccountReadCount;
+        run.MaintenanceSmartAcquires = provider.SmartAcquireCount;
+        run.MaintenanceModelResets = model->statistics().ModelResets;
+        control->left_selector()->setCurrentIndex(run.MaintenanceLeftRow);
+        advance_fixture_stage(
+            run, automated_run::stage::epoch_maintenance_select_right);
+        return true;
+
+    case automated_run::epoch_maintenance_probe::verify_pruned_and_delete:
+        if(!fixture_epoch_availability_is(*model,
+               1U,
+               bpr::core::anchor_availability::pruned)
+           || maintenance.TargetBaseRefPresent
+           || maintenance.TargetHeadRefPresent
+           || !maintenance.NonTargetBaseRefPresent
+           || !maintenance.NonTargetHeadRefPresent
+           || !maintenance.RepositoryPresent
+           || maintenance.CacheDeletionMarkerPresent
+           || maintenance.PruneIntentDispatchCount != 0U
+           || maintenance.DeleteIntentDispatchCount != 0U
+           || !control->delete_cache_action()->isEnabled())
+        {
+            return false;
+        }
+        run.MaintenanceAccountReads = provider.AccountReadCount;
+        run.MaintenanceSmartAcquires = provider.SmartAcquireCount;
+        run.MaintenanceModelResets = model->statistics().ModelResets;
+        accept_maintenance_confirmation(
+            QStringLiteral("deleteRepositoryCacheConfirmationDialog"));
+        control->delete_cache_action()->trigger();
+        advance_fixture_stage(
+            run, automated_run::stage::epoch_maintenance_delete_result);
+        return true;
+
+    case automated_run::epoch_maintenance_probe::verify_deleted:
+        break;
+
+    case automated_run::epoch_maintenance_probe::none:
+        break;
+    }
+    return false;
+}
+
 [[nodiscard]] constexpr auto expected_fixture_smart_calls(
     const bpr::app::detail::github_epoch_fixture_phase phase) noexcept
     -> int
@@ -995,7 +1222,10 @@ void finish_automated_run(
     if(run.Fixture)
     {
         const auto expected_smart_calls =
-            expected_fixture_smart_calls(run.EpochPhase);
+            run.MaintenanceProbe
+                    == automated_run::epoch_maintenance_probe::verify_deleted
+                ? 1
+                : expected_fixture_smart_calls(run.EpochPhase);
         passed = passed && fixture_evidence.RecordingConsumed
             && fixture_evidence.CapabilityProbeConsumed
             && fixture_evidence.BootstrapTransportSelected
@@ -1012,6 +1242,19 @@ void finish_automated_run(
                 == expected_smart_calls
             && fixture_evidence.SmartFetchCount
                 == expected_smart_calls;
+        if(run.MaintenanceProbe
+           == automated_run::epoch_maintenance_probe::verify_deleted)
+        {
+            const auto maintenance = bpr::app::detail::
+                github_application_fixture_access::maintenance_evidence(
+                    application, {});
+            passed = passed && maintenance.TargetBaseCacheDeleted
+                && maintenance.TargetHeadCacheDeleted
+                && !maintenance.RetiredRepositoryPresent
+                && maintenance.RetiredCacheDeletionMarkerPresent
+                && maintenance.PruneIntentDispatchCount == 0U
+                && maintenance.DeleteIntentDispatchCount == 0U;
+        }
     }
     if(run.Appearance.Enabled)
     {
@@ -1073,6 +1316,20 @@ void finish_automated_run(
             : QStringLiteral("REUSE");
         stream << "EPOCH_FIXTURE_" << phase << (passed ? "_OK\n" : "_FAILED\n");
     }
+    if(run.Fixture
+       && run.MaintenanceProbe
+              != automated_run::epoch_maintenance_probe::none)
+    {
+        const auto marker = run.MaintenanceProbe
+                == automated_run::epoch_maintenance_probe::prune
+            ? QStringLiteral("EPOCH_MAINTENANCE_PRUNE")
+            : run.MaintenanceProbe
+                    == automated_run::epoch_maintenance_probe::
+                        verify_pruned_and_delete
+                ? QStringLiteral("EPOCH_MAINTENANCE_PRUNED_RESTART_DELETE")
+                : QStringLiteral("EPOCH_MAINTENANCE_DELETED_RESTART");
+        stream << marker << (passed ? "_OK\n" : "_FAILED\n");
+    }
 #endif
     if(!passed)
     {
@@ -1130,6 +1387,31 @@ void finish_automated_run(
                << '\n'
                << "PUBLIC_PATH_EPOCH_CORE_STATUS:"
                << run.LastEpochCoreStatus << '\n';
+#if defined(BPR_BUILD_TESTS)
+        if(run.MaintenanceProbe
+           != automated_run::epoch_maintenance_probe::none)
+        {
+            const auto maintenance = bpr::app::detail::
+                github_application_fixture_access::maintenance_evidence(
+                    application, run.MaintenanceTarget);
+            stream << "PUBLIC_PATH_MAINTENANCE_EVIDENCE:"
+                   << maintenance.PruneIntentDispatchCount << ':'
+                   << maintenance.DeleteIntentDispatchCount << ':'
+                   << maintenance.CatalogRevision << ':'
+                   << maintenance.TargetBaseRefPresent << ':'
+                   << maintenance.TargetHeadRefPresent << ':'
+                   << maintenance.NonTargetBaseRefPresent << ':'
+                   << maintenance.NonTargetHeadRefPresent << ':'
+                   << maintenance.RepositoryPresent << ':'
+                   << maintenance.CacheDeletionMarkerPresent << ':'
+                   << maintenance.TargetBaseCacheDeleted << ':'
+                   << maintenance.TargetHeadCacheDeleted << ':'
+                   << maintenance.RetiredRepositoryPresent << ':'
+                   << maintenance.RetiredCacheDeletionMarkerPresent << ':'
+                   << maintenance.TargetBaseAvailability << ':'
+                   << maintenance.TargetHeadAvailability << '\n';
+        }
+#endif
     }
 #if defined(BPR_BUILD_TESTS)
     if(run.Fixture)
@@ -1285,6 +1567,12 @@ void schedule_automated_run(
                     || run->Stage == automated_run::stage::open
                     || run->Stage == automated_run::stage::epoch_history
                     || run->Stage == automated_run::stage::epoch_refresh
+                    || run->Stage
+                        == automated_run::stage::epoch_maintenance_history
+                    || run->Stage
+                        == automated_run::stage::epoch_maintenance_prune_result
+                    || run->Stage
+                        == automated_run::stage::epoch_maintenance_delete_result
                     || run->Stage == automated_run::stage::appearance)
                 ? 6'000U
                 :
@@ -1393,6 +1681,16 @@ void schedule_automated_run(
 
         case automated_run::stage::open:
 #if defined(BPR_BUILD_TESTS)
+            if(run->MaintenanceProbe
+               == automated_run::epoch_maintenance_probe::verify_deleted)
+            {
+                if(begin_epoch_maintenance_probe(application, *run))
+                {
+                    run->PresentationPassed = true;
+                    transition_to_shutdown(application, *run);
+                }
+                break;
+            }
             if(fixture_presentation_passed(
                    window, run->ExpectedActiveHostText))
             {
@@ -1414,6 +1712,14 @@ void schedule_automated_run(
                                 github_epoch_fixture_phase::reuse
                         ? 0U
                         : 1U;
+                if(run->MaintenanceProbe
+                   != automated_run::epoch_maintenance_probe::none)
+                {
+                    if(begin_epoch_maintenance_probe(application, *run))
+                    {
+                    }
+                    break;
+                }
                 if(!fixture_epoch_pair_passed(
                        window,
                        evidence.BaseOid,
@@ -1740,6 +2046,122 @@ void schedule_automated_run(
             break;
         }
 
+        case automated_run::stage::epoch_maintenance_history:
+            if(window.epoch_control()->history_model()->epoch_count() >= 2U)
+            {
+                if(!begin_epoch_maintenance_probe(application, *run))
+                {
+                    fail_automated_run(application, *run);
+                }
+                else if(run->MaintenanceProbe
+                        == automated_run::epoch_maintenance_probe::
+                            verify_deleted
+                        && run->Stage
+                            == automated_run::stage::epoch_maintenance_history)
+                {
+                    run->PresentationPassed = true;
+                    transition_to_shutdown(application, *run);
+                }
+            }
+            break;
+
+        case automated_run::stage::epoch_maintenance_select_right:
+        {
+            auto* const control = window.epoch_control();
+            if(control->left_selector()->currentIndex()
+               == run->MaintenanceLeftRow)
+            {
+                control->right_selector()->setCurrentIndex(
+                    run->MaintenanceRightRow);
+                advance_fixture_stage(
+                    *run, automated_run::stage::epoch_maintenance_prune);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_maintenance_prune:
+        {
+            auto* const control = window.epoch_control();
+            if(control->left_selector()->currentIndex()
+                       == run->MaintenanceLeftRow
+               && control->right_selector()->currentIndex()
+                       == run->MaintenanceRightRow
+               && control->prune_action()->isEnabled())
+            {
+                accept_maintenance_confirmation(
+                    QStringLiteral("pruneSelectedEpochsConfirmationDialog"));
+                control->prune_action()->trigger();
+                advance_fixture_stage(
+                    *run,
+                    automated_run::stage::epoch_maintenance_prune_result);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_maintenance_prune_result:
+        {
+            auto* const control = window.epoch_control();
+            const auto provider = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            const auto maintenance = bpr::app::detail::
+                github_application_fixture_access::maintenance_evidence(
+                    application, run->MaintenanceTarget);
+            if(fixture_epoch_availability_is(*control->history_model(),
+                   1U,
+                   bpr::core::anchor_availability::pruned)
+               && maintenance.PruneIntentDispatchCount == 1U
+               && maintenance.DeleteIntentDispatchCount == 0U
+               && maintenance.CatalogRevision >= 3
+               && !maintenance.TargetBaseRefPresent
+               && !maintenance.TargetHeadRefPresent
+               && maintenance.NonTargetBaseRefPresent
+               && maintenance.NonTargetHeadRefPresent
+               && maintenance.RepositoryPresent
+               && !maintenance.CacheDeletionMarkerPresent
+               && provider.AccountReadCount == run->MaintenanceAccountReads
+               && provider.SmartAcquireCount
+                   == run->MaintenanceSmartAcquires
+               && control->history_model()->statistics().ModelResets
+                   == run->MaintenanceModelResets)
+            {
+                run->PresentationPassed = true;
+                transition_to_shutdown(application, *run);
+            }
+            break;
+        }
+
+        case automated_run::stage::epoch_maintenance_delete_result:
+        {
+            auto* const control = window.epoch_control();
+            const auto provider = bpr::app::detail::
+                github_application_fixture_access::evidence(application);
+            const auto maintenance = bpr::app::detail::
+                github_application_fixture_access::maintenance_evidence(
+                    application, run->MaintenanceTarget);
+            if(fixture_all_epoch_availability_is(*control->history_model(),
+                   bpr::core::anchor_availability::cache_deleted)
+               && maintenance.PruneIntentDispatchCount == 0U
+               && maintenance.DeleteIntentDispatchCount == 1U
+               && !maintenance.TargetBaseRefPresent
+               && !maintenance.TargetHeadRefPresent
+               && !maintenance.NonTargetBaseRefPresent
+               && !maintenance.NonTargetHeadRefPresent
+               && !maintenance.RepositoryPresent
+               && maintenance.CacheDeletionMarkerPresent
+               && maintenance.TargetBaseCacheDeleted
+               && maintenance.TargetHeadCacheDeleted
+               && provider.AccountReadCount == run->MaintenanceAccountReads
+               && provider.SmartAcquireCount
+                   == run->MaintenanceSmartAcquires
+               && control->history_model()->statistics().ModelResets
+                   == run->MaintenanceModelResets)
+            {
+                run->PresentationPassed = true;
+                transition_to_shutdown(application, *run);
+            }
+            break;
+        }
+
         case automated_run::stage::appearance:
             if(
                 run->Appearance.SignalObserved
@@ -1892,6 +2314,8 @@ auto main(int argc, char** argv) -> int
             argument_value(argc, argv, "--epoch-fixture-root");
         const auto epoch_fixture_phase =
             argument_value(argc, argv, "--epoch-fixture-phase");
+        const auto epoch_maintenance_probe =
+            argument_value(argc, argv, "--epoch-maintenance-probe");
         if(epoch_fixture_root.has_value() != epoch_fixture_phase.has_value()
            || (epoch_fixture_root.has_value()
                && !selected_fixture.has_value()))
@@ -1918,6 +2342,40 @@ auto main(int argc, char** argv) -> int
             {
                 QTextStream{stdout}
                     << "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
+                return EXIT_FAILURE;
+            }
+        }
+        auto selected_maintenance_probe =
+            automated_run::epoch_maintenance_probe::none;
+        if(epoch_maintenance_probe)
+        {
+            if(!epoch_fixture_root
+               || fixture_options.EpochPhase
+                   != bpr::app::detail::github_epoch_fixture_phase::reuse)
+            {
+                QTextStream{stdout}
+                    << "EPOCH_MAINTENANCE_CONFIGURATION_FAILED\n";
+                return EXIT_FAILURE;
+            }
+            if(*epoch_maintenance_probe == "prune")
+            {
+                selected_maintenance_probe =
+                    automated_run::epoch_maintenance_probe::prune;
+            }
+            else if(*epoch_maintenance_probe == "verify-pruned-delete")
+            {
+                selected_maintenance_probe = automated_run::
+                    epoch_maintenance_probe::verify_pruned_and_delete;
+            }
+            else if(*epoch_maintenance_probe == "verify-deleted")
+            {
+                selected_maintenance_probe =
+                    automated_run::epoch_maintenance_probe::verify_deleted;
+            }
+            else
+            {
+                QTextStream{stdout}
+                    << "EPOCH_MAINTENANCE_CONFIGURATION_FAILED\n";
                 return EXIT_FAILURE;
             }
         }
@@ -2023,6 +2481,7 @@ auto main(int argc, char** argv) -> int
                         .ExpectedActiveHostText =
                             std::move(expected_active_host_text),
                         .EpochPhase = fixture_options.EpochPhase,
+                        .MaintenanceProbe = selected_maintenance_probe,
                         .Appearance =
                             automated_run::
                                 native_appearance_probe_state{

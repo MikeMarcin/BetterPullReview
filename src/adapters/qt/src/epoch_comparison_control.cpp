@@ -10,6 +10,9 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
+#include <QMenu>
+#include <QPushButton>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QToolButton>
@@ -183,6 +186,34 @@ void configure_oid_editor(
     editor->setClearButtonEnabled(false);
     editor->setPlaceholderText(QStringLiteral("No exact commit selected"));
 }
+
+[[nodiscard]] auto confirm_destructive_action(QWidget* const parent,
+    const QString& object_name,
+    const QString& title,
+    const QString& text,
+    const QString& confirmation_text) -> bool
+{
+    QMessageBox dialog{QMessageBox::Warning,
+        title,
+        text,
+        QMessageBox::Cancel,
+        parent};
+    dialog.setObjectName(object_name);
+    dialog.setAccessibleName(title);
+    dialog.setAccessibleDescription(text);
+    dialog.setWindowModality(Qt::WindowModal);
+    auto* const confirm = dialog.addButton(
+        confirmation_text, QMessageBox::DestructiveRole);
+    confirm->setObjectName(object_name + QStringLiteral("ConfirmButton"));
+    confirm->setAccessibleName(confirmation_text);
+    auto* const cancel =
+        qobject_cast<QPushButton*>(dialog.button(QMessageBox::Cancel));
+    cancel->setObjectName(object_name + QStringLiteral("CancelButton"));
+    dialog.setDefaultButton(cancel);
+    dialog.setEscapeButton(cancel);
+    static_cast<void>(dialog.exec());
+    return dialog.clickedButton() == confirm;
+}
 }
 
 epoch_comparison_control::epoch_comparison_control(
@@ -239,10 +270,27 @@ epoch_comparison_control::epoch_comparison_control(
     configure_action(CancelAction,
         QStringLiteral("cancelEpochRefreshAction"),
         QKeySequence{QStringLiteral("Escape")});
+    PruneAction = new QAction{QStringLiteral("&Prune selected epochs"), this};
+    configure_action(PruneAction,
+        QStringLiteral("pruneSelectedEpochsAction"),
+        QKeySequence{QStringLiteral("Ctrl+Alt+P")});
+    DeleteCacheAction =
+        new QAction{QStringLiteral("Delete repository &cache"), this};
+    configure_action(DeleteCacheAction,
+        QStringLiteral("deleteRepositoryCacheAction"),
+        QKeySequence{QStringLiteral("Ctrl+Alt+Shift+D")});
+    CancelMaintenanceAction =
+        new QAction{QStringLiteral("Cancel history &maintenance"), this};
+    configure_action(CancelMaintenanceAction,
+        QStringLiteral("cancelEpochMaintenanceAction"),
+        QKeySequence{QStringLiteral("Ctrl+Alt+Escape")});
     addAction(LoadHistoryAction);
     addAction(ReturnNewestAction);
     addAction(RefreshAction);
     addAction(CancelAction);
+    addAction(PruneAction);
+    addAction(DeleteCacheAction);
+    addAction(CancelMaintenanceAction);
 
     auto* const layout = new QVBoxLayout{this};
     layout->setContentsMargins(0, 0, 0, 0);
@@ -350,10 +398,30 @@ epoch_comparison_control::epoch_comparison_control(
     CancelButton->setObjectName(QStringLiteral("cancelEpochRefreshButton"));
     CancelButton->setDefaultAction(CancelAction);
     CancelButton->setFocusPolicy(Qt::StrongFocus);
+    auto* const maintenance_menu = new QMenu{this};
+    maintenance_menu->setObjectName(
+        QStringLiteral("localHistoryMaintenanceMenu"));
+    maintenance_menu->addAction(PruneAction);
+    maintenance_menu->addAction(DeleteCacheAction);
+    maintenance_menu->addSeparator();
+    maintenance_menu->addAction(CancelMaintenanceAction);
+    MaintenanceButton = new QToolButton{this};
+    MaintenanceButton->setObjectName(
+        QStringLiteral("localHistoryMaintenanceButton"));
+    MaintenanceButton->setText(QStringLiteral("Local history maintenance"));
+    MaintenanceButton->setAccessibleName(
+        QStringLiteral("Local history maintenance"));
+    MaintenanceButton->setAccessibleDescription(QStringLiteral(
+        "Open confirmed local retention and repository-cache operations"));
+    MaintenanceButton->setMenu(maintenance_menu);
+    MaintenanceButton->setPopupMode(QToolButton::InstantPopup);
+    MaintenanceButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    MaintenanceButton->setFocusPolicy(Qt::StrongFocus);
     footer->addWidget(LoadHistoryButton);
     footer->addWidget(ReturnNewestButton);
     footer->addWidget(RefreshButton);
     footer->addWidget(CancelButton);
+    footer->addWidget(MaintenanceButton);
     layout->addLayout(footer);
 
     connect(WholePrAction, &QAction::triggered, this, [this]
@@ -402,6 +470,21 @@ epoch_comparison_control::epoch_comparison_control(
         if(Dispatch)
         {
             Dispatch(core::cancel_epoch_refresh_intent{});
+        }
+    });
+    connect(PruneAction, &QAction::triggered, this, [this]
+    {
+        dispatch_prune();
+    });
+    connect(DeleteCacheAction, &QAction::triggered, this, [this]
+    {
+        dispatch_delete_cache();
+    });
+    connect(CancelMaintenanceAction, &QAction::triggered, this, [this]
+    {
+        if(Dispatch)
+        {
+            Dispatch(core::cancel_epoch_maintenance_intent{});
         }
     });
 
@@ -495,6 +578,22 @@ auto epoch_comparison_control::refresh_action() const noexcept -> QAction*
 auto epoch_comparison_control::cancel_action() const noexcept -> QAction*
 {
     return CancelAction;
+}
+
+auto epoch_comparison_control::prune_action() const noexcept -> QAction*
+{
+    return PruneAction;
+}
+
+auto epoch_comparison_control::delete_cache_action() const noexcept -> QAction*
+{
+    return DeleteCacheAction;
+}
+
+auto epoch_comparison_control::cancel_maintenance_action() const noexcept
+    -> QAction*
+{
+    return CancelMaintenanceAction;
 }
 
 auto epoch_comparison_control::status_text() const -> QString
@@ -609,6 +708,98 @@ void epoch_comparison_control::dispatch_newest_history_page()
     });
 }
 
+void epoch_comparison_control::dispatch_prune()
+{
+    if(!Dispatch || !Authority || !Comparison || !Comparison->Pair)
+    {
+        return;
+    }
+    const auto catalog = HistoryModel->catalog();
+    if(!catalog)
+    {
+        return;
+    }
+
+    auto targets = std::vector<core::review_epoch_id>{};
+    const auto append_epoch = [&targets](const core::comparison_anchor& anchor)
+    {
+        if(anchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
+           && anchor.Identity.Kind
+               != core::comparison_anchor_kind::epoch_head)
+        {
+            return;
+        }
+        targets.push_back(core::review_epoch_id{
+            .Authority = anchor.Identity.Authority,
+            .Incarnation = anchor.Identity.Incarnation,
+            .Ordinal = anchor.Identity.Epoch,
+        });
+    };
+    append_epoch(Comparison->Pair->Left);
+    append_epoch(Comparison->Pair->Right);
+    std::ranges::sort(targets);
+    const auto duplicate = std::ranges::unique(targets);
+    targets.erase(duplicate.begin(), duplicate.end());
+    if(targets.empty())
+    {
+        return;
+    }
+
+    const auto captured_catalog = *catalog;
+    const auto count = static_cast<qulonglong>(targets.size());
+    const auto text = QStringLiteral(
+        "Prune %1 selected review epoch(s) from this pull request. This removes "
+        "their private retention refs, so those revisions may become "
+        "unrecoverable after remote history changes. Pruned tombstones remain "
+        "visible. This does not modify GitHub or a developer worktree.")
+                          .arg(count);
+    if(!confirm_destructive_action(this,
+           QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
+           QStringLiteral("Prune selected review epochs?"),
+           text,
+           QStringLiteral("Prune selected epochs")))
+    {
+        return;
+    }
+    Dispatch(core::prune_review_epochs_intent{
+        .Catalog = captured_catalog,
+        .Epochs = std::move(targets),
+    });
+}
+
+void epoch_comparison_control::dispatch_delete_cache()
+{
+    if(!Dispatch || !Authority)
+    {
+        return;
+    }
+    const auto catalog = HistoryModel->catalog();
+    if(!catalog)
+    {
+        return;
+    }
+
+    const auto captured_catalog = *catalog;
+    const auto captured_cache = Authority->Cache;
+    const auto text = QStringLiteral(
+        "Delete the current repository cache. This affects every retained "
+        "pull request in this repository cache and removes its private "
+        "retained repository bytes. Cache-deleted tombstones remain visible. "
+        "This does not modify GitHub or a developer worktree.");
+    if(!confirm_destructive_action(this,
+           QStringLiteral("deleteRepositoryCacheConfirmationDialog"),
+           QStringLiteral("Delete repository cache?"),
+           text,
+           QStringLiteral("Delete repository cache")))
+    {
+        return;
+    }
+    Dispatch(core::delete_repository_cache_intent{
+        .Catalog = captured_catalog,
+        .Cache = captured_cache,
+    });
+}
+
 void epoch_comparison_control::apply_catalog(
     const application::epoch_catalog_projection& projection)
 {
@@ -653,6 +844,7 @@ void epoch_comparison_control::apply_transition(
 {
     if(projection.Authority)
     {
+        Authority = projection.Authority->Authority;
         if(!projection.Authority->Authority)
         {
             HistoryModel->clear();
@@ -906,6 +1098,12 @@ void epoch_comparison_control::update_action_state()
     const auto select = command(core::epoch_command_id::select_comparison);
     const auto refresh = command(core::epoch_command_id::refresh_epochs);
     const auto cancel = command(core::epoch_command_id::cancel_epoch_refresh);
+    const auto prune =
+        command(core::epoch_command_id::prune_selected_epochs);
+    const auto delete_cache =
+        command(core::epoch_command_id::delete_repository_cache);
+    const auto cancel_maintenance =
+        command(core::epoch_command_id::cancel_epoch_maintenance);
     const bool select_enabled = select && select->Enabled;
     WholePrAction->setEnabled(select_enabled);
     PreviousUploadAction->setEnabled(select_enabled);
@@ -916,6 +1114,10 @@ void epoch_comparison_control::update_action_state()
         && HistoryModel->rowCount() != 0);
     RefreshAction->setEnabled(refresh && refresh->Enabled);
     CancelAction->setEnabled(cancel && cancel->Enabled);
+    PruneAction->setEnabled(prune && prune->Enabled);
+    DeleteCacheAction->setEnabled(delete_cache && delete_cache->Enabled);
+    CancelMaintenanceAction->setEnabled(
+        cancel_maintenance && cancel_maintenance->Enabled);
     const bool page_loading = HistoryPhase
         == core::epoch_history_page_phase::loading;
     LoadHistoryAction->setEnabled(
@@ -954,6 +1156,17 @@ void epoch_comparison_control::update_action_state()
     describe(CancelAction,
         cancel,
         QStringLiteral("Cancel the active review-history refresh."));
+    describe(PruneAction,
+        prune,
+        QStringLiteral(
+            "Prune private retention refs for the exact selected epochs."));
+    describe(DeleteCacheAction,
+        delete_cache,
+        QStringLiteral(
+            "Delete every retained pull request in this repository cache."));
+    describe(CancelMaintenanceAction,
+        cancel_maintenance,
+        QStringLiteral("Cancel maintenance before its point of no return."));
     LoadHistoryAction->setToolTip(LoadHistoryAction->isEnabled()
             ? QStringLiteral("Load the next bounded page of retained epochs.")
             : QStringLiteral("No earlier retained epoch page is available."));

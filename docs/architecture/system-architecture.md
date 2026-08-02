@@ -315,6 +315,15 @@ catalog and is not published into the replacement identity.
 - Dialogs, notifications, native menus, focus, accessibility, themes, layout, and high-DPI behavior belong to the Qt adapter.
 - Reusable widgets do not invoke application persistence, global service registries, or unrelated windows.
 
+The RFC-BPR-0003 secondary local-history menu presents core-projected prune,
+whole-cache-delete, and maintenance-cancel commands. Qt captures exact stable
+epoch IDs from the accepted pair, or the exact accepted catalog/cache scope,
+before opening a destructive confirmation whose default and Escape choice are
+Cancel. Confirmation does not relax authority: the core and host revalidate
+the captured identity and revision before the existing typed maintenance path
+can act. Qt never derives a maintenance target from visible page residency or
+performs the storage operation itself.
+
 ## Feature allocation
 
 | Feature family | Functional core | Application host | Qt presentation adapter |

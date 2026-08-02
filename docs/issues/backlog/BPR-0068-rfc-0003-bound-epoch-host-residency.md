@@ -1,7 +1,7 @@
 ---
 id: BPR-0068
 title: Bound epoch host job and ingress residency
-status: Ready
+status: Backlog
 rfc: RFC-BPR-0003
 depends_on: [BPR-0045, BPR-0055, BPR-0056]
 ---
@@ -57,3 +57,11 @@ RFC-BPR-0003 silently.
 
 Workers remain Qt-free, no semantic state moves into the executor, and no
 GitHub Actions or remote mutation is involved.
+
+## Scheduling disposition
+
+This resource-hardening claim remains required before final RFC-BPR-0003
+Auto-Verified closeout, but it does not block replacement RFC-BPR-0004
+implementation by product-owner direction. Resume it as an explicit issue
+slice; do not silently broaden RFC-BPR-0004 or weaken this card's flood and
+quiescence evidence.

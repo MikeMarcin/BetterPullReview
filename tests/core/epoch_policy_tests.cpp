@@ -2166,8 +2166,43 @@ auto test_invalid_cross_facts_and_command_policy() -> void
     const auto ready_commands = epoch_commands(fixture.State);
     expect(
         ready_commands[0].Enabled && ready_commands[1].Enabled
-            && !ready_commands[2].Enabled,
-        "ready core enables refresh and selection but not cancellation");
+            && ready_commands[2].Enabled && ready_commands[3].Enabled
+            && !ready_commands[4].Enabled && !ready_commands[5].Enabled,
+        "ready core enables refresh, selection, and maintenance but not "
+        "cancellation");
+
+    {
+        auto without_pair = fixture.State;
+        without_pair.AcceptedComparison.reset();
+        const auto commands = epoch_commands(without_pair);
+        expect(!commands[2].Enabled
+                && commands[2].DisabledReason
+                    == epoch_reason_code::no_resolved_comparison
+                && commands[3].Enabled,
+            "prune requires an accepted comparison while repository-cache "
+            "deletion remains generally available");
+    }
+
+    {
+        auto review_only = fixture.State;
+        const auto first = review_anchor(fixture.Authority,
+            fixture.Catalog,
+            associated_review(1U, fixture.Epoch.Head));
+        const auto second = review_anchor(fixture.Authority,
+            fixture.Catalog,
+            associated_review(2U, fixture.Epoch.Head));
+        review_only.AcceptedComparison = comparison_pair{
+            .Left = first,
+            .Right = second,
+        };
+        const auto commands = epoch_commands(review_only);
+        expect(!commands[2].Enabled
+                && commands[2].DisabledReason
+                    == epoch_reason_code::invalid_maintenance_target
+                && commands[3].Enabled,
+            "a comparison containing only review anchors cannot project a "
+            "prune command");
+    }
 
     {
         auto last_request_state = initial_state();
@@ -2249,7 +2284,9 @@ auto test_invalid_cross_facts_and_command_policy() -> void
                 && retry_prepare->Context.Generation
                     != first_prepare->Context.Generation
                 && retry_fixture.State.AcceptedComparison == accepted_pair
-                && !retry_commands[0].Enabled && retry_commands[2].Enabled,
+                && !retry_commands[0].Enabled && retry_commands[4].Enabled
+                && !retry_commands[2].Enabled
+                && !retry_commands[3].Enabled,
             "refresh intent provides a new exact retry after failure");
     }
 
@@ -3386,10 +3423,15 @@ auto test_core_authorized_epoch_maintenance() -> void
                 && fixture.State.PendingMaintenance->EpochCount == 2U
                 && fixture.State.Status == epoch_status::maintaining
                 && !fixture.State.PendingComparison
+                && started.Commands
+                && !started.Commands->Commands[2].Enabled
+                && !started.Commands->Commands[3].Enabled
+                && started.Commands->Commands[5].Enabled
                 && has_changed(started.Changed,
                     epoch_changed_domain::maintenance),
             "one prune intent binds a bounded exact batch and retires stale "
-            "comparison work");
+            "comparison work while projecting exact maintenance command "
+            "legality");
 
         const auto pending = fixture.State;
         const auto duplicate = transition(fixture.State,
@@ -3417,7 +3459,9 @@ auto test_core_authorized_epoch_maintenance() -> void
         const auto cancelling =
             transition(fixture.State, cancel_epoch_maintenance_intent{});
         expect(request_from<cancel_epoch_work_request>(cancelling) != nullptr
-                && fixture.State.PendingMaintenance->CancellationRequested,
+                && fixture.State.PendingMaintenance->CancellationRequested
+                && cancelling.Commands
+                && !cancelling.Commands->Commands[5].Enabled,
             "maintenance cancellation is an explicit request");
         const auto after_point = transition(fixture.State,
             epoch_maintenance_cancelled_event{

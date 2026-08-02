@@ -146,6 +146,14 @@ fabricated epoch. Loading, retained refresh, empty, failed, canceled, pruned,
 cache-deleted, corrupt, unavailable, and never-observed states use text as well
 as enabled state; color is not their only distinction.
 
+A single secondary `Local history maintenance` menu contains prune selected
+epochs, delete repository cache, and cancel maintenance. The core controls
+enablement. Destructive commands open keyboard-accessible, window-modal
+warnings with Cancel as the default and Escape action; the exact stable target
+is captured before the dialog opens and revalidated after confirmation. The
+dialogs state the retained-history or repository-cache consequence and that
+neither GitHub nor a developer worktree is modified.
+
 This RFC-BPR-0003 control is the reusable semantic and accessibility surface,
 not final visual acceptance. RFC-BPR-0005 still owns the integrated workbench
 presentation-polish and native visual-acceptance slice. RFC-BPR-0006 owns

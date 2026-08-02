@@ -20,7 +20,7 @@ namespace bpr::core
 [[nodiscard]] auto available_for_diff(const comparison_pair& pair) noexcept
     -> bool;
 [[nodiscard]] auto epoch_commands(const epoch_state& state) noexcept
-    -> std::array<epoch_command_projection, 3>;
+    -> std::array<epoch_command_projection, 6>;
 
 [[nodiscard]] auto material_relation(
     const pull_request_authority& current_authority,

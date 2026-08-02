@@ -6,6 +6,8 @@
 
 #include "bpr/app/github_application.hpp"
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <filesystem>
 #include <optional>
@@ -55,6 +57,26 @@ struct github_public_path_fixture_evidence
     std::string HeadTwoOid;
 };
 
+struct github_epoch_maintenance_fixture_evidence
+{
+    std::size_t PruneIntentDispatchCount = 0U;
+    std::size_t DeleteIntentDispatchCount = 0U;
+    std::size_t CancelIntentDispatchCount = 0U;
+    std::int64_t CatalogRevision = 0;
+    bool TargetBaseRefPresent = false;
+    bool TargetHeadRefPresent = false;
+    bool NonTargetBaseRefPresent = false;
+    bool NonTargetHeadRefPresent = false;
+    bool RepositoryPresent = false;
+    bool CacheDeletionMarkerPresent = false;
+    bool TargetBaseCacheDeleted = false;
+    bool TargetHeadCacheDeleted = false;
+    bool RetiredRepositoryPresent = false;
+    bool RetiredCacheDeletionMarkerPresent = false;
+    int TargetBaseAvailability = -1;
+    int TargetHeadAvailability = -1;
+};
+
 class github_application_fixture_access final
 {
 public:
@@ -65,5 +87,9 @@ public:
     [[nodiscard]] static auto evidence(
         const github_application& application) noexcept
         -> github_public_path_fixture_evidence;
+    [[nodiscard]] static auto maintenance_evidence(
+        const github_application& application,
+        core::review_epoch_id target) noexcept
+        -> github_epoch_maintenance_fixture_evidence;
 };
 }

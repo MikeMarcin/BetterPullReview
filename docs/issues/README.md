@@ -89,7 +89,9 @@ Windows x64 evidence, and BPR-0035 cannot mark RFC-BPR-0002 Auto-Verified
 until that evidence exists. By product-owner direction, this does not block
 planning and implementing later RFCs in canonical order.
 
-RFC-BPR-0003 is the implementation frontier. BPR-0039 is in `done/` with the
+RFC-BPR-0003 remains open for explicitly deferred closeout claims while the
+replacement RFC-BPR-0004 is the next implementation frontier by product-owner
+direction. BPR-0039 is in `done/` with the
 immutable-base architecture, authority, claim, platform, UX, documentation,
 performance, and security plan recorded in the
 [RFC-BPR-0003 verification ledger](../verification/RFC-BPR-0003.md).
@@ -182,22 +184,23 @@ application timeout snapshot, deliberately retaining fail-closed authority
 structure, and replaying the clean developer, core-only, sanitizer,
 tests-disabled Release, documentation, and rendered integration matrices.
 BPR-0053 and BPR-0054 remain in `backlog/` pending their explicit board
-transitions. RFC-BPR-0003's final capability-critical review reproduced two
-available-platform blockers that earlier component evidence did not expose.
-Ready BPR-0067 owns explicit confirmed prune/cache-delete commands through the
-selected application and real Git/SQLite projection path. Ready BPR-0068 owns
-bounded epoch-host job, actor-FIFO, and reentrant-ingress residency with
-manual-executor flood and shutdown proof. Backlog BPR-0069 owns the final
-native-probe provenance, partial-claim wording, immutable-base changed-path,
-and documentation reconciliation after both repairs. BPR-0054 depends on all
-three and makes no closeout claim while they remain open.
+transitions. Done BPR-0067 now exposes confirmed prune/cache-delete commands
+through the selected application and real Git/SQLite projection path, with
+default-Cancel confirmations, unrelated-ref canaries, durable restart proof,
+and no additional provider traffic. Backlog BPR-0068 retains bounded
+epoch-host job, actor-FIFO, and reentrant-ingress residency. Backlog BPR-0069
+retains final native-probe provenance, partial-claim wording, immutable-base
+changed-path, and documentation reconciliation. Backlog BPR-0070 retains the
+fail-closed command-projection refinement that disables prune before
+confirmation for an already ineligible selected availability. BPR-0054
+depends on all four and makes no closeout claim while they remain open.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
-RFC work. BPR-0054 remains blocked by BPR-0035/BPR-0036, BPR-0053, and the
-new BPR-0067/BPR-0068/BPR-0069 remediation chain, so canonical closeout and
-every affected claim remain intact.
+RFC work. BPR-0054 remains blocked by BPR-0035/BPR-0036, BPR-0053, BPR-0068,
+BPR-0069, and BPR-0070, so final RFC-BPR-0003 Auto-Verified closeout and every
+affected unverified claim remain intact without delaying RFC-BPR-0004.
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench

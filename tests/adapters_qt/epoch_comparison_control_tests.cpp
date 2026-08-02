@@ -7,8 +7,13 @@
 #include <QComboBox>
 #include <QFont>
 #include <QLineEdit>
+#include <QMessageBox>
+#include <QMenu>
 #include <QPersistentModelIndex>
 #include <QPixmap>
+#include <QPushButton>
+#include <QTimer>
+#include <QToolButton>
 
 #include <array>
 #include <cmath>
@@ -59,6 +64,24 @@ template<typename Identity>
     return {
         .Incarnation = identity<core::epoch_catalog_incarnation_id>(2U),
         .Revision = core::epoch_catalog_revision{revision},
+    };
+}
+
+[[nodiscard]] auto authority(const std::uint8_t seed = 1U)
+    -> core::pull_request_authority
+{
+    return {
+        .Profile = core::host_profile_id{11U + seed},
+        .ProfileRevision = core::github_profile_revision{21U + seed},
+        .Host = core::git_host_id{31U + seed},
+        .HostAuthority = identity<core::host_authority_fingerprint>(2U + seed),
+        .Account = core::github_account_id{41U + seed},
+        .Viewer = core::github_viewer_actor_id{51U + seed},
+        .Repository = core::repository_id{61U + seed},
+        .Cache = identity<core::repository_cache_scope_id>(3U + seed),
+        .PullRequest = core::pull_request_id{71U + seed},
+        .Number = core::pull_request_number{81U + seed},
+        .Scope = identity<core::pull_request_authority_scope_id>(1U),
     };
 }
 
@@ -170,7 +193,22 @@ template<typename Identity>
                     .DisabledReason = core::epoch_reason_code::none,
                 },
                 core::epoch_command_projection{
+                    .Id = core::epoch_command_id::prune_selected_epochs,
+                    .Enabled = true,
+                    .DisabledReason = core::epoch_reason_code::none,
+                },
+                core::epoch_command_projection{
+                    .Id = core::epoch_command_id::delete_repository_cache,
+                    .Enabled = true,
+                    .DisabledReason = core::epoch_reason_code::none,
+                },
+                core::epoch_command_projection{
                     .Id = core::epoch_command_id::cancel_epoch_refresh,
+                    .Enabled = true,
+                    .DisabledReason = core::epoch_reason_code::none,
+                },
+                core::epoch_command_projection{
+                    .Id = core::epoch_command_id::cancel_epoch_maintenance,
                     .Enabled = true,
                     .DisabledReason = core::epoch_reason_code::none,
                 },
@@ -190,8 +228,13 @@ template<typename Identity>
             application::epoch_transition_projection{
                 .Changed = core::epoch_changed_domain::selection
                     | core::epoch_changed_domain::comparison
+                    | core::epoch_changed_domain::authority
                     | core::epoch_changed_domain::status
                     | core::epoch_changed_domain::commands,
+                .Authority = application::epoch_authority_projection{
+                    .Authority = authority(),
+                    .Generation = core::epoch_generation{8U},
+                },
                 .Selection = core::comparison_selection_delta{
                     .Selection = selection,
                 },
@@ -210,6 +253,47 @@ template<typename Identity>
                 .Commands = enabled_commands(),
             },
     };
+}
+
+struct confirmation_observation
+{
+    QString Text;
+    QString AccessibleName;
+    bool CancelWasDefault = false;
+};
+
+void respond_to_confirmation(const QString& object_name,
+    const bool confirm,
+    confirmation_observation& observation,
+    std::function<void()> before_response = {})
+{
+    QTimer::singleShot(0,
+        qApp,
+        [object_name,
+            confirm,
+            &observation,
+            before_response = std::move(before_response)]
+        {
+            auto* const dialog = qobject_cast<QMessageBox*>(
+                QApplication::activeModalWidget());
+            expect(dialog != nullptr && dialog->objectName() == object_name,
+                "the expected Qt-owned confirmation dialog is active");
+            observation.Text = dialog->text();
+            observation.AccessibleName = dialog->accessibleName();
+            auto* const cancel = dialog->findChild<QPushButton*>(
+                object_name + QStringLiteral("CancelButton"));
+            auto* const confirmed = dialog->findChild<QPushButton*>(
+                object_name + QStringLiteral("ConfirmButton"));
+            observation.CancelWasDefault = cancel != nullptr
+                && dialog->defaultButton() == cancel;
+            expect(cancel != nullptr && confirmed != nullptr,
+                "confirmation exposes stable cancel and destructive buttons");
+            if(before_response)
+            {
+                before_response();
+            }
+            (confirm ? confirmed : cancel)->click();
+        });
 }
 
 auto test_model_applies_stable_incremental_rows() -> void
@@ -684,6 +768,205 @@ auto test_control_translates_exact_selection_and_preserves_projection() -> void
         "identified after both anchors leave the one-page working set");
 }
 
+auto test_confirmed_public_maintenance_actions() -> void
+{
+    std::vector<application::epoch_intent> intents;
+    qt::epoch_comparison_control control{
+        [&intents](application::epoch_intent intent)
+        {
+            intents.push_back(std::move(intent));
+        },
+    };
+    const auto third = epoch_row(3, '1', '2');
+    const auto second = epoch_row(2, '1', '3');
+    control.publish(loaded_catalog_update({third, second}));
+    const auto whole_pair = core::comparison_pair{
+        .Left = anchor(third, core::comparison_anchor_kind::epoch_base),
+        .Right = anchor(third, core::comparison_anchor_kind::epoch_head),
+    };
+    control.publish(comparison_update(
+        core::named_selection(core::named_comparison::whole_pr), whole_pair));
+
+    expect(control.prune_action()->isEnabled()
+            && control.delete_cache_action()->isEnabled()
+            && control.cancel_maintenance_action()->isEnabled()
+            && !control.prune_action()->shortcut().isEmpty()
+            && !control.delete_cache_action()->shortcut().isEmpty(),
+        "core command projections enable keyboard-addressable maintenance "
+        "actions");
+
+    auto observation = confirmation_observation{};
+    const auto before_cancel = intents.size();
+    respond_to_confirmation(
+        QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
+        false,
+        observation);
+    control.prune_action()->trigger();
+    expect(intents.size() == before_cancel && observation.CancelWasDefault
+            && observation.Text.contains(QStringLiteral("retention refs"))
+            && observation.Text.contains(QStringLiteral("unrecoverable"))
+            && observation.Text.contains(QStringLiteral("tombstones"))
+            && observation.Text.contains(QStringLiteral("GitHub"))
+            && observation.Text.contains(QStringLiteral("worktree"))
+            && !observation.AccessibleName.isEmpty(),
+        "prune confirmation defaults to Cancel, states consequences, and "
+        "dispatches nothing when canceled");
+
+    observation = {};
+    respond_to_confirmation(
+        QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
+        true,
+        observation);
+    control.prune_action()->trigger();
+    const auto* one =
+        std::get_if<core::prune_review_epochs_intent>(&intents.back());
+    expect(one != nullptr && one->Catalog == catalog()
+            && one->Epochs == std::vector{third.Id},
+        "base and head selections from one epoch deduplicate into one exact "
+        "confirmed prune target");
+
+    const auto two_pair = core::comparison_pair{
+        .Left = anchor(third, core::comparison_anchor_kind::epoch_head),
+        .Right = anchor(second, core::comparison_anchor_kind::epoch_head),
+    };
+    control.publish(comparison_update(core::explicit_selection(
+        two_pair.Left.Identity, two_pair.Right.Identity), two_pair));
+    observation = {};
+    respond_to_confirmation(
+        QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
+        true,
+        observation);
+    control.prune_action()->trigger();
+    const auto* two =
+        std::get_if<core::prune_review_epochs_intent>(&intents.back());
+    expect(two != nullptr && two->Catalog == catalog()
+            && two->Epochs == std::vector{second.Id, third.Id},
+        "two selected epochs become one sorted exact confirmed batch");
+
+    const auto review = core::comparison_anchor{
+        .Identity =
+            {
+                .Authority = third.Id.Authority,
+                .Incarnation = third.Id.Incarnation,
+                .Kind = core::comparison_anchor_kind::review_commit,
+                .Review = identity<core::review_association_id>(19U),
+            },
+        .Commit = commit('4'),
+        .Availability = core::anchor_availability::available,
+    };
+    const auto mixed_pair = core::comparison_pair{
+        .Left = review,
+        .Right = anchor(second, core::comparison_anchor_kind::epoch_head),
+    };
+    control.publish(comparison_update(core::explicit_selection(
+        mixed_pair.Left.Identity, mixed_pair.Right.Identity), mixed_pair));
+    observation = {};
+    respond_to_confirmation(
+        QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
+        true,
+        observation);
+    control.prune_action()->trigger();
+    const auto* mixed =
+        std::get_if<core::prune_review_epochs_intent>(&intents.back());
+    expect(mixed != nullptr && mixed->Epochs == std::vector{second.Id},
+        "a review anchor is never invented as an epoch prune target");
+
+    auto review_only = comparison_update(core::explicit_selection(
+        review.Identity, review.Identity), {.Left = review, .Right = review});
+    review_only.Transition->Commands->Commands[2] =
+        core::epoch_command_projection{
+            .Id = core::epoch_command_id::prune_selected_epochs,
+            .Enabled = false,
+            .DisabledReason = core::epoch_reason_code::invalid_maintenance_target,
+        };
+    control.publish(review_only);
+    expect(!control.prune_action()->isEnabled()
+            && control.delete_cache_action()->isEnabled(),
+        "core disables pruning for a review-only pair without disabling "
+        "whole-cache administration");
+
+    control.publish(comparison_update(
+        core::named_selection(core::named_comparison::whole_pr), whole_pair));
+    observation = {};
+    respond_to_confirmation(
+        QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
+        true,
+        observation,
+        [&control]
+        {
+            control.publish(application::epoch_presentation_update{
+                .Catalog = application::epoch_catalog_projection{
+                    .Catalog = catalog(8),
+                },
+            });
+        });
+    control.prune_action()->trigger();
+    const auto* stale =
+        std::get_if<core::prune_review_epochs_intent>(&intents.back());
+    expect(stale != nullptr && stale->Catalog == catalog()
+            && stale->Epochs == std::vector{third.Id}
+            && control.history_model()->catalog() == catalog(8),
+        "confirmation captures the complete old target so a catalog change "
+        "is rejected by the core instead of silently retargeted");
+
+    control.publish(loaded_catalog_update({third, second}));
+    control.publish(comparison_update(
+        core::named_selection(core::named_comparison::whole_pr), whole_pair));
+    observation = {};
+    const auto before_delete_cancel = intents.size();
+    respond_to_confirmation(
+        QStringLiteral("deleteRepositoryCacheConfirmationDialog"),
+        false,
+        observation);
+    control.delete_cache_action()->trigger();
+    expect(intents.size() == before_delete_cancel,
+        "canceling whole-cache deletion dispatches no intent");
+    expect(observation.CancelWasDefault,
+        "whole-cache deletion defaults to Cancel");
+    expect(observation.Text.contains(QStringLiteral("every retained"))
+            && observation.Text.contains(QStringLiteral("repository bytes"))
+            && observation.Text.contains(QStringLiteral("Cache-deleted"))
+            && observation.Text.contains(QStringLiteral("GitHub"))
+            && observation.Text.contains(QStringLiteral("worktree")),
+        "whole-cache confirmation defaults to Cancel and states its exact "
+        "repository-wide local consequences");
+
+    observation = {};
+    respond_to_confirmation(
+        QStringLiteral("deleteRepositoryCacheConfirmationDialog"),
+        true,
+        observation);
+    control.delete_cache_action()->trigger();
+    const auto* deleted =
+        std::get_if<core::delete_repository_cache_intent>(&intents.back());
+    expect(deleted != nullptr && deleted->Catalog == catalog()
+            && deleted->Cache == authority().Cache,
+        "confirmed cache deletion carries the exact captured catalog and "
+        "repository-cache scope");
+
+    control.cancel_maintenance_action()->trigger();
+    expect(std::holds_alternative<core::cancel_epoch_maintenance_intent>(
+               intents.back()),
+        "maintenance cancellation emits only its typed semantic intent");
+
+    auto* const maintenance_button = control.findChild<QToolButton*>(
+        QStringLiteral("localHistoryMaintenanceButton"));
+    expect(maintenance_button != nullptr
+            && maintenance_button->menu() != nullptr
+            && maintenance_button->menu()->objectName()
+                == QStringLiteral("localHistoryMaintenanceMenu")
+            && maintenance_button->menu()->actions().contains(
+                control.prune_action())
+            && maintenance_button->menu()->actions().contains(
+                control.delete_cache_action())
+            && maintenance_button->menu()->actions().contains(
+                control.cancel_maintenance_action())
+            && !maintenance_button->accessibleName().isEmpty()
+            && !maintenance_button->accessibleDescription().isEmpty(),
+        "one secondary public maintenance menu exposes stable action, object, "
+        "and accessibility contracts");
+}
+
 auto test_explicit_loading_empty_failure_and_availability_states() -> void
 {
     qt::epoch_comparison_control control;
@@ -972,6 +1255,7 @@ auto main(int argc, char** argv) -> int
     test_model_applies_stable_incremental_rows();
     test_model_replaces_more_than_one_thousand_bounded_pages();
     test_control_translates_exact_selection_and_preserves_projection();
+    test_confirmed_public_maintenance_actions();
     test_explicit_loading_empty_failure_and_availability_states();
     test_focus_appearance_accessibility_and_announcements();
     test_real_loaded_window_composition_renders();

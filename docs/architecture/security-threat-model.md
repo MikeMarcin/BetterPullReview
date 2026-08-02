@@ -885,6 +885,14 @@ association `pruned`, advances the revision, and releases the retained-epoch
 quota exactly once. Adapter methods alone are not product authorization;
 replay cannot decrement quota or mutate rows a second time.
 
+The selected application exposes these commands only in a secondary local-
+history menu. Qt captures the complete exact target before showing a window-
+modal warning; Cancel is both the default and Escape action. The warning names
+the retained-history or repository-cache consequence, retained tombstones, and
+the absence of GitHub or developer-worktree mutation. Confirmation dispatches
+the existing typed core intent and grants no direct filesystem, Git, SQLite,
+credential, or provider authority to the widget.
+
 The retained anchor/epoch identity remains as a pruned tombstone. Any named
 alias whose semantic candidate is that epoch becomes explicitly unavailable
 and never remaps to an older resident epoch. Repository-cache deletion
@@ -899,6 +907,9 @@ a retryable unavailable tombstone and is never rediscovered as a cache. The
 durable operation ID is the stable authorization token for every replay;
 mixed ref state, cache identity ambiguity, or phase drift becomes
 `repair_required` rather than broad cleanup.
+Whole-cache finalization supersedes an earlier `pruned` availability with
+`cache_deleted`; this keeps the durable catalog, incremental projection, and
+restart result consistent for every row in the deleted cache scope.
 Secure erasure from WAL/journal files or SSD media is not claimed.
 
 Deleting a physical cache does not erase the stable PR authority or rewrite

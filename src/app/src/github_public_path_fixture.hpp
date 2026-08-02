@@ -45,6 +45,8 @@ public:
         -> application::github_credential_material;
     [[nodiscard]] auto evidence() const noexcept
         -> github_public_path_fixture_evidence;
+    [[nodiscard]] auto last_smart_authority() const noexcept
+        -> std::optional<core::pull_request_authority>;
     [[nodiscard]] auto application_data_root() const
         -> const std::filesystem::path&;
     [[nodiscard]] auto git_executable() const

@@ -50,6 +50,9 @@ public:
     [[nodiscard]] auto return_to_newest_action() const noexcept -> QAction*;
     [[nodiscard]] auto refresh_action() const noexcept -> QAction*;
     [[nodiscard]] auto cancel_action() const noexcept -> QAction*;
+    [[nodiscard]] auto prune_action() const noexcept -> QAction*;
+    [[nodiscard]] auto delete_cache_action() const noexcept -> QAction*;
+    [[nodiscard]] auto cancel_maintenance_action() const noexcept -> QAction*;
     [[nodiscard]] auto status_text() const -> QString;
     [[nodiscard]] auto comparison_text() const -> QString;
     [[nodiscard]] auto statistics() const noexcept
@@ -63,6 +66,8 @@ private:
     void dispatch_anchor(core::comparison_side side, int row);
     void dispatch_older_history_page();
     void dispatch_newest_history_page();
+    void dispatch_prune();
+    void dispatch_delete_cache();
     void apply_catalog(
         const application::epoch_catalog_projection& projection);
     void apply_transition(
@@ -93,11 +98,16 @@ private:
     QAction* ReturnNewestAction = nullptr;
     QAction* RefreshAction = nullptr;
     QAction* CancelAction = nullptr;
+    QAction* PruneAction = nullptr;
+    QAction* DeleteCacheAction = nullptr;
+    QAction* CancelMaintenanceAction = nullptr;
     QToolButton* LoadHistoryButton = nullptr;
     QToolButton* ReturnNewestButton = nullptr;
     QToolButton* RefreshButton = nullptr;
     QToolButton* CancelButton = nullptr;
+    QToolButton* MaintenanceButton = nullptr;
 
+    std::optional<core::pull_request_authority> Authority;
     std::optional<core::comparison_selection> Selection;
     std::optional<application::epoch_comparison_projection> Comparison;
     std::optional<core::epoch_history_cursor> Continuation;
@@ -106,7 +116,7 @@ private:
     core::epoch_reason_code HistoryReason = core::epoch_reason_code::none;
     core::epoch_reason_code DiagnosticReason = core::epoch_reason_code::none;
     core::epoch_status Status = core::epoch_status::inactive;
-    std::array<core::epoch_command_projection, 3> Commands{};
+    std::array<core::epoch_command_projection, 6> Commands{};
     bool HasCommands = false;
     bool ApplyingProjection = false;
     bool HistoryWindowStale = false;

@@ -6107,12 +6107,12 @@ auto sqlite_epoch_catalog_session::finalize_cache_delete(
         database,
         "UPDATE epoch_anchor SET availability = 4 "
         "WHERE incarnation = ?1 AND pr_scope = ?2 "
-        "AND availability != 3 AND availability != 4");
+        "AND availability != 4");
     auto reviews = prepare(
         database,
         "UPDATE review_association SET availability = 4 "
         "WHERE incarnation = ?1 AND pr_scope = ?2 "
-        "AND availability != 3 AND availability != 4");
+        "AND availability != 4");
     if(!tombstone || !anchors || !reviews)
     {
         return std::unexpected(failure::unavailable);

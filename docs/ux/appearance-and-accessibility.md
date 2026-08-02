@@ -59,6 +59,12 @@ OID remains available below it. A catalog-invalidated page is retained with
 explicit stale text and disabled selection rather than being silently mixed
 with the new revision.
 
+Local destructive operations are grouped in one secondary, keyboard-focusable
+`Local history maintenance` menu instead of adding three prominent buttons to
+the interim control. Its actions and confirmation controls have stable
+accessible names and descriptions. Each warning is window-modal, names the
+exact consequence in text, and makes Cancel both the default and Escape action.
+
 The deterministic 1.0x, 1.25x, and 2.0x offscreen renders exercise the actual
 loaded pull-request composition and verify geometry only. BPR-0049's native
 palette evidence and BPR-0059's owner-activated Cocoa/QMacStyle run directly

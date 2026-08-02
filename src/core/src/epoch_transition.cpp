@@ -2023,7 +2023,9 @@ template<typename Event>
         .Request = state.PendingMaintenance->Request,
         .Generation = state.PendingMaintenance->Generation,
     });
-    output.Changed = epoch_changed_domain::maintenance;
+    output.Commands = epoch_command_delta{.Commands = epoch_commands(state)};
+    output.Changed = epoch_changed_domain::maintenance
+        | epoch_changed_domain::commands;
     return output;
 }
 
@@ -2368,7 +2370,7 @@ auto available_for_diff(const comparison_pair& pair) noexcept -> bool
 }
 
 auto epoch_commands(const epoch_state& state) noexcept
-    -> std::array<epoch_command_projection, 3>
+    -> std::array<epoch_command_projection, 6>
 {
     const bool active =
         state.Authority.has_value() && state.AcceptedRevision.has_value();
@@ -2418,8 +2420,63 @@ auto epoch_commands(const epoch_state& state) noexcept
 
     const bool can_refresh = refresh_reason == epoch_reason_code::none;
     const bool can_select = selection_reason == epoch_reason_code::none;
-    const bool can_cancel = state.PendingIngestion.has_value()
+    const bool can_cancel_refresh = state.PendingIngestion.has_value()
         && !state.PendingIngestion->CancellationRequested;
+
+    auto maintenance_reason = epoch_reason_code::no_active_authority;
+    if(active)
+    {
+        if(!catalog_ready)
+        {
+            maintenance_reason = epoch_reason_code::no_catalog;
+        }
+        else if(state.PendingMaintenance.has_value())
+        {
+            maintenance_reason = epoch_reason_code::duplicate_maintenance;
+        }
+        else if(state.PendingIngestion.has_value())
+        {
+            maintenance_reason = epoch_reason_code::unavailable;
+        }
+        else if(!request_available(state))
+        {
+            maintenance_reason = epoch_reason_code::request_counter_exhausted;
+        }
+        else
+        {
+            maintenance_reason = epoch_reason_code::none;
+        }
+    }
+
+    auto prune_reason = maintenance_reason;
+    if(prune_reason == epoch_reason_code::none)
+    {
+        if(!state.AcceptedComparison.has_value())
+        {
+            prune_reason = epoch_reason_code::no_resolved_comparison;
+        }
+        else
+        {
+            const auto& pair = *state.AcceptedComparison;
+            const auto is_epoch_anchor = [](const comparison_anchor& value)
+            {
+                return value.Identity.Kind
+                        == comparison_anchor_kind::epoch_base
+                    || value.Identity.Kind
+                        == comparison_anchor_kind::epoch_head;
+            };
+            if(!is_epoch_anchor(pair.Left) && !is_epoch_anchor(pair.Right))
+            {
+                prune_reason = epoch_reason_code::invalid_maintenance_target;
+            }
+        }
+    }
+
+    const bool can_prune = prune_reason == epoch_reason_code::none;
+    const bool can_delete_cache =
+        maintenance_reason == epoch_reason_code::none;
+    const bool can_cancel_maintenance = state.PendingMaintenance.has_value()
+        && !state.PendingMaintenance->CancellationRequested;
 
     return {
         epoch_command_projection{
@@ -2433,10 +2490,28 @@ auto epoch_commands(const epoch_state& state) noexcept
             .DisabledReason = selection_reason,
         },
         epoch_command_projection{
+            .Id = epoch_command_id::prune_selected_epochs,
+            .Enabled = can_prune,
+            .DisabledReason = prune_reason,
+        },
+        epoch_command_projection{
+            .Id = epoch_command_id::delete_repository_cache,
+            .Enabled = can_delete_cache,
+            .DisabledReason = maintenance_reason,
+        },
+        epoch_command_projection{
             .Id = epoch_command_id::cancel_epoch_refresh,
-            .Enabled = can_cancel,
-            .DisabledReason = can_cancel ? epoch_reason_code::none
-                                         : epoch_reason_code::unavailable,
+            .Enabled = can_cancel_refresh,
+            .DisabledReason = can_cancel_refresh
+                ? epoch_reason_code::none
+                : epoch_reason_code::unavailable,
+        },
+        epoch_command_projection{
+            .Id = epoch_command_id::cancel_epoch_maintenance,
+            .Enabled = can_cancel_maintenance,
+            .DisabledReason = can_cancel_maintenance
+                ? epoch_reason_code::none
+                : epoch_reason_code::unavailable,
         },
     };
 }

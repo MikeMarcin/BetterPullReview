@@ -671,6 +671,22 @@ public:
         {
             return;
         }
+#if defined(BPR_BUILD_TESTS)
+        if(std::holds_alternative<core::prune_review_epochs_intent>(intent))
+        {
+            ++EpochPruneIntentDispatchCount;
+        }
+        else if(std::holds_alternative<core::delete_repository_cache_intent>(
+                    intent))
+        {
+            ++EpochDeleteIntentDispatchCount;
+        }
+        else if(std::holds_alternative<core::cancel_epoch_maintenance_intent>(
+                    intent))
+        {
+            ++EpochCancelIntentDispatchCount;
+        }
+#endif
         EpochHost->dispatch(std::move(intent));
     }
 
@@ -731,6 +747,9 @@ public:
     worker_executor VaultEffects;
 #if defined(BPR_BUILD_TESTS)
     std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
+    std::size_t EpochPruneIntentDispatchCount = 0U;
+    std::size_t EpochDeleteIntentDispatchCount = 0U;
+    std::size_t EpochCancelIntentDispatchCount = 0U;
 #endif
     std::unique_ptr<application::github_credential_vault_port> OwnedVault;
     std::shared_ptr<github_wire_transport_factory_port> TransportFactory;
@@ -816,6 +835,294 @@ auto detail::github_application_fixture_access::evidence(
     return application.Implementation->Fixture != nullptr
         ? application.Implementation->Fixture->evidence()
         : detail::github_public_path_fixture_evidence{};
+}
+
+auto detail::github_application_fixture_access::maintenance_evidence(
+    const github_application& application,
+    core::review_epoch_id target) noexcept
+    -> detail::github_epoch_maintenance_fixture_evidence
+{
+    const auto* const implementation = application.Implementation.get();
+    if(implementation == nullptr || implementation->Fixture == nullptr
+       || implementation->EpochHost == nullptr)
+    {
+        return {};
+    }
+
+    const auto& state = implementation->EpochHost->state();
+    const auto root = implementation->Fixture->application_data_root();
+    auto retired_repository_present = false;
+    auto retired_marker_present = false;
+    std::error_code directory_error;
+    auto marker = std::filesystem::directory_iterator{
+        root / "quarantine" / "v1", directory_error};
+    while(!directory_error
+          && marker != std::filesystem::directory_iterator{})
+    {
+        if(marker->path().extension() == ".deleted")
+        {
+            retired_marker_present = true;
+            auto repository = marker->path().stem();
+            repository += ".git";
+            std::error_code exists_error;
+            retired_repository_present = retired_repository_present
+                || std::filesystem::exists(
+                    root / "repositories" / "v1" / repository,
+                    exists_error);
+        }
+        marker.increment(directory_error);
+    }
+    // Whole-cache deletion may leave a replacement authority projected while
+    // shutdown is rejecting its unfinished rehydration.  An empty target asks
+    // for durable evidence about the retired cache, so derive the stable
+    // catalog binding from the captured smart authority instead of sampling
+    // that transient projection.
+    if(!state.Authority.has_value()
+       || (!core::valid(target) && retired_marker_present))
+    {
+        auto catalog_revision = std::int64_t{0};
+        auto base_cache_deleted = false;
+        auto head_cache_deleted = false;
+        auto base_availability = -1;
+        auto head_availability = -1;
+        const auto smart_authority =
+            implementation->Fixture->last_smart_authority();
+        const auto fixture_evidence = implementation->Fixture->evidence();
+        const auto base =
+            core::parse_git_commit_oid(fixture_evidence.BaseOid);
+        if(smart_authority && base)
+        {
+            auto reopened = implementation->EpochCatalogs->open(
+                application::epoch_catalog_open_request{
+                    .ApplicationSession = state.ApplicationSession,
+                    .Authority =
+                        {
+                            .Profile = smart_authority->Profile,
+                            .ProfileRevision = smart_authority->ProfileRevision,
+                            .Host = smart_authority->Host,
+                            .HostAuthority = smart_authority->HostAuthority,
+                            .Account = smart_authority->Account,
+                            .Viewer = smart_authority->Viewer,
+                            .Repository = smart_authority->Repository,
+                            .PullRequest = smart_authority->PullRequest,
+                            .Number = smart_authority->Number,
+                            .ObjectFormat = base->algorithm(),
+                        },
+                },
+                {});
+            if(reopened && *reopened)
+            {
+                const auto& binding = (*reopened)->binding();
+                catalog_revision = binding.Catalog.Revision.value();
+                target = core::review_epoch_id{
+                    .Authority = binding.Authority.Scope,
+                    .Incarnation = binding.Catalog.Incarnation,
+                    .Ordinal = core::epoch_ordinal{1},
+                };
+                const auto anchors = (*reopened)->exact_anchors(
+                    application::exact_anchor_lookup_request{
+                        .Catalog = binding.Catalog,
+                        .Anchors =
+                            {
+                                core::comparison_anchor_identity{
+                                    .Authority = target.Authority,
+                                    .Incarnation = target.Incarnation,
+                                    .Kind = core::comparison_anchor_kind::
+                                        epoch_base,
+                                    .Epoch = target.Ordinal,
+                                },
+                                core::comparison_anchor_identity{
+                                    .Authority = target.Authority,
+                                    .Incarnation = target.Incarnation,
+                                    .Kind = core::comparison_anchor_kind::
+                                        epoch_head,
+                                    .Epoch = target.Ordinal,
+                                },
+                            },
+                    },
+                    {});
+                if(anchors && anchors->Anchors.size() == 2U)
+                {
+                    base_availability = static_cast<int>(
+                        anchors->Anchors[0].Availability);
+                    head_availability = static_cast<int>(
+                        anchors->Anchors[1].Availability);
+                    base_cache_deleted = anchors->Anchors[0].Availability
+                        == core::anchor_availability::cache_deleted;
+                    head_cache_deleted = anchors->Anchors[1].Availability
+                        == core::anchor_availability::cache_deleted;
+                }
+            }
+        }
+        return {
+            .PruneIntentDispatchCount =
+                implementation->EpochPruneIntentDispatchCount,
+            .DeleteIntentDispatchCount =
+                implementation->EpochDeleteIntentDispatchCount,
+            .CancelIntentDispatchCount =
+                implementation->EpochCancelIntentDispatchCount,
+            .CatalogRevision = catalog_revision,
+            .RepositoryPresent = retired_repository_present,
+            .CacheDeletionMarkerPresent = retired_marker_present,
+            .TargetBaseCacheDeleted = base_cache_deleted,
+            .TargetHeadCacheDeleted = head_cache_deleted,
+            .RetiredRepositoryPresent = retired_repository_present,
+            .RetiredCacheDeletionMarkerPresent = retired_marker_present,
+            .TargetBaseAvailability = base_availability,
+            .TargetHeadAvailability = head_availability,
+        };
+    }
+
+    const auto lower_hex = [](const std::span<const std::uint8_t> bytes)
+    {
+        static constexpr std::string_view digits = "0123456789abcdef";
+        auto result = std::string{};
+        result.reserve(bytes.size() * 2U);
+        for(const auto byte : bytes)
+        {
+            result.push_back(digits[(byte >> 4U) & 0x0fU]);
+            result.push_back(digits[byte & 0x0fU]);
+        }
+        return result;
+    };
+
+    const auto& authority = *state.Authority;
+    if(!core::valid(target) && state.Catalog)
+    {
+        target = core::review_epoch_id{
+            .Authority = authority.Scope,
+            .Incarnation = state.Catalog->Incarnation,
+            .Ordinal = core::epoch_ordinal{1},
+        };
+    }
+    const auto cache = lower_hex(authority.Cache.bytes());
+    const auto scope = lower_hex(target.Authority.bytes());
+    const auto repository = root / "repositories" / "v1" / (cache + ".git");
+    auto ordinal = std::to_string(target.Ordinal.value());
+    if(ordinal.size() < 16U)
+    {
+        ordinal.insert(0U, 16U - ordinal.size(), '0');
+    }
+    const auto epoch_root = repository / "refs" / "betterpullreview" / "v1"
+        / "scope" / scope / "epoch"
+        / ordinal;
+    auto non_target_ordinal = std::to_string(2U);
+    non_target_ordinal.insert(
+        0U, 16U - non_target_ordinal.size(), '0');
+    const auto non_target_epoch_root = repository / "refs"
+        / "betterpullreview" / "v1" / "scope" / scope / "epoch"
+        / non_target_ordinal;
+    const auto deletion_marker =
+        root / "quarantine" / "v1" / (cache + ".deleted");
+    std::error_code error;
+    const auto present = [&error](const std::filesystem::path& path)
+    {
+        error.clear();
+        const auto result = std::filesystem::exists(path, error);
+        return !error && result;
+    };
+
+    auto base_cache_deleted = false;
+    auto head_cache_deleted = false;
+    auto base_availability = -1;
+    auto head_availability = -1;
+    const auto& accepted_snapshot = implementation->Host->accepted_snapshot();
+    const auto accepted_base = accepted_snapshot
+        ? core::parse_git_commit_oid(
+              accepted_snapshot->PullRequest.BaseOid.value())
+        : std::nullopt;
+    if(accepted_base && !state.PendingMaintenance.has_value())
+    {
+        auto reopened = implementation->EpochCatalogs->open(
+            application::epoch_catalog_open_request{
+                .ApplicationSession = state.ApplicationSession,
+                .Authority =
+                    {
+                        .Profile = authority.Profile,
+                        .ProfileRevision = authority.ProfileRevision,
+                        .Host = authority.Host,
+                        .HostAuthority = authority.HostAuthority,
+                        .Account = authority.Account,
+                        .Viewer = authority.Viewer,
+                        .Repository = authority.Repository,
+                        .PullRequest = authority.PullRequest,
+                        .Number = authority.Number,
+                        .ObjectFormat = accepted_base->algorithm(),
+                    },
+            },
+            {});
+        if(reopened && *reopened)
+        {
+            const auto& binding = (*reopened)->binding();
+            if(!core::valid(target))
+            {
+                target = core::review_epoch_id{
+                    .Authority = binding.Authority.Scope,
+                    .Incarnation = binding.Catalog.Incarnation,
+                    .Ordinal = core::epoch_ordinal{1},
+                };
+            }
+            const auto anchors = (*reopened)->exact_anchors(
+                application::exact_anchor_lookup_request{
+                    .Catalog = binding.Catalog,
+                    .Anchors =
+                        {
+                            core::comparison_anchor_identity{
+                                .Authority = target.Authority,
+                                .Incarnation = target.Incarnation,
+                                .Kind =
+                                    core::comparison_anchor_kind::epoch_base,
+                                .Epoch = target.Ordinal,
+                            },
+                            core::comparison_anchor_identity{
+                                .Authority = target.Authority,
+                                .Incarnation = target.Incarnation,
+                                .Kind =
+                                    core::comparison_anchor_kind::epoch_head,
+                                .Epoch = target.Ordinal,
+                            },
+                        },
+                },
+                {});
+            if(anchors && anchors->Anchors.size() == 2U)
+            {
+                base_availability = static_cast<int>(
+                    anchors->Anchors[0].Availability);
+                head_availability = static_cast<int>(
+                    anchors->Anchors[1].Availability);
+                base_cache_deleted = anchors->Anchors[0].Availability
+                    == core::anchor_availability::cache_deleted;
+                head_cache_deleted = anchors->Anchors[1].Availability
+                    == core::anchor_availability::cache_deleted;
+            }
+        }
+    }
+
+    return {
+        .PruneIntentDispatchCount =
+            implementation->EpochPruneIntentDispatchCount,
+        .DeleteIntentDispatchCount =
+            implementation->EpochDeleteIntentDispatchCount,
+        .CancelIntentDispatchCount =
+            implementation->EpochCancelIntentDispatchCount,
+        .CatalogRevision = state.Catalog
+            ? state.Catalog->Revision.value()
+            : 0,
+        .TargetBaseRefPresent = present(epoch_root / "base"),
+        .TargetHeadRefPresent = present(epoch_root / "head"),
+        .NonTargetBaseRefPresent =
+            present(non_target_epoch_root / "base"),
+        .NonTargetHeadRefPresent =
+            present(non_target_epoch_root / "head"),
+        .RepositoryPresent = present(repository),
+        .CacheDeletionMarkerPresent = present(deletion_marker),
+        .TargetBaseCacheDeleted = base_cache_deleted,
+        .TargetHeadCacheDeleted = head_cache_deleted,
+        .RetiredRepositoryPresent = retired_repository_present,
+        .RetiredCacheDeletionMarkerPresent = retired_marker_present,
+        .TargetBaseAvailability = base_availability,
+        .TargetHeadAvailability = head_availability,
+    };
 }
 #endif
 }

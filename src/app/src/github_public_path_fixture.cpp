@@ -398,6 +398,7 @@ struct fixture_recording_state
     std::size_t SmartDiscoveryCalls = 0U;
     std::size_t SmartLsRefsCalls = 0U;
     std::size_t SmartFetchCalls = 0U;
+    std::optional<core::pull_request_authority> LastSmartAuthority;
     int LastReadOperation = -1;
     int RecordingFailure = -1;
     mutable std::mutex Mutex;
@@ -775,6 +776,7 @@ public:
         {
             const std::scoped_lock lock{State->Mutex};
             ++State->SmartAcquireCalls;
+            State->LastSmartAuthority = context.Authority;
         }
         return application::git_smart_transport{
             new fixture_smart_transport{State, context}};
@@ -1184,6 +1186,13 @@ auto github_public_path_fixture_components::evidence() const noexcept
             Implementation->VaultState->Credential.has_value();
     }
     return result;
+}
+
+auto github_public_path_fixture_components::last_smart_authority() const
+    noexcept -> std::optional<core::pull_request_authority>
+{
+    const std::scoped_lock lock{Implementation->Recording->Mutex};
+    return Implementation->Recording->LastSmartAuthority;
 }
 
 auto github_public_path_fixture_components::application_data_root() const
