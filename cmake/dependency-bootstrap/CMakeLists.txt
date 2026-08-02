@@ -706,15 +706,7 @@ endfunction()
 function(bpr_library_component output component target)
     bpr_cps_type(type "${target}")
     if(target MATCHES "^Qt6::" AND NOT type STREQUAL "interface")
-        set(can_validate_native_location TRUE)
-        set(can_validate_native_link_location FALSE)
         get_target_property(native_target_type "${target}" TYPE)
-        if(
-            CMAKE_SYSTEM_NAME STREQUAL "Windows"
-            AND native_target_type STREQUAL "SHARED_LIBRARY"
-        )
-            set(can_validate_native_link_location TRUE)
-        endif()
         foreach(configuration IN LISTS BPR_CPS_CONFIGURATIONS)
             bpr_target_location(
                 oracle_location
@@ -723,34 +715,50 @@ function(bpr_library_component output component target)
                 "${target}"
                 "${configuration}"
             )
-            if("${oracle_location}" STREQUAL "")
-                set(can_validate_native_location FALSE)
+            if(
+                NOT "${oracle_location}" STREQUAL ""
+                OR CMAKE_SYSTEM_NAME STREQUAL "Windows"
+            )
+                file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/policy-oracles/location")
+                file(
+                    GENERATE
+                    OUTPUT
+                        "${CMAKE_BINARY_DIR}/policy-oracles/location/${component}-${configuration}.expected.txt"
+                    CONTENT "${oracle_location}"
+                    CONDITION "$<CONFIG:${configuration}>"
+                )
+                file(
+                    GENERATE
+                    OUTPUT
+                        "${CMAKE_BINARY_DIR}/policy-oracles/location/${component}-${configuration}.native.txt"
+                    CONTENT "$<TARGET_FILE:${target}>"
+                    CONDITION "$<CONFIG:${configuration}>"
+                )
             endif()
-            if("${oracle_link_location}" STREQUAL "")
-                set(can_validate_native_link_location FALSE)
+            if(
+                CMAKE_SYSTEM_NAME STREQUAL "Windows"
+                AND native_target_type STREQUAL "SHARED_LIBRARY"
+            )
+                file(
+                    MAKE_DIRECTORY
+                    "${CMAKE_BINARY_DIR}/policy-oracles/link_location"
+                )
+                file(
+                    GENERATE
+                    OUTPUT
+                        "${CMAKE_BINARY_DIR}/policy-oracles/link_location/${component}-${configuration}.expected.txt"
+                    CONTENT "${oracle_link_location}"
+                    CONDITION "$<CONFIG:${configuration}>"
+                )
+                file(
+                    GENERATE
+                    OUTPUT
+                        "${CMAKE_BINARY_DIR}/policy-oracles/link_location/${component}-${configuration}.native.txt"
+                    CONTENT "$<TARGET_LINKER_FILE:${target}>"
+                    CONDITION "$<CONFIG:${configuration}>"
+                )
             endif()
         endforeach()
-        if(can_validate_native_location)
-            file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/policy-oracles/location")
-            file(
-                GENERATE
-                OUTPUT
-                    "${CMAKE_BINARY_DIR}/policy-oracles/location/${component}-$<CONFIG>.txt"
-                CONTENT "$<TARGET_FILE:${target}>"
-            )
-        endif()
-        if(can_validate_native_link_location)
-            file(
-                MAKE_DIRECTORY
-                "${CMAKE_BINARY_DIR}/policy-oracles/link_location"
-            )
-            file(
-                GENERATE
-                OUTPUT
-                    "${CMAKE_BINARY_DIR}/policy-oracles/link_location/${component}-$<CONFIG>.txt"
-                CONTENT "$<TARGET_LINKER_FILE:${target}>"
-            )
-        endif()
     endif()
     set(result "{\"type\":\"${type}\",\"configurations\":{")
     set(separator "")

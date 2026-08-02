@@ -120,10 +120,16 @@ Find-modules, or Linux `pkg-config` metadata. It writes a fingerprinted,
 machine-local CPS overlay under the build tree. The product graph searches
 that prefix with default paths disabled, admits only `.cps` configs, and links
 the resulting `Qt6::*`, `LibSecret::LibSecret`, `Python3::Interpreter`, and
-`Git::Git` targets. `Threads::Threads` and native frameworks remain explicit
-toolchain/platform capabilities. SQLite is the deliberate exception to CPS:
-verified source becomes the first-party static `BetterPullReview::SQLite3`
-target and is never replaced by a system library.
+`Git::Git` targets. A generator-independent native-selection matrix validates
+all declared configurations, Windows runtime/linker artifact pairs, and
+flattened transitive imports before sealing the overlay for online or offline
+use. Ordered usage requirements retain link multiplicity. Qt's two
+CMake-specific compatibility constraints are omitted only while a deferred
+whole-product audit proves that no non-Qt target participates in them.
+`Threads::Threads` and native frameworks remain explicit toolchain/platform
+capabilities. SQLite is the deliberate exception to CPS: verified source
+becomes the first-party static `BetterPullReview::SQLite3` target and is never
+replaced by a system library.
 
 ## Repository shape
 

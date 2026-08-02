@@ -24,6 +24,21 @@ requires every selected config path to end in `.cps`, and rejects package
 redirects, stale artifacts, unsupported generator expressions, and legacy
 fallbacks.
 
+The bootstrap is forced to CMake 4.4.2 policies and validates its translation
+against CMake's native imported-target selection before the product configure
+continues. Single- and multi-configuration generators independently check
+Debug, Release, RelWithDebInfo, and MinSizeRel root locations, Windows linker
+artifacts, and every flattened imported artifact in the transitive closure.
+Ordered usage arrays retain multiplicity. A generated overlay receives its
+validation seal only after those checks pass; offline mode rejects an unsealed
+or mismatched overlay left by an interrupted or failed refresh.
+
+CPS has no representation for Qt's custom `QT_MAJOR_VERSION` and
+`QT_COORD_TYPE` CMake compatibility properties. The shared-Qt adapter omits
+them only under a deferred whole-product audit that proves no non-Qt target
+participates in either constraint. Adding such a consumer or dependency is a
+fatal configuration error rather than a silent semantic change.
+
 CMake 4.4.2 does not import CPS components whose type is `executable`.
 Accordingly, the Python and Git CPS adapters expose one interface metadata
 component containing exactly one fingerprinted executable path. The strict
@@ -44,10 +59,11 @@ cache:
 cmake --preset dev -DBPR_DEPENDENCY_OFFLINE=ON
 ```
 
-Offline mode validates the CPS fingerprint and every recorded artifact before
-package resolution, validates the pinned CPM script, and uses only existing
-SQLite cache content. A missing overlay, CPM script, archive extraction, or
-changed artifact is fatal before any download is attempted.
+Offline mode validates the CPS fingerprint, post-generation validation seal,
+and every recorded artifact before package resolution, validates the pinned
+CPM script, and uses only existing SQLite cache content. A missing overlay,
+CPM script, archive extraction, or changed artifact is fatal before any
+download is attempted.
 
 ## Presets
 

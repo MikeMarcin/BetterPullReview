@@ -30,15 +30,28 @@ endif()
 file(READ "${BPR_CPS_DOCUMENT}" cps_document)
 set(validated_count 0)
 foreach(field IN ITEMS location link_location)
-    file(GLOB field_oracles "${BPR_POLICY_ORACLE_DIRECTORY}/${field}/*.txt")
-    foreach(policy_oracle IN LISTS field_oracles)
-        get_filename_component(oracle_name "${policy_oracle}" NAME_WE)
+    file(
+        GLOB field_oracles
+        "${BPR_POLICY_ORACLE_DIRECTORY}/${field}/*.expected.txt"
+    )
+    foreach(expected_oracle IN LISTS field_oracles)
+        get_filename_component(oracle_name "${expected_oracle}" NAME)
+        string(REGEX REPLACE "\\.expected\\.txt$" "" oracle_name "${oracle_name}")
         if(NOT oracle_name MATCHES "^([A-Za-z0-9_]+)-(.+)$")
-            message(FATAL_ERROR "Malformed CPS producer-selection oracle: '${policy_oracle}'")
+            message(FATAL_ERROR "Malformed CPS producer-selection oracle: '${expected_oracle}'")
         endif()
         set(component "${CMAKE_MATCH_1}")
         string(TOLOWER "${CMAKE_MATCH_2}" configuration)
-        file(READ "${policy_oracle}" producer_artifact)
+        set(
+            native_oracle
+            "${BPR_POLICY_ORACLE_DIRECTORY}/${field}/${oracle_name}.native.txt"
+        )
+        if(NOT EXISTS "${native_oracle}")
+            message(FATAL_ERROR "Native CPS producer-selection oracle is missing")
+        endif()
+        file(READ "${expected_oracle}" expected_artifact)
+        string(STRIP "${expected_artifact}" expected_artifact)
+        file(READ "${native_oracle}" producer_artifact)
         string(STRIP "${producer_artifact}" producer_artifact)
         string(
             JSON cps_artifact
@@ -48,10 +61,39 @@ foreach(field IN ITEMS location link_location)
                 components "${component}" configurations "${configuration}"
                 "${field}"
         )
-        if(artifact_error)
+        if("${expected_artifact}" STREQUAL "")
+            if(NOT artifact_error)
+                message(
+                    FATAL_ERROR
+                    "CPS document unexpectedly contains ${field} for "
+                    "${component}/${configuration}: '${cps_artifact}'"
+                )
+            endif()
+            if(
+                NOT "${producer_artifact}" STREQUAL ""
+                AND NOT producer_artifact MATCHES "-NOTFOUND$"
+            )
+                message(
+                    FATAL_ERROR
+                    "CPS producer selection omits a native CMake artifact for "
+                    "${component}/${configuration}/${field}: '${producer_artifact}'"
+                )
+            endif()
+            math(EXPR validated_count "${validated_count} + 1")
+            continue()
+        elseif(artifact_error)
             message(
                 FATAL_ERROR
                 "CPS producer-selection oracle has no matching document artifact: "
+                "${component}/${configuration}/${field}"
+            )
+        endif()
+        file(REAL_PATH "${expected_artifact}" expected_artifact_real)
+        file(REAL_PATH "${cps_artifact}" cps_artifact_real)
+        if(NOT expected_artifact_real STREQUAL cps_artifact_real)
+            message(
+                FATAL_ERROR
+                "Generated CPS document differs from its selection oracle for "
                 "${component}/${configuration}/${field}"
             )
         endif()
@@ -67,7 +109,6 @@ foreach(field IN ITEMS location link_location)
             )
         endif()
         file(REAL_PATH "${producer_artifact}" producer_artifact_real)
-        file(REAL_PATH "${cps_artifact}" cps_artifact_real)
         if(NOT producer_artifact_real STREQUAL cps_artifact_real)
             message(
                 FATAL_ERROR

@@ -553,7 +553,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         / "bootstrap build"
                         / "policy-validation"
                         / validation_case
-                        / "policy-oracles/location/Core-MinSizeRel.txt"
+                        / "policy-oracles/location/Core-MinSizeRel.native.txt"
                     )
                     self.assertTrue(oracle.is_file(), oracle)
 
@@ -605,6 +605,25 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertTrue(
                 any(path.endswith("windows-debug.lib") for path in artifact_paths)
             )
+
+        if os.name != "nt":
+            with tempfile.TemporaryDirectory() as temporary_directory:
+                result, overlay = self.run_bootstrap_fixture(
+                    temporary_directory,
+                    extra=(
+                        "-DCMAKE_SYSTEM_NAME=Windows",
+                        f"-DCMAKE_C_COMPILER={shutil.which('cc')}",
+                        f"-DCMAKE_CXX_COMPILER={shutil.which('c++')}",
+                        "-DCMAKE_C_COMPILER_WORKS=ON",
+                        "-DCMAKE_CXX_COMPILER_WORKS=ON",
+                        "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                        "-DBPR_FAKE_QT_GENERAL_ARTIFACTS=ON",
+                        "-DBPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_ONLY=ON",
+                        "-DBPR_FAKE_QT_FORCE_CMP0200_OLD=ON",
+                    ),
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((overlay / "validated.txt").exists())
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             result, overlay = self.run_bootstrap_fixture(
