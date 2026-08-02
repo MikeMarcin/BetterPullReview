@@ -52,6 +52,7 @@ namespace bpr::qt {
 	/// \brief Describes one applied two-pane comparison scroll frame.
 	struct comparison_scroll_frame
 	{
+		core::file_comparison_digest              Comparison;
 		qreal                                     Position = 0.0;
 		std::optional<core::alignment_segment_id> Segment;
 		comparison_pane_scroll_frame              Left;

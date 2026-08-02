@@ -203,6 +203,41 @@ foreach(bpr_scroll_controller_scale IN ITEMS 100 125 200)
 endforeach()
 
 bpr_add_executable(
+    test_better_pull_review_qt_diff_link_map_tests
+    diff_link_map_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_diff_link_map_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_diff_link_map_tests)
+bpr_enable_warnings(test_better_pull_review_qt_diff_link_map_tests)
+
+foreach(bpr_diff_link_map_scale IN ITEMS 100 125 200)
+    if(bpr_diff_link_map_scale STREQUAL "100")
+        set(bpr_diff_link_map_scale_factor "1.0")
+    elseif(bpr_diff_link_map_scale STREQUAL "125")
+        set(bpr_diff_link_map_scale_factor "1.25")
+    else()
+        set(bpr_diff_link_map_scale_factor "2.0")
+    endif()
+    add_test(
+        NAME qt_diff_link_map_scale_${bpr_diff_link_map_scale}
+        COMMAND test_better_pull_review_qt_diff_link_map_tests
+    )
+    set_tests_properties(
+        qt_diff_link_map_scale_${bpr_diff_link_map_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_diff_link_map_scale_factor};BPR_EXPECTED_QT_SCALE=${bpr_diff_link_map_scale_factor};BPR_QT_DIFF_LINK_MAP_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/diff-link-map-${bpr_diff_link_map_scale}.png"
+            PASS_REGULAR_EXPRESSION "diff-link-map-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
+bpr_add_executable(
     test_better_pull_review_qt_diff_axis_tests
     measured_alignment_axis_tests.cpp
 )

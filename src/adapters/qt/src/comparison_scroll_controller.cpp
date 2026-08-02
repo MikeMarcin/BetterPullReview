@@ -378,9 +378,10 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		return comparison_scroll_frame{
-			.Position = projected->ComparisonPosition,
-			.Segment  = projected->Segment,
-			.Left     = make_pane_frame(
+			.Comparison = Axis->comparison(),
+			.Position   = projected->ComparisonPosition,
+			.Segment    = projected->Segment,
+			.Left       = make_pane_frame(
 				projected->LeftDocumentY,
 				Axis->left_document_extent(),
 				Axis->left_viewport_extent()),

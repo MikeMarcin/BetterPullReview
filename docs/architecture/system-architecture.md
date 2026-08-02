@@ -365,6 +365,16 @@ comparison, and algorithm identity. Qt-local state includes measured line
 boundaries, the measured alignment axis, the retained subpixel comparison
 position, shared-scrollbar projection, hover paths, and splitter geometry.
 Measured pixels and the live scroll position are not core or durable state.
+The center map is the sole wide `QSplitterHandle`: it retains ordered changed
+interval geometry, derives cached visible paths from both pane origins, rejects
+frames for a different comparison digest, and resolves pointer hits back to
+stable segment/group identity. Frame, measurement, and size changes recompute
+stationary-pointer hover and publish any resulting clear or replacement. Move
+markers and temporary overlays attach to the exact source-left and destination-
+right interval midpoints, not to a whole-ribbon bounding box. Fills, outlines,
+focus, and move markers derive from the active Qt palette and style; no per-
+ribbon widget, forced palette, QSS, or permanent crossing move path is part of
+the design.
 
 The live core `diff_semantics` boundary consumes only a validated
 `computed_file_diff`. Exact/similar line correspondence, opposing spans and

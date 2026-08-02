@@ -232,8 +232,12 @@ frames, receiver-neutral pixel/angle/phased input, guarded frame application,
 same-comparison geometry anchoring, exact discrete scrollbar actions,
 coalesced repaint delivery, and pane-local horizontal scrolling through a real
 three-scale Qt event composition including live text viewports. It makes no
-painted or selected-runtime claim. Backlog BPR-0078 owns the custom-painted
-`DiffLinkMap`.
+painted or selected-runtime claim. Done BPR-0078 supplies the custom-painted
+`DiffLinkMap` splitter handle, cached filled ribbons and wedges, indexed
+visible-path selection, stable path-derived interaction, accessible group
+navigation, exact move markers, palette inheritance, and directly inspected
+three-scale live two-pane renders. It makes no public application or target-
+native System-theme claim.
 BPR-0079 composes the real interaction path; BPR-0080 supplies scale evidence,
 bounded/indexed move discovery, and moved sub-block refinement;
 BPR-0081 documentation/conformance, BPR-0082 simplification, and BPR-0083

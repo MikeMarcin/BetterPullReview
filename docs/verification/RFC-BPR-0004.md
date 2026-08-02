@@ -18,7 +18,8 @@ measurement, indexed max-extent axis, endpoint clamp, and explicit geometry-
 invalidation seam. BPR-0077 now supplies the Qt-local retained comparison
 position, receiver-neutral input translation, shared scrollbar projection,
 guarded two-pane frames, and pane-local horizontal routing. Link-map painting
-and selected application composition remain open on BPR-0078 and BPR-0079.
+now comes from BPR-0078's custom-painted splitter handle, while selected
+application composition remains open on BPR-0079.
 RFC-BPR-0003 retains
 explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
 until its dependency can close.
@@ -231,6 +232,56 @@ link-map paint and hit testing; BPR-0079 retains selected rendered composition
 and integration traces; RFC-BPR-0005 retains its dedicated presentation-polish
 and native visual-acceptance pass. Target-native Windows execution remains
 open without blocking available-platform work.
+
+## BPR-0078 DiffLinkMap evidence
+
+The Qt adapter now provides one `diff_link_map` custom-painted
+`QSplitterHandle` through `diff_comparison_splitter`. It consumes an immutable
+copy of the measured alignment axis, exact core move relations, and
+same-comparison frames from the shared controller. The frame carries the exact
+file-comparison digest; a missing, different-comparison, nonfinite, or negative-
+origin frame is rejected without replacing visible geometry. The handle never
+owns a second scroll position, semantic diff, line-pair heuristic, or child
+widget per ribbon.
+
+Accepted geometry retains only changed entries in semantic order. Separate
+ordered left- and right-interval searches find the union of visible and near-
+visible candidates; painting and path-derived hit testing consume cached
+visible paths rather than rescanning the complete segment vector. Replacement
+paths open on both pane edges. Insertion and deletion paths collapse only the
+empty edge, producing filled cubic wedges. A single combined ordinary fill
+avoids cracks between adjacent paths, while hover and selection add a palette-
+derived outline/fill. Exact moved-from and moved-to relation IDs produce paired
+markers at the precise source-left and destination-right interval midpoints;
+only a selected or hovered relation may add one cached temporary dashed overlay
+between those same endpoints, so ordinary correspondence remains monotonic and
+noncrossing. Frame, resize, geometry-replacement, and clear paths reconcile the
+last pointer position against rebuilt visible paths and publish a downstream
+hover replacement or reset when required.
+
+The direct Qt fixture uses an actual two-pane `QSplitter` with live natural-
+layout `QPlainTextEdit` documents, the production handle, one shared scrollbar,
+and the BPR-0077 controller. At 1.0x, 1.25x, and 2.0x it proves pane-edge path
+coordinates, replacement/insertion/deletion topology, stable segment/group hit
+identity after shared scroll, resize, and same-comparison remeasurement,
+platform drag-threshold click-versus-resize behavior, hover/click/double-click,
+stationary-pointer hover replacement after shared scroll, explicit downstream
+hover reset after geometry clear, group-aware keyboard next/reveal, focusable
+accessible name/status, one captured polite selection announcement, strongly
+displaced move markers and temporary-overlay endpoints on their exact pane-side
+intervals, absence of a normal crossing overlay, bounded near-visible candidate/
+path counts, no geometry rebuild during ordinary scroll, and no synthetic source
+blocks. Each run writes `diff-link-map-{100,125,200}.png` under
+`build/dev/tests/adapters_qt/`; all three selected-composition rasters were
+directly inspected for clipping, pane-edge seams, and scale behavior.
+
+The same fixture changes the live application palette and sends an explicit Qt
+theme-change event, proving that inherited presentation repaints while path
+geometry and stable selection remain unchanged. This is palette-inheritance and
+event-boundary evidence, not a target-native System-theme claim:
+BPR-0079 retains the selected composed-workbench theme path, target-native
+Windows remains open, and RFC-BPR-0005 still owns the planned integrated
+presentation-polish and native visual-acceptance pass.
 
 ## BPR-0084 build-foundation evidence
 
