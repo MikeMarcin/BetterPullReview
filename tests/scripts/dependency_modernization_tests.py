@@ -97,6 +97,17 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertRegex(provider, rf"find_package\(\s*{package}\b")
         for version in ('"6.8"', '"0.20"', '"3.10"', '"2.39"'):
             self.assertIn(version, provider)
+        for target in (
+            "Python3::Interpreter",
+            '"Qt6::${component}"',
+            "PkgConfig::BPR_LIBSECRET",
+            "LibSecret::LibSecret",
+            "Git::Git",
+        ):
+            self.assertRegex(
+                provider,
+                rf"bpr_require_dependency_target_absent\(\s*{re.escape(target)}",
+            )
         self.assertIn("Qt is never fetched automatically", provider)
         self.assertFalse(
             (ROOT / "cmake/dependency-bootstrap/CMakeLists.txt").exists()
@@ -110,13 +121,147 @@ class DependencyModernizationTests(unittest.TestCase):
             self.assertNotIn("find_package(", contents, str(path))
             self.assertNotIn("pkg_check_modules(", contents, str(path))
 
+    def test_predeclared_dependency_target_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            source = temporary / "source"
+            source.mkdir()
+            (source / "CMakeLists.txt").write_text(
+                "cmake_minimum_required(VERSION 4.4.2)\n"
+                "project(InjectedDependency LANGUAGES NONE)\n"
+                "add_executable(Python3::Interpreter IMPORTED GLOBAL)\n"
+                "set_property(TARGET Python3::Interpreter PROPERTY "
+                "IMPORTED_LOCATION /usr/bin/false)\n"
+                "set(BPR_BUILD_QT OFF CACHE BOOL \"\" FORCE)\n"
+                "set(BUILD_TESTING ON CACHE BOOL \"\" FORCE)\n"
+                f"add_subdirectory([==[{ROOT}]==] bpr)\n",
+                encoding="utf-8",
+            )
+            configured = subprocess.run(
+                [
+                    str(CMAKE_COMMAND),
+                    "-S",
+                    str(source),
+                    "-B",
+                    str(temporary / "build"),
+                    "-G",
+                    "Ninja",
+                    f"-DCPM_SOURCE_CACHE={CPM_SOURCE_CACHE}",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertNotEqual(configured.returncode, 0)
+        self.assertIn(
+            "Python3 target 'Python3::Interpreter' must not be defined",
+            configured.stdout + configured.stderr,
+        )
+
+    def test_standard_tool_discovery_ignores_config_preference(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            source = temporary / "source"
+            package = temporary / "fake package"
+            source.mkdir()
+            package.mkdir()
+            marker = temporary / "config-package-executed"
+            (package / "Python3Config.cmake").write_text(
+                f"file(WRITE [==[{marker}]==] executed)\n"
+                "add_executable(Python3::Interpreter IMPORTED GLOBAL)\n"
+                "set_property(TARGET Python3::Interpreter PROPERTY "
+                "IMPORTED_LOCATION /usr/bin/false)\n"
+                "set(Python3_FOUND TRUE)\n",
+                encoding="utf-8",
+            )
+            (package / "Python3ConfigVersion.cmake").write_text(
+                "set(PACKAGE_VERSION 99.0)\n"
+                "set(PACKAGE_VERSION_COMPATIBLE TRUE)\n",
+                encoding="utf-8",
+            )
+            (source / "CMakeLists.txt").write_text(
+                "cmake_minimum_required(VERSION 4.4.2)\n"
+                "project(ConfigPreference LANGUAGES NONE)\n"
+                "set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)\n"
+                "set(BPR_BUILD_QT OFF CACHE BOOL \"\" FORCE)\n"
+                "set(BUILD_TESTING ON CACHE BOOL \"\" FORCE)\n"
+                f"list(PREPEND CMAKE_PREFIX_PATH [==[{package}]==])\n"
+                f"add_subdirectory([==[{ROOT}]==] bpr)\n",
+                encoding="utf-8",
+            )
+            configured = subprocess.run(
+                [
+                    str(CMAKE_COMMAND),
+                    "-S",
+                    str(source),
+                    "-B",
+                    str(temporary / "build"),
+                    "-G",
+                    "Ninja",
+                    f"-DCPM_SOURCE_CACHE={CPM_SOURCE_CACHE}",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertEqual(
+            configured.returncode,
+            0,
+            configured.stdout + configured.stderr,
+        )
+        self.assertFalse(marker.exists())
+
+    def test_provider_owned_package_redirect_is_rejected_unexecuted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            source = temporary / "source"
+            source.mkdir()
+            marker = temporary / "redirect-executed"
+            (source / "CMakeLists.txt").write_text(
+                "cmake_minimum_required(VERSION 4.4.2)\n"
+                "project(PackageRedirect LANGUAGES NONE)\n"
+                "file(MAKE_DIRECTORY \"${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}\")\n"
+                "file(WRITE \"${CMAKE_FIND_PACKAGE_REDIRECTS_DIR}/"
+                "python3-config.cmake\" \"file(WRITE [==["
+                f"{marker}"
+                "]==] executed)\\n\")\n"
+                "set(BPR_BUILD_QT OFF CACHE BOOL \"\" FORCE)\n"
+                "set(BUILD_TESTING ON CACHE BOOL \"\" FORCE)\n"
+                f"add_subdirectory([==[{ROOT}]==] bpr)\n",
+                encoding="utf-8",
+            )
+            configured = subprocess.run(
+                [
+                    str(CMAKE_COMMAND),
+                    "-S",
+                    str(source),
+                    "-B",
+                    str(temporary / "build"),
+                    "-G",
+                    "Ninja",
+                    f"-DCPM_SOURCE_CACHE={CPM_SOURCE_CACHE}",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        self.assertNotEqual(configured.returncode, 0)
+        self.assertIn(
+            "Package redirect for provider-owned Python3 is forbidden",
+            configured.stdout + configured.stderr,
+        )
+        self.assertFalse(marker.exists())
+
     def test_configured_dependency_audit_uses_supported_providers(self) -> None:
         audit = BUILD_DIR / "_bpr/product-dependency-audit.cmake"
         self.assertTrue(audit.is_file(), audit)
         records = re.findall(r"\[==\[([^\n]+)\]==\]", audit.read_text(encoding="utf-8"))
         self.assertTrue(records)
         modes = {record.split("|", 2)[1] for record in records}
-        self.assertTrue(modes <= {"PACKAGE", "PKG_CONFIG", "TOOLCHAIN"})
+        self.assertTrue(
+            modes
+            <= {"CMAKE_CONFIG", "CMAKE_MODULE", "PKG_CONFIG", "TOOLCHAIN"}
+        )
         targets = {record.split("|", 2)[2] for record in records}
         self.assertIn("Threads::Threads", targets)
         if any(target.startswith("Qt6::") for target in targets):
@@ -166,6 +311,8 @@ class DependencyModernizationTests(unittest.TestCase):
         )
         self.assertIn("CPMAddPackage(", provider)
         self.assertIn("DOWNLOAD_ONLY YES", provider)
+        self.assertIn('LOCK "${sqlite_lock}"', provider)
+        self.assertIn("GUARD FUNCTION", provider)
         self.assertIn(
             "628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e",
             provider,
@@ -217,6 +364,105 @@ class DependencyModernizationTests(unittest.TestCase):
                     else:
                         self.assertNotEqual(configured.returncode, 0)
                         self.assertIn("SQLite 3.53.4", diagnostic)
+
+    def test_sqlite_staging_excludes_unverified_cache_headers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary = Path(temporary_directory)
+            cache = temporary / "poisoned cache"
+            shutil.copytree(CPM_SOURCE_CACHE / "cpm", cache / "cpm")
+            shutil.copytree(
+                CPM_SOURCE_CACHE / "bprsqlite",
+                cache / "bprsqlite",
+            )
+            cached_sources = list((cache / "bprsqlite").rglob("sqlite3.c"))
+            self.assertEqual(len(cached_sources), 1)
+            (cached_sources[0].parent / "stdlib.h").write_text(
+                "#error unverified cache header reached the compiler\n",
+                encoding="utf-8",
+            )
+            build = temporary / "build"
+            configured = subprocess.run(
+                [
+                    str(CMAKE_COMMAND),
+                    "-S",
+                    str(ROOT),
+                    "-B",
+                    str(build),
+                    "-G",
+                    "Ninja",
+                    "-DBPR_DEPENDENCY_OFFLINE=ON",
+                    "-DBPR_BUILD_QT=OFF",
+                    "-DBUILD_TESTING=OFF",
+                    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                    f"-DCPM_SOURCE_CACHE={cache}",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                configured.returncode,
+                0,
+                configured.stdout + configured.stderr,
+            )
+            compiled = subprocess.run(
+                [
+                    str(CMAKE_COMMAND),
+                    "--build",
+                    str(build),
+                    "--target",
+                    "better_pull_review_sqlite3",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                compiled.returncode,
+                0,
+                compiled.stdout + compiled.stderr,
+            )
+            commands = json.loads(
+                (build / "compile_commands.json").read_text(encoding="utf-8")
+            )
+            sqlite_commands = [
+                entry for entry in commands if entry["file"].endswith("sqlite3.c")
+            ]
+            self.assertEqual(len(sqlite_commands), 1)
+            command = sqlite_commands[0]["command"]
+            self.assertIn("_bpr/sqlite/3.53.4", command)
+            self.assertNotIn(str(cache / "bprsqlite"), command)
+
+    def test_sqlite_staging_rejects_unexpected_generated_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            configured = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=OFF",
+                "-DBUILD_TESTING=OFF",
+            )
+            self.assertEqual(
+                configured.returncode,
+                0,
+                configured.stdout + configured.stderr,
+            )
+            stage = (
+                Path(temporary_directory)
+                / "build/_bpr/sqlite/3.53.4"
+            )
+            (stage / "unexpected.h").write_text(
+                "#error unexpected staging input\n",
+                encoding="utf-8",
+            )
+            rejected = self.configure(
+                temporary_directory,
+                "-DBPR_BUILD_QT=OFF",
+                "-DBUILD_TESTING=OFF",
+            )
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn(
+            "Controlled SQLite staging directory contains unexpected entry",
+            rejected.stdout + rejected.stderr,
+        )
 
     def test_sqlite_rejects_source_version_and_identity_mismatches(self) -> None:
         cases = (
@@ -271,6 +517,8 @@ class DependencyModernizationTests(unittest.TestCase):
             bootstrap,
         )
         self.assertIn("BPR_DEPENDENCY_OFFLINE", bootstrap)
+        self.assertIn('LOCK "${cpm_lock}"', bootstrap)
+        self.assertIn("GUARD FUNCTION", bootstrap)
 
     def test_sqlite_archive_hash_mismatch_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

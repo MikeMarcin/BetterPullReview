@@ -18,7 +18,7 @@ add_subdirectory(git)
 
 DEPENDENCIES_TARGET = """\
 function(bpr_configure_dependencies)
-find_package(Threads REQUIRED)
+find_package(Threads MODULE REQUIRED)
 target_link_libraries(example PRIVATE Qt6::Core)
 target_link_libraries(example PRIVATE LibSecret::LibSecret)
 target_link_libraries(example PRIVATE Python3::Interpreter)

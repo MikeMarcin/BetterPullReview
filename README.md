@@ -91,8 +91,9 @@ Caller-installed Qt is resolved in package mode and is never fetched;
 Python, Git, and Linux libsecret use their standard CMake or `pkg-config`
 providers only when their selected graph needs them. SQLite 3.53.4 is
 source-acquired through a verified, download-only CPM 0.43.1 provider and
-built as the existing `BetterPullReview::SQLite3` static target. Set standard
-hints such as `Qt6_ROOT`, `Python3_ROOT_DIR`, `Git_ROOT`, `CMAKE_PREFIX_PATH`,
+built from a controlled two-file staging directory as the existing
+`BetterPullReview::SQLite3` static target. Set standard hints such as
+`Qt6_ROOT`, `Python3_ROOT_DIR`, `Git_ROOT`, `CMAKE_PREFIX_PATH`,
 `PKG_CONFIG_PATH`, and `CPM_SOURCE_CACHE` when discovery needs help.
 
 ```sh

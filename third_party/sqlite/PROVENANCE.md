@@ -19,7 +19,9 @@ verified archive.
 
 The build downloads this archive without adding its upstream CMake project,
 then verifies `sqlite3.c` and `sqlite3.h` byte-for-byte in the CPM source cache
-before declaring `BetterPullReview::SQLite3`. No amalgamation source is tracked
+before copying exactly those two files to a controlled build-tree staging
+directory and declaring `BetterPullReview::SQLite3`. The cache extraction
+directory is never a compiler include path. No amalgamation source is tracked
 in this repository.
 
 The official ZIP also contains `shell.c` and `sqlite3ext.h`. They are not

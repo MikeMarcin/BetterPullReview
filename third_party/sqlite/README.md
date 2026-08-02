@@ -1,13 +1,16 @@
 # Pinned SQLite source provider
 
 BetterPullReview downloads the pinned upstream amalgamation through the
-verified CPM source cache and builds it directly. The build has no
-system-library lookup or fallback.
+verified CPM source cache. It stages only the verified `sqlite3.c` and
+`sqlite3.h` into the build tree and builds from that controlled directory. The
+build has no system-library lookup or fallback, and unrelated cache files never
+enter its include path.
 
 Contents:
 
 - `cmake/BprSQLiteProvider.cmake` owns download-only acquisition, archive and
-  extracted-file hashes, `SQLITE_VERSION`, and `SQLITE_SOURCE_ID` validation.
+  extracted-file hashes, `SQLITE_VERSION`, `SQLITE_SOURCE_ID` validation, and
+  controlled two-file staging.
 - `PROVENANCE.md` records the release, source identity, download, and hashes.
 - `PUBLIC_DOMAIN.md` records SQLite's upstream public-domain dedication.
 - `COMPILE_OPTIONS.md` records the fixed compile contract and the separate

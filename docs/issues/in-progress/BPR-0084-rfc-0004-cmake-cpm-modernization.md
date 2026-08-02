@@ -51,12 +51,13 @@ capability-critical review before moving this card to `done/`.
 
 ## Current evidence
 
-- The direct 13-case dependency-modernization contract passes under CMake
+- The direct 18-case dependency-modernization contract passes under CMake
   4.4.2. It covers the baseline and presets, obsolete-option rejection,
   centralized package ownership, provider auditing, conditional discovery,
   package-only Qt, CPM and SQLite pins, online/cache/offline behavior,
-  tamper and source-identity rejection, static compile-definition parity, and
-  absence of vendored or system SQLite fallback.
+  tamper and source-identity rejection, target/config/redirect injection
+  refusal, controlled SQLite staging under a poisoned-cache-header fixture, static
+  compile-definition parity, and absence of vendored or system SQLite fallback.
 - The 104-case architecture-boundary contract passes after changing the build
   ownership checks to require the centralized imported-target provider rather
   than discovery calls in product subdirectories.

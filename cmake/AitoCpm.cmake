@@ -39,6 +39,19 @@ function(bpr_load_cpm)
     endif()
     file(MAKE_DIRECTORY "${CPM_SOURCE_CACHE}/cpm")
     set(cpm_script "${CPM_SOURCE_CACHE}/cpm/CPM-${BPR_CPM_VERSION}.cmake")
+    set(cpm_lock "${cpm_script}.lock")
+    file(
+        LOCK "${cpm_lock}"
+        GUARD FUNCTION
+        TIMEOUT 120
+        RESULT_VARIABLE lock_result
+    )
+    if(lock_result)
+        message(
+            FATAL_ERROR
+            "Unable to lock the shared CPM.cmake cache: ${lock_result}"
+        )
+    endif()
 
     if(EXISTS "${cpm_script}")
         file(SHA256 "${cpm_script}" actual_sha256)

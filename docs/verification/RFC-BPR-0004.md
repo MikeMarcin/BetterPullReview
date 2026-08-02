@@ -145,28 +145,36 @@ before product subdirectories. Caller-installed Qt resolves through its CMake
 config package and is never fetched. Python and Git use their standard CMake
 find modules, Linux libsecret uses `pkg-config`, and the centralized provider
 requires the conventional imported targets before product targets are
-declared. Discovery follows graph selection: a Qt-free graph performs no Qt,
-libsecret, or Git lookup, and a tests-disabled graph performs no Python or Git
-lookup. A generated audit records each dependency, provider class, and imported
-target selected by the product graph.
+declared. A collision with any provider-owned target name is fatal before
+discovery, preventing an injected target from being mislabeled in the audit.
+Python, Git, Threads, and `PkgConfig` use CMake's built-in module providers;
+Config-mode preference cannot change that selection, and package redirects for
+owned names are rejected without execution. Discovery follows graph selection:
+a Qt-free graph performs no Qt, libsecret, or Git lookup, and a tests-disabled
+graph performs no Python or Git lookup. A generated audit records each
+dependency, provider class, and imported target selected by the product graph.
 
 CPM.cmake 0.43.1 is reserved for source-managed dependencies. Its bootstrap
 verifies the pinned loader SHA-256, disables local-package and package-lock
-escape hatches, and uses one explicit `CPM_SOURCE_CACHE`. SQLite 3.53.4 is
-download-only CPM source. The provider verifies
+escape hatches, serializes cold initialization of the shared loader cache, and
+uses one explicit `CPM_SOURCE_CACHE`. SQLite 3.53.4 is download-only CPM source;
+its shared acquisition cache is serialized independently. The provider verifies
 the official archive SHA3-256 plus `sqlite3.c`, `sqlite3.h`, `SQLITE_VERSION`,
-and `SQLITE_SOURCE_ID`, then builds the unchanged static
-`BetterPullReview::SQLite3` compile/security contract. Offline mode preselects
-an already verified CPM cache directory so CPM cannot populate a missing source
-from the network; installed packages remain available to local discovery. The
-tracked amalgamation and its whitespace exception are removed, and no system
-SQLite lookup exists.
+and `SQLITE_SOURCE_ID`, stages only the two verified files into a controlled
+build-tree directory, then builds the unchanged static
+`BetterPullReview::SQLite3` compile/security contract without exposing other
+cache contents to the compiler. Offline mode preselects an already verified CPM
+cache directory so CPM cannot populate a missing source from the network;
+installed packages remain available to local discovery. The tracked
+amalgamation and its whitespace exception are removed, and no system SQLite
+lookup exists.
 
-The direct 13-case dependency-modernization contract and 104-case architecture
+The direct 18-case dependency-modernization contract and 104-case architecture
 boundary contract pass. They cover the CMake baseline and presets, standard
 options, centralized target ownership, package-only Qt, graph-conditional
-discovery, provider auditing, CPM/SQLite pins, cached offline reuse and
-uncached refusal, archive/source tamper rejection, source identity,
+discovery, provider auditing and target/config/redirect collision rejection,
+CPM/SQLite pins, cached offline reuse and uncached refusal, archive/source
+tamper rejection, poisoned cache-sibling exclusion, source identity,
 static-definition parity, and absence of vendored or system SQLite fallback.
 Clean target-native macOS and Ubuntu evidence, final documentation validation,
 and independent closeout review remain open; no native Windows execution is

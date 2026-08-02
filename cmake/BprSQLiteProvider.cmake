@@ -74,6 +74,41 @@ function(bpr_find_cached_sqlite output)
     set(${output} "" PARENT_SCOPE)
 endfunction()
 
+function(bpr_stage_sqlite_source source_dir output)
+    bpr_validate_sqlite_source("${source_dir}")
+
+    set(stage "${CMAKE_BINARY_DIR}/_bpr/sqlite/${BPR_SQLITE_VERSION}")
+    file(MAKE_DIRECTORY "${stage}")
+    file(GLOB stage_entries LIST_DIRECTORIES TRUE "${stage}/*")
+    foreach(entry IN LISTS stage_entries)
+        get_filename_component(name "${entry}" NAME)
+        if(NOT name STREQUAL "sqlite3.c" AND NOT name STREQUAL "sqlite3.h")
+            message(
+                FATAL_ERROR
+                "Controlled SQLite staging directory contains unexpected "
+                "entry: '${entry}'"
+            )
+        endif()
+    endforeach()
+    foreach(name IN ITEMS sqlite3.c sqlite3.h)
+        if(IS_SYMLINK "${stage}/${name}")
+            message(
+                FATAL_ERROR
+                "Controlled SQLite staging file must not be a symlink: "
+                "'${stage}/${name}'"
+            )
+        endif()
+        configure_file(
+            "${source_dir}/${name}"
+            "${stage}/${name}"
+            COPYONLY
+        )
+    endforeach()
+
+    bpr_validate_sqlite_source("${stage}")
+    set(${output} "${stage}" PARENT_SCOPE)
+endfunction()
+
 function(bpr_acquire_sqlite output)
     if(
         DEFINED FETCHCONTENT_SOURCE_DIR_BPRSQLITE
@@ -91,6 +126,22 @@ function(bpr_acquire_sqlite output)
         FORCE
     )
     bpr_load_cpm()
+    set(
+        sqlite_lock
+        "${CPM_SOURCE_CACHE}/bprsqlite-${BPR_SQLITE_VERSION}.lock"
+    )
+    file(
+        LOCK "${sqlite_lock}"
+        GUARD FUNCTION
+        TIMEOUT 300
+        RESULT_VARIABLE lock_result
+    )
+    if(lock_result)
+        message(
+            FATAL_ERROR
+            "Unable to lock the shared SQLite CPM cache: ${lock_result}"
+        )
+    endif()
     set(CPM_BprSQLite_SOURCE "")
     set(CPM_DECLARATION_BprSQLite "")
     if(BPR_DEPENDENCY_OFFLINE)
@@ -122,6 +173,6 @@ function(bpr_acquire_sqlite output)
     if(NOT BprSQLite_SOURCE_DIR OR NOT EXISTS "${BprSQLite_SOURCE_DIR}")
         message(FATAL_ERROR "CPM did not provide SQLite ${BPR_SQLITE_VERSION}")
     endif()
-    bpr_validate_sqlite_source("${BprSQLite_SOURCE_DIR}")
-    set(${output} "${BprSQLite_SOURCE_DIR}" PARENT_SCOPE)
+    bpr_stage_sqlite_source("${BprSQLite_SOURCE_DIR}" staged_source)
+    set(${output} "${staged_source}" PARENT_SCOPE)
 endfunction()

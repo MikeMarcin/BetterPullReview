@@ -21,13 +21,23 @@ standard CMake find modules, while Linux libsecret uses `pkg-config`; each is
 discovered only when its selected target graph needs it. The centralized
 provider requires `Qt6::*`, `Python3::Interpreter`, `Git::Git`, and
 `LibSecret::LibSecret` before product targets are declared, so adapters and
-tests never repeat package discovery.
+tests never repeat package discovery. Those target names must not be
+predeclared by a parent project: the provider rejects collisions before
+discovery so its target-provenance audit cannot describe an injected target as
+an installed package. Python, Git, Threads, and `PkgConfig` are selected
+explicitly from CMake's built-in module providers regardless of
+`CMAKE_FIND_PACKAGE_PREFER_CONFIG`; package redirects for provider-owned names
+are rejected before any redirect script can execute.
 
 CPM.cmake 0.43.1 is the source-dependency provider. Its loader and SQLite
-archive are pinned by cryptographic digests. SQLite remains `DOWNLOAD_ONLY`,
-is validated by archive, source-file, version, and source-ID checks, and is
-then built locally as the static `BetterPullReview::SQLite3` target. CPM is not
-used to fetch Qt or to replace caller-installed platform packages.
+archive are pinned by cryptographic digests, and concurrent configurations
+serialize initialization of the shared loader and SQLite source caches. SQLite
+remains `DOWNLOAD_ONLY`, is validated by archive, source-file, version, and
+source-ID checks, and copies only the verified `sqlite3.c` and `sqlite3.h` into
+a controlled build-tree staging directory. The static
+`BetterPullReview::SQLite3` target never includes the broader CPM extraction
+directory. CPM is not used to fetch Qt or to replace caller-installed platform
+packages.
 
 Producer hints are `Qt6_ROOT`/`Qt6_DIR`, `Python3_ROOT_DIR`, `Git_ROOT`,
 `CMAKE_PREFIX_PATH`, and `PKG_CONFIG_PATH`. `CPM_SOURCE_CACHE` selects the

@@ -120,12 +120,16 @@ fetched; Python, Git, and Linux libsecret use the standard CMake or
 `pkg-config` providers only when the selected graph needs them. The centralized
 provider verifies the resulting `Qt6::*`, `LibSecret::LibSecret`,
 `Python3::Interpreter`, and `Git::Git` targets before product subdirectories
-are evaluated. CPM owns verified source acquisition rather than prebuilt
-platform-package discovery.
+are evaluated and rejects any predeclared collision with those owned names.
+Standard tool discovery uses CMake's built-in modules and rejects package
+redirects for provider-owned names. CPM owns verified source acquisition rather
+than prebuilt platform-package discovery.
 `Threads::Threads` and native frameworks remain explicit toolchain/platform
 capabilities. SQLite is download-only CPM source that becomes the first-party
 static `BetterPullReview::SQLite3` target and is never replaced by a system
-library.
+library. Only its verified C translation unit and public header are staged into
+the target's include/source directory; unrelated cache siblings never enter
+the compiler search path.
 
 ## Repository shape
 

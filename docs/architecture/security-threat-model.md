@@ -728,9 +728,12 @@ statements and bounded values. Local [WAL](https://sqlite.org/wal.html) mode wit
 required; a network filesystem is not supported.
 
 BetterPullReview builds verified, download-only SQLite 3.53.4 source as one
-static library without a system fallback. The exact `SQLITE_SOURCE_ID`, official
-archive and source SHA3-256 values, repository intake measurement, and compile
-contract are recorded under `third_party/sqlite/`. The runtime verifies the
+static library without a system fallback. After cache validation, only the
+verified `sqlite3.c` and `sqlite3.h` are copied into a controlled build-tree
+staging directory; unverified cache siblings cannot shadow platform headers or
+enter the compiler search path. The exact `SQLITE_SOURCE_ID`, official archive
+and source SHA3-256 values, repository intake measurement, and compile contract
+are recorded under `third_party/sqlite/`. The runtime verifies the
 security-relevant compile options before admitting the catalog.
 
 The main database has an exact 4,096-byte page size and 262,144-page ceiling,
