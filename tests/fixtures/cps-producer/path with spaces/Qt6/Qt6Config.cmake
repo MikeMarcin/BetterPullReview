@@ -48,12 +48,35 @@ foreach(component IN ITEMS Core Gui Widgets Network)
                 MAP_IMPORTED_CONFIG_DEBUG MISSING
         )
     endif()
+    if(BPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL)
+        set_target_properties(
+            "Qt6::${component}"
+            PROPERTIES
+                IMPORTED_LOCATION "${_bpr_fake_root}/artifacts/windows-release.dll"
+                IMPORTED_IMPLIB "${_bpr_fake_root}/artifacts/windows-release.lib"
+                MAP_IMPORTED_CONFIG_DEBUG ""
+        )
+    endif()
     if(BPR_FAKE_QT_WINDOWS_IMPLIB_ONLY)
         set_target_properties(
             "Qt6::${component}"
             PROPERTIES
                 IMPORTED_LOCATION_DEBUG ""
                 IMPORTED_LOCATION_RELEASE ""
+        )
+    endif()
+    if(BPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_ONLY)
+        set_property(
+            TARGET "Qt6::${component}"
+            PROPERTY IMPORTED_LOCATION_DEBUG ""
+        )
+    endif()
+    if(BPR_FAKE_QT_WINDOWS_LOCATION_ONLY)
+        set_target_properties(
+            "Qt6::${component}"
+            PROPERTIES
+                IMPORTED_IMPLIB_DEBUG ""
+                IMPORTED_IMPLIB_RELEASE ""
         )
     endif()
     set("Qt6_${component}_FOUND" TRUE)

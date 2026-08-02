@@ -494,6 +494,34 @@ class DependencyModernizationTests(unittest.TestCase):
                 temporary_directory,
                 extra=(
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_ONLY=ON",
+                ),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            document = json.loads(
+                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
+            )
+            debug = document["components"]["Core"]["configurations"]["debug"]
+            self.assertNotIn("location", debug)
+            self.assertTrue(
+                debug["link_location"].endswith("windows-debug.lib")
+            )
+            manifest = json.loads(
+                (overlay / "artifacts.json").read_text(encoding="utf-8")
+            )
+            artifact_paths = {record["path"] for record in manifest["artifacts"]}
+            self.assertFalse(
+                any(path.endswith("windows-debug.dll") for path in artifact_paths)
+            )
+            self.assertTrue(
+                any(path.endswith("windows-debug.lib") for path in artifact_paths)
+            )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result, overlay = self.run_bootstrap_fixture(
+                temporary_directory,
+                extra=(
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_MAP_DEBUG_RELEASE=ON",
                 ),
             )
@@ -690,12 +718,26 @@ class DependencyModernizationTests(unittest.TestCase):
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_INCOMPLETE_DEBUG=ON",
                 ),
-                "Incomplete paired imported artifact",
+                "Incomplete Windows imported artifact",
+            ),
+            (
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_LOCATION_ONLY=ON",
+                ),
+                "Incomplete Windows imported artifact",
             ),
             (
                 (
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_MAP_MISSING_WITH_GENERAL=ON",
+                ),
+                "has no artifact",
+            ),
+            (
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
                 ),
                 "has no artifact",
             ),

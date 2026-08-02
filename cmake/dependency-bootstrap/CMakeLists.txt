@@ -176,18 +176,19 @@ function(bpr_target_location output_location output_link_location target configu
     endif()
     list(REMOVE_DUPLICATES candidates)
     set(allow_general_fallback TRUE)
-    if(map_is_set AND NOT "${candidates}" STREQUAL "")
+    if(map_is_set)
         set(allow_general_fallback FALSE)
     endif()
 
     bpr_target_property_list(general_location "${target}" IMPORTED_LOCATION)
     bpr_target_property_list(general_implib "${target}" IMPORTED_IMPLIB)
-    set(requires_paired_artifacts FALSE)
-    if(
-        NOT "${general_location}" STREQUAL ""
-        AND NOT "${general_implib}" STREQUAL ""
-    )
-        set(requires_paired_artifacts TRUE)
+    get_target_property(target_type "${target}" TYPE)
+    set(requires_windows_linker_artifact FALSE)
+    if(target_type STREQUAL "SHARED_LIBRARY" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        set(requires_windows_linker_artifact TRUE)
+    endif()
+    if(general_location MATCHES "\\.[dD][lL][lL]$")
+        set(requires_windows_linker_artifact TRUE)
     endif()
     set(artifact_configurations ${candidates} ${imported_configs})
     list(REMOVE_DUPLICATES artifact_configurations)
@@ -203,11 +204,8 @@ function(bpr_target_location output_location output_link_location target configu
             "${target}"
             "IMPORTED_IMPLIB_${candidate_upper}"
         )
-        if(
-            NOT "${candidate_location}" STREQUAL ""
-            AND NOT "${candidate_implib}" STREQUAL ""
-        )
-            set(requires_paired_artifacts TRUE)
+        if(candidate_location MATCHES "\\.[dD][lL][lL]$")
+            set(requires_windows_linker_artifact TRUE)
         endif()
     endforeach()
 
@@ -234,16 +232,15 @@ function(bpr_target_location output_location output_link_location target configu
         if(NOT "${candidate_implib}" STREQUAL "")
             set(has_candidate_implib TRUE)
         endif()
-        if(requires_paired_artifacts)
-            if(
-                (has_candidate_location AND NOT has_candidate_implib)
-                OR (has_candidate_implib AND NOT has_candidate_location)
+        if(
+            requires_windows_linker_artifact
+            AND has_candidate_location
+            AND NOT has_candidate_implib
+        )
+            message(
+                FATAL_ERROR
+                "Incomplete Windows imported artifact for ${target} ${candidate_upper}"
             )
-                message(
-                    FATAL_ERROR
-                    "Incomplete paired imported artifact for ${target} ${candidate_upper}"
-                )
-            endif()
         endif()
         if(has_candidate_location OR has_candidate_implib)
             set(location "${candidate_location}")
@@ -261,13 +258,12 @@ function(bpr_target_location output_location output_link_location target configu
         if(NOT "${general_implib}" STREQUAL "")
             set(has_general_implib TRUE)
         endif()
-        if(requires_paired_artifacts)
-            if(
-                (has_general_location AND NOT has_general_implib)
-                OR (has_general_implib AND NOT has_general_location)
-            )
-                message(FATAL_ERROR "Incomplete paired imported artifact for ${target}")
-            endif()
+        if(
+            requires_windows_linker_artifact
+            AND has_general_location
+            AND NOT has_general_implib
+        )
+            message(FATAL_ERROR "Incomplete Windows imported artifact for ${target}")
         endif()
         set(location "${general_location}")
         set(link_location "${general_implib}")
