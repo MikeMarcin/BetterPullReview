@@ -1,7 +1,7 @@
 ---
 id: BPR-0073
 title: Implement deterministic diff pairing and intraline ranges
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0004
 depends_on: [BPR-0072]
 ---

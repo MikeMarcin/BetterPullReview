@@ -213,7 +213,7 @@ non-product references outside the repository.
 Done BPR-0072 supplies canonical comparison/alignment records, normalized
 option and exact cache identity, stable IDs, compatibility-aware adjacency,
 one contiguous group range, canonical move order, and the public structural
-validator. Ready BPR-0073 and backlog BPR-0074 own deterministic
+validator. In-progress BPR-0073 and backlog BPR-0074 own deterministic
 pairing/intraline work and
 the one mapping/group/navigation/detail source. Backlog BPR-0075 through
 BPR-0078 own exact host execution, Qt measured max-extent geometry, the shared
