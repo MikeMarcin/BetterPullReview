@@ -75,6 +75,21 @@ function(bpr_find_cached_sqlite output)
 endfunction()
 
 function(bpr_acquire_sqlite output)
+    if(
+        DEFINED FETCHCONTENT_SOURCE_DIR_BPRSQLITE
+        AND NOT FETCHCONTENT_SOURCE_DIR_BPRSQLITE STREQUAL ""
+    )
+        message(
+            FATAL_ERROR
+            "FETCHCONTENT_SOURCE_DIR_BPRSQLITE is forbidden; SQLite must use the verified CPM provider"
+        )
+    endif()
+    set(
+        FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER
+        CACHE STRING
+        "SQLite must not resolve through find_package"
+        FORCE
+    )
     bpr_load_cpm()
     set(CPM_BprSQLite_SOURCE "")
     set(CPM_DECLARATION_BprSQLite "")
@@ -92,6 +107,7 @@ function(bpr_acquire_sqlite output)
             VERSION "${BPR_SQLITE_VERSION}"
             SOURCE_DIR "${cached_source}"
             DOWNLOAD_ONLY YES
+            FORCE YES
         )
     else()
         CPMAddPackage(
@@ -100,6 +116,7 @@ function(bpr_acquire_sqlite output)
             URL "https://sqlite.org/2026/sqlite-amalgamation-${BPR_SQLITE_SOURCE_NUMBER}.zip"
             URL_HASH "SHA3_256=${BPR_SQLITE_ARCHIVE_SHA3_256}"
             DOWNLOAD_ONLY YES
+            FORCE YES
         )
     endif()
     if(NOT BprSQLite_SOURCE_DIR OR NOT EXISTS "${BprSQLite_SOURCE_DIR}")

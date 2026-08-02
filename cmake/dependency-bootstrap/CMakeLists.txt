@@ -6,7 +6,7 @@ if(NOT DEFINED BPR_CPS_OVERLAY OR BPR_CPS_OVERLAY STREQUAL "")
     message(FATAL_ERROR "BPR_CPS_OVERLAY is required")
 endif()
 
-set(BPR_CPS_GENERATOR_REVISION "1")
+set(BPR_CPS_GENERATOR_REVISION "2")
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -76,6 +76,81 @@ function(bpr_target_property_list output target property)
         set(value "")
     endif()
     set(${output} "${value}" PARENT_SCOPE)
+endfunction()
+
+function(bpr_validate_usage_property_coverage target)
+    foreach(property IN ITEMS
+        INTERFACE_AUTOUIC_OPTIONS
+        INTERFACE_LINK_DEPENDS
+        INTERFACE_LINK_LIBRARIES_DIRECT
+        INTERFACE_LINK_LIBRARIES_DIRECT_EXCLUDE
+        INTERFACE_POSITION_INDEPENDENT_CODE
+        INTERFACE_PRECOMPILE_HEADERS
+    )
+        bpr_target_property_list(values "${target}" "${property}")
+        if(values)
+            message(
+                FATAL_ERROR
+                "Unsupported CPS usage requirement in ${target} ${property}: '${values}'"
+            )
+        endif()
+    endforeach()
+
+    bpr_target_property_list(interface_sources "${target}" INTERFACE_SOURCES)
+    foreach(source IN LISTS interface_sources)
+        if(
+            target MATCHES "^Qt6::"
+            AND source MATCHES
+                "^\\$<\\$<BOOL:\\$<TARGET_PROPERTY:QT_CONSUMES_METATYPES>>:.*qt6.*_metatypes\\.json>$"
+        )
+            continue()
+        endif()
+        message(
+            FATAL_ERROR
+            "Unsupported CPS usage requirement in ${target} INTERFACE_SOURCES: '${source}'"
+        )
+    endforeach()
+
+    foreach(property IN ITEMS
+        COMPATIBLE_INTERFACE_BOOL
+        COMPATIBLE_INTERFACE_NUMBER_MAX
+        COMPATIBLE_INTERFACE_NUMBER_MIN
+    )
+        bpr_target_property_list(values "${target}" "${property}")
+        if(values)
+            message(
+                FATAL_ERROR
+                "Unsupported CPS compatibility requirement in ${target} ${property}: '${values}'"
+            )
+        endif()
+    endforeach()
+    bpr_target_property_list(
+        compatible_strings
+        "${target}"
+        COMPATIBLE_INTERFACE_STRING
+    )
+    foreach(compatible_string IN LISTS compatible_strings)
+        get_target_property(interface_value "${target}" "INTERFACE_${compatible_string}")
+        if(
+            target MATCHES "^Qt6::"
+            AND compatible_string STREQUAL "QT_MAJOR_VERSION"
+            AND interface_value STREQUAL "6"
+        )
+            continue()
+        endif()
+        if(
+            target STREQUAL "Qt6::Core"
+            AND compatible_string STREQUAL "QT_COORD_TYPE"
+            AND NOT interface_value MATCHES "-NOTFOUND$"
+        )
+            continue()
+        endif()
+        message(
+            FATAL_ERROR
+            "Unsupported CPS compatibility requirement in ${target} "
+            "${compatible_string}: '${interface_value}'"
+        )
+    endforeach()
 endfunction()
 
 function(bpr_target_location output_location output_link_location target configuration)
@@ -176,6 +251,7 @@ function(bpr_collect_target key target root)
     if(NOT TARGET "${target}")
         message(FATAL_ERROR "CPS metadata references missing target '${target}'")
     endif()
+    bpr_validate_usage_property_coverage("${target}")
 
     if(target STREQUAL "Threads::Threads")
         if(THREADS_HAVE_PTHREAD_ARG)
@@ -480,28 +556,55 @@ if(artifacts)
 endif()
 set(
     overlay_manifest
-    "set(BPR_CPS_MANIFEST_GENERATOR_REVISION [==[${BPR_CPS_GENERATOR_REVISION}]==])\nset(BPR_CPS_ARTIFACT_RECORDS\n"
+    "{\n  \"generator_revision\":\"${BPR_CPS_GENERATOR_REVISION}\",\n  \"artifacts\":["
 )
+set(separator "")
 foreach(artifact IN LISTS artifacts)
     if(NOT EXISTS "${artifact}")
         message(FATAL_ERROR "CPS artifact does not exist: '${artifact}'")
     endif()
     file(SHA256 "${artifact}" artifact_sha256)
-    string(APPEND overlay_manifest "  [==[${artifact}|${artifact_sha256}]==]\n")
+    bpr_json_quote(artifact_json "${artifact}")
+    string(
+        APPEND overlay_manifest
+        "${separator}{\"path\":${artifact_json},\"sha256\":\"${artifact_sha256}\"}"
+    )
+    set(separator ",")
 endforeach()
-string(APPEND overlay_manifest ")\nset(BPR_CPS_DOCUMENT_RECORDS\n")
+string(APPEND overlay_manifest "],\n  \"documents\":[")
 get_property(documents GLOBAL PROPERTY BPR_CPS_DOCUMENTS)
 if(documents)
     list(REMOVE_DUPLICATES documents)
 endif()
+file(
+    GLOB_RECURSE existing_documents
+    LIST_DIRECTORIES FALSE
+    "${BPR_CPS_OVERLAY}/cps/*.cps"
+)
+foreach(existing_document IN LISTS existing_documents)
+    if(NOT existing_document IN_LIST documents)
+        file(REMOVE "${existing_document}")
+    endif()
+endforeach()
+set(separator "")
 foreach(document IN LISTS documents)
     if(NOT EXISTS "${document}")
         message(FATAL_ERROR "Generated CPS document does not exist: '${document}'")
     endif()
     file(SHA256 "${document}" document_sha256)
-    string(APPEND overlay_manifest "  [==[${document}|${document_sha256}]==]\n")
+    file(RELATIVE_PATH relative_document "${BPR_CPS_OVERLAY}" "${document}")
+    if(relative_document MATCHES "^\\.\\./" OR IS_ABSOLUTE "${relative_document}")
+        message(FATAL_ERROR "Generated CPS document escaped its overlay: '${document}'")
+    endif()
+    bpr_json_quote(document_json "${relative_document}")
+    string(
+        APPEND overlay_manifest
+        "${separator}{\"path\":${document_json},\"sha256\":\"${document_sha256}\"}"
+    )
+    set(separator ",")
 endforeach()
-string(APPEND overlay_manifest ")\n")
-bpr_write_if_different("${BPR_CPS_OVERLAY}/artifacts.cmake" "${overlay_manifest}")
+string(APPEND overlay_manifest "]\n}\n")
+bpr_write_if_different("${BPR_CPS_OVERLAY}/artifacts.json" "${overlay_manifest}")
+file(REMOVE "${BPR_CPS_OVERLAY}/artifacts.cmake")
 string(SHA256 fingerprint "${overlay_manifest}")
 bpr_write_if_different("${BPR_CPS_OVERLAY}/fingerprint.txt" "${fingerprint}\n")

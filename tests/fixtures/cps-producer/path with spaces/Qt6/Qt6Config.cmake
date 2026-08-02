@@ -8,12 +8,25 @@ foreach(component IN ITEMS Core Gui Widgets Network)
     add_library("Qt6::${component}" SHARED IMPORTED GLOBAL)
     string(TOLOWER "${component}" component_lower)
     string(TOUPPER "${component}" component_upper)
+    if(BPR_FAKE_QT_WINDOWS_ARTIFACTS)
+        set(debug_location "${_bpr_fake_root}/artifacts/windows-debug.dll")
+        set(release_location "${_bpr_fake_root}/artifacts/windows-release.dll")
+        set(debug_link_location "${_bpr_fake_root}/artifacts/windows-debug.lib")
+        set(release_link_location "${_bpr_fake_root}/artifacts/windows-release.lib")
+    else()
+        set(debug_location "${_bpr_fake_root}/artifacts/${component_lower}-debug.dylib")
+        set(release_location "${_bpr_fake_root}/artifacts/${component_lower}-release.dylib")
+        set(debug_link_location "")
+        set(release_link_location "")
+    endif()
     set_target_properties(
         "Qt6::${component}"
         PROPERTIES
             IMPORTED_CONFIGURATIONS "DEBUG;RELEASE"
-            IMPORTED_LOCATION_DEBUG "${_bpr_fake_root}/artifacts/${component_lower}-debug.dylib"
-            IMPORTED_LOCATION_RELEASE "${_bpr_fake_root}/artifacts/${component_lower}-release.dylib"
+            IMPORTED_LOCATION_DEBUG "${debug_location}"
+            IMPORTED_LOCATION_RELEASE "${release_location}"
+            IMPORTED_IMPLIB_DEBUG "${debug_link_location}"
+            IMPORTED_IMPLIB_RELEASE "${release_link_location}"
             INTERFACE_INCLUDE_DIRECTORIES "${_bpr_fake_root}/include path/${component}"
             INTERFACE_COMPILE_DEFINITIONS "QT_${component_upper}_LIB"
     )
@@ -62,6 +75,13 @@ if(BPR_FAKE_QT_INCOMPLETE)
         APPEND
         PROPERTY INTERFACE_INCLUDE_DIRECTORIES
         "${_bpr_fake_root}/missing include directory"
+    )
+endif()
+
+if(BPR_FAKE_QT_DIRECT_LINK)
+    set_property(
+        TARGET Qt6::Core
+        PROPERTY INTERFACE_LINK_LIBRARIES_DIRECT fake-direct-library
     )
 endif()
 
