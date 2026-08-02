@@ -1,7 +1,7 @@
 ---
 id: BPR-0084
 title: Modernize CMake, CPM dependencies, and SQLite acquisition
-status: In Progress
+status: Done
 rfc: RFC-BPR-0004
 depends_on: [BPR-0075]
 ---
@@ -35,7 +35,7 @@ definition, with no system SQLite fallback.
   and source-identity mismatch, target compile policy, and system-fallback
   absence are directly covered.
 - Clean developer, core-only, and tests-disabled Release matrices pass under
-  CMake 4.4.2; target-native macOS and Linux evidence is recorded. Windows
+  CMake 4.4.2 on macOS. Ubuntu execution is deferred and not claimed. Windows
   preset structure is covered without claiming unperformed native Windows
   execution, which remains in the existing real-Windows evidence cards.
 - The architecture/dependency scans, source-dump contracts, documentation
@@ -49,23 +49,33 @@ ledger, issue board, and any agent-owned build-selection contracts affected by
 the migration. Run a conservative simplification pass and an independent
 capability-critical review before moving this card to `done/`.
 
-## Current evidence
+## Result
 
-- The direct 18-case dependency-modernization contract passes under CMake
+- The direct 20-case dependency-modernization contract passes under CMake
   4.4.2. It covers the baseline and presets, obsolete-option rejection,
   centralized package ownership, provider auditing, conditional discovery,
   package-only Qt, CPM and SQLite pins, online/cache/offline behavior,
-  tamper and source-identity rejection, target/config/redirect injection
-  refusal, controlled SQLite staging under a poisoned-cache-header fixture, static
-  compile-definition parity, and absence of vendored or system SQLite fallback.
+  provider-path tamper and source-identity rejection,
+  target/config/redirect/dependency-provider injection refusal, caller module
+  shadowing (including transitive `FetchContent`), controlled SQLite staging
+  under a poisoned-cache-header fixture, static compile-definition parity, and
+  absence of vendored or system SQLite fallback.
 - The 104-case architecture-boundary contract passes after changing the build
   ownership checks to require the centralized imported-target provider rather
   than discovery calls in product subdirectories.
-- The checked-in build and developer documentation describe caller-installed
-  packages for prebuilt dependencies and verified CPM source acquisition for
-  SQLite. `BPR_DEPENDENCY_OFFLINE=ON` disables CPM network acquisition while
-  leaving local installed-package discovery available.
+- The clean macOS `dev` matrix passed 74/74, the hardened `core-only` matrix
+  passed 33/33, and the tests-disabled Release graph passed its self-test,
+  binary, and runtime audits. Final focused contracts, documentation
+  validation, and `git diff --check` pass.
+- The conservative simplification pass completed. Capability-critical review
+  found cache-sibling poisoning and dependency-provider/module-shadowing
+  bypasses; controlled staging, absolute module ownership, top-level provider
+  refusal, and direct adversarial tests resolve those findings.
+- Ubuntu execution was skipped at the product owner's direction and no current
+  Linux run is claimed. Native Windows execution is likewise not claimed;
+  Windows preset coverage remains structural.
 
-Clean macOS and target-native Ubuntu 26.04 matrices, the final documentation
-gate, conservative simplification pass, and capability-critical review remain
-open before closeout. Native Windows execution is not claimed by this card.
+The checked-in build and developer documentation describe caller-installed
+packages for prebuilt dependencies and verified CPM source acquisition for
+SQLite. `BPR_DEPENDENCY_OFFLINE=ON` disables CPM network acquisition while
+leaving local installed-package discovery available.

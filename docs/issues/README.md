@@ -232,7 +232,7 @@ final direct verification/closeout follow. BPR-0083 depends on BPR-0054, so
 implementation can progress under the product-owner exception without an
 out-of-order Auto-Verified transition or beginning RFC-BPR-0005 early.
 
-In-progress BPR-0084 follows the completed host-execution slice and modernizes
+Done BPR-0084 follows the completed host-execution slice and modernizes
 the shared build foundation before the remaining RFC-BPR-0004 Qt work. It
 raises the CMake baseline, centralizes installed-package discovery for prebuilt
 dependencies, replaces the tracked SQLite amalgamation with pinned verified
