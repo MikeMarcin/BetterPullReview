@@ -50,10 +50,32 @@ the corresponding records. Its public validator proves
 structural coverage, bounds, kind/span consistency, group membership and
 summary, monotonic secondary-pair order, one-to-one equal-extent exact-move
 topology, and replay-stable
-record IDs before publication. It deliberately cannot prove that an `equal`
-segment's original text is equal under the selected normalization; the pure
-text computation in BPR-0073 must establish that content fact before invoking
-the same structural validator.
+record IDs before publication.
+
+The live pure computation boundary is declared in
+`src/core/include/bpr/core/diff_compute.hpp`. It accepts borrowed immutable
+byte spans whose presence must agree with the optional blob identities, copies
+exact display bytes into the result, validates canonical UTF-8, and retains
+content/terminator spans plus LF, CR, CRLF, and final-newline facts. Matching
+normalization never changes those retained bytes. NUL input becomes a typed
+binary result; malformed text and bounded materialization or matrix failures
+publish diagnostics without partial semantic records.
+
+The computation builds deterministic primary matches, monotonic accepted
+secondary pairs, UTF-8-boundary intraline ranges, and optional unambiguous
+exact move metadata. It assigns IDs only after refinement, constructs the
+maximal contiguous changed-run groups required by the live structural model,
+and invokes both the alignment and retained-document/intraline validators
+before publishing. BPR-0074 owns the
+mapping variants, navigation, selection, and lower-detail projection over
+this one result; it does not get a second pairing or grouping heuristic.
+
+BPR-0073 move detection is deliberately conservative: only an unambiguous
+exact whole one-sided segment receives relation metadata. BPR-0080 retains the
+bounded/indexed many-segment implementation and moved sub-block decomposition
+evidence before RFC closeout. Until then, ambiguous or embedded move
+candidates remain ordinary deletion plus insertion without overclaiming a
+relation.
 
 A live `change_group` stores one half-open index interval into the immutable
 ordered segment vector instead of allocating a second member-ID vector. The

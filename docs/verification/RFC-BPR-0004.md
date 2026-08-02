@@ -5,9 +5,10 @@ RFC base: `243295a70756b2e63a785ed11b14647b6b0a4c6d`
 Replacement source: `betterpullreview-rfc-bpr-0004-diff-alignment-scroll-replacement-v1`
 
 Status: implementation active. BPR-0072 supplies the directly tested canonical
-record and structural-validation foundation for D-02 and D-03. D-01 remains
-open because BPR-0073 must still compute canonical segments from exact text;
-all host and rendered interaction claims remain open. RFC-BPR-0003 retains
+record and structural-validation foundation. BPR-0073 now supplies the public
+bounded deterministic text-computation path and directly closes its core-only
+portions of D-01 through D-05 and D-08. Mapping/detail, host, scale, and all
+rendered interaction claims remain open on later cards. RFC-BPR-0003 retains
 explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
 until its dependency can close.
 
@@ -29,8 +30,39 @@ membership/summary, pair order and option policy, equal-extent one-to-one move
 topology, diagnostics, and bounds. It
 does not inspect original line text, so exact normalized equality, primary
 operation canonicalization, deterministic secondary-pair construction, and
-intraline ranges remain explicitly assigned to BPR-0073 rather than being
-claimed here.
+intraline ranges are supplied separately by BPR-0073.
+
+## BPR-0073 deterministic-computation evidence
+
+The public `compute_file_diff` boundary consumes exact optional byte spans
+under the BPR-0072 comparison key and normalized options. It retains exact
+display bytes and logical line/terminator metadata, rejects malformed UTF-8,
+classifies NUL as binary, distinguishes absent from empty blobs, enforces
+explicit byte/line/matrix/record bounds, constructs one ordered semantic path,
+and validates every text result before publication. Accepted similar pairs
+alone receive original-line-relative intraline ranges; every endpoint is
+directly checked as an original UTF-8 boundary. The public computed-result
+validator also rejects retained-document topology/count/presence mismatches,
+orphan/exact-pair/out-of-bounds/nonmonotonic intraline mutations, and any
+retained text records on a non-text result. Moves remain monotonic
+delete-plus-insert segments with separate metadata only when the whole-segment
+match is unique.
+
+The clean core-only, developer, and Darwin ASan/UBSan matrices each pass
+`core_diff_compute`, `core_diff_model`, both core dependency/boundary tests,
+and both architecture boundary tests. The computation fixture covers exact
+empty/equal/start-middle-end insertion/deletion, unequal replacements,
+internal exact/similar anchors, deterministic repeated-line replay, weak
+rejection, whitespace and LF/CR/CRLF/final-newline policy, multibyte and
+malformed UTF-8, absent/binary/unavailable states, stable file identity,
+unambiguous/ambiguous moves, exact and exceeded limits, and generated replay.
+Windows execution remains intentionally open with the repository's existing
+target-native Windows evidence cards and does not block this slice.
+
+Whole-segment move metadata is the conservative BPR-0073 boundary. BPR-0080
+explicitly retains moved sub-block decomposition and bounded/indexed
+many-segment move work before RFC closeout; BPR-0073 does not claim those
+later scale/completeness properties.
 
 ## Direct claim matrix
 

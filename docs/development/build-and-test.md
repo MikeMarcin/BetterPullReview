@@ -1188,28 +1188,37 @@ Light/Dark proof; BPR-0049 retains that gate. BPR-0047 selects the same
 control through the production epoch-host composition and proves durable
 persistence.
 
-### Canonical diff and alignment records
+### Canonical diff records and deterministic text computation
 
 BPR-0072 introduces the Qt/provider/effect-free full-authority comparison key,
 retained normalized diff options and their digest, half-open semantic spans,
-stable record identities, and public structural alignment validator. Build
-and run its focused target without Qt:
+stable record identities, and public structural alignment validator.
+BPR-0073 adds the pure byte-faithful decoder and bounded deterministic
+line-diff, secondary-pairing, intraline, and exact-move computation. Build and
+run both focused targets without Qt:
 
 ```sh
 cmake --preset core-only
 cmake --build --preset core-only --target \
-  better_pull_review_diff_core_tests
+  better_pull_review_diff_core_tests \
+  better_pull_review_diff_compute_core_tests
 ctest --test-dir build/core-only --output-on-failure \
-  -R '^(core_diff_model|core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract)$'
+  -R '^(core_diff_model|core_diff_compute|core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract)$'
 ```
 
 `core_diff_model` contains exact empty/equal/insertion/deletion/replacement/
 move tables, absent-side file identity, maximum line-boundary cases, malformed
 invariant cases, stable identity replay, and a fixed-seed 512-case generated
 valid/malformed corpus. This target validates the canonical publication
-contract only. BPR-0073 owns decoding, line splitting, primary diff,
-secondary pairing, and intraline computation; BPR-0074 owns mapping,
-group-construction policy, navigation, and selection semantics.
+contract only. `core_diff_compute` directly covers empty and identical text,
+exact start/middle/end one-sided spans, 4:7 and 7:4 replacements, internal
+exact and similar anchors, deterministic repeated-line ties and weak-pair
+rejection, whitespace and line-ending modes without display-byte mutation,
+final-newline identity, strict malformed and multibyte UTF-8, valid intraline
+boundaries, absent added/deleted sides, binary/unavailable diagnostics,
+unambiguous/ambiguous moves, exact resource limits, stable file identity, and
+generated replay. BPR-0074 owns mapping result variants, navigation,
+selection, and lower-detail semantics over these records.
 
 ## Troubleshooting and safe verification
 

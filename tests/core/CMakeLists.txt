@@ -66,3 +66,21 @@ add_test(
     NAME core_diff_model
     COMMAND better_pull_review_diff_core_tests
 )
+
+add_executable(
+    better_pull_review_diff_compute_core_tests
+    diff_compute_tests.cpp
+)
+
+target_link_libraries(
+    better_pull_review_diff_compute_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(better_pull_review_diff_compute_core_tests)
+bpr_enable_warnings(better_pull_review_diff_compute_core_tests)
+
+add_test(
+    NAME core_diff_compute
+    COMMAND better_pull_review_diff_compute_core_tests
+)

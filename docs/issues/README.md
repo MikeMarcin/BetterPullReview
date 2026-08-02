@@ -213,12 +213,15 @@ non-product references outside the repository.
 Done BPR-0072 supplies canonical comparison/alignment records, normalized
 option and exact cache identity, stable IDs, compatibility-aware adjacency,
 one contiguous group range, canonical move order, and the public structural
-validator. In-progress BPR-0073 and backlog BPR-0074 own deterministic
-pairing/intraline work and
-the one mapping/group/navigation/detail source. Backlog BPR-0075 through
+validator. Done BPR-0073 supplies byte-faithful decoding, bounded deterministic
+primary alignment, monotonic pairing, UTF-8-boundary intraline edits, unique
+whole-segment move metadata, mechanical changed-run groups, and public
+retained-result validation. Ready BPR-0074 owns the one mapping/group/
+navigation/detail source. Backlog BPR-0075 through
 BPR-0078 own exact host execution, Qt measured max-extent geometry, the shared
 comparison controller/scrollbar, and the custom-painted `DiffLinkMap`.
-BPR-0079 composes the real interaction path; BPR-0080 supplies scale evidence;
+BPR-0079 composes the real interaction path; BPR-0080 supplies scale evidence,
+bounded/indexed move discovery, and moved sub-block refinement;
 BPR-0081 documentation/conformance, BPR-0082 simplification, and BPR-0083
 final direct verification/closeout follow. BPR-0083 depends on BPR-0054, so
 implementation can progress under the product-owner exception without an

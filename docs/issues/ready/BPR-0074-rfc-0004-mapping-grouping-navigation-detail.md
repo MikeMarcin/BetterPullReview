@@ -1,7 +1,7 @@
 ---
 id: BPR-0074
 title: Implement mapping grouping navigation and detail semantics
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0004
 depends_on: [BPR-0073]
 ---

@@ -107,8 +107,24 @@ foundation for A1-A5, A12, A14, and A15:
 - seeds 1 through 512 generating deterministic canonical alignments and one
   rejected malformed derivative per seed.
 
-This is semantic-record evidence, not a claim that the BPR-0073 text-diff
-engine or the BPR-0074 mapping/navigation surface already exists.
+### A17. Deterministic text-computation corpus
+
+The checked-in `core_diff_compute` target supplies the BPR-0073 content-aware
+evidence for A1-A5 and A12-A15:
+
+- byte-faithful empty, LF, CR, CRLF, final-newline, whitespace, absent-side,
+  binary, malformed UTF-8, multibyte, combining-mark, and emoji fixtures;
+- exact start/middle/end insertion and deletion spans plus 4:7 and 7:4
+  replacements;
+- exact and similar internal anchors, deterministic repeated-line ties,
+  explicit weak-pair rejection, and UTF-8-boundary intraline edits;
+- monotonic delete-plus-insert moves with only unambiguous exact relation
+  metadata;
+- exact/over resource-limit cases and generated complete-result replay through
+  the public computation boundary and structural validator.
+
+This evidence does not claim that the BPR-0074 mapping/navigation surface or
+the later host and rendered interaction paths already exist.
 
 ## B. Measured geometry fixtures
 

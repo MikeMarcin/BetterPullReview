@@ -14,9 +14,18 @@ axis rebuilds, comparison lookups, visible/near-visible paths, allocations or
 equivalent bounded-work facts, repaint coalescing, final subpixel position,
 and interaction latency with platform/hardware context.
 
+Replace BPR-0073's conservative whole-one-sided-segment move scan with a
+deterministic bounded/indexed path, and decide moved sub-block decomposition
+without changing the monotonic delete-plus-insert primary alignment. Cover a
+moved exact sub-block adjacent to unrelated inserted/deleted text, repeated
+ambiguous candidates, and an explicit work-limit boundary. Do not introduce
+permanent crossing move ribbons.
+
 ## Required direct evidence
 
 Ordinary scroll performs no semantic diff/group/pair recomputation or unchanged
 axis rebuild, selects ribbons in `O(log S + V)`-equivalent bounded work, and
 does not scan/paint all segments. Rapid input/resizes preserve motion and final
-position. Record facts without overclaiming universal frame-rate guarantees.
+position. Move detection is bounded under adversarial many-segment input and
+either emits stable sub-block metadata or explicitly leaves ambiguous content
+unrelated. Record facts without overclaiming universal frame-rate guarantees.
