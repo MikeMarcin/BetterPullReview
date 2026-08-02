@@ -6,7 +6,7 @@ if(NOT DEFINED BPR_CPS_OVERLAY OR BPR_CPS_OVERLAY STREQUAL "")
     message(FATAL_ERROR "BPR_CPS_OVERLAY is required")
 endif()
 
-set(BPR_CPS_GENERATOR_REVISION "2")
+set(BPR_CPS_GENERATOR_REVISION "3")
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -82,14 +82,35 @@ endfunction()
 
 function(bpr_validate_usage_property_coverage target)
     foreach(property IN ITEMS
+        INTERFACE_AUTOMOC_MACRO_NAMES
         INTERFACE_AUTOUIC_OPTIONS
+        INTERFACE_CXX_MODULE_SETS
+        INTERFACE_HEADER_SETS
+        INTERFACE_HEADER_SETS_TO_VERIFY
         INTERFACE_LINK_DEPENDS
         INTERFACE_LINK_LIBRARIES_DIRECT
         INTERFACE_LINK_LIBRARIES_DIRECT_EXCLUDE
         INTERFACE_POSITION_INDEPENDENT_CODE
         INTERFACE_PRECOMPILE_HEADERS
+        INTERFACE_SOURCE_SETS
+        TRANSITIVE_COMPILE_PROPERTIES
+        TRANSITIVE_LINK_PROPERTIES
     )
         bpr_target_property_list(values "${target}" "${property}")
+        if(
+            property STREQUAL "TRANSITIVE_COMPILE_PROPERTIES"
+            AND target MATCHES "^Qt6::"
+            AND "${values}" STREQUAL "QT_PLUGIN_TARGETS"
+        )
+            get_target_property(qt_target_type "${target}" TYPE)
+            if(qt_target_type STREQUAL "SHARED_LIBRARY")
+                # Qt's CMake-only static-plugin finalizer queries this custom
+                # property. The CPS graph uses shared Qt targets and never
+                # loads or calls that finalizer, so it is not a usage
+                # requirement of the selected product graph.
+                continue()
+            endif()
+        endif()
         if(NOT "${values}" STREQUAL "")
             message(
                 FATAL_ERROR
@@ -158,115 +179,152 @@ endfunction()
 function(bpr_target_location output_location output_link_location target configuration)
     string(TOUPPER "${configuration}" config_upper)
     bpr_target_property_list(imported_configs "${target}" IMPORTED_CONFIGURATIONS)
+    set(has_imported_configs FALSE)
+    if(NOT "${imported_configs}" STREQUAL "")
+        set(has_imported_configs TRUE)
+    endif()
     get_property(
         map_is_set
         TARGET "${target}"
         PROPERTY "MAP_IMPORTED_CONFIG_${config_upper}"
         SET
     )
+    bpr_target_property_list(general_location "${target}" IMPORTED_LOCATION)
+    bpr_target_property_list(general_implib "${target}" IMPORTED_IMPLIB)
+
+    set(selection_found FALSE)
+    set(selected_configless FALSE)
+    set(selected_config "")
     if(map_is_set)
         bpr_target_property_list(
-            candidates
+            mapped_configs
             "${target}"
             "MAP_IMPORTED_CONFIG_${config_upper}"
         )
-    else()
-        set(candidates "${config_upper}")
-        list(APPEND candidates ${imported_configs})
-    endif()
-    list(REMOVE_DUPLICATES candidates)
-    set(allow_general_fallback TRUE)
-    if(map_is_set)
-        set(allow_general_fallback FALSE)
-    endif()
-
-    bpr_target_property_list(general_location "${target}" IMPORTED_LOCATION)
-    bpr_target_property_list(general_implib "${target}" IMPORTED_IMPLIB)
-    get_target_property(target_type "${target}" TYPE)
-    set(requires_windows_linker_artifact FALSE)
-    if(target_type STREQUAL "SHARED_LIBRARY" AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        set(requires_windows_linker_artifact TRUE)
-    endif()
-    if(general_location MATCHES "\\.[dD][lL][lL]$")
-        set(requires_windows_linker_artifact TRUE)
-    endif()
-    set(artifact_configurations ${candidates} ${imported_configs})
-    list(REMOVE_DUPLICATES artifact_configurations)
-    foreach(candidate IN LISTS artifact_configurations)
-        string(TOUPPER "${candidate}" candidate_upper)
-        bpr_target_property_list(
-            candidate_location
-            "${target}"
-            "IMPORTED_LOCATION_${candidate_upper}"
-        )
-        bpr_target_property_list(
-            candidate_implib
-            "${target}"
-            "IMPORTED_IMPLIB_${candidate_upper}"
-        )
-        if(candidate_location MATCHES "\\.[dD][lL][lL]$")
-            set(requires_windows_linker_artifact TRUE)
+        list(LENGTH mapped_configs mapped_config_count)
+        if(mapped_config_count EQUAL 0)
+            set(selection_found TRUE)
+            set(selected_configless TRUE)
+        else()
+            math(EXPR mapped_config_last "${mapped_config_count} - 1")
+            foreach(mapped_config_index RANGE 0 ${mapped_config_last})
+                list(GET mapped_configs ${mapped_config_index} mapped_config)
+                if(mapped_config STREQUAL "")
+                    set(selection_found TRUE)
+                    set(selected_configless TRUE)
+                elseif(has_imported_configs)
+                    string(TOUPPER "${mapped_config}" mapped_config_upper)
+                    foreach(imported_config IN LISTS imported_configs)
+                        string(TOUPPER "${imported_config}" imported_config_upper)
+                        if(mapped_config_upper STREQUAL imported_config_upper)
+                            set(selection_found TRUE)
+                            set(selected_config "${imported_config}")
+                            break()
+                        endif()
+                    endforeach()
+                else()
+                    string(TOUPPER "${mapped_config}" mapped_config_upper)
+                    bpr_target_property_list(
+                        mapped_location
+                        "${target}"
+                        "IMPORTED_LOCATION_${mapped_config_upper}"
+                    )
+                    bpr_target_property_list(
+                        mapped_implib
+                        "${target}"
+                        "IMPORTED_IMPLIB_${mapped_config_upper}"
+                    )
+                    if(
+                        NOT "${mapped_location}" STREQUAL ""
+                        OR NOT "${mapped_implib}" STREQUAL ""
+                        OR NOT "${general_location}" STREQUAL ""
+                        OR NOT "${general_implib}" STREQUAL ""
+                    )
+                        set(selection_found TRUE)
+                        set(selected_config "${mapped_config}")
+                    endif()
+                endif()
+                if(selection_found)
+                    break()
+                endif()
+            endforeach()
         endif()
-    endforeach()
+    elseif(has_imported_configs)
+        foreach(imported_config IN LISTS imported_configs)
+            string(TOUPPER "${imported_config}" imported_config_upper)
+            if(config_upper STREQUAL imported_config_upper)
+                set(selection_found TRUE)
+                set(selected_config "${imported_config}")
+                break()
+            endif()
+        endforeach()
+        if(NOT selection_found)
+            list(GET imported_configs 0 selected_config)
+            set(selection_found TRUE)
+        endif()
+    else()
+        bpr_target_property_list(
+            requested_location
+            "${target}"
+            "IMPORTED_LOCATION_${config_upper}"
+        )
+        bpr_target_property_list(
+            requested_implib
+            "${target}"
+            "IMPORTED_IMPLIB_${config_upper}"
+        )
+        if(
+            NOT "${requested_location}" STREQUAL ""
+            OR NOT "${requested_implib}" STREQUAL ""
+            OR NOT "${general_location}" STREQUAL ""
+            OR NOT "${general_implib}" STREQUAL ""
+        )
+            set(selection_found TRUE)
+            set(selected_config "${configuration}")
+        endif()
+    endif()
 
     set(location "")
     set(link_location "")
-    set(artifact_selected FALSE)
-    foreach(candidate IN LISTS candidates)
-        string(TOUPPER "${candidate}" candidate_upper)
+    if(selection_found AND NOT selected_configless)
+        string(TOUPPER "${selected_config}" selected_config_upper)
         bpr_target_property_list(
-            candidate_location
+            location
             "${target}"
-            "IMPORTED_LOCATION_${candidate_upper}"
+            "IMPORTED_LOCATION_${selected_config_upper}"
         )
         bpr_target_property_list(
-            candidate_implib
+            link_location
             "${target}"
-            "IMPORTED_IMPLIB_${candidate_upper}"
+            "IMPORTED_IMPLIB_${selected_config_upper}"
         )
-        set(has_candidate_location FALSE)
-        set(has_candidate_implib FALSE)
-        if(NOT "${candidate_location}" STREQUAL "")
-            set(has_candidate_location TRUE)
-        endif()
-        if(NOT "${candidate_implib}" STREQUAL "")
-            set(has_candidate_implib TRUE)
-        endif()
-        if(
-            requires_windows_linker_artifact
-            AND has_candidate_location
-            AND NOT has_candidate_implib
-        )
-            message(
-                FATAL_ERROR
-                "Incomplete Windows imported artifact for ${target} ${candidate_upper}"
-            )
-        endif()
-        if(has_candidate_location OR has_candidate_implib)
-            set(location "${candidate_location}")
-            set(link_location "${candidate_implib}")
-            set(artifact_selected TRUE)
-            break()
-        endif()
-    endforeach()
-    if(NOT artifact_selected AND allow_general_fallback)
-        set(has_general_location FALSE)
-        set(has_general_implib FALSE)
-        if(NOT "${general_location}" STREQUAL "")
-            set(has_general_location TRUE)
-        endif()
-        if(NOT "${general_implib}" STREQUAL "")
-            set(has_general_implib TRUE)
-        endif()
-        if(
-            requires_windows_linker_artifact
-            AND has_general_location
-            AND NOT has_general_implib
-        )
-            message(FATAL_ERROR "Incomplete Windows imported artifact for ${target}")
-        endif()
+    endif()
+    if(
+        selection_found
+        AND "${location}" STREQUAL ""
+        AND "${link_location}" STREQUAL ""
+    )
         set(location "${general_location}")
         set(link_location "${general_implib}")
+    endif()
+
+    get_target_property(target_type "${target}" TYPE)
+    set(requires_windows_linker_artifact FALSE)
+    if(
+        target_type STREQUAL "SHARED_LIBRARY"
+        AND (
+            CMAKE_SYSTEM_NAME STREQUAL "Windows"
+            OR location MATCHES "\\.[dD][lL][lL]$"
+        )
+    )
+        set(requires_windows_linker_artifact TRUE)
+    endif()
+    if(
+        requires_windows_linker_artifact
+        AND NOT "${location}" STREQUAL ""
+        AND "${link_location}" STREQUAL ""
+    )
+        message(FATAL_ERROR "Incomplete Windows imported artifact for ${target}")
     endif()
     set(${output_location} "${location}" PARENT_SCOPE)
     set(${output_link_location} "${link_location}" PARENT_SCOPE)

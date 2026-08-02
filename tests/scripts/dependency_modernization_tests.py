@@ -179,7 +179,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertTrue(manifest.is_file())
         self.assertEqual(
             json.loads(manifest.read_text(encoding="utf-8"))["generator_revision"],
-            "2",
+            "3",
         )
         self.assertFalse(list(overlay.rglob("*.cmake")))
 
@@ -494,6 +494,100 @@ class DependencyModernizationTests(unittest.TestCase):
                 temporary_directory,
                 extra=(
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_LOCATION_ONLY=ON",
+                    "-DBPR_FAKE_QT_MODULE_TARGETS=ON",
+                ),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            document = json.loads(
+                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
+            )
+            core = document["components"]["Core"]
+            self.assertEqual(core["type"], "module")
+            debug = core["configurations"]["debug"]
+            self.assertTrue(debug["location"].endswith("windows-debug.dll"))
+            self.assertNotIn("link_location", debug)
+
+        general_selection_cases = (
+            (
+                "empty-map",
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
+                ),
+            ),
+            (
+                "empty-map-no-configurations",
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
+                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=",
+                ),
+            ),
+            (
+                "mapped-no-configurations",
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_MISSING_WITH_GENERAL=ON",
+                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=",
+                ),
+            ),
+            (
+                "mapped-declared-configuration",
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_MISSING_WITH_GENERAL=ON",
+                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=MISSING",
+                ),
+            ),
+        )
+        for name, extra in general_selection_cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory() as temporary_directory:
+                    result, overlay = self.run_bootstrap_fixture(
+                        temporary_directory, extra=extra
+                    )
+                    self.assertEqual(
+                        result.returncode, 0, result.stdout + result.stderr
+                    )
+                    document = json.loads(
+                        (overlay / "cps/Qt6/Qt6.cps").read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                    debug = document["components"]["Core"]["configurations"][
+                        "debug"
+                    ]
+                    self.assertTrue(
+                        debug["location"].endswith("windows-release.dll")
+                    )
+                    self.assertTrue(
+                        debug["link_location"].endswith("windows-release.lib")
+                    )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result, overlay = self.run_bootstrap_fixture(
+                temporary_directory,
+                extra=(
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_IMPORTED_CONFIGURATIONS=RELEASE",
+                ),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            document = json.loads(
+                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
+            )
+            debug = document["components"]["Core"]["configurations"]["debug"]
+            self.assertTrue(debug["location"].endswith("windows-release.dll"))
+            self.assertTrue(
+                debug["link_location"].endswith("windows-release.lib")
+            )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result, overlay = self.run_bootstrap_fixture(
+                temporary_directory,
+                extra=(
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_DEBUG_IMPLIB_ONLY=ON",
                 ),
             )
@@ -714,6 +808,14 @@ class DependencyModernizationTests(unittest.TestCase):
                 "Unsupported CPS usage requirement",
             ),
             (
+                ("-DBPR_FAKE_QT_AUTOMOC_MACRO_NAMES=ON",),
+                "Unsupported CPS usage requirement",
+            ),
+            (
+                ("-DBPR_FAKE_QT_CUSTOM_TRANSITIVE_PROPERTY=ON",),
+                "Unsupported CPS usage requirement",
+            ),
+            (
                 (
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
                     "-DBPR_FAKE_QT_WINDOWS_INCOMPLETE_DEBUG=ON",
@@ -737,7 +839,7 @@ class DependencyModernizationTests(unittest.TestCase):
             (
                 (
                     "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
-                    "-DBPR_FAKE_QT_WINDOWS_MAP_EMPTY_WITH_GENERAL=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_DEBUG_MISSING=ON",
                 ),
                 "has no artifact",
             ),
@@ -784,7 +886,7 @@ class DependencyModernizationTests(unittest.TestCase):
                         document.read_bytes()
                     ).hexdigest()
                     manifest = {
-                        "generator_revision": "2",
+                        "generator_revision": "3",
                         "artifacts": [],
                         "documents": [
                             {

@@ -1,11 +1,18 @@
 if(NOT BPR_FAKE_QT_VERSION)
     set(BPR_FAKE_QT_VERSION "6.8.1")
 endif()
+if(NOT DEFINED BPR_FAKE_QT_IMPORTED_CONFIGURATIONS)
+    set(BPR_FAKE_QT_IMPORTED_CONFIGURATIONS "DEBUG;RELEASE")
+endif()
 set(Qt6_VERSION "${BPR_FAKE_QT_VERSION}")
 get_filename_component(_bpr_fake_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 foreach(component IN ITEMS Core Gui Widgets Network)
-    add_library("Qt6::${component}" SHARED IMPORTED GLOBAL)
+    if(BPR_FAKE_QT_MODULE_TARGETS)
+        add_library("Qt6::${component}" MODULE IMPORTED GLOBAL)
+    else()
+        add_library("Qt6::${component}" SHARED IMPORTED GLOBAL)
+    endif()
     string(TOLOWER "${component}" component_lower)
     string(TOUPPER "${component}" component_upper)
     if(BPR_FAKE_QT_WINDOWS_ARTIFACTS)
@@ -33,6 +40,19 @@ foreach(component IN ITEMS Core Gui Widgets Network)
             INTERFACE_INCLUDE_DIRECTORIES "${_bpr_fake_root}/include path/${component}"
             INTERFACE_COMPILE_DEFINITIONS "QT_${component_upper}_LIB"
     )
+    set_property(
+        TARGET "Qt6::${component}"
+        PROPERTY IMPORTED_CONFIGURATIONS
+            "${BPR_FAKE_QT_IMPORTED_CONFIGURATIONS}"
+    )
+    if(BPR_FAKE_QT_GENERAL_ARTIFACTS)
+        set_target_properties(
+            "Qt6::${component}"
+            PROPERTIES
+                IMPORTED_LOCATION "${_bpr_fake_root}/artifacts/windows-release.dll"
+                IMPORTED_IMPLIB "${_bpr_fake_root}/artifacts/windows-release.lib"
+        )
+    endif()
     if(BPR_FAKE_QT_WINDOWS_MAP_DEBUG_RELEASE)
         set_property(
             TARGET "Qt6::${component}"
@@ -55,6 +75,14 @@ foreach(component IN ITEMS Core Gui Widgets Network)
                 IMPORTED_LOCATION "${_bpr_fake_root}/artifacts/windows-release.dll"
                 IMPORTED_IMPLIB "${_bpr_fake_root}/artifacts/windows-release.lib"
                 MAP_IMPORTED_CONFIG_DEBUG ""
+        )
+    endif()
+    if(BPR_FAKE_QT_WINDOWS_DEBUG_MISSING)
+        set_target_properties(
+            "Qt6::${component}"
+            PROPERTIES
+                IMPORTED_LOCATION_DEBUG ""
+                IMPORTED_IMPLIB_DEBUG ""
         )
     endif()
     if(BPR_FAKE_QT_WINDOWS_IMPLIB_ONLY)
@@ -131,6 +159,22 @@ if(BPR_FAKE_QT_DIRECT_LINK)
     set_property(
         TARGET Qt6::Core
         PROPERTY INTERFACE_LINK_LIBRARIES_DIRECT fake-direct-library
+    )
+endif()
+
+if(BPR_FAKE_QT_AUTOMOC_MACRO_NAMES)
+    set_property(
+        TARGET Qt6::Core
+        PROPERTY INTERFACE_AUTOMOC_MACRO_NAMES CUSTOM_QT_OBJECT
+    )
+endif()
+
+if(BPR_FAKE_QT_CUSTOM_TRANSITIVE_PROPERTY)
+    set_target_properties(
+        Qt6::Core
+        PROPERTIES
+            TRANSITIVE_COMPILE_PROPERTIES CUSTOM_C
+            INTERFACE_CUSTOM_C CUSTOM_VALUE
     )
 endif()
 
