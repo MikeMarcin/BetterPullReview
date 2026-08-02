@@ -71,8 +71,10 @@ function(bpr_write_if_different path content)
 endfunction()
 
 function(bpr_target_property_list output target property)
-    get_target_property(value "${target}" "${property}")
-    if(NOT value OR value MATCHES "-NOTFOUND$")
+    get_property(property_is_set TARGET "${target}" PROPERTY "${property}" SET)
+    if(property_is_set)
+        get_target_property(value "${target}" "${property}")
+    else()
         set(value "")
     endif()
     set(${output} "${value}" PARENT_SCOPE)
@@ -88,7 +90,7 @@ function(bpr_validate_usage_property_coverage target)
         INTERFACE_PRECOMPILE_HEADERS
     )
         bpr_target_property_list(values "${target}" "${property}")
-        if(values)
+        if(NOT "${values}" STREQUAL "")
             message(
                 FATAL_ERROR
                 "Unsupported CPS usage requirement in ${target} ${property}: '${values}'"
@@ -117,7 +119,7 @@ function(bpr_validate_usage_property_coverage target)
         COMPATIBLE_INTERFACE_NUMBER_MIN
     )
         bpr_target_property_list(values "${target}" "${property}")
-        if(values)
+        if(NOT "${values}" STREQUAL "")
             message(
                 FATAL_ERROR
                 "Unsupported CPS compatibility requirement in ${target} ${property}: '${values}'"
@@ -155,42 +157,107 @@ endfunction()
 
 function(bpr_target_location output_location output_link_location target configuration)
     string(TOUPPER "${configuration}" config_upper)
-    set(candidates "${config_upper}")
-    get_target_property(mapped "${target}" "MAP_IMPORTED_CONFIG_${config_upper}")
-    if(mapped AND NOT mapped MATCHES "-NOTFOUND$")
-        list(APPEND candidates ${mapped})
-    endif()
     bpr_target_property_list(imported_configs "${target}" IMPORTED_CONFIGURATIONS)
-    list(APPEND candidates ${imported_configs})
+    get_property(
+        map_is_set
+        TARGET "${target}"
+        PROPERTY "MAP_IMPORTED_CONFIG_${config_upper}"
+        SET
+    )
+    if(map_is_set)
+        bpr_target_property_list(
+            candidates
+            "${target}"
+            "MAP_IMPORTED_CONFIG_${config_upper}"
+        )
+    else()
+        set(candidates "${config_upper}")
+        list(APPEND candidates ${imported_configs})
+    endif()
     list(REMOVE_DUPLICATES candidates)
+
+    set(has_import_library FALSE)
+    bpr_target_property_list(general_implib "${target}" IMPORTED_IMPLIB)
+    if(NOT "${general_implib}" STREQUAL "")
+        set(has_import_library TRUE)
+    endif()
+    set(artifact_configurations ${candidates} ${imported_configs})
+    list(REMOVE_DUPLICATES artifact_configurations)
+    foreach(candidate IN LISTS artifact_configurations)
+        string(TOUPPER "${candidate}" candidate_upper)
+        bpr_target_property_list(
+            candidate_implib
+            "${target}"
+            "IMPORTED_IMPLIB_${candidate_upper}"
+        )
+        if(NOT "${candidate_implib}" STREQUAL "")
+            set(has_import_library TRUE)
+        endif()
+    endforeach()
 
     set(location "")
     set(link_location "")
     foreach(candidate IN LISTS candidates)
         string(TOUPPER "${candidate}" candidate_upper)
-        if(location STREQUAL "")
-            get_target_property(candidate_location "${target}" "IMPORTED_LOCATION_${candidate_upper}")
-            if(candidate_location AND NOT candidate_location MATCHES "-NOTFOUND$")
+        bpr_target_property_list(
+            candidate_location
+            "${target}"
+            "IMPORTED_LOCATION_${candidate_upper}"
+        )
+        bpr_target_property_list(
+            candidate_implib
+            "${target}"
+            "IMPORTED_IMPLIB_${candidate_upper}"
+        )
+        if(has_import_library)
+            set(has_candidate_location FALSE)
+            set(has_candidate_implib FALSE)
+            if(NOT "${candidate_location}" STREQUAL "")
+                set(has_candidate_location TRUE)
+            endif()
+            if(NOT "${candidate_implib}" STREQUAL "")
+                set(has_candidate_implib TRUE)
+            endif()
+            if(
+                (has_candidate_location AND NOT has_candidate_implib)
+                OR (has_candidate_implib AND NOT has_candidate_location)
+            )
+                message(
+                    FATAL_ERROR
+                    "Incomplete paired imported artifact for ${target} ${candidate_upper}"
+                )
+            endif()
+            if(NOT "${candidate_location}" STREQUAL "")
                 set(location "${candidate_location}")
-            endif()
-        endif()
-        if(link_location STREQUAL "")
-            get_target_property(candidate_implib "${target}" "IMPORTED_IMPLIB_${candidate_upper}")
-            if(candidate_implib AND NOT candidate_implib MATCHES "-NOTFOUND$")
                 set(link_location "${candidate_implib}")
+                break()
             endif()
+        elseif(NOT "${candidate_location}" STREQUAL "")
+            set(location "${candidate_location}")
+            break()
         endif()
     endforeach()
     if(location STREQUAL "")
-        get_target_property(location "${target}" IMPORTED_LOCATION)
-        if(NOT location OR location MATCHES "-NOTFOUND$")
-            set(location "")
-        endif()
-    endif()
-    if(link_location STREQUAL "")
-        get_target_property(link_location "${target}" IMPORTED_IMPLIB)
-        if(NOT link_location OR link_location MATCHES "-NOTFOUND$")
-            set(link_location "")
+        bpr_target_property_list(general_location "${target}" IMPORTED_LOCATION)
+        if(has_import_library)
+            set(has_general_location FALSE)
+            set(has_general_implib FALSE)
+            if(NOT "${general_location}" STREQUAL "")
+                set(has_general_location TRUE)
+            endif()
+            if(NOT "${general_implib}" STREQUAL "")
+                set(has_general_implib TRUE)
+            endif()
+            if(
+                (has_general_location AND NOT has_general_implib)
+                OR (has_general_implib AND NOT has_general_location)
+            )
+                message(FATAL_ERROR "Incomplete paired imported artifact for ${target}")
+            endif()
+            set(location "${general_location}")
+            set(link_location "${general_implib}")
+        else()
+            set(location "${general_location}")
         endif()
     endif()
     set(${output_location} "${location}" PARENT_SCOPE)

@@ -489,6 +489,24 @@ class DependencyModernizationTests(unittest.TestCase):
                 any(path.endswith("windows-debug.lib") for path in artifact_paths)
             )
 
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result, overlay = self.run_bootstrap_fixture(
+                temporary_directory,
+                extra=(
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_MAP_DEBUG_RELEASE=ON",
+                ),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            document = json.loads(
+                (overlay / "cps/Qt6/Qt6.cps").read_text(encoding="utf-8")
+            )
+            debug = document["components"]["Core"]["configurations"]["debug"]
+            self.assertTrue(debug["location"].endswith("windows-release.dll"))
+            self.assertTrue(
+                debug["link_location"].endswith("windows-release.lib")
+            )
+
     def test_cps_bootstrap_fingerprint_is_stable_until_metadata_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             first, overlay = self.run_bootstrap_fixture(temporary_directory)
@@ -630,6 +648,17 @@ class DependencyModernizationTests(unittest.TestCase):
             (
                 ("-DBPR_FAKE_QT_DIRECT_LINK=ON",),
                 "Unsupported CPS usage requirement",
+            ),
+            (
+                ("-DBPR_FAKE_QT_FALSE_DIRECT_LINK=ON",),
+                "Unsupported CPS usage requirement",
+            ),
+            (
+                (
+                    "-DBPR_FAKE_QT_WINDOWS_ARTIFACTS=ON",
+                    "-DBPR_FAKE_QT_WINDOWS_INCOMPLETE_DEBUG=ON",
+                ),
+                "Incomplete paired imported artifact",
             ),
             (("-DBPR_FAKE_QT_VERSION=6.7.9",), "caller-installed Qt >= 6.8"),
         )
