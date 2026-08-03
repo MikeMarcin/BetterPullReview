@@ -2,7 +2,8 @@
 
 RFC base: `91e6b7044ced7b73af6a1d1993c9ed97f4f6b2d4`
 
-Status: planning complete, implementation not started. RFC-BPR-0006 stays
+Status: available-target implementation complete except the owner-attended
+scheme toggle. Documentation reconciled by BPR-0112. RFC-BPR-0006 stays
 `Proposed` and ends its available-target work at the BPR-0115 closeout card in
 `backlog/`.
 
@@ -57,16 +58,16 @@ risk is taken, and keeps a build regression from blocking unrelated slices.
 
 | Claim | Direct surface | Command or interaction | What proves it | Result |
 |---|---|---|---|---|
-| Definitions are selected correctly | Fixture files | Classify C++, CMake, Markdown, JSON, Python, and plain-text fixtures | Each fixture selects its expected definition | Planned, BPR-0110 |
-| Hunk classification equals whole-blob classification | Complete-blob highlighter | Classify a hunk beginning inside a multiline comment or string | The hunk receives the same classification as the complete blob, which a hunk-local highlighter would fail | Planned, BPR-0110 |
-| Theme change does not re-parse | Instrumented highlighter | Switch theme and colour, counting lexical parses | The parse count does not increase | Planned, BPR-0110 |
-| Font change preserves semantics | Composed comparison | Change the code font | The measured axis and ribbon geometry invalidate, semantic selection survives, and the shared position reprojects without changing mapping or confidence | Planned, BPR-0107 |
-| Fresh install defaults to System | Settings default | Inspect the default with no persisted value | The resolved mode is System | Planned, BPR-0106 |
+| Definitions are selected correctly | Fixture files | Classify C++, CMake, Markdown, JSON, Python, and plain-text fixtures | Each fixture selects its expected definition | Verified. Six fixture languages each select their expected definition from packaged records |
+| Hunk classification equals whole-blob classification | Complete-blob highlighter | Classify a hunk beginning inside a multiline comment or string | The hunk receives the same classification as the complete blob, which a hunk-local highlighter would fail | Verified. Dropping spans that opened before the hunk's first line fails the case, so the projection is load-bearing |
+| Theme change does not re-parse | Instrumented highlighter | Switch theme and colour, counting lexical parses | The parse count does not increase | Verified. The span cache key omits the theme, so a palette change cannot evict; the suite pins one classification to one lexical pass |
+| Font change preserves semantics | Composed comparison | Change the code font | The measured axis and ribbon geometry invalidate, semantic selection survives, and the shared position reprojects without changing mapping or confidence | Verified. Geometry rebuilds and the measured extent grow while the mapping is byte-identical and selection survives |
+| Fresh install defaults to System | Settings default | Inspect the default with no persisted value | The resolved mode is System | Verified. With no persisted value the resolved selection is System |
 | System mode follows the OS; explicit does not | Real macOS composition | Owner-authorised OS scheme change | System mode follows and an explicit mode does not | Deferred, BPR-0114, owner-attended |
-| Settings persist and preview immediately | Real application | Change each setting, restart | Each value previews without restart and survives one | Planned, BPR-0107 |
-| Theme import is safe | Import validator | Offer unknown fields, URLs, includes, oversized files, and executable payloads | Each rejection is distinct; a catch-all that refuses everything is not sufficient | Planned, BPR-0108 |
-| State survives without colour | Contrast and redundancy checks | Inspect every state signal | Icons, labels, marks, prefixes, outlines, or accessible names carry the meaning too | Planned, BPR-0111 |
-| The core stays free of presentation types | Dependency scan | Scan the core target | No font, colour, Qt, or KSyntaxHighlighting type appears | Planned, BPR-0104 |
+| Settings persist and preview immediately | Real application | Change each setting, restart | Each value previews without restart and survives one | Verified. Each typography field previews without restart and a core-rejected record is refused whole rather than clamped |
+| Theme import is safe | Import validator | Offer unknown fields, URLs, includes, oversized files, and executable payloads | Each rejection is distinct; a catch-all that refuses everything is not sufficient | Verified. Each refusal is typed and named, and a valid document round-trips to an identical palette |
+| State survives without colour | Contrast and redundancy checks | Inspect every state signal | Icons, labels, marks, prefixes, outlines, or accessible names carry the meaning too | Verified in core against enumerated pairs; the built-in palettes are not yet audited against it, tracked in BPR-0117 |
+| The core stays free of presentation types | Dependency scan | Scan the core target | No font, colour, Qt, or KSyntaxHighlighting type appears | Verified. No font, colour, Qt, or KSyntaxHighlighting identifier appears in the core, and the dependency scan passes |
 
 ## Deferred gates
 

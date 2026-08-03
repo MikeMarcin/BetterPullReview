@@ -45,6 +45,19 @@ a controlled build-tree staging directory. The static
 directory. CPM is not used to fetch Qt or to replace caller-installed platform
 packages.
 
+KSyntaxHighlighting 6.28.1 is acquired the same way, with
+extra-cmake-modules 6.28.0 as a pinned transitive build input. Caller-installed
+discovery was investigated first, because the library is Qt-dependent and Qt is
+never fetched, but no Homebrew formula exists for it or for the KDE Frameworks,
+which would have made RFC-BPR-0006 unimplementable rather than deferred. Each
+input carries an archive digest and an extracted-source digest computed over a
+sorted manifest of every file's own digest, so a changed, added, or removed file
+is detected rather than only a tampered archive; a symbolic link anywhere in the
+extracted tree is rejected. The provider states its own Qt 6.9 minimum and fails
+naming both versions rather than letting the nested configure fail less legibly.
+The Qt-free `core-only` preset does not acquire it. Provenance is recorded in
+`third_party/ksyntaxhighlighting/PROVENANCE.md`.
+
 Producer hints are `Qt6_ROOT`/`Qt6_DIR`, `Python3_ROOT_DIR`, `Git_ROOT`,
 `CMAKE_PREFIX_PATH`, and `PKG_CONFIG_PATH`. `CPM_SOURCE_CACHE` selects the
 shared source cache used by the exact
@@ -1422,6 +1435,32 @@ platform, architecture, Qt version, counted subtrees, line counts, widget
 counts, visible ribbons, and publish milliseconds. Those figures are context
 for the machine that produced them; only the counts are asserted, never the
 timing.
+
+### RFC-BPR-0006 appearance and syntax
+
+```sh
+cmake --build --preset core-only --target \
+  test_better_pull_review_appearance_core_tests \
+  test_better_pull_review_theme_exchange_core_tests \
+  test_better_pull_review_appearance_contrast_core_tests
+ctest --test-dir build/core-only --output-on-failure \
+  -R '^core_(appearance_policy|theme_exchange|appearance_contrast)$'
+
+cmake --build --preset dev --target \
+  test_better_pull_review_application_appearance_host_tests \
+  test_better_pull_review_qt_appearance_profile_tests
+ctest --test-dir build/dev --output-on-failure -R '^application_appearance_host$'
+QT_QPA_PLATFORM=offscreen CTEST_PARALLEL_LEVEL=1 ctest --test-dir build/dev \
+  --output-on-failure -R '^qt_appearance_profile$'
+
+ctest --test-dir build/dev --output-on-failure -R '^syntax_classification_contract$'
+```
+
+The syntax contract exercises C++, CMake, Markdown, JSON, Python, and plain
+text from `tests/fixtures/syntax/`, and pins one classification to one lexical
+pass. Its sharpest case asserts that a hunk beginning inside a multiline
+comment classifies exactly as the same region of the complete blob — the case a
+per-hunk highlighter silently fails.
 
 ## Troubleshooting and safe verification
 

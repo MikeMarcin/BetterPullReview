@@ -38,7 +38,9 @@ The Qt presentation adapter is part of the imperative shell. It is not an archit
   zero CLI executable/configuration discovery or CLI process launch; the
   bounded `QProcess` broker remains inactive scaffolding until RFC-BPR-0015
 - REST-first GitHub provider with narrow GraphQL use
-- KSyntaxHighlighting through its low-level highlighter interface
+- KSyntaxHighlighting 6.28.1 through its low-level highlighter interface,
+  acquired as verified CPM source with extra-cmake-modules 6.28.0 as a pinned
+  transitive build input; it requires caller-installed Qt 6.9 or newer
 - No Qt WebEngine, QML runtime, Electron, Tauri, Node runtime, local HTTP service, or browser-extension requirement
 
 The concrete RFC-BPR-0002 allocation is defined in [GitHub Host
@@ -454,6 +456,34 @@ source panes are `QPlainTextEdit`, which virtualizes its own text layout, so
 widget count is bounded by visible UI structure rather than source length; a
 sixty-thousand-line comparison creates no widget that a sixty-line one does
 not.
+
+### RFC-BPR-0006 appearance allocation
+
+The core owns appearance-mode resolution, typography legality, the closed
+semantic role vocabulary, theme exchange, and contrast measurement. It holds no
+font, colour, Qt, or KSyntaxHighlighting type; a colour is four named sRGB
+channels, and typography is integer fixed point so every legal value is exactly
+representable and comparable.
+
+The host owns settings persistence and the token-span cache. That cache is
+keyed by blob identity and definition version with the theme absent from the
+key, which makes "switching theme does not re-run lexical parsing" structural
+rather than behavioural. A persisted record the core rejects is refused whole
+rather than clamped, because a clamped value would tell a settings surface its
+rejected input was accepted.
+
+The syntax adapter implements the host's classification port through
+KSyntaxHighlighting's low-level interface. It classifies a complete blob in one
+lexical pass and projects a hunk from that pass; highlighting a range on its own
+would lose the state that opened a multiline construct earlier. It produces core
+roles, never colours, and consults no standard path.
+
+The Qt adapter turns a core-resolved variant plus a palette into applied
+presentation without installing a forced style or QSS, preserving the contract
+that the application inherits the native style and interface font.
+
+The Qt-free `core-only` preset acquires neither KSyntaxHighlighting nor the
+syntax adapter; its resolved package set remains SQLite alone.
 
 ## Feature allocation
 

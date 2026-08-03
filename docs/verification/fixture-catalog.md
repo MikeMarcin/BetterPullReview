@@ -1139,3 +1139,37 @@ an absolute, and separately require the source to have grown by orders of
 magnitude, so a harness that merely rendered one large file could not pass.
 Elapsed time is recorded and deliberately not asserted, because one machine's
 timing is not a frame-rate guarantee.
+
+## RFC-BPR-0006 appearance and syntax fixtures
+
+`tests/core/appearance_model_tests.cpp`, `theme_exchange_tests.cpp`, and
+`appearance_contrast_tests.cpp` are registered as `core_appearance_policy`,
+`core_theme_exchange`, and `core_appearance_contrast`. All three run in the
+Qt-free `core-only` preset.
+
+The contrast suite pins the ratio against known values rather than
+self-consistency: black on white is 21.00:1, any colour against itself is
+1.00:1, the canonical 4.54:1 grey measures 4.54:1, and the three primaries
+against white order green, red, blue. Alpha does not change a measured ratio.
+Its checked pair set is enumerated — three fixed text pairs, every syntax role
+over each canvas background, and each review-state indicator — so the check can
+be audited rather than merely trusted.
+
+The theme-exchange suite round-trips a valid document *and* refuses unknown
+keys by name, near-miss identifiers, partial documents with each unassigned
+role named, duplicate keys, oversized input, and external references. The
+external-reference scan runs before any key is interpreted, so a reference in a
+key position is refused as a reference rather than as an unknown field.
+
+`tests/syntax_contract/syntax_classification_contract_tests.cpp` is registered
+as `syntax_classification_contract` and uses `tests/fixtures/syntax/`:
+`multiline_comment.cpp`, `CMakeLists.txt`, `notes.md`, `payload.json`,
+`records.jsonl`, `script.py`, and `notes.txt`. Each selects its expected
+definition from packaged records; an unpackaged name resolves to nothing rather
+than falling back.
+
+Its central case asserts that a hunk beginning inside a multiline comment
+classifies exactly as the same region of the complete blob. The suite also pins
+one classification to one lexical pass, refuses an absent blob before any span
+bound applies, refuses rather than truncates a classification above the bound,
+and reports cancellation.

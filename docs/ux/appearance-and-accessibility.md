@@ -94,11 +94,23 @@ Light
 Dark
 ```
 
-RFC-BPR-0006 will add user-selectable appearance profiles, with a fresh
-installation defaulting to System. System mode will follow the
-operating-system color scheme and choose the corresponding variant from the
-selected BetterPullReview profile. High-contrast system preference will
-select or recommend a high-contrast variant.
+RFC-BPR-0006 implements user-selectable appearance profiles. A fresh
+installation defaults to System, which is a default-value property proven
+without any appearance change. System mode follows the operating-system color
+scheme and chooses the corresponding variant; an explicit mode ignores the
+observed scheme. A high-contrast system preference selects the high-contrast
+variant, or recommends one when an explicit user choice outranks the
+preference — the core can only recommend in that case, never override.
+
+Resolution reports the variant together with orthogonal source facts, because
+the variant alone cannot say why it applies: a dark variant looks identical
+whether an explicit mode chose it or an observation did. An unknown observed
+scheme is distinct from a light one, so a defaulted resolution is
+distinguishable from an observed one.
+
+The *live* operating-system scheme transition is owner-attended evidence and is
+tracked separately; the static default and the resolution table are proven
+unattended.
 
 Planned built-in profiles:
 
@@ -127,9 +139,37 @@ Theme customization exposes semantic roles, not arbitrary QSS or executable styl
 
 Color is never the only state signal. Icons, labels, gutter marks, line prefixes, outlines, and accessible names provide redundant meaning.
 
+Contrast is measured rather than asserted. The core publishes the relative
+luminance ratio over sRGB linearisation and three thresholds: 4.50:1 for text,
+7.00:1 for text in a high-contrast variant, and 3.00:1 for a non-text
+indicator. A finding carries its measured ratio rather than a boolean, so a
+near-miss is distinguishable from a gross failure.
+
+The checked pairs are enumerated rather than universal — three fixed text
+pairs, every syntax role over each canvas background, and each review-state
+indicator. Asserting every possible role pair would be meaningless, since most
+roles never meet on screen, and a check that cannot name its pairs cannot be
+audited.
+
 ## Syntax highlighting
 
 Use KSyntaxHighlighting through a custom low-level highlighter. Highlight complete old and new blobs independently so hunks beginning inside multiline constructs receive correct state. Cache semantic spans by blob and definition, independent of the active color theme.
+
+This is implemented. A hunk is a *projection* of the complete-blob pass rather
+than a separate highlight, because highlighting a range on its own loses the
+state that opened a multiline comment or string on an earlier line. That is the
+mechanism behind the acceptance criterion, and it must not be reduced to a
+per-hunk call: doing so passes casual testing and fails precisely the case the
+criterion exists for.
+
+The span cache is keyed by blob identity and definition version with the theme
+deliberately absent from the key, so a theme change *cannot* invalidate it. That
+is a stronger guarantee than remembering not to evict on theme change.
+
+Definitions and approved themes are packaged; standard-path discovery and
+downloads stay disabled in the production build. Build-time source acquisition
+of the library and runtime grammar downloading are different things, and only
+the second is prohibited.
 
 Package audited definitions and themes as resources. Disable filesystem discovery and downloads in the production build. User color customization changes BetterPullReview semantic palettes, not grammar definitions.
 
