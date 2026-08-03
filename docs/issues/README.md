@@ -318,6 +318,23 @@ inherited from the RFC-BPR-0003 and RFC-BPR-0004 ledgers, which both defer the
 integrated presentation-polish and native visual-acceptance pass here; it is
 isolated so it blocks no other card. Backlog BPR-0101 makes no closure claim.
 
+RFC-BPR-0006 is now the implementation frontier. Done BPR-0103 plans it as
+thirteen cards, BPR-0104 through BPR-0115, and settles the one genuinely forced
+decision. RFC-BPR-0006 mandates KSyntaxHighlighting, so only its acquisition
+route was open. Caller-installed discovery was investigated first, since the
+library is Qt-dependent and the dependency boundary treats Qt as never fetched,
+but no Homebrew formula exists for it or for the KDE Frameworks on this host,
+which would have made the RFC unimplementable rather than deferred. CPM source
+acquisition following the SQLite precedent is therefore the only route that
+satisfies the RFC, and it pulls extra-cmake-modules as a transitive build
+dependency that BPR-0109 must record. Runtime behaviour is unchanged:
+definitions stay packaged as resources with discovery and downloads disabled,
+because build-time acquisition and runtime grammar downloading are different
+things. Work is ordered so the appearance, typography, and theme surfaces land
+before the build foundation changes. Its one owner-attended gate is BPR-0114,
+the live scheme change; the fresh-install-defaults-to-System claim is separated
+onto BPR-0106 because it is a default-value check needing no appearance change.
+
 Done BPR-0084 follows the completed host-execution slice and modernizes
 the shared build foundation before the remaining RFC-BPR-0004 Qt work. It
 raises the CMake baseline, centralizes installed-package discovery for prebuilt
