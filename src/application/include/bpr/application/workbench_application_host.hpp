@@ -1,0 +1,85 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_APPLICATION_HOST_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_APPLICATION_HOST_HPP
+
+#include "bpr/application/port.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <span>
+
+namespace bpr::application {
+	/// \brief Provides the workbench application host contract.
+	///
+	/// \details The host owns the ordered actionable file set, the retained
+	/// selection identity, and the durable layout; the core owns navigation
+	/// legality, drawer semantics, and command projections. The host supplies the
+	/// core bounded cursor facts and executes the decisions it answers with; it
+	/// never re-decides them.
+	///
+	/// Public operations and inspection are confined to the supplied decision
+	/// lane. Effect work runs on the effect executor and posts immutable terminals
+	/// back to that lane. Referenced ports and executors must stay live until
+	/// is_quiescent().
+	class workbench_application_host final
+	{
+	public:
+		workbench_application_host(
+			core::workbench_interaction_state aInitialState,
+			workbench_observation_port&       aObservations,
+			workbench_settings_port&          aSettings,
+			effect_executor&                  aEffects,
+			decision_executor&                aDecisionLane,
+			workbench_projection_port&        aProjections,
+			core::application_session_id      aSession,
+			workbench_host_limits             aLimits = { });
+		~workbench_application_host();
+
+		workbench_application_host(const workbench_application_host&) = delete;
+		auto operator=(const workbench_application_host&)
+			-> workbench_application_host&                       = delete;
+		workbench_application_host(workbench_application_host&&) = delete;
+		auto operator=(workbench_application_host&&)
+			-> workbench_application_host& = delete;
+
+		// Reads the durable layout. Restored drawer states reach the core as soon
+		// as an accepted observation makes the workbench active; restoring never
+		// writes the layout back.
+		void restore();
+		// Supersedes any outstanding observation and advances the incarnation.
+		void observe(core::pull_request_authority aAuthority);
+		void apply(core::workbench_interaction_intent aIntent);
+		// Host-owned drawer width, clamped to the configured bound and persisted.
+		void resize(core::workbench_drawer aDrawer, std::uint32_t aWidth);
+		void cancel();
+		void shutdown();
+
+		[[nodiscard]] auto state() const noexcept
+			-> const core::workbench_interaction_state&;
+		[[nodiscard]] auto layout() const noexcept
+			-> const workbench_layout_settings&;
+		[[nodiscard]] auto actionable() const noexcept
+			-> std::span<const core::workbench_file_id>;
+		[[nodiscard]] auto selected() const noexcept
+			-> const std::optional<core::workbench_file_id>&;
+		[[nodiscard]] auto generation() const noexcept -> core::request_generation;
+		[[nodiscard]] auto outstanding_requests() const noexcept -> std::size_t;
+		[[nodiscard]] auto rejected_terminals() const noexcept -> std::size_t;
+		[[nodiscard]] auto last_rejection() const noexcept
+			-> workbench_terminal_rejection;
+		[[nodiscard]] auto last_reason() const noexcept
+			-> core::workbench_reason_code;
+		[[nodiscard]] auto persisted_layouts() const noexcept -> std::size_t;
+		[[nodiscard]] auto is_closing() const noexcept -> bool;
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+
+	private:
+		struct implementation;
+		std::unique_ptr<implementation> Implementation;
+	};
+} // namespace bpr::application
+
+#endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_APPLICATION_HOST_HPP

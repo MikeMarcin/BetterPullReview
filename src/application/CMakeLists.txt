@@ -12,6 +12,7 @@ add_library(
         src/git_smart_transport_port.cpp
         src/host.cpp
         src/manual_executor.cpp
+        src/workbench_application_host.cpp
 )
 add_library(BetterPullReview::Application ALIAS better_pull_review_application)
 
