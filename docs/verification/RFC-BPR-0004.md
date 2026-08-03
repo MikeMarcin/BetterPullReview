@@ -14,7 +14,8 @@ composition, installed-Git/cache-session integration, rendered public-path
 evidence, and shutdown safety. BPR-0080 supplies bounded moved-sub-block
 discovery, retained semantic indexes, and instrumented large-fixture/high-
 frequency Qt evidence. BPR-0081 reconciles documentation and conformance;
-BPR-0082 and BPR-0083 retain simplification and final closeout. RFC-BPR-0003
+BPR-0082 supplies the conservative simplification pass, and BPR-0083 retains
+final closeout. RFC-BPR-0003
 retains explicit nonblocking closeout cards, so this RFC cannot become Auto-
 Verified until that dependency can close.
 
@@ -474,6 +475,57 @@ Target-native Windows, owner-activated native System-theme transition, the
 final two-direction rendered replay, and RFC-BPR-0005 presentation polish stay
 open and do not block available-platform conformance work. GitHub Actions
 remain prohibited and both tracked and on-disk workflow counts remain zero.
+
+## BPR-0082 simplification evidence
+
+The conservative RFC-BPR-0004 range review removes intermediate change-group
+and nested intraline collections plus their replay traversals, builds the same
+canonical identities and ordered edits directly, and avoids a second semantic
+mapping lookup when line detail begins from an already canonical lookup. The
+public caller-supplied mapping overload still recomputes and compares the
+canonical mapping before returning detail, so malformed or stale mappings
+continue to fail closed. The application host reuses one context-to-job search,
+and the Qt adapter consolidates link-map identity matching while dropping
+state assignments already guaranteed by exact-context admission or geometry
+clearing.
+
+The pass deliberately retains the two borrowed temporary semantic-index
+adapters because a shared lifetime-bearing helper would add more private
+machinery than it removes. It also rejects a privileged prevalidated
+measured-axis route: retaining the one public validation path keeps authority
+and failure behavior explicit.
+
+The affected core model, compute, semantics, transition, and application-host
+tests pass 5/5 in `build/core-only` and 5/5 in the ASan/UBSan
+`build/bpr0077-asan` tree with:
+
+```sh
+ctest --test-dir build/core-only --output-on-failure \
+  -R '^(core_diff_model|core_diff_compute|core_diff_semantics|core_diff_transition|application_diff_host)$'
+ctest --test-dir build/bpr0077-asan --output-on-failure \
+  -R '^(core_diff_model|core_diff_compute|core_diff_semantics|core_diff_transition|application_diff_host)$'
+```
+
+The selected Qt link-map/workbench scale cases and selected public composition
+pass 8/8 with the exact bounded command below. After the final source edit, the
+same command narrowed to the two `application_diff_workbench` cases passes 2/2
+on the post-simplification source:
+
+```sh
+CTEST_PARALLEL_LEVEL=1 QT_QPA_PLATFORM=offscreen \
+  ctest --preset dev --output-on-failure \
+  -R '^(qt_diff_(link_map|workbench)_scale_(100|125|200)|application_diff_workbench(_shutdown)?_public_path)$'
+```
+
+Those exact invocations set Qt's offscreen platform and allow only one test at
+a time; they are the only BPR-0082 Qt/application executions claimed here.
+They write the component rasters below `build/dev/tests/adapters_qt/` and the
+selected-composition raster to
+`build/dev/tests/end_to_end/diff-workbench-public-path.png`. The independent
+mechanical replay launched no Qt, GUI, end-to-end, or application test. Strict
+touched-file clang-tidy and the repository formatting gate pass. This evidence
+does not replace BPR-0083's owner-activated native System-theme evidence or
+final rendered two-direction replay.
 
 ## BPR-0084 build-foundation evidence
 

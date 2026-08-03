@@ -62,6 +62,18 @@ namespace bpr::qt {
 			aColor.setAlpha(aAlpha);
 			return aColor;
 		}
+
+		[[nodiscard]] auto identity_matches(
+			const std::optional<diff_link_map_identity>& aIdentity,
+			const diff_link_map_identity&                aEntry) noexcept -> bool
+		{
+			if (!aIdentity.has_value()) {
+				return false;
+			}
+			return aIdentity->Group.has_value() && aEntry.Group.has_value()
+				? aIdentity->Group == aEntry.Group
+				: aIdentity->Segment == aEntry.Segment;
+		}
 	} // namespace
 
 	diff_link_map::diff_link_map(
@@ -577,23 +589,13 @@ namespace bpr::qt {
 	auto diff_link_map::entry_selected(const retained_entry& aEntry) const
 		noexcept -> bool
 	{
-		if (!Selection.has_value()) {
-			return false;
-		}
-		return Selection->Group.has_value() && aEntry.Identity.Group.has_value()
-			? Selection->Group == aEntry.Identity.Group
-			: Selection->Segment == aEntry.Identity.Segment;
+		return identity_matches(Selection, aEntry.Identity);
 	}
 
 	auto diff_link_map::entry_hovered(const retained_entry& aEntry) const
 		noexcept -> bool
 	{
-		if (!Hover.has_value()) {
-			return false;
-		}
-		return Hover->Group.has_value() && aEntry.Identity.Group.has_value()
-			? Hover->Group == aEntry.Identity.Group
-			: Hover->Segment == aEntry.Identity.Segment;
+		return identity_matches(Hover, aEntry.Identity);
 	}
 
 	auto diff_link_map::entry_index(

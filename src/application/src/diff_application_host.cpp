@@ -694,12 +694,18 @@ namespace bpr::application {
 			});
 		}
 
-		void stop(const core::diff_request_context& aContext) noexcept
+		[[nodiscard]] auto find_job(
+			const core::diff_request_context& aContext) noexcept
 		{
-			const auto found = std::ranges::find_if(
+			return std::ranges::find_if(
 				Jobs, [&aContext](const auto& aJob) {
 					return aJob->Request.Context == aContext;
 				});
+		}
+
+		void stop(const core::diff_request_context& aContext) noexcept
+		{
+			const auto found = find_job(aContext);
 			if (found != Jobs.end()) {
 				(*found)->Stop.request_stop();
 			}
@@ -713,10 +719,7 @@ namespace bpr::application {
 
 		void erase_job(const core::diff_request_context& aContext)
 		{
-			const auto found = std::ranges::find_if(
-				Jobs, [&aContext](const auto& aJob) {
-					return aJob->Request.Context == aContext;
-				});
+			const auto found = find_job(aContext);
 			if (found != Jobs.end()) {
 				Jobs.erase(found);
 			}

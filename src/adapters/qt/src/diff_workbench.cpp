@@ -364,9 +364,8 @@ namespace bpr::qt {
 			++Statistics.RejectedStaleInput;
 			return;
 		}
-		CurrentContext = aPublication.Context;
-		CurrentResult  = aPublication.Result;
-		SemanticIndex  = std::move(semanticIndex);
+		CurrentResult = aPublication.Result;
+		SemanticIndex = std::move(semanticIndex);
 		++Statistics.SemanticIndexBuilds;
 		Statistics.SemanticIndexEntries
 			= SemanticIndex->statistics().IndexEntries;
@@ -885,7 +884,6 @@ namespace bpr::qt {
 		Detail->setPlainText(QStringLiteral("No change selected"));
 		Controller->clear_axis();
 		LinkMap->clear_geometry();
-		LinkMap->set_selected(std::nullopt, false);
 		set_line_selection(*Left, std::nullopt);
 		set_line_selection(*Right, std::nullopt);
 		AxisCache.invalidate(measured_geometry_change::file_or_epoch);

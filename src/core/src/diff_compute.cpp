@@ -1207,8 +1207,8 @@ namespace bpr::core {
 			.LeftLineCount  = static_cast<std::uint32_t>(left->Document.Lines.size()),
 			.RightLineCount = static_cast<std::uint32_t>(right->Document.Lines.size()),
 		};
-		auto groupRanges   = std::vector<std::pair<std::uint32_t, std::uint32_t>>{ };
 		auto segmentGroups = std::vector<std::optional<change_group_id>>(pending->size());
+		auto groupOrdinal  = std::uint32_t{ 0U };
 		for (std::size_t index = 0U; index < pending->size();) {
 			if ((*pending)[index].Kind == alignment_kind::equal) {
 				++index;
@@ -1218,11 +1218,7 @@ namespace bpr::core {
 			while (index < pending->size() && (*pending)[index].Kind != alignment_kind::equal) {
 				++index;
 			}
-			groupRanges.emplace_back(static_cast<std::uint32_t>(begin),
-									 static_cast<std::uint32_t>(index));
-		}
-		for (std::size_t index = 0U; index < groupRanges.size(); ++index) {
-			const auto [begin, end]   = groupRanges[index];
+			const auto  end           = index;
 			const auto& first         = (*pending)[begin];
 			const auto& last          = (*pending)[end - 1U];
 			const auto  leftSpan      = line_span{ first.Left.Begin, last.Left.End };
@@ -1230,7 +1226,7 @@ namespace bpr::core {
 			const auto  id            = group_identity(alignment.Digest,
 													   leftSpan,
 													   rightSpan,
-													   static_cast<std::uint32_t>(index));
+													   groupOrdinal++);
 			auto        added         = std::uint64_t{ 0U };
 			auto        deleted       = std::uint64_t{ 0U };
 			auto        replacedLeft  = std::uint64_t{ 0U };
@@ -1253,8 +1249,11 @@ namespace bpr::core {
 				}
 			}
 			alignment.Groups.push_back(change_group{
-				.Id                 = id,
-				.Members            = { begin, end },
+				.Id      = id,
+				.Members = {
+					static_cast<std::uint32_t>(begin),
+					static_cast<std::uint32_t>(end),
+				},
 				.Left               = leftSpan,
 				.Right              = rightSpan,
 				.First              = { .Left = first.Left.Begin, .Right = first.Right.Begin },
@@ -1286,7 +1285,7 @@ namespace bpr::core {
 			});
 		}
 
-		auto pendingIntraline = std::vector<std::vector<std::pair<byte_span, byte_span>>>{ };
+		auto intraline = std::vector<intraline_edit>{ };
 		for (std::size_t index = 0U; index < pending->size(); ++index) {
 			const auto& source = (*pending)[index];
 			if (!source.PairKind.has_value()) {
@@ -1307,19 +1306,23 @@ namespace bpr::core {
 			};
 			alignment.Pairs.push_back(pair);
 			if (pair.Kind == line_pair_kind::similar) {
-				auto ranges = intraline_ranges(left->Document,
-											   right->Document,
-											   pair.LeftLine,
-											   pair.RightLine,
-											   budget);
+				const auto ranges = intraline_ranges(left->Document,
+													 right->Document,
+													 pair.LeftLine,
+													 pair.RightLine,
+													 budget);
 				if (!ranges.has_value()) {
 					return nontext_result(aInput,
 										  diff_content_state::unavailable,
 										  diff_reason_code::compute_limit);
 				}
-				pendingIntraline.push_back(std::move(*ranges));
-			} else {
-				pendingIntraline.emplace_back();
+				for (const auto& [leftRange, rightRange] : *ranges) {
+					intraline.push_back(intraline_edit{
+						.Pair  = pair.Id,
+						.Left  = leftRange,
+						.Right = rightRange,
+					});
+				}
 			}
 		}
 
@@ -1348,23 +1351,12 @@ namespace bpr::core {
 				? std::optional<decoded_text_document>{ std::move(
 					  right->Document) }
 				: std::nullopt,
+			.Intraline                        = std::move(intraline),
 			.MatrixCellsConsumed              = budget.Consumed,
 			.MoveDetectionWorkConsumed        = moved.WorkConsumed,
 			.MoveDetectionWorkLimitReached    = moved.WorkLimitReached,
 			.MoveDetectionSegmentLimitReached = moved.SegmentLimitReached,
 		};
-		auto pairIndex = std::size_t{ 0U };
-		for (const auto& ranges : pendingIntraline) {
-			const auto pairId = result.Alignment.Pairs[pairIndex].Id;
-			for (const auto& [left_range, right_range] : ranges) {
-				result.Intraline.push_back(intraline_edit{
-					.Pair  = pairId,
-					.Left  = left_range,
-					.Right = right_range,
-				});
-			}
-			++pairIndex;
-		}
 		if (!validate_computed_file_diff(result).valid()) {
 			return { .Reason = diff_reason_code::invalid_alignment };
 		}

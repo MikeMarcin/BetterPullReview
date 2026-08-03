@@ -389,75 +389,85 @@ namespace bpr::core {
 		return index.has_value() ? move_for_line(*index, aLine) : std::nullopt;
 	}
 
+	namespace {
+		[[nodiscard]] auto detail_for_canonical_mapping(
+			const diff_semantic_index& aIndex,
+			const line_mapping&        aMapping) -> line_detail_input
+		{
+			const auto& aDiff  = aIndex.diff();
+			auto        detail = line_detail_input{
+				.Selected   = aMapping.Source,
+				.Reason     = aMapping.Reason,
+				.Diagnostic = aMapping.Diagnostic,
+			};
+			detail.Segment = aMapping.Segment;
+			detail.Group   = aMapping.Group;
+			detail.Pair    = aMapping.Pair;
+			if (aMapping.Kind != line_mapping_kind::unavailable) {
+				if (aMapping.Source.Side == diff_side::left) {
+					detail.LeftLine = aMapping.Source;
+				} else {
+					detail.RightLine = aMapping.Source;
+				}
+			}
+
+			switch (aMapping.Kind) {
+			case line_mapping_kind::exact_line:
+			case line_mapping_kind::similar_line:
+				if (!aMapping.Counterpart.has_value()) {
+					detail.Reason = semantic_lookup_reason::invalid_result;
+					return detail;
+				}
+				detail.Kind = line_detail_kind::paired_lines;
+				if (aMapping.Source.Side == diff_side::left) {
+					detail.LeftLine  = aMapping.Source;
+					detail.RightLine = aMapping.Counterpart;
+				} else {
+					detail.LeftLine  = aMapping.Counterpart;
+					detail.RightLine = aMapping.Source;
+				}
+				if (aMapping.Pair.has_value()) {
+					const auto pair = aIndex.pair_index(*aMapping.Pair);
+					if (pair.has_value()) {
+						const auto span = aIndex.intraline_span(*pair);
+						detail.Intraline.insert(
+							detail.Intraline.end(),
+							aDiff.Intraline.begin() + span.Begin,
+							aDiff.Intraline.begin() + span.End);
+					}
+				}
+				break;
+			case line_mapping_kind::opposing_span:
+				detail.Kind         = line_detail_kind::opposing_span;
+				detail.OpposingSpan = aMapping.OpposingSpan;
+				break;
+			case line_mapping_kind::opposing_boundary:
+				detail.Kind             = line_detail_kind::opposing_boundary;
+				detail.OpposingBoundary = aMapping.OpposingBoundary;
+				break;
+			case line_mapping_kind::unavailable:
+				detail.Kind = line_detail_kind::unavailable;
+				break;
+			}
+			if (const auto move = move_for_line(aIndex, aMapping.Source);
+				move.has_value()) {
+				detail.Move = move->Relation;
+			}
+			return detail;
+		}
+	} // namespace
+
 	auto detail_for_mapping(const diff_semantic_index& aIndex,
 							const line_mapping&        aMapping) -> line_detail_input
 	{
-		const auto& aDiff  = aIndex.diff();
-		auto        detail = line_detail_input{
-			.Selected   = aMapping.Source,
-			.Reason     = aMapping.Reason,
-			.Diagnostic = aMapping.Diagnostic,
-		};
 		if (map_line(aIndex, aMapping.Source) != aMapping) {
 			return line_detail_input{
 				.Selected   = aMapping.Source,
 				.Reason     = semantic_lookup_reason::invalid_result,
-				.Diagnostic = aDiff.Alignment.Diagnostic.Code,
+				.Diagnostic = aIndex.diff().Alignment.Diagnostic.Code,
 			};
 		}
-		detail.Segment = aMapping.Segment;
-		detail.Group   = aMapping.Group;
-		detail.Pair    = aMapping.Pair;
-		if (aMapping.Kind != line_mapping_kind::unavailable) {
-			if (aMapping.Source.Side == diff_side::left) {
-				detail.LeftLine = aMapping.Source;
-			} else {
-				detail.RightLine = aMapping.Source;
-			}
-		}
-
-		switch (aMapping.Kind) {
-		case line_mapping_kind::exact_line:
-		case line_mapping_kind::similar_line:
-			if (!aMapping.Counterpart.has_value()) {
-				detail.Reason = semantic_lookup_reason::invalid_result;
-				return detail;
-			}
-			detail.Kind = line_detail_kind::paired_lines;
-			if (aMapping.Source.Side == diff_side::left) {
-				detail.LeftLine  = aMapping.Source;
-				detail.RightLine = aMapping.Counterpart;
-			} else {
-				detail.LeftLine  = aMapping.Counterpart;
-				detail.RightLine = aMapping.Source;
-			}
-			if (aMapping.Pair.has_value()) {
-				const auto pair = aIndex.pair_index(*aMapping.Pair);
-				if (pair.has_value()) {
-					const auto span = aIndex.intraline_span(*pair);
-					detail.Intraline.insert(
-						detail.Intraline.end(),
-						aDiff.Intraline.begin() + span.Begin,
-						aDiff.Intraline.begin() + span.End);
-				}
-			}
-			break;
-		case line_mapping_kind::opposing_span:
-			detail.Kind         = line_detail_kind::opposing_span;
-			detail.OpposingSpan = aMapping.OpposingSpan;
-			break;
-		case line_mapping_kind::opposing_boundary:
-			detail.Kind             = line_detail_kind::opposing_boundary;
-			detail.OpposingBoundary = aMapping.OpposingBoundary;
-			break;
-		case line_mapping_kind::unavailable:
-			detail.Kind = line_detail_kind::unavailable;
-			break;
-		}
-		if (const auto move = move_for_line(aIndex, aMapping.Source); move.has_value()) {
-			detail.Move = move->Relation;
-		}
-		return detail;
+		return detail_for_canonical_mapping(aIndex, aMapping);
 	}
 
 	auto detail_for_mapping(const computed_file_diff& aDiff,
@@ -476,7 +486,7 @@ namespace bpr::core {
 	auto detail_for_line(const diff_semantic_index& aIndex, const source_line_ref aLine)
 		-> line_detail_input
 	{
-		return detail_for_mapping(aIndex, map_line(aIndex, aLine));
+		return detail_for_canonical_mapping(aIndex, map_line(aIndex, aLine));
 	}
 
 	auto detail_for_line(const computed_file_diff& aDiff, const source_line_ref aLine)
