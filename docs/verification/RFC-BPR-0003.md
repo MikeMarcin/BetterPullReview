@@ -747,9 +747,12 @@ The verified source cache was preserved, so the configure resolved SQLite
 - the tests-disabled Qt-enabled Release composition, which
   `application_composition_contract` builds fresh with `BUILD_TESTING=OFF` and
   `CMAKE_BUILD_TYPE=Release` and scans for forbidden bytes; it passes at HEAD;
-- one result this slice did not re-execute: the instrumented 100,000-epoch
-  SQLite stress binary, which exceeds its ordinary CTest timeout and is named
-  in BPR-0054's closeout list;
+- the instrumented 100,000-epoch SQLite catalog work, replayed at HEAD by
+  running `sqlite_epoch_catalog_behavior_contract` directly out of the
+  sanitizer tree rather than through CTest. It reports
+  `sqlite-epoch-catalog-behavior-tests:pass` in 45.82 seconds under
+  AddressSanitizer and UndefinedBehaviorSanitizer. Its uninstrumented run
+  passes inside the ordinary `dev` matrix in 37.77 seconds;
 - BPR-0059's owner-activated Cocoa/QMacStyle run, recorded at its own commit
   and not re-executed here. Its markers, raster hashes, host identity, and the
   exact limits of its attestation are in the probe-provenance section above;

@@ -43,8 +43,10 @@ documentation review; original-pack validation; workflow absence; and
   active by cache flags, a linked ASan runtime, and 42 interceptor symbols. The
   tests-disabled Qt-enabled Release composition is built fresh and scanned by
   `application_composition_contract`, which passes at HEAD. The instrumented
-  100,000-epoch SQLite stress binary was not re-executed and remains this
-  card's responsibility, which matters because BPR-0084 changed how SQLite
+  100,000-epoch SQLite catalog work has also been replayed at HEAD: running
+  `sqlite_epoch_catalog_behavior_contract` directly out of the sanitizer tree
+  reports `sqlite-epoch-catalog-behavior-tests:pass` in 45.82 seconds under
+  ASan/UBSan. That closes the concern raised by BPR-0084 changing how SQLite
   enters the build.
 - BPR-0059 is done. Its owner-activated Cocoa/QMacStyle run is bound to commit
   `63df236` and is not reproducible at HEAD; its invocation, source identity,
