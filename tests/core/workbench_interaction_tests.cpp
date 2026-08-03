@@ -523,10 +523,10 @@ namespace {
 
 		auto selections = std::vector<std::optional<change_group_id>>{ std::nullopt };
 		for (const auto& group : groups) {
-			selections.push_back(group.Id);
+			selections.emplace_back(group.Id);
 		}
 		// A retained selection the replaced comparison no longer contains.
-		selections.push_back(opaque<change_group_id>(200U));
+		selections.emplace_back(opaque<change_group_id>(200U));
 
 		for (const auto policy :
 			 { change_navigation_policy::stop, change_navigation_policy::wrap }) {
