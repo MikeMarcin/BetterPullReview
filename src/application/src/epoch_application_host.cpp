@@ -2,13 +2,16 @@
 #include "bpr/application/git_protocol_v2.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <deque>
+#include <expected>
 #include <functional>
 #include <limits>
 #include <mutex>
 #include <ranges>
+#include <stdexcept>
 #include <stop_token>
 #include <type_traits>
 #include <utility>
@@ -21,6 +24,15 @@ namespace bpr::application {
 		inline constexpr std::size_t maximum_pending_preparations = 100U;
 		inline constexpr std::size_t maximum_recovery_operations  = 1'000U;
 		inline constexpr std::size_t maximum_cache_actors         = 1'000U;
+
+		[[nodiscard]] auto validated_limits(const epoch_host_limits aLimits)
+			-> epoch_host_limits
+		{
+			if (!valid(aLimits)) {
+				throw std::invalid_argument{ "Invalid epoch host limits" };
+			}
+			return aLimits;
+		}
 
 		struct cache_actor_key
 		{
@@ -582,6 +594,14 @@ namespace bpr::application {
 			std::optional<git_prepared_revision>   Git;
 		};
 
+		struct blob_authority final
+		{
+			core::application_session_id ApplicationSession;
+			core::pull_request_authority Authority;
+
+			auto operator<=>(const blob_authority&) const = default;
+		};
+
 		// One cache-scoped storage actor is retained across revision and pull
 		// request context replacement. Its FIFO serializes catalog/cache effects
 		// that share the lifetime-exclusive cache session, while each context
@@ -592,6 +612,9 @@ namespace bpr::application {
 			std::deque<std::function<void()>>  Queue;
 			bool                               Scheduled = false;
 			std::unique_ptr<git_cache_session> Cache;
+			std::mutex                         BlobAuthorityMutex;
+			std::optional<blob_authority>      BlobAuthority;
+			std::uint64_t                      BlobAuthorityGeneration = 0U;
 		};
 
 		struct blob_waiter final
@@ -616,6 +639,13 @@ namespace bpr::application {
 				, Actor{ std::move(aActor) }
 			{
 				Preparations.reserve(maximum_pending_preparations);
+			}
+
+			~authority_context()
+			{
+				if (Handoff.SmartGit && !Handoff.SmartGit->revoked()) {
+					Handoff.SmartGit->revoke();
+				}
 			}
 
 			[[nodiscard]] auto store(prepared_operation aOperation) -> bool
@@ -648,21 +678,24 @@ namespace bpr::application {
 				return result;
 			}
 
+			[[nodiscard]] auto requires_cache_cleanup(
+				const std::optional<core::epoch_operation_id> aExpected = std::nullopt)
+				const noexcept -> bool
+			{
+				return std::ranges::any_of(
+					Preparations,
+					[&](const auto& aOperation) {
+						return aOperation.Kind == prepared_kind::append
+							&& (!aExpected || aOperation.Operation == *aExpected);
+					});
+			}
+
 			accepted_pull_request_handoff           Handoff;
 			core::pull_request_authority            Authority;
 			core::accepted_pull_request_revision    Revision;
 			std::unique_ptr<epoch_catalog_session>  Catalog;
 			std::shared_ptr<authority_effect_actor> Actor;
 			std::vector<prepared_operation>         Preparations;
-		};
-
-		struct job_control final
-		{
-			std::stop_source                           Stop;
-			std::optional<core::epoch_request_id>      Request;
-			std::optional<core::epoch_generation>      EpochGeneration;
-			std::optional<core::comparison_generation> ComparisonGeneration;
-			std::optional<std::uint64_t>               OfferToken;
 		};
 
 		struct completion_gate final
@@ -672,38 +705,48 @@ namespace bpr::application {
 			std::atomic_bool             DeliveryFailed = false;
 		};
 
+		struct job_control final
+		{
+			std::stop_source                           Stop;
+			std::optional<core::epoch_request_id>      Request;
+			std::optional<core::epoch_generation>      EpochGeneration;
+			std::optional<core::comparison_generation> ComparisonGeneration;
+			std::optional<std::uint64_t>               OfferToken;
+			bool                                       MandatoryCleanup   = false;
+			bool                                       CancellationIssued = false;
+			std::function<void(implementation&)>       Completion;
+			std::function<void()>                      DecisionTask;
+		};
+
+		struct pending_context_cleanup final
+		{
+			std::shared_ptr<authority_context> Context;
+			std::shared_ptr<job_control>       Control;
+		};
+
 		struct deferred_accept final
 		{
 			std::shared_ptr<accepted_pull_request_handoff> Handoff;
-		};
-		struct deferred_invalidate final
-		{
-			pull_request_authority_invalidation Invalidation;
 		};
 		struct deferred_dispatch final
 		{
 			epoch_intent Intent;
 		};
-		struct deferred_shutdown final
-		{
-		};
-		using deferred_ingress = std::variant<
-			deferred_accept,
-			deferred_invalidate,
-			deferred_dispatch,
-			deferred_shutdown>;
+		using deferred_ingress  = std::variant<deferred_accept, deferred_dispatch>;
 		using worker_completion = std::function<void(implementation&)>;
 		using worker_task       = std::function<worker_completion(std::stop_token)>;
+		using admission_failure = std::function<void(implementation&, core::epoch_failure)>;
 
 		implementation(
-			core::epoch_state      aInitialState,
-			git_cache_port&        aCaches,
-			epoch_catalog_port&    aCatalogs,
-			epoch_entropy_port&    aEntropy,
-			epoch_clock_port&      aClock,
-			effect_executor&       aEffects,
-			decision_executor&     aDecisionLane,
-			epoch_projection_port& aProjections)
+			core::epoch_state       aInitialState,
+			git_cache_port&         aCaches,
+			epoch_catalog_port&     aCatalogs,
+			epoch_entropy_port&     aEntropy,
+			epoch_clock_port&       aClock,
+			effect_executor&        aEffects,
+			decision_executor&      aDecisionLane,
+			epoch_projection_port&  aProjections,
+			const epoch_host_limits aLimits)
 			: State{ std::move(aInitialState) }
 			, Caches{ aCaches }
 			, Catalogs{ aCatalogs }
@@ -712,8 +755,10 @@ namespace bpr::application {
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
 			, Projections{ aProjections }
+			, Limits{ validated_limits(aLimits) }
 			, CompletionGate{ std::make_shared<completion_gate>() }
 		{
+			Jobs.reserve(Limits.OutstandingJobs);
 			CompletionGate->Host.store(this, std::memory_order_release);
 		}
 
@@ -723,6 +768,175 @@ namespace bpr::application {
 			CompletionGate->Host.store(nullptr, std::memory_order_release);
 		}
 
+		[[nodiscard]] static auto blob_authority_for(
+			const authority_context& aContext) noexcept -> blob_authority
+		{
+			return {
+				.ApplicationSession = aContext.Handoff.ApplicationSession,
+				.Authority          = aContext.Authority,
+			};
+		}
+
+		[[nodiscard]] static auto blob_authority_for(
+			const diff_blob_request& aRequest) noexcept -> blob_authority
+		{
+			return {
+				.ApplicationSession = aRequest.Context.ApplicationSession,
+				.Authority          = aRequest.Context.Key.Authority,
+			};
+		}
+
+		static void authorize_blobs(
+			const std::shared_ptr<authority_effect_actor>& aActor,
+			const blob_authority&                          aAuthority) noexcept
+		{
+			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+			++aActor->BlobAuthorityGeneration;
+			aActor->BlobAuthority = aAuthority;
+		}
+
+		static void revoke_blob_authority(
+			const std::shared_ptr<authority_effect_actor>& aActor,
+			const blob_authority&                          aAuthority) noexcept
+		{
+			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+			if (aActor->BlobAuthority == std::optional{ aAuthority }) {
+				aActor->BlobAuthority.reset();
+				++aActor->BlobAuthorityGeneration;
+			}
+		}
+
+		[[nodiscard]] static auto blob_authorization_generation(
+			const std::shared_ptr<authority_effect_actor>& aActor,
+			const blob_authority&                          aAuthority) noexcept
+			-> std::optional<std::uint64_t>
+		{
+			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+			if (aActor->BlobAuthority != std::optional{ aAuthority }) {
+				return std::nullopt;
+			}
+			return aActor->BlobAuthorityGeneration;
+		}
+
+		static void revoke_deferred(deferred_ingress& aIngress) noexcept
+		{
+			if (auto* const accepted = std::get_if<deferred_accept>(&aIngress);
+				accepted != nullptr && accepted->Handoff
+				&& accepted->Handoff->SmartGit) {
+				accepted->Handoff->SmartGit->revoke();
+			}
+		}
+
+		void clear_deferred_ingress() noexcept
+		{
+			for (auto& ingress : DeferredIngress) {
+				revoke_deferred(ingress);
+			}
+			DeferredIngress.clear();
+		}
+
+		void defer_diagnostic(const core::epoch_reason_code aReason) noexcept
+		{
+			if (!DeferredDiagnostic) {
+				DeferredDiagnostic = aReason;
+			}
+		}
+
+		[[nodiscard]] auto defer_ordinary(deferred_ingress aIngress) noexcept
+			-> bool
+		{
+			if (DeferredShutdown || Closing) {
+				revoke_deferred(aIngress);
+				return false;
+			}
+			if (DeferredIngress.size() >= Limits.DeferredIngress) {
+				revoke_deferred(aIngress);
+				defer_diagnostic(core::epoch_reason_code::quota_exceeded);
+				schedule_deferred_ingress();
+				return false;
+			}
+			try {
+				DeferredIngress.push_back(std::move(aIngress));
+			} catch (...) {
+				revoke_deferred(aIngress);
+				defer_diagnostic(core::epoch_reason_code::unavailable);
+				schedule_deferred_ingress();
+				return false;
+			}
+			schedule_deferred_ingress();
+			return true;
+		}
+
+		[[nodiscard]] auto defer_invalidation(
+			const pull_request_authority_invalidation& aInvalidation) noexcept -> bool
+		{
+			if (DeferredShutdown || Closing) {
+				return true;
+			}
+			for (auto ingress = DeferredIngress.begin();
+				 ingress != DeferredIngress.end();) {
+				auto* const accepted = std::get_if<deferred_accept>(&*ingress);
+				if (accepted == nullptr || !accepted->Handoff
+					|| invalidation_identity(*accepted->Handoff) != aInvalidation) {
+					++ingress;
+					continue;
+				}
+				revoke_deferred(*ingress);
+				ingress = DeferredIngress.erase(ingress);
+			}
+
+			const auto activeMatches = Active
+				&& invalidation_identity(Active->Handoff) == aInvalidation;
+			const auto pendingMatches = PendingAuthority == aInvalidation;
+			if (!activeMatches && !pendingMatches) {
+				return true;
+			}
+			if (std::ranges::any_of(
+					DeferredInvalidations,
+					[&aInvalidation](const auto& aPending) {
+						return aPending == aInvalidation;
+					})) {
+				return true;
+			}
+			const auto empty = std::ranges::find(
+				DeferredInvalidations,
+				std::optional<pull_request_authority_invalidation>{ });
+			if (empty == DeferredInvalidations.end()) {
+				ProjectionDeliveryFailed = true;
+				return false;
+			}
+			*empty = aInvalidation;
+			schedule_deferred_ingress();
+			return true;
+		}
+
+		[[nodiscard]] auto deferred_invalidations_empty() const noexcept -> bool
+		{
+			return std::ranges::none_of(
+				DeferredInvalidations,
+				[](const auto& aPending) { return aPending.has_value(); });
+		}
+
+		[[nodiscard]] auto deferred_work_pending() const noexcept -> bool
+		{
+			return DeferredIngressScheduled || !DeferredIngress.empty()
+				|| !deferred_invalidations_empty() || DeferredDiagnostic
+				|| DeferredShutdown;
+		}
+
+		void clear_deferred_invalidations() noexcept
+		{
+			for (auto& invalidation : DeferredInvalidations) {
+				invalidation.reset();
+			}
+		}
+
+		void defer_shutdown() noexcept
+		{
+			DeferredShutdown = true;
+			schedule_deferred_ingress();
+		}
+
 		template <typename Action>
 		void run_turn(Action&& aAction)
 		{
@@ -730,7 +944,17 @@ namespace bpr::application {
 			try {
 				std::forward<Action>(aAction)();
 				const auto count = DeferredIngress.size();
-				for (std::size_t index = 0U; index < count; ++index) {
+				for (auto& pending : DeferredInvalidations) {
+					if (DeferredShutdown || !pending) {
+						continue;
+					}
+					const auto invalidation = std::exchange(pending, std::nullopt);
+					invalidate_now(*invalidation);
+				}
+				for (
+					std::size_t index = 0U;
+					index < count && !DeferredShutdown;
+					++index) {
 					auto ingress = std::move(DeferredIngress.front());
 					DeferredIngress.pop_front();
 					std::visit(
@@ -739,22 +963,27 @@ namespace bpr::application {
 							if constexpr (
 								std::is_same_v<value_type, deferred_accept>) {
 								accept_now(std::move(*aValue.Handoff));
-							} else if constexpr (
-								std::is_same_v<value_type, deferred_invalidate>) {
-								invalidate_now(aValue.Invalidation);
-							} else if constexpr (
-								std::is_same_v<value_type, deferred_dispatch>) {
-								dispatch_now(aValue.Intent);
 							} else {
-								shutdown_now();
+								dispatch_now(aValue.Intent);
 							}
 						},
 						std::move(ingress));
 				}
+				if (DeferredShutdown) {
+					DeferredShutdown = false;
+					clear_deferred_invalidations();
+					clear_deferred_ingress();
+					shutdown_now();
+				}
+				if (DeferredDiagnostic) {
+					const auto reason = std::exchange(DeferredDiagnostic, std::nullopt);
+					publish_diagnostic(*reason);
+				}
 				TurnActive = false;
 				schedule_deferred_ingress();
 			} catch (...) {
-				DeferredIngress.clear();
+				clear_deferred_ingress();
+				DeferredDiagnostic.reset();
 				TurnActive = false;
 				throw;
 			}
@@ -762,7 +991,10 @@ namespace bpr::application {
 
 		void schedule_deferred_ingress() noexcept
 		{
-			if (DeferredIngress.empty() || DeferredIngressScheduled) {
+			if (
+				(DeferredIngress.empty() && !DeferredShutdown
+				 && !DeferredDiagnostic && deferred_invalidations_empty())
+				|| DeferredIngressScheduled) {
 				return;
 			}
 			DeferredIngressScheduled = true;
@@ -784,7 +1016,6 @@ namespace bpr::application {
 					});
 			} catch (...) {
 				DeferredIngressScheduled = false;
-				DeferredIngress.clear();
 				ProjectionDeliveryFailed = true;
 			}
 		}
@@ -795,26 +1026,16 @@ namespace bpr::application {
 			std::shared_ptr<job_control>          aControl,
 			worker_completion                     aCompletion) noexcept
 		{
+			aControl->Completion = std::move(aCompletion);
+			auto task            = std::move(aControl->DecisionTask);
+			if (!task) {
+				if (const auto locked = aGate.lock()) {
+					locked->DeliveryFailed.store(true, std::memory_order_release);
+				}
+				return;
+			}
 			try {
-				aDecisionLane->post(
-					[aGate,
-					 control    = std::move(aControl),
-					 completion = std::move(aCompletion)]() mutable {
-						const auto locked = aGate.lock();
-						if (!locked) {
-							return;
-						}
-						const std::lock_guard barrier{ locked->Barrier };
-						auto* const           host = locked->Host.load(std::memory_order_acquire);
-						if (host == nullptr) {
-							return;
-						}
-						host->run_turn(
-							[host, &control, &completion] {
-								host->finish_job(control);
-								completion(*host);
-							});
-					});
+				aDecisionLane->post(std::move(task));
 			} catch (...) {
 				const auto locked = aGate.lock();
 				if (!locked) {
@@ -855,46 +1076,45 @@ namespace bpr::application {
 			const std::shared_ptr<authority_effect_actor>& aActor,
 			std::function<void()>                          aWork)
 		{
-			bool schedule = false;
-			{
-				std::scoped_lock lock{ aActor->QueueMutex };
-				aActor->Queue.push_back(std::move(aWork));
-				if (!aActor->Scheduled) {
-					aActor->Scheduled = true;
-					schedule          = true;
-				}
-			}
-			if (!schedule) {
+			std::scoped_lock lock{ aActor->QueueMutex };
+			aActor->Queue.push_back(std::move(aWork));
+			if (aActor->Scheduled) {
 				return;
 			}
+			aActor->Scheduled = true;
 			try {
 				Effects.post([aActor] {
 					drain_actor(aActor);
 				});
 			} catch (...) {
-				std::scoped_lock lock{ aActor->QueueMutex };
 				aActor->Scheduled = false;
-				aActor->Queue.clear();
+				aActor->Queue.pop_back();
 				throw;
 			}
 		}
 
-		auto submit_effect(
+		auto submit_erased_effect(
 			worker_task                                 aTask,
 			worker_completion                           aExceptionCompletion,
+			admission_failure                           aAdmissionFailure,
 			const std::optional<core::epoch_request_id> aRequest         = std::nullopt,
 			const std::optional<core::epoch_generation> aEpochGeneration = std::nullopt,
 			const std::optional<core::comparison_generation>
 													aComparisonGeneration = std::nullopt,
 			const std::optional<std::uint64_t>      aOfferToken           = std::nullopt,
-			std::shared_ptr<authority_effect_actor> aActor                = { }) -> bool
+			std::shared_ptr<authority_effect_actor> aActor                = { },
+			std::shared_ptr<job_control>            aAdmittedControl      = { }) -> bool
 		{
-			auto control                  = std::make_shared<job_control>();
-			control->Request              = aRequest;
-			control->EpochGeneration      = aEpochGeneration;
-			control->ComparisonGeneration = aComparisonGeneration;
-			control->OfferToken           = aOfferToken;
-			Jobs.push_back(control);
+			auto control = std::move(aAdmittedControl);
+			if (!control) {
+				auto admitted = admit_job(
+					aRequest, aEpochGeneration, aComparisonGeneration, aOfferToken);
+				if (!admitted) {
+					reject_admission(aAdmissionFailure, admitted.error());
+					return false;
+				}
+				control = std::move(*admitted);
+			}
 			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
 			auto* const decisionLane = &DecisionLane;
 			try {
@@ -929,42 +1149,245 @@ namespace bpr::application {
 				return true;
 			} catch (...) {
 				finish_job(control);
-				if (aExceptionCompletion) {
-					aExceptionCompletion(*this);
-				} else {
-					publish_diagnostic(core::epoch_reason_code::unavailable);
+				reject_admission(
+					aAdmissionFailure, core::epoch_failure::unavailable);
+				return false;
+			}
+		}
+
+		template <typename Task, typename ExceptionCompletion, typename AdmissionFailure>
+		auto submit_effect(
+			Task&&                                      aTask,
+			ExceptionCompletion&&                       aExceptionCompletion,
+			AdmissionFailure&&                          aAdmissionFailure,
+			const std::optional<core::epoch_request_id> aRequest         = std::nullopt,
+			const std::optional<core::epoch_generation> aEpochGeneration = std::nullopt,
+			const std::optional<core::comparison_generation>
+													aComparisonGeneration = std::nullopt,
+			const std::optional<std::uint64_t>      aOfferToken           = std::nullopt,
+			std::shared_ptr<authority_effect_actor> aActor                = { },
+			std::shared_ptr<job_control>            aAdmittedControl      = { }) -> bool
+		{
+			try {
+				auto admission = admission_failure{ aAdmissionFailure };
+				auto task      = worker_task{ std::forward<Task>(aTask) };
+				auto exception = worker_completion{
+					std::forward<ExceptionCompletion>(aExceptionCompletion)
+				};
+				return submit_erased_effect(
+					std::move(task),
+					std::move(exception),
+					std::move(admission),
+					aRequest,
+					aEpochGeneration,
+					aComparisonGeneration,
+					aOfferToken,
+					std::move(aActor),
+					std::move(aAdmittedControl));
+			} catch (...) {
+				if (aAdmittedControl) {
+					finish_job(aAdmittedControl);
+				}
+				try {
+					std::forward<AdmissionFailure>(aAdmissionFailure)(
+						*this, core::epoch_failure::unavailable);
+				} catch (...) {
+					ProjectionDeliveryFailed = true;
 				}
 				return false;
 			}
 		}
 
+		[[nodiscard]] auto admit_job(
+			const std::optional<core::epoch_request_id>      aRequest,
+			const std::optional<core::epoch_generation>      aEpochGeneration,
+			const std::optional<core::comparison_generation> aComparisonGeneration,
+			const std::optional<std::uint64_t>               aOfferToken,
+			const bool                                       aUseTerminalReservation = true,
+			const bool                                       aMandatoryCleanup       = false) noexcept
+			-> std::expected<std::shared_ptr<job_control>, core::epoch_failure>
+		{
+			try {
+				std::scoped_lock lock{ JobsMutex };
+				if (!aUseTerminalReservation
+					&& BlobIngressClosing.load(std::memory_order_acquire)) {
+					return std::unexpected{ core::epoch_failure::unavailable };
+				}
+				const auto usesReservation = aUseTerminalReservation && ReservedTerminalAdmissions != 0U;
+				if (!usesReservation
+					&& Jobs.size() + ReservedTerminalAdmissions + RetiringActorJobs
+						>= Limits.OutstandingJobs) {
+					return std::unexpected{ core::epoch_failure::quota_exceeded };
+				}
+				auto control                  = std::make_shared<job_control>();
+				control->Request              = aRequest;
+				control->EpochGeneration      = aEpochGeneration;
+				control->ComparisonGeneration = aComparisonGeneration;
+				control->OfferToken           = aOfferToken;
+				control->MandatoryCleanup     = aMandatoryCleanup;
+				control->DecisionTask         = [gate        = std::weak_ptr<completion_gate>{ CompletionGate },
+												 weakControl = std::weak_ptr<job_control>{ control }]() mutable {
+					const auto locked  = gate.lock();
+					auto       control = weakControl.lock();
+					if (!locked || !control) {
+						return;
+					}
+					const std::lock_guard barrier{ locked->Barrier };
+					auto* const           host = locked->Host.load(std::memory_order_acquire);
+					if (host == nullptr) {
+						return;
+					}
+					auto completion = std::move(control->Completion);
+					host->run_turn(
+						[host,
+						 control    = std::move(control),
+						 completion = std::move(completion)]() mutable {
+							const auto reserved = host->retire_job_for_terminal(control);
+							struct reservation_guard final
+							{
+								implementation& Host;
+								bool            Reserved;
+
+								~reservation_guard()
+								{
+									Host.release_terminal_reservation(Reserved);
+								}
+							} reservation{ *host, reserved };
+							completion(*host);
+						});
+				};
+				Jobs.push_back(control);
+				if (usesReservation) {
+					--ReservedTerminalAdmissions;
+				}
+				return control;
+			} catch (...) {
+				return std::unexpected{ core::epoch_failure::unavailable };
+			}
+		}
+
+		void reject_admission(
+			const admission_failure&  aFailure,
+			const core::epoch_failure aReason) noexcept
+		{
+			try {
+				if (aFailure) {
+					aFailure(*this, aReason);
+				} else {
+					publish_diagnostic(core::reason_for(aReason));
+				}
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
+			}
+		}
+
 		void finish_job(const std::shared_ptr<job_control>& aControl) noexcept
 		{
-			const auto match = std::ranges::find(Jobs, aControl);
+			std::scoped_lock lock{ JobsMutex };
+			const auto       match = std::ranges::find(Jobs, aControl);
 			if (match != Jobs.end()) {
 				Jobs.erase(match);
 			}
 		}
 
+		void release_pending_cleanup(
+			const std::shared_ptr<pending_context_cleanup>& aCleanup) noexcept
+		{
+			if (!aCleanup || !aCleanup->Control) {
+				return;
+			}
+			finish_job(aCleanup->Control);
+			aCleanup->Control.reset();
+			aCleanup->Context.reset();
+		}
+
+		[[nodiscard]] auto retire_job_for_terminal(
+			const std::shared_ptr<job_control>& aControl) noexcept -> bool
+		{
+			std::scoped_lock lock{ JobsMutex };
+			const auto       match = std::ranges::find(Jobs, aControl);
+			if (match == Jobs.end()) {
+				return false;
+			}
+			Jobs.erase(match);
+			++ReservedTerminalAdmissions;
+			return true;
+		}
+
+		void release_terminal_reservation(const bool aReserved) noexcept
+		{
+			if (!aReserved) {
+				return;
+			}
+			std::scoped_lock lock{ JobsMutex };
+			if (ReservedTerminalAdmissions != 0U) {
+				--ReservedTerminalAdmissions;
+			}
+		}
+
+		[[nodiscard]] auto retire_actor_job(
+			const std::shared_ptr<job_control>& aControl) noexcept -> bool
+		{
+			std::scoped_lock lock{ JobsMutex };
+			const auto       match = std::ranges::find(Jobs, aControl);
+			if (match == Jobs.end()) {
+				return false;
+			}
+			Jobs.erase(match);
+			++RetiringActorJobs;
+			return true;
+		}
+
+		void release_actor_job_reservation(const bool aReserved) noexcept
+		{
+			if (!aReserved) {
+				return;
+			}
+			std::scoped_lock lock{ JobsMutex };
+			if (RetiringActorJobs != 0U) {
+				--RetiringActorJobs;
+			}
+		}
+
+		template <typename Predicate>
+		void cancel_jobs(Predicate&& aPredicate) noexcept
+		{
+			auto snapshot = std::array<
+				std::shared_ptr<job_control>,
+				maximum_epoch_outstanding_jobs>{ };
+			auto count = std::size_t{ 0U };
+			{
+				std::scoped_lock lock{ JobsMutex };
+				for (const auto& job : Jobs) {
+					if (!job->CancellationIssued && aPredicate(*job)) {
+						job->CancellationIssued = true;
+						snapshot[count++]       = job;
+					}
+				}
+			}
+			for (auto index = std::size_t{ 0U }; index < count; ++index) {
+				static_cast<void>(snapshot[index]->Stop.request_stop());
+			}
+		}
+
 		void cancel_all_jobs() noexcept
 		{
-			for (const auto& job : Jobs) {
-				static_cast<void>(job->Stop.request_stop());
-			}
+			cancel_jobs([](const job_control&) {
+				return true;
+			});
+		}
+
+		void close_blob_ingress_and_cancel_jobs() noexcept
+		{
+			BlobIngressClosing.store(true, std::memory_order_release);
+			cancel_all_jobs();
 		}
 
 		[[nodiscard]] auto actors_idle() const noexcept -> bool
 		{
-			auto actors = std::vector<std::shared_ptr<authority_effect_actor>>{ };
-			{
-				std::scoped_lock lock{ CacheActorsMutex };
-				actors.reserve(CacheActors.size());
-				for (const auto& [key, actor] : CacheActors) {
-					static_cast<void>(key);
-					actors.push_back(actor);
-				}
-			}
-			for (const auto& actor : actors) {
+			std::scoped_lock actorsLock{ CacheActorsMutex };
+			for (const auto& [key, actor] : CacheActors) {
+				static_cast<void>(key);
 				std::scoped_lock lock{ actor->QueueMutex };
 				if (actor->Scheduled || !actor->Queue.empty()) {
 					return false;
@@ -975,44 +1398,80 @@ namespace bpr::application {
 
 		void cancel_authority_jobs() noexcept
 		{
-			for (const auto& job : Jobs) {
-				if (!job->OfferToken) {
-					static_cast<void>(job->Stop.request_stop());
-				}
-			}
+			cancel_jobs([](const job_control& aJob) {
+				return !aJob.OfferToken && !aJob.MandatoryCleanup;
+			});
 		}
 
 		void cancel_offer_job(const std::uint64_t aToken) noexcept
 		{
-			for (const auto& job : Jobs) {
-				if (job->OfferToken == aToken) {
-					static_cast<void>(job->Stop.request_stop());
-				}
-			}
+			cancel_jobs([aToken](const job_control& aJob) {
+				return aJob.OfferToken == aToken;
+			});
 		}
 
 		void cancel_work(const core::cancel_epoch_work_request& aRequest) noexcept
 		{
-			for (const auto& job : Jobs) {
-				if (job->Request != aRequest.Request) {
-					continue;
+			cancel_jobs([&](const job_control& aJob) {
+				if (aJob.Request != aRequest.Request) {
+					return false;
 				}
 				const bool generationMatches = std::visit(
-					[&job](const auto aGeneration) {
+					[&aJob](const auto aGeneration) {
 						using generation_type = std::remove_cvref_t<decltype(aGeneration)>;
 						if constexpr (std::is_same_v<
 										  generation_type,
 										  core::epoch_generation>) {
-							return job->EpochGeneration == aGeneration;
+							return aJob.EpochGeneration == aGeneration;
 						} else {
-							return job->ComparisonGeneration == aGeneration;
+							return aJob.ComparisonGeneration == aGeneration;
 						}
 					},
 					aRequest.Generation);
-				if (generationMatches) {
-					static_cast<void>(job->Stop.request_stop());
-				}
+				return generationMatches;
+			});
+		}
+
+		[[nodiscard]] auto job_count() const noexcept -> std::size_t
+		{
+			std::scoped_lock lock{ JobsMutex };
+			return Jobs.size() + ReservedTerminalAdmissions + RetiringActorJobs;
+		}
+
+		[[nodiscard]] auto begin_blob_call() noexcept -> bool
+		{
+			std::scoped_lock lock{ JobsMutex };
+			if (BlobIngressClosing.load(std::memory_order_acquire)) {
+				return false;
 			}
+			++InFlightBlobCalls;
+			return true;
+		}
+
+		void finish_blob_call() noexcept
+		{
+			std::scoped_lock lock{ JobsMutex };
+			if (InFlightBlobCalls != 0U) {
+				--InFlightBlobCalls;
+			}
+		}
+
+		[[nodiscard]] auto blob_calls_idle() const noexcept -> bool
+		{
+			std::scoped_lock lock{ JobsMutex };
+			return InFlightBlobCalls == 0U;
+		}
+
+		[[nodiscard]] auto queued_actor_work() const noexcept -> std::size_t
+		{
+			std::scoped_lock actorsLock{ CacheActorsMutex };
+			auto             total = std::size_t{ 0U };
+			for (const auto& [key, actor] : CacheActors) {
+				static_cast<void>(key);
+				std::scoped_lock queueLock{ actor->QueueMutex };
+				total += actor->Queue.size();
+			}
+			return total;
 		}
 
 		[[nodiscard]] static auto advance_append(
@@ -1923,13 +2382,26 @@ namespace bpr::application {
 			return true;
 		}
 
-		void discard_context_preparation(
+		[[nodiscard]] auto discard_context_preparation(
 			std::shared_ptr<authority_context>            aContext,
-			const std::optional<core::epoch_operation_id> aExpected = std::nullopt)
+			const std::optional<core::epoch_operation_id> aExpected        = std::nullopt,
+			std::shared_ptr<job_control>                  aAdmittedControl = { })
+			-> bool
 		{
+			if (!aContext->requires_cache_cleanup(aExpected)) {
+				if (aExpected) {
+					static_cast<void>(aContext->take(*aExpected));
+				} else {
+					aContext->Preparations.clear();
+				}
+				if (aAdmittedControl) {
+					finish_job(aAdmittedControl);
+				}
+				return true;
+			}
 			auto        actor  = aContext->Actor;
 			auto* const caches = &Caches;
-			submit_effect(
+			return submit_effect(
 				[context = std::move(aContext), aExpected, caches](
 					const std::stop_token aStop)
 					-> worker_completion {
@@ -1979,21 +2451,29 @@ namespace bpr::application {
 					aHost.publish_diagnostic(
 						core::epoch_reason_code::unavailable);
 				},
+				[](implementation& aHost, const core::epoch_failure aFailure) {
+					aHost.publish_diagnostic(core::reason_for(aFailure));
+				},
 				std::nullopt,
 				std::nullopt,
 				std::nullopt,
 				std::nullopt,
-				std::move(actor));
+				std::move(actor),
+				std::move(aAdmittedControl));
 		}
 
 		void publish_diagnostic(const core::epoch_reason_code aReason) noexcept
 		{
-			auto update       = epoch_presentation_update{ };
-			update.Transition = epoch_transition_projection{
-				.Changed     = core::epoch_changed_domain::diagnostics,
-				.Diagnostics = { core::epoch_diagnostic{ .Code = aReason } },
-			};
-			publish(update);
+			try {
+				auto update       = epoch_presentation_update{ };
+				update.Transition = epoch_transition_projection{
+					.Changed     = core::epoch_changed_domain::diagnostics,
+					.Diagnostics = { core::epoch_diagnostic{ .Code = aReason } },
+				};
+				publish(update);
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
+			}
 		}
 
 		void publish(const epoch_presentation_update& aUpdate) noexcept
@@ -2194,12 +2674,23 @@ namespace bpr::application {
 				.Blob    = aRequest.Blob,
 				.Status  = diff_blob_status::failure,
 			};
+			if (!begin_blob_call()) {
+				return result;
+			}
+			struct blob_call_guard final
+			{
+				implementation& Host;
+
+				~blob_call_guard()
+				{
+					Host.finish_blob_call();
+				}
+			} call{ *this };
 			const auto key = actor_key(aRequest);
 			if (
 				!key.has_value()
 				|| aRequest.MaximumBytes
-					> maximum_git_cache_blob_materialization_bytes
-				|| BlobIngressClosing.load(std::memory_order_acquire)) {
+					> maximum_git_cache_blob_materialization_bytes) {
 				return result;
 			}
 
@@ -2215,8 +2706,29 @@ namespace bpr::application {
 			if (!actor) {
 				return result;
 			}
+			const auto authorization           = blob_authority_for(aRequest);
+			const auto authorizationGeneration = blob_authorization_generation(
+				actor, authorization);
+			if (!authorizationGeneration) {
+				return result;
+			}
+			auto waiter = std::shared_ptr<blob_waiter>{ };
+			try {
+				waiter = std::make_shared<blob_waiter>();
+			} catch (...) {
+				return result;
+			}
+			auto admitted = admit_job(
+				std::nullopt,
+				std::nullopt,
+				std::nullopt,
+				std::nullopt,
+				false);
+			if (!admitted) {
+				return result;
+			}
+			auto control = std::move(*admitted);
 
-			auto       waiter   = std::make_shared<blob_waiter>();
 			const auto expected = git_cache_open_request{
 				.ApplicationSession = aRequest.Context.ApplicationSession,
 				.Authority          = aRequest.Context.Key.Authority,
@@ -2225,44 +2737,98 @@ namespace bpr::application {
 			try {
 				enqueue_actor_work(
 					actor,
-					[this, actor, expected, aRequest, aStop, waiter] {
+					[this,
+					 actor,
+					 authorization,
+					 authorizationGeneration = *authorizationGeneration,
+					 expected,
+					 aRequest,
+					 aStop,
+					 waiter,
+					 control] {
 						auto observation = diff_blob_observation{
 							.Context = aRequest.Context,
 							.Side    = aRequest.Side,
 							.Blob    = aRequest.Blob,
 							.Status  = diff_blob_status::failure,
 						};
-						if (
-							aStop.stop_requested()
-							|| BlobIngressClosing.load(std::memory_order_acquire)) {
-							observation.Status = diff_blob_status::cancelled;
-						} else if (
-							actor->Cache != nullptr
-							&& actor->Cache->request() == expected) {
-							auto bytes = actor->Cache->materialize_blob(
-								git_cache_blob_request{
-									.Blob         = aRequest.Blob,
-									.MaximumBytes = aRequest.MaximumBytes,
-								},
-								aStop);
-							if (bytes.has_value()) {
-								observation.Status = diff_blob_status::available;
-								observation.Bytes  = std::move(*bytes);
-							} else if (bytes.error() == git_cache_failure::cancelled) {
+						auto publicationAuthorityLock = std::unique_lock<std::mutex>{ };
+						try {
+							auto forwardCallerStop = std::stop_callback{
+								aStop,
+								[control] {
+									static_cast<void>(control->Stop.request_stop());
+								}
+							};
+							const auto workStop = control->Stop.get_token();
+							if (
+								workStop.stop_requested()
+								|| BlobIngressClosing.load(std::memory_order_acquire)) {
 								observation.Status = diff_blob_status::cancelled;
-							} else if (bytes.error() == git_cache_failure::quota_exceeded) {
-								observation.Status = diff_blob_status::materialization_limit;
-							} else if (bytes.error() == git_cache_failure::object_mismatch) {
-								observation.Status = diff_blob_status::missing;
+							} else if (
+								blob_authorization_generation(actor, authorization)
+								!= authorizationGeneration) {
+								observation.Status = diff_blob_status::failure;
+							} else if (
+								actor->Cache != nullptr
+								&& actor->Cache->request() == expected) {
+								auto bytes = actor->Cache->materialize_blob(
+									git_cache_blob_request{
+										.Blob         = aRequest.Blob,
+										.MaximumBytes = aRequest.MaximumBytes,
+									},
+									workStop);
+								if (bytes.has_value()) {
+									publicationAuthorityLock = std::unique_lock{
+										actor->BlobAuthorityMutex
+									};
+									if (
+										workStop.stop_requested()
+										|| BlobIngressClosing.load(
+											std::memory_order_acquire)) {
+										observation.Status = diff_blob_status::cancelled;
+									} else if (
+										actor->BlobAuthority
+											!= std::optional{ authorization }
+										|| actor->BlobAuthorityGeneration
+											!= authorizationGeneration) {
+										observation.Status = diff_blob_status::failure;
+									} else {
+										observation.Status = diff_blob_status::available;
+										observation.Bytes  = std::move(*bytes);
+									}
+								} else if (
+									bytes.error() == git_cache_failure::cancelled) {
+									observation.Status = diff_blob_status::cancelled;
+								} else if (
+									bytes.error() == git_cache_failure::quota_exceeded) {
+									observation.Status = diff_blob_status::materialization_limit;
+								} else if (
+									bytes.error() == git_cache_failure::object_mismatch) {
+									observation.Status = diff_blob_status::missing;
+								}
 							}
+						} catch (...) {
+							observation.Status = diff_blob_status::failure;
 						}
+						auto waiterLock     = std::unique_lock{ waiter->Mutex };
+						waiter->Result      = std::move(observation);
+						const auto reserved = retire_actor_job(control);
+						struct actor_exit_reservation final
 						{
-							std::scoped_lock lock{ waiter->Mutex };
-							waiter->Result = std::move(observation);
-						}
+							implementation& Host;
+							bool            Reserved;
+
+							~actor_exit_reservation()
+							{
+								Host.release_actor_job_reservation(Reserved);
+							}
+						} actorExit{ *this, reserved };
+						waiterLock.unlock();
 						waiter->Completed.notify_all();
 					});
 			} catch (...) {
+				finish_job(control);
 				return result;
 			}
 
@@ -2275,15 +2841,37 @@ namespace bpr::application {
 
 		void accept(accepted_pull_request_handoff aHandoff)
 		{
-			if (Closing || !application::valid(aHandoff)
+			if (!application::valid(aHandoff)
 				|| aHandoff.ApplicationSession != State.ApplicationSession) {
+				if (aHandoff.SmartGit) {
+					aHandoff.SmartGit->revoke();
+				}
 				return;
 			}
-			auto accepted = std::make_shared<accepted_pull_request_handoff>(
-				std::move(aHandoff));
-			if (TurnActive || DeferredIngressScheduled || !DeferredIngress.empty()) {
-				DeferredIngress.emplace_back(deferred_accept{ std::move(accepted) });
-				schedule_deferred_ingress();
+			if (Closing || DeferredShutdown) {
+				if (aHandoff.SmartGit) {
+					aHandoff.SmartGit->revoke();
+				}
+				return;
+			}
+			auto accepted = std::shared_ptr<accepted_pull_request_handoff>{ };
+			try {
+				accepted = std::make_shared<accepted_pull_request_handoff>(
+					std::move(aHandoff));
+			} catch (...) {
+				if (aHandoff.SmartGit) {
+					aHandoff.SmartGit->revoke();
+				}
+				if (TurnActive) {
+					defer_diagnostic(core::epoch_reason_code::unavailable);
+				} else {
+					publish_diagnostic(core::epoch_reason_code::unavailable);
+				}
+				return;
+			}
+			if (TurnActive || deferred_work_pending()) {
+				static_cast<void>(defer_ordinary(
+					deferred_accept{ std::move(accepted) }));
 				return;
 			}
 			run_turn([this, &accepted] {
@@ -2294,43 +2882,135 @@ namespace bpr::application {
 		void accept_now(accepted_pull_request_handoff aHandoff)
 		{
 			if (Closing) {
+				if (aHandoff.SmartGit) {
+					aHandoff.SmartGit->revoke();
+				}
 				return;
 			}
-			++OfferToken;
-			if (PendingOfferToken) {
-				cancel_offer_job(*PendingOfferToken);
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			try {
+				actor = actor_for(aHandoff);
+			} catch (...) {
+				if (aHandoff.SmartGit) {
+					aHandoff.SmartGit->revoke();
+				}
+				publish_diagnostic(core::epoch_reason_code::unavailable);
+				return;
 			}
-			auto actor = actor_for(aHandoff);
 			if (!actor) {
-				PendingAuthority.reset();
-				PendingOfferToken.reset();
 				if (aHandoff.SmartGit) {
 					aHandoff.SmartGit->revoke();
 				}
 				publish_diagnostic(core::epoch_reason_code::quota_exceeded);
 				return;
 			}
-			const bool preservesActiveAuthority = Active && agrees(Active->Authority, aHandoff);
-			if (Active) {
-				cancel_authority_jobs();
-			}
-			if (Active && !preservesActiveAuthority) {
-				auto retired = std::move(Active);
-				if (retired->Handoff.SmartGit) {
-					retired->Handoff.SmartGit->revoke();
+			const auto token   = OfferToken + 1U;
+			auto       offered = std::shared_ptr<accepted_pull_request_handoff>{ };
+			try {
+				offered = std::make_shared<accepted_pull_request_handoff>(
+					std::move(aHandoff));
+			} catch (...) {
+				if (aHandoff.SmartGit) {
+					aHandoff.SmartGit->revoke();
 				}
-				dispatch_core(core::pull_request_revision_invalidated_event{
-					.ApplicationSession = State.ApplicationSession,
-					.Authority          = retired->Authority,
-					.Revision           = retired->Revision,
-					.Generation         = State.EpochGeneration,
-				});
-				discard_context_preparation(std::move(retired));
+				publish_diagnostic(core::epoch_reason_code::unavailable);
+				return;
+			}
+			auto admitted = admit_job(
+				std::nullopt, std::nullopt, std::nullopt, token);
+			if (!admitted) {
+				if (offered->SmartGit) {
+					offered->SmartGit->revoke();
+				}
+				publish_diagnostic(core::reason_for(admitted.error()));
+				return;
+			}
+			auto control = std::move(*admitted);
+			auto cleanup = std::shared_ptr<pending_context_cleanup>{ };
+			if (Active && Active->requires_cache_cleanup()) {
+				try {
+					cleanup = std::make_shared<pending_context_cleanup>(
+						pending_context_cleanup{ .Context = Active });
+					auto cleanupAdmission = admit_job(
+						std::nullopt,
+						std::nullopt,
+						std::nullopt,
+						std::nullopt,
+						true,
+						true);
+					if (!cleanupAdmission) {
+						finish_job(control);
+						if (offered->SmartGit) {
+							offered->SmartGit->revoke();
+						}
+						publish_diagnostic(core::reason_for(cleanupAdmission.error()));
+						return;
+					}
+					cleanup->Control = std::move(*cleanupAdmission);
+				} catch (...) {
+					finish_job(control);
+					release_pending_cleanup(cleanup);
+					if (offered->SmartGit) {
+						offered->SmartGit->revoke();
+					}
+					publish_diagnostic(core::epoch_reason_code::unavailable);
+					return;
+				}
+			}
+			struct offer_admission_rollback final
+			{
+				implementation&                                Host;
+				std::shared_ptr<job_control>                   Control;
+				std::shared_ptr<accepted_pull_request_handoff> Offered;
+				std::shared_ptr<pending_context_cleanup>       Cleanup;
+				std::uint64_t                                  Token;
+				bool                                           Armed    = true;
+				bool                                           Diagnose = true;
+
+				~offer_admission_rollback()
+				{
+					if (!Armed) {
+						return;
+					}
+					Host.finish_job(Control);
+					Host.release_pending_cleanup(Cleanup);
+					if (Token == Host.OfferToken) {
+						Host.PendingAuthority.reset();
+						Host.PendingOfferToken.reset();
+					}
+					if (Offered->SmartGit) {
+						Offered->SmartGit->revoke();
+					}
+					if (Diagnose) {
+						Host.publish_diagnostic(core::epoch_reason_code::unavailable);
+					}
+				}
+
+				void dismiss() noexcept
+				{
+					Armed = false;
+				}
+			} rollback{ *this, control, offered, cleanup, token };
+			++OfferToken;
+			if (PendingOfferToken) {
+				cancel_offer_job(*PendingOfferToken);
+			}
+			const bool preservesActiveAuthority = Active && agrees(Active->Authority, *offered);
+			if (Active && !preservesActiveAuthority) {
+				if (cleanup
+					&& !discard_context_preparation(
+						cleanup->Context,
+						std::nullopt,
+						cleanup->Control)) {
+					rollback.Diagnose = false;
+					return;
+				}
+				if (cleanup) {
+					cleanup->Context.reset();
+					cleanup->Control.reset();
+				}
 			}
 
-			const auto token   = OfferToken;
-			auto       offered = std::make_shared<accepted_pull_request_handoff>(
-				std::move(aHandoff));
 			PendingAuthority     = invalidation_identity(*offered);
 			PendingOfferToken    = token;
 			auto* const catalogs = &Catalogs;
@@ -2346,23 +3026,30 @@ namespace bpr::application {
 				 catalogs,
 				 caches,
 				 entropy,
-				 token](
+				 token,
+				 cleanup](
 					const std::stop_token aStop) mutable -> worker_completion {
 					struct lease_guard final
 					{
-						std::shared_ptr<accepted_pull_request_handoff> Offered;
+						git_smart_authority Authority;
 
 						~lease_guard()
 						{
-							if (Offered && Offered->SmartGit) {
-								Offered->SmartGit->revoke();
+							if (Authority && !Authority->revoked()) {
+								Authority->revoke();
 							}
 						}
-					} lease{ offered };
-					const auto diagnostic = [token](
+
+						[[nodiscard]] auto release() noexcept -> git_smart_authority
+						{
+							return std::move(Authority);
+						}
+					} lease{ std::move(offered->SmartGit) };
+					const auto diagnostic = [token, cleanup](
 												const core::epoch_reason_code aReason)
 						-> worker_completion {
-						return [token, aReason](implementation& aHost) {
+						return [token, aReason, cleanup](implementation& aHost) {
+							aHost.release_pending_cleanup(cleanup);
 							if (token != aHost.OfferToken) {
 								return;
 							}
@@ -2372,7 +3059,9 @@ namespace bpr::application {
 						};
 					};
 					if (aStop.stop_requested()) {
-						return [](implementation&) { };
+						return [cleanup](implementation& aHost) {
+							aHost.release_pending_cleanup(cleanup);
+						};
 					}
 					auto opened = catalogs->open(
 						epoch_catalog_open_request{
@@ -2453,8 +3142,11 @@ namespace bpr::application {
 						revision,
 						std::move(*opened),
 						std::move(actor));
-					return [context = std::move(context), token](implementation& aHost) {
+					context->Handoff.SmartGit = lease.release();
+					return [context = std::move(context), token, cleanup](
+							   implementation& aHost) {
 						if (aHost.Closing || token != aHost.OfferToken) {
+							aHost.release_pending_cleanup(cleanup);
 							if (context->Handoff.SmartGit) {
 								context->Handoff.SmartGit->revoke();
 							}
@@ -2463,6 +3155,21 @@ namespace bpr::application {
 						aHost.PendingAuthority.reset();
 						aHost.PendingOfferToken.reset();
 						auto previous = aHost.Active;
+						if (cleanup && cleanup->Control) {
+							if (!aHost.discard_context_preparation(
+									cleanup->Context,
+									std::nullopt,
+									cleanup->Control)) {
+								cleanup->Control.reset();
+								cleanup->Context.reset();
+								if (context->Handoff.SmartGit) {
+									context->Handoff.SmartGit->revoke();
+								}
+								return;
+							}
+							cleanup->Control.reset();
+							cleanup->Context.reset();
+						}
 						aHost.Active  = context;
 						bool accepted = false;
 						static_cast<void>(aHost.dispatch_core(
@@ -2479,43 +3186,60 @@ namespace bpr::application {
 									&& *aHost.State.AcceptedRevision
 										== context->Revision;
 								if (accepted && previous) {
+									implementation::revoke_blob_authority(
+										previous->Actor,
+										implementation::blob_authority_for(*previous));
 									if (previous->Handoff.SmartGit) {
 										previous->Handoff.SmartGit->revoke();
 									}
-									aHost.discard_context_preparation(
-										std::move(previous));
 								}
 							}));
-						if (!accepted) {
-							const auto previousStillOwned = previous
-								&& aHost.State.Authority
-								&& aHost.State.AcceptedRevision
-								&& *aHost.State.Authority == previous->Authority
-								&& *aHost.State.AcceptedRevision
-									== previous->Revision;
-							if (previousStillOwned) {
-								aHost.Active = std::move(previous);
-								if (context->Handoff.SmartGit) {
-									context->Handoff.SmartGit->revoke();
-								}
-								return;
-							}
-							aHost.Active.reset();
-							if (context->Handoff.SmartGit) {
-								context->Handoff.SmartGit->revoke();
-							}
-							if (previous) {
-								if (previous->Handoff.SmartGit) {
-									previous->Handoff.SmartGit->revoke();
-								}
-								aHost.discard_context_preparation(
-									std::move(previous));
+						if (accepted) {
+							const auto invalidation = invalidation_identity(
+								context->Handoff);
+							const auto invalidationPending = std::ranges::any_of(
+								aHost.DeferredInvalidations,
+								[&](const auto& aPending) {
+									return aPending == std::optional{ invalidation };
+								});
+							if (
+								!aHost.Closing && !aHost.DeferredShutdown
+								&& !invalidationPending) {
+								implementation::authorize_blobs(
+									context->Actor,
+									implementation::blob_authority_for(*context));
 							}
 							return;
 						}
+						const auto previousStillOwned = previous
+							&& aHost.State.Authority
+							&& aHost.State.AcceptedRevision
+							&& *aHost.State.Authority == previous->Authority
+							&& *aHost.State.AcceptedRevision
+								== previous->Revision;
+						if (previousStillOwned) {
+							aHost.Active = std::move(previous);
+							if (context->Handoff.SmartGit) {
+								context->Handoff.SmartGit->revoke();
+							}
+							return;
+						}
+						aHost.Active.reset();
+						if (context->Handoff.SmartGit) {
+							context->Handoff.SmartGit->revoke();
+						}
+						if (previous) {
+							implementation::revoke_blob_authority(
+								previous->Actor,
+								implementation::blob_authority_for(*previous));
+							if (previous->Handoff.SmartGit) {
+								previous->Handoff.SmartGit->revoke();
+							}
+						}
 					};
 				},
-				[token](implementation& aHost) {
+				[token, cleanup](implementation& aHost) {
+					aHost.release_pending_cleanup(cleanup);
 					if (token == aHost.OfferToken) {
 						aHost.PendingAuthority.reset();
 						aHost.PendingOfferToken.reset();
@@ -2523,18 +3247,69 @@ namespace bpr::application {
 							core::epoch_reason_code::unavailable);
 					}
 				},
+				[token, cleanup](
+					implementation& aHost, const core::epoch_failure aFailure) {
+					aHost.release_pending_cleanup(cleanup);
+					if (token == aHost.OfferToken) {
+						aHost.PendingAuthority.reset();
+						aHost.PendingOfferToken.reset();
+						aHost.publish_diagnostic(core::reason_for(aFailure));
+					}
+				},
 				std::nullopt,
 				std::nullopt,
 				std::nullopt,
 				token,
-				std::move(actor));
-			if (!submitted && token == OfferToken) {
-				PendingAuthority.reset();
-				PendingOfferToken.reset();
-				if (offered->SmartGit) {
-					offered->SmartGit->revoke();
+				std::move(actor),
+				std::move(control));
+			rollback.dismiss();
+			if (!submitted) {
+				if (token == OfferToken) {
+					PendingAuthority.reset();
+					PendingOfferToken.reset();
+					if (offered->SmartGit) {
+						offered->SmartGit->revoke();
+					}
 				}
+				return;
 			}
+			if (Active) {
+				cancel_authority_jobs();
+			}
+			if (Active && !preservesActiveAuthority) {
+				auto retired = std::move(Active);
+				revoke_blob_authority(
+					retired->Actor, blob_authority_for(*retired));
+				if (retired->Handoff.SmartGit) {
+					retired->Handoff.SmartGit->revoke();
+				}
+				dispatch_core(core::pull_request_revision_invalidated_event{
+					.ApplicationSession = State.ApplicationSession,
+					.Authority          = retired->Authority,
+					.Revision           = retired->Revision,
+					.Generation         = State.EpochGeneration,
+				});
+			}
+		}
+
+		[[nodiscard]] auto active_matches(
+			const pull_request_authority_invalidation& aInvalidation) const noexcept
+			-> bool
+		{
+			return Active
+				&& aInvalidation.ApplicationSession
+				== Active->Handoff.ApplicationSession
+				&& aInvalidation.Profile == Active->Authority.Profile
+				&& aInvalidation.ProfileRevision
+				== Active->Authority.ProfileRevision
+				&& aInvalidation.Host == Active->Authority.Host
+				&& aInvalidation.HostAuthority == Active->Authority.HostAuthority
+				&& aInvalidation.Account == Active->Authority.Account
+				&& aInvalidation.Viewer == Active->Authority.Viewer
+				&& aInvalidation.Repository == Active->Authority.Repository
+				&& aInvalidation.PullRequest == Active->Authority.PullRequest
+				&& aInvalidation.IdentityGeneration
+				== Active->Revision.Source.IdentityGeneration;
 		}
 
 		void invalidate(const pull_request_authority_invalidation aInvalidation)
@@ -2542,9 +3317,13 @@ namespace bpr::application {
 			if (Closing || !application::valid(aInvalidation)) {
 				return;
 			}
-			if (TurnActive || DeferredIngressScheduled || !DeferredIngress.empty()) {
-				DeferredIngress.emplace_back(deferred_invalidate{ aInvalidation });
-				schedule_deferred_ingress();
+			if (active_matches(aInvalidation)) {
+				cancel_authority_jobs();
+				revoke_blob_authority(
+					Active->Actor, blob_authority_for(*Active));
+			}
+			if (TurnActive || deferred_work_pending()) {
+				static_cast<void>(defer_invalidation(aInvalidation));
 				return;
 			}
 			run_turn([this, &aInvalidation] {
@@ -2563,24 +3342,12 @@ namespace bpr::application {
 				PendingAuthority.reset();
 				PendingOfferToken.reset();
 			}
-			if (!Active
-				|| aInvalidation.ApplicationSession
-					!= Active->Handoff.ApplicationSession
-				|| aInvalidation.Profile != Active->Authority.Profile
-				|| aInvalidation.ProfileRevision
-					!= Active->Authority.ProfileRevision
-				|| aInvalidation.Host != Active->Authority.Host
-				|| aInvalidation.HostAuthority
-					!= Active->Authority.HostAuthority
-				|| aInvalidation.Account != Active->Authority.Account
-				|| aInvalidation.Viewer != Active->Authority.Viewer
-				|| aInvalidation.Repository != Active->Authority.Repository
-				|| aInvalidation.PullRequest != Active->Authority.PullRequest
-				|| aInvalidation.IdentityGeneration
-					!= Active->Revision.Source.IdentityGeneration) {
+			if (!active_matches(aInvalidation)) {
 				return;
 			}
 			cancel_authority_jobs();
+			revoke_blob_authority(
+				Active->Actor, blob_authority_for(*Active));
 			if (Active->Handoff.SmartGit) {
 				Active->Handoff.SmartGit->revoke();
 			}
@@ -2598,9 +3365,8 @@ namespace bpr::application {
 			if (Closing) {
 				return;
 			}
-			if (TurnActive || DeferredIngressScheduled || !DeferredIngress.empty()) {
-				DeferredIngress.emplace_back(deferred_dispatch{ aIntent });
-				schedule_deferred_ingress();
+			if (TurnActive || deferred_work_pending()) {
+				static_cast<void>(defer_ordinary(deferred_dispatch{ aIntent }));
 				return;
 			}
 			run_turn([this, &aIntent] {
@@ -2622,8 +3388,9 @@ namespace bpr::application {
 
 		void shutdown()
 		{
-			if (TurnActive) {
-				DeferredIngress.emplace_back(deferred_shutdown{ });
+			close_blob_ingress_and_cancel_jobs();
+			if (TurnActive || deferred_work_pending()) {
+				defer_shutdown();
 				return;
 			}
 			run_turn([this] {
@@ -2637,12 +3404,13 @@ namespace bpr::application {
 				return;
 			}
 			Closing = true;
-			BlobIngressClosing.store(true, std::memory_order_release);
 			++OfferToken;
-			cancel_all_jobs();
+			close_blob_ingress_and_cancel_jobs();
 			PendingAuthority.reset();
 			PendingOfferToken.reset();
 			if (Active) {
+				revoke_blob_authority(
+					Active->Actor, blob_authority_for(*Active));
 				if (Active->Handoff.SmartGit) {
 					Active->Handoff.SmartGit->revoke();
 				}
@@ -2707,6 +3475,12 @@ namespace bpr::application {
 					aHost.dispatch_core(core::epoch_catalog_load_failed_event{
 						.Context = aRequest.Context,
 						.Failure = core::epoch_failure::unavailable,
+					});
+				},
+				[aRequest](implementation& aHost, const core::epoch_failure aFailure) {
+					aHost.dispatch_core(core::epoch_catalog_load_failed_event{
+						.Context = aRequest.Context,
+						.Failure = aFailure,
 					});
 				},
 				aRequest.Context.Request,
@@ -2874,8 +3648,9 @@ namespace bpr::application {
 											   aNext);
 								});
 							if (!accepted) {
-								aHost.discard_context_preparation(
-									context, event.Operation);
+								static_cast<void>(
+									aHost.discard_context_preparation(
+										context, event.Operation));
 							}
 						};
 					}
@@ -3255,8 +4030,9 @@ namespace bpr::application {
 										   aNext);
 							});
 						if (!accepted) {
-							aHost.discard_context_preparation(
-								context, event.Operation);
+							static_cast<void>(
+								aHost.discard_context_preparation(
+									context, event.Operation));
 						}
 					};
 				},
@@ -3265,6 +4041,13 @@ namespace bpr::application {
 						core::epoch_revision_prepare_failed_event{
 							.Context = aRequest.Context,
 							.Failure = core::epoch_failure::unavailable,
+						});
+				},
+				[aRequest](implementation& aHost, const core::epoch_failure aFailure) {
+					aHost.dispatch_core(
+						core::epoch_revision_prepare_failed_event{
+							.Context = aRequest.Context,
+							.Failure = aFailure,
 						});
 				},
 				aRequest.Context.Request,
@@ -3711,6 +4494,13 @@ namespace bpr::application {
 						.Failure  = core::epoch_failure::repair_required,
 					});
 				},
+				[aRequest](implementation& aHost, const core::epoch_failure aFailure) {
+					aHost.dispatch_core(core::epoch_catalog_commit_failed_event{
+						.Context  = aRequest.Context,
+						.Mutation = aRequest.Mutation,
+						.Failure  = aFailure,
+					});
+				},
 				aRequest.Context.Request,
 				aRequest.Context.Generation,
 				std::nullopt,
@@ -3726,8 +4516,8 @@ namespace bpr::application {
 			if (!context) {
 				return;
 			}
-			discard_context_preparation(
-				std::move(context), aRequest.Context.Operation);
+			static_cast<void>(discard_context_preparation(
+				std::move(context), aRequest.Context.Operation));
 		}
 
 		void start_epoch_maintenance(
@@ -4050,6 +4840,12 @@ namespace bpr::application {
 						.Failure = core::epoch_failure::unavailable,
 					});
 				},
+				[aRequest](implementation& aHost, const core::epoch_failure aFailure) {
+					aHost.dispatch_core(core::epoch_maintenance_failed_event{
+						.Context = aRequest.Context,
+						.Failure = aFailure,
+					});
+				},
 				aRequest.Context.Request,
 				aRequest.Context.Generation,
 				std::nullopt,
@@ -4127,6 +4923,13 @@ namespace bpr::application {
 						core::epoch_history_page_load_failed_event{
 							.Context = aRequest.Context,
 							.Failure = core::epoch_failure::unavailable,
+						});
+				},
+				[aRequest](implementation& aHost, const core::epoch_failure aFailure) {
+					aHost.dispatch_core(
+						core::epoch_history_page_load_failed_event{
+							.Context = aRequest.Context,
+							.Failure = aFailure,
 						});
 				},
 				aRequest.Context.Request,
@@ -4365,6 +5168,12 @@ namespace bpr::application {
 						.Failure = core::epoch_failure::unavailable,
 					});
 				},
+				[aRequest](implementation& aHost, const core::epoch_failure aFailure) {
+					aHost.dispatch_core(core::comparison_resolve_failed_event{
+						.Context = aRequest.Context,
+						.Failure = aFailure,
+					});
+				},
 				aRequest.Context.Request,
 				std::nullopt,
 				aRequest.Context.Generation,
@@ -4380,33 +5189,46 @@ namespace bpr::application {
 		effect_executor&                 Effects;
 		decision_executor&               DecisionLane;
 		epoch_projection_port&           Projections;
+		epoch_host_limits                Limits;
 		std::shared_ptr<completion_gate> CompletionGate;
 		std::vector<
 			std::pair<cache_actor_key, std::shared_ptr<authority_effect_actor>>>
 														   CacheActors;
 		mutable std::mutex                                 CacheActorsMutex;
+		mutable std::mutex                                 JobsMutex;
 		std::shared_ptr<authority_context>                 Active;
 		std::optional<pull_request_authority_invalidation> PendingAuthority;
 		std::optional<std::uint64_t>                       PendingOfferToken;
 		std::vector<std::shared_ptr<job_control>>          Jobs;
+		std::size_t                                        ReservedTerminalAdmissions = 0U;
+		std::size_t                                        RetiringActorJobs          = 0U;
+		std::size_t                                        InFlightBlobCalls          = 0U;
 		std::deque<deferred_ingress>                       DeferredIngress;
-		std::uint64_t                                      OfferToken               = 0U;
-		bool                                               TurnActive               = false;
-		bool                                               DeferredIngressScheduled = false;
-		bool                                               Closing                  = false;
-		bool                                               ProjectionDeliveryFailed = false;
-		std::atomic_bool                                   BlobIngressClosing       = false;
+		// Only the active and pending authority can require retained priority
+		// invalidation. These fixed slots cannot be crowded out by ordinary
+		// reentrant accept/dispatch work.
+		std::array<std::optional<pull_request_authority_invalidation>, 2U>
+											   DeferredInvalidations;
+		std::optional<core::epoch_reason_code> DeferredDiagnostic;
+		std::uint64_t                          OfferToken               = 0U;
+		bool                                   TurnActive               = false;
+		bool                                   DeferredIngressScheduled = false;
+		bool                                   DeferredShutdown         = false;
+		bool                                   Closing                  = false;
+		bool                                   ProjectionDeliveryFailed = false;
+		std::atomic_bool                       BlobIngressClosing       = false;
 	};
 
 	epoch_application_host::epoch_application_host(
-		core::epoch_state      aInitialState,
-		git_cache_port&        aCaches,
-		epoch_catalog_port&    aCatalogs,
-		epoch_entropy_port&    aEntropy,
-		epoch_clock_port&      aClock,
-		effect_executor&       aEffects,
-		decision_executor&     aDecisionLane,
-		epoch_projection_port& aProjections)
+		core::epoch_state       aInitialState,
+		git_cache_port&         aCaches,
+		epoch_catalog_port&     aCatalogs,
+		epoch_entropy_port&     aEntropy,
+		epoch_clock_port&       aClock,
+		effect_executor&        aEffects,
+		decision_executor&      aDecisionLane,
+		epoch_projection_port&  aProjections,
+		const epoch_host_limits aLimits)
 		: Implementation{ std::make_unique<implementation>(
 			  std::move(aInitialState),
 			  aCaches,
@@ -4415,7 +5237,8 @@ namespace bpr::application {
 			  aClock,
 			  aEffects,
 			  aDecisionLane,
-			  aProjections) }
+			  aProjections,
+			  aLimits) }
 	{
 	}
 
@@ -4464,12 +5287,32 @@ namespace bpr::application {
 
 	auto epoch_application_host::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Closing && Implementation->Jobs.empty()
+		return Implementation->Closing && Implementation->job_count() == 0U
+			&& Implementation->blob_calls_idle()
 			&& !Implementation->TurnActive
 			&& Implementation->DeferredIngress.empty()
+			&& Implementation->deferred_invalidations_empty()
 			&& !Implementation->DeferredIngressScheduled
+			&& !Implementation->DeferredDiagnostic
+			&& !Implementation->DeferredShutdown
 			&& !Implementation->PendingOfferToken
 			&& Implementation->actors_idle();
+	}
+
+	auto epoch_application_host::outstanding_jobs() const noexcept -> std::size_t
+	{
+		return Implementation->job_count();
+	}
+
+	auto epoch_application_host::queued_actor_work() const noexcept -> std::size_t
+	{
+		return Implementation->queued_actor_work();
+	}
+
+	auto epoch_application_host::deferred_ordinary_ingress() const noexcept
+		-> std::size_t
+	{
+		return Implementation->DeferredIngress.size();
 	}
 
 	auto epoch_application_host::projection_delivery_failed() const noexcept

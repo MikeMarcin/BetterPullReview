@@ -10,6 +10,7 @@
 #include "bpr/application/port.hpp"
 #include "bpr/core/epoch_transition.hpp"
 
+#include <cstddef>
 #include <memory>
 
 namespace bpr::application {
@@ -19,10 +20,11 @@ namespace bpr::application {
 		  public diff_blob_port
 	{
 	public:
-		// Ingress and state/quiescence inspection are confined to the serialized
-		// decision lane supplied at construction. Worker effects communicate
-		// only by posting completions to that lane; this object is intentionally
-		// not a general-purpose concurrently callable container.
+		// Semantic ingress and state/quiescence inspection are confined to the
+		// serialized decision lane supplied at construction. materialize() is the
+		// sole concurrent ingress seam: diff workers enter through a close-aware
+		// call gate and the bounded job ledger. Worker effects otherwise communicate
+		// only by posting completions to the decision lane.
 		// shutdown() closes ingress without waiting. Composition keeps every
 		// referenced port, executor, and projection alive until is_quiescent().
 		epoch_application_host(
@@ -33,7 +35,8 @@ namespace bpr::application {
 			epoch_clock_port&      aClock,
 			effect_executor&       aEffects,
 			decision_executor&     aDecisionLane,
-			epoch_projection_port& aProjections);
+			epoch_projection_port& aProjections,
+			epoch_host_limits      aLimits = { });
 		~epoch_application_host() override;
 
 		epoch_application_host(const epoch_application_host&) = delete;
@@ -50,9 +53,11 @@ namespace bpr::application {
 		void invalidate(
 			pull_request_authority_invalidation aInvalidation) override;
 		void dispatch(epoch_intent aIntent);
-		// The diff worker calls this synchronous seam. It is serialized onto the
-		// same retained authority/cache actor used by epoch work, so no competing
-		// lifetime-exclusive Git cache session is opened.
+		// The diff worker calls this synchronous concurrent seam. It is serialized
+		// onto the same retained authority/cache actor used by epoch work, so no
+		// competing lifetime-exclusive Git cache session is opened. shutdown()
+		// closes new calls, cancels admitted work, and quiescence includes calls
+		// that entered before closure.
 		[[nodiscard]] auto materialize(
 			const diff_blob_request& aRequest,
 			std::stop_token          aStop) -> diff_blob_observation override;
@@ -61,6 +66,10 @@ namespace bpr::application {
 		[[nodiscard]] auto state() const noexcept -> const core::epoch_state&;
 		[[nodiscard]] auto is_closing() const noexcept -> bool;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		[[nodiscard]] auto outstanding_jobs() const noexcept -> std::size_t;
+		[[nodiscard]] auto queued_actor_work() const noexcept -> std::size_t;
+		[[nodiscard]] auto deferred_ordinary_ingress() const noexcept
+			-> std::size_t;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
 
 	private:

@@ -123,7 +123,28 @@ namespace {
 
 		void post(std::function<void()> aTask) override
 		{
-			std::scoped_lock lock{ Mutex };
+			std::unique_lock lock{ Mutex };
+			if (AcceptedPostsBeforeRejection) {
+				if (*AcceptedPostsBeforeRejection == 0U) {
+					AcceptedPostsBeforeRejection.reset();
+					throw std::runtime_error{ "injected sequenced executor refusal" };
+				}
+				--*AcceptedPostsBeforeRejection;
+			}
+			if (BlockedRejectedPosts != 0U) {
+				--BlockedRejectedPosts;
+				PostBlocked = true;
+				Changed.notify_all();
+				Changed.wait(lock, [this] {
+					return ReleaseBlockedPost;
+				});
+				PostBlocked = false;
+				throw std::runtime_error{ "injected blocked executor refusal" };
+			}
+			if (RejectedPosts != 0U) {
+				--RejectedPosts;
+				throw std::runtime_error{ "injected executor refusal" };
+			}
 			Tasks.push_back(std::move(aTask));
 			Changed.notify_all();
 		}
@@ -175,12 +196,51 @@ namespace {
 			return Decision;
 		}
 
+		void reject_next()
+		{
+			std::scoped_lock lock{ Mutex };
+			++RejectedPosts;
+		}
+
+		void accept_one_then_reject()
+		{
+			std::scoped_lock lock{ Mutex };
+			AcceptedPostsBeforeRejection = 1U;
+		}
+
+		void block_and_reject_next()
+		{
+			std::scoped_lock lock{ Mutex };
+			++BlockedRejectedPosts;
+			ReleaseBlockedPost = false;
+		}
+
+		void wait_for_blocked_post()
+		{
+			std::unique_lock lock{ Mutex };
+			Changed.wait(lock, [this] {
+				return PostBlocked;
+			});
+		}
+
+		void release_blocked_post()
+		{
+			std::scoped_lock lock{ Mutex };
+			ReleaseBlockedPost = true;
+			Changed.notify_all();
+		}
+
 	private:
 		mutable std::mutex                Mutex;
 		std::condition_variable           Changed;
 		std::deque<std::function<void()>> Tasks;
-		bool                              Decision = false;
-		bool                              Running  = false;
+		bool                              Decision             = false;
+		bool                              Running              = false;
+		std::size_t                       RejectedPosts        = 0U;
+		std::size_t                       BlockedRejectedPosts = 0U;
+		bool                              PostBlocked          = false;
+		bool                              ReleaseBlockedPost   = false;
+		std::optional<std::size_t>        AcceptedPostsBeforeRejection;
 	};
 
 	struct shared_state
@@ -207,7 +267,8 @@ namespace {
 		std::vector<application::git_operation_recovery_request>
 			RecoveryInspectionRequests;
 		std::vector<application::git_operation_recovery_request>
-			RecoveryAbortRequests;
+						  RecoveryAbortRequests;
+		std::vector<bool> RecoveryAbortStopRequested;
 		std::vector<application::git_operation_recovery_request>
 																 RecoveryCompletionRequests;
 		std::vector<application::git_cache_open_request>         CacheOpenRequests;
@@ -226,8 +287,10 @@ namespace {
 		bool                                                AssociationAppliesThenFails       = false;
 		bool                                                CacheDeleteFinalizesWithoutChange = false;
 		bool                                                ThrowRecoveryAbort                = false;
+		bool                                                BlobMaterializationIgnoresStop    = false;
 		std::function<void()>                               AfterCommitAuthorized;
 		std::function<void()>                               AfterRefCommitInProgress;
+		std::function<void(std::stop_token)>                DuringBlobMaterialization;
 		std::vector<std::uint64_t>                          AuthorityRevocations;
 		std::vector<application::epoch_presentation_update> Updates;
 		std::size_t                                         CacheMutationCalls          = 0U;
@@ -1292,7 +1355,10 @@ namespace {
 		{
 			State.Calls.emplace_back("cache.materialize-blob");
 			State.BlobRequests.push_back(aRequest);
-			if (aStop.stop_requested()) {
+			if (State.DuringBlobMaterialization) {
+				State.DuringBlobMaterialization(aStop);
+			}
+			if (aStop.stop_requested() && !State.BlobMaterializationIgnoresStop) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
 			}
 			return std::vector<std::uint8_t>{ 'b', 'l', 'o', 'b', '\n' };
@@ -1339,10 +1405,11 @@ namespace {
 
 		[[nodiscard]] auto abort_recovered_operation(
 			const application::git_operation_recovery_request& aRequest,
-			const std::stop_token) -> application::git_cache_result<void> override
+			const std::stop_token                              aStop) -> application::git_cache_result<void> override
 		{
 			State.Calls.emplace_back("cache.abort-exact");
 			State.RecoveryAbortRequests.push_back(aRequest);
+			State.RecoveryAbortStopRequested.push_back(aStop.stop_requested());
 			++State.CacheMutationCalls;
 			if (State.ThrowRecoveryAbort) {
 				throw std::runtime_error{ "injected exact-abort failure" };
@@ -1601,6 +1668,19 @@ namespace {
 		return handoff;
 	}
 
+	[[nodiscard]] auto make_repository_handoff(
+		shared_state&       aState,
+		const std::uint64_t aRepository,
+		const std::uint64_t aSnapshot)
+		-> application::accepted_pull_request_handoff
+	{
+		auto handoff       = make_handoff(aState, aSnapshot, 20U);
+		handoff.Repository = core::repository_id{ aRepository };
+		handoff.SmartGit   = std::make_unique<fake_smart_authority>(
+			aState, application::authority_binding(handoff), aSnapshot);
+		return handoff;
+	}
+
 	[[nodiscard]] auto recovery_record(
 		shared_state&                                    aState,
 		const application::epoch_catalog_operation_phase aPhase,
@@ -1793,7 +1873,7 @@ namespace {
 		fake_projection                                      Projections{ State, Decisions };
 		std::unique_ptr<application::epoch_application_host> Host;
 
-		fixture()
+		explicit fixture(const application::epoch_host_limits aLimits = { })
 		{
 			State.Binding = application::epoch_catalog_binding{
 				.Authority    = authority(),
@@ -1814,7 +1894,8 @@ namespace {
 				Clock,
 				Effects,
 				Decisions,
-				Projections);
+				Projections,
+				aLimits);
 		}
 
 		~fixture()
@@ -1889,6 +1970,57 @@ namespace {
 			.PullRequest        = owner.PullRequest,
 			.IdentityGeneration = core::github_identity_generation{ 3U },
 		};
+	}
+
+	[[nodiscard]] auto blob_request_for(
+		const core::epoch_state& aState,
+		const core::request_id   aRequest = core::request_id{ 701U })
+		-> application::diff_blob_request
+	{
+		const auto options = core::options_digest(core::diff_options{ });
+		const auto blob    = oid<core::git_blob_oid>(0x55U);
+		expect(
+			aState.Authority.has_value()
+				&& aState.AcceptedComparison.has_value() && options.has_value(),
+			"ready comparison supplies an exact blob request context");
+		return {
+			.Context = {
+				.Request            = aRequest,
+				.ApplicationSession = aState.ApplicationSession,
+				.Key                = {
+					.Authority   = *aState.Authority,
+					.Repository  = aState.Authority->Repository,
+					.PullRequest = aState.Authority->PullRequest,
+					.LeftAnchor  = aState.AcceptedComparison->Left.Identity,
+					.RightAnchor = aState.AcceptedComparison->Right.Identity,
+					.LeftBlob    = blob,
+					.RightBlob   = blob,
+					.File        = opaque<core::file_identity>(0x56U),
+					.Options     = *options,
+					.Algorithm   = core::supported_diff_algorithm_revision,
+				},
+				.Generation = core::request_generation{ 1U },
+			},
+			.Side         = core::diff_side::left,
+			.Blob         = blob,
+			.MaximumBytes = 1'024U,
+		};
+	}
+
+	[[nodiscard]] auto diagnostic_count(
+		const shared_state&           aState,
+		const core::epoch_reason_code aReason) -> std::size_t
+	{
+		auto total = std::size_t{ 0U };
+		for (const auto& update : aState.Updates) {
+			if (!update.Transition) {
+				continue;
+			}
+			total += static_cast<std::size_t>(std::ranges::count(
+				update.Transition->Diagnostics,
+				core::epoch_diagnostic{ .Code = aReason }));
+		}
+		return total;
 	}
 
 	void expect_in_order(
@@ -2057,6 +2189,753 @@ namespace {
 				&& value.State.ProjectionOutsideDecision == 0U,
 			"reentrant projection ingress leaves no recursive or deferred work at "
 			"shutdown");
+	}
+
+	void epoch_host_limits_reject_invalid_capacity()
+	{
+		auto rejected = false;
+		try {
+			fixture value{ application::epoch_host_limits{
+				.OutstandingJobs = 0U,
+				.DeferredIngress = 2U,
+			} };
+		} catch (const std::invalid_argument&) {
+			rejected = true;
+		}
+		expect(rejected, "zero epoch job capacity is rejected at composition");
+	}
+
+	void executor_refusal_rolls_back_offer_admission()
+	{
+		fixture value;
+		value.Effects.reject_next();
+		value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+
+		expect(
+			value.Host->outstanding_jobs() == 0U
+				&& value.Host->queued_actor_work() == 0U
+				&& value.Effects.pending() == 0U
+				&& !value.Host->state().Authority
+				&& value.State.AuthorityRevocations
+					== std::vector<std::uint64_t>{ 1U }
+				&& diagnostic_count(
+					   value.State, core::epoch_reason_code::unavailable)
+					== 1U,
+			"effect-executor refusal retires the slot before one unavailable "
+			"terminal and revokes the rejected offer");
+	}
+
+	void actor_quota_rejection_preserves_the_admitted_offer()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 1U,
+			.DeferredIngress = 4U,
+		} };
+		value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+		for (std::uint64_t snapshot = 2U; snapshot <= 1'000U; ++snapshot) {
+			value.Host->accept(make_repository_handoff(
+				value.State, snapshot + 60U, snapshot));
+		}
+		value.Host->accept(make_repository_handoff(value.State, 1'061U, 1'001U));
+
+		expect(
+			value.Host->outstanding_jobs() == 1U
+				&& value.Effects.pending() == 1U
+				&& value.State.AuthorityRevocations.size() == 1'000U
+				&& diagnostic_count(
+					   value.State, core::epoch_reason_code::quota_exceeded)
+					== 1'000U,
+			"job and actor quota refusals do not replace the admitted offer");
+
+		value.Host->invalidate(matching_invalidation());
+		drain(value);
+		expect(
+			!value.Host->state().Authority
+				&& value.Host->outstanding_jobs() == 0U
+				&& value.State.AuthorityRevocations.size() == 1'001U
+				&& std::ranges::find(value.State.AuthorityRevocations, 1U)
+					!= value.State.AuthorityRevocations.end(),
+			"actor quota rejection preserves the pending identity so matching "
+			"invalidation cancels it and stale work cannot publish");
+
+		value.Host->shutdown();
+		expect(value.Host->is_quiescent(), "the actor-quota flood shuts down exactly");
+	}
+
+	void refresh_flood_bounds_jobs_actor_fifo_and_completions()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 3U,
+			.DeferredIngress = 4U,
+		} };
+		for (std::uint64_t snapshot = 1U; snapshot <= 4U; ++snapshot) {
+			value.Host->accept(make_handoff(
+				value.State,
+				snapshot,
+				static_cast<std::uint8_t>(19U + snapshot),
+				true));
+		}
+
+		expect(
+			value.Host->outstanding_jobs() == 3U
+				&& value.Host->queued_actor_work() == 3U
+				&& value.Effects.pending() == 1U
+				&& value.Decisions.pending() == 0U
+				&& value.State.AuthorityRevocations
+					== std::vector<std::uint64_t>{ 4U }
+				&& diagnostic_count(
+					   value.State, core::epoch_reason_code::quota_exceeded)
+					== 1U,
+			"refresh offers retain exactly one bounded ledger entry per queued "
+			"actor closure and reject overflow without superseding admitted work");
+
+		value.Effects.run_next();
+		expect(
+			value.Host->outstanding_jobs() == 3U
+				&& value.Host->queued_actor_work() == 0U
+				&& value.Effects.pending() == 0U
+				&& value.Decisions.pending() == 3U,
+			"one actor drain preserves all admitted slots through pending serialized "
+			"completions");
+
+		value.Decisions.run_next();
+		value.Decisions.run_next();
+		value.Decisions.run_next();
+		auto publishedSnapshots = std::vector<core::provider_snapshot_id>{ };
+		for (const auto& update : value.State.Updates) {
+			if (update.Transition && update.Transition->Authority
+				&& update.Transition->Authority->Revision) {
+				publishedSnapshots.push_back(
+					update.Transition->Authority->Revision->Snapshot);
+			}
+		}
+		expect(
+			value.Host->state().AcceptedRevision
+				&& value.Host->state().AcceptedRevision->Source.Snapshot
+					== core::provider_snapshot_id{ 3U }
+				&& publishedSnapshots
+					== std::vector<core::provider_snapshot_id>{
+						core::provider_snapshot_id{ 3U } }
+				&& value.Host->outstanding_jobs() == 1U && value.Effects.pending() == 1U,
+			"older stopped terminals cannot publish and terminal retirement admits "
+			"the accepted refresh's next request in the same decision turn");
+
+		value.Host->shutdown();
+		drain(value);
+		expect(
+			value.Host->is_quiescent() && value.Host->outstanding_jobs() == 0U
+				&& value.Host->queued_actor_work() == 0U,
+			"shutdown reaches exact quiescence with accepted actor work pending");
+	}
+
+	void request_quota_uses_exact_typed_terminal()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 1U,
+			.DeferredIngress = 4U,
+		} };
+		establish_ready_comparison(value);
+		const auto request = blob_request_for(value.Host->state());
+		const auto catalog = *value.Host->state().Catalog;
+		value.Host->dispatch(core::request_epoch_history_page_intent{
+			.Catalog = catalog,
+			.Limit   = 4U,
+		});
+		const auto rejectedBlob = value.Host->materialize(request, { });
+		expect(
+			rejectedBlob.Status == application::diff_blob_status::failure
+				&& value.Host->outstanding_jobs() == 1U,
+			"blob admission fails without misreporting a file-size limit when the "
+			"shared host ledger is full");
+		drain(value);
+
+		auto observation = std::optional<application::diff_blob_observation>{ };
+		auto worker      = std::jthread{ [&] {
+			observation = value.Host->materialize(request, { });
+		} };
+		value.Effects.wait_for_pending();
+		expect(
+			value.Host->outstanding_jobs() == 1U
+				&& value.Host->queued_actor_work() == 1U,
+			"the synchronous blob bridge consumes the same global actor ledger");
+
+		value.Host->dispatch(core::request_epoch_history_page_intent{
+			.Catalog = catalog,
+			.Limit   = 4U,
+		});
+		expect(
+			!value.Host->state().PendingHistory
+				&& value.State.Updates.back().Catalog
+				&& value.State.Updates.back().Catalog->HistoryPage
+				&& value.State.Updates.back().Catalog->HistoryPage->Phase
+					== core::epoch_history_page_phase::failed
+				&& value.State.Updates.back().Catalog->HistoryPage->Reason
+					== core::epoch_reason_code::quota_exceeded
+				&& value.Host->outstanding_jobs() == 1U,
+			"job-capacity refusal reaches the request-specific quota terminal without "
+			"disturbing the admitted actor operation");
+
+		value.Effects.run_next();
+		worker.join();
+		expect(
+			observation
+				&& observation->Status == application::diff_blob_status::available
+				&& value.Host->outstanding_jobs() == 0U,
+			"the admitted blob operation retires its slot before waking its caller");
+	}
+
+	void concurrent_executor_refusal_preserves_later_actor_work()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 2U,
+			.DeferredIngress = 4U,
+		} };
+		establish_ready_comparison(value);
+		const auto request = blob_request_for(value.Host->state());
+		value.Effects.block_and_reject_next();
+
+		auto first       = std::optional<application::diff_blob_observation>{ };
+		auto second      = std::optional<application::diff_blob_observation>{ };
+		auto firstWorker = std::jthread{ [&] {
+			first = value.Host->materialize(request, { });
+		} };
+		value.Effects.wait_for_blocked_post();
+		auto secondWorker = std::jthread{ [&] {
+			second = value.Host->materialize(request, { });
+		} };
+
+		auto bothAdmitted = false;
+		for (std::size_t attempt = 0U; attempt < 100'000U; ++attempt) {
+			if (value.Host->outstanding_jobs() == 2U) {
+				bothAdmitted = true;
+				break;
+			}
+			std::this_thread::yield();
+		}
+		expect(
+			bothAdmitted,
+			"both actor jobs are admitted while the first executor post is blocked");
+
+		value.Effects.release_blocked_post();
+		firstWorker.join();
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		secondWorker.join();
+		expect(
+			first && first->Status == application::diff_blob_status::failure
+				&& second
+				&& second->Status == application::diff_blob_status::available
+				&& value.Host->outstanding_jobs() == 0U
+				&& value.Host->queued_actor_work() == 0U,
+			"executor refusal removes only its own actor work while a concurrent "
+			"later job remains live and completes");
+
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "the concurrent refusal path quiesces");
+	}
+
+	void shutdown_cancels_an_inflight_blob_call()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto              request = blob_request_for(value.Host->state());
+		std::mutex              gate;
+		std::condition_variable changed;
+		auto                    entered          = false;
+		auto                    stopObserved     = false;
+		auto                    releaseAfterStop = false;
+		value.State.DuringBlobMaterialization    = [&](const std::stop_token aStop) {
+			std::unique_lock lock{ gate };
+			entered = true;
+			changed.notify_one();
+			auto notify = std::stop_callback{ aStop, [&changed] {
+												 changed.notify_all();
+											 } };
+			changed.wait(lock, [&] {
+				return aStop.stop_requested();
+			});
+			stopObserved = true;
+			changed.notify_one();
+			changed.wait(lock, [&] {
+				return releaseAfterStop;
+			});
+		};
+
+		auto observation = std::optional<application::diff_blob_observation>{ };
+		auto caller      = std::jthread{ [&] {
+			observation = value.Host->materialize(request, { });
+		} };
+		value.Effects.wait_for_pending();
+		auto effect = std::jthread{ [&] {
+			value.Effects.run_next();
+		} };
+		{
+			std::unique_lock lock{ gate };
+			changed.wait(lock, [&] {
+				return entered;
+			});
+		}
+
+		value.Host->shutdown();
+		{
+			std::unique_lock lock{ gate };
+			changed.wait(lock, [&] {
+				return stopObserved;
+			});
+		}
+		expect(
+			!value.Host->is_quiescent(),
+			"shutdown counts the admitted synchronous blob call until it returns");
+		{
+			const std::lock_guard lock{ gate };
+			releaseAfterStop = true;
+		}
+		changed.notify_one();
+		effect.join();
+		caller.join();
+		drain(value);
+		expect(
+			observation
+				&& observation->Status == application::diff_blob_status::cancelled
+				&& value.Host->is_quiescent(),
+			"epoch shutdown reaches the cache call through the combined stop token "
+			"and then quiesces");
+	}
+
+	void shutdown_stop_callback_can_reenter_blob_ingress()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto              request = blob_request_for(value.Host->state());
+		std::mutex              gate;
+		std::condition_variable changed;
+		auto                    entered          = false;
+		auto                    callbackReturned = false;
+		auto                    callbackDepth    = std::size_t{ 0U };
+		auto                    maximumDepth     = std::size_t{ 0U };
+		auto                    reentrant        = std::optional<application::diff_blob_observation>{ };
+		value.State.DuringBlobMaterialization    = [&](const std::stop_token aStop) {
+			auto callback = std::stop_callback{ aStop, [&] {
+												   ++callbackDepth;
+												   maximumDepth = std::max(maximumDepth, callbackDepth);
+												   value.Host->shutdown();
+												   auto rejected = value.Host->materialize(request, { });
+												   --callbackDepth;
+												   {
+													   const std::lock_guard lock{ gate };
+													   reentrant        = std::move(rejected);
+													   callbackReturned = true;
+												   }
+												   changed.notify_one();
+											   } };
+			std::unique_lock lock{ gate };
+			entered = true;
+			changed.notify_one();
+			changed.wait(lock, [&] {
+				return callbackReturned;
+			});
+		};
+
+		auto observation = std::optional<application::diff_blob_observation>{ };
+		auto caller      = std::jthread{ [&] {
+			observation = value.Host->materialize(request, { });
+		} };
+		value.Effects.wait_for_pending();
+		auto effect = std::jthread{ [&] {
+			value.Effects.run_next();
+		} };
+		{
+			std::unique_lock lock{ gate };
+			changed.wait(lock, [&] {
+				return entered;
+			});
+		}
+
+		value.Host->shutdown();
+		expect(
+			callbackReturned && maximumDepth == 1U && reentrant
+				&& reentrant->Status == application::diff_blob_status::failure,
+			"shutdown marks cancellation before callbacks, so recursive shutdown does "
+			"not restop the job and callback reentry observes closed blob ingress");
+
+		effect.join();
+		caller.join();
+		drain(value);
+		expect(
+			observation
+				&& observation->Status == application::diff_blob_status::cancelled
+				&& value.Host->is_quiescent(),
+			"the outer blob call and reentrant stop callback both quiesce");
+	}
+
+	void terminal_slot_reservation_protects_mandatory_cleanup()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 1U,
+			.DeferredIngress = 4U,
+		} };
+		establish_ready_comparison(value);
+		const auto blobRequest = blob_request_for(value.Host->state());
+		value.State.Snapshot.LatestLive.reset();
+		value.State.Snapshot.PreviousDistinctHead.reset();
+		value.Host->dispatch(core::refresh_epochs_intent{ });
+		value.Effects.run_next();
+		expect(
+			value.Decisions.pending() == 1U,
+			"the prepared refresh has one serialized terminal pending");
+		value.Host->dispatch(core::cancel_epoch_refresh_intent{ });
+
+		auto reentrantBlob            = std::optional<application::diff_blob_observation>{ };
+		value.State.ProjectionIngress = [&] {
+			reentrantBlob = value.Host->materialize(blobRequest, { });
+		};
+		value.Decisions.run_next();
+		expect(
+			reentrantBlob
+				&& reentrantBlob->Status == application::diff_blob_status::failure
+				&& value.Host->outstanding_jobs() == 1U
+				&& value.Effects.pending() == 1U,
+			"a reentrant blob cannot steal the retired terminal slot reserved for "
+			"the core-emitted discard operation");
+
+		run_effect_completion(value);
+		drain(value);
+		expect(
+			std::ranges::find(
+				value.State.Calls, "catalog.transition:aborted")
+					!= value.State.Calls.end()
+				&& value.Host->outstanding_jobs() == 0U,
+			"mandatory pre-PONR cleanup consumes the reserved slot and retires "
+			"without retained preparation work");
+	}
+
+	void replacement_reserves_required_context_cleanup()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 2U,
+			.DeferredIngress = 4U,
+		} };
+		establish_ready_comparison(value);
+		value.State.Snapshot.LatestLive.reset();
+		value.State.Snapshot.PreviousDistinctHead.reset();
+		value.Host->dispatch(core::refresh_epochs_intent{ });
+		value.Effects.run_next();
+		value.Decisions.run_next();
+		expect(
+			value.Host->outstanding_jobs() == 1U
+				&& value.Effects.pending() == 1U,
+			"the active authority retains one prepared commit job");
+
+		auto replacement        = make_handoff(value.State, 2U, 21U, true);
+		replacement.PullRequest = core::pull_request_id{ 72U };
+		replacement.Number      = core::pull_request_number{ 82U };
+		value.Host->accept(std::move(replacement));
+		expect(
+			value.Host->state().Authority == std::optional{ authority() }
+				&& value.Host->outstanding_jobs() == 1U
+				&& value.State.AuthorityRevocations.back() == 2U
+				&& diagnostic_count(
+					   value.State, core::epoch_reason_code::quota_exceeded)
+					== 1U,
+			"replacement is rejected before authority mutation when the ledger "
+			"cannot retain both its offer and mandatory old-context cleanup");
+
+		drain(value);
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "the quota-rejected replacement quiesces");
+	}
+
+	void cleanup_executor_refusal_prevents_replacement_offer()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 3U,
+			.DeferredIngress = 4U,
+		} };
+		establish_ready_comparison(value);
+		value.State.Snapshot.LatestLive.reset();
+		value.State.Snapshot.PreviousDistinctHead.reset();
+		value.Host->dispatch(core::refresh_epochs_intent{ });
+		value.Effects.run_next();
+		expect(
+			value.Host->outstanding_jobs() == 1U
+				&& value.Decisions.pending() == 1U,
+			"the prepared active operation is retained before its decision terminal");
+
+		value.Effects.reject_next();
+		auto replacement        = make_handoff(value.State, 2U, 21U, true);
+		replacement.PullRequest = core::pull_request_id{ 72U };
+		replacement.Number      = core::pull_request_number{ 82U };
+		value.Host->accept(std::move(replacement));
+		expect(
+			value.Host->state().Authority == std::optional{ authority() }
+				&& value.Host->outstanding_jobs() == 1U
+				&& value.State.AuthorityRevocations.back() == 2U
+				&& diagnostic_count(
+					   value.State, core::epoch_reason_code::unavailable)
+					== 1U,
+			"cleanup executor refusal preserves the active authority and prevents "
+			"the replacement offer from being queued or opened");
+
+		drain(value);
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "the cleanup-refused replacement quiesces");
+	}
+
+	void replacement_offer_refusal_preserves_cross_repository_authority()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 3U,
+			.DeferredIngress = 4U,
+		} };
+		establish_ready_comparison(value);
+		value.State.Snapshot.LatestLive.reset();
+		value.State.Snapshot.PreviousDistinctHead.reset();
+		value.Host->dispatch(core::refresh_epochs_intent{ });
+		value.Effects.run_next();
+		expect(
+			value.Host->outstanding_jobs() == 1U
+				&& value.Decisions.pending() == 1U,
+			"the cross-repository refusal fixture retains prepared active work");
+
+		value.Effects.accept_one_then_reject();
+		value.Host->accept(make_repository_handoff(value.State, 62U, 2U));
+		expect(
+			value.Host->state().Authority == std::optional{ authority() }
+				&& value.Host->outstanding_jobs() == 2U
+				&& value.Effects.pending() == 1U
+				&& value.State.AuthorityRevocations.back() == 2U
+				&& diagnostic_count(
+					   value.State, core::epoch_reason_code::unavailable)
+					== 1U,
+			"a separately scheduled cleanup may remain mandatory, but refusal of the "
+			"replacement repository actor preserves A and emits no invalidation");
+
+		drain(value);
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "cross-repository offer refusal quiesces");
+	}
+
+	void same_authority_offer_keeps_terminal_capacity_for_core_ingestion()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 1U,
+			.DeferredIngress = 4U,
+		} };
+		establish_ready_comparison(value);
+		value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+		value.Effects.run_next();
+		value.Decisions.run_next();
+		expect(
+			value.Host->state().AcceptedRevision
+				&& value.Host->state().AcceptedRevision->Source.Snapshot
+					== core::provider_snapshot_id{ 2U }
+				&& value.Host->outstanding_jobs() == 1U
+				&& value.Effects.pending() == 1U,
+			"an empty prior preparation set needs no cleanup job, leaving the offer "
+			"terminal reservation for core-emitted catalog ingestion");
+
+		drain(value);
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "the capacity-one refresh quiesces");
+	}
+
+	void replacement_cancellation_does_not_stop_mandatory_cleanup()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 4U,
+			.DeferredIngress = 4U,
+		} };
+		value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+		drive_through_preparation(value);
+		expect(
+			value.Effects.pending() == 1U,
+			"the active same-authority context retains prepared append work");
+
+		value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+		drain(value);
+		expect(
+			value.Host->state().AcceptedRevision
+				&& value.Host->state().AcceptedRevision->Source.Snapshot
+					== core::provider_snapshot_id{ 2U }
+				&& std::ranges::find(
+					   value.State.Calls, "catalog.transition:aborted")
+					!= value.State.Calls.end()
+				&& !value.State.RecoveryAbortStopRequested.empty()
+				&& std::ranges::none_of(
+					value.State.RecoveryAbortStopRequested,
+					[](const auto aStopped) {
+						return aStopped;
+					}),
+			"same-authority cancellation skips the protected cleanup control and "
+			"durably aborts the prior prepared append before replacement ingestion");
+
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "protected same-authority cleanup quiesces");
+	}
+
+	void reentrant_terminal_requests_close_blob_authority_before_return()
+	{
+		{
+			fixture value;
+			establish_ready_comparison(value);
+			const auto request            = blob_request_for(value.Host->state());
+			auto       rejected           = std::optional<application::diff_blob_observation>{ };
+			value.State.ProjectionIngress = [&] {
+				value.Host->invalidate(matching_invalidation());
+				rejected = value.Host->materialize(request, { });
+			};
+			value.Host->dispatch(core::refresh_epochs_intent{ });
+			expect(
+				rejected
+					&& rejected->Status == application::diff_blob_status::failure
+					&& value.State.BlobRequests.empty(),
+				"reentrant matching invalidation revokes blob authority before the "
+				"invalidation call returns");
+			drain(value);
+			value.Host->shutdown();
+			drain(value);
+			expect(value.Host->is_quiescent(), "reentrant invalidation quiesces");
+		}
+
+		{
+			fixture value;
+			establish_ready_comparison(value);
+			const auto request            = blob_request_for(value.Host->state());
+			auto       rejected           = std::optional<application::diff_blob_observation>{ };
+			value.State.ProjectionIngress = [&] {
+				value.Host->shutdown();
+				rejected = value.Host->materialize(request, { });
+			};
+			value.Host->dispatch(core::refresh_epochs_intent{ });
+			expect(
+				value.Host->is_closing() && rejected
+					&& rejected->Status == application::diff_blob_status::failure
+					&& value.State.BlobRequests.empty(),
+				"reentrant shutdown closes blob ingress before the shutdown call "
+				"returns");
+			drain(value);
+			expect(value.Host->is_quiescent(), "reentrant shutdown quiesces");
+		}
+	}
+
+	void reentrant_ingress_flood_preserves_terminal_priority()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 8U,
+			.DeferredIngress = 3U,
+		} };
+		auto    maximumDeferred       = std::size_t{ 0U };
+		value.State.ProjectionIngress = [&] {
+			const auto observe = [&] {
+				maximumDeferred = std::max(
+					maximumDeferred, value.Host->deferred_ordinary_ingress());
+			};
+			value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+			observe();
+			value.Host->dispatch(core::cancel_epoch_refresh_intent{ });
+			observe();
+			value.Host->accept(make_handoff(value.State, 3U, 22U, true));
+			observe();
+			value.Host->accept(make_handoff(value.State, 4U, 23U, true));
+			observe();
+			value.Host->invalidate(matching_invalidation());
+			observe();
+			value.Host->shutdown();
+			observe();
+		};
+
+		value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+		value.Effects.run_next();
+		value.Decisions.run_next();
+		expect(
+			value.Host->is_closing() && maximumDeferred == 3U
+				&& value.State.MaximumProjectionDepth == 1U
+				&& value.State.ProjectionDepth == 0U
+				&& diagnostic_count(
+					   value.State, core::epoch_reason_code::quota_exceeded)
+					== 1U,
+			"reentrant ordinary ingress is capacity bounded with one deferred quota "
+			"diagnostic and no recursive projection");
+
+		auto revoked = value.State.AuthorityRevocations;
+		std::ranges::sort(revoked);
+		expect(
+			revoked == std::vector<std::uint64_t>{ 1U, 2U, 3U, 4U },
+			"overflow, matching invalidation, and terminal-priority shutdown revoke "
+			"every rejected or retired smart authority exactly once");
+
+		drain(value);
+		expect(
+			value.Host->is_quiescent()
+				&& value.Host->deferred_ordinary_ingress() == 0U
+				&& value.State.MaximumProjectionDepth == 1U,
+			"terminal-priority shutdown survives the flood and drains exactly");
+	}
+
+	void reentrant_ordinary_ingress_retains_fifo_order()
+	{
+		fixture value;
+		value.State.ProjectionIngress = [&] {
+			value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+			value.Host->accept(make_handoff(value.State, 3U, 22U, true));
+		};
+		value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+		drain(value);
+
+		expect(
+			value.Host->state().AcceptedRevision
+				&& value.Host->state().AcceptedRevision->Source.Snapshot
+					== core::provider_snapshot_id{ 3U }
+				&& value.State.MaximumProjectionDepth == 1U,
+			"admitted ordinary reentrant offers retain FIFO order without recursive "
+			"projection");
+	}
+
+	void reentrant_invalidation_precedes_ordinary_ingress()
+	{
+		fixture value{ application::epoch_host_limits{
+			.OutstandingJobs = 8U,
+			.DeferredIngress = 2U,
+		} };
+		auto    maximumDeferred       = std::size_t{ 0U };
+		value.State.ProjectionIngress = [&] {
+			const auto observe = [&] {
+				maximumDeferred = std::max(
+					maximumDeferred, value.Host->deferred_ordinary_ingress());
+			};
+			value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+			observe();
+			value.Host->dispatch(core::cancel_epoch_refresh_intent{ });
+			observe();
+			value.Host->accept(make_handoff(value.State, 3U, 22U, true));
+			observe();
+			value.Host->invalidate(matching_invalidation());
+			observe();
+		};
+		value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+		drain(value);
+
+		auto revoked = value.State.AuthorityRevocations;
+		std::ranges::sort(revoked);
+		expect(
+			!value.Host->state().Authority
+				&& maximumDeferred == 2U
+				&& revoked == std::vector<std::uint64_t>{ 1U, 2U, 3U }
+				&& diagnostic_count(
+					   value.State, core::epoch_reason_code::quota_exceeded)
+					== 1U
+				&& value.State.MaximumProjectionDepth == 1U,
+			"matching invalidation survives full ordinary ingress and overflow, then "
+			"cancels active and queued replacement authority before dispatch");
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "the invalidation-overflow path quiesces");
 	}
 
 	void failed_same_authority_offer_preserves_active_comparison()
@@ -2763,6 +3642,12 @@ namespace {
 					== secondAuthority.Scope
 				&& value.State.MaximumActiveCacheSessions == 1U
 				&& value.State.ActiveCacheSessions == 1U
+				&& !value.State.RecoveryAbortStopRequested.empty()
+				&& std::ranges::none_of(
+					value.State.RecoveryAbortStopRequested,
+					[](const auto aStopped) {
+						return aStopped;
+					})
 				&& value.Host->state().Authority == std::optional{ secondAuthority },
 			"one repository actor cleans A under A, closes it, then opens and "
 			"uses the exact B PR session without overlap");
@@ -2772,35 +3657,8 @@ namespace {
 	{
 		fixture value;
 		establish_ready_comparison(value);
-		const auto& state   = value.Host->state();
-		const auto  options = core::options_digest(core::diff_options{ });
-		const auto  blob    = oid<core::git_blob_oid>(0x55U);
-		expect(
-			state.Authority.has_value() && state.AcceptedComparison.has_value()
-				&& options.has_value(),
-			"ready comparison supplies exact diff authority and options");
-		const auto request = application::diff_blob_request{
-			.Context = {
-				.Request            = core::request_id{ 701U },
-				.ApplicationSession = state.ApplicationSession,
-				.Key                = {
-					.Authority   = *state.Authority,
-					.Repository  = state.Authority->Repository,
-					.PullRequest = state.Authority->PullRequest,
-					.LeftAnchor  = state.AcceptedComparison->Left.Identity,
-					.RightAnchor = state.AcceptedComparison->Right.Identity,
-					.LeftBlob    = blob,
-					.RightBlob   = blob,
-					.File        = opaque<core::file_identity>(0x56U),
-					.Options     = *options,
-					.Algorithm   = core::supported_diff_algorithm_revision,
-				},
-				.Generation = core::request_generation{ 1U },
-			},
-			.Side         = core::diff_side::left,
-			.Blob         = blob,
-			.MaximumBytes = 1'024U,
-		};
+		const auto request = blob_request_for(value.Host->state());
+		const auto blob    = request.Blob;
 		expect(core::valid(request.Context), "blob bridge request context is valid");
 		const auto materialize = [&value](
 									 const application::diff_blob_request& aRequest) {
@@ -2832,13 +3690,16 @@ namespace {
 		stale.Context.Key.Authority.Number      = core::pull_request_number{ 82U };
 		stale.Context.Key.PullRequest           = core::pull_request_id{ 72U };
 		expect(core::valid(stale.Context), "stale same-repository context is valid");
-		const auto rejected = materialize(stale);
+		const auto rejected = value.Host->materialize(stale, { });
 		expect(
 			rejected.Status == application::diff_blob_status::failure
 				&& value.State.BlobRequests.size() == 1U
 				&& value.State.CacheOpenRequests.size() == 1U
-				&& value.State.MaximumActiveCacheSessions == 1U,
-			"stale same-repository authority cannot switch the retained cache session");
+				&& value.State.MaximumActiveCacheSessions == 1U
+				&& value.Host->outstanding_jobs() == 0U
+				&& value.Host->queued_actor_work() == 0U,
+			"stale same-repository authority is rejected before actor admission and "
+			"cannot switch the retained cache session");
 
 		value.Host->shutdown();
 		const auto closed = value.Host->materialize(request, { });
@@ -2846,6 +3707,91 @@ namespace {
 			closed.Status == application::diff_blob_status::failure
 				&& value.State.BlobRequests.size() == 1U,
 			"shutdown closes blob ingress without enqueuing cache work");
+	}
+
+	void invalidated_authority_cannot_materialize_retained_cache()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto request = blob_request_for(value.Host->state());
+
+		value.Host->invalidate(matching_invalidation());
+		const auto effectsBefore = value.Effects.pending();
+		const auto jobsBefore    = value.Host->outstanding_jobs();
+		const auto blobsBefore   = value.State.BlobRequests.size();
+		const auto rejected      = value.Host->materialize(request, { });
+
+		expect(
+			rejected.Status == application::diff_blob_status::failure
+				&& value.State.BlobRequests.size() == blobsBefore
+				&& value.Effects.pending() == effectsBefore
+				&& value.Host->outstanding_jobs() == jobsBefore,
+			"matching invalidation synchronously revokes blob authorization even "
+			"while the repository actor retains its cache session");
+
+		value.Host->shutdown();
+		drain(value);
+		expect(
+			value.Host->is_quiescent(),
+			"the invalidated retained-cache rejection remains quiescent");
+	}
+
+	void invalidated_inflight_blob_cannot_publish_bytes()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto              request = blob_request_for(value.Host->state());
+		std::mutex              gate;
+		std::condition_variable changed;
+		auto                    entered            = false;
+		auto                    release            = false;
+		value.State.BlobMaterializationIgnoresStop = true;
+		value.State.DuringBlobMaterialization      = [&](const std::stop_token) {
+			std::unique_lock lock{ gate };
+			entered = true;
+			changed.notify_one();
+			changed.wait(lock, [&] {
+				return release;
+			});
+		};
+
+		auto observation = std::optional<application::diff_blob_observation>{ };
+		auto caller      = std::jthread{ [&] {
+			observation = value.Host->materialize(request, { });
+		} };
+		value.Effects.wait_for_pending();
+		auto effect = std::jthread{ [&] {
+			value.Effects.run_next();
+		} };
+		{
+			std::unique_lock lock{ gate };
+			changed.wait(lock, [&] {
+				return entered;
+			});
+		}
+
+		value.Host->invalidate(matching_invalidation());
+		{
+			const std::lock_guard lock{ gate };
+			release = true;
+		}
+		changed.notify_one();
+		effect.join();
+		caller.join();
+
+		expect(
+			observation
+				&& observation->Status != application::diff_blob_status::available
+				&& observation->Bytes.empty()
+				&& value.State.BlobRequests.size() == 1U,
+			"post-read authority and stop checks discard bytes returned by a cache "
+			"that ignores advisory cancellation after matching invalidation");
+
+		value.Host->shutdown();
+		drain(value);
+		expect(
+			value.Host->is_quiescent(),
+			"the revoked in-flight blob path retires its actor reservation");
 	}
 
 	void cancellation_before_ponr_aborts_without_publication()
@@ -3864,6 +4810,24 @@ int main()
 	successful_append_preserves_exact_order();
 	projection_failure_is_contained_and_decision_progress_drains();
 	reentrant_projection_ingress_is_deferred_without_recursion();
+	epoch_host_limits_reject_invalid_capacity();
+	executor_refusal_rolls_back_offer_admission();
+	actor_quota_rejection_preserves_the_admitted_offer();
+	refresh_flood_bounds_jobs_actor_fifo_and_completions();
+	request_quota_uses_exact_typed_terminal();
+	concurrent_executor_refusal_preserves_later_actor_work();
+	shutdown_cancels_an_inflight_blob_call();
+	shutdown_stop_callback_can_reenter_blob_ingress();
+	terminal_slot_reservation_protects_mandatory_cleanup();
+	replacement_reserves_required_context_cleanup();
+	cleanup_executor_refusal_prevents_replacement_offer();
+	replacement_offer_refusal_preserves_cross_repository_authority();
+	same_authority_offer_keeps_terminal_capacity_for_core_ingestion();
+	replacement_cancellation_does_not_stop_mandatory_cleanup();
+	reentrant_terminal_requests_close_blob_authority_before_return();
+	reentrant_ingress_flood_preserves_terminal_priority();
+	reentrant_ordinary_ingress_retains_fifo_order();
+	reentrant_invalidation_precedes_ordinary_ingress();
 	failed_same_authority_offer_preserves_active_comparison();
 	successful_same_authority_offer_swaps_on_exact_terminal();
 	historical_origin_reaches_authority_projection();
@@ -3879,6 +4843,8 @@ int main()
 	stale_prepare_and_comparison_terminals_are_inert();
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
+	invalidated_authority_cannot_materialize_retained_cache();
+	invalidated_inflight_blob_cannot_publish_bytes();
 	cancellation_before_ponr_aborts_without_publication();
 	stop_immediately_after_ponr_cannot_replace_committed_terminal();
 	applied_commit_authorization_error_aborts_exactly_before_ponr();

@@ -1181,10 +1181,34 @@ exact PR cache-session switching, stale/cancel rejection, pre-PONR abort,
 post-PONR mandatory success, applied-then-error postcondition resolution,
 restart continuation across every durable append phase, mismatch-to-repair,
 decision-lane-only projection, projection-exception containment, deferred
-reentrant ingress without recursive publication, and shutdown quiescence. The real
-`git_process_contract`, `git_cache_contract`, and SQLite contracts separately
+reentrant ingress without recursive publication, and shutdown quiescence.
+BPR-0068 adds injected `epoch_host_limits` and deterministic floods that hold
+the manual effect/decision executors: one actor drain retains at most the job
+capacity across queued closures and pending terminals, a request-specific
+quota terminal is observed while blob materialization owns the same ledger,
+effect-executor refusal rolls back before `unavailable`, and ordinary
+reentrant ingress never exceeds its separate capacity. Matching invalidation
+and shutdown use fixed terminal-priority state, rejected smart leases are
+revoked, admitted ordinary work remains FIFO, projection depth remains one,
+terminal retirement reserves capacity for core-emitted cleanup, and a saved
+blob request cannot materialize the retained cache after matching authority
+invalidation. Concurrent executor refusal preserves later admitted actor
+work; shutdown cancels an entered synchronous blob read and counts it through
+caller wakeup before reaching exact quiescence. Reentrant invalidation revokes
+blob authority before returning, reentrant shutdown closes blob ingress before
+returning, and post-read generation checking prevents stale-byte publication.
+Shutdown cancellation also proves a synchronous stop callback can reenter
+shutdown and the closed blob seam at callback depth one without deadlocking
+the job ledger.
+Replacement append cleanup is pre-admitted and must be successfully queued
+before authority mutation or offer submission; quota and executor refusal
+preserve the active authority. The real `git_process_contract`,
+`git_cache_contract`, and SQLite contracts separately
 exercise the installed-Git, physical recovery-inspection/cleanup, and durable
 catalog operations used by that fake-port orchestration.
+The BPR-0068 closeout replay passed the focused host under ASan/UBSan and a
+12-target sequential, Qt-free component matrix. It launched no application
+instance; the existing public persistence launch evidence was not repeated.
 
 BPR-0056 extends the same focused core and host contracts with the public
 history-page intent/request/terminal path. The table covers empty, one-row,

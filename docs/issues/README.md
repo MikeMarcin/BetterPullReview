@@ -187,19 +187,24 @@ BPR-0053 and BPR-0054 remain in `backlog/` pending their explicit board
 transitions. Done BPR-0067 now exposes confirmed prune/cache-delete commands
 through the selected application and real Git/SQLite projection path, with
 default-Cancel confirmations, unrelated-ref canaries, durable restart proof,
-and no additional provider traffic. Backlog BPR-0068 retains bounded
-epoch-host job, actor-FIFO, and reentrant-ingress residency. Backlog BPR-0069
+and no additional provider traffic. Done BPR-0068 makes the epoch-host job
+ledger an explicit global admission bound, includes actor-serialized blob
+materialization, separately bounds ordinary reentrant ingress, and preserves
+fixed terminal priority for invalidation/shutdown. Its focused flood,
+sanitizer, and sequential component closeout matrices pass without launching
+Qt or the application. Backlog BPR-0086 retains nonblocking deterministic
+allocation-failure and extra invalid-limit hardening. Backlog BPR-0069
 retains final native-probe provenance, partial-claim wording, immutable-base
 changed-path, and documentation reconciliation. Backlog BPR-0070 retains the
 fail-closed command-projection refinement that disables prune before
-confirmation for an already ineligible selected availability. BPR-0054
-depends on all four and makes no closeout claim while they remain open.
+confirmation for an already ineligible selected availability. BPR-0054 makes
+no closeout claim while its remaining blocking dependencies remain open.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.
 BPR-0053 reserves target-native Windows evidence for the product owner's real
 Windows machine without blocking available-platform implementation or later
-RFC work. BPR-0054 remains blocked by BPR-0035/BPR-0036, BPR-0053, BPR-0068,
-BPR-0069, and BPR-0070, so final RFC-BPR-0003 Auto-Verified closeout and every
+RFC work. BPR-0054 remains blocked by BPR-0035/BPR-0036, BPR-0053, BPR-0069,
+and BPR-0070, so final RFC-BPR-0003 Auto-Verified closeout and every
 affected unverified claim remain intact without delaying RFC-BPR-0004.
 
 RFC-BPR-0004 revision 2 is now the implementation frontier from immutable base

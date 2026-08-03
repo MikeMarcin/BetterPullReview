@@ -337,8 +337,12 @@ collision causes a fresh CSPRNG sample, bounded to 32 attempts.
 
 The host retains at most 100 prepared observations and 1,000 repository actors,
 and scans at most 1,000 recovery operations in pages of 100. Each repository
-authority has one bounded FIFO actor and one exact PR cache session at a time;
-switching PRs closes and reopens that session, while unrelated repositories
+authority has one FIFO actor and one exact PR cache session at a time. BPR-0068
+makes the retained `Jobs` vector the global admission ledger: 64 jobs by
+default and at most 1,024 by contract. Every queued, running, or
+decision-completion-pending actor closure, including diff blob materialization,
+owns one slot; the slot retires before its terminal can admit dependent work.
+Switching PRs closes and reopens the exact session, while unrelated repositories
 can progress independently. Before offering haves or comparison endpoints, the
 host requires catalog availability and direct commit-object inspection. It
 does not treat a catalog row as proof that an object still exists.
@@ -356,6 +360,48 @@ exact pending authority, accepted provider revision, and generation before
 core acceptance or projection. The host source defers reentrant ingress behind
 the current decision and contains projection exceptions. Quiescence waits for
 actors, preparations, decisions, and deferred work to drain.
+
+BPR-0068 separately caps ordinary reentrant accept/dispatch ingress at 64 by
+default and 1,024 at most. Overflow is rejected before core acceptance, smart
+leases are revoked, and one diagnostic is retained for the turn. Matching
+queued offers are revoked by invalidation; two fixed priority slots retain the
+only simultaneously relevant active/pending invalidations, and a separate
+shutdown flag supersedes ordinary work. The similar GitHub-host ingress queue
+is explicitly outside this epoch-host slice.
+
+The blob bridge has a separate fail-closed authority guard in addition to
+cache-session identity. Only the current application-session and pull-request
+authority may materialize through the retained actor. Authority replacement,
+matching invalidation, and shutdown revoke that guard synchronously, and the
+host checks it before admission and on the actor both before and after cache
+access. Returned bytes are discarded if an advisory-cancellation-ignoring
+cache crosses revocation. A non-consumable actor-exit reservation keeps result
+publication and waiter notification inside the global residency count. The
+authorization generation is checked while holding the same mutex through
+successful result publication. Matching invalidation performs cancellation
+and revocation before its ingress call returns; shutdown closes blob ingress
+and cancels jobs before its call returns, including reentrant requests whose
+semantic transitions drain at the end of the current decision turn.
+All cancellation sweeps use a fixed 1,024-entry control snapshot. They mark
+and select jobs under the ledger mutex but invoke `request_stop` only after
+releasing it. Nested sweeps exclude already-issued controls, so synchronous
+stop callbacks can reenter shutdown, `materialize()`, or counter inspection
+without mutex recursion or one-frame-per-job stack growth.
+
+Active append preparation also has explicit replacement admission. The host
+pre-admits cleanup and requires its actor submission to succeed before a
+different authority is invalidated or the new offer is submitted. A
+same-authority success queues the preadmitted cleanup before core acceptance,
+leaving the offer terminal reservation for the core-emitted ingestion job.
+Empty and observation-only preparation require no actor job. Capacity or
+executor refusal therefore preserves the active authority instead of losing
+durable staging cleanup. Replacement cancellation skips the protected cleanup
+control; direct same- and different-authority append cases record a live stop
+token at `abort_recovered_operation` and a durable `aborted` transition.
+For a cross-repository replacement, both independent actor submissions must
+succeed before active cancellation or invalidation. A sequenced executor that
+accepts cleanup and rejects the new repository actor proves the old authority
+remains selected while mandatory cleanup can still finish.
 
 The focused component command is:
 
@@ -376,7 +422,11 @@ projection-exception containment, deferred reentrant ingress without recursive
 publication, quiescence, and bounded history paging. Its page matrix covers
 empty, one-row, multi-page, exact-bound, invalid/malformed, catalog-revision,
 identity-switch, failure, cancellation, duplicate, and deliberately reordered
-terminal cases. Adjacent real installed-Git, cache, and SQLite
+terminal cases. BPR-0068 adds small injected limits plus refresh, blob-bridge,
+executor-refusal, FIFO, invalidation-priority, and mixed shutdown floods. The
+manual executors directly expose job, actor-queue, decision-completion, and
+ordinary-ingress counts while no Qt or provider process is involved. Adjacent
+real installed-Git, cache, and SQLite
 contracts verify the physical and durable port implementations. BPR-0047
 selects those implementations through the public executable and proves
 second-process cache/catalog reuse for GitHub.com and GHES; BPR-0048 supplies
@@ -461,7 +511,7 @@ final workspace scan retains none of those credential/image artifacts.
 | Stale/canceled work cannot publish | Manual executor and real process cancellation | Reorder/duplicate/cancel Git, transport, catalog, and identity-switch completions | Partially verified at component boundaries: earlier protocol/process/cache slices reject canceled work and exact lease drift; BPR-0045 directly verifies pre/post-PONR cancellation policy and rejects stale load, preparation, and comparison terminals before core/projection publication. BPR-0056 rejects mismatched authority/source/catalog/cursor, cancels on revision or identity replacement, and proves a deliberately reordered loaded page cannot publish rows. BPR-0066 additionally rejects late older/newest page terminals across file authority, epoch generation, catalog revision, and request identity while retaining a stale visible page until an exact newest load succeeds. BPR-0048 supplies the broad combined fault matrix and BPR-0047 public composition |
 | Qt projection is incremental, accessible, and system-native | Stable-ID model and real widgets | Assert exact signals, persistent indexes, focus, keyboard, OID text, announcements, responsive layout, bounded resident rows, zero routine resets, and live native palette/style/font inheritance | Verified on available targets: BPR-0046 and refreshed BPR-0049 three-scale actual-window cases pass with exact insert/remove/move/data signals, persistent anchor indexes, selector and QAction translation, 40/64-character OIDs, explicit states, focus/accessibility, deduplicated bounded announcements, live font invalidation, and zero routine resets. BPR-0066 repeatedly replaces more than 1,000 pages while retaining at most 100 epochs/200 anchors, reaches ordinal one and newest, preserves or legally invalidates persistent indexes by stable identity, and renders the real 100/200-row composition at 1.0x/1.25x/2.0x. BPR-0049 directly renders the current real application through unforced Ubuntu XCB/QFusionStyle. BPR-0059's owner-activated Cocoa/QMacStyle run adds the required active-window/existing-focus proof: exact epoch identities, OIDs, Whole PR selection, accessibility, readable palettes, and zero resets survive the same-process System Light-to-Dark transition in distinct inspected 2200x1440 rasters. Real Windows UI execution remains BPR-0053 |
 | Public composition selects production pieces | Real executable | Recorded GitHub plus local Git protocol fixture reaches exact visible pair; second invocation proves persistence; Release excludes seams | Verified on available targets: BPR-0047 covers GitHub.com/GHES acquisition, retained comparisons, restart, quiescence, and tests-disabled seam exclusion. BPR-0067 drives the selected executable's public maintenance QAction and confirmation through the same core/host/installed-Git/SQLite/Qt composition, verifies prune and cache-delete effects after separate restarts, and observes zero additional provider/smart calls during maintenance. Windows execution remains BPR-0053 |
-| Resource use is bounded without silent retention loss | Protocol/process/cache/catalog/history fixtures | Exceed packet, stream, pack, disk, ref, row/page, output, time, and process limits; require bounded failure and no automatic prune | Verified except for the explicitly unexecuted production 30-second elapsed idle case: earlier slices cover process/protocol/cache bounds; BPR-0044 covers database/SQLite/catalog/epoch/revision/checkpoint quotas; BPR-0045 covers bounded source/preparation/recovery/actor work; BPR-0056 covers 1..100 revision-bound page requests with no core row retention. BPR-0066 proves a strict 100-epoch/200-anchor Qt residency cap through more than 1,000 page replacements and a real 100,000-epoch SQLite catalog without losing ordinal-one or newest reachability. BPR-0048 hardens the target-native reduced-deadline fixture against proxy/instrumentation startup races and reruns it normally and under Address/UndefinedBehavior Sanitizers without changing production deadlines |
+| Resource use is bounded without silent retention loss | Protocol/process/cache/catalog/history fixtures | Exceed packet, stream, pack, disk, ref, row/page, host job/actor/completion/ingress, output, time, and process limits; require bounded failure and no automatic prune | Verified on the focused BPR-0068 host surface and prior available-platform surfaces: earlier slices cover process/protocol/cache bounds; BPR-0044 covers database/SQLite/catalog/epoch/revision/checkpoint quotas; BPR-0045 covers bounded source/preparation/recovery/actor work; BPR-0056 covers 1..100 revision-bound page requests with no core row retention. BPR-0066 proves a strict 100-epoch/200-anchor Qt residency cap through more than 1,000 page replacements and a real 100,000-epoch SQLite catalog without losing ordinal-one or newest reachability. BPR-0068 directly exceeds small injected job and ordinary-ingress capacities while effects/decisions are withheld, includes blob materialization in the same ledger, proves core-request quota and blob generic-host failure outcomes, FIFO/terminal priority, lease cleanup, fail-closed retained-cache authorization, projection depth one, reserved cleanup admission, and shutdown quiescence. Its final sequential component and ASan/UBSan replays pass with zero application launches. The explicitly unexecuted production 30-second elapsed idle case remains outside this host-residency proof |
 | Platform claims are target-native | macOS, Linux, and Windows | Run configure/build/tests, Git/process/network/cache/catalog/Qt/runtime/dependency evidence on each claimed target | Partially verified: prior slices and BPR-0050 provide direct macOS process/protocol/native-loopback/cache/catalog/Keychain/public-runtime evidence; BPR-0045 adds guarded production CSPRNG/system-clock ports and current-host native contracts. BPR-0058 adds the retained-directory replacement canary and syscall proof that SQLite main/bootstrap/sidecar opens remain under `/proc/self/fd` with final-component no-follow. BPR-0050 completes the broader Ubuntu 26.04 x86_64 GCC 15.2 process, protocol, Secret Service, cache, catalog, maintenance, public Qt, dependency, and runtime matrix. MinGW remains compile/link evidence only, and every affected Windows runtime claim remains open in BPR-0053 |
 | GitHub Actions is absent | Repository and documentation | Tracked/on-disk workflow scans plus documentation validator | Verified again after BPR-0052: tracked and on-disk workflow counts are 0/0, no source/build integration selects GitHub Actions, and every macOS/Linux build and verification command is local or target-native |
 
@@ -513,12 +563,12 @@ visual-polish or custom-theme claim.
 | Scope | Required documents | Disposition | Planned evidence |
 |---|---|---|---|
 | Core epoch state and typed flow | Domain/state model and Git/epoch architecture | Updated: exact revision/incarnation, composite cause facts, exact alias/pair policy, request/generation acceptance, BPR-0056 bounded page/cursor/delta policy, BPR-0066 explicit older/newest accepted-window navigation and invalidation, and BPR-0055 digest-bound maintenance intent/request/terminal policy; no page rows or maintenance target vectors are retained | Core paging/cause/selection/maintenance tables, more-than-1,000-page replay, state-size, and dependency scans |
-| Host/Git/transport boundary | System architecture, Git/epoch implementation, security model | Updated through component work: earlier slices harden installed Git, smart transport, cache/ref consumption, and durable catalog facts; BPR-0045 adds the source-free handoff/runtime ports, per-repository FIFO host, exact append/recovery sequencing, physical commit inspection, stale/cancel rejection, and projection/quiescence containment. BPR-0055 composes exact prune/cache-delete authorization and every durable restart phase; BPR-0056 adds revision-bound catalog page execution and sanitized incremental projection; BPR-0066 adds explicit accepted-window replacement/invalidation and prevents new-catalog inserts from mixing into an older snapshot. BPR-0047 adds the narrow accepted-snapshot outlet, revocable account capability, concrete public composition, and quiescent shutdown order | `application_epoch_contract`, `application_epoch_host`, `application_github_host`, `epoch_maintenance_integration`, adjacent real Git/cache/SQLite contracts, and both public persistence cases |
+| Host/Git/transport boundary | System architecture, Git/epoch implementation, security model | Updated through BPR-0068: earlier slices harden installed Git, smart transport, cache/ref consumption, and durable catalog facts; BPR-0045 adds the source-free handoff/runtime ports, per-repository FIFO host, exact append/recovery sequencing, physical commit inspection, stale/cancel rejection, and projection/quiescence containment. BPR-0055 composes exact prune/cache-delete authorization and every durable restart phase; BPR-0056 adds revision-bound catalog page execution and sanitized incremental projection; BPR-0066 adds explicit accepted-window replacement/invalidation and prevents new-catalog inserts from mixing into an older snapshot. BPR-0068 makes jobs the global admission ledger, includes the blob bridge with a revocable active-authority guard, separately caps ordinary reentrant ingress, gives invalidation/shutdown fixed terminal priority, and makes smart-transport revocation allocation-free. BPR-0047 adds the narrow accepted-snapshot outlet, revocable account capability, concrete public composition, and quiescent shutdown order | `application_epoch_contract`, `application_epoch_host`, `application_github_host`, `epoch_maintenance_integration`, adjacent real Git/cache/SQLite contracts, and both public persistence cases |
 | Cache privacy and operations | Git/epoch architecture, [build/test operator guidance](../development/build-and-test.md#retained-git-history-and-epoch-storage), and product entrypoints | Updated through BPR-0067: `2801241` implements physical authority isolation and exact cache/ref cleanup; BPR-0044 implements durable append/prune/cache-delete facts; BPR-0045 composes append authorization/recovery; BPR-0055 composes core-authorized paired-ref and whole-cache maintenance; BPR-0067 adds the secondary public maintenance menu, default-Cancel confirmations, exact captured targets, durable public restart proof, and cache-delete supersession of prior prune tombstones. README and troubleshooting state exact destructive consequences and prohibit manual storage editing | Hostile cache fixtures, catalog restart/corruption/quota contracts, manual-executor maintenance failures/restarts, real `git_cache_contract`, real Git/SQLite maintenance composition, and `application_epoch_maintenance_public_path` |
 | Epoch semantics | [Product contract](../architecture/product-contract.md), product/UX reference, and verification ledger | Updated through BPR-0051: retained observed revisions are a distinct private authority; composite causes, unknown lineage, chronology, equivalence, exact anchors, aliases without fallback, reverse/identical pairs, unavailable history, and GitHub's continued authority over shared current facts remain explicit | Core/host/public fixture matrix and immutable-base authority review |
 | Qt presentation | Workbench and appearance/accessibility documents | Updated through BPR-0067: reusable base/head selectors, named actions, exact copyable OIDs, explicit retained/unavailable/stale states, separate older/newest actions, one stable-ID-reconciled 100-epoch/200-anchor page, accessibility, bounded announcements, native System inheritance, owner-active Cocoa/QMacStyle focus retention, and one secondary accessible local-history menu with default-Cancel confirmations; no final-workbench claim | More-than-1,000-page model traversal, real 100/200-row three-scale raster cases, BPR-0049/BPR-0059 native appearance evidence, and BPR-0067 Qt/public maintenance action tests |
 | Build and packaging | Build/test guide and dependency inventory | Updated for repository-pinned static SQLite 3.53.4, the exact 18-table/16-index schema, platform storage/runtime-port boundaries, and dedicated core/host/history/maintenance/Qt commands. BPR-0047 selects those existing dependencies in the public executable and adds test-only two-process orchestration; it adds no GitHub Actions, dependency, schema, package format, or runtime option | Focused application/core/Git/SQLite/Qt commands, tests-disabled Release graph/binary inspection, and dependency/architecture scans; no Windows execution is claimed |
-| Tests and fixtures | Fixture catalog and test guide | Updated through BPR-0067: prior component, paging, public persistence, force-push, sanitizer, and timing fixtures remain; BPR-0067 adds the four-process selected-executable maintenance contract and exact public prune/delete restart markers | `epoch_history_fixture_contract`, `core_epoch_policy`, `application_epoch_contract`, `application_epoch_host`, `application_github_host`, `epoch_maintenance_integration`, `application_epoch_persistence_*`, `application_epoch_maintenance_public_path`, `sqlite_epoch_catalog_behavior_contract`, `qt_epoch_comparison_scale_*`, native smart transport, Release composition, architecture scans, documentation gate, and simplification review |
+| Tests and fixtures | Fixture catalog and test guide | Updated through BPR-0068: prior component, paging, public persistence, force-push, sanitizer, and timing fixtures remain; BPR-0067 adds the four-process selected-executable maintenance contract and exact public prune/delete restart markers; BPR-0068 adds deterministic job/actor/completion/blob/ordinary-ingress floods and executor refusal with explicit counters and terminal-priority proof | `epoch_history_fixture_contract`, `core_epoch_policy`, `application_epoch_contract`, `application_epoch_host`, `application_github_host`, `epoch_maintenance_integration`, `application_epoch_persistence_*`, `application_epoch_maintenance_public_path`, `sqlite_epoch_catalog_behavior_contract`, `qt_epoch_comparison_scale_*`, native smart transport, Release composition, architecture scans, documentation gate, and simplification review |
 | No-impact/deferred regions | RFC ledger, architecture, issue board | Revalidated by BPR-0051/BPR-0059: BPR-0047 wires the interim BPR-0046 control but makes no final visual-polish or selectable-theme claim. BPR-0048 supplies the broad combined matrix, BPR-0049/BPR-0059 complete available native UX including owner-active macOS focus, and BPR-0053 retains real Windows evidence. No GitHub mutation, local review-receipt/actionability policy, RFC4 diff/line mapping, RFC5 final workbench/polish, RFC6 themes/syntax/fonts, queue/AI/notification, CLI enablement, or package-format/signing/installer implementation is claimed | Immutable-base path/target audit, target/dependency scans, BPR-0059 rendered native inspection, and documentation anchors reviewed by BPR-0051 |
 | GitHub Actions | Build/test/package/release documentation | Updated and verified through completed BPR-0044: absolute prohibition and no workflow files | Post-BPR-0052 documentation validator and tracked/on-disk workflow scans are 0/0 |
 
@@ -531,9 +581,13 @@ visual-polish or custom-theme claim.
   navigation, and continuation facts and never a page vector. BPR-0066 keeps
   one accepted page in Qt, so presentation residency is at most 100 epochs/200
   anchors regardless of catalog size or traversal depth.
-- BPR-0045 retains at most 1,000 repository actors. Each exact repository
-  authority has one bounded FIFO and one PR cache session at a time, while
-  unrelated repositories can progress independently.
+- BPR-0045 retains at most 1,000 repository actors. BPR-0068 bounds all queued,
+  running, and completion-pending epoch-host work with one default-64,
+  maximum-1,024 job ledger, including the diff blob bridge. Each exact
+  repository authority has one FIFO and one PR cache session at a time, while
+  unrelated repositories can progress independently. Ordinary reentrant
+  accept/dispatch ingress has its own default-64, maximum-1,024 FIFO; two
+  fixed invalidation slots and one shutdown flag remain terminal-priority.
 - Source collision retry is bounded to 32 attempts, prepared observations to
   100, and one recovery scan to 1,000 operations in pages of 100.
 - Routine epoch append or availability change performs changed-set catalog and

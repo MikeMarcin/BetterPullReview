@@ -301,16 +301,66 @@ last accepted exact pair as visibly refreshing.
 
 Epoch cache/catalog effects are serialized by a host-lifetime registry of at
 most 1,000 actors, one per exact repository cache authority. Each actor owns
-one FIFO and at most one live cache session. Switching pull requests in the
-same repository first runs the old context's exact cleanup under its old PR
-session, closes that session, and opens the full new PR request; unrelated
-repository actors may run in parallel. Reentrant ingress is deferred until the
-current decision turn completes. Projection delivery is synchronous and
-observational: its exceptions are contained and cannot veto core acceptance,
-durable success, cleanup, or actor progress. All ingress and state/quiescence
-inspection remain decision-lane confined. Shutdown is quiescent only after
-jobs, deferred ingress, pending offers, decision turns, and every actor queue
-are idle.
+one FIFO and at most one live cache session. One public `epoch_host_limits`
+record caps the global retained job ledger (64 by default, at most 1,024) and
+ordinary reentrant ingress (64 by default, at most 1,024). Every queued,
+running, or decision-completion-pending actor operation—including synchronous
+diff blob materialization—retains one ledger entry. The global job cap
+therefore bounds the sum of actor FIFOs and each individual FIFO. Decision
+completion tasks are allocated at admission, and retirement reserves the freed
+slot for one core-emitted dependent request until that terminal returns;
+concurrent blob calls cannot steal mandatory cleanup capacity. Core epoch
+requests receive their typed `quota_exceeded` terminal when ordinary capacity
+is full. The existing blob vocabulary has no host-capacity reason, so blob
+admission returns generic host failure rather than misreporting a file-size
+materialization limit. A replacement that has append preparation to retire
+must pre-admit and successfully schedule that cleanup before mutating the
+active authority or submitting the new offer. Insufficient capacity produces
+an exact quota refusal; allocation or executor refusal produces unavailable
+while preserving the active context. The admitted cleanup control is protected
+from the replacement's ordinary authority-cancellation sweep. Switching pull
+requests in the same repository therefore queues old-context cleanup under its
+old PR session before the new offer can open the full new PR request. For
+unrelated repository actors, the cleanup post and new-offer post must both
+succeed before the host cancels or invalidates the active authority. Refusal of
+the second post leaves the old authority active while the already-admitted
+cleanup finishes safely.
+
+Reentrant accept/dispatch ingress remains FIFO and is rejected before core
+acceptance when its separate capacity is full. One pending diagnostic reports
+an overflow turn. Matching queued offers are revoked by invalidation, while
+two fixed priority slots retain the only simultaneously relevant active and
+pending invalidations; shutdown uses a separate priority flag and supersedes
+ordinary work. Neither terminal event can be crowded out. Projection delivery
+is synchronous and observational: its exceptions are contained and cannot
+veto core acceptance, durable success, cleanup, or actor progress. Semantic
+ingress and state/quiescence inspection remain decision-lane confined; the
+synchronous `materialize()` port is the sole concurrent exception. Blob calls
+enter through a close-aware counter, share the job ledger, combine caller and
+host cancellation, and remain part of quiescence until their callers wake. A
+retained cache actor grants blob access only to the exact active application
+session and pull-request authority. Replacement, matching invalidation, and
+shutdown synchronously revoke that grant; materialization checks it before
+admission and on the serialized actor both before and after cache access. A
+cache that returns bytes despite advisory cancellation cannot publish them
+after revocation. Blob result delivery moves its job into a non-consumable,
+counted actor-exit reservation through waiter notification, so no running
+closure falls outside the residency bound. Matching invalidation performs the
+cancel-and-revoke portion when the request is admitted, before a reentrant
+call returns; shutdown similarly closes blob ingress and cancels admitted
+jobs before returning, even when semantic teardown must wait for the current
+decision turn. A generation-checked authorization critical section makes
+successful result publication linearizable with revocation. Cancellation
+marks and copies matching controls into fixed maximum-capacity storage while
+holding the job mutex, then releases that mutex before `request_stop`.
+Synchronous stop callbacks may reenter shutdown, the public blob seam, or
+counter inspection without deadlock or recursive cancellation depth.
+Shutdown is quiescent only after the job ledger, entered blob calls, ordinary
+and priority ingress, pending offers, decision turns, and every actor queue are
+idle. The similar GitHub-host reentrant-ingress surface remains separately
+scoped future work. Its smart-Git authority revocation path does participate
+in this lifecycle: it swaps the retained weak transport set under lock without
+allocating before it cancels transports.
 
 The selected diff host has its own effect executor but obtains blob bytes only
 through the epoch host. Its synchronous blob seam queues onto the matching

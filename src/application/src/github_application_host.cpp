@@ -105,19 +105,14 @@ namespace bpr::application {
 				if (Revoked.exchange(true, std::memory_order_acq_rel)) {
 					return;
 				}
-				auto transports = std::vector<git_smart_transport>{ };
+				auto transports = std::vector<
+					std::weak_ptr<git_smart_transport_port>>{ };
 				{
 					const std::scoped_lock lock{ Mutex };
-					transports.reserve(Transports.size());
-					for (const auto& candidate : Transports) {
-						if (auto transport = candidate.lock()) {
-							transports.push_back(std::move(transport));
-						}
-					}
-					Transports.clear();
+					transports.swap(Transports);
 				}
-				for (const auto& transport : transports) {
-					if (transport) {
+				for (const auto& candidate : transports) {
+					if (const auto transport = candidate.lock()) {
 						transport->revoke();
 					}
 				}

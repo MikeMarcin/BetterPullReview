@@ -4,11 +4,35 @@
 #include "bpr/core/epoch_model.hpp"
 
 #include <array>
+#include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 
 namespace bpr::application {
+	inline constexpr std::size_t maximum_epoch_outstanding_jobs = 1'024U;
+	inline constexpr std::size_t maximum_epoch_deferred_ingress = 1'024U;
+
+	/// \brief Describes the epoch host residency limits.
+	struct epoch_host_limits
+	{
+		std::size_t OutstandingJobs = 64U;
+		std::size_t DeferredIngress = 64U;
+
+		auto operator<=>(const epoch_host_limits&) const = default;
+	};
+
+	/// \brief Checks whether the supplied value satisfies its contract.
+	[[nodiscard]] constexpr auto valid(const epoch_host_limits& aLimits) noexcept
+		-> bool
+	{
+		return aLimits.OutstandingJobs > 0U
+			&& aLimits.OutstandingJobs <= maximum_epoch_outstanding_jobs
+			&& aLimits.DeferredIngress > 0U
+			&& aLimits.DeferredIngress <= maximum_epoch_deferred_ingress;
+	}
+
 	using epoch_entropy_bytes = std::array<std::uint8_t, 32U>;
 
 	/// \brief Checks whether the supplied value satisfies its contract.

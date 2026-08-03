@@ -1021,10 +1021,54 @@ nothing and requests a fresh bounded observation.
   discard/compare FIFO and owns at most one exact PR-scoped cache session.
   Switching PRs closes the old session before opening the new exact request;
   unrelated repository actors run in parallel.
+- The public epoch-host residency record admits 64 retained jobs by default
+  (hard maximum 1,024). Every queued, running, or serialized-completion-pending
+  actor operation, including the synchronous diff blob bridge, owns exactly
+  one ledger slot. Core epoch-request capacity refusal produces the
+  request-specific `quota_exceeded` terminal; blob capacity refusal uses its
+  existing generic host-failure observation rather than the unrelated
+  file-size materialization-limit reason. Recoverable admission/type-erasure
+  allocation or effect-executor refusal rolls back the slot before
+  `unavailable`. Decision-completion callables are allocated at admission, and
+  terminal retirement reserves the freed slot for one core-emitted dependent
+  request so concurrent blob work cannot crowd out cleanup. Cancellation never
+  silently removes an actor FIFO entry.
+- Replacing an active context that retains append preparation pre-admits its
+  cleanup as a distinct bounded job. Cleanup scheduling must succeed before a
+  different authority is invalidated or its new offer is submitted. For a
+  same-authority replacement, the preadmitted cleanup is queued before core
+  acceptance. Its job control is exempt from ordinary authority cancellation,
+  while shutdown can still stop it for durable restart recovery. An empty or
+  observation-only preparation set is retired on the decision lane and
+  consumes no actor slot. For different repository actors, active cancellation
+  and invalidation occur only after both the cleanup and replacement offer
+  posts succeed; failure of the second post preserves the old authority.
+- Ordinary reentrant accept/dispatch ingress has a separate default capacity
+  of 64 (hard maximum 1,024), retains FIFO order, and rejects overflow before
+  core acceptance with exact lease cleanup and one pending diagnostic per
+  turn. Matching invalidation revokes queued offers and uses two fixed
+  active/pending priority slots; shutdown uses a separate priority flag. Those
+  terminal events cannot be crowded out by ordinary ingress.
 - One authority context retains at most 100 exact prepared operations, and one
   accepted recovery pass admits at most 1,000 operations in pages of 100.
 - Network and Git preparation run off the serialized lane with immutable
   inputs and explicit cancellation.
+- `materialize()` is the only concurrently callable epoch-host ingress. Its
+  close-aware in-flight count participates in quiescence, its caller stop is
+  forwarded into the host job control, and host shutdown closes admission and
+  stops an active cache read under the same lifecycle boundary. The retained
+  actor grants blob access only to the active application-session and
+  pull-request authority, rechecks that grant and stop state on the actor both
+  before and after cache access, and revokes it synchronously on authority
+  replacement, matching invalidation, or shutdown. Result publication retains
+  a counted, non-consumable actor-exit reservation through waiter notification.
+  Authorization generation and result publication share the revocation mutex.
+  Matching invalidation cancels and revokes at request admission; shutdown
+  closes blob ingress and cancels jobs at request admission, even when their
+  semantic transitions are deferred until the current decision turn ends.
+  Cancellation marks and snapshots matching controls into fixed bounded
+  storage, then invokes synchronous stop callbacks after releasing the job
+  mutex; nested sweeps exclude controls whose cancellation was already issued.
 - Identity switching advances the epoch generation before cancellation and
   clears active comparison state. Earlier terminals cannot publish.
 - Same-authority refresh retains the last accepted exact pair marked
@@ -1048,6 +1092,9 @@ nothing and requests a fresh bounded observation.
   callbacks are synchronous observations whose exceptions are contained, so
   presentation cannot veto accepted core state, durable success, cleanup, or
   FIFO progress.
+- The GitHub application host has a distinct reentrant-ingress queue. Its
+  resource audit remains separate future scope and is not silently covered by
+  the RFC-BPR-0003 epoch-host limits.
 - Shutdown closes Qt and epoch ingress; the GitHub host invalidates account
   authority and revokes every smart-HTTPS lease; the epoch host then cancels
   and drains transport/Git/catalog jobs while leaving every durable operation
