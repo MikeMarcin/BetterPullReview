@@ -2,32 +2,21 @@
 
 RFC base: `243295a70756b2e63a785ed11b14647b6b0a4c6d`
 
+Immutable replacement gate: `0ec1136a7ce418b11480d7ae90faee2ec59f96d1`
+
 Replacement source: `betterpullreview-rfc-bpr-0004-diff-alignment-scroll-replacement-v1`
 
-Status: implementation active. BPR-0072 supplies the directly tested canonical
-record and structural-validation foundation. BPR-0073 now supplies the public
-bounded deterministic text-computation path and directly closes its core-only
-portions of D-01 through D-05 and D-08. BPR-0074 supplies the one public
-mapping/group/navigation/selection/detail projection and closes the core-only
-portions of D-05 through D-08 and I-01. BPR-0075 supplies the bounded
-core/application request, materialization, cache, cancellation, shutdown, and
-stale-acceptance seam and closes H-01, H-02, and the non-Qt portions of H-03
-and H-04. Scale, Qt, installed-Git composition, and all rendered interaction
-claims remain open on later cards. BPR-0076 now supplies the Qt-local live-pane
-measurement, indexed max-extent axis, endpoint clamp, and explicit geometry-
-invalidation seam. BPR-0077 now supplies the Qt-local retained comparison
-position, receiver-neutral input translation, shared scrollbar projection,
-guarded two-pane frames, and pane-local horizontal routing. Link-map painting
-comes from BPR-0078's custom-painted splitter handle. BPR-0079 now supplies
-the selected application composition, installed-Git/cache-session bridge,
-core-owned workbench interaction state, rendered public path, cache-deletion
-invalidation, and pending-diff shutdown evidence. BPR-0080 supplies bounded
-moved-sub-block discovery, retained semantic indexes, and instrumented
-large-fixture/high-frequency Qt evidence. BPR-0081 through BPR-0083 retain the
-RFC conformance, simplification, and final closeout work.
-RFC-BPR-0003 retains
-explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
-until its dependency can close.
+Status: implementation active. BPR-0072 through BPR-0075 supply the canonical
+record, deterministic computation, one semantic projection, and bounded host
+seam. BPR-0076 through BPR-0079 supply live-pane measurement, one retained
+comparison position, custom link-map painting, selected application
+composition, installed-Git/cache-session integration, rendered public-path
+evidence, and shutdown safety. BPR-0080 supplies bounded moved-sub-block
+discovery, retained semantic indexes, and instrumented large-fixture/high-
+frequency Qt evidence. BPR-0081 reconciles documentation and conformance;
+BPR-0082 and BPR-0083 retain simplification and final closeout. RFC-BPR-0003
+retains explicit nonblocking closeout cards, so this RFC cannot become Auto-
+Verified until that dependency can close.
 
 ## BPR-0072 canonical-record evidence
 
@@ -153,7 +142,7 @@ The selected headless workbench and link-map executables passed serially at
 reported ideal threads. The factual workbench timings were respectively
 59/8/1 ms, 59/5/1 ms, and 59/22/1 ms for publish/input dispatch/event drain;
 they are observations of this machine, not frame-rate guarantees. Directly
-inspected rasters are in `build/dev/bpr-0080-evidence/`: workbench images are
+inspected rasters are in `build/dev/tests/adapters_qt/`: workbench images are
 1080x700, 1350x875, and 2160x1400, and link-map images are 1240x520,
 1550x650, and 2480x1040. The selected core compute, core semantics,
 application-host, workbench, and link-map executables pass. Target-native
@@ -188,6 +177,11 @@ cancellation, and host failures remain exact typed failures. The host checks
 for stop before acquisition, between sides, and after pure computation; the
 architecture permits that cooperative cancellation to suppress publication
 without adding nondeterministic observation to the functional core.
+
+The distinction is deliberate: binary or unavailable bytes that reach pure
+computation produce a validated nontext result, while blob-port missing,
+generated-policy, cancellation, or materialization failures publish no
+fabricated computed result.
 
 The deterministic `core_diff_transition` and `application_diff_host` targets
 cover cache hit/miss and identity collisions, reordered and same-key
@@ -423,6 +417,64 @@ capture and target-native Windows execution remain open and nonblocking.
 RFC-BPR-0005 still owns the dedicated integrated presentation-polish and native
 visual-acceptance pass; BPR-0079 makes no claim to that later polish.
 
+## BPR-0081 documentation and conformance evidence
+
+The documentation-impact range begins at the original predecessor
+`243295a70756b2e63a785ed11b14647b6b0a4c6d`. RFC-BPR-0004 implementation
+changes the documented core diff record, computation, semantic index,
+interaction transition, host request/cache/cancellation lane, installed-Git
+blob materialization, repository-cache actor arbitration, Qt measurement and
+scroll authority, link-map painting, selected workbench composition,
+accessibility, limits, diagnostics, fixtures, and build/test commands. The
+architecture, product UX, fixture catalogs, manual rendered protocol, master
+matrix, tracker, and this ledger therefore have direct impact.
+
+GitHub/GHES read and mutation semantics, credential ownership, the durable
+review ledger, AI execution, and packaging policy receive no RFC-BPR-0004
+semantic change. Their documents can appear in the predecessor-range inventory
+because the replacement RFC pack and independent completed foundation work are
+also in that history; they are not evidence that the diff implementation
+changed those contracts. Downstream RFC-BPR-0005 and RFC-BPR-0006 consume the
+one semantic model and selected composition, but retain presentation polish,
+native visual acceptance, selectable themes, syntax presentation, and high-
+contrast behavior. RFC files are immutable after replacement import: the exact
+`0ec1136a7ce418b11480d7ae90faee2ec59f96d1..HEAD` RFC-tree diff must remain
+empty.
+
+| Scope | Disposition | Direct source/build/test/runtime evidence |
+|---|---|---|
+| Core diff records, computation, semantics, interaction, transition | Updated | `src/core` diff headers/sources; C1 passes 5/5 without Qt/providers |
+| Application materialization, cache, cancellation, completion, shutdown | Updated | `diff_application_host`; C1 host cases and C3 shutdown contract |
+| Installed-Git/cache actor and composition root | Updated | `installed_git_cache`, `github_application`, public fixture; C3 markers and selected-composition raster |
+| Qt measured axis, shared controller, link map, workbench, accessibility | Updated | Qt diff sources; C2's 12 selected scale cases and inspected adapter rasters |
+| Build/test instructions, fixtures, diagnostics, limits | Updated | Build guide and both fixture catalogs; C1-C4 plus documentation validation |
+| Product UX and rendered/manual protocol | Updated | Diff/workbench UX contracts and manual protocol; C2/C3 geometry, stable-ID, and raster evidence |
+| GitHub/GHES read/mutation and credential contracts | No RFC-4 semantic impact | Provider boundaries remain inward; recorded read fixture is reused by C3; no remote mutation occurs |
+| Durable epoch/SQLite policy | No RFC-4 semantic impact | Existing epoch authority is consumed as a blob/cache capability; no catalog schema or durable decision is added |
+| Review ledger, AI, packaging/release policy | No RFC-4 semantic impact | No RFC-4 intent, request, persistence, provider, or delivered-package claim enters these regions |
+| Downstream RFC-BPR-0005/0006 contracts | Updated at import; immutable now | They consume the one model/composition and retain polish/theme work; post-`0ec1136a` RFC diff is empty |
+| Native Windows, native System-theme, final replay/polish | Unresolved and assigned | BPR-0083 retains final selected-composition replay/native-theme evidence; RFC-BPR-0005 retains polish; Windows remains open |
+
+The architecture verifier now treats composition-root worker-executor
+infrastructure as a standard-C++ region with no direct Qt or concrete-provider
+ownership. Its hostile contract rejects directly owned `QWidget`,
+`QAbstractItemModel`, and provider objects, while the compiled worker fixture
+proves host-owned effect closures run on the owned worker rather than the
+calling thread. Existing boundary checks keep core Qt/provider/process-free
+and keep Qt from owning provider effects. Source and documentation scans
+retain one semantic mapping/index, natural source rows, one comparison
+position and shared vertical controller, visible-set link-map work, and no
+follower-scroll fallback or permanent crossing ordinary move ribbons.
+
+The selected rendered/composed test command is now explicit, headless, and
+serial so it cannot fan out redundant application instances. Its prior final-
+source rasters and runtime markers remain the direct BPR-0078 through BPR-0080
+evidence; BPR-0081 does not alter those surfaces or manufacture a new UI claim.
+Target-native Windows, owner-activated native System-theme transition, the
+final two-direction rendered replay, and RFC-BPR-0005 presentation polish stay
+open and do not block available-platform conformance work. GitHub Actions
+remain prohibited and both tracked and on-disk workflow counts remain zero.
+
 ## BPR-0084 build-foundation evidence
 
 BPR-0084 raises every live build entry point to CMake 4.4.2, replaces the
@@ -510,7 +562,46 @@ coverage without a new target-native claim.
 
 ## Direct claim matrix
 
-Populate live commands, results, and evidence paths during implementation. A row remains open until its direct surface would fail or visibly disagree if the claim were false.
+The current command groups are:
+
+```sh
+# C1: pure computation, canonical semantics, and bounded host
+ctest --preset core-only --output-on-failure \
+  -R '^(core_diff_(model|compute|semantics|transition)|application_diff_host)$'
+
+# C2: selected measured/rendered Qt surfaces; always serial and headless
+CTEST_PARALLEL_LEVEL=1 QT_QPA_PLATFORM=offscreen \
+  ctest --preset dev --output-on-failure \
+  -R '^(qt_diff_(axis|link_map|workbench)|qt_comparison_scroll_controller)_scale_(100|125|200)$'
+
+# C3: selected production composition and shutdown; always serial/headless
+CTEST_PARALLEL_LEVEL=1 QT_QPA_PLATFORM=offscreen \
+  ctest --preset dev --output-on-failure \
+  -R '^application_diff_workbench(_shutdown)?_public_path$'
+
+# C4: structural and compiled worker/core boundaries
+ctest --preset dev --output-on-failure \
+  -R '^(core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract|application_worker_executor)$'
+```
+
+C1 passes on the BPR-0081 source; C2's final component runs pass through
+BPR-0080, and its inspected scale rasters are under
+`build/dev/tests/adapters_qt/`. C3 passed the BPR-0079 public composition and
+shutdown slice and wrote
+`build/dev/tests/end_to_end/diff-workbench-public-path.png`; BPR-0080's final
+workbench/link-map component runs cover the later indexed interaction change.
+C4 passes on the BPR-0081 source: 105/105 hostile architecture cases and the
+compiled worker test pass. Documentation validation, immutable-RFC diff,
+`git diff --check`, and workflow counts 0/0 also pass.
+
+Every row below is implemented and directly covered by those groups except
+I-03, whose final recorded two-direction selected-composition replay remains
+BPR-0083, and A-03, which cannot close before the tracker and RFC closeout are
+complete. Target-native Windows and native System-theme/presentation-polish
+claims are intentionally outside this RFC-BPR-0004 matrix.
+
+A row remains open until its direct surface would fail or visibly disagree if
+the claim were false.
 
 | ID | Claim | Direct surface | Required proof |
 |---|---|---|---|

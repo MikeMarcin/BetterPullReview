@@ -32,6 +32,27 @@ available from that approved source, inspect:
 
 The recording is not a pixel-perfect oracle. The semantic motion is the requirement.
 
+## Current deterministic harness
+
+The checked-in harness produces selected-composition evidence through the
+`qt_diff_workbench_scale_{100,125,200}` and
+`qt_diff_link_map_scale_{100,125,200}` cases plus
+`application_diff_workbench_public_path` and
+`application_diff_workbench_shutdown_public_path`. Run that exact group with
+`QT_QPA_PLATFORM=offscreen` and `CTEST_PARALLEL_LEVEL=1`; concurrent runs can
+open redundant application instances and contend for the same evidence paths.
+
+The workbench/link-map cases write scale-specific rasters below
+`build/dev/tests/adapters_qt/`. The selected public path writes
+`build/dev/tests/end_to_end/diff-workbench-public-path.png` and emits its
+fixed composition markers only after the source panes, link map, shared
+scrollbar, semantic selection, lower detail, and shutdown agree.
+
+These deterministic captures prove composition and interaction geometry. They
+do not replace the final two-direction replay below, a target-native
+System-theme transition, target-native Windows execution, or RFC-BPR-0005's
+planned presentation-polish pass.
+
 ## Required BetterPullReview evidence session
 
 Run a synthetic redistributable comparison through the actual composed application or closest deterministic rendered integration harness.

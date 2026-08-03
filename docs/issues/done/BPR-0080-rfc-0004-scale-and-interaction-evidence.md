@@ -62,7 +62,7 @@ selection/navigation work scales with indexed or affected records.
   pass directly.
 - The workbench and link-map executables pass serially and offscreen at 1.0x,
   1.25x, and 2.0x. Generated rasters in
-  `build/dev/bpr-0080-evidence/` were directly inspected.
+  `build/dev/tests/adapters_qt/` were directly inspected.
 - macOS Sequoia 15.7.7 arm64, Qt 6.11.1, 14 ideal threads: the 2,000/2,000-line,
   500-segment, 250-group workbench fixture recorded publish/input/event-drain
   observations of 59/8/1 ms at 1.0x, 59/5/1 ms at 1.25x, and 59/22/1 ms at
@@ -80,7 +80,8 @@ selection/navigation work scales with indexed or affected records.
 - The full developer build, `coding-format-check`, touched-unit strict tidy,
   both architecture tests, documentation verifier, `git diff --check`, and
   immutable-RFC check pass. No GitHub Actions workflows exist. Independent
-  closeout review reports no blocker, nonblocking risk, or verification gap.
+  closeout review reports no blocker, nonblocking risk, or verification gap
+  within the BPR-0080 scale/indexed-interaction slice.
 
 Target-native Windows verification remains open and nonblocking. Offscreen
 forced-scale evidence is not a target-native System-theme claim and does not

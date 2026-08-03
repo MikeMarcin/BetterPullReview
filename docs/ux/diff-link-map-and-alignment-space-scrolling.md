@@ -120,6 +120,11 @@ During epoch or file change:
 - Dark, light, and system themes preserve sufficient contrast.
 - Color is not the only indication of insertion, deletion, replacement, selection, or unavailable state.
 
+These are product acceptance requirements. RFC-BPR-0004's deterministic
+forced-palette renders prove palette inheritance and geometry only; a real
+target-native System-theme transition on the full selected composition and
+RFC-BPR-0005's presentation-polish pass retain their separate rendered gates.
+
 ## 8. UX failures that block closeout
 
 - two visible independent vertical scrollbars in default linked mode;

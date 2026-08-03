@@ -8,6 +8,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -78,12 +79,33 @@ namespace {
 		expect(calls.load() == 256U,
 			   "destruction executes every accepted effect exactly once");
 	}
+
+	void test_tasks_run_on_the_owned_worker()
+	{
+		bpr::app::worker_executor executor;
+		auto                      workerThread  = std::promise<std::thread::id>{ };
+		auto                      completed     = workerThread.get_future();
+		const auto                callingThread = std::this_thread::get_id();
+
+		executor.post(
+			[&workerThread] {
+				workerThread.set_value(std::this_thread::get_id());
+			});
+		expect(
+			completed.wait_for(std::chrono::seconds{ 5 })
+				== std::future_status::ready,
+			"worker publishes its execution identity");
+		expect(
+			completed.get() != callingThread,
+			"accepted effects execute on the owned worker, not the caller");
+	}
 }
 
 auto main() -> int
 {
 	test_fifo_drain_and_failure_containment();
 	test_destructor_drains_accepted_work();
+	test_tasks_run_on_the_owned_worker();
 	std::cout << "worker-executor-tests:pass\n";
 	return EXIT_SUCCESS;
 }

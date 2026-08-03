@@ -7,8 +7,12 @@ that GitHub does not represent.
 
 The current implementation includes the RFC-BPR-0001 repository foundation,
 RFC-BPR-0002's implemented public read-only GitHub path, and RFC-BPR-0003's
-available-platform retained-revision and epoch-comparison path. The public
-executable composes explicit GitHub.com and optional GHES 3.18 profiles,
+available-platform retained-revision and epoch-comparison path. RFC-BPR-0004's
+available-platform implementation now adds deterministic diff computation,
+one canonical mapping/group/navigation/detail model, one comparison-space
+scroll authority, a custom link map, and the selected rendered workbench;
+final RFC closeout remains tracked separately. The public executable composes
+explicit GitHub.com and optional GHES 3.18 profiles,
 native HTTPS as the sole milestone-one production authentication transport,
 the target platform's credential vault, the normalized provider and
 application hosts, an isolated installed-Git object engine, an
@@ -40,13 +44,16 @@ and Escape action are Cancel, leave durable tombstones, and state that GitHub
 and developer worktrees are not modified. Users must not edit the private Git
 repository or SQLite catalog by hand.
 
-Semantic diff/line mapping, review mutation and private-ledger behavior, and
-packaging remain later RFC work. The GitHub window now presents the available
-path through a compact, responsive hierarchy with explicit request states,
-retained accepted content during refresh, and read-only conversation
-rendering. It inherits the active native palette, style, and font without
-forcing a palette, style, or QSS, and responds to application appearance and
-font changes. User-selectable appearance profiles remain RFC-BPR-0006 work.
+Review mutation, private-ledger behavior, and packaging remain later RFC work.
+The GitHub window now presents the available path through a compact,
+responsive hierarchy with explicit request states, retained accepted content
+during refresh, read-only conversation rendering, and a selected-file
+comparison with natural-layout source panes, one shared vertical scrollbar,
+semantic selection, and lower detail. It inherits the active native palette,
+style, and font without forcing a palette, style, or QSS, and responds to
+application appearance and font changes. Final integrated presentation polish
+remains RFC-BPR-0005 work; user-selectable appearance profiles remain
+RFC-BPR-0006 work.
 
 This GitHub window is an interim RFC-BPR-0002 integration surface, not the
 final review workbench. RFC-BPR-0005 owns the complete native workbench and

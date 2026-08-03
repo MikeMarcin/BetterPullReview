@@ -1019,6 +1019,13 @@ rendered session follows the
 must use the real application or closest deterministic composed harness; a
 static mockup or isolated painter does not satisfy the interaction claims.
 
+Run only the selected `qt_diff_workbench_scale_*`,
+`qt_diff_link_map_scale_*`, and `application_diff_workbench*_public_path`
+CTest cases for the composed RFC-BPR-0004 evidence. They are intentionally
+serial and headless; the scale rasters and fixed public-path markers must
+agree before the evidence is accepted. Native System-theme and presentation-
+polish claims remain outside this deterministic fixture boundary.
+
 - Replace, insert, delete, and mixed hunks
 - Unequal old/new group heights
 - Multiple nearby groups

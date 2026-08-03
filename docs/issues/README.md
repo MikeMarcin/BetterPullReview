@@ -246,8 +246,9 @@ System-theme evidence, and it leaves RFC-BPR-0005's presentation-polish pass
 open. Done BPR-0080 supplies bounded/indexed moved-sub-block discovery,
 retained immutable semantic indexes, semantic-free high-frequency geometry,
 linear visible move-overlay resolution, and instrumented three-scale evidence.
-BPR-0081 documentation/conformance, BPR-0082 simplification, and BPR-0083
-final direct verification/closeout follow. BPR-0083 depends on BPR-0054, so
+Done BPR-0081 reconciles documentation/conformance and adds the worker
+boundary. Next BPR-0082 owns simplification; BPR-0083 final direct
+verification/closeout follows. BPR-0083 depends on BPR-0054, so
 implementation can progress under the product-owner exception without an
 out-of-order Auto-Verified transition or beginning RFC-BPR-0005 early.
 

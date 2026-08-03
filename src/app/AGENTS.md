@@ -10,5 +10,9 @@ Qt, and entry-point pieces.
   by the interactive application.
 - Keep the selected diff projection alive until diff, epoch, GitHub, and cache-
   actor work is quiescent; drain diff effects before epoch effects.
+- Keep worker-executor infrastructure standard-C++ and free of concrete
+  provider or Qt ownership. An executor may run a host-owned effect closure,
+  but it must never interpret, retain outside that queued closure, or mutate
+  Qt objects, widgets, models, or presentation state.
 - A successful smoke test must traverse intent, transition, request,
   completion, and projection rather than calling helpers directly.

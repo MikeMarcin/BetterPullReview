@@ -147,6 +147,26 @@ of A1-A8, A12, A14, and A15:
 Measured geometry, shared scrolling, painted ribbons, and composed interaction
 claims remain on BPR-0076 through BPR-0080.
 
+### A19. Indexed and bounded interaction corpus
+
+The BPR-0080 core and Qt targets extend A15 and the scale fixtures with:
+
+- unique moved-sub-block anchors, repeated ambiguous anchors, exact work-
+  budget exhaustion, segment-ceiling refusal, and adversarial deterministic
+  replay without changing the monotonic primary path;
+- indexed/unindexed parity for mapping, move resolution, detail, projection,
+  navigation, selection, reconciliation, and interaction over a 1,024-line
+  semantic corpus;
+- a 2,000-line-per-side workbench with 250 changes and 500 segments, 1,000
+  wheel inputs, 100 coalesced resizes, a 5,000-line insertion, and a selected
+  six-relation move group;
+- peak and cumulative candidate/path/paint counters at 1.0x, 1.25x, and 2.0x,
+  including zero semantic/index/measurement work during ordinary scroll.
+
+The scale rasters are selected headless composition evidence. They do not
+claim native System-theme following, target-native Windows behavior, or the
+RFC-BPR-0005 presentation-polish result.
+
 ## B. Measured geometry fixtures
 
 Use a deterministic test pane that supplies explicit line-boundary coordinates, then repeat selected cases through the live pane implementation.
@@ -263,11 +283,20 @@ The target uses a deterministic capability port and separate manual effect and
 decision executors. The real installed-Git/cache-session adapter and Qt
 composition remain BPR-0079 evidence.
 
+Binary or unavailable content that is available to the pure computation
+boundary publishes a validated nontext result and diagnostic. A blob-port
+missing-object, generated-policy, cancellation, or materialization failure
+publishes a typed host failure and no fabricated computed result.
+
 ## E. Scale fixtures
 
 ### E1. Large mostly-equal file
 
-At least tens of thousands of lines with sparse changes. Prove visible candidate selection does not scan every segment per frame.
+At least 2,000 lines per side with sparse changes in the selected composed
+harness, plus a separate 5,000-line one-sided insertion. Prove visible
+candidate selection does not scan every segment per frame. Larger product-wide
+stress remains additive RFC-BPR-0013 evidence, not a retroactive RFC-BPR-0004
+claim.
 
 ### E2. Many small changes
 

@@ -696,6 +696,37 @@ foreach(standard_cpp_file IN LISTS standard_cpp_region_files)
     endforeach()
 endforeach()
 
+set(
+    worker_executor_files
+    "${BPR_ROOT}/src/app/include/bpr/app/worker_executor.hpp"
+    "${BPR_ROOT}/src/app/src/worker_executor.cpp"
+)
+set(
+    worker_executor_forbidden_patterns
+    "#[ \t]*include[ \t]*[<\"]Q"
+    "(^|[^A-Za-z0-9_])Q[A-Z][A-Za-z0-9_]*([^A-Za-z0-9_]|$)"
+    "#[ \t]*include[ \t]*[<\"][^>\"]*adapters/(github|git|sqlite|ai)"
+    "(^|[^A-Za-z0-9_])[A-Za-z0-9_]+_(provider|transport|profile|vault|credential_manager|secret_service|keychain)([^A-Za-z0-9_]|$)"
+    "(^|[^A-Za-z0-9_])(github_credential_[A-Za-z0-9_]*|git_process_[A-Za-z0-9_]*|sqlite3)([^A-Za-z0-9_]|$)"
+)
+foreach(worker_executor_file IN LISTS worker_executor_files)
+    if(NOT EXISTS "${worker_executor_file}")
+        continue()
+    endif()
+
+    file(READ "${worker_executor_file}" contents)
+    foreach(pattern IN LISTS worker_executor_forbidden_patterns)
+        if(contents MATCHES "${pattern}")
+            file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${worker_executor_file}")
+            message(
+                FATAL_ERROR
+                "Worker executor Qt/provider boundary violation in "
+                "${relative_file}: ${pattern}"
+            )
+        endif()
+    endforeach()
+endforeach()
+
 file(
     GLOB_RECURSE qt_github_projection_files
     LIST_DIRECTORIES false

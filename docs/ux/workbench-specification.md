@@ -196,11 +196,13 @@ geometry can appear. Loading, ready, failure, invalidation, and semantic
 selection changes expose one combined polite accessible announcement per
 presentation change; consecutive identical statuses are suppressed.
 
-This is functional and rendered-composition acceptance for RFC-BPR-0004, not
-the final visual hierarchy. RFC-BPR-0005 retains the planned integrated
-presentation-polish and native visual-acceptance pass. Target-native
-System-theme evidence must use the real platform style and a full selected
-composition; forced offscreen palettes remain layout evidence only.
+This defines functional and rendered-composition acceptance for
+RFC-BPR-0004, not the final visual hierarchy. BPR-0083 retains the final-source
+public-composition replay and target-native System-theme transition.
+RFC-BPR-0005 retains the planned integrated presentation-polish and native
+visual-acceptance pass. Target-native System-theme evidence must use the real
+platform style and a full selected composition; forced offscreen palettes
+remain layout evidence only.
 
 The complete normative interaction is in
 [Diff Link Map and Alignment-Space Scrolling](diff-link-map-and-alignment-space-scrolling.md).

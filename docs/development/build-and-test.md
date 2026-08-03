@@ -100,6 +100,25 @@ ctest --preset core-only --output-on-failure \
 `application_diff_host` uses separate deterministic effect and decision lanes;
 it does not contact GitHub, launch Git, or require Qt.
 
+Run the selected RFC-BPR-0004 rendered/composed checks headlessly and one at a
+time. Do not parallelize this group: each case owns an application or Qt
+instance and its evidence files.
+
+```sh
+CTEST_PARALLEL_LEVEL=1 QT_QPA_PLATFORM=offscreen \
+  ctest --preset dev --output-on-failure \
+  -R '^(qt_diff_(workbench|link_map)_scale_(100|125|200)|application_diff_workbench(_shutdown)?_public_path)$'
+```
+
+The six scale cases are deterministic layout, interaction, and raster
+evidence. The two public-path cases traverse the selected production
+composition and shutdown lane. The normal public path must emit
+`PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:github.com`, `DIFF_WORKBENCH_OK`, and
+`RENDER_OK`, and writes
+`build/dev/tests/end_to_end/diff-workbench-public-path.png`. Scale rasters are
+written below `build/dev/tests/adapters_qt/`. Offscreen output is not target-
+native System-theme or final presentation-polish evidence.
+
 Windows developers and release operators use the conditional
 multi-configuration preset that selects the Visual Studio 2022 x64 generator:
 

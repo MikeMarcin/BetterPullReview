@@ -1476,6 +1476,25 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_worker_executor_rejects_qt_and_provider_ownership(self) -> None:
+        hostile_surfaces = (
+            "QWidget* retained_widget;\n",
+            "QAbstractItemModel* retained_model;\n",
+            "github_provider* retained_provider;\n",
+            "native_https_transport* retained_transport;\n",
+            "validated_github_host_profile* retained_profile;\n",
+            '#include "../../adapters/github/src/'
+            'native_https_transport.hpp"\n',
+        )
+        for hostile_source in hostile_surfaces:
+            with self.subTest(hostile_source=hostile_source):
+                self.assert_failure(
+                    "Worker executor Qt/provider boundary violation",
+                    {
+                        "src/app/src/worker_executor.cpp": hostile_source,
+                    },
+                )
+
     def test_core_and_application_reject_github_adapter_includes(self) -> None:
         for region in ("core", "application"):
             with self.subTest(region=region):

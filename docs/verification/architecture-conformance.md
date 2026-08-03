@@ -64,7 +64,7 @@ This document turns the deterministic-functional-core / imperative-host / Qt-pre
 | ARCH-Q2 | `QAction` reflects semantic command projections | Action-state tests across selections/capabilities | Duplicate enablement logic in toolbar/menu/context menu |
 | ARCH-Q3 | Qt models update incrementally by stable identity | Model-signal assertions and persistent-index tests | `beginResetModel()` for one receipt/comment/selection change |
 | ARCH-Q4 | Qt owns visual-only mechanics | Focus/layout/accessibility tests | Core emits focus/popup/animation/widget commands |
-| ARCH-Q5 | Workers never touch Qt | Thread-affinity instrumentation | Network/diff/AI worker mutates a widget or Qt model |
+| ARCH-Q5 | Workers never touch Qt | Worker-executor Qt/provider boundary contract plus thread-affinity instrumentation | Worker retains or mutates a widget, Qt model, or provider object |
 
 ## Performance checks
 
