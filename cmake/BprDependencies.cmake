@@ -1,5 +1,7 @@
 include_guard(GLOBAL)
 
+include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
+
 set(BPR_QT_MINIMUM_VERSION "6.8")
 set(BPR_LIBSECRET_MINIMUM_VERSION "0.20")
 set(BPR_PYTHON_MINIMUM_VERSION "3.10")
@@ -191,6 +193,8 @@ function(bpr_configure_dependencies)
             bpr_require_dependency_target(Git::Git Git)
             list(APPEND records "Git|CMAKE_MODULE|Git::Git")
         endif()
+
+        bpr_acquire_syntax_highlighting()
     endif()
 
     set(audit "set(BPR_PRODUCT_DEPENDENCY_RECORDS\n")
