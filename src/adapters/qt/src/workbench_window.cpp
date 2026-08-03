@@ -3,10 +3,11 @@
 #include <QAccessible>
 #include <QAction>
 #include <QFontMetrics>
-#include <QHBoxLayout>
 #include <QKeySequence>
 #include <QLabel>
 #include <QMenu>
+#include <QSizePolicy>
+#include <QSplitter>
 #include <QStatusBar>
 #include <QStyle>
 #include <QToolBar>
@@ -14,7 +15,9 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 
 namespace bpr::qt {
@@ -44,6 +47,18 @@ namespace bpr::qt {
 				return QStringLiteral("The file navigation position is invalid.");
 			}
 			return QStringLiteral("File navigation is unavailable.");
+		}
+
+		// The drawer commands share the workbench reason vocabulary, so only the
+		// reason a drawer can actually be refused for needs drawer wording.
+		[[nodiscard]] auto drawer_reason_text(
+			const core::workbench_reason_code aReason) -> QString
+		{
+			if (aReason == core::workbench_reason_code::no_active_workbench) {
+				return QStringLiteral(
+					"Open a pull request to use its review drawers.");
+			}
+			return reason_text(aReason);
 		}
 
 		[[nodiscard]] auto change_reason_text(
@@ -110,12 +125,14 @@ namespace bpr::qt {
 	}
 
 	workbench_window::workbench_window(
-		workbench_intent_dispatch aDispatch,
-		workbench_change_dispatch aChangeDispatch,
-		QWidget* const            aParent)
+		workbench_intent_dispatch       aDispatch,
+		workbench_change_dispatch       aChangeDispatch,
+		workbench_drawer_width_dispatch aWidthDispatch,
+		QWidget* const                  aParent)
 		: QMainWindow{ aParent }
 		, Dispatch{ std::move(aDispatch) }
 		, ChangeDispatch{ std::move(aChangeDispatch) }
+		, WidthDispatch{ std::move(aWidthDispatch) }
 	{
 		setObjectName(QStringLiteral("workbenchWindow"));
 		setWindowTitle(QStringLiteral("BetterPullReview"));
@@ -126,7 +143,8 @@ namespace bpr::qt {
 		resize(1'280, 820);
 
 		build_primary_toolbar();
-		build_central_placeholders();
+		build_drawer_toolbar();
+		build_central_surface();
 
 		StatusLabel = new QLabel{ this };
 		StatusLabel->setObjectName(QStringLiteral("workbenchStatus"));
@@ -235,50 +253,127 @@ namespace bpr::qt {
 		}
 	}
 
-	void workbench_window::build_central_placeholders()
+	void workbench_window::build_drawer_toolbar()
 	{
-		auto* const central = new QWidget{ this };
-		central->setObjectName(QStringLiteral("workbenchCentralSurface"));
-		central->setAccessibleName(QStringLiteral("Review workbench"));
+		// A separate row. The drawer toggles are permanently top-level, so putting
+		// them beside primary navigation would let them push navigation past the
+		// width compact_width_threshold() promises it fits in.
+		addToolBarBreak(Qt::TopToolBarArea);
+		DrawerToolbar = addToolBar(QStringLiteral("Review drawers"));
+		DrawerToolbar->setObjectName(QStringLiteral("workbenchDrawerToolbar"));
+		DrawerToolbar->setAccessibleName(QStringLiteral("Review drawers"));
+		DrawerToolbar->setAccessibleDescription(QStringLiteral(
+			"Show or hide the file and conversation drawers"));
+		DrawerToolbar->setMovable(false);
+		DrawerToolbar->setFloatable(false);
+		DrawerToolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
 
-		FilesDrawer = placeholder(
-			central,
-			QStringLiteral("workbenchFilesDrawerPlaceholder"),
+		const auto make = [this](const QString&      aText,
+								 const QString&      aName,
+								 const QString&      aObjectName,
+								 const QString&      aCollapse,
+								 const QString&      aExpand,
+								 const QKeySequence& aShortcut) -> drawer_entry {
+			auto* const action = new QAction{ aText, this };
+			action->setObjectName(aObjectName);
+			action->setCheckable(true);
+			action->setShortcut(aShortcut);
+			action->setShortcutContext(Qt::WindowShortcut);
+			action->setIconText(aName);
+			addAction(action);
+			DrawerToolbar->addAction(action);
+			return {
+				.Toggle   = action,
+				.Name     = aName,
+				.Collapse = aCollapse,
+				.Expand   = aExpand,
+			};
+		};
+
+		Drawers[0] = make(
+			QStringLiteral("&Files drawer"),
 			QStringLiteral("Files drawer"),
-			QStringLiteral("Reserved for the collapsible file drawer"));
-		ConversationsDrawer = placeholder(
-			central,
-			QStringLiteral("workbenchConversationsDrawerPlaceholder"),
+			QStringLiteral("toggleWorkbenchFilesDrawerAction"),
+			QStringLiteral("Hide the file drawer and give its width to the "
+						   "comparison."),
+			QStringLiteral("Show the file drawer at its saved width."),
+			QKeySequence{ QStringLiteral("Alt+1") });
+		Drawers[1] = make(
+			QStringLiteral("&Conversations drawer"),
 			QStringLiteral("Conversations drawer"),
-			QStringLiteral("Reserved for the collapsible conversation drawer"));
+			QStringLiteral("toggleWorkbenchConversationsDrawerAction"),
+			QStringLiteral("Hide the conversation drawer and give its width to "
+						   "the comparison."),
+			QStringLiteral("Show the conversation drawer at its saved width."),
+			QKeySequence{ QStringLiteral("Alt+2") });
+
+		for (std::size_t index = 0U; index < Drawers.size(); ++index) {
+			connect(Drawers[index].Toggle,
+					&QAction::triggered,
+					this,
+					[this, index] { dispatch_drawer_toggle(index); });
+		}
+	}
+
+	void workbench_window::build_central_surface()
+	{
+		CentralSplitter = new QSplitter{ Qt::Horizontal, this };
+		CentralSplitter->setObjectName(QStringLiteral("workbenchCentralSplitter"));
+		CentralSplitter->setAccessibleName(QStringLiteral("Review workbench"));
+		CentralSplitter->setAccessibleDescription(QStringLiteral(
+			"Resizable file drawer, comparison centre, and conversation drawer"));
+		// A drawer leaves through the core's drawer state, never through a drag
+		// to zero width that presentation decided by itself.
+		CentralSplitter->setChildrenCollapsible(false);
+
+		CentreSurface = new QWidget;
+		CentreSurface->setObjectName(QStringLiteral("workbenchCentralSurface"));
+		CentreSurface->setAccessibleName(QStringLiteral("Review comparison"));
+		CentreSurface->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
 		EpochSelectors = placeholder(
-			central,
+			CentreSurface,
 			QStringLiteral("workbenchEpochSelectorPlaceholder"),
 			QStringLiteral("Epoch selectors"),
 			QStringLiteral("Reserved for the left and right epoch selectors"));
 		ComparisonSurface = placeholder(
-			central,
+			CentreSurface,
 			QStringLiteral("workbenchComparisonSurfacePlaceholder"),
 			QStringLiteral("Comparison surface"),
 			QStringLiteral("Reserved for the composed side-by-side comparison"));
 		DetailPane = placeholder(
-			central,
+			CentreSurface,
 			QStringLiteral("workbenchDetailPanePlaceholder"),
 			QStringLiteral("Selected change detail"),
 			QStringLiteral("Reserved for the full-width line-over-line detail pane"));
 
-		auto* const centre = new QVBoxLayout;
+		auto* const centre = new QVBoxLayout{ CentreSurface };
 		centre->setContentsMargins(0, 0, 0, 0);
 		centre->addWidget(EpochSelectors);
 		centre->addWidget(ComparisonSurface, 1);
 		centre->addWidget(DetailPane);
 
-		auto* const row = new QHBoxLayout{ central };
-		row->setContentsMargins(0, 0, 0, 0);
-		row->addWidget(FilesDrawer);
-		row->addLayout(centre, 1);
-		row->addWidget(ConversationsDrawer);
-		setCentralWidget(central);
+		Drawers[0].Panel = new workbench_drawer_panel{ core::workbench_drawer::files };
+		Drawers[1].Panel = new workbench_drawer_panel{
+			core::workbench_drawer::conversations
+		};
+		CentralSplitter->addWidget(Drawers[0].Panel);
+		CentralSplitter->addWidget(CentreSurface);
+		CentralSplitter->addWidget(Drawers[1].Panel);
+		// Only the centre absorbs a window resize, so a drawer keeps the width the
+		// host persisted until the user moves the handle.
+		CentralSplitter->setStretchFactor(0, 0);
+		CentralSplitter->setStretchFactor(1, 1);
+		CentralSplitter->setStretchFactor(2, 0);
+
+		for (auto& entry : Drawers) {
+			entry.Panel->set_width_dispatch(
+				[this](const core::workbench_drawer aDrawer,
+					   const std::uint32_t          aWidth) {
+					observe_drawer_width(aDrawer, aWidth);
+				});
+		}
+		setCentralWidget(CentralSplitter);
 	}
 
 	void workbench_window::publish(
@@ -291,6 +386,17 @@ namespace bpr::qt {
 		}
 		if (aProjection.Selection) {
 			Cursor = aProjection.Selection->Cursor;
+		}
+		if (aProjection.Drawers) {
+			DrawerStates = *aProjection.Drawers;
+			++Statistics.DrawerUpdates;
+		}
+		if (aProjection.Layout) {
+			LayoutWidths = *aProjection.Layout;
+			++Statistics.LayoutUpdates;
+		}
+		if (aProjection.Drawers || aProjection.Layout) {
+			apply_drawer_layout();
 		}
 		Failure.reset();
 		++Statistics.Publications;
@@ -327,6 +433,12 @@ namespace bpr::qt {
 		workbench_change_dispatch aChangeDispatch)
 	{
 		ChangeDispatch = std::move(aChangeDispatch);
+	}
+
+	void workbench_window::set_width_dispatch(
+		workbench_drawer_width_dispatch aWidthDispatch)
+	{
+		WidthDispatch = std::move(aWidthDispatch);
 	}
 
 	auto workbench_window::primary_toolbar() const noexcept -> QToolBar*
@@ -392,15 +504,31 @@ namespace bpr::qt {
 			   * metrics.horizontalAdvance(QLatin1Char('0')));
 	}
 
-	auto workbench_window::files_drawer_placeholder() const noexcept -> QWidget*
+	auto workbench_window::drawer_toolbar() const noexcept -> QToolBar*
 	{
-		return FilesDrawer;
+		return DrawerToolbar;
 	}
 
-	auto workbench_window::conversations_drawer_placeholder() const noexcept
-		-> QWidget*
+	auto workbench_window::files_drawer() const noexcept -> workbench_drawer_panel*
 	{
-		return ConversationsDrawer;
+		return Drawers[0].Panel;
+	}
+
+	auto workbench_window::conversations_drawer() const noexcept
+		-> workbench_drawer_panel*
+	{
+		return Drawers[1].Panel;
+	}
+
+	auto workbench_window::files_drawer_toggle_action() const noexcept -> QAction*
+	{
+		return Drawers[0].Toggle;
+	}
+
+	auto workbench_window::conversations_drawer_toggle_action() const noexcept
+		-> QAction*
+	{
+		return Drawers[1].Toggle;
 	}
 
 	auto workbench_window::epoch_selector_placeholder() const noexcept -> QWidget*
@@ -483,6 +611,77 @@ namespace bpr::qt {
 		});
 	}
 
+	void workbench_window::dispatch_drawer_toggle(const std::size_t aIndex)
+	{
+		// A checkable action flips itself the moment it is triggered. The core owns
+		// drawer state, so the last decided state is re-asserted immediately and
+		// only the gesture leaves; the window never shows a state it decided.
+		update_action_state();
+		if (!Dispatch) {
+			return;
+		}
+		Dispatch(core::toggle_workbench_drawer_intent{
+			.Drawer = aIndex == 0U ? core::workbench_drawer::files
+								   : core::workbench_drawer::conversations,
+		});
+	}
+
+	void workbench_window::observe_drawer_width(
+		const core::workbench_drawer aDrawer,
+		const std::uint32_t          aWidth)
+	{
+		// Geometry this window just applied is not a user resize. Reporting it
+		// would let a width the window could merely grant overwrite the width the
+		// host persisted.
+		if (ApplyingLayout || !LayoutWidths) {
+			return;
+		}
+		auto& retained = aDrawer == core::workbench_drawer::files
+			? LayoutWidths->FilesWidth
+			: LayoutWidths->ConversationsWidth;
+		if (retained == aWidth) {
+			return;
+		}
+		// The host owns and clamps the durable width. This local echo only keeps
+		// one observed width from being reported twice before it is published back.
+		retained = aWidth;
+		if (WidthDispatch) {
+			WidthDispatch(aDrawer, aWidth);
+		}
+	}
+
+	void workbench_window::apply_drawer_layout()
+	{
+		ApplyingLayout = true;
+		Drawers[0].Panel->adopt(DrawerStates.Files);
+		Drawers[1].Panel->adopt(DrawerStates.Conversations);
+		if (LayoutWidths) {
+			CentralSplitter->setSizes(central_sizes());
+		}
+		ApplyingLayout = false;
+	}
+
+	auto workbench_window::central_sizes() const -> QList<int>
+	{
+		const auto granted = [](const std::uint32_t aWidth) {
+			// An arithmetic guard on a host-owned value, not a second clamp: the
+			// host already refuses to retain a width outside its own bound.
+			return static_cast<int>(
+				std::min(aWidth, application::maximum_workbench_drawer_width));
+		};
+		const auto files = DrawerStates.Files == core::workbench_drawer_state::expanded
+			? granted(LayoutWidths->FilesWidth)
+			: 0;
+		const auto conversations
+			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
+			? granted(LayoutWidths->ConversationsWidth)
+			: 0;
+		const auto handles = 2 * CentralSplitter->handleWidth();
+		const auto centre  = std::max(
+			1, CentralSplitter->width() - files - conversations - handles);
+		return { files, centre, conversations };
+	}
+
 	void workbench_window::apply_layout_mode()
 	{
 		const auto mode = width() < compact_width_threshold()
@@ -527,6 +726,16 @@ namespace bpr::qt {
 			button->setAccessibleDescription(entry.Purpose);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
+		for (const auto& entry : Drawers) {
+			auto* const button = qobject_cast<QToolButton*>(
+				DrawerToolbar->widgetForAction(entry.Toggle));
+			if (button == nullptr) {
+				continue;
+			}
+			button->setAccessibleName(entry.Name);
+			button->setAccessibleDescription(entry.Collapse);
+			button->setFocusPolicy(Qt::StrongFocus);
+		}
 	}
 
 	void workbench_window::update_action_state()
@@ -561,6 +770,32 @@ namespace bpr::qt {
 						ChangeNavigation
 							? change_reason_text(ChangeNavigation->Next.Outcome)
 							: absent);
+
+		update_drawer_action(0U,
+							 core::workbench_command_id::toggle_files_drawer,
+							 DrawerStates.Files);
+		update_drawer_action(
+			1U,
+			core::workbench_command_id::toggle_conversations_drawer,
+			DrawerStates.Conversations);
+	}
+
+	void workbench_window::update_drawer_action(
+		const std::size_t                  aIndex,
+		const core::workbench_command_id   aId,
+		const core::workbench_drawer_state aState)
+	{
+		const auto& entry      = Drawers[aIndex];
+		const auto  projection = command(aId);
+		const auto  expanded   = aState == core::workbench_drawer_state::expanded;
+		entry.Toggle->setChecked(expanded);
+		describe_action(
+			entry.Toggle,
+			projection && projection->Enabled,
+			expanded ? entry.Collapse : entry.Expand,
+			drawer_reason_text(projection
+								   ? projection->DisabledReason
+								   : core::workbench_reason_code::no_active_workbench));
 	}
 
 	void workbench_window::update_status_text()

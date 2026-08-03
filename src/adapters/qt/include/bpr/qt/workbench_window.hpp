@@ -3,7 +3,9 @@
 
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/qt/workbench_drawer.hpp"
 
+#include <QList>
 #include <QMainWindow>
 #include <QString>
 
@@ -19,6 +21,7 @@ class QEvent;
 class QLabel;
 class QMenu;
 class QResizeEvent;
+class QSplitter;
 class QToolBar;
 class QToolButton;
 
@@ -75,6 +78,8 @@ namespace bpr::qt {
 		std::uint64_t CommandUpdates     = 0U;
 		std::uint64_t ToolbarModeChanges = 0U;
 		std::uint64_t Announcements      = 0U;
+		std::uint64_t DrawerUpdates      = 0U;
+		std::uint64_t LayoutUpdates      = 0U;
 
 		auto operator<=>(const workbench_window_statistics&) const = default;
 	};
@@ -93,18 +98,22 @@ namespace bpr::qt {
 	/// so their window shortcuts remain live and the overflow itself is focusable
 	/// and mnemonic-addressable; navigation never silently disappears.
 	///
-	/// The central surface is a shell. The drawers, epoch selectors, comparison
-	/// surface, and lower detail pane are named empty placeholders owned by later
-	/// RFC-BPR-0005 cards.
+	/// The central surface is a splitter holding the two review drawers and the
+	/// centre. Collapsed and expanded arrive in the core's drawer delta and drawer
+	/// widths arrive in the host's layout delta; the window applies both and
+	/// reports an observed width back out, so neither meaning gains a second
+	/// carrier. The epoch selectors, comparison surface, and lower detail pane
+	/// remain named empty placeholders owned by later RFC-BPR-0005 cards.
 	class workbench_window final
 		: public QMainWindow,
 		  public application::workbench_projection_port
 	{
 	public:
 		explicit workbench_window(
-			workbench_intent_dispatch aDispatch       = { },
-			workbench_change_dispatch aChangeDispatch = { },
-			QWidget*                  aParent         = nullptr);
+			workbench_intent_dispatch       aDispatch       = { },
+			workbench_change_dispatch       aChangeDispatch = { },
+			workbench_drawer_width_dispatch aWidthDispatch  = { },
+			QWidget*                        aParent         = nullptr);
 		~workbench_window() override;
 
 		workbench_window(const workbench_window&)                    = delete;
@@ -122,6 +131,7 @@ namespace bpr::qt {
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
 		void set_change_dispatch(workbench_change_dispatch aChangeDispatch);
+		void set_width_dispatch(workbench_drawer_width_dispatch aWidthDispatch);
 
 		[[nodiscard]] auto primary_toolbar() const noexcept -> QToolBar*;
 		[[nodiscard]] auto previous_file_action() const noexcept -> QAction*;
@@ -140,9 +150,19 @@ namespace bpr::qt {
 		/// answer that put the toolbar there.
 		[[nodiscard]] auto compact_width_threshold() const -> int;
 
-		[[nodiscard]] auto files_drawer_placeholder() const noexcept -> QWidget*;
-		[[nodiscard]] auto conversations_drawer_placeholder() const noexcept
-			-> QWidget*;
+		/// \brief Presents the drawer toggles outside the primary toolbar.
+		///
+		/// \details The drawer toggles stay top-level at every supported width, so
+		/// they must never compete with primary navigation for toolbar width and
+		/// must not enter compact_width_threshold().
+		[[nodiscard]] auto drawer_toolbar() const noexcept -> QToolBar*;
+		[[nodiscard]] auto files_drawer() const noexcept
+			-> workbench_drawer_panel*;
+		[[nodiscard]] auto conversations_drawer() const noexcept
+			-> workbench_drawer_panel*;
+		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
+		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
+			-> QAction*;
 		[[nodiscard]] auto epoch_selector_placeholder() const noexcept -> QWidget*;
 		[[nodiscard]] auto comparison_surface_placeholder() const noexcept
 			-> QWidget*;
@@ -165,41 +185,68 @@ namespace bpr::qt {
 			QString  Purpose;
 		};
 
+		/// \brief Binds one drawer to its toggle action and presentation wording.
+		struct drawer_entry
+		{
+			workbench_drawer_panel* Panel  = nullptr;
+			QAction*                Toggle = nullptr;
+			QString                 Name;
+			QString                 Collapse;
+			QString                 Expand;
+		};
+
 		void build_primary_toolbar();
-		void build_central_placeholders();
+		void build_drawer_toolbar();
+		void build_central_surface();
 		void dispatch_navigation(std::size_t aIndex);
+		void dispatch_drawer_toggle(std::size_t aIndex);
+		void observe_drawer_width(
+			core::workbench_drawer aDrawer,
+			std::uint32_t          aWidth);
+		void apply_drawer_layout();
 		void apply_layout_mode();
 		void configure_tool_buttons();
 		void update_action_state();
+		void update_drawer_action(
+			std::size_t                  aIndex,
+			core::workbench_command_id   aId,
+			core::workbench_drawer_state aState);
 		void update_status_text();
 		void announce_update();
 
 		[[nodiscard]] auto command(core::workbench_command_id aId) const
 			-> std::optional<core::workbench_command_projection>;
+		[[nodiscard]] auto central_sizes() const -> QList<int>;
 
-		workbench_intent_dispatch Dispatch;
-		workbench_change_dispatch ChangeDispatch;
+		workbench_intent_dispatch       Dispatch;
+		workbench_change_dispatch       ChangeDispatch;
+		workbench_drawer_width_dispatch WidthDispatch;
 
-		QToolBar*    PrimaryToolbar      = nullptr;
-		QAction*     SeparatorAction     = nullptr;
-		QAction*     OverflowAction      = nullptr;
-		QToolButton* OverflowButton      = nullptr;
-		QMenu*       OverflowMenu        = nullptr;
-		QLabel*      StatusLabel         = nullptr;
-		QWidget*     FilesDrawer         = nullptr;
-		QWidget*     ConversationsDrawer = nullptr;
-		QWidget*     EpochSelectors      = nullptr;
-		QWidget*     ComparisonSurface   = nullptr;
-		QWidget*     DetailPane          = nullptr;
+		QToolBar*    PrimaryToolbar    = nullptr;
+		QToolBar*    DrawerToolbar     = nullptr;
+		QAction*     SeparatorAction   = nullptr;
+		QAction*     OverflowAction    = nullptr;
+		QToolButton* OverflowButton    = nullptr;
+		QMenu*       OverflowMenu      = nullptr;
+		QLabel*      StatusLabel       = nullptr;
+		QSplitter*   CentralSplitter   = nullptr;
+		QWidget*     CentreSurface     = nullptr;
+		QWidget*     EpochSelectors    = nullptr;
+		QWidget*     ComparisonSurface = nullptr;
+		QWidget*     DetailPane        = nullptr;
 
 		std::array<navigation_entry, 4>                    Navigation{ };
+		std::array<drawer_entry, 2>                        Drawers{ };
 		core::workbench_command_delta                      Commands;
+		core::workbench_drawer_delta                       DrawerStates;
+		std::optional<application::workbench_layout_delta> LayoutWidths;
 		std::optional<core::workbench_navigation_cursor>   Cursor;
 		std::optional<workbench_change_navigation_delta>   ChangeNavigation;
 		std::optional<application::workbench_host_failure> Failure;
 		workbench_toolbar_mode                             Mode              = workbench_toolbar_mode::expanded;
 		bool                                               HasCommands       = false;
 		bool                                               ToolbarConfigured = false;
+		bool                                               ApplyingLayout    = false;
 		QString                                            LastAnnouncement;
 		workbench_window_statistics                        Statistics;
 	};
