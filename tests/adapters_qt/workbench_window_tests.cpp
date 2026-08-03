@@ -7,6 +7,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QKeySequence>
 #include <QList>
 #include <QListView>
@@ -18,6 +19,7 @@
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStringList>
+#include <QSysInfo>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QToolBar>
@@ -854,8 +856,14 @@ namespace {
 		return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
 	}
 
-	[[nodiscard]] auto comparison_key(const core::diff_options& aOptions)
-		-> core::file_comparison_key
+	/// \brief Builds one comparison key, optionally for a distinct file.
+	///
+	/// \details The seed only moves the file identity and its two blobs, so a
+	/// harness that publishes several different files into one window keeps a
+	/// distinct immutable comparison for each. Seed zero is the original key.
+	[[nodiscard]] auto comparison_key(
+		const core::diff_options& aOptions,
+		const std::uint8_t        aSeed = 0U) -> core::file_comparison_key
 	{
 		const auto digest = core::options_digest(aOptions);
 		expect(digest.has_value(), "the comparison fixture options normalize");
@@ -889,9 +897,9 @@ namespace {
 				.Kind        = core::comparison_anchor_kind::epoch_head,
 				.Epoch       = core::epoch_ordinal{ 2 },
 			},
-			.LeftBlob  = blob(21U),
-			.RightBlob = blob(51U),
-			.File      = opaque<core::file_identity>(31U),
+			.LeftBlob  = blob(static_cast<std::uint8_t>(21U + aSeed)),
+			.RightBlob = blob(static_cast<std::uint8_t>(51U + aSeed)),
+			.File      = opaque<core::file_identity>(static_cast<std::uint8_t>(31U + aSeed)),
 			.Options   = *digest,
 			.Algorithm = core::supported_diff_algorithm_revision,
 		};
@@ -906,13 +914,14 @@ namespace {
 	/// \brief Computes one immutable RFC-BPR-0004 comparison fixture.
 	[[nodiscard]] auto computed_comparison(
 		const std::string_view aLeft,
-		const std::string_view aRight) -> core::computed_file_diff
+		const std::string_view aRight,
+		const std::uint8_t     aSeed = 0U) -> core::computed_file_diff
 	{
 		const auto options = core::diff_options{ };
 		auto       left    = source_bytes(aLeft);
 		auto       right   = source_bytes(aRight);
 		const auto outcome = core::compute_file_diff({
-			.Key        = comparison_key(options),
+			.Key        = comparison_key(options, aSeed),
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },
 			.RightBytes = std::span<const std::uint8_t>{ right },
@@ -1558,6 +1567,217 @@ namespace {
 		static_cast<void>(observe_full_central_width(window, "selection cleared"));
 		window.hide();
 	}
+
+	/// \brief Builds one comparison whose later side has a chosen line count.
+	///
+	/// \details The earlier side keeps six retained anchor lines and the later
+	/// side repeats a unique body between them, so every non-equal shape is a
+	/// pure insertion and the later document reaches `6 * (aBodyLines + 1)`
+	/// lines. Growing both sides together is not available here:
+	/// `core::diff_compute_limits` caps the primary alignment matrix at sixteen
+	/// million cells, so a comparison whose two sides are both enormous is
+	/// refused by the bounded compute budget rather than materialized. A very
+	/// large added file is the largest source the workbench can ever be asked
+	/// to present through its real public path.
+	[[nodiscard]] auto scaled_source_pair(const std::uint32_t aBodyLines)
+		-> std::pair<std::string, std::string>
+	{
+		constexpr auto anchors = std::uint32_t{ 6U };
+		auto           left    = std::string{ };
+		auto           right   = std::string{ };
+		right.reserve(static_cast<std::size_t>(anchors)
+					  * (static_cast<std::size_t>(aBodyLines) + 1U) * 24U);
+		for (std::uint32_t anchor = 0U; anchor < anchors; ++anchor) {
+			for (std::uint32_t body = 0U; body < aBodyLines; ++body) {
+				right += "inserted-";
+				right += std::to_string(anchor);
+				right += '-';
+				right += std::to_string(body);
+				right += '\n';
+			}
+			const auto retained = "retained-" + std::to_string(anchor) + '\n';
+			left += retained;
+			right += retained;
+		}
+		return { std::move(left), std::move(right) };
+	}
+
+	/// \brief Counts every live widget in one subtree, at any depth.
+	///
+	/// \details `findChildren` is recursive and untyped by role, so this is the
+	/// complete retained widget tree beneath the subject: toolbars, tool
+	/// buttons, the overflow menu, drawer panels, item views, splitter handles,
+	/// the source panes, their viewports, and their scrollbars. A per-source-row
+	/// widget layer anywhere beneath the subject would be counted here.
+	[[nodiscard]] auto widget_count(const QWidget& aSubject) -> std::size_t
+	{
+		return static_cast<std::size_t>(aSubject.findChildren<QWidget*>().size());
+	}
+
+	/// \brief Records what one sized publication actually retained and cost.
+	struct virtualized_observation
+	{
+		std::uint32_t LeftLines           = 0U;
+		std::uint32_t RightLines          = 0U;
+		std::size_t   WindowWidgets       = 0U;
+		std::size_t   SurfaceWidgets      = 0U;
+		std::size_t   PaneWidgets         = 0U;
+		std::size_t   VisibleLinks        = 0U;
+		std::uint64_t ScrollRebuilds      = 0U;
+		int           ScrollTravel        = 0;
+		qint64        PublishMilliseconds = 0;
+		qint64        ScrollMilliseconds  = 0;
+	};
+
+	/// \brief Publishes one sized comparison and measures the composed surface.
+	///
+	/// \details Only the presentation cost is timed. The immutable comparison is
+	/// computed first, so the recorded interval is the accepted publication and
+	/// the geometry work the composed workbench then does, not the core diff.
+	[[nodiscard]] auto observe_sized_publication(
+		qt::workbench_window& aWindow,
+		const std::uint32_t   aBodyLines,
+		const std::uint8_t    aSeed) -> virtualized_observation
+	{
+		const auto [leftText, rightText] = scaled_source_pair(aBodyLines);
+		const auto diff                  = computed_comparison(leftText, rightText, aSeed);
+		expect(diff.Alignment.Content == core::diff_content_state::text,
+			   "the sized fixture stays inside the bounded compute budget");
+
+		auto* const   surface = aWindow.comparison_surface();
+		QElapsedTimer publishTimer;
+		publishTimer.start();
+		static_cast<void>(publish_fixture(aWindow, diff));
+		const auto published = publishTimer.elapsed();
+
+		auto* const left  = surface->left_pane();
+		auto* const right = surface->right_pane();
+		expect(left->toPlainText() == QString::fromStdString(leftText)
+				   && right->toPlainText() == QString::fromStdString(rightText),
+			   "each composed pane holds exactly its own fixture source");
+		expect(document_rows(*left) == diff.Alignment.LeftLineCount
+				   && document_rows(*right) == diff.Alignment.RightLineCount,
+			   "each composed pane really holds every source line of this size");
+
+		auto* const   shared   = surface->shared_scrollbar();
+		const auto    rebuilds = surface->statistics().GeometryRebuilds;
+		QElapsedTimer scrollTimer;
+		scrollTimer.start();
+		shared->setValue(shared->maximum());
+		process_events();
+		const auto scrolled = scrollTimer.elapsed();
+
+		// Counted after the scroll reaches the end of the document, so a row
+		// widget created lazily for newly revealed source would be counted.
+		return {
+			.LeftLines      = diff.Alignment.LeftLineCount,
+			.RightLines     = diff.Alignment.RightLineCount,
+			.WindowWidgets  = widget_count(aWindow),
+			.SurfaceWidgets = widget_count(*surface),
+			.PaneWidgets    = widget_count(*right),
+			.VisibleLinks   = surface->link_map()->visible_links().size(),
+			.ScrollRebuilds = surface->statistics().GeometryRebuilds
+				- rebuilds,
+			.ScrollTravel        = shared->maximum() - shared->minimum(),
+			.PublishMilliseconds = published,
+			.ScrollMilliseconds  = scrolled,
+		};
+	}
+
+	void test_a_large_file_leaves_the_widget_count_bounded()
+	{
+		qt::workbench_window window;
+		window.resize(window.compact_width_threshold() + 320, 820);
+		window.show();
+		process_events();
+
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									   core::workbench_drawer_state::expanded);
+		opened.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 260U,
+		};
+		window.publish(opened);
+		process_events();
+
+		// The whole shell is already assembled and shown, so nothing counted
+		// below is a widget the window merely had not built yet.
+		const auto assembled = widget_count(window);
+		expect(assembled > 0U,
+			   "the assembled workbench retains a live widget tree to count");
+
+		const auto small  = observe_sized_publication(window, 9U, 1U);
+		const auto medium = observe_sized_publication(window, 999U, 2U);
+		const auto large  = observe_sized_publication(window, 9'999U, 3U);
+
+		expect(small.RightLines == 60U && medium.RightLines == 6'000U
+				   && large.RightLines == 60'000U,
+			   "the harness presents sixty, six thousand, and sixty thousand "
+			   "source lines through the same composed workbench");
+		expect(medium.RightLines >= 100U * small.RightLines
+				   && large.RightLines >= 1'000U * small.RightLines,
+			   "the reviewed source grows by orders of magnitude, not by a "
+			   "constant");
+		expect(large.ScrollTravel > 0,
+			   "the sixty-thousand-line comparison really is longer than its "
+			   "viewport");
+
+		// The ratio is the claim. A harness that merely finished rendering a
+		// large file would prove nothing about how the surface is built.
+		expect(small.WindowWidgets == assembled
+				   && medium.WindowWidgets == assembled
+				   && large.WindowWidgets == assembled,
+			   "a file a thousand times longer creates no additional widget "
+			   "anywhere in the workbench window");
+		expect(small.SurfaceWidgets == medium.SurfaceWidgets
+				   && medium.SurfaceWidgets == large.SurfaceWidgets,
+			   "the composed comparison surface retains one widget tree at every "
+			   "source length");
+		expect(small.PaneWidgets == medium.PaneWidgets
+				   && medium.PaneWidgets == large.PaneWidgets,
+			   "the source pane presenting sixty thousand lines has exactly the "
+			   "child widgets it has presenting sixty");
+		expect(100U * large.WindowWidgets < large.RightLines,
+			   "the whole retained widget tree stays orders of magnitude smaller "
+			   "than the source it presents");
+		expect(small.VisibleLinks == medium.VisibleLinks
+				   && medium.VisibleLinks == large.VisibleLinks,
+			   "the painted correspondences follow the canonical change count "
+			   "rather than the source length");
+		expect(large.ScrollRebuilds == 0U,
+			   "scrolling a sixty-thousand-line comparison rebuilds no measured "
+			   "geometry");
+
+		// Factual scale context for this machine and run. Elapsed time is
+		// recorded, never asserted: one machine's timing is not a frame-rate
+		// guarantee.
+		std::cout << "workbench-window-virtualization:"
+				  << " platform="
+				  << QSysInfo::prettyProductName().toStdString()
+				  << " architecture="
+				  << QSysInfo::currentCpuArchitecture().toStdString()
+				  << " qt=" << qVersion()
+				  << " scale=" << window.devicePixelRatioF()
+				  << " counted=window/surface/right-pane"
+				  << " lines=" << small.RightLines << '/' << medium.RightLines
+				  << '/' << large.RightLines
+				  << " window-widgets=" << small.WindowWidgets << '/'
+				  << medium.WindowWidgets << '/' << large.WindowWidgets
+				  << " surface-widgets=" << small.SurfaceWidgets << '/'
+				  << medium.SurfaceWidgets << '/' << large.SurfaceWidgets
+				  << " pane-widgets=" << small.PaneWidgets << '/'
+				  << medium.PaneWidgets << '/' << large.PaneWidgets
+				  << " visible-links=" << small.VisibleLinks << '/'
+				  << medium.VisibleLinks << '/' << large.VisibleLinks
+				  << " publish-ms=" << small.PublishMilliseconds << '/'
+				  << medium.PublishMilliseconds << '/'
+				  << large.PublishMilliseconds
+				  << " scroll-ms=" << small.ScrollMilliseconds << '/'
+				  << medium.ScrollMilliseconds << '/'
+				  << large.ScrollMilliseconds << '\n';
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -1574,6 +1794,7 @@ auto main(int argc, char** argv) -> int
 	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
 	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
 	test_the_lower_detail_pane_is_full_width_line_over_line();
+	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }
