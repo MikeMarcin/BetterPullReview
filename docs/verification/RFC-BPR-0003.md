@@ -493,6 +493,53 @@ bound to the host by an identical 240-file build-input manifest, then stopped
 and removed with its SSH key, VM images, build logs, and port forward; the
 final workspace scan retains none of those credential/image artifacts.
 
+## Owner-activated macOS appearance-probe provenance
+
+The BPR-0059 native evidence is a single owner-activated run. It is bound to
+the source it executed, not to the current tree, and its rasters were
+deliberately never checked in. This section records what a reader needs to
+judge and reproduce it.
+
+| Field | Recorded value |
+|---|---|
+| Card | [BPR-0059](../issues/done/BPR-0059-rfc-0003-macos-active-focus-verification.md) |
+| Recording commit | `63df236f3732903c55d3ba9b386ed9d83e467234`, 2026-08-01 |
+| Probe source identity | `src/app/main.cpp` blob `787ba735278b4f22834fab0e3b8e20f7a9df5515` at that commit |
+| Executable | `build/dev/src/app/better_pull_review` from the Qt-enabled tests-enabled `dev` preset |
+| Invocation and environment | The rollback-safe shell in [build and test](../development/build-and-test.md#native-appearance-verification): `env -u QT_QPA_PLATFORM -u QT_STYLE_OVERRIDE` plus `--github-fixture github-com --native-appearance-probe --render-evidence <light> --changed-render-evidence <dark>`, with the evidence directory created by `mktemp -d "${TMPDIR:-/tmp}/bpr-native-appearance.XXXXXX"` |
+| Selected platform and style | `GITHUB_FIXTURE_QT_PLATFORM:cocoa`, `GITHUB_FIXTURE_QT_STYLE:QMacStyle` |
+| Accepted markers | `PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:github.com`, `NATIVE_APPEARANCE_ACTIVE_FOCUS_OK`, both local and global `Light->Dark` transitions, and the signal, semantic-state, pixel-difference, render, and changed-render success markers |
+| Raster geometry | Two images at 2200x1440 and the same device-pixel ratio |
+| Light raster SHA-256 | `66c1e75d69b8656de8cccde876cec98e0fe865420d41ae085ffda5361c40b2bb` |
+| Dark raster SHA-256 | `4d1b79b3237475f63b6dd19e3fdc2c302cb9e7eb7c2a207ba1eb384a7b058354` |
+| System appearance | Original System Dark `true`; the shell trap restored `true` after the run |
+| Host identity | macOS 15.7.7 build 24G720, arm64, Qt 6.11.1 |
+
+Two limits are deliberate rather than accidental.
+
+First, the host identity above was confirmed on 2026-08-03 from the same
+machine and build tree. The run log itself did not capture operating-system or
+Qt version strings, so that row is a post-run confirmation of the probe host,
+not a value read out of the run. Everything else in the table comes from the
+run record or from Git.
+
+Second, the two rasters were retained only in the transient local evidence
+directory and are not checked-in artifacts. The attestation that both frames
+show the same loaded pull request, the same epoch identities and complete
+OIDs, the same `Whole PR` selection, retained focus, and readable but distinct
+native palettes was made by the primary reviewer who inspected them during the
+BPR-0059 run. No later reader can re-inspect those exact images; the durable
+substitutes are the recorded SHA-256 values, the marker set, and the
+deterministic checked-in `native_appearance_probe_contract` rejection guard.
+
+A rerun at the current HEAD does not reproduce this run. `src/app/main.cpp`
+has changed in five later commits, and the loaded window now also composes the
+RFC-BPR-0004 selected-file diff workbench, so a fresh probe renders different
+content and yields different raster hashes. Owner-authorized native
+System-theme evidence for the current composition belongs to BPR-0083 under
+RFC-BPR-0004; it is not a reproduction of BPR-0059 and does not retroactively
+extend or invalidate it.
+
 ## Claim matrix
 
 | Claim | Direct surface | Proof | Result |
@@ -504,15 +551,15 @@ final workspace scan retains none of those credential/image artifacts.
 | Old observed head survives force-push | Local smart remote, cache, refs, catalog, public selector | Observe and retain the old head, then remove/prune the remote object, import the replacement, restart, and compare retained old head to latest | Verified on the available public path: `2801241` retains and directly inspects both old and replacement cache revisions after remote pruning; BPR-0044 proves durable multi-epoch chronology/anchor restart round trips; BPR-0045 verifies append/recovery orchestration and direct commit inspection. BPR-0048 adds a manifest-bound sibling-head public graph whose self-contained replacement pack omits the old head, requires the rendered second cause to be `Force-push/rebase`, and proves GitHub.com/GHES seed/reuse reopens and compares the retained old head with zero smart calls |
 | Repository behavior cannot execute | Hostile Git/config/repository fixtures | Arm hooks/helpers/askpass/filters/LFS/submodule/textconv/ext-diff/protocol canaries; require zero invocation | Verified on the directly exercised macOS and Ubuntu x86_64 surfaces through hostile real-Git/config state plus exact child image/argv/environment/cwd/port, descendant/socket, cache, smart-transport, and public-composition inspection. The canaries remain absent after BPR-0050's target-native matrix; real Windows execution remains BPR-0053 |
 | Epoch causes remain truthful | Core cause table with real Git facts | Replay initial, descendant upload, non-fast-forward rewrite, base-only, branch-change, simultaneous-change, equivalent, unknown-lineage, and retention-rehydration cases | Verified on available surfaces: BPR-0041/BPR-0044 exhaust deterministic core/catalog policy, including one-shot rehydration. BPR-0045 supplies bounded directly inspected Git observations. BPR-0048 maps the remaining scenarios to those exact tables and adds installed-Git proof that the public replacement is non-fast-forward plus a stable Qt-role assertion that ordinal two is `Force-push/rebase` |
-| Catalog/ref commit and recovery agree | Fault-injected catalog and Git refs | Fail or interrupt every phase; restart; require the catalog visibility authority to expose one exact committed epoch or an unavailable/recoverable pending state, never a ref-derived false success | Partially verified: BPR-0044 proves exact typed operation facts, phase/evidence/revision CAS, and idempotent catalog replay. BPR-0045 verifies append-phase continuation and postconditions. BPR-0055 covers every prune/cache-delete durable phase, failure injection, exact authorization replay, and real Git/SQLite composed cleanup. BPR-0048 supplies the broad combined matrix and BPR-0047 public composition |
+| Catalog/ref commit and recovery agree | Fault-injected catalog and Git refs | Fail or interrupt every phase; restart; require the catalog visibility authority to expose one exact committed epoch or an unavailable/recoverable pending state, never a ref-derived false success | Verified on macOS arm64 and Ubuntu 26.04 x86_64: BPR-0044 proves exact typed operation facts, phase/evidence/revision CAS, and idempotent catalog replay. BPR-0045 verifies every recorded append phase, continuation after restart, mandatory-success resolution, and physical/catalog postconditions. BPR-0055 covers every prune and cache-delete durable phase with injected lookup, transition, ref, quarantine, finalization, and cleanup failures, exact authorization replay, and real Git/SQLite composed cleanup. BPR-0048 supplies the broad combined fault matrix; BPR-0047 and BPR-0067 reopen durable state across separate processes through the public composition. The only portion not directly executed is target-native Windows, retained in BPR-0053 |
 | Defaults and arbitrary pairs use exact OIDs | Core + Qt + public application | Verify Whole PR and selected IDs/OIDs/context agree; accept same-authority reverse and identical pairs, with identical OIDs producing empty comparison | Verified on the available public path: BPR-0041 proves exact core pair/alias policy, BPR-0044 restores exact anchor IDs/OIDs, BPR-0046 verifies typed Qt behavior, and BPR-0047 drives Whole PR, arbitrary, reverse, and identical selections with complete OIDs through the real composition and after restart |
-| Named aliases resolve exactly | Catalog/core/public application | Verify Whole PR, nearest preceding distinct live head, newest ordered current-viewer review, and an association-only review update on an unchanged head; make the exact alias unavailable instead of falling back when its candidate is unavailable | Partially verified: BPR-0041 proves semantic candidate/no-fallback policy, and BPR-0044 persists chronology, availability, review order, and association-only updates. BPR-0046 proves Qt dispatch and unavailable handling. BPR-0047 proves Whole PR, Previous upload, and My last reviewed agree with stable rendered OIDs through the public composition and restart; BPR-0048 supplies the combined association-only/unavailable cases |
+| Named aliases resolve exactly | Catalog/core/public application | Verify Whole PR, nearest preceding distinct live head, newest ordered current-viewer review, and an association-only review update on an unchanged head; make the exact alias unavailable instead of falling back when its candidate is unavailable | Verified on macOS arm64 and Ubuntu 26.04 x86_64 through core, catalog, Qt, and the public application: BPR-0041 proves semantic candidate selection and the no-fallback policy, and BPR-0044 persists chronology, availability, review order, and association-only updates. BPR-0046 proves Qt dispatch and unavailable handling. BPR-0047 proves Whole PR, Previous upload, and My last reviewed agree with stable rendered OIDs through the public composition and after restart; BPR-0048 supplies the combined association-only and unavailable-candidate cases. The only portion not directly executed is target-native Windows, retained in BPR-0053 |
 | Pruned and never-observed history is honest | Catalog/core/Qt | Explicit prune/delete and unreachable unknown head stay visible/unavailable and never silently remap | Verified on available targets: BPR-0044 proves durable exact prune/cache-delete facts and idempotent finalization; BPR-0055 proves core authorization, exact paired-ref deletion, whole-cache cleanup, restart recovery, and matching incremental availability projection through fake-port and real Git/SQLite composition. BPR-0046 directly renders pruned, cache-deleted, unavailable, and never-observed states without remapping. BPR-0067 adds the selected executable's real QAction/confirmation/core/host/installed-Git/SQLite/projection path and proves durable `pruned` then `cache_deleted` results across four processes with exact targets, no reset, and no extra provider traffic. Windows execution remains BPR-0053 |
-| Stale/canceled work cannot publish | Manual executor and real process cancellation | Reorder/duplicate/cancel Git, transport, catalog, and identity-switch completions | Partially verified at component boundaries: earlier protocol/process/cache slices reject canceled work and exact lease drift; BPR-0045 directly verifies pre/post-PONR cancellation policy and rejects stale load, preparation, and comparison terminals before core/projection publication. BPR-0056 rejects mismatched authority/source/catalog/cursor, cancels on revision or identity replacement, and proves a deliberately reordered loaded page cannot publish rows. BPR-0066 additionally rejects late older/newest page terminals across file authority, epoch generation, catalog revision, and request identity while retaining a stale visible page until an exact newest load succeeds. BPR-0048 supplies the broad combined fault matrix and BPR-0047 public composition |
+| Stale/canceled work cannot publish | Manual executor and real process cancellation | Reorder/duplicate/cancel Git, transport, catalog, and identity-switch completions | Verified on macOS arm64 and Ubuntu 26.04 x86_64 at both component and composed boundaries: earlier protocol/process/cache slices reject canceled work and exact lease drift, and `git_process_contract` cancels a blocked real child and kills its descendant process group; BPR-0045 directly verifies pre/post-PONR cancellation policy and rejects stale load, preparation, and comparison terminals before core/projection publication. BPR-0056 rejects mismatched authority/source/catalog/cursor, cancels on revision or identity replacement, and proves a deliberately reordered loaded page cannot publish rows. BPR-0066 additionally rejects late older/newest page terminals across file authority, epoch generation, catalog revision, and request identity while retaining a stale visible page until an exact newest load succeeds. BPR-0048 supplies the broad combined fault matrix and BPR-0047 the public composition. The only portion not directly executed is target-native Windows, retained in BPR-0053 |
 | Qt projection is incremental, accessible, and system-native | Stable-ID model and real widgets | Assert exact signals, persistent indexes, focus, keyboard, OID text, announcements, responsive layout, bounded resident rows, zero routine resets, and live native palette/style/font inheritance | Verified on available targets: BPR-0046 and refreshed BPR-0049 three-scale actual-window cases pass with exact insert/remove/move/data signals, persistent anchor indexes, selector and QAction translation, 40/64-character OIDs, explicit states, focus/accessibility, deduplicated bounded announcements, live font invalidation, and zero routine resets. BPR-0066 repeatedly replaces more than 1,000 pages while retaining at most 100 epochs/200 anchors, reaches ordinal one and newest, preserves or legally invalidates persistent indexes by stable identity, and renders the real 100/200-row composition at 1.0x/1.25x/2.0x. BPR-0049 directly renders the current real application through unforced Ubuntu XCB/QFusionStyle. BPR-0059's owner-activated Cocoa/QMacStyle run adds the required active-window/existing-focus proof: exact epoch identities, OIDs, Whole PR selection, accessibility, readable palettes, and zero resets survive the same-process System Light-to-Dark transition in distinct inspected 2200x1440 rasters. Real Windows UI execution remains BPR-0053 |
 | Public composition selects production pieces | Real executable | Recorded GitHub plus local Git protocol fixture reaches exact visible pair; second invocation proves persistence; Release excludes seams | Verified on available targets: BPR-0047 covers GitHub.com/GHES acquisition, retained comparisons, restart, quiescence, and tests-disabled seam exclusion. BPR-0067 drives the selected executable's public maintenance QAction and confirmation through the same core/host/installed-Git/SQLite/Qt composition, verifies prune and cache-delete effects after separate restarts, and observes zero additional provider/smart calls during maintenance. Windows execution remains BPR-0053 |
-| Resource use is bounded without silent retention loss | Protocol/process/cache/catalog/history fixtures | Exceed packet, stream, pack, disk, ref, row/page, host job/actor/completion/ingress, output, time, and process limits; require bounded failure and no automatic prune | Verified on the focused BPR-0068 host surface and prior available-platform surfaces: earlier slices cover process/protocol/cache bounds; BPR-0044 covers database/SQLite/catalog/epoch/revision/checkpoint quotas; BPR-0045 covers bounded source/preparation/recovery/actor work; BPR-0056 covers 1..100 revision-bound page requests with no core row retention. BPR-0066 proves a strict 100-epoch/200-anchor Qt residency cap through more than 1,000 page replacements and a real 100,000-epoch SQLite catalog without losing ordinal-one or newest reachability. BPR-0068 directly exceeds small injected job and ordinary-ingress capacities while effects/decisions are withheld, includes blob materialization in the same ledger, proves core-request quota and blob generic-host failure outcomes, FIFO/terminal priority, lease cleanup, fail-closed retained-cache authorization, projection depth one, reserved cleanup admission, and shutdown quiescence. Its final sequential component and ASan/UBSan replays pass with zero application launches. The explicitly unexecuted production 30-second elapsed idle case remains outside this host-residency proof |
-| Platform claims are target-native | macOS, Linux, and Windows | Run configure/build/tests, Git/process/network/cache/catalog/Qt/runtime/dependency evidence on each claimed target | Partially verified: prior slices and BPR-0050 provide direct macOS process/protocol/native-loopback/cache/catalog/Keychain/public-runtime evidence; BPR-0045 adds guarded production CSPRNG/system-clock ports and current-host native contracts. BPR-0058 adds the retained-directory replacement canary and syscall proof that SQLite main/bootstrap/sidecar opens remain under `/proc/self/fd` with final-component no-follow. BPR-0050 completes the broader Ubuntu 26.04 x86_64 GCC 15.2 process, protocol, Secret Service, cache, catalog, maintenance, public Qt, dependency, and runtime matrix. MinGW remains compile/link evidence only, and every affected Windows runtime claim remains open in BPR-0053 |
+| Resource use is bounded without silent retention loss | Protocol/process/cache/catalog/history fixtures | Exceed packet, stream, pack, disk, ref, row/page, host job/completion/ingress, output, time, and process limits; require bounded failure and no automatic prune. Where no admission flood exists, name the exact enforcement site that refuses admission instead of claiming an executed overflow | Verified on the focused BPR-0068 host surface and prior available-platform surfaces: earlier slices cover process/protocol/cache bounds; BPR-0044 covers database/SQLite/catalog/epoch/revision/checkpoint quotas; BPR-0045 bounds source-identity retry, prepared observations, recovery scanning, and repository-actor retention; BPR-0056 covers 1..100 revision-bound page requests with no core row retention. BPR-0066 proves a strict 100-epoch/200-anchor Qt residency cap through more than 1,000 page replacements and a real 100,000-epoch SQLite catalog without losing ordinal-one or newest reachability. BPR-0068 directly exceeds small injected job and ordinary-ingress capacities while effects/decisions are withheld, includes blob materialization in the same ledger, proves core-request quota and blob generic-host failure outcomes, FIFO/terminal priority, lease cleanup, fail-closed retained-cache authorization, projection depth one, reserved cleanup admission, and shutdown quiescence. Its final sequential component and ASan/UBSan replays pass with zero application launches. Exactly two epoch-host capacities carry executed overflow evidence, both through `epoch_host_limits`: the default-64/maximum-1,024 job ledger and the default-64/maximum-1,024 ordinary reentrant ingress FIFO. The 100 prepared observations, 1,000 retained repository actors, 1,000-operation recovery scan in pages of 100, and 32-attempt source-identity retry are enforced admission refusals with direct source and enforcement-site evidence rather than executed floods; one source-identity collision retry is executed by `source_collision_retries_before_core_acceptance`. Nonblocking BPR-0086 retains the deterministic allocation-failure seam and the extra invalid-limit table. The explicitly unexecuted production 30-second elapsed idle case remains outside this host-residency proof |
+| Platform claims are target-native | macOS, Linux, and Windows | Run configure/build/tests, Git/process/network/cache/catalog/Qt/runtime/dependency evidence on each claimed target | Verified on macOS arm64 and Ubuntu 26.04 x86_64; unverified on Windows x64, which is the sole remaining target and is retained in BPR-0053. Prior slices and BPR-0050 provide direct macOS process/protocol/native-loopback/cache/catalog/Keychain/public-runtime evidence; BPR-0045 adds guarded production CSPRNG/system-clock ports and current-host native contracts. BPR-0058 adds the retained-directory replacement canary and syscall proof that SQLite main/bootstrap/sidecar opens remain under `/proc/self/fd` with final-component no-follow. BPR-0050 completes the broader Ubuntu 26.04 x86_64 GCC 15.2 process, protocol, Secret Service, cache, catalog, maintenance, public Qt, dependency, and runtime matrix. MinGW remains compile/link evidence only, and every affected Windows runtime claim remains open in BPR-0053 |
 | GitHub Actions is absent | Repository and documentation | Tracked/on-disk workflow scans plus documentation validator | Verified again after BPR-0052: tracked and on-disk workflow counts are 0/0, no source/build integration selects GitHub Actions, and every macOS/Linux build and verification command is local or target-native |
 
 ## Platform and safe-target plan
@@ -572,6 +619,31 @@ visual-polish or custom-theme claim.
 | No-impact/deferred regions | RFC ledger, architecture, issue board | Revalidated by BPR-0051/BPR-0059: BPR-0047 wires the interim BPR-0046 control but makes no final visual-polish or selectable-theme claim. BPR-0048 supplies the broad combined matrix, BPR-0049/BPR-0059 complete available native UX including owner-active macOS focus, and BPR-0053 retains real Windows evidence. No GitHub mutation, local review-receipt/actionability policy, RFC4 diff/line mapping, RFC5 final workbench/polish, RFC6 themes/syntax/fonts, queue/AI/notification, CLI enablement, or package-format/signing/installer implementation is claimed | Immutable-base path/target audit, target/dependency scans, BPR-0059 rendered native inspection, and documentation anchors reviewed by BPR-0051 |
 | GitHub Actions | Build/test/package/release documentation | Updated and verified through completed BPR-0044: absolute prohibition and no workflow files | Post-BPR-0052 documentation validator and tracked/on-disk workflow scans are 0/0 |
 
+### Immutable-base changed-path classification
+
+BPR-0051 classified 186 paths. BPR-0069 reclassifies the complete
+`a600ab2c29d2b4088a3f2598dbb817c35af2eafd..HEAD` set, which is 374 paths: 198
+added and 176 modified. Every path routes to a tracked `AGENTS.md`, and the
+counts below were produced by resolving each changed path to its nearest
+ancestor instruction file.
+
+| Owning `AGENTS.md` | Changed paths | Disposition |
+|---|---|---|
+| `docs/` | 86 | Updated. These are the reviewed documents themselves: architecture, UX, security, verification, RFC text, operator guidance, and the issue board, carried by BPR-0051, BPR-0066, BPR-0067, BPR-0068, BPR-0081, BPR-0084, BPR-0085, and this card |
+| `tests/` | 79 | Updated. Fixture catalog and test guidance cover the added epoch, maintenance, residency, diff, and coding-standard suites; `tests/AGENTS.md` itself was updated by BPR-0085 |
+| repository root | 67 | Updated. Build, toolchain, coding-standard, vendored-dependency, and agent-instruction paths owned by BPR-0084 and BPR-0085. The deleted tracked SQLite amalgamation is a build-input change reflected in the dependency inventory; it does not change the epoch catalog schema or storage contract |
+| `src/application/` | 36 | Updated through BPR-0068 for the epoch host, ports, and limits. The diff host and diff runtime ports added in the same directory are RFC-BPR-0004 surfaces recorded by BPR-0081 |
+| `src/adapters/github/` | 29 | Updated. Four commits touch this scope in the range: `edd762e` adds the native Git smart transport and its lease boundary, `15e7842` adds the accepted-snapshot outlet for BPR-0047, `bcde3b9` is BPR-0084 build modernization, and `0ec1136` is BPR-0085 formatting and naming. The first two are RFC-BPR-0003 surfaces documented by the Git/epoch model and security model; the provider, credential, and REST/GraphQL surfaces in the same directory remain RFC-BPR-0002's |
+| `src/adapters/qt/` | 26 | Updated for the epoch comparison control and history model. The alignment axis, scroll controller, link map, and diff workbench are RFC-BPR-0004 surfaces recorded by BPR-0081 |
+| `src/core/` | 26 | Updated for the epoch model and transition. The diff core modules are RFC-BPR-0004 surfaces recorded by BPR-0081 |
+| `src/adapters/` | 12 | Updated. Installed-Git cache/process and the SQLite epoch catalog remain documented by the Git/epoch architecture and security model. The RFC-BPR-0004 blob-materialization path added by `da39b3a` reaches the installed-Git cache, and its 16 MiB ceiling and authority guard are recorded by BPR-0068. `bcde3b9` changed only `src/adapters/sqlite/CMakeLists.txt`; the catalog schema, VFS, and storage code are untouched at the pinned 3.53.4 version |
+| `src/app/` | 12 | Updated. Composition, worker order, and the public fixture entry points remain documented by the system architecture and operator guidance |
+| `packaging/` | 1 | No-impact. `packaging/README.md` still declares that package formats, signing, and installers remain RFC-BPR-0014 |
+
+The classification is a routing lower bound. The semantic obligations it
+produced are recorded in the ledger table above and in the claim matrix, not
+in the path counts.
+
 ## Performance and projection plan
 
 - Core state remains fixed-size apart from bounded transition storage and
@@ -590,6 +662,12 @@ visual-polish or custom-theme claim.
   fixed invalidation slots and one shutdown flag remain terminal-priority.
 - Source collision retry is bounded to 32 attempts, prepared observations to
   100, and one recovery scan to 1,000 operations in pages of 100.
+- Only the job-ledger and ordinary-ingress capacities are injected small and
+  actually overflowed by a test. The repository-actor, prepared-observation,
+  recovery-scan, and identity-retry bounds are compile-time constants enforced
+  by an admission refusal at their single call site; their evidence is source
+  and enforcement-site inspection, not an executed flood. Nonblocking BPR-0086
+  retains the extra allocation-failure and invalid-limit hardening.
 - Routine epoch append or availability change performs changed-set catalog and
   Qt work, not a whole-PR scan or model reset.
 - Smart protocol and process streams use bounded buffers/backpressure and
@@ -628,27 +706,35 @@ visual-polish or custom-theme claim.
 
 ## Current closeout replay
 
-The post-BPR-0066/BPR-0052 available-platform replay currently records:
+The BPR-0069 replay supersedes the earlier post-BPR-0066/BPR-0052 record. It
+ran serially on macOS 15.7.7 build 24G720 arm64 with Qt 6.11.1 and Git 2.39.5,
+from `build/dev` and `build/core-only` removed and reconfigured after BPR-0084
+replaced the tracked SQLite amalgamation with verified CPM source acquisition.
+The verified source cache was preserved, so the configure resolved SQLite
+3.53.4 without a download. It records:
 
-- a clean Qt-enabled developer build with 67/67 tests passing in 605.70
-  seconds and a clean Qt-free `core-only` build with 27/27 passing in 76.69
-  seconds;
-- focused sanitizer core, host, bounded-Qt, and rendered-application tests
-  passing 4/4, with the instrumented 100,000-epoch SQLite stress binary passing
-  directly after exceeding its ordinary 180-second CTest timeout;
-- a tests-disabled Qt-enabled Release build of the real executable, including
-  expected Qt/macOS system framework linkage and no test-only helper
-  dependency;
-- `DOCUMENTATION_OK`, 104/104 architecture mutation tests, 4/4 platform
-  configuration tests, the original pack validator result `OK: 14 RFCs, 17
-  normative documents, architecture v2 enforced`, tracked/on-disk GitHub
-  Actions workflow counts of 0/0, and `git diff --check`;
-- BPR-0059's owner-activated Cocoa/QMacStyle run reports active-focus,
-  local/global Light-to-Dark, semantic-state, pixel-difference, and
-  changed-render success through the real composition. Direct inspection
-  confirms the same epoch identities, exact OIDs, Whole PR selection, focus,
-  and layout in distinct 2200x1440 rasters; the original System Dark setting
-  was restored;
+- a clean Qt-enabled developer matrix passing 88/88 in 684.92 seconds and a
+  clean Qt-free `core-only` matrix passing 33/33 in 79.36 seconds. Both suites
+  are larger than the 67 and 27 of the earlier snapshot because the
+  RFC-BPR-0004 pack, BPR-0067, BPR-0068, and BPR-0085 added cases. The earlier
+  counts are superseded rather than contradicted;
+- the architecture-boundary, architecture-boundary-contract,
+  documentation-structure, documentation-issue-graph, and
+  platform-configuration gates passing inside both matrices;
+- the repository format gate passing across 181 files and the strict
+  first-party `clang-tidy` audit passing;
+- `DOCUMENTATION_OK`, `BINARY_DEPENDENCIES_OK` and `RUNTIME_SURFACE_OK` against
+  the freshly built executable, the original pack validator result `OK: 14
+  RFCs, 17 normative documents, architecture v2 enforced`, tracked/on-disk
+  GitHub Actions workflow counts of 0/0, and a clean `git diff --check`;
+- results this slice deliberately did not re-execute: the focused sanitizer
+  matrix, the instrumented 100,000-epoch SQLite stress binary, and the
+  tests-disabled Qt-enabled Release composition. Those passed at the earlier
+  snapshot and are named in BPR-0054's closeout list; BPR-0069 makes no fresh
+  claim about them;
+- BPR-0059's owner-activated Cocoa/QMacStyle run, recorded at its own commit
+  and not re-executed here. Its markers, raster hashes, host identity, and the
+  exact limits of its attestation are in the probe-provenance section above;
 - no real Windows execution: BPR-0036 and BPR-0053 remain intentionally open,
   so their affected claims and the canonical RFC-BPR-0002/RFC-BPR-0003 status
   transitions remain unverified.

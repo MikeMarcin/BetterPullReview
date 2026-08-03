@@ -73,6 +73,12 @@ the active focused widget, exact epoch identities and OIDs, Whole PR selection,
 readable palettes, accessibility state, geometry, and zero model resets in the
 same process; its distinct inspected 2200x1440 rasters are transient local
 evidence, and the owner's original System Dark setting is restored afterward.
+That run is bound to the source it executed rather than to the current tree;
+its exact invocation, source identity, raster hashes, host identity, and the
+limits of its attestation are recorded in the
+[RFC-BPR-0003 probe provenance](../verification/RFC-BPR-0003.md#owner-activated-macos-appearance-probe-provenance).
+Owner-authorized System-theme evidence for the later selected-file workbench
+composition belongs to RFC-BPR-0004's BPR-0083 and is not a reproduction of it.
 
 This inheritance and incremental-behavior proof is not the final-workbench
 appearance gate. RFC-BPR-0005 retains a distinct integrated-workbench

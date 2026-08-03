@@ -629,6 +629,22 @@ row order/identity, authority/source/generation drift, retry, and catalog
 reload. Loaded projections contain stable sanitized rows and never request a
 model replacement.
 
+BPR-0068 adds the residency cases. The fixture constructor accepts an
+`application::epoch_host_limits` value, so a case can inject a small job-ledger
+or ordinary-ingress capacity and then exceed it while effect and decision
+terminals are withheld. The matrix covers refresh, blob-bridge, executor-refusal,
+FIFO, invalidation-priority, and mixed-shutdown floods; it proves the
+core-request `quota_exceeded` terminal, the blob generic-host failure outcome,
+lease cleanup, fail-closed retained-cache authorization, projection depth one,
+reserved cleanup admission, and shutdown quiescence. The manual executors expose
+job, actor-queue, decision-completion, and ordinary-ingress counts directly, and
+no Qt or application process is involved. Only these two capacities are driven to
+overflow. The 100 prepared observations, 1,000 retained repository actors,
+1,000-operation recovery scan, and 32-attempt identity retry are compile-time
+constants enforced by an admission refusal at their single call site; nonblocking
+BPR-0086 retains the deterministic allocation-failure seam and the extra
+invalid-limit table.
+
 The adjacent `git_process_contract`, `git_cache_contract`, and SQLite storage
 and behavior contracts provide the real physical and durable operations used
 by that fake-port orchestration. Together they are direct component evidence,

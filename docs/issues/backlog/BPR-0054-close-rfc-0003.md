@@ -27,26 +27,37 @@ documentation review; original-pack validation; workflow absence; and
 
 ## Closeout preparation
 
-- The post-BPR-0066/BPR-0052 developer matrix passes 67/67, `core-only`
-  passes 27/27, the focused sanitizer matrix passes 4/4, and the instrumented
-  100,000-epoch SQLite stress binary completes directly after exceeding its
-  ordinary CTest timeout. A Qt-enabled tests-disabled Release executable also
-  builds and links successfully.
-- The documentation gate, 104-case architecture mutation suite, four-case
-  platform-configuration suite, original source-pack validator, tracked and
-  on-disk workflow-absence scans, and diff hygiene are green. GitHub Actions
+- The BPR-0069 replay supersedes the earlier snapshot. On macOS 15.7.7 build
+  24G720 arm64 with Qt 6.11.1, clean reconfigured trees pass 88/88 on `dev` in
+  684.92 seconds and 33/33 on `core-only` in 79.36 seconds. Both counts grew
+  with the RFC-BPR-0004 pack, BPR-0067, BPR-0068, and BPR-0085.
+- The documentation gate, architecture-boundary and boundary-contract suites,
+  documentation-structure and issue-graph contracts, platform-configuration
+  contract, 181-file format gate, strict first-party `clang-tidy` audit,
+  `BINARY_DEPENDENCIES_OK`, `RUNTIME_SURFACE_OK`, original source-pack
+  validator, workflow-absence scans, and diff hygiene are green. GitHub Actions
   workflow counts remain 0/0.
-- BPR-0059 is done. Its owner-activated Cocoa/QMacStyle rerun directly passed
-  active-focus, local/global Light-to-Dark transition, state, pixel,
-  changed-render, and public-composition markers; inspection confirmed stable
-  epoch/OID/Whole PR state in distinct 2200x1440 rasters, and the original
-  System Dark setting was restored.
-- The final critical review reproduced two non-Windows blockers: the selected
-  application exposes no explicit maintenance command, and the repository
-  actor/job/ingress residency is not actually bounded. BPR-0067 and BPR-0068
-  own those repairs; BPR-0069 owns exact evidence, provenance, changed-path,
-  and ledger reconciliation after they close.
+- The focused sanitizer matrix, the 100,000-epoch SQLite stress binary, and the
+  tests-disabled Qt-enabled Release composition were not re-executed by
+  BPR-0069. They passed at the earlier snapshot and remain this card's
+  responsibility to replay from clean state before closeout, which matters
+  because BPR-0084 changed how SQLite enters the build.
+- BPR-0059 is done. Its owner-activated Cocoa/QMacStyle run is bound to commit
+  `63df236` and is not reproducible at HEAD; its invocation, source identity,
+  raster hashes, restored System Dark state, and attestation limits are
+  recorded in the RFC-BPR-0003 probe-provenance section.
+- The final critical review reproduced two non-Windows blockers, and both are
+  now closed. Done BPR-0067 exposes prune and whole-cache deletion through the
+  selected application under one secondary `Local history maintenance` menu,
+  each capturing its exact target before a default-Cancel confirmation and
+  leaving durable tombstones. Done BPR-0068 makes the retained job vector the
+  global admission bound at 64 by default and 1,024 at most, separately caps
+  ordinary reentrant ingress, and gives invalidation and shutdown fixed
+  terminal priority. Done BPR-0069 completed the evidence, provenance,
+  changed-path, and ledger reconciliation and corrected the one claim that had
+  overstated which host capacities are actually flood-tested.
 - BPR-0035/BPR-0036 and BPR-0053 remain open for real Windows execution and
-  canonical RFC-BPR-0002/RFC-BPR-0003 status transitions. This card remains in
-  backlog and makes no `Auto-Verified` claim while any of those or the new
-  critical-review dependencies remain open.
+  canonical RFC-BPR-0002/RFC-BPR-0003 status transitions. BPR-0070 remains
+  open. Nonblocking BPR-0086 is not a dependency of this card. This card
+  remains in backlog and makes no `Auto-Verified` claim while any blocking
+  dependency remains open.

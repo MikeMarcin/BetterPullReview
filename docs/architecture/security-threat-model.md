@@ -856,6 +856,19 @@ retains at most 100 exact preparations and one recovery pass admits at most
 contained, and shutdown cannot report quiescence until jobs, pending offers,
 decision turns, deferred ingress, and every actor queue are idle.
 
+BPR-0068 makes the retained job vector the global admission bound rather than a
+bookkeeping list. It admits 64 jobs by default and at most 1,024 by contract,
+and every queued, running, or decision-completion-pending actor closure owns one
+slot, including the synchronous diff blob bridge. A slot retires before its
+terminal can admit dependent work, and terminal retirement reserves the freed
+slot for one core-emitted dependent request so concurrent blob work cannot crowd
+out mandatory cleanup. Ordinary reentrant accept and dispatch ingress has its own
+default-64, maximum-1,024 FIFO whose overflow is rejected before core acceptance
+with exact lease cleanup and one retained diagnostic per turn. Two fixed
+invalidation slots and one shutdown flag keep terminal events from being crowded
+out by ordinary ingress. A hostile or looping producer therefore meets a bounded
+refusal rather than unbounded host residency.
+
 ### Quotas, pruning, and deletion
 
 Wire, temporary-storage, repository, object, ref, epoch, catalog-row, text,

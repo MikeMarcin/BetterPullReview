@@ -787,6 +787,8 @@ consecutive fractional-scale runs and retains the scale, geometry, content,
 focus, and accessibility checks. This is deterministic headless raster
 evidence, not native-desktop style certification.
 
+### Native appearance verification
+
 For a native macOS startup check, first record the current System Appearance,
 remove Qt platform/style overrides, then drive the test-enabled public fixture
 through the real application:
@@ -808,6 +810,17 @@ under a real system Light appearance and changing the operating-system
 appearance while the same loaded process remains alive. Record and restore the
 original desktop setting for that manual native gate. Never force a palette or
 QSS merely to make the evidence pass.
+
+Under Cocoa the probe refuses to collect initial evidence while the real
+window is inactive or has no focus widget. It prints
+`NATIVE_APPEARANCE_WAITING_FOR_OWNER_FOCUS` once and waits. The desktop owner
+must click the BetterPullReview window to activate it and give a widget focus;
+the probe never calls an activation API, synthesizes input, or relaxes a
+post-focus assertion, so an unattended run reaches
+`NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED`, writes no PNG, and is a clean
+unverified attempt rather than evidence. Non-Cocoa probes enter the
+fail-closed check immediately. The readiness loop below therefore does not
+progress until the owner has focused the window.
 
 Only run the live Light-to-Dark gate after the desktop owner explicitly
 authorizes changing the global appearance. The test-build-only probe reads the
@@ -913,6 +926,7 @@ for bpr_marker in \
   'NATIVE_APPEARANCE_GLOBAL_TRANSITION:Light->Dark' \
   'NATIVE_APPEARANCE_PLATFORM:cocoa' \
   'NATIVE_APPEARANCE_STYLE:QMacStyle' \
+  'NATIVE_APPEARANCE_ACTIVE_FOCUS_OK' \
   'NATIVE_APPEARANCE_SIGNAL_OK' \
   'NATIVE_APPEARANCE_STATE_OK' \
   'NATIVE_APPEARANCE_PIXELS_DIFFER_OK' \

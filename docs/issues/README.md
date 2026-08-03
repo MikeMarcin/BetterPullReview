@@ -193,9 +193,17 @@ materialization, separately bounds ordinary reentrant ingress, and preserves
 fixed terminal priority for invalidation/shutdown. Its focused flood,
 sanitizer, and sequential component closeout matrices pass without launching
 Qt or the application. Backlog BPR-0086 retains nonblocking deterministic
-allocation-failure and extra invalid-limit hardening. Backlog BPR-0069
-retains final native-probe provenance, partial-claim wording, immutable-base
-changed-path, and documentation reconciliation. Backlog BPR-0070 retains the
+allocation-failure and extra invalid-limit hardening. Done BPR-0069 completes
+the final reconciliation: every ambiguous `Partially verified` claim now states
+exactly what was executed and names target-native Windows as its only
+remainder, the bounded-resource claim no longer implies that repository-actor,
+prepared-observation, recovery, or identity-retry capacities were flooded when
+only the job ledger and ordinary ingress are, the owner-activated macOS probe
+has recorded provenance bound to its own commit with its attestation limits
+stated, and the complete 374-path immutable-base classification is resolved.
+Its clean serial replay passes 88/88 on `dev` and 33/33 on `core-only` with the
+format, strict tidy, dependency, runtime, pack, workflow, and diff gates green.
+Backlog BPR-0070 retains the
 fail-closed command-projection refinement that disables prune before
 confirmation for an already ineligible selected availability. BPR-0054 makes
 no closeout claim while its remaining blocking dependencies remain open.
