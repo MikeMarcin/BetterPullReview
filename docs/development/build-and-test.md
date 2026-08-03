@@ -1400,6 +1400,29 @@ reconciliation, lower-detail identity agreement, nontext/invalid/fabricated
 inputs, 4:7 accepted anchors and tail pinning, and a generated cross-product
 of small files and option policies.
 
+### RFC-BPR-0005 workbench
+
+```sh
+cmake --build --preset core-only --target test_better_pull_review_epoch_core_tests
+ctest --test-dir build/core-only --output-on-failure -R '^core_workbench_interaction$'
+
+cmake --build --preset dev --target \
+  test_better_pull_review_application_workbench_host_tests \
+  test_better_pull_review_qt_workbench_window_tests
+ctest --test-dir build/dev --output-on-failure -R '^application_workbench_host$'
+QT_QPA_PLATFORM=offscreen CTEST_PARALLEL_LEVEL=1 ctest --test-dir build/dev \
+  --output-on-failure -R '^qt_workbench_window_scale_(100|125|200)$'
+```
+
+The Qt cases run offscreen and serial. The window suite includes the
+large-file virtualization case, which presents sixty, six thousand, and sixty
+thousand source lines through the same composed workbench and requires an
+identical widget count at each. It prints a factual scale line naming the
+platform, architecture, Qt version, counted subtrees, line counts, widget
+counts, visible ribbons, and publish milliseconds. Those figures are context
+for the machine that produced them; only the counts are asserted, never the
+timing.
+
 ## Troubleshooting and safe verification
 
 ### GitHub and native credentials

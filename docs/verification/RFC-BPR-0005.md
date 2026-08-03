@@ -2,7 +2,8 @@
 
 RFC base: `55d365f16847d2ffc2c8fab83a5ce62eb695e2a0`
 
-Status: planning complete, implementation not started. RFC-BPR-0005 stays
+Status: available-target implementation complete. Documentation reconciled by
+BPR-0098; simplification and closeout preparation remain. RFC-BPR-0005 stays
 `Proposed` and ends its available-target work at the BPR-0101 closeout card in
 `backlog/`.
 
@@ -53,14 +54,14 @@ choice.
 
 | Claim | Direct surface | Command or interaction | What proves it | Result |
 |---|---|---|---|---|
-| Primary actions are top-level | Real application | Invoke previous/next file and change by button and shortcut at supported widths | Actions are reachable and keyboard addressable at every supported width, or move into an explicit compact overflow without losing keyboard access | Planned, BPR-0092 |
-| Drawers return space to the centre | Real application | Collapse and reopen each drawer, measure the central viewport, restart | Central viewport width is restored and persisted widths survive restart | Planned, BPR-0093 |
-| Link map maps groups | Rendered fixture | Compare ribbon and wedge bounds and selected identity to the RFC-BPR-0004 model through scroll and resize | Every visible ribbon agrees with the canonical group model and stays monotonic and noncrossing | Planned, BPR-0094 |
-| One shared scrollbar, no synthetic rows | Rendered composition | Inspect scrollbar policy on both panes and the document contents | Exactly one shared vertical scrollbar exists and neither document contains invented rows | Planned, BPR-0094 |
-| Lower pane is full-width detail | Real application | Select a group and inspect paired rows and central width | The pane spans the central width and its rows agree with the canonical mapping | Planned, BPR-0095 |
-| Renderer is virtualized | Instrumented application | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Planned, BPR-0096 |
-| Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Planned, BPR-0097 |
-| Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Planned, BPR-0097 |
+| Primary actions are top-level | Real application | Invoke previous/next file and change by button and shortcut at supported widths | Actions are reachable and keyboard addressable at every supported width, or move into an explicit compact overflow without losing keyboard access | Verified. `qt_workbench_window` at three scales; compact overflow keeps window association so shortcuts survive both modes |
+| Drawers return space to the centre | Real application | Collapse and reopen each drawer, measure the central viewport, restart | Central viewport width is restored and persisted widths survive restart | Verified. Central viewport measured across five drawer stages; collapse hides rather than zero-sizes so the splitter returns the width |
+| Link map maps groups | Rendered fixture | Compare ribbon and wedge bounds and selected identity to the RFC-BPR-0004 model through scroll and resize | Every visible ribbon agrees with the canonical group model and stays monotonic and noncrossing | Verified. `test_composed_ribbons_follow_the_group_model_through_scroll_and_resize` checks visible ribbon identity and bounds against the canonical model through scroll and resize |
+| One shared scrollbar, no synthetic rows | Rendered composition | Inspect scrollbar policy on both panes and the document contents | Exactly one shared vertical scrollbar exists and neither document contains invented rows | Verified. Exactly one shared vertical scrollbar, both panes always-off, composed unchanged |
+| Lower pane is full-width detail | Real application | Select a group and inspect paired rows and central width | The pane spans the central width and its rows agree with the canonical mapping | Verified. Pane width equals the centre across five drawer stages; rows checked against `core::detail_for_selection` at canonically mapped lines |
+| Renderer is virtualized | Instrumented application | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified. 60/6,000/60,000 lines produce 68/68/68 window widgets, 29/29/29 surface, 5/5/5 pane |
+| Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Verified. Toggles and navigation emit core intents only; enablement and disabled reasons come from projections; drawer contents use insert/remove/data-change rather than reset |
+| Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Verified. Exact untruncated OIDs, four distinguishable textual states, declared focus order, unique accessible names and key sequences |
 | Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100, owner-attended |
 
 ## Deferred gates
@@ -78,11 +79,11 @@ mutations, so no safe test target is required.
 
 | Scope | Required documents | Disposition |
 |---|---|---|
-| Core navigation and command policy | Domain and state model | Planned, BPR-0098 |
-| Host projection and persistence | System architecture | Planned, BPR-0098 |
-| Workbench layout, drawers, focus, accessibility, error states | Workbench specification and appearance/accessibility documents | Planned, BPR-0098 |
-| Composed comparison surface | Diff pipeline and rendering, link-map and alignment-space documents | Planned, BPR-0098 |
-| Tests and fixtures | Fixture catalog and build/test guide | Planned, BPR-0098 |
+| Core navigation and command policy | Domain and state model | Updated. System architecture records the compact core state, the bounded cursor, and why a nonresident selection has no ordinal to step from |
+| Host projection and persistence | System architecture | Updated. Host ownership of the ordered set, changed-domain-only publication, per-domain staleness, and limit-rather-than-truncate are recorded |
+| Workbench layout, drawers, focus, accessibility, error states | Workbench specification and appearance/accessibility documents | Updated. Command map with shortcuts, the ambiguous-shortcut rationale, compact overflow, drawer ownership split, declared focus order, and the accessible-name uniqueness rule |
+| Composed comparison surface | Diff pipeline and rendering, link-map and alignment-space documents | No-impact. The comparison surface is composed unchanged; RFC-BPR-0004's own documents remain correct and no second mapping or authority was introduced |
+| Tests and fixtures | Fixture catalog and build/test guide | Updated. The three new suites, the manual-executor terminal algebra, and the virtualization figures with their assert-counts-not-timing rule |
 
 ## Closeout blockers
 

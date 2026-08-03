@@ -424,6 +424,37 @@ This is a presentation pre-check rather than a new authorization boundary: the
 core transition and the host catalog remain the fail-closed decision point, and
 an intent injected directly still travels to them.
 
+### RFC-BPR-0005 workbench allocation
+
+The workbench shell follows the same three-region split as every other feature.
+
+The core owns file and change navigation order, selection identity, drawer
+semantic state, and the command projections with their disabled reasons. It
+stays compact: it holds the selected file identity, a bounded navigation cursor
+carrying the ordinal, actionable count, and neighbour facts, and the two drawer
+states. It never holds the file list, a path, or file content. A selection that
+has left the filtered actionable order has no ordinal to step from, so the core
+reports that only the host can name its neighbour rather than inventing one.
+
+The host owns the ordered actionable set, assembles the bounded cursor facts
+the core decides from, publishes only the projection domains whose meaning
+changed, and persists drawer widths. Its observation port reports a limit
+rather than truncating, because a truncated order would hand the core false
+neighbour facts. Staleness is scoped per domain rather than by a global
+generation, so a fresh observation cannot silently invalidate an in-flight
+width persist whose payload was still correct. Cancellation and supersession
+stamp an outstanding record rather than erasing it, because a cancelled request
+is still owed its terminal.
+
+The Qt adapter composes rather than rebuilds. The centre hosts RFC-BPR-0003's
+epoch control and RFC-BPR-0004's comparison surface unchanged, so the workbench
+adds no second epoch authority, no second mapping, no presentation-side
+regrouping, no follower-scroll coupling, and no synthetic alignment rows. The
+source panes are `QPlainTextEdit`, which virtualizes its own text layout, so
+widget count is bounded by visible UI structure rather than source length; a
+sixty-thousand-line comparison creates no widget that a sixty-line one does
+not.
+
 ## Feature allocation
 
 | Feature family | Functional core | Application host | Qt presentation adapter |

@@ -87,6 +87,38 @@ Previous/next file and previous/next change are always visible in the top toolba
 
 `Next actionable` remains available as a secondary command and uses the local actionability projection.
 
+RFC-BPR-0005 implements this shell. The four primary actions are `QAction`s
+owned by the window itself, not by the toolbar, which is what keeps their
+shortcuts alive when the toolbar reorganises. Their enablement and disabled
+reasons come from the core's command projections; a widget never decides
+navigation legality locally, and a disabled action carries its exact reason in
+both tooltip and status tip.
+
+| Command | Shortcut |
+|---|---|
+| Previous file | `Alt+Up` |
+| Next file | `Alt+Down` |
+| Previous review change | `Alt+PgUp` |
+| Next review change | `Alt+PgDown` |
+| Toggle files drawer | `Alt+Shift+1` |
+| Toggle conversations drawer | `Alt+Shift+2` |
+
+The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
+the composed epoch control already holds `Alt+1` through `Alt+3` with
+widget-with-children context. Both bindings match whenever that control has
+focus, and Qt resolves an ambiguous shortcut by triggering neither, so the
+plain-`Alt` form produced two silently dead toggles. No key sequence may be
+duplicated anywhere in the assembled window.
+
+Below a derived width threshold the primary actions move into an explicit,
+focusable compact overflow menu rather than disappearing. They remain
+associated with the window throughout, so every shortcut keeps working in
+either mode. The threshold derives only from font metrics, style metrics,
+label widths, and a reserved central width, so it cannot change as a
+consequence of entering compact mode and cannot oscillate. The window minimum
+stays below the threshold so the compact path is reachable at a supported
+size.
+
 ## Epoch selection
 
 Each upper pane has its own selector. The default semantic comparison is
@@ -215,6 +247,18 @@ The complete normative interaction is in
 ## File drawer
 
 Filters include All, Unread, Changed Since Review, Changed Since Accepted, Defects, Needs Verification, and Excluded. Status is represented by label/icon as well as color.
+
+Both drawers are independently collapsible and resizable. Collapsing hides the
+panel rather than resizing it to zero, because a splitter distributes a hidden
+child's space among its remaining children; that is what actually returns the
+width to the centre. Reopening restores the persisted width, and a drawer
+refuses to be dragged below the width floor the host is willing to persist.
+
+Ownership is split by meaning. Collapsed and expanded state is semantic, so the
+core owns it and a toggle emits a core intent. Pixel widths carry no semantics,
+so the host owns them and a drag emits the host's persistence path. Neither
+meaning has a second carrier. Drawer contents update through incremental model
+signals; a bounded row or state change never resets the model.
 
 ## Conversation drawer
 

@@ -143,6 +143,33 @@ Package audited definitions and themes as resources. Disable filesystem discover
 - Minimum supported contrast checks and warnings in the theme editor
 - Keyboard-equivalent access to every pointer action
 
+### Workbench focus order and accessible naming (RFC-BPR-0005)
+
+The workbench shell declares its focus order explicitly and re-applies it
+whenever the toolbar changes between expanded and compact mode. The order is
+anchored to a control that is never rebuilt, so a toolbar rebuild cannot make
+it drift.
+
+The declared order never reorders a stop that belongs to a composed region. The
+epoch control and the comparison surface keep their own internal focus order,
+and the comparison surface contributes exactly one stop to the shell's order.
+A shell that reshuffled another component's internal order would be deciding
+that component's presentation for it.
+
+**No accessible name may be shared by two focusable widgets in the assembled
+window.** This is enforced by a test rather than by convention, because the
+rule was broken four separate times before it was enforced: a retired
+placeholder duplicated the composed detail pane, the toolbar's change buttons
+duplicated the comparison surface's own in-surface buttons, the drawer toggles
+duplicated the drawer panels' list views, and the overflow menu duplicated the
+button that opens it. Each case left two focusable widgets answering to one
+identity, which assistive technology cannot disambiguate. Visible labels may
+repeat; accessible names may not.
+
+The same scan forbids duplicate key sequences, for the related reason that Qt
+resolves an ambiguous shortcut by triggering neither binding, so a collision
+presents as a control that silently does nothing rather than as an error.
+
 The current GitHub window publishes one combined polite announcement for a
 status and diagnostic presentation update. Repeated identical text is
 deduplicated so one accepted projection does not become a burst of field-level

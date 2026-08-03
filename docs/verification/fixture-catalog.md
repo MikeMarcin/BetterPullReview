@@ -1101,3 +1101,41 @@ polish claims remain outside this deterministic fixture boundary.
 - QAction projection harness covering enabled, checked, and disabled-reason state across capabilities and selections
 - Large-review structural counters proving active-set/changed-set work and absence of routine whole-model resets
 - Shutdown fixture with pending GitHub, Git, diff, syntax, store, queue, and AI operations
+
+## RFC-BPR-0005 workbench fixtures
+
+`tests/core/workbench_interaction_tests.cpp` is registered as
+`core_workbench_interaction` and runs in the Qt-free `core-only` preset. It
+covers cursor well-formedness, rejection of an ordinal past the actionable
+count and of an ordinal without a selection, zero-identity rejection,
+neighbour-fact consistency, forward and backward stepping, stop versus wrap at
+both ends, single-entry and empty orders, and the nonresident-selection case
+where only the host can name a neighbour.
+
+`tests/application/workbench_application_host_tests.cpp` is registered as
+`application_workbench_host`. It uses the manual-executor idiom so terminals
+can be withheld, reordered, and duplicated deterministically, and covers
+bounded cursor assembly, changed-domain-only publication, layout persistence
+and restore, cancellation, and the terminal rejection algebra: unknown request,
+inexact terminal, superseded, and cancelled. Both disjuncts of the exactness
+guard carry their own case, since a terminal with a matching domain but a
+forged context is the forged-session case the guard exists to catch.
+
+`tests/adapters_qt/workbench_window_tests.cpp` is registered as
+`qt_workbench_window_scale_100`, `_125`, and `_200`. It runs offscreen and
+serial and covers the toolbar, compact overflow keyboard association, drawer
+collapse returning space to the centre measured against the central viewport,
+incremental drawer model signals, the composed comparison surface with exactly
+one shared vertical scrollbar and no synthetic alignment rows, the full-width
+line-over-line detail pane checked against the canonical mapping, epoch
+selectors with exact untruncated OIDs, explicit textual states, declared focus
+order, and window-wide uniqueness of accessible names and key sequences.
+
+Its large-file case is the virtualization evidence. It presents 60, 6,000, and
+60,000 source lines through the same composed workbench and requires the widget
+count to be identical at all three: 68 window widgets, 29 surface widgets, and
+5 right-pane widgets in every case. The assertions bind the ratio rather than
+an absolute, and separately require the source to have grown by orders of
+magnitude, so a harness that merely rendered one large file could not pass.
+Elapsed time is recorded and deliberately not asserted, because one machine's
+timing is not a frame-rate guarantee.
