@@ -305,6 +305,19 @@ Each of those RFCs ends its available-target work at a closeout card in
 owner-attended check, or external authority are recorded on live cards naming
 exactly what is missing rather than being silently skipped.
 
+RFC-BPR-0005 is now the implementation frontier under BPR-0088's advanced
+product-owner direction. Done BPR-0089 plans it: twelve cards as BPR-0090
+through BPR-0101, an architecture allocation across core, host, and Qt, and a
+claim matrix built before implementation with one row per acceptance criterion.
+The RFC composes the existing RFC-BPR-0004 panes, shared scroll controller, and
+`DiffLinkMap` rather than rebuilding them; a second mapping, presentation-side
+regrouping, follower-scroll coupling, or synthetic alignment rows would be a
+defect. No RFC-BPR-0005 requirement needs Windows execution, a GitHub mutation,
+a credential, or a network service. Its one owner-attended gate, BPR-0100, is
+inherited from the RFC-BPR-0003 and RFC-BPR-0004 ledgers, which both defer the
+integrated presentation-polish and native visual-acceptance pass here; it is
+isolated so it blocks no other card. Backlog BPR-0101 makes no closure claim.
+
 Done BPR-0084 follows the completed host-execution slice and modernizes
 the shared build foundation before the remaining RFC-BPR-0004 Qt work. It
 raises the CMake baseline, centralizes installed-package discovery for prebuilt
