@@ -343,18 +343,11 @@ namespace bpr::qt {
 		// shared vertical scrollbar, the single link map, and the natural-layout
 		// documents, so the centre gains no second mapping, no regrouping, no
 		// follower-scroll coupling, and no synthetic alignment rows.
-		ComparisonSurface = new diff_workbench{ CentreSurface };
-		DetailPane        = placeholder(
-			CentreSurface,
-			QStringLiteral("workbenchDetailPanePlaceholder"),
-			QStringLiteral("Selected change detail"),
-			QStringLiteral("Reserved for the full-width line-over-line detail pane"));
-
+		ComparisonSurface  = new diff_workbench{ CentreSurface };
 		auto* const centre = new QVBoxLayout{ CentreSurface };
 		centre->setContentsMargins(0, 0, 0, 0);
 		centre->addWidget(EpochSelectors);
 		centre->addWidget(ComparisonSurface, 1);
-		centre->addWidget(DetailPane);
 
 		Drawers[0].Panel = new workbench_drawer_panel{ core::workbench_drawer::files };
 		Drawers[1].Panel = new workbench_drawer_panel{
@@ -544,9 +537,9 @@ namespace bpr::qt {
 		return ComparisonSurface;
 	}
 
-	auto workbench_window::detail_pane_placeholder() const noexcept -> QWidget*
+	auto workbench_window::detail_pane() const noexcept -> QPlainTextEdit*
 	{
-		return DetailPane;
+		return ComparisonSurface->detail_pane();
 	}
 
 	auto workbench_window::status_text() const -> QString

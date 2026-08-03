@@ -20,6 +20,7 @@ class QAction;
 class QEvent;
 class QLabel;
 class QMenu;
+class QPlainTextEdit;
 class QResizeEvent;
 class QSplitter;
 class QToolBar;
@@ -105,8 +106,8 @@ namespace bpr::qt {
 	/// widths arrive in the host's layout delta; the window applies both and
 	/// reports an observed width back out, so neither meaning gains a second
 	/// carrier. The centre holds RFC-BPR-0004's comparison workbench, composed
-	/// unchanged; the epoch selectors and lower detail pane remain named empty
-	/// placeholders owned by later RFC-BPR-0005 cards.
+	/// unchanged, and its detail pane spans the central width. The epoch selectors
+	/// remain a named empty placeholder owned by a later RFC-BPR-0005 card.
 	class workbench_window final
 		: public QMainWindow,
 		  public application::workbench_projection_port
@@ -177,7 +178,12 @@ namespace bpr::qt {
 		/// mapping, no presentation-side regrouping, no follower-scroll coupling,
 		/// and no synthetic alignment rows.
 		[[nodiscard]] auto comparison_surface() const noexcept -> diff_workbench*;
-		[[nodiscard]] auto detail_pane_placeholder() const noexcept -> QWidget*;
+		/// \brief Returns the composed full-width line-over-line detail pane.
+		///
+		/// \details This forwards to RFC-BPR-0004's comparison surface, which
+		/// owns the pane and resolves its rows from the one canonical semantic
+		/// mapping. The window adds no second detail authority.
+		[[nodiscard]] auto detail_pane() const noexcept -> QPlainTextEdit*;
 
 		[[nodiscard]] auto status_text() const -> QString;
 		[[nodiscard]] auto statistics() const noexcept
@@ -244,7 +250,6 @@ namespace bpr::qt {
 		QWidget*        CentreSurface     = nullptr;
 		QWidget*        EpochSelectors    = nullptr;
 		diff_workbench* ComparisonSurface = nullptr;
-		QWidget*        DetailPane        = nullptr;
 
 		std::array<navigation_entry, 4>                    Navigation{ };
 		std::array<drawer_entry, 2>                        Drawers{ };

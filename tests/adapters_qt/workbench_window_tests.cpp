@@ -1,4 +1,5 @@
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -13,8 +14,10 @@
 #include <QModelIndex>
 #include <QPersistentModelIndex>
 #include <QPlainTextEdit>
+#include <QPoint>
 #include <QScrollBar>
 #include <QSplitter>
+#include <QStringList>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QToolBar>
@@ -455,9 +458,9 @@ namespace {
 				   && window.conversations_drawer() != nullptr
 				   && window.epoch_selector_placeholder() != nullptr
 				   && window.comparison_surface() != nullptr
-				   && window.detail_pane_placeholder() != nullptr,
-			   "the shell names its composed comparison surface and every "
-			   "later-card placeholder");
+				   && window.detail_pane() != nullptr,
+			   "the shell names its composed comparison surface, its detail "
+			   "pane, and every later-card placeholder");
 
 		expect(window.status_text()
 				   == QStringLiteral("Open a pull request to begin reviewing."),
@@ -1291,6 +1294,270 @@ namespace {
 			   "surface");
 		window.hide();
 	}
+
+	/// \brief Reads one canonical source line's exact text out of the result.
+	///
+	/// \details The line number always arrives from the canonical RFC-BPR-0004
+	/// mapping. Nothing here decides which line a selection maps to; this only
+	/// resolves the text the immutable decoded document already holds at it.
+	[[nodiscard]] auto canonical_line_text(
+		const std::optional<core::decoded_text_document>& aDocument,
+		const std::uint32_t                               aLine) -> QString
+	{
+		expect(aDocument.has_value() && aLine < aDocument->Lines.size(),
+			   "the canonical mapping names a line the immutable document holds");
+		const auto& span = aDocument->Lines[aLine].Content;
+		return QString::fromStdString(std::string{
+			aDocument->Bytes.begin() + static_cast<std::ptrdiff_t>(span.Begin),
+			aDocument->Bytes.begin() + static_cast<std::ptrdiff_t>(span.End) });
+	}
+
+	/// \brief Names the rows one side owes for the canonical selected detail.
+	///
+	/// \details Empty means the canonical mapping gave this side an insertion or
+	/// deletion boundary rather than source lines, which is a real shape rather
+	/// than a missing answer.
+	[[nodiscard]] auto canonical_side_rows(
+		const core::computed_file_diff& aDiff,
+		const core::line_detail_input&  aDetail,
+		const core::diff_side           aSide) -> QStringList
+	{
+		const auto& document = aSide == core::diff_side::left
+			? aDiff.LeftDocument
+			: aDiff.RightDocument;
+		const auto& mapped   = aSide == core::diff_side::left
+			? aDetail.LeftLine
+			: aDetail.RightLine;
+		if (mapped.has_value()) {
+			return { canonical_line_text(document, mapped->Line) };
+		}
+		if (
+			aDetail.OpposingSpan.has_value()
+			&& aDetail.OpposingSpan->Side == aSide) {
+			auto rows = QStringList{ };
+			for (auto line = aDetail.OpposingSpan->Lines.Begin;
+				 line < aDetail.OpposingSpan->Lines.End;
+				 ++line) {
+				rows.push_back(canonical_line_text(document, line));
+			}
+			return rows;
+		}
+		return { };
+	}
+
+	/// \brief Finds one contiguous run of rows at or below a starting row.
+	[[nodiscard]] auto run_index(
+		const QStringList& aRows,
+		const QStringList& aRun,
+		const qsizetype    aFrom) -> std::optional<qsizetype>
+	{
+		if (aRun.isEmpty()) {
+			return std::nullopt;
+		}
+		for (auto start = std::max<qsizetype>(aFrom, 0);
+			 start + aRun.size() <= aRows.size();
+			 ++start) {
+			auto matched = true;
+			for (auto offset = qsizetype{ 0 }; offset < aRun.size(); ++offset) {
+				if (aRows[start + offset] != aRun[offset]) {
+					matched = false;
+					break;
+				}
+			}
+			if (matched) {
+				return start;
+			}
+		}
+		return std::nullopt;
+	}
+
+	/// \brief Re-checks that the lower detail pane owns the whole central width.
+	///
+	/// \details "Central" is the region between the two review drawers, which is
+	/// the workbench centre itself. Agreeing with the comparison sub-region would
+	/// not satisfy the claim, so the sub-region is measured too and must be
+	/// strictly narrower.
+	[[nodiscard]] auto observe_full_central_width(
+		qt::workbench_window&  aWindow,
+		const std::string_view aStage) -> int
+	{
+		auto* const surface = aWindow.comparison_surface();
+		auto* const detail  = surface->detail_pane();
+		auto* const centre  = aWindow.findChild<QWidget*>(
+			QStringLiteral("workbenchCentralSurface"));
+		expect(centre != nullptr && detail != nullptr,
+			   message_for("the shell names its centre and its lower detail pane",
+						   aStage));
+		expect(detail->isVisible(),
+			   message_for("the lower detail pane is part of the shown workbench",
+						   aStage));
+		const auto detailLeft = detail->mapTo(&aWindow, QPoint{ 0, 0 }).x();
+		const auto centreLeft = centre->mapTo(&aWindow, QPoint{ 0, 0 }).x();
+		expect(detailLeft == centreLeft && detail->width() == centre->width(),
+			   message_for("the lower detail pane spans the whole central width",
+						   aStage));
+		expect(detail->width() > surface->comparison_splitter()->width(),
+			   message_for("the lower detail pane is wider than the comparison "
+						   "sub-region it sits under",
+						   aStage));
+		expect(detail->width() > surface->left_pane()->width()
+				   && detail->width() > surface->right_pane()->width(),
+			   message_for("the lower detail pane is wider than either source "
+						   "pane",
+						   aStage));
+		for (auto* const drawer : { static_cast<QWidget*>(aWindow.files_drawer()),
+									static_cast<QWidget*>(
+										aWindow.conversations_drawer()) }) {
+			if (!drawer->isVisible()) {
+				continue;
+			}
+			const auto drawerLeft = drawer->mapTo(&aWindow, QPoint{ 0, 0 }).x();
+			expect(drawerLeft >= detailLeft + detail->width()
+					   || drawerLeft + drawer->width() <= detailLeft,
+				   message_for("the lower detail pane never overlaps an open "
+							   "review drawer",
+							   aStage));
+		}
+		return detail->width();
+	}
+
+	void test_the_lower_detail_pane_is_full_width_line_over_line()
+	{
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto diff                  = computed_comparison(leftText, rightText);
+		expect(diff.Alignment.Groups.size() >= 3U,
+			   "the fixture carries several canonical change groups");
+
+		qt::workbench_window window;
+		window.resize(window.compact_width_threshold() + 320, 820);
+		window.show();
+		process_events();
+
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									   core::workbench_drawer_state::expanded);
+		opened.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 260U,
+		};
+		window.publish(opened);
+		process_events();
+
+		auto* const surface = publish_fixture(window, diff);
+		auto* const detail  = surface->detail_pane();
+		expect(detail != nullptr && surface->isAncestorOf(detail),
+			   "the lower detail pane is RFC-BPR-0004's composed detail surface "
+			   "rather than a second pane the shell invented");
+
+		const auto openWidth = observe_full_central_width(window, "drawers open");
+
+		auto withoutFiles    = application::workbench_projection{ };
+		withoutFiles.Drawers = drawer_states(
+			core::workbench_drawer_state::collapsed,
+			core::workbench_drawer_state::expanded);
+		window.publish(withoutFiles);
+		process_events();
+		expect(observe_full_central_width(window, "file drawer collapsed")
+				   >= openWidth + 320,
+			   "collapsing the file drawer gives its whole width to the lower "
+			   "detail pane");
+		window.publish(opened);
+		process_events();
+		expect(observe_full_central_width(window, "file drawer reopened")
+				   == openWidth,
+			   "reopening the file drawer returns its width and leaves the lower "
+			   "detail pane spanning the centre");
+
+		auto withoutConversations    = application::workbench_projection{ };
+		withoutConversations.Drawers = drawer_states(
+			core::workbench_drawer_state::expanded,
+			core::workbench_drawer_state::collapsed);
+		window.publish(withoutConversations);
+		process_events();
+		expect(observe_full_central_width(window, "conversation drawer collapsed")
+				   >= openWidth + 260,
+			   "collapsing the conversation drawer gives its whole width to the "
+			   "lower detail pane");
+		window.publish(opened);
+		process_events();
+		expect(observe_full_central_width(window, "conversation drawer reopened")
+				   == openWidth,
+			   "reopening the conversation drawer returns its width and leaves "
+			   "the lower detail pane spanning the centre");
+
+		// Every canonical group is walked through RFC-BPR-0004's own change
+		// navigation, and every row the pane shows is checked against the mapping
+		// the core resolved for that exact selection.
+		auto paired      = std::size_t{ 0U };
+		auto bounded     = std::size_t{ 0U };
+		auto lastEarlier = QStringList{ };
+		auto lastLater   = QStringList{ };
+		auto previous    = detail->toPlainText();
+		for (std::size_t index = 0U; index < diff.Alignment.Groups.size();
+			 ++index) {
+			if (index != 0U) {
+				surface->next_change_button()->click();
+				process_events();
+			}
+			const auto& selection = surface->selection();
+			expect(selection.has_value()
+					   && selection->Group == diff.Alignment.Groups[index].Id,
+				   "change navigation selects each canonical group in canonical "
+				   "order");
+			const auto mapping = core::detail_for_selection(diff, *selection);
+			expect(mapping.Reason == core::semantic_lookup_reason::none
+					   && mapping.Group == selection->Group,
+				   "the canonical mapping resolves the selected group");
+			const auto rows        = detail->toPlainText().split(QLatin1Char('\n'));
+			const auto earlierRows = canonical_side_rows(
+				diff, mapping, core::diff_side::left);
+			const auto laterRows = canonical_side_rows(
+				diff, mapping, core::diff_side::right);
+			if (index == 1U) {
+				expect(detail->toPlainText() != previous,
+					   "selecting another change updates the lower detail pane");
+			}
+			if (earlierRows.isEmpty() || laterRows.isEmpty()) {
+				const auto& present = earlierRows.isEmpty() ? laterRows
+															: earlierRows;
+				expect(run_index(rows, present, 0).has_value(),
+					   "a boundary-shaped group still shows its canonically "
+					   "mapped source rows");
+				expect(mapping.OpposingBoundary.has_value(),
+					   "the side without source rows is a canonical insertion or "
+					   "deletion boundary");
+				++bounded;
+				continue;
+			}
+			const auto earlierAt = run_index(rows, earlierRows, 0);
+			expect(earlierAt.has_value(),
+				   "the lower pane shows the canonically mapped earlier rows");
+			const auto laterAt = run_index(
+				rows, laterRows, *earlierAt + earlierRows.size());
+			expect(laterAt.has_value(),
+				   "the lower pane shows the canonically mapped later rows below "
+				   "the earlier rows, line over line");
+			lastEarlier = earlierRows;
+			lastLater   = laterRows;
+			++paired;
+		}
+		expect(paired >= 2U && bounded >= 1U,
+			   "the walk covered paired-line groups and boundary-shaped groups");
+		expect(!lastEarlier.isEmpty() && !lastLater.isEmpty(),
+			   "the walk ended with retained canonical rows to clear");
+
+		surface->clear();
+		process_events();
+		const auto cleared = detail->toPlainText().split(QLatin1Char('\n'));
+		expect(!surface->selection().has_value(),
+			   "clearing the comparison clears the semantic selection");
+		expect(!run_index(cleared, lastEarlier, 0).has_value()
+				   && !run_index(cleared, lastLater, 0).has_value(),
+			   "a cleared selection leaves no selected rows in the lower detail "
+			   "pane");
+		static_cast<void>(observe_full_central_width(window, "selection cleared"));
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -1306,6 +1573,7 @@ auto main(int argc, char** argv) -> int
 	test_drawer_contents_use_incremental_model_signals();
 	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
 	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
+	test_the_lower_detail_pane_is_full_width_line_over_line();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }
