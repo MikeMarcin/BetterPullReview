@@ -1,0 +1,486 @@
+#include "bpr/core/appearance_contrast.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <stdexcept>
+
+namespace bpr::core {
+	namespace {
+		constexpr double channel_maximum = 255.0;
+
+		// The sRGB electro-optical transfer function and its inverse.
+		constexpr double srgb_decode_threshold = 0.040'45;
+		constexpr double srgb_encode_threshold = 0.003'130'8;
+		constexpr double srgb_linear_slope     = 12.92;
+		constexpr double srgb_offset           = 0.055;
+		constexpr double srgb_scale            = 1.055;
+		constexpr double srgb_gamma            = 2.4;
+
+		// The Rec. 709 luminance weights the contrast ratio is defined over.
+		constexpr double luminance_red   = 0.2126;
+		constexpr double luminance_green = 0.7152;
+		constexpr double luminance_blue  = 0.0722;
+
+		// The constant that keeps the ratio finite for two black colours and
+		// caps it at 21.00:1 for black against white.
+		constexpr double contrast_offset = 0.05;
+
+		constexpr double hundredths_scale = 100.0;
+		constexpr double tenths_scale     = 10.0;
+
+		/// \brief Holds one colour as linear sRGB, before any encoding.
+		struct linear_rgb
+		{
+			double Red   = 0.0;
+			double Green = 0.0;
+			double Blue  = 0.0;
+		};
+
+		/// \brief Holds one colour as CIELAB coordinates.
+		struct lab_color
+		{
+			double Lightness = 0.0;
+			double A         = 0.0;
+			double B         = 0.0;
+		};
+
+		[[nodiscard]] auto decode_channel(const std::uint8_t aValue) noexcept -> double
+		{
+			const auto normalised = static_cast<double>(aValue) / channel_maximum;
+			return normalised <= srgb_decode_threshold
+				? normalised / srgb_linear_slope
+				: std::pow((normalised + srgb_offset) / srgb_scale, srgb_gamma);
+		}
+
+		[[nodiscard]] auto encode_channel(const double aValue) noexcept -> std::uint8_t
+		{
+			const auto bounded = std::clamp(aValue, 0.0, 1.0);
+			const auto encoded = bounded <= srgb_encode_threshold
+				? bounded * srgb_linear_slope
+				: (srgb_scale * std::pow(bounded, 1.0 / srgb_gamma)) - srgb_offset;
+			const auto quantum = std::lround(std::clamp(encoded, 0.0, 1.0) * channel_maximum);
+			return static_cast<std::uint8_t>(quantum);
+		}
+
+		[[nodiscard]] auto linear_of(const appearance_color aColor) noexcept -> linear_rgb
+		{
+			return linear_rgb{
+				.Red   = decode_channel(aColor.Red),
+				.Green = decode_channel(aColor.Green),
+				.Blue  = decode_channel(aColor.Blue),
+			};
+		}
+
+		[[nodiscard]] auto relative_luminance(const linear_rgb aColor) noexcept -> double
+		{
+			return (luminance_red * aColor.Red)
+				+ (luminance_green * aColor.Green)
+				+ (luminance_blue * aColor.Blue);
+		}
+
+		/// \brief Truncates a scaled non-negative measurement to a whole unit.
+		[[nodiscard]] auto truncated(const double aValue, const double aScale) noexcept
+			-> std::uint32_t
+		{
+			const auto scaled = std::floor(std::max(aValue, 0.0) * aScale);
+			return static_cast<std::uint32_t>(scaled);
+		}
+
+		// The Viénot, Brettel and Mollon (1999) dichromat projections, in linear
+		// sRGB. Each row is one output channel. Both matrices leave a neutral
+		// colour untouched, which is the property that makes them recognisable:
+		// a dichromacy loses a chromatic axis, it does not shift greys.
+		constexpr std::array<std::array<double, 3U>, 3U> protanopia_matrix = { {
+			{ 0.112'38, 0.887'62, 0.0 },
+			{ 0.072'76, 0.927'24, 0.0 },
+			{ -0.003'99, 0.003'99, 1.0 },
+		} };
+
+		constexpr std::array<std::array<double, 3U>, 3U> deuteranopia_matrix = { {
+			{ 0.292'75, 0.707'25, 0.0 },
+			{ 0.345'97, 0.654'03, 0.0 },
+			{ -0.027'95, 0.027'95, 1.0 },
+		} };
+
+		[[nodiscard]] auto projected(
+			const linear_rgb                              aColor,
+			const std::array<std::array<double, 3U>, 3U>& aMatrix) noexcept -> linear_rgb
+		{
+			const auto row = [&aColor, &aMatrix](const std::size_t aIndex) {
+				return (aMatrix[aIndex][0U] * aColor.Red)
+					+ (aMatrix[aIndex][1U] * aColor.Green)
+					+ (aMatrix[aIndex][2U] * aColor.Blue);
+			};
+
+			return linear_rgb{
+				.Red   = row(0U),
+				.Green = row(1U),
+				.Blue  = row(2U),
+			};
+		}
+
+		// Linear sRGB to CIE XYZ under D65, and the white point that matrix maps
+		// pure white onto. Taking the white point from the matrix's own column
+		// sums rather than from a separately quoted illuminant keeps white at
+		// exactly L* 100 with no chroma.
+		constexpr std::array<std::array<double, 3U>, 3U> xyz_matrix = { {
+			{ 0.412'456'4, 0.357'576'1, 0.180'437'5 },
+			{ 0.212'672'9, 0.715'152'2, 0.072'175'0 },
+			{ 0.019'333'9, 0.119'192'0, 0.950'304'1 },
+		} };
+
+		constexpr double white_x
+			= xyz_matrix[0U][0U] + xyz_matrix[0U][1U] + xyz_matrix[0U][2U];
+		constexpr double white_y
+			= xyz_matrix[1U][0U] + xyz_matrix[1U][1U] + xyz_matrix[1U][2U];
+		constexpr double white_z
+			= xyz_matrix[2U][0U] + xyz_matrix[2U][1U] + xyz_matrix[2U][2U];
+
+		// The CIELAB companding function, with its linear segment below the
+		// intersection at (6/29)^3.
+		constexpr double lab_epsilon   = 216.0 / 24'389.0;
+		constexpr double lab_slope     = 841.0 / 108.0;
+		constexpr double lab_intercept = 4.0 / 29.0;
+		constexpr double lab_lightness = 116.0;
+		constexpr double lab_offset    = 16.0;
+		constexpr double lab_a_scale   = 500.0;
+		constexpr double lab_b_scale   = 200.0;
+
+		[[nodiscard]] auto companded(const double aRatio) noexcept -> double
+		{
+			return aRatio > lab_epsilon
+				? std::cbrt(aRatio)
+				: (lab_slope * aRatio) + lab_intercept;
+		}
+
+		[[nodiscard]] auto lab_of(const linear_rgb aColor) noexcept -> lab_color
+		{
+			const auto bounded = linear_rgb{
+				.Red   = std::clamp(aColor.Red, 0.0, 1.0),
+				.Green = std::clamp(aColor.Green, 0.0, 1.0),
+				.Blue  = std::clamp(aColor.Blue, 0.0, 1.0),
+			};
+			const auto component = [&bounded](const std::size_t aIndex) {
+				return (xyz_matrix[aIndex][0U] * bounded.Red)
+					+ (xyz_matrix[aIndex][1U] * bounded.Green)
+					+ (xyz_matrix[aIndex][2U] * bounded.Blue);
+			};
+
+			const auto fx = companded(component(0U) / white_x);
+			const auto fy = companded(component(1U) / white_y);
+			const auto fz = companded(component(2U) / white_z);
+
+			return lab_color{
+				.Lightness = (lab_lightness * fy) - lab_offset,
+				.A         = lab_a_scale * (fx - fy),
+				.B         = lab_b_scale * (fy - fz),
+			};
+		}
+
+		// --- the checked pair tables -------------------------------------
+
+		constexpr auto first_syntax_role = appearance_role::syntax_normal;
+		constexpr auto last_syntax_role  = appearance_role::syntax_other;
+		constexpr auto syntax_role_count
+			= (index_of(last_syntax_role) - index_of(first_syntax_role)) + 1U;
+
+		static_assert(
+			syntax_role_count == 25U,
+			"the syntax group must stay one contiguous run of the vocabulary");
+		static_assert(
+			index_of(last_syntax_role) + 1U == appearance_role_count,
+			"the syntax group must stay at the end of the vocabulary");
+
+		/// \brief The backgrounds that syntax-coloured code text is drawn over.
+		constexpr auto code_canvas_backgrounds = std::array{
+			appearance_role::code_background,
+			appearance_role::code_current_line_background,
+			appearance_role::code_selection_background,
+			appearance_role::diff_added_background,
+			appearance_role::diff_removed_background,
+			appearance_role::diff_intraline_added_background,
+			appearance_role::diff_intraline_removed_background,
+			appearance_role::diff_moved_background,
+		};
+
+		/// \brief The text pairs that are not part of the code canvas.
+		constexpr auto fixed_text_pairs = std::array{
+			contrast_pair{
+				.Foreground = appearance_role::application_text,
+				.Background = appearance_role::application_surface,
+				.Kind       = contrast_kind::text,
+			},
+			contrast_pair{
+				.Foreground = appearance_role::code_line_number_text,
+				.Background = appearance_role::code_gutter_background,
+				.Kind       = contrast_kind::text,
+			},
+			contrast_pair{
+				.Foreground = appearance_role::diff_hunk_header_text,
+				.Background = appearance_role::diff_hunk_header_background,
+				.Kind       = contrast_kind::text,
+			},
+		};
+
+		/// \brief The review-state roles, which are marks rather than text.
+		constexpr auto state_roles = std::array{
+			appearance_role::state_unread,
+			appearance_role::state_accepted,
+			appearance_role::state_defect,
+			appearance_role::state_fixed,
+			appearance_role::state_verified,
+			appearance_role::state_stale,
+		};
+
+		constexpr auto required_pair_count = fixed_text_pairs.size()
+			+ (syntax_role_count * code_canvas_backgrounds.size())
+			+ state_roles.size();
+
+		[[nodiscard]] consteval auto build_required_pairs()
+			-> std::array<contrast_pair, required_pair_count>
+		{
+			auto pairs = std::array<contrast_pair, required_pair_count>{ };
+			auto next  = std::size_t{ 0U };
+
+			for (const auto pair : fixed_text_pairs) {
+				pairs[next] = pair;
+				++next;
+			}
+			for (const auto background : code_canvas_backgrounds) {
+				for (auto offset = std::size_t{ 0U }; offset < syntax_role_count; ++offset) {
+					pairs[next] = contrast_pair{
+						.Foreground = static_cast<appearance_role>(
+							static_cast<std::uint8_t>(index_of(first_syntax_role) + offset)),
+						.Background = background,
+						.Kind       = contrast_kind::text,
+					};
+					++next;
+				}
+			}
+			for (const auto state : state_roles) {
+				pairs[next] = contrast_pair{
+					.Foreground = state,
+					.Background = appearance_role::application_surface,
+					.Kind       = contrast_kind::indicator,
+				};
+				++next;
+			}
+
+			if (next != required_pair_count) {
+				throw std::logic_error{ "every required contrast pair must be assigned" };
+			}
+
+			return pairs;
+		}
+
+		constexpr auto required_pairs = build_required_pairs();
+
+		/// \brief The pairs a palette separates by hue and a dichromat may not.
+		constexpr auto hue_critical_table = std::array{
+			hue_critical_pair{
+				.First  = appearance_role::diff_added_background,
+				.Second = appearance_role::diff_removed_background,
+			},
+			hue_critical_pair{
+				.First  = appearance_role::diff_intraline_added_background,
+				.Second = appearance_role::diff_intraline_removed_background,
+			},
+			hue_critical_pair{
+				.First  = appearance_role::diff_added_background,
+				.Second = appearance_role::diff_moved_background,
+			},
+			hue_critical_pair{
+				.First  = appearance_role::diff_removed_background,
+				.Second = appearance_role::diff_moved_background,
+			},
+			hue_critical_pair{
+				.First  = appearance_role::state_accepted,
+				.Second = appearance_role::state_defect,
+			},
+			hue_critical_pair{
+				.First  = appearance_role::state_verified,
+				.Second = appearance_role::state_defect,
+			},
+			hue_critical_pair{
+				.First  = appearance_role::state_fixed,
+				.Second = appearance_role::state_unread,
+			},
+			hue_critical_pair{
+				.First  = appearance_role::syntax_warning,
+				.Second = appearance_role::syntax_error,
+			},
+		};
+	} // namespace
+
+	auto contrast_ratio_hundredths(
+		const appearance_color aFirst,
+		const appearance_color aSecond) noexcept -> std::uint32_t
+	{
+		const auto first    = relative_luminance(linear_of(aFirst));
+		const auto second   = relative_luminance(linear_of(aSecond));
+		const auto brighter = std::max(first, second);
+		const auto darker   = std::min(first, second);
+		const auto ratio    = (brighter + contrast_offset) / (darker + contrast_offset);
+
+		return truncated(ratio, hundredths_scale);
+	}
+
+	auto minimum_contrast_hundredths(
+		const contrast_kind      aKind,
+		const appearance_variant aVariant) noexcept -> std::uint32_t
+	{
+		if (aKind == contrast_kind::indicator) {
+			return indicator_contrast_minimum_hundredths;
+		}
+
+		return high_contrast(aVariant)
+			? high_contrast_text_minimum_hundredths
+			: text_contrast_minimum_hundredths;
+	}
+
+	auto required_contrast_pairs() noexcept -> std::span<const contrast_pair>
+	{
+		return std::span<const contrast_pair>{ required_pairs };
+	}
+
+	auto measure_contrast(
+		const appearance_palette& aPalette,
+		const contrast_pair       aPair,
+		const appearance_variant  aVariant) noexcept -> contrast_finding
+	{
+		const auto ratio = contrast_ratio_hundredths(
+			aPalette[index_of(aPair.Foreground)],
+			aPalette[index_of(aPair.Background)]);
+		const auto minimum = minimum_contrast_hundredths(aPair.Kind, aVariant);
+
+		return contrast_finding{
+			.Pair              = aPair,
+			.RatioHundredths   = ratio,
+			.MinimumHundredths = minimum,
+			.Meets             = ratio >= minimum,
+		};
+	}
+
+	auto measure_required_contrast(
+		const appearance_palette& aPalette,
+		const appearance_variant  aVariant) -> std::vector<contrast_finding>
+	{
+		auto findings = std::vector<contrast_finding>{ };
+		findings.reserve(required_pairs.size());
+		for (const auto pair : required_pairs) {
+			findings.push_back(measure_contrast(aPalette, pair, aVariant));
+		}
+
+		return findings;
+	}
+
+	auto failing_contrast(
+		const appearance_palette& aPalette,
+		const appearance_variant  aVariant) -> std::vector<contrast_finding>
+	{
+		auto failures = std::vector<contrast_finding>{ };
+		for (const auto pair : required_pairs) {
+			const auto finding = measure_contrast(aPalette, pair, aVariant);
+			if (!finding.Meets) {
+				failures.push_back(finding);
+			}
+		}
+
+		return failures;
+	}
+
+	auto simulate_color_vision(
+		const appearance_color aColor,
+		const color_vision     aVision) noexcept -> appearance_color
+	{
+		if (aVision == color_vision::typical) {
+			return aColor;
+		}
+
+		const auto simulated = projected(
+			linear_of(aColor),
+			aVision == color_vision::protanopia ? protanopia_matrix : deuteranopia_matrix);
+
+		return appearance_color{
+			encode_channel(simulated.Red),
+			encode_channel(simulated.Green),
+			encode_channel(simulated.Blue),
+			aColor.Alpha,
+		};
+	}
+
+	auto color_difference_tenths(
+		const appearance_color aFirst,
+		const appearance_color aSecond,
+		const color_vision     aVision) noexcept -> std::uint32_t
+	{
+		const auto first  = lab_of(linear_of(simulate_color_vision(aFirst, aVision)));
+		const auto second = lab_of(linear_of(simulate_color_vision(aSecond, aVision)));
+
+		const auto lightness = first.Lightness - second.Lightness;
+		const auto a         = first.A - second.A;
+		const auto b         = first.B - second.B;
+		const auto difference
+			= std::sqrt((lightness * lightness) + (a * a) + (b * b));
+
+		return truncated(difference, tenths_scale);
+	}
+
+	auto hue_critical_pairs() noexcept -> std::span<const hue_critical_pair>
+	{
+		return std::span<const hue_critical_pair>{ hue_critical_table };
+	}
+
+	auto measure_color_vision(
+		const appearance_palette& aPalette,
+		const hue_critical_pair   aPair) noexcept -> color_vision_finding
+	{
+		const auto first  = aPalette[index_of(aPair.First)];
+		const auto second = aPalette[index_of(aPair.Second)];
+
+		const auto typical
+			= color_difference_tenths(first, second, color_vision::typical);
+		const auto protanopia
+			= color_difference_tenths(first, second, color_vision::protanopia);
+		const auto deuteranopia
+			= color_difference_tenths(first, second, color_vision::deuteranopia);
+		const auto weakest = std::min({ typical, protanopia, deuteranopia });
+
+		return color_vision_finding{
+			.Pair                        = aPair,
+			.TypicalTenths               = typical,
+			.ProtanopiaTenths            = protanopia,
+			.DeuteranopiaTenths          = deuteranopia,
+			.DistinguishableByColorAlone = weakest
+				>= distinguishable_difference_minimum_tenths,
+		};
+	}
+
+	auto measure_hue_critical_pairs(const appearance_palette& aPalette)
+		-> std::vector<color_vision_finding>
+	{
+		auto findings = std::vector<color_vision_finding>{ };
+		findings.reserve(hue_critical_table.size());
+		for (const auto pair : hue_critical_table) {
+			findings.push_back(measure_color_vision(aPalette, pair));
+		}
+
+		return findings;
+	}
+
+	auto pairs_requiring_non_color_indicator(const appearance_palette& aPalette)
+		-> std::vector<color_vision_finding>
+	{
+		auto required = std::vector<color_vision_finding>{ };
+		for (const auto pair : hue_critical_table) {
+			const auto finding = measure_color_vision(aPalette, pair);
+			if (!finding.DistinguishableByColorAlone) {
+				required.push_back(finding);
+			}
+		}
+
+		return required;
+	}
+} // namespace bpr::core
