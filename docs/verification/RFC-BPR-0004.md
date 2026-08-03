@@ -579,13 +579,47 @@ RFC utility lane's Qt-free core and mechanical groups pass 5/5 and 11/11. The
 format, changed-file strict-tidy, documentation, immutable-RFC, original
 22-file replacement-pack, workflow-absence, and diff-hygiene gates pass.
 
-Two bounded independent reviewer attempts returned no report before they were
-interrupted, so no independent-review pass is claimed. The root review removed
-the unnecessary test-encoder reserve, moved the native geometry baseline after
-the probe's own resize event drain, and required an exact link-map callback on
-the rendered ribbon click. A fresh independent report remains part of the
-blocked BPR-0083 closeout alongside the owner-authorized native transition and
-predecessor status.
+The root review removed the unnecessary test-encoder reserve, moved the native
+geometry baseline after the probe's own resize event drain, and required an
+exact link-map callback on the rendered ribbon click.
+
+An independent critical review has now completed after two earlier bounded
+attempts returned no report. Its verdict is non-blocking findings only: no
+RFC-BPR-0004 semantic claim was falsified, and it found no stub, mockup, or
+helper-API-only proof presented as public-path evidence. It confirmed the
+public path is genuine, that the retained position is a single authority with
+pane scrollbars off, that pinning, exact reversal, and the 4:7 proportional
+advance hold at 1e-6 in the composed replay and at native scrollbar and pixel
+level in components, and that semantic generation and index counters stay at
+one across all eighteen records and a 1,000-event wheel storm. It independently
+re-inspected the rendered frames and confirmed the insertion wedge collapses to
+the exact left boundary and the replacement ribbon is attached, selected, and
+agrees with the detail pane. It also confirmed the open gates are stated
+honestly.
+
+The review recorded one medium finding that is now closed: the evidence on the
+card predated three later RFC-BPR-0003 commits that touch the epoch host
+composed into the same process. The complete matrix was replayed at
+`ca424f7` and passes 88/88 on `dev` in 685.29 seconds and 33/33 on
+`core-only` in 83.27 seconds, including
+`application_diff_workbench_public_path` at 12.36 seconds and the
+tests-disabled Release composition contract. The superseded 00:48 counts are
+replaced by that replay.
+
+Its remaining findings are evidence-strength improvements rather than defects,
+and BPR-0087 tracks the two actionable ones: the composed wheel steps record
+the resulting position but never assert that the wheel moved anything, and the
+composed ribbon click targets the group that was already auto-selected, so the
+replay never shows a click replacing a selection. Both behaviors are separately
+proven at component level; only the composed replay's assertions are weak. The
+reviewer also noted that PNG content is inspection-dependent rather than
+machine-gated, and that the reported applied origin is derived from the
+scrollbar fraction rather than observed from block geometry; the card records
+those as accepted, with the second belonging to RFC-BPR-0005 polish.
+
+A fresh independent report is therefore no longer outstanding. The
+owner-authorized native transition and predecessor status remain part of the
+blocked BPR-0083 closeout.
 
 ## BPR-0084 build-foundation evidence
 

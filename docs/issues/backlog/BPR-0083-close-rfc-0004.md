@@ -97,5 +97,31 @@ RFC-BPR-0005 does not begin.
   launches. The root closeout review found and fixed two evidence hazards that
   were not allowed to stand: the native geometry baseline had preceded the
   probe's own resize drain, and the already-selected ribbon click needed an
-  exact callback-count assertion. A fresh independent finding report remains
-  required before this card may leave backlog.
+  exact callback-count assertion.
+- An independent `rfc-critical-reviewer` pass has now completed and returned a
+  finding report, so that requirement is satisfied. Its verdict is non-blocking
+  findings only. It falsified no RFC-BPR-0004 semantic claim and found no stub,
+  mockup, or helper-API-only proof presented as public-path evidence. It
+  confirmed the composed replay routes through the production request path, the
+  single retained scroll authority with pane scrollbars off, pinning and exact
+  reversal and the 4:7 proportional advance, semantic generation and index
+  counters held at one across all eighteen records and a 1,000-event wheel
+  storm, and honest statement of the open gates. It re-inspected the rendered
+  frames independently and confirmed the insertion wedge and attached selected
+  replacement ribbon.
+- Its one medium finding is closed. The recorded 00:48 evidence predated three
+  later RFC-BPR-0003 commits touching the epoch host composed into the same
+  process. The complete matrix was replayed at `ca424f7`: `dev` passes 88/88 in
+  685.29 seconds and `core-only` passes 33/33 in 83.27 seconds, including
+  `application_diff_workbench_public_path` at 12.36 seconds and the
+  tests-disabled Release composition contract. Those counts supersede the
+  earlier ones.
+- Its remaining findings are evidence-strength improvements, not defects.
+  BPR-0087 tracks the two actionable ones: the composed wheel steps never
+  assert that the wheel moved anything, and the composed ribbon click targets
+  the already auto-selected group so the replay never shows a click replacing a
+  selection. Both behaviors are separately proven at component level. The
+  inspection-dependent PNG gate and the derived applied origin are recorded as
+  accepted on that card, the latter belonging to RFC-BPR-0005 polish.
+- This card still cannot leave backlog. It remains blocked by BPR-0054 and by
+  the owner-authorized native System-theme transition.

@@ -276,10 +276,18 @@ linear visible move-overlay resolution, and instrumented three-scale evidence.
 Done BPR-0081 reconciles documentation/conformance and adds the worker
 boundary. Done BPR-0082 removes reviewed duplication and avoidable work.
 BPR-0083's available-platform closeout preparation and selected-composition
-replay are complete, but the card remains in backlog because it depends on
-BPR-0054 and retains an owner-authorized native System-theme gate.
-Implementation can progress under the product-owner exception without an
-out-of-order Auto-Verified transition or beginning RFC-BPR-0005 early.
+replay are complete, and its outstanding independent review is now satisfied:
+an `rfc-critical-reviewer` pass returned non-blocking findings only, falsified
+no RFC-BPR-0004 semantic claim, and found no stub or helper-API-only proof
+presented as public-path evidence. Its one medium finding is closed by the
+replay at `ca424f7`, which passes 88/88 on `dev` and 33/33 on `core-only`
+including the selected public diff path. The card still remains in backlog
+because it depends on BPR-0054 and retains an owner-authorized native
+System-theme gate. New backlog BPR-0087 carries the two actionable
+evidence-strength findings, which are assertion weaknesses in the composed
+replay rather than defects. Implementation can progress under the
+product-owner exception without an out-of-order Auto-Verified transition or
+beginning RFC-BPR-0005 early.
 
 Done BPR-0084 follows the completed host-execution slice and modernizes
 the shared build foundation before the remaining RFC-BPR-0004 Qt work. It
