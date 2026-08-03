@@ -1,0 +1,108 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_APPLICATION_HOST_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_APPLICATION_HOST_HPP
+
+#include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/application/port.hpp"
+
+#include <cstddef>
+#include <memory>
+#include <span>
+
+namespace bpr::application {
+	/// \brief Provides the appearance application host contract.
+	///
+	/// \details The host owns durable appearance persistence and the token-span
+	/// cache; the core owns mode resolution, typography legality, and the role
+	/// vocabulary. Every value the host adopts has passed the core's own
+	/// validator, and a value the core refuses is refused whole with the core's
+	/// typed reasons rather than clamped into range.
+	///
+	/// An appearance change publishes a bounded presentation invalidation and
+	/// touches nothing else. In particular it does not disturb the token-span
+	/// cache: spans are keyed by blob identity and definition version alone, so
+	/// switching theme, palette, mode, or font cannot re-run lexical
+	/// classification, and cannot alter review semantics, which this host does not
+	/// hold at all.
+	///
+	/// Public operations and inspection are confined to the supplied decision
+	/// lane. Effect work runs on the effect executor and posts immutable terminals
+	/// back to that lane. Referenced ports and executors must stay live until
+	/// is_quiescent().
+	class appearance_application_host final
+	{
+	public:
+		// The composition supplies the base appearance. The host invents no colour
+		// and no font family, and rejects a base its own validator would refuse.
+		appearance_application_host(
+			appearance_settings          aInitialSettings,
+			appearance_settings_port&    aSettings,
+			syntax_classification_port&  aClassification,
+			effect_executor&             aEffects,
+			decision_executor&           aDecisionLane,
+			appearance_projection_port&  aProjections,
+			core::application_session_id aSession,
+			appearance_host_limits       aLimits = { });
+		~appearance_application_host();
+
+		appearance_application_host(const appearance_application_host&) = delete;
+		auto operator=(const appearance_application_host&)
+			-> appearance_application_host&                        = delete;
+		appearance_application_host(appearance_application_host&&) = delete;
+		auto operator=(appearance_application_host&&)
+			-> appearance_application_host& = delete;
+
+		// Loads the durable record. An absent record keeps the composed settings;
+		// a record the core rejects is refused whole and never written back.
+		void restore();
+		void select(core::appearance_mode aMode);
+		// Reports the observed operating-system scheme and contrast preference. An
+		// observation is not a setting and is never persisted.
+		void observe(core::appearance_observation aObservation);
+		void apply(core::appearance_palette aPalette);
+		void apply(core::typography_settings aTypography);
+		// Answers from the retained cache when the key is present and runs the
+		// classification port only when it is not.
+		void classify(token_span_cache_key aKey);
+		void cancel();
+		void shutdown();
+
+		[[nodiscard]] auto settings() const noexcept -> const appearance_settings&;
+		// Derived from the selected mode and the current observation every time.
+		// The host retains no resolved variant, because a resolution is a decision
+		// and never a setting.
+		[[nodiscard]] auto resolution() const noexcept
+			-> core::appearance_resolution;
+		[[nodiscard]] auto observation() const noexcept
+			-> const core::appearance_observation&;
+		[[nodiscard]] auto epoch() const noexcept -> appearance_epoch;
+		[[nodiscard]] auto last_rejections() const noexcept
+			-> std::span<const core::typography_rejection>;
+		// Null when the key is absent. The retained value is immutable and shared,
+		// so a caller can compare identity across an appearance change.
+		[[nodiscard]] auto cached(const token_span_cache_key& aKey) const
+			-> shared_token_spans;
+		[[nodiscard]] auto cached_classifications() const noexcept -> std::size_t;
+		[[nodiscard]] auto cache_hits() const noexcept -> std::size_t;
+		// Classifications actually handed to the port. This is the host-side parse
+		// count: it advances exactly when lexical work was unavoidable.
+		[[nodiscard]] auto classification_submissions() const noexcept
+			-> std::size_t;
+		[[nodiscard]] auto coalesced_classifications() const noexcept
+			-> std::size_t;
+		[[nodiscard]] auto cache_evictions() const noexcept -> std::size_t;
+		[[nodiscard]] auto persisted_settings() const noexcept -> std::size_t;
+		[[nodiscard]] auto outstanding_requests() const noexcept -> std::size_t;
+		[[nodiscard]] auto rejected_terminals() const noexcept -> std::size_t;
+		[[nodiscard]] auto last_rejection() const noexcept
+			-> appearance_terminal_rejection;
+		[[nodiscard]] auto is_closing() const noexcept -> bool;
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+
+	private:
+		struct implementation;
+		std::unique_ptr<implementation> Implementation;
+	};
+} // namespace bpr::application
+
+#endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_APPLICATION_HOST_HPP

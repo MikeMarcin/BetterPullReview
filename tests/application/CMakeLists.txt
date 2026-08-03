@@ -200,6 +200,23 @@ add_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_application_appearance_host_tests
+    appearance_application_host_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_application_appearance_host_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_application_appearance_host_tests)
+bpr_enable_warnings(test_better_pull_review_application_appearance_host_tests)
+
+add_test(
+    NAME application_appearance_host
+    COMMAND test_better_pull_review_application_appearance_host_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_application_workbench_host_tests
     workbench_application_host_tests.cpp
 )

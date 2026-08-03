@@ -1,0 +1,861 @@
+#include "bpr/application/appearance_application_host.hpp"
+#include "bpr/application/manual_executor.hpp"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <expected>
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <stop_token>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+namespace {
+	using namespace bpr;
+
+	auto expect(const bool aCondition, const std::string_view aMessage) -> void
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	[[nodiscard]] auto blob(const std::uint8_t aSeed) -> core::git_blob_oid
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		bytes[0]   = aSeed;
+		bytes[19]  = static_cast<std::uint8_t>(aSeed ^ 0x5AU);
+		return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto key(const std::uint8_t     aSeed,
+						   const std::string_view aDefinition = "C++",
+						   const std::uint32_t    aVersion    = 1U)
+		-> application::token_span_cache_key
+	{
+		return {
+			.Blob       = blob(aSeed),
+			.Definition = {
+				.Name    = std::string{ aDefinition },
+				.Version = aVersion,
+			},
+		};
+	}
+
+	/// \brief Returns the legal base appearance a composition would supply.
+	[[nodiscard]] auto base_settings() -> application::appearance_settings
+	{
+		auto settings          = application::appearance_settings{ };
+		settings.Typography.Ui = core::font_settings{
+			.Family               = "Base UI",
+			.PointSizeCentipoints = 1200U,
+			.Weight               = 400U,
+			.LineHeightPercent    = 120U,
+		};
+		settings.Typography.Code.Font = core::font_settings{
+			.Family               = "Base Code",
+			.PointSizeCentipoints = 1300U,
+			.Weight               = 400U,
+			.LineHeightPercent    = 130U,
+		};
+		settings.Typography.Code.TabWidth = 4U;
+		settings.Palette[core::index_of(core::appearance_role::code_background)]
+			= core::appearance_color{ .Red = 20U, .Green = 20U, .Blue = 20U };
+		return settings;
+	}
+
+	/// \brief Returns a legal durable record that differs in every domain.
+	[[nodiscard]] auto persisted_settings() -> application::appearance_settings
+	{
+		auto settings = base_settings();
+		settings.Mode = core::appearance_mode::dark;
+		settings.Palette[core::index_of(core::appearance_role::code_background)]
+			= core::appearance_color{ .Red = 200U, .Green = 200U, .Blue = 200U };
+		settings.Typography.Ui.PointSizeCentipoints = 1100U;
+		return settings;
+	}
+
+	/// \brief Returns typography with one illegal value in each font.
+	[[nodiscard]] auto illegal_typography() -> core::typography_settings
+	{
+		auto typography                    = base_settings().Typography;
+		typography.Ui.PointSizeCentipoints = 100U;
+		typography.Code.TabWidth           = 64U;
+		return typography;
+	}
+
+	[[nodiscard]] auto expected_rejections()
+		-> std::vector<core::typography_rejection>
+	{
+		return {
+			core::typography_rejection{
+				.Target = core::typography_target::ui_font,
+				.Field  = core::typography_field::point_size,
+				.Reason = core::typography_reason::below_minimum,
+			},
+			core::typography_rejection{
+				.Target = core::typography_target::code_font,
+				.Field  = core::typography_field::tab_width,
+				.Reason = core::typography_reason::above_maximum,
+			},
+		};
+	}
+
+	auto expect_exact_rejections(
+		const std::vector<core::typography_rejection>& aObserved,
+		const std::string_view                         aMessage) -> void
+	{
+		const auto expected = expected_rejections();
+		expect(aObserved.size() == expected.size(), aMessage);
+		for (std::size_t index = 0U; index < expected.size(); ++index) {
+			expect(aObserved[index] == expected[index], aMessage);
+		}
+	}
+
+	/// \brief Stands in for the durable appearance path across host lifetimes.
+	class fake_settings final : public application::appearance_settings_port
+	{
+	public:
+		[[nodiscard]] auto load(const std::stop_token aStop)
+			-> application::appearance_settings_result<
+				std::optional<application::appearance_settings>> override
+		{
+			++Loads;
+			LoadStopObserved.push_back(aStop.stop_requested());
+			if (!Available) {
+				return std::unexpected{ application::appearance_settings_error{
+					.Failure = application::appearance_settings_failure::unavailable } };
+			}
+			return Stored;
+		}
+
+		[[nodiscard]] auto store(
+			const application::appearance_settings& aSettings,
+			const std::stop_token                   aStop)
+			-> application::appearance_settings_result<void> override
+		{
+			++Stores;
+			StoreStopObserved.push_back(aStop.stop_requested());
+			if (!Available) {
+				return std::unexpected{ application::appearance_settings_error{
+					.Failure = application::appearance_settings_failure::unavailable } };
+			}
+			Stored = aSettings;
+			return { };
+		}
+
+		std::optional<application::appearance_settings> Stored;
+		bool                                            Available = true;
+		std::size_t                                     Loads     = 0U;
+		std::size_t                                     Stores    = 0U;
+		std::vector<bool>                               LoadStopObserved;
+		std::vector<bool>                               StoreStopObserved;
+	};
+
+	/// \brief Counts every lexical classification the host could not avoid.
+	///
+	/// \details BPR-0110 owns the real highlighter. This fake stands in for it and
+	/// exists to be counted: the parse count is the only direct evidence that an
+	/// appearance change did not re-run lexical work.
+	class counting_classifier final : public application::syntax_classification_port
+	{
+	public:
+		[[nodiscard]] auto classify(
+			const application::syntax_classification_request& aRequest,
+			const std::stop_token                             aStop)
+			-> application::syntax_classification override
+		{
+			Requests.push_back(aRequest);
+			StopObserved.push_back(aStop.stop_requested());
+			if (Throw) {
+				throw std::runtime_error{ "classification failure" };
+			}
+			auto classification = application::syntax_classification{
+				.Context = aRequest.Context,
+				.Key     = aRequest.Key,
+				.Status  = Status,
+				.Spans   = spans_for(aRequest.Key),
+			};
+			if (ForgeKey) {
+				classification.Key.Definition.Version += 1'000U;
+			}
+			return classification;
+		}
+
+		application::syntax_classification_status Status
+			= application::syntax_classification_status::available;
+		bool                                                    Throw     = false;
+		bool                                                    ForgeKey  = false;
+		std::size_t                                             SpanCount = 3U;
+		std::vector<application::syntax_classification_request> Requests;
+		std::vector<bool>                                       StopObserved;
+
+	private:
+		// The spans encode their key so a retained classification can be told
+		// apart from a freshly produced one.
+		[[nodiscard]] auto spans_for(
+			const application::token_span_cache_key& aKey) const
+			-> application::token_span_list
+		{
+			auto spans = application::token_span_list{ };
+			for (std::size_t index = 0U; index < SpanCount; ++index) {
+				spans.push_back(application::token_span{
+					.Line   = static_cast<std::uint32_t>(index),
+					.Column = aKey.Definition.Version,
+					.Length = static_cast<std::uint32_t>(aKey.Definition.Name.size()),
+					.Role   = core::appearance_role::syntax_keyword,
+				});
+			}
+			return spans;
+		}
+	};
+
+	class recording_projections final : public application::appearance_projection_port
+	{
+	public:
+		void publish(const application::appearance_projection& aProjection) override
+		{
+			Published.push_back(aProjection);
+		}
+
+		void fail(const application::appearance_failure_publication& aFailure) override
+		{
+			Failed.push_back(aFailure);
+		}
+
+		[[nodiscard]] auto presentations() const noexcept -> std::size_t
+		{
+			auto count = std::size_t{ 0U };
+			for (const auto& projection : Published) {
+				if (projection.Presentation.has_value()) {
+					++count;
+				}
+			}
+			return count;
+		}
+
+		std::vector<application::appearance_projection>          Published;
+		std::vector<application::appearance_failure_publication> Failed;
+	};
+
+	struct harness
+	{
+		explicit harness(const application::appearance_host_limits aLimits = { })
+			: Host{ base_settings(),
+					Settings,
+					Classifier,
+					Effects,
+					Lane,
+					Projections,
+					core::application_session_id{ 11U },
+					aLimits }
+		{
+		}
+
+		void settle()
+		{
+			while (Effects.pending() != 0U || Lane.pending() != 0U) {
+				Effects.drain();
+				Lane.drain();
+			}
+		}
+
+		fake_settings                            Settings;
+		counting_classifier                      Classifier;
+		recording_projections                    Projections;
+		application::manual_executor             Effects;
+		application::manual_executor             Lane;
+		application::appearance_application_host Host;
+	};
+
+	void test_invalid_limits_and_base_appearance_are_rejected()
+	{
+		auto settings    = fake_settings{ };
+		auto classifier  = counting_classifier{ };
+		auto projections = recording_projections{ };
+		auto effects     = application::manual_executor{ };
+		auto lane        = application::manual_executor{ };
+
+		auto threwOnLimits = false;
+		try {
+			const auto host = std::make_unique<application::appearance_application_host>(
+				base_settings(),
+				settings,
+				classifier,
+				effects,
+				lane,
+				projections,
+				core::application_session_id{ 11U },
+				application::appearance_host_limits{ .TokenSpanCacheEntries = 0U });
+			expect(host == nullptr, "invalid appearance host limits must be rejected");
+		} catch (const std::invalid_argument&) {
+			threwOnLimits = true;
+		}
+		expect(threwOnLimits, "invalid appearance host limits are rejected");
+
+		auto threwOnSettings = false;
+		try {
+			auto illegal       = base_settings();
+			illegal.Typography = illegal_typography();
+			const auto host    = std::make_unique<application::appearance_application_host>(
+				std::move(illegal),
+				settings,
+				classifier,
+				effects,
+				lane,
+				projections,
+				core::application_session_id{ 11U });
+			expect(host == nullptr, "an illegal base appearance must be rejected");
+		} catch (const std::invalid_argument&) {
+			threwOnSettings = true;
+		}
+		expect(threwOnSettings, "a base appearance the core rejects is refused");
+	}
+
+	void test_absent_durable_record_keeps_the_composed_appearance()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.restore();
+		harnessed.settle();
+
+		expect(harnessed.Settings.Loads == 1U, "restore reads the durable record");
+		expect(harnessed.Host.settings() == base_settings(),
+			   "an absent record keeps the composed appearance");
+		expect(harnessed.Host.settings().Mode == core::appearance_mode::system,
+			   "a fresh installation resolves the system mode");
+		expect(harnessed.Projections.Published.empty(),
+			   "an absent record changes no presentation domain");
+		expect(harnessed.Projections.Failed.empty(),
+			   "an absent record is not a failure");
+		expect(harnessed.Settings.Stores == 0U,
+			   "restoring never writes the record back");
+	}
+
+	void test_persisted_appearance_is_restored()
+	{
+		auto harnessed            = harness{ };
+		harnessed.Settings.Stored = persisted_settings();
+		harnessed.Host.restore();
+		harnessed.settle();
+
+		expect(harnessed.Host.settings() == persisted_settings(),
+			   "a legal durable record is adopted whole");
+		expect(harnessed.Projections.Published.size() == 1U,
+			   "an adopted record publishes once");
+
+		const auto& projection = harnessed.Projections.Published.front();
+		expect(projection.Context.Session == core::application_session_id{ 11U },
+			   "the projection carries the host session");
+		expect(projection.Presentation.has_value(),
+			   "the projection carries a presentation invalidation");
+		expect(!projection.Spans.has_value(),
+			   "an appearance change publishes no token spans");
+
+		const auto& invalidation = *projection.Presentation;
+		expect(invalidation.Epoch == application::appearance_epoch{ 1U },
+			   "the first published change advances the epoch once");
+		expect(invalidation.Resolution.has_value() && invalidation.Palette.has_value()
+				   && invalidation.Typography.has_value(),
+			   "the first publication carries every changed domain");
+		expect(invalidation.Resolution->Variant == core::appearance_variant::dark,
+			   "the restored mode resolves its variant");
+		expect(harnessed.Settings.Stores == 0U,
+			   "restoring never writes the record back");
+	}
+
+	void test_rejected_persisted_appearance_is_not_adopted()
+	{
+		auto harnessed            = harness{ };
+		auto stored               = persisted_settings();
+		stored.Typography         = illegal_typography();
+		harnessed.Settings.Stored = stored;
+		harnessed.Host.restore();
+		harnessed.settle();
+
+		expect(harnessed.Host.settings() == base_settings(),
+			   "a record the core rejects is refused whole");
+		expect(harnessed.Host.settings().Typography.Ui.PointSizeCentipoints == 1200U,
+			   "the refused value is never clamped into range");
+		expect(harnessed.Host.settings().Mode == core::appearance_mode::system,
+			   "no domain of a refused record is adopted");
+		expect(harnessed.Projections.Published.empty(),
+			   "a refused record publishes no presentation change");
+		expect(harnessed.Host.epoch() == application::appearance_epoch{ },
+			   "a refused record advances no epoch");
+		expect(harnessed.Settings.Stores == 0U,
+			   "a refused record is not overwritten with a correction");
+		expect(harnessed.Projections.Failed.size() == 1U,
+			   "a refused record reports once");
+
+		const auto& failure = harnessed.Projections.Failed.front();
+		expect(failure.Failure == application::appearance_host_failure::settings_rejected,
+			   "the refusal names the rejection");
+		expect_exact_rejections(failure.Rejections,
+								"the refusal carries the core's exact typed reasons");
+		expect_exact_rejections(
+			std::vector<core::typography_rejection>{
+				harnessed.Host.last_rejections().begin(),
+				harnessed.Host.last_rejections().end() },
+			"the host retains the core's exact typed reasons");
+	}
+
+	void test_unknown_persisted_mode_is_refused()
+	{
+		auto harnessed            = harness{ };
+		auto stored               = persisted_settings();
+		stored.Mode               = static_cast<core::appearance_mode>(200U);
+		harnessed.Settings.Stored = stored;
+		harnessed.Host.restore();
+		harnessed.settle();
+
+		expect(harnessed.Host.settings() == base_settings(),
+			   "a record outside the mode vocabulary is not adopted");
+		expect(harnessed.Projections.Failed.size() == 1U
+				   && harnessed.Projections.Failed.front().Failure
+					   == application::appearance_host_failure::unknown_appearance_mode,
+			   "an unknown persisted mode is named exactly");
+		expect(harnessed.Projections.Published.empty(),
+			   "an unknown persisted mode publishes nothing");
+	}
+
+	void test_settings_failures_are_reported()
+	{
+		auto harnessed               = harness{ };
+		harnessed.Settings.Available = false;
+		harnessed.Host.restore();
+		harnessed.settle();
+
+		expect(harnessed.Projections.Failed.size() == 1U
+				   && harnessed.Projections.Failed.front().Failure
+					   == application::appearance_host_failure::settings_unavailable,
+			   "an unavailable durable path is reported");
+		expect(harnessed.Projections.Failed.front().Rejections.empty(),
+			   "an unavailable path carries no typed rejection");
+		expect(harnessed.Host.settings() == base_settings(),
+			   "a failed restore changes no setting");
+
+		harnessed.Host.select(core::appearance_mode::dark);
+		harnessed.settle();
+		expect(harnessed.Host.settings().Mode == core::appearance_mode::dark,
+			   "an adopted change is local even when persistence fails");
+		expect(harnessed.Projections.Failed.size() == 2U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::appearance_host_failure::settings_unavailable,
+			   "a failed write is reported");
+		expect(harnessed.Host.persisted_settings() == 0U,
+			   "a failed write is not counted as persisted");
+	}
+
+	void test_mode_selection_persists_and_publishes_bounded_changes()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.select(core::appearance_mode::dark);
+		harnessed.settle();
+
+		expect(harnessed.Settings.Stores == 1U, "a mode change persists");
+		expect(harnessed.Settings.Stored.has_value()
+				   && harnessed.Settings.Stored->Mode == core::appearance_mode::dark,
+			   "the durable record carries the selected mode");
+		expect(harnessed.Host.persisted_settings() == 1U,
+			   "the host counts the completed write");
+		expect(harnessed.Projections.Published.size() == 1U,
+			   "a mode change publishes once");
+
+		harnessed.Host.select(core::appearance_mode::light);
+		harnessed.settle();
+		expect(harnessed.Projections.Published.size() == 2U,
+			   "a second mode change publishes once");
+
+		const auto& invalidation = *harnessed.Projections.Published.back().Presentation;
+		expect(invalidation.Resolution.has_value() && !invalidation.Palette.has_value()
+				   && !invalidation.Typography.has_value(),
+			   "a bounded mode change invalidates the resolved appearance only");
+		expect(invalidation.Epoch == application::appearance_epoch{ 2U },
+			   "each published change advances the epoch once");
+
+		harnessed.Host.select(core::appearance_mode::light);
+		harnessed.settle();
+		expect(harnessed.Projections.Published.size() == 2U,
+			   "an unchanged mode publishes nothing");
+		expect(harnessed.Settings.Stores == 2U, "an unchanged mode persists nothing");
+
+		harnessed.Host.select(static_cast<core::appearance_mode>(200U));
+		harnessed.settle();
+		expect(harnessed.Projections.Failed.size() == 1U
+				   && harnessed.Projections.Failed.front().Failure
+					   == application::appearance_host_failure::unknown_appearance_mode,
+			   "a mode outside the vocabulary is refused");
+		expect(harnessed.Host.settings().Mode == core::appearance_mode::light,
+			   "a refused mode changes nothing");
+	}
+
+	void test_illegal_typography_is_refused_without_clamping()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.apply(illegal_typography());
+		harnessed.settle();
+
+		expect(harnessed.Host.settings() == base_settings(),
+			   "illegal typography is refused whole");
+		expect(harnessed.Host.settings().Typography.Code.TabWidth == 4U,
+			   "the refused tab width is never clamped into range");
+		expect(harnessed.Settings.Stores == 0U, "refused typography does not persist");
+		expect(harnessed.Projections.Published.empty(),
+			   "refused typography publishes no presentation change");
+		expect(harnessed.Projections.Failed.size() == 1U,
+			   "refused typography reports once");
+		expect(harnessed.Projections.Failed.front().Failure
+				   == application::appearance_host_failure::settings_rejected,
+			   "the refusal names the rejection");
+		expect_exact_rejections(harnessed.Projections.Failed.front().Rejections,
+								"the refusal carries the core's exact typed reasons");
+
+		auto legal                    = base_settings().Typography;
+		legal.Ui.PointSizeCentipoints = 1400U;
+		harnessed.Host.apply(legal);
+		harnessed.settle();
+		expect(harnessed.Host.settings().Typography == legal,
+			   "legal typography is adopted");
+		expect(harnessed.Host.last_rejections().empty(),
+			   "an accepted value clears the retained rejections");
+		expect(harnessed.Settings.Stores == 1U, "adopted typography persists");
+	}
+
+	void test_palette_change_publishes_only_the_palette()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.select(core::appearance_mode::dark);
+		harnessed.settle();
+
+		auto palette = base_settings().Palette;
+		palette[core::index_of(core::appearance_role::diff_added_background)]
+			= core::appearance_color{ .Red = 8U, .Green = 96U, .Blue = 8U };
+		harnessed.Host.apply(palette);
+		harnessed.settle();
+
+		expect(harnessed.Projections.Published.size() == 2U,
+			   "a palette change publishes once");
+		const auto& invalidation = *harnessed.Projections.Published.back().Presentation;
+		expect(invalidation.Palette.has_value() && !invalidation.Resolution.has_value()
+				   && !invalidation.Typography.has_value(),
+			   "a bounded palette change invalidates the palette only");
+		expect(*invalidation.Palette == palette,
+			   "the invalidation carries the adopted palette");
+		expect(harnessed.Settings.Stored.has_value()
+				   && harnessed.Settings.Stored->Palette == palette,
+			   "the palette persists");
+	}
+
+	void test_system_mode_follows_the_observation_and_explicit_mode_does_not()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.observe(
+			core::appearance_observation{ .Scheme = core::os_color_scheme::dark });
+		harnessed.settle();
+
+		expect(harnessed.Projections.Published.size() == 1U,
+			   "the system mode responds to an observed scheme");
+		expect(harnessed.Projections.Published.back().Presentation->Resolution->Variant
+				   == core::appearance_variant::dark,
+			   "the observed scheme selects the dark variant");
+		expect(harnessed.Host.resolution().Scheme
+				   == core::appearance_scheme_source::observed_scheme,
+			   "the resolution names the observation as its source");
+		expect(harnessed.Settings.Stores == 0U,
+			   "an observation is not a setting and never persists");
+
+		harnessed.Host.select(core::appearance_mode::light);
+		harnessed.settle();
+		const auto published = harnessed.Projections.Published.size();
+
+		harnessed.Host.observe(
+			core::appearance_observation{ .Scheme   = core::os_color_scheme::dark,
+										  .Contrast = core::os_contrast_preference::standard });
+		harnessed.Host.observe(
+			core::appearance_observation{ .Scheme = core::os_color_scheme::light });
+		harnessed.settle();
+		expect(harnessed.Projections.Published.size() == published,
+			   "an explicit mode ignores every observed scheme change");
+		expect(harnessed.Host.resolution().Variant == core::appearance_variant::light,
+			   "an explicit mode keeps its selected variant");
+	}
+
+	void test_classification_misses_once_then_hits()
+	{
+		auto       harnessed = harness{ };
+		const auto blobKey   = key(1U);
+		harnessed.Host.classify(blobKey);
+		harnessed.settle();
+
+		expect(harnessed.Classifier.Requests.size() == 1U,
+			   "an uncached blob reaches the classifier once");
+		expect(harnessed.Classifier.Requests.front().MaximumSpans
+				   == application::appearance_host_limits{ }.TokenSpansPerBlob,
+			   "the request carries the host bound");
+		expect(harnessed.Host.classification_submissions() == 1U,
+			   "the host counts the classification it could not avoid");
+		expect(harnessed.Host.cached_classifications() == 1U,
+			   "the classification is retained");
+		expect(harnessed.Projections.Published.size() == 1U,
+			   "the classification publishes once");
+
+		const auto& first = harnessed.Projections.Published.front();
+		expect(first.Spans.has_value() && !first.Presentation.has_value(),
+			   "a classification publishes no presentation invalidation");
+		expect(!first.Spans->CacheHit, "the first classification is not a cache hit");
+		expect(first.Spans->Spans != nullptr && first.Spans->Spans->size() == 3U,
+			   "the publication carries the classified spans");
+
+		harnessed.Host.classify(blobKey);
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.size() == 1U,
+			   "a cached blob never reaches the classifier again");
+		expect(harnessed.Host.cache_hits() == 1U, "the host counts the cache hit");
+		expect(harnessed.Projections.Published.back().Spans->CacheHit,
+			   "the second classification is published as a cache hit");
+	}
+
+	/// \brief Proves an appearance change costs no lexical work.
+	///
+	/// \details This is RFC-BPR-0006's "switching theme or colour does not re-run
+	/// lexical parsing" at the host boundary. The cache key holds blob identity and
+	/// definition version only, so every appearance domain can change without the
+	/// classifier being asked anything.
+	void test_appearance_changes_never_reparse()
+	{
+		auto       harnessed = harness{ };
+		const auto blobKey   = key(1U);
+		harnessed.Host.classify(blobKey);
+		harnessed.settle();
+		const auto retained = harnessed.Host.cached(blobKey);
+		expect(retained != nullptr, "the classification is retained");
+
+		auto palette = base_settings().Palette;
+		palette[core::index_of(core::appearance_role::syntax_keyword)]
+			= core::appearance_color{ .Red = 255U, .Green = 128U, .Blue = 0U };
+		auto typography                           = base_settings().Typography;
+		typography.Code.Font.PointSizeCentipoints = 1600U;
+
+		harnessed.Host.select(core::appearance_mode::high_contrast_dark);
+		harnessed.Host.apply(palette);
+		harnessed.Host.apply(typography);
+		harnessed.Host.observe(
+			core::appearance_observation{ .Scheme = core::os_color_scheme::dark });
+		harnessed.settle();
+
+		expect(harnessed.Projections.presentations() >= 3U,
+			   "every appearance domain really changed");
+		expect(harnessed.Host.cached_classifications() == 1U,
+			   "an appearance change evicts nothing");
+		expect(harnessed.Host.cached(blobKey) == retained,
+			   "an appearance change leaves the retained classification identical");
+
+		harnessed.Host.classify(blobKey);
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.size() == 1U,
+			   "switching theme, palette, mode, and font re-runs no lexical parsing");
+		expect(harnessed.Host.classification_submissions() == 1U,
+			   "the host parse count does not move across an appearance change");
+		expect(harnessed.Host.cache_hits() == 1U,
+			   "the classification after an appearance change is a cache hit");
+		expect(harnessed.Projections.Published.back().Spans->Spans == retained,
+			   "the published spans are the same retained classification");
+	}
+
+	void test_cache_key_is_blob_and_definition_only()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.classify(key(1U, "C++", 1U));
+		harnessed.settle();
+		harnessed.Host.classify(key(1U, "C++", 2U));
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.size() == 2U,
+			   "a definition version change re-classifies the same blob");
+
+		harnessed.Host.classify(key(2U, "C++", 1U));
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.size() == 3U,
+			   "a different blob is classified separately");
+
+		harnessed.Host.classify(key(1U, "CMake", 1U));
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.size() == 4U,
+			   "a different definition is classified separately");
+		expect(harnessed.Host.cached_classifications() == 4U,
+			   "each distinct key retains its own classification");
+		expect(harnessed.Host.cache_hits() == 0U, "no distinct key answered from another");
+	}
+
+	void test_cache_evicts_the_least_recently_used_entry()
+	{
+		auto harnessed = harness{ application::appearance_host_limits{
+			.TokenSpanCacheEntries = 2U } };
+		harnessed.Host.classify(key(1U));
+		harnessed.settle();
+		harnessed.Host.classify(key(2U));
+		harnessed.settle();
+		harnessed.Host.classify(key(1U));
+		harnessed.settle();
+		harnessed.Host.classify(key(3U));
+		harnessed.settle();
+
+		expect(harnessed.Host.cache_evictions() == 1U, "the bound evicts exactly once");
+		expect(harnessed.Host.cached_classifications() == 2U,
+			   "the cache stays inside its bound");
+		expect(harnessed.Host.cached(key(2U)) == nullptr,
+			   "the least recently used entry is the victim");
+		expect(harnessed.Host.cached(key(1U)) != nullptr,
+			   "a reused entry survives eviction");
+
+		harnessed.Host.classify(key(2U));
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.size() == 4U,
+			   "an evicted blob is classified again");
+	}
+
+	void test_classification_failures_are_reported()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.classify(application::token_span_cache_key{ });
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.empty(),
+			   "an invalid key never reaches the classifier");
+		expect(harnessed.Projections.Failed.size() == 1U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::appearance_host_failure::invalid_classification_key,
+			   "an invalid blob identity is refused");
+
+		harnessed.Host.classify(key(1U, ""));
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.empty(),
+			   "a key with no definition never reaches the classifier");
+		expect(harnessed.Projections.Failed.size() == 2U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::appearance_host_failure::invalid_classification_key,
+			   "a key with no definition is refused");
+
+		harnessed.Classifier.Status
+			= application::syntax_classification_status::limit_exceeded;
+		harnessed.Host.classify(key(1U));
+		harnessed.settle();
+		expect(harnessed.Projections.Failed.size() == 3U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::appearance_host_failure::classification_limit,
+			   "a classification beyond the bound is refused, never truncated");
+		expect(harnessed.Host.cached_classifications() == 0U,
+			   "a refused classification is not retained");
+
+		harnessed.Classifier.Status = application::syntax_classification_status::available;
+		harnessed.Classifier.Throw  = true;
+		harnessed.Host.classify(key(2U));
+		harnessed.settle();
+		expect(harnessed.Projections.Failed.size() == 4U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::appearance_host_failure::classification_unavailable,
+			   "a throwing classifier is contained and reported");
+
+		harnessed.Classifier.Throw    = false;
+		harnessed.Classifier.ForgeKey = true;
+		harnessed.Host.classify(key(3U));
+		harnessed.settle();
+		expect(harnessed.Projections.Failed.size() == 5U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::appearance_host_failure::host_failure,
+			   "a terminal naming another key cannot be adopted");
+		expect(harnessed.Host.cached_classifications() == 0U,
+			   "an inexact terminal retains nothing");
+	}
+
+	void test_duplicate_in_flight_classification_is_coalesced()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.classify(key(1U));
+		harnessed.Host.classify(key(1U));
+		expect(harnessed.Host.outstanding_requests() == 1U,
+			   "a duplicate request reserves nothing");
+		expect(harnessed.Host.coalesced_classifications() == 1U,
+			   "the duplicate is coalesced onto the in-flight request");
+
+		harnessed.settle();
+		expect(harnessed.Classifier.Requests.size() == 1U,
+			   "an in-flight blob is classified once");
+		expect(harnessed.Projections.Published.size() == 1U,
+			   "the coalesced request is answered by one publication");
+	}
+
+	void test_cancellation_refuses_the_terminal_and_keeps_the_cache()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.classify(key(1U));
+		harnessed.settle();
+		expect(harnessed.Host.cached_classifications() == 1U,
+			   "the first classification is retained");
+
+		harnessed.Host.classify(key(2U));
+		harnessed.Effects.drain();
+		harnessed.Host.cancel();
+		expect(harnessed.Classifier.StopObserved.size() == 2U
+				   && !harnessed.Classifier.StopObserved.back(),
+			   "the classifier saw a live stop token before cancellation");
+		harnessed.Lane.drain();
+
+		expect(harnessed.Host.rejected_terminals() == 1U,
+			   "the cancelled terminal is refused");
+		expect(harnessed.Host.last_rejection()
+				   == application::appearance_terminal_rejection::cancelled,
+			   "the refusal names cancellation");
+		expect(harnessed.Host.cached_classifications() == 1U,
+			   "cancelling one classification retains the others");
+		expect(harnessed.Host.cached(key(1U)) != nullptr,
+			   "cancellation evicts nothing");
+		expect(harnessed.Projections.Published.size() == 1U,
+			   "a cancelled classification publishes nothing");
+	}
+
+	void test_shutdown_withholds_publication_and_quiesces()
+	{
+		auto harnessed = harness{ };
+		harnessed.Host.classify(key(1U));
+		harnessed.Effects.drain();
+		harnessed.Host.shutdown();
+		expect(harnessed.Host.is_closing(), "shutdown closes the host");
+
+		harnessed.Lane.drain();
+		expect(harnessed.Projections.Published.empty(),
+			   "a terminal after shutdown publishes nothing");
+		expect(harnessed.Projections.Failed.empty(),
+			   "a terminal after shutdown reports no failure");
+		expect(harnessed.Host.is_quiescent(), "the host reaches quiescence");
+	}
+} // namespace
+
+auto main() -> int
+{
+	test_invalid_limits_and_base_appearance_are_rejected();
+	test_absent_durable_record_keeps_the_composed_appearance();
+	test_persisted_appearance_is_restored();
+	test_rejected_persisted_appearance_is_not_adopted();
+	test_unknown_persisted_mode_is_refused();
+	test_settings_failures_are_reported();
+	test_mode_selection_persists_and_publishes_bounded_changes();
+	test_illegal_typography_is_refused_without_clamping();
+	test_palette_change_publishes_only_the_palette();
+	test_system_mode_follows_the_observation_and_explicit_mode_does_not();
+	test_classification_misses_once_then_hits();
+	test_appearance_changes_never_reparse();
+	test_cache_key_is_blob_and_definition_only();
+	test_cache_evicts_the_least_recently_used_entry();
+	test_classification_failures_are_reported();
+	test_duplicate_in_flight_classification_is_coalesced();
+	test_cancellation_refuses_the_terminal_and_keeps_the_cache();
+	test_shutdown_withholds_publication_and_quiesces();
+	std::cout << "appearance application host tests passed\n";
+	return EXIT_SUCCESS;
+}

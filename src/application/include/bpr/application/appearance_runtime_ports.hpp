@@ -1,0 +1,357 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_RUNTIME_PORTS_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_RUNTIME_PORTS_HPP
+
+#include "bpr/core/appearance_model.hpp"
+#include "bpr/core/epoch_model.hpp"
+#include "bpr/core/model.hpp"
+
+#include <compare>
+#include <cstddef>
+#include <cstdint>
+#include <expected>
+#include <memory>
+#include <optional>
+#include <stop_token>
+#include <string>
+#include <vector>
+
+namespace bpr::application {
+	inline constexpr std::size_t maximum_appearance_outstanding_requests = 64U;
+	inline constexpr std::size_t maximum_token_span_cache_entries        = 4'096U;
+	inline constexpr std::size_t maximum_token_spans_per_blob            = 4'194'304U;
+	inline constexpr std::size_t maximum_syntax_definition_bytes         = 128U;
+
+	/// \brief Describes the appearance host limits record.
+	///
+	/// \details `OutstandingRequests` bounds concurrently submitted effect work.
+	/// `TokenSpanCacheEntries` bounds how many classified blobs the host retains,
+	/// and `TokenSpansPerBlob` bounds one classification, so neither a long review
+	/// nor a pathological blob can make the cache unbounded.
+	struct appearance_host_limits
+	{
+		std::size_t OutstandingRequests   = 8U;
+		std::size_t TokenSpanCacheEntries = 64U;
+		std::size_t TokenSpansPerBlob     = 262'144U;
+
+		auto operator<=>(const appearance_host_limits&) const = default;
+	};
+
+	/// \brief Checks whether the supplied value satisfies its contract.
+	[[nodiscard]] constexpr auto valid(
+		const appearance_host_limits& aLimits) noexcept -> bool
+	{
+		return aLimits.OutstandingRequests > 0U
+			&& aLimits.OutstandingRequests <= maximum_appearance_outstanding_requests
+			&& aLimits.TokenSpanCacheEntries > 0U
+			&& aLimits.TokenSpanCacheEntries <= maximum_token_span_cache_entries
+			&& aLimits.TokenSpansPerBlob > 0U
+			&& aLimits.TokenSpansPerBlob <= maximum_token_spans_per_blob;
+	}
+
+	/// \brief Describes the appearance request context record.
+	///
+	/// \details `Request` is unique for the host lifetime and is the exactly-once
+	/// terminal key: a second delivery of the same request finds no outstanding
+	/// record. `Session` names the host that issued it, so a terminal from a
+	/// foreign host cannot be mistaken for a local one. There is deliberately no
+	/// generation here. Appearance staleness is per domain and is stamped on the
+	/// outstanding record when a later gesture supersedes it, because a global
+	/// generation would make a settings change retire an unrelated in-flight
+	/// classification, which is exactly the reparse this host exists to avoid. A
+	/// locally decided change carries a zero `Request`, because no effect produced
+	/// it.
+	struct appearance_request_context
+	{
+		core::request_id             Request;
+		core::application_session_id Session;
+
+		auto operator<=>(const appearance_request_context&) const = default;
+	};
+
+	/// \brief Describes the durable appearance settings record.
+	///
+	/// \details This is the whole durable appearance state: the selected mode, the
+	/// palette over the core's closed role vocabulary, and both fonts. A fresh
+	/// installation has no durable record, and the mode defaults to `system`. The
+	/// host chooses no colour and no family: the palette and the typography a
+	/// host starts from are supplied by its composition, and every other value it
+	/// holds was either loaded or applied by a gesture.
+	struct appearance_settings
+	{
+		core::appearance_mode     Mode = core::appearance_mode::system;
+		core::appearance_palette  Palette{ };
+		core::typography_settings Typography;
+
+		auto operator<=>(const appearance_settings&) const = default;
+	};
+
+	/// \brief Checks whether the supplied mode is inside the closed vocabulary.
+	///
+	/// \details A durable record or a caller can carry a value that was never a
+	/// declared mode. The check is against the core's published count rather than
+	/// a restated member list, so it cannot drift from the vocabulary.
+	[[nodiscard]] constexpr auto known(const core::appearance_mode aMode) noexcept
+		-> bool
+	{
+		return static_cast<std::size_t>(aMode) < core::appearance_mode_count;
+	}
+
+	enum class appearance_settings_failure : std::uint8_t {
+		unavailable,
+		cancelled,
+	};
+
+	/// \brief Describes the appearance settings error record.
+	struct appearance_settings_error
+	{
+		appearance_settings_failure Failure = appearance_settings_failure::unavailable;
+
+		auto operator<=>(const appearance_settings_error&) const = default;
+	};
+
+	template <typename Value>
+	using appearance_settings_result = std::expected<Value, appearance_settings_error>;
+
+	/// \brief Provides the appearance settings port contract.
+	///
+	/// \details The host calls this on the effect executor, never on the decision
+	/// lane, and marshals the answer back as a typed terminal. An absent durable
+	/// record is not a failure and is not a defaulted record either: `load` reports
+	/// no value, and the host keeps the settings its composition started from. That
+	/// distinction is what lets a fresh installation be told apart from one that
+	/// deliberately stored the defaults.
+	class appearance_settings_port
+	{
+	public:
+		virtual ~appearance_settings_port() = default;
+
+		[[nodiscard]] virtual auto load(std::stop_token aStop)
+			-> appearance_settings_result<std::optional<appearance_settings>> = 0;
+		[[nodiscard]] virtual auto store(
+			const appearance_settings& aSettings,
+			std::stop_token            aStop)
+			-> appearance_settings_result<void> = 0;
+	};
+
+	/// \brief Describes one syntax definition and the revision that produced it.
+	///
+	/// \details `Name` is the stable definition identifier and `Version` the
+	/// revision of that definition's rules. Both belong to the cache key because a
+	/// definition update changes the classification of unchanged bytes, and nothing
+	/// else about the blob would say so.
+	struct syntax_definition_version
+	{
+		std::string   Name;
+		std::uint32_t Version = 0U;
+
+		auto operator<=>(const syntax_definition_version&) const = default;
+	};
+
+	/// \brief Identifies one cached classification.
+	///
+	/// \details The key is the blob identity and the definition version, and
+	/// nothing else. It deliberately carries no mode, palette, or typography: a
+	/// theme or font change alters how spans are drawn, never which spans the
+	/// bytes produce, so a colour that entered this key would force a reparse that
+	/// no rule requires.
+	struct token_span_cache_key
+	{
+		core::git_blob_oid        Blob;
+		syntax_definition_version Definition;
+
+		auto operator<=>(const token_span_cache_key&) const = default;
+	};
+
+	/// \brief Checks whether the supplied value satisfies its contract.
+	[[nodiscard]] constexpr auto valid(const token_span_cache_key& aKey) noexcept
+		-> bool
+	{
+		return aKey.Blob.valid() && !aKey.Definition.Name.empty()
+			&& aKey.Definition.Name.size() <= maximum_syntax_definition_bytes;
+	}
+
+	/// \brief Describes one classified token span.
+	///
+	/// \details `Line` is the zero-based line of the complete blob, `Column` the
+	/// zero-based byte offset within that line, and `Length` the span length in
+	/// bytes. Offsets are byte offsets because the host never decodes the blob.
+	/// `Role` is a core role, so a span names a semantic category and never a
+	/// colour.
+	struct token_span
+	{
+		std::uint32_t         Line   = 0U;
+		std::uint32_t         Column = 0U;
+		std::uint32_t         Length = 0U;
+		core::appearance_role Role   = core::appearance_role::syntax_normal;
+
+		auto operator<=>(const token_span&) const = default;
+	};
+
+	using token_span_list = std::vector<token_span>;
+	// A retained classification is immutable and shared. Presentation may hold it
+	// for its projection lifetime; it cannot mutate it or become its authority.
+	using shared_token_spans = std::shared_ptr<const token_span_list>;
+
+	/// \brief Describes the syntax classification request record.
+	///
+	/// \details `MaximumSpans` is the bound the host will accept. A port that
+	/// cannot answer within it must report `limit_exceeded` rather than truncate,
+	/// because a truncated span list would silently unclassify the tail of a blob.
+	struct syntax_classification_request
+	{
+		appearance_request_context Context;
+		token_span_cache_key       Key;
+		std::size_t                MaximumSpans = 0U;
+
+		auto operator<=>(const syntax_classification_request&) const = default;
+	};
+
+	enum class syntax_classification_status : std::uint8_t {
+		available,
+		cancelled,
+		unavailable,
+		limit_exceeded,
+	};
+
+	/// \brief Describes the syntax classification record.
+	struct syntax_classification
+	{
+		appearance_request_context   Context;
+		token_span_cache_key         Key;
+		syntax_classification_status Status = syntax_classification_status::unavailable;
+		token_span_list              Spans;
+
+		auto operator<=>(const syntax_classification&) const = default;
+	};
+
+	/// \brief Provides the syntax classification port contract.
+	///
+	/// \details The host calls this on the effect executor, never on the decision
+	/// lane. An implementation classifies the complete blob the key names, honours
+	/// the supplied stop token, and repeats the request context and key in its
+	/// answer. The host reads no blob bytes and holds no lexical rule; it decides
+	/// only whether the port has to run at all.
+	class syntax_classification_port
+	{
+	public:
+		virtual ~syntax_classification_port() = default;
+
+		[[nodiscard]] virtual auto classify(
+			const syntax_classification_request& aRequest,
+			std::stop_token                      aStop) -> syntax_classification = 0;
+	};
+
+	struct appearance_epoch_tag;
+	using appearance_epoch = core::strong_id<appearance_epoch_tag>;
+
+	/// \brief Describes the bounded presentation invalidation record.
+	///
+	/// \details An engaged member is a presentation domain that must be rebuilt and
+	/// carries the value to rebuild it from; an absent member is a domain
+	/// presentation may keep. `Epoch` advances once per adopted appearance change
+	/// so presentation can drop derived state it stamped with an earlier epoch.
+	///
+	/// The record names presentation work only. It carries no review state, no file
+	/// identity, and no token span, because an appearance change cannot alter
+	/// review semantics and must not be able to express one.
+	struct appearance_presentation_invalidation
+	{
+		appearance_epoch                           Epoch;
+		std::optional<core::appearance_resolution> Resolution;
+		std::optional<core::appearance_palette>    Palette;
+		std::optional<core::typography_settings>   Typography;
+
+		auto operator<=>(const appearance_presentation_invalidation&) const = default;
+	};
+
+	/// \brief Checks whether the supplied invalidation names no changed domain.
+	[[nodiscard]] inline auto empty(
+		const appearance_presentation_invalidation& aInvalidation) noexcept -> bool
+	{
+		return !aInvalidation.Resolution.has_value()
+			&& !aInvalidation.Palette.has_value()
+			&& !aInvalidation.Typography.has_value();
+	}
+
+	/// \brief Describes one published classification.
+	///
+	/// \details `CacheHit` reports whether the host answered from its retained
+	/// cache. It is the published half of the same fact the host's counters
+	/// report, so a consumer can tell a reparse from a reuse without instrumenting
+	/// the classifier.
+	struct token_span_publication
+	{
+		token_span_cache_key Key;
+		shared_token_spans   Spans;
+		bool                 CacheHit = false;
+	};
+
+	/// \brief Describes the appearance projection record.
+	///
+	/// \details Every domain is engaged only when its published meaning changed, so
+	/// a bounded change never forces presentation to rebuild the whole appearance.
+	/// The host publishes nothing when no domain changed.
+	struct appearance_projection
+	{
+		appearance_request_context                          Context;
+		std::optional<appearance_presentation_invalidation> Presentation;
+		std::optional<token_span_publication>               Spans;
+	};
+
+	/// \brief Checks whether the supplied projection carries no changed domain.
+	[[nodiscard]] inline auto empty(
+		const appearance_projection& aProjection) noexcept -> bool
+	{
+		return !aProjection.Presentation.has_value()
+			&& !aProjection.Spans.has_value();
+	}
+
+	enum class appearance_host_failure : std::uint8_t {
+		settings_unavailable,
+		settings_rejected,
+		unknown_appearance_mode,
+		classification_unavailable,
+		classification_limit,
+		invalid_classification_key,
+		host_failure,
+	};
+
+	/// \brief Describes the appearance failure publication record.
+	///
+	/// \details `Rejections` is nonempty exactly for `settings_rejected` and
+	/// repeats the core's own typed triples in the core's own order. The host
+	/// neither summarises them nor substitutes a legal value for an illegal one:
+	/// a clamped value would tell a settings surface that it was accepted.
+	struct appearance_failure_publication
+	{
+		appearance_request_context              Context;
+		appearance_host_failure                 Failure = appearance_host_failure::host_failure;
+		std::vector<core::typography_rejection> Rejections;
+
+		auto operator<=>(const appearance_failure_publication&) const = default;
+	};
+
+	/// \brief Provides the appearance projection port contract.
+	///
+	/// \details Both operations run on the decision lane inside the host's
+	/// exception boundary. A stale, superseded, cancelled, duplicate, or foreign
+	/// terminal reaches neither operation.
+	class appearance_projection_port
+	{
+	public:
+		virtual ~appearance_projection_port() = default;
+
+		virtual void publish(const appearance_projection& aProjection)    = 0;
+		virtual void fail(const appearance_failure_publication& aFailure) = 0;
+	};
+
+	enum class appearance_terminal_rejection : std::uint8_t {
+		none,
+		unknown_request,
+		inexact_terminal,
+		superseded,
+		cancelled,
+	};
+} // namespace bpr::application
+
+#endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_RUNTIME_PORTS_HPP
