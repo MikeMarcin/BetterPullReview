@@ -295,8 +295,15 @@ first selects a different visible group through the public link map and
 requires the replacement click to replace it. The replay records both states,
 so the artifact shows a click changing semantic selection; it is now nineteen
 records and nineteen images. Implementation can progress under the
-product-owner exception without an out-of-order Auto-Verified transition or
-beginning RFC-BPR-0005 early.
+product-owner exception without an out-of-order Auto-Verified transition.
+
+By further product-owner direction the implementation frontier now advances
+past RFC-BPR-0004 through the remainder of the pack on available targets, so
+RFC-BPR-0005 onward may be implemented while earlier RFCs remain `Proposed`.
+Each of those RFCs ends its available-target work at a closeout card in
+`backlog/`. Requirements that need target-native Windows x64 execution, an
+owner-attended check, or external authority are recorded on live cards naming
+exactly what is missing rather than being silently skipped.
 
 Done BPR-0084 follows the completed host-execution slice and modernizes
 the shared build foundation before the remaining RFC-BPR-0004 Qt work. It

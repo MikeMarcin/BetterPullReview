@@ -34,8 +34,13 @@ does not substitute for RFC-BPR-0005's planned integrated presentation-polish
 and native visual-acceptance pass.
 
 Mark RFC-BPR-0004 Auto-Verified only when every required live card is done and
-RFC-BPR-0003 is genuinely Auto-Verified. Do not begin RFC-BPR-0005 while this
-closeout card remains open.
+RFC-BPR-0003 is genuinely Auto-Verified.
+
+By product-owner direction the implementation frontier now advances past
+RFC-BPR-0004, so RFC-BPR-0005 onward may be implemented on available targets
+while this card remains open. That direction changes nothing about this card:
+its own closure still requires RFC-BPR-0003 to close first, which still
+requires real Windows x64 evidence.
 
 ## Closeout state
 

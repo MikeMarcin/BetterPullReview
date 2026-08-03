@@ -8,11 +8,26 @@ Product-owner exception: real Windows x64 evidence retained by BPR-0036 is
 temporarily unavailable. RFC-BPR-0002 therefore remains the closure frontier,
 but that hardware-only gate does not block implementation, tests,
 documentation, security review, simplification, or later-RFC work on
-available targets. RFC-BPR-0003 retains explicit closeout cards, while
-RFC-BPR-0004 is the implementation frontier by product-owner direction. The
-exception does not waive any Windows claim, change an RFC status, permit
+available targets. RFC-BPR-0003 and RFC-BPR-0004 retain explicit closeout
+cards.
+
+By further product-owner direction the implementation frontier now advances
+past RFC-BPR-0004 through the remainder of the pack on available targets.
+Implementation, tests, documentation, security review, and simplification for
+RFC-BPR-0005 through RFC-BPR-0014 may proceed while earlier RFCs remain
+`Proposed`. Each such RFC ends its available-target work at a closeout card in
+`backlog/` and stays `Proposed`.
+
+Every requirement that cannot be met on an available target is recorded on a
+live issue card naming exactly what is missing and who must supply it. Three
+classes are deferred: target-native Windows x64 execution, owner-attended
+checks that need a person at the keyboard, and external authority such as a
+designated safe GitHub mutation target or a signing identity.
+
+The exception does not waive any Windows claim, change an RFC status, permit
 out-of-order Auto-Verified closeout, or make GitHub Actions an evidence
-surface.
+surface. Closure remains strictly ordered: no RFC becomes `Auto-Verified`
+before every listed dependency is `Auto-Verified`.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
