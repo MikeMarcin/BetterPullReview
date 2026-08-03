@@ -1,5 +1,9 @@
 #include "bpr/qt/appearance_profile.hpp"
 
+#include <QFontDatabase>
+#include <QFontMetricsF>
+#include <QLatin1Char>
+#include <QPlainTextEdit>
 #include <QWidget>
 
 #include <algorithm>
@@ -7,6 +11,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace bpr::qt {
@@ -291,6 +297,119 @@ namespace bpr::qt {
 		{
 			return core::index_of(aRole) < core::appearance_role_count;
 		}
+
+		constexpr auto centipoints_per_point = 100.0;
+		constexpr auto percent_scale         = 100.0;
+
+		// Nominal starting values, none of which is a bound. Each one reaches a
+		// record only through `core::bounds_of`, so this file never restates a
+		// legality rule the core owns.
+		constexpr auto nominal_point_size_centipoints = std::uint64_t{ 1'000U };
+		constexpr auto nominal_line_height_percent    = std::uint64_t{ 100U };
+		constexpr auto nominal_tab_width              = std::uint64_t{ 4U };
+
+		// Qt's own generic family aliases, used only when the platform reports a
+		// family the core would reject.
+		constexpr auto general_fallback_family = std::string_view{ "Sans Serif" };
+		constexpr auto fixed_fallback_family   = std::string_view{ "Monospace" };
+
+		// The standard and contextual OpenType ligature features. One user
+		// switch moves both, because a family that ships ligatures may deliver
+		// them through either.
+		constexpr auto standard_ligature_feature   = QFont::Tag{ "liga" };
+		constexpr auto contextual_ligature_feature = QFont::Tag{ "clig" };
+
+		/// \brief Places one value inside the core's published bounds for a field.
+		[[nodiscard]] auto within_bounds(
+			const core::typography_field aField,
+			const std::uint64_t          aValue) noexcept -> std::uint32_t
+		{
+			const auto bounds = core::bounds_of(aField);
+			return static_cast<std::uint32_t>(std::clamp(
+				aValue,
+				static_cast<std::uint64_t>(bounds.Minimum),
+				static_cast<std::uint64_t>(bounds.Maximum)));
+		}
+
+		/// \brief Converts one Qt point size to a legal centipoint value.
+		[[nodiscard]] auto centipoints_of(const qreal aPointSize) noexcept
+			-> std::uint32_t
+		{
+			// A pixel-sized Qt font reports no point size at all, which is a
+			// missing observation rather than a small one.
+			const auto centipoints = aPointSize > 0.0
+				? std::llround(aPointSize * centipoints_per_point)
+				: 0;
+			return within_bounds(
+				core::typography_field::point_size,
+				centipoints > 0 ? static_cast<std::uint64_t>(centipoints)
+								: nominal_point_size_centipoints);
+		}
+
+		[[nodiscard]] auto usable_family(const std::string& aFamily) noexcept
+			-> bool
+		{
+			const auto bounds = core::bounds_of(core::typography_field::family);
+			return aFamily.size() >= bounds.Minimum
+				&& aFamily.size() <= bounds.Maximum
+				&& std::ranges::none_of(aFamily, [](const char aCharacter) {
+					   const auto value = static_cast<unsigned int>(
+						   static_cast<unsigned char>(aCharacter));
+					   return value < 0x20U || value == 0x7FU;
+				   });
+		}
+
+		/// \brief Reads one platform system font into a legal core record.
+		[[nodiscard]] auto native_font(
+			const QFontDatabase::SystemFont aRole,
+			const std::string_view          aFallbackFamily) -> core::font_settings
+		{
+			const auto system = QFontDatabase::systemFont(aRole);
+			auto       family = system.family().toStdString();
+			return core::font_settings{
+				.Family               = usable_family(family) ? std::move(family)
+															  : std::string{ aFallbackFamily },
+				.PointSizeCentipoints = centipoints_of(system.pointSizeF()),
+				.Weight               = within_bounds(
+					core::typography_field::weight,
+					static_cast<std::uint64_t>(
+						std::max(0, static_cast<int>(system.weight())))),
+				.LineHeightPercent = within_bounds(
+					core::typography_field::line_height,
+					nominal_line_height_percent),
+			};
+		}
+
+		/// \brief Returns the durable typography with each illegal font replaced.
+		///
+		/// \details A durable record can carry a font this build's core rejects,
+		/// whether because it was written by a different build or because it was
+		/// tampered with. Only the rejected font is replaced, so an illegal code
+		/// font cannot discard a legal UI font the user chose.
+		[[nodiscard]] auto adopted_typography(core::typography_settings aSettings)
+			-> core::typography_settings
+		{
+			const auto rejections = core::validate_typography(aSettings);
+			if (rejections.empty()) {
+				return aSettings;
+			}
+			const auto rejected = [&rejections](
+									  const core::typography_target aTarget) {
+				return std::ranges::any_of(
+					rejections,
+					[aTarget](const core::typography_rejection& aRejection) {
+						return aRejection.Target == aTarget;
+					});
+			};
+			auto replacement = default_typography_settings();
+			if (rejected(core::typography_target::ui_font)) {
+				aSettings.Ui = std::move(replacement.Ui);
+			}
+			if (rejected(core::typography_target::code_font)) {
+				aSettings.Code = std::move(replacement.Code);
+			}
+			return aSettings;
+		}
 	} // namespace
 
 	auto to_presentation_color(const core::appearance_color aColor) noexcept
@@ -365,12 +484,62 @@ namespace bpr::qt {
 		return QStringLiteral("BetterPullReview Light");
 	}
 
+	auto to_presentation_font(const core::font_settings& aFont) -> QFont
+	{
+		auto font = QFont{ };
+		font.setFamily(QString::fromStdString(aFont.Family));
+		font.setPointSizeF(
+			static_cast<qreal>(aFont.PointSizeCentipoints) / centipoints_per_point);
+		font.setWeight(static_cast<QFont::Weight>(aFont.Weight));
+		return font;
+	}
+
+	auto to_presentation_font(const core::code_font_settings& aCode) -> QFont
+	{
+		auto       font    = to_presentation_font(aCode.Font);
+		const auto enabled = aCode.Ligatures ? 1U : 0U;
+		font.setFeature(standard_ligature_feature, enabled);
+		font.setFeature(contextual_ligature_feature, enabled);
+		return font;
+	}
+
+	auto line_height_of(const core::font_settings& aFont) -> qreal
+	{
+		return QFontMetricsF{ to_presentation_font(aFont) }.lineSpacing()
+			* static_cast<qreal>(aFont.LineHeightPercent) / percent_scale;
+	}
+
+	auto tab_stop_distance_of(const core::code_font_settings& aCode) -> qreal
+	{
+		return QFontMetricsF{ to_presentation_font(aCode) }.horizontalAdvance(
+				   QLatin1Char{ ' ' })
+			* static_cast<qreal>(aCode.TabWidth);
+	}
+
+	auto default_typography_settings() -> core::typography_settings
+	{
+		return core::typography_settings{
+			.Ui = native_font(
+				QFontDatabase::GeneralFont,
+				general_fallback_family),
+			.Code = core::code_font_settings{
+				.Font = native_font(
+					QFontDatabase::FixedFont,
+					fixed_fallback_family),
+				.TabWidth = within_bounds(
+					core::typography_field::tab_width,
+					nominal_tab_width),
+			},
+		};
+	}
+
 	auto default_appearance_settings() -> application::appearance_settings
 	{
 		auto settings    = application::appearance_settings{ };
 		settings.Palette = builtin_appearance_palette(
 			core::resolve_appearance(settings.Mode, core::appearance_observation{ })
 				.Variant);
+		settings.Typography = default_typography_settings();
 		return settings;
 	}
 
@@ -380,8 +549,9 @@ namespace bpr::qt {
 		: Mode{ application::known(aSettings.Mode) ? aSettings.Mode
 												   : core::appearance_mode::system }
 		, Observation{ aObservation }
-		, Typography{ std::move(aSettings.Typography) }
+		, Typography{ adopted_typography(std::move(aSettings.Typography)) }
 	{
+		rebuild_typography();
 		// The durable record carries exactly one palette, so it is read as
 		// customisation relative to the built-in profile of the variant that
 		// record's own mode resolves to. A fresh record, whose palette is that
@@ -476,6 +646,84 @@ namespace bpr::qt {
 		-> appearance_profile_statistics
 	{
 		return Statistics;
+	}
+
+	auto appearance_profile::typography() const noexcept
+		-> const core::typography_settings&
+	{
+		return Typography;
+	}
+
+	auto appearance_profile::ui_font() const -> QFont
+	{
+		return UiFont;
+	}
+
+	auto appearance_profile::code_font() const -> QFont
+	{
+		return CodeFont;
+	}
+
+	auto appearance_profile::code_font_for(const bool aBold, const bool aItalic)
+		const -> QFont
+	{
+		auto font = CodeFont;
+		font.setBold(aBold && Typography.Code.SyntaxBold);
+		font.setItalic(aItalic && Typography.Code.SyntaxItalic);
+		return font;
+	}
+
+	auto appearance_profile::ui_line_height() const -> qreal
+	{
+		return line_height_of(Typography.Ui);
+	}
+
+	auto appearance_profile::code_line_height() const -> qreal
+	{
+		return line_height_of(Typography.Code.Font);
+	}
+
+	auto appearance_profile::code_tab_stop_distance() const -> qreal
+	{
+		return tab_stop_distance_of(Typography.Code);
+	}
+
+	auto appearance_profile::select_typography(
+		core::typography_settings aTypography) -> typography_selection
+	{
+		auto selection = typography_selection{
+			.Rejections = core::validate_typography(aTypography),
+		};
+		if (!selection.accepted()) {
+			// Nothing is applied and nothing is clamped. A clamped value would
+			// tell a settings surface that its rejected value was accepted.
+			++Statistics.RejectedTypography;
+			return selection;
+		}
+		if (aTypography == Typography) {
+			return selection;
+		}
+		Typography = std::move(aTypography);
+		rebuild_typography();
+		++Statistics.TypographyChanges;
+		selection.Changed = publish();
+		return selection;
+	}
+
+	auto appearance_profile::select_ui_font(core::font_settings aFont)
+		-> typography_selection
+	{
+		auto candidate = Typography;
+		candidate.Ui   = std::move(aFont);
+		return select_typography(std::move(candidate));
+	}
+
+	auto appearance_profile::select_code_font(core::code_font_settings aFont)
+		-> typography_selection
+	{
+		auto candidate = Typography;
+		candidate.Code = std::move(aFont);
+		return select_typography(std::move(candidate));
 	}
 
 	auto appearance_profile::select_mode(const core::appearance_mode aMode) -> bool
@@ -603,6 +851,40 @@ namespace bpr::qt {
 		++Statistics.AppliedSurfaces;
 	}
 
+	void appearance_profile::apply_ui_font_to(QWidget& aSurface)
+	{
+		aSurface.setFont(UiFont);
+		++Statistics.AppliedFontSurfaces;
+	}
+
+	void appearance_profile::apply_code_font_to(QWidget& aSurface)
+	{
+		const auto panes = aSurface.findChildren<QPlainTextEdit*>();
+		apply_code_metrics(aSurface);
+		for (auto* const pane : panes) {
+			apply_code_metrics(*pane);
+		}
+		aSurface.setFont(CodeFont);
+		for (auto* const pane : panes) {
+			pane->setFont(CodeFont);
+		}
+		++Statistics.AppliedFontSurfaces;
+	}
+
+	void appearance_profile::apply_code_metrics(QWidget& aSurface) const
+	{
+		if (auto* const pane = qobject_cast<QPlainTextEdit*>(&aSurface);
+			pane != nullptr) {
+			pane->setTabStopDistance(code_tab_stop_distance());
+		}
+	}
+
+	void appearance_profile::rebuild_typography()
+	{
+		UiFont   = to_presentation_font(Typography.Ui);
+		CodeFont = to_presentation_font(Typography.Code);
+	}
+
 	void appearance_profile::rebuild()
 	{
 		Resolution          = core::resolve_appearance(Mode, Observation);
@@ -623,6 +905,11 @@ namespace bpr::qt {
 		if (Resolution == previousResolution && Palette == previousPalette) {
 			return false;
 		}
+		return publish();
+	}
+
+	auto appearance_profile::publish() -> bool
+	{
 		++Statistics.PresentationChanges;
 		++Generation;
 		if (Sink) {
