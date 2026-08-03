@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_core
     STATIC
+        src/appearance_model.cpp
         src/diff_compute.cpp
 		src/diff_interaction.cpp
         src/diff_model.cpp

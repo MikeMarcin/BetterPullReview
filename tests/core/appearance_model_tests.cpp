@@ -1,0 +1,462 @@
+#include "bpr/core/appearance_model.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace {
+	using namespace bpr::core;
+
+	auto expect(const bool aCondition, const std::string_view aMessage) -> void
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	[[nodiscard]] auto observation(
+		const os_color_scheme        aScheme,
+		const os_contrast_preference aContrast = os_contrast_preference::standard)
+		-> appearance_observation
+	{
+		return appearance_observation{ .Scheme = aScheme, .Contrast = aContrast };
+	}
+
+	constexpr auto every_scheme = std::array{
+		os_color_scheme::unknown,
+		os_color_scheme::light,
+		os_color_scheme::dark,
+	};
+
+	constexpr auto every_contrast = std::array{
+		os_contrast_preference::standard,
+		os_contrast_preference::high,
+	};
+
+	[[nodiscard]] auto mode_at(const std::size_t aIndex) -> appearance_mode
+	{
+		return static_cast<appearance_mode>(static_cast<std::uint8_t>(aIndex));
+	}
+
+	[[nodiscard]] auto role_at(const std::size_t aIndex) -> appearance_role
+	{
+		return static_cast<appearance_role>(static_cast<std::uint8_t>(aIndex));
+	}
+
+	auto test_system_mode_follows_the_observed_scheme() -> void
+	{
+		const auto observedDark  = observation(os_color_scheme::dark);
+		const auto observedLight = observation(os_color_scheme::light);
+
+		const auto followedDark = resolve_appearance(appearance_mode::system, observedDark);
+		expect(followedDark.Variant == appearance_variant::dark
+				   && followedDark.Scheme == appearance_scheme_source::observed_scheme,
+			   "system mode resolves the observed dark scheme");
+		const auto followedLight = resolve_appearance(appearance_mode::system, observedLight);
+		expect(followedLight.Variant == appearance_variant::light
+				   && followedLight.Scheme == appearance_scheme_source::observed_scheme,
+			   "system mode resolves the observed light scheme");
+
+		const auto explicitLight = resolve_appearance(appearance_mode::light, observedDark);
+		const auto explicitDark  = resolve_appearance(appearance_mode::dark, observedLight);
+		expect(explicitLight.Variant == appearance_variant::light
+				   && explicitLight.Scheme == appearance_scheme_source::selected_mode
+				   && explicitDark.Variant == appearance_variant::dark
+				   && explicitDark.Scheme == appearance_scheme_source::selected_mode,
+			   "an explicit mode ignores the observed scheme that system mode follows");
+
+		expect(follows_observed_scheme(appearance_mode::system)
+				   && follows_observed_scheme(appearance_mode::high_contrast_system)
+				   && !follows_observed_scheme(appearance_mode::light)
+				   && !follows_observed_scheme(appearance_mode::dark)
+				   && !follows_observed_scheme(appearance_mode::high_contrast_light)
+				   && !follows_observed_scheme(appearance_mode::high_contrast_dark),
+			   "exactly the two system modes consume the observed scheme");
+
+		for (const auto scheme : every_scheme) {
+			for (const auto contrast : every_contrast) {
+				const auto resolved = resolve_appearance(
+					appearance_mode::high_contrast_dark, observation(scheme, contrast));
+				expect(resolved.Variant == appearance_variant::high_contrast_dark,
+					   "no observation moves an explicit high-contrast dark mode");
+			}
+		}
+
+		const auto unobserved = resolve_appearance(
+			appearance_mode::system, observation(os_color_scheme::unknown));
+		expect(unobserved.Variant == appearance_variant::light
+				   && unobserved.Scheme == appearance_scheme_source::unobserved_default,
+			   "an unobservable scheme defaults to light and reports the default");
+
+		const auto systemHighContrast = resolve_appearance(
+			appearance_mode::high_contrast_system, observedDark);
+		expect(systemHighContrast.Variant == appearance_variant::high_contrast_dark
+				   && systemHighContrast.Scheme == appearance_scheme_source::observed_scheme
+				   && systemHighContrast.Contrast == appearance_contrast_source::selected_mode,
+			   "a high-contrast system mode follows the scheme and keeps its own contrast");
+	}
+
+	auto test_high_contrast_preference_selects_or_recommends() -> void
+	{
+		const auto highDark = observation(
+			os_color_scheme::dark, os_contrast_preference::high);
+		const auto selected = resolve_appearance(appearance_mode::system, highDark);
+		expect(selected.Variant == appearance_variant::high_contrast_dark
+				   && selected.Contrast == appearance_contrast_source::observed_preference
+				   && !selected.HighContrastRecommended,
+			   "system mode selects the high-contrast variant of the observed scheme");
+
+		const auto highLight = observation(
+			os_color_scheme::light, os_contrast_preference::high);
+		expect(resolve_appearance(appearance_mode::system, highLight).Variant
+				   == appearance_variant::high_contrast_light,
+			   "the selected high-contrast variant keeps the observed light family");
+
+		const auto recommended = resolve_appearance(appearance_mode::light, highDark);
+		expect(recommended.Variant == appearance_variant::light
+				   && recommended.Contrast == appearance_contrast_source::none
+				   && recommended.HighContrastRecommended,
+			   "an explicit standard-contrast mode keeps its variant and carries the recommendation");
+
+		const auto alreadyHigh = resolve_appearance(
+			appearance_mode::high_contrast_light, highDark);
+		expect(alreadyHigh.Variant == appearance_variant::high_contrast_light
+				   && alreadyHigh.Contrast == appearance_contrast_source::selected_mode
+				   && !alreadyHigh.HighContrastRecommended,
+			   "a mode that is already high contrast needs no recommendation");
+
+		const auto standard = resolve_appearance(
+			appearance_mode::system, observation(os_color_scheme::dark));
+		expect(standard.Variant == appearance_variant::dark
+				   && standard.Contrast == appearance_contrast_source::none
+				   && !standard.HighContrastRecommended,
+			   "a standard preference selects no high-contrast variant");
+
+		const auto unobservedHigh = resolve_appearance(
+			appearance_mode::system,
+			observation(os_color_scheme::unknown, os_contrast_preference::high));
+		expect(unobservedHigh.Variant == appearance_variant::high_contrast_light
+				   && unobservedHigh.Scheme == appearance_scheme_source::unobserved_default
+				   && unobservedHigh.Contrast == appearance_contrast_source::observed_preference,
+			   "an unobservable scheme still adopts the observed contrast preference");
+
+		expect(high_contrast(appearance_variant::high_contrast_light)
+				   && high_contrast(appearance_variant::high_contrast_dark)
+				   && !high_contrast(appearance_variant::light)
+				   && !high_contrast(appearance_variant::dark),
+			   "exactly the two high-contrast variants report high contrast");
+	}
+
+	auto test_resolution_is_total_and_self_consistent() -> void
+	{
+		for (std::size_t index = 0U; index < appearance_mode_count; ++index) {
+			const auto mode = mode_at(index);
+			for (const auto scheme : every_scheme) {
+				for (const auto contrast : every_contrast) {
+					const auto resolved = resolve_appearance(
+						mode, observation(scheme, contrast));
+					expect(high_contrast(resolved.Variant)
+							   == (resolved.Contrast != appearance_contrast_source::none),
+						   "a high-contrast variant is exactly a variant with a contrast source");
+					expect(resolved.HighContrastRecommended
+							   == (contrast == os_contrast_preference::high
+								   && !high_contrast(resolved.Variant)),
+						   "a recommendation appears exactly when an observed preference is unmet");
+					expect((resolved.Scheme == appearance_scheme_source::selected_mode)
+							   == !follows_observed_scheme(mode),
+						   "only a scheme-following mode reports an observed scheme source");
+				}
+			}
+		}
+	}
+
+	auto test_mode_identifiers_round_trip() -> void
+	{
+		auto names = std::vector<std::string_view>{ };
+		for (std::size_t index = 0U; index < appearance_mode_count; ++index) {
+			const auto mode = mode_at(index);
+			const auto name = stable_name(mode);
+			expect(!name.empty(), "every mode carries a stable identifier");
+			const auto found = find_appearance_mode(name);
+			expect(found.has_value() && *found == mode,
+				   "every mode identifier resolves back to its own mode");
+			expect(std::ranges::find(names, name) == names.end(),
+				   "mode identifiers are distinct");
+			names.push_back(name);
+		}
+
+		expect(stable_name(appearance_mode::system) == "system",
+			   "the fresh-installation mode keeps its stable identifier");
+		expect(!find_appearance_mode("automatic").has_value()
+				   && !find_appearance_mode("").has_value()
+				   && !find_appearance_mode("System").has_value(),
+			   "an identifier outside the mode vocabulary is refused");
+		expect(!find_appearance_mode("syntax_keyword").has_value()
+				   && !find_appearance_role("system").has_value(),
+			   "the mode and role vocabularies do not overlap");
+	}
+
+	auto test_role_vocabulary_is_closed() -> void
+	{
+		auto names = std::vector<std::string_view>{ };
+		for (std::size_t index = 0U; index < appearance_role_count; ++index) {
+			const auto role = role_at(index);
+			const auto name = stable_name(role);
+			expect(!name.empty(), "every role carries a stable identifier");
+			expect(index_of(role) == index, "every role indexes its own palette slot");
+			const auto found = find_appearance_role(name);
+			expect(found.has_value() && *found == role,
+				   "every role identifier resolves back to its own role");
+			expect(std::ranges::find(names, name) == names.end(),
+				   "role identifiers are distinct");
+			names.push_back(name);
+		}
+		expect(names.size() == appearance_role_count,
+			   "the vocabulary covers every declared role exactly once");
+
+		expect(!find_appearance_role("").has_value()
+				   && !find_appearance_role("syntax_macro").has_value()
+				   && !find_appearance_role("Syntax_Keyword").has_value()
+				   && !find_appearance_role("code_background ").has_value(),
+			   "an identifier outside the closed vocabulary is refused");
+
+		auto       palette  = appearance_palette{ };
+		const auto emphasis = appearance_color{
+			.Red = 12U, .Green = 34U, .Blue = 56U, .Alpha = 200U
+		};
+		palette[index_of(appearance_role::diff_intraline_added_background)] = emphasis;
+		expect(palette.size() == appearance_role_count,
+			   "a palette is a total mapping over the closed vocabulary");
+		expect(palette[index_of(appearance_role::diff_intraline_added_background)] == emphasis,
+			   "a role reads back the colour written through its own slot");
+		expect(palette[index_of(appearance_role::diff_added_background)]
+				   == appearance_color{ .Red = 0U, .Green = 0U, .Blue = 0U, .Alpha = 255U },
+			   "distinct roles do not share a palette slot");
+	}
+
+	[[nodiscard]] auto legal_settings() -> typography_settings
+	{
+		auto settings             = typography_settings{ };
+		settings.Ui.Family        = "Sample Interface Family";
+		settings.Code.Font.Family = "Sample Code Family";
+		return settings;
+	}
+
+	[[nodiscard]] auto only_rejection(const std::vector<typography_rejection>& aRejections)
+		-> typography_rejection
+	{
+		expect(aRejections.size() == 1U, "exactly one value is rejected");
+		return aRejections.front();
+	}
+
+	[[nodiscard]] auto font_of(
+		typography_settings&    aSettings,
+		const typography_target aTarget) -> font_settings&
+	{
+		return aTarget == typography_target::ui_font ? aSettings.Ui : aSettings.Code.Font;
+	}
+
+	auto assign(
+		font_settings&         aFont,
+		const typography_field aField,
+		const std::uint32_t    aValue) -> void
+	{
+		switch (aField) {
+		case typography_field::point_size:
+			aFont.PointSizeCentipoints = aValue;
+			break;
+		case typography_field::weight:
+			aFont.Weight = aValue;
+			break;
+		case typography_field::line_height:
+			aFont.LineHeightPercent = aValue;
+			break;
+		case typography_field::family:
+		case typography_field::tab_width:
+			expect(false, "only the numeric font fields are assignable here");
+			break;
+		}
+	}
+
+	auto test_the_core_invents_no_font_family() -> void
+	{
+		const auto defaulted = validate_typography(typography_settings{ });
+		expect(defaulted
+				   == std::vector<typography_rejection>{
+					   { .Target = typography_target::ui_font,
+						 .Field  = typography_field::family,
+						 .Reason = typography_reason::below_minimum },
+					   { .Target = typography_target::code_font,
+						 .Field  = typography_field::family,
+						 .Reason = typography_reason::below_minimum },
+				   },
+			   "the core invents no family, so a defaulted record is illegal on both families alone");
+		expect(validate_typography(legal_settings()).empty(),
+			   "the numeric defaults are legal once the host supplies both families");
+
+		const auto bounds        = bounds_of(typography_field::family);
+		auto       longest       = legal_settings();
+		longest.Code.Font.Family = std::string(bounds.Maximum, 'a');
+		expect(validate_typography(longest).empty(),
+			   "a family name of exactly the maximum length is legal");
+
+		auto tooLong             = legal_settings();
+		tooLong.Code.Font.Family = std::string(bounds.Maximum + 1U, 'a');
+		expect(only_rejection(validate_typography(tooLong))
+				   == typography_rejection{
+					   .Target = typography_target::code_font,
+					   .Field  = typography_field::family,
+					   .Reason = typography_reason::above_maximum },
+			   "one byte over the published family maximum is rejected as too long");
+
+		auto malformed      = legal_settings();
+		malformed.Ui.Family = "Sample\nFamily";
+		expect(only_rejection(validate_typography(malformed))
+				   == typography_rejection{
+					   .Target = typography_target::ui_font,
+					   .Field  = typography_field::family,
+					   .Reason = typography_reason::malformed_value },
+			   "a control byte in a family name is refused under its own typed reason");
+
+		auto nonAscii      = legal_settings();
+		nonAscii.Ui.Family = "\xe3\x83\x92\xe3\x83\xa9\xe3\x82\xae\xe3\x83\x8e";
+		expect(validate_typography(nonAscii).empty(),
+			   "a non-ASCII family name is opaque to the core, not malformed");
+	}
+
+	auto test_typography_bounds_are_enforced_exactly() -> void
+	{
+		constexpr auto numericFields = std::array{
+			typography_field::point_size,
+			typography_field::weight,
+			typography_field::line_height,
+		};
+		constexpr auto targets = std::array{
+			typography_target::ui_font,
+			typography_target::code_font,
+		};
+
+		for (const auto field : numericFields) {
+			const auto bounds = bounds_of(field);
+			expect(bounds.Minimum > 0U && bounds.Maximum > bounds.Minimum,
+				   "every bounded field publishes a usable inclusive range");
+
+			for (const auto target : targets) {
+				auto below = legal_settings();
+				assign(font_of(below, target), field, bounds.Minimum - 1U);
+				expect(only_rejection(validate_typography(below))
+						   == typography_rejection{
+							   .Target = target,
+							   .Field  = field,
+							   .Reason = typography_reason::below_minimum },
+					   "one step under the published minimum is rejected with its exact typed reason");
+
+				auto above = legal_settings();
+				assign(font_of(above, target), field, bounds.Maximum + 1U);
+				expect(only_rejection(validate_typography(above))
+						   == typography_rejection{
+							   .Target = target,
+							   .Field  = field,
+							   .Reason = typography_reason::above_maximum },
+					   "one step over the published maximum is rejected with its exact typed reason");
+
+				auto atMinimum = legal_settings();
+				assign(font_of(atMinimum, target), field, bounds.Minimum);
+				auto atMaximum = legal_settings();
+				assign(font_of(atMaximum, target), field, bounds.Maximum);
+				expect(validate_typography(atMinimum).empty()
+						   && validate_typography(atMaximum).empty(),
+					   "both published edges are legal");
+			}
+		}
+
+		const auto tabBounds    = bounds_of(typography_field::tab_width);
+		auto       tooNarrow    = legal_settings();
+		tooNarrow.Code.TabWidth = tabBounds.Minimum - 1U;
+		expect(only_rejection(validate_typography(tooNarrow))
+				   == typography_rejection{
+					   .Target = typography_target::code_font,
+					   .Field  = typography_field::tab_width,
+					   .Reason = typography_reason::below_minimum },
+			   "a tab width under the published minimum is rejected with its exact typed reason");
+
+		auto tooWide          = legal_settings();
+		tooWide.Code.TabWidth = tabBounds.Maximum + 1U;
+		expect(only_rejection(validate_typography(tooWide))
+				   == typography_rejection{
+					   .Target = typography_target::code_font,
+					   .Field  = typography_field::tab_width,
+					   .Reason = typography_reason::above_maximum },
+			   "a tab width over the published maximum is rejected with its exact typed reason");
+
+		auto narrowest          = legal_settings();
+		narrowest.Code.TabWidth = tabBounds.Minimum;
+		auto widest             = legal_settings();
+		widest.Code.TabWidth    = tabBounds.Maximum;
+		expect(validate_typography(narrowest).empty() && validate_typography(widest).empty(),
+			   "both published tab-width edges are legal");
+
+		for (std::uint32_t mask = 0U; mask < 8U; ++mask) {
+			auto settings              = legal_settings();
+			settings.Code.Ligatures    = (mask & 1U) != 0U;
+			settings.Code.SyntaxBold   = (mask & 2U) != 0U;
+			settings.Code.SyntaxItalic = (mask & 4U) != 0U;
+			expect(validate_typography(settings).empty(),
+				   "no combination of the boolean code switches is illegal");
+		}
+	}
+
+	auto test_every_violation_is_reported_in_order() -> void
+	{
+		auto settings = legal_settings();
+		settings.Ui.Family.clear();
+		settings.Ui.PointSizeCentipoints        = 1U;
+		settings.Ui.Weight                      = 5000U;
+		settings.Ui.LineHeightPercent           = 1U;
+		settings.Code.Font.PointSizeCentipoints = 999999U;
+		settings.Code.TabWidth                  = 0U;
+
+		const auto expected = std::vector<typography_rejection>{
+			{ .Target = typography_target::ui_font,
+			  .Field  = typography_field::family,
+			  .Reason = typography_reason::below_minimum },
+			{ .Target = typography_target::ui_font,
+			  .Field  = typography_field::point_size,
+			  .Reason = typography_reason::below_minimum },
+			{ .Target = typography_target::ui_font,
+			  .Field  = typography_field::weight,
+			  .Reason = typography_reason::above_maximum },
+			{ .Target = typography_target::ui_font,
+			  .Field  = typography_field::line_height,
+			  .Reason = typography_reason::below_minimum },
+			{ .Target = typography_target::code_font,
+			  .Field  = typography_field::point_size,
+			  .Reason = typography_reason::above_maximum },
+			{ .Target = typography_target::code_font,
+			  .Field  = typography_field::tab_width,
+			  .Reason = typography_reason::below_minimum },
+		};
+		expect(validate_typography(settings) == expected,
+			   "every violation is reported once in the documented order");
+	}
+} // namespace
+
+int main()
+{
+	test_system_mode_follows_the_observed_scheme();
+	test_high_contrast_preference_selects_or_recommends();
+	test_resolution_is_total_and_self_consistent();
+	test_mode_identifiers_round_trip();
+	test_role_vocabulary_is_closed();
+	test_the_core_invents_no_font_family();
+	test_typography_bounds_are_enforced_exactly();
+	test_every_violation_is_reported_in_order();
+	return EXIT_SUCCESS;
+}

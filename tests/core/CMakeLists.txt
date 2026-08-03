@@ -138,3 +138,21 @@ add_test(
     NAME core_workbench_interaction
     COMMAND test_better_pull_review_workbench_interaction_core_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_appearance_core_tests
+    appearance_model_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_appearance_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_appearance_core_tests)
+bpr_enable_warnings(test_better_pull_review_appearance_core_tests)
+
+add_test(
+    NAME core_appearance_policy
+    COMMAND test_better_pull_review_appearance_core_tests
+)
