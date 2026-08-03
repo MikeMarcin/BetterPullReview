@@ -10,6 +10,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QLabel>
@@ -23,26 +24,32 @@
 	#include <QDir>
 	#include <QFile>
 	#include <QFileInfo>
+	#include <QFont>
 	#include <QGuiApplication>
 	#include <QImage>
 	#include <QItemSelectionModel>
 	#include <QMessageBox>
+	#include <QMouseEvent>
 	#include <QPalette>
 	#include <QPersistentModelIndex>
 	#include <QPlainTextEdit>
 	#include <QPushButton>
 	#include <QScrollArea>
+	#include <QSplitter>
 	#include <QStyle>
 	#include <QStyleHints>
 	#include <QTreeView>
+	#include <QWheelEvent>
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -354,14 +361,20 @@ namespace {
 			QImage                                       InitialRender;
 			QImage                                       ChangedRender;
 			std::optional<bpr::core::semantic_selection> InitialDiffSelection;
+			QPalette                                     InitialDiffPalette;
+			QPalette                                     ObservedDiffPalette;
+			QFont                                        InitialDiffFont;
+			QFont                                        ObservedDiffFont;
 			std::uint64_t                                InitialDiffGeometryRebuilds = 0U;
+			std::uint64_t                                DiffGeometryRebuildDelta    = 0U;
 			native_appearance_evidence_paths             EvidencePaths;
 		};
 
-		bool                                         Fixture           = false;
-		bool                                         DiffProbe         = false;
-		bool                                         DiffShutdownProbe = false;
-		bool                                         DiffRequested     = false;
+		bool                                         Fixture                       = false;
+		bool                                         DiffProbe                     = false;
+		bool                                         DiffShutdownProbe             = false;
+		bool                                         DiffInteractionEvidencePassed = false;
+		bool                                         DiffRequested                 = false;
 		std::string                                  FixtureName;
 		std::string                                  ExpectedActiveHostText;
 		bpr::app::detail::github_epoch_fixture_phase EpochPhase = bpr::app::detail::github_epoch_fixture_phase::single;
@@ -371,16 +384,17 @@ namespace {
 			verify_pruned_and_delete,
 			verify_deleted,
 		};
-		epoch_maintenance_probe       MaintenanceProbe = epoch_maintenance_probe::none;
-		bpr::core::review_epoch_id    MaintenanceTarget;
-		int                           MaintenanceLeftRow       = -1;
-		int                           MaintenanceRightRow      = -1;
-		int                           MaintenanceAccountReads  = 0;
-		int                           MaintenanceSmartAcquires = 0;
-		std::size_t                   MaintenanceModelResets   = 0U;
-		int                           EpochLeftRow             = -1;
-		int                           EpochRightRow            = -1;
-		native_appearance_probe_state Appearance;
+		epoch_maintenance_probe         MaintenanceProbe = epoch_maintenance_probe::none;
+		bpr::core::review_epoch_id      MaintenanceTarget;
+		int                             MaintenanceLeftRow       = -1;
+		int                             MaintenanceRightRow      = -1;
+		int                             MaintenanceAccountReads  = 0;
+		int                             MaintenanceSmartAcquires = 0;
+		std::size_t                     MaintenanceModelResets   = 0U;
+		int                             EpochLeftRow             = -1;
+		int                             EpochRightRow            = -1;
+		native_appearance_probe_state   Appearance;
+		std::optional<std::string_view> DiffEvidenceDirectory;
 #endif
 		std::optional<std::string_view> RenderPath;
 	};
@@ -512,6 +526,22 @@ namespace {
 			&& contrast(QPalette::Base, QPalette::Text);
 	}
 
+	[[nodiscard]] auto native_palette_fingerprint(
+		const QPalette& aPalette) -> QString
+	{
+		return aPalette.color(QPalette::Window).name(QColor::HexArgb)
+			+ u':' + aPalette.color(QPalette::Base).name(QColor::HexArgb)
+			+ u':' + aPalette.color(QPalette::Text).name(QColor::HexArgb)
+			+ u':' + aPalette.color(QPalette::WindowText).name(QColor::HexArgb);
+	}
+
+	void settle_automated_events()
+	{
+		for (auto count = 0; count < 4; ++count) {
+			QApplication::processEvents();
+		}
+	}
+
 	[[nodiscard]] auto native_appearance_light_state_passed(
 		const bpr::qt::github_window& aWindow,
 		const automated_run&          aRun) -> bool
@@ -537,21 +567,23 @@ namespace {
 		const bpr::qt::github_window& aWindow,
 		const automated_run&          aRun) -> bool
 	{
-		const auto& finalPalette       = aWindow.palette();
-		const auto  initialWindow      = aRun.Appearance.InitialPalette.color(QPalette::Window).lightness();
-		const auto  initialBase        = aRun.Appearance.InitialPalette.color(QPalette::Base).lightness();
-		const auto  initialText        = aRun.Appearance.InitialPalette.color(QPalette::Text).lightness();
-		const auto  finalWindow        = finalPalette.color(QPalette::Window).lightness();
-		const auto  finalBase          = finalPalette.color(QPalette::Base).lightness();
-		const auto  finalText          = finalPalette.color(QPalette::Text).lightness();
-		const auto  initialEpoch       = aRun.Appearance.InitialEpochPalette;
-		const auto  finalEpoch         = aWindow.epoch_control()->palette();
-		const auto  initialEpochWindow = initialEpoch.color(QPalette::Window).lightness();
-		const auto  initialEpochBase   = initialEpoch.color(QPalette::Base).lightness();
-		const auto  initialEpochText   = initialEpoch.color(QPalette::Text).lightness();
-		const auto  finalEpochWindow   = finalEpoch.color(QPalette::Window).lightness();
-		const auto  finalEpochBase     = finalEpoch.color(QPalette::Base).lightness();
-		const auto  finalEpochText     = finalEpoch.color(QPalette::Text).lightness();
+		const auto&       finalPalette       = aWindow.palette();
+		const auto        initialWindow      = aRun.Appearance.InitialPalette.color(QPalette::Window).lightness();
+		const auto        initialBase        = aRun.Appearance.InitialPalette.color(QPalette::Base).lightness();
+		const auto        initialText        = aRun.Appearance.InitialPalette.color(QPalette::Text).lightness();
+		const auto        finalWindow        = finalPalette.color(QPalette::Window).lightness();
+		const auto        finalBase          = finalPalette.color(QPalette::Base).lightness();
+		const auto        finalText          = finalPalette.color(QPalette::Text).lightness();
+		const auto        initialEpoch       = aRun.Appearance.InitialEpochPalette;
+		const auto        finalEpoch         = aWindow.epoch_control()->palette();
+		const auto        initialEpochWindow = initialEpoch.color(QPalette::Window).lightness();
+		const auto        initialEpochBase   = initialEpoch.color(QPalette::Base).lightness();
+		const auto        initialEpochText   = initialEpoch.color(QPalette::Text).lightness();
+		const auto        finalEpochWindow   = finalEpoch.color(QPalette::Window).lightness();
+		const auto        finalEpochBase     = finalEpoch.color(QPalette::Base).lightness();
+		const auto        finalEpochText     = finalEpoch.color(QPalette::Text).lightness();
+		const auto* const workbench          = aWindow.diff_comparison_workbench();
+		const auto&       finalDiffPalette   = workbench->palette();
 
 		return aRun.Appearance.SignalObserved
 			&& aRun.Appearance.InitialColorScheme == Qt::ColorScheme::Light
@@ -572,10 +604,13 @@ namespace {
 			&& finalEpochWindow < finalEpochText
 			&& finalEpochBase < finalEpochText
 			&& native_palette_readable(finalEpoch)
+			&& finalDiffPalette != aRun.Appearance.InitialDiffPalette
+			&& native_palette_readable(finalDiffPalette)
+			&& workbench->font() == aRun.Appearance.InitialDiffFont
 			&& aWindow.epoch_control()->statistics().AppearanceUpdates
 			> aRun.Appearance.InitialEpochAppearanceUpdates
-			&& aWindow.diff_comparison_workbench()->statistics().GeometryRebuilds
-			> aRun.Appearance.InitialDiffGeometryRebuilds
+			&& workbench->statistics().GeometryRebuilds
+			== aRun.Appearance.InitialDiffGeometryRebuilds + 1U
 			&& native_appearance_context_passed(aWindow, aRun);
 	}
 
@@ -672,8 +707,10 @@ namespace {
 		aRun.Appearance.InitialEpochPalette           = control->palette();
 		aRun.Appearance.InitialEpochAppearanceUpdates = control->statistics().AppearanceUpdates;
 		aRun.Appearance.InitialDiffSelection          = workbench->selection();
-		aRun.Appearance.InitialDiffGeometryRebuilds
-			= workbench->statistics().GeometryRebuilds;
+		aRun.Appearance.InitialDiffPalette            = workbench->palette();
+		aRun.Appearance.ObservedDiffPalette           = workbench->palette();
+		aRun.Appearance.InitialDiffFont               = workbench->font();
+		aRun.Appearance.ObservedDiffFont              = workbench->font();
 		view->setCurrentIndex(thread);
 		view->selectionModel()->select(
 			thread,
@@ -684,7 +721,9 @@ namespace {
 		if (auto* const scroll = qobject_cast<QScrollArea*>(aWindow.centralWidget())) {
 			scroll->ensureWidgetVisible(workbench, 24, 24);
 		}
-		QApplication::processEvents();
+		settle_automated_events();
+		aRun.Appearance.InitialDiffGeometryRebuilds
+			= workbench->statistics().GeometryRebuilds;
 		aRun.Appearance.InitialWindowActive = aWindow.isActiveWindow();
 		aRun.Appearance.InitialFocus        = QApplication::focusWidget();
 		if (!native_appearance_light_state_passed(aWindow, aRun)) {
@@ -735,6 +774,432 @@ namespace {
 			   << '\n';
 		stream.flush();
 		return true;
+	}
+
+	template <typename Identity>
+	[[nodiscard]] auto diff_evidence_identity_hex(
+		const Identity& aIdentity) -> QString
+	{
+		static constexpr auto digits  = std::string_view{ "0123456789abcdef" };
+		auto                  encoded = QByteArray{ };
+		for (const auto byte : aIdentity.bytes()) {
+			encoded.append(digits[byte >> 4U]);
+			encoded.append(digits[byte & 0x0FU]);
+		}
+		return QString::fromLatin1(encoded);
+	}
+
+	template <typename Identity>
+	[[nodiscard]] auto diff_evidence_json_identity(
+		const std::optional<Identity>& aIdentity) -> QString
+	{
+		return aIdentity.has_value()
+			? QStringLiteral("\"") + diff_evidence_identity_hex(*aIdentity)
+				+ QStringLiteral("\"")
+			: QStringLiteral("null");
+	}
+
+	[[nodiscard]] auto diff_evidence_json_string(QString aValue) -> QString
+	{
+		aValue.replace(u'\\', QStringLiteral("\\\\"));
+		aValue.replace(u'\"', QStringLiteral("\\\""));
+		aValue.replace(u'\n', QStringLiteral("\\n"));
+		aValue.replace(u'\r', QStringLiteral("\\r"));
+		return QStringLiteral("\"") + aValue + QStringLiteral("\"");
+	}
+
+	[[nodiscard]] auto send_diff_evidence_wheel(
+		QWidget&      aSurface,
+		const QPoint& aPixel) -> bool
+	{
+		auto event = QWheelEvent{
+			QPointF{ 8.0, 8.0 },
+			QPointF{ 8.0, 8.0 },
+			aPixel,
+			{ },
+			Qt::NoButton,
+			Qt::NoModifier,
+			Qt::NoScrollPhase,
+			false,
+		};
+		event.ignore();
+		QCoreApplication::sendEvent(&aSurface, &event);
+		return event.isAccepted();
+	}
+
+	void send_diff_evidence_click(
+		QWidget&       aSurface,
+		const QPointF& aPosition)
+	{
+		auto press = QMouseEvent{
+			QEvent::MouseButtonPress,
+			aPosition,
+			aPosition,
+			aPosition,
+			Qt::LeftButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		auto release = QMouseEvent{
+			QEvent::MouseButtonRelease,
+			aPosition,
+			aPosition,
+			aPosition,
+			Qt::LeftButton,
+			Qt::NoButton,
+			Qt::NoModifier,
+		};
+		QCoreApplication::sendEvent(&aSurface, &press);
+		QCoreApplication::sendEvent(&aSurface, &release);
+	}
+
+	[[nodiscard]] auto capture_diff_interaction_evidence(
+		bpr::qt::github_window&                aWindow,
+		const std::optional<std::string_view>& aRawDirectory) -> bool
+	{
+		if (!aRawDirectory.has_value() || aRawDirectory->empty()) {
+			return false;
+		}
+		const auto directoryPath = QString::fromUtf8(
+			aRawDirectory->data(), static_cast<qsizetype>(aRawDirectory->size()));
+		if (!QDir{ }.mkpath(directoryPath)) {
+			return false;
+		}
+		const auto directory = QDir{ directoryPath };
+		auto       trace     = QFile{
+			directory.filePath(QStringLiteral("interaction-trace.jsonl"))
+		};
+		if (!trace.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+			return false;
+		}
+
+		auto* const workbench = aWindow.diff_comparison_workbench();
+		if (workbench == nullptr || workbench->current_result() == nullptr
+			|| !workbench->current_context().has_value()
+			|| !workbench->selection().has_value()) {
+			return false;
+		}
+		auto* const controller = workbench->scroll_controller();
+		const auto& alignment  = workbench->current_result()->Alignment;
+		const auto  findFirst  = [&alignment](const bpr::core::alignment_kind aKind)
+			-> const bpr::core::alignment_segment* {
+			const auto found = std::ranges::find_if(
+				alignment.Segments,
+				[aKind](const auto& aSegment) { return aSegment.Kind == aKind; });
+			return found != alignment.Segments.end() ? &*found : nullptr;
+		};
+		const auto findLast = [&alignment](const bpr::core::alignment_kind aKind)
+			-> const bpr::core::alignment_segment* {
+			const auto found = std::ranges::find_if(
+				alignment.Segments.rbegin(),
+				alignment.Segments.rend(),
+				[aKind](const auto& aSegment) { return aSegment.Kind == aKind; });
+			return found != alignment.Segments.rend() ? &*found : nullptr;
+		};
+		const auto* const matching    = findLast(bpr::core::alignment_kind::equal);
+		const auto* const replacement = findFirst(
+			bpr::core::alignment_kind::replacement);
+		const auto* const deletion  = findFirst(bpr::core::alignment_kind::left_only);
+		const auto* const insertion = findFirst(bpr::core::alignment_kind::right_only);
+		if (matching == nullptr || replacement == nullptr || deletion == nullptr
+			|| insertion == nullptr) {
+			return false;
+		}
+
+		const auto initialContext = *workbench->current_context();
+		const auto initialStats   = workbench->statistics();
+		const auto capture        = [&](const std::string_view aStep) {
+			settle_automated_events();
+			const auto& retained  = controller->current_frame();
+			const auto& rendered  = workbench->link_map()->current_frame();
+			const auto& selection = workbench->selection();
+			if (!retained.has_value() || !rendered.has_value()
+				|| !workbench->current_context().has_value()
+				|| !selection.has_value()) {
+				return false;
+			}
+			const auto step = QString::fromLatin1(
+				aStep.data(), static_cast<qsizetype>(aStep.size()));
+			const auto imageName = step + QStringLiteral(".png");
+			if (!aWindow.grab().save(directory.filePath(imageName), "PNG")) {
+				return false;
+			}
+			const auto& frame     = *retained;
+			const auto  stats     = workbench->statistics();
+			const auto  linkStats = workbench->link_map()->statistics();
+			auto        stream    = QTextStream{ &trace };
+			stream << "{\"step\":" << diff_evidence_json_string(step) << ','
+				   << "\"render_file\":" << diff_evidence_json_string(imageName)
+				   << ",\"qt_platform\":"
+				   << diff_evidence_json_string(QGuiApplication::platformName())
+				   << ",\"qt_style\":"
+				   << diff_evidence_json_string(QString::fromLatin1(
+						  QApplication::style()->metaObject()->className()))
+				   << ",\"device_pixel_ratio\":"
+				   << QString::number(aWindow.devicePixelRatioF(), 'f', 6)
+				   << ",\"font_family\":"
+				   << diff_evidence_json_string(aWindow.font().family())
+				   << ",\"font_point_size\":"
+				   << QString::number(aWindow.font().pointSizeF(), 'f', 6)
+				   << ",\"window_width\":" << aWindow.width()
+				   << ",\"window_height\":" << aWindow.height()
+				   << ",\"comparison_position\":"
+				   << QString::number(frame.Position, 'f', 6)
+				   << ",\"active_segment_id\":"
+				   << diff_evidence_json_identity(frame.Segment)
+				   << ",\"left_projected_document_y\":"
+				   << QString::number(frame.Left.ProjectedDocumentY, 'f', 6)
+				   << ",\"right_projected_document_y\":"
+				   << QString::number(frame.Right.ProjectedDocumentY, 'f', 6)
+				   << ",\"left_requested_origin_y\":"
+				   << QString::number(frame.Left.DocumentOriginY, 'f', 6)
+				   << ",\"right_requested_origin_y\":"
+				   << QString::number(frame.Right.DocumentOriginY, 'f', 6)
+				   << ",\"left_applied_origin_y\":"
+				   << QString::number(rendered->Left.DocumentOriginY, 'f', 6)
+				   << ",\"right_applied_origin_y\":"
+				   << QString::number(rendered->Right.DocumentOriginY, 'f', 6)
+				   << ",\"left_leading_clamped\":"
+				   << (frame.Left.LeadingClamped ? "true" : "false")
+				   << ",\"left_trailing_clamped\":"
+				   << (frame.Left.TrailingClamped ? "true" : "false")
+				   << ",\"right_leading_clamped\":"
+				   << (frame.Right.LeadingClamped ? "true" : "false")
+				   << ",\"right_trailing_clamped\":"
+				   << (frame.Right.TrailingClamped ? "true" : "false")
+				   << ",\"selected_group_id\":"
+				   << diff_evidence_json_identity(selection->Group)
+				   << ",\"selected_segment_id\":"
+				   << diff_evidence_json_identity(selection->Segment)
+				   << ",\"visible_ribbon_count\":"
+				   << static_cast<qulonglong>(workbench->link_map()->visible_links().size())
+				   << ",\"link_map_width\":" << workbench->link_map()->width()
+				   << ",\"link_map_height\":" << workbench->link_map()->height()
+				   << ",\"link_map_visible\":"
+				   << (workbench->link_map()->isVisible() ? "true" : "false")
+				   << ",\"link_map_retained_changes\":"
+				   << static_cast<qulonglong>(linkStats.RetainedChangedEntries)
+				   << ",\"link_map_candidate_entries\":"
+				   << static_cast<qulonglong>(linkStats.LastCandidateEntries)
+				   << ",\"link_map_frame_updates\":" << linkStats.FrameUpdates
+				   << ",\"link_map_selection_callbacks\":"
+				   << linkStats.SelectionCallbacks
+				   << ",\"link_map_rejected_frames\":"
+				   << linkStats.RejectedStaleFrames
+				   << ",\"geometry_generation\":" << stats.GeometryRebuilds
+				   << ",\"semantic_diff_generation\":"
+				   << workbench->current_context()->Generation.value()
+				   << ",\"semantic_index_builds\":" << stats.SemanticIndexBuilds
+				   << "}\n";
+			stream.flush();
+			return trace.error() == QFileDevice::NoError;
+		};
+
+		if (!capture("01-selected-composition")
+			|| !controller->reveal_segment(matching->Id, 0.2)) {
+			return false;
+		}
+		const auto matchingEarly = *controller->current_frame();
+		if (!capture("02-matching-early")
+			|| !controller->reveal_segment(matching->Id, 0.8)) {
+			return false;
+		}
+		const auto matchingLate = *controller->current_frame();
+		if (matchingLate.Left.ProjectedDocumentY
+				<= matchingEarly.Left.ProjectedDocumentY
+			|| matchingLate.Right.ProjectedDocumentY
+				<= matchingEarly.Right.ProjectedDocumentY
+			|| !capture("03-matching-late")) {
+			return false;
+		}
+
+		const auto inputOrigin = controller->maximum_position() * 0.45;
+		controller->set_position(inputOrigin);
+		if (!send_diff_evidence_wheel(
+				*workbench->left_pane()->viewport(), QPoint{ 0, -32 })) {
+			return false;
+		}
+		const auto leftInputPosition = controller->position();
+		if (!capture("04-left-pane-input")) {
+			return false;
+		}
+
+		if (!controller->reveal_segment(insertion->Id, 0.2)) {
+			return false;
+		}
+		const auto insertionEarly = *controller->current_frame();
+		if (!capture("05-insertion-early")
+			|| !controller->reveal_segment(insertion->Id, 0.8)) {
+			return false;
+		}
+		const auto insertionLate = *controller->current_frame();
+		if (std::abs(insertionLate.Left.ProjectedDocumentY
+					 - insertionEarly.Left.ProjectedDocumentY)
+				> 0.000'001
+			|| insertionLate.Right.ProjectedDocumentY
+				<= insertionEarly.Right.ProjectedDocumentY
+			|| !capture("06-insertion-late")) {
+			return false;
+		}
+		const auto insertionIterator = std::ranges::find(
+			alignment.Segments,
+			insertion->Id,
+			[](const auto& aSegment) { return aSegment.Id; });
+		if (insertionIterator == alignment.Segments.end()) {
+			return false;
+		}
+		const auto continuation = std::ranges::find_if(
+			insertionIterator + 1,
+			alignment.Segments.end(),
+			[](const auto& aSegment) {
+				return aSegment.Kind == bpr::core::alignment_kind::equal;
+			});
+		if (continuation == alignment.Segments.end()
+			|| !controller->reveal_segment(continuation->Id, 0.25)
+			|| !capture("07-matching-continuation")
+			|| !controller->reveal_segment(insertion->Id, 0.8)
+			|| !controller->reveal_segment(insertion->Id, 0.2)) {
+			return false;
+		}
+		const auto insertionReversed = *controller->current_frame();
+		if (std::abs(insertionReversed.Left.ProjectedDocumentY
+					 - insertionEarly.Left.ProjectedDocumentY)
+				> 0.000'001
+			|| std::abs(insertionReversed.Right.ProjectedDocumentY
+						- insertionEarly.Right.ProjectedDocumentY)
+				> 0.000'001
+			|| !capture("08-insertion-reversed")) {
+			return false;
+		}
+
+		controller->set_position(inputOrigin);
+		if (!send_diff_evidence_wheel(
+				*workbench->right_pane()->viewport(), QPoint{ 0, -32 })) {
+			return false;
+		}
+		const auto rightInputPosition = controller->position();
+		if (std::abs(rightInputPosition - leftInputPosition) > 0.000'001
+			|| !capture("09-right-pane-input")) {
+			return false;
+		}
+		controller->set_position(inputOrigin);
+		if (!send_diff_evidence_wheel(*workbench->link_map(), QPoint{ 0, -32 })
+			|| std::abs(controller->position() - leftInputPosition) > 0.000'001
+			|| !capture("10-divider-input")) {
+			return false;
+		}
+
+		if (!controller->reveal_segment(deletion->Id, 0.2)) {
+			return false;
+		}
+		const auto deletionEarly = *controller->current_frame();
+		if (!capture("11-deletion-early")
+			|| !controller->reveal_segment(deletion->Id, 0.8)) {
+			return false;
+		}
+		const auto deletionLate = *controller->current_frame();
+		if (deletionLate.Left.ProjectedDocumentY
+				<= deletionEarly.Left.ProjectedDocumentY
+			|| std::abs(deletionLate.Right.ProjectedDocumentY
+						- deletionEarly.Right.ProjectedDocumentY)
+				> 0.000'001
+			|| !capture("12-deletion-late")) {
+			return false;
+		}
+
+		if (!controller->reveal_segment(replacement->Id, 0.2)) {
+			return false;
+		}
+		const auto replacementEarly = *controller->current_frame();
+		if (!capture("13-replacement-early")
+			|| !controller->reveal_segment(replacement->Id, 0.8)) {
+			return false;
+		}
+		const auto replacementLate = *controller->current_frame();
+		const auto leftAdvance     = replacementLate.Left.ProjectedDocumentY
+			- replacementEarly.Left.ProjectedDocumentY;
+		const auto rightAdvance = replacementLate.Right.ProjectedDocumentY
+			- replacementEarly.Right.ProjectedDocumentY;
+		if (leftAdvance <= 0.0 || rightAdvance <= leftAdvance
+			|| !capture("14-replacement-late")) {
+			return false;
+		}
+
+		if (!controller->reveal_segment(replacement->Id, 0.5)) {
+			return false;
+		}
+		settle_automated_events();
+		const auto visible = workbench->link_map()->visible_links();
+		const auto ribbon  = std::ranges::find(
+			visible,
+			replacement->Id,
+			[](const bpr::qt::visible_diff_link& aLink) {
+				return aLink.Identity.Segment;
+			});
+		if (ribbon == visible.end() || ribbon->Path.isEmpty()) {
+			return false;
+		}
+		const auto point = ribbon->Path.boundingRect().center();
+		if (!ribbon->Path.contains(point)) {
+			return false;
+		}
+		const auto callbacksBeforeClick
+			= workbench->link_map()->statistics().SelectionCallbacks;
+		send_diff_evidence_click(*workbench->link_map(), point);
+		settle_automated_events();
+		if (!workbench->selection().has_value()
+			|| workbench->selection()->Group != ribbon->Identity.Group
+			|| !workbench->link_map()->selected().has_value()
+			|| workbench->link_map()->selected()->Group
+				!= workbench->selection()->Group
+			|| workbench->link_map()->statistics().SelectionCallbacks
+				!= callbacksBeforeClick + 1U
+			|| !workbench->detail_pane()->toPlainText().startsWith(
+				QStringLiteral("Change "))
+			|| !capture("15-ribbon-selection")) {
+			return false;
+		}
+
+		auto* const vertical = workbench->findChild<QSplitter*>(
+			QStringLiteral("diffWorkbenchVerticalSplitter"));
+		if (vertical == nullptr) {
+			return false;
+		}
+		const auto selectionBeforeResize = workbench->selection();
+		const auto rebuildsBeforeResize  = workbench->statistics().GeometryRebuilds;
+		const auto sizes                 = vertical->sizes();
+		const auto total                 = std::accumulate(sizes.begin(), sizes.end(), 0);
+		const auto smallerTop            = std::max(140, total / 3);
+		vertical->setSizes({ smallerTop, total - smallerTop });
+		settle_automated_events();
+		if (workbench->statistics().GeometryRebuilds != rebuildsBeforeResize + 1U
+			|| workbench->selection() != selectionBeforeResize
+			|| !capture("16-divider-resized")) {
+			return false;
+		}
+
+		controller->home();
+		if (std::abs(controller->position() - controller->minimum_position())
+				> 0.000'001
+			|| !capture("17-comparison-start")) {
+			return false;
+		}
+		controller->end();
+		if (std::abs(controller->position() - controller->maximum_position())
+				> 0.000'001
+			|| !capture("18-comparison-end")) {
+			return false;
+		}
+
+		const auto finalStats = workbench->statistics();
+		return workbench->current_context() == initialContext
+			&& finalStats.SemanticIndexBuilds == initialStats.SemanticIndexBuilds
+			&& workbench->shared_scrollbar()->isEnabled()
+			&& workbench->left_pane()->verticalScrollBarPolicy()
+			== Qt::ScrollBarAlwaysOff
+			&& workbench->right_pane()->verticalScrollBarPolicy()
+			== Qt::ScrollBarAlwaysOff
+			&& trace.error() == QFileDevice::NoError;
 	}
 #endif
 
@@ -1379,6 +1844,9 @@ namespace {
 		if (aRun.DiffProbe) {
 			stream << (passed ? "DIFF_WORKBENCH_OK\n"
 							  : "DIFF_WORKBENCH_FAILED\n");
+			stream << (aRun.DiffInteractionEvidencePassed
+						   ? "DIFF_INTERACTION_EVIDENCE_OK\n"
+						   : "DIFF_INTERACTION_EVIDENCE_FAILED\n");
 		}
 		if (aRun.DiffShutdownProbe) {
 			stream << (passed ? "DIFF_WORKBENCH_SHUTDOWN_OK\n"
@@ -1422,6 +1890,37 @@ namespace {
 				   << (aRun.Appearance.PixelsDiffer
 						   ? "NATIVE_APPEARANCE_PIXELS_DIFFER_OK\n"
 						   : "NATIVE_APPEARANCE_PIXELS_DIFFER_FAILED\n")
+				   << "NATIVE_APPEARANCE_DIFF_PALETTE_BEFORE:"
+				   << native_palette_fingerprint(
+						  aRun.Appearance.InitialDiffPalette)
+				   << '\n'
+				   << "NATIVE_APPEARANCE_DIFF_PALETTE_AFTER:"
+				   << native_palette_fingerprint(
+						  aRun.Appearance.ObservedDiffPalette)
+				   << '\n'
+				   << "NATIVE_APPEARANCE_DIFF_FONT_BEFORE:"
+				   << aRun.Appearance.InitialDiffFont.toString() << '\n'
+				   << "NATIVE_APPEARANCE_DIFF_FONT_AFTER:"
+				   << aRun.Appearance.ObservedDiffFont.toString() << '\n'
+				   << "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:"
+				   << aRun.Appearance.DiffGeometryRebuildDelta << '\n'
+				   << (aRun.Appearance.InitialDiffPalette
+								   != aRun.Appearance.ObservedDiffPalette
+							   && aRun.Appearance.StatePassed
+						   ? "NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_OK\n"
+						   : "NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_FAILED\n")
+				   << (aRun.Appearance.InitialDiffFont
+								   == aRun.Appearance.ObservedDiffFont
+							   && aRun.Appearance.StatePassed
+						   ? "NATIVE_APPEARANCE_DIFF_FONT_INHERITED_OK\n"
+						   : "NATIVE_APPEARANCE_DIFF_FONT_INHERITED_FAILED\n")
+				   << (aRun.Appearance.DiffGeometryRebuildDelta == 1U
+							   && aRun.Appearance.StatePassed
+						   ? "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_OK\n"
+						   : "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_FAILED\n")
+				   << (aRun.Appearance.StatePassed
+						   ? "NATIVE_APPEARANCE_DIFF_SELECTION_OK\n"
+						   : "NATIVE_APPEARANCE_DIFF_SELECTION_FAILED\n")
 				   << (renderSaved
 						   ? "NATIVE_APPEARANCE_CHANGED_RENDER_OK\n"
 						   : "NATIVE_APPEARANCE_CHANGED_RENDER_FAILED\n");
@@ -1712,25 +2211,39 @@ namespace {
 						if (workbench->current_result() == nullptr) {
 							break;
 						}
-						const auto ready = workbench->left_pane()->toPlainText()
-								== QStringLiteral("base\n")
-							&& workbench->right_pane()->toPlainText()
-								== QStringLiteral("base\nfirst review head\n")
+						const auto& segments = workbench->current_result()->Alignment.Segments;
+						const auto  hasKind  = [&segments](
+												   const bpr::core::alignment_kind aKind) {
+							return std::ranges::any_of(
+								segments,
+								[aKind](const auto& aSegment) {
+									return aSegment.Kind == aKind;
+								});
+						};
+						const auto ready = !workbench->left_pane()->toPlainText().isEmpty()
+							&& !workbench->right_pane()->toPlainText().isEmpty()
+							&& hasKind(bpr::core::alignment_kind::equal)
+							&& hasKind(bpr::core::alignment_kind::replacement)
+							&& hasKind(bpr::core::alignment_kind::left_only)
+							&& hasKind(bpr::core::alignment_kind::right_only)
 							&& workbench->selection().has_value()
 							&& workbench->link_map()->selected().has_value()
 							&& workbench->detail_pane()->toPlainText().startsWith(
-								QStringLiteral("Change 1 of 1"));
+								QStringLiteral("Change "));
 						window.resize(1'280, 1'000);
 						if (auto* const scroll = qobject_cast<QScrollArea*>(window.centralWidget())) {
 							scroll->ensureWidgetVisible(workbench, 24, 24);
 						}
 						QApplication::processEvents();
+						aRun->DiffInteractionEvidencePassed = ready
+							&& capture_diff_interaction_evidence(
+																  window, aRun->DiffEvidenceDirectory);
+						aRun->RenderSaved = aRun->DiffInteractionEvidencePassed
+							&& save_render_evidence(window, aRun->RenderPath);
 						const auto retainedResult    = workbench->current_result();
 						const auto retainedSelection = workbench->selection();
 						const auto retainedContext   = workbench->current_context();
-						aRun->RenderSaved            = ready
-							&& save_render_evidence(window, aRun->RenderPath);
-						const auto unchangedAccepted = ready
+						const auto unchangedAccepted = aRun->DiffInteractionEvidencePassed
 							&& bpr::app::detail::github_application_fixture_access::
 								reaccept_fixture_revision(aApplication, false);
 						QApplication::processEvents();
@@ -1742,7 +2255,8 @@ namespace {
 							&& bpr::app::detail::github_application_fixture_access::
 								reaccept_fixture_revision(aApplication, true);
 						QApplication::processEvents();
-						aRun->PresentationPassed = changedAccepted
+						aRun->PresentationPassed = aRun->DiffInteractionEvidencePassed
+							&& changedAccepted
 							&& workbench->current_result() == nullptr
 							&& !workbench->current_context().has_value()
 							&& workbench->status_text()
@@ -2105,6 +2619,20 @@ namespace {
 					&& QGuiApplication::styleHints()->colorScheme()
 						== Qt::ColorScheme::Dark
 					&& ++aRun->Appearance.SettleAttempts >= 50U) {
+					const auto* const appearanceWorkbench
+						= window.diff_comparison_workbench();
+					aRun->Appearance.ObservedDiffPalette
+						= appearanceWorkbench->palette();
+					aRun->Appearance.ObservedDiffFont
+						= appearanceWorkbench->font();
+					const auto finalGeometryRebuilds
+						= appearanceWorkbench->statistics().GeometryRebuilds;
+					aRun->Appearance.DiffGeometryRebuildDelta
+						= finalGeometryRebuilds
+							>= aRun->Appearance.InitialDiffGeometryRebuilds
+						? finalGeometryRebuilds
+							- aRun->Appearance.InitialDiffGeometryRebuilds
+						: 0U;
 					const auto stateBeforeRender = native_appearance_dark_state_passed(window, *aRun);
 					const auto changedRender     = stateBeforeRender
 						? capture_normalized_render(window)
@@ -2254,6 +2782,8 @@ auto main(int argc, char** argv) -> int
 		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
 		const auto diffWorkbenchShutdownProbe = has_argument(
 			argc, argv, "--diff-workbench-shutdown-probe");
+		const auto diffEvidenceDirectory = argument_value(
+			argc, argv, "--diff-interaction-evidence");
 		const auto changedRenderPath     = argument_value(argc, argv, "--changed-render-evidence");
 		auto       nativeAppearancePaths = std::optional<native_appearance_evidence_paths>{ };
 		if (nativeAppearanceProbe) {
@@ -2292,6 +2822,13 @@ auto main(int argc, char** argv) -> int
 						!= bpr::app::detail::github_public_path_fixture::github_com
 					|| fixtureOptions.EpochPhase
 						!= bpr::app::detail::github_epoch_fixture_phase::single))) {
+			QTextStream{ stdout }
+				<< "DIFF_WORKBENCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (
+			(diffWorkbenchProbe && !diffEvidenceDirectory.has_value())
+			|| (!diffWorkbenchProbe && diffEvidenceDirectory.has_value())) {
 			QTextStream{ stdout }
 				<< "DIFF_WORKBENCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
@@ -2351,6 +2888,7 @@ auto main(int argc, char** argv) -> int
 							.Enabled       = nativeAppearanceProbe,
 							.EvidencePaths = nativeAppearancePaths.value_or(native_appearance_evidence_paths{ }),
 						},
+						.DiffEvidenceDirectory = diffEvidenceDirectory,
 #endif
 						.RenderPath = renderPath,
 					}));

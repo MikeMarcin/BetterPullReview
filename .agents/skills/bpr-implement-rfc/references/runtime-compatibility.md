@@ -1,6 +1,6 @@
 # Runtime Compatibility
 
-Verified against the supplied portable-agent design as of 2026-08-01. This file describes current adapters, not permanent BetterPullReview skill semantics.
+Verified against the supplied portable-agent design as of 2026-08-02. This file describes current adapters, not permanent BetterPullReview skill semantics.
 
 ## Codex
 
@@ -53,7 +53,9 @@ Generated Claude agents:
 
 Parent permission modes can take precedence over a subagent's `permissionMode`. Before relying on read-only scouting or review, keep the parent in a permission mode that does not widen the child, and inspect `git status --short` after the run. The read-focused agents retain Bash so they can inspect Git state and execute verification; unexpected writes invalidate the result.
 
-The checked-in route requires Claude Code 2.1.219 or later because it uses Claude Opus 5. Worktree-isolated subagents received important main-checkout safety fixes by 2.1.210, but the default portable policy still does not enable static worktree isolation: a custom worktree subagent may branch from the repository's default branch rather than the primary session's current `HEAD`. Use worktree writers only after explicitly proving the desired base and integration behavior.
+The checked-in route requires Claude Code 2.1.219 or later, and that floor is load-bearing twice: Claude Opus 5 on the deep route needs 2.1.219, and 2.1.219 is also where the default nested-spawn depth returned to three layers below the main conversation. Claude Fable 5 on the deep-max route needs only 2.1.170 and supports the required `max` effort.
+
+Nested spawning is version-sensitive. A subagent may spawn children only when its definition lists the `Agent` tool, which is why the generated `rfc-utility` omits it; when the depth limit is reached, Claude Code withholds the `Agent` tool from a named subagent, which lands cleanly on the skill's serial fallback. Nesting first shipped in 2.1.172 with a default of five layers, was reduced to a default of one layer (nesting off) in 2.1.217–2.1.218, and defaults to three layers from 2.1.219 — so on exactly 2.1.217 or 2.1.218 the scout/worker/reviewer → `rfc-utility` pattern (two layers) silently degrades to serial execution unless `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is raised. Runtime ceilings sit far above the skill's recursive five-lane cap: 20 concurrent subagents (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, 2.1.217+) and 200 per session (`CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`, 2.1.212+). As with the Codex thread ceiling, the repository leaves these defaults as runtime headroom rather than pinning them; numeric caps cannot enforce role or ownership policy, so those rules stay in the canonical skill. Since 2.1.210, nested subagent output is scanned for instruction-shaped patterns before it returns to the parent. Worktree-isolated subagents (`isolation: worktree`) branch by documented design from the repository's default branch rather than the primary session's current `HEAD`, with main-checkout protection extended repository-wide in 2.1.210 and to Bash git redirection in 2.1.216. The default portable policy still does not enable static worktree isolation; use worktree writers only after explicitly proving the desired base and integration behavior.
 
 Claude Code officially discovers project skills from `.claude/skills/`; Codex uses the cross-client `.agents/skills/` location. The renderer therefore creates a small `.claude/skills/bpr-implement-rfc/SKILL.md` entrypoint that loads the canonical `.agents/skills/bpr-implement-rfc/SKILL.md`. Do not maintain two full skill copies.
 

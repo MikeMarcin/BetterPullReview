@@ -114,10 +114,17 @@ The six scale cases are deterministic layout, interaction, and raster
 evidence. The two public-path cases traverse the selected production
 composition and shutdown lane. The normal public path must emit
 `PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:github.com`, `DIFF_WORKBENCH_OK`, and
-`RENDER_OK`, and writes
-`build/dev/tests/end_to_end/diff-workbench-public-path.png`. Scale rasters are
-written below `build/dev/tests/adapters_qt/`. Offscreen output is not target-
-native System-theme or final presentation-polish evidence.
+`DIFF_INTERACTION_EVIDENCE_OK`, followed by `RENDER_OK`. It writes the final
+full-window raster to
+`build/dev/tests/end_to_end/diff-workbench-public-path.png` and an 18-step
+rendered interaction sequence plus `interaction-trace.jsonl` below
+`build/dev/tests/end_to_end/bpr-0083-diff-interaction/`. The trace records the
+retained comparison position, active segment, projected coordinates,
+requested and applied pane origins, clamp state, selected identities,
+link-map dimensions, visible-set work, and selection-callback counts, geometry
+generation, and semantic generation for every rendered frame. Scale rasters are written below
+`build/dev/tests/adapters_qt/`. Offscreen output is not target-native
+System-theme or final presentation-polish evidence.
 
 Windows developers and release operators use the conditional
 multi-configuration preset that selects the Visual Studio 2022 x64 generator:
@@ -909,6 +916,10 @@ for bpr_marker in \
   'NATIVE_APPEARANCE_SIGNAL_OK' \
   'NATIVE_APPEARANCE_STATE_OK' \
   'NATIVE_APPEARANCE_PIXELS_DIFFER_OK' \
+  'NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_OK' \
+  'NATIVE_APPEARANCE_DIFF_FONT_INHERITED_OK' \
+  'NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_OK' \
+  'NATIVE_APPEARANCE_DIFF_SELECTION_OK' \
   'NATIVE_APPEARANCE_CHANGED_RENDER_OK'
 do
   grep -qx "$bpr_marker" "$bpr_log"
@@ -923,10 +934,14 @@ cat "$bpr_log"
 
 Inspect both PNGs directly after the trap has restored the desktop. The Light
 and Dark images must show the same loaded GitHub.com selection, focus, and
-collapsed conversation state, with native Cocoa/QMacStyle controls and
-readable contrast. The probe's persisted-image check reloads the exact
-in-memory pixels. Before persistence, it also requires equal raster geometry,
-equal device-pixel ratio, and different pixels. Application-local
+collapsed conversation state and the same selected file comparison, with
+native Cocoa/QMacStyle controls and readable contrast. Retain the serialized
+`NATIVE_APPEARANCE_DIFF_PALETTE_BEFORE/AFTER`,
+`NATIVE_APPEARANCE_DIFF_FONT_BEFORE/AFTER`, and
+`NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:1` lines with the marker
+results. The probe's persisted-image check reloads the exact in-memory pixels.
+Before persistence, it also requires equal raster geometry, equal
+device-pixel ratio, and different pixels. Application-local
 `QStyleHints` overrides, offscreen or forced-style renders, missing markers,
 or a setting that was not restored are not acceptance evidence. This remains
 a local target-native check; GitHub Actions has no role.

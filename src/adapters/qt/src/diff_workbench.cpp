@@ -36,14 +36,15 @@ namespace bpr::qt {
 		public:
 			using QPlainTextEdit::QPlainTextEdit;
 
-			void set_document_origin(const qreal aOrigin, const qreal aMaximumOrigin)
+			[[nodiscard]] auto set_document_origin(
+				const qreal aOrigin, const qreal aMaximumOrigin) -> qreal
 			{
 				auto* const bar = verticalScrollBar();
 				if (bar == nullptr || aMaximumOrigin <= 0.0 || bar->maximum() <= bar->minimum()) {
 					if (bar != nullptr) {
 						bar->setValue(bar->minimum());
 					}
-					return;
+					return 0.0;
 				}
 				const auto fraction = std::clamp(aOrigin / aMaximumOrigin, 0.0, 1.0);
 				const auto value    = std::lerp(
@@ -51,19 +52,10 @@ namespace bpr::qt {
 					static_cast<qreal>(bar->maximum()),
 					fraction);
 				bar->setValue(static_cast<int>(std::llround(value)));
-			}
-
-			[[nodiscard]] auto actual_document_origin() const noexcept -> qreal
-			{
-				const auto block = firstVisibleBlock();
-				if (!block.isValid()) {
-					return 0.0;
-				}
-				const auto documentTop = blockBoundingGeometry(block).top();
-				const auto viewportTop = blockBoundingGeometry(block)
-											 .translated(contentOffset())
-											 .top();
-				return std::max(0.0, documentTop - viewportTop);
+				const auto appliedFraction = static_cast<qreal>(
+												 bar->value() - bar->minimum())
+					/ static_cast<qreal>(bar->maximum() - bar->minimum());
+				return appliedFraction * aMaximumOrigin;
 			}
 		};
 
@@ -653,22 +645,20 @@ namespace bpr::qt {
 		ApplyingFrame          = true;
 		const auto* const axis = AxisCache.axis();
 		if (axis != nullptr && axis->comparison() == aFrame.Comparison) {
-			pane(Left)->set_document_origin(
+			auto rendered                 = aFrame;
+			rendered.Left.DocumentOriginY = pane(Left)->set_document_origin(
 				aFrame.Left.DocumentOriginY,
 				std::max(
 					0.0,
 					axis->left_document_extent()
 						- axis->left_viewport_extent()));
-			pane(Right)->set_document_origin(
+			rendered.Right.DocumentOriginY = pane(Right)->set_document_origin(
 				aFrame.Right.DocumentOriginY,
 				std::max(
 					0.0,
 					axis->right_document_extent()
 						- axis->right_viewport_extent()));
-			auto rendered                  = aFrame;
-			rendered.Left.DocumentOriginY  = pane(Left)->actual_document_origin();
-			rendered.Right.DocumentOriginY = pane(Right)->actual_document_origin();
-			rendered.Left.ViewportY        = rendered.Left.ProjectedDocumentY
+			rendered.Left.ViewportY = rendered.Left.ProjectedDocumentY
 				- rendered.Left.DocumentOriginY;
 			rendered.Right.ViewportY = rendered.Right.ProjectedDocumentY
 				- rendered.Right.DocumentOriginY;

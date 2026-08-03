@@ -88,9 +88,9 @@ namespace bpr::app::detail {
 			// strict connected-pack import through the public application.
 			deterministic_git_fixture()
 				: PackOne{ QByteArray::fromBase64(QByteArrayLiteral(
-					  "UEFDSwAAAAIAAAAGmxF4nK3MQYoDIRQE0L2ncD8Q/BpbhWEYssh6yA3UXxKh0x3ETnL89HTIDVKrWryq3gCpYsqRvHFsGKS8L8ki5AFFcxiY2Or9ANLiGhumLo12VjPlDMtw1kWyDl6Z4lViDq7oFIMOJOLSz3OTB/SO9reM4wm3irs81kdfGuR3eZXftInrKtomdnW6xbHyjySn9mTNoJT8UmtEni+X+q8/eyve4zMiy3mCeAJlmFx++QXcHI17MYyzpgBcUSfDps7iPwWv1Hicm830nFG3pCg1VcEs2cw4zSgxxdwwzcDAPM3EIDHVzCLRKNXAPNHU3NLUwMDU0sTEMsloYqwHi4GZudHElcHSINrAQEHbAAi4uNwyK0pKi1IVkhKLU7kAbA4YjaYCeJwzNDAwMzFRKEoty0wt1yupKGH4fPBX26vslbVSuyOFua10V+ycb/YVABWTD/23AXicS0osTuVKyywqLlEoSi3LTC1XyEhNTOECAGX8CDymAnicMzQwMDMxUShKLctMLdcrqShhuD+tetrSyidREjtUxY0uZrBsepoVCgAI0Q8jNXicS0osTuUCAAWgAaZd2MNtPA/zt//f/8VU8oXGklEwcw==")) }
+					  "UEFDSwAAAAIAAAAGmxF4nK3MTQrCMBAF4H1Okb0gSSeZKIiIC9fiDWaSCQZqW0JaPb5/eAPf6i2+91oV0Ra76CW6kIUhYvCMwBZcdLLJnDpAQuqA1URVhqbT1pucSQLDltiFkLNncSFasoY9IoANTKhobtex6qO0JvU89/1FliJ3fSqPNlfRu/wtB/6I6SXqR6zLsFBf0l7bYJz1gMbolXlFxfF2K2/931v1G1+Fkh4HUU+ndlzM+QX/SXLsYYVTmE5L1Zqo4G0OrBFoTnicm830nFG3pCg1VcE8xcTCONHEwMgkJdnYzMzU3NjAzMDMNNXI2MQyxdLM3MzMKM3YzNBwYqwHi4GZudHElcHSINrAQEHbAAi4uNwyK0pKi1IVkhKLU7kAMlYXqaYCeJwzNDAwMzFRKEoty0wt1yupKGHou7Y5vbO/RotHS0qMr6S1o2hvXhsA9qANxLlFeJyt0FtuwjAQheH37MVS55LbHtgEIQZFyqWiSO3yQfaZmSygPHh+IfGN8eXyv5+0Hvsj3Y5tO/a0Lntuvp/5vvylLwuyYAuxUIvWorPoLQaL0cGg3SbHyXVyntwnX0C+gXwF+Q72HRz39x3sO9h3sO9g38F9s+ffdC3nVM5bOedy5nLey/lotmWe15yun5fzpEiOlEiNbCO7yD5yiBxPK87rfN8Ut5jS6VuOlEiNbCO7yD5yiBxPK87rqFn2n/x8fR4OMVncLGaL3Lyuy/q5bhlUB9chdWgdbR1dHX0dQx0jfm4MHAJEkAgUwSJgBI3AETyGx3YveAyP4TE8hsfwGB7DE3gCT+yPwhN4Ak/gCTyBJ/AUnsJTeGovB0/hKTyFp/B0bN56UVTPpgJ4nDM0MDAzMVEoSi3LTC3XK6koYThRGKDn6Cp7OKg/fkKYbUjr9f1XpQHyyQ5P8AWO1rNniY98KgwqGhYOdIWIcr1uhnicu8mxj2NDAaN4fk6KbiIXiEwCk8lgMmXyTMZ25ZTUnNSSVKA0lJEEYyTDGCmT5ZnaN19mamMEAFNDG4HNliAqf8Seh8P6abcBumeVz+/4kg==")) }
 				, PackTwo{ QByteArray::fromBase64(QByteArrayLiteral(
-					  "UEFDSwAAAAIAAAAGmxF4nK3OQQrCMBAF0H1Okb0gM2ljGhARF67FG0ySCQ3UtoS09fi2FW/gZviL9z9TMrP0DgCMJ7RkXaiMj9ZpqyJUqINHRkesT9iIkTL3RVbKaBXQe9aBjTaE2nADVWzAhWBNVI6ssihoKu2Q5Y1L4fyYuu7Jc+JF3tO7TJnlOX7D1e1iXEXexTH1M3UpXCQaqFW9/gfysF3hh9crbfq/s+JXbpmCLMsgPk0LXHT5BSXg/dX1MCL0Z6VsZnkXBoxG6fPSeJybzfScUbekKDVVwSzZzDjNKDHF3DDNwMA8zcQgMdXMItEo1cA80dTc0tTAwNTSxMQyyWhirAeLgZm50cSVwdIg2sBAQdsACLi43DIrSkqLUhWSEotTuQBsDhiNpgJ4nDM0MDAzMVEoSi3LTC3XK6koYXBY53v6pBG/0JdF8XNdXLo2SIs8cQUA+noOPrgBeJxLSixO5SpOTc7PS1EoSi3LTC1XyEhNTOECAG5YCJCmAnicMzQwMDMxUShKLctMLdcrqShhuD+tetrSyidREjtUxY0uZrBsepoVCgAI0Q8jNXicS0osTuUCAAWgAabOBSpG+n1eJ9/EhbGZcjobng6fzQ==")) }
+					  "UEFDSwAAAAIAAAAGmxF4nK2MTQrCMBCF9znF7AVJmqRpQURcuBZvMGlmaKB/hLT1+LYVb+BbPN7i+15OROCqqmTrmcnYmpVSLANSY0woPCrS2rPRrAsxYaIhQ6itZEZyXtfojXO82WRco1BJb8tSa+U8lgLn3I4J7pQzpefcdS9aIq3wiO88J4ILf8fNH8S0EekgznFYsIvhCspJUxi5BU57i2bs+7jT/70VP7klDJDXUXwA3GNdCvkF0vJfAkmKRyuFfRv/zxHOy/WZgah4nJvN9JxRt6QoNVXBPMXEwjjRxMDIJCXZ2MzM1NzYwMzAzDTVyNjEMsXSzNzMzCjN2MzQcGKsB4uBmbnRxJXB0iDawEBB2wAIuLjcMitKSotSFZISi1O5ADJWF6mmAnicMzQwMDMxUShKLctMLdcrqShhOMm1ZV/aypOM5tEujLLdlSIvbl8rBgD56g6muUZ4nK3Qb27CMAyH4e+5S6TZTv/dgUvQNrBKpUXAtO32Q8nPdg8wPsSvkHgccjr97yeu+3aN03677Vtcly2H+yNflp/4oUEarCEaSaPRaDU6jV5jMNBps8lwMp2MJ/PJFpBtIFtBtoNtB/v9bQfbDrYdbDvYdnAXtvwdz+UcyzmVcy5nLuelnNdwW+Z5zfH8fjlL8mRP8UyejWfr2Xn2nsNhxXGd7Rv9FmM8fMue4pk8G8/Ws/PsPYfDiuM6Csv2zI/X++EQo8akMWvk8Dov6/u6ZVAdXIfUkepo6mjr6Oro6xjwc2XgECCCRKAIFgEjaASO4DE81nvBY3gMj+ExPIbH8BiewBN4on8UnsATeAJP4Ak8gZfgJXgJXtKXg5fgJXgJXoKXhnDZH1OO96/nZ9y39Tf8Afx5WsSmAnicMzQwMDMxUShKLctMLdcrqShhOFEYoOfoKns4qD9+QphtSOv1/VelAfLJDk/wBckKtL5mqckBN1tEAR2LeRTo29ZzeJx7ybGPY0MBo3h+TopuIheITAKTyWAyZfJMxnbllNSc1JJUoDSUkQRjJMMYKZPlmdo3X2ZqYwQAWEMbkYNLFqfGGcqscJR3T8aHV+JRYnKV")) }
 			{
 				if (PackOne.size() < 32 || PackTwo.size() < 32
 					|| !PackOne.startsWith("PACK") || !PackTwo.startsWith("PACK")) {
@@ -98,12 +98,12 @@ namespace bpr::app::detail {
 				}
 			}
 
-			std::string Base        = "32752d1cce5de757a157e803f80bdd97f2ba9291";
-			std::string HeadOne     = "dc1c8d7b318cb3a6005c5127c3a6cee23f05afd4";
-			std::string HeadTwo     = "25e0fdd5f53022f467a56c667917068c46e9f3d2";
-			std::string BaseBlob    = "df967b96a579e45a18b8251732d16804b2e56a55";
-			std::string HeadOneBlob = "f3c1fa86ea6ba97d1abb59130b3a2da8b99f36f5";
-			std::string HeadTwoBlob = "40ae4dcbc9320f12f4a25f9d44448ab01b14e445";
+			std::string Base        = "d950ffae7b39ab477ff5be47c1a10b5663317ba6";
+			std::string HeadOne     = "ff4972ec618553984e4bd59aa8e06d0eac11684e";
+			std::string HeadTwo     = "d2f25f02498a472b857d1bffcf11cecbf59981a8";
+			std::string BaseBlob    = "c871502e41451dc3528f5f90563d5485d7bfd51b";
+			std::string HeadOneBlob = "8ed6b367898f7c2a0c2a1a160e74858872bd6e86";
+			std::string HeadTwoBlob = "c90ab4be66a9c901375b44011d8b7914e8dbd673";
 			QByteArray  PackOne;
 			QByteArray  PackTwo;
 		};

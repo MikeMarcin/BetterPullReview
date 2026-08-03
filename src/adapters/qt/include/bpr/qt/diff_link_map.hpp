@@ -120,6 +120,9 @@ namespace bpr::qt {
 		/// \brief Applies one same-comparison shared-scroll frame.
 		[[nodiscard]] auto set_frame(const comparison_scroll_frame& aFrame)
 			-> bool;
+		/// \brief Returns the frame currently used for paint and hit testing.
+		[[nodiscard]] auto current_frame() const noexcept
+			-> const std::optional<comparison_scroll_frame>&;
 
 		void set_selected(
 			std::optional<diff_link_map_identity> aSelection,

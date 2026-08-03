@@ -232,6 +232,12 @@ namespace bpr::qt {
 		return true;
 	}
 
+	auto diff_link_map::current_frame() const noexcept
+		-> const std::optional<comparison_scroll_frame>&
+	{
+		return Frame;
+	}
+
 	void diff_link_map::set_selected(
 		std::optional<diff_link_map_identity> aSelection,
 		const bool                            aAnnounce)

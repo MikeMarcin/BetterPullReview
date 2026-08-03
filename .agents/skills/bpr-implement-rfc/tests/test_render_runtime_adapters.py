@@ -181,6 +181,7 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
             self.assertNotIn("claude-opus", source)
             self.assertNotIn("claude-sonnet", source)
             self.assertNotIn("claude-haiku", source)
+            self.assertNotIn("claude-fable", source)
 
     def test_bpr_sources_preserve_project_identity_and_remove_aito_paths(self) -> None:
         sources = [

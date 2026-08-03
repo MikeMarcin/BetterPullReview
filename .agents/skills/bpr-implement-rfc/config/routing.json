@@ -1,6 +1,6 @@
 {
   "schema": "betterpullreview.implement-rfc.routing.v1",
-  "verified_as_of": "2026-08-01",
+  "verified_as_of": "2026-08-02",
   "assignments": {
     "rfc-utility": "mechanical",
     "rfc-scout": "balanced",
@@ -45,7 +45,7 @@
           "effort": "xhigh"
         },
         "deep-max": {
-          "model": "claude-opus-5",
+          "model": "claude-fable-5",
           "effort": "max"
         }
       }

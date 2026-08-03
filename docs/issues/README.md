@@ -252,9 +252,11 @@ open. Done BPR-0080 supplies bounded/indexed moved-sub-block discovery,
 retained immutable semantic indexes, semantic-free high-frequency geometry,
 linear visible move-overlay resolution, and instrumented three-scale evidence.
 Done BPR-0081 reconciles documentation/conformance and adds the worker
-boundary. Done BPR-0082 removes reviewed duplication and avoidable work;
-BPR-0083 is next for final direct verification/closeout. BPR-0083 depends on BPR-0054, so
-implementation can progress under the product-owner exception without an
+boundary. Done BPR-0082 removes reviewed duplication and avoidable work.
+BPR-0083's available-platform closeout preparation and selected-composition
+replay are complete, but the card remains in backlog because it depends on
+BPR-0054 and retains an owner-authorized native System-theme gate.
+Implementation can progress under the product-owner exception without an
 out-of-order Auto-Verified transition or beginning RFC-BPR-0005 early.
 
 Done BPR-0084 follows the completed host-execution slice and modernizes

@@ -23,16 +23,27 @@ Use `rfc-critical-reviewer` instead of `rfc-reviewer` for a critical closeout. D
 
 ## Current Checked-In Routes
 
-The routes were verified on 2026-08-01:
+The routes were verified on 2026-08-02:
 
 | Class | Codex | Claude |
 |---|---|---|
 | `mechanical` | GPT-5.6 Luna, max | Claude Haiku 4.5; no effort field because this model does not support effort |
 | `balanced` | GPT-5.6 Terra, high | Claude Sonnet 5, high |
 | `deep` | GPT-5.6 Sol, xhigh | Claude Opus 5, xhigh |
-| `deep-max` | GPT-5.6 Sol, max | Claude Opus 5, max |
+| `deep-max` | GPT-5.6 Sol, max | Claude Fable 5, max |
 
 These are configuration defaults, not permanent architectural decisions.
+
+The Claude `deep-max` route uses Claude Fable 5, which carries two operational
+constraints the other routes do not. First, it requires 30-day data retention;
+an organization configured for zero data retention receives a 400 on every
+request, so such an organization must route `deep-max` back to Claude Opus 5
+at `max`. Second, its safety classifiers may decline requests that touch
+security-heavy content, and critical review deliberately scrutinizes
+credentials, authentication authority, and remote mutation boundaries. If a
+critical-review session reports a classifier refusal, rerun that review on the
+`deep` model at `max` effort, note the substitution in the closeout evidence,
+and do not narrow the review scope.
 
 ## Session Route Reporting
 

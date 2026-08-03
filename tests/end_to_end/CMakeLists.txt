@@ -144,6 +144,8 @@ add_test(
         --github-fixture
         github-com
         --diff-workbench-probe
+        --diff-interaction-evidence
+        "${CMAKE_CURRENT_BINARY_DIR}/bpr-0083-diff-interaction"
         --render-evidence
         "${CMAKE_CURRENT_BINARY_DIR}/diff-workbench-public-path.png"
 )
@@ -152,7 +154,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+DIFF_WORKBENCH_OK[\r\n]+RENDER_OK"
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+DIFF_WORKBENCH_OK[\r\n]+DIFF_INTERACTION_EVIDENCE_OK[\r\n]+RENDER_OK"
         TIMEOUT 45
 )
 

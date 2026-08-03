@@ -14,8 +14,11 @@ composition, installed-Git/cache-session integration, rendered public-path
 evidence, and shutdown safety. BPR-0080 supplies bounded moved-sub-block
 discovery, retained semantic indexes, and instrumented large-fixture/high-
 frequency Qt evidence. BPR-0081 reconciles documentation and conformance;
-BPR-0082 supplies the conservative simplification pass, and BPR-0083 retains
-final closeout. RFC-BPR-0003
+BPR-0082 supplies the conservative simplification pass. BPR-0083's final
+available-platform selected-composition replay now supplies 18 rendered
+frames and a machine-readable two-direction interaction trace; its
+owner-activated native System-theme transition and predecessor closeout remain
+open. RFC-BPR-0003
 retains explicit nonblocking closeout cards, so this RFC cannot become Auto-
 Verified until that dependency can close.
 
@@ -467,14 +470,14 @@ retain one semantic mapping/index, natural source rows, one comparison
 position and shared vertical controller, visible-set link-map work, and no
 follower-scroll fallback or permanent crossing ordinary move ribbons.
 
-The selected rendered/composed test command is now explicit, headless, and
-serial so it cannot fan out redundant application instances. Its prior final-
-source rasters and runtime markers remain the direct BPR-0078 through BPR-0080
-evidence; BPR-0081 does not alter those surfaces or manufacture a new UI claim.
-Target-native Windows, owner-activated native System-theme transition, the
-final two-direction rendered replay, and RFC-BPR-0005 presentation polish stay
-open and do not block available-platform conformance work. GitHub Actions
-remain prohibited and both tracked and on-disk workflow counts remain zero.
+The selected rendered/composed test command is explicit, headless, and serial
+so it cannot fan out redundant application instances. BPR-0083 extends that
+same selected public-path process with the final two-direction rendered replay
+described below; it does not add a second application test. Target-native
+Windows, the owner-activated native System-theme transition, and RFC-BPR-0005
+presentation polish stay open and do not block available-platform conformance
+work. GitHub Actions remain prohibited and both tracked and on-disk workflow
+counts remain zero.
 
 ## BPR-0082 simplification evidence
 
@@ -526,6 +529,63 @@ mechanical replay launched no Qt, GUI, end-to-end, or application test. Strict
 touched-file clang-tidy and the repository formatting gate pass. This evidence
 does not replace BPR-0083's owner-activated native System-theme evidence or
 final rendered two-direction replay.
+
+## BPR-0083 available-platform closeout evidence
+
+The final selected public-composition fixture now supplies replacement,
+deletion, insertion, matching, and asymmetric-tail regions through the frozen
+installed-Git pack/cache/application path. The existing
+`application_diff_workbench_public_path` process accepts one additional
+test-build-only evidence-directory argument; no extra application test or
+process was added. Its 18 full-window PNGs and JSONL trace prove initial
+selection, matching motion, left-pane input, insertion pinning and reversal,
+right-pane and divider input equivalence, deletion pinning, unequal
+replacement, ribbon selection, divider resize, and both comparison endpoints.
+Every trace sample records exact projected and applied pane coordinates,
+selected group/segment identity, link-map visibility work, geometry
+generation, and the unchanged semantic index generation.
+
+The replay directly exposed a composition defect that the taller component
+fixture had not made visible: the correspondence map received a zero document
+origin after the native panes scrolled. The workbench now derives the applied
+pixel origin from the vertical scrollbar value it actually set and publishes
+that quantized origin to link-map paint and hit testing. A focused regression
+requires nonzero applied origins for the late unequal replacement. In the
+final rendered sequence, insertion and deletion are attached wedges, the 4:7
+replacement is a filled attached ribbon, its click agrees with the semantic
+selection and detail pane and advances exactly one selection callback, one
+resize advances exactly one geometry
+generation without rebuilding the semantic index, and the start/end frames
+show both asymmetric document tails without dead travel.
+
+The deterministic offscreen replay does not claim native System-theme
+behavior. The test-only native probe has been tightened separately to record
+the selected workbench's inherited palette and font before/after the real
+Light-to-Dark transition, stable semantic selection, visibly differing
+full-window pixels, and an exact one-rebuild geometry delta. That probe remains
+unexecuted until the desktop owner explicitly authorizes changing and
+restoring the global macOS appearance. Target-native Windows stays open and
+nonblocking. RFC-BPR-0004 cannot become Auto-Verified or release
+RFC-BPR-0005 while RFC-BPR-0003 and this native gate remain open.
+
+The final rebuilt public-composition replay passes 1/1 in 12.90 seconds with
+one offscreen process and no leftover application process. Its 18 JSONL
+records and 18 PNGs were regenerated after the final simplification. The
+ribbon-selection record proves one callback rather than inferring a click from
+an already-selected identity; the following resize advances only the geometry
+generation while the semantic index remains at one. The selected component
+matrix passes 12/12; the refreshed ASan/UBSan selected matrix passes 7/7; the
+RFC utility lane's Qt-free core and mechanical groups pass 5/5 and 11/11. The
+format, changed-file strict-tidy, documentation, immutable-RFC, original
+22-file replacement-pack, workflow-absence, and diff-hygiene gates pass.
+
+Two bounded independent reviewer attempts returned no report before they were
+interrupted, so no independent-review pass is claimed. The root review removed
+the unnecessary test-encoder reserve, moved the native geometry baseline after
+the probe's own resize event drain, and required an exact link-map callback on
+the rendered ribbon click. A fresh independent report remains part of the
+blocked BPR-0083 closeout alongside the owner-authorized native transition and
+predecessor status.
 
 ## BPR-0084 build-foundation evidence
 
@@ -636,21 +696,21 @@ ctest --preset dev --output-on-failure \
   -R '^(core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract|application_worker_executor)$'
 ```
 
-C1 passes on the BPR-0081 source; C2's final component runs pass through
-BPR-0080, and its inspected scale rasters are under
-`build/dev/tests/adapters_qt/`. C3 passed the BPR-0079 public composition and
-shutdown slice and wrote
-`build/dev/tests/end_to_end/diff-workbench-public-path.png`; BPR-0080's final
-workbench/link-map component runs cover the later indexed interaction change.
-C4 passes on the BPR-0081 source: 105/105 hostile architecture cases and the
-compiled worker test pass. Documentation validation, immutable-RFC diff,
-`git diff --check`, and workflow counts 0/0 also pass.
+C1 and C2 retain the focused semantic, host, and rendered-component evidence
+described above. C3's final selected-composition case passes serially under
+`QT_QPA_PLATFORM=offscreen`, writes
+`build/dev/tests/end_to_end/diff-workbench-public-path.png`, and writes 18
+rendered interaction frames plus `interaction-trace.jsonl` under
+`build/dev/tests/end_to_end/bpr-0083-diff-interaction/`; the selected shutdown
+case remains the H-03 lifecycle surface. C4 retains the hostile architecture
+and compiled worker evidence. Exact final available-platform pass counts and
+the remaining closeout gates are recorded on BPR-0083.
 
-Every row below is implemented and directly covered by those groups except
-I-03, whose final recorded two-direction selected-composition replay remains
-BPR-0083, and A-03, which cannot close before the tracker and RFC closeout are
+Every implementation row below, including I-03, is now directly covered by
+those groups. A-03 cannot close before the tracker and RFC closeout are
 complete. Target-native Windows and native System-theme/presentation-polish
-claims are intentionally outside this RFC-BPR-0004 matrix.
+claims are intentionally outside this RFC-BPR-0004 matrix, while BPR-0083
+retains the explicit native-theme closeout gate described above.
 
 A row remains open until its direct surface would fail or visibly disagree if
 the claim were false.

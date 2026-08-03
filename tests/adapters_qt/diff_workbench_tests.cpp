@@ -612,6 +612,7 @@ namespace {
 		const auto replacementFirstRight = rendered_state(*workbench.right_pane());
 		expect(controller->reveal_segment(replacement.Id, 0.8), "replacement late reveal succeeds");
 		const auto replacementSecond      = *controller->current_frame();
+		const auto renderedReplacement    = workbench.link_map()->current_frame();
 		const auto replacementSecondLeft  = rendered_state(*workbench.left_pane());
 		const auto replacementSecondRight = rendered_state(*workbench.right_pane());
 		const auto leftAdvance            = replacementSecond.Left.ProjectedDocumentY
@@ -621,6 +622,11 @@ namespace {
 		expect(
 			leftAdvance > 0.0 && rightAdvance > leftAdvance,
 			"unequal replacement advances both panes proportionally");
+		expect(
+			renderedReplacement.has_value()
+				&& renderedReplacement->Left.DocumentOriginY > 0.0
+				&& renderedReplacement->Right.DocumentOriginY > 0.0,
+			"rendered correspondence frame retains both applied pane origins");
 		expect(
 			replacementSecondLeft.ScrollValue > replacementFirstLeft.ScrollValue
 				&& replacementSecondRight.ScrollValue
@@ -780,7 +786,10 @@ namespace {
 
 		const auto initialRender   = workbench.grab().toImage();
 		const auto originalPalette = QApplication::palette();
-		auto       changedPalette  = originalPalette;
+		const auto originalFont    = workbench.font();
+		const auto rebuildsBeforePalette
+			= workbench.statistics().GeometryRebuilds;
+		auto changedPalette = originalPalette;
 		changedPalette.setColor(QPalette::Window, QColor{ 31, 35, 41 });
 		changedPalette.setColor(QPalette::Base, QColor{ 22, 25, 30 });
 		changedPalette.setColor(QPalette::Text, QColor{ 236, 239, 244 });
@@ -790,8 +799,11 @@ namespace {
 		const auto changedRender = workbench.grab().toImage();
 		expect(
 			workbench.selection() == selectionBeforeMetrics
+				&& workbench.font() == originalFont
+				&& workbench.statistics().GeometryRebuilds
+					== rebuildsBeforePalette + 1U
 				&& initialRender != changedRender,
-			"inherited theme transition changes rendered pixels without changing selection");
+			"inherited theme transition changes pixels with one geometry rebuild while preserving font and selection");
 		QApplication::setPalette(originalPalette);
 		process_events();
 
