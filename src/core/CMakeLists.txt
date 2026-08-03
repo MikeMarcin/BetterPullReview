@@ -13,6 +13,7 @@ add_library(
         src/github_transition.cpp
         src/model.cpp
         src/sha256.cpp
+        src/theme_exchange.cpp
         src/transition.cpp
         src/workbench_interaction.cpp
 )
