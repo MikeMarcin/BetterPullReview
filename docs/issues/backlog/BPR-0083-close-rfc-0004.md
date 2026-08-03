@@ -125,5 +125,29 @@ RFC-BPR-0005 does not begin.
   selection. Both behaviors are separately proven at component level. The
   inspection-dependent PNG gate and the derived applied origin are recorded as
   accepted on that card, the latter belonging to RFC-BPR-0005 polish.
-- This card still cannot leave backlog. It remains blocked by BPR-0054 and by
-  the owner-authorized native System-theme transition.
+- The owner-authorized native System-theme gate is now satisfied. On 2026-08-03
+  at commit `1e581a6`, on macOS 15.7.7 build 24G720 arm64 with Qt 6.11.1, the
+  desktop owner authorized changing and restoring the global appearance and
+  supplied the activating click. The probe reported `PUBLIC_PATH_OK`,
+  `GITHUB_FIXTURE_QT_PLATFORM:cocoa`, `GITHUB_FIXTURE_QT_STYLE:QMacStyle`,
+  `NATIVE_APPEARANCE_ACTIVE_FOCUS_OK`, both local and global `Light->Dark`
+  transitions, and every signal, state, pixel-difference, changed-render, and
+  workbench `NATIVE_APPEARANCE_DIFF_*` marker. The workbench palette moved from
+  `#ffececec:#ffffffff:#ff000000:#ff000000` to
+  `#ff323232:#ff171717:#ffffffff:#ffffffff`, the font was identical before and
+  after, and the geometry rebuild delta was exactly 1. Both 2560x2000 rasters
+  were inspected directly and show the same pull request, epoch rows, complete
+  OIDs, `Whole PR` selection, highlighted `old-a`, attached 4:7 ribbon, and
+  `Change 1 of 3` detail, with readable native contrast in both appearances.
+  The original System Dark `true` was restored. The rasters are transient and
+  not checked in.
+- Direct inspection also found that the two frames are not a palette-only
+  delta: the outer window scroll offset differs between them while the inner
+  diff panes are identical. The desktop owner confirms this was their own
+  interaction during the attended run, not a post-theme relayout effect. The
+  probe requires an owner-activated focused window, so the owner is free to
+  interact between the Light capture and the transition; the probe therefore
+  asserts semantic and geometry invariants rather than an outer scroll position
+  an attended run cannot hold fixed. Every gate requirement is met.
+- This card still cannot leave backlog. Its remaining blocker is BPR-0054,
+  which needs real Windows x64 evidence.

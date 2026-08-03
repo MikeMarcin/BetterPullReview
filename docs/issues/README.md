@@ -282,8 +282,12 @@ no RFC-BPR-0004 semantic claim, and found no stub or helper-API-only proof
 presented as public-path evidence. Its one medium finding is closed by the
 replay at `ca424f7`, which passes 88/88 on `dev` and 33/33 on `core-only`
 including the selected public diff path. The card still remains in backlog
-because it depends on BPR-0054 and retains an owner-authorized native
-System-theme gate. Done BPR-0087 closes the two actionable
+because it depends on BPR-0054. Its owner-authorized native System-theme gate
+is now satisfied: an owner-activated Cocoa/QMacStyle run at commit `1e581a6`
+passed active focus, both local and global Light-to-Dark transitions, and every
+workbench palette, font, geometry-rebuild, and changed-render marker, with both
+2560x2000 rasters inspected directly and the owner's original System Dark
+restored. Done BPR-0087 closes the two actionable
 evidence-strength findings, which were assertion weaknesses in the composed
 replay rather than defects: the wheel steps now require the retained position
 to have advanced before the receivers are compared, and the ribbon click now

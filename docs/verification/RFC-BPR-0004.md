@@ -559,14 +559,54 @@ generation without rebuilding the semantic index, and the start/end frames
 show both asymmetric document tails without dead travel.
 
 The deterministic offscreen replay does not claim native System-theme
-behavior. The test-only native probe has been tightened separately to record
-the selected workbench's inherited palette and font before/after the real
-Light-to-Dark transition, stable semantic selection, visibly differing
-full-window pixels, and an exact one-rebuild geometry delta. That probe remains
-unexecuted until the desktop owner explicitly authorizes changing and
-restoring the global macOS appearance. Target-native Windows stays open and
-nonblocking. RFC-BPR-0004 cannot become Auto-Verified or release
-RFC-BPR-0005 while RFC-BPR-0003 and this native gate remain open.
+behavior. The test-only native probe records the selected workbench's inherited
+palette and font before/after the real Light-to-Dark transition, stable semantic
+selection, visibly differing full-window pixels, and an exact one-rebuild
+geometry delta.
+
+That probe has now been executed with explicit desktop-owner authorization on
+2026-08-03 at commit `1e581a6`, on macOS 15.7.7 build 24G720 arm64 with
+Qt 6.11.1. The owner authorized changing and restoring the global appearance
+and supplied the activating click; the probe called no activation API and
+synthesized no input. It reported `PUBLIC_PATH_OK`,
+`GITHUB_FIXTURE_OK:github.com`, `GITHUB_FIXTURE_QT_PLATFORM:cocoa`,
+`GITHUB_FIXTURE_QT_STYLE:QMacStyle`, `NATIVE_APPEARANCE_ACTIVE_FOCUS_OK`, both
+local and global `Light->Dark` transitions, and the signal, state,
+pixel-difference, changed-render, and all four workbench-specific
+`NATIVE_APPEARANCE_DIFF_*` success markers. Neither evidence file existed
+before the transition.
+
+The recorded workbench palette moved from
+`#ffececec:#ffffffff:#ff000000:#ff000000` to
+`#ff323232:#ff171717:#ffffffff:#ffffffff`; the interface font was identical
+before and after at `.AppleSystemUIFont,13`; and
+`NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA` was exactly 1. Both rasters are
+2560x2000. The Light frame has SHA-256
+`7bc943363cd78c8342cece6ef22ec35e30b7e03f70886e8bc8cfabaf5af22742` and the Dark
+frame `0d0010bd8b99c9e513bfd26903b6bf14493906cf1cd283a0f08d708cedeffcf4`. The
+owner's original System Dark `true` was restored by the shell trap. The rasters
+were retained only in a transient local directory and are not checked in.
+
+Direct inspection of both frames confirms the same loaded pull request, the
+same epoch rows and complete left/right OIDs, `Whole PR` still selected, the
+selected-file comparison with `old-a` still highlighted, the same attached 4:7
+replacement ribbon across `old-a..old-d` and `new-a..new-g`, the same
+`Change 1 of 3` detail text, native Cocoa controls, and readable contrast in
+both appearances.
+
+One property of an attended run is recorded so a later reader does not
+misread the frames. The two captures are not a palette-only delta: the outer
+window scroll offset differs between them. This is owner interaction during the
+attended probe, confirmed by the desktop owner, not a post-theme relayout
+effect. The probe requires the owner to activate and focus the real window, and
+the owner remains free to interact between the Light capture and the appearance
+transition. The inner diff panes are identical in both frames, semantic
+selection is stable, and every gate requirement is met. The probe deliberately
+asserts semantic and geometry invariants rather than outer scroll position,
+which an attended run cannot hold fixed.
+
+Target-native Windows stays open and nonblocking. RFC-BPR-0004 cannot become
+Auto-Verified or release RFC-BPR-0005 while RFC-BPR-0003 remains open.
 
 The final rebuilt public-composition replay passes 1/1 in 12.90 seconds with
 one offscreen process and no leftover application process. Its JSONL
