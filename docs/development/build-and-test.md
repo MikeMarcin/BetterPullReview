@@ -1462,6 +1462,24 @@ pass. Its sharpest case asserts that a hunk beginning inside a multiline
 comment classifies exactly as the same region of the complete blob — the case a
 per-hunk highlighter silently fails.
 
+`qt_appearance_profile` also runs the core's enumerated contrast pairs against
+all four shipped built-in palettes. It measures every variant before failing,
+so a shortfall reports the whole picture rather than the first colour it meets;
+a failure prints the offending role pair with its measured ratio in hundredths
+beside the minimum it missed. Do not repair a failure by lowering a threshold
+or removing a pair from the checked set — the check exists to constrain the
+palettes, so a threshold tuned until the current colours pass measures nothing.
+
+Two assertions in that suite guard repairs rather than the palettes. The first
+requires an intraline emphasis fill to differ from the row fill it marks: fill
+luminance is pinned by the contrast band, and at that luminance a saturated red
+is very nearly the removed row's own colour, so a repair that satisfies
+contrast can silently erase intraline marking while every contrast check still
+passes. The second pins the pairs that colour alone cannot separate, which are
+inherent to red/green diff fills under dichromacy rather than repairable; it
+fails if a palette change creates a new one, or if a recorded one disappears
+without the record being updated.
+
 ## Troubleshooting and safe verification
 
 ### GitHub and native credentials

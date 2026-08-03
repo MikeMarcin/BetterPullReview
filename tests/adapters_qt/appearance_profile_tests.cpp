@@ -1,3 +1,4 @@
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -1304,6 +1305,221 @@ namespace {
 					== beforeMappingBytes,
 			"the round trip through two font changes moves no semantic byte");
 	}
+
+	// The core enumerates the pairs and publishes the thresholds; the Qt adapter
+	// owns the palettes that ship. Until this test, nothing joined them, so the
+	// audit had never run against the colours a user actually sees.
+	//
+	// The pair set and the minimums are taken from the core as-is. Narrowing
+	// either to make a built-in palette pass would leave a check that measures
+	// only the cases already known to be fine.
+	void test_every_builtin_profile_passes_the_published_contrast_audit()
+	{
+		// Every variant is measured before anything fails, because stopping at
+		// the first shortfall would hide how many palettes are affected and
+		// turn a palette repair into a sequence of blind single steps.
+		auto failures = std::size_t{ 0 };
+
+		for (const auto variant : all_variants) {
+			const auto& palette  = qt::builtin_appearance_palette(variant);
+			const auto  findings = core::measure_required_contrast(palette, variant);
+
+			expect(
+				findings.size() == core::required_contrast_pairs().size(),
+				"the audit measures every published pair");
+
+			for (const auto& finding : findings) {
+				if (finding.Meets) {
+					continue;
+				}
+
+				++failures;
+				std::cerr << "  variant " << static_cast<int>(variant)
+						  << " foreground role "
+						  << static_cast<int>(finding.Pair.Foreground)
+						  << " on background role "
+						  << static_cast<int>(finding.Pair.Background) << ": "
+						  << finding.RatioHundredths << " hundredths, minimum "
+						  << finding.MinimumHundredths << '\n';
+			}
+
+			expect(
+				core::failing_contrast(palette, variant).size()
+					== static_cast<std::size_t>(std::ranges::count_if(
+						findings,
+						[](const auto& aFinding) { return !aFinding.Meets; })),
+				"the failing-pair list agrees with the per-pair verdicts");
+		}
+
+		if (failures != 0U) {
+			std::cerr << "  " << failures
+					  << " checked pairs miss their published minimum\n";
+		}
+
+		expect(
+			failures == 0U,
+			"every built-in profile meets the published minimum for every "
+			"checked pair");
+	}
+
+	// Meeting the contrast band pins every fill's luminance, and on a white
+	// canvas a fully saturated red at that luminance is very nearly the row
+	// fill's own colour. Satisfying the audit by collapsing the intraline
+	// emphasis onto the row it marks would trade one accessibility failure for
+	// another, so the two are required to stay distinct.
+	void test_intraline_emphasis_never_collapses_onto_its_row_fill()
+	{
+		constexpr auto pairs = std::array{
+			std::pair{ role::diff_added_background,
+					   role::diff_intraline_added_background },
+			std::pair{ role::diff_removed_background,
+					   role::diff_intraline_removed_background },
+		};
+
+		for (const auto variant : all_variants) {
+			const auto& palette = qt::builtin_appearance_palette(variant);
+
+			for (const auto& [rowRole, emphasisRole] : pairs) {
+				expect(
+					palette[core::index_of(rowRole)]
+						!= palette[core::index_of(emphasisRole)],
+					"an intraline emphasis fill differs from its row fill");
+			}
+		}
+	}
+
+	struct color_only_obligation
+	{
+		core::appearance_variant Variant;
+		role                     First;
+		role                     Second;
+	};
+
+	// The pairs below are the ones colour alone cannot carry in a built-in
+	// profile, so the presentation layer owes each of them a line prefix,
+	// gutter mark, icon, outline, or accessible name. RFC-BPR-0006 already
+	// requires that of every state; this list is what makes the requirement
+	// specific and reviewable rather than a general intention.
+	//
+	// Red against green is the axis both modelled dichromacies lose, and the
+	// RFC specifies red/green diff fills, so these pairs are inherent to the
+	// stated design rather than a palette that can be repainted out of them.
+	// The list is pinned so a later palette edit that creates a *new*
+	// colour-only-indistinguishable pair fails instead of passing quietly.
+	constexpr auto reviewed_color_only_obligations = std::array{
+		color_only_obligation{ core::appearance_variant::light,
+							   role::diff_added_background,
+							   role::diff_removed_background },
+		color_only_obligation{ core::appearance_variant::light,
+							   role::diff_added_background,
+							   role::diff_moved_background },
+		color_only_obligation{ core::appearance_variant::light,
+							   role::state_fixed,
+							   role::state_unread },
+		color_only_obligation{ core::appearance_variant::dark,
+							   role::diff_added_background,
+							   role::diff_removed_background },
+		color_only_obligation{ core::appearance_variant::high_contrast_light,
+							   role::diff_added_background,
+							   role::diff_removed_background },
+		color_only_obligation{ core::appearance_variant::high_contrast_light,
+							   role::syntax_warning,
+							   role::syntax_error },
+		color_only_obligation{ core::appearance_variant::high_contrast_dark,
+							   role::diff_added_background,
+							   role::diff_removed_background },
+		color_only_obligation{ core::appearance_variant::high_contrast_dark,
+							   role::diff_added_background,
+							   role::diff_moved_background },
+		color_only_obligation{ core::appearance_variant::high_contrast_dark,
+							   role::state_accepted,
+							   role::state_defect },
+		color_only_obligation{ core::appearance_variant::high_contrast_dark,
+							   role::state_fixed,
+							   role::state_unread },
+	};
+
+	// A pair the core reports as not separable by colour alone is not a palette
+	// defect — it is an obligation on the presentation layer to carry the
+	// distinction some other way. The audit records which pairs carry that
+	// obligation rather than repainting them away.
+	void test_hue_critical_pairs_are_measured_for_every_builtin_profile()
+	{
+		auto unreviewed = std::size_t{ 0 };
+		auto mismatched = std::size_t{ 0 };
+
+		for (const auto variant : all_variants) {
+			const auto& palette  = qt::builtin_appearance_palette(variant);
+			const auto  findings = core::measure_hue_critical_pairs(palette);
+
+			expect(
+				findings.size() == core::hue_critical_pairs().size(),
+				"every hue-critical pair is measured");
+
+			const auto owed = core::pairs_requiring_non_color_indicator(palette);
+
+			expect(
+				owed.size()
+					== static_cast<std::size_t>(std::ranges::count_if(
+						findings,
+						[](const auto& aFinding) {
+							return !aFinding.DistinguishableByColorAlone;
+						})),
+				"the owed-indicator list agrees with the per-pair verdicts");
+
+			for (const auto& finding : findings) {
+				if (finding.DistinguishableByColorAlone) {
+					continue;
+				}
+
+				std::cerr << "  variant " << static_cast<int>(variant)
+						  << " roles " << static_cast<int>(finding.Pair.First)
+						  << "/" << static_cast<int>(finding.Pair.Second)
+						  << " need a non-colour signal: typical "
+						  << finding.TypicalTenths << ", protanopia "
+						  << finding.ProtanopiaTenths << ", deuteranopia "
+						  << finding.DeuteranopiaTenths << " tenths\n";
+			}
+
+			for (const auto& finding : owed) {
+				const auto reviewed = std::ranges::any_of(
+					reviewed_color_only_obligations,
+					[&](const auto& aExpected) {
+						return aExpected.Variant == variant
+							&& aExpected.First == finding.Pair.First
+							&& aExpected.Second == finding.Pair.Second;
+					});
+
+				if (!reviewed) {
+					++unreviewed;
+					std::cerr << "  UNREVIEWED variant "
+							  << static_cast<int>(variant) << " roles "
+							  << static_cast<int>(finding.Pair.First) << "/"
+							  << static_cast<int>(finding.Pair.Second) << '\n';
+				}
+			}
+
+			const auto expected = static_cast<std::size_t>(std::ranges::count(
+				reviewed_color_only_obligations,
+				variant,
+				&color_only_obligation::Variant));
+
+			if (owed.size() != expected) {
+				++mismatched;
+				std::cerr << "  variant " << static_cast<int>(variant)
+						  << " owes " << owed.size() << " non-colour signals, "
+						  << expected << " recorded\n";
+			}
+		}
+
+		expect(
+			mismatched == 0U,
+			"no reviewed non-colour obligation has silently disappeared");
+		expect(
+			unreviewed == 0U,
+			"every pair colour alone cannot separate is one this palette was "
+			"reviewed and accepted as owing a non-colour signal");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -1325,6 +1541,9 @@ auto main(int argc, char** argv) -> int
 	test_a_value_outside_the_published_bounds_is_never_applied();
 	test_every_role_converts_through_presentation_colour();
 	test_a_font_change_moves_geometry_and_not_semantics();
+	test_intraline_emphasis_never_collapses_onto_its_row_fill();
+	test_hue_critical_pairs_are_measured_for_every_builtin_profile();
+	test_every_builtin_profile_passes_the_published_contrast_audit();
 
 	std::cout << "appearance-profile-tests:pass\n";
 	return EXIT_SUCCESS;

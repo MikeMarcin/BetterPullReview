@@ -151,6 +151,31 @@ indicator. Asserting every possible role pair would be meaningless, since most
 roles never meet on screen, and a check that cannot name its pairs cannot be
 audited.
 
+The four built-in profiles are measured against that pair set, so the check
+runs on the palettes that actually ship rather than on the idea of a palette.
+When it was first wired up the profiles failed it: 191 pairs missed their
+minimum, every one of them a syntax colour over a *fill* rather than over the
+bare canvas. Contrast depends only on relative luminance, and a syntax palette
+tuned to pass on the canvas alone has no headroom left — a white canvas is
+already the maximum luminance, so any fill drawn over it necessarily reduces
+contrast. The fills and a small number of syntax colours were refitted in
+lightness, holding hue and saturation, until every enumerated pair passes. No
+threshold was lowered and no pair was dropped.
+
+Because luminance is spent on legibility, an emphasis fill is separated from
+the row fill it sits inside by chroma rather than lightness: the intraline
+fills are fully saturated at the band limit and the row fills sit nearer the
+canvas. At the required luminance a saturated red is very nearly the removed
+row's own colour, so this is enforced by a test — a collapsed emphasis fill
+passes every contrast check while making intraline marking invisible.
+
+Red against green is the one distinction the palette cannot carry by colour
+alone. Both modelled dichromacies lose that axis, and added-against-removed is
+measured as indistinguishable in every variant. The pairs in that position are
+recorded and asserted exactly, so a palette change that creates a new one
+fails; each is owed a line prefix, gutter mark, icon, outline, or accessible
+name, which is what "colour is never the only state signal" means concretely.
+
 ## Syntax highlighting
 
 Use KSyntaxHighlighting through a custom low-level highlighter. Highlight complete old and new blobs independently so hunks beginning inside multiline constructs receive correct state. Cache semantic spans by blob and definition, independent of the active color theme.
