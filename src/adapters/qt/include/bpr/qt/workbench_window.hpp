@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 
+#include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -28,6 +29,7 @@ class QToolButton;
 
 namespace bpr::qt {
 	class diff_workbench;
+	class epoch_comparison_control;
 
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
@@ -83,6 +85,8 @@ namespace bpr::qt {
 		std::uint64_t Announcements      = 0U;
 		std::uint64_t DrawerUpdates      = 0U;
 		std::uint64_t LayoutUpdates      = 0U;
+		std::uint64_t EpochUpdates       = 0U;
+		std::uint64_t FocusOrderUpdates  = 0U;
 
 		auto operator<=>(const workbench_window_statistics&) const = default;
 	};
@@ -105,12 +109,18 @@ namespace bpr::qt {
 	/// centre. Collapsed and expanded arrive in the core's drawer delta and drawer
 	/// widths arrive in the host's layout delta; the window applies both and
 	/// reports an observed width back out, so neither meaning gains a second
-	/// carrier. The centre holds RFC-BPR-0004's comparison workbench, composed
-	/// unchanged, and its detail pane spans the central width. The epoch selectors
-	/// remain a named empty placeholder owned by a later RFC-BPR-0005 card.
+	/// carrier. The centre holds RFC-BPR-0003's review-history control above
+	/// RFC-BPR-0004's comparison workbench, both composed unchanged, and the
+	/// detail pane spans the central width.
+	///
+	/// The window owns placement, one declared focus order, and one combined
+	/// status line. Review-history loading, failure, cancellation, and empty
+	/// wording is the composed control's decision; the window quotes it rather
+	/// than restating it, so no state gains a second vocabulary.
 	class workbench_window final
 		: public QMainWindow,
-		  public application::workbench_projection_port
+		  public application::workbench_projection_port,
+		  public application::epoch_projection_port
 	{
 	public:
 		explicit workbench_window(
@@ -126,6 +136,13 @@ namespace bpr::qt {
 		auto operator=(workbench_window&&) -> workbench_window&      = delete;
 
 		void publish(const application::workbench_projection& aProjection) override;
+		/// \brief Adopts one decided review-history presentation update.
+		///
+		/// \details This is the window's single review-history entry point. The
+		/// update reaches the composed control unchanged, and the window then
+		/// refreshes its combined status line so the review-history state the
+		/// control decided is also stated in the shell's own text.
+		void publish(const application::epoch_presentation_update& aUpdate) override;
 		void fail(
 			const application::workbench_failure_publication& aFailure) override;
 
@@ -167,7 +184,27 @@ namespace bpr::qt {
 		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
-		[[nodiscard]] auto epoch_selector_placeholder() const noexcept -> QWidget*;
+
+		/// \brief Presents the composed independent left and right epoch selectors.
+		///
+		/// \details RFC-BPR-0003 stays the sole owner of review-history identity,
+		/// legality, and wording. The window composes its control unchanged above
+		/// the panes, so the exact copyable OIDs, the arbitrary retained-epoch
+		/// selection, and the review-history state text keep one owner and the
+		/// shell adds no second epoch authority.
+		[[nodiscard]] auto epoch_selectors() const noexcept
+			-> epoch_comparison_control*;
+
+		/// \brief Reports the window's declared deterministic focus order.
+		///
+		/// \details The order is rebuilt from live widgets, so it names exactly
+		/// the interactive stops the shell currently offers: primary navigation
+		/// or its compact overflow, the drawer toggles, the file drawer, the two
+		/// epoch selectors with their exact OIDs, the composed comparison
+		/// surface, the conversation drawer, and the status line. The composed
+		/// surface contributes one stop, because ordering inside it stays
+		/// RFC-BPR-0004's decision and the shell must not restate it.
+		[[nodiscard]] auto focus_order() const -> QList<QWidget*>;
 
 		/// \brief Presents the composed RFC-BPR-0004 comparison surface.
 		///
@@ -195,19 +232,31 @@ namespace bpr::qt {
 
 	private:
 		/// \brief Binds one primary action to its presentation wording.
+		///
+		/// \details `Name` is the visible toolbar label and the width the compact
+		/// threshold reserves for it. `Accessible` is the assistive-technology
+		/// name, which must stay unique inside the assembled window: the composed
+		/// comparison surface offers its own in-surface change buttons, so the
+		/// toolbar cannot answer to the same name.
 		struct navigation_entry
 		{
 			QAction* Action = nullptr;
 			QString  Name;
+			QString  Accessible;
 			QString  Purpose;
 		};
 
 		/// \brief Binds one drawer to its toggle action and presentation wording.
+		///
+		/// \details `Accessible` names the toggle rather than the drawer, because
+		/// the composed drawer panel and its list view already answer to the
+		/// drawer's own name.
 		struct drawer_entry
 		{
 			workbench_drawer_panel* Panel  = nullptr;
 			QAction*                Toggle = nullptr;
 			QString                 Name;
+			QString                 Accessible;
 			QString                 Collapse;
 			QString                 Expand;
 		};
@@ -223,6 +272,7 @@ namespace bpr::qt {
 		void apply_drawer_layout();
 		void apply_layout_mode();
 		void configure_tool_buttons();
+		void apply_focus_order();
 		void update_action_state();
 		void update_drawer_action(
 			std::size_t                  aIndex,
@@ -248,8 +298,9 @@ namespace bpr::qt {
 		QLabel*         StatusLabel       = nullptr;
 		QSplitter*      CentralSplitter   = nullptr;
 		QWidget*        CentreSurface     = nullptr;
-		QWidget*        EpochSelectors    = nullptr;
 		diff_workbench* ComparisonSurface = nullptr;
+
+		epoch_comparison_control* EpochSelectors = nullptr;
 
 		std::array<navigation_entry, 4>                    Navigation{ };
 		std::array<drawer_entry, 2>                        Drawers{ };
@@ -263,8 +314,12 @@ namespace bpr::qt {
 		bool                                               HasCommands       = false;
 		bool                                               ToolbarConfigured = false;
 		bool                                               ApplyingLayout    = false;
-		QString                                            LastAnnouncement;
-		workbench_window_statistics                        Statistics;
+		// Set by the first published review-history update. Before one arrives
+		// the shell has no review-history state to state, and quoting the
+		// control's idle wording would report activity that never happened.
+		bool                        HasEpochState = false;
+		QString                     LastAnnouncement;
+		workbench_window_statistics Statistics;
 	};
 } // namespace bpr::qt
 

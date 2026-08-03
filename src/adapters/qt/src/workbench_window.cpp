@@ -1,12 +1,16 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
 
 #include <QAccessible>
 #include <QAction>
+#include <QComboBox>
 #include <QFontMetrics>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
+#include <QListView>
 #include <QMenu>
 #include <QPlainTextEdit>
 #include <QSizePolicy>
@@ -112,19 +116,6 @@ namespace bpr::qt {
 			aAction->setToolTip(description);
 			aAction->setStatusTip(description);
 		}
-
-		[[nodiscard]] auto placeholder(
-			QWidget* const aParent,
-			const QString& aObjectName,
-			const QString& aAccessibleName,
-			const QString& aAccessibleDescription) -> QWidget*
-		{
-			auto* const surface = new QWidget{ aParent };
-			surface->setObjectName(aObjectName);
-			surface->setAccessibleName(aAccessibleName);
-			surface->setAccessibleDescription(aAccessibleDescription);
-			return surface;
-		}
 	}
 
 	workbench_window::workbench_window(
@@ -152,6 +143,9 @@ namespace bpr::qt {
 		StatusLabel = new QLabel{ this };
 		StatusLabel->setObjectName(QStringLiteral("workbenchStatus"));
 		StatusLabel->setAccessibleName(QStringLiteral("Workbench status"));
+		StatusLabel->setAccessibleDescription(QStringLiteral(
+			"Selected file position, host failures, and review-history state in "
+			"text"));
 		StatusLabel->setWordWrap(true);
 		StatusLabel->setTextInteractionFlags(Qt::TextSelectableByKeyboard
 											 | Qt::TextSelectableByMouse);
@@ -178,6 +172,7 @@ namespace bpr::qt {
 
 		const auto make = [this](const QString&      aText,
 								 const QString&      aName,
+								 const QString&      aAccessible,
 								 const QString&      aObjectName,
 								 const QString&      aPurpose,
 								 const QKeySequence& aShortcut) -> navigation_entry {
@@ -189,26 +184,40 @@ namespace bpr::qt {
 			action->setShortcutContext(Qt::WindowShortcut);
 			action->setIconText(aName);
 			addAction(action);
-			return { .Action = action, .Name = aName, .Purpose = aPurpose };
+			return {
+				.Action     = action,
+				.Name       = aName,
+				.Accessible = aAccessible,
+				.Purpose    = aPurpose,
+			};
 		};
 
 		Navigation[0] = make(QStringLiteral("&Previous file"),
+							 QStringLiteral("Previous file"),
 							 QStringLiteral("Previous file"),
 							 QStringLiteral("previousWorkbenchFileAction"),
 							 QStringLiteral("Select the previous actionable file."),
 							 QKeySequence{ QStringLiteral("Alt+Up") });
 		Navigation[1] = make(QStringLiteral("&Next file"),
 							 QStringLiteral("Next file"),
+							 QStringLiteral("Next file"),
 							 QStringLiteral("nextWorkbenchFileAction"),
 							 QStringLiteral("Select the next actionable file."),
 							 QKeySequence{ QStringLiteral("Alt+Down") });
+		// The composed comparison surface offers its own in-surface previous and
+		// next change buttons, which already answer to "Previous change" and
+		// "Next change". Two focusable widgets answering to one assistive name in
+		// one window is an accessibility defect, so the top-level toolbar states
+		// which pair it is.
 		Navigation[2] = make(QStringLiteral("Pre&vious change"),
 							 QStringLiteral("Previous change"),
+							 QStringLiteral("Previous review change"),
 							 QStringLiteral("previousWorkbenchChangeAction"),
 							 QStringLiteral("Select the previous semantic change."),
 							 QKeySequence{ QStringLiteral("Alt+PgUp") });
 		Navigation[3] = make(QStringLiteral("Ne&xt change"),
 							 QStringLiteral("Next change"),
+							 QStringLiteral("Next review change"),
 							 QStringLiteral("nextWorkbenchChangeAction"),
 							 QStringLiteral("Select the next semantic change."),
 							 QKeySequence{ QStringLiteral("Alt+PgDown") });
@@ -222,7 +231,10 @@ namespace bpr::qt {
 		OverflowMenu = new QMenu{ this };
 		OverflowMenu->setObjectName(
 			QStringLiteral("workbenchNavigationOverflowMenu"));
-		OverflowMenu->setAccessibleName(QStringLiteral("Review navigation"));
+		// Named apart from the button that opens it: the button and its popup are
+		// two widgets, and one assistive name cannot mean both.
+		OverflowMenu->setAccessibleName(
+			QStringLiteral("Review navigation overflow"));
 		OverflowMenu->setAccessibleDescription(QStringLiteral(
 			"Primary review navigation moved into the compact overflow"));
 		OverflowButton = new QToolButton{ this };
@@ -273,6 +285,7 @@ namespace bpr::qt {
 
 		const auto make = [this](const QString&      aText,
 								 const QString&      aName,
+								 const QString&      aAccessible,
 								 const QString&      aObjectName,
 								 const QString&      aCollapse,
 								 const QString&      aExpand,
@@ -286,29 +299,36 @@ namespace bpr::qt {
 			addAction(action);
 			DrawerToolbar->addAction(action);
 			return {
-				.Toggle   = action,
-				.Name     = aName,
-				.Collapse = aCollapse,
-				.Expand   = aExpand,
+				.Toggle     = action,
+				.Name       = aName,
+				.Accessible = aAccessible,
+				.Collapse   = aCollapse,
+				.Expand     = aExpand,
 			};
 		};
 
+		// Alt+1 through Alt+3 belong to the composed review-history control's
+		// named comparisons, which are widget-context shortcuts. A window-context
+		// duplicate would be ambiguous exactly while that control has focus, and
+		// Qt answers an ambiguous overload by triggering neither action.
 		Drawers[0] = make(
 			QStringLiteral("&Files drawer"),
 			QStringLiteral("Files drawer"),
+			QStringLiteral("Files drawer toggle"),
 			QStringLiteral("toggleWorkbenchFilesDrawerAction"),
 			QStringLiteral("Hide the file drawer and give its width to the "
 						   "comparison."),
 			QStringLiteral("Show the file drawer at its saved width."),
-			QKeySequence{ QStringLiteral("Alt+1") });
+			QKeySequence{ QStringLiteral("Alt+Shift+1") });
 		Drawers[1] = make(
 			QStringLiteral("&Conversations drawer"),
 			QStringLiteral("Conversations drawer"),
+			QStringLiteral("Conversations drawer toggle"),
 			QStringLiteral("toggleWorkbenchConversationsDrawerAction"),
 			QStringLiteral("Hide the conversation drawer and give its width to "
 						   "the comparison."),
 			QStringLiteral("Show the conversation drawer at its saved width."),
-			QKeySequence{ QStringLiteral("Alt+2") });
+			QKeySequence{ QStringLiteral("Alt+Shift+2") });
 
 		for (std::size_t index = 0U; index < Drawers.size(); ++index) {
 			connect(Drawers[index].Toggle,
@@ -334,11 +354,17 @@ namespace bpr::qt {
 		CentreSurface->setAccessibleName(QStringLiteral("Review comparison"));
 		CentreSurface->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
-		EpochSelectors = placeholder(
-			CentreSurface,
-			QStringLiteral("workbenchEpochSelectorPlaceholder"),
-			QStringLiteral("Epoch selectors"),
-			QStringLiteral("Reserved for the left and right epoch selectors"));
+		// RFC-BPR-0003's review-history control is composed unchanged above the
+		// panes. It already owns the independent left and right selectors over
+		// arbitrary retained epochs, the complete copyable commit OIDs, and the
+		// review-history loading, failure, cancellation, and empty wording, so
+		// the shell adds no second selector, OID presentation, or vocabulary.
+		EpochSelectors = new epoch_comparison_control{ { }, CentreSurface };
+		// An ignored horizontal hint, exactly as the drawer heading uses. The
+		// centre must never impose a minimum width that the drawer widths the
+		// host persists cannot coexist with, and the window must stay able to
+		// reach the supported widths the compact overflow exists for.
+		EpochSelectors->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		// RFC-BPR-0004's workbench is composed unchanged. It keeps the single
 		// shared vertical scrollbar, the single link map, and the natural-layout
 		// documents, so the centre gains no second mapping, no regrouping, no
@@ -399,6 +425,20 @@ namespace bpr::qt {
 		update_action_state();
 		update_status_text();
 		announce_update();
+	}
+
+	void workbench_window::publish(
+		const application::epoch_presentation_update& aUpdate)
+	{
+		// The composed control owns every review-history decision, so the update
+		// reaches it unchanged and the shell only quotes the wording it produced.
+		EpochSelectors->publish(aUpdate);
+		HasEpochState = true;
+		++Statistics.EpochUpdates;
+		update_status_text();
+		// Deliberately silent. The composed control already announced this exact
+		// change, and a second announcement of the same fact is the duplicated
+		// chatter a combined status update exists to prevent.
 	}
 
 	void workbench_window::fail(
@@ -527,9 +567,51 @@ namespace bpr::qt {
 		return Drawers[1].Toggle;
 	}
 
-	auto workbench_window::epoch_selector_placeholder() const noexcept -> QWidget*
+	auto workbench_window::epoch_selectors() const noexcept
+		-> epoch_comparison_control*
 	{
 		return EpochSelectors;
+	}
+
+	auto workbench_window::focus_order() const -> QList<QWidget*>
+	{
+		auto       order  = QList<QWidget*>{ };
+		const auto append = [&order](QWidget* const aWidget) {
+			// A stop that cannot take focus is not an interactive stop. Skipping
+			// it keeps the declared order equal to the order a keyboard user can
+			// actually walk.
+			if (aWidget != nullptr && aWidget->focusPolicy() != Qt::NoFocus) {
+				order.push_back(aWidget);
+			}
+		};
+
+		if (Mode == workbench_toolbar_mode::compact) {
+			append(OverflowButton);
+		} else {
+			for (const auto& entry : Navigation) {
+				append(qobject_cast<QToolButton*>(
+					PrimaryToolbar->widgetForAction(entry.Action)));
+			}
+		}
+		for (const auto& entry : Drawers) {
+			append(qobject_cast<QToolButton*>(
+				DrawerToolbar->widgetForAction(entry.Toggle)));
+		}
+		append(Drawers[0].Panel->contents_view());
+		// The two selectors sit on one grid row above their two exact OIDs, so
+		// the declared order is the row order the composed control already walks.
+		append(EpochSelectors->left_selector());
+		append(EpochSelectors->right_selector());
+		append(EpochSelectors->left_oid_editor());
+		append(EpochSelectors->right_oid_editor());
+		// One stop stands for the whole composed comparison surface: its last.
+		// Everything before it inside that surface is RFC-BPR-0004's declared
+		// order, which the shell reports through that card rather than restating
+		// here.
+		append(ComparisonSurface->detail_pane());
+		append(Drawers[1].Panel->contents_view());
+		append(StatusLabel);
+		return order;
 	}
 
 	auto workbench_window::comparison_surface() const noexcept -> diff_workbench*
@@ -706,6 +788,9 @@ namespace bpr::qt {
 		SeparatorAction->setVisible(!compact);
 		OverflowAction->setVisible(compact);
 		configure_tool_buttons();
+		// A mode change destroys and recreates the toolbar buttons, so the
+		// declared order has to be reasserted over the widgets that now exist.
+		apply_focus_order();
 		++Statistics.ToolbarModeChanges;
 	}
 
@@ -717,7 +802,7 @@ namespace bpr::qt {
 			if (button == nullptr) {
 				continue;
 			}
-			button->setAccessibleName(entry.Name);
+			button->setAccessibleName(entry.Accessible);
 			button->setAccessibleDescription(entry.Purpose);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
@@ -727,10 +812,38 @@ namespace bpr::qt {
 			if (button == nullptr) {
 				continue;
 			}
-			button->setAccessibleName(entry.Name);
+			button->setAccessibleName(entry.Accessible);
 			button->setAccessibleDescription(entry.Collapse);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
+	}
+
+	void workbench_window::apply_focus_order()
+	{
+		const auto order = focus_order();
+		if (order.isEmpty()) {
+			return;
+		}
+		// A toolbar mode change destroys and recreates the primary buttons, and a
+		// newly created widget joins the focus chain wherever Qt puts it. The
+		// compact overflow is built once and never moved, so anchoring the chain
+		// to it makes the declared order survive every mode change instead of
+		// drifting to wherever the last rebuild landed.
+		QWidget::setTabOrder(OverflowButton, order.first());
+		for (auto index = qsizetype{ 1 }; index < order.size(); ++index) {
+			auto* const previous = order[index - 1];
+			auto* const next     = order[index];
+			// setTabOrder moves its second argument. A stop inside a composed
+			// region is left exactly where RFC-BPR-0003 and RFC-BPR-0004 put it,
+			// so the shell orders its own chrome around those regions rather than
+			// replacing their internal order with one it decided.
+			if (EpochSelectors->isAncestorOf(next)
+				|| ComparisonSurface->isAncestorOf(next)) {
+				continue;
+			}
+			QWidget::setTabOrder(previous, next);
+		}
+		++Statistics.FocusOrderUpdates;
 	}
 
 	void workbench_window::update_action_state()
@@ -813,6 +926,17 @@ namespace bpr::qt {
 		}
 		if (Failure) {
 			status.append(QStringLiteral(" %1").arg(failure_text(*Failure)));
+		}
+		if (HasEpochState) {
+			// Quoted, never restated. Review-history loading, failure,
+			// cancellation, and empty history are decided and worded by the
+			// composed control; the shell repeats that exact sentence so its one
+			// status line states the whole workbench state in text rather than in
+			// enabled state or colour alone.
+			const auto epochs = EpochSelectors->status_text();
+			if (!epochs.isEmpty()) {
+				status.append(QStringLiteral(" %1").arg(epochs));
+			}
 		}
 		StatusLabel->setText(status);
 	}

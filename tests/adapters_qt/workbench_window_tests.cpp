@@ -1,14 +1,18 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAbstractItemModel>
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
 #include <QElapsedTimer>
 #include <QKeySequence>
+#include <QLineEdit>
 #include <QList>
 #include <QListView>
 #include <QMenu>
@@ -24,6 +28,7 @@
 #include <QTextDocument>
 #include <QToolBar>
 #include <QToolButton>
+#include <QWidget>
 
 #include <algorithm>
 #include <array>
@@ -458,11 +463,11 @@ namespace {
 
 		expect(window.files_drawer() != nullptr
 				   && window.conversations_drawer() != nullptr
-				   && window.epoch_selector_placeholder() != nullptr
+				   && window.epoch_selectors() != nullptr
 				   && window.comparison_surface() != nullptr
 				   && window.detail_pane() != nullptr,
-			   "the shell names its composed comparison surface, its detail "
-			   "pane, and every later-card placeholder");
+			   "the shell names its composed epoch selectors, its composed "
+			   "comparison surface, and its detail pane");
 
 		expect(window.status_text()
 				   == QStringLiteral("Open a pull request to begin reviewing."),
@@ -1778,6 +1783,663 @@ namespace {
 				  << large.ScrollMilliseconds << '\n';
 		window.hide();
 	}
+
+	// --- Composed review-history fixtures -----------------------------------
+	//
+	// RFC-BPR-0003 decides review-history identity, legality, and wording, and
+	// its own suite proves those rules. These fixtures build the same
+	// projections so this suite can prove the composition instead: that the
+	// shell exposes the control, drives it through the window's projection
+	// port, states its decided text, and places it in one declared focus order.
+
+	/// \brief Builds one complete forty-character fixture commit OID text.
+	///
+	/// \details The characters vary along the whole string rather than
+	/// repeating, so an abbreviation, a bare prefix, or an elided middle is a
+	/// different value instead of a coincidental match.
+	[[nodiscard]] auto epoch_commit_text(const std::uint8_t aSeed) -> std::string
+	{
+		constexpr std::string_view digits = "0123456789abcdef";
+		auto                       text   = std::string{ };
+		text.reserve(40U);
+		for (std::size_t index = 0U; index < 40U; ++index) {
+			text.push_back(digits[((index * 7U) + aSeed) % digits.size()]);
+		}
+		return text;
+	}
+
+	[[nodiscard]] auto epoch_commit(const std::uint8_t aSeed) -> core::git_commit_oid
+	{
+		const auto parsed = core::parse_git_commit_oid(epoch_commit_text(aSeed));
+		expect(parsed.has_value() && parsed->valid(),
+			   "the fixture commit OID parses into a live identity");
+		return *parsed;
+	}
+
+	[[nodiscard]] constexpr auto epoch_base_seed(const std::int64_t aOrdinal)
+		-> std::uint8_t
+	{
+		return static_cast<std::uint8_t>(2 * aOrdinal);
+	}
+
+	[[nodiscard]] constexpr auto epoch_head_seed(const std::int64_t aOrdinal)
+		-> std::uint8_t
+	{
+		return static_cast<std::uint8_t>((2 * aOrdinal) + 1);
+	}
+
+	[[nodiscard]] auto epoch_scope() -> core::pull_request_authority_scope_id
+	{
+		return opaque<core::pull_request_authority_scope_id>(61U);
+	}
+
+	[[nodiscard]] auto epoch_catalog() -> core::epoch_catalog_identity
+	{
+		return {
+			.Incarnation = opaque<core::epoch_catalog_incarnation_id>(62U),
+			.Revision    = core::epoch_catalog_revision{ 7 },
+		};
+	}
+
+	[[nodiscard]] auto epoch_authority() -> core::pull_request_authority
+	{
+		return {
+			.Profile         = core::host_profile_id{ 12U },
+			.ProfileRevision = core::github_profile_revision{ 22U },
+			.Host            = core::git_host_id{ 32U },
+			.HostAuthority   = opaque<core::host_authority_fingerprint>(63U),
+			.Account         = core::github_account_id{ 42U },
+			.Viewer          = core::github_viewer_actor_id{ 52U },
+			.Repository      = core::repository_id{ 62U },
+			.Cache           = opaque<core::repository_cache_scope_id>(64U),
+			.PullRequest     = core::pull_request_id{ 72U },
+			.Number          = core::pull_request_number{ 82U },
+			.Scope           = epoch_scope(),
+		};
+	}
+
+	[[nodiscard]] auto epoch_row(const std::int64_t aOrdinal)
+		-> application::epoch_row_projection
+	{
+		return {
+			.Id = {
+				.Authority   = epoch_scope(),
+				.Incarnation = epoch_catalog().Incarnation,
+				.Ordinal     = core::epoch_ordinal{ aOrdinal },
+			},
+			.Snapshot              = core::provider_snapshot_id{ static_cast<std::uint64_t>(aOrdinal) },
+			.IdentityGeneration    = core::github_identity_generation{ 3U },
+			.PullRequestGeneration = core::request_generation{ 4U },
+			.BaseBranch            = opaque<core::base_branch_id>(65U),
+			.Base                  = epoch_commit(epoch_base_seed(aOrdinal)),
+			.Head                  = epoch_commit(epoch_head_seed(aOrdinal)),
+			.Cause                 = {
+				.Origin   = core::epoch_origin::live_observation,
+				.Base     = core::epoch_base_transition::unchanged,
+				.Head     = core::epoch_head_transition::descendant,
+				.Material = core::epoch_material_relation::different,
+				.Primary  = core::epoch_primary_cause::author_upload,
+			},
+			.ObservedAt       = core::observed_utc_milliseconds{ 1'700'000'000'000LL + aOrdinal },
+			.BaseAvailability = core::anchor_availability::available,
+			.HeadAvailability = core::anchor_availability::available,
+		};
+	}
+
+	[[nodiscard]] auto epoch_anchor(
+		const application::epoch_row_projection& aRow,
+		const core::comparison_anchor_kind       aKind) -> core::comparison_anchor
+	{
+		return {
+			.Identity = {
+				.Authority   = aRow.Id.Authority,
+				.Incarnation = aRow.Id.Incarnation,
+				.Kind        = aKind,
+				.Epoch       = aRow.Id.Ordinal,
+			},
+			.Commit       = aKind == core::comparison_anchor_kind::epoch_base ? aRow.Base : aRow.Head,
+			.Availability = core::anchor_availability::available,
+		};
+	}
+
+	/// \brief Builds one bounded review-history page publication.
+	[[nodiscard]] auto history_page_update(
+		const core::epoch_history_page_phase           aPhase,
+		std::vector<application::epoch_row_projection> aRows)
+		-> application::epoch_presentation_update
+	{
+		const auto identity = epoch_catalog();
+		return {
+			.Catalog = application::epoch_catalog_projection{
+				.Catalog     = identity,
+				.HistoryPage = application::epoch_history_page_projection{
+					.Phase      = aPhase,
+					.Catalog    = identity,
+					.Navigation = core::epoch_history_navigation::newest,
+					.Limit      = core::maximum_epoch_history_page_size,
+					.Rows       = std::move(aRows),
+				},
+			},
+		};
+	}
+
+	[[nodiscard]] auto retained_epochs(
+		std::vector<application::epoch_row_projection> aRows)
+		-> application::epoch_presentation_update
+	{
+		return history_page_update(core::epoch_history_page_phase::loaded,
+								   std::move(aRows));
+	}
+
+	[[nodiscard]] auto enabled_epoch_commands() -> core::epoch_command_delta
+	{
+		const auto enabled = [](const core::epoch_command_id aId) {
+			return core::epoch_command_projection{
+				.Id             = aId,
+				.Enabled        = true,
+				.DisabledReason = core::epoch_reason_code::none,
+			};
+		};
+		return {
+			.Commands = {
+				enabled(core::epoch_command_id::refresh_epochs),
+				enabled(core::epoch_command_id::select_comparison),
+				enabled(core::epoch_command_id::prune_selected_epochs),
+				enabled(core::epoch_command_id::delete_repository_cache),
+				enabled(core::epoch_command_id::cancel_epoch_refresh),
+				enabled(core::epoch_command_id::cancel_epoch_maintenance),
+			},
+		};
+	}
+
+	/// \brief Publishes one exactly resolved retained comparison pair.
+	[[nodiscard]] auto resolved_pair_update(const core::comparison_pair& aPair)
+		-> application::epoch_presentation_update
+	{
+		const auto selection = core::explicit_selection(aPair.Left.Identity,
+														aPair.Right.Identity);
+		return {
+			.Transition = application::epoch_transition_projection{
+				.Changed = core::epoch_changed_domain::selection
+					| core::epoch_changed_domain::comparison
+					| core::epoch_changed_domain::authority
+					| core::epoch_changed_domain::status
+					| core::epoch_changed_domain::commands,
+				.Authority = application::epoch_authority_projection{
+					.Authority  = epoch_authority(),
+					.Generation = core::epoch_generation{ 8U },
+				},
+				.Selection = core::comparison_selection_delta{
+					.Selection = selection,
+				},
+				.Comparison = application::epoch_comparison_projection{
+					.Selection        = selection,
+					.Pair             = aPair,
+					.Generation       = core::comparison_generation{ 9U },
+					.Revision         = core::comparison_revision{ 3 },
+					.AvailableForDiff = true,
+				},
+				.Status = core::epoch_status_delta{
+					.Status = core::epoch_status::ready,
+				},
+				.Commands = enabled_epoch_commands(),
+			},
+		};
+	}
+
+	[[nodiscard]] auto anchor_intent(const application::epoch_intent& aIntent)
+		-> const core::select_comparison_anchor_intent*
+	{
+		return std::get_if<core::select_comparison_anchor_intent>(&aIntent);
+	}
+
+	void test_composed_epoch_selectors_show_exact_retained_epochs()
+	{
+		std::vector<application::epoch_intent> epochs;
+		qt::workbench_window                   window;
+
+		auto* const selectors = window.epoch_selectors();
+		expect(selectors != nullptr
+				   && selectors->parentWidget()
+					   == window.findChild<QWidget*>(
+						   QStringLiteral("workbenchCentralSurface")),
+			   "the composed epoch selectors sit in the workbench centre above "
+			   "the comparison panes");
+		expect(window.findChild<QWidget*>(
+				   QStringLiteral("workbenchEpochSelectorPlaceholder"))
+				   == nullptr,
+			   "no empty selector placeholder survives beside the real control");
+		selectors->set_dispatch(
+			[&epochs](application::epoch_intent aIntent) {
+				epochs.push_back(std::move(aIntent));
+			});
+
+		const auto first  = epoch_row(1);
+		const auto second = epoch_row(2);
+		const auto third  = epoch_row(3);
+		window.publish(retained_epochs({ first, second, third }));
+		expect(window.statistics().EpochUpdates == 1U,
+			   "a review-history update reaches the shell through its own "
+			   "projection port");
+
+		auto* const left  = selectors->left_selector();
+		auto* const right = selectors->right_selector();
+		expect(left != nullptr && right != nullptr && left != right
+				   && left->model() == selectors->history_model()
+				   && right->model() == selectors->history_model(),
+			   "the shell offers two independent selectors over one retained "
+			   "review history");
+		expect(left->count() == 6 && right->count() == 6,
+			   "every retained epoch offers its base and its head anchor to both "
+			   "selectors");
+		expect(left->itemText(2)
+					   == QStringLiteral(
+						   "Epoch 2 · Base — Author upload — Available")
+				   && left->itemText(3)
+					   == QStringLiteral(
+						   "Epoch 2 · Head — Author upload — "
+						   "Available"),
+			   "each selector entry labels the exact retained epoch and anchor");
+
+		// An arbitrary retained pair: the oldest base against the newest head.
+		const auto pair = core::comparison_pair{
+			.Left  = epoch_anchor(first, core::comparison_anchor_kind::epoch_base),
+			.Right = epoch_anchor(third, core::comparison_anchor_kind::epoch_head),
+		};
+		window.publish(resolved_pair_update(pair));
+
+		auto* const leftOid  = selectors->left_oid_editor();
+		auto* const rightOid = selectors->right_oid_editor();
+		const auto  expectedLeft
+			= QString::fromStdString(epoch_commit_text(epoch_base_seed(1)));
+		const auto expectedRight
+			= QString::fromStdString(epoch_commit_text(epoch_head_seed(3)));
+		expect(expectedLeft.size() == 40 && expectedRight.size() == 40
+				   && expectedLeft != expectedRight,
+			   "the fixture carries two different complete forty-character OIDs");
+		expect(leftOid->text() == expectedLeft
+				   && rightOid->text() == expectedRight,
+			   "each selector states the exact complete commit OID of its "
+			   "selected anchor");
+		expect(leftOid->text() != expectedLeft.left(7)
+				   && leftOid->text() != expectedLeft.left(8)
+				   && leftOid->text() != expectedLeft.left(12)
+				   && !leftOid->text().contains(QStringLiteral("…"))
+				   && !leftOid->text().contains(QStringLiteral("...")),
+			   "the exact OID is the whole value rather than an abbreviation or "
+			   "an elision");
+
+		leftOid->selectAll();
+		rightOid->selectAll();
+		expect(leftOid->isReadOnly() && rightOid->isReadOnly()
+				   && leftOid->selectedText() == expectedLeft
+				   && rightOid->selectedText() == expectedRight,
+			   "the whole exact OID is selectable and copyable out of the shell "
+			   "without being editable");
+
+		// Independence: moving one selector asks for one side and leaves the
+		// other side's decided anchor exactly where the core put it.
+		epochs.clear();
+		const auto rightBefore = right->currentIndex();
+		left->setCurrentIndex(3);
+		expect(epochs.size() == 1U,
+			   "one selector gesture emits exactly one semantic intent");
+		const auto* const leftIntent = anchor_intent(epochs.front());
+		expect(leftIntent != nullptr
+				   && leftIntent->Side == core::comparison_side::left
+				   && leftIntent->Anchor.Kind
+					   == core::comparison_anchor_kind::epoch_head
+				   && leftIntent->Anchor.Epoch == core::epoch_ordinal{ 2 },
+			   "the left selector asks for the exact arbitrary retained epoch it "
+			   "shows");
+		expect(right->currentIndex() == rightBefore
+				   && rightOid->text() == expectedRight,
+			   "moving the left selector moves neither the right selector nor its "
+			   "exact OID");
+		expect(left->currentIndex() == 0,
+			   "the selector re-asserts the decided anchor rather than keeping a "
+			   "selection presentation chose for itself");
+
+		epochs.clear();
+		right->setCurrentIndex(0);
+		expect(epochs.size() == 1U,
+			   "the second selector gesture also emits exactly one intent");
+		const auto* const rightIntent = anchor_intent(epochs.front());
+		expect(rightIntent != nullptr
+				   && rightIntent->Side == core::comparison_side::right
+				   && rightIntent->Anchor.Kind
+					   == core::comparison_anchor_kind::epoch_base
+				   && rightIntent->Anchor.Epoch == core::epoch_ordinal{ 1 },
+			   "the right selector independently asks for any retained epoch, "
+			   "including one earlier than the left side shows");
+
+		// The reverse pair proves the two sides really are independent rather
+		// than one ordered range presented twice.
+		const auto reversed = core::comparison_pair{
+			.Left  = epoch_anchor(third, core::comparison_anchor_kind::epoch_head),
+			.Right = epoch_anchor(first, core::comparison_anchor_kind::epoch_base),
+		};
+		window.publish(resolved_pair_update(reversed));
+		expect(leftOid->text() == expectedRight
+				   && rightOid->text() == expectedLeft,
+			   "an arbitrary reversed retained pair reaches both selectors "
+			   "exactly");
+	}
+
+	void test_review_history_state_is_explicit_in_workbench_text()
+	{
+		qt::workbench_window window;
+		const auto           inactive = window.status_text();
+		expect(inactive
+				   == QStringLiteral("Open a pull request to begin reviewing."),
+			   "before any review-history update the shell states only its own "
+			   "state");
+
+		window.publish(retained_epochs({ }));
+		const auto empty = window.status_text();
+		window.publish(retained_epochs({ epoch_row(1), epoch_row(2) }));
+		const auto retained = window.status_text();
+		window.publish(
+			history_page_update(core::epoch_history_page_phase::loading, { }));
+		const auto loading = window.status_text();
+		window.publish(
+			history_page_update(core::epoch_history_page_phase::failed, { }));
+		const auto failed = window.status_text();
+		window.publish(
+			history_page_update(core::epoch_history_page_phase::cancelled, { }));
+		const auto cancelled = window.status_text();
+
+		const std::array<QString, 5> states{
+			empty, retained, loading, failed, cancelled
+		};
+		for (std::size_t outer = 0U; outer < states.size(); ++outer) {
+			expect(!states[outer].isEmpty(),
+				   "every review-history state reaches the shell as text");
+			for (std::size_t inner = outer + 1U; inner < states.size(); ++inner) {
+				expect(states[outer] != states[inner],
+					   "loading, failure, cancellation, empty, and retained "
+					   "review history each read differently in text rather "
+					   "than differing only in colour or enabled state");
+			}
+		}
+		expect(empty.contains(
+				   QStringLiteral("No review epochs have been recorded.")),
+			   "an empty review history says so in words");
+		expect(loading.contains(QStringLiteral("Loading")),
+			   "a loading review history says so in words");
+		expect(failed.contains(QStringLiteral("could not be loaded")),
+			   "a failed review-history load says so in words");
+		expect(cancelled.contains(QStringLiteral("canceled")),
+			   "a canceled review-history load says so in words");
+		for (const auto& state : states) {
+			expect(state.startsWith(inactive),
+				   "the shell states one combined line: its own state first, "
+				   "then the review-history state the composed control decided");
+		}
+
+		// One published change, one announcement, made by whichever control
+		// decided it.
+		const auto before        = window.statistics();
+		const auto controlBefore = window.epoch_selectors()->statistics();
+		window.publish(retained_epochs({ epoch_row(1) }));
+		expect(window.statistics().EpochUpdates == before.EpochUpdates + 1U,
+			   "the window observes each review-history update exactly once");
+		expect(window.statistics().Announcements == before.Announcements
+				   && window.epoch_selectors()->statistics().Announcements
+					   > controlBefore.Announcements,
+			   "a review-history change is announced once, by the control that "
+			   "decided it, rather than twice");
+
+		// The shell's own host failure stays distinguishable inside the same
+		// combined line.
+		window.fail({ .Failure
+					  = application::workbench_host_failure::settings_unavailable });
+		expect(window.status_text().contains(
+				   QStringLiteral("The saved workbench layout is unavailable."))
+				   && window.status_text() != cancelled,
+			   "a workbench host failure is explicit in the same combined line "
+			   "and does not read like a review-history state");
+	}
+
+	[[nodiscard]] auto accessible_names(const QList<QWidget*>& aStops)
+		-> QStringList
+	{
+		auto names = QStringList{ };
+		for (auto* const stop : aStops) {
+			names.push_back(stop->accessibleName());
+		}
+		return names;
+	}
+
+	/// \brief Walks the live focus chain and reports the declared stops it met.
+	///
+	/// \details The chain is circular, so the walk starts at the first declared
+	/// stop and stops when it returns there. Widgets outside the declared order
+	/// are skipped, which is what makes this a relative-order check rather than
+	/// a claim about every widget Qt happens to keep in the chain.
+	[[nodiscard]] auto walked_focus_order(const QList<QWidget*>& aStops)
+		-> QList<QWidget*>
+	{
+		auto walked = QList<QWidget*>{ };
+		if (aStops.isEmpty()) {
+			return walked;
+		}
+		auto* const start  = aStops.front();
+		auto*       cursor = start;
+		for (auto step = 0; step < 8'192; ++step) {
+			cursor = cursor->nextInFocusChain();
+			if (cursor == nullptr || cursor == start) {
+				break;
+			}
+			if (aStops.contains(cursor)) {
+				walked.push_back(cursor);
+			}
+		}
+		return walked;
+	}
+
+	void test_focus_order_is_declared_named_and_walkable()
+	{
+		qt::workbench_window window;
+		window.resize(window.compact_width_threshold() + 320, 820);
+		window.show();
+		process_events();
+
+		const auto expanded = window.focus_order();
+		expect(expanded.size() >= 12,
+			   "the shell declares every interactive stop it owns");
+		auto declared = QStringList{ };
+		for (auto* const stop : expanded) {
+			expect(stop != nullptr && stop->focusPolicy() != Qt::NoFocus,
+				   "every declared focus stop can actually take keyboard focus");
+			expect(!stop->accessibleName().isEmpty()
+					   && !stop->accessibleDescription().isEmpty(),
+				   "every interactive element carries an accessible name and an "
+				   "accessible description");
+			expect(!declared.contains(stop->accessibleName()),
+				   "no two interactive elements answer to one accessible name");
+			declared.push_back(stop->accessibleName());
+		}
+		expect(declared.contains(QStringLiteral("Left review epoch"))
+				   && declared.contains(QStringLiteral("Right review epoch"))
+				   && declared.contains(QStringLiteral("Exact left commit OID"))
+				   && declared.contains(QStringLiteral("Exact right commit OID")),
+			   "both epoch selectors and both exact OIDs are reachable stops in "
+			   "the shell's declared focus order");
+		expect(walked_focus_order(expanded) == expanded.mid(1),
+			   "the live focus chain walks the declared order exactly");
+
+		// No reachable focusable widget anywhere in the assembled window may
+		// answer to a name another reachable focusable widget already uses.
+		// Reachable is part of the rule rather than a convenience: Qt keeps a
+		// hidden zero-size first splitter handle, which no keyboard or assistive
+		// user can ever land on.
+		auto seen = QStringList{ };
+		for (auto* const widget : window.findChildren<QWidget*>()) {
+			if (widget->focusPolicy() == Qt::NoFocus || !widget->isVisible()
+				|| widget->accessibleName().isEmpty()) {
+				continue;
+			}
+			expect(!seen.contains(widget->accessibleName()),
+				   message_for("no accessible name is shared by two focusable "
+							   "widgets in the assembled workbench",
+							   (widget->accessibleName() + QStringLiteral(" on ")
+								+ widget->metaObject()->className()
+								+ QStringLiteral(" ") + widget->objectName())
+								   .toStdString()));
+			seen.push_back(widget->accessibleName());
+		}
+
+		// An ambiguous shortcut overload triggers neither action, so one key
+		// sequence may never be offered twice in one window.
+		auto sequences = QList<QKeySequence>{ };
+		for (auto* const action : window.findChildren<QAction*>()) {
+			if (action->shortcut().isEmpty()) {
+				continue;
+			}
+			expect(!sequences.contains(action->shortcut()),
+				   "no keyboard command is claimed twice in the assembled "
+				   "workbench");
+			sequences.push_back(action->shortcut());
+		}
+		expect(!sequences.contains(
+				   window.navigation_overflow_button()->shortcut()),
+			   "the compact overflow's own shortcut is not claimed by an action "
+			   "as well");
+
+		window.resize(window.minimumWidth(), 720);
+		process_events();
+		expect(window.toolbar_mode() == qt::workbench_toolbar_mode::compact,
+			   "the narrow window really entered the compact overflow");
+		const auto compact = window.focus_order();
+		expect(compact.front() == window.navigation_overflow_button(),
+			   "the compact overflow is the first interactive stop once primary "
+			   "navigation moves into it");
+		for (auto* const stop : compact) {
+			expect(!stop->accessibleName().isEmpty()
+					   && !stop->accessibleDescription().isEmpty(),
+				   "the compact layout keeps every stop named and described");
+		}
+		expect(walked_focus_order(compact) == compact.mid(1),
+			   "the compact focus chain walks its declared order exactly");
+
+		window.resize(window.compact_width_threshold() + 320, 820);
+		process_events();
+		expect(window.toolbar_mode() == qt::workbench_toolbar_mode::expanded,
+			   "widening the window restores top-level primary navigation");
+		const auto restored = window.focus_order();
+		expect(accessible_names(restored) == declared,
+			   "returning to the wide layout restores the same declared focus "
+			   "order, not the order the rebuilt toolbar buttons landed in");
+		expect(walked_focus_order(restored) == restored.mid(1),
+			   "the restored focus chain walks the declared order exactly");
+		window.hide();
+	}
+
+	void test_selection_synchronisation_and_restart_persistence()
+	{
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto diff                  = computed_comparison(leftText, rightText);
+
+		intent_log log;
+		auto       window = std::make_unique<qt::workbench_window>(
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{
+				[&log](const core::workbench_drawer aDrawer,
+					   const std::uint32_t          aWidth) {
+					log.Width.push_back({ .Drawer = aDrawer, .Width = aWidth });
+				} });
+		window->resize(window->compact_width_threshold() + 320, 820);
+		window->show();
+		process_events();
+
+		auto persisted    = both_files_enabled();
+		persisted.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+										  core::workbench_drawer_state::expanded);
+		persisted.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 260U,
+		};
+		window->publish(persisted);
+		process_events();
+		auto* const surface = publish_fixture(*window, diff);
+
+		// Selection synchronisation: one gesture, one semantic selection, and
+		// every composed region answers with that same selection.
+		const auto beforeSelection = surface->selection();
+		const auto beforeDetail    = window->detail_pane()->toPlainText();
+		surface->next_change_button()->click();
+		process_events();
+		const auto& selection = surface->selection();
+		expect(selection.has_value() && selection != beforeSelection,
+			   "selecting the next change moves the one semantic selection");
+		expect(window->detail_pane() == surface->detail_pane(),
+			   "the shell's detail pane is the composed surface's own pane, so "
+			   "one selection can never produce two answers");
+		expect(window->detail_pane()->toPlainText() != beforeDetail,
+			   "the lower detail pane follows the selection the composed surface "
+			   "made");
+		const auto links = surface->link_map()->visible_links();
+		expect(std::ranges::any_of(
+				   links,
+				   [&selection](const qt::visible_diff_link& aLink) {
+					   return aLink.Identity.Group == selection->Group;
+				   }),
+			   "the link map paints the same selected group the lower detail "
+			   "pane shows");
+
+		// Restart persistence: a drag reports the host-owned width, and a fresh
+		// window built from the settings the host persisted restores it.
+		auto* const splitter = window->findChild<QSplitter*>(
+			QStringLiteral("workbenchCentralSplitter"));
+		expect(splitter != nullptr, "the shell owns one central splitter");
+		const auto sizes = splitter->sizes();
+		log.Width.clear();
+		splitter->setSizes({ 380, sizes[1] - 60, sizes[2] });
+		process_events();
+		expect(!log.Width.empty()
+				   && log.Width.back().Drawer == core::workbench_drawer::files
+				   && log.Width.back().Width == 380U,
+			   "a resized drawer reports exactly the width the host must "
+			   "persist");
+		const auto persistedWidth = log.Width.back().Width;
+
+		auto closing    = application::workbench_projection{ };
+		closing.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+										core::workbench_drawer_state::collapsed);
+		window->publish(closing);
+		process_events();
+		window->hide();
+		window.reset();
+
+		qt::workbench_window restarted;
+		restarted.resize(restarted.compact_width_threshold() + 320, 820);
+		restarted.show();
+		process_events();
+		expect(restarted.files_drawer()->width() != static_cast<int>(persistedWidth)
+				   || restarted.conversations_drawer()->isVisible(),
+			   "a fresh shell starts without the persisted layout, so restoring "
+			   "it is a real transition");
+
+		auto reloaded    = both_files_enabled();
+		reloaded.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+										 core::workbench_drawer_state::collapsed);
+		reloaded.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = persistedWidth,
+			.ConversationsWidth = 260U,
+		};
+		restarted.publish(reloaded);
+		process_events();
+		expect(restarted.files_drawer()->width()
+				   == static_cast<int>(persistedWidth),
+			   "a restarted shell restores the drawer width the host persisted");
+		expect(!restarted.conversations_drawer()->isVisible()
+				   && !restarted.conversations_drawer_toggle_action()->isChecked(),
+			   "a restarted shell restores the persisted drawer state as well as "
+			   "its width");
+		restarted.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -1794,6 +2456,10 @@ auto main(int argc, char** argv) -> int
 	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
 	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
 	test_the_lower_detail_pane_is_full_width_line_over_line();
+	test_composed_epoch_selectors_show_exact_retained_epochs();
+	test_review_history_state_is_explicit_in_workbench_text();
+	test_focus_order_is_declared_named_and_walkable();
+	test_selection_synchronisation_and_restart_persistence();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;
