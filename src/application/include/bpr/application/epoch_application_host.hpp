@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_EPOCH_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_EPOCH_APPLICATION_HOST_HPP
 
+#include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/application/epoch_catalog_port.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
@@ -13,7 +14,9 @@
 
 namespace bpr::application {
 	/// \brief Provides the epoch application host contract.
-	class epoch_application_host final : public github_epoch_handoff_port
+	class epoch_application_host final
+		: public github_epoch_handoff_port,
+		  public diff_blob_port
 	{
 	public:
 		// Ingress and state/quiescence inspection are confined to the serialized
@@ -47,6 +50,12 @@ namespace bpr::application {
 		void invalidate(
 			pull_request_authority_invalidation aInvalidation) override;
 		void dispatch(epoch_intent aIntent);
+		// The diff worker calls this synchronous seam. It is serialized onto the
+		// same retained authority/cache actor used by epoch work, so no competing
+		// lifetime-exclusive Git cache session is opened.
+		[[nodiscard]] auto materialize(
+			const diff_blob_request& aRequest,
+			std::stop_token          aStop) -> diff_blob_observation override;
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::epoch_state&;

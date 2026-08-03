@@ -1,4 +1,4 @@
-#include "bpr/core/diff_semantics.hpp"
+#include "bpr/core/diff_interaction.hpp"
 
 #include <algorithm>
 #include <array>
@@ -432,6 +432,70 @@ namespace {
 			   "both canonical change projections retain the same move marker");
 	}
 
+	auto test_compact_interaction_transition() -> void
+	{
+		const auto diff = run(
+			"same\nold one\nmiddle\nold two\nend\n",
+			"same\nnew one\nmiddle\nnew two\nend\n");
+		expect(diff.Alignment.Groups.size() == 2U, "interaction fixture has two changes");
+		auto state = diff_interaction_state{ };
+		expect(
+			!transition(
+				state,
+				diff,
+				select_diff_line_intent{
+					.Line = line(diff, diff_side::left, 99U) })
+				&& !state.Selection.has_value(),
+			"invalid line intent leaves compact interaction state unchanged");
+		expect(
+			transition(
+				state,
+				diff,
+				select_diff_group_intent{
+					.Group = diff.Alignment.Groups.front().Id })
+				&& state.Selection.has_value()
+				&& state.Selection->Group == diff.Alignment.Groups.front().Id,
+			"group intent selects the canonical semantic group");
+		expect(
+			!transition(
+				state,
+				diff,
+				navigate_diff_change_intent{
+					.Direction = change_navigation_direction::previous,
+					.Policy    = change_navigation_policy::stop })
+				&& state.Selection->Group == diff.Alignment.Groups.front().Id,
+			"stop navigation at the first group retains the selection");
+		expect(
+			transition(
+				state,
+				diff,
+				navigate_diff_change_intent{
+					.Direction = change_navigation_direction::next,
+					.Policy    = change_navigation_policy::stop })
+				&& state.Selection->Group == diff.Alignment.Groups.back().Id,
+			"next navigation follows canonical group order");
+		expect(
+			!transition(
+				state,
+				diff,
+				select_diff_group_intent{
+					.Group = opaque<change_group_id>(0xEEU) })
+				&& state.Selection->Group == diff.Alignment.Groups.back().Id,
+			"unknown group intent fails closed without clearing valid state");
+
+		const auto replacement = run(
+			"same\nold one\nmiddle\nold two\nend\n",
+			"same\nnew one\nmiddle\nnew two\nend\n",
+			{ },
+			true,
+			true,
+			32U);
+		expect(
+			reconcile_diff_interaction(state, replacement)
+				&& !state.Selection.has_value(),
+			"replacement comparison clears a selection whose stable identity is absent");
+	}
+
 	auto verify_generated_mapping(const computed_file_diff& aDiff) -> void
 	{
 		const auto projection = project_changes(aDiff);
@@ -513,6 +577,7 @@ int main()
 	test_selection_reconciliation();
 	test_unavailable_and_fail_closed();
 	test_move_relation_stays_secondary();
+	test_compact_interaction_transition();
 	test_generated_properties();
 	std::cout << "BPR-0074 diff semantic projection tests passed\n";
 	return EXIT_SUCCESS;

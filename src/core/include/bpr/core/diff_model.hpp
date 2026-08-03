@@ -11,9 +11,6 @@
 #include <vector>
 
 namespace bpr::core {
-	struct git_blob_oid_kind;
-	using git_blob_oid = git_object_oid<git_blob_oid_kind>;
-
 	struct file_identity_tag;
 	struct diff_options_digest_tag;
 	struct file_comparison_digest_tag;

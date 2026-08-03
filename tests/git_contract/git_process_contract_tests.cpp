@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <span>
@@ -40,6 +41,29 @@ namespace {
 	inline constexpr std::string_view sha1_pack_hex   = "e248b08f09a75116fdb2397c928a84f6a93f6c34";
 	inline constexpr std::string_view sha256_tree_hex = "d1b1a86a6b5182208ff0345ff6f64d9c48b9d058e0e8a88fbaefcf192384aa8d";
 	inline constexpr std::string_view sha256_pack_hex = "3e3468388a66c6475d2c1fdb8fb7286bc0ae1f934b6352358cc98e4e5e823b69";
+
+	class recording_blob_sink final
+		: public application::git_blob_materialization_sink
+	{
+	public:
+		auto accept(
+			const application::git_blob_id&  aBlob,
+			const std::span<const std::byte> aBytes) -> void override
+		{
+			Blob = aBlob;
+			Bytes.clear();
+			Bytes.reserve(aBytes.size());
+			std::ranges::transform(
+				aBytes,
+				std::back_inserter(Bytes),
+				[](const std::byte aByte) {
+					return std::to_integer<std::uint8_t>(aByte);
+				});
+		}
+
+		std::optional<application::git_blob_id> Blob;
+		std::vector<std::uint8_t>               Bytes;
+	};
 
 	inline constexpr std::array<std::uint8_t, 230U> sha1_pack{
 		0x50,
@@ -1390,6 +1414,80 @@ namespace {
 			const auto repository = repository_path(root.Path, aRepositoryDigit);
 			initialize_repository(*adapter, repository, aAlgorithm);
 			const auto fixture = make_connectivity_fixture(repository, aAlgorithm);
+			const auto expect =
+				[&](const bool aCondition, const std::string_view aClaim) {
+					require(
+						aCondition,
+						std::string{ aLabel } + ": " + std::string{ aClaim });
+				};
+			const auto fixtureBlob = object<application::git_blob_id>(
+				fixture.Blob, aAlgorithm);
+			const auto emptyBlob = object<application::git_blob_id>(
+				run_fixture_git(
+					repository,
+					{ "hash-object", "-w", "--stdin" },
+					{ }),
+				aAlgorithm);
+			auto       emptySink         = recording_blob_sink{ };
+			const auto emptyMaterialized = adapter->materialize_blob(
+				{
+					.Repository   = repository,
+					.Blob         = emptyBlob,
+					.MaximumBytes = 1U,
+				},
+				emptySink,
+				{ });
+			expect(
+				emptyMaterialized.has_value()
+					&& emptySink.Blob == emptyBlob
+					&& emptySink.Bytes.empty(),
+				"empty blob materialization returns an exact empty byte vector");
+			auto       materializedSink = recording_blob_sink{ };
+			const auto materialized     = adapter->materialize_blob(
+				{
+					.Repository   = repository,
+					.Blob         = fixtureBlob,
+					.MaximumBytes = application::maximum_git_blob_materialization_bytes,
+				},
+				materializedSink,
+				{ });
+			const auto fixtureBytes = std::string_view{ "connected fixture blob\n" };
+			expect(
+				materialized.has_value() && materializedSink.Blob == fixtureBlob
+					&& std::ranges::equal(materializedSink.Bytes, fixtureBytes),
+				"exact blob materialization returns byte-for-byte content");
+			auto       limitedSink = recording_blob_sink{ };
+			const auto limited     = adapter->materialize_blob(
+				{
+					.Repository   = repository,
+					.Blob         = fixtureBlob,
+					.MaximumBytes = fixtureBytes.size() - 1U,
+				},
+				limitedSink,
+				{ });
+			expect(
+				!limited.has_value()
+					&& limited.error()
+						== application::git_process_failure::standard_output_limit
+					&& !limitedSink.Blob.has_value(),
+				"declared oversize blob is rejected before content retention");
+			auto       wrongTypeSink = recording_blob_sink{ };
+			const auto wrongType     = adapter->materialize_blob(
+				{
+					.Repository = repository,
+					.Blob       = application::git_blob_id{
+						.Algorithm = fixture.Base.Algorithm,
+						.Digest    = fixture.Base.Digest,
+					},
+					.MaximumBytes = 1024U,
+				},
+				wrongTypeSink, { });
+			expect(
+				!wrongType.has_value()
+					&& wrongType.error()
+						== application::git_process_failure::malformed_output
+					&& !wrongTypeSink.Blob.has_value(),
+				"non-blob object identity fails typed materialization closed");
 			const auto verify =
 				[&] {
 					return adapter->verify_connectivity(
@@ -1399,12 +1497,6 @@ namespace {
 							.Head       = fixture.Head,
 						},
 						{ });
-				};
-			const auto expect =
-				[&](const bool aCondition, const std::string_view aClaim) {
-					require(
-						aCondition,
-						std::string{ aLabel } + ": " + std::string{ aClaim });
 				};
 			expect(
 				verify().has_value(),

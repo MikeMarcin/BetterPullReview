@@ -180,6 +180,28 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
 - The lower pane is a full-width line-over-line detail view for the selected change group.
 - Comments are shown beside code in the right drawer, not inserted into the source layout.
 
+The live GitHub window now composes this selected-file comparison surface with
+the production natural-layout panes, link map, shared controller/scrollbar,
+semantic previous/next selection, source-line highlight, and lower detail.
+Loading, failure, file/epoch/options replacement, authority invalidation, and
+whole-cache deletion clear stale geometry by exact request context. Font,
+style, palette, screen, DPI, viewport, and divider changes remeasure Qt-local
+geometry while retaining valid semantic selection.
+
+A metadata-only accepted pull-request refresh preserves an exact selected diff
+and semantic selection when every authority and anchor-driving revision fact
+is unchanged. A changed head, base, branch, origin, identity generation,
+current-review candidate, file, options, or comparison clears it before late
+geometry can appear. Loading, ready, failure, invalidation, and semantic
+selection changes expose one combined polite accessible announcement per
+presentation change; consecutive identical statuses are suppressed.
+
+This is functional and rendered-composition acceptance for RFC-BPR-0004, not
+the final visual hierarchy. RFC-BPR-0005 retains the planned integrated
+presentation-polish and native visual-acceptance pass. Target-native
+System-theme evidence must use the real platform style and a full selected
+composition; forced offscreen palettes remain layout evidence only.
+
 The complete normative interaction is in
 [Diff Link Map and Alignment-Space Scrolling](diff-link-map-and-alignment-space-scrolling.md).
 

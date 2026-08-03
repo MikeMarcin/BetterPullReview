@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <deque>
 #include <functional>
 #include <limits>
@@ -47,6 +48,31 @@ namespace bpr::application {
 				.Account            = aHandoff.Account,
 				.Repository         = aHandoff.Repository,
 				.ObjectFormat       = aHandoff.ObjectFormat,
+			};
+		}
+
+		[[nodiscard]] auto actor_key(
+			const diff_blob_request& aRequest) noexcept
+			-> std::optional<cache_actor_key>
+		{
+			const auto algorithm = aRequest.Blob.algorithm();
+			if (
+				!core::valid(aRequest.Context) || !aRequest.Blob.valid()
+				|| aRequest.MaximumBytes == 0U
+				|| (algorithm != core::git_hash_algorithm::sha1
+					&& algorithm != core::git_hash_algorithm::sha256)) {
+				return std::nullopt;
+			}
+			const auto& authority = aRequest.Context.Key.Authority;
+			return cache_actor_key{
+				.ApplicationSession = aRequest.Context.ApplicationSession,
+				.Profile            = authority.Profile,
+				.ProfileRevision    = authority.ProfileRevision,
+				.Host               = authority.Host,
+				.HostAuthority      = authority.HostAuthority,
+				.Account            = authority.Account,
+				.Repository         = authority.Repository,
+				.ObjectFormat       = algorithm,
 			};
 		}
 
@@ -568,6 +594,13 @@ namespace bpr::application {
 			std::unique_ptr<git_cache_session> Cache;
 		};
 
+		struct blob_waiter final
+		{
+			std::mutex                           Mutex;
+			std::condition_variable              Completed;
+			std::optional<diff_blob_observation> Result;
+		};
+
 		struct authority_context final
 		{
 			authority_context(
@@ -922,8 +955,16 @@ namespace bpr::application {
 
 		[[nodiscard]] auto actors_idle() const noexcept -> bool
 		{
-			for (const auto& [key, actor] : CacheActors) {
-				static_cast<void>(key);
+			auto actors = std::vector<std::shared_ptr<authority_effect_actor>>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				actors.reserve(CacheActors.size());
+				for (const auto& [key, actor] : CacheActors) {
+					static_cast<void>(key);
+					actors.push_back(actor);
+				}
+			}
+			for (const auto& actor : actors) {
 				std::scoped_lock lock{ actor->QueueMutex };
 				if (actor->Scheduled || !actor->Queue.empty()) {
 					return false;
@@ -2128,8 +2169,9 @@ namespace bpr::application {
 			const accepted_pull_request_handoff& aHandoff)
 			-> std::shared_ptr<authority_effect_actor>
 		{
-			const auto key   = actor_key(aHandoff);
-			const auto found = std::ranges::find(
+			std::scoped_lock lock{ CacheActorsMutex };
+			const auto       key   = actor_key(aHandoff);
+			const auto       found = std::ranges::find(
 				CacheActors, key, &decltype(CacheActors)::value_type::first);
 			if (found != CacheActors.end()) {
 				return found->second;
@@ -2140,6 +2182,95 @@ namespace bpr::application {
 			auto actor = std::make_shared<authority_effect_actor>();
 			CacheActors.emplace_back(key, actor);
 			return actor;
+		}
+
+		[[nodiscard]] auto materialize(
+			const diff_blob_request& aRequest,
+			const std::stop_token    aStop) -> diff_blob_observation
+		{
+			auto result = diff_blob_observation{
+				.Context = aRequest.Context,
+				.Side    = aRequest.Side,
+				.Blob    = aRequest.Blob,
+				.Status  = diff_blob_status::failure,
+			};
+			const auto key = actor_key(aRequest);
+			if (
+				!key.has_value()
+				|| aRequest.MaximumBytes
+					> maximum_git_cache_blob_materialization_bytes
+				|| BlobIngressClosing.load(std::memory_order_acquire)) {
+				return result;
+			}
+
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(
+					CacheActors, *key, &decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			if (!actor) {
+				return result;
+			}
+
+			auto       waiter   = std::make_shared<blob_waiter>();
+			const auto expected = git_cache_open_request{
+				.ApplicationSession = aRequest.Context.ApplicationSession,
+				.Authority          = aRequest.Context.Key.Authority,
+				.ObjectFormat       = aRequest.Blob.algorithm(),
+			};
+			try {
+				enqueue_actor_work(
+					actor,
+					[this, actor, expected, aRequest, aStop, waiter] {
+						auto observation = diff_blob_observation{
+							.Context = aRequest.Context,
+							.Side    = aRequest.Side,
+							.Blob    = aRequest.Blob,
+							.Status  = diff_blob_status::failure,
+						};
+						if (
+							aStop.stop_requested()
+							|| BlobIngressClosing.load(std::memory_order_acquire)) {
+							observation.Status = diff_blob_status::cancelled;
+						} else if (
+							actor->Cache != nullptr
+							&& actor->Cache->request() == expected) {
+							auto bytes = actor->Cache->materialize_blob(
+								git_cache_blob_request{
+									.Blob         = aRequest.Blob,
+									.MaximumBytes = aRequest.MaximumBytes,
+								},
+								aStop);
+							if (bytes.has_value()) {
+								observation.Status = diff_blob_status::available;
+								observation.Bytes  = std::move(*bytes);
+							} else if (bytes.error() == git_cache_failure::cancelled) {
+								observation.Status = diff_blob_status::cancelled;
+							} else if (bytes.error() == git_cache_failure::quota_exceeded) {
+								observation.Status = diff_blob_status::materialization_limit;
+							} else if (bytes.error() == git_cache_failure::object_mismatch) {
+								observation.Status = diff_blob_status::missing;
+							}
+						}
+						{
+							std::scoped_lock lock{ waiter->Mutex };
+							waiter->Result = std::move(observation);
+						}
+						waiter->Completed.notify_all();
+					});
+			} catch (...) {
+				return result;
+			}
+
+			std::unique_lock lock{ waiter->Mutex };
+			waiter->Completed.wait(lock, [&waiter] {
+				return waiter->Result.has_value();
+			});
+			return std::move(*waiter->Result);
 		}
 
 		void accept(accepted_pull_request_handoff aHandoff)
@@ -2506,6 +2637,7 @@ namespace bpr::application {
 				return;
 			}
 			Closing = true;
+			BlobIngressClosing.store(true, std::memory_order_release);
 			++OfferToken;
 			cancel_all_jobs();
 			PendingAuthority.reset();
@@ -4252,6 +4384,7 @@ namespace bpr::application {
 		std::vector<
 			std::pair<cache_actor_key, std::shared_ptr<authority_effect_actor>>>
 														   CacheActors;
+		mutable std::mutex                                 CacheActorsMutex;
 		std::shared_ptr<authority_context>                 Active;
 		std::optional<pull_request_authority_invalidation> PendingAuthority;
 		std::optional<std::uint64_t>                       PendingOfferToken;
@@ -4262,6 +4395,7 @@ namespace bpr::application {
 		bool                                               DeferredIngressScheduled = false;
 		bool                                               Closing                  = false;
 		bool                                               ProjectionDeliveryFailed = false;
+		std::atomic_bool                                   BlobIngressClosing       = false;
 	};
 
 	epoch_application_host::epoch_application_host(
@@ -4304,6 +4438,13 @@ namespace bpr::application {
 	void epoch_application_host::dispatch(epoch_intent aIntent)
 	{
 		Implementation->dispatch(std::move(aIntent));
+	}
+
+	auto epoch_application_host::materialize(
+		const diff_blob_request& aRequest,
+		const std::stop_token    aStop) -> diff_blob_observation
+	{
+		return Implementation->materialize(aRequest, aStop);
 	}
 
 	void epoch_application_host::shutdown()

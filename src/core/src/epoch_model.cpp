@@ -106,12 +106,23 @@ namespace bpr::core {
 		return parse_oid<git_tree_oid>(aText);
 	}
 
+	auto parse_git_blob_oid(const std::string_view aText) noexcept
+		-> std::optional<git_blob_oid>
+	{
+		return parse_oid<git_blob_oid>(aText);
+	}
+
 	auto canonical_hex(const git_commit_oid& aOid) noexcept -> canonical_git_oid
 	{
 		return render_oid(aOid);
 	}
 
 	auto canonical_hex(const git_tree_oid& aOid) noexcept -> canonical_git_oid
+	{
+		return render_oid(aOid);
+	}
+
+	auto canonical_hex(const git_blob_oid& aOid) noexcept -> canonical_git_oid
 	{
 		return render_oid(aOid);
 	}

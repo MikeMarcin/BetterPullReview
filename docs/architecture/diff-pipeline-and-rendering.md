@@ -169,6 +169,38 @@ A path-only key is invalid. A cache hit must not cross account/repository/PR/blo
 
 Cancellation may stop computation or merely suppress publication. Stale rejection remains mandatory even when cooperative cancellation is requested.
 
+### 3.3 Selected application and Git cache composition
+
+The live GitHub composition constructs one `diff_application_host` with the
+accepted `epoch_application_host` as its blob port and the production Qt
+`diff_workbench` as its projection. The diff worker therefore never owns a Git
+session or a widget pointer.
+
+`epoch_application_host::materialize` is a synchronous worker-facing bridge
+onto the existing repository cache actor. It finds the actor by repository
+authority, queues the read on that actor's FIFO, and admits it only when the
+complete `git_cache_open_request` equals the actor's already retained
+lifetime-exclusive session. It does not open or switch a session for diff
+work. A stale same-repository PR request consequently fails without disturbing
+the live epoch/cache authority.
+
+The cache session validates its exact repository ownership before and after
+calling installed Git. Installed Git first checks object identity, type, and
+declared size with `cat-file --batch-check`; only a valid blob within the 16 MiB
+caller ceiling is read, under an exact process-output limit. Empty blobs remain
+available as an exact empty byte vector.
+
+Accepted handoffs cancel the selected diff only when authority or semantic
+revision facts that can change the selected anchors differ. A metadata-only
+refresh with the same authority, identity generation, origin, base branch,
+base/head objects, and current-viewer review candidate preserves the exact
+result and semantic selection. Comparison-selection changes cancel the
+selected diff.
+Whole-cache deletion invalidates a matching diff authority before maintenance.
+Shutdown closes the diff host before epoch blob ingress, waits for diff, epoch,
+GitHub, and cache-actor quiescence, drains diff effects before epoch effects,
+and destroys the Qt window later by visible composition-root member order.
+
 ## 4. Qt pane measurement seam
 
 The Qt adapter needs a narrow pane geometry surface independent of the specific editor widget:
@@ -368,6 +400,13 @@ A new accepted diff result invalidates semantic-derived Qt projection. Routine c
 - epoch/file change: invalidate old axis and wait for tagged result.
 
 Do not reset unrelated drawers, file models, or conversations for a scroll event.
+
+The live `diff_workbench` accepts a publication only for its exact current
+loading context. Failure, invalidation, revision/file/options replacement, and
+clear remove all measured geometry and close or replace that context before a
+late publication can be considered. Compact line/group/navigation selection
+is reduced by `diff_interaction` in the functional core; Qt only renders the
+accepted stable IDs and remeasures pixel geometry.
 
 ## 10. Complexity targets
 

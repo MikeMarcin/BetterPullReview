@@ -2355,6 +2355,66 @@ namespace {
 					== core::head_lineage::not_applicable,
 			"authorized import exposes exact durable pack/index facts, "
 			"no-prior lineage, and stages refs");
+		const auto primaryGitDir = "--git-dir="
+			+ QString::fromStdString(primaryRepository.string());
+		const auto treeListing = run_fixture_git(
+			executable,
+			root.Path,
+			{
+				primaryGitDir,
+				"ls-tree",
+				"-r",
+				QString::fromUtf8(sha1_commit_hex.data()),
+			});
+		require(
+			treeListing.Output.startsWith("100644 blob ")
+				&& treeListing.Output.size() > 53,
+			"imported fixture exposes one typed blob identity");
+		const auto blobText     = treeListing.Output.mid(12, 40).toStdString();
+		const auto blob         = core::parse_git_blob_oid(blobText);
+		const auto expectedBlob = run_fixture_git(
+			executable,
+			root.Path,
+			{
+				primaryGitDir,
+				"cat-file",
+				"blob",
+				QString::fromStdString(blobText),
+			});
+		require(blob.has_value(), "parse imported fixture blob identity");
+		const auto materializedBlob = (*primary)->materialize_blob(
+			{
+				.Blob         = *blob,
+				.MaximumBytes = static_cast<std::uint64_t>(expectedBlob.Output.size()),
+			},
+			{ });
+		require(
+			materializedBlob.has_value()
+				&& std::ranges::equal(*materializedBlob, expectedBlob.Output),
+			"cache session materializes the exact imported blob bytes");
+		const auto limitedBlob = (*primary)->materialize_blob(
+			{
+				.Blob         = *blob,
+				.MaximumBytes = static_cast<std::uint64_t>(expectedBlob.Output.size() - 1),
+			},
+			{ });
+		require(
+			!limitedBlob.has_value()
+				&& limitedBlob.error()
+					== application::git_cache_failure::quota_exceeded,
+			"cache session preserves the pre-retention blob ceiling");
+		const auto wrongTypeBlob = (*primary)->materialize_blob(
+			{
+				.Blob = core::git_blob_oid{
+					commit->algorithm(), commit->bytes() },
+				.MaximumBytes = 1'024U,
+			},
+			{ });
+		require(
+			!wrongTypeBlob.has_value()
+				&& wrongTypeBlob.error()
+					== application::git_cache_failure::process_failure,
+			"cache session fails closed on a non-blob object identity");
 		auto invalidLineage        = *prepared;
 		invalidLineage.HeadLineage = static_cast<core::head_lineage>(0xffU);
 		require(

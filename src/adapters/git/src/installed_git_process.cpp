@@ -11,6 +11,7 @@
 #include <array>
 #include <atomic>
 #include <cerrno>
+#include <charconv>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -101,9 +102,10 @@ namespace bpr::adapters::git {
 		struct process_request
 		{
 			std::vector<std::string>  Arguments;
-			process_input             Input        = memory_input{ };
-			std::chrono::milliseconds Timeout      = process_timeout;
-			bool                      AllowExitOne = false;
+			process_input             Input               = memory_input{ };
+			std::chrono::milliseconds Timeout             = process_timeout;
+			std::size_t               StandardOutputLimit = standard_output_limit;
+			bool                      AllowExitOne        = false;
 		};
 
 		[[nodiscard]] auto path_text(
@@ -1659,7 +1661,7 @@ namespace bpr::adapters::git {
 					Qt::DirectConnection);
 
 				std::string standardOutput;
-				standardOutput.reserve(standard_output_limit);
+				standardOutput.reserve(aRequest.StandardOutputLimit);
 				std::size_t standardOutputBytes = 0U;
 				std::size_t standardErrorBytes  = 0U;
 				const auto  drainStreams =
@@ -1668,7 +1670,7 @@ namespace bpr::adapters::git {
 						const auto failure = drain_channel(
 							*process,
 							process_stream::standard_output,
-							standard_output_limit,
+							aRequest.StandardOutputLimit,
 							standardOutputBytes,
 							&standardOutput);
 						failure.has_value()) {
@@ -2534,6 +2536,86 @@ namespace bpr::adapters::git {
 				return application::git_commit_inspection{
 					.Tree = *parsed
 				};
+			}
+
+			[[nodiscard]] auto materialize_blob(
+				const application::git_blob_request&        aRequest,
+				application::git_blob_materialization_sink& aSink,
+				const std::stop_token                       aStop)
+				-> git_process_result<void> override
+			{
+				if (
+					!application::valid(aRequest.Blob)
+					|| aRequest.MaximumBytes == 0U
+					|| aRequest.MaximumBytes
+						> application::maximum_git_blob_materialization_bytes) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+				if (!valid_repository(aRequest.Repository, aRequest.Blob.Algorithm)) {
+					return std::unexpected{ git_process_failure::invalid_repository };
+				}
+
+				const auto blob      = object_text(aRequest.Blob);
+				auto       arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+				append_arguments(
+					arguments,
+					"cat-file",
+					"--batch-check=%(objectname) %(objecttype) %(objectsize)");
+				const auto checked = submit(
+					process_request{
+						.Arguments = std::move(arguments),
+						.Input     = memory_input{ blob + "\n" },
+					},
+					aStop);
+				if (!checked.has_value()) {
+					return std::unexpected{ checked.error() };
+				}
+				if (checked->StandardOutput == blob + " missing\n") {
+					return std::unexpected{ git_process_failure::object_unavailable };
+				}
+				const auto prefix = blob + " blob ";
+				if (
+					!checked->StandardOutput.starts_with(prefix)
+					|| checked->StandardOutput.empty()
+					|| checked->StandardOutput.back() != '\n') {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				const auto sizeText = std::string_view{ checked->StandardOutput }.substr(
+					prefix.size(),
+					checked->StandardOutput.size() - prefix.size() - 1U);
+				std::uint64_t size      = 0U;
+				const auto [end, error] = std::from_chars(
+					sizeText.data(), sizeText.data() + sizeText.size(), size);
+				if (
+					error != std::errc{ } || end != sizeText.data() + sizeText.size()
+					|| size > aRequest.MaximumBytes
+					|| size > static_cast<std::uint64_t>(
+						   std::numeric_limits<std::size_t>::max())) {
+					return std::unexpected{
+						size > aRequest.MaximumBytes
+							? git_process_failure::standard_output_limit
+							: git_process_failure::malformed_output
+					};
+				}
+
+				arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+				append_arguments(arguments, "cat-file", "blob", blob);
+				const auto content = submit(
+					process_request{
+						.Arguments           = std::move(arguments),
+						.StandardOutputLimit = static_cast<std::size_t>(size),
+					},
+					aStop);
+				if (!content.has_value()) {
+					return std::unexpected{ content.error() };
+				}
+				if (content->StandardOutput.size() != static_cast<std::size_t>(size)) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				aSink.accept(
+					aRequest.Blob,
+					std::as_bytes(std::span{ content->StandardOutput }));
+				return { };
 			}
 
 			[[nodiscard]] auto is_ancestor(

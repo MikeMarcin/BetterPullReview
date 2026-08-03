@@ -793,6 +793,17 @@ namespace bpr::qt {
 		comparisonLayout->addWidget(EpochControl);
 		pullRequestLayout->addWidget(comparisonGroup);
 
+		auto* const diffGroup = new QGroupBox{
+			QStringLiteral("Selected file comparison"), pullRequestContent
+		};
+		diffGroup->setObjectName(QStringLiteral("diffWorkbenchGroup"));
+		diffGroup->setAccessibleName(QStringLiteral("Selected file comparison"));
+		auto* const diffLayout = new QVBoxLayout{ diffGroup };
+		DiffWorkbench          = new diff_workbench{ diffGroup };
+		DiffWorkbench->setMinimumHeight(430);
+		diffLayout->addWidget(DiffWorkbench);
+		pullRequestLayout->addWidget(diffGroup, 1);
+
 		ContentSplitter = new QSplitter{
 			Qt::Horizontal,
 			pullRequestContent,
@@ -1074,6 +1085,12 @@ namespace bpr::qt {
 		-> epoch_comparison_control*
 	{
 		return EpochControl;
+	}
+
+	auto github_window::diff_comparison_workbench() const noexcept
+		-> diff_workbench*
+	{
+		return DiffWorkbench;
 	}
 
 	auto github_window::status_text() const -> std::string

@@ -13,8 +13,9 @@
 #include <variant>
 
 namespace bpr::application {
-	inline constexpr std::uint64_t maximum_git_pack_input_bytes        = 4ULL * 1024ULL * 1024ULL * 1024ULL;
-	inline constexpr std::size_t   maximum_git_ref_transaction_updates = 4U;
+	inline constexpr std::uint64_t maximum_git_pack_input_bytes           = 4ULL * 1024ULL * 1024ULL * 1024ULL;
+	inline constexpr std::uint64_t maximum_git_blob_materialization_bytes = 16ULL * 1024ULL * 1024ULL;
+	inline constexpr std::size_t   maximum_git_ref_transaction_updates    = 4U;
 	enum class git_hash_algorithm : std::uint8_t {
 		sha1,
 		sha256,
@@ -33,10 +34,12 @@ namespace bpr::application {
 	struct git_commit_identity_kind;
 	struct git_tree_identity_kind;
 	struct git_pack_identity_kind;
+	struct git_blob_identity_kind;
 
 	using git_commit_id = git_object_identity<git_commit_identity_kind>;
 	using git_tree_id   = git_object_identity<git_tree_identity_kind>;
 	using git_pack_id   = git_object_identity<git_pack_identity_kind>;
+	using git_blob_id   = git_object_identity<git_blob_identity_kind>;
 	/// \brief Checks whether the supplied value satisfies its contract.
 
 	template <typename Kind>
@@ -180,6 +183,14 @@ namespace bpr::application {
 		git_commit_id         Commit;
 	};
 
+	/// \brief Describes one exact, bounded blob materialization request.
+	struct git_blob_request
+	{
+		std::filesystem::path Repository;
+		git_blob_id           Blob;
+		std::uint64_t         MaximumBytes = 0U;
+	};
+
 	/// \brief Describes the git ancestry request record.
 	struct git_ancestry_request
 	{
@@ -236,6 +247,24 @@ namespace bpr::application {
 		auto operator<=>(const git_commit_inspection&) const = default;
 	};
 
+	/// \brief Receives one exact blob after bounded process validation.
+	class git_blob_materialization_sink
+	{
+	public:
+		git_blob_materialization_sink()                                     = default;
+		git_blob_materialization_sink(const git_blob_materialization_sink&) = delete;
+		auto operator=(const git_blob_materialization_sink&)
+			-> git_blob_materialization_sink&                          = delete;
+		git_blob_materialization_sink(git_blob_materialization_sink&&) = delete;
+		auto operator=(git_blob_materialization_sink&&)
+			-> git_blob_materialization_sink&    = delete;
+		virtual ~git_blob_materialization_sink() = default;
+
+		virtual auto accept(
+			const git_blob_id&         aBlob,
+			std::span<const std::byte> aBytes) -> void = 0;
+	};
+
 	enum class git_ancestry : std::uint8_t {
 		ancestor,
 		not_ancestor,
@@ -286,6 +315,10 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto inspect_commit(
 			const git_commit_request& aRequest,
 			std::stop_token           aStop) -> git_process_result<git_commit_inspection> = 0;
+		[[nodiscard]] virtual auto materialize_blob(
+			const git_blob_request&        aRequest,
+			git_blob_materialization_sink& aSink,
+			std::stop_token                aStop) -> git_process_result<void> = 0;
 		[[nodiscard]] virtual auto is_ancestor(
 			const git_ancestry_request& aRequest,
 			std::stop_token             aStop) -> git_process_result<git_ancestry> = 0;

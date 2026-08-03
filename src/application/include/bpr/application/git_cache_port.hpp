@@ -17,10 +17,11 @@
 #include <vector>
 
 namespace bpr::application {
-	inline constexpr std::uint64_t maximum_git_cache_operation_pack_bytes = 4ULL * 1024ULL * 1024ULL * 1024ULL;
-	inline constexpr std::uint64_t maximum_git_repository_cache_bytes     = 64ULL * 1024ULL * 1024ULL * 1024ULL;
-	inline constexpr std::uint32_t maximum_git_cache_pack_count           = 4096U;
-	inline constexpr std::uint32_t maximum_git_cache_private_ref_count    = 200'000U;
+	inline constexpr std::uint64_t maximum_git_cache_operation_pack_bytes       = 4ULL * 1024ULL * 1024ULL * 1024ULL;
+	inline constexpr std::uint64_t maximum_git_cache_blob_materialization_bytes = 16ULL * 1024ULL * 1024ULL;
+	inline constexpr std::uint64_t maximum_git_repository_cache_bytes           = 64ULL * 1024ULL * 1024ULL * 1024ULL;
+	inline constexpr std::uint32_t maximum_git_cache_pack_count                 = 4096U;
+	inline constexpr std::uint32_t maximum_git_cache_private_ref_count          = 200'000U;
 
 	/// \brief Computes the valid cache token result.
 	[[nodiscard]] constexpr auto valid_cache_token(
@@ -82,6 +83,15 @@ namespace bpr::application {
 				|| aRequest.ObjectFormat == core::git_hash_algorithm::sha256)
 			&& valid(aRequest.Limits);
 	}
+
+	/// \brief Describes one exact blob read under an owned cache session.
+	struct git_cache_blob_request
+	{
+		core::git_blob_oid Blob;
+		std::uint64_t      MaximumBytes = 0U;
+
+		auto operator<=>(const git_cache_blob_request&) const = default;
+	};
 
 	/// \brief Describes the git pack inventory entry record.
 	struct git_pack_inventory_entry
@@ -611,6 +621,14 @@ namespace bpr::application {
 			core::git_commit_oid aCommit,
 			std::stop_token      aStop)
 			-> git_cache_result<git_cache_commit_inspection> = 0;
+
+		// Materializes through this lifetime-exclusive session so callers never
+		// open a competing cache writer. The process adapter rejects oversize
+		// objects before retaining their content bytes.
+		[[nodiscard]] virtual auto materialize_blob(
+			const git_cache_blob_request& aRequest,
+			std::stop_token               aStop)
+			-> git_cache_result<std::vector<std::uint8_t>> = 0;
 
 		[[nodiscard]] virtual auto prune_retained(
 			const git_ref_prune_authorization& aAuthorization,

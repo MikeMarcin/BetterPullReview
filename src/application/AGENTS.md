@@ -27,3 +27,6 @@ serialized completions, cancellation, recovery, and lifecycle.
   never use login text, settings, or a caller-supplied account as a vault key.
 - Keep shutdown order explicit and test pending work, cancellation, failure,
   reordering, and late completion.
+- Diff blob reads must serialize through the matching epoch repository actor
+  and its already retained exact cache session. They must not open or switch a
+  lifetime-exclusive cache session from the diff worker.

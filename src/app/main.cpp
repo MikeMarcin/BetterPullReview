@@ -29,7 +29,9 @@
 	#include <QMessageBox>
 	#include <QPalette>
 	#include <QPersistentModelIndex>
+	#include <QPlainTextEdit>
 	#include <QPushButton>
+	#include <QScrollArea>
 	#include <QStyle>
 	#include <QStyleHints>
 	#include <QTreeView>
@@ -322,39 +324,44 @@ namespace {
 #if defined(BPR_BUILD_TESTING)
 		struct native_appearance_probe_state
 		{
-			bool                             Enabled                      = false;
-			bool                             WaitingForOwnerFocusReported = false;
-			bool                             SignalObserved               = false;
-			bool                             StatePassed                  = false;
-			bool                             PixelsDiffer                 = false;
-			std::size_t                      SettleAttempts               = 0U;
-			std::size_t                      GlobalPollTicks              = 0U;
-			Qt::ColorScheme                  InitialColorScheme           = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                  ObservedColorScheme          = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                  InitialGlobalColorScheme     = Qt::ColorScheme::Unknown;
-			Qt::ColorScheme                  ObservedGlobalColorScheme    = Qt::ColorScheme::Unknown;
-			QPalette                         InitialPalette;
-			QString                          InitialPlatformName;
-			QString                          InitialStyleClass;
-			QPersistentModelIndex            Thread;
-			bool                             InitialWindowActive = false;
-			QWidget*                         InitialFocus        = nullptr;
-			std::size_t                      InitialModelResets  = 0U;
-			QString                          ExpectedEpochLeftOid;
-			QString                          ExpectedEpochRightOid;
-			QPersistentModelIndex            EpochLeft;
-			QPersistentModelIndex            EpochRight;
-			QString                          EpochLeftIdentity;
-			QString                          EpochRightIdentity;
-			QPalette                         InitialEpochPalette;
-			std::size_t                      InitialEpochModelResets       = 0U;
-			std::size_t                      InitialEpochAppearanceUpdates = 0U;
-			QImage                           InitialRender;
-			QImage                           ChangedRender;
-			native_appearance_evidence_paths EvidencePaths;
+			bool                                         Enabled                      = false;
+			bool                                         WaitingForOwnerFocusReported = false;
+			bool                                         SignalObserved               = false;
+			bool                                         StatePassed                  = false;
+			bool                                         PixelsDiffer                 = false;
+			std::size_t                                  SettleAttempts               = 0U;
+			std::size_t                                  GlobalPollTicks              = 0U;
+			Qt::ColorScheme                              InitialColorScheme           = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                              ObservedColorScheme          = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                              InitialGlobalColorScheme     = Qt::ColorScheme::Unknown;
+			Qt::ColorScheme                              ObservedGlobalColorScheme    = Qt::ColorScheme::Unknown;
+			QPalette                                     InitialPalette;
+			QString                                      InitialPlatformName;
+			QString                                      InitialStyleClass;
+			QPersistentModelIndex                        Thread;
+			bool                                         InitialWindowActive = false;
+			QWidget*                                     InitialFocus        = nullptr;
+			std::size_t                                  InitialModelResets  = 0U;
+			QString                                      ExpectedEpochLeftOid;
+			QString                                      ExpectedEpochRightOid;
+			QPersistentModelIndex                        EpochLeft;
+			QPersistentModelIndex                        EpochRight;
+			QString                                      EpochLeftIdentity;
+			QString                                      EpochRightIdentity;
+			QPalette                                     InitialEpochPalette;
+			std::size_t                                  InitialEpochModelResets       = 0U;
+			std::size_t                                  InitialEpochAppearanceUpdates = 0U;
+			QImage                                       InitialRender;
+			QImage                                       ChangedRender;
+			std::optional<bpr::core::semantic_selection> InitialDiffSelection;
+			std::uint64_t                                InitialDiffGeometryRebuilds = 0U;
+			native_appearance_evidence_paths             EvidencePaths;
 		};
 
-		bool                                         Fixture = false;
+		bool                                         Fixture           = false;
+		bool                                         DiffProbe         = false;
+		bool                                         DiffShutdownProbe = false;
+		bool                                         DiffRequested     = false;
 		std::string                                  FixtureName;
 		std::string                                  ExpectedActiveHostText;
 		bpr::app::detail::github_epoch_fixture_phase EpochPhase = bpr::app::detail::github_epoch_fixture_phase::single;
@@ -405,6 +412,7 @@ namespace {
 		const auto* const rightSelector = control->right_selector();
 		const auto* const leftOid       = control->left_oid_editor();
 		const auto* const rightOid      = control->right_oid_editor();
+		const auto* const workbench     = aWindow.diff_comparison_workbench();
 
 		const auto epochContextPreserved = aRun.Appearance.EpochLeft.isValid()
 			&& aRun.Appearance.EpochRight.isValid()
@@ -450,6 +458,18 @@ namespace {
 			&& rightSelector->styleSheet().isEmpty()
 			&& leftOid->styleSheet().isEmpty()
 			&& rightOid->styleSheet().isEmpty();
+		const auto diffContextPreserved = workbench != nullptr
+			&& workbench->current_result() != nullptr
+			&& workbench->selection() == aRun.Appearance.InitialDiffSelection
+			&& workbench->status_text().startsWith(QStringLiteral("Diff ready"))
+			&& !workbench->accessibleName().isEmpty()
+			&& !workbench->left_pane()->accessibleDescription().isEmpty()
+			&& !workbench->right_pane()->accessibleDescription().isEmpty()
+			&& !workbench->detail_pane()->accessibleDescription().isEmpty()
+			&& !workbench->testAttribute(Qt::WA_SetPalette)
+			&& !workbench->testAttribute(Qt::WA_SetStyle)
+			&& !workbench->testAttribute(Qt::WA_SetFont)
+			&& workbench->styleSheet().isEmpty();
 
 		return aRun.Appearance.Thread.isValid()
 			&& QGuiApplication::platformName()
@@ -467,6 +487,7 @@ namespace {
 			&& QApplication::activeWindow() == &aWindow
 			&& QApplication::focusWidget() == aRun.Appearance.InitialFocus
 			&& epochContextPreserved
+			&& diffContextPreserved
 			&& model->statistics().ModelResets
 			== aRun.Appearance.InitialModelResets
 			&& aWindow.statistics().FullResets == 0U
@@ -553,6 +574,8 @@ namespace {
 			&& native_palette_readable(finalEpoch)
 			&& aWindow.epoch_control()->statistics().AppearanceUpdates
 			> aRun.Appearance.InitialEpochAppearanceUpdates
+			&& aWindow.diff_comparison_workbench()->statistics().GeometryRebuilds
+			> aRun.Appearance.InitialDiffGeometryRebuilds
 			&& native_appearance_context_passed(aWindow, aRun);
 	}
 
@@ -566,6 +589,7 @@ namespace {
 		auto* const model      = aWindow.conversation_model();
 		auto* const control    = aWindow.epoch_control();
 		auto* const epochModel = control->history_model();
+		auto* const workbench  = aWindow.diff_comparison_workbench();
 		const auto  thread     = model->index_for_id("review-thread:PRRT_fixture_1");
 		const auto  leftEpoch  = epochModel->index(
 			control->left_selector()->currentIndex(), 0);
@@ -601,6 +625,8 @@ namespace {
 			|| control->right_oid_editor()->text()
 				!= aRun.Appearance.ExpectedEpochRightOid
 			|| !control->whole_pr_action()->isChecked()
+			|| workbench == nullptr || workbench->current_result() == nullptr
+			|| !workbench->selection().has_value()
 			|| !aRun.RenderPath.has_value()
 			|| aRun.Appearance.EvidencePaths.Initial.isEmpty()
 			|| aRun.Appearance.EvidencePaths.Changed.isEmpty()) {
@@ -645,11 +671,19 @@ namespace {
 		aRun.Appearance.InitialEpochModelResets       = epochModel->statistics().ModelResets;
 		aRun.Appearance.InitialEpochPalette           = control->palette();
 		aRun.Appearance.InitialEpochAppearanceUpdates = control->statistics().AppearanceUpdates;
+		aRun.Appearance.InitialDiffSelection          = workbench->selection();
+		aRun.Appearance.InitialDiffGeometryRebuilds
+			= workbench->statistics().GeometryRebuilds;
 		view->setCurrentIndex(thread);
 		view->selectionModel()->select(
 			thread,
 			QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 		view->collapse(thread);
+		aWindow.resize(1'280, 1'000);
+		workbench->left_pane()->setFocus(Qt::OtherFocusReason);
+		if (auto* const scroll = qobject_cast<QScrollArea*>(aWindow.centralWidget())) {
+			scroll->ensureWidgetVisible(workbench, 24, 24);
+		}
 		QApplication::processEvents();
 		aRun.Appearance.InitialWindowActive = aWindow.isActiveWindow();
 		aRun.Appearance.InitialFocus        = QApplication::focusWidget();
@@ -964,6 +998,16 @@ namespace {
 				|| maintenance.DeleteIntentDispatchCount != 0U
 				|| !control->delete_cache_action()->isEnabled()) {
 				return false;
+			}
+			if (!aRun.DiffRequested) {
+				aRun.DiffRequested = bpr::app::detail::
+					github_application_fixture_access::request_fixture_diff(
+						aApplication, true);
+				return aRun.DiffRequested;
+			}
+			if (aApplication.window().diff_comparison_workbench()->current_result()
+				== nullptr) {
+				return true;
 			}
 			aRun.MaintenanceAccountReads  = provider.AccountReadCount;
 			aRun.MaintenanceSmartAcquires = provider.SmartAcquireCount;
@@ -1332,6 +1376,14 @@ namespace {
 					   << fixtureEvidence.SmartFetchCount << '\n';
 			}
 		}
+		if (aRun.DiffProbe) {
+			stream << (passed ? "DIFF_WORKBENCH_OK\n"
+							  : "DIFF_WORKBENCH_FAILED\n");
+		}
+		if (aRun.DiffShutdownProbe) {
+			stream << (passed ? "DIFF_WORKBENCH_SHUTDOWN_OK\n"
+							  : "DIFF_WORKBENCH_SHUTDOWN_FAILED\n");
+		}
 #endif
 		if (aRun.RenderPath.has_value()) {
 			stream << (renderSaved ? "RENDER_OK\n" : "RENDER_FAILED\n");
@@ -1606,7 +1658,19 @@ namespace {
 					} else if (aRun->Appearance.Enabled) {
 						aRun->Appearance.ExpectedEpochLeftOid  = QString::fromStdString(evidence.BaseOid);
 						aRun->Appearance.ExpectedEpochRightOid = QString::fromStdString(evidence.HeadOneOid);
-						const auto waitingForOwnerFocus        = QGuiApplication::platformName() == "cocoa"
+						if (!aRun->DiffRequested) {
+							aRun->DiffRequested = bpr::app::detail::
+								github_application_fixture_access::request_fixture_diff(
+									aApplication);
+							if (!aRun->DiffRequested) {
+								fail_automated_run(aApplication, *aRun);
+							}
+							break;
+						}
+						if (window.diff_comparison_workbench()->current_result() == nullptr) {
+							break;
+						}
+						const auto waitingForOwnerFocus = QGuiApplication::platformName() == "cocoa"
 							&& (!window.isActiveWindow()
 								|| QApplication::focusWidget() == nullptr);
 						if (waitingForOwnerFocus) {
@@ -1624,6 +1688,66 @@ namespace {
 						} else {
 							fail_automated_run(aApplication, *aRun);
 						}
+					} else if (aRun->DiffShutdownProbe) {
+						aRun->DiffRequested = bpr::app::detail::
+							github_application_fixture_access::request_fixture_diff(
+								aApplication);
+						aRun->PresentationPassed = aRun->DiffRequested;
+						if (aRun->DiffRequested) {
+							transition_to_shutdown(aApplication, *aRun);
+						} else {
+							fail_automated_run(aApplication, *aRun);
+						}
+					} else if (aRun->DiffProbe) {
+						if (!aRun->DiffRequested) {
+							aRun->DiffRequested = bpr::app::detail::
+								github_application_fixture_access::request_fixture_diff(
+									aApplication);
+							if (!aRun->DiffRequested) {
+								fail_automated_run(aApplication, *aRun);
+							}
+							break;
+						}
+						auto* const workbench = window.diff_comparison_workbench();
+						if (workbench->current_result() == nullptr) {
+							break;
+						}
+						const auto ready = workbench->left_pane()->toPlainText()
+								== QStringLiteral("base\n")
+							&& workbench->right_pane()->toPlainText()
+								== QStringLiteral("base\nfirst review head\n")
+							&& workbench->selection().has_value()
+							&& workbench->link_map()->selected().has_value()
+							&& workbench->detail_pane()->toPlainText().startsWith(
+								QStringLiteral("Change 1 of 1"));
+						window.resize(1'280, 1'000);
+						if (auto* const scroll = qobject_cast<QScrollArea*>(window.centralWidget())) {
+							scroll->ensureWidgetVisible(workbench, 24, 24);
+						}
+						QApplication::processEvents();
+						const auto retainedResult    = workbench->current_result();
+						const auto retainedSelection = workbench->selection();
+						const auto retainedContext   = workbench->current_context();
+						aRun->RenderSaved            = ready
+							&& save_render_evidence(window, aRun->RenderPath);
+						const auto unchangedAccepted = ready
+							&& bpr::app::detail::github_application_fixture_access::
+								reaccept_fixture_revision(aApplication, false);
+						QApplication::processEvents();
+						const auto unchangedPreserved = unchangedAccepted
+							&& workbench->current_result() == retainedResult
+							&& workbench->selection() == retainedSelection
+							&& workbench->current_context() == retainedContext;
+						const auto changedAccepted = unchangedPreserved
+							&& bpr::app::detail::github_application_fixture_access::
+								reaccept_fixture_revision(aApplication, true);
+						QApplication::processEvents();
+						aRun->PresentationPassed = changedAccepted
+							&& workbench->current_result() == nullptr
+							&& !workbench->current_context().has_value()
+							&& workbench->status_text()
+								== QStringLiteral("Select a file comparison");
+						transition_to_shutdown(aApplication, *aRun);
 					} else {
 						aRun->PresentationPassed = true;
 						aRun->RenderSaved        = save_render_evidence(window, aRun->RenderPath);
@@ -1929,6 +2053,7 @@ namespace {
 				const auto maintenance = bpr::app::detail::
 					github_application_fixture_access::maintenance_evidence(
 						aApplication, aRun->MaintenanceTarget);
+				auto* const workbench = window.diff_comparison_workbench();
 				if (fixture_all_epoch_availability_is(*control->history_model(),
 													  bpr::core::anchor_availability::cache_deleted)
 					&& maintenance.PruneIntentDispatchCount == 0U
@@ -1945,7 +2070,11 @@ namespace {
 					&& provider.SmartAcquireCount
 						== aRun->MaintenanceSmartAcquires
 					&& control->history_model()->statistics().ModelResets
-						== aRun->MaintenanceModelResets) {
+						== aRun->MaintenanceModelResets
+					&& workbench->current_result() == nullptr
+					&& !workbench->current_context().has_value()
+					&& workbench->status_text()
+						== QStringLiteral("Comparison invalidated")) {
 					aRun->PresentationPassed = true;
 					transition_to_shutdown(aApplication, *aRun);
 				}
@@ -2121,7 +2250,10 @@ auto main(int argc, char** argv) -> int
 		const auto selfTest   = has_argument(argc, argv, "--self-test");
 		const auto renderPath = argument_value(argc, argv, "--render-evidence");
 #if defined(BPR_BUILD_TESTING)
-		const auto nativeAppearanceProbe = has_argument(argc, argv, "--native-appearance-probe");
+		const auto nativeAppearanceProbe      = has_argument(argc, argv, "--native-appearance-probe");
+		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
+		const auto diffWorkbenchShutdownProbe = has_argument(
+			argc, argv, "--diff-workbench-shutdown-probe");
 		const auto changedRenderPath     = argument_value(argc, argv, "--changed-render-evidence");
 		auto       nativeAppearancePaths = std::optional<native_appearance_evidence_paths>{ };
 		if (nativeAppearanceProbe) {
@@ -2150,6 +2282,18 @@ auto main(int argc, char** argv) -> int
 				!= bpr::app::detail::github_epoch_fixture_phase::single) {
 			QTextStream{ stdout }
 				<< "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (
+			(diffWorkbenchProbe && diffWorkbenchShutdownProbe)
+			|| ((diffWorkbenchProbe || diffWorkbenchShutdownProbe)
+				&& (!selectedFixture.has_value()
+					|| *selectedFixture
+						!= bpr::app::detail::github_public_path_fixture::github_com
+					|| fixtureOptions.EpochPhase
+						!= bpr::app::detail::github_epoch_fixture_phase::single))) {
+			QTextStream{ stdout }
+				<< "DIFF_WORKBENCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
 #endif
@@ -2197,6 +2341,8 @@ auto main(int argc, char** argv) -> int
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                = !fixtureName.empty(),
+						.DiffProbe              = diffWorkbenchProbe,
+						.DiffShutdownProbe      = diffWorkbenchShutdownProbe,
 						.FixtureName            = std::move(fixtureName),
 						.ExpectedActiveHostText = std::move(expectedActiveHostText),
 						.EpochPhase             = fixtureOptions.EpochPhase,

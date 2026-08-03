@@ -237,8 +237,13 @@ painted or selected-runtime claim. Done BPR-0078 supplies the custom-painted
 visible-path selection, stable path-derived interaction, accessible group
 navigation, exact move markers, palette inheritance, and directly inspected
 three-scale live two-pane renders. It makes no public application or target-
-native System-theme claim.
-BPR-0079 composes the real interaction path; BPR-0080 supplies scale evidence,
+native System-theme claim. Done BPR-0079 composes the production selected-file
+workbench, core semantic interaction state, exact-context loading/failure/
+invalidation, same-actor installed-Git blob materialization, full-window
+rendered public path, pending-diff shutdown, and live cache-deletion
+invalidation. Its deterministic appearance contract is not target-native
+System-theme evidence, and it leaves RFC-BPR-0005's presentation-polish pass
+open. BPR-0080 supplies scale evidence,
 bounded/indexed move discovery, and moved sub-block refinement;
 BPR-0081 documentation/conformance, BPR-0082 simplification, and BPR-0083
 final direct verification/closeout follow. BPR-0083 depends on BPR-0054, so

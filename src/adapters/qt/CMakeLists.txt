@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
+		src/diff_workbench.cpp
         src/event_loop_executor.cpp
         src/epoch_comparison_control.cpp
         src/epoch_history_model.cpp

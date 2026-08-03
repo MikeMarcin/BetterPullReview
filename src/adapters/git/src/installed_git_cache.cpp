@@ -1043,6 +1043,20 @@ namespace bpr::adapters::git {
 				: std::nullopt;
 		}
 
+		[[nodiscard]] auto process_blob(
+			const core::git_blob_oid& aBlob)
+			-> std::optional<application::git_blob_id>
+		{
+			const auto algorithm = process_algorithm(aBlob.algorithm());
+			return algorithm.has_value() && aBlob.valid()
+				? std::optional<application::git_blob_id>{
+					  application::git_blob_id{
+						  .Algorithm = *algorithm,
+						  .Digest    = aBlob.bytes() }
+				  }
+				: std::nullopt;
+		}
+
 		[[nodiscard]] auto core_commit(
 			const application::git_commit_id& aCommit)
 			-> core::git_commit_oid
@@ -2901,6 +2915,25 @@ namespace bpr::adapters::git {
 		class installed_git_cache_session final
 			: public application::git_cache_session
 		{
+			class blob_collector final
+				: public application::git_blob_materialization_sink
+			{
+			public:
+				auto accept(
+					const application::git_blob_id&  aBlob,
+					const std::span<const std::byte> aBytes) -> void override
+				{
+					Blob = aBlob;
+					Bytes.resize(aBytes.size());
+					if (!aBytes.empty()) {
+						std::memcpy(Bytes.data(), aBytes.data(), aBytes.size());
+					}
+				}
+
+				std::optional<application::git_blob_id> Blob;
+				std::vector<std::uint8_t>               Bytes;
+			};
+
 		public:
 			explicit installed_git_cache_session(
 				std::shared_ptr<cache_state> aState)
@@ -4114,6 +4147,70 @@ namespace bpr::adapters::git {
 					.Commit = aCommit,
 					.Tree   = core_tree(inspected->Tree),
 				};
+			}
+
+			[[nodiscard]] auto materialize_blob(
+				const application::git_cache_blob_request& aRequest,
+				const std::stop_token                      aStop)
+				-> application::git_cache_result<std::vector<std::uint8_t>> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				const auto expected = process_blob(aRequest.Blob);
+				if (
+					!expected.has_value()
+					|| aRequest.Blob.algorithm() != State->Request.ObjectFormat
+					|| aRequest.MaximumBytes == 0U
+					|| aRequest.MaximumBytes
+						> application::maximum_git_cache_blob_materialization_bytes) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				const auto inventory = State->validated_inventory(aStop, false);
+				if (!inventory.has_value()) {
+					return std::unexpected{ inventory.error() };
+				}
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{ application::git_cache_failure::invalid_repository };
+				}
+				auto collector    = blob_collector{ };
+				auto materialized = State->Process->materialize_blob(
+					application::git_blob_request{
+						.Repository   = State->Repository,
+						.Blob         = *expected,
+						.MaximumBytes = aRequest.MaximumBytes,
+					},
+					collector,
+					aStop);
+				if (!State->active_boundary_still_owned()) {
+					if (
+						!materialized.has_value()
+						&& materialized.error()
+							== application::git_process_failure::reap_failure) {
+						static_cast<void>(State->process_failure(materialized.error()));
+					}
+					return std::unexpected{ application::git_cache_failure::repair_required };
+				}
+				if (!materialized.has_value()) {
+					if (
+						materialized.error()
+							== application::git_process_failure::object_unavailable
+						|| materialized.error()
+							== application::git_process_failure::nonzero_exit) {
+						return std::unexpected{ application::git_cache_failure::object_mismatch };
+					}
+					if (
+						materialized.error()
+						== application::git_process_failure::standard_output_limit) {
+						return std::unexpected{ application::git_cache_failure::quota_exceeded };
+					}
+					return std::unexpected{ State->process_failure(materialized.error()) };
+				}
+				if (collector.Blob != expected) {
+					return std::unexpected{ application::git_cache_failure::object_mismatch };
+				}
+				return std::move(collector.Bytes);
 			}
 
 			[[nodiscard]] auto prune_retained(

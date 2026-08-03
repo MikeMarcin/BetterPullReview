@@ -27,5 +27,8 @@ themes, rendering mechanics, and event translation.
   current style option.
 - Announce one combined, polite, deduplicated accessible status update for a
   published presentation change. Do not announce every field mutation.
+- The selected diff workbench admits results only for its exact current loading
+  context. Failure, invalidation, and selection replacement clear measured
+  geometry before any late publication can render.
 - Treat offscreen forced-style renders as deterministic layout evidence only;
   they do not verify system appearance integration.

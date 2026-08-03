@@ -123,22 +123,40 @@ namespace {
 
 		void post(std::function<void()> aTask) override
 		{
+			std::scoped_lock lock{ Mutex };
 			Tasks.push_back(std::move(aTask));
+			Changed.notify_all();
 		}
 
-		[[nodiscard]] auto pending() const noexcept -> std::size_t
+		[[nodiscard]] auto pending() const -> std::size_t
 		{
+			std::scoped_lock lock{ Mutex };
 			return Tasks.size();
+		}
+
+		void wait_for_pending()
+		{
+			std::unique_lock lock{ Mutex };
+			Changed.wait(lock, [this] {
+				return !Tasks.empty();
+			});
 		}
 
 		void run(const std::size_t aIndex)
 		{
-			expect(aIndex < Tasks.size(), "executor index is in range");
-			auto task = std::move(Tasks[aIndex]);
-			Tasks.erase(Tasks.begin() + static_cast<std::ptrdiff_t>(aIndex));
-			Running = true;
+			auto task = std::function<void()>{ };
+			{
+				std::scoped_lock lock{ Mutex };
+				expect(aIndex < Tasks.size(), "executor index is in range");
+				task = std::move(Tasks[aIndex]);
+				Tasks.erase(Tasks.begin() + static_cast<std::ptrdiff_t>(aIndex));
+				Running = true;
+			}
 			task();
-			Running = false;
+			{
+				std::scoped_lock lock{ Mutex };
+				Running = false;
+			}
 		}
 
 		void run_next()
@@ -146,8 +164,9 @@ namespace {
 			run(0U);
 		}
 
-		[[nodiscard]] auto is_running() const noexcept -> bool
+		[[nodiscard]] auto is_running() const -> bool
 		{
+			std::scoped_lock lock{ Mutex };
 			return Running;
 		}
 
@@ -157,6 +176,8 @@ namespace {
 		}
 
 	private:
+		mutable std::mutex                Mutex;
+		std::condition_variable           Changed;
 		std::deque<std::function<void()>> Tasks;
 		bool                              Decision = false;
 		bool                              Running  = false;
@@ -190,6 +211,7 @@ namespace {
 		std::vector<application::git_operation_recovery_request>
 																 RecoveryCompletionRequests;
 		std::vector<application::git_cache_open_request>         CacheOpenRequests;
+		std::vector<application::git_cache_blob_request>         BlobRequests;
 		std::vector<application::exact_anchor_lookup_request>    ExactAnchorRequests;
 		std::vector<application::git_ref_prune_authorization>    PruneRequests;
 		std::vector<application::git_cache_delete_authorization> DeleteRequests;
@@ -1261,6 +1283,19 @@ namespace {
 				.Commit = aCommit,
 				.Tree   = oid<core::git_tree_oid>(80U),
 			};
+		}
+
+		[[nodiscard]] auto materialize_blob(
+			const application::git_cache_blob_request& aRequest,
+			const std::stop_token                      aStop)
+			-> application::git_cache_result<std::vector<std::uint8_t>> override
+		{
+			State.Calls.emplace_back("cache.materialize-blob");
+			State.BlobRequests.push_back(aRequest);
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			return std::vector<std::uint8_t>{ 'b', 'l', 'o', 'b', '\n' };
 		}
 
 		[[nodiscard]] auto prune_retained(
@@ -2733,6 +2768,86 @@ namespace {
 			"uses the exact B PR session without overlap");
 	}
 
+	void diff_blob_materialization_reuses_the_epoch_cache_actor()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto& state   = value.Host->state();
+		const auto  options = core::options_digest(core::diff_options{ });
+		const auto  blob    = oid<core::git_blob_oid>(0x55U);
+		expect(
+			state.Authority.has_value() && state.AcceptedComparison.has_value()
+				&& options.has_value(),
+			"ready comparison supplies exact diff authority and options");
+		const auto request = application::diff_blob_request{
+			.Context = {
+				.Request            = core::request_id{ 701U },
+				.ApplicationSession = state.ApplicationSession,
+				.Key                = {
+					.Authority   = *state.Authority,
+					.Repository  = state.Authority->Repository,
+					.PullRequest = state.Authority->PullRequest,
+					.LeftAnchor  = state.AcceptedComparison->Left.Identity,
+					.RightAnchor = state.AcceptedComparison->Right.Identity,
+					.LeftBlob    = blob,
+					.RightBlob   = blob,
+					.File        = opaque<core::file_identity>(0x56U),
+					.Options     = *options,
+					.Algorithm   = core::supported_diff_algorithm_revision,
+				},
+				.Generation = core::request_generation{ 1U },
+			},
+			.Side         = core::diff_side::left,
+			.Blob         = blob,
+			.MaximumBytes = 1'024U,
+		};
+		expect(core::valid(request.Context), "blob bridge request context is valid");
+		const auto materialize = [&value](
+									 const application::diff_blob_request& aRequest) {
+			auto observation = std::optional<application::diff_blob_observation>{ };
+			auto worker      = std::jthread{ [&] {
+				observation = value.Host->materialize(aRequest, { });
+			} };
+			value.Effects.wait_for_pending();
+			value.Effects.run_next();
+			worker.join();
+			expect(observation.has_value(), "blob bridge returns one terminal");
+			return std::move(*observation);
+		};
+		const auto observation = materialize(request);
+
+		expect(
+			observation.Status == application::diff_blob_status::available
+				&& observation.Bytes
+					== std::vector<std::uint8_t>{ 'b', 'l', 'o', 'b', '\n' }
+				&& value.State.BlobRequests
+					== std::vector{ application::git_cache_blob_request{
+						.Blob = blob, .MaximumBytes = 1'024U } }
+				&& value.State.MaximumActiveCacheSessions == 1U
+				&& value.State.ActiveCacheSessions == 1U,
+			"diff blob reads serialize through the retained epoch cache session");
+		auto stale                              = request;
+		stale.Context.Request                   = core::request_id{ 702U };
+		stale.Context.Key.Authority.PullRequest = core::pull_request_id{ 72U };
+		stale.Context.Key.Authority.Number      = core::pull_request_number{ 82U };
+		stale.Context.Key.PullRequest           = core::pull_request_id{ 72U };
+		expect(core::valid(stale.Context), "stale same-repository context is valid");
+		const auto rejected = materialize(stale);
+		expect(
+			rejected.Status == application::diff_blob_status::failure
+				&& value.State.BlobRequests.size() == 1U
+				&& value.State.CacheOpenRequests.size() == 1U
+				&& value.State.MaximumActiveCacheSessions == 1U,
+			"stale same-repository authority cannot switch the retained cache session");
+
+		value.Host->shutdown();
+		const auto closed = value.Host->materialize(request, { });
+		expect(
+			closed.Status == application::diff_blob_status::failure
+				&& value.State.BlobRequests.size() == 1U,
+			"shutdown closes blob ingress without enqueuing cache work");
+	}
+
 	void cancellation_before_ponr_aborts_without_publication()
 	{
 		fixture value;
@@ -3763,6 +3878,7 @@ int main()
 	stale_load_terminal_is_inert_under_reordering();
 	stale_prepare_and_comparison_terminals_are_inert();
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();
+	diff_blob_materialization_reuses_the_epoch_cache_actor();
 	cancellation_before_ponr_aborts_without_publication();
 	stop_immediately_after_ponr_cannot_replace_committed_terminal();
 	applied_commit_authorization_error_aborts_exactly_before_ponr();

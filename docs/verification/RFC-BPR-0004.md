@@ -18,8 +18,11 @@ measurement, indexed max-extent axis, endpoint clamp, and explicit geometry-
 invalidation seam. BPR-0077 now supplies the Qt-local retained comparison
 position, receiver-neutral input translation, shared scrollbar projection,
 guarded two-pane frames, and pane-local horizontal routing. Link-map painting
-now comes from BPR-0078's custom-painted splitter handle, while selected
-application composition remains open on BPR-0079.
+comes from BPR-0078's custom-painted splitter handle. BPR-0079 now supplies
+the selected application composition, installed-Git/cache-session bridge,
+core-owned workbench interaction state, rendered public path, cache-deletion
+invalidation, and pending-diff shutdown evidence. BPR-0080 through BPR-0083
+retain the RFC scale, conformance, simplification, and final closeout work.
 RFC-BPR-0003 retains
 explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
 until its dependency can close.
@@ -282,6 +285,92 @@ event-boundary evidence, not a target-native System-theme claim:
 BPR-0079 retains the selected composed-workbench theme path, target-native
 Windows remains open, and RFC-BPR-0005 still owns the planned integrated
 presentation-polish and native visual-acceptance pass.
+
+## BPR-0079 selected-composition evidence
+
+The composition root now constructs the production `diff_application_host`
+with the accepted epoch host as its blob port and the real GitHub window's
+`diff_workbench` as its projection. The selected workbench contains two exact
+natural-layout `QPlainTextEdit` documents, the production link-map splitter,
+one BPR-0077 controller and visible shared scrollbar, previous/next semantic
+change commands, core-owned compact semantic selection, source-line
+highlights, and one full-width lower detail pane. Qt retains only presentation
+geometry, focus, hover, and rendered selection; it does not perform Git,
+compute a diff, regroup changes, or decide navigation order.
+
+Blob acquisition uses the installed Git and repository-cache adapters. The
+process adapter first asks `git cat-file --batch-check` for exact object type
+and declared size, rejects a non-blob or an object above the caller's retained
+16 MiB ceiling, then reads exactly that many bytes under a per-process output
+limit. The cache adapter validates its owned repository boundary before and
+after the read. The epoch host queues the synchronous diff-worker request on
+the existing repository actor, and admits it only when the complete requested
+cache authority equals that actor's already retained lifetime-exclusive
+session. It neither opens a competing session nor switches the actor back to a
+stale PR; direct host evidence keeps the maximum active session count at one.
+
+Accepted GitHub handoffs cancel and clear the selected diff generation only
+when authority or anchor-driving semantic revision facts change; a
+metadata-only refresh with identical facts preserves the exact result,
+context, and semantic selection. Epoch comparison-selection intents still
+cancel the selected diff. Whole-cache deletion invalidates the exact
+cache authority before maintenance. The workbench admits a publication only
+for its current exact loading context; exact failure, invalidation, and clear
+close that context, so a late result cannot recreate geometry. Composition
+shutdown closes the diff host first, closes epoch blob ingress, waits for the
+diff, epoch, and GitHub hosts plus every cache actor to quiesce, then drains the
+diff effects before the epoch effects and destroys Qt later by member order.
+
+`qt_diff_workbench_scale_{100,125,200}` passes at 1.0x, 1.25x, and 2.0x. The
+fixture sends wheel input through both source viewports and the divider; proves
+right-insertion and left-deletion pinning, unequal-replacement proportional
+motion, 1,000 exact reversals, shared-scrollbar movement, and routed
+Home/Page/End against the native pane scroll values and captured viewport
+pixels rather than controller frames alone. It covers stable-segment reveal,
+pane-local horizontal motion, ribbon click, source-line click,
+detail/link-map/navigation identity agreement, command-to-pane focus order,
+accessible names/descriptions, one polite deduplicated workbench announcement,
+and unchanged natural source-row counts. It also replaces file/epoch/options
+contexts, delivers stale results and failures, changes the internal detail
+splitter without resizing the outer widget, proves one coalesced viewport-axis
+rebuild and native tail reachability, changes resize/font/DPI/palette facts,
+and preserves stable semantic selection through Qt-local remeasurement.
+
+`application_diff_workbench_public_path` traverses the recorded GitHub.com
+public fixture, accepted epoch and retained real cache actor, installed Git,
+diff host, production workbench, rendered full window, and orderly shutdown.
+It replays an accepted metadata-only revision and proves that the exact
+result/context/selection survive, then changes the accepted head and proves
+that all three clear before replacement geometry can appear.
+The generated `build/dev/tests/end_to_end/diff-workbench-public-path.png` was
+directly inspected: the selected composition visibly contains the two source
+documents, an insertion wedge attached to both pane edges, the selected later
+line, the one shared scrollbar, and matching lower detail. The test emits
+`PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:github.com`, `DIFF_WORKBENCH_OK`, and
+`RENDER_OK` only when those runtime facts agree.
+
+`application_diff_workbench_shutdown_public_path` begins shutdown immediately
+after submitting a real selected diff and passes only after all three hosts
+quiesce without a late Qt terminal. The existing three-process
+`application_epoch_maintenance_public_path` now materializes and renders a
+selected second-head diff before whole-cache deletion and requires the
+workbench's exact result, context, and geometry to be synchronously invalidated
+when durable deletion completes. Direct `git_process_contract`,
+`git_cache_contract`, and `application_epoch_host` fixtures cover exact
+SHA-1/SHA-256 and empty bytes, declared-size rejection before content
+retention, wrong object type, imported-cache reads, one-session arbitration,
+stale same-repository authority rejection, and closed blob ingress.
+
+The target-native native-appearance public probe now requires this same
+selected diff before capturing its initial full-window raster. A successful
+Cocoa run additionally requires inherited palette/style/font state, stable
+semantic selection, a post-theme geometry rebuild, and differing rendered
+pixels. The deterministic probe-contract test passes, but it proves only that
+invalid and offscreen invocations fail closed without writing evidence; it is
+not System-theme evidence. The owner-activated Cocoa/QMacStyle Light-to-Dark
+capture and target-native Windows execution remain open and nonblocking.
+RFC-BPR-0005 still owns the dedicated integrated presentation-polish and native
+visual-acceptance pass; BPR-0079 makes no claim to that later polish.
 
 ## BPR-0084 build-foundation evidence
 

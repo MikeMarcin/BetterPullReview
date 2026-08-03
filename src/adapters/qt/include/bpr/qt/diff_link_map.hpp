@@ -115,13 +115,16 @@ namespace bpr::qt {
 			-> bool;
 
 		void set_selected(
-			std::optional<diff_link_map_identity> aSelection);
+			std::optional<diff_link_map_identity> aSelection,
+			bool                                  aAnnounce = true);
 		[[nodiscard]] auto selected() const noexcept
 			-> const std::optional<diff_link_map_identity>&;
 		[[nodiscard]] auto hovered() const noexcept
 			-> const std::optional<diff_link_map_identity>&;
 
 		void set_selection_sink(diff_link_map_identity_sink aSink);
+		/// \brief Delegates selection announcements to a composed parent when disabled.
+		void set_selection_announcements_enabled(bool aEnabled) noexcept;
 		void set_hover_sink(diff_link_map_hover_sink aSink);
 		void set_reveal_sink(diff_link_map_identity_sink aSink);
 
@@ -215,9 +218,10 @@ namespace bpr::qt {
 		diff_link_map_hover_sink                          HoverSink;
 		diff_link_map_identity_sink                       RevealSink;
 		QPointF                                           PressGlobal;
-		int                                               PressHandlePosition = 0;
-		bool                                              Pressed             = false;
-		bool                                              Dragging            = false;
+		int                                               PressHandlePosition           = 0;
+		bool                                              Pressed                       = false;
+		bool                                              Dragging                      = false;
+		bool                                              SelectionAnnouncementsEnabled = true;
 		diff_link_map_statistics                          Statistics;
 	};
 

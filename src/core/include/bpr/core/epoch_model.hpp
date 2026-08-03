@@ -92,6 +92,8 @@ namespace bpr::core {
 
 	using git_commit_oid = git_object_oid<git_commit_oid_kind>;
 	using git_tree_oid   = git_object_oid<git_tree_oid_kind>;
+	struct git_blob_oid_kind;
+	using git_blob_oid = git_object_oid<git_blob_oid_kind>;
 
 	/// \brief Provides the canonical git oid contract.
 	class canonical_git_oid
@@ -126,11 +128,17 @@ namespace bpr::core {
 	/// \brief Parses the supplied git tree oid.
 	[[nodiscard]] auto parse_git_tree_oid(std::string_view aText) noexcept
 		-> std::optional<git_tree_oid>;
+	/// \brief Parses the supplied git blob oid.
+	[[nodiscard]] auto parse_git_blob_oid(std::string_view aText) noexcept
+		-> std::optional<git_blob_oid>;
 	/// \brief Reports whether the canonical hex condition holds.
 	[[nodiscard]] auto canonical_hex(const git_commit_oid& aOid) noexcept
 		-> canonical_git_oid;
 	/// \brief Reports whether the canonical hex condition holds.
 	[[nodiscard]] auto canonical_hex(const git_tree_oid& aOid) noexcept
+		-> canonical_git_oid;
+	/// \brief Reports whether the canonical hex condition holds.
+	[[nodiscard]] auto canonical_hex(const git_blob_oid& aOid) noexcept
 		-> canonical_git_oid;
 	/// \brief Provides the fixed identity 256 contract.
 

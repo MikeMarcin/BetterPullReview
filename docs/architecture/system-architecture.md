@@ -312,6 +312,25 @@ inspection remain decision-lane confined. Shutdown is quiescent only after
 jobs, deferred ingress, pending offers, decision turns, and every actor queue
 are idle.
 
+The selected diff host has its own effect executor but obtains blob bytes only
+through the epoch host. Its synchronous blob seam queues onto the matching
+repository actor and requires the actor's already retained complete cache
+request to equal the diff request authority. It never opens a competing cache
+session and cannot switch a same-repository actor back to a stale pull request.
+Installed Git checks blob type and declared size before retaining content, and
+the cache adapter revalidates the owned repository boundary after the process
+returns. The 16 MiB diff-computation materialization ceiling is therefore
+preserved across the full composition.
+
+Composition shutdown closes diff ingress first and epoch blob ingress next.
+The Qt projection remains alive until the diff host, epoch host, GitHub host,
+and cache actors are quiescent; the diff effect lane drains before the epoch
+effect lane. A changed accepted semantic revision, epoch/file/options
+selection, authority invalidation, and whole-cache deletion revoke matching
+diff state and Qt geometry before stale work can publish. A metadata-only
+accepted refresh with unchanged authority and anchor-driving revision facts
+retains the exact diff and semantic selection.
+
 Every normally accepted Git/catalog submission during the live host lifetime
 produces exactly one typed success, failure, or cancellation terminal. An
 abrupt process death instead leaves one typed durable operation outcome for

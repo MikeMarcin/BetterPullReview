@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_GITHUB_WINDOW_HPP
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 
@@ -76,6 +77,8 @@ namespace bpr::qt {
 			-> github_conversation_model*;
 		[[nodiscard]] auto epoch_control() const noexcept
 			-> epoch_comparison_control*;
+		[[nodiscard]] auto diff_comparison_workbench() const noexcept
+			-> diff_workbench*;
 		[[nodiscard]] auto status_text() const -> std::string;
 		[[nodiscard]] auto diagnostic_text() const -> std::string;
 		[[nodiscard]] auto active_host_text() const -> std::string;
@@ -170,6 +173,7 @@ namespace bpr::qt {
 		QTreeView*                 ConversationView              = nullptr;
 		github_conversation_model* ConversationModel             = nullptr;
 		epoch_comparison_control*  EpochControl                  = nullptr;
+		diff_workbench*            DiffWorkbench                 = nullptr;
 
 		std::optional<core::host_profile_id>    ActiveProfile;
 		std::optional<core::github_account_id>  SessionAccount;

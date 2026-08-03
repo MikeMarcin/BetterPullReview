@@ -98,9 +98,12 @@ namespace bpr::app::detail {
 				}
 			}
 
-			std::string Base    = "32752d1cce5de757a157e803f80bdd97f2ba9291";
-			std::string HeadOne = "dc1c8d7b318cb3a6005c5127c3a6cee23f05afd4";
-			std::string HeadTwo = "25e0fdd5f53022f467a56c667917068c46e9f3d2";
+			std::string Base        = "32752d1cce5de757a157e803f80bdd97f2ba9291";
+			std::string HeadOne     = "dc1c8d7b318cb3a6005c5127c3a6cee23f05afd4";
+			std::string HeadTwo     = "25e0fdd5f53022f467a56c667917068c46e9f3d2";
+			std::string BaseBlob    = "df967b96a579e45a18b8251732d16804b2e56a55";
+			std::string HeadOneBlob = "f3c1fa86ea6ba97d1abb59130b3a2da8b99f36f5";
+			std::string HeadTwoBlob = "40ae4dcbc9320f12f4a25f9d44448ab01b14e445";
 			QByteArray  PackOne;
 			QByteArray  PackTwo;
 		};
@@ -1102,9 +1105,12 @@ namespace bpr::app::detail {
 				Implementation->Recording->SmartLsRefsCalls);
 			result.SmartFetchCount = static_cast<int>(
 				Implementation->Recording->SmartFetchCalls);
-			result.BaseOid    = Implementation->Git->Base;
-			result.HeadOneOid = Implementation->Git->HeadOne;
-			result.HeadTwoOid = Implementation->Git->HeadTwo;
+			result.BaseOid        = Implementation->Git->Base;
+			result.HeadOneOid     = Implementation->Git->HeadOne;
+			result.HeadTwoOid     = Implementation->Git->HeadTwo;
+			result.BaseBlobOid    = Implementation->Git->BaseBlob;
+			result.HeadOneBlobOid = Implementation->Git->HeadOneBlob;
+			result.HeadTwoBlobOid = Implementation->Git->HeadTwoBlob;
 		}
 		{
 			const std::scoped_lock lock{ Implementation->VaultState->Mutex };

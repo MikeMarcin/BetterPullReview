@@ -52,6 +52,9 @@ namespace bpr::app::detail {
 		std::string BaseOid;
 		std::string HeadOneOid;
 		std::string HeadTwoOid;
+		std::string BaseBlobOid;
+		std::string HeadOneBlobOid;
+		std::string HeadTwoBlobOid;
 	};
 
 	struct github_epoch_maintenance_fixture_evidence
@@ -88,6 +91,14 @@ namespace bpr::app::detail {
 			const github_application& aApplication,
 			core::review_epoch_id     aTarget) noexcept
 			-> github_epoch_maintenance_fixture_evidence;
+		/// \brief Requests the deterministic fixture file through the real host/cache path.
+		[[nodiscard]] static auto request_fixture_diff(
+			github_application& aApplication,
+			bool                aUseSecondHead = false) -> bool;
+		/// \brief Replays an accepted metadata-only or changed-head fixture handoff.
+		[[nodiscard]] static auto reaccept_fixture_revision(
+			github_application& aApplication,
+			bool                aChangeHead) -> bool;
 	};
 }
 

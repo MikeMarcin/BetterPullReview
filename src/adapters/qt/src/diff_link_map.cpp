@@ -213,7 +213,8 @@ namespace bpr::qt {
 	}
 
 	void diff_link_map::set_selected(
-		std::optional<diff_link_map_identity> aSelection)
+		std::optional<diff_link_map_identity> aSelection,
+		const bool                            aAnnounce)
 	{
 		if (aSelection.has_value() && !identity_exists(*aSelection)) {
 			aSelection.reset();
@@ -224,7 +225,7 @@ namespace bpr::qt {
 		Selection = std::move(aSelection);
 		rebuild_visible_geometry();
 		update_accessible_status();
-		if (Selection.has_value()) {
+		if (aAnnounce && Selection.has_value()) {
 			const auto self  = QPointer<diff_link_map>{ this };
 			auto       event = QAccessibleAnnouncementEvent{
 				this, accessibleDescription()
@@ -254,6 +255,12 @@ namespace bpr::qt {
 	void diff_link_map::set_selection_sink(diff_link_map_identity_sink aSink)
 	{
 		SelectionSink = std::move(aSink);
+	}
+
+	void diff_link_map::set_selection_announcements_enabled(
+		const bool aEnabled) noexcept
+	{
+		SelectionAnnouncementsEnabled = aEnabled;
 	}
 
 	void diff_link_map::set_hover_sink(diff_link_map_hover_sink aSink)
@@ -809,7 +816,7 @@ namespace bpr::qt {
 		}
 		const auto identity = Entries[aIndex].Identity;
 		const auto self     = QPointer<diff_link_map>{ this };
-		set_selected(identity);
+		set_selected(identity, SelectionAnnouncementsEnabled);
 		if (self == nullptr) {
 			return;
 		}

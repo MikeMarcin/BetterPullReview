@@ -138,6 +138,42 @@ set_tests_properties(
 )
 
 add_test(
+    NAME application_diff_workbench_public_path
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --github-fixture
+        github-com
+        --diff-workbench-probe
+        --render-evidence
+        "${CMAKE_CURRENT_BINARY_DIR}/diff-workbench-public-path.png"
+)
+set_tests_properties(
+    application_diff_workbench_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+DIFF_WORKBENCH_OK[\r\n]+RENDER_OK"
+        TIMEOUT 45
+)
+
+add_test(
+    NAME application_diff_workbench_shutdown_public_path
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --github-fixture
+        github-com
+        --diff-workbench-shutdown-probe
+)
+set_tests_properties(
+    application_diff_workbench_shutdown_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+DIFF_WORKBENCH_SHUTDOWN_OK"
+        TIMEOUT 45
+)
+
+add_test(
     NAME application_github_public_path_ghes_3_18
     COMMAND
         $<TARGET_FILE:app_better_pull_review>

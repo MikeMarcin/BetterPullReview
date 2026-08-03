@@ -22,6 +22,9 @@ Tests are direct evidence, not naming evidence.
   uses Qt's basic Windows style to avoid the offscreen Fusion cached-painter
   fault; native-style UX remains a separate target-native gate.
 - End-to-end tests use the real composition root.
+- Selected diff UI claims require a production-workbench interaction trace and
+  a full-window rendered public path through the installed Git/cache actor;
+  isolated painter output is insufficient.
 - Runtime-surface tests inspect the launched process on macOS, Linux, and
   Windows; keep platform queries process-scoped and directly unit-tested.
 - Fixtures are sanitized and deterministic; never include credentials or

@@ -19,6 +19,7 @@
 
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/github_application_host.hpp"
@@ -93,6 +94,72 @@ namespace bpr::app {
 				QFileInfo{ QStandardPaths::findExecutable(QStringLiteral("git")) }
 					.canonicalFilePath());
 		}
+
+		[[nodiscard]] auto preserves_selected_diff(
+			const core::epoch_state&                          aState,
+			const application::accepted_pull_request_handoff& aHandoff) noexcept
+			-> bool
+		{
+			if (
+				!aState.Authority.has_value()
+				|| !aState.AcceptedRevision.has_value()
+				|| !aState.AcceptedComparison.has_value()) {
+				return false;
+			}
+			const auto& authority = *aState.Authority;
+			const auto& revision  = *aState.AcceptedRevision;
+			return aState.ApplicationSession == aHandoff.ApplicationSession
+				&& authority.Profile == aHandoff.Profile
+				&& authority.ProfileRevision == aHandoff.ProfileRevision
+				&& authority.Host == aHandoff.Host
+				&& authority.HostAuthority == aHandoff.HostAuthority
+				&& authority.Account == aHandoff.Account
+				&& authority.Viewer == aHandoff.Viewer
+				&& authority.Repository == aHandoff.Repository
+				&& authority.PullRequest == aHandoff.PullRequest
+				&& authority.Number == aHandoff.Number
+				&& revision.Source.IdentityGeneration
+				== aHandoff.IdentityGeneration
+				&& revision.Origin == aHandoff.Origin
+				&& revision.BaseBranch == aHandoff.BaseBranch
+				&& revision.Base == aHandoff.Base
+				&& revision.Head == aHandoff.Head
+				&& revision.CurrentViewerReview == aHandoff.CurrentViewerReview
+				&& revision.Base.algorithm() == aHandoff.ObjectFormat;
+		}
+
+#if defined(BPR_BUILD_TESTING)
+		[[nodiscard]] auto clone_without_smart_git(
+			const application::accepted_pull_request_handoff& aHandoff)
+			-> application::accepted_pull_request_handoff
+		{
+			return {
+				.ApplicationSession    = aHandoff.ApplicationSession,
+				.Profile               = aHandoff.Profile,
+				.ProfileRevision       = aHandoff.ProfileRevision,
+				.Host                  = aHandoff.Host,
+				.HostAuthority         = aHandoff.HostAuthority,
+				.Hostname              = aHandoff.Hostname,
+				.ServerContract        = aHandoff.ServerContract,
+				.Account               = aHandoff.Account,
+				.Viewer                = aHandoff.Viewer,
+				.Repository            = aHandoff.Repository,
+				.Locator               = aHandoff.Locator,
+				.PullRequest           = aHandoff.PullRequest,
+				.Number                = aHandoff.Number,
+				.Snapshot              = aHandoff.Snapshot,
+				.IdentityGeneration    = aHandoff.IdentityGeneration,
+				.PullRequestGeneration = aHandoff.PullRequestGeneration,
+				.Origin                = aHandoff.Origin,
+				.ObjectFormat          = aHandoff.ObjectFormat,
+				.BaseBranch            = aHandoff.BaseBranch,
+				.BaseRef               = aHandoff.BaseRef,
+				.Base                  = aHandoff.Base,
+				.Head                  = aHandoff.Head,
+				.CurrentViewerReview   = aHandoff.CurrentViewerReview,
+			};
+		}
+#endif
 
 		[[nodiscard]] auto prepare_application_data_root(
 			const std::filesystem::path& aRoot) -> std::filesystem::path
@@ -331,6 +398,7 @@ namespace bpr::app {
 	}
 
 	class github_application::implementation final
+		: public application::github_epoch_handoff_port
 	{
 	public:
 		explicit implementation(
@@ -523,6 +591,14 @@ namespace bpr::app {
 				*Window->epoch_control());
 			Window->epoch_control()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
+			DiffHost = std::make_unique<application::diff_application_host>(
+				core::diff_state{
+					.ApplicationSession = core::application_session_id{ 1U },
+				},
+				*EpochHost,
+				DiffEffects,
+				DecisionLane,
+				*Window->diff_comparison_workbench());
 
 			Host = std::make_unique<application::github_application_host>(
 				initial_github_state(),
@@ -536,10 +612,10 @@ namespace bpr::app {
 				*Window,
 				application::github_credential_shutdown_policy::
 					delete_retained_on_shutdown,
-				EpochHost.get());
+				this);
 		}
 
-		~implementation()
+		~implementation() override
 		{
 			begin_shutdown();
 			while (!ShutdownComplete) {
@@ -558,6 +634,38 @@ namespace bpr::app {
 			}
 #endif
 			return *OwnedVault;
+		}
+
+		void accept(application::accepted_pull_request_handoff aHandoff) override
+		{
+			if (!Closing && EpochHost != nullptr) {
+#if defined(BPR_BUILD_TESTING)
+				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
+#endif
+				if (!preserves_selected_diff(EpochHost->state(), aHandoff)) {
+					clear_diff_selection();
+				}
+				EpochHost->accept(std::move(aHandoff));
+			}
+		}
+
+		void invalidate(
+			application::pull_request_authority_invalidation aInvalidation) override
+		{
+			if (Closing || EpochHost == nullptr) {
+				return;
+			}
+			invalidate_diff_if([&aInvalidation](const auto& aAuthority) {
+				return aAuthority.Profile == aInvalidation.Profile
+					&& aAuthority.ProfileRevision == aInvalidation.ProfileRevision
+					&& aAuthority.Host == aInvalidation.Host
+					&& aAuthority.HostAuthority == aInvalidation.HostAuthority
+					&& aAuthority.Account == aInvalidation.Account
+					&& aAuthority.Viewer == aInvalidation.Viewer
+					&& aAuthority.Repository == aInvalidation.Repository
+					&& aAuthority.PullRequest == aInvalidation.PullRequest;
+			});
+			EpochHost->invalidate(std::move(aInvalidation));
 		}
 
 		[[nodiscard]] auto find_profile(const core::host_profile_id aProfile) const
@@ -629,7 +737,58 @@ namespace bpr::app {
 				++EpochCancelIntentDispatchCount;
 			}
 #endif
+			if (
+				std::holds_alternative<core::select_named_comparison_intent>(aIntent)
+				|| std::holds_alternative<core::select_comparison_anchors_intent>(aIntent)
+				|| std::holds_alternative<core::select_comparison_anchor_intent>(aIntent)) {
+				clear_diff_selection();
+			}
+			if (const auto* deletion = std::get_if<core::delete_repository_cache_intent>(&aIntent)) {
+				invalidate_diff_if([deletion](const auto& aAuthority) {
+					return aAuthority.Cache == deletion->Cache;
+				});
+			}
 			EpochHost->dispatch(std::move(aIntent));
+		}
+
+		void clear_diff_selection()
+		{
+			if (DiffHost != nullptr) {
+				DiffHost->cancel();
+			}
+			if (Window != nullptr) {
+				Window->diff_comparison_workbench()->clear();
+			}
+		}
+
+		template <typename Predicate>
+		void invalidate_diff_if(Predicate&& aPredicate)
+		{
+			if (DiffHost == nullptr) {
+				return;
+			}
+			const auto& state   = DiffHost->state();
+			const auto* context = state.Pending.has_value()
+				? &*state.Pending
+				: state.Current.has_value() ? &*state.Current
+											: nullptr;
+			if (context != nullptr && aPredicate(context->Key.Authority)) {
+				DiffHost->invalidate(context->Key.Authority);
+			}
+		}
+
+		void request_diff(
+			core::file_comparison_key aKey,
+			core::diff_options        aOptions)
+		{
+			if (Closing || DiffHost == nullptr) {
+				return;
+			}
+			DiffHost->request(std::move(aKey), std::move(aOptions));
+			if (DiffHost->state().Pending.has_value()) {
+				Window->diff_comparison_workbench()->set_loading(
+					*DiffHost->state().Pending);
+			}
 		}
 
 		void begin_shutdown()
@@ -638,6 +797,7 @@ namespace bpr::app {
 				return;
 			}
 			Closing = true;
+			DiffHost->shutdown();
 			EpochHost->shutdown();
 			Host->shutdown();
 			schedule_shutdown_poll();
@@ -663,13 +823,16 @@ namespace bpr::app {
 			if (!Closing || ShutdownComplete) {
 				return;
 			}
-			if (!EpochHost->is_quiescent() || !Host->is_quiescent()) {
+			if (
+				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
+				|| !Host->is_quiescent()) {
 				schedule_shutdown_poll();
 				return;
 			}
 
 			ShutdownCleanupFailed         = Host->shutdown_cleanup_failed();
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
+			DiffEffects.close_and_drain();
 			EpochEffects.close_and_drain();
 			Provider->shutdown();
 			ProviderEffects.close_and_drain();
@@ -683,6 +846,7 @@ namespace bpr::app {
 		worker_executor                                 VaultEffects;
 #if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
+		std::optional<application::accepted_pull_request_handoff>      LastAcceptedHandoff;
 		std::size_t                                                    EpochPruneIntentDispatchCount  = 0U;
 		std::size_t                                                    EpochDeleteIntentDispatchCount = 0U;
 		std::size_t                                                    EpochCancelIntentDispatchCount = 0U;
@@ -698,7 +862,9 @@ namespace bpr::app {
 		std::unique_ptr<application::epoch_entropy_port>           EpochEntropy;
 		std::unique_ptr<application::epoch_clock_port>             EpochClock;
 		worker_executor                                            EpochEffects;
+		worker_executor                                            DiffEffects;
 		std::unique_ptr<application::epoch_application_host>       EpochHost;
+		std::unique_ptr<application::diff_application_host>        DiffHost;
 		std::unique_ptr<application::github_application_host>      Host;
 		bool                                                       Closing                       = false;
 		bool                                                       ShutdownPollScheduled         = false;
@@ -1025,6 +1191,102 @@ namespace bpr::app {
 			.TargetBaseAvailability            = baseAvailability,
 			.TargetHeadAvailability            = headAvailability,
 		};
+	}
+
+	auto detail::github_application_fixture_access::request_fixture_diff(
+		github_application& aApplication,
+		const bool          aUseSecondHead) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->Fixture == nullptr
+			|| implementation->EpochHost == nullptr
+			|| implementation->DiffHost == nullptr) {
+			return false;
+		}
+		const auto& state = implementation->EpochHost->state();
+		if (!state.Authority.has_value() || !state.AcceptedComparison.has_value()) {
+			return false;
+		}
+		const auto evidence     = implementation->Fixture->evidence();
+		const auto expectedHead = aUseSecondHead ? evidence.HeadTwoOid : evidence.HeadOneOid;
+		const auto objectFor    = [&evidence](const core::git_commit_oid aCommit)
+			-> std::optional<core::git_blob_oid> {
+			const auto rendered = core::canonical_hex(aCommit).view();
+			if (rendered == evidence.BaseOid) {
+				return core::parse_git_blob_oid(evidence.BaseBlobOid);
+			}
+			if (rendered == evidence.HeadOneOid) {
+				return core::parse_git_blob_oid(evidence.HeadOneBlobOid);
+			}
+			if (rendered == evidence.HeadTwoOid) {
+				return core::parse_git_blob_oid(evidence.HeadTwoBlobOid);
+			}
+			return std::nullopt;
+		};
+		if (
+			core::canonical_hex(state.AcceptedComparison->Right.Commit).view()
+			!= expectedHead) {
+			return false;
+		}
+		const auto leftBlob  = objectFor(state.AcceptedComparison->Left.Commit);
+		const auto rightBlob = objectFor(state.AcceptedComparison->Right.Commit);
+		const auto options   = core::diff_options{ };
+		const auto digest    = core::options_digest(options);
+		if (!leftBlob.has_value() || !rightBlob.has_value() || !digest.has_value()) {
+			return false;
+		}
+		auto                              fileBytes = std::array<std::uint8_t, 32U>{ };
+		static constexpr std::string_view identity  = "fixture/review.txt/v1";
+		std::ranges::copy(identity, fileBytes.begin());
+		implementation->request_diff(
+			core::file_comparison_key{
+				.Authority   = *state.Authority,
+				.Repository  = state.Authority->Repository,
+				.PullRequest = state.Authority->PullRequest,
+				.LeftAnchor  = state.AcceptedComparison->Left.Identity,
+				.RightAnchor = state.AcceptedComparison->Right.Identity,
+				.LeftBlob    = leftBlob,
+				.RightBlob   = rightBlob,
+				.File        = core::file_identity{ fileBytes },
+				.Options     = *digest,
+				.Algorithm   = core::supported_diff_algorithm_revision,
+			},
+			options);
+		return implementation->DiffHost->state().Pending.has_value();
+	}
+
+	auto detail::github_application_fixture_access::reaccept_fixture_revision(
+		github_application& aApplication,
+		const bool          aChangeHead) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->Fixture == nullptr
+			|| !implementation->LastAcceptedHandoff.has_value()) {
+			return false;
+		}
+		auto handoff = clone_without_smart_git(
+			*implementation->LastAcceptedHandoff);
+		handoff.Snapshot = core::provider_snapshot_id{
+			handoff.Snapshot.value() + 1U
+		};
+		handoff.PullRequestGeneration = core::request_generation{
+			handoff.PullRequestGeneration.value() + 1U
+		};
+		if (aChangeHead) {
+			const auto head = core::parse_git_commit_oid(
+				implementation->Fixture->evidence().HeadTwoOid);
+			if (!head.has_value()) {
+				return false;
+			}
+			handoff.Head = *head;
+		}
+		if (!application::valid(handoff)) {
+			return false;
+		}
+		implementation->accept(std::move(handoff));
+		return true;
 	}
 #endif
 }
