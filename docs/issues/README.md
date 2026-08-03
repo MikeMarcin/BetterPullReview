@@ -283,9 +283,14 @@ presented as public-path evidence. Its one medium finding is closed by the
 replay at `ca424f7`, which passes 88/88 on `dev` and 33/33 on `core-only`
 including the selected public diff path. The card still remains in backlog
 because it depends on BPR-0054 and retains an owner-authorized native
-System-theme gate. New backlog BPR-0087 carries the two actionable
-evidence-strength findings, which are assertion weaknesses in the composed
-replay rather than defects. Implementation can progress under the
+System-theme gate. Done BPR-0087 closes the two actionable
+evidence-strength findings, which were assertion weaknesses in the composed
+replay rather than defects: the wheel steps now require the retained position
+to have advanced before the receivers are compared, and the ribbon click now
+first selects a different visible group through the public link map and
+requires the replacement click to replace it. The replay records both states,
+so the artifact shows a click changing semantic selection; it is now nineteen
+records and nineteen images. Implementation can progress under the
 product-owner exception without an out-of-order Auto-Verified transition or
 beginning RFC-BPR-0005 early.
 

@@ -1020,7 +1020,11 @@ namespace {
 			return false;
 		}
 		const auto leftInputPosition = controller->position();
-		if (!capture("04-left-pane-input")) {
+		// The receiver-equivalence steps below compare the right pane and the
+		// divider against this value. Require the wheel to have actually moved
+		// the retained position first, otherwise all three receivers would
+		// agree trivially at the origin even if none of them handled the event.
+		if (leftInputPosition <= inputOrigin || !capture("04-left-pane-input")) {
 			return false;
 		}
 
@@ -1079,12 +1083,18 @@ namespace {
 		}
 		const auto rightInputPosition = controller->position();
 		if (std::abs(rightInputPosition - leftInputPosition) > 0.000'001
+			|| rightInputPosition <= inputOrigin
 			|| !capture("09-right-pane-input")) {
 			return false;
 		}
 		controller->set_position(inputOrigin);
-		if (!send_diff_evidence_wheel(*workbench->link_map(), QPoint{ 0, -32 })
-			|| std::abs(controller->position() - leftInputPosition) > 0.000'001
+		if (std::abs(controller->position() - inputOrigin) > 0.000'001
+			|| !send_diff_evidence_wheel(*workbench->link_map(), QPoint{ 0, -32 })) {
+			return false;
+		}
+		const auto dividerInputPosition = controller->position();
+		if (std::abs(dividerInputPosition - leftInputPosition) > 0.000'001
+			|| dividerInputPosition <= inputOrigin
 			|| !capture("10-divider-input")) {
 			return false;
 		}
@@ -1129,18 +1139,46 @@ namespace {
 			return false;
 		}
 		settle_automated_events();
-		const auto visible = workbench->link_map()->visible_links();
-		const auto ribbon  = std::ranges::find(
+		const auto visible  = workbench->link_map()->visible_links();
+		const auto ribbonIt = std::ranges::find(
 			visible,
 			replacement->Id,
 			[](const bpr::qt::visible_diff_link& aLink) {
 				return aLink.Identity.Segment;
 			});
-		if (ribbon == visible.end() || ribbon->Path.isEmpty()) {
+		if (ribbonIt == visible.end() || ribbonIt->Path.isEmpty()) {
 			return false;
 		}
-		const auto point = ribbon->Path.boundingRect().center();
-		if (!ribbon->Path.contains(point)) {
+		const auto& ribbon = *ribbonIt;
+
+		// The replacement is the fixture's first group and the workbench
+		// selects it when it publishes, so clicking it from that state would
+		// pass even if selection replacement were broken. Move the selection to
+		// a different visible group first and require the click to replace it.
+		const auto otherIt = std::ranges::find_if(
+			visible, [&ribbon](const bpr::qt::visible_diff_link& aLink) {
+				return aLink.Identity.Group != ribbon.Identity.Group
+					&& !aLink.Path.isEmpty();
+			});
+		if (otherIt == visible.end()) {
+			return false;
+		}
+		const auto& otherLink  = *otherIt;
+		const auto  otherPoint = otherLink.Path.boundingRect().center();
+		if (!otherLink.Path.contains(otherPoint)) {
+			return false;
+		}
+		send_diff_evidence_click(*workbench->link_map(), otherPoint);
+		settle_automated_events();
+		if (!workbench->selection().has_value()
+			|| workbench->selection()->Group != otherLink.Identity.Group
+			|| workbench->selection()->Group == ribbon.Identity.Group
+			|| !capture("15-other-ribbon-selected")) {
+			return false;
+		}
+
+		const auto point = ribbon.Path.boundingRect().center();
+		if (!ribbon.Path.contains(point)) {
 			return false;
 		}
 		const auto callbacksBeforeClick
@@ -1148,7 +1186,7 @@ namespace {
 		send_diff_evidence_click(*workbench->link_map(), point);
 		settle_automated_events();
 		if (!workbench->selection().has_value()
-			|| workbench->selection()->Group != ribbon->Identity.Group
+			|| workbench->selection()->Group != ribbon.Identity.Group
 			|| !workbench->link_map()->selected().has_value()
 			|| workbench->link_map()->selected()->Group
 				!= workbench->selection()->Group
@@ -1156,7 +1194,7 @@ namespace {
 				!= callbacksBeforeClick + 1U
 			|| !workbench->detail_pane()->toPlainText().startsWith(
 				QStringLiteral("Change "))
-			|| !capture("15-ribbon-selection")) {
+			|| !capture("16-ribbon-selection")) {
 			return false;
 		}
 
@@ -1174,20 +1212,20 @@ namespace {
 		settle_automated_events();
 		if (workbench->statistics().GeometryRebuilds != rebuildsBeforeResize + 1U
 			|| workbench->selection() != selectionBeforeResize
-			|| !capture("16-divider-resized")) {
+			|| !capture("17-divider-resized")) {
 			return false;
 		}
 
 		controller->home();
 		if (std::abs(controller->position() - controller->minimum_position())
 				> 0.000'001
-			|| !capture("17-comparison-start")) {
+			|| !capture("18-comparison-start")) {
 			return false;
 		}
 		controller->end();
 		if (std::abs(controller->position() - controller->maximum_position())
 				> 0.000'001
-			|| !capture("18-comparison-end")) {
+			|| !capture("19-comparison-end")) {
 			return false;
 		}
 

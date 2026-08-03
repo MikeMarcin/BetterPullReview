@@ -15,7 +15,7 @@ evidence, and shutdown safety. BPR-0080 supplies bounded moved-sub-block
 discovery, retained semantic indexes, and instrumented large-fixture/high-
 frequency Qt evidence. BPR-0081 reconciles documentation and conformance;
 BPR-0082 supplies the conservative simplification pass. BPR-0083's final
-available-platform selected-composition replay now supplies 18 rendered
+available-platform selected-composition replay now supplies 19 rendered
 frames and a machine-readable two-direction interaction trace; its
 owner-activated native System-theme transition and predecessor closeout remain
 open. RFC-BPR-0003
@@ -537,7 +537,7 @@ deletion, insertion, matching, and asymmetric-tail regions through the frozen
 installed-Git pack/cache/application path. The existing
 `application_diff_workbench_public_path` process accepts one additional
 test-build-only evidence-directory argument; no extra application test or
-process was added. Its 18 full-window PNGs and JSONL trace prove initial
+process was added. Its 19 full-window PNGs and JSONL trace prove initial
 selection, matching motion, left-pane input, insertion pinning and reversal,
 right-pane and divider input equivalence, deletion pinning, unequal
 replacement, ribbon selection, divider resize, and both comparison endpoints.
@@ -569,8 +569,8 @@ nonblocking. RFC-BPR-0004 cannot become Auto-Verified or release
 RFC-BPR-0005 while RFC-BPR-0003 and this native gate remain open.
 
 The final rebuilt public-composition replay passes 1/1 in 12.90 seconds with
-one offscreen process and no leftover application process. Its 18 JSONL
-records and 18 PNGs were regenerated after the final simplification. The
+one offscreen process and no leftover application process. Its JSONL
+records and PNGs were regenerated after the final simplification. The
 ribbon-selection record proves one callback rather than inferring a click from
 an already-selected identity; the following resize advances only the geometry
 generation while the semantic index remains at one. The selected component
@@ -591,7 +591,7 @@ public path is genuine, that the retained position is a single authority with
 pane scrollbars off, that pinning, exact reversal, and the 4:7 proportional
 advance hold at 1e-6 in the composed replay and at native scrollbar and pixel
 level in components, and that semantic generation and index counters stay at
-one across all eighteen records and a 1,000-event wheel storm. It independently
+one across every record and a 1,000-event wheel storm. It independently
 re-inspected the rendered frames and confirmed the insertion wedge collapses to
 the exact left boundary and the replacement ribbon is attached, selected, and
 agrees with the detail pane. It also confirmed the open gates are stated
@@ -606,15 +606,21 @@ composed into the same process. The complete matrix was replayed at
 tests-disabled Release composition contract. The superseded 00:48 counts are
 replaced by that replay.
 
-Its remaining findings are evidence-strength improvements rather than defects,
-and BPR-0087 tracks the two actionable ones: the composed wheel steps record
-the resulting position but never assert that the wheel moved anything, and the
-composed ribbon click targets the group that was already auto-selected, so the
-replay never shows a click replacing a selection. Both behaviors are separately
-proven at component level; only the composed replay's assertions are weak. The
-reviewer also noted that PNG content is inspection-dependent rather than
+Its two actionable evidence-strength findings are closed by done BPR-0087. The
+composed wheel steps now require the retained position to have advanced past
+the input origin before the receiver-equivalence steps compare against it, and
+each receiver's own post-wheel position must also have advanced, so three
+receivers can no longer agree trivially at the origin. The composed ribbon
+click now first clicks a different visible group through the same public link
+map, requires the selection to be that other group, and then requires the
+replacement click to replace it; the replay records both states, so the
+artifact shows a click changing semantic selection rather than only agreeing
+with a selection that was already current. Both strengthened assertions were
+confirmed to fail when the behavior they constrain is neutered.
+
+The reviewer also noted that PNG content is inspection-dependent rather than
 machine-gated, and that the reported applied origin is derived from the
-scrollbar fraction rather than observed from block geometry; the card records
+scrollbar fraction rather than observed from block geometry. BPR-0087 records
 those as accepted, with the second belonging to RFC-BPR-0005 polish.
 
 A fresh independent report is therefore no longer outstanding. The

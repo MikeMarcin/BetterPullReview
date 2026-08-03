@@ -69,10 +69,10 @@ RFC-BPR-0005 does not begin.
 - The final rebuilt `application_diff_workbench_public_path` passes 1/1 in
   12.90 seconds with `QT_QPA_PLATFORM=offscreen` and
   `CTEST_PARALLEL_LEVEL=1`. Exactly one application process ran and exited;
-  the post-run process scan was empty. The JSONL file parses as 18 records and
-  the evidence directory contains 18 full-window PNGs. Step 15 records one
+  the post-run process scan was empty. The JSONL file parses as 19 records and
+  the evidence directory contains 19 full-window PNGs. Step 16 records one
   actual selection callback, two visible ribbons, stable group/segment
-  identities, geometry generation 2, and semantic-index generation 1. Step 16
+  identities, geometry generation 2, and semantic-index generation 1. Step 17
   records geometry generation 3, semantic-index generation 1, and nonzero
   applied origins on both panes.
 - The selected Qt component matrix passes 12/12 offscreen and serial. The
@@ -82,8 +82,8 @@ RFC-BPR-0005 does not begin.
 - The read-only RFC utility lane launched no application or Qt process and
   changed no file. Its core matrix passes 5/5 and its selected fixture,
   release-composition, binary/runtime, dependency/platform, architecture, and
-  worker matrix passes 11/11. It also independently confirms 18 valid trace
-  records, 18 PNGs, immutable RFC content, clean diff hygiene, and tracked/
+  worker matrix passes 11/11. It also independently confirms the trace records
+  and PNGs, immutable RFC content, clean diff hygiene, and tracked/
   on-disk workflow counts of 0/0.
 - The complete 181-file format gate passes. The first repository-wide strict
   tidy pass found one unnecessary widening conversion in the new test-only
@@ -105,8 +105,10 @@ RFC-BPR-0005 does not begin.
   confirmed the composed replay routes through the production request path, the
   single retained scroll authority with pane scrollbars off, pinning and exact
   reversal and the 4:7 proportional advance, semantic generation and index
-  counters held at one across all eighteen records and a 1,000-event wheel
-  storm, and honest statement of the open gates. It re-inspected the rendered
+  counters held at one across every record and a 1,000-event wheel
+  storm, and honest statement of the open gates. It reviewed the then-current
+  eighteen-record trace; done BPR-0087 has since regenerated it as nineteen
+  records with strengthened assertions. It re-inspected the rendered
   frames independently and confirmed the insertion wedge and attached selected
   replacement ribbon.
 - Its one medium finding is closed. The recorded 00:48 evidence predated three
