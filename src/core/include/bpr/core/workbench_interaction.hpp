@@ -42,6 +42,12 @@ namespace bpr::core {
 		at_last_file,
 		invalid_file_identity,
 		invalid_navigation_cursor,
+		no_open_comparison,
+		no_changes,
+		at_first_change,
+		at_last_change,
+		invalid_change_selection,
+		invalid_change_cursor,
 	};
 
 	/// \brief Describes the bounded workbench navigation cursor record.
@@ -71,6 +77,35 @@ namespace bpr::core {
 	/// order from either end whenever it is not empty. The core rejects any other
 	/// shape rather than deciding navigation from an incoherent observation.
 	[[nodiscard]] auto valid(const workbench_navigation_cursor& aCursor) noexcept
+		-> bool;
+
+	/// \brief Describes the bounded workbench change cursor record.
+	///
+	/// \details The core holds no diff, exactly as it holds no file list. The
+	/// host resolves the RFC-BPR-0004 semantic index and reports these bounded
+	/// facts about the open comparison's canonical change order; the core decides
+	/// change-command legality from them alone. `Ordinal` is 1-based within that
+	/// order and is zero when the selected group is absent from it, which is the
+	/// selection `navigate_change` refuses rather than steps from.
+	struct workbench_change_cursor
+	{
+		std::optional<change_group_id> Group;
+		std::uint32_t                  Ordinal           = 0U;
+		std::uint32_t                  ChangeCount       = 0U;
+		bool                           PreviousAvailable = false;
+		bool                           NextAvailable     = false;
+
+		auto operator<=>(const workbench_change_cursor&) const = default;
+	};
+
+	/// \brief Checks whether the supplied value satisfies its contract.
+	///
+	/// \details This mirrors the file cursor contract with one deliberate
+	/// difference: the change order is resolved rather than walked, so a
+	/// selection that order cannot place reaches nothing on either side, where a
+	/// file selection that left its order still has neighbours only the host can
+	/// name.
+	[[nodiscard]] auto valid(const workbench_change_cursor& aCursor) noexcept
 		-> bool;
 
 	/// \brief Describes the select workbench file intent record.
@@ -144,11 +179,13 @@ namespace bpr::core {
 	enum class workbench_command_id : std::uint8_t {
 		previous_file,
 		next_file,
+		previous_change,
+		next_change,
 		toggle_files_drawer,
 		toggle_conversations_drawer,
 	};
 
-	inline constexpr std::size_t workbench_command_count = 4U;
+	inline constexpr std::size_t workbench_command_count = 6U;
 
 	/// \brief Describes the workbench command projection record.
 	struct workbench_command_projection
@@ -162,10 +199,14 @@ namespace bpr::core {
 
 	/// \brief Describes the workbench command delta record.
 	///
-	/// \details Entry `i` always projects `workbench_command_id{ i }`.
+	/// \details Entry `i` always projects `workbench_command_id{ i }`. `Policy`
+	/// is the retained stop-versus-wrap policy every navigation entry was decided
+	/// under. A gesture repeats the policy it was offered, so the gesture and the
+	/// enablement that offered it can never disagree about stop versus wrap.
 	struct workbench_command_delta
 	{
 		std::array<workbench_command_projection, workbench_command_count> Commands{ };
+		change_navigation_policy                                          Policy = change_navigation_policy::stop;
 
 		auto operator<=>(const workbench_command_delta&) const = default;
 	};
@@ -208,15 +249,18 @@ namespace bpr::core {
 
 	/// \brief Describes the compact semantic interaction state of one workbench.
 	///
-	/// \details The core retains no file list, path, file content, conversation,
-	/// or other unbounded record: only the selected file identity with its
-	/// bounded cursor, the semantic state of the two drawers, and the navigation
+	/// \details The core retains no file list, diff, path, file content,
+	/// conversation, or other unbounded record: only the selected file identity
+	/// with its bounded cursor, the equally bounded change cursor of the open
+	/// comparison, the semantic state of the two drawers, and the navigation
 	/// policy. `Navigation` is absent until the host supplies its first bounded
 	/// observation. That absence is the inactive workbench, where every workbench
-	/// command is disabled and every workbench gesture is rejected.
+	/// command is disabled and every workbench gesture is rejected. `Change` is
+	/// absent whenever no file comparison is open inside that workbench.
 	struct workbench_interaction_state
 	{
 		std::optional<workbench_navigation_cursor> Navigation;
+		std::optional<workbench_change_cursor>     Change;
 		workbench_drawer_state                     FilesDrawer         = workbench_drawer_state::expanded;
 		workbench_drawer_state                     ConversationsDrawer = workbench_drawer_state::expanded;
 		change_navigation_policy                   NavigationPolicy    = change_navigation_policy::stop;
@@ -230,11 +274,13 @@ namespace bpr::core {
 
 	/// \brief Computes the workbench commands result.
 	///
-	/// \details This is the single projection of workbench command legality. A
-	/// navigation command is enabled exactly when the matching navigate intent
-	/// would produce a decision, and a drawer command is enabled exactly when the
-	/// matching drawer intent would be accepted, so a widget can never offer a
-	/// gesture the core would reject.
+	/// \details This is the single projection of workbench command legality, for
+	/// change navigation exactly as for file navigation. A file navigation
+	/// command is enabled exactly when the matching navigate intent would produce
+	/// a decision, a change navigation command is enabled exactly when the
+	/// bounded change cursor still offers that step, and a drawer command is
+	/// enabled exactly when the matching drawer intent would be accepted, so a
+	/// widget can never offer a gesture that would be rejected.
 	[[nodiscard]] auto project_workbench_commands(
 		const workbench_interaction_state& aState) noexcept
 		-> workbench_command_delta;
@@ -246,6 +292,17 @@ namespace bpr::core {
 	[[nodiscard]] auto observe_workbench_navigation(
 		workbench_interaction_state&                      aState,
 		const std::optional<workbench_navigation_cursor>& aCursor)
+		-> workbench_interaction_output;
+
+	/// \brief Applies one bounded host change-cursor observation to the state.
+	///
+	/// \details An absent cursor closes the comparison. A malformed cursor is
+	/// rejected without changing any retained fact. Which change is selected
+	/// stays RFC-BPR-0004's decision and the core republishes none of it, so this
+	/// observation publishes command legality alone.
+	[[nodiscard]] auto observe_workbench_change_navigation(
+		workbench_interaction_state&                  aState,
+		const std::optional<workbench_change_cursor>& aCursor)
 		-> workbench_interaction_output;
 
 	/// \brief Applies one semantic workbench gesture in the functional core.

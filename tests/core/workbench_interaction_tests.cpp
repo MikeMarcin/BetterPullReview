@@ -1,3 +1,4 @@
+#include "bpr/core/diff_compute.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 
 #include <algorithm>
@@ -7,8 +8,11 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <span>
+#include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 namespace {
 	using namespace bpr::core;
@@ -89,6 +93,136 @@ namespace {
 			.Navigation       = aCursor,
 			.NavigationPolicy = aPolicy,
 		};
+	}
+
+	template <typename Identity>
+	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
+	{
+		std::array<std::uint8_t, 32U> bytes{ };
+		bytes[0]  = aSeed;
+		bytes[31] = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
+		return Identity{ bytes };
+	}
+
+	[[nodiscard]] constexpr auto blob(const std::uint8_t aSeed) -> git_blob_oid
+	{
+		std::array<std::uint8_t, 32U> bytes{ };
+		for (std::size_t index = 0U; index < 20U; ++index) {
+			bytes[index]
+				= static_cast<std::uint8_t>(aSeed + static_cast<std::uint8_t>(index));
+		}
+		return git_blob_oid{ git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto comparison_key(const diff_options& aOptions)
+		-> file_comparison_key
+	{
+		const auto digest = options_digest(aOptions);
+		expect(digest.has_value(), "the fixture options are normalized");
+		const auto scope       = opaque<pull_request_authority_scope_id>(11U);
+		const auto incarnation = opaque<epoch_catalog_incarnation_id>(12U);
+		const auto authority   = pull_request_authority{
+			.Profile         = host_profile_id{ 10U },
+			.ProfileRevision = github_profile_revision{ 20U },
+			.Host            = git_host_id{ 30U },
+			.HostAuthority   = opaque<host_authority_fingerprint>(13U),
+			.Account         = github_account_id{ 40U },
+			.Viewer          = github_viewer_actor_id{ 50U },
+			.Repository      = repository_id{ 101U },
+			.Cache           = opaque<repository_cache_scope_id>(14U),
+			.PullRequest     = pull_request_id{ 202U },
+			.Number          = pull_request_number{ 17U },
+			.Scope           = scope,
+		};
+		return {
+			.Authority   = authority,
+			.Repository  = authority.Repository,
+			.PullRequest = authority.PullRequest,
+			.LeftAnchor  = comparison_anchor_identity{
+				.Authority   = scope,
+				.Incarnation = incarnation,
+				.Kind        = comparison_anchor_kind::epoch_base,
+				.Epoch       = epoch_ordinal{ 1 },
+			},
+			.RightAnchor = comparison_anchor_identity{
+				.Authority   = scope,
+				.Incarnation = incarnation,
+				.Kind        = comparison_anchor_kind::epoch_head,
+				.Epoch       = epoch_ordinal{ 2 },
+			},
+			.LeftBlob  = blob(21U),
+			.RightBlob = blob(51U),
+			.File      = opaque<file_identity>(31U),
+			.Options   = *digest,
+			.Algorithm = supported_diff_algorithm_revision,
+		};
+	}
+
+	/// \brief Computes one immutable comparison with a canonical change order.
+	///
+	/// \details The workbench core owns no diff, so this fixture exists only to
+	/// obtain RFC-BPR-0004's own answers: the change commands are checked against
+	/// what `navigate_change` decides over the exact same order.
+	[[nodiscard]] auto change_fixture() -> computed_file_diff
+	{
+		const auto options    = diff_options{ };
+		const auto left       = std::string{ "alpha\nbravo\ncharlie\ndelta\necho\n" };
+		const auto right      = std::string{ "alpha\nBRAVO\ncharlie\nDELTA\necho\nfox\n" };
+		auto       leftBytes  = std::vector<std::uint8_t>{ left.begin(), left.end() };
+		auto       rightBytes = std::vector<std::uint8_t>{ right.begin(), right.end() };
+		const auto outcome    = compute_file_diff({
+			.Key        = comparison_key(options),
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ leftBytes },
+			.RightBytes = std::span<const std::uint8_t>{ rightBytes },
+		});
+		expect(outcome.Reason == diff_reason_code::none && outcome.Result.has_value(),
+			   "the change fixture computes one immutable comparison");
+		return *outcome.Result;
+	}
+
+	/// \brief Assembles the bounded change-cursor facts the host would report.
+	///
+	/// \details This is the change-side twin of the file cursor the application
+	/// host already assembles: it resolves the retained selection against the
+	/// canonical change order and reports position and neighbour facts, never the
+	/// order itself.
+	[[nodiscard]] auto change_cursor(
+		const computed_file_diff&             aDiff,
+		const std::optional<change_group_id>& aSelected) -> workbench_change_cursor
+	{
+		const auto& groups = aDiff.Alignment.Groups;
+		auto        cursor = workbench_change_cursor{
+			.Group       = aSelected,
+			.ChangeCount = static_cast<std::uint32_t>(groups.size()),
+		};
+		const auto found = aSelected.has_value()
+			? std::ranges::find(groups, *aSelected, &change_group::Id)
+			: groups.end();
+		if (found == groups.end()) {
+			// No selection enters the order from either end; a selection the
+			// order cannot place reaches nothing at all.
+			cursor.PreviousAvailable = !aSelected.has_value() && !groups.empty();
+			cursor.NextAvailable     = cursor.PreviousAvailable;
+			return cursor;
+		}
+		cursor.Ordinal = static_cast<std::uint32_t>(
+			std::ranges::distance(groups.begin(), found) + 1);
+		cursor.PreviousAvailable = cursor.Ordinal > 1U;
+		cursor.NextAvailable     = cursor.Ordinal < cursor.ChangeCount;
+		return cursor;
+	}
+
+	/// \brief Builds an active workbench with one open comparison.
+	[[nodiscard]] auto comparing(
+		const workbench_change_cursor& aCursor,
+		const change_navigation_policy aPolicy = change_navigation_policy::stop)
+		-> workbench_interaction_state
+	{
+		expect(valid(aCursor), "the fixture change cursor is well formed");
+		auto state   = active(resident(2U, 3U), aPolicy);
+		state.Change = aCursor;
+		return state;
 	}
 
 	[[nodiscard]] auto navigate(const workbench_interaction_state& aState,
@@ -173,6 +307,58 @@ namespace {
 		emptyWithNeighbour.NextAvailable = true;
 		expect(!valid(emptyWithNeighbour),
 			   "an empty actionable order reaches nothing in either direction");
+	}
+
+	auto test_change_cursor_contract() -> void
+	{
+		const auto group = opaque<change_group_id>(5U);
+		expect(valid(workbench_change_cursor{ .Group             = group,
+											  .Ordinal           = 2U,
+											  .ChangeCount       = 3U,
+											  .PreviousAvailable = true,
+											  .NextAvailable     = true }),
+			   "a placed change selection agreeing with its ordinal is well formed");
+		expect(valid(workbench_change_cursor{ .ChangeCount       = 3U,
+											  .PreviousAvailable = true,
+											  .NextAvailable     = true }),
+			   "an unselected change cursor enters a nonempty order either way");
+		expect(valid(workbench_change_cursor{ }),
+			   "a comparison with no changes is well formed");
+		expect(valid(workbench_change_cursor{ .Group = group, .ChangeCount = 3U }),
+			   "a selection the change order cannot place is well formed");
+
+		expect(!valid(workbench_change_cursor{ .Group       = group,
+											   .Ordinal     = 4U,
+											   .ChangeCount = 3U }),
+			   "an ordinal past the change count is rejected");
+		expect(!valid(workbench_change_cursor{ .Ordinal = 1U, .ChangeCount = 3U }),
+			   "an ordinal without a selected change is rejected");
+		expect(!valid(workbench_change_cursor{ .Group         = change_group_id{ },
+											   .Ordinal       = 1U,
+											   .ChangeCount   = 3U,
+											   .NextAvailable = true }),
+			   "a zero change-group identity is rejected");
+		expect(!valid(workbench_change_cursor{ .Group             = group,
+											   .Ordinal           = 1U,
+											   .ChangeCount       = 3U,
+											   .PreviousAvailable = true,
+											   .NextAvailable     = true }),
+			   "the first placed change cannot claim a previous change");
+		expect(!valid(workbench_change_cursor{ .Group       = group,
+											   .Ordinal     = 1U,
+											   .ChangeCount = 3U }),
+			   "a placed change cannot deny a neighbour its ordinal implies");
+		expect(!valid(workbench_change_cursor{ .ChangeCount = 3U }),
+			   "an unselected change cursor cannot deny entry into a filled order");
+		expect(!valid(workbench_change_cursor{ .NextAvailable = true }),
+			   "a comparison with no changes reaches nothing in either direction");
+		// The one deliberate difference from the file cursor: the change order is
+		// resolved rather than walked, so an unplaceable selection has no
+		// neighbour the host could name on its behalf.
+		expect(!valid(workbench_change_cursor{ .Group         = group,
+											   .ChangeCount   = 3U,
+											   .NextAvailable = true }),
+			   "a selection the change order cannot place reaches nothing");
 	}
 
 	auto test_navigation_follows_actionable_order() -> void
@@ -275,22 +461,142 @@ namespace {
 			   "an inactive workbench refuses navigation");
 	}
 
-	[[nodiscard]] auto intent_for(const workbench_command_id aCommand)
-		-> workbench_interaction_intent
+	[[nodiscard]] constexpr auto change_entry(
+		const change_navigation_direction aDirection) -> std::size_t
 	{
-		if (aCommand == workbench_command_id::previous_file
-			|| aCommand == workbench_command_id::next_file) {
+		return static_cast<std::size_t>(
+			aDirection == change_navigation_direction::previous
+				? workbench_command_id::previous_change
+				: workbench_command_id::next_change);
+	}
+
+	auto test_the_ends_of_the_change_order_are_named_not_derived() -> void
+	{
+		const auto  diff   = change_fixture();
+		const auto& groups = diff.Alignment.Groups;
+		expect(groups.size() >= 2U, "the change fixture carries several changes");
+
+		const auto atStart = navigate_change(diff,
+											 groups.front().Id,
+											 change_navigation_direction::previous,
+											 change_navigation_policy::stop);
+		const auto atEnd   = navigate_change(diff,
+											 groups.back().Id,
+											 change_navigation_direction::next,
+											 change_navigation_policy::stop);
+		expect(atStart.Outcome == change_navigation_outcome::at_start
+				   && atStart.Group == groups.front().Id
+				   && atEnd.Outcome == change_navigation_outcome::at_end
+				   && atEnd.Group == groups.back().Id,
+			   "both ends of the change order still report the current group, so "
+			   "a group-carrying result cannot mean a step was taken");
+
+		const auto first    = comparing(change_cursor(diff, groups.front().Id));
+		const auto atFirst  = project_workbench_commands(first);
+		const auto previous = change_entry(change_navigation_direction::previous);
+		const auto next     = change_entry(change_navigation_direction::next);
+		expect(!atFirst.Commands[previous].Enabled
+				   && atFirst.Commands[previous].DisabledReason
+					   == workbench_reason_code::at_first_change
+				   && first.Change->Group == atStart.Group,
+			   "the first change disables previous change while the retained "
+			   "cursor still reports that exact current group");
+		expect(atFirst.Commands[next].Enabled,
+			   "the first change still offers the next change");
+
+		const auto last   = comparing(change_cursor(diff, groups.back().Id));
+		const auto atLast = project_workbench_commands(last);
+		expect(!atLast.Commands[next].Enabled
+				   && atLast.Commands[next].DisabledReason
+					   == workbench_reason_code::at_last_change
+				   && last.Change->Group == atEnd.Group,
+			   "the last change disables next change while the retained cursor "
+			   "still reports that exact current group");
+		expect(atLast.Commands[previous].Enabled,
+			   "the last change still offers the previous change");
+	}
+
+	auto test_change_commands_agree_with_navigate_change() -> void
+	{
+		const auto  diff   = change_fixture();
+		const auto& groups = diff.Alignment.Groups;
+
+		auto selections = std::vector<std::optional<change_group_id>>{ std::nullopt };
+		for (const auto& group : groups) {
+			selections.push_back(group.Id);
+		}
+		// A retained selection the replaced comparison no longer contains.
+		selections.push_back(opaque<change_group_id>(200U));
+
+		for (const auto policy :
+			 { change_navigation_policy::stop, change_navigation_policy::wrap }) {
+			for (const auto& selected : selections) {
+				const auto state    = comparing(change_cursor(diff, selected), policy);
+				const auto commands = project_workbench_commands(state);
+				for (const auto direction : { change_navigation_direction::previous,
+											  change_navigation_direction::next }) {
+					const auto result
+						= navigate_change(diff, selected, direction, policy);
+					const auto reached
+						= result.Outcome == change_navigation_outcome::selected
+						|| result.Outcome == change_navigation_outcome::wrapped;
+					const auto& command = commands.Commands[change_entry(direction)];
+					expect(command.Enabled == reached,
+						   "a change command is enabled exactly when the semantic "
+						   "index would reach another change");
+					expect(command.Enabled
+							   == (command.DisabledReason
+								   == workbench_reason_code::none),
+						   "a disabled change command explains itself");
+				}
+				expect(commands.Policy == policy,
+					   "the delta carries the policy the change entries were "
+					   "decided under");
+			}
+		}
+
+		const auto stale         = comparing(change_cursor(diff, opaque<change_group_id>(200U)));
+		const auto staleCommands = project_workbench_commands(stale);
+		expect(staleCommands.Commands[change_entry(change_navigation_direction::previous)]
+					   .DisabledReason
+				   == workbench_reason_code::invalid_change_selection,
+			   "a selection the change order cannot place explains itself exactly");
+
+		auto closed      = comparing(change_cursor(diff, std::nullopt));
+		closed.Change    = workbench_change_cursor{ };
+		const auto empty = project_workbench_commands(closed);
+		expect(empty.Commands[change_entry(change_navigation_direction::next)]
+					   .DisabledReason
+				   == workbench_reason_code::no_changes,
+			   "a comparison with no changes explains itself exactly");
+	}
+
+	[[nodiscard]] auto intent_for(const workbench_command_id aCommand)
+		-> std::optional<workbench_interaction_intent>
+	{
+		switch (aCommand) {
+		case workbench_command_id::previous_file:
+		case workbench_command_id::next_file:
 			return navigate_workbench_file_intent{
 				.Direction = aCommand == workbench_command_id::previous_file
 					? change_navigation_direction::previous
 					: change_navigation_direction::next,
 			};
+		case workbench_command_id::toggle_files_drawer:
+		case workbench_command_id::toggle_conversations_drawer:
+			return toggle_workbench_drawer_intent{
+				.Drawer = aCommand == workbench_command_id::toggle_files_drawer
+					? workbench_drawer::files
+					: workbench_drawer::conversations,
+			};
+		case workbench_command_id::previous_change:
+		case workbench_command_id::next_change:
+			// A change gesture leaves as an RFC-BPR-0004 diff intent rather than
+			// a workbench intent, so the workbench core projects its legality
+			// without owning its transition.
+			break;
 		}
-		return toggle_workbench_drawer_intent{
-			.Drawer = aCommand == workbench_command_id::toggle_files_drawer
-				? workbench_drawer::files
-				: workbench_drawer::conversations,
-		};
+		return std::nullopt;
 	}
 
 	/// \brief Describes one named workbench state used by the command table.
@@ -310,8 +616,12 @@ namespace {
 				   aCase.Label,
 				   "the command delta projects one entry per command in order");
 
+			const auto intent = intent_for(identifier);
+			if (!intent.has_value()) {
+				continue;
+			}
 			auto       probe  = aCase.State;
-			const auto output = transition(probe, intent_for(identifier));
+			const auto output = transition(probe, *intent);
 			expect(command.Enabled == (output.Reason == workbench_reason_code::none),
 				   aCase.Label,
 				   "an enabled command is exactly an accepted gesture");
@@ -322,11 +632,15 @@ namespace {
 				   aCase.Label,
 				   "a rejected gesture changes no retained fact");
 		}
+		expect(commands.Policy == aCase.State.NavigationPolicy,
+			   aCase.Label,
+			   "the delta carries the retained navigation policy unchanged");
 	}
 
 	auto test_command_projection() -> void
 	{
-		const auto cases = std::array<labelled_state, 8U>{ {
+		const auto diff  = change_fixture();
+		const auto cases = std::array<labelled_state, 10U>{ {
 			{ "inactive", workbench_interaction_state{ } },
 			{ "empty order", active(unselected(0U)) },
 			{ "no selection", active(unselected(3U)) },
@@ -336,6 +650,11 @@ namespace {
 			{ "last of three wrapping",
 			  active(resident(3U, 3U), change_navigation_policy::wrap) },
 			{ "nonresident at end", active(nonresident(4U, true, false)) },
+			{ "comparing at first change",
+			  comparing(change_cursor(diff, diff.Alignment.Groups.front().Id)) },
+			{ "comparing with no change selected",
+			  comparing(change_cursor(diff, std::nullopt),
+						change_navigation_policy::wrap) },
 		} };
 		for (const auto& state : cases) {
 			check_command_agreement(state);
@@ -362,8 +681,15 @@ namespace {
 				   && emptyOrder.Commands[1].DisabledReason
 					   == workbench_reason_code::no_actionable_files,
 			   "an empty actionable order disables both navigation commands");
-		expect(emptyOrder.Commands[2].Enabled && emptyOrder.Commands[3].Enabled
+		expect(!emptyOrder.Commands[2].Enabled && !emptyOrder.Commands[3].Enabled
 				   && emptyOrder.Commands[2].DisabledReason
+					   == workbench_reason_code::no_open_comparison
+				   && emptyOrder.Commands[3].DisabledReason
+					   == workbench_reason_code::no_open_comparison,
+			   "an active workbench with no open comparison disables both change "
+			   "commands");
+		expect(emptyOrder.Commands[4].Enabled && emptyOrder.Commands[5].Enabled
+				   && emptyOrder.Commands[4].DisabledReason
 					   == workbench_reason_code::none,
 			   "an active workbench keeps both drawer commands available");
 
@@ -438,7 +764,7 @@ namespace {
 				   && activated.Selection->Cursor == resident(2U, 3U, 7U)
 				   && activated.Commands.has_value()
 				   && activated.Commands->Commands[0].Enabled
-				   && activated.Commands->Commands[2].Enabled,
+				   && activated.Commands->Commands[4].Enabled,
 			   "the first observation activates the workbench and its commands");
 
 		const auto repeated
@@ -465,9 +791,66 @@ namespace {
 				   && !cleared.Selection->Cursor.has_value()
 				   && cleared.Commands.has_value()
 				   && !cleared.Commands->Commands[0].Enabled
-				   && !cleared.Commands->Commands[2].Enabled
+				   && !cleared.Commands->Commands[4].Enabled
 				   && !state.Navigation.has_value(),
 			   "an absent observation deactivates the workbench");
+	}
+
+	auto test_change_observations() -> void
+	{
+		const auto  diff     = change_fixture();
+		const auto& groups   = diff.Alignment.Groups;
+		const auto  previous = change_entry(change_navigation_direction::previous);
+		const auto  next     = change_entry(change_navigation_direction::next);
+
+		auto       inactive = workbench_interaction_state{ };
+		const auto refused
+			= observe_workbench_change_navigation(inactive,
+												  change_cursor(diff, std::nullopt));
+		expect(refused == workbench_interaction_output{ }
+				   && inactive.Change.has_value(),
+			   "an inactive workbench retains the observed comparison and offers "
+			   "no command it could not honour");
+		expect(!project_workbench_commands(inactive).Commands[next].Enabled,
+			   "no active workbench offers no change gesture");
+
+		auto       state  = active(resident(2U, 3U));
+		const auto opened = observe_workbench_change_navigation(
+			state, change_cursor(diff, groups.front().Id));
+		expect(opened.Reason == workbench_reason_code::none
+				   && opened.Commands.has_value()
+				   && opened.Commands->Commands[next].Enabled
+				   && !opened.Commands->Commands[previous].Enabled
+				   && state.Change->Group == groups.front().Id,
+			   "an opened comparison republishes exactly the change legality it "
+			   "created");
+		expect(!opened.Selection.has_value() && !opened.Decision.has_value()
+				   && !opened.Drawers.has_value(),
+			   "a change observation publishes command legality alone");
+
+		const auto repeated = observe_workbench_change_navigation(
+			state, change_cursor(diff, groups.front().Id));
+		expect(repeated == workbench_interaction_output{ },
+			   "an unchanged change observation publishes nothing");
+
+		auto malformed              = change_cursor(diff, groups.front().Id);
+		malformed.PreviousAvailable = true;
+		const auto before           = state;
+		const auto rejectedCursor
+			= observe_workbench_change_navigation(state, malformed);
+		expect(rejected(rejectedCursor, workbench_reason_code::invalid_change_cursor)
+				   && state == before,
+			   "a malformed change cursor is rejected without changing retained "
+			   "facts");
+
+		const auto closed
+			= observe_workbench_change_navigation(state, std::nullopt);
+		expect(closed.Commands.has_value()
+				   && !closed.Commands->Commands[next].Enabled
+				   && closed.Commands->Commands[next].DisabledReason
+					   == workbench_reason_code::no_open_comparison
+				   && !state.Change.has_value(),
+			   "an absent change observation closes the comparison");
 	}
 
 	auto test_drawer_state() -> void
@@ -535,10 +918,14 @@ namespace {
 int main()
 {
 	test_cursor_contract();
+	test_change_cursor_contract();
 	test_navigation_follows_actionable_order();
+	test_the_ends_of_the_change_order_are_named_not_derived();
+	test_change_commands_agree_with_navigate_change();
 	test_command_projection();
 	test_selection_gestures();
 	test_navigation_observations();
+	test_change_observations();
 	test_drawer_state();
 	return EXIT_SUCCESS;
 }

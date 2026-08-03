@@ -34,6 +34,23 @@ namespace bpr::qt {
 		// into it, which is what "narrow width" means for this window.
 		constexpr int reserved_central_columns = 80;
 
+		// The toolbar's first entries are the file actions and the rest are the
+		// change actions, in the core's own command order.
+		constexpr std::size_t file_navigation_entries = 2U;
+
+		// The navigation entries are exactly the core's navigation commands in the
+		// core's order, so entry `i` reads `workbench_command_id{ i }` and the
+		// window needs no second mapping between the two.
+		static_assert(
+			static_cast<std::size_t>(core::workbench_command_id::previous_file) == 0U);
+		static_assert(
+			static_cast<std::size_t>(core::workbench_command_id::next_file) == 1U);
+		static_assert(
+			static_cast<std::size_t>(core::workbench_command_id::previous_change)
+			== file_navigation_entries);
+		static_assert(
+			static_cast<std::size_t>(core::workbench_command_id::next_change) == 3U);
+
 		[[nodiscard]] auto reason_text(const core::workbench_reason_code aReason)
 			-> QString
 		{
@@ -52,8 +69,26 @@ namespace bpr::qt {
 				return QStringLiteral("The selected file identity is invalid.");
 			case core::workbench_reason_code::invalid_navigation_cursor:
 				return QStringLiteral("The file navigation position is invalid.");
+			case core::workbench_reason_code::no_open_comparison:
+				return QStringLiteral("No file comparison is open.");
+			case core::workbench_reason_code::no_changes:
+				return QStringLiteral(
+					"This comparison has no changes to navigate.");
+			case core::workbench_reason_code::at_first_change:
+				return QStringLiteral(
+					"This is the first change in this comparison.");
+			case core::workbench_reason_code::at_last_change:
+				return QStringLiteral(
+					"This is the last change in this comparison.");
+			case core::workbench_reason_code::invalid_change_selection:
+				return QStringLiteral("The selected change is no longer available.");
+			case core::workbench_reason_code::invalid_change_cursor:
+				return QStringLiteral("The change navigation position is invalid.");
 			}
-			return QStringLiteral("File navigation is unavailable.");
+			// Deliberately outside the switch and with no default label, so a
+			// reason the core adds later is a compile error here rather than a
+			// silently generic sentence in the toolbar.
+			return QStringLiteral("Review navigation is unavailable.");
 		}
 
 		// The drawer commands share the workbench reason vocabulary, so only the
@@ -68,23 +103,16 @@ namespace bpr::qt {
 			return reason_text(aReason);
 		}
 
+		// The change commands share the workbench reason vocabulary, so only the
+		// reason whose shared wording is file-flavoured needs a change sentence.
 		[[nodiscard]] auto change_reason_text(
-			const core::change_navigation_outcome aOutcome) -> QString
+			const core::workbench_reason_code aReason) -> QString
 		{
-			switch (aOutcome) {
-			case core::change_navigation_outcome::selected:
-			case core::change_navigation_outcome::wrapped:
-				return { };
-			case core::change_navigation_outcome::at_start:
-				return QStringLiteral("This is the first change in this comparison.");
-			case core::change_navigation_outcome::at_end:
-				return QStringLiteral("This is the last change in this comparison.");
-			case core::change_navigation_outcome::no_changes:
-				return QStringLiteral("This comparison has no changes to navigate.");
-			case core::change_navigation_outcome::invalid_selection:
-				return QStringLiteral("The selected change is no longer available.");
+			if (aReason == core::workbench_reason_code::no_active_workbench) {
+				return QStringLiteral(
+					"Open a pull request to review its changes.");
 			}
-			return QStringLiteral("Change navigation is unavailable.");
+			return reason_text(aReason);
 		}
 
 		[[nodiscard]] auto failure_text(
@@ -453,13 +481,6 @@ namespace bpr::qt {
 		announce_update();
 	}
 
-	void workbench_window::publish_change_navigation(
-		const workbench_change_navigation_delta& aDelta)
-	{
-		ChangeNavigation = aDelta;
-		update_action_state();
-	}
-
 	void workbench_window::set_dispatch(workbench_intent_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
@@ -662,9 +683,7 @@ namespace bpr::qt {
 
 	void workbench_window::dispatch_navigation(const std::size_t aIndex)
 	{
-		switch (aIndex) {
-		case 0U:
-		case 1U:
+		if (aIndex < file_navigation_entries) {
 			if (Dispatch) {
 				Dispatch(core::navigate_workbench_file_intent{
 					.Direction = aIndex == 0U
@@ -673,18 +692,18 @@ namespace bpr::qt {
 				});
 			}
 			return;
-		default:
-			break;
 		}
 		if (!ChangeDispatch) {
 			return;
 		}
+		// The gesture repeats the policy the projection offered it, so the
+		// emitted intent and the enablement that offered it cannot disagree about
+		// stop versus wrap.
 		ChangeDispatch(core::navigate_diff_change_intent{
-			.Direction = aIndex == 2U
+			.Direction = aIndex == file_navigation_entries
 				? core::change_navigation_direction::previous
 				: core::change_navigation_direction::next,
-			.Policy    = ChangeNavigation ? ChangeNavigation->Policy
-										  : core::change_navigation_policy::stop,
+			.Policy    = Commands.Policy,
 		});
 	}
 
@@ -781,8 +800,10 @@ namespace bpr::qt {
 				OverflowMenu->addAction(action);
 			} else {
 				// File actions sit before the separator, change actions after it.
-				PrimaryToolbar->insertAction(
-					index < 2U ? SeparatorAction : OverflowAction, action);
+				PrimaryToolbar->insertAction(index < file_navigation_entries
+												 ? SeparatorAction
+												 : OverflowAction,
+											 action);
 			}
 		}
 		SeparatorAction->setVisible(!compact);
@@ -848,36 +869,22 @@ namespace bpr::qt {
 
 	void workbench_window::update_action_state()
 	{
-		const auto previousFile = command(core::workbench_command_id::previous_file);
-		const auto nextFile     = command(core::workbench_command_id::next_file);
-		describe_action(
-			Navigation[0].Action,
-			previousFile && previousFile->Enabled,
-			Navigation[0].Purpose,
-			reason_text(previousFile
-							? previousFile->DisabledReason
-							: core::workbench_reason_code::no_active_workbench));
-		describe_action(
-			Navigation[1].Action,
-			nextFile && nextFile->Enabled,
-			Navigation[1].Purpose,
-			reason_text(nextFile
-							? nextFile->DisabledReason
-							: core::workbench_reason_code::no_active_workbench));
-
-		const auto absent = QStringLiteral("No file comparison is open.");
-		describe_action(Navigation[2].Action,
-						ChangeNavigation && ChangeNavigation->Previous.Enabled,
-						Navigation[2].Purpose,
-						ChangeNavigation
-							? change_reason_text(ChangeNavigation->Previous.Outcome)
-							: absent);
-		describe_action(Navigation[3].Action,
-						ChangeNavigation && ChangeNavigation->Next.Enabled,
-						Navigation[3].Purpose,
-						ChangeNavigation
-							? change_reason_text(ChangeNavigation->Next.Outcome)
-							: absent);
+		// One projection for all four primary actions. Entry `i` of the core's
+		// delta decides action `i`; the window adds no legality of its own and
+		// keeps no second carrier for the change actions.
+		for (std::size_t index = 0U; index < Navigation.size(); ++index) {
+			const auto projection
+				= command(static_cast<core::workbench_command_id>(index));
+			const auto reason = projection
+				? projection->DisabledReason
+				: core::workbench_reason_code::no_active_workbench;
+			describe_action(Navigation[index].Action,
+							projection && projection->Enabled,
+							Navigation[index].Purpose,
+							index < file_navigation_entries
+								? reason_text(reason)
+								: change_reason_text(reason));
+		}
 
 		update_drawer_action(0U,
 							 core::workbench_command_id::toggle_files_drawer,

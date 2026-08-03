@@ -41,35 +41,6 @@ namespace bpr::qt {
 	/// folded into `core::workbench_interaction_intent`.
 	using workbench_change_dispatch = std::function<void(core::navigate_diff_change_intent)>;
 
-	/// \brief Describes one decided change-navigation command projection.
-	///
-	/// \details `core::navigate_change` is the single owner of change legality.
-	/// This record carries that decision to the toolbar unchanged: `Enabled` is the
-	/// core's answer about whether the gesture would reach another change, and
-	/// `Outcome` is the exact core outcome the toolbar renders as the disabled
-	/// reason. The window recomputes neither value.
-	struct workbench_change_command_projection
-	{
-		bool                            Enabled = false;
-		core::change_navigation_outcome Outcome = core::change_navigation_outcome::no_changes;
-
-		auto operator<=>(const workbench_change_command_projection&) const = default;
-	};
-
-	/// \brief Describes the decided change-navigation delta for the toolbar.
-	///
-	/// \details `Policy` is the retained stop-versus-wrap policy the decision was
-	/// taken under. The toolbar repeats it in the intent it emits, so the gesture
-	/// and the enablement that offered it can never disagree.
-	struct workbench_change_navigation_delta
-	{
-		workbench_change_command_projection Previous;
-		workbench_change_command_projection Next;
-		core::change_navigation_policy      Policy = core::change_navigation_policy::stop;
-
-		auto operator<=>(const workbench_change_navigation_delta&) const = default;
-	};
-
 	enum class workbench_toolbar_mode : std::uint8_t {
 		expanded,
 		compact,
@@ -98,6 +69,11 @@ namespace bpr::qt {
 	/// enabled state arrives as a decided projection; the window contains no
 	/// navigation legality of its own and performs no GitHub, Git, SQLite,
 	/// filesystem, network, or process work.
+	///
+	/// All four primary actions follow one `core::workbench_command_delta`: entry
+	/// `i` of that delta decides navigation action `i`, and the delta's retained
+	/// stop-versus-wrap policy travels back out with the gesture it offered. The
+	/// window holds no second carrier for any command's legality.
 	///
 	/// Primary navigation stays top-level while the window is at least
 	/// compact_width_threshold() wide. Below that it moves into an explicit compact
@@ -145,10 +121,6 @@ namespace bpr::qt {
 		void publish(const application::epoch_presentation_update& aUpdate) override;
 		void fail(
 			const application::workbench_failure_publication& aFailure) override;
-
-		/// \brief Adopts the decided change-navigation command states.
-		void publish_change_navigation(
-			const workbench_change_navigation_delta& aDelta);
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
 		void set_change_dispatch(workbench_change_dispatch aChangeDispatch);
@@ -308,7 +280,6 @@ namespace bpr::qt {
 		core::workbench_drawer_delta                       DrawerStates;
 		std::optional<application::workbench_layout_delta> LayoutWidths;
 		std::optional<core::workbench_navigation_cursor>   Cursor;
-		std::optional<workbench_change_navigation_delta>   ChangeNavigation;
 		std::optional<application::workbench_host_failure> Failure;
 		workbench_toolbar_mode                             Mode              = workbench_toolbar_mode::expanded;
 		bool                                               HasCommands       = false;

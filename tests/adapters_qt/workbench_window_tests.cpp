@@ -135,7 +135,7 @@ namespace {
 		return { .Files = aFiles, .Conversations = aConversations };
 	}
 
-	[[nodiscard]] auto file_command(
+	[[nodiscard]] auto command_state(
 		const core::workbench_command_id  aId,
 		const bool                        aEnabled,
 		const core::workbench_reason_code aReason)
@@ -144,45 +144,81 @@ namespace {
 		return { .Id = aId, .Enabled = aEnabled, .DisabledReason = aReason };
 	}
 
+	[[nodiscard]] auto offered(const core::workbench_command_id aId)
+		-> core::workbench_command_projection
+	{
+		return command_state(aId, true, core::workbench_reason_code::none);
+	}
+
+	[[nodiscard]] auto refused(const core::workbench_command_id  aId,
+							   const core::workbench_reason_code aReason)
+		-> core::workbench_command_projection
+	{
+		return command_state(aId, false, aReason);
+	}
+
+	/// \brief Builds one core command delta with every entry in projection order.
+	///
+	/// \details Entry `i` projects `core::workbench_command_id{ i }`, exactly as
+	/// the core publishes it, so a window that read the wrong entry would answer
+	/// with the wrong command's identity rather than silently agreeing.
+	[[nodiscard]] auto command_delta(
+		const core::workbench_command_projection& aPreviousFile,
+		const core::workbench_command_projection& aNextFile,
+		const core::workbench_command_projection& aPreviousChange,
+		const core::workbench_command_projection& aNextChange,
+		const core::change_navigation_policy      aPolicy
+		= core::change_navigation_policy::stop) -> core::workbench_command_delta
+	{
+		return {
+			.Commands = {
+				aPreviousFile,
+				aNextFile,
+				aPreviousChange,
+				aNextChange,
+				offered(core::workbench_command_id::toggle_files_drawer),
+				offered(core::workbench_command_id::toggle_conversations_drawer),
+			},
+			.Policy = aPolicy,
+		};
+	}
+
+	/// \brief Projects file legality while no comparison is open.
 	[[nodiscard]] auto file_commands(
 		const core::workbench_command_projection& aPrevious,
 		const core::workbench_command_projection& aNext)
 		-> application::workbench_projection
 	{
-		auto delta        = core::workbench_command_delta{ };
-		delta.Commands[0] = aPrevious;
-		delta.Commands[1] = aNext;
-		delta.Commands[2] = file_command(
-			core::workbench_command_id::toggle_files_drawer,
-			true,
-			core::workbench_reason_code::none);
-		delta.Commands[3] = file_command(
-			core::workbench_command_id::toggle_conversations_drawer,
-			true,
-			core::workbench_reason_code::none);
-		return { .Commands = delta };
+		return {
+			.Commands = command_delta(
+				aPrevious,
+				aNext,
+				refused(core::workbench_command_id::previous_change,
+						core::workbench_reason_code::no_open_comparison),
+				refused(core::workbench_command_id::next_change,
+						core::workbench_reason_code::no_open_comparison)),
+		};
 	}
 
 	[[nodiscard]] auto both_files_enabled() -> application::workbench_projection
 	{
-		return file_commands(
-			file_command(core::workbench_command_id::previous_file,
-						 true,
-						 core::workbench_reason_code::none),
-			file_command(core::workbench_command_id::next_file,
-						 true,
-						 core::workbench_reason_code::none));
+		return file_commands(offered(core::workbench_command_id::previous_file),
+							 offered(core::workbench_command_id::next_file));
 	}
 
-	[[nodiscard]] auto both_changes_enabled()
-		-> qt::workbench_change_navigation_delta
+	/// \brief Projects every primary command as offered under one policy.
+	[[nodiscard]] auto every_primary_command_offered(
+		const core::change_navigation_policy aPolicy
+		= core::change_navigation_policy::stop)
+		-> application::workbench_projection
 	{
 		return {
-			.Previous = { .Enabled = true,
-						  .Outcome = core::change_navigation_outcome::selected },
-			.Next     = { .Enabled = true,
-						  .Outcome = core::change_navigation_outcome::selected },
-			.Policy   = core::change_navigation_policy::stop,
+			.Commands = command_delta(
+				offered(core::workbench_command_id::previous_file),
+				offered(core::workbench_command_id::next_file),
+				offered(core::workbench_command_id::previous_change),
+				offered(core::workbench_command_id::next_change),
+				aPolicy),
 		};
 	}
 
@@ -208,6 +244,60 @@ namespace {
 			: std::optional{ navigate->Direction };
 	}
 
+	void test_all_four_primary_actions_follow_one_core_projection()
+	{
+		qt::workbench_window window;
+
+		// Four different decisions in one delta. An action that read any entry
+		// but its own, or that kept a second carrier for change legality, cannot
+		// reproduce this pattern.
+		const auto mixed = command_delta(
+			refused(core::workbench_command_id::previous_file,
+					core::workbench_reason_code::at_first_file),
+			offered(core::workbench_command_id::next_file),
+			offered(core::workbench_command_id::previous_change),
+			refused(core::workbench_command_id::next_change,
+					core::workbench_reason_code::at_last_change));
+		window.publish({ .Commands = mixed });
+
+		const auto actions = navigation_actions(window);
+		for (std::size_t index = 0U; index < actions.size(); ++index) {
+			expect(mixed.Commands[index].Id
+					   == static_cast<core::workbench_command_id>(index),
+				   "the published delta projects one entry per command in order");
+			expect(actions[index]->isEnabled() == mixed.Commands[index].Enabled,
+				   "every primary action follows its own entry of the one core "
+				   "command projection");
+		}
+		expect(window.previous_file_action()->toolTip()
+					   == QStringLiteral("This is the first actionable file.")
+				   && window.next_change_action()->toolTip()
+					   == QStringLiteral(
+						   "This is the last change in this comparison."),
+			   "each disabled primary action carries its own exact core reason");
+
+		// The same delta shape decides the reverse pair, so no action can be
+		// following a constant that merely agreed with the first publication.
+		const auto reversed = command_delta(
+			offered(core::workbench_command_id::previous_file),
+			refused(core::workbench_command_id::next_file,
+					core::workbench_reason_code::at_last_file),
+			refused(core::workbench_command_id::previous_change,
+					core::workbench_reason_code::at_first_change),
+			offered(core::workbench_command_id::next_change));
+		window.publish({ .Commands = reversed });
+		for (std::size_t index = 0U; index < actions.size(); ++index) {
+			expect(actions[index]->isEnabled() == reversed.Commands[index].Enabled,
+				   "a replacement projection moves every primary action with it");
+		}
+		expect(window.previous_change_action()->toolTip()
+					   == QStringLiteral(
+						   "This is the first change in this comparison.")
+				   && window.previous_change_action()->statusTip()
+					   == window.previous_change_action()->toolTip(),
+			   "the change reason reaches the tooltip and the status tip");
+	}
+
 	void test_every_primary_action_translates_to_a_semantic_intent()
 	{
 		intent_log           log;
@@ -220,8 +310,7 @@ namespace {
 			}
 		};
 
-		window.publish(both_files_enabled());
-		window.publish_change_navigation(both_changes_enabled());
+		window.publish(every_primary_command_offered());
 		expect(window.previous_file_action()->isEnabled()
 				   && window.next_file_action()->isEnabled()
 				   && window.previous_change_action()->isEnabled()
@@ -249,9 +338,8 @@ namespace {
 				   && log.Change[1].Policy == core::change_navigation_policy::stop,
 			   "the emitted change intent repeats the decided navigation policy");
 
-		auto wrapping   = both_changes_enabled();
-		wrapping.Policy = core::change_navigation_policy::wrap;
-		window.publish_change_navigation(wrapping);
+		window.publish(
+			every_primary_command_offered(core::change_navigation_policy::wrap));
 		window.next_change_action()->trigger();
 		expect(log.Change.size() == 3U
 				   && log.Change[2].Policy == core::change_navigation_policy::wrap,
@@ -271,16 +359,17 @@ namespace {
 				   == QStringLiteral("Open a pull request to review its files."),
 			   "an unprojected file action carries the inactive-workbench reason");
 		expect(window.previous_change_action()->toolTip()
-				   == QStringLiteral("No file comparison is open."),
-			   "an unprojected change action carries the absent-comparison reason");
+				   == QStringLiteral("Open a pull request to review its changes."),
+			   "an unprojected change action carries the inactive-workbench reason "
+			   "in its own words");
 
 		window.publish(file_commands(
-			file_command(core::workbench_command_id::previous_file,
-						 false,
-						 core::workbench_reason_code::at_first_file),
-			file_command(core::workbench_command_id::next_file,
-						 true,
-						 core::workbench_reason_code::none)));
+			refused(core::workbench_command_id::previous_file,
+					core::workbench_reason_code::at_first_file),
+			offered(core::workbench_command_id::next_file)));
+		expect(window.previous_change_action()->toolTip()
+				   == QStringLiteral("No file comparison is open."),
+			   "an active workbench with no open comparison says so exactly");
 		expect(!window.previous_file_action()->isEnabled()
 				   && window.next_file_action()->isEnabled(),
 			   "QAction enabled state follows the core command projection");
@@ -295,12 +384,10 @@ namespace {
 			   "an enabled file action describes the gesture it offers");
 
 		window.publish(file_commands(
-			file_command(core::workbench_command_id::previous_file,
-						 false,
-						 core::workbench_reason_code::no_actionable_files),
-			file_command(core::workbench_command_id::next_file,
-						 false,
-						 core::workbench_reason_code::at_last_file)));
+			refused(core::workbench_command_id::previous_file,
+					core::workbench_reason_code::no_actionable_files),
+			refused(core::workbench_command_id::next_file,
+					core::workbench_reason_code::at_last_file)));
 		expect(window.previous_file_action()->toolTip()
 				   == QStringLiteral("This pull request has no actionable files."),
 			   "a different core reason produces a different exact file reason");
@@ -310,33 +397,38 @@ namespace {
 					   == window.next_file_action()->toolTip(),
 			   "each disabled file action carries its own exact core reason");
 
-		window.publish_change_navigation({
-			.Previous = { .Enabled = false,
-						  .Outcome = core::change_navigation_outcome::at_start },
-			.Next     = { .Enabled = true,
-						  .Outcome = core::change_navigation_outcome::selected },
-			.Policy   = core::change_navigation_policy::stop,
+		window.publish({
+			.Commands = command_delta(
+				offered(core::workbench_command_id::previous_file),
+				offered(core::workbench_command_id::next_file),
+				refused(core::workbench_command_id::previous_change,
+						core::workbench_reason_code::at_first_change),
+				offered(core::workbench_command_id::next_change)),
 		});
 		expect(!window.previous_change_action()->isEnabled()
 				   && window.next_change_action()->isEnabled(),
-			   "QAction enabled state follows the decided change projection");
+			   "QAction enabled state follows the same core command projection "
+			   "for change navigation");
 		expect(window.previous_change_action()->toolTip()
 					   == QStringLiteral("This is the first change in this comparison.")
 				   && window.previous_change_action()->statusTip()
 					   == window.previous_change_action()->toolTip(),
 			   "a disabled change action's tooltip carries its exact core reason");
 
-		window.publish_change_navigation({
-			.Previous = { .Enabled = false,
-						  .Outcome = core::change_navigation_outcome::no_changes },
-			.Next     = { .Enabled = false,
-						  .Outcome = core::change_navigation_outcome::no_changes },
-			.Policy   = core::change_navigation_policy::stop,
+		window.publish({
+			.Commands = command_delta(
+				offered(core::workbench_command_id::previous_file),
+				refused(core::workbench_command_id::next_file,
+						core::workbench_reason_code::at_last_file),
+				refused(core::workbench_command_id::previous_change,
+						core::workbench_reason_code::no_changes),
+				refused(core::workbench_command_id::next_change,
+						core::workbench_reason_code::no_changes)),
 		});
 		expect(window.previous_change_action()->toolTip()
 				   == QStringLiteral(
 					   "This comparison has no changes to navigate."),
-			   "a different core outcome produces a different exact change reason");
+			   "a different core reason produces a different exact change reason");
 
 		const auto before = window.statistics();
 		window.fail({ .Failure
@@ -363,8 +455,7 @@ namespace {
 				log.Change.push_back(aIntent);
 			}
 		};
-		window.publish(both_files_enabled());
-		window.publish_change_navigation(both_changes_enabled());
+		window.publish(every_primary_command_offered());
 
 		const auto threshold = window.compact_width_threshold();
 		expect(threshold > window.minimumWidth(),
@@ -551,12 +642,13 @@ namespace {
 			   "an unprojected drawer toggle carries the inactive-workbench "
 			   "reason");
 
-		auto  projection     = both_files_enabled();
-		auto& commands       = *projection.Commands;
-		commands.Commands[2] = file_command(
-			core::workbench_command_id::toggle_files_drawer,
-			false,
-			core::workbench_reason_code::no_active_workbench);
+		auto       projection = both_files_enabled();
+		auto&      commands   = *projection.Commands;
+		const auto filesEntry = static_cast<std::size_t>(
+			core::workbench_command_id::toggle_files_drawer);
+		commands.Commands[filesEntry]
+			= refused(core::workbench_command_id::toggle_files_drawer,
+					  core::workbench_reason_code::no_active_workbench);
 		projection.Drawers = drawer_states(core::workbench_drawer_state::expanded,
 										   core::workbench_drawer_state::expanded);
 		window.publish(projection);
@@ -1251,8 +1343,7 @@ namespace {
 		// second authority RFC-BPR-0004 forbids.
 		process_events();
 		const auto before = surface->statistics();
-		window.publish(both_files_enabled());
-		window.publish_change_navigation(both_changes_enabled());
+		window.publish(every_primary_command_offered());
 		expect(surface->statistics() == before
 				   && surface->current_result() != nullptr,
 			   "a workbench-shell projection never re-decides composed "
@@ -2445,6 +2536,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_all_four_primary_actions_follow_one_core_projection();
 	test_every_primary_action_translates_to_a_semantic_intent();
 	test_action_state_follows_core_command_projections();
 	test_compact_overflow_preserves_keyboard_access();

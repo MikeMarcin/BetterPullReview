@@ -102,6 +102,51 @@ namespace bpr::core {
 			};
 		}
 
+		// This is the single definition of change-navigation legality. It reads
+		// the same bounded facts RFC-BPR-0004's `navigate_change` derives from
+		// the semantic index, and it names the two ends of the change order
+		// explicitly. Enablement is deliberately not derived from whether a
+		// navigation result carried a group: `at_start` and `at_end` both report
+		// the current group, so group presence cannot tell a step from a refusal.
+		[[nodiscard]] constexpr auto plan_change_navigation(
+			const workbench_interaction_state& aState,
+			const change_navigation_direction  aDirection) noexcept
+			-> workbench_reason_code
+		{
+			if (!aState.Navigation.has_value()) {
+				return workbench_reason_code::no_active_workbench;
+			}
+			if (!aState.Change.has_value()) {
+				return workbench_reason_code::no_open_comparison;
+			}
+
+			const auto& cursor = *aState.Change;
+			if (cursor.ChangeCount == 0U) {
+				// A retained selection against a comparison with no change order
+				// at all is the selection that order cannot resolve.
+				return cursor.Group.has_value()
+					? workbench_reason_code::invalid_change_selection
+					: workbench_reason_code::no_changes;
+			}
+			if (!cursor.Group.has_value()) {
+				// Change navigation enters a nonempty order from either end.
+				return workbench_reason_code::none;
+			}
+			if (cursor.Ordinal == 0U) {
+				return workbench_reason_code::invalid_change_selection;
+			}
+
+			const auto available = forward(aDirection) ? cursor.NextAvailable
+													   : cursor.PreviousAvailable;
+			if (available
+				|| aState.NavigationPolicy == change_navigation_policy::wrap) {
+				return workbench_reason_code::none;
+			}
+			return forward(aDirection)
+				? workbench_reason_code::at_last_change
+				: workbench_reason_code::at_first_change;
+		}
+
 		// A drawer belongs to the workbench surface, so it can only be collapsed
 		// or expanded while the host is publishing one.
 		[[nodiscard]] constexpr auto drawer_rejection(
@@ -124,6 +169,20 @@ namespace bpr::core {
 				.Id             = aId,
 				.Enabled        = plan.Decision.has_value(),
 				.DisabledReason = plan.Rejection,
+			};
+		}
+
+		[[nodiscard]] constexpr auto change_command(
+			const workbench_interaction_state& aState,
+			const workbench_command_id         aId,
+			const change_navigation_direction  aDirection) noexcept
+			-> workbench_command_projection
+		{
+			const auto rejection = plan_change_navigation(aState, aDirection);
+			return {
+				.Id             = aId,
+				.Enabled        = rejection == workbench_reason_code::none,
+				.DisabledReason = rejection,
 			};
 		}
 
@@ -283,6 +342,35 @@ namespace bpr::core {
 			&& aCursor.NextAvailable == (aCursor.Ordinal < aCursor.ActionableCount);
 	}
 
+	auto valid(const workbench_change_cursor& aCursor) noexcept -> bool
+	{
+		if (aCursor.Ordinal > aCursor.ChangeCount) {
+			return false;
+		}
+		if (aCursor.Group.has_value() && !aCursor.Group->valid()) {
+			return false;
+		}
+		if (!aCursor.Group.has_value() && aCursor.Ordinal != 0U) {
+			return false;
+		}
+		if (aCursor.ChangeCount == 0U) {
+			// An empty change order reaches nothing either way.
+			return !aCursor.PreviousAvailable && !aCursor.NextAvailable;
+		}
+		if (!aCursor.Group.has_value()) {
+			// Change navigation enters a nonempty order from either end.
+			return aCursor.PreviousAvailable && aCursor.NextAvailable;
+		}
+		if (aCursor.Ordinal == 0U) {
+			// The semantic index cannot place the selected group, so the order
+			// offers no neighbour on either side of it. This is where the change
+			// cursor and the file cursor genuinely differ.
+			return !aCursor.PreviousAvailable && !aCursor.NextAvailable;
+		}
+		return aCursor.PreviousAvailable == (aCursor.Ordinal > 1U)
+			&& aCursor.NextAvailable == (aCursor.Ordinal < aCursor.ChangeCount);
+	}
+
 	auto project_workbench_commands(
 		const workbench_interaction_state& aState) noexcept
 		-> workbench_command_delta
@@ -297,10 +385,19 @@ namespace bpr::core {
 					aState,
 					workbench_command_id::next_file,
 					change_navigation_direction::next),
+				change_command(
+					aState,
+					workbench_command_id::previous_change,
+					change_navigation_direction::previous),
+				change_command(
+					aState,
+					workbench_command_id::next_change,
+					change_navigation_direction::next),
 				drawer_command(aState, workbench_command_id::toggle_files_drawer),
 				drawer_command(
 					aState, workbench_command_id::toggle_conversations_drawer),
 			},
+			.Policy = aState.NavigationPolicy,
 		};
 	}
 
@@ -324,6 +421,23 @@ namespace bpr::core {
 			workbench_interaction_output{
 				.Selection = workbench_selection_delta{ .Cursor = aCursor },
 			});
+	}
+
+	auto observe_workbench_change_navigation(
+		workbench_interaction_state&                  aState,
+		const std::optional<workbench_change_cursor>& aCursor)
+		-> workbench_interaction_output
+	{
+		if (aCursor.has_value() && !valid(*aCursor)) {
+			return { .Reason = workbench_reason_code::invalid_change_cursor };
+		}
+		if (aState.Change == aCursor) {
+			return { };
+		}
+
+		const auto before = project_workbench_commands(aState);
+		aState.Change     = aCursor;
+		return with_changed_commands(aState, before, workbench_interaction_output{ });
 	}
 
 	auto transition(
