@@ -120,3 +120,21 @@ add_test(
     NAME core_diff_transition
     COMMAND test_better_pull_review_diff_transition_core_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_workbench_interaction_core_tests
+    workbench_interaction_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_workbench_interaction_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_workbench_interaction_core_tests)
+bpr_enable_warnings(test_better_pull_review_workbench_interaction_core_tests)
+
+add_test(
+    NAME core_workbench_interaction
+    COMMAND test_better_pull_review_workbench_interaction_core_tests
+)

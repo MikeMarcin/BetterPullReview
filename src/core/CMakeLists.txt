@@ -13,6 +13,7 @@ add_library(
         src/model.cpp
         src/sha256.cpp
         src/transition.cpp
+        src/workbench_interaction.cpp
 )
 add_library(BetterPullReview::Core ALIAS better_pull_review_core)
 
