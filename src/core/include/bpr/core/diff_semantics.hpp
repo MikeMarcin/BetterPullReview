@@ -4,11 +4,73 @@
 #include "bpr/core/diff_compute.hpp"
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace bpr::core {
+	/// \brief Records the immutable records retained by one validated semantic index.
+	struct diff_semantic_index_statistics
+	{
+		std::size_t Segments       = 0U;
+		std::size_t Pairs          = 0U;
+		std::size_t Groups         = 0U;
+		std::size_t Moves          = 0U;
+		std::size_t IntralineEdits = 0U;
+		std::size_t IndexEntries   = 0U;
+
+		auto operator<=>(const diff_semantic_index_statistics&) const = default;
+	};
+
+	/// \brief Binds indexed semantic queries to one fully validated immutable result.
+	///
+	/// The index shares ownership of the immutable result for its full lifetime.
+	class diff_semantic_index final
+	{
+	public:
+		diff_semantic_index(const diff_semantic_index&)     = default;
+		diff_semantic_index(diff_semantic_index&&) noexcept = default;
+		auto operator=(const diff_semantic_index&)
+			-> diff_semantic_index& = default;
+		auto operator=(diff_semantic_index&&) noexcept
+			-> diff_semantic_index& = default;
+
+		[[nodiscard]] auto diff() const noexcept -> const computed_file_diff&;
+		[[nodiscard]] auto statistics() const noexcept
+			-> diff_semantic_index_statistics;
+		[[nodiscard]] auto segment_index(alignment_segment_id aSegment) const noexcept
+			-> std::optional<std::size_t>;
+		[[nodiscard]] auto group_index(change_group_id aGroup) const noexcept
+			-> std::optional<std::size_t>;
+		[[nodiscard]] auto pair_index(line_pair_id aPair) const noexcept
+			-> std::optional<std::size_t>;
+		[[nodiscard]] auto move_index(alignment_segment_id aSegment) const noexcept
+			-> std::optional<std::size_t>;
+		[[nodiscard]] auto intraline_span(std::size_t aPairIndex) const noexcept
+			-> segment_index_span;
+
+	private:
+		friend auto build_diff_semantic_index(
+			std::shared_ptr<const computed_file_diff>)
+			-> std::optional<diff_semantic_index>;
+		diff_semantic_index() = default;
+
+		std::shared_ptr<const computed_file_diff>                   Diff;
+		std::vector<std::pair<alignment_segment_id, std::uint32_t>> SegmentsById;
+		std::vector<std::pair<change_group_id, std::uint32_t>>      GroupsById;
+		std::vector<std::pair<line_pair_id, std::uint32_t>>         PairsById;
+		std::vector<std::pair<alignment_segment_id, std::uint32_t>> MovesBySegment;
+		std::vector<segment_index_span>                             IntralineByPair;
+	};
+
+	/// \brief Validates once and builds bounded lookup indexes for repeated queries.
+	[[nodiscard]] auto build_diff_semantic_index(
+		std::shared_ptr<const computed_file_diff> aDiff)
+		-> std::optional<diff_semantic_index>;
+
 	/// \brief Describes the source span ref record.
 	struct source_span_ref
 	{
@@ -69,9 +131,14 @@ namespace bpr::core {
 	/// \brief Computes the map line result.
 	[[nodiscard]] auto map_line(const computed_file_diff& aDiff,
 								source_line_ref           aLine) -> line_mapping;
+	[[nodiscard]] auto map_line(const diff_semantic_index& aIndex,
+								source_line_ref            aLine) -> line_mapping;
 	/// \brief Computes the move for line result.
 	[[nodiscard]] auto move_for_line(const computed_file_diff& aDiff,
 									 source_line_ref           aLine)
+		-> std::optional<move_correspondence>;
+	[[nodiscard]] auto move_for_line(const diff_semantic_index& aIndex,
+									 source_line_ref            aLine)
 		-> std::optional<move_correspondence>;
 
 	enum class line_detail_kind : std::uint8_t {
@@ -105,9 +172,14 @@ namespace bpr::core {
 	[[nodiscard]] auto detail_for_mapping(const computed_file_diff& aDiff,
 										  const line_mapping&       aMapping)
 		-> line_detail_input;
+	[[nodiscard]] auto detail_for_mapping(const diff_semantic_index& aIndex,
+										  const line_mapping&        aMapping)
+		-> line_detail_input;
 	/// \brief Computes the detail for line result.
 	[[nodiscard]] auto detail_for_line(const computed_file_diff& aDiff,
 									   source_line_ref           aLine) -> line_detail_input;
+	[[nodiscard]] auto detail_for_line(const diff_semantic_index& aIndex,
+									   source_line_ref            aLine) -> line_detail_input;
 
 	/// \brief Describes the change segment projection record.
 	struct change_segment_projection
@@ -149,6 +221,8 @@ namespace bpr::core {
 	/// \brief Computes the project changes result.
 	[[nodiscard]] auto project_changes(const computed_file_diff& aDiff)
 		-> change_projection;
+	[[nodiscard]] auto project_changes(const diff_semantic_index& aIndex)
+		-> change_projection;
 
 	enum class change_navigation_direction : std::uint8_t {
 		previous,
@@ -185,6 +259,11 @@ namespace bpr::core {
 									   change_navigation_direction    aDirection,
 									   change_navigation_policy       aPolicy)
 		-> change_navigation_result;
+	[[nodiscard]] auto navigate_change(const diff_semantic_index&     aIndex,
+									   std::optional<change_group_id> aCurrent,
+									   change_navigation_direction    aDirection,
+									   change_navigation_policy       aPolicy)
+		-> change_navigation_result;
 
 	enum class semantic_selection_kind : std::uint8_t {
 		line,
@@ -207,13 +286,22 @@ namespace bpr::core {
 	[[nodiscard]] auto select_line(const computed_file_diff& aDiff,
 								   source_line_ref           aLine)
 		-> std::optional<semantic_selection>;
+	[[nodiscard]] auto select_line(const diff_semantic_index& aIndex,
+								   source_line_ref            aLine)
+		-> std::optional<semantic_selection>;
 	/// \brief Computes the preferred group line result.
 	[[nodiscard]] auto preferred_group_line(const computed_file_diff& aDiff,
 											change_group_id           aGroup)
 		-> std::optional<source_line_ref>;
+	[[nodiscard]] auto preferred_group_line(const diff_semantic_index& aIndex,
+											change_group_id            aGroup)
+		-> std::optional<source_line_ref>;
 	/// \brief Computes the select group result.
 	[[nodiscard]] auto select_group(const computed_file_diff& aDiff,
 									change_group_id           aGroup)
+		-> std::optional<semantic_selection>;
+	[[nodiscard]] auto select_group(const diff_semantic_index& aIndex,
+									change_group_id            aGroup)
 		-> std::optional<semantic_selection>;
 
 	enum class selection_reconciliation_outcome : std::uint8_t {
@@ -234,9 +322,16 @@ namespace bpr::core {
 	reconcile_selection(const computed_file_diff&                aReplacement,
 						const std::optional<semantic_selection>& aCurrent)
 		-> selection_reconciliation_result;
+	[[nodiscard]] auto
+	reconcile_selection(const diff_semantic_index&               aReplacement,
+						const std::optional<semantic_selection>& aCurrent)
+		-> selection_reconciliation_result;
 	/// \brief Computes the detail for selection result.
 	[[nodiscard]] auto detail_for_selection(const computed_file_diff& aDiff,
 											const semantic_selection& aSelection)
+		-> line_detail_input;
+	[[nodiscard]] auto detail_for_selection(const diff_semantic_index& aIndex,
+											const semantic_selection&  aSelection)
 		-> line_detail_input;
 } // namespace bpr::core
 

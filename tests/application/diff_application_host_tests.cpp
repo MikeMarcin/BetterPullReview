@@ -604,6 +604,21 @@ namespace {
 			expect(threw,
 				   "host rejects compute ceilings above the product maximum");
 		}
+		for (const auto moveWork : std::array<std::uint64_t, 2U>{
+				 0U,
+				 core::diff_compute_limits{ }.MaximumMoveDetectionWork + 1U }) {
+			auto threw = false;
+			try {
+				auto computeLimits                     = core::diff_compute_limits{ };
+				computeLimits.MaximumMoveDetectionWork = moveWork;
+				fixture test{ { }, computeLimits };
+			} catch (const std::invalid_argument&) {
+				threw = true;
+			}
+			expect(
+				threw,
+				"host rejects zero or expanded optional move-work authority");
+		}
 		{
 			fixture test{ application::diff_host_limits{
 				.OutstandingJobs = 1U,

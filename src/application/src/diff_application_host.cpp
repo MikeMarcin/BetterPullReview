@@ -75,6 +75,9 @@ namespace bpr::application {
 				|| aLimits.MaximumLinesPerSide > maximum.MaximumLinesPerSide
 				|| aLimits.MaximumMatrixCells == 0U
 				|| aLimits.MaximumMatrixCells > maximum.MaximumMatrixCells
+				|| aLimits.MaximumMoveDetectionWork == 0U
+				|| aLimits.MaximumMoveDetectionWork
+					> maximum.MaximumMoveDetectionWork
 				|| aLimits.MaximumSegments == 0U
 				|| aLimits.MaximumSegments > maximum.MaximumSegments) {
 				throw std::invalid_argument{ "Invalid diff compute limits" };

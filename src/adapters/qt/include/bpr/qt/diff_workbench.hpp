@@ -9,6 +9,7 @@
 #include <QString>
 #include <QWidget>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -25,14 +26,18 @@ namespace bpr::qt {
 	/// \brief Records directly observable composed-workbench activity.
 	struct diff_workbench_statistics
 	{
-		std::uint64_t Publications       = 0U;
-		std::uint64_t Failures           = 0U;
-		std::uint64_t Invalidations      = 0U;
-		std::uint64_t GeometryRebuilds   = 0U;
-		std::uint64_t GeometryFailures   = 0U;
-		std::uint64_t FrameApplications  = 0U;
-		std::uint64_t SelectionChanges   = 0U;
-		std::uint64_t RejectedStaleInput = 0U;
+		std::uint64_t Publications         = 0U;
+		std::uint64_t Failures             = 0U;
+		std::uint64_t Invalidations        = 0U;
+		std::uint64_t GeometryRebuilds     = 0U;
+		std::uint64_t GeometryFailures     = 0U;
+		std::uint64_t FrameApplications    = 0U;
+		std::uint64_t SelectionChanges     = 0U;
+		std::uint64_t RejectedStaleInput   = 0U;
+		std::uint64_t SemanticIndexBuilds  = 0U;
+		std::uint64_t SemanticQueries      = 0U;
+		std::uint64_t PaneMeasurements     = 0U;
+		std::size_t   SemanticIndexEntries = 0U;
 
 		auto operator<=>(const diff_workbench_statistics&) const = default;
 	};
@@ -93,6 +98,7 @@ namespace bpr::qt {
 		void select_line(core::diff_side aSide, std::uint32_t aLine);
 		void select_link(const diff_link_map_identity& aIdentity, bool aReveal);
 		void navigate(core::change_navigation_direction aDirection);
+		void synchronize_geometry_selection(bool aReveal);
 		void apply_interaction(bool aReveal, bool aAnnounceSelection);
 		void update_detail();
 		void update_selection_paint();
@@ -115,6 +121,8 @@ namespace bpr::qt {
 
 		std::optional<core::diff_request_context>       CurrentContext;
 		std::shared_ptr<const core::computed_file_diff> CurrentResult;
+		std::optional<core::diff_semantic_index>        SemanticIndex;
+		std::optional<core::line_detail_input>          CurrentDetail;
 		core::diff_interaction_state                    Interaction;
 		measured_alignment_axis_cache                   AxisCache;
 		diff_workbench_statistics                       Statistics;

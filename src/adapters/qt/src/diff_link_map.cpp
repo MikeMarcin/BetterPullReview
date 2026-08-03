@@ -91,6 +91,8 @@ namespace bpr::qt {
 		Entries.clear();
 		Moves.clear();
 		EntryBySegment.clear();
+		VisibleEntryIndexes.clear();
+		VisibleMoveIndexes.clear();
 
 		for (const auto& segment : Axis->segments()) {
 			if (!changed(segment.Kind)) {
@@ -155,6 +157,9 @@ namespace bpr::qt {
 		CandidateEntryIndexes.reserve(Entries.size());
 		VisibleEntryIndexes.reserve(Entries.size());
 		VisibleMoveIndexes.reserve(Moves.size());
+		VisibleLinkByEntry.resize(Entries.size());
+		EntryVisibilityMarks.assign(Entries.size(), false);
+		MoveVisibilityMarks.assign(Moves.size(), false);
 		++Statistics.GeometryRebuilds;
 		Statistics.RetainedChangedEntries = Entries.size();
 		rebuild_visible_geometry();
@@ -177,7 +182,10 @@ namespace bpr::qt {
 		VisibleMoveOverlays.clear();
 		CandidateEntryIndexes.clear();
 		VisibleEntryIndexes.clear();
+		VisibleLinkByEntry.clear();
 		VisibleMoveIndexes.clear();
+		EntryVisibilityMarks.clear();
+		MoveVisibilityMarks.clear();
 		Selection.reset();
 		Statistics.RetainedChangedEntries = 0U;
 		Statistics.LastCandidateEntries   = 0U;
@@ -381,6 +389,7 @@ namespace bpr::qt {
 			}
 			++Statistics.LastPaintedPaths;
 		}
+		Statistics.PaintedPathsVisited += Statistics.LastPaintedPaths;
 
 		Statistics.LastMoveOverlays = 0U;
 		for (const auto& overlay : VisibleMoveOverlays) {
@@ -613,6 +622,17 @@ namespace bpr::qt {
 
 	void diff_link_map::rebuild_visible_geometry()
 	{
+		const auto candidateCapacity = CandidateEntryIndexes.capacity();
+		const auto linkCapacity      = VisibleLinks.capacity();
+		const auto entryCapacity     = VisibleEntryIndexes.capacity();
+		const auto moveCapacity      = VisibleMoveIndexes.capacity();
+		const auto overlayCapacity   = VisibleMoveOverlays.capacity();
+		for (const auto index : VisibleEntryIndexes) {
+			EntryVisibilityMarks[index] = false;
+		}
+		for (const auto index : VisibleMoveIndexes) {
+			MoveVisibilityMarks[index] = false;
+		}
 		VisibleLinks.clear();
 		VisibleMoveOverlays.clear();
 		CandidateEntryIndexes.clear();
@@ -656,20 +676,34 @@ namespace bpr::qt {
 			[](const qreal aValue, const retained_entry& aEntry) {
 				return aValue < aEntry.RightBegin;
 			});
+		Statistics.RangeSearches += 4U;
 
-		for (auto entry = leftFirst; entry != leftLast; ++entry) {
-			CandidateEntryIndexes.push_back(static_cast<std::size_t>(
-				std::distance(Entries.begin(), entry)));
+		auto leftIndex = static_cast<std::size_t>(
+			std::distance(Entries.begin(), leftFirst));
+		const auto leftEnd = static_cast<std::size_t>(
+			std::distance(Entries.begin(), leftLast));
+		auto rightIndex = static_cast<std::size_t>(
+			std::distance(Entries.begin(), rightFirst));
+		const auto rightEnd = static_cast<std::size_t>(
+			std::distance(Entries.begin(), rightLast));
+		while (leftIndex < leftEnd || rightIndex < rightEnd) {
+			if (rightIndex >= rightEnd
+				|| (leftIndex < leftEnd && leftIndex < rightIndex)) {
+				CandidateEntryIndexes.push_back(leftIndex++);
+			} else if (leftIndex >= leftEnd || rightIndex < leftIndex) {
+				CandidateEntryIndexes.push_back(rightIndex++);
+			} else {
+				CandidateEntryIndexes.push_back(leftIndex);
+				++leftIndex;
+				++rightIndex;
+			}
 		}
-		for (auto entry = rightFirst; entry != rightLast; ++entry) {
-			CandidateEntryIndexes.push_back(static_cast<std::size_t>(
-				std::distance(Entries.begin(), entry)));
-		}
-		std::ranges::sort(CandidateEntryIndexes);
-		CandidateEntryIndexes.erase(
-			std::ranges::unique(CandidateEntryIndexes).begin(),
-			CandidateEntryIndexes.end());
 		Statistics.LastCandidateEntries = CandidateEntryIndexes.size();
+		Statistics.CandidateEntriesVisited
+			+= Statistics.LastCandidateEntries;
+		Statistics.PeakCandidateEntries = std::max(
+			Statistics.PeakCandidateEntries,
+			Statistics.LastCandidateEntries);
 
 		const auto clip = QRectF{
 			0.0,
@@ -682,7 +716,9 @@ namespace bpr::qt {
 			if (!path.boundingRect().intersects(clip)) {
 				continue;
 			}
-			const auto& entry = Entries[index];
+			const auto& entry           = Entries[index];
+			EntryVisibilityMarks[index] = true;
+			VisibleLinkByEntry[index]   = VisibleLinks.size();
 			VisibleLinks.push_back({
 				.Identity           = entry.Identity,
 				.Kind               = entry.Kind,
@@ -701,38 +737,33 @@ namespace bpr::qt {
 			});
 			VisibleEntryIndexes.push_back(index);
 		}
+		const auto appendVisibleMove = [this](const std::size_t aMove) {
+			if (!MoveVisibilityMarks[aMove]) {
+				MoveVisibilityMarks[aMove] = true;
+				VisibleMoveIndexes.push_back(aMove);
+			}
+		};
 		for (const auto index : VisibleEntryIndexes) {
 			const auto& entry = Entries[index];
 			if (!entry_selected(entry) && !entry_hovered(entry)) {
 				continue;
 			}
 			if (entry.SourceMove.has_value()) {
-				VisibleMoveIndexes.push_back(*entry.SourceMove);
+				appendVisibleMove(*entry.SourceMove);
 			}
 			if (entry.DestinationMove.has_value()) {
-				VisibleMoveIndexes.push_back(*entry.DestinationMove);
+				appendVisibleMove(*entry.DestinationMove);
 			}
 		}
-		std::ranges::sort(VisibleMoveIndexes);
-		VisibleMoveIndexes.erase(
-			std::ranges::unique(VisibleMoveIndexes).begin(),
-			VisibleMoveIndexes.end());
 		for (const auto moveIndex : VisibleMoveIndexes) {
-			const auto& move   = Moves[moveIndex];
-			const auto  source = std::ranges::lower_bound(
-				VisibleEntryIndexes, move.Source);
-			const auto destination = std::ranges::lower_bound(
-				VisibleEntryIndexes, move.Destination);
-			if (source == VisibleEntryIndexes.end() || *source != move.Source
-				|| destination == VisibleEntryIndexes.end()
-				|| *destination != move.Destination) {
+			const auto& move = Moves[moveIndex];
+			if (!EntryVisibilityMarks[move.Source]
+				|| !EntryVisibilityMarks[move.Destination]) {
 				continue;
 			}
-			const auto sourceIndex = static_cast<std::size_t>(
-				std::distance(VisibleEntryIndexes.begin(), source));
-			const auto destinationIndex = static_cast<std::size_t>(
-				std::distance(VisibleEntryIndexes.begin(), destination));
-			const auto sourceY = *VisibleLinks[sourceIndex].SourceMarkerY;
+			const auto sourceIndex      = VisibleLinkByEntry[move.Source];
+			const auto destinationIndex = VisibleLinkByEntry[move.Destination];
+			const auto sourceY          = *VisibleLinks[sourceIndex].SourceMarkerY;
 			const auto destinationY
 				= *VisibleLinks[destinationIndex].DestinationMarkerY;
 			auto path = QPainterPath{ QPointF{ 0.0, sourceY } };
@@ -752,6 +783,20 @@ namespace bpr::qt {
 			});
 		}
 		Statistics.LastVisiblePaths = VisibleLinks.size();
+		Statistics.VisiblePathsBuilt += Statistics.LastVisiblePaths;
+		Statistics.PeakVisiblePaths = std::max(
+			Statistics.PeakVisiblePaths,
+			Statistics.LastVisiblePaths);
+		Statistics.CapacityGrowths
+			+= static_cast<std::uint64_t>(
+				   CandidateEntryIndexes.capacity() > candidateCapacity)
+			+ static_cast<std::uint64_t>(VisibleLinks.capacity() > linkCapacity)
+			+ static_cast<std::uint64_t>(
+				   VisibleEntryIndexes.capacity() > entryCapacity)
+			+ static_cast<std::uint64_t>(
+				   VisibleMoveIndexes.capacity() > moveCapacity)
+			+ static_cast<std::uint64_t>(
+				   VisibleMoveOverlays.capacity() > overlayCapacity);
 	}
 
 	auto diff_link_map::refresh_hover_from_pointer() -> bool

@@ -47,11 +47,18 @@ namespace bpr::core {
 	[[nodiscard]] auto reconcile_diff_interaction(
 		diff_interaction_state&   aState,
 		const computed_file_diff& aDiff) -> bool;
+	[[nodiscard]] auto reconcile_diff_interaction(
+		diff_interaction_state&    aState,
+		const diff_semantic_index& aIndex) -> bool;
 
 	/// \brief Applies one semantic workbench gesture in the functional core.
 	[[nodiscard]] auto transition(
 		diff_interaction_state&        aState,
 		const computed_file_diff&      aDiff,
+		const diff_interaction_intent& aIntent) -> bool;
+	[[nodiscard]] auto transition(
+		diff_interaction_state&        aState,
+		const diff_semantic_index&     aIndex,
 		const diff_interaction_intent& aIntent) -> bool;
 } // namespace bpr::core
 

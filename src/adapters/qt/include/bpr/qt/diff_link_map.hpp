@@ -64,23 +64,30 @@ namespace bpr::qt {
 	/// \brief Records bounded lookup, paint, interaction, and callback work.
 	struct diff_link_map_statistics
 	{
-		std::uint64_t GeometryRebuilds       = 0U;
-		std::uint64_t FrameUpdates           = 0U;
-		std::uint64_t VisibilityQueries      = 0U;
-		std::uint64_t PaintEvents            = 0U;
-		std::uint64_t HitTests               = 0U;
-		std::uint64_t PaletteOrStyleChanges  = 0U;
-		std::uint64_t SelectionCallbacks     = 0U;
-		std::uint64_t HoverCallbacks         = 0U;
-		std::uint64_t RevealCallbacks        = 0U;
-		std::uint64_t CallbackFailures       = 0U;
-		std::uint64_t RejectedStaleFrames    = 0U;
-		std::size_t   RetainedChangedEntries = 0U;
-		std::size_t   LastCandidateEntries   = 0U;
-		std::size_t   LastVisiblePaths       = 0U;
-		std::size_t   LastPaintedPaths       = 0U;
-		std::size_t   LastMoveMarkers        = 0U;
-		std::size_t   LastMoveOverlays       = 0U;
+		std::uint64_t GeometryRebuilds        = 0U;
+		std::uint64_t FrameUpdates            = 0U;
+		std::uint64_t VisibilityQueries       = 0U;
+		std::uint64_t PaintEvents             = 0U;
+		std::uint64_t HitTests                = 0U;
+		std::uint64_t PaletteOrStyleChanges   = 0U;
+		std::uint64_t SelectionCallbacks      = 0U;
+		std::uint64_t HoverCallbacks          = 0U;
+		std::uint64_t RevealCallbacks         = 0U;
+		std::uint64_t CallbackFailures        = 0U;
+		std::uint64_t RejectedStaleFrames     = 0U;
+		std::uint64_t RangeSearches           = 0U;
+		std::uint64_t CandidateEntriesVisited = 0U;
+		std::uint64_t VisiblePathsBuilt       = 0U;
+		std::uint64_t PaintedPathsVisited     = 0U;
+		std::uint64_t CapacityGrowths         = 0U;
+		std::size_t   RetainedChangedEntries  = 0U;
+		std::size_t   LastCandidateEntries    = 0U;
+		std::size_t   LastVisiblePaths        = 0U;
+		std::size_t   LastPaintedPaths        = 0U;
+		std::size_t   LastMoveMarkers         = 0U;
+		std::size_t   LastMoveOverlays        = 0U;
+		std::size_t   PeakCandidateEntries    = 0U;
+		std::size_t   PeakVisiblePaths        = 0U;
 	};
 
 	struct diff_link_map_configuration
@@ -209,7 +216,10 @@ namespace bpr::qt {
 		std::vector<visible_diff_move_overlay>            VisibleMoveOverlays;
 		std::vector<std::size_t>                          CandidateEntryIndexes;
 		std::vector<std::size_t>                          VisibleEntryIndexes;
+		std::vector<std::size_t>                          VisibleLinkByEntry;
 		std::vector<std::size_t>                          VisibleMoveIndexes;
+		std::vector<bool>                                 EntryVisibilityMarks;
+		std::vector<bool>                                 MoveVisibilityMarks;
 		std::optional<diff_link_map_identity>             Selection;
 		std::optional<diff_link_map_identity>             Hover;
 		std::optional<diff_link_map_identity>             PressedIdentity;

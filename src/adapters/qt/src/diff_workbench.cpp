@@ -193,20 +193,6 @@ namespace bpr::qt {
 			return QStringLiteral("Comparison unavailable");
 		}
 
-		[[nodiscard]] auto group_index(
-			const core::computed_file_diff& aDiff,
-			const core::change_group_id     aGroup) -> std::optional<std::size_t>
-		{
-			const auto found = std::ranges::find(
-				aDiff.Alignment.Groups, aGroup, &core::change_group::Id);
-			return found == aDiff.Alignment.Groups.end()
-				? std::nullopt
-				: std::optional<std::size_t>{
-					  static_cast<std::size_t>(
-						  std::distance(aDiff.Alignment.Groups.begin(), found))
-				  };
-		}
-
 		void set_line_selection(
 			QPlainTextEdit&                             aPane,
 			const std::optional<core::source_line_ref>& aLine)
@@ -367,30 +353,41 @@ namespace bpr::qt {
 	{
 		if (
 			!core::valid(aPublication.Context) || !aPublication.Result
-			|| !core::validate_computed_file_diff(*aPublication.Result).valid()
 			|| aPublication.Result->Alignment.Key != aPublication.Context.Key
 			|| !CurrentContext.has_value()
 			|| *CurrentContext != aPublication.Context) {
 			++Statistics.RejectedStaleInput;
 			return;
 		}
+		auto semanticIndex = core::build_diff_semantic_index(aPublication.Result);
+		if (!semanticIndex.has_value()) {
+			++Statistics.RejectedStaleInput;
+			return;
+		}
 		CurrentContext = aPublication.Context;
 		CurrentResult  = aPublication.Result;
+		SemanticIndex  = std::move(semanticIndex);
+		++Statistics.SemanticIndexBuilds;
+		Statistics.SemanticIndexEntries
+			= SemanticIndex->statistics().IndexEntries;
 		Left->setPlainText(text_document(CurrentResult->LeftDocument));
 		Right->setPlainText(text_document(CurrentResult->RightDocument));
-		static_cast<void>(core::reconcile_diff_interaction(Interaction, *CurrentResult));
+		++Statistics.SemanticQueries;
+		static_cast<void>(core::reconcile_diff_interaction(Interaction, *SemanticIndex));
 		if (!Interaction.Selection.has_value()) {
 			if (!CurrentResult->Alignment.Groups.empty()) {
+				++Statistics.SemanticQueries;
 				static_cast<void>(core::transition(
 					Interaction,
-					*CurrentResult,
+					*SemanticIndex,
 					core::select_diff_group_intent{
 						.Group = CurrentResult->Alignment.Groups.front().Id,
 					}));
 			} else if (CurrentResult->Alignment.LeftLineCount != 0U) {
+				++Statistics.SemanticQueries;
 				static_cast<void>(core::transition(
 					Interaction,
-					*CurrentResult,
+					*SemanticIndex,
 					core::select_diff_line_intent{
 						.Line = {
 							.Comparison = CurrentResult->Alignment.Digest,
@@ -399,9 +396,10 @@ namespace bpr::qt {
 						},
 					}));
 			} else if (CurrentResult->Alignment.RightLineCount != 0U) {
+				++Statistics.SemanticQueries;
 				static_cast<void>(core::transition(
 					Interaction,
-					*CurrentResult,
+					*SemanticIndex,
 					core::select_diff_line_intent{
 						.Line = {
 							.Comparison = CurrentResult->Alignment.Digest,
@@ -622,6 +620,7 @@ namespace bpr::qt {
 		if (!CurrentResult) {
 			return;
 		}
+		Statistics.PaneMeasurements += 2U;
 		const auto left = measure_plain_text_pane(
 			*Left, CurrentResult->Alignment.LeftLineCount);
 		const auto right = measure_plain_text_pane(
@@ -636,11 +635,13 @@ namespace bpr::qt {
 			LinkMap->clear_geometry();
 			return;
 		}
-		const auto axis = *AxisCache.axis();
+		const auto axis            = *AxisCache.axis();
+		const auto revealSelection = !Controller->current_frame().has_value()
+			|| Controller->current_frame()->Comparison != axis.comparison();
 		LinkMap->set_geometry(axis, CurrentResult->Alignment.Moves);
 		Controller->set_axis(axis);
 		++Statistics.GeometryRebuilds;
-		apply_interaction(true, false);
+		synchronize_geometry_selection(revealSelection);
 	}
 
 	void diff_workbench::apply_frame(const comparison_scroll_frame& aFrame)
@@ -650,18 +651,21 @@ namespace bpr::qt {
 			|| aFrame.Comparison != CurrentResult->Alignment.Digest) {
 			return;
 		}
-		ApplyingFrame           = true;
-		const auto leftGeometry = measure_plain_text_pane(
-			*Left, CurrentResult->Alignment.LeftLineCount);
-		const auto rightGeometry = measure_plain_text_pane(
-			*Right, CurrentResult->Alignment.RightLineCount);
-		if (leftGeometry.has_value() && rightGeometry.has_value()) {
+		ApplyingFrame          = true;
+		const auto* const axis = AxisCache.axis();
+		if (axis != nullptr && axis->comparison() == aFrame.Comparison) {
 			pane(Left)->set_document_origin(
 				aFrame.Left.DocumentOriginY,
-				std::max(0.0, leftGeometry->DocumentExtent - leftGeometry->ViewportExtent));
+				std::max(
+					0.0,
+					axis->left_document_extent()
+						- axis->left_viewport_extent()));
 			pane(Right)->set_document_origin(
 				aFrame.Right.DocumentOriginY,
-				std::max(0.0, rightGeometry->DocumentExtent - rightGeometry->ViewportExtent));
+				std::max(
+					0.0,
+					axis->right_document_extent()
+						- axis->right_viewport_extent()));
 			auto rendered                  = aFrame;
 			rendered.Left.DocumentOriginY  = pane(Left)->actual_document_origin();
 			rendered.Right.DocumentOriginY = pane(Right)->actual_document_origin();
@@ -681,12 +685,13 @@ namespace bpr::qt {
 		const core::diff_side aSide,
 		const std::uint32_t   aLine)
 	{
-		if (!CurrentResult) {
+		if (!CurrentResult || !SemanticIndex.has_value()) {
 			return;
 		}
+		++Statistics.SemanticQueries;
 		const auto changed = core::transition(
 			Interaction,
-			*CurrentResult,
+			*SemanticIndex,
 			core::select_diff_line_intent{
 				.Line = {
 					.Comparison = CurrentResult->Alignment.Digest,
@@ -704,12 +709,14 @@ namespace bpr::qt {
 		const diff_link_map_identity& aIdentity,
 		const bool                    aReveal)
 	{
-		if (!CurrentResult || !aIdentity.Group.has_value()) {
+		if (!CurrentResult || !SemanticIndex.has_value()
+			|| !aIdentity.Group.has_value()) {
 			return;
 		}
+		++Statistics.SemanticQueries;
 		const auto changed = core::transition(
 			Interaction,
-			*CurrentResult,
+			*SemanticIndex,
 			core::select_diff_group_intent{ .Group = *aIdentity.Group });
 		if (changed) {
 			++Statistics.SelectionChanges;
@@ -720,12 +727,13 @@ namespace bpr::qt {
 	void diff_workbench::navigate(
 		const core::change_navigation_direction aDirection)
 	{
-		if (!CurrentResult) {
+		if (!CurrentResult || !SemanticIndex.has_value()) {
 			return;
 		}
+		++Statistics.SemanticQueries;
 		const auto changed = core::transition(
 			Interaction,
-			*CurrentResult,
+			*SemanticIndex,
 			core::navigate_diff_change_intent{
 				.Direction = aDirection,
 				.Policy    = core::change_navigation_policy::stop,
@@ -736,15 +744,10 @@ namespace bpr::qt {
 		}
 	}
 
-	void diff_workbench::apply_interaction(
-		const bool aReveal,
-		const bool aAnnounceSelection)
+	void diff_workbench::synchronize_geometry_selection(const bool aReveal)
 	{
 		if (!CurrentResult || !Interaction.Selection.has_value()) {
 			LinkMap->set_selected(std::nullopt, false);
-			update_detail();
-			update_selection_paint();
-			update_action_state();
 			return;
 		}
 		const auto& selection = *Interaction.Selection;
@@ -761,6 +764,13 @@ namespace bpr::qt {
 		} else {
 			LinkMap->set_selected(std::nullopt, false);
 		}
+	}
+
+	void diff_workbench::apply_interaction(
+		const bool aReveal,
+		const bool aAnnounceSelection)
+	{
+		synchronize_geometry_selection(aReveal);
 		update_detail();
 		update_selection_paint();
 		update_action_state();
@@ -773,13 +783,17 @@ namespace bpr::qt {
 
 	void diff_workbench::update_detail()
 	{
-		if (!CurrentResult || !Interaction.Selection.has_value()) {
+		CurrentDetail.reset();
+		if (!CurrentResult || !SemanticIndex.has_value()
+			|| !Interaction.Selection.has_value()) {
 			Detail->setPlainText(QStringLiteral("No change selected"));
 			return;
 		}
-		const auto detail = core::detail_for_selection(
-			*CurrentResult, *Interaction.Selection);
-		const auto leftText = detail_side_text(
+		++Statistics.SemanticQueries;
+		CurrentDetail = core::detail_for_selection(
+			*SemanticIndex, *Interaction.Selection);
+		const auto& detail   = *CurrentDetail;
+		const auto  leftText = detail_side_text(
 			CurrentResult->LeftDocument,
 			detail.LeftLine,
 			detail,
@@ -792,8 +806,8 @@ namespace bpr::qt {
 		auto heading = QStringLiteral("Selected line %1")
 						   .arg(Interaction.Selection->PreferredLine.Line + 1U);
 		if (Interaction.Selection->Group.has_value()) {
-			const auto index = group_index(
-				*CurrentResult, *Interaction.Selection->Group);
+			const auto index = SemanticIndex->group_index(
+				*Interaction.Selection->Group);
 			if (index.has_value()) {
 				heading = QStringLiteral("Change %1 of %2")
 							  .arg(*index + 1U)
@@ -808,20 +822,20 @@ namespace bpr::qt {
 
 	void diff_workbench::update_selection_paint()
 	{
-		if (!CurrentResult || !Interaction.Selection.has_value()) {
+		if (!CurrentResult || !Interaction.Selection.has_value()
+			|| !CurrentDetail.has_value()) {
 			set_line_selection(*Left, std::nullopt);
 			set_line_selection(*Right, std::nullopt);
 			return;
 		}
-		const auto detail = core::detail_for_selection(
-			*CurrentResult, *Interaction.Selection);
-		set_line_selection(*Left, detail.LeftLine);
-		set_line_selection(*Right, detail.RightLine);
+		set_line_selection(*Left, CurrentDetail->LeftLine);
+		set_line_selection(*Right, CurrentDetail->RightLine);
 	}
 
 	void diff_workbench::update_action_state()
 	{
-		if (!CurrentResult || CurrentResult->Alignment.Groups.empty()) {
+		if (!CurrentResult || !SemanticIndex.has_value()
+			|| CurrentResult->Alignment.Groups.empty()) {
 			PreviousChange->setEnabled(false);
 			NextChange->setEnabled(false);
 			return;
@@ -830,7 +844,7 @@ namespace bpr::qt {
 		if (
 			Interaction.Selection.has_value()
 			&& Interaction.Selection->Group.has_value()) {
-			index = group_index(*CurrentResult, *Interaction.Selection->Group);
+			index = SemanticIndex->group_index(*Interaction.Selection->Group);
 		}
 		PreviousChange->setEnabled(index.has_value() && *index != 0U);
 		NextChange->setEnabled(
@@ -862,6 +876,8 @@ namespace bpr::qt {
 
 	void diff_workbench::clear_projection(QString aStatus)
 	{
+		CurrentDetail.reset();
+		SemanticIndex.reset();
 		CurrentResult.reset();
 		Interaction.Selection.reset();
 		Left->clear();

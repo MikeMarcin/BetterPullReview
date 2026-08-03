@@ -42,58 +42,216 @@ namespace bpr::core {
 										const source_line_ref aLine)
 			-> const alignment_segment*
 		{
-			for (const auto& segment : aAlignment.Segments) {
-				const auto span = span_for(segment, aLine.Side);
-				if (span.Begin <= aLine.Line && aLine.Line < span.End) {
-					return &segment;
-				}
+			const auto found = std::ranges::upper_bound(
+				aAlignment.Segments,
+				aLine.Line,
+				std::ranges::less{ },
+				[aLine](const alignment_segment& aSegment) {
+					return span_for(aSegment, aLine.Side).End;
+				});
+			if (found == aAlignment.Segments.end()) {
+				return nullptr;
 			}
-			return nullptr;
+			const auto span = span_for(*found, aLine.Side);
+			return span.Begin <= aLine.Line && aLine.Line < span.End
+				? &*found
+				: nullptr;
 		}
 
 		[[nodiscard]] auto find_pair(const file_alignment&      aAlignment,
 									 const alignment_segment_id aSegment,
 									 const source_line_ref      aLine) -> const line_pair*
 		{
-			for (const auto& pair : aAlignment.Pairs) {
-				if (pair.Segment != aSegment) {
-					continue;
-				}
-				const auto selected = aLine.Side == diff_side::left ? pair.LeftLine : pair.RightLine;
-				if (selected == aLine.Line) {
-					return &pair;
-				}
+			const auto found = std::ranges::lower_bound(
+				aAlignment.Pairs,
+				aLine.Line,
+				std::ranges::less{ },
+				[aLine](const line_pair& aPair) {
+					return aLine.Side == diff_side::left ? aPair.LeftLine
+														 : aPair.RightLine;
+				});
+			if (found == aAlignment.Pairs.end()) {
+				return nullptr;
 			}
-			return nullptr;
+			const auto selected = aLine.Side == diff_side::left
+				? found->LeftLine
+				: found->RightLine;
+			return found->Segment == aSegment && selected == aLine.Line
+				? &*found
+				: nullptr;
 		}
 
-		[[nodiscard]] auto find_segment_by_id(const file_alignment&      aAlignment,
+		[[nodiscard]] auto find_segment_by_id(const diff_semantic_index& aIndex,
 											  const alignment_segment_id aId)
 			-> const alignment_segment*
 		{
-			const auto found = std::ranges::find(aAlignment.Segments, aId, &alignment_segment::Id);
-			return found == aAlignment.Segments.end() ? nullptr : &*found;
+			const auto found = aIndex.segment_index(aId);
+			return found.has_value()
+				? &aIndex.diff().Alignment.Segments[*found]
+				: nullptr;
 		}
 
-		[[nodiscard]] auto find_group(const file_alignment& aAlignment,
-									  const change_group_id aId) -> const change_group*
+		[[nodiscard]] auto find_group(const diff_semantic_index& aIndex,
+									  const change_group_id      aId) -> const change_group*
 		{
-			const auto found = std::ranges::find(aAlignment.Groups, aId, &change_group::Id);
-			return found == aAlignment.Groups.end() ? nullptr : &*found;
+			const auto found = aIndex.group_index(aId);
+			return found.has_value()
+				? &aIndex.diff().Alignment.Groups[*found]
+				: nullptr;
 		}
 
-		[[nodiscard]] auto valid_semantic_result(const computed_file_diff& aDiff) -> bool
+		[[nodiscard]] auto valid_semantic_result(const diff_semantic_index& aIndex) -> bool
 		{
-			return validate_computed_file_diff(aDiff).valid() && aDiff.Alignment.Content == diff_content_state::text;
+			return aIndex.diff().Alignment.Content == diff_content_state::text;
+		}
+
+		template <typename Identity>
+		[[nodiscard]] auto indexed_record(
+			const std::vector<std::pair<Identity, std::uint32_t>>& aEntries,
+			const Identity                                         aIdentity) noexcept
+			-> std::optional<std::size_t>
+		{
+			const auto found = std::ranges::lower_bound(
+				aEntries,
+				aIdentity,
+				std::ranges::less{ },
+				[](const auto& aEntry) { return aEntry.first; });
+			return found != aEntries.end() && found->first == aIdentity
+				? std::optional<std::size_t>{ found->second }
+				: std::nullopt;
+		}
+
+		[[nodiscard]] auto temporary_semantic_index(
+			const computed_file_diff& aDiff)
+			-> std::optional<diff_semantic_index>
+		{
+			return build_diff_semantic_index(
+				std::shared_ptr<const computed_file_diff>{
+					std::shared_ptr<const computed_file_diff>{ },
+					&aDiff });
 		}
 	} // namespace
 
-	auto map_line(const computed_file_diff& aDiff, const source_line_ref aLine)
+	auto diff_semantic_index::diff() const noexcept -> const computed_file_diff&
+	{
+		return *Diff;
+	}
+
+	auto diff_semantic_index::statistics() const noexcept
+		-> diff_semantic_index_statistics
+	{
+		return {
+			.Segments       = Diff->Alignment.Segments.size(),
+			.Pairs          = Diff->Alignment.Pairs.size(),
+			.Groups         = Diff->Alignment.Groups.size(),
+			.Moves          = Diff->Alignment.Moves.size(),
+			.IntralineEdits = Diff->Intraline.size(),
+			.IndexEntries   = SegmentsById.size() + GroupsById.size()
+				+ PairsById.size() + MovesBySegment.size()
+				+ IntralineByPair.size(),
+		};
+	}
+
+	auto diff_semantic_index::segment_index(
+		const alignment_segment_id aSegment) const noexcept
+		-> std::optional<std::size_t>
+	{
+		return indexed_record(SegmentsById, aSegment);
+	}
+
+	auto diff_semantic_index::group_index(
+		const change_group_id aGroup) const noexcept
+		-> std::optional<std::size_t>
+	{
+		return indexed_record(GroupsById, aGroup);
+	}
+
+	auto diff_semantic_index::pair_index(const line_pair_id aPair) const noexcept
+		-> std::optional<std::size_t>
+	{
+		return indexed_record(PairsById, aPair);
+	}
+
+	auto diff_semantic_index::move_index(
+		const alignment_segment_id aSegment) const noexcept
+		-> std::optional<std::size_t>
+	{
+		return indexed_record(MovesBySegment, aSegment);
+	}
+
+	auto diff_semantic_index::intraline_span(
+		const std::size_t aPairIndex) const noexcept -> segment_index_span
+	{
+		return aPairIndex < IntralineByPair.size()
+			? IntralineByPair[aPairIndex]
+			: segment_index_span{ };
+	}
+
+	auto build_diff_semantic_index(
+		std::shared_ptr<const computed_file_diff> aDiff)
+		-> std::optional<diff_semantic_index>
+	{
+		if (!aDiff || !validate_computed_file_diff(*aDiff).valid()) {
+			return std::nullopt;
+		}
+		const auto& diff   = *aDiff;
+		auto        result = diff_semantic_index{ };
+		result.Diff        = std::move(aDiff);
+		result.SegmentsById.reserve(diff.Alignment.Segments.size());
+		for (std::size_t index = 0U; index < diff.Alignment.Segments.size(); ++index) {
+			result.SegmentsById.emplace_back(
+				diff.Alignment.Segments[index].Id,
+				static_cast<std::uint32_t>(index));
+		}
+		result.GroupsById.reserve(diff.Alignment.Groups.size());
+		for (std::size_t index = 0U; index < diff.Alignment.Groups.size(); ++index) {
+			result.GroupsById.emplace_back(
+				diff.Alignment.Groups[index].Id,
+				static_cast<std::uint32_t>(index));
+		}
+		result.PairsById.reserve(diff.Alignment.Pairs.size());
+		for (std::size_t index = 0U; index < diff.Alignment.Pairs.size(); ++index) {
+			result.PairsById.emplace_back(
+				diff.Alignment.Pairs[index].Id,
+				static_cast<std::uint32_t>(index));
+		}
+		result.MovesBySegment.reserve(diff.Alignment.Moves.size() * 2U);
+		for (std::size_t index = 0U; index < diff.Alignment.Moves.size(); ++index) {
+			const auto ordinal = static_cast<std::uint32_t>(index);
+			result.MovesBySegment.emplace_back(
+				diff.Alignment.Moves[index].SourceDeletion, ordinal);
+			result.MovesBySegment.emplace_back(
+				diff.Alignment.Moves[index].DestinationInsertion, ordinal);
+		}
+		const auto byIdentity = [](const auto& aLeft, const auto& aRight) {
+			return aLeft.first < aRight.first;
+		};
+		std::ranges::sort(result.SegmentsById, byIdentity);
+		std::ranges::sort(result.GroupsById, byIdentity);
+		std::ranges::sort(result.PairsById, byIdentity);
+		std::ranges::sort(result.MovesBySegment, byIdentity);
+
+		result.IntralineByPair.resize(diff.Alignment.Pairs.size());
+		auto edit = std::size_t{ 0U };
+		for (std::size_t pair = 0U; pair < diff.Alignment.Pairs.size(); ++pair) {
+			const auto begin = edit;
+			while (
+				edit < diff.Intraline.size()
+				&& diff.Intraline[edit].Pair == diff.Alignment.Pairs[pair].Id) {
+				++edit;
+			}
+			result.IntralineByPair[pair] = {
+				.Begin = static_cast<std::uint32_t>(begin),
+				.End   = static_cast<std::uint32_t>(edit),
+			};
+		}
+		return result;
+	}
+
+	auto map_line(const diff_semantic_index& aIndex, const source_line_ref aLine)
 		-> line_mapping
 	{
-		if (!validate_computed_file_diff(aDiff).valid()) {
-			return unavailable(aDiff, aLine, semantic_lookup_reason::invalid_result);
-		}
+		const auto& aDiff = aIndex.diff();
 		if (aLine.Comparison != aDiff.Alignment.Digest) {
 			return unavailable(
 				aDiff, aLine, semantic_lookup_reason::comparison_mismatch);
@@ -169,10 +327,20 @@ namespace bpr::core {
 		return result;
 	}
 
-	auto move_for_line(const computed_file_diff& aDiff, const source_line_ref aLine)
+	auto map_line(const computed_file_diff& aDiff, const source_line_ref aLine)
+		-> line_mapping
+	{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value()
+			? map_line(*index, aLine)
+			: unavailable(aDiff, aLine, semantic_lookup_reason::invalid_result);
+	}
+
+	auto move_for_line(const diff_semantic_index& aIndex, const source_line_ref aLine)
 		-> std::optional<move_correspondence>
 	{
-		if (!valid_semantic_result(aDiff) || aLine.Comparison != aDiff.Alignment.Digest || !valid_side(aLine.Side) || !valid(aLine, aDiff.Alignment.LeftLineCount, aDiff.Alignment.RightLineCount)) {
+		const auto& aDiff = aIndex.diff();
+		if (!valid_semantic_result(aIndex) || aLine.Comparison != aDiff.Alignment.Digest || !valid_side(aLine.Side) || !valid(aLine, aDiff.Alignment.LeftLineCount, aDiff.Alignment.RightLineCount)) {
 			return std::nullopt;
 		}
 		const auto* const selectedSegment = find_segment(aDiff.Alignment, aLine);
@@ -180,47 +348,57 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 
-		for (const auto& move : aDiff.Alignment.Moves) {
-			const auto selectedIsSource      = aLine.Side == diff_side::left && selectedSegment->Id == move.SourceDeletion;
-			const auto selectedIsDestination = aLine.Side == diff_side::right && selectedSegment->Id == move.DestinationInsertion;
-			if (!selectedIsSource && !selectedIsDestination) {
-				continue;
-			}
-			const auto* const source      = find_segment_by_id(aDiff.Alignment, move.SourceDeletion);
-			const auto* const destination = find_segment_by_id(aDiff.Alignment, move.DestinationInsertion);
-			if (source == nullptr || destination == nullptr) {
-				return std::nullopt;
-			}
-			const auto offset = selectedIsSource
-				? aLine.Line - source->Left.Begin
-				: aLine.Line - destination->Right.Begin;
-			return move_correspondence{
-				.Relation             = move.Id,
-				.SourceDeletion       = move.SourceDeletion,
-				.DestinationInsertion = move.DestinationInsertion,
-				.Selected             = aLine,
-				.Counterpart          = source_line_ref{
-					.Comparison = aLine.Comparison,
-					.Side       = selectedIsSource ? diff_side::right : diff_side::left,
-					.Line       = static_cast<std::uint32_t>(
-						(selectedIsSource ? destination->Right.Begin
-										  : source->Left.Begin)
-						+ offset),
-				},
-			};
+		const auto moveIndex = aIndex.move_index(selectedSegment->Id);
+		if (!moveIndex.has_value()) {
+			return std::nullopt;
 		}
-		return std::nullopt;
+		const auto& move                  = aDiff.Alignment.Moves[*moveIndex];
+		const auto  selectedIsSource      = aLine.Side == diff_side::left && selectedSegment->Id == move.SourceDeletion;
+		const auto  selectedIsDestination = aLine.Side == diff_side::right && selectedSegment->Id == move.DestinationInsertion;
+		if (!selectedIsSource && !selectedIsDestination) {
+			return std::nullopt;
+		}
+		const auto* const source      = find_segment_by_id(aIndex, move.SourceDeletion);
+		const auto* const destination = find_segment_by_id(aIndex, move.DestinationInsertion);
+		if (source == nullptr || destination == nullptr) {
+			return std::nullopt;
+		}
+		const auto offset = selectedIsSource
+			? aLine.Line - source->Left.Begin
+			: aLine.Line - destination->Right.Begin;
+		return move_correspondence{
+			.Relation             = move.Id,
+			.SourceDeletion       = move.SourceDeletion,
+			.DestinationInsertion = move.DestinationInsertion,
+			.Selected             = aLine,
+			.Counterpart          = source_line_ref{
+				.Comparison = aLine.Comparison,
+				.Side       = selectedIsSource ? diff_side::right : diff_side::left,
+				.Line       = static_cast<std::uint32_t>(
+					(selectedIsSource ? destination->Right.Begin
+									  : source->Left.Begin)
+					+ offset),
+			},
+		};
 	}
 
-	auto detail_for_mapping(const computed_file_diff& aDiff,
-							const line_mapping&       aMapping) -> line_detail_input
+	auto move_for_line(const computed_file_diff& aDiff, const source_line_ref aLine)
+		-> std::optional<move_correspondence>
 	{
-		auto detail = line_detail_input{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value() ? move_for_line(*index, aLine) : std::nullopt;
+	}
+
+	auto detail_for_mapping(const diff_semantic_index& aIndex,
+							const line_mapping&        aMapping) -> line_detail_input
+	{
+		const auto& aDiff  = aIndex.diff();
+		auto        detail = line_detail_input{
 			.Selected   = aMapping.Source,
 			.Reason     = aMapping.Reason,
 			.Diagnostic = aMapping.Diagnostic,
 		};
-		if (!validate_computed_file_diff(aDiff).valid() || map_line(aDiff, aMapping.Source) != aMapping) {
+		if (map_line(aIndex, aMapping.Source) != aMapping) {
 			return line_detail_input{
 				.Selected   = aMapping.Source,
 				.Reason     = semantic_lookup_reason::invalid_result,
@@ -254,9 +432,14 @@ namespace bpr::core {
 				detail.RightLine = aMapping.Source;
 			}
 			if (aMapping.Pair.has_value()) {
-				std::ranges::copy_if(aDiff.Intraline,
-									 std::back_inserter(detail.Intraline),
-									 [&aMapping](const intraline_edit& aEdit) { return aEdit.Pair == *aMapping.Pair; });
+				const auto pair = aIndex.pair_index(*aMapping.Pair);
+				if (pair.has_value()) {
+					const auto span = aIndex.intraline_span(*pair);
+					detail.Intraline.insert(
+						detail.Intraline.end(),
+						aDiff.Intraline.begin() + span.Begin,
+						aDiff.Intraline.begin() + span.End);
+				}
 			}
 			break;
 		case line_mapping_kind::opposing_span:
@@ -271,29 +454,52 @@ namespace bpr::core {
 			detail.Kind = line_detail_kind::unavailable;
 			break;
 		}
-		if (const auto move = move_for_line(aDiff, aMapping.Source); move.has_value()) {
+		if (const auto move = move_for_line(aIndex, aMapping.Source); move.has_value()) {
 			detail.Move = move->Relation;
 		}
 		return detail;
 	}
 
+	auto detail_for_mapping(const computed_file_diff& aDiff,
+							const line_mapping&       aMapping) -> line_detail_input
+	{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value()
+			? detail_for_mapping(*index, aMapping)
+			: line_detail_input{
+				  .Selected   = aMapping.Source,
+				  .Reason     = semantic_lookup_reason::invalid_result,
+				  .Diagnostic = aDiff.Alignment.Diagnostic.Code,
+			  };
+	}
+
+	auto detail_for_line(const diff_semantic_index& aIndex, const source_line_ref aLine)
+		-> line_detail_input
+	{
+		return detail_for_mapping(aIndex, map_line(aIndex, aLine));
+	}
+
 	auto detail_for_line(const computed_file_diff& aDiff, const source_line_ref aLine)
 		-> line_detail_input
 	{
-		return detail_for_mapping(aDiff, map_line(aDiff, aLine));
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value()
+			? detail_for_line(*index, aLine)
+			: line_detail_input{
+				  .Selected   = aLine,
+				  .Reason     = semantic_lookup_reason::invalid_result,
+				  .Diagnostic = aDiff.Alignment.Diagnostic.Code,
+			  };
 	}
 
-	auto project_changes(const computed_file_diff& aDiff) -> change_projection
+	auto project_changes(const diff_semantic_index& aIndex) -> change_projection
 	{
-		auto result = change_projection{
+		const auto& aDiff  = aIndex.diff();
+		auto        result = change_projection{
 			.Comparison = aDiff.Alignment.Digest,
 			.Reason     = semantic_lookup_reason::none,
 			.Diagnostic = aDiff.Alignment.Diagnostic.Code,
 		};
-		if (!validate_computed_file_diff(aDiff).valid()) {
-			result.Reason = semantic_lookup_reason::invalid_result;
-			return result;
-		}
 		if (aDiff.Alignment.Content != diff_content_state::text) {
 			result.Reason = semantic_lookup_reason::non_text;
 			return result;
@@ -312,26 +518,39 @@ namespace bpr::core {
 					.Left  = segment.Left,
 					.Right = segment.Right,
 				});
-				for (const auto& move : aDiff.Alignment.Moves) {
-					if (move.SourceDeletion == segment.Id || move.DestinationInsertion == segment.Id) {
-						if (std::ranges::find(projected.Moves, move.Id) == projected.Moves.end()) {
-							projected.Moves.push_back(move.Id);
-						}
-					}
+				if (const auto move = aIndex.move_index(segment.Id); move.has_value()) {
+					projected.Moves.push_back(aDiff.Alignment.Moves[*move].Id);
 				}
 			}
+			std::ranges::sort(projected.Moves);
+			projected.Moves.erase(
+				std::ranges::unique(projected.Moves).begin(),
+				projected.Moves.end());
 			result.Changes.push_back(std::move(projected));
 		}
 		return result;
 	}
 
-	auto navigate_change(const computed_file_diff&            aDiff,
+	auto project_changes(const computed_file_diff& aDiff) -> change_projection
+	{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value()
+			? project_changes(*index)
+			: change_projection{
+				  .Comparison = aDiff.Alignment.Digest,
+				  .Reason     = semantic_lookup_reason::invalid_result,
+				  .Diagnostic = aDiff.Alignment.Diagnostic.Code,
+			  };
+	}
+
+	auto navigate_change(const diff_semantic_index&           aIndex,
 						 const std::optional<change_group_id> aCurrent,
 						 const change_navigation_direction    aDirection,
 						 const change_navigation_policy       aPolicy)
 		-> change_navigation_result
 	{
-		if (!valid_semantic_result(aDiff) || (aDirection != change_navigation_direction::previous && aDirection != change_navigation_direction::next) || (aPolicy != change_navigation_policy::stop && aPolicy != change_navigation_policy::wrap)) {
+		const auto& aDiff = aIndex.diff();
+		if (!valid_semantic_result(aIndex) || (aDirection != change_navigation_direction::previous && aDirection != change_navigation_direction::next) || (aPolicy != change_navigation_policy::stop && aPolicy != change_navigation_policy::wrap)) {
 			return { };
 		}
 		const auto& groups = aDiff.Alignment.Groups;
@@ -352,11 +571,11 @@ namespace bpr::core {
 				.Index   = static_cast<std::uint32_t>(index),
 			};
 		}
-		const auto found = std::ranges::find(groups, *aCurrent, &change_group::Id);
-		if (found == groups.end()) {
+		const auto found = aIndex.group_index(*aCurrent);
+		if (!found.has_value()) {
 			return { };
 		}
-		const auto index = static_cast<std::size_t>(std::distance(groups.begin(), found));
+		const auto index = *found;
 		if (aDirection == change_navigation_direction::next) {
 			if (index + 1U < groups.size()) {
 				return {
@@ -374,7 +593,7 @@ namespace bpr::core {
 			}
 			return {
 				.Outcome = change_navigation_outcome::at_end,
-				.Group   = found->Id,
+				.Group   = groups[index].Id,
 				.Index   = static_cast<std::uint32_t>(index),
 			};
 		}
@@ -396,15 +615,28 @@ namespace bpr::core {
 		}
 		return {
 			.Outcome = change_navigation_outcome::at_start,
-			.Group   = found->Id,
+			.Group   = groups[index].Id,
 			.Index   = 0U,
 		};
 	}
 
-	auto select_line(const computed_file_diff& aDiff, const source_line_ref aLine)
+	auto navigate_change(const computed_file_diff&            aDiff,
+						 const std::optional<change_group_id> aCurrent,
+						 const change_navigation_direction    aDirection,
+						 const change_navigation_policy       aPolicy)
+		-> change_navigation_result
+	{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value()
+			? navigate_change(*index, aCurrent, aDirection, aPolicy)
+			: change_navigation_result{ };
+	}
+
+	auto select_line(const diff_semantic_index& aIndex, const source_line_ref aLine)
 		-> std::optional<semantic_selection>
 	{
-		const auto mapping = map_line(aDiff, aLine);
+		const auto& aDiff   = aIndex.diff();
+		const auto  mapping = map_line(aIndex, aLine);
 		if (mapping.Kind == line_mapping_kind::unavailable) {
 			return std::nullopt;
 		}
@@ -417,14 +649,22 @@ namespace bpr::core {
 		};
 	}
 
-	auto preferred_group_line(const computed_file_diff& aDiff,
-							  const change_group_id     aGroup)
+	auto select_line(const computed_file_diff& aDiff, const source_line_ref aLine)
+		-> std::optional<semantic_selection>
+	{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value() ? select_line(*index, aLine) : std::nullopt;
+	}
+
+	auto preferred_group_line(const diff_semantic_index& aIndex,
+							  const change_group_id      aGroup)
 		-> std::optional<source_line_ref>
 	{
-		if (!valid_semantic_result(aDiff)) {
+		const auto& aDiff = aIndex.diff();
+		if (!valid_semantic_result(aIndex)) {
 			return std::nullopt;
 		}
-		const auto* const selectedGroup = find_group(aDiff.Alignment, aGroup);
+		const auto* const selectedGroup = find_group(aIndex, aGroup);
 		if (selectedGroup == nullptr) {
 			return std::nullopt;
 		}
@@ -443,14 +683,25 @@ namespace bpr::core {
 		};
 	}
 
-	auto select_group(const computed_file_diff& aDiff, const change_group_id aGroup)
+	auto preferred_group_line(const computed_file_diff& aDiff,
+							  const change_group_id     aGroup)
+		-> std::optional<source_line_ref>
+	{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value()
+			? preferred_group_line(*index, aGroup)
+			: std::nullopt;
+	}
+
+	auto select_group(const diff_semantic_index& aIndex, const change_group_id aGroup)
 		-> std::optional<semantic_selection>
 	{
-		const auto preferred = preferred_group_line(aDiff, aGroup);
+		const auto& aDiff     = aIndex.diff();
+		const auto  preferred = preferred_group_line(aIndex, aGroup);
 		if (!preferred.has_value()) {
 			return std::nullopt;
 		}
-		const auto mapping = map_line(aDiff, *preferred);
+		const auto mapping = map_line(aIndex, *preferred);
 		if (mapping.Kind == line_mapping_kind::unavailable || mapping.Group != aGroup || !mapping.Segment.has_value()) {
 			return std::nullopt;
 		}
@@ -463,11 +714,19 @@ namespace bpr::core {
 		};
 	}
 
-	auto reconcile_selection(const computed_file_diff&                aReplacement,
+	auto select_group(const computed_file_diff& aDiff, const change_group_id aGroup)
+		-> std::optional<semantic_selection>
+	{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value() ? select_group(*index, aGroup) : std::nullopt;
+	}
+
+	auto reconcile_selection(const diff_semantic_index&               aReplacement,
 							 const std::optional<semantic_selection>& aCurrent)
 		-> selection_reconciliation_result
 	{
-		if (!aCurrent.has_value() || !valid_semantic_result(aReplacement) || aCurrent->Comparison != aReplacement.Alignment.Digest || aCurrent->PreferredLine.Comparison != aReplacement.Alignment.Digest) {
+		const auto& diff = aReplacement.diff();
+		if (!aCurrent.has_value() || !valid_semantic_result(aReplacement) || aCurrent->Comparison != diff.Alignment.Digest || aCurrent->PreferredLine.Comparison != diff.Alignment.Digest) {
 			return { };
 		}
 		if (aCurrent->Kind == semantic_selection_kind::line) {
@@ -493,18 +752,29 @@ namespace bpr::core {
 		};
 	}
 
-	auto detail_for_selection(const computed_file_diff& aDiff,
-							  const semantic_selection& aSelection)
+	auto reconcile_selection(const computed_file_diff&                aReplacement,
+							 const std::optional<semantic_selection>& aCurrent)
+		-> selection_reconciliation_result
+	{
+		const auto index = temporary_semantic_index(aReplacement);
+		return index.has_value()
+			? reconcile_selection(*index, aCurrent)
+			: selection_reconciliation_result{ };
+	}
+
+	auto detail_for_selection(const diff_semantic_index& aIndex,
+							  const semantic_selection&  aSelection)
 		-> line_detail_input
 	{
-		auto canonical = std::optional<semantic_selection>{ };
+		const auto& aDiff     = aIndex.diff();
+		auto        canonical = std::optional<semantic_selection>{ };
 		switch (aSelection.Kind) {
 		case semantic_selection_kind::line:
-			canonical = select_line(aDiff, aSelection.PreferredLine);
+			canonical = select_line(aIndex, aSelection.PreferredLine);
 			break;
 		case semantic_selection_kind::group:
 			if (aSelection.Group.has_value()) {
-				canonical = select_group(aDiff, *aSelection.Group);
+				canonical = select_group(aIndex, *aSelection.Group);
 			}
 			break;
 		}
@@ -515,6 +785,20 @@ namespace bpr::core {
 				.Diagnostic = aDiff.Alignment.Diagnostic.Code,
 			};
 		}
-		return detail_for_line(aDiff, aSelection.PreferredLine);
+		return detail_for_line(aIndex, aSelection.PreferredLine);
+	}
+
+	auto detail_for_selection(const computed_file_diff& aDiff,
+							  const semantic_selection& aSelection)
+		-> line_detail_input
+	{
+		const auto index = temporary_semantic_index(aDiff);
+		return index.has_value()
+			? detail_for_selection(*index, aSelection)
+			: line_detail_input{
+				  .Selected   = aSelection.PreferredLine,
+				  .Reason     = semantic_lookup_reason::invalid_result,
+				  .Diagnostic = aDiff.Alignment.Diagnostic.Code,
+			  };
 	}
 } // namespace bpr::core

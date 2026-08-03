@@ -70,20 +70,28 @@ before publishing. Retained-result validation also proves normalized equality
 for every equal segment, accepted exact pair, and exact move relation, so a
 stale or mutated document cannot preserve a false exact correspondence.
 
-The live `diff_semantics` core boundary derives exact-line, similar-line,
-opposing-span, opposing-boundary, and unavailable mapping results from that
-validated result. It projects the canonical group vector without regrouping,
-navigates directly over that vector, retains segment/group identity in line
-and group selections, and builds lower-detail inputs by re-resolving the
-canonical mapping. Separate exact move correspondence may annotate a selected
-line, but never replaces its monotonic primary boundary mapping.
+The live `diff_semantics` core boundary validates an immutable result once and
+builds retained segment, group, pair, move, and intraline indexes for repeated
+queries. It derives exact-line, similar-line, opposing-span, opposing-boundary,
+and unavailable mapping results from that bound result, projects the canonical
+group vector without regrouping, navigates directly over that vector, retains
+segment/group identity in line and group selections, and builds lower-detail
+inputs by re-resolving the canonical mapping. The overloads that accept an
+unindexed result retain the fail-closed public boundary by validating and
+building an index before answering. Separate exact move correspondence may
+annotate a selected line, but never replaces its monotonic primary boundary
+mapping.
 
-BPR-0073 move detection is deliberately conservative: only an unambiguous
-exact whole one-sided segment receives relation metadata. BPR-0080 retains the
-bounded/indexed many-segment implementation and moved sub-block decomposition
-evidence before RFC closeout. Until then, ambiguous or embedded move
-candidates remain ordinary deletion plus insertion without overclaiming a
-relation.
+Exact move discovery indexes normalized lines from one-sided segments, accepts
+only anchors unique on both sides, extends each accepted anchor to its maximal
+unclaimed exact run, and splits only the affected one-sided segments. Repeated
+ambiguous content remains ordinary deletion plus insertion. The primary path
+therefore remains monotonic even when optional sub-block relation metadata is
+present. Discovery charges an explicit structural work budget for bounded
+index probes, sorting, comparisons, fills, and refinement; exhaustion discards
+all optional move metadata, while the independent segment ceiling is reported
+separately. The counter is a deterministic upper-bound accounting unit, not a
+CPU-instruction or wall-clock measurement.
 
 A live `change_group` stores one half-open index interval into the immutable
 ordered segment vector instead of allocating a second member-ID vector. The
@@ -404,20 +412,31 @@ Do not reset unrelated drawers, file models, or conversations for a scroll event
 The live `diff_workbench` accepts a publication only for its exact current
 loading context. Failure, invalidation, revision/file/options replacement, and
 clear remove all measured geometry and close or replace that context before a
-late publication can be considered. Compact line/group/navigation selection
-is reduced by `diff_interaction` in the functional core; Qt only renders the
-accepted stable IDs and remeasures pixel geometry.
+late publication can be considered. It retains one semantic index beside the
+accepted immutable result and routes selection, navigation, mapping, and
+detail through that index. Compact line/group/navigation selection is reduced
+by `diff_interaction` in the functional core; Qt only renders the accepted
+stable IDs and remeasures pixel geometry after explicit layout invalidation.
+Ordinary frames reuse the cached axis extents and do not walk either pane's
+text blocks.
 
 ## 10. Complexity targets
 
-Let `S` be semantic segment count and `V` visible changed segment count.
+Let `B` be retained source bytes, `R` the total retained semantic record count
+(segments, groups, pairs, moves, and intraline records), `S` the semantic
+segment count, and `V` the visible or near-visible changed segment count.
 
-- Build semantic indexes: `O(S)` after diff computation.
+- Validate and build semantic indexes: `O(B + R log R)` once per accepted
+  immutable publication; retained query lookup is logarithmic in its indexed
+  record set.
 - Build measured axis: `O(S)` when layout metrics change.
 - Project one comparison position: `O(log S)` segment lookup plus constant interpolation.
 - Select visible ribbons: `O(log S + V)` using ordered indexes.
 - Paint: `O(V)` paths.
-- Wheel event semantic work: no diff or group recomputation.
+- Selection/navigation: indexed segment, pair, group, and move resolution plus
+  only the affected group/pair records.
+- Wheel event semantic work: no diff, semantic-index, group, pane-measurement,
+  or unchanged-axis recomputation.
 
 The implementation may optimize further, but it cannot regress routine wheel/paint work to an unconditional full-file scan.
 

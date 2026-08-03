@@ -1,11 +1,14 @@
 #include "bpr/core/diff_compute.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <span>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -23,6 +26,16 @@ namespace bpr::core {
 			std::vector<std::uint32_t> Values;
 
 			auto operator<=>(const normalized_line&) const = default;
+		};
+
+		struct normalized_line_pointer_less
+		{
+			[[nodiscard]] auto operator()(
+				const normalized_line* const aLeft,
+				const normalized_line* const aRight) const noexcept -> bool
+			{
+				return *aLeft < *aRight;
+			}
 		};
 
 		struct prepared_document
@@ -44,6 +57,78 @@ namespace bpr::core {
 			std::uint32_t  Left  = 0U;
 			std::uint32_t  Right = 0U;
 			line_pair_kind Kind  = line_pair_kind::similar;
+		};
+
+		struct move_work_budget
+		{
+			std::uint64_t Limit    = 0U;
+			std::uint64_t Consumed = 0U;
+
+			[[nodiscard]] auto consume(
+				const std::uint64_t aAmount = 1U) noexcept -> bool
+			{
+				if (aAmount > Limit || Consumed > Limit - aAmount) {
+					return false;
+				}
+				Consumed += aAmount;
+				return true;
+			}
+		};
+
+		[[nodiscard]] constexpr auto indexed_probe_work(
+			const std::size_t aEntries,
+			const std::size_t aLineValues) noexcept -> std::uint64_t
+		{
+			const auto comparisons = 1U
+				+ 2U * static_cast<std::uint64_t>(std::bit_width(aEntries));
+			return comparisons * (1U + static_cast<std::uint64_t>(aLineValues));
+		}
+
+		[[nodiscard]] constexpr auto line_comparison_work(
+			const normalized_line& aLeft,
+			const normalized_line& aRight) noexcept -> std::uint64_t
+		{
+			return 1U + static_cast<std::uint64_t>(std::min(aLeft.Values.size(), aRight.Values.size()));
+		}
+
+		[[nodiscard]] constexpr auto sort_work(
+			const std::size_t aEntries) noexcept -> std::uint64_t
+		{
+			return static_cast<std::uint64_t>(aEntries)
+				* static_cast<std::uint64_t>(std::bit_width(aEntries));
+		}
+
+		struct move_line_location
+		{
+			std::size_t   Segment = 0U;
+			std::uint32_t Line    = 0U;
+		};
+
+		struct move_line_occurrences
+		{
+			std::optional<move_line_location> Left;
+			std::optional<move_line_location> Right;
+			std::uint32_t                     LeftCount  = 0U;
+			std::uint32_t                     RightCount = 0U;
+		};
+
+		struct detected_move
+		{
+			std::size_t SourceOriginal = 0U;
+			line_span   SourceLines;
+			std::size_t DestinationOriginal = 0U;
+			line_span   DestinationLines;
+			std::size_t SourceSegment      = 0U;
+			std::size_t DestinationSegment = 0U;
+		};
+
+		struct moved_refinement
+		{
+			std::vector<pending_segment>                     Segments;
+			std::vector<std::pair<std::size_t, std::size_t>> Moves;
+			std::uint64_t                                    WorkConsumed        = 0U;
+			bool                                             WorkLimitReached    = false;
+			bool                                             SegmentLimitReached = false;
 		};
 
 		struct matrix_budget
@@ -605,24 +690,278 @@ namespace bpr::core {
 			return { .Reason = aReason, .Result = std::move(result) };
 		}
 
-		[[nodiscard]] auto same_segment_text(const pending_segment&   aLeftSegment,
-											 const pending_segment&   aRightSegment,
-											 const prepared_document& aLeft,
-											 const prepared_document& aRight) -> bool
+		[[nodiscard]] auto refine_moved_subblocks(
+			const std::vector<pending_segment>& aSegments,
+			const prepared_document&            aLeft,
+			const prepared_document&            aRight,
+			const std::uint64_t                 aMaximumWork,
+			const std::uint32_t                 aMaximumSegments) -> moved_refinement
 		{
-			if (aLeftSegment.Left.extent() != aRightSegment.Right.extent()) {
-				return false;
-			}
-			for (std::uint64_t offset = 0U; offset < aLeftSegment.Left.extent();
-				 ++offset) {
-				if (aLeft.Normalized[static_cast<std::size_t>(
-						static_cast<std::uint64_t>(aLeftSegment.Left.Begin) + offset)]
-					!= aRight.Normalized[static_cast<std::size_t>(
-						static_cast<std::uint64_t>(aRightSegment.Right.Begin) + offset)]) {
-					return false;
+			auto budget = move_work_budget{ .Limit = aMaximumWork };
+			auto index  = std::map<
+				const normalized_line*,
+				move_line_occurrences,
+				normalized_line_pointer_less>{ };
+			const auto workLimited = [&] {
+				return moved_refinement{
+					.Segments         = aSegments,
+					.WorkConsumed     = budget.Consumed,
+					.WorkLimitReached = true,
+				};
+			};
+			const auto indexSide
+				= [&](const std::size_t aSegmentIndex,
+					  const line_span   aLines,
+					  const bool        aLeftSide) -> bool {
+				const auto& document = aLeftSide ? aLeft : aRight;
+				for (auto line = aLines.Begin; line < aLines.End; ++line) {
+					const auto& normalized = document.Normalized[line];
+					if (!budget.consume(
+							indexed_probe_work(index.size(), normalized.Values.size()))) {
+						return false;
+					}
+					auto& occurrences = index[&normalized];
+					auto& count       = aLeftSide ? occurrences.LeftCount
+												  : occurrences.RightCount;
+					auto& location    = aLeftSide ? occurrences.Left
+												  : occurrences.Right;
+					++count;
+					if (count == 1U) {
+						location = move_line_location{
+							.Segment = aSegmentIndex,
+							.Line    = line,
+						};
+					} else {
+						location.reset();
+					}
+				}
+				return true;
+			};
+
+			for (std::size_t segment = 0U; segment < aSegments.size(); ++segment) {
+				const auto& candidate = aSegments[segment];
+				if (
+					(candidate.Kind == alignment_kind::left_only
+					 && !indexSide(segment, candidate.Left, true))
+					|| (candidate.Kind == alignment_kind::right_only
+						&& !indexSide(segment, candidate.Right, false))) {
+					return workLimited();
 				}
 			}
-			return true;
+
+			auto anchors = std::vector<std::pair<move_line_location, move_line_location>>{ };
+			anchors.reserve(index.size());
+			for (const auto& [normalized, occurrences] : index) {
+				static_cast<void>(normalized);
+				if (!budget.consume()) {
+					return workLimited();
+				}
+				if (
+					occurrences.LeftCount == 1U && occurrences.RightCount == 1U
+					&& occurrences.Left.has_value()
+					&& occurrences.Right.has_value()) {
+					anchors.emplace_back(*occurrences.Left, *occurrences.Right);
+				}
+			}
+			if (anchors.empty()) {
+				return {
+					.Segments     = aSegments,
+					.WorkConsumed = budget.Consumed,
+				};
+			}
+			if (!budget.consume(sort_work(anchors.size()))) {
+				return workLimited();
+			}
+			std::ranges::sort(
+				anchors,
+				[](const auto& aLeftAnchor, const auto& aRightAnchor) {
+					return std::tie(
+							   aLeftAnchor.first.Line,
+							   aLeftAnchor.first.Segment,
+							   aLeftAnchor.second.Line,
+							   aLeftAnchor.second.Segment)
+						< std::tie(
+							   aRightAnchor.first.Line,
+							   aRightAnchor.first.Segment,
+							   aRightAnchor.second.Line,
+							   aRightAnchor.second.Segment);
+				});
+
+			const auto claimInitializationWork
+				= static_cast<std::uint64_t>(aLeft.Normalized.size())
+				+ static_cast<std::uint64_t>(aRight.Normalized.size());
+			if (!budget.consume(claimInitializationWork)) {
+				return workLimited();
+			}
+			auto leftClaimed  = std::vector<bool>(aLeft.Normalized.size(), false);
+			auto rightClaimed = std::vector<bool>(aRight.Normalized.size(), false);
+			auto detected     = std::vector<detected_move>{ };
+			for (const auto& [source, destination] : anchors) {
+				if (leftClaimed[source.Line] || rightClaimed[destination.Line]) {
+					continue;
+				}
+				const auto sourceLimit      = aSegments[source.Segment].Left;
+				const auto destinationLimit = aSegments[destination.Segment].Right;
+				auto       sourceBegin      = source.Line;
+				auto       destinationBegin = destination.Line;
+				while (
+					sourceBegin > sourceLimit.Begin
+					&& destinationBegin > destinationLimit.Begin
+					&& !leftClaimed[sourceBegin - 1U]
+					&& !rightClaimed[destinationBegin - 1U]) {
+					if (!budget.consume(line_comparison_work(
+							aLeft.Normalized[sourceBegin - 1U],
+							aRight.Normalized[destinationBegin - 1U]))) {
+						return workLimited();
+					}
+					if (aLeft.Normalized[sourceBegin - 1U]
+						!= aRight.Normalized[destinationBegin - 1U]) {
+						break;
+					}
+					--sourceBegin;
+					--destinationBegin;
+				}
+				auto sourceEnd      = source.Line + 1U;
+				auto destinationEnd = destination.Line + 1U;
+				while (
+					sourceEnd < sourceLimit.End
+					&& destinationEnd < destinationLimit.End
+					&& !leftClaimed[sourceEnd]
+					&& !rightClaimed[destinationEnd]) {
+					if (!budget.consume(line_comparison_work(
+							aLeft.Normalized[sourceEnd],
+							aRight.Normalized[destinationEnd]))) {
+						return workLimited();
+					}
+					if (aLeft.Normalized[sourceEnd]
+						!= aRight.Normalized[destinationEnd]) {
+						break;
+					}
+					++sourceEnd;
+					++destinationEnd;
+				}
+				const auto retainedLines = static_cast<std::uint64_t>(
+											   sourceEnd - sourceBegin)
+					+ static_cast<std::uint64_t>(
+											   destinationEnd - destinationBegin);
+				if (!budget.consume(retainedLines)) {
+					return workLimited();
+				}
+				std::fill(
+					leftClaimed.begin() + sourceBegin,
+					leftClaimed.begin() + sourceEnd,
+					true);
+				std::fill(
+					rightClaimed.begin() + destinationBegin,
+					rightClaimed.begin() + destinationEnd,
+					true);
+				detected.push_back({
+					.SourceOriginal      = source.Segment,
+					.SourceLines         = { sourceBegin, sourceEnd },
+					.DestinationOriginal = destination.Segment,
+					.DestinationLines    = { destinationBegin, destinationEnd },
+				});
+			}
+
+			struct move_piece
+			{
+				line_span   Lines;
+				std::size_t Move   = 0U;
+				bool        Source = false;
+			};
+			const auto refinementWork
+				= static_cast<std::uint64_t>(aSegments.size())
+				+ static_cast<std::uint64_t>(detected.size()) * 6U;
+			if (!budget.consume(refinementWork)) {
+				return workLimited();
+			}
+			auto pieces = std::vector<std::vector<move_piece>>(aSegments.size());
+			for (std::size_t move = 0U; move < detected.size(); ++move) {
+				pieces[detected[move].SourceOriginal].push_back({
+					.Lines  = detected[move].SourceLines,
+					.Move   = move,
+					.Source = true,
+				});
+				pieces[detected[move].DestinationOriginal].push_back({
+					.Lines = detected[move].DestinationLines,
+					.Move  = move,
+				});
+			}
+			auto refined = std::vector<pending_segment>{ };
+			refined.reserve(aSegments.size() + detected.size() * 4U);
+			for (std::size_t segment = 0U; segment < aSegments.size(); ++segment) {
+				const auto& original = aSegments[segment];
+				if (pieces[segment].empty()) {
+					refined.push_back(original);
+					continue;
+				}
+				if (!budget.consume(sort_work(pieces[segment].size()))) {
+					return workLimited();
+				}
+				std::ranges::sort(
+					pieces[segment],
+					{ },
+					[](const move_piece& aPiece) { return aPiece.Lines.Begin; });
+				const auto full   = original.Kind == alignment_kind::left_only
+					? original.Left
+					: original.Right;
+				auto       cursor = full.Begin;
+				const auto append = [&](const line_span aLines) {
+					refined.push_back({
+						.Kind  = original.Kind,
+						.Left  = original.Kind == alignment_kind::left_only
+							? aLines
+							: original.Left,
+						.Right = original.Kind == alignment_kind::right_only
+							? aLines
+							: original.Right,
+					});
+				};
+				for (const auto& piece : pieces[segment]) {
+					if (cursor < piece.Lines.Begin) {
+						append({ cursor, piece.Lines.Begin });
+					}
+					const auto refinedIndex = refined.size();
+					append(piece.Lines);
+					if (piece.Source) {
+						detected[piece.Move].SourceSegment = refinedIndex;
+					} else {
+						detected[piece.Move].DestinationSegment = refinedIndex;
+					}
+					cursor = piece.Lines.End;
+				}
+				if (cursor < full.End) {
+					append({ cursor, full.End });
+				}
+			}
+			if (refined.size() > static_cast<std::size_t>(aMaximumSegments)) {
+				return {
+					.Segments            = aSegments,
+					.WorkConsumed        = budget.Consumed,
+					.SegmentLimitReached = true,
+				};
+			}
+			if (!budget.consume(sort_work(detected.size()))) {
+				return workLimited();
+			}
+			std::ranges::sort(
+				detected,
+				{ },
+				[](const detected_move& aMove) {
+					return std::pair{ aMove.SourceSegment,
+									  aMove.DestinationSegment };
+				});
+			auto moves = std::vector<std::pair<std::size_t, std::size_t>>{ };
+			moves.reserve(detected.size());
+			for (const auto& move : detected) {
+				moves.emplace_back(move.SourceSegment, move.DestinationSegment);
+			}
+			return {
+				.Segments         = std::move(refined),
+				.Moves            = std::move(moves),
+				.WorkConsumed     = budget.Consumed,
+				.WorkLimitReached = false,
+			};
 		}
 
 		[[nodiscard]] auto intraline_ranges(const decoded_text_document& aLeft,
@@ -676,7 +1015,7 @@ namespace bpr::core {
 				diff_compute_validation_error::invalid_alignment);
 		}
 		if (aDiff.Alignment.Content != diff_content_state::text) {
-			return !aDiff.LeftDocument.has_value() && !aDiff.RightDocument.has_value() && aDiff.Intraline.empty() && aDiff.MatrixCellsConsumed == 0U
+			return !aDiff.LeftDocument.has_value() && !aDiff.RightDocument.has_value() && aDiff.Intraline.empty() && aDiff.MatrixCellsConsumed == 0U && aDiff.MoveDetectionWorkConsumed == 0U && !aDiff.MoveDetectionWorkLimitReached && !aDiff.MoveDetectionSegmentLimitReached
 				? diff_compute_validation_result{ }
 				: compute_failure(
 					  diff_compute_validation_error::records_for_non_text);
@@ -692,6 +1031,19 @@ namespace bpr::core {
 		}
 		if ((aDiff.LeftDocument.has_value() && !valid_document(*aDiff.LeftDocument)) || (aDiff.RightDocument.has_value() && !valid_document(*aDiff.RightDocument))) {
 			return compute_failure(diff_compute_validation_error::invalid_document);
+		}
+		if (
+			(aDiff.Alignment.Options.Moves == move_detection_policy::disabled
+			 && (aDiff.MoveDetectionWorkConsumed != 0U
+				 || aDiff.MoveDetectionWorkLimitReached
+				 || aDiff.MoveDetectionSegmentLimitReached))
+			|| ((aDiff.MoveDetectionWorkLimitReached
+				 || aDiff.MoveDetectionSegmentLimitReached)
+				&& !aDiff.Alignment.Moves.empty())
+			|| (aDiff.MoveDetectionWorkLimitReached
+				&& aDiff.MoveDetectionSegmentLimitReached)) {
+			return compute_failure(
+				diff_compute_validation_error::invalid_move_statistics);
 		}
 
 		for (std::size_t index = 0U; index < aDiff.Alignment.Moves.size(); ++index) {
@@ -837,6 +1189,16 @@ namespace bpr::core {
 								  diff_content_state::unavailable,
 								  diff_reason_code::compute_limit);
 		}
+		auto moved = moved_refinement{ .Segments = *pending };
+		if (aInput.Options.Moves == move_detection_policy::deterministic_exact) {
+			moved = refine_moved_subblocks(
+				*pending,
+				*left,
+				*right,
+				aInput.Limits.MaximumMoveDetectionWork,
+				aInput.Limits.MaximumSegments);
+		}
+		pending = std::move(moved.Segments);
 
 		auto alignment = file_alignment{
 			.Key            = aInput.Key,
@@ -961,57 +1323,35 @@ namespace bpr::core {
 			}
 		}
 
-		if (aInput.Options.Moves == move_detection_policy::deterministic_exact) {
-			for (std::size_t source = 0U; source < pending->size(); ++source) {
-				if ((*pending)[source].Kind != alignment_kind::left_only) {
-					continue;
-				}
-				auto destinations = std::vector<std::size_t>{ };
-				for (std::size_t destination = 0U; destination < pending->size();
-					 ++destination) {
-					if ((*pending)[destination].Kind == alignment_kind::right_only && same_segment_text((*pending)[source], (*pending)[destination], *left, *right)) {
-						destinations.push_back(destination);
-					}
-				}
-				if (destinations.size() != 1U) {
-					continue;
-				}
-				const auto destination     = destinations.front();
-				auto       matchingSources = std::size_t{ 0U };
-				for (std::size_t candidate = 0U; candidate < pending->size();
-					 ++candidate) {
-					if ((*pending)[candidate].Kind == alignment_kind::left_only && same_segment_text((*pending)[candidate], (*pending)[destination], *left, *right)) {
-						++matchingSources;
-					}
-				}
-				if (matchingSources != 1U) {
-					continue;
-				}
-				const auto ordinal = static_cast<std::uint32_t>(alignment.Moves.size());
-				alignment.Moves.push_back(move_relation{
-					.Id                   = move_identity(alignment.Digest,
-														  alignment.Segments[source].Id,
-														  alignment.Segments[destination].Id,
-														  ordinal),
-					.SourceDeletion       = alignment.Segments[source].Id,
-					.DestinationInsertion = alignment.Segments[destination].Id,
-				});
-			}
+		for (const auto& [source, destination] : moved.Moves) {
+			const auto ordinal = static_cast<std::uint32_t>(alignment.Moves.size());
+			alignment.Moves.push_back(move_relation{
+				.Id = move_identity(
+					alignment.Digest,
+					alignment.Segments[source].Id,
+					alignment.Segments[destination].Id,
+					ordinal),
+				.SourceDeletion       = alignment.Segments[source].Id,
+				.DestinationInsertion = alignment.Segments[destination].Id,
+			});
 		}
 		if (!validate_alignment(alignment).valid()) {
 			return { .Reason = diff_reason_code::invalid_alignment };
 		}
 		auto result = computed_file_diff{
-			.Alignment           = std::move(alignment),
-			.LeftDocument        = aInput.Key.LeftBlob.has_value()
+			.Alignment                        = std::move(alignment),
+			.LeftDocument                     = aInput.Key.LeftBlob.has_value()
 				? std::optional<decoded_text_document>{ std::move(
 					  left->Document) }
 				: std::nullopt,
-			.RightDocument       = aInput.Key.RightBlob.has_value()
+			.RightDocument                    = aInput.Key.RightBlob.has_value()
 				? std::optional<decoded_text_document>{ std::move(
 					  right->Document) }
 				: std::nullopt,
-			.MatrixCellsConsumed = budget.Consumed,
+			.MatrixCellsConsumed              = budget.Consumed,
+			.MoveDetectionWorkConsumed        = moved.WorkConsumed,
+			.MoveDetectionWorkLimitReached    = moved.WorkLimitReached,
+			.MoveDetectionSegmentLimitReached = moved.SegmentLimitReached,
 		};
 		auto pairIndex = std::size_t{ 0U };
 		for (const auto& ranges : pendingIntraline) {

@@ -25,6 +25,10 @@ Tests are direct evidence, not naming evidence.
 - Selected diff UI claims require a production-workbench interaction trace and
   a full-window rendered public path through the installed Git/cache actor;
   isolated painter output is insufficient.
+- Scale evidence must record factual platform, architecture, Qt, scale, input,
+  fixture-size, bounded-work, and elapsed-time context without converting one
+  machine's timing into a universal frame-rate guarantee. Run interactive Qt
+  fixtures headlessly and serially during local verification.
 - Runtime-surface tests inspect the launched process on macOS, Linux, and
   Windows; keep platform queries process-scoped and directly unit-tested.
 - Fixtures are sanitized and deterministic; never include credentials or

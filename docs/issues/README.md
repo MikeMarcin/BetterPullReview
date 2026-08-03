@@ -243,8 +243,9 @@ invalidation, same-actor installed-Git blob materialization, full-window
 rendered public path, pending-diff shutdown, and live cache-deletion
 invalidation. Its deterministic appearance contract is not target-native
 System-theme evidence, and it leaves RFC-BPR-0005's presentation-polish pass
-open. BPR-0080 supplies scale evidence,
-bounded/indexed move discovery, and moved sub-block refinement;
+open. Done BPR-0080 supplies bounded/indexed moved-sub-block discovery,
+retained immutable semantic indexes, semantic-free high-frequency geometry,
+linear visible move-overlay resolution, and instrumented three-scale evidence.
 BPR-0081 documentation/conformance, BPR-0082 simplification, and BPR-0083
 final direct verification/closeout follow. BPR-0083 depends on BPR-0054, so
 implementation can progress under the product-owner exception without an

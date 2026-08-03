@@ -396,6 +396,39 @@ namespace {
 			   "unambiguous exact whole segment has separate move metadata");
 		expect(moved.Alignment.Segments.front().Kind == alignment_kind::left_only && moved.Alignment.Segments.back().Kind == alignment_kind::right_only,
 			   "move remains deletion plus insertion in monotonic primary path");
+		expect(
+			moved.MoveDetectionWorkConsumed != 0U
+				&& !moved.MoveDetectionWorkLimitReached,
+			"move discovery reports bounded indexed work");
+
+		const auto& movedSubblock = text_result(
+			run(
+				"stay-a\nmove-1\nmove-2\ndeleted-neighbor\nstay-b1\nstay-b2\nstay-b3\n",
+				"stay-a\nstay-b1\nstay-b2\nstay-b3\nmove-1\nmove-2\ninserted-neighbor\n",
+				moves),
+			"moved sub-block computes");
+		expect(
+			movedSubblock.Alignment.Moves.size() == 1U,
+			"unique exact moved sub-block is detected beside unrelated one-sided text");
+		const auto movedSource = std::ranges::find(
+			movedSubblock.Alignment.Segments,
+			movedSubblock.Alignment.Moves.front().SourceDeletion,
+			&alignment_segment::Id);
+		const auto movedDestination = std::ranges::find(
+			movedSubblock.Alignment.Segments,
+			movedSubblock.Alignment.Moves.front().DestinationInsertion,
+			&alignment_segment::Id);
+		expect(
+			movedSource != movedSubblock.Alignment.Segments.end()
+				&& movedDestination != movedSubblock.Alignment.Segments.end()
+				&& movedSource->Kind == alignment_kind::left_only
+				&& movedSource->Left == line_span{ 1U, 3U }
+				&& movedSource->Right.empty()
+				&& movedDestination->Kind == alignment_kind::right_only
+				&& movedDestination->Right == line_span{ 4U, 6U }
+				&& movedDestination->Left.empty()
+				&& movedSubblock.Alignment.Segments.size() >= 5U,
+			"move refinement splits only the exact sub-block and retains adjacent unrelated segments");
 
 		auto       wrongMoveContent = moved;
 		const auto destinationLine  = static_cast<std::size_t>(
@@ -419,6 +452,105 @@ namespace {
 											"ambiguous move computes");
 		expect(ambiguous.Alignment.Moves.empty(),
 			   "ambiguous exact moved text creates no relation");
+
+		auto exactMoveWork = diff_compute_limits{ };
+		exactMoveWork.MaximumMoveDetectionWork
+			= movedSubblock.MoveDetectionWorkConsumed;
+		const auto& exactMoveBoundary = text_result(
+			run(
+				"stay-a\nmove-1\nmove-2\ndeleted-neighbor\nstay-b1\nstay-b2\nstay-b3\n",
+				"stay-a\nstay-b1\nstay-b2\nstay-b3\nmove-1\nmove-2\ninserted-neighbor\n",
+				moves,
+				true,
+				true,
+				exactMoveWork),
+			"exact move-work boundary computes");
+		expect(
+			exactMoveBoundary.Alignment.Moves
+					== movedSubblock.Alignment.Moves
+				&& !exactMoveBoundary.MoveDetectionWorkLimitReached,
+			"exact move-work boundary retains stable moved sub-block metadata");
+		--exactMoveWork.MaximumMoveDetectionWork;
+		const auto& limitedMove = text_result(
+			run(
+				"stay-a\nmove-1\nmove-2\ndeleted-neighbor\nstay-b1\nstay-b2\nstay-b3\n",
+				"stay-a\nstay-b1\nstay-b2\nstay-b3\nmove-1\nmove-2\ninserted-neighbor\n",
+				moves,
+				true,
+				true,
+				exactMoveWork),
+			"limited move-work boundary computes");
+		expect(
+			limitedMove.Alignment.Moves.empty()
+				&& limitedMove.MoveDetectionWorkLimitReached
+				&& limitedMove.MoveDetectionWorkConsumed
+					<= exactMoveWork.MaximumMoveDetectionWork,
+			"move-work exhaustion leaves optional metadata unrelated without failing the primary diff");
+
+		const auto primarySubblock = text_result(
+			run(
+				"stay-a\nmove-1\nmove-2\ndeleted-neighbor\nstay-b1\nstay-b2\nstay-b3\n",
+				"stay-a\nstay-b1\nstay-b2\nstay-b3\nmove-1\nmove-2\ninserted-neighbor\n",
+				disabled),
+			"unrefined move fixture computes");
+		expect(
+			primarySubblock.Alignment.Segments.size()
+				< movedSubblock.Alignment.Segments.size(),
+			"moved sub-block metadata requires bounded one-sided refinement");
+		auto segmentLimited            = diff_compute_limits{ };
+		segmentLimited.MaximumSegments = static_cast<std::uint32_t>(
+			primarySubblock.Alignment.Segments.size());
+		const auto& limitedMoveSegments = text_result(
+			run(
+				"stay-a\nmove-1\nmove-2\ndeleted-neighbor\nstay-b1\nstay-b2\nstay-b3\n",
+				"stay-a\nstay-b1\nstay-b2\nstay-b3\nmove-1\nmove-2\ninserted-neighbor\n",
+				moves,
+				true,
+				true,
+				segmentLimited),
+			"move-refinement segment boundary computes");
+		expect(
+			limitedMoveSegments.Alignment.Moves.empty()
+				&& !limitedMoveSegments.MoveDetectionWorkLimitReached
+				&& limitedMoveSegments.MoveDetectionSegmentLimitReached,
+			"optional moved sub-block refinement reports its segment ceiling separately");
+
+		auto           adversarialLeft   = std::string{ };
+		auto           adversarialRight  = std::string{ };
+		constexpr auto adversarialBlocks = 96U;
+		for (auto block = 0U; block < adversarialBlocks; ++block) {
+			adversarialLeft += "move-" + std::to_string(block) + '\n';
+			adversarialLeft += "anchor-" + std::to_string(block) + '\n';
+			adversarialRight += "anchor-" + std::to_string(block) + '\n';
+		}
+		for (auto block = adversarialBlocks; block > 0U; --block) {
+			adversarialRight += "move-" + std::to_string(block - 1U) + '\n';
+		}
+		auto adversarialLimits                     = diff_compute_limits{ };
+		adversarialLimits.MaximumMoveDetectionWork = 64U;
+		const auto& boundedAdversarial             = text_result(
+			run(
+				adversarialLeft,
+				adversarialRight,
+				moves,
+				true,
+				true,
+				adversarialLimits),
+			"adversarial many-segment move fixture computes");
+		expect(
+			boundedAdversarial.Alignment.Segments.size() > 32U
+				&& boundedAdversarial.Alignment.Moves.empty()
+				&& boundedAdversarial.MoveDetectionWorkLimitReached
+				&& boundedAdversarial.MoveDetectionWorkConsumed
+					<= adversarialLimits.MaximumMoveDetectionWork,
+			"many one-sided segments exhaust bounded move work without partial metadata");
+
+		auto contradictoryMoveStatistics                          = movedSubblock;
+		contradictoryMoveStatistics.MoveDetectionWorkLimitReached = true;
+		expect_compute_error(
+			contradictoryMoveStatistics,
+			diff_compute_validation_error::invalid_move_statistics,
+			"validator rejects move relations paired with an exhausted-work claim");
 
 		const auto stableFile   = run("a\n", "b\n", { }, true, true, { }, 77U);
 		const auto stableReplay = run("a\n", "b\n", { }, true, true, { }, 77U);

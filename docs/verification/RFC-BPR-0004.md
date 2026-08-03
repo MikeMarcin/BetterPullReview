@@ -21,8 +21,10 @@ guarded two-pane frames, and pane-local horizontal routing. Link-map painting
 comes from BPR-0078's custom-painted splitter handle. BPR-0079 now supplies
 the selected application composition, installed-Git/cache-session bridge,
 core-owned workbench interaction state, rendered public path, cache-deletion
-invalidation, and pending-diff shutdown evidence. BPR-0080 through BPR-0083
-retain the RFC scale, conformance, simplification, and final closeout work.
+invalidation, and pending-diff shutdown evidence. BPR-0080 supplies bounded
+moved-sub-block discovery, retained semantic indexes, and instrumented
+large-fixture/high-frequency Qt evidence. BPR-0081 through BPR-0083 retain the
+RFC conformance, simplification, and final closeout work.
 RFC-BPR-0003 retains
 explicit nonblocking closeout cards, so this RFC cannot become Auto-Verified
 until its dependency can close.
@@ -60,8 +62,7 @@ directly checked as an original UTF-8 boundary. The public computed-result
 validator also rejects retained-document topology/count/presence mismatches,
 orphan/exact-pair/out-of-bounds/nonmonotonic intraline mutations, and any
 retained text records on a non-text result. Moves remain monotonic
-delete-plus-insert segments with separate metadata only when the whole-segment
-match is unique.
+delete-plus-insert segments with separate metadata.
 
 The clean core-only, developer, and Darwin ASan/UBSan matrices each pass
 `core_diff_compute`, `core_diff_model`, both core dependency/boundary tests,
@@ -74,10 +75,9 @@ unambiguous/ambiguous moves, exact and exceeded limits, and generated replay.
 Windows execution remains intentionally open with the repository's existing
 target-native Windows evidence cards and does not block this slice.
 
-Whole-segment move metadata is the conservative BPR-0073 boundary. BPR-0080
-explicitly retains moved sub-block decomposition and bounded/indexed
-many-segment move work before RFC closeout; BPR-0073 does not claim those
-later scale/completeness properties.
+BPR-0073 supplied conservative whole-segment move metadata. BPR-0080 replaces
+that scan with bounded/indexed moved-sub-block discovery; this section does not
+retroactively claim those later scale/completeness properties for BPR-0073.
 
 ## BPR-0074 canonical-semantics evidence
 
@@ -105,10 +105,61 @@ one-sided and unpaired states, 4:7 anchors and tail boundaries, canonical
 group order, stop/wrap navigation, selection preservation/clearing, separate
 moves, fail-closed mutations, and a generated small-file/options corpus.
 
-BPR-0080 explicitly retains indexing and bounded high-frequency semantic
-lookup work. BPR-0074 does not claim Qt geometry, scrolling, ribbon painting,
-or composed visual agreement; those direct surfaces remain on BPR-0076 through
-BPR-0080.
+BPR-0080 supplies indexing and bounded high-frequency semantic lookup work.
+BPR-0074 itself does not claim Qt geometry, scrolling, ribbon painting, or
+composed visual agreement; those direct surfaces are proven by BPR-0076
+through BPR-0080.
+
+## BPR-0080 scale and bounded-interaction evidence
+
+The public deterministic move path now indexes normalized lines from all
+one-sided primary segments. Only anchors occurring once on each side may seed
+a move; accepted anchors extend to maximal exact unclaimed runs and split only
+their source deletion and destination insertion segments. Repeated ambiguous
+text therefore remains unrelated, while a unique two-line block beside
+unrelated deletion/insertion text receives stable separate relation metadata.
+The primary alignment remains ordered delete plus insert. A deterministic
+structural budget charges bounded map probes, sorting, equality probes, fills,
+and refinement; the exact budget succeeds, one unit below fails closed with no
+move metadata, and a separate segment ceiling reports refinement refusal
+without mislabeling it as work exhaustion. The application host rejects zero
+or product-maximum-exceeding move-work limits.
+
+`diff_semantic_index` performs one complete computed-result validation, then
+retains sorted segment/group/pair/move identities and per-pair intraline spans
+beside that immutable result. Indexed mapping, move resolution, detail,
+projection, navigation, selection, reconciliation, and interaction transitions
+return the same semantic answers as the fail-closed unindexed overloads. The
+composed workbench builds one index per accepted publication and performs no
+semantic query or index rebuild during ordinary scroll or resize.
+
+The Qt scale fixture publishes 2,000 lines per side containing 250 small
+changes (500 semantic segments), dispatches 1,000 pixel-wheel inputs before one
+event drain, issues 100 resizes before one event drain, and separately
+publishes a six-relation selected move group and a 5,000-line one-sided
+insertion. Direct counters prove the exact summed/clamped subpixel position,
+1,000 applied frames with one delivered repaint, zero semantic queries/index
+rebuilds/axis rebuilds/pane measurements during scroll, one two-pane
+measurement/rebuild with zero semantic queries after the resize storm, and
+unchanged semantic selection. The link map uses four binary range searches per
+frame, merges the already ordered left/right candidate ranges, uses retained
+visibility marks for constant-time move endpoint resolution, and grows no
+retained hot-path capacity. Peak and cumulative candidate, path-build, and
+paint counters constrain every rapid-input frame rather than only its final
+frame; the move-enabled selected fixture resolves all six visible overlays.
+
+The selected headless workbench and link-map executables passed serially at
+1.0x, 1.25x, and 2.0x under macOS Sequoia 15.7.7 arm64, Qt 6.11.1, and 14
+reported ideal threads. The factual workbench timings were respectively
+59/8/1 ms, 59/5/1 ms, and 59/22/1 ms for publish/input dispatch/event drain;
+they are observations of this machine, not frame-rate guarantees. Directly
+inspected rasters are in `build/dev/bpr-0080-evidence/`: workbench images are
+1080x700, 1350x875, and 2160x1400, and link-map images are 1240x520,
+1550x650, and 2480x1040. The selected core compute, core semantics,
+application-host, workbench, and link-map executables pass. Target-native
+Windows execution remains open and nonblocking; offscreen forced-scale output
+does not claim native System-theme integration or the RFC-BPR-0005
+presentation-polish pass.
 
 ## BPR-0075 bounded-host evidence
 

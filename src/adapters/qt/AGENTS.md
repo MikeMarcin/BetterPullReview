@@ -30,5 +30,9 @@ themes, rendering mechanics, and event translation.
 - The selected diff workbench admits results only for its exact current loading
   context. Failure, invalidation, and selection replacement clear measured
   geometry before any late publication can render.
+- Retain one semantic index per accepted immutable diff. Ordinary scroll may
+  project cached axis geometry and visible paths, but must not validate the
+  full result, scan pane text, rebuild an unchanged axis, or sort all changed
+  entries.
 - Treat offscreen forced-style renders as deterministic layout evidence only;
   they do not verify system appearance integration.

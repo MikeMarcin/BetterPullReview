@@ -396,7 +396,9 @@ ribbon widget, forced palette, QSS, or permanent crossing move path is part of
 the design.
 
 The live core `diff_semantics` boundary consumes only a validated
-`computed_file_diff`. Exact/similar line correspondence, opposing spans and
+`computed_file_diff`. A retained `diff_semantic_index` binds sorted stable-ID,
+line, move, and intraline lookup records to that immutable value after one
+full validation. Exact/similar line correspondence, opposing spans and
 boundaries, canonical group projection/order, previous/next stop-or-wrap
 navigation, semantic selection, detail input, and optional move annotation all
 resolve from the same alignment IDs. Navigation does not accept a mutable
@@ -408,8 +410,11 @@ scrollbar values, active/follower chase heuristics, synthetic alignment rows,
 separate mappings for ribbons/detail/navigation/scroll, full semantic
 recomputation during wheel/resize/paint, and permanent crossing move ribbons.
 High-frequency input rebuilds neither semantic diff nor unchanged measured
-geometry; visible ribbon selection scales with visible or near-visible changed
-segments.
+geometry and does not rescan pane text. The center map binary-searches its two
+ordered changed-entry ranges and merges them without a per-frame sort, so
+visible ribbon selection and painting scale with visible or near-visible
+changed segments. Capacity-growth and visited-record counters make that hot
+path directly falsifiable in the composed Qt fixture.
 
 ## RFC-BPR-0003 dedicated epoch vertical slice
 

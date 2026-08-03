@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -406,6 +407,17 @@ namespace {
 		const auto validSelection = select_line(text, line(text, diff_side::left, 0U));
 		expect(reconcile_selection(mutated, validSelection).Outcome == selection_reconciliation_outcome::cleared,
 			   "invalid replacement clears prior selection");
+		auto invalidTransitionState = diff_interaction_state{
+			.Selection = validSelection,
+		};
+		expect(
+			transition(
+				invalidTransitionState,
+				mutated,
+				select_diff_line_intent{
+					.Line = line(text, diff_side::left, 0U) })
+				&& !invalidTransitionState.Selection.has_value(),
+			"invalid unindexed transition clears stale retained selection");
 	}
 
 	auto test_move_relation_stays_secondary() -> void
@@ -416,6 +428,9 @@ namespace {
 							  "stay one\nstay two\nstay three\nmove one\nmove two\n",
 							  options);
 		expect(diff.Alignment.Moves.size() == 1U, "move fixture has one relation");
+		const auto index = build_diff_semantic_index(
+			std::make_shared<const computed_file_diff>(diff));
+		expect(index.has_value(), "move fixture builds one semantic index");
 		for (auto offset = std::uint32_t{ 0U }; offset < 2U; ++offset) {
 			const auto deletionLine     = line(diff, diff_side::left, offset);
 			const auto insertionLine    = line(diff, diff_side::right, offset + 3U);
@@ -426,10 +441,19 @@ namespace {
 			expect(
 				deletionPrimary.Kind == line_mapping_kind::opposing_boundary && insertionPrimary.Kind == line_mapping_kind::opposing_boundary && deletionMove.has_value() && insertionMove.has_value() && deletionMove->Counterpart == insertionLine && insertionMove->Counterpart == deletionLine && deletionMove->Relation == insertionMove->Relation && detail_for_line(diff, deletionLine).Move == deletionMove->Relation,
 				"move is reversible metadata and never replaces primary boundary");
+			expect(
+				map_line(*index, deletionLine) == deletionPrimary
+					&& move_for_line(*index, deletionLine) == deletionMove
+					&& detail_for_line(*index, deletionLine)
+						== detail_for_line(diff, deletionLine),
+				"indexed mapping, move, and detail exactly match the fail-closed wrappers");
 		}
 		const auto projection = project_changes(diff);
 		expect(projection.Changes.size() == 2U && projection.Changes[0].Moves.size() == 1U && projection.Changes[1].Moves.size() == 1U && projection.Changes[0].Moves.front() == projection.Changes[1].Moves.front(),
 			   "both canonical change projections retain the same move marker");
+		expect(
+			project_changes(*index) == projection,
+			"indexed move projection exactly matches the fail-closed wrapper");
 	}
 
 	auto test_compact_interaction_transition() -> void
@@ -494,6 +518,118 @@ namespace {
 			reconcile_diff_interaction(state, replacement)
 				&& !state.Selection.has_value(),
 			"replacement comparison clears a selection whose stable identity is absent");
+	}
+
+	auto test_indexed_semantics_at_scale() -> void
+	{
+		auto left  = std::string{ };
+		auto right = std::string{ };
+		for (auto lineNumber = 0U; lineNumber < 1'024U; ++lineNumber) {
+			const auto suffix = std::to_string(lineNumber) + '\n';
+			if (lineNumber % 4U == 0U) {
+				left += "old-" + suffix;
+				right += "new-" + suffix;
+			} else {
+				left += "same-" + suffix;
+				right += "same-" + suffix;
+			}
+		}
+		const auto diff         = run(left, right);
+		auto       retainedDiff = std::make_shared<const computed_file_diff>(diff);
+		const auto index        = build_diff_semantic_index(retainedDiff);
+		expect(index.has_value(), "valid large result builds one semantic index");
+		retainedDiff.reset();
+		expect(
+			index->diff() == diff,
+			"semantic index retains immutable result ownership for its full lifetime");
+		const auto stats = index->statistics();
+		expect(
+			stats.Segments == diff.Alignment.Segments.size()
+				&& stats.Groups == diff.Alignment.Groups.size()
+				&& stats.IndexEntries
+					>= stats.Segments + stats.Groups + stats.Pairs,
+			"semantic index reports its exact retained structural work");
+		for (auto lineNumber = 0U; lineNumber < 1'024U; ++lineNumber) {
+			const auto source = line(diff, diff_side::left, lineNumber);
+			expect(
+				map_line(*index, source).Kind != line_mapping_kind::unavailable,
+				"indexed large-file lookup resolves every source line");
+		}
+		const auto firstLine = line(diff, diff_side::left, 0U);
+		expect(
+			map_line(*index, firstLine) == map_line(diff, firstLine),
+			"indexed and fail-closed public mapping agree exactly");
+		const auto projection = project_changes(*index);
+		expect(
+			projection.available()
+				&& projection.Changes.size() == diff.Alignment.Groups.size()
+				&& projection == project_changes(diff),
+			"indexed change projection visits only canonical affected records");
+		const auto indexedSelection = select_line(*index, firstLine);
+		expect(
+			indexedSelection == select_line(diff, firstLine)
+				&& indexedSelection.has_value()
+				&& detail_for_selection(*index, *indexedSelection)
+					== detail_for_selection(diff, *indexedSelection),
+			"indexed selection and detail exactly match the fail-closed wrappers");
+		const auto firstGroup = diff.Alignment.Groups.front().Id;
+		expect(
+			preferred_group_line(*index, firstGroup)
+					== preferred_group_line(diff, firstGroup)
+				&& select_group(*index, firstGroup)
+					== select_group(diff, firstGroup),
+			"indexed group preference and selection exactly match the fail-closed wrappers");
+		auto navigation = navigate_change(
+			*index,
+			std::nullopt,
+			change_navigation_direction::next,
+			change_navigation_policy::stop);
+		auto visited = std::size_t{ 0U };
+		while (navigation.Outcome == change_navigation_outcome::selected) {
+			++visited;
+			navigation = navigate_change(
+				*index,
+				navigation.Group,
+				change_navigation_direction::next,
+				change_navigation_policy::stop);
+		}
+		expect(
+			visited == diff.Alignment.Groups.size()
+				&& navigation.Outcome == change_navigation_outcome::at_end,
+			"indexed group navigation reaches every change without full-result scans");
+		expect(
+			navigate_change(
+				*index,
+				firstGroup,
+				change_navigation_direction::next,
+				change_navigation_policy::stop)
+				== navigate_change(
+					diff,
+					firstGroup,
+					change_navigation_direction::next,
+					change_navigation_policy::stop),
+			"indexed navigation exactly matches the fail-closed wrapper");
+		auto       indexedState = diff_interaction_state{ };
+		auto       wrapperState = diff_interaction_state{ };
+		const auto intent       = diff_interaction_intent{
+			select_diff_group_intent{ .Group = firstGroup }
+		};
+		expect(
+			transition(indexedState, *index, intent)
+					== transition(wrapperState, diff, intent)
+				&& indexedState == wrapperState
+				&& reconcile_diff_interaction(indexedState, *index)
+					== reconcile_diff_interaction(wrapperState, diff)
+				&& indexedState == wrapperState,
+			"indexed interaction transitions and reconciliation match the fail-closed wrappers");
+
+		auto invalid = diff;
+		++invalid.Alignment.Segments.front().Left.End;
+		expect(
+			!build_diff_semantic_index(
+				 std::make_shared<const computed_file_diff>(invalid))
+				 .has_value(),
+			"semantic index creation preserves the full fail-closed public boundary");
 	}
 
 	auto verify_generated_mapping(const computed_file_diff& aDiff) -> void
@@ -578,6 +714,7 @@ int main()
 	test_unavailable_and_fail_closed();
 	test_move_relation_stays_secondary();
 	test_compact_interaction_transition();
+	test_indexed_semantics_at_scale();
 	test_generated_properties();
 	std::cout << "BPR-0074 diff semantic projection tests passed\n";
 	return EXIT_SUCCESS;

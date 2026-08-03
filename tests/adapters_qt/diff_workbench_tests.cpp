@@ -3,6 +3,7 @@
 
 #include <QAccessible>
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QFont>
 #include <QImage>
 #include <QKeyEvent>
@@ -12,8 +13,10 @@
 #include <QScrollBar>
 #include <QSplitter>
 #include <QString>
+#include <QSysInfo>
 #include <QTextBlock>
 #include <QTextCursor>
+#include <QThread>
 #include <QToolButton>
 #include <QWheelEvent>
 
@@ -180,6 +183,69 @@ namespace {
 			const auto common = "tail-" + std::to_string(line) + "\n";
 			left += common;
 			right += common;
+		}
+		return { std::move(left), std::move(right) };
+	}
+
+	[[nodiscard]] auto large_comparison_text(
+		const std::size_t aLines,
+		const std::size_t aChangeInterval)
+		-> std::pair<std::string, std::string>
+	{
+		auto left  = std::string{ };
+		auto right = std::string{ };
+		left.reserve(aLines * 24U);
+		right.reserve(aLines * 24U);
+		for (std::size_t line = 0U; line < aLines; ++line) {
+			const auto suffix = std::to_string(line) + '\n';
+			if (line % aChangeInterval == 0U) {
+				left += "earlier-change-" + suffix;
+				right += "later-change-" + suffix;
+			} else {
+				left += "stable-context-" + suffix;
+				right += "stable-context-" + suffix;
+			}
+		}
+		return { std::move(left), std::move(right) };
+	}
+
+	[[nodiscard]] auto large_insertion_text()
+		-> std::pair<std::string, std::string>
+	{
+		auto left  = std::string{ };
+		auto right = std::string{ };
+		for (std::size_t line = 0U; line < 32U; ++line) {
+			const auto common = "leading-context-" + std::to_string(line) + '\n';
+			left += common;
+			right += common;
+		}
+		for (std::size_t line = 0U; line < 5'000U; ++line) {
+			right += "large-insertion-" + std::to_string(line) + '\n';
+		}
+		for (std::size_t line = 0U; line < 32U; ++line) {
+			const auto common = "trailing-context-" + std::to_string(line) + '\n';
+			left += common;
+			right += common;
+		}
+		return { std::move(left), std::move(right) };
+	}
+
+	[[nodiscard]] auto dense_move_text()
+		-> std::pair<std::string, std::string>
+	{
+		auto           left  = std::string{ };
+		auto           right = std::string{ };
+		constexpr auto moves = 6U;
+		for (auto line = 0U; line < moves; ++line) {
+			left += "moved-scale-" + std::to_string(line) + '\n';
+		}
+		for (auto line = 0U; line < 4U; ++line) {
+			const auto stable = "move-stable-" + std::to_string(line) + '\n';
+			left += stable;
+			right += stable;
+		}
+		for (auto line = moves; line > 0U; --line) {
+			right += "moved-scale-" + std::to_string(line - 1U) + '\n';
 		}
 		return { std::move(left), std::move(right) };
 	}
@@ -820,6 +886,193 @@ namespace {
 				   "selected workbench raster saves");
 		}
 	}
+
+	void test_scale_and_high_frequency_evidence()
+	{
+		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
+		const auto diff                  = computed(leftText, rightText, { }, 40U);
+		expect(
+			diff.Alignment.Groups.size() >= 200U,
+			"dense fixture retains many separated semantic changes");
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		const auto selectedContext = context(diff, 80U, 80U);
+		workbench.set_loading(selectedContext);
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		workbench.publish({
+			.Context = selectedContext,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+		const auto publicationMilliseconds = timer.elapsed();
+		const auto publicationStats        = workbench.statistics();
+		expect(
+			publicationStats.SemanticIndexBuilds == 1U
+				&& publicationStats.SemanticIndexEntries
+					>= diff.Alignment.Segments.size()
+				&& publicationStats.GeometryRebuilds == 1U
+				&& publicationStats.PaneMeasurements == 2U,
+			"large publication validates/indexes semantics once and measures both panes once");
+
+		auto* const controller = workbench.scroll_controller();
+		auto* const linkMap    = workbench.link_map();
+		const auto  start      = controller->maximum_position() * 0.25;
+		controller->set_position(start);
+		process_events();
+		const auto unitStart = controller->position();
+		expect(
+			send_wheel(*workbench.left_pane()->viewport(), QPoint{ 0, -1 }),
+			"scale probe establishes one accepted pixel-wheel unit");
+		const auto unit = controller->position() - unitStart;
+		expect(!close(unit, 0.0), "one pixel input retains nonzero subpixel motion");
+		controller->set_position(start);
+		process_events();
+
+		const auto workbenchBefore  = workbench.statistics();
+		const auto controllerBefore = controller->statistics();
+		const auto linkBefore       = linkMap->statistics();
+		timer.restart();
+		constexpr auto inputCount = 1'000U;
+		for (auto input = 0U; input < inputCount; ++input) {
+			expect(
+				send_wheel(*workbench.left_pane()->viewport(), QPoint{ 0, -1 }),
+				"rapid pixel input remains routed through the shared controller");
+		}
+		const auto inputDispatchMilliseconds = timer.elapsed();
+		const auto expectedPosition          = std::clamp(
+			start + unit * static_cast<qreal>(inputCount),
+			0.0,
+			controller->maximum_position());
+		expect(
+			close(controller->position(), expectedPosition, 0.000'01),
+			"rapid input retains the exact summed and clamped subpixel position");
+		const auto beforeDrain = controller->statistics();
+		timer.restart();
+		process_events();
+		const auto eventDrainMilliseconds = timer.elapsed();
+		const auto workbenchAfter         = workbench.statistics();
+		const auto controllerAfter        = controller->statistics();
+		const auto linkAfter              = linkMap->statistics();
+		const auto visibilityQueries      = linkAfter.VisibilityQueries
+			- linkBefore.VisibilityQueries;
+		const auto paintEvents = linkAfter.PaintEvents - linkBefore.PaintEvents;
+		expect(
+			workbenchAfter.SemanticIndexBuilds
+					== workbenchBefore.SemanticIndexBuilds
+				&& workbenchAfter.SemanticQueries
+					== workbenchBefore.SemanticQueries
+				&& workbenchAfter.GeometryRebuilds
+					== workbenchBefore.GeometryRebuilds
+				&& workbenchAfter.PaneMeasurements
+					== workbenchBefore.PaneMeasurements,
+			"ordinary rapid scroll performs no semantic query, index rebuild, axis rebuild, or pane scan");
+		expect(
+			controllerAfter.FramesApplied - controllerBefore.FramesApplied
+					== inputCount
+				&& beforeDrain.RepaintRequestsCoalesced
+					> controllerBefore.RepaintRequestsCoalesced
+				&& controllerAfter.RepaintDeliveries
+					== controllerBefore.RepaintDeliveries + 1U,
+			"rapid frames preserve motion while repaint delivery coalesces once");
+		expect(
+			linkAfter.RangeSearches - linkBefore.RangeSearches
+					>= inputCount * 4U
+				&& linkAfter.PeakCandidateEntries
+					< linkAfter.RetainedChangedEntries
+				&& linkAfter.PeakVisiblePaths
+					<= linkAfter.PeakCandidateEntries
+				&& linkAfter.CandidateEntriesVisited
+						- linkBefore.CandidateEntriesVisited
+					<= visibilityQueries * linkAfter.PeakCandidateEntries
+				&& linkAfter.VisiblePathsBuilt - linkBefore.VisiblePathsBuilt
+					<= visibilityQueries * linkAfter.PeakVisiblePaths
+				&& linkAfter.PaintedPathsVisited
+						- linkBefore.PaintedPathsVisited
+					<= paintEvents * linkAfter.PeakVisiblePaths
+				&& linkAfter.CapacityGrowths == linkBefore.CapacityGrowths,
+			"every rapid frame and paint stays within peak near-visible work and grows no retained buffers");
+
+		const auto resizeBefore    = workbench.statistics();
+		const auto resizeSelection = workbench.selection();
+		for (auto resize = 0U; resize < 100U; ++resize) {
+			workbench.resize(
+				1'180 + static_cast<int>(resize % 7U),
+				740 + static_cast<int>(resize % 5U));
+		}
+		process_events();
+		const auto resizeAfter = workbench.statistics();
+		expect(
+			resizeAfter.GeometryRebuilds == resizeBefore.GeometryRebuilds + 1U
+				&& resizeAfter.PaneMeasurements
+					== resizeBefore.PaneMeasurements + 2U,
+			"resize storm coalesces to one two-pane axis rebuild");
+		expect(
+			resizeAfter.SemanticIndexBuilds
+					== resizeBefore.SemanticIndexBuilds
+				&& resizeAfter.SemanticQueries == resizeBefore.SemanticQueries
+				&& workbench.selection() == resizeSelection
+				&& std::isfinite(controller->position()),
+			"resize rebuild performs no semantic query and preserves selection and position");
+		expect(
+			workbench.size() == QSize{ 1'181, 744 },
+			"resize storm applies its final requested dimensions");
+
+		auto moveOptions                 = core::diff_options{ };
+		moveOptions.Moves                = core::move_detection_policy::deterministic_exact;
+		const auto [moveLeft, moveRight] = dense_move_text();
+		const auto moved                 = computed(moveLeft, moveRight, moveOptions, 42U);
+		expect(
+			moved.Alignment.Moves.size() == 6U,
+			"move-enabled scale fixture retains several selected move relations");
+		const auto movedContext = context(moved, 82U, 82U);
+		workbench.set_loading(movedContext);
+		workbench.publish({
+			.Context = movedContext,
+			.Result  = std::make_shared<const core::computed_file_diff>(moved),
+		});
+		process_events();
+		expect(
+			workbench.link_map()->statistics().LastMoveOverlays
+				== moved.Alignment.Moves.size(),
+			"move-enabled selected group resolves every visible overlay without frame sorting");
+
+		const auto [insertionLeft, insertionRight] = large_insertion_text();
+		const auto insertion                       = computed(
+			insertionLeft, insertionRight, { }, 41U);
+		const auto insertionContext = context(insertion, 81U, 81U);
+		workbench.set_loading(insertionContext);
+		workbench.publish({
+			.Context = insertionContext,
+			.Result  = std::make_shared<const core::computed_file_diff>(insertion),
+		});
+		process_events();
+		expect(
+			insertion.Alignment.RightLineCount
+					> insertion.Alignment.LeftLineCount + 4'000U
+				&& workbench.statistics().SemanticIndexBuilds == 3U
+				&& workbench.link_map()->statistics().LastVisiblePaths
+					<= workbench.link_map()->statistics().LastCandidateEntries,
+			"very large one-sided insertion remains indexed and visible-path bounded");
+
+		std::cout
+			<< "bpr0080-scale-context platform="
+			<< QSysInfo::prettyProductName().toStdString()
+			<< " arch=" << QSysInfo::currentCpuArchitecture().toStdString()
+			<< " qt=" << QT_VERSION_STR
+			<< " threads=" << QThread::idealThreadCount()
+			<< " dpr=" << workbench.devicePixelRatioF()
+			<< " lines=" << diff.Alignment.LeftLineCount << '/'
+			<< diff.Alignment.RightLineCount
+			<< " segments=" << diff.Alignment.Segments.size()
+			<< " groups=" << diff.Alignment.Groups.size()
+			<< " publish_ms=" << publicationMilliseconds
+			<< " input_dispatch_ms=" << inputDispatchMilliseconds
+			<< " event_drain_ms=" << eventDrainMilliseconds << '\n';
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -827,6 +1080,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
 	test_selected_composition();
+	test_scale_and_high_frequency_evidence();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }

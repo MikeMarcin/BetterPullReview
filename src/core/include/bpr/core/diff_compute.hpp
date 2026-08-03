@@ -69,10 +69,11 @@ namespace bpr::core {
 	/// \brief Describes the diff compute limits record.
 	struct diff_compute_limits
 	{
-		std::uint64_t MaximumBytesPerSide = 16U * 1024U * 1024U;
-		std::uint32_t MaximumLinesPerSide = 200'000U;
-		std::uint64_t MaximumMatrixCells  = 16U * 1024U * 1024U;
-		std::uint32_t MaximumSegments     = 1'000'000U;
+		std::uint64_t MaximumBytesPerSide      = 16U * 1024U * 1024U;
+		std::uint32_t MaximumLinesPerSide      = 200'000U;
+		std::uint64_t MaximumMatrixCells       = 16U * 1024U * 1024U;
+		std::uint64_t MaximumMoveDetectionWork = 1'000'000U;
+		std::uint32_t MaximumSegments          = 1'000'000U;
 
 		auto operator<=>(const diff_compute_limits&) const = default;
 	};
@@ -94,7 +95,10 @@ namespace bpr::core {
 		std::optional<decoded_text_document> LeftDocument;
 		std::optional<decoded_text_document> RightDocument;
 		std::vector<intraline_edit>          Intraline;
-		std::uint64_t                        MatrixCellsConsumed = 0U;
+		std::uint64_t                        MatrixCellsConsumed              = 0U;
+		std::uint64_t                        MoveDetectionWorkConsumed        = 0U;
+		bool                                 MoveDetectionWorkLimitReached    = false;
+		bool                                 MoveDetectionSegmentLimitReached = false;
 
 		auto operator<=>(const computed_file_diff&) const = default;
 	};
@@ -124,6 +128,7 @@ namespace bpr::core {
 		nonmonotonic_intraline,
 		invalid_exact_content,
 		invalid_move_content,
+		invalid_move_statistics,
 	};
 
 	/// \brief Describes the diff compute validation result record.
