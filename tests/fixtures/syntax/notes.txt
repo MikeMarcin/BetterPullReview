@@ -1,0 +1,4 @@
+BPR-PLAIN-BODY is ordinary text.
+
+No packaged definition claims this name, so it selects the plain-text record
+and receives no semantic spans at all.
