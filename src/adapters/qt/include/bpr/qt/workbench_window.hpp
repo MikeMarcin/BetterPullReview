@@ -26,6 +26,8 @@ class QToolBar;
 class QToolButton;
 
 namespace bpr::qt {
+	class diff_workbench;
+
 	/// \brief Carries one semantic workbench gesture out of the presentation layer.
 	using workbench_intent_dispatch = std::function<void(core::workbench_interaction_intent)>;
 
@@ -102,8 +104,9 @@ namespace bpr::qt {
 	/// centre. Collapsed and expanded arrive in the core's drawer delta and drawer
 	/// widths arrive in the host's layout delta; the window applies both and
 	/// reports an observed width back out, so neither meaning gains a second
-	/// carrier. The epoch selectors, comparison surface, and lower detail pane
-	/// remain named empty placeholders owned by later RFC-BPR-0005 cards.
+	/// carrier. The centre holds RFC-BPR-0004's comparison workbench, composed
+	/// unchanged; the epoch selectors and lower detail pane remain named empty
+	/// placeholders owned by later RFC-BPR-0005 cards.
 	class workbench_window final
 		: public QMainWindow,
 		  public application::workbench_projection_port
@@ -164,8 +167,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
 		[[nodiscard]] auto epoch_selector_placeholder() const noexcept -> QWidget*;
-		[[nodiscard]] auto comparison_surface_placeholder() const noexcept
-			-> QWidget*;
+
+		/// \brief Presents the composed RFC-BPR-0004 comparison surface.
+		///
+		/// \details RFC-BPR-0004 stays the sole owner of semantic diff, mapping,
+		/// grouping, and linked-scroll behaviour. The window owns placement only,
+		/// so the composed surface keeps its one shared vertical scrollbar, its one
+		/// link map, and its natural-layout documents. The window adds no second
+		/// mapping, no presentation-side regrouping, no follower-scroll coupling,
+		/// and no synthetic alignment rows.
+		[[nodiscard]] auto comparison_surface() const noexcept -> diff_workbench*;
 		[[nodiscard]] auto detail_pane_placeholder() const noexcept -> QWidget*;
 
 		[[nodiscard]] auto status_text() const -> QString;
@@ -222,18 +233,18 @@ namespace bpr::qt {
 		workbench_change_dispatch       ChangeDispatch;
 		workbench_drawer_width_dispatch WidthDispatch;
 
-		QToolBar*    PrimaryToolbar    = nullptr;
-		QToolBar*    DrawerToolbar     = nullptr;
-		QAction*     SeparatorAction   = nullptr;
-		QAction*     OverflowAction    = nullptr;
-		QToolButton* OverflowButton    = nullptr;
-		QMenu*       OverflowMenu      = nullptr;
-		QLabel*      StatusLabel       = nullptr;
-		QSplitter*   CentralSplitter   = nullptr;
-		QWidget*     CentreSurface     = nullptr;
-		QWidget*     EpochSelectors    = nullptr;
-		QWidget*     ComparisonSurface = nullptr;
-		QWidget*     DetailPane        = nullptr;
+		QToolBar*       PrimaryToolbar    = nullptr;
+		QToolBar*       DrawerToolbar     = nullptr;
+		QAction*        SeparatorAction   = nullptr;
+		QAction*        OverflowAction    = nullptr;
+		QToolButton*    OverflowButton    = nullptr;
+		QMenu*          OverflowMenu      = nullptr;
+		QLabel*         StatusLabel       = nullptr;
+		QSplitter*      CentralSplitter   = nullptr;
+		QWidget*        CentreSurface     = nullptr;
+		QWidget*        EpochSelectors    = nullptr;
+		diff_workbench* ComparisonSurface = nullptr;
+		QWidget*        DetailPane        = nullptr;
 
 		std::array<navigation_entry, 4>                    Navigation{ };
 		std::array<drawer_entry, 2>                        Drawers{ };

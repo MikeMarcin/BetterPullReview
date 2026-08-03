@@ -1,6 +1,9 @@
+#include "bpr/core/diff_compute.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAbstractItemModel>
+#include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
 #include <QKeySequence>
@@ -9,17 +12,25 @@
 #include <QMenu>
 #include <QModelIndex>
 #include <QPersistentModelIndex>
+#include <QPlainTextEdit>
+#include <QScrollBar>
 #include <QSplitter>
+#include <QTextBlock>
+#include <QTextDocument>
 #include <QToolBar>
 #include <QToolButton>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
+#include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -443,9 +454,10 @@ namespace {
 		expect(window.files_drawer() != nullptr
 				   && window.conversations_drawer() != nullptr
 				   && window.epoch_selector_placeholder() != nullptr
-				   && window.comparison_surface_placeholder() != nullptr
+				   && window.comparison_surface() != nullptr
 				   && window.detail_pane_placeholder() != nullptr,
-			   "the shell names every later-card surface");
+			   "the shell names its composed comparison surface and every "
+			   "later-card placeholder");
 
 		expect(window.status_text()
 				   == QStringLiteral("Open a pull request to begin reviewing."),
@@ -608,7 +620,7 @@ namespace {
 		window.publish(opened);
 		QApplication::processEvents();
 
-		auto* const centre = window.comparison_surface_placeholder();
+		auto* const centre = window.comparison_surface();
 		expect(window.files_drawer()->width() == 320
 				   && window.conversations_drawer()->width() == 260,
 			   "each drawer takes exactly the width the host published");
@@ -797,6 +809,488 @@ namespace {
 				   && conversations->rowCount() == 0,
 			   "each drawer owns its own independent contents");
 	}
+
+	[[nodiscard]] auto close(
+		const qreal aLeft,
+		const qreal aRight,
+		const qreal aTolerance = 0.001) noexcept -> bool
+	{
+		return std::abs(aLeft - aRight) <= aTolerance;
+	}
+
+	void process_events()
+	{
+		for (auto pass = 0; pass < 4; ++pass) {
+			QApplication::processEvents();
+		}
+	}
+
+	[[nodiscard]] auto message_for(
+		const std::string_view aMessage,
+		const std::string_view aStage) -> std::string
+	{
+		return std::string{ aMessage } + " (" + std::string{ aStage } + ')';
+	}
+
+	template <typename TIdentity>
+	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> TIdentity
+	{
+		auto bytes    = std::array<std::uint8_t, 32U>{ };
+		bytes.front() = aSeed;
+		bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
+		return TIdentity{ bytes };
+	}
+
+	[[nodiscard]] constexpr auto blob(const std::uint8_t aSeed)
+		-> core::git_blob_oid
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		for (std::size_t index = 0U; index < 20U; ++index) {
+			bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+		}
+		return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto comparison_key(const core::diff_options& aOptions)
+		-> core::file_comparison_key
+	{
+		const auto digest = core::options_digest(aOptions);
+		expect(digest.has_value(), "the comparison fixture options normalize");
+		const auto scope     = opaque<core::pull_request_authority_scope_id>(11U);
+		const auto authority = core::pull_request_authority{
+			.Profile         = core::host_profile_id{ 10U },
+			.ProfileRevision = core::github_profile_revision{ 20U },
+			.Host            = core::git_host_id{ 30U },
+			.HostAuthority   = opaque<core::host_authority_fingerprint>(13U),
+			.Account         = core::github_account_id{ 40U },
+			.Viewer          = core::github_viewer_actor_id{ 50U },
+			.Repository      = core::repository_id{ 101U },
+			.Cache           = opaque<core::repository_cache_scope_id>(14U),
+			.PullRequest     = core::pull_request_id{ 202U },
+			.Number          = core::pull_request_number{ 17U },
+			.Scope           = scope,
+		};
+		return {
+			.Authority   = authority,
+			.Repository  = authority.Repository,
+			.PullRequest = authority.PullRequest,
+			.LeftAnchor  = {
+				.Authority   = scope,
+				.Incarnation = opaque<core::epoch_catalog_incarnation_id>(12U),
+				.Kind        = core::comparison_anchor_kind::epoch_base,
+				.Epoch       = core::epoch_ordinal{ 1 },
+			},
+			.RightAnchor = {
+				.Authority   = scope,
+				.Incarnation = opaque<core::epoch_catalog_incarnation_id>(12U),
+				.Kind        = core::comparison_anchor_kind::epoch_head,
+				.Epoch       = core::epoch_ordinal{ 2 },
+			},
+			.LeftBlob  = blob(21U),
+			.RightBlob = blob(51U),
+			.File      = opaque<core::file_identity>(31U),
+			.Options   = *digest,
+			.Algorithm = core::supported_diff_algorithm_revision,
+		};
+	}
+
+	[[nodiscard]] auto source_bytes(const std::string_view aText)
+		-> std::vector<std::uint8_t>
+	{
+		return { aText.begin(), aText.end() };
+	}
+
+	/// \brief Computes one immutable RFC-BPR-0004 comparison fixture.
+	[[nodiscard]] auto computed_comparison(
+		const std::string_view aLeft,
+		const std::string_view aRight) -> core::computed_file_diff
+	{
+		const auto options = core::diff_options{ };
+		auto       left    = source_bytes(aLeft);
+		auto       right   = source_bytes(aRight);
+		const auto outcome = core::compute_file_diff({
+			.Key        = comparison_key(options),
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ left },
+			.RightBytes = std::span<const std::uint8_t>{ right },
+		});
+		expect(outcome.Reason == core::diff_reason_code::none
+				   && outcome.Result.has_value(),
+			   "the comparison fixture computes and publishes");
+		return *outcome.Result;
+	}
+
+	[[nodiscard]] auto request_context(const core::computed_file_diff& aDiff)
+		-> core::diff_request_context
+	{
+		return {
+			.Request            = core::request_id{ 1U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = aDiff.Alignment.Key,
+			.Generation         = core::request_generation{ 1U },
+		};
+	}
+
+	/// \brief Builds two sources whose changes are spread through the file.
+	///
+	/// \details The two sides deliberately end up different lengths and carry
+	/// empty-span insertions and deletions, so a surface that invented alignment
+	/// rows to make both documents the same height could not pass.
+	[[nodiscard]] auto comparison_fixture_text()
+		-> std::pair<std::string, std::string>
+	{
+		auto       left   = std::string{ };
+		auto       right  = std::string{ };
+		const auto common = [&left, &right](
+								const std::string_view aPrefix,
+								const std::size_t      aCount) {
+			for (std::size_t line = 0U; line < aCount; ++line) {
+				const auto text = std::string{ aPrefix } + '-'
+					+ std::to_string(line) + '\n';
+				left += text;
+				right += text;
+			}
+		};
+
+		common("leading", 12U);
+		left += "replaced-old-a\nreplaced-old-b\nreplaced-old-c\n";
+		right += "replaced-new-a\nreplaced-new-b\n";
+		common("alpha", 18U);
+		right += "inserted-a\ninserted-b\ninserted-c\ninserted-d\n";
+		common("beta", 18U);
+		left += "deleted-a\ndeleted-b\n";
+		common("gamma", 18U);
+		left += "second-old-a\nsecond-old-b\n";
+		right += "second-new-a\nsecond-new-b\nsecond-new-c\n";
+		common("delta", 18U);
+		right += "appended-a\nappended-b\nappended-c\n";
+		common("tail", 16U);
+		return { std::move(left), std::move(right) };
+	}
+
+	/// \brief Counts the source rows one composed pane document actually holds.
+	///
+	/// \details Qt leaves one trailing empty block for a document whose last
+	/// source line ends in a newline. That block is a final-newline artifact,
+	/// never a source row and never an alignment row.
+	[[nodiscard]] auto document_rows(const QPlainTextEdit& aPane) -> std::uint32_t
+	{
+		const auto* const document = aPane.document();
+		const auto        blocks   = static_cast<std::uint32_t>(document->blockCount());
+		return blocks != 0U && document->lastBlock().text().isEmpty()
+			? blocks - 1U
+			: blocks;
+	}
+
+	/// \brief Measures live line boundaries from one composed natural pane.
+	[[nodiscard]] auto measured_line_boundaries(
+		const QPlainTextEdit& aPane,
+		const std::uint32_t   aLines) -> std::vector<qreal>
+	{
+		const auto* const document   = aPane.document();
+		const auto* const layout     = document->documentLayout();
+		auto              extent     = document->documentMargin();
+		auto              boundaries = std::vector<qreal>{ };
+		boundaries.reserve(static_cast<std::size_t>(aLines) + 1U);
+		boundaries.push_back(extent);
+		auto block = document->begin();
+		for (auto line = 0U; line < aLines && block.isValid(); ++line) {
+			extent += layout->blockBoundingRect(block).height();
+			boundaries.push_back(extent);
+			block = block.next();
+		}
+		return boundaries;
+	}
+
+	[[nodiscard]] auto segment_index(
+		const core::computed_file_diff&  aDiff,
+		const core::alignment_segment_id aSegment) -> std::optional<std::size_t>
+	{
+		const auto found = std::ranges::find(
+			aDiff.Alignment.Segments, aSegment, &core::alignment_segment::Id);
+		return found == aDiff.Alignment.Segments.end()
+			? std::nullopt
+			: std::optional{ static_cast<std::size_t>(
+				  std::distance(aDiff.Alignment.Segments.begin(), found)) };
+	}
+
+	[[nodiscard]] auto canonical_group(
+		const core::computed_file_diff& aDiff,
+		const core::change_group_id     aGroup) -> bool
+	{
+		return std::ranges::any_of(
+			aDiff.Alignment.Groups,
+			[aGroup](const core::change_group& aCandidate) {
+				return aCandidate.Id == aGroup;
+			});
+	}
+
+	/// \brief Records what one composed-surface observation actually painted.
+	struct composed_observation
+	{
+		std::size_t Ribbons = 0U;
+		std::size_t Wedges  = 0U;
+		std::size_t Grouped = 0U;
+	};
+
+	/// \brief Re-checks every composed comparison rule at one interaction stage.
+	///
+	/// \details The stage name travels into each message so a failure names the
+	/// exact scroll or resize state that produced it.
+	[[nodiscard]] auto observe_composed_comparison(
+		const qt::workbench_window&     aWindow,
+		const core::computed_file_diff& aDiff,
+		const QString&                  aLeftText,
+		const QString&                  aRightText,
+		const std::string_view          aStage) -> composed_observation
+	{
+		auto* const surface = aWindow.comparison_surface();
+		auto* const left    = surface->left_pane();
+		auto* const right   = surface->right_pane();
+
+		const auto bars  = surface->comparison_splitter()
+							   ->parentWidget()
+							   ->findChildren<QScrollBar*>();
+		const auto shown = std::ranges::count_if(
+			bars, [](const QScrollBar* const aBar) {
+				return aBar->orientation() == Qt::Vertical && aBar->isVisible();
+			});
+		expect(shown == 1,
+			   message_for("the comparison region shows exactly one vertical "
+						   "scrollbar",
+						   aStage));
+		expect(surface->shared_scrollbar()->isVisible()
+				   && surface->shared_scrollbar()->isEnabled(),
+			   message_for("the one visible vertical scrollbar is the shared "
+						   "comparison scrollbar",
+						   aStage));
+		expect(left->verticalScrollBarPolicy() == Qt::ScrollBarAlwaysOff
+				   && right->verticalScrollBarPolicy() == Qt::ScrollBarAlwaysOff,
+			   message_for("neither top pane owns vertical scroll authority",
+						   aStage));
+
+		expect(left->toPlainText() == aLeftText
+				   && right->toPlainText() == aRightText,
+			   message_for("each top document is exactly its own source text",
+						   aStage));
+		expect(document_rows(*left) == aDiff.Alignment.LeftLineCount
+				   && document_rows(*right) == aDiff.Alignment.RightLineCount,
+			   message_for("neither top document contains a synthetic alignment "
+						   "row",
+						   aStage));
+
+		const auto leftBoundaries = measured_line_boundaries(
+			*left, aDiff.Alignment.LeftLineCount);
+		const auto rightBoundaries = measured_line_boundaries(
+			*right, aDiff.Alignment.RightLineCount);
+		expect(leftBoundaries.size()
+					   == static_cast<std::size_t>(aDiff.Alignment.LeftLineCount)
+						   + 1U
+				   && rightBoundaries.size()
+					   == static_cast<std::size_t>(
+							  aDiff.Alignment.RightLineCount)
+						   + 1U,
+			   message_for("each composed pane measures one boundary per source "
+						   "line",
+						   aStage));
+
+		auto observation       = composed_observation{ };
+		auto previous          = std::optional<std::size_t>{ };
+		auto previousLeft      = qreal{ 0.0 };
+		auto previousRight     = qreal{ 0.0 };
+		auto previousLeftLine  = std::uint32_t{ 0U };
+		auto previousRightLine = std::uint32_t{ 0U };
+		expect(!surface->link_map()->visible_links().empty(),
+			   message_for("the composed link map paints the visible "
+						   "correspondences",
+						   aStage));
+		for (const auto& link : surface->link_map()->visible_links()) {
+			const auto index = segment_index(aDiff, link.Identity.Segment);
+			expect(index.has_value(),
+				   message_for("every painted ribbon names a canonical "
+							   "RFC-BPR-0004 segment",
+							   aStage));
+			const auto& segment = aDiff.Alignment.Segments[*index];
+			expect(link.Kind == segment.Kind
+					   && link.Identity.Group == segment.Group,
+				   message_for("every ribbon carries its canonical segment kind "
+							   "and group rather than a presentation-side "
+							   "regrouping",
+							   aStage));
+			expect(segment.Group.has_value()
+					   && canonical_group(aDiff, *segment.Group),
+				   message_for("every painted correspondence belongs to a "
+							   "canonical change group",
+							   aStage));
+			expect(close(link.LeftBottom - link.LeftTop,
+						 leftBoundaries[segment.Left.End]
+							 - leftBoundaries[segment.Left.Begin])
+					   && close(link.RightBottom - link.RightTop,
+								rightBoundaries[segment.Right.End]
+									- rightBoundaries[segment.Right.Begin]),
+				   message_for("each ribbon spans the measured pane interval of "
+							   "its segment",
+							   aStage));
+			if (previous.has_value()) {
+				expect(*index > *previous,
+					   message_for("visible ribbons keep canonical segment "
+								   "order",
+								   aStage));
+				expect(link.LeftTop >= previousLeft
+						   && link.RightTop >= previousRight,
+					   message_for("ordinary correspondence stays monotonic and "
+								   "noncrossing",
+								   aStage));
+				expect(close(link.LeftTop - previousLeft,
+							 leftBoundaries[segment.Left.Begin]
+								 - leftBoundaries[previousLeftLine])
+						   && close(link.RightTop - previousRight,
+									rightBoundaries[segment.Right.Begin]
+										- rightBoundaries[previousRightLine]),
+					   message_for("ribbon spacing follows the measured pane "
+								   "geometry between segments",
+								   aStage));
+			}
+			previous          = index;
+			previousLeft      = link.LeftTop;
+			previousRight     = link.RightTop;
+			previousLeftLine  = segment.Left.Begin;
+			previousRightLine = segment.Right.Begin;
+			++observation.Ribbons;
+			observation.Grouped += link.Identity.Group.has_value() ? 1U : 0U;
+			observation.Wedges += segment.Left.Begin == segment.Left.End
+					|| segment.Right.Begin == segment.Right.End
+				? 1U
+				: 0U;
+		}
+		return observation;
+	}
+
+	/// \brief Publishes the fixture comparison into the composed workbench centre.
+	[[nodiscard]] auto publish_fixture(
+		qt::workbench_window&           aWindow,
+		const core::computed_file_diff& aDiff) -> qt::diff_workbench*
+	{
+		auto* const surface = aWindow.comparison_surface();
+		surface->set_loading(request_context(aDiff));
+		surface->publish({
+			.Context = request_context(aDiff),
+			.Result  = std::make_shared<const core::computed_file_diff>(aDiff),
+		});
+		process_events();
+		expect(surface->current_result() != nullptr,
+			   "the composed surface accepts its exact publication");
+		return surface;
+	}
+
+	void test_the_centre_is_the_composed_rfc_0004_comparison_surface()
+	{
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto diff                  = computed_comparison(leftText, rightText);
+		expect(diff.Alignment.Groups.size() >= 3U,
+			   "the fixture carries several canonical change groups");
+		expect(diff.Alignment.LeftLineCount != diff.Alignment.RightLineCount,
+			   "the fixture would need invented rows to make both documents the "
+			   "same height");
+
+		qt::workbench_window window;
+		window.resize(window.compact_width_threshold() + 320, 820);
+		window.show();
+		process_events();
+
+		auto* const surface = window.comparison_surface();
+		expect(surface != nullptr
+				   && surface->parentWidget()
+					   == window.findChild<QWidget*>(
+						   QStringLiteral("workbenchCentralSurface")),
+			   "the composed comparison surface is the workbench centre");
+		expect(static_cast<application::diff_projection_port*>(surface)
+				   != nullptr,
+			   "the composed centre is the workbench's diff projection port");
+		expect(surface->comparison_splitter() != nullptr
+				   && surface->comparison_splitter()->count() == 2
+				   && surface->link_map()
+					   == surface->comparison_splitter()->link_map(),
+			   "the centre holds exactly the two natural panes divided by the "
+			   "single link map");
+		expect(surface->scroll_controller() != nullptr
+				   && surface->shared_scrollbar() != nullptr,
+			   "the centre reuses one retained comparison position and its "
+			   "shared scrollbar");
+
+		static_cast<void>(publish_fixture(window, diff));
+		const auto published = observe_composed_comparison(
+			window,
+			diff,
+			QString::fromStdString(leftText),
+			QString::fromStdString(rightText),
+			"published");
+		expect(published.Ribbons > 0U
+				   && published.Grouped == published.Ribbons,
+			   "every painted correspondence carries a canonical group identity");
+
+		// The shell publishes command, drawer, and layout meaning only. A
+		// workbench projection that also moved comparison state would be the
+		// second authority RFC-BPR-0004 forbids.
+		process_events();
+		const auto before = surface->statistics();
+		window.publish(both_files_enabled());
+		window.publish_change_navigation(both_changes_enabled());
+		expect(surface->statistics() == before
+				   && surface->current_result() != nullptr,
+			   "a workbench-shell projection never re-decides composed "
+			   "comparison state");
+		window.hide();
+	}
+
+	void test_composed_ribbons_follow_the_group_model_through_scroll_and_resize()
+	{
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto diff                  = computed_comparison(leftText, rightText);
+		const auto left                  = QString::fromStdString(leftText);
+		const auto right                 = QString::fromStdString(rightText);
+
+		qt::workbench_window window;
+		window.resize(window.compact_width_threshold() + 320, 820);
+		window.show();
+		process_events();
+		auto* const surface = publish_fixture(window, diff);
+		expect(surface->scroll_controller()->maximum_position() > 0.0,
+			   "the composed comparison is taller than its viewport, so the "
+			   "shared scrollbar has travel");
+
+		auto totals = observe_composed_comparison(
+			window, diff, left, right, "published");
+
+		auto* const shared     = surface->shared_scrollbar();
+		const auto  leftBefore = surface->left_pane()->verticalScrollBar()->value();
+		const auto  rightBefore
+			= surface->right_pane()->verticalScrollBar()->value();
+		shared->setValue(shared->maximum());
+		process_events();
+		expect(surface->left_pane()->verticalScrollBar()->value() != leftBefore
+				   && surface->right_pane()->verticalScrollBar()->value()
+					   != rightBefore,
+			   "the one shared vertical scrollbar moves both natural panes");
+		const auto scrolled = observe_composed_comparison(
+			window, diff, left, right, "scrolled");
+
+		window.resize(window.width() - 200, 700);
+		process_events();
+		const auto resized = observe_composed_comparison(
+			window, diff, left, right, "resized");
+
+		totals.Ribbons += scrolled.Ribbons + resized.Ribbons;
+		totals.Wedges += scrolled.Wedges + resized.Wedges;
+		totals.Grouped += scrolled.Grouped + resized.Grouped;
+		expect(totals.Grouped == totals.Ribbons,
+			   "every ribbon agrees with the canonical group model through "
+			   "scroll and resize");
+		expect(totals.Wedges > 0U,
+			   "an empty-span correspondence renders as a wedge in the composed "
+			   "surface");
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -810,6 +1304,8 @@ auto main(int argc, char** argv) -> int
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_drawer_resize_emits_the_host_layout_path();
 	test_drawer_contents_use_incremental_model_signals();
+	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
+	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }

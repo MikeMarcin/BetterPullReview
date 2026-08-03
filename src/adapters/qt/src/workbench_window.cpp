@@ -1,11 +1,14 @@
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/qt/diff_workbench.hpp"
+
 #include <QAccessible>
 #include <QAction>
 #include <QFontMetrics>
 #include <QKeySequence>
 #include <QLabel>
 #include <QMenu>
+#include <QPlainTextEdit>
 #include <QSizePolicy>
 #include <QSplitter>
 #include <QStatusBar>
@@ -336,12 +339,12 @@ namespace bpr::qt {
 			QStringLiteral("workbenchEpochSelectorPlaceholder"),
 			QStringLiteral("Epoch selectors"),
 			QStringLiteral("Reserved for the left and right epoch selectors"));
-		ComparisonSurface = placeholder(
-			CentreSurface,
-			QStringLiteral("workbenchComparisonSurfacePlaceholder"),
-			QStringLiteral("Comparison surface"),
-			QStringLiteral("Reserved for the composed side-by-side comparison"));
-		DetailPane = placeholder(
+		// RFC-BPR-0004's workbench is composed unchanged. It keeps the single
+		// shared vertical scrollbar, the single link map, and the natural-layout
+		// documents, so the centre gains no second mapping, no regrouping, no
+		// follower-scroll coupling, and no synthetic alignment rows.
+		ComparisonSurface = new diff_workbench{ CentreSurface };
+		DetailPane        = placeholder(
 			CentreSurface,
 			QStringLiteral("workbenchDetailPanePlaceholder"),
 			QStringLiteral("Selected change detail"),
@@ -536,8 +539,7 @@ namespace bpr::qt {
 		return EpochSelectors;
 	}
 
-	auto workbench_window::comparison_surface_placeholder() const noexcept
-		-> QWidget*
+	auto workbench_window::comparison_surface() const noexcept -> diff_workbench*
 	{
 		return ComparisonSurface;
 	}
