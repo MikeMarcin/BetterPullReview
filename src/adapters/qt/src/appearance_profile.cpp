@@ -1,5 +1,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
+
 #include <QFontDatabase>
 #include <QFontMetricsF>
 #include <QLatin1Char>
@@ -261,25 +263,7 @@ namespace bpr::qt {
 			{ role::syntax_other, srgb(0xE0E0E0) },
 		} });
 
-		constexpr auto srgb_linear_threshold = 0.040'45;
-		constexpr auto srgb_linear_divisor   = 12.92;
-		constexpr auto srgb_offset           = 0.055;
-		constexpr auto srgb_scale            = 1.055;
-		constexpr auto srgb_gamma            = 2.4;
-		constexpr auto luminance_red         = 0.2126;
-		constexpr auto luminance_green       = 0.7152;
-		constexpr auto luminance_blue        = 0.0722;
-		constexpr auto contrast_offset       = 0.05;
-		constexpr auto channel_maximum       = 255.0;
-
-		[[nodiscard]] auto linear_channel(const std::uint8_t aValue) noexcept
-			-> double
-		{
-			const auto normalised = static_cast<double>(aValue) / channel_maximum;
-			return normalised <= srgb_linear_threshold
-				? normalised / srgb_linear_divisor
-				: std::pow((normalised + srgb_offset) / srgb_scale, srgb_gamma);
-		}
+		constexpr auto contrast_hundredths_per_unit = 100.0;
 
 		[[nodiscard]] auto blend_midpoint(
 			const QColor& aFirst,
@@ -435,20 +419,17 @@ namespace bpr::qt {
 		};
 	}
 
-	auto relative_luminance(const core::appearance_color aColor) noexcept -> double
-	{
-		return (luminance_red * linear_channel(aColor.Red))
-			+ (luminance_green * linear_channel(aColor.Green))
-			+ (luminance_blue * linear_channel(aColor.Blue));
-	}
-
 	auto contrast_ratio(
 		const core::appearance_color aFirst,
 		const core::appearance_color aSecond) noexcept -> double
 	{
-		const auto first  = relative_luminance(aFirst) + contrast_offset;
-		const auto second = relative_luminance(aSecond) + contrast_offset;
-		return first >= second ? first / second : second / first;
+		// The core owns the sRGB linearisation, the luminance coefficients, and
+		// the offset. Keeping a second copy here would let a corrected formula
+		// or a changed threshold leave this readability heuristic silently
+		// disagreeing with the audited contrast checks.
+		return static_cast<double>(
+				   core::contrast_ratio_hundredths(aFirst, aSecond))
+			/ contrast_hundredths_per_unit;
 	}
 
 	auto builtin_appearance_palette(

@@ -28,14 +28,6 @@ namespace bpr::qt {
 	[[nodiscard]] auto to_appearance_color(const QColor& aColor) noexcept
 		-> core::appearance_color;
 
-	/// \brief Returns the WCAG relative luminance of one appearance colour.
-	///
-	/// \details The result is in the closed range 0.0 to 1.0. Alpha takes no
-	/// part: a semantic role is composited by whatever draws it, and guessing a
-	/// backdrop here would report a contrast nothing on screen has.
-	[[nodiscard]] auto relative_luminance(core::appearance_color aColor) noexcept
-		-> double;
-
 	/// \brief Returns the WCAG contrast ratio between two appearance colours.
 	///
 	/// \returns A ratio in the closed range 1.0 to 21.0, independent of argument
