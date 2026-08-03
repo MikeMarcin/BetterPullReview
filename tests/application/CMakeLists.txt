@@ -166,6 +166,10 @@ target_link_libraries(
     PRIVATE
         BetterPullReview::Application
 )
+target_compile_definitions(
+    test_better_pull_review_application_epoch_host_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
+)
 bpr_enable_hardening(
     test_better_pull_review_application_epoch_host_tests
 )

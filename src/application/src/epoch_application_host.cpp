@@ -1,5 +1,6 @@
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
+#include "bpr/application/testing.hpp"
 
 #include <algorithm>
 #include <array>
@@ -10,6 +11,7 @@
 #include <functional>
 #include <limits>
 #include <mutex>
+#include <new>
 #include <ranges>
 #include <stdexcept>
 #include <stop_token>
@@ -17,6 +19,40 @@
 #include <utility>
 #include <variant>
 #include <vector>
+
+#if defined(BPR_APPLICATION_TESTING)
+namespace bpr::application {
+	namespace {
+		std::atomic<int> ArmedAdmissionStage{ -1 };
+
+		// Consumes a matching arming exactly once so a single armed failure
+		// cannot leak into an unrelated later admission.
+		void fail_admission_at(
+			const detail::testing::epoch_admission_allocation_stage aStage)
+		{
+			auto expected = static_cast<int>(aStage);
+			if (ArmedAdmissionStage.compare_exchange_strong(
+					expected, -1, std::memory_order_acq_rel)) {
+				throw std::bad_alloc{ };
+			}
+		}
+	} // namespace
+} // namespace bpr::application
+
+namespace bpr::application::detail::testing {
+	void fail_next_epoch_job_admission(
+		const epoch_admission_allocation_stage aStage) noexcept
+	{
+		ArmedAdmissionStage.store(
+			static_cast<int>(aStage), std::memory_order_release);
+	}
+
+	void clear_epoch_job_admission_failure() noexcept
+	{
+		ArmedAdmissionStage.store(-1, std::memory_order_release);
+	}
+} // namespace bpr::application::detail::testing
+#endif
 
 namespace bpr::application {
 	namespace {
@@ -1219,14 +1255,22 @@ namespace bpr::application {
 						>= Limits.OutstandingJobs) {
 					return std::unexpected{ core::epoch_failure::quota_exceeded };
 				}
+#if defined(BPR_APPLICATION_TESTING)
+				fail_admission_at(detail::testing::
+									  epoch_admission_allocation_stage::job_control);
+#endif
 				auto control                  = std::make_shared<job_control>();
 				control->Request              = aRequest;
 				control->EpochGeneration      = aEpochGeneration;
 				control->ComparisonGeneration = aComparisonGeneration;
 				control->OfferToken           = aOfferToken;
 				control->MandatoryCleanup     = aMandatoryCleanup;
-				control->DecisionTask         = [gate        = std::weak_ptr<completion_gate>{ CompletionGate },
-												 weakControl = std::weak_ptr<job_control>{ control }]() mutable {
+#if defined(BPR_APPLICATION_TESTING)
+				fail_admission_at(detail::testing::
+									  epoch_admission_allocation_stage::decision_task);
+#endif
+				control->DecisionTask = [gate        = std::weak_ptr<completion_gate>{ CompletionGate },
+										 weakControl = std::weak_ptr<job_control>{ control }]() mutable {
 					const auto locked  = gate.lock();
 					auto       control = weakControl.lock();
 					if (!locked || !control) {
@@ -1256,6 +1300,10 @@ namespace bpr::application {
 							completion(*host);
 						});
 				};
+#if defined(BPR_APPLICATION_TESTING)
+				fail_admission_at(
+					detail::testing::epoch_admission_allocation_stage::job_ledger);
+#endif
 				Jobs.push_back(control);
 				if (usesReservation) {
 					--ReservedTerminalAdmissions;

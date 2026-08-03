@@ -641,9 +641,24 @@ job, actor-queue, decision-completion, and ordinary-ingress counts directly, and
 no Qt or application process is involved. Only these two capacities are driven to
 overflow. The 100 prepared observations, 1,000 retained repository actors,
 1,000-operation recovery scan, and 32-attempt identity retry are compile-time
-constants enforced by an admission refusal at their single call site; nonblocking
-BPR-0086 retains the deterministic allocation-failure seam and the extra
-invalid-limit table.
+constants enforced by an admission refusal at their single call site.
+
+BPR-0086 adds the deterministic allocation-failure seam. Under `BUILD_TESTING`
+the application library compiles `BPR_APPLICATION_TESTING`, which exposes
+`bpr::application::detail::testing::fail_next_epoch_job_admission`. Arming it
+selects one of the three recoverable allocation boundaries inside job
+admission: the `job_control` allocation, the `decision_task` type-erasure
+allocation, and the `job_ledger` growth. The next admission reaching that
+boundary throws `std::bad_alloc`, and the arming is consumed exactly once, so a
+single arming cannot leak into unrelated later work. Each boundary is verified
+to leave no partial job, actor entry, or scheduled effect; to revoke the
+rejected offer's lease and leave the active authority unchanged; to report
+exactly one `unavailable` diagnostic; and to still reach shutdown quiescence.
+The public limit-validation table now also rejects zero deferred-ingress
+capacity and values above both hard maxima while admitting both maxima
+themselves. The two seam symbols are listed in the tests-disabled Release
+forbidden-byte contract, and that contract passes, so the seam cannot reach a
+production binary.
 
 The adjacent `git_process_contract`, `git_cache_contract`, and SQLite storage
 and behavior contracts provide the real physical and durable operations used

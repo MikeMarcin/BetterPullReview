@@ -41,5 +41,13 @@ if(WIN32)
     )
 endif()
 
+if(BUILD_TESTING)
+    target_compile_definitions(
+        better_pull_review_application
+        PRIVATE
+            BPR_APPLICATION_TESTING=1
+    )
+endif()
+
 bpr_enable_hardening(better_pull_review_application)
 bpr_enable_warnings(better_pull_review_application)

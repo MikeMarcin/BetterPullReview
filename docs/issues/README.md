@@ -192,8 +192,15 @@ ledger an explicit global admission bound, includes actor-serialized blob
 materialization, separately bounds ordinary reentrant ingress, and preserves
 fixed terminal priority for invalidation/shutdown. Its focused flood,
 sanitizer, and sequential component closeout matrices pass without launching
-Qt or the application. Backlog BPR-0086 retains nonblocking deterministic
-allocation-failure and extra invalid-limit hardening. Done BPR-0069 completes
+Qt or the application. Done BPR-0086 completes the nonblocking
+allocation-failure and invalid-limit hardening. A `BUILD_TESTING`-only seam
+drives each of the three recoverable admission allocation boundaries to fail
+and requires zero partial admission, lease revocation, unchanged active
+authority, exactly one `unavailable` diagnostic, and shutdown quiescence; the
+limit table now also rejects zero deferred-ingress capacity and values above
+both hard maxima. The seam's two symbols are in the tests-disabled Release
+forbidden-byte contract, which passes, and are present in the tests-enabled
+library, so the guard is proven in both directions. Done BPR-0069 completes
 the final reconciliation: every ambiguous `Partially verified` claim now states
 exactly what was executed and names target-native Windows as its only
 remainder, the bounded-resource claim no longer implies that repository-actor,

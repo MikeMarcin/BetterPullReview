@@ -1,4 +1,5 @@
 #include "bpr/application/epoch_application_host.hpp"
+#include "bpr/application/testing.hpp"
 
 #include <algorithm>
 #include <array>
@@ -2193,16 +2194,76 @@ namespace {
 
 	void epoch_host_limits_reject_invalid_capacity()
 	{
-		auto rejected = false;
-		try {
-			fixture value{ application::epoch_host_limits{
-				.OutstandingJobs = 0U,
-				.DeferredIngress = 2U,
-			} };
-		} catch (const std::invalid_argument&) {
-			rejected = true;
+		const auto rejects = [](const application::epoch_host_limits aLimits) {
+			try {
+				fixture value{ aLimits };
+			} catch (const std::invalid_argument&) {
+				return true;
+			}
+			return false;
+		};
+
+		expect(rejects({ .OutstandingJobs = 0U, .DeferredIngress = 2U }),
+			   "zero epoch job capacity is rejected at composition");
+		expect(rejects({ .OutstandingJobs = 2U, .DeferredIngress = 0U }),
+			   "zero deferred-ingress capacity is rejected at composition");
+		expect(rejects({ .OutstandingJobs = application::maximum_epoch_outstanding_jobs + 1U,
+						 .DeferredIngress = 2U }),
+			   "a job capacity above the hard maximum is rejected at "
+			   "composition");
+		expect(rejects({ .OutstandingJobs = 2U,
+						 .DeferredIngress = application::maximum_epoch_deferred_ingress + 1U }),
+			   "a deferred-ingress capacity above the hard maximum is rejected "
+			   "at composition");
+		expect(!rejects({ .OutstandingJobs = application::maximum_epoch_outstanding_jobs,
+						  .DeferredIngress = application::maximum_epoch_deferred_ingress }),
+			   "both hard maxima remain admissible at composition");
+	}
+
+	void admission_allocation_failure_rolls_back_every_boundary()
+	{
+		using application::detail::testing::epoch_admission_allocation_stage;
+		using application::detail::testing::fail_next_epoch_job_admission;
+
+		for (const auto stage : { epoch_admission_allocation_stage::job_control,
+								  epoch_admission_allocation_stage::decision_task,
+								  epoch_admission_allocation_stage::job_ledger }) {
+			fixture value;
+			fail_next_epoch_job_admission(stage);
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+
+			expect(value.Host->outstanding_jobs() == 0U
+					   && value.Host->queued_actor_work() == 0U
+					   && value.Effects.pending() == 0U,
+				   "a failed admission allocation leaves no partial job, actor "
+				   "entry, or scheduled effect");
+			expect(!value.Host->state().Authority
+					   && value.State.AuthorityRevocations
+						   == std::vector<std::uint64_t>{ 1U },
+				   "a failed admission allocation revokes the rejected offer's "
+				   "lease and leaves the active authority unchanged");
+			expect(diagnostic_count(value.State,
+									core::epoch_reason_code::unavailable)
+					   == 1U,
+				   "a failed admission allocation reports exactly one "
+				   "unavailable diagnostic");
+
+			value.Host->shutdown();
+			expect(value.Host->outstanding_jobs() == 0U,
+				   "the host still reaches quiescence after a failed admission "
+				   "allocation");
 		}
-		expect(rejected, "zero epoch job capacity is rejected at composition");
+
+		fixture value;
+		fail_next_epoch_job_admission(
+			epoch_admission_allocation_stage::job_control);
+		value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+		value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+		expect(value.Host->outstanding_jobs() != 0U
+				   || value.Effects.pending() != 0U,
+			   "one armed allocation failure is consumed exactly once and does "
+			   "not affect the next admission");
+		value.Host->shutdown();
 	}
 
 	void executor_refusal_rolls_back_offer_admission()
@@ -4811,6 +4872,7 @@ int main()
 	projection_failure_is_contained_and_decision_progress_drains();
 	reentrant_projection_ingress_is_deferred_without_recursion();
 	epoch_host_limits_reject_invalid_capacity();
+	admission_allocation_failure_rolls_back_every_boundary();
 	executor_refusal_rolls_back_offer_admission();
 	actor_quota_rejection_preserves_the_admitted_offer();
 	refresh_flood_bounds_jobs_actor_fifo_and_completions();
