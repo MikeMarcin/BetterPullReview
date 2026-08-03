@@ -203,9 +203,16 @@ has recorded provenance bound to its own commit with its attestation limits
 stated, and the complete 374-path immutable-base classification is resolved.
 Its clean serial replay passes 88/88 on `dev` and 33/33 on `core-only` with the
 format, strict tidy, dependency, runtime, pack, workflow, and diff gates green.
-Backlog BPR-0070 retains the
-fail-closed command-projection refinement that disables prune before
-confirmation for an already ineligible selected availability. BPR-0054 makes
+Done BPR-0070 completes the
+fail-closed command-projection refinement. `core::prunable` is now the single
+definition of prune eligibility, shared by the command projection and the
+catalog port, so an already pruned, cache-deleted, or never-observed selection
+is no longer offered a destructive confirmation it could only fail. Authority
+did not move: the core transition and host catalog remain the fail-closed
+decision point, and a directly injected intent still reaches them. Its focused
+serial matrix passes 7/7 including the real Git/SQLite maintenance composition
+and the selected-executable public path, and the new core case was confirmed to
+fail without the fix. BPR-0054 makes
 no closeout claim while its remaining blocking dependencies remain open.
 BPR-0056 supplies the bounded core/host history-page algebra consumed by the
 BPR-0046 Qt selector model without a reset or an unbounded core copy.

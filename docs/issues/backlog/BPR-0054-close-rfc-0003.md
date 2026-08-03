@@ -57,7 +57,9 @@ documentation review; original-pack validation; workflow absence; and
   changed-path, and ledger reconciliation and corrected the one claim that had
   overstated which host capacities are actually flood-tested.
 - BPR-0035/BPR-0036 and BPR-0053 remain open for real Windows execution and
-  canonical RFC-BPR-0002/RFC-BPR-0003 status transitions. BPR-0070 remains
-  open. Nonblocking BPR-0086 is not a dependency of this card. This card
-  remains in backlog and makes no `Auto-Verified` claim while any blocking
-  dependency remains open.
+  canonical RFC-BPR-0002/RFC-BPR-0003 status transitions. Every other blocking
+  dependency of this card is now in `done/`: BPR-0070 closed the prune
+  command-projection refinement, and BPR-0069 closed the evidence and
+  documentation reconciliation. Nonblocking BPR-0086 is not a dependency. This
+  card remains in backlog and makes no `Auto-Verified` claim while real Windows
+  x64 evidence is outstanding.

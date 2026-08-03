@@ -2166,6 +2166,99 @@ namespace {
 		}
 
 		{
+			const auto epochPair = [&](const anchor_availability aBase,
+									   const anchor_availability aHead) {
+				auto epoch               = fixture.Epoch;
+				epoch.BaseAvailability   = aBase;
+				epoch.HeadAvailability   = aHead;
+				auto state               = fixture.State;
+				state.AcceptedComparison = comparison_pair{
+					.Left  = anchor(epoch, comparison_anchor_kind::epoch_base),
+					.Right = anchor(epoch, comparison_anchor_kind::epoch_head),
+				};
+				return state;
+			};
+			const auto pruneCommand = [](const epoch_state& aState) {
+				return epoch_commands(aState)[2];
+			};
+
+			expect(pruneCommand(epochPair(anchor_availability::available,
+										  anchor_availability::available))
+						   .Enabled
+					   && pruneCommand(epochPair(anchor_availability::unavailable,
+												 anchor_availability::unavailable))
+							  .Enabled
+					   && pruneCommand(epochPair(anchor_availability::corrupt,
+												 anchor_availability::corrupt))
+							  .Enabled,
+				   "available, unavailable, and corrupt epoch anchors admit the "
+				   "prune command");
+
+			for (const auto ineligible : { anchor_availability::pruned,
+										   anchor_availability::cache_deleted,
+										   anchor_availability::never_observed }) {
+				const auto state    = epochPair(ineligible, ineligible);
+				const auto commands = epoch_commands(state);
+				expect(!commands[2].Enabled
+						   && commands[2].DisabledReason
+							   == epoch_reason_code::invalid_maintenance_target
+						   && commands[3].Enabled,
+					   "an epoch pair whose anchors cannot enter a prune "
+					   "operation disables prune while repository-cache deletion "
+					   "remains available");
+			}
+
+			expect(pruneCommand(epochPair(anchor_availability::pruned,
+										  anchor_availability::available))
+					   .Enabled,
+				   "one prunable anchor of the same epoch admits prune without "
+				   "duplicating its target");
+
+			{
+				auto epoch               = fixture.Epoch;
+				epoch.HeadAvailability   = anchor_availability::pruned;
+				auto mixed               = fixture.State;
+				mixed.AcceptedComparison = comparison_pair{
+					.Left  = review_anchor(fixture.Authority,
+										   fixture.Catalog,
+										   associated_review(1U, fixture.Epoch.Head)),
+					.Right = anchor(epoch, comparison_anchor_kind::epoch_head),
+				};
+				expect(!pruneCommand(mixed).Enabled
+						   && pruneCommand(mixed).DisabledReason
+							   == epoch_reason_code::invalid_maintenance_target,
+					   "a review anchor cannot supply prune eligibility for an "
+					   "already pruned epoch anchor");
+
+				epoch.HeadAvailability   = anchor_availability::corrupt;
+				mixed.AcceptedComparison = comparison_pair{
+					.Left  = review_anchor(fixture.Authority,
+										   fixture.Catalog,
+										   associated_review(1U, fixture.Epoch.Head)),
+					.Right = anchor(epoch, comparison_anchor_kind::epoch_head),
+				};
+				expect(pruneCommand(mixed).Enabled,
+					   "a corrupt epoch anchor beside a review anchor still "
+					   "admits prune");
+			}
+
+			{
+				auto       ineligible = epochPair(anchor_availability::pruned,
+												  anchor_availability::cache_deleted);
+				const auto dispatched = transition(ineligible,
+												   prune_review_epochs_intent{
+													   .Catalog = fixture.Catalog,
+													   .Epochs  = { fixture.Epoch.Id },
+												   });
+				expect(ineligible.PendingMaintenance.has_value()
+						   && !dispatched.Requests.empty(),
+					   "the disabled projection is a presentation pre-check, not "
+					   "a new authorization boundary: a directly injected intent "
+					   "still reaches the durable authority that fails it closed");
+			}
+		}
+
+		{
 			auto lastRequestState        = initial_state();
 			lastRequestState.NextRequest = epoch_request_id{ std::numeric_limits<std::uint64_t>::max() };
 			const auto exhausted         = make_ready_fixture(lastRequestState);

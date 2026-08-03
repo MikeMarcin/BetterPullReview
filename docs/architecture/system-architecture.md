@@ -414,6 +414,16 @@ the captured identity and revision before the existing typed maintenance path
 can act. Qt never derives a maintenance target from visible page residency or
 performs the storage operation itself.
 
+The core disables prune unless at least one anchor of the accepted pair is an
+epoch anchor whose availability can enter a prune operation. `core::prunable`
+is the single definition of that eligibility, and the catalog port's
+`valid_prune_anchor_availability` defers to it so the projection and the
+durable authority cannot drift apart. An already pruned, cache-deleted, or
+never-observed selection therefore never reaches a destructive confirmation.
+This is a presentation pre-check rather than a new authorization boundary: the
+core transition and the host catalog remain the fail-closed decision point, and
+an intent injected directly still travels to them.
+
 ## Feature allocation
 
 | Feature family | Functional core | Application host | Qt presentation adapter |

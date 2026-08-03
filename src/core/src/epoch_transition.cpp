@@ -2214,14 +2214,15 @@ namespace bpr::core {
 			if (!aState.AcceptedComparison.has_value()) {
 				pruneReason = epoch_reason_code::no_resolved_comparison;
 			} else {
-				const auto& pair          = *aState.AcceptedComparison;
-				const auto  isEpochAnchor = [](const comparison_anchor& aValue) {
-					return aValue.Identity.Kind
-						== comparison_anchor_kind::epoch_base
-						|| aValue.Identity.Kind
-						== comparison_anchor_kind::epoch_head;
+				const auto& pair            = *aState.AcceptedComparison;
+				const auto  isPrunableEpoch = [](const comparison_anchor& aValue) {
+					return (aValue.Identity.Kind
+								== comparison_anchor_kind::epoch_base
+							|| aValue.Identity.Kind
+								== comparison_anchor_kind::epoch_head)
+						&& prunable(aValue.Availability);
 				};
-				if (!isEpochAnchor(pair.Left) && !isEpochAnchor(pair.Right)) {
+				if (!isPrunableEpoch(pair.Left) && !isPrunableEpoch(pair.Right)) {
 					pruneReason = epoch_reason_code::invalid_maintenance_target;
 				}
 			}

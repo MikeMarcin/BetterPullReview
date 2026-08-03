@@ -148,7 +148,12 @@ as enabled state; color is not their only distinction.
 
 A single secondary `Local history maintenance` menu contains prune selected
 epochs, delete repository cache, and cancel maintenance. The core controls
-enablement. Destructive commands open keyboard-accessible, window-modal
+enablement, and prune stays disabled unless the accepted pair holds an epoch
+anchor that can actually enter a prune operation, so an already pruned,
+cache-deleted, or never-observed selection is never offered a destructive
+confirmation it would only fail. A disabled command carries its exact core
+reason in the tooltip and status tip rather than only losing its enabled
+state. Destructive commands open keyboard-accessible, window-modal
 warnings with Cancel as the default and Escape action; the exact stable target
 is captured before the dialog opens and revalidated after confirmation. The
 dialogs state the retained-history or repository-cache consequence and that

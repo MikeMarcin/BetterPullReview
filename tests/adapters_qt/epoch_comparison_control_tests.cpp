@@ -846,6 +846,22 @@ namespace {
 			   "core disables pruning for a review-only pair without disabling "
 			   "whole-cache administration");
 
+		expect(control.prune_action()->toolTip()
+					   == QStringLiteral("The maintenance target is invalid.")
+				   && control.prune_action()->statusTip()
+					   == control.prune_action()->toolTip(),
+			   "a disabled prune command states its exact core reason in the "
+			   "assistive-technology surfaces instead of the enabled description");
+
+		{
+			const auto dispatched = intents.size();
+			control.prune_action()->trigger();
+			expect(intents.size() == dispatched
+					   && QApplication::activeModalWidget() == nullptr,
+				   "triggering the disabled prune command opens no confirmation "
+				   "and dispatches no maintenance intent");
+		}
+
 		control.publish(comparison_update(
 			core::named_selection(core::named_comparison::whole_pr), wholePair));
 		observation = { };

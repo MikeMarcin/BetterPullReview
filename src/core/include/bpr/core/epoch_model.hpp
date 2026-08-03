@@ -329,6 +329,21 @@ namespace bpr::core {
 		never_observed,
 	};
 
+	/// \brief Checks whether the supplied availability can enter a prune
+	/// operation.
+	///
+	/// This is the single definition of prune eligibility. The command
+	/// projection uses it to avoid offering an operation that the durable
+	/// maintenance path would reject, and the catalog port defers to it so the
+	/// projection and the final authority cannot drift apart.
+	[[nodiscard]] constexpr auto prunable(
+		const anchor_availability aAvailability) noexcept -> bool
+	{
+		return aAvailability == anchor_availability::available
+			|| aAvailability == anchor_availability::unavailable
+			|| aAvailability == anchor_availability::corrupt;
+	}
+
 	enum class github_review_state : std::uint8_t {
 		pending,
 		approved,

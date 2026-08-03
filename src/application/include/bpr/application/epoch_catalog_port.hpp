@@ -1279,12 +1279,13 @@ namespace bpr::application {
 	};
 
 	/// \brief Computes the valid prune anchor availability result.
+	///
+	/// Defers to `core::prunable` so the durable maintenance authority and the
+	/// core command projection share one definition of prune eligibility.
 	[[nodiscard]] constexpr auto valid_prune_anchor_availability(
 		const core::anchor_availability aAvailability) noexcept -> bool
 	{
-		return aAvailability == core::anchor_availability::available
-			|| aAvailability == core::anchor_availability::unavailable
-			|| aAvailability == core::anchor_availability::corrupt;
+		return core::prunable(aAvailability);
 	}
 
 	/// \brief Checks whether the supplied value satisfies its contract.
