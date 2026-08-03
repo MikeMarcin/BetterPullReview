@@ -735,11 +735,21 @@ The verified source cache was preserved, so the configure resolved SQLite
   the freshly built executable, the original pack validator result `OK: 14
   RFCs, 17 normative documents, architecture v2 enforced`, tracked/on-disk
   GitHub Actions workflow counts of 0/0, and a clean `git diff --check`;
-- results this slice deliberately did not re-execute: the focused sanitizer
-  matrix, the instrumented 100,000-epoch SQLite stress binary, and the
-  tests-disabled Qt-enabled Release composition. Those passed at the earlier
-  snapshot and are named in BPR-0054's closeout list; BPR-0069 makes no fresh
-  claim about them;
+- a focused AddressSanitizer/UndefinedBehaviorSanitizer matrix passing 8/8 in
+  7.06 seconds over `core_epoch_policy`, `application_epoch_host`, and the
+  three-scale `qt_epoch_comparison` and `qt_diff_workbench` cases. The
+  sanitizer was confirmed active rather than silently dropped: the cache
+  carries `-fsanitize=address,undefined -fno-omit-frame-pointer`, the test
+  binary links `libclang_rt.asan_osx_dynamic.dylib`, and it imports 42
+  `__asan` interceptor symbols. This covers the BPR-0070 command projection,
+  the BPR-0086 admission allocation-failure seam that deliberately throws
+  through `admit_job`, and the BPR-0087 harness changes;
+- the tests-disabled Qt-enabled Release composition, which
+  `application_composition_contract` builds fresh with `BUILD_TESTING=OFF` and
+  `CMAKE_BUILD_TYPE=Release` and scans for forbidden bytes; it passes at HEAD;
+- one result this slice did not re-execute: the instrumented 100,000-epoch
+  SQLite stress binary, which exceeds its ordinary CTest timeout and is named
+  in BPR-0054's closeout list;
 - BPR-0059's owner-activated Cocoa/QMacStyle run, recorded at its own commit
   and not re-executed here. Its markers, raster hashes, host identity, and the
   exact limits of its attestation are in the probe-provenance section above;

@@ -37,11 +37,15 @@ documentation review; original-pack validation; workflow absence; and
   `BINARY_DEPENDENCIES_OK`, `RUNTIME_SURFACE_OK`, original source-pack
   validator, workflow-absence scans, and diff hygiene are green. GitHub Actions
   workflow counts remain 0/0.
-- The focused sanitizer matrix, the 100,000-epoch SQLite stress binary, and the
-  tests-disabled Qt-enabled Release composition were not re-executed by
-  BPR-0069. They passed at the earlier snapshot and remain this card's
-  responsibility to replay from clean state before closeout, which matters
-  because BPR-0084 changed how SQLite enters the build.
+- The focused sanitizer matrix has now been replayed at HEAD and passes 8/8 in
+  7.06 seconds over the core epoch policy, the epoch host, and the three-scale
+  epoch-comparison and diff-workbench cases, with the sanitizer confirmed
+  active by cache flags, a linked ASan runtime, and 42 interceptor symbols. The
+  tests-disabled Qt-enabled Release composition is built fresh and scanned by
+  `application_composition_contract`, which passes at HEAD. The instrumented
+  100,000-epoch SQLite stress binary was not re-executed and remains this
+  card's responsibility, which matters because BPR-0084 changed how SQLite
+  enters the build.
 - BPR-0059 is done. Its owner-activated Cocoa/QMacStyle run is bound to commit
   `63df236` and is not reproducible at HEAD; its invocation, source identity,
   raster hashes, restored System Dark state, and attestation limits are
