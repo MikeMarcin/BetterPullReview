@@ -1,0 +1,178 @@
+#ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_LEDGER_HPP
+#define BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_LEDGER_HPP
+
+#include "bpr/core/diff_model.hpp"
+#include "bpr/core/model.hpp"
+
+#include <compare>
+#include <cstdint>
+#include <string_view>
+
+namespace bpr::core {
+	struct review_conversation_id_tag;
+	struct review_comment_id_tag;
+
+	using review_conversation_id = strong_id<review_conversation_id_tag>;
+	using review_comment_id      = strong_id<review_comment_id_tag>;
+
+	/// \brief Counts in-place edits of one comment.
+	///
+	/// \details An edit changes no identity, so identity alone cannot tell a
+	/// reader that the text they accepted has since been rewritten. The version
+	/// is what makes that decidable.
+	using comment_edit_version = strong_id<struct comment_edit_version_tag>;
+
+	/// \brief Identifies the material a file receipt is attached to.
+	///
+	/// \details A receipt attaches to material and never to a path or an epoch.
+	/// A path is renamed and an epoch advances while the bytes stay the same;
+	/// conversely the same path under a new epoch may be entirely different
+	/// content. Only the material answers "is this the thing I already read".
+	///
+	/// This is RFC-BPR-0004's comparison digest rather than a second identity
+	/// invented here, because the compared material is exactly what the reader
+	/// inspected.
+	using file_material_id = file_comparison_digest;
+
+	/// \brief Names how far a reader has got through one file's material.
+	///
+	/// \details The three values are a progression and not a set of flags:
+	/// a file cannot be read without having been seen. Acceptance and exclusion
+	/// are deliberately *not* in this enumeration, because they are independent
+	/// facts about the same material — accepting a file says nothing about
+	/// whether its text was read, and marking it read is not approval.
+	enum class file_read_state : std::uint8_t {
+		unread,
+		seen,
+		read,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(file_read_state aState) noexcept -> std::string_view;
+
+	/// \brief Holds one reader's private progress against one file's material.
+	struct file_receipt
+	{
+		file_identity    File;
+		file_material_id Material;
+		file_read_state  Read     = file_read_state::unread;
+		bool             Accepted = false;
+		bool             Excluded = false;
+
+		auto operator<=>(const file_receipt&) const = default;
+	};
+
+	/// \brief Names one command a reader can issue against a file receipt.
+	enum class file_receipt_command_kind : std::uint8_t {
+		mark_seen,
+		mark_read,
+		mark_unread,
+		accept,
+		revoke_acceptance,
+		exclude,
+		include,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(file_receipt_command_kind aKind) noexcept
+		-> std::string_view;
+
+	/// \brief Carries one receipt command and the material it was issued against.
+	///
+	/// \details The material travels with the command so that a command formed
+	/// against material the reader was looking at cannot be applied to material
+	/// that has since replaced it. Without it a slow command would silently
+	/// mark the wrong bytes read.
+	struct file_receipt_command
+	{
+		file_identity             File;
+		file_material_id          Material;
+		file_receipt_command_kind Kind = file_receipt_command_kind::mark_seen;
+
+		auto operator<=>(const file_receipt_command&) const = default;
+	};
+
+	/// \brief Names why a receipt command was refused.
+	enum class file_receipt_rejection : std::uint8_t {
+		none,
+		unknown_file,
+		material_mismatch,
+		excluded_file_cannot_be_accepted,
+		accepted_file_cannot_be_excluded,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(file_receipt_rejection aRejection) noexcept
+		-> std::string_view;
+
+	/// \brief Reports what one receipt command did.
+	///
+	/// \details `Changed` distinguishes a command that moved the receipt from
+	/// one that was legal and had nothing to do. Re-issuing a command is not an
+	/// error and must not be reported as one, but it must also not be reported
+	/// as a change, because a change is what the host persists and publishes.
+	struct file_receipt_outcome
+	{
+		file_receipt           Receipt;
+		file_receipt_rejection Rejection = file_receipt_rejection::none;
+		bool                   Changed   = false;
+
+		auto operator<=>(const file_receipt_outcome&) const = default;
+	};
+
+	/// \brief Applies one command to one receipt.
+	///
+	/// \details This is the whole of the file-receipt policy. It reads no
+	/// storage, holds no ledger, and reaches nothing outside its arguments.
+	[[nodiscard]] auto apply(
+		const file_receipt&         aReceipt,
+		const file_receipt_command& aCommand) noexcept -> file_receipt_outcome;
+
+	/// \brief Holds one reader's private progress through one conversation.
+	///
+	/// \details Both cursors record an identity *and* an edit version, because
+	/// either can move independently: a new comment changes the identity, and
+	/// an edit to the latest comment changes only the version.
+	struct conversation_receipt
+	{
+		review_conversation_id Conversation;
+		review_comment_id      SeenComment;
+		comment_edit_version   SeenEdit;
+		review_comment_id      AcceptedComment;
+		comment_edit_version   AcceptedEdit;
+
+		auto operator<=>(const conversation_receipt&) const = default;
+	};
+
+	/// \brief Describes what the host observed about one conversation.
+	///
+	/// \details The host constructs this bounded record; the core never asks
+	/// for the conversation itself.
+	struct conversation_observation
+	{
+		review_conversation_id Conversation;
+		review_comment_id      LatestComment;
+		comment_edit_version   LatestEdit;
+
+		auto operator<=>(const conversation_observation&) const = default;
+	};
+
+	/// \brief Reports whether a conversation has unread material.
+	///
+	/// \details True when the latest comment is not the one seen, or when the
+	/// comment seen has been edited since. The second case is the one an
+	/// identity-only cursor gets wrong.
+	[[nodiscard]] auto unread(
+		const conversation_receipt&     aReceipt,
+		const conversation_observation& aObservation) noexcept -> bool;
+
+	/// \brief Reports whether a conversation's acceptance has been outrun.
+	///
+	/// \details Acceptance is a statement about specific text. New or edited
+	/// material means the reader has not accepted what is there now.
+	[[nodiscard]] auto acceptance_outdated(
+		const conversation_receipt&     aReceipt,
+		const conversation_observation& aObservation) noexcept -> bool;
+} // namespace bpr::core
+
+#endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_LEDGER_HPP

@@ -1,0 +1,146 @@
+#include "bpr/core/review_ledger.hpp"
+
+namespace bpr::core {
+	namespace {
+		/// \brief Advances a read progression without ever moving it backwards.
+		///
+		/// \details `seen` after `read` is not a regression to report; it is a
+		/// weaker statement about a file already known to be read, so it is
+		/// absorbed. Only an explicit `mark_unread` moves the progression back.
+		[[nodiscard]] constexpr auto advanced(
+			const file_read_state aCurrent,
+			const file_read_state aOffered) noexcept -> file_read_state
+		{
+			return aOffered > aCurrent ? aOffered : aCurrent;
+		}
+	} // namespace
+
+	auto name(const file_read_state aState) noexcept -> std::string_view
+	{
+		switch (aState) {
+		case file_read_state::unread:
+			return "unread";
+		case file_read_state::seen:
+			return "seen";
+		case file_read_state::read:
+			return "read";
+		}
+		return "unread";
+	}
+
+	auto name(const file_receipt_command_kind aKind) noexcept -> std::string_view
+	{
+		switch (aKind) {
+		case file_receipt_command_kind::mark_seen:
+			return "mark_seen";
+		case file_receipt_command_kind::mark_read:
+			return "mark_read";
+		case file_receipt_command_kind::mark_unread:
+			return "mark_unread";
+		case file_receipt_command_kind::accept:
+			return "accept";
+		case file_receipt_command_kind::revoke_acceptance:
+			return "revoke_acceptance";
+		case file_receipt_command_kind::exclude:
+			return "exclude";
+		case file_receipt_command_kind::include:
+			return "include";
+		}
+		return "mark_seen";
+	}
+
+	auto name(const file_receipt_rejection aRejection) noexcept -> std::string_view
+	{
+		switch (aRejection) {
+		case file_receipt_rejection::none:
+			return "none";
+		case file_receipt_rejection::unknown_file:
+			return "unknown_file";
+		case file_receipt_rejection::material_mismatch:
+			return "material_mismatch";
+		case file_receipt_rejection::excluded_file_cannot_be_accepted:
+			return "excluded_file_cannot_be_accepted";
+		case file_receipt_rejection::accepted_file_cannot_be_excluded:
+			return "accepted_file_cannot_be_excluded";
+		}
+		return "none";
+	}
+
+	auto apply(
+		const file_receipt&         aReceipt,
+		const file_receipt_command& aCommand) noexcept -> file_receipt_outcome
+	{
+		const auto refuse = [&aReceipt](const file_receipt_rejection aRejection) {
+			return file_receipt_outcome{
+				.Receipt   = aReceipt,
+				.Rejection = aRejection,
+				.Changed   = false,
+			};
+		};
+
+		// Identity is checked before material, because a command aimed at
+		// another file is a different mistake from one aimed at material that
+		// has been replaced, and the two are repaired differently.
+		if (aCommand.File != aReceipt.File) {
+			return refuse(file_receipt_rejection::unknown_file);
+		}
+		if (aCommand.Material != aReceipt.Material) {
+			return refuse(file_receipt_rejection::material_mismatch);
+		}
+
+		auto next = aReceipt;
+		switch (aCommand.Kind) {
+		case file_receipt_command_kind::mark_seen:
+			next.Read = advanced(next.Read, file_read_state::seen);
+			break;
+		case file_receipt_command_kind::mark_read:
+			next.Read = advanced(next.Read, file_read_state::read);
+			break;
+		case file_receipt_command_kind::mark_unread:
+			next.Read = file_read_state::unread;
+			break;
+		case file_receipt_command_kind::accept:
+			if (aReceipt.Excluded) {
+				return refuse(
+					file_receipt_rejection::excluded_file_cannot_be_accepted);
+			}
+			next.Accepted = true;
+			break;
+		case file_receipt_command_kind::revoke_acceptance:
+			next.Accepted = false;
+			break;
+		case file_receipt_command_kind::exclude:
+			if (aReceipt.Accepted) {
+				return refuse(
+					file_receipt_rejection::accepted_file_cannot_be_excluded);
+			}
+			next.Excluded = true;
+			break;
+		case file_receipt_command_kind::include:
+			next.Excluded = false;
+			break;
+		}
+
+		return file_receipt_outcome{
+			.Receipt   = next,
+			.Rejection = file_receipt_rejection::none,
+			.Changed   = next != aReceipt,
+		};
+	}
+
+	auto unread(
+		const conversation_receipt&     aReceipt,
+		const conversation_observation& aObservation) noexcept -> bool
+	{
+		return aObservation.LatestComment != aReceipt.SeenComment
+			|| aObservation.LatestEdit != aReceipt.SeenEdit;
+	}
+
+	auto acceptance_outdated(
+		const conversation_receipt&     aReceipt,
+		const conversation_observation& aObservation) noexcept -> bool
+	{
+		return aObservation.LatestComment != aReceipt.AcceptedComment
+			|| aObservation.LatestEdit != aReceipt.AcceptedEdit;
+	}
+} // namespace bpr::core

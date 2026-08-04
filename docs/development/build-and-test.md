@@ -1480,6 +1480,25 @@ inherent to red/green diff fills under dichromacy rather than repairable; it
 fails if a palette change creates a new one, or if a recorded one disappears
 without the record being updated.
 
+### RFC-BPR-0007 local review ledger
+
+```sh
+cmake --build --preset core-only --target \
+  test_better_pull_review_review_ledger_core_tests
+ctest --test-dir build/core-only --output-on-failure -R '^core_review_ledger$'
+```
+
+The receipt policy is exercised under `core-only`, which links neither Qt nor
+SQLite, so "the core owns this decision and reaches no storage" is proven by
+the build rather than asserted in review.
+
+Two properties in that suite are easy to lose and worth naming. Reading a file
+and accepting it are independent facts, so the cases drive all four
+combinations rather than a single state machine. And a conversation reopens on
+an *edit* as well as on a new comment: the edited observation deliberately
+carries the same comment identity as the one already seen, so a cursor that
+compared identity alone would pass every other case and fail only this one.
+
 ## Troubleshooting and safe verification
 
 ### GitHub and native credentials

@@ -192,3 +192,21 @@ add_test(
     NAME core_theme_exchange
     COMMAND test_better_pull_review_theme_exchange_core_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_review_ledger_core_tests
+    review_ledger_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_review_ledger_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_review_ledger_core_tests)
+bpr_enable_warnings(test_better_pull_review_review_ledger_core_tests)
+
+add_test(
+    NAME core_review_ledger
+    COMMAND test_better_pull_review_review_ledger_core_tests
+)
