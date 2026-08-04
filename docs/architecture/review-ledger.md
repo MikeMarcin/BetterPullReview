@@ -6,6 +6,10 @@ which files are excluded. It is private state. It is never a GitHub approval,
 it is never synchronised between machines, and it never hides GitHub state
 behind a local opinion.
 
+Shared review state — comments, threads, replies, and reviews — is
+[Review Round Trip](review-round-trip.md)'s. The two share no table and no
+authority: this ledger is local and private, that one mirrors GitHub.
+
 ## Where it lives, and why it is its own file
 
 ```text

@@ -83,6 +83,17 @@ in `docs/` designates one today, and no slice here will invent one.
 | BPR-0140 | Documentation: mapping, drafts, publish, identity, stale head, retries, capability fallback, safe-test policy, mixed-client contract |
 | BPR-0141 | Simplification and closeout preparation |
 
+## Documentation ledger
+
+| Scope | Required documents | Disposition |
+|---|---|---|
+| Review, comment, and thread mapping; drafts; publish semantics; identity; stale-head behaviour; retries; capability fallback; safe-test policy; mixed-client contract | [Review Round Trip](../architecture/review-round-trip.md) | Written. Records ownership, the command/decision/proposal/request/completion/observation/delta vocabulary, the draft lifecycle, semantic anchoring, the two unequal target mismatches, safe-target enforcement, identity, idempotency, synchronization and the mixed-client contract, capability fallback, and what is not proven without a live target |
+| Private review ledger boundary | [Review Ledger](../architecture/review-ledger.md) | No impact. The ledger holds private progress and this RFC holds shared state; the two share no table and no authority. Recorded rather than assumed |
+
+The document states plainly that **nothing in this repository designates a safe
+mutation target today**, and that weakening the coordinator's target check to
+let a test through would remove the property the test exists to exercise.
+
 ## Closeout blockers
 
 RFC-BPR-0008 cannot become `Auto-Verified` until RFC-BPR-0007, RFC-BPR-0005,
