@@ -2,6 +2,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <array>
 #include <span>
 #include <string>
@@ -328,6 +329,111 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}
 		return ::sqlite3_column_int64(select->Value, 0);
+	}
+
+	auto review_ledger_database::store_receipt(
+		const std::int64_t        aScope,
+		const core::file_receipt& aReceipt) -> std::expected<void, failure>
+	{
+		auto upsert = prepare(
+			Handle,
+			"INSERT INTO file_receipt(scope_id, file_identity, material_id, "
+			"read_state, accepted, excluded) VALUES(?1, ?2, ?3, ?4, ?5, ?6) "
+			"ON CONFLICT(scope_id, file_identity) DO UPDATE SET "
+			"material_id = excluded.material_id, "
+			"read_state = excluded.read_state, "
+			"accepted = excluded.accepted, "
+			"excluded = excluded.excluded");
+		if (!upsert) {
+			return std::unexpected(upsert.error());
+		}
+
+		const auto& file     = aReceipt.File.bytes();
+		const auto& material = aReceipt.Material.bytes();
+		if (::sqlite3_bind_int64(upsert->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_blob(
+				   upsert->Value,
+				   2,
+				   file.data(),
+				   static_cast<int>(file.size()),
+				   SQLITE_TRANSIENT)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_blob(
+				   upsert->Value,
+				   3,
+				   material.data(),
+				   static_cast<int>(material.size()),
+				   SQLITE_TRANSIENT)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value, 4, static_cast<std::int64_t>(aReceipt.Read))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(upsert->Value, 5, aReceipt.Accepted ? 1 : 0)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(upsert->Value, 6, aReceipt.Excluded ? 1 : 0)
+				!= SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return { };
+	}
+
+	auto review_ledger_database::load_receipt(
+		const std::int64_t         aScope,
+		const core::file_identity& aFile)
+		-> std::expected<std::optional<core::file_receipt>, failure>
+	{
+		auto select = prepare(
+			Handle,
+			"SELECT material_id, read_state, accepted, excluded FROM "
+			"file_receipt WHERE scope_id = ?1 AND file_identity = ?2");
+		if (!select) {
+			return std::unexpected(select.error());
+		}
+
+		const auto& file = aFile.bytes();
+		if (::sqlite3_bind_int64(select->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_blob(
+				   select->Value,
+				   2,
+				   file.data(),
+				   static_cast<int>(file.size()),
+				   SQLITE_TRANSIENT)
+				!= SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+
+		const auto row = ::sqlite3_step(select->Value);
+		if (row == SQLITE_DONE) {
+			return std::optional<core::file_receipt>{ };
+		}
+		if (row != SQLITE_ROW) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		if (::sqlite3_column_type(select->Value, 0) != SQLITE_BLOB
+			|| ::sqlite3_column_bytes(select->Value, 0) != 32) {
+			return std::unexpected(failure::integrity_failure);
+		}
+
+		auto        material = std::array<std::uint8_t, 32>{ };
+		const auto* bytes
+			= static_cast<const std::uint8_t*>(::sqlite3_column_blob(select->Value, 0));
+		std::copy_n(bytes, material.size(), material.begin());
+
+		const auto read = ::sqlite3_column_int64(select->Value, 1);
+		if (read < 0 || read > 2) {
+			return std::unexpected(failure::integrity_failure);
+		}
+
+		return std::optional{ core::file_receipt{
+			.File     = aFile,
+			.Material = core::file_material_id{ material },
+			.Read     = static_cast<core::file_read_state>(read),
+			.Accepted = ::sqlite3_column_int64(select->Value, 2) != 0,
+			.Excluded = ::sqlite3_column_int64(select->Value, 3) != 0,
+		} };
 	}
 
 	auto review_ledger_columns(::sqlite3* aDatabase)

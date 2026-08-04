@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
@@ -13,7 +14,16 @@
 #include <string_view>
 
 namespace {
+	using namespace bpr;
 	using namespace bpr::adapters::sqlite::detail;
+
+	template <typename Identity>
+	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		bytes.fill(aSeed);
+		return Identity{ bytes };
+	}
 
 	[[nodiscard]] auto describe(const catalog_database_failure aFailure)
 		-> std::string_view
@@ -328,6 +338,108 @@ namespace {
 		const auto same = second->scope_id(scope_of("github.com", "octo", "app", 7));
 		expect(same && *same == *id, "the scope survives a clean reopen");
 	}
+	// The card's claim is that read, accepted, excluded, and seen all survive a
+	// restart *identically*. Each state is written to its own file so a bug
+	// that collapsed them onto one another cannot hide behind a shared row.
+	void test_every_receipt_state_survives_a_restart()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("l.db");
+
+		const auto states = std::array{
+			core::file_receipt{
+				.File     = opaque<core::file_identity>(40U),
+				.Material = opaque<core::file_material_id>(50U),
+				.Read     = core::file_read_state::seen },
+			core::file_receipt{
+				.File     = opaque<core::file_identity>(41U),
+				.Material = opaque<core::file_material_id>(51U),
+				.Read     = core::file_read_state::read },
+			core::file_receipt{
+				.File     = opaque<core::file_identity>(42U),
+				.Material = opaque<core::file_material_id>(52U),
+				.Read     = core::file_read_state::unread,
+				.Accepted = true },
+			core::file_receipt{
+				.File     = opaque<core::file_identity>(43U),
+				.Material = opaque<core::file_material_id>(53U),
+				.Read     = core::file_read_state::read,
+				.Excluded = true },
+		};
+
+		std::int64_t scope = 0;
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the ledger opens");
+			const auto id = opened->scope_id(
+				scope_of("github.com", "octo", "app", 7));
+			expect(id.has_value(), "the scope is written");
+			scope = *id;
+			for (const auto& receipt : states) {
+				expect(
+					opened->store_receipt(scope, receipt).has_value(),
+					"each receipt commits");
+			}
+		}
+
+		auto reopened = review_ledger_database::open(path, { });
+		expect(opened_ok(reopened), "the ledger reopens");
+		const auto sameScope = reopened->scope_id(
+			scope_of("github.com", "octo", "app", 7));
+		expect(
+			sameScope && *sameScope == scope,
+			"the scope resolves to the same row after a restart");
+
+		for (const auto& receipt : states) {
+			const auto loaded = reopened->load_receipt(scope, receipt.File);
+			expect(
+				loaded.has_value() && loaded->has_value(),
+				"each receipt is found after the restart");
+			expect(
+				**loaded == receipt,
+				"the receipt returns byte for byte, including its material");
+		}
+
+		// A file that was never written must come back absent rather than
+		// defaulted, so "unread" is distinguishable from "no receipt".
+		const auto missing
+			= reopened->load_receipt(scope, opaque<core::file_identity>(44U));
+		expect(
+			missing.has_value() && !missing->has_value(),
+			"a file with no receipt reads back as absent, not as unread");
+	}
+
+	void test_a_receipt_does_not_cross_scopes()
+	{
+		const scratch_directory directory;
+		auto                    opened = review_ledger_database::open(directory.file("l.db"), { });
+		expect(opened_ok(opened), "the ledger opens");
+
+		const auto here = opened->scope_id(scope_of("github.com", "octo", "app", 7));
+		const auto there
+			= opened->scope_id(scope_of("ghe.example.com", "octo", "app", 7));
+		expect(here && there, "both scopes resolve");
+
+		const auto receipt = core::file_receipt{
+			.File     = opaque<core::file_identity>(60U),
+			.Material = opaque<core::file_material_id>(61U),
+			.Read     = core::file_read_state::read,
+			.Accepted = true,
+		};
+		expect(
+			opened->store_receipt(*here, receipt).has_value(),
+			"the receipt commits in the first scope");
+
+		const auto leaked = opened->load_receipt(*there, receipt.File);
+		expect(
+			leaked.has_value() && !leaked->has_value(),
+			"the same file identity carries no receipt in the other scope");
+
+		const auto present = opened->load_receipt(*here, receipt.File);
+		expect(
+			present.has_value() && present->has_value() && **present == receipt,
+			"the receipt is still readable in the scope that wrote it");
+	}
 } // namespace
 
 auto main() -> int
@@ -337,6 +449,8 @@ auto main() -> int
 	test_a_version_one_database_migrates_forward();
 	test_a_newer_database_fails_closed();
 	test_reopening_is_idempotent();
+	test_every_receipt_state_survives_a_restart();
+	test_a_receipt_does_not_cross_scopes();
 
 	std::cout << "review-ledger-storage-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -3,9 +3,12 @@
 
 #include "sqlite_connection.hpp"
 
+#include "bpr/core/review_ledger.hpp"
+
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <optional>
 #include <stop_token>
 #include <string_view>
 #include <vector>
@@ -68,6 +71,23 @@ namespace bpr::adapters::sqlite::detail {
 		/// \brief Returns the scope row id, inserting the scope if it is new.
 		[[nodiscard]] auto scope_id(const review_scope& aScope)
 			-> std::expected<std::int64_t, failure>;
+
+		/// \brief Commits one file receipt within one scope.
+		///
+		/// \details The whole write is one statement in one implicit
+		/// transaction, so a receipt is never half stored. The material travels
+		/// with it, because a receipt that recorded progress without recording
+		/// what it was progress *through* could not be invalidated later.
+		[[nodiscard]] auto store_receipt(
+			std::int64_t              aScope,
+			const core::file_receipt& aReceipt)
+			-> std::expected<void, failure>;
+
+		/// \brief Reads one file receipt back, if the scope holds one.
+		[[nodiscard]] auto load_receipt(
+			std::int64_t               aScope,
+			const core::file_identity& aFile)
+			-> std::expected<std::optional<core::file_receipt>, failure>;
 
 	private:
 		explicit review_ledger_database(::sqlite3* aHandle) noexcept;

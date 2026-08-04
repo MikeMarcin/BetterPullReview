@@ -2,6 +2,7 @@ add_library(
     better_pull_review_application
     STATIC
         src/appearance_application_host.cpp
+        src/review_ledger_application_host.cpp
         src/diff_application_host.cpp
         src/github_capability_cache.cpp
         src/epoch_application_host.cpp
