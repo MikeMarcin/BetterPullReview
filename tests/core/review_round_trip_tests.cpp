@@ -1,5 +1,6 @@
 #include "bpr/core/review_round_trip.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -235,6 +236,123 @@ namespace {
 			"a published comment is not proposed a second time");
 	}
 
+	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
+	{
+		// A sha1 oid occupies the first twenty bytes and requires the rest to
+		// be zero, so filling all thirty-two produces an *invalid* oid rather
+		// than the distinct commit this helper is meant to supply.
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		std::fill_n(bytes.begin(), 20U, aSeed);
+		return core::git_commit_oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto target(const std::uint8_t aHead) -> core::review_mutation_target
+	{
+		return core::review_mutation_target{
+			.Host         = core::git_host_id{ 1U },
+			.Repository   = core::repository_id{ 2U },
+			.PullRequest  = core::pull_request_id{ 3U },
+			.ExpectedHead = commit(aHead),
+		};
+	}
+
+	void test_an_unchanged_target_publishes()
+	{
+		const auto prepared = target(0x11U);
+		expect(
+			core::revalidate(prepared, prepared) == core::target_revalidation::accepted,
+			"an identical target revalidates");
+		expect(
+			core::publication_permitted(core::target_revalidation::accepted, false),
+			"an accepted target needs no acknowledgement");
+	}
+
+	// The whole point of this slice: a head that moved between drafting and
+	// publishing must not silently submit against the wrong revision.
+	void test_a_moved_head_stops_the_publication_until_acknowledged()
+	{
+		const auto prepared   = target(0x11U);
+		auto       observed   = prepared;
+		observed.ExpectedHead = commit(0x22U);
+
+		const auto outcome = core::revalidate(prepared, observed);
+		expect(
+			outcome == core::target_revalidation::head_moved,
+			"a moved head is reported as such");
+		expect(
+			!core::publication_permitted(outcome, false),
+			"a moved head does not publish on its own");
+		expect(
+			core::publication_permitted(outcome, true),
+			"an explicit acknowledgement lets the reviewer proceed");
+	}
+
+	// A comment aimed at the wrong pull request is a different and worse
+	// mistake than one aimed at the right pull request's newer revision. No
+	// acknowledgement can authorise it, because the acknowledgement the
+	// reviewer gave was about a different pull request.
+	void test_a_changed_target_can_never_be_acknowledged_away()
+	{
+		const auto prepared = target(0x11U);
+
+		auto elsewhereHost             = prepared;
+		elsewhereHost.Host             = core::git_host_id{ 9U };
+		auto elsewhereRepository       = prepared;
+		elsewhereRepository.Repository = core::repository_id{ 9U };
+		auto elsewhereRequest          = prepared;
+		elsewhereRequest.PullRequest   = core::pull_request_id{ 9U };
+
+		for (const auto& observed :
+			 { elsewhereHost, elsewhereRepository, elsewhereRequest }) {
+			const auto outcome = core::revalidate(prepared, observed);
+			expect(
+				outcome == core::target_revalidation::target_changed,
+				"a changed host, repository, or pull request is reported as a "
+				"changed target");
+			expect(
+				!core::publication_permitted(outcome, false)
+					&& !core::publication_permitted(outcome, true),
+				"no acknowledgement authorises publishing to a different target");
+		}
+	}
+
+	// Reporting the head first would hide the worse mistake.
+	void test_a_changed_target_outranks_a_moved_head()
+	{
+		const auto prepared   = target(0x11U);
+		auto       observed   = prepared;
+		observed.Repository   = core::repository_id{ 9U };
+		observed.ExpectedHead = commit(0x22U);
+
+		expect(
+			core::revalidate(prepared, observed)
+				== core::target_revalidation::target_changed,
+			"both wrong reports the changed target, not the moved head");
+	}
+
+	void test_an_unnameable_head_is_refused_outright()
+	{
+		const auto prepared = target(0x11U);
+
+		auto unknownObserved         = prepared;
+		unknownObserved.ExpectedHead = core::git_commit_oid{ };
+		expect(
+			core::revalidate(prepared, unknownObserved)
+				== core::target_revalidation::head_unknown,
+			"an observed head nobody can name is reported unknown");
+
+		auto unknownPrepared         = prepared;
+		unknownPrepared.ExpectedHead = core::git_commit_oid{ };
+		expect(
+			core::revalidate(unknownPrepared, prepared)
+				== core::target_revalidation::head_unknown,
+			"a prepared head nobody can name is reported unknown too");
+
+		expect(
+			!core::publication_permitted(core::target_revalidation::head_unknown, true),
+			"a revision nobody can name is not one a reviewer can have agreed to");
+	}
+
 	void test_every_enumerator_names_itself()
 	{
 		expect(
@@ -263,6 +381,11 @@ auto main() -> int
 	test_a_published_comment_is_no_longer_a_draft();
 	test_illegal_commands_carry_their_own_reason();
 	test_a_proposal_exists_only_while_publishing();
+	test_an_unchanged_target_publishes();
+	test_a_moved_head_stops_the_publication_until_acknowledged();
+	test_a_changed_target_can_never_be_acknowledged_away();
+	test_a_changed_target_outranks_a_moved_head();
+	test_an_unnameable_head_is_refused_outright();
 	test_every_enumerator_names_itself();
 
 	std::cout << "review-round-trip-core-tests:pass\n";

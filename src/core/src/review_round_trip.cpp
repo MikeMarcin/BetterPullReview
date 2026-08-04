@@ -159,6 +159,55 @@ namespace bpr::core {
 		};
 	}
 
+	auto name(const target_revalidation aOutcome) noexcept -> std::string_view
+	{
+		switch (aOutcome) {
+		case target_revalidation::accepted:
+			return "accepted";
+		case target_revalidation::head_moved:
+			return "head_moved";
+		case target_revalidation::target_changed:
+			return "target_changed";
+		case target_revalidation::head_unknown:
+			return "head_unknown";
+		}
+		return "target_changed";
+	}
+
+	auto revalidate(
+		const review_mutation_target& aPrepared,
+		const review_mutation_target& aObserved) noexcept -> target_revalidation
+	{
+		if (aPrepared.Host != aObserved.Host
+			|| aPrepared.Repository != aObserved.Repository
+			|| aPrepared.PullRequest != aObserved.PullRequest) {
+			return target_revalidation::target_changed;
+		}
+		if (!aObserved.ExpectedHead.valid() || !aPrepared.ExpectedHead.valid()) {
+			return target_revalidation::head_unknown;
+		}
+		if (aPrepared.ExpectedHead != aObserved.ExpectedHead) {
+			return target_revalidation::head_moved;
+		}
+		return target_revalidation::accepted;
+	}
+
+	auto publication_permitted(
+		const target_revalidation aOutcome,
+		const bool                aAcknowledged) noexcept -> bool
+	{
+		switch (aOutcome) {
+		case target_revalidation::accepted:
+			return true;
+		case target_revalidation::head_moved:
+			return aAcknowledged;
+		case target_revalidation::target_changed:
+		case target_revalidation::head_unknown:
+			break;
+		}
+		return false;
+	}
+
 	auto propose_publication(
 		const review_comment_draft& aDraft,
 		const review_disposition    aDisposition)

@@ -2,6 +2,8 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_ROUND_TRIP_HPP
 
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/epoch_model.hpp"
+#include "bpr/core/github_model.hpp"
 #include "bpr/core/model.hpp"
 
 #include <compare>
@@ -129,6 +131,60 @@ namespace bpr::core {
 	[[nodiscard]] auto apply(
 		const review_comment_draft& aDraft,
 		const review_draft_command& aCommand) -> review_draft_outcome;
+
+	/// \brief Names the exact pull request and revision a mutation targets.
+	///
+	/// \details All four fields together are the target. Three of them say
+	/// *where* the comment goes and the fourth says *what it is about*, and the
+	/// two kinds of mismatch are not equally recoverable — which is why they
+	/// are decided together rather than checked in separate places that could
+	/// disagree.
+	struct review_mutation_target
+	{
+		git_host_id     Host;
+		repository_id   Repository;
+		pull_request_id PullRequest;
+		git_commit_oid  ExpectedHead;
+
+		auto operator<=>(const review_mutation_target&) const = default;
+	};
+
+	/// \brief Names the outcome of comparing a prepared target to the observed one.
+	enum class target_revalidation : std::uint8_t {
+		accepted,
+		head_moved,
+		target_changed,
+		head_unknown,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(target_revalidation aOutcome) noexcept
+		-> std::string_view;
+
+	/// \brief Compares the target a publication was prepared against to reality.
+	///
+	/// \details The order of the checks is the policy. A changed host,
+	/// repository, or pull request is reported before a moved head, because a
+	/// comment aimed at the wrong pull request is a different and worse mistake
+	/// than one aimed at the right pull request's newer revision, and reporting
+	/// the head first would hide it.
+	[[nodiscard]] auto revalidate(
+		const review_mutation_target& aPrepared,
+		const review_mutation_target& aObserved) noexcept -> target_revalidation;
+
+	/// \brief Decides whether a publication may proceed after revalidation.
+	///
+	/// \details A moved head may be accepted by an explicit acknowledgement:
+	/// the reviewer has been shown the new revision and said to go ahead.
+	///
+	/// A changed target may **not**, whatever the reviewer acknowledged. There
+	/// is no interface through which someone can agree to post a comment to a
+	/// repository they were not looking at, because the acknowledgement they
+	/// gave was about a different pull request. Nor may an unknown head: a
+	/// revision nobody can name is not one a reviewer can have agreed to.
+	[[nodiscard]] auto publication_permitted(
+		target_revalidation aOutcome,
+		bool                aAcknowledged) noexcept -> bool;
 
 	/// \brief Describes the semantic proposal a publish produces.
 	///
