@@ -366,3 +366,26 @@ foreach(bpr_diff_axis_scale IN ITEMS 100 125 200)
             TIMEOUT 120
     )
 endforeach()
+
+bpr_add_executable(
+    test_better_pull_review_qt_review_queue_tests
+    review_queue_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_review_queue_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_review_queue_tests)
+bpr_enable_warnings(test_better_pull_review_qt_review_queue_tests)
+
+add_test(
+    NAME qt_review_queue
+    COMMAND test_better_pull_review_qt_review_queue_tests
+)
+set_tests_properties(
+    qt_review_queue
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+)

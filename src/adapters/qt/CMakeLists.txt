@@ -2,6 +2,7 @@ add_library(
     better_pull_review_adapter_qt
     STATIC
         src/appearance_profile.cpp
+        src/review_queue_model.cpp
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
