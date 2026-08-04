@@ -1,0 +1,41 @@
+---
+id: BPR-0142
+title: Verify a published comment in the GitHub web UI
+status: Backlog
+rfc: RFC-BPR-0008
+depends_on: [BPR-0139]
+---
+
+# Verify a published comment in the GitHub web UI
+
+RFC-BPR-0008 requires that a BetterPullReview comment is **readable and
+replyable in the GitHub web UI with no tool-specific marker**. A fixture cannot
+establish this. The fixture proves what BetterPullReview sent; only GitHub can
+show what GitHub made of it, and only a person looking at the page can confirm
+it carries no marker and behaves like an ordinary comment.
+
+## Exactly what is missing
+
+1. **A designated safe repository.** Nothing in `docs/` designates one. It must
+   be a repository whose pull requests may be mutated by automated runs without
+   consequence, named in documentation so no other target is ever reachable.
+2. **A write-scoped token for that repository, supplied by the product owner.**
+   It is never committed, never logged, and never placed in a fixture.
+3. **A human at the keyboard** to open the pull request, read the comment,
+   reply to it, and confirm it is indistinguishable from one written in the web
+   UI.
+
+## What must not be done instead
+
+Do not point this at an arbitrary repository. Do not create a repository and
+assume it is designated. Do not weaken the coordinator's safe-target check to
+let a test through — that check is the reason an accident is impossible, and a
+test that disables it has removed the property it was meant to exercise.
+
+## Required direct evidence
+
+- The comment is read in the GitHub web UI and reproduced here in full,
+  including that it carries no BetterPullReview marker, badge, or footer.
+- A reply posted in the web UI is shown returning to the workbench.
+- The account shown as author is the authenticated profile.
+- The designated repository is named in documentation before the run, not after.
