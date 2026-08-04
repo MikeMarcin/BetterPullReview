@@ -2286,6 +2286,18 @@ namespace {
 							&& workbench->link_map()->selected().has_value()
 							&& workbench->detail_pane()->toPlainText().startsWith(
 								QStringLiteral("Change "));
+						// An accepted result does not mean the state derived
+						// from it has arrived. Selection, the link map, and the
+						// detail pane are populated by a scheduled geometry
+						// rebuild, so they lag the result by at least one tick.
+						// Sampling them in the tick that first sees a result
+						// made this probe fail about one run in six, with no
+						// retry and nothing in the output naming the cause.
+						// Waiting is what the branch above already does for the
+						// result itself; the attempt budget still bounds it.
+						if (!ready) {
+							break;
+						}
 						window.resize(1'280, 1'000);
 						if (auto* const scroll = qobject_cast<QScrollArea*>(window.centralWidget())) {
 							scroll->ensureWidgetVisible(workbench, 24, 24);

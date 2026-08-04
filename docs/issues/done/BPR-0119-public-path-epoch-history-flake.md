@@ -1,7 +1,7 @@
 ---
 id: BPR-0119
 title: application_diff_workbench_public_path fails intermittently in diff evidence
-status: In Progress
+status: Done
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -129,3 +129,39 @@ rule this out rather than assuming it.
   reappears — for example by delaying the activation the stage depends on.
 - Any fix is shown to fail when the behaviour it constrains is neutered, and a
   repeated-run loop of the suite is clean afterwards.
+
+## Root cause and fix
+
+The `DiffProbe` branch waits for `current_result()` to become non-null, then in
+that same tick computes `ready` from state *derived* from the result:
+`selection()`, `link_map()->selected()`, and the detail pane's text. Those are
+populated by a scheduled geometry rebuild, so they arrive at least one tick
+after the result does.
+
+There was no retry. `ready` was computed once and, if false, the probe went
+straight on to record a failure — so a one-tick lag became a permanent failure
+about one run in six. The branch immediately above already waits for the result
+itself with `if (... == nullptr) break;`; the derived state now waits the same
+way, and the existing attempt budget still bounds it.
+
+Measured: 15 of 15 runs pass after the change, against a rate of roughly one
+failure in six before it, sampled six runs at a time on two trees.
+
+### Non-vacuity, and a weakness it exposed
+
+Forcing `ready` to be permanently unsatisfied makes the test fail, so the wait
+is not unbounded. But it fails as a **CTest timeout at 45 seconds** rather than
+through the run's own attempt budget, which means a genuine hang in this stage
+produces no `PUBLIC_PATH_VERDICT` and no stage marker — exactly the
+unattributable failure this card started with.
+
+The attempt budget for the stage that hosts `DiffProbe` outlasts the harness
+timeout. That is a second defect, not fixed here: this card's scope was the
+intermittent failure, and the budget affects every stage that shares it.
+
+## Follow-up
+
+The stage attempt budget should be brought inside the CTest timeout so an
+internal hang reports evidence instead of being killed from outside. Tracked
+separately rather than folded in, because it changes timeout behaviour for
+every automated stage and deserves its own verification.
