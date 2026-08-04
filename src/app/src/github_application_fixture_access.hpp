@@ -99,6 +99,19 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto reaccept_fixture_revision(
 			github_application& aApplication,
 			bool                aChangeHead) -> bool;
+		/// \brief Reports what the composed review ledger already holds.
+		///
+		/// \details Read before anything is written, so a second run against the
+		/// same application data root can tell persistence from a fresh write.
+		[[nodiscard]] static auto review_ledger_receipt_present(
+			github_application& aApplication) -> bool;
+		/// \brief Commits a receipt through the composed ledger and reads it back.
+		///
+		/// \details The read goes through the same store the application
+		/// composed, so it reaches the database file the application actually
+		/// opened rather than one the probe chose.
+		[[nodiscard]] static auto review_ledger_round_trip(
+			github_application& aApplication) -> bool;
 	};
 }
 

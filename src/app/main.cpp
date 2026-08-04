@@ -375,6 +375,8 @@ namespace {
 		bool                                         DiffShutdownProbe             = false;
 		bool                                         DiffInteractionEvidencePassed = false;
 		bool                                         DiffRequested                 = false;
+		bool                                         LedgerPresentOnEntry          = false;
+		bool                                         LedgerRoundTripped            = false;
 		std::string                                  FixtureName;
 		std::string                                  ExpectedActiveHostText;
 		bpr::app::detail::github_epoch_fixture_phase EpochPhase = bpr::app::detail::github_epoch_fixture_phase::single;
@@ -1906,6 +1908,22 @@ namespace {
 		if (aRun.RenderPath.has_value()) {
 			stream << (renderSaved ? "RENDER_OK\n" : "RENDER_FAILED\n");
 		}
+		if (aRun.Fixture) {
+			// After the render marker rather than inside its block: the
+			// public-path expectation matches its markers contiguously, so a
+			// line in the middle breaks a contract that has nothing to do with
+			// the ledger — and the render block is skipped entirely by the
+			// epoch phases, which is where the restart evidence comes from.
+			//
+			// Reported from the run that composed the ledger, so the evidence
+			// is about the database the application actually opened. The
+			// present-on-entry flag is what lets a later process against the
+			// same application data root tell persistence from a fresh write.
+			stream << "REVIEW_LEDGER_PRESENT_ON_ENTRY:"
+				   << (aRun.LedgerPresentOnEntry ? 1 : 0) << '\n'
+				   << (aRun.LedgerRoundTripped ? "REVIEW_LEDGER_OK\n"
+											   : "REVIEW_LEDGER_FAILED\n");
+		}
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Appearance.Enabled) {
 			stream << "NATIVE_APPEARANCE_TRANSITION:"
@@ -2077,6 +2095,15 @@ namespace {
 			case automated_run::stage::start:
 #if defined(BPR_BUILD_TESTING)
 				if (aRun->Fixture) {
+					// Read before writing. On a second run against the same
+					// application data root this is what distinguishes a
+					// receipt that persisted from one this run just wrote.
+					aRun->LedgerPresentOnEntry = bpr::app::detail::
+						github_application_fixture_access::
+							review_ledger_receipt_present(aApplication);
+					aRun->LedgerRoundTripped = bpr::app::detail::
+						github_application_fixture_access::
+							review_ledger_round_trip(aApplication);
 					window.connect_action()->trigger();
 					advance_fixture_stage(
 						*aRun, automated_run::stage::connect);

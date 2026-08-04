@@ -19,6 +19,7 @@
 
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
@@ -568,8 +569,24 @@ namespace bpr::app {
 			}
 			GitCaches     = std::move(*cache);
 			EpochCatalogs = std::move(*catalog);
-			EpochEntropy  = application::make_system_epoch_entropy();
-			EpochClock    = application::make_system_epoch_clock();
+
+			// The review ledger is a separate database beside the catalog, so
+			// deleting private review state cannot take the derived git cache
+			// with it. Composition failure is not fatal to the application:
+			// the ledger holds private progress, and a reviewer with no ledger
+			// can still read a pull request.
+			auto ledger = adapters::sqlite::make_review_ledger_store({
+				.StorageRoot = applicationDataRoot,
+				.Host        = "github.com",
+				.Account     = "composition",
+				.Repository  = "composition",
+				.PullRequest = 1,
+			});
+			if (ledger) {
+				ReviewLedger = std::move(*ledger);
+			}
+			EpochEntropy = application::make_system_epoch_entropy();
+			EpochClock   = application::make_system_epoch_clock();
 			if (!EpochEntropy || !EpochClock) {
 				throw std::runtime_error{ "Epoch runtime ports are unavailable" };
 			}
@@ -859,6 +876,7 @@ namespace bpr::app {
 		application::github_credential_binding_catalog             CredentialBindings;
 		std::unique_ptr<application::git_cache_port>               GitCaches;
 		std::unique_ptr<application::epoch_catalog_port>           EpochCatalogs;
+		std::unique_ptr<application::review_ledger_store_port>     ReviewLedger;
 		std::unique_ptr<application::epoch_entropy_port>           EpochEntropy;
 		std::unique_ptr<application::epoch_clock_port>             EpochClock;
 		worker_executor                                            EpochEffects;
@@ -1191,6 +1209,53 @@ namespace bpr::app {
 			.TargetBaseAvailability            = baseAvailability,
 			.TargetHeadAvailability            = headAvailability,
 		};
+	}
+
+	namespace {
+		/// \brief The fixed identity the ledger probe writes and reads back.
+		[[nodiscard]] auto probe_receipt() -> core::file_receipt
+		{
+			auto file     = std::array<std::uint8_t, 32>{ };
+			auto material = std::array<std::uint8_t, 32>{ };
+			file.fill(0xA7U);
+			material.fill(0x5CU);
+			return core::file_receipt{
+				.File     = core::file_identity{ file },
+				.Material = core::file_material_id{ material },
+				.Read     = core::file_read_state::read,
+				.Accepted = true,
+			};
+		}
+	} // namespace
+
+	auto detail::github_application_fixture_access::review_ledger_receipt_present(
+		github_application& aApplication) -> bool
+	{
+		if (aApplication.Implementation == nullptr
+			|| aApplication.Implementation->ReviewLedger == nullptr) {
+			return false;
+		}
+		const auto loaded
+			= aApplication.Implementation->ReviewLedger->load(probe_receipt().File);
+		return loaded.has_value() && loaded->has_value()
+			&& **loaded == probe_receipt();
+	}
+
+	auto detail::github_application_fixture_access::review_ledger_round_trip(
+		github_application& aApplication) -> bool
+	{
+		if (aApplication.Implementation == nullptr
+			|| aApplication.Implementation->ReviewLedger == nullptr) {
+			return false;
+		}
+		auto&      ledger  = *aApplication.Implementation->ReviewLedger;
+		const auto receipt = probe_receipt();
+		if (!ledger.commit(application::receipt_persistence_request{
+				.Receipt = receipt })) {
+			return false;
+		}
+		const auto loaded = ledger.load(receipt.File);
+		return loaded.has_value() && loaded->has_value() && **loaded == receipt;
 	}
 
 	auto detail::github_application_fixture_access::request_fixture_diff(

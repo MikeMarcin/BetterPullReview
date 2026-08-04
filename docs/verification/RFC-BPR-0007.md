@@ -4,8 +4,8 @@ RFC base: `ea3a3b8223c00f9e0999bf0ab2882496abf65843`
 
 Status: implementation in progress. The core receipt policy and its
 epoch-advance carry-over, the actionability ranking, the ledger schema, and
-the host persistence path, crash recovery, and the Qt queue projection have
-landed (BPR-0121 through BPR-0127). RFC-BPR-0007 stays `Proposed`.
+the host persistence path, crash recovery, the Qt queue projection, and the
+composition-root wiring have landed (BPR-0121 through BPR-0128). RFC-BPR-0007 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
