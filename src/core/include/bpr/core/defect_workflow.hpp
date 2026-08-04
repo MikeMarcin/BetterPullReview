@@ -144,6 +144,52 @@ namespace bpr::core {
 		auto operator<=>(const defect_outcome&) const = default;
 	};
 
+	/// \brief Names something that happened which might bear on a defect.
+	///
+	/// \details Every one of these is a *suggestion*. None of them is a
+	/// reviewer's judgement, and the type carries no value that could be read
+	/// as one.
+	///
+	/// `thread_resolved_externally` is the sharpest case. Someone resolving the
+	/// thread in GitHub is shared state changing, and it is exactly what a
+	/// verification usually looks like from outside — which is why it must not
+	/// verify. The reviewer who owns this defect has not said anything.
+	enum class defect_evidence_kind : std::uint8_t {
+		author_reply,
+		nearby_code_change,
+		thread_resolved_externally,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(defect_evidence_kind aKind) noexcept
+		-> std::string_view;
+
+	/// \brief One observation the host correlated with a defect.
+	struct defect_evidence
+	{
+		defect_id            Defect;
+		defect_evidence_kind Kind = defect_evidence_kind::author_reply;
+
+		auto operator<=>(const defect_evidence&) const = default;
+	};
+
+	/// \brief Records evidence against a defect.
+	///
+	/// \details The **only** state evidence can produce is
+	/// `needs_verification`. There is no argument, no accumulation, and no
+	/// special kind that reaches `verified`: a reviewer verifies, or nobody
+	/// does.
+	///
+	/// Evidence against a verified defect changes nothing. Reopening is a
+	/// separate explicit action, and letting a late reply undo a reviewer's
+	/// judgement would be evidence overruling the person it exists to inform.
+	///
+	/// Evidence against a settled defect changes nothing either, and neither is
+	/// an error: something happening near a withdrawn defect is unremarkable.
+	[[nodiscard]] auto observe(
+		const defect_record&   aDefect,
+		const defect_evidence& aEvidence) noexcept -> defect_outcome;
+
 	/// \brief Applies one command to one defect.
 	///
 	/// \details The whole lifecycle policy. It reaches no thread, issues no

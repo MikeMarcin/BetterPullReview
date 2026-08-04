@@ -218,6 +218,122 @@ namespace {
 			"a command naming another defect is refused as unknown");
 	}
 
+	[[nodiscard]] auto evidence(const core::defect_evidence_kind aKind)
+		-> core::defect_evidence
+	{
+		return core::defect_evidence{
+			.Defect = core::defect_id{ 1U },
+			.Kind   = aKind,
+		};
+	}
+
+	using proof = core::defect_evidence_kind;
+
+	// The whole point. Every kind of evidence reaches needs-verification and
+	// stops there.
+	void test_no_evidence_of_any_kind_verifies()
+	{
+		for (const auto starting :
+			 { state::open, state::fix_claimed, state::reopened }) {
+			for (const auto kindOf :
+				 { proof::author_reply, proof::nearby_code_change,
+				   proof::thread_resolved_externally }) {
+				const auto outcome
+					= core::observe(defect(starting), evidence(kindOf));
+				expect(
+					outcome.Defect.State == state::needs_verification,
+					"evidence asks the reviewer to look");
+				expect(
+					outcome.Defect.State != state::verified,
+					"no kind of evidence verifies anything");
+				expect(outcome.Changed, "the state moved");
+			}
+		}
+	}
+
+	// The sharpest case: someone resolving the thread in GitHub is exactly what
+	// a verification looks like from outside, which is why it must not verify.
+	// The reviewer who owns this defect has said nothing.
+	void test_an_external_resolution_does_not_verify()
+	{
+		const auto outcome = core::observe(
+			defect(state::fix_claimed),
+			evidence(proof::thread_resolved_externally));
+
+		expect(
+			outcome.Defect.State == state::needs_verification,
+			"an externally resolved thread asks the reviewer to look");
+		expect(
+			outcome.Defect.State != state::verified
+				&& core::outstanding(outcome.Defect.State),
+			"it does not stand in for the reviewer's judgement");
+	}
+
+	// Evidence does not undo a decision. Reopening is a separate explicit
+	// action, and a late reply overruling a reviewer would be evidence
+	// overriding the person it exists to inform.
+	void test_evidence_never_disturbs_a_decided_defect()
+	{
+		for (const auto decided :
+			 { state::verified, state::withdrawn, state::accepted_as_is }) {
+			for (const auto kindOf :
+				 { proof::author_reply, proof::nearby_code_change,
+				   proof::thread_resolved_externally }) {
+				const auto outcome
+					= core::observe(defect(decided), evidence(kindOf));
+				expect(
+					!outcome.Changed && outcome.Defect.State == decided,
+					"evidence leaves a decided defect exactly as it was");
+				expect(
+					outcome.Rejection == core::defect_rejection::none,
+					"and that is not an error — things happen near settled "
+					"defects");
+			}
+		}
+	}
+
+	void test_repeated_evidence_does_not_ask_harder()
+	{
+		const auto first = core::observe(
+			defect(state::open),
+			evidence(proof::author_reply));
+		expect(first.Changed, "the first evidence moves the defect");
+
+		const auto again = core::observe(
+			first.Defect,
+			evidence(proof::nearby_code_change));
+		expect(
+			!again.Changed && again.Defect.State == state::needs_verification,
+			"further evidence on a defect already awaiting the reviewer "
+			"changes nothing");
+	}
+
+	void test_evidence_for_another_defect_is_refused()
+	{
+		auto elsewhere     = evidence(proof::author_reply);
+		elsewhere.Defect   = core::defect_id{ 99U };
+		const auto refused = core::observe(defect(state::open), elsewhere);
+		expect(
+			refused.Rejection == core::defect_rejection::unknown_defect
+				&& !refused.Changed,
+			"evidence naming another defect is refused as unknown");
+	}
+
+	// A reviewer may verify after evidence — that is the intended path — but
+	// the verification is theirs, not the evidence's.
+	void test_a_reviewer_may_verify_what_evidence_flagged()
+	{
+		const auto flagged = core::observe(
+			defect(state::open),
+			evidence(proof::nearby_code_change));
+		const auto verified
+			= core::apply(flagged.Defect, command(kind::verify));
+
+		expect(
+			verified.Changed && verified.Defect.State == state::verified,
+			"the reviewer verifies what the evidence flagged");
+	}
+
 	void test_every_enumerator_names_itself()
 	{
 		expect(
@@ -246,6 +362,12 @@ auto main() -> int
 	test_a_settled_defect_stays_settled();
 	test_reclassification_changes_enrichment_and_not_the_lifecycle();
 	test_a_command_for_another_defect_is_refused();
+	test_no_evidence_of_any_kind_verifies();
+	test_an_external_resolution_does_not_verify();
+	test_evidence_never_disturbs_a_decided_defect();
+	test_repeated_evidence_does_not_ask_harder();
+	test_evidence_for_another_defect_is_refused();
+	test_a_reviewer_may_verify_what_evidence_flagged();
 	test_every_enumerator_names_itself();
 
 	std::cout << "defect-workflow-core-tests:pass\n";

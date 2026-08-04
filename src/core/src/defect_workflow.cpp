@@ -96,6 +96,67 @@ namespace bpr::core {
 		return "none";
 	}
 
+	auto name(const defect_evidence_kind aKind) noexcept -> std::string_view
+	{
+		switch (aKind) {
+		case defect_evidence_kind::author_reply:
+			return "author_reply";
+		case defect_evidence_kind::nearby_code_change:
+			return "nearby_code_change";
+		case defect_evidence_kind::thread_resolved_externally:
+			return "thread_resolved_externally";
+		}
+		return "author_reply";
+	}
+
+	auto observe(
+		const defect_record&   aDefect,
+		const defect_evidence& aEvidence) noexcept -> defect_outcome
+	{
+		const auto unchanged = [&aDefect]() {
+			return defect_outcome{
+				.Defect    = aDefect,
+				.Rejection = defect_rejection::none,
+				.Changed   = false,
+			};
+		};
+
+		if (aEvidence.Defect != aDefect.Id) {
+			return defect_outcome{
+				.Defect    = aDefect,
+				.Rejection = defect_rejection::unknown_defect,
+				.Changed   = false,
+			};
+		}
+
+		switch (aDefect.State) {
+		case defect_state::open:
+		case defect_state::fix_claimed:
+		case defect_state::reopened:
+			break;
+		case defect_state::needs_verification:
+		case defect_state::verified:
+		case defect_state::withdrawn:
+		case defect_state::accepted_as_is:
+			// Nothing to do, for two different reasons that happen to share an
+			// answer. A defect already awaiting the reviewer is already asking:
+			// more evidence does not ask harder. A verified, withdrawn, or
+			// accepted defect has had a decision taken, and evidence does not
+			// undo one — reopening is a separate explicit action, and a late
+			// reply overruling a reviewer would be evidence overriding the
+			// person it exists to inform.
+			return unchanged();
+		}
+
+		auto next  = aDefect;
+		next.State = defect_state::needs_verification;
+		return defect_outcome{
+			.Defect    = next,
+			.Rejection = defect_rejection::none,
+			.Changed   = true,
+		};
+	}
+
 	auto apply(
 		const defect_record&  aDefect,
 		const defect_command& aCommand) noexcept -> defect_outcome
