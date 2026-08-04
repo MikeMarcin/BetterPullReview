@@ -601,28 +601,6 @@ namespace bpr::adapters::sqlite::detail {
         ) STRICT, WITHOUT ROWID)sql" },
 		};
 
-		class runtime final
-		{
-		public:
-			runtime() noexcept
-				: Result{ ::sqlite3_initialize() }
-			{ }
-			~runtime()
-			{
-				if (Result == SQLITE_OK) {
-					(void)::sqlite3_shutdown();
-				}
-			}
-
-			int Result = SQLITE_ERROR;
-		};
-
-		[[nodiscard]] auto sqlite_runtime() noexcept -> runtime&
-		{
-			static runtime value;
-			return value;
-		}
-
 		[[nodiscard]] auto create_schema(
 			::sqlite3*                          aDatabase,
 			const std::array<std::uint8_t, 32>& aIncarnation,
@@ -848,7 +826,7 @@ namespace bpr::adapters::sqlite::detail {
 			const char*                  aRequestedVfs = nullptr)
 			-> std::expected<::sqlite3*, failure>
 		{
-			if (sqlite_runtime().Result != SQLITE_OK) {
+			if (!sqlite_runtime_ready()) {
 				return std::unexpected(failure::unavailable);
 			}
 			::sqlite3*     database = nullptr;
@@ -1084,7 +1062,7 @@ namespace bpr::adapters::sqlite::detail {
 			[[nodiscard]] static auto create()
 				-> std::expected<std::unique_ptr<retained_linux_vfs>, failure>
 			{
-				if (sqlite_runtime().Result != SQLITE_OK) {
+				if (!sqlite_runtime_ready()) {
 					return std::unexpected(failure::unavailable);
 				}
 				auto* const base = ::sqlite3_vfs_find(nullptr);
@@ -2591,7 +2569,7 @@ namespace bpr::adapters::sqlite::detail {
 				const std::filesystem::path&  main_path)
 				-> std::expected<std::unique_ptr<secure_windows_vfs>, failure>
 			{
-				if (sqlite_runtime().Result != SQLITE_OK) {
+				if (!sqlite_runtime_ready()) {
 					return std::unexpected(failure::unavailable);
 				}
 				auto* base = ::sqlite3_vfs_find("win32-longpath");

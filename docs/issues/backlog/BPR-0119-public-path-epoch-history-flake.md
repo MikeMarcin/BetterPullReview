@@ -47,10 +47,28 @@ with core status `-1` and no resolved pair, and the fixture evidence bitmask is
 The suspicion is therefore an epoch-catalog activation that had not completed
 when stage 20 sampled it, rather than a wrong result.
 
+## Reproduction rate
+
+Measured during BPR-0124, six isolated runs per configuration:
+
+| Tree | Result |
+|---|---|
+| `acc9fa3` (before the ledger work) | 5 pass, 1 fail |
+| `acc9fa3` plus the BPR-0124 ledger and shared SQLite runtime | 5 pass, 1 fail |
+
+So it reproduces roughly one run in six *in isolation*, not only under full
+suite load, and the SQLite connection-policy extraction and shared runtime
+initialisation do not change the rate. The earlier note that it "passed in
+isolation" was a single sample and should not have been read as evidence that
+load was the trigger.
+
+A one-in-six failure needs no clever harness to reproduce. Run the test in a
+loop.
+
 ## What this is not
 
-The run happened while BPR-0116 was in progress, and that slice touched
-`diff_workbench`. It is very unlikely to be the cause: BPR-0116 adds a
+The first observed run happened while BPR-0116 was in progress, and that slice
+touched `diff_workbench`. It is very unlikely to be the cause: BPR-0116 adds a
 typography publication whose only effect is to invalidate measured geometry
 when the tab stop moves, the real application changes no tab width during this
 run, and the first publication is adopted as a baseline without rebuilding.

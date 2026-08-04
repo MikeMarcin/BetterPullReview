@@ -27,6 +27,35 @@ namespace bpr::adapters::sqlite::detail {
 		::sqlite3_progress_handler(Database, 0, nullptr, nullptr);
 	}
 
+	namespace {
+		class runtime final
+		{
+		public:
+			runtime() noexcept
+				: Result{ ::sqlite3_initialize() }
+			{
+			}
+			runtime(const runtime&)                    = delete;
+			auto operator=(const runtime&) -> runtime& = delete;
+			runtime(runtime&&)                         = delete;
+			auto operator=(runtime&&) -> runtime&      = delete;
+			~runtime()
+			{
+				if (Result == SQLITE_OK) {
+					(void)::sqlite3_shutdown();
+				}
+			}
+
+			int Result = SQLITE_ERROR;
+		};
+	} // namespace
+
+	auto sqlite_runtime_ready() noexcept -> bool
+	{
+		static runtime value;
+		return value.Result == SQLITE_OK;
+	}
+
 	statement::statement(statement&& aOther) noexcept
 		: Value{ std::exchange(aOther.Value, nullptr) }
 	{

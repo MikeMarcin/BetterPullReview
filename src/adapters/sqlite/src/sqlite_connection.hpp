@@ -39,6 +39,14 @@ namespace bpr::adapters::sqlite::detail {
 		::sqlite3* aDatabase,
 		failure    aFallback = failure::unavailable) noexcept -> failure;
 
+	/// \brief Reports whether the SQLite library initialised successfully.
+	///
+	/// \details The build sets `SQLITE_OMIT_AUTOINIT`, so `sqlite3_initialize`
+	/// must run before any other API call. Every store shares this one
+	/// initialisation: a second store that opened a database without it would
+	/// not fail cleanly, it would jump through an uninitialised pointer.
+	[[nodiscard]] auto sqlite_runtime_ready() noexcept -> bool;
+
 	/// \brief Installs a cancellation-aware progress handler for one scope.
 	class progress_scope final
 	{

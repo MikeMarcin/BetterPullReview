@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/catalog_database.cpp
         src/sqlite_connection.cpp
+        src/review_ledger_database.cpp
         src/epoch_catalog.cpp
 )
 add_library(

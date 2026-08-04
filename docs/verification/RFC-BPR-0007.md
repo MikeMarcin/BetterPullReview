@@ -3,8 +3,8 @@
 RFC base: `ea3a3b8223c00f9e0999bf0ab2882496abf65843`
 
 Status: implementation in progress. The core receipt policy and its
-epoch-advance carry-over and the actionability ranking have landed
-(BPR-0121, BPR-0122, BPR-0123). RFC-BPR-0007 stays `Proposed`.
+epoch-advance carry-over, the actionability ranking, and the ledger schema
+have landed (BPR-0121 through BPR-0124). RFC-BPR-0007 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -58,13 +58,13 @@ reading `Planned` have none yet, and a partially claimed row says which half.
 | Read, accepted, excluded, and seen survive restart | Host persistence | Set each state, restart, re-read | Every state returns identical after a clean restart | Planned |
 | New or edited comments reopen the right conversation | Core plus host | Add a comment, then edit one in place | Both reopen unread, and only the affected conversation | Core half verified. BPR-0121 proves an in-place edit reopens unread and outdates acceptance while carrying the same comment identity; the host half lands with BPR-0125 |
 | Crash recovery is sound | Process-kill integration | Kill during a transaction and during a refresh, then restart | Committed state survives and incomplete transactions are discarded | Planned |
-| Migrations are forward-only and complete | Host migration tests | Open a database at every supported prior schema | Each migrates to current and no migration is reversible | Planned |
-| No cross-identity leak | Persistence integration | Reuse PR numbers and paths across hosts, accounts, and repositories | No receipt is visible outside the identity that wrote it | Planned |
+| Migrations are forward-only and complete | Host migration tests | Open a database at every supported prior schema | Each migrates to current and no migration is reversible | Verified. BPR-0124 builds a real version-1 database and migrates it to 2, asserting a pre-migration row survives; a newer database is refused *without being written to*, which the first version of the assertion failed to distinguish |
+| No cross-identity leak | Persistence integration | Reuse PR numbers and paths across hosts, accounts, and repositories | No receipt is visible outside the identity that wrote it | Scope half verified. BPR-0124 resolves pull request 7 on four identities differing in one field each to four distinct scopes; receipt-level isolation lands with BPR-0125 |
 | GitHub remains unchanged | Database-loss test | Delete the ledger and inspect an independent GitHub fixture | Only private state is lost and a clean ledger is recreated | Planned |
 | Next actionable is deterministic and explains itself | Core | Rank a fixture queue twice and read the explanation | The order is identical and the explanation names the deciding facts | Verified. BPR-0123 ranks a fixture whose top reason is tied and whose supplied order the tie-break must overturn, and re-ranks the reversed input to the identical result; the reason is a core value the adapter renders rather than composes |
 | The ledger decision and effect split holds | Core, fake store, and Qt | Drive a receipt intent end to end | Intent transition, persistence request, typed completion, and UI delta are each separately observable | Planned |
 | The core stays free of storage and presentation | Dependency scan | Scan the core target | No SQLite, Qt, filesystem, clock, thread, or credential identifier appears | Verified for the receipt policy. BPR-0121's transitions build and run under `core-only`, which links neither Qt nor SQLite; later slices re-assert it as they land |
-| The ledger persists no presentation coordinate | Schema scan | Inspect every column of the created schema | No Qt index, row number, ribbon path, y-coordinate, or scroll position is stored | Planned |
+| The ledger persists no presentation coordinate | Schema scan | Inspect every column of the created schema | No Qt index, row number, ribbon path, y-coordinate, or scroll position is stored | Verified. BPR-0124 enumerates every column of the created schema and matches each against a forbidden substring set, and names a column it did inspect so an empty schema cannot pass |
 
 ## Deferred gates
 
