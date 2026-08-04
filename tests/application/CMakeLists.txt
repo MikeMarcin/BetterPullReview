@@ -266,3 +266,20 @@ add_test(
     NAME application_review_mutation
     COMMAND test_better_pull_review_review_mutation_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_review_synchronization_tests
+    review_synchronization_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_synchronization_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_review_synchronization_tests)
+bpr_enable_warnings(test_better_pull_review_review_synchronization_tests)
+
+add_test(
+    NAME application_review_synchronization
+    COMMAND test_better_pull_review_review_synchronization_tests
+)
