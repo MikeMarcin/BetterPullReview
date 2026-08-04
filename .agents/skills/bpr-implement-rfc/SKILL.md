@@ -16,6 +16,7 @@ Carry requested BetterPullReview RFCs from live RFC text or an imported RFC pack
 5. Do not mark an RFC Auto-Verified because a plausible build or test passed. Every material acceptance claim needs a command, interaction, or inspection that would fail or visibly disagree if that exact claim were false.
 6. Never expose or commit GitHub credentials, GHE tokens, cookies, private repository content, or secret-bearing logs. Redact secrets from command output and evidence.
 7. Use fixtures, mocks, recordings, or a designated test repository for GitHub mutations. Do not create reviews, comments, approvals, dismissals, labels, pushes, branch updates, or other remote side effects on a real pull request unless the RFC requires live validation and the user has already identified the safe test target.
+8. Concurrent sessions may share this checkout: when one may be active, claim the current card by committing its lane move before editing, leave nothing staged between commits, and commit with explicit pathspecs so foreign in-flight changes are never swept into a slice.
 
 ## Start
 

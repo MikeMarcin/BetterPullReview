@@ -9,50 +9,50 @@
   "files": [
     {
       "path": ".claude/agents/rfc-critical-reviewer.md",
-      "sha256": "ee75052535df46c2ff20fc55919e2a9278e6445d8461750dc8824255040f544c"
+      "sha256": "b0d86ac69995881500938886a7d2db0f439ebc7539cd9a806a4eee71841a139e"
     },
     {
       "path": ".claude/agents/rfc-reviewer.md",
-      "sha256": "62520eb42aa22e242f1dd6cda6807890184ac0d0c02681b34517337d7f72ff51"
+      "sha256": "87568fc867914ac6ce10bb0a3f3b7c701efe38cb91535e4d53d6a9036c2d1c9c"
     },
     {
       "path": ".claude/agents/rfc-scout.md",
-      "sha256": "37132df4e9ce899afbb83b7e4d16fca7380ae10cf87ca2e2365771591e62590b"
+      "sha256": "14c367fe735748a16471900d9651b28b759ca726d3f937a0e49d7b2f56a37a25"
     },
     {
       "path": ".claude/agents/rfc-utility.md",
-      "sha256": "1f6bc61abded549ebcb2721b5161b65483b5fd00d4da06bd4e92a79ee834eeed"
+      "sha256": "592d8e21d06fcf31e839c2f949e3be8dba84735e8bd7b22ee1d30dde2a5ef77d"
     },
     {
       "path": ".claude/agents/rfc-worker.md",
-      "sha256": "a1aeafc16df2e630c630fe80d5cd4539a9c1cd8a937d5930a7237041507c7abb"
+      "sha256": "902c3172c483693ff32488e46d7bb5401326014b5bd5671bcb918520f66cf4d0"
     },
     {
       "path": ".claude/skills/bpr-implement-rfc/SKILL.md",
-      "sha256": "7fc3d3dfde77571b76cd39365cdbc0c801d41d743826fd36247a242c5e97ca4a"
+      "sha256": "88d2377ec744267ce2b109a6eb382048fe2b50845f401694b66132e69a5042b6"
     },
     {
       "path": ".codex/agents/rfc-critical-reviewer.toml",
-      "sha256": "197dd6cce910fd045b327790bff55e3f536b56d012d072ff6cbee84ab59886b4"
+      "sha256": "2e23397634ecd7c9864003a1415ea4815cbf2ab3a2fc2e7e49e32abbd2a35e22"
     },
     {
       "path": ".codex/agents/rfc-reviewer.toml",
-      "sha256": "378cf81a63f6304309cc31897436a921e6089a024816f84c754050b56b8dda15"
+      "sha256": "b9d871a545ff714c3099ae9d22c1dce61a6a9015009a102bb6043d7af3cb935b"
     },
     {
       "path": ".codex/agents/rfc-scout.toml",
-      "sha256": "8118efcfce9a8c0c4d095d3a53391c106d2acf28cb44697339da56d1112138b0"
+      "sha256": "b6eaeffc20960fb119f98f7d6c5cef827fa465db8048cc6d26d5fb0e7710ecbe"
     },
     {
       "path": ".codex/agents/rfc-utility.toml",
-      "sha256": "5d52a96f3e38b65bf4ac5963b6427989d232193c090b62b4337c0516622135b3"
+      "sha256": "d9930c0c91dfbd02b0d7187d3b3f8aabc4e05744f371c16862f54e2a49bcb229"
     },
     {
       "path": ".codex/agents/rfc-worker.toml",
-      "sha256": "3f15ba10e0d1b16c5756ea419261d036aae23054ffb95d8cbba64c338ca95238"
+      "sha256": "5648e57a3997a4a1077cb1f7e329d411eaeed90e6852d96a4edd8eaab2294ec6"
     }
   ],
   "schema": "betterpullreview.implement-rfc.runtime-adapters.v1",
-  "source_digest": "13f9b520a2391c2a",
+  "source_digest": "6b8107b1a271946f",
   "verified_as_of": "2026-08-02"
 }
