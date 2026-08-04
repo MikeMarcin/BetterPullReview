@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <span>
 #include <string_view>
 
 namespace {
@@ -384,6 +385,154 @@ namespace {
 			"a new comment reopens the conversation and outdates acceptance");
 	}
 
+	[[nodiscard]] auto queued(
+		const std::uint8_t          aFile,
+		const bool                  aDefect,
+		const bool                  aVerification,
+		const bool                  aOutdated,
+		const std::uint32_t         aConversations,
+		const core::file_read_state aRead) -> core::actionability_input
+	{
+		return core::actionability_input{
+			.Receipt = core::file_receipt{
+				.File     = file(aFile),
+				.Material = material(aFile),
+				.Read     = aRead,
+			},
+			.UnresolvedDefect     = aDefect,
+			.AwaitingVerification = aVerification,
+			.AcceptanceOutdated   = aOutdated,
+			.UnreadConversations  = aConversations,
+		};
+	}
+
+	void test_the_queue_order_is_deterministic_including_ties()
+	{
+		// Two files share the highest reason. Without an explicit tie-break
+		// they would come back in whatever order the caller supplied, which
+		// looks stable on one run and is not deterministic.
+		const auto inputs = std::array{
+			queued(60U, false, false, false, 0U, core::file_read_state::unread),
+			queued(50U, true, false, false, 0U, core::file_read_state::read),
+			queued(40U, false, true, false, 0U, core::file_read_state::read),
+			queued(30U, true, false, false, 0U, core::file_read_state::read),
+		};
+
+		const auto ranked = core::rank_actionable(inputs, { });
+		expect(ranked.size() == 4U, "every actionable file is queued");
+
+		expect(
+			ranked[0].Reason == core::actionability_reason::unresolved_defect
+				&& ranked[1].Reason
+					== core::actionability_reason::unresolved_defect,
+			"the two defects rank above everything else");
+		expect(
+			ranked[0].File.bytes() < ranked[1].File.bytes(),
+			"the tie between two defects is broken on file identity");
+		expect(
+			ranked[2].Reason
+				== core::actionability_reason::awaiting_verification,
+			"verification ranks below a defect");
+		expect(
+			ranked[3].Reason == core::actionability_reason::unread_material,
+			"unread material ranks last of the actionable reasons");
+
+		// Supplying the same set in a different order must not change it.
+		const auto reversed = std::array{
+			inputs[3],
+			inputs[2],
+			inputs[1],
+			inputs[0],
+		};
+		const auto again = core::rank_actionable(reversed, { });
+		expect(
+			again == ranked,
+			"the order does not depend on the order the caller supplied");
+	}
+
+	void test_the_explanation_follows_the_deciding_fact()
+	{
+		auto input = queued(
+			70U,
+			false,
+			false,
+			false,
+			0U,
+			core::file_read_state::read);
+		expect(
+			core::reason_for(input) == core::actionability_reason::nothing_to_do
+				&& !core::actionable(core::reason_for(input)),
+			"a fully read file with nothing outstanding is not actionable");
+
+		input.UnreadConversations = 1U;
+		expect(
+			core::reason_for(input)
+				== core::actionability_reason::unread_conversation,
+			"an unread conversation is what makes it actionable");
+
+		input.UnresolvedDefect = true;
+		expect(
+			core::reason_for(input)
+				== core::actionability_reason::unresolved_defect,
+			"the defect outranks the conversation and the reason says so");
+
+		input.UnresolvedDefect = false;
+		expect(
+			core::reason_for(input)
+				== core::actionability_reason::unread_conversation,
+			"removing the deciding fact restores the previous reason");
+	}
+
+	void test_exclusion_leaves_the_queue_rather_than_ranking_in_it()
+	{
+		auto excluded = queued(
+			80U,
+			true,
+			false,
+			false,
+			3U,
+			core::file_read_state::unread);
+		excluded.Receipt.Excluded = true;
+
+		expect(
+			core::reason_for(excluded) == core::actionability_reason::excluded,
+			"exclusion outranks every actionable reason rather than competing");
+		expect(
+			!core::actionable(core::actionability_reason::excluded),
+			"excluded is not an actionable reason");
+
+		const auto inputs = std::array{ excluded };
+		expect(
+			core::rank_actionable(inputs, { }).empty(),
+			"an excluded file is absent from the default queue");
+
+		const auto shown = core::rank_actionable(inputs, { .IncludeExcluded = true });
+		expect(
+			shown.size() == 1U
+				&& shown[0].Reason == core::actionability_reason::excluded,
+			"the filter admits it without changing why it is what it is");
+	}
+
+	void test_a_filter_changes_membership_and_not_the_ranking_rule()
+	{
+		const auto inputs = std::array{
+			queued(90U, false, true, false, 0U, core::file_read_state::read),
+			queued(91U, true, false, false, 0U, core::file_read_state::read),
+			queued(92U, true, false, false, 0U, core::file_read_state::read),
+		};
+
+		const auto all = core::rank_actionable(inputs, { });
+		const auto defectsOnly
+			= core::rank_actionable(inputs, { .OnlyDefects = true });
+
+		expect(
+			all.size() == 3U && defectsOnly.size() == 2U,
+			"the filter removes the non-defect item");
+		expect(
+			defectsOnly[0] == all[0] && defectsOnly[1] == all[1],
+			"the surviving items keep the order they had before the filter");
+	}
+
 	void test_every_enumerator_names_itself()
 	{
 		expect(
@@ -415,6 +564,10 @@ auto main() -> int
 	test_exclusion_survives_a_material_change();
 	test_an_observation_for_another_file_is_not_a_carry_over();
 	test_an_edited_comment_reopens_a_conversation();
+	test_the_queue_order_is_deterministic_including_ties();
+	test_the_explanation_follows_the_deciding_fact();
+	test_exclusion_leaves_the_queue_rather_than_ranking_in_it();
+	test_a_filter_changes_membership_and_not_the_ranking_rule();
 	test_every_enumerator_names_itself();
 
 	std::cout << "review-ledger-core-tests:pass\n";

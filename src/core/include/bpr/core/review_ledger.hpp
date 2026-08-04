@@ -6,7 +6,9 @@
 
 #include <compare>
 #include <cstdint>
+#include <span>
 #include <string_view>
+#include <vector>
 
 namespace bpr::core {
 	struct review_conversation_id_tag;
@@ -223,6 +225,87 @@ namespace bpr::core {
 	[[nodiscard]] auto unread(
 		const conversation_receipt&     aReceipt,
 		const conversation_observation& aObservation) noexcept -> bool;
+
+	/// \brief Names the single fact that decided one item's place in the queue.
+	///
+	/// \details The order of the enumerators *is* the priority order, and the
+	/// ranking reads it that way rather than repeating the order in a
+	/// comparison function. Two statements of the same order drift apart.
+	///
+	/// This is the explanation the presentation layer renders. It is a value
+	/// and not a formatted string, because an adapter that composed its own
+	/// reason text would be deciding policy.
+	enum class actionability_reason : std::uint8_t {
+		unresolved_defect,
+		awaiting_verification,
+		acceptance_outdated,
+		unread_conversation,
+		unread_material,
+		nothing_to_do,
+		excluded,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(actionability_reason aReason) noexcept
+		-> std::string_view;
+
+	/// \brief Reports whether a reason places an item in the actionable queue.
+	[[nodiscard]] constexpr auto actionable(
+		const actionability_reason aReason) noexcept -> bool
+	{
+		return aReason < actionability_reason::nothing_to_do;
+	}
+
+	/// \brief Carries everything the ranking may consider about one file.
+	///
+	/// \details The host assembles this from GitHub state, the ledger, and the
+	/// defect record. The core sees nothing else, so the ranking cannot depend
+	/// on a fact it did not declare.
+	struct actionability_input
+	{
+		file_receipt  Receipt;
+		bool          UnresolvedDefect     = false;
+		bool          AwaitingVerification = false;
+		bool          AcceptanceOutdated   = false;
+		std::uint32_t UnreadConversations  = 0U;
+
+		auto operator<=>(const actionability_input&) const = default;
+	};
+
+	/// \brief Selects which items the queue presents.
+	struct actionability_filters
+	{
+		bool IncludeExcluded = false;
+		bool OnlyDefects     = false;
+
+		auto operator<=>(const actionability_filters&) const = default;
+	};
+
+	/// \brief Names one ranked item and why it sits where it does.
+	struct actionable_item
+	{
+		file_identity        File;
+		file_material_id     Material;
+		actionability_reason Reason = actionability_reason::nothing_to_do;
+
+		auto operator<=>(const actionable_item&) const = default;
+	};
+
+	/// \brief Decides why one file is actionable, if it is.
+	[[nodiscard]] auto reason_for(const actionability_input& aInput) noexcept
+		-> actionability_reason;
+
+	/// \brief Ranks the actionable items of a bounded input set.
+	///
+	/// \details Ordering is by reason first and by file identity second. The
+	/// identity tie-break is not decoration: without it two items sharing a
+	/// reason would come back in whatever order the caller happened to supply,
+	/// which looks stable on one run and is not deterministic. Filters change
+	/// which items appear and never how the remaining ones are ordered.
+	[[nodiscard]] auto rank_actionable(
+		std::span<const actionability_input> aInputs,
+		actionability_filters                aFilters)
+		-> std::vector<actionable_item>;
 
 	/// \brief Reports whether a conversation's acceptance has been outrun.
 	///

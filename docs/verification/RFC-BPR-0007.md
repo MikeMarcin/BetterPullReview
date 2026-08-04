@@ -3,7 +3,8 @@
 RFC base: `ea3a3b8223c00f9e0999bf0ab2882496abf65843`
 
 Status: implementation in progress. The core receipt policy and its
-epoch-advance carry-over have landed (BPR-0121, BPR-0122). RFC-BPR-0007 stays `Proposed`.
+epoch-advance carry-over and the actionability ranking have landed
+(BPR-0121, BPR-0122, BPR-0123). RFC-BPR-0007 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -60,7 +61,7 @@ reading `Planned` have none yet, and a partially claimed row says which half.
 | Migrations are forward-only and complete | Host migration tests | Open a database at every supported prior schema | Each migrates to current and no migration is reversible | Planned |
 | No cross-identity leak | Persistence integration | Reuse PR numbers and paths across hosts, accounts, and repositories | No receipt is visible outside the identity that wrote it | Planned |
 | GitHub remains unchanged | Database-loss test | Delete the ledger and inspect an independent GitHub fixture | Only private state is lost and a clean ledger is recreated | Planned |
-| Next actionable is deterministic and explains itself | Core | Rank a fixture queue twice and read the explanation | The order is identical and the explanation names the deciding facts | Planned |
+| Next actionable is deterministic and explains itself | Core | Rank a fixture queue twice and read the explanation | The order is identical and the explanation names the deciding facts | Verified. BPR-0123 ranks a fixture whose top reason is tied and whose supplied order the tie-break must overturn, and re-ranks the reversed input to the identical result; the reason is a core value the adapter renders rather than composes |
 | The ledger decision and effect split holds | Core, fake store, and Qt | Drive a receipt intent end to end | Intent transition, persistence request, typed completion, and UI delta are each separately observable | Planned |
 | The core stays free of storage and presentation | Dependency scan | Scan the core target | No SQLite, Qt, filesystem, clock, thread, or credential identifier appears | Verified for the receipt policy. BPR-0121's transitions build and run under `core-only`, which links neither Qt nor SQLite; later slices re-assert it as they land |
 | The ledger persists no presentation coordinate | Schema scan | Inspect every column of the created schema | No Qt index, row number, ribbon path, y-coordinate, or scroll position is stored | Planned |

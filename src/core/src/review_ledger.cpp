@@ -1,5 +1,7 @@
 #include "bpr/core/review_ledger.hpp"
 
+#include <algorithm>
+
 namespace bpr::core {
 	namespace {
 		/// \brief Advances a read progression without ever moving it backwards.
@@ -175,6 +177,99 @@ namespace bpr::core {
 			.Receipt     = aReceipt,
 			.Disposition = receipt_carry_over::file_absent,
 		};
+	}
+
+	auto name(const actionability_reason aReason) noexcept -> std::string_view
+	{
+		switch (aReason) {
+		case actionability_reason::unresolved_defect:
+			return "unresolved_defect";
+		case actionability_reason::awaiting_verification:
+			return "awaiting_verification";
+		case actionability_reason::acceptance_outdated:
+			return "acceptance_outdated";
+		case actionability_reason::unread_conversation:
+			return "unread_conversation";
+		case actionability_reason::unread_material:
+			return "unread_material";
+		case actionability_reason::nothing_to_do:
+			return "nothing_to_do";
+		case actionability_reason::excluded:
+			return "excluded";
+		}
+		return "nothing_to_do";
+	}
+
+	auto reason_for(const actionability_input& aInput) noexcept
+		-> actionability_reason
+	{
+		// Exclusion is checked first and is not a priority: an excluded file is
+		// out of the queue whatever else is true of it. Ordering it among the
+		// actionable reasons would put it in the queue it exists to leave.
+		if (aInput.Receipt.Excluded) {
+			return actionability_reason::excluded;
+		}
+		if (aInput.UnresolvedDefect) {
+			return actionability_reason::unresolved_defect;
+		}
+		if (aInput.AwaitingVerification) {
+			return actionability_reason::awaiting_verification;
+		}
+		if (aInput.AcceptanceOutdated) {
+			return actionability_reason::acceptance_outdated;
+		}
+		if (aInput.UnreadConversations != 0U) {
+			return actionability_reason::unread_conversation;
+		}
+		if (aInput.Receipt.Read != file_read_state::read) {
+			return actionability_reason::unread_material;
+		}
+		return actionability_reason::nothing_to_do;
+	}
+
+	auto rank_actionable(
+		const std::span<const actionability_input> aInputs,
+		const actionability_filters                aFilters)
+		-> std::vector<actionable_item>
+	{
+		auto ranked = std::vector<actionable_item>{ };
+		ranked.reserve(aInputs.size());
+
+		for (const auto& input : aInputs) {
+			const auto reason = reason_for(input);
+			if (reason == actionability_reason::excluded
+				&& !aFilters.IncludeExcluded) {
+				continue;
+			}
+			if (!actionable(reason)
+				&& reason != actionability_reason::excluded) {
+				continue;
+			}
+			if (aFilters.OnlyDefects
+				&& reason != actionability_reason::unresolved_defect) {
+				continue;
+			}
+
+			ranked.push_back(actionable_item{
+				.File     = input.Receipt.File,
+				.Material = input.Receipt.Material,
+				.Reason   = reason,
+			});
+		}
+
+		// Reason first, then file identity. The identity tie-break is what
+		// makes the order deterministic rather than merely repeatable on one
+		// machine: without it, items sharing a reason keep the caller's order.
+		std::ranges::stable_sort(
+			ranked,
+			[](const actionable_item& aLeft, const actionable_item& aRight) {
+				if (aLeft.Reason != aRight.Reason) {
+					return aLeft.Reason < aRight.Reason;
+				}
+				return aLeft.File.bytes() < aRight.File.bytes();
+			});
+
+		return ranked;
 	}
 
 	auto unread(
