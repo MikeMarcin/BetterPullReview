@@ -734,7 +734,10 @@ state/v1/epoch-catalog.sqlite3
 It is the dedicated epoch catalog. RFC-BPR-0007's private review ledger has a
 separate database, schema version, and lifecycle authority; the two features
 may reuse the narrow SQLite adapter library but do not add tables to each
-other's database.
+other's database. The ledger is documented in
+[Review Ledger](review-ledger.md), and the reuse is literal: both stores go
+through one `configure_connection` and one `sqlite_runtime_ready` rather than
+carrying copies that could drift apart.
 
 The catalog has `application_id = 0x42504543` (`BPEC`),
 `user_version = 1`, and a nonzero random 256-bit catalog incarnation. The

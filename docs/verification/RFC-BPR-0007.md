@@ -93,6 +93,19 @@ this project starts; it needs no elevated privilege and no operator.
 | BPR-0129 | Documentation: schema, migrations, identity, privacy, retention, purge |
 | BPR-0130 | Simplification and closeout preparation |
 
+## Documentation ledger
+
+| Scope | Required documents | Disposition |
+|---|---|---|
+| Schema, migrations, identity, receipt semantics, actionability, crash recovery, backups, retention, purge, privacy | [Review Ledger](../architecture/review-ledger.md) | Written. Records ownership, the typed command/decision/observation/request/completion/delta vocabulary, authority and ordering, concurrency, the schema and its refusals, the forward-only migration rule, receipt and conversation semantics, the ranking rules, recovery, and privacy |
+| Epoch catalog boundary | Git and epoch model | Updated. The existing statement that the ledger is a separate database now links the ledger document and records that the connection policy and runtime initialisation are literally shared rather than duplicated |
+| Build and test | Build and test guide | Updated by BPR-0121 for the core suite; the storage, host, and Qt suites run under the standard presets and need no separate invocation |
+
+**Backups and retention are documented as absent rather than described.**
+Neither has been designed. Stating a policy that does not run would be worse
+than stating none, so the document says plainly that the ledger grows and that
+purge is file deletion.
+
 ## Closeout blockers
 
 RFC-BPR-0007 cannot become `Auto-Verified` until RFC-BPR-0005 is, which
