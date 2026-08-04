@@ -2,8 +2,9 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: implementation in progress. The core draft policy and target
-revalidation have landed (BPR-0135, BPR-0136). RFC-BPR-0008 stays `Proposed`.
+Status: implementation in progress. The core draft policy, target
+revalidation, and the host mutation coordinator have landed (BPR-0135 through
+BPR-0137). RFC-BPR-0008 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -47,12 +48,12 @@ A row is claimed only when its card lands with direct evidence.
 |---|---|---|---|---|
 | Draft and publish legality is decided in the core | Core | Drive every draft, edit, discard, and publish transition | Illegal transitions carry typed reasons; the suite runs under `core-only` with no provider linked | Verified. BPR-0135 models `publishing` as its own state so a second publish in flight is refused, keeps a failed publication's text, derives `shared` from `published` rather than a settable flag, and refuses six distinct mistakes with six distinct reasons |
 | Head movement cannot silently publish | Core | Move the head between draft and publish | Publication is refused with a distinct reason until explicitly revalidated or remapped | Verified. BPR-0136 refuses a moved head until acknowledged, refuses a changed host, repository, or pull request *even when acknowledged*, refuses an unnameable head outright, and reports the changed target ahead of the moved head when both are wrong |
-| The wrong target is impossible | Host coordinator | Alter host, repository, pull request, and head between prepare and execute | Each substitution is refused, and refusal is proven for a change made *after* the prepare check | Planned |
-| Retries do not duplicate | Host coordinator | Replay a mutation whose result was lost | The second attempt is recognised rather than creating a second comment | Planned |
+| The wrong target is impossible | Host coordinator | Alter host, repository, pull request, and head between prepare and execute | Each substitution is refused, and refusal is proven for a change made *after* the prepare check | Verified. BPR-0137 observes the target twice; the fake reports the designated target first and another repository second, and the statistics show two observations with zero submissions, so the second check is proven to have run |
+| Retries do not duplicate | Host coordinator | Replay a mutation whose result was lost | The second attempt is recognised rather than creating a second comment | Verified. BPR-0137 derives the key from the draft, target, anchor, disposition, and body; the retry returns the original comment identifier and the provider holds one comment, and four cases assert the key changes when body, anchor, or head does |
 | External changes round-trip | Host synchronization | Apply an externally created, edited, and deleted comment to the projection | Each is reflected after refresh, and a local assumption never overwrites an unknown external change | Planned |
 | The mutation path cannot bypass the host | Qt plus trace | Drive every publish and resolve action | Every action produces a core proposal, then a host coordination, then a result event; no widget holds a provider | Planned |
-| Capability fallback is explicit | Host | Offer a provider without native resolve or viewed-state | The degradation is reported in typed form rather than silently skipped | Planned |
-| Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Planned |
+| Capability fallback is explicit | Host | Offer a provider without native resolve or viewed-state | The degradation is reported in typed form rather than silently skipped | Verified. BPR-0137 reports a provider that resolves no threads and records no viewed state rather than skipping the operation, which would leave a reviewer believing they had resolved something |
+| Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Verified for the request. BPR-0137 asserts the submitted request carries the acting identity and the coordinator's own designated target, so no caller can name a destination. Whether GitHub attributes the review to that account is BPR-0144 |
 | No automated test mutates an undesignated target | Whole suite | Scan the suite's provider configuration | Every mutation test uses the fixture provider; no test names a live host | Planned |
 
 ## Deferred gates

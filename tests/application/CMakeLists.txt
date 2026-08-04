@@ -249,3 +249,20 @@ add_test(
     NAME application_review_ledger_host
     COMMAND test_better_pull_review_review_ledger_host_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_review_mutation_tests
+    review_mutation_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_mutation_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_review_mutation_tests)
+bpr_enable_warnings(test_better_pull_review_review_mutation_tests)
+
+add_test(
+    NAME application_review_mutation
+    COMMAND test_better_pull_review_review_mutation_tests
+)

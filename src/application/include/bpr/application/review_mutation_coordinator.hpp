@@ -1,0 +1,77 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_COORDINATOR_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_COORDINATOR_HPP
+
+#include "bpr/application/review_mutation_port.hpp"
+
+#include <cstdint>
+#include <expected>
+
+namespace bpr::application {
+	/// \brief Records directly observable coordinator activity.
+	struct review_mutation_statistics
+	{
+		std::uint64_t Attempts            = 0U;
+		std::uint64_t TargetObservations  = 0U;
+		std::uint64_t Submissions         = 0U;
+		std::uint64_t RefusedBeforeSubmit = 0U;
+		std::uint64_t Duplicates          = 0U;
+
+		auto operator<=>(const review_mutation_statistics&) const = default;
+	};
+
+	/// \brief Performs review mutations against exactly one designated target.
+	///
+	/// \details The designated target is fixed when the coordinator is built
+	/// and can never be replaced. Everything this type does is in service of a
+	/// single rule: a mutation reaches the provider only if the server still
+	/// reports the pull request this coordinator was designated for.
+	///
+	/// The target is observed **twice** — once to decide whether publication is
+	/// permitted, and again immediately before submitting. A check performed
+	/// only at the first point would pass for a target that changed afterwards,
+	/// which is precisely the window an automated run could slip through.
+	class review_mutation_coordinator final
+	{
+	public:
+		review_mutation_coordinator(
+			review_mutation_port&               aProvider,
+			const core::review_mutation_target& aDesignated,
+			core::github_account_id             aActingIdentity) noexcept;
+
+		/// \brief Publishes one proposal, or explains why it did not.
+		///
+		/// \param aAcknowledged Whether the reviewer explicitly accepted a
+		/// moved head. It can never authorise a different target.
+		[[nodiscard]] auto publish(
+			const core::review_publication_proposal& aProposal,
+			bool                                     aAcknowledged)
+			-> std::expected<review_mutation_receipt, review_mutation_failure>;
+
+		[[nodiscard]] auto designated() const noexcept
+			-> const core::review_mutation_target&;
+		[[nodiscard]] auto capabilities() const -> review_provider_capabilities;
+		[[nodiscard]] auto statistics() const noexcept
+			-> review_mutation_statistics;
+
+	private:
+		[[nodiscard]] auto confirm_target(bool aAcknowledged)
+			-> std::expected<void, review_mutation_failure>;
+
+		review_mutation_port*        Provider = nullptr;
+		core::review_mutation_target Designated;
+		core::github_account_id      ActingIdentity;
+		review_mutation_statistics   Statistics;
+	};
+
+	/// \brief Derives the idempotency key for one proposal against one target.
+	///
+	/// \details The key is a pure function of what is being said, where, and to
+	/// which revision. Two retries of the same publication produce the same
+	/// key; two genuinely different comments cannot collide, because the draft
+	/// identity is part of it.
+	[[nodiscard]] auto idempotency_key_for(
+		const core::review_publication_proposal& aProposal,
+		const core::review_mutation_target&      aTarget) -> std::string;
+} // namespace bpr::application
+
+#endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_COORDINATOR_HPP
