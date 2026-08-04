@@ -59,6 +59,14 @@ Nested spawning is version-sensitive. A subagent may spawn children only when it
 
 Claude Code officially discovers project skills from `.claude/skills/`; Codex uses the cross-client `.agents/skills/` location. The renderer therefore creates a small `.claude/skills/bpr-implement-rfc/SKILL.md` entrypoint that loads the canonical `.agents/skills/bpr-implement-rfc/SKILL.md`. Do not maintain two full skill copies.
 
+### Long multi-commit sessions
+
+Claude Code has no agent-callable goal tool; its goal command is user-invoked, so the skill's Start step cannot anchor the objective there. Use the persistent session task list instead: mirror the requested RFC order and closeout phases as a courtesy view while the issue board and closeout cards stay authoritative.
+
+Claude Code compacts long conversations, and compaction can silently drop the in-memory task queue mid-run. The skill's `Run State And Reorientation` procedure exists for exactly this failure: re-derive the next card from the live board and the closeout card, and never conclude from memory that no work remains. For pack-scale runs, prefer a primary-session model configuration with a 1M-token context window when the deployment offers one; the larger window delays compaction but does not remove the reorientation obligation. Because compaction pressure grows with every scan absorbed inline, treat the read-only delegation lanes — discovery, inventory, log condensation, review-evidence collection — as the strong default on Claude Code without waiting for the user to request them.
+
+Re-invoking the skill with the same arguments is the supported resume path after an interruption or a fresh session: reorientation recovers `RFC_BASE_SHA`, the ledgers, the phase checklist, and the next task from the closeout card, the board, and `git log`.
+
 For Bedrock, keep the generated agent definitions unchanged and use `modelOverrides` in local or managed Claude Code settings to map the canonical model IDs to exact approved inference-profile ARNs. Family aliases are not considered reproducible routing.
 
 ## Capability Fallback

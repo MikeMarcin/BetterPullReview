@@ -12,6 +12,8 @@ Delegation is successful only when it improves at least one of these without wea
 
 Do not optimize for agent count or aggregate parallel activity. A subagent normally adds total model work, so it must replace work the primary agent would otherwise perform, isolate noisy intermediate output, or add a meaningfully independent quality check.
 
+On long multi-commit runs, weigh the third objective heaviest: integrator context spent absorbing raw scan output is the direct precursor of lost run state, so a delegation that merely keeps large reads out of the primary context usually pays for itself.
+
 ## Primary-Agent Authority
 
 The primary agent is the BetterPullReview RFC integrator. It alone owns:
@@ -121,6 +123,7 @@ Use this default decision table.
 |---|---|
 | Small, single-surface, directly verifiable change | Primary agent only |
 | Exact locating, inventory, command execution, schema/drift check, or log condensation | One `rfc-utility` |
+| Post-resume board-state and queue inventory snapshot for reorientation | One `rfc-utility`; the primary agent still decides the next task |
 | Broad ownership, public execution-path, build-selection, verification, documentation-impact, or root-cause analysis | One `rfc-scout` |
 | Two genuinely independent semantic read-only questions | Up to two direct scout/reviewer lanes; nested utilities may support them within the five-lane cap |
 | Clear current issue-card slice | Optional single `rfc-worker`; primary agent does not edit concurrently; worker should offload prescribed tests or inventories to utility lanes when useful |
@@ -198,7 +201,7 @@ Require the compact role-specific result format defined in `config/roles.json`. 
 
 - Delegate replacement work, not duplicate work.
 - Use `rfc-utility` for directly observable mechanical work; promote to `rfc-scout` when semantic interpretation begins.
-- Use `rfc-scout` only when context isolation or parallel semantic analysis is worth the extra model call.
+- Use `rfc-scout` for any semantic scan expected to span more than a few files; on long multi-commit runs context isolation is worth the extra model call by default, and keeping such a scan inline is the choice that needs justification.
 - Keep deterministic searching, filtering, schema validation, and command execution in scripts when the script already exists; the utility role is for orchestrating or condensing such work, not replacing deterministic tools.
 - Keep the primary integrator and implementation worker at the deep route by default. Do not opt either down merely because an issue card is bounded.
 - Do not silently downgrade ordinary or critical review to save tokens.
