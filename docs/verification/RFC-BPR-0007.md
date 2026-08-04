@@ -2,10 +2,13 @@
 
 RFC base: `ea3a3b8223c00f9e0999bf0ab2882496abf65843`
 
-Status: implementation in progress. The core receipt policy and its
-epoch-advance carry-over, the actionability ranking, the ledger schema, and
-the host persistence path, crash recovery, the Qt queue projection, and the
-composition-root wiring have landed (BPR-0121 through BPR-0128). RFC-BPR-0007 stays `Proposed`.
+Status: available-target implementation complete. BPR-0121 through BPR-0128
+delivered the core receipt policy, epoch-advance carry-over, actionability
+ranking, ledger schema and migrations, host persistence, crash recovery, the Qt
+queue projection, and the composition-root wiring. BPR-0129 documented it and
+BPR-0130 prepared closeout.
+
+RFC-BPR-0007 stays `Proposed`. No card here makes a closure claim.
 
 ## Why this RFC can be implemented now
 
@@ -64,7 +67,8 @@ reading `Planned` have none yet, and a partially claimed row says which half.
 | GitHub remains unchanged | Database-loss test | Delete the ledger and inspect an independent GitHub fixture | Only private state is lost and a clean ledger is recreated | Verified for store independence. BPR-0126 deletes the ledger with its `-wal` and `-shm`, recreates a clean one, and shows a second database beside it untouched; the test fails if the two ever share a file. Inspecting a live GitHub fixture belongs to BPR-0128's public path |
 | Next actionable is deterministic and explains itself | Core | Rank a fixture queue twice and read the explanation | The order is identical and the explanation names the deciding facts | Verified. BPR-0123 ranks a fixture whose top reason is tied and whose supplied order the tie-break must overturn, and re-ranks the reversed input to the identical result; the reason is a core value the adapter renders rather than composes |
 | The ledger decision and effect split holds | Core, fake store, and Qt | Drive a receipt intent end to end | Intent transition, persistence request, typed completion, and UI delta are each separately observable | Host half verified. BPR-0125's fake store and fake projection share one log, so the request, the commit, and the publication are read in order rather than assumed; the Qt delta lands with BPR-0127 |
-| The core stays free of storage and presentation | Dependency scan | Scan the core target | No SQLite, Qt, filesystem, clock, thread, or credential identifier appears | Verified for the receipt policy. BPR-0121's transitions build and run under `core-only`, which links neither Qt nor SQLite; later slices re-assert it as they land |
+| The core stays free of storage and presentation | Dependency scan | Scan the core target | No SQLite, Qt, filesystem, clock, thread, or credential identifier appears | Verified. The whole ledger policy — receipts (BPR-0121), carry-over (BPR-0122), and ranking (BPR-0123) — builds and runs under `core-only`, which links neither Qt nor SQLite, so the separation is proven by the build rather than by a scan |
+| The composed application persists a receipt | Real executable | Commit a receipt through the composed store, then run the binary again against the same data root | The receipt reaches the database the application opened, and a later process finds it | Verified. BPR-0128's probe writes and reads through the store the application composed; the public path requires `REVIEW_LEDGER_OK`, and the maintenance contract asserts `PRESENT_ON_ENTRY:0` on the seeding process and `:1` on a separate later execution |
 | The ledger persists no presentation coordinate | Schema scan | Inspect every column of the created schema | No Qt index, row number, ribbon path, y-coordinate, or scroll position is stored | Verified. BPR-0124 enumerates every column of the created schema and matches each against a forbidden substring set, and names a column it did inspect so an empty schema cannot pass |
 
 ## Deferred gates
