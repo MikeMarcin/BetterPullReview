@@ -1,0 +1,70 @@
+---
+id: BPR-0119
+title: application_diff_workbench_public_path fails intermittently at stage 20
+status: Backlog
+rfc: RFC-BPR-0003
+depends_on: []
+---
+
+# `application_diff_workbench_public_path` fails intermittently at stage 20
+
+Observed on macOS 15.7.7 arm64, Qt 6.11.1, during BPR-0116. The test failed
+once in three consecutive full `ctest --preset dev` runs against the *same*
+build tree, and passed in isolation immediately after failing. Nothing else was
+running: the suite is serial and no concurrent build was in flight.
+
+This is recorded rather than dismissed. An intermittent failure in the real
+application's public path is exactly the kind of defect that a rerun makes
+disappear and a user does not.
+
+## Captured evidence from the failing run
+
+```text
+PUBLIC_PATH_FAILED
+PUBLIC_PATH_STAGE:20
+PUBLIC_PATH_STATUS:Pull request ready.
+PUBLIC_PATH_DIAGNOSTIC:
+PUBLIC_PATH_ACCOUNT:Octo Reviewer (@octo-reviewer)
+PUBLIC_PATH_EPOCH_STATUS:Review history is inactive.
+PUBLIC_PATH_EPOCH_COMPARISON:Whole PR. No exact pair is resolved.
+PUBLIC_PATH_EPOCH_PAIR:::-1:-1:0:0
+PUBLIC_PATH_EPOCH_CORE_STATUS:-1
+GITHUB_FIXTURE_FAILED:github.com
+GITHUB_FIXTURE_EVIDENCE:11111110:-1:10:9
+GITHUB_FIXTURE_SMART_EVIDENCE:1:1:1:1
+DIFF_WORKBENCH_FAILED
+DIFF_INTERACTION_EVIDENCE_FAILED
+RENDER_FAILED
+```
+
+The downstream `DIFF_WORKBENCH`, `DIFF_INTERACTION_EVIDENCE`, and `RENDER`
+markers fail because the run stopped, not independently.
+
+The pull request itself reached "ready" and the account resolved, so the
+failure is confined to review history: the epoch control reports **inactive**
+with core status `-1` and no resolved pair, and the fixture evidence bitmask is
+`11111110` — one bit short of complete, with every smart-evidence field set.
+The suspicion is therefore an epoch-catalog activation that had not completed
+when stage 20 sampled it, rather than a wrong result.
+
+## What this is not
+
+The run happened while BPR-0116 was in progress, and that slice touched
+`diff_workbench`. It is very unlikely to be the cause: BPR-0116 adds a
+typography publication whose only effect is to invalidate measured geometry
+when the tab stop moves, the real application changes no tab width during this
+run, and the first publication is adopted as a baseline without rebuilding.
+The failing stage is epoch history, which the change does not reach. Confirm or
+rule this out rather than assuming it.
+
+## Required direct evidence
+
+- The exact stage-20 precondition is identified and named — which bit of
+  `GITHUB_FIXTURE_EVIDENCE` is clear, and what sets it.
+- Whether the failure is a missing wait on an asynchronous epoch-catalog
+  activation, or a real ordering defect in the activation itself. If it is the
+  latter, the application is wrong and not just the test.
+- The failure is reproduced deliberately rather than by rerunning until it
+  reappears — for example by delaying the activation the stage depends on.
+- Any fix is shown to fail when the behaviour it constrains is neutered, and a
+  repeated-run loop of the suite is clean afterwards.

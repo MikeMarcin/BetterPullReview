@@ -2,6 +2,7 @@
 
 #include "bpr/core/appearance_contrast.hpp"
 
+#include <QCoreApplication>
 #include <QFontDatabase>
 #include <QFontMetricsF>
 #include <QLatin1Char>
@@ -838,6 +839,32 @@ namespace bpr::qt {
 		++Statistics.AppliedFontSurfaces;
 	}
 
+	auto code_typography_event::registered_type() noexcept -> QEvent::Type
+	{
+		static const auto type
+			= static_cast<QEvent::Type>(QEvent::registerEventType());
+		return type;
+	}
+
+	code_typography_event::code_typography_event(
+		const qreal aTabStopDistance,
+		const qreal aLineHeight)
+		: QEvent{ registered_type() }
+		, TabStopDistance{ aTabStopDistance }
+		, LineHeight{ aLineHeight }
+	{
+	}
+
+	auto code_typography_event::tab_stop_distance() const noexcept -> qreal
+	{
+		return TabStopDistance;
+	}
+
+	auto code_typography_event::line_height() const noexcept -> qreal
+	{
+		return LineHeight;
+	}
+
 	void appearance_profile::apply_code_font_to(QWidget& aSurface)
 	{
 		const auto panes = aSurface.findChildren<QPlainTextEdit*>();
@@ -849,6 +876,14 @@ namespace bpr::qt {
 		for (auto* const pane : panes) {
 			pane->setFont(CodeFont);
 		}
+
+		// Published after the fonts so a subscriber that rebuilds on this event
+		// measures the typography that is already applied rather than the one
+		// being replaced.
+		auto published
+			= code_typography_event{ code_tab_stop_distance(), code_line_height() };
+		QCoreApplication::sendEvent(&aSurface, &published);
+
 		++Statistics.AppliedFontSurfaces;
 	}
 

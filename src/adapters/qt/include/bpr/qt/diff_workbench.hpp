@@ -3,6 +3,7 @@
 
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 
 #include <QPointer>
@@ -92,6 +93,7 @@ namespace bpr::qt {
 		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
+		void adopt_code_typography(const code_typography_event& aTypography);
 		void schedule_geometry_rebuild(measured_geometry_change aChange);
 		void rebuild_geometry();
 		void apply_frame(const comparison_scroll_frame& aFrame);
@@ -127,8 +129,11 @@ namespace bpr::qt {
 		measured_alignment_axis_cache                   AxisCache;
 		diff_workbench_statistics                       Statistics;
 		QString                                         LastAnnouncement;
-		bool                                            GeometryScheduled = false;
-		bool                                            ApplyingFrame     = false;
+		/// The last published tab stop. Absent until the first publication, so
+		/// adopting the initial typography is not mistaken for a change.
+		std::optional<qreal> AppliedTabStopDistance;
+		bool                 GeometryScheduled = false;
+		bool                 ApplyingFrame     = false;
 	};
 } // namespace bpr::qt
 

@@ -5,6 +5,7 @@
 #include "bpr/core/appearance_model.hpp"
 
 #include <QColor>
+#include <QEvent>
 #include <QFont>
 #include <QPalette>
 #include <QString>
@@ -20,6 +21,33 @@
 class QWidget;
 
 namespace bpr::qt {
+	/// \brief Announces the code typography one surface has just had applied.
+	///
+	/// \details Tab width is not a font property, and Qt sends no event when a
+	/// surface is given a font equal to the one it already has. A surface that
+	/// derived geometry from the tab stop therefore had no way to learn that the
+	/// tab stop moved: only a combined change reached it, by way of the font.
+	///
+	/// Widening what a font change means would have made the reason for the
+	/// rebuild untrue, so the applied typography is published in its own right
+	/// and a surface that measures text subscribes to it. The event carries the
+	/// applied values rather than a bare notification, so a subscriber can tell
+	/// which fact moved instead of rebuilding on every application.
+	class code_typography_event final : public QEvent
+	{
+	public:
+		[[nodiscard]] static auto registered_type() noexcept -> QEvent::Type;
+
+		code_typography_event(qreal aTabStopDistance, qreal aLineHeight);
+
+		[[nodiscard]] auto tab_stop_distance() const noexcept -> qreal;
+		[[nodiscard]] auto line_height() const noexcept -> qreal;
+
+	private:
+		qreal TabStopDistance = 0.0;
+		qreal LineHeight      = 0.0;
+	};
+
 	/// \brief Converts one core appearance colour to its Qt colour.
 	[[nodiscard]] auto to_presentation_color(core::appearance_color aColor) noexcept
 		-> QColor;

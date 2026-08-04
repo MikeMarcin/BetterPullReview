@@ -547,9 +547,34 @@ namespace bpr::qt {
 			schedule_geometry_rebuild(measured_geometry_change::screen);
 			break;
 		default:
+			if (aEvent->type() == code_typography_event::registered_type()) {
+				adopt_code_typography(
+					*static_cast<const code_typography_event*>(aEvent));
+			}
 			break;
 		}
 		return result;
+	}
+
+	void diff_workbench::adopt_code_typography(
+		const code_typography_event& aTypography)
+	{
+		// A combined change already reached this surface as a font change, so
+		// rebuilding again on every application would double the work and
+		// attribute it to the wrong fact. Only a tab stop that actually moved
+		// invalidates here, which is the case Qt reports no event for.
+		const auto distance = aTypography.tab_stop_distance();
+		if (AppliedTabStopDistance && qFuzzyCompare(*AppliedTabStopDistance, distance)) {
+			return;
+		}
+
+		const auto known       = AppliedTabStopDistance.has_value();
+		AppliedTabStopDistance = distance;
+		if (!known) {
+			return;
+		}
+
+		schedule_geometry_rebuild(measured_geometry_change::tab_width);
 	}
 
 	auto diff_workbench::eventFilter(QObject* const aWatched, QEvent* const aEvent)

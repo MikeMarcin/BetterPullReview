@@ -1127,6 +1127,133 @@ namespace {
 							 + (found->RightBottom - found->RightTop) };
 	}
 
+	// Tab width is not a font property, and Qt sends no event when a widget is
+	// given a font it already has, so a tab-width-only change reached the
+	// workbench through nothing at all: ribbons and the measured axis stayed
+	// stale against text that had visibly moved. The typography publication is
+	// what closes that, and this is the case that proves it — every font
+	// property is held constant so a rebuild cannot be coming from the font.
+	auto test_a_tab_width_change_alone_invalidates_measured_geometry() -> void
+	{
+		const auto diff = computed_comparison();
+
+		auto profile   = qt::appearance_profile{ };
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'100, 760);
+		workbench.show();
+		process_events();
+
+		const auto pending = core::diff_request_context{
+			.Request            = core::request_id{ 1U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = diff.Alignment.Key,
+			.Generation         = core::request_generation{ 1U },
+		};
+		workbench.set_loading(pending);
+		workbench.publish({
+			.Context = pending,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		profile.apply_code_font_to(workbench);
+		process_events();
+
+		workbench.next_change_button()->click();
+		process_events();
+		auto* const controller = workbench.scroll_controller();
+		expect(
+			workbench.selection().has_value(),
+			"a semantic selection is held before the tab width changes");
+		process_events();
+
+		const auto beforeResult    = workbench.current_result();
+		const auto beforeSelection = workbench.selection();
+		const auto beforeMapping   = core::map_line(
+			*beforeResult,
+			beforeSelection->PreferredLine);
+		const auto beforeMappingBytes = mapping_bytes(beforeMapping);
+		const auto beforeDetail       = core::detail_for_selection(
+			*beforeResult,
+			*beforeSelection);
+		const auto beforeRibbon     = workbench.link_map()->selected();
+		const auto beforeStatistics = workbench.statistics();
+		const auto beforeRibbonBuilds
+			= workbench.link_map()->statistics().GeometryRebuilds;
+		const auto beforePaneFont = workbench.left_pane()->font();
+		const auto beforeTabStop  = workbench.left_pane()->tabStopDistance();
+
+		// Only the tab width moves. Family, size, weight, italic, and the
+		// ligature and hinting strategy all stay exactly as they were.
+		auto widened         = profile.typography().Code;
+		widened.TabWidth     = widened.TabWidth == 8U ? 4U : 8U;
+		const auto selection = profile.select_code_font(widened);
+		expect(
+			selection.Changed && selection.accepted(),
+			"the wider tab width is legal and changes the applied presentation");
+
+		profile.apply_code_font_to(workbench);
+		process_events();
+		process_events();
+
+		expect(
+			workbench.left_pane()->font() == beforePaneFont,
+			"no font property moved, so a font change cannot explain a rebuild");
+		expect(
+			!close(workbench.left_pane()->tabStopDistance(), beforeTabStop),
+			"the panes received the new tab stop distance");
+		expect(
+			workbench.statistics().GeometryRebuilds
+					> beforeStatistics.GeometryRebuilds
+				&& workbench.statistics().GeometryFailures
+					== beforeStatistics.GeometryFailures,
+			"the tab width alone invalidates the measured axis and rebuilds it");
+		expect(
+			workbench.link_map()->statistics().GeometryRebuilds
+				> beforeRibbonBuilds,
+			"the tab width alone invalidates the ribbon geometry and rebuilds it");
+
+		// Semantics are no more tab-dependent than they are font-dependent.
+		expect(
+			workbench.current_result() == beforeResult,
+			"the accepted immutable comparison is not recomputed or replaced");
+		expect(
+			workbench.selection() == beforeSelection,
+			"the tab width change preserves the exact semantic selection");
+		const auto afterMapping = core::map_line(
+			*workbench.current_result(),
+			workbench.selection()->PreferredLine);
+		expect(
+			mapping_bytes(afterMapping) == beforeMappingBytes,
+			"every byte of the line mapping is identical across the change");
+		expect(
+			afterMapping.Kind == beforeMapping.Kind
+				&& afterMapping.Pair == beforeMapping.Pair
+				&& afterMapping.Counterpart == beforeMapping.Counterpart,
+			"pairing confidence, the paired line, and its counterpart are unchanged");
+		expect(
+			core::detail_for_selection(
+				*workbench.current_result(),
+				*workbench.selection())
+				== beforeDetail,
+			"the line-over-line detail the selection resolves to is unchanged");
+		expect(
+			workbench.link_map()->selected() == beforeRibbon,
+			"the painted correspondence still names the same stable identity");
+		expect(
+			controller->maximum_position() > 0.0,
+			"the comparison space remains measured after the rebuild");
+
+		// Re-applying the same typography is not a change and must not rebuild.
+		const auto settledRebuilds = workbench.statistics().GeometryRebuilds;
+		profile.apply_code_font_to(workbench);
+		process_events();
+		process_events();
+		expect(
+			workbench.statistics().GeometryRebuilds == settledRebuilds,
+			"re-publishing an unchanged tab width invalidates nothing");
+	}
+
 	auto test_a_font_change_moves_geometry_and_not_semantics() -> void
 	{
 		const auto diff = computed_comparison();
@@ -1541,6 +1668,7 @@ auto main(int argc, char** argv) -> int
 	test_a_value_outside_the_published_bounds_is_never_applied();
 	test_every_role_converts_through_presentation_colour();
 	test_a_font_change_moves_geometry_and_not_semantics();
+	test_a_tab_width_change_alone_invalidates_measured_geometry();
 	test_intraline_emphasis_never_collapses_onto_its_row_fill();
 	test_hue_critical_pairs_are_measured_for_every_builtin_profile();
 	test_every_builtin_profile_passes_the_published_contrast_audit();

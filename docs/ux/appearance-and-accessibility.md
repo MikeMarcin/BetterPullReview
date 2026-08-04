@@ -127,6 +127,22 @@ Separate settings exist for interface and code fonts. Code settings include fami
 
 Runtime code zoom preserves the top visible source line and does not silently overwrite saved font settings.
 
+The applied code typography is published as a fact in its own right rather than
+inferred from a font change. Tab width is not a font property, and Qt sends no
+event when a widget is given the font it already has, so a tab-width-only
+change previously reached no surface and left measured geometry stale against
+text that had visibly moved. Surfaces that measure text subscribe to the
+publication and invalidate on the value that actually moved, so the reason
+recorded for a rebuild stays true.
+
+Code line height is the one typography setting that does not yet reach the
+screen. `QPlainTextDocumentLayout` ignores line height in every mode Qt offers,
+and ignores block margins too, so honouring it means replacing the code panes'
+text-rendering strategy — which trades against the virtualization the
+comparison surface depends on for large files. The setting is deliberately left
+visibly unapplied rather than faked, and the choice between applying it and
+retiring it is tracked as its own decision.
+
 ## Colors
 
 Theme customization exposes semantic roles, not arbitrary QSS or executable styles:
