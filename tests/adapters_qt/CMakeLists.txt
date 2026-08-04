@@ -389,3 +389,26 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "${bpr_qt_github_common_environment}"
 )
+
+bpr_add_executable(
+    test_better_pull_review_qt_review_draft_editor_tests
+    review_draft_editor_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_review_draft_editor_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_review_draft_editor_tests)
+bpr_enable_warnings(test_better_pull_review_qt_review_draft_editor_tests)
+
+add_test(
+    NAME qt_review_draft_editor
+    COMMAND test_better_pull_review_qt_review_draft_editor_tests
+)
+set_tests_properties(
+    qt_review_draft_editor
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+)

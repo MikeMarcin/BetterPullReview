@@ -77,8 +77,9 @@ restored to green:
 
 ### Not covered here
 
-The card also asks that marking read, accepted, or excluded from the UI emit an
-intent and change nothing until the accepted projection arrives. That path is
+**Closed by BPR-0139.** The card also asks that marking read, accepted, or
+excluded from the UI emit an intent and change nothing until the accepted
+projection arrives. That path is
 built and proven at the host in BPR-0125, where the fake store and projection
 share one log; wiring it to a widget with actions belongs with the composition
 in BPR-0128, which is where a window exists to put the actions in. This slice
