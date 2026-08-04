@@ -1,7 +1,7 @@
 ---
 id: BPR-0119
-title: application_diff_workbench_public_path fails intermittently at stage 20
-status: Backlog
+title: application_diff_workbench_public_path fails intermittently in diff evidence
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -64,6 +64,49 @@ load was the trigger.
 
 A one-in-six failure needs no clever harness to reproduce. Run the test in a
 loop.
+
+## Corrected diagnosis
+
+The original reading of this card was wrong on three counts, and the
+corrections matter more than the original guesses.
+
+**Stage 20 is `shutdown`, not an epoch stage.** The printed stage falls back to
+the *current* stage when `FailedStage` was never set, and every run ends at
+shutdown. So the stage told us nothing; it named the one stage that could not
+have caused the failure.
+
+**`11111110` is the healthy value.** The trailing zero is `SecretRetained`,
+which should be 0 after the credential is deleted. It was never "one bit short
+of complete".
+
+**The epoch text is post-shutdown state.** "Review history is inactive" with
+core status `-1` is what the control reads after teardown, not the condition
+that failed.
+
+Two diagnostics were added to make the failure locatable:
+
+- `fail_automated_run` now records the stage, as the timeout path already did.
+- The failure output prints `PUBLIC_PATH_VERDICT`, naming each of the six
+  conjuncts of the verdict. Five of them were previously invisible.
+
+With those in place the failure reports:
+
+```text
+PUBLIC_PATH_VERDICT:presentation=0 shutdown_complete=1 cleanup_failed=0 \
+  epoch_projection_failed=0 epoch_handoff_failed=0
+DIFF_WORKBENCH_FAILED
+DIFF_INTERACTION_EVIDENCE_FAILED
+```
+
+Every status flag is healthy and `FailedStage` is still unset, which means no
+failure path ran at all: a stage assigned `PresentationPassed` *conditionally*
+and it evaluated false without reporting anything. The candidates are the diff
+stages that assign it from `DiffRequested` and from
+`DiffInteractionEvidencePassed`.
+
+So this is a **diff-workbench evidence** flake, not an epoch-catalog one. The
+title and the epoch framing of this card are both wrong and are kept only so
+the earlier reasoning is auditable.
 
 ## What this is not
 

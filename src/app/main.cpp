@@ -1781,6 +1781,18 @@ namespace {
 				   << (aRun.FailedStage >= 0 ? aRun.FailedStage
 											 : static_cast<int>(aRun.Stage))
 				   << '\n'
+				   // The verdict is a conjunction of six facts, and five of
+				   // them used to be invisible. A failure that reported only
+				   // the stage named `shutdown` every time, because that is
+				   // where the run ends regardless of which fact was false.
+				   << "PUBLIC_PATH_VERDICT:"
+				   << "presentation=" << (aRun.PresentationPassed ? 1 : 0)
+				   << " shutdown_complete=" << (status.ShutdownComplete ? 1 : 0)
+				   << " cleanup_failed=" << (status.ShutdownCleanupFailed ? 1 : 0)
+				   << " epoch_projection_failed="
+				   << (status.EpochProjectionDeliveryFailed ? 1 : 0)
+				   << " epoch_handoff_failed="
+				   << (status.EpochHandoffDeliveryFailed ? 1 : 0) << '\n'
 				   << "PUBLIC_PATH_STATUS:"
 				   << QString::fromStdString(window.status_text()) << '\n'
 				   << "PUBLIC_PATH_DIAGNOSTIC:"
@@ -1979,7 +1991,13 @@ namespace {
 		bpr::app::github_application& aApplication,
 		automated_run&                aRun)
 	{
+		// The stage is recorded here as well as on timeout. Without it a failed
+		// check reported `shutdown`, because the printed stage falls back to
+		// the current one and shutdown is always where the run ends up. Every
+		// failure then looked identical and named the one stage that could not
+		// have caused it.
 		aRun.PresentationPassed = false;
+		aRun.FailedStage        = static_cast<int>(aRun.Stage);
 		transition_to_shutdown(aApplication, aRun);
 	}
 
