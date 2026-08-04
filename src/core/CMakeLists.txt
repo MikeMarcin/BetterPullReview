@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/appearance_contrast.cpp
         src/appearance_model.cpp
+        src/defect_workflow.cpp
         src/diff_compute.cpp
 		src/diff_interaction.cpp
         src/diff_model.cpp

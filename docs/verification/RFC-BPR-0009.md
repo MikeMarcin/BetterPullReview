@@ -2,8 +2,8 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: planning slice complete, implementation not started. RFC-BPR-0009 stays
-`Proposed`.
+Status: implementation in progress. The core defect lifecycle has landed
+(BPR-0146). RFC-BPR-0009 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -48,8 +48,8 @@ A row is claimed only when its card lands with direct evidence.
 
 | Claim | Direct surface | Command or interaction | What proves it | Result |
 |---|---|---|---|---|
-| The lifecycle is decided in the core | Core | Drive every transition and every illegal one | Each refusal carries its own reason; the suite runs under `core-only` | Planned |
-| A fix claim is not a verification | Core | Apply author reply and nearby-change evidence | Both reach `needs verification`; no evidence path reaches `verified` | Planned |
+| The lifecycle is decided in the core | Core | Drive every transition and every illegal one | Each refusal carries its own reason; the suite runs under `core-only` | Verified. BPR-0146 drives the ordinary lifecycle end to end and refuses verifying nothing, reopening what was never verified, commanding a settled defect, and reclassifying nothing — each with its own reason |
+| A fix claim is not a verification | Core | Apply author reply and nearby-change evidence | Both reach `needs verification`; no evidence path reaches `verified` | Core half verified. BPR-0146 keeps `fix_claimed` and `needs_verification` distinct and short of `verified`; BPR-0147 supplies the evidence path itself |
 | Only an explicit reviewer intent verifies | Core, host, and Qt | Attempt to verify from each layer without the intent | No host correlation and no widget action can produce `verified` | Planned |
 | Classifying mutates nothing shared | Host | Classify an existing thread | No request is issued until a distinct shared action is taken | Planned |
 | Reopening is a separate explicit action | Core and host | Reopen a verified defect | Reopening never rides along with another action and may unresolve the thread only when asked | Planned |
