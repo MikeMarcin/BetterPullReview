@@ -2,9 +2,14 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: implementation in progress. The core draft policy, target
-revalidation, the host mutation coordinator, synchronization, and the Qt
-draft editor have landed (BPR-0135 through BPR-0139). RFC-BPR-0008 stays `Proposed`.
+Status: available-target implementation complete. BPR-0135 through BPR-0139
+delivered the draft policy, target revalidation, the mutation coordinator,
+synchronization, and the Qt editor; BPR-0140 documented it and BPR-0141
+prepared closeout.
+
+RFC-BPR-0008 stays `Proposed`. No card here makes a closure claim, and three
+acceptance criteria remain blocked on a designated repository, a token, and a
+person. RFC-BPR-0008 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -54,7 +59,7 @@ A row is claimed only when its card lands with direct evidence.
 | The mutation path cannot bypass the host | Qt plus trace | Drive every publish and resolve action | Every action produces a core proposal, then a host coordination, then a result event; no widget holds a provider | Verified. BPR-0139's editor is given two dispatch callbacks and nothing else, so there is no provider to hold; every action emits a command and leaves the editor unchanged until an accepted projection arrives, and enablement is derived from that projection rather than from what was typed |
 | Capability fallback is explicit | Host | Offer a provider without native resolve or viewed-state | The degradation is reported in typed form rather than silently skipped | Verified. BPR-0137 reports a provider that resolves no threads and records no viewed state rather than skipping the operation, which would leave a reviewer believing they had resolved something |
 | Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Verified for the request. BPR-0137 asserts the submitted request carries the acting identity and the coordinator's own designated target, so no caller can name a destination. Whether GitHub attributes the review to that account is BPR-0144 |
-| No automated test mutates an undesignated target | Whole suite | Scan the suite's provider configuration | Every mutation test uses the fixture provider; no test names a live host | Planned |
+| No automated test mutates an undesignated target | Whole suite | Scan for every implementation of the mutation port | `review_mutation_port` has exactly one implementation in the tree — the fake in `tests/application/review_mutation_tests.cpp` — and no production code constructs a coordinator, so no code path can mutate any repository, designated or not | Verified, and **conditionally**: it holds because no live provider exists yet. BPR-0142 must re-establish it when one lands, or this scan will keep passing while meaning nothing |
 
 ## Deferred gates
 

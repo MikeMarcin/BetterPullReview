@@ -32,6 +32,21 @@ assume it is designated. Do not weaken the coordinator's safe-target check to
 let a test through — that check is the reason an accident is impossible, and a
 test that disables it has removed the property it was meant to exercise.
 
+## A guard that must be rebuilt when this card lands
+
+Today "no automated test can mutate a non-designated live repository" holds for
+a reason stronger than care: `review_mutation_port` has exactly one
+implementation in the tree, the fake in the test, and no production code
+constructs a coordinator. No code path can reach GitHub with a mutation.
+
+This card introduces the first live implementation and **destroys that
+argument**. A scan that keeps passing afterwards would be passing for a reason
+that no longer exists, which is worse than no scan at all.
+
+Before the live provider is used, replace the property with one that survives
+it: the live implementation must be unreachable from any test target, and that
+must be asserted rather than arranged.
+
 ## Required direct evidence
 
 - The comment is read in the GitHub web UI and reproduced here in full,
