@@ -128,6 +128,64 @@ namespace bpr::core {
 		const file_receipt&         aReceipt,
 		const file_receipt_command& aCommand) noexcept -> file_receipt_outcome;
 
+	/// \brief Describes what the host observed about one file under a new epoch.
+	///
+	/// \details The host constructs this bounded record from the advanced
+	/// comparison. The core never reads the epoch, the repository, or the
+	/// ledger to obtain it.
+	struct file_material_observation
+	{
+		file_identity    File;
+		file_material_id Material;
+
+		auto operator<=>(const file_material_observation&) const = default;
+	};
+
+	/// \brief Names what happened to one receipt when an epoch advanced.
+	enum class receipt_carry_over : std::uint8_t {
+		retained,
+		reopened_material_changed,
+		file_absent,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(receipt_carry_over aDisposition) noexcept
+		-> std::string_view;
+
+	/// \brief Reports one receipt's fate across an epoch advance.
+	struct receipt_carry_over_outcome
+	{
+		file_receipt       Receipt;
+		receipt_carry_over Disposition = receipt_carry_over::retained;
+
+		auto operator<=>(const receipt_carry_over_outcome&) const = default;
+	};
+
+	/// \brief Decides whether one receipt survives an epoch advance.
+	///
+	/// \details A receipt survives exactly when the compared material identity
+	/// is unchanged. When the material moved, the reader has not inspected what
+	/// is now there, so the read progression and the acceptance are both
+	/// reopened and the receipt re-attaches to the new material.
+	///
+	/// Exclusion deliberately survives. Excluding a file is a standing
+	/// statement about that file — a generated artefact stays uninteresting
+	/// when it is regenerated — rather than a claim about particular bytes.
+	/// Reopening it on every advance would make the setting useless precisely
+	/// for the files it exists for.
+	[[nodiscard]] auto carry_over(
+		const file_receipt&              aReceipt,
+		const file_material_observation& aObservation) noexcept
+		-> receipt_carry_over_outcome;
+
+	/// \brief Decides one receipt's fate when the file is no longer compared.
+	///
+	/// \details A file absent from the advanced comparison is not a changed
+	/// file, and its receipt is neither retained nor reopened. Reporting it as
+	/// retained would leave a receipt attached to material nothing compares.
+	[[nodiscard]] auto carry_over_absent(const file_receipt& aReceipt) noexcept
+		-> receipt_carry_over_outcome;
+
 	/// \brief Holds one reader's private progress through one conversation.
 	///
 	/// \details Both cursors record an identity *and* an edit version, because

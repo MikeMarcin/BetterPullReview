@@ -2,8 +2,8 @@
 
 RFC base: `ea3a3b8223c00f9e0999bf0ab2882496abf65843`
 
-Status: implementation in progress. The core receipt policy has landed
-(BPR-0121). RFC-BPR-0007 stays `Proposed`.
+Status: implementation in progress. The core receipt policy and its
+epoch-advance carry-over have landed (BPR-0121, BPR-0122). RFC-BPR-0007 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -53,7 +53,7 @@ reading `Planned` have none yet, and a partially claimed row says which half.
 
 | Claim | Direct surface | Command or interaction | What proves it | Result |
 |---|---|---|---|---|
-| Receipt invalidation is precise | Core plus SQLite | Advance a fixture with mixed changed and unchanged material | Only receipts whose material identity changed are invalidated; unchanged ones survive the epoch advance | Planned |
+| Receipt invalidation is precise | Core plus SQLite | Advance a fixture with mixed changed and unchanged material | Only receipts whose material identity changed are invalidated; unchanged ones survive the epoch advance | Core half verified. BPR-0122 asserts retention per file across a mixed advance rather than by count, and distinguishes an absent file from a changed one; the SQLite half lands with BPR-0125 |
 | Read, accepted, excluded, and seen survive restart | Host persistence | Set each state, restart, re-read | Every state returns identical after a clean restart | Planned |
 | New or edited comments reopen the right conversation | Core plus host | Add a comment, then edit one in place | Both reopen unread, and only the affected conversation | Core half verified. BPR-0121 proves an in-place edit reopens unread and outdates acceptance while carrying the same comment identity; the host half lands with BPR-0125 |
 | Crash recovery is sound | Process-kill integration | Kill during a transaction and during a refresh, then restart | Committed state survives and incomplete transactions are discarded | Planned |

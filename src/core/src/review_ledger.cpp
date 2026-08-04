@@ -128,6 +128,55 @@ namespace bpr::core {
 		};
 	}
 
+	auto name(const receipt_carry_over aDisposition) noexcept -> std::string_view
+	{
+		switch (aDisposition) {
+		case receipt_carry_over::retained:
+			return "retained";
+		case receipt_carry_over::reopened_material_changed:
+			return "reopened_material_changed";
+		case receipt_carry_over::file_absent:
+			return "file_absent";
+		}
+		return "retained";
+	}
+
+	auto carry_over(
+		const file_receipt&              aReceipt,
+		const file_material_observation& aObservation) noexcept
+		-> receipt_carry_over_outcome
+	{
+		if (aObservation.File != aReceipt.File) {
+			return carry_over_absent(aReceipt);
+		}
+		if (aObservation.Material == aReceipt.Material) {
+			return receipt_carry_over_outcome{
+				.Receipt     = aReceipt,
+				.Disposition = receipt_carry_over::retained,
+			};
+		}
+
+		return receipt_carry_over_outcome{
+			.Receipt = file_receipt{
+				.File     = aReceipt.File,
+				.Material = aObservation.Material,
+				.Read     = file_read_state::unread,
+				.Accepted = false,
+				.Excluded = aReceipt.Excluded,
+			},
+			.Disposition = receipt_carry_over::reopened_material_changed,
+		};
+	}
+
+	auto carry_over_absent(const file_receipt& aReceipt) noexcept
+		-> receipt_carry_over_outcome
+	{
+		return receipt_carry_over_outcome{
+			.Receipt     = aReceipt,
+			.Disposition = receipt_carry_over::file_absent,
+		};
+	}
+
 	auto unread(
 		const conversation_receipt&     aReceipt,
 		const conversation_observation& aObservation) noexcept -> bool

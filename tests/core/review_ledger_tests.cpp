@@ -221,6 +221,119 @@ namespace {
 			"re-issuing a command reports no change, so nothing is persisted");
 	}
 
+	// Precision is the claim. A changed file must not disturb its neighbours,
+	// and an unchanged file must survive an advance that changed them.
+	void test_an_epoch_advance_invalidates_only_changed_material()
+	{
+		// Three files: one unchanged, one whose material moved, one absent from
+		// the advanced comparison.
+		const auto steady = core::file_receipt{
+			.File     = file(20U),
+			.Material = material(30U),
+			.Read     = core::file_read_state::read,
+			.Accepted = true,
+		};
+		const auto moved = core::file_receipt{
+			.File     = file(21U),
+			.Material = material(31U),
+			.Read     = core::file_read_state::read,
+			.Accepted = true,
+		};
+		const auto dropped = core::file_receipt{
+			.File     = file(22U),
+			.Material = material(32U),
+			.Read     = core::file_read_state::read,
+		};
+
+		const auto steadyOutcome = core::carry_over(
+			steady,
+			core::file_material_observation{
+				.File = steady.File, .Material = steady.Material });
+		expect(
+			steadyOutcome.Disposition == core::receipt_carry_over::retained
+				&& steadyOutcome.Receipt == steady,
+			"an unchanged file keeps its receipt byte for byte");
+
+		const auto movedOutcome = core::carry_over(
+			moved,
+			core::file_material_observation{
+				.File = moved.File, .Material = material(41U) });
+		expect(
+			movedOutcome.Disposition
+				== core::receipt_carry_over::reopened_material_changed,
+			"a file whose material moved has its receipt reopened");
+		expect(
+			movedOutcome.Receipt.Read == core::file_read_state::unread
+				&& !movedOutcome.Receipt.Accepted,
+			"reopening clears both the read progression and the acceptance");
+		expect(
+			movedOutcome.Receipt.Material == material(41U),
+			"the reopened receipt re-attaches to the new material");
+
+		const auto droppedOutcome = core::carry_over_absent(dropped);
+		expect(
+			droppedOutcome.Disposition == core::receipt_carry_over::file_absent,
+			"a file absent from the advance is neither retained nor reopened");
+
+		// The neighbours are untouched: this is the precision claim, asserted
+		// per file rather than by counting invalidations.
+		expect(
+			steadyOutcome.Receipt.Read == core::file_read_state::read
+				&& steadyOutcome.Receipt.Accepted,
+			"the changed neighbour did not disturb the unchanged file");
+	}
+
+	// Exclusion is a standing statement about a file, not about particular
+	// bytes. Reopening it on every advance would make the setting useless for
+	// exactly the generated artefacts it exists for.
+	void test_exclusion_survives_a_material_change()
+	{
+		const auto excluded = core::file_receipt{
+			.File     = file(23U),
+			.Material = material(33U),
+			.Read     = core::file_read_state::read,
+			.Accepted = false,
+			.Excluded = true,
+		};
+
+		const auto outcome = core::carry_over(
+			excluded,
+			core::file_material_observation{
+				.File = excluded.File, .Material = material(43U) });
+
+		expect(
+			outcome.Disposition
+				== core::receipt_carry_over::reopened_material_changed,
+			"the excluded file's material still moved");
+		expect(
+			outcome.Receipt.Excluded,
+			"exclusion survives a material change");
+		expect(
+			outcome.Receipt.Read == core::file_read_state::unread,
+			"the read progression is still reopened for an excluded file");
+	}
+
+	void test_an_observation_for_another_file_is_not_a_carry_over()
+	{
+		const auto receipt = core::file_receipt{
+			.File     = file(24U),
+			.Material = material(34U),
+			.Read     = core::file_read_state::read,
+		};
+
+		const auto outcome = core::carry_over(
+			receipt,
+			core::file_material_observation{
+				.File = file(25U), .Material = material(34U) });
+
+		expect(
+			outcome.Disposition == core::receipt_carry_over::file_absent,
+			"an observation naming another file cannot retain this receipt");
+		expect(
+			outcome.Receipt == receipt,
+			"a mismatched observation changes nothing");
+	}
+
 	// An edit changes no comment identity. A cursor that stored only identity
 	// would call this conversation read while its text had been rewritten.
 	void test_an_edited_comment_reopens_a_conversation()
@@ -298,6 +411,9 @@ auto main() -> int
 	test_a_weaker_read_claim_never_moves_the_progression_back();
 	test_illegal_commands_are_refused_with_their_own_reason();
 	test_a_repeated_command_is_legal_and_is_not_a_change();
+	test_an_epoch_advance_invalidates_only_changed_material();
+	test_exclusion_survives_a_material_change();
+	test_an_observation_for_another_file_is_not_a_carry_over();
 	test_an_edited_comment_reopens_a_conversation();
 	test_every_enumerator_names_itself();
 
