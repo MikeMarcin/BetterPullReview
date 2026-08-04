@@ -2,8 +2,8 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: planning slice complete, implementation not started. RFC-BPR-0008 stays
-`Proposed`.
+Status: implementation in progress. The core draft policy has landed
+(BPR-0135). RFC-BPR-0008 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -45,7 +45,7 @@ A row is claimed only when its card lands with direct evidence.
 
 | Claim | Direct surface | Command or interaction | What proves it | Result |
 |---|---|---|---|---|
-| Draft and publish legality is decided in the core | Core | Drive every draft, edit, discard, and publish transition | Illegal transitions carry typed reasons; the suite runs under `core-only` with no provider linked | Planned |
+| Draft and publish legality is decided in the core | Core | Drive every draft, edit, discard, and publish transition | Illegal transitions carry typed reasons; the suite runs under `core-only` with no provider linked | Verified. BPR-0135 models `publishing` as its own state so a second publish in flight is refused, keeps a failed publication's text, derives `shared` from `published` rather than a settable flag, and refuses six distinct mistakes with six distinct reasons |
 | Head movement cannot silently publish | Core | Move the head between draft and publish | Publication is refused with a distinct reason until explicitly revalidated or remapped | Planned |
 | The wrong target is impossible | Host coordinator | Alter host, repository, pull request, and head between prepare and execute | Each substitution is refused, and refusal is proven for a change made *after* the prepare check | Planned |
 | Retries do not duplicate | Host coordinator | Replay a mutation whose result was lost | The second attempt is recognised rather than creating a second comment | Planned |
