@@ -3,6 +3,16 @@
 
 #include <sqlite3.h>
 
+#if !defined(_WIN32)
+	#include <csignal>
+	#include <sys/wait.h>
+	#include <unistd.h>
+#endif
+
+#include <chrono>
+#include <fstream>
+#include <thread>
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -440,6 +450,178 @@ namespace {
 			present.has_value() && present->has_value() && **present == receipt,
 			"the receipt is still readable in the scope that wrote it");
 	}
+#if !defined(_WIN32)
+	/// \brief Opens the ledger, leaves a write uncommitted, and waits to die.
+	///
+	/// \details Runs in a forked child. It announces readiness only after the
+	/// uncommitted row is inside an open transaction, so the parent cannot kill
+	/// it too early and pass for the wrong reason.
+	[[noreturn]] void hold_an_uncommitted_write(
+		const std::filesystem::path& aPath,
+		const std::filesystem::path& aMarker,
+		const core::file_receipt&    aReceipt)
+	{
+		auto opened = review_ledger_database::open(aPath, { });
+		if (!opened) {
+			::_exit(2);
+		}
+		const auto scope = opened->scope_id(scope_of("github.com", "octo", "app", 7));
+		if (!scope) {
+			::_exit(3);
+		}
+		if (!execute(opened->handle(), "BEGIN IMMEDIATE", { })) {
+			::_exit(4);
+		}
+		if (!opened->store_receipt(*scope, aReceipt)) {
+			::_exit(5);
+		}
+
+		{
+			std::ofstream marker{ aMarker };
+			marker << "ready";
+		}
+
+		// No commit, no close, no destructors. The parent kills this process.
+		while (true) {
+			::pause();
+		}
+	}
+
+	// A recovery test that only restarts cleanly proves nothing. The process is
+	// killed with an open transaction, and the assertions distinguish committed
+	// work from uncommitted rather than checking that the file still opens.
+	void test_a_killed_write_discards_only_the_uncommitted_work()
+	{
+		const scratch_directory directory;
+		const auto              path   = directory.file("l.db");
+		const auto              marker = directory.file("ready");
+
+		const auto committed = core::file_receipt{
+			.File     = opaque<core::file_identity>(70U),
+			.Material = opaque<core::file_material_id>(71U),
+			.Read     = core::file_read_state::read,
+			.Accepted = true,
+		};
+		const auto abandoned = core::file_receipt{
+			.File     = opaque<core::file_identity>(72U),
+			.Material = opaque<core::file_material_id>(73U),
+			.Read     = core::file_read_state::read,
+		};
+
+		std::int64_t scope = 0;
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the ledger opens");
+			const auto id = opened->scope_id(scope_of("github.com", "octo", "app", 7));
+			expect(id.has_value(), "the scope is written");
+			scope = *id;
+			expect(
+				opened->store_receipt(scope, committed).has_value(),
+				"the first receipt commits normally");
+		}
+
+		const auto child = ::fork();
+		expect(child >= 0, "the child process starts");
+		if (child == 0) {
+			hold_an_uncommitted_write(path, marker, abandoned);
+		}
+
+		// Wait for the child to reach the open transaction rather than racing it.
+		auto waited = 0;
+		while (!std::filesystem::exists(marker) && waited < 200) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 25 });
+			++waited;
+		}
+		expect(
+			std::filesystem::exists(marker),
+			"the child reached its uncommitted write");
+
+		expect(::kill(child, SIGKILL) == 0, "the child is killed outright");
+		auto status = 0;
+		expect(::waitpid(child, &status, 0) == child, "the child is reaped");
+		expect(
+			WIFSIGNALED(status) != 0 && WTERMSIG(status) == SIGKILL,
+			"the child died from the signal rather than exiting gracefully");
+
+		auto recovered = review_ledger_database::open(path, { });
+		expect(opened_ok(recovered), "the ledger reopens after the kill");
+		const auto sameScope
+			= recovered->scope_id(scope_of("github.com", "octo", "app", 7));
+		expect(sameScope && *sameScope == scope, "the scope survives");
+
+		const auto survivor = recovered->load_receipt(scope, committed.File);
+		expect(
+			survivor.has_value() && survivor->has_value()
+				&& **survivor == committed,
+			"the receipt committed before the kill survives byte for byte");
+
+		const auto discarded = recovered->load_receipt(scope, abandoned.File);
+		expect(
+			discarded.has_value() && !discarded->has_value(),
+			"the write left inside the open transaction is discarded");
+	}
+#endif
+
+	// Deleting the ledger must lose only private review state. The epoch
+	// catalog is a separate file for exactly this reason, and a second database
+	// alongside it stands in for that independence here.
+	void test_deleting_the_ledger_leaves_the_neighbouring_store_intact()
+	{
+		const scratch_directory directory;
+		const auto              ledgerPath = directory.file("ledger.db");
+		const auto              otherPath  = directory.file("catalog.db");
+
+		const auto receipt = core::file_receipt{
+			.File     = opaque<core::file_identity>(80U),
+			.Material = opaque<core::file_material_id>(81U),
+			.Read     = core::file_read_state::read,
+		};
+
+		std::int64_t otherScope = 0;
+		{
+			auto ledger = review_ledger_database::open(ledgerPath, { });
+			auto other  = review_ledger_database::open(otherPath, { });
+			expect(opened_ok(ledger) && opened_ok(other), "both stores open");
+			const auto scope = ledger->scope_id(scope_of("github.com", "octo", "app", 7));
+			expect(scope.has_value(), "the ledger scope is written");
+			expect(
+				ledger->store_receipt(*scope, receipt).has_value(),
+				"the receipt commits");
+			const auto neighbour
+				= other->scope_id(scope_of("github.com", "octo", "app", 7));
+			expect(neighbour.has_value(), "the neighbour writes its own row");
+			otherScope = *neighbour;
+			expect(
+				other->store_receipt(otherScope, receipt).has_value(),
+				"the neighbour commits its own receipt");
+		}
+
+		for (const auto suffix : { "", "-wal", "-shm" }) {
+			std::error_code ignored;
+			std::filesystem::remove(
+				ledgerPath.string() + suffix, ignored);
+		}
+		expect(
+			!std::filesystem::exists(ledgerPath),
+			"the ledger file is gone");
+
+		auto recreated = review_ledger_database::open(ledgerPath, { });
+		expect(opened_ok(recreated), "a clean ledger is recreated in its place");
+		const auto scope
+			= recreated->scope_id(scope_of("github.com", "octo", "app", 7));
+		expect(scope.has_value(), "the recreated ledger accepts the scope again");
+		const auto lost = recreated->load_receipt(*scope, receipt.File);
+		expect(
+			lost.has_value() && !lost->has_value(),
+			"the private receipt is gone, which is what deletion means");
+
+		auto neighbour = review_ledger_database::open(otherPath, { });
+		expect(opened_ok(neighbour), "the neighbouring store still opens");
+		const auto kept = neighbour->load_receipt(otherScope, receipt.File);
+		expect(
+			kept.has_value() && kept->has_value() && **kept == receipt,
+			"deleting the ledger changed nothing in the store beside it");
+	}
 } // namespace
 
 auto main() -> int
@@ -451,6 +633,10 @@ auto main() -> int
 	test_reopening_is_idempotent();
 	test_every_receipt_state_survives_a_restart();
 	test_a_receipt_does_not_cross_scopes();
+#if !defined(_WIN32)
+	test_a_killed_write_discards_only_the_uncommitted_work();
+#endif
+	test_deleting_the_ledger_leaves_the_neighbouring_store_intact();
 
 	std::cout << "review-ledger-storage-tests:pass\n";
 	return EXIT_SUCCESS;
