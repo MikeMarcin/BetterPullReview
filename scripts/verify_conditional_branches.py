@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
-"""Find parameters referred to by a name they no longer have.
+"""Find names a rename reached in one branch and not another.
 
-Parameters in this repository are named `aXxx`. A rename applied only to the
-code the local compiler builds leaves `xxx` behind everywhere else, and
-"everywhere else" is exactly the `#if defined(_WIN32)` and
-`#elif defined(__linux__)` branches the preprocessor removes before the
-compiler on this host ever sees them. Nothing fails, because nothing looks.
+A rename applied only to the code the local compiler builds leaves the old
+spelling everywhere else, and "everywhere else" is exactly the
+`#if defined(_WIN32)` and `#elif defined(__linux__)` branches the preprocessor
+removes before the compiler on this host ever sees them. Nothing fails, because
+nothing looks.
 
-That is what happened before BPR-0155: three translation units did not compile
-for Windows or Linux, and the local gate was green throughout.
+That is what happened before BPR-0155 and again before BPR-0157: translation
+units that did not compile for Windows or Linux, with the local gate green
+throughout.
 
-A cross-compiler catches the Windows half. Nothing on a macOS host compiles the
-Linux half, so this reads the source instead.
+A cross-compiler catches part of the Windows half and none of the Linux half,
+so this reads the source instead. It looks only where the local compiler
+cannot — inside conditional branches that are false for the host running it —
+and leaves everything the compiler already checks to the compiler.
 
-It looks only where the local compiler cannot: inside conditional branches that
-are false for the host running it. Code the compiler already checks is left to
-the compiler. Within those branches it reports `xxx` only where the enclosing
-function has a parameter `aXxx` and the branch itself declares no `xxx` — the
-exact shape a half-finished rename leaves behind.
+Three shapes, each one a rename that stopped halfway:
+
+1. A parameter's old bare name. Parameters here are `aXxx`; the branch still
+   says `xxx`.
+2. Any name under a different spelling. The branch says `expected_bytes` where
+   the declaration now reads `aExpectedBytes`, or `final_path` where the local
+   is `finalPath`.
+3. A name a conditional chain declares in only some of its branches and uses
+   after the `#endif`. `#if defined(__linux__)` declaring `requested_vfs`
+   beside an `#else` declaring `requestedVfs` compiles wherever the `#else` is
+   taken and nowhere else — both spellings exist, so nothing looks undefined
+   until a compiler on the other platform tries.
 """
 
 from __future__ import annotations
@@ -33,6 +43,29 @@ PARAMETER = re.compile(r"\ba([A-Z][A-Za-z0-9_]*)\b")
 SOURCE_SUFFIXES = (".cpp", ".hpp")
 
 DIRECTIVE = re.compile(r"^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b(.*)$")
+
+DECLARATION = re.compile(
+    r"\b(?:auto|[A-Za-z_]\w*(?:::\w+)*(?:\s*<[^;{}\n]*?>)?"
+    r"(?:\s*(?:const\s*)?[*&]+)?)\s+(?:const\s+)?([a-z_][A-Za-z0-9_]*)\s*[=({;]")
+
+IDENTIFIER = re.compile(r"(?<![\w:.>])([a-z_][A-Za-z0-9_]*)\b(?!\s*::)")
+
+# Names that read like identifiers and are not.
+KEYWORDS = frozenset(
+    """auto const constexpr consteval constinit return if else for while switch
+    case break continue true false nullptr static sizeof alignof new delete this
+    using namespace struct class enum union template typename void int char bool
+    unsigned signed long short float double do try catch throw noexcept operator
+    public private protected virtual override final inline explicit mutable goto
+    default typedef friend extern volatile register thread_local static_assert
+    and or not xor bitand bitor compl static_cast reinterpret_cast const_cast
+    dynamic_cast decltype requires concept co_await co_return co_yield std""".split()
+)
+
+
+def spelling_key(aName: str) -> str:
+    """What two spellings of one name have in common."""
+    return aName.replace("_", "").lower()
 
 
 def host_macros() -> set[str]:
@@ -236,6 +269,62 @@ def declared_in(aRegion: str, aName: str) -> bool:
     return any(re.search(pattern, aRegion) for pattern in patterns)
 
 
+def conditional_chains(aText: str):
+    """Yield (start_line, end_line, [declared names per branch]) per chain."""
+    stack: list[dict] = []
+    chains: list[tuple[int, int, list[set[str]]]] = []
+    for number, line in enumerate(aText.split("\n"), start=1):
+        match = DIRECTIVE.match(line)
+        if match is None:
+            if stack:
+                for declaration in DECLARATION.finditer(line):
+                    name = declaration.group(1)
+                    if name not in KEYWORDS:
+                        stack[-1]["branches"][-1].add(name)
+            continue
+        keyword = match.group(1)
+        if keyword in ("if", "ifdef", "ifndef"):
+            stack.append({"branches": [set()], "start": number})
+        elif keyword in ("elif", "else") and stack:
+            stack[-1]["branches"].append(set())
+        elif keyword == "endif" and stack:
+            frame = stack.pop()
+            chains.append((frame["start"], number, frame["branches"]))
+    return chains
+
+
+def escaped_names(aText: str, aLines: list[str]) -> list[tuple[int, str, str, str]]:
+    """Names a chain declares in only some branches and uses after `#endif`.
+
+    `#if defined(__linux__)` declaring `requested_vfs` while its `#else`
+    declares `requestedVfs` compiles wherever the `#else` is taken and nowhere
+    else. Both spellings exist, so nothing looks undefined until a compiler on
+    the other platform tries.
+    """
+    lines = aText.split("\n")
+    found: list[tuple[int, str, str, str]] = []
+    for start, end, branches in conditional_chains(aText):
+        if len(branches) < 2:
+            continue
+        union: set[str] = set().union(*branches)
+        for name in sorted(union):
+            if all(name in branch for branch in branches):
+                continue
+            siblings = sorted(
+                other
+                for other in union
+                if other != name and spelling_key(other) == spelling_key(name)
+            )
+            if not siblings:
+                continue
+            pattern = re.compile(rf"(?<![\w:.>]){re.escape(name)}\b(?!\s*::)")
+            for number in range(end + 1, min(end + 200, len(lines) + 1)):
+                if pattern.search(lines[number - 1]):
+                    found.append((number, name, siblings[0], aLines[number - 1].strip()))
+                    break
+    return found
+
+
 def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str, str, str]]:
     raw = aPath.read_text(encoding="utf-8")
     skipped = inactive_lines(raw, aDefined)
@@ -253,6 +342,24 @@ def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str
         )
         if not region:
             continue
+
+        declared = {f"a{parameter}" for parameter in parameters}
+        declared |= {
+            declaration.group(1)
+            for declaration in DECLARATION.finditer(body)
+            if declaration.group(1) not in KEYWORDS
+        }
+        by_spelling: dict[str, set[str]] = {}
+        for name in declared:
+            by_spelling.setdefault(spelling_key(name), set()).add(name)
+        # A parameter's bare form is not a declaration, but it is what the old
+        # spelling normalizes to, so it has to resolve to the parameter rather
+        # than to itself. Reporting `expectedBytes` when the fix is
+        # `aExpectedBytes` sends the reader to the wrong edit.
+        for parameter in parameters:
+            bare = parameter[0].lower() + parameter[1:]
+            by_spelling.setdefault(spelling_key(bare), set()).add(f"a{parameter}")
+
         for parameter in parameters:
             bare = parameter[0].lower() + parameter[1:]
             if declared_in(region, bare):
@@ -267,6 +374,23 @@ def findings_for(aPath: pathlib.Path, aDefined: set[str]) -> list[tuple[int, str
                 if line not in skipped:
                     continue
                 found.add((line, bare, f"a{parameter}", lines[line - 1].strip()))
+
+        # The same name under a different spelling. A rename that reached the
+        # declaration but not this branch leaves `expected_bytes` beside an
+        # `aExpectedBytes` that no longer answers to it.
+        for match in IDENTIFIER.finditer(body):
+            name = match.group(1)
+            if name in KEYWORDS or name in declared:
+                continue
+            line = text.count("\n", 0, start + match.start()) + 1
+            if line not in skipped:
+                continue
+            siblings = by_spelling.get(spelling_key(name))
+            if siblings:
+                found.add((line, name, sorted(siblings)[0], lines[line - 1].strip()))
+
+    for entry in escaped_names(text, lines):
+        found.add(entry)
     return sorted(found)
 
 
@@ -290,14 +414,14 @@ def main() -> int:
             total += 1
             print(
                 f"{path.relative_to(root)}:{line}: `{bare}` is used where the "
-                f"parameter is `{expected}`: {source}"
+                f"declared name is `{expected}`: {source}"
             )
 
     if total:
         print(
             f"CONDITIONAL_BRANCH_IDENTIFIERS_FAILED:{total}\n"
-            "Each of these is in a branch this host does not compile. "
-            "The name is the parameter's, without its prefix."
+            "Each of these is in a branch this host does not compile, under a "
+            "spelling the declaration no longer answers to."
         )
         return 1
 

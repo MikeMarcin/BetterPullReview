@@ -3948,7 +3948,7 @@ namespace bpr::adapters::sqlite::detail {
 		if (!retained_vfs) {
 			return std::unexpected(retained_vfs.error());
 		}
-		const auto* const requested_vfs = (*retained_vfs)->name();
+		const auto* const requestedVfs = (*retained_vfs)->name();
 	#else
 		constexpr const char* requestedVfs = nullptr;
 	#endif
@@ -4037,7 +4037,7 @@ namespace bpr::adapters::sqlite::detail {
 		platform_state->Directories.push_back(std::move(*version));
 		platform_state->Vfs = std::move(*retained_vfs);
 		return catalog_database{
-			database, final_path, std::move(platform_state)
+			database, finalPath, std::move(platform_state)
 		};
 	#else
 		return catalog_database{ database, finalPath };

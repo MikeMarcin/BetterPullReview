@@ -314,9 +314,9 @@ namespace bpr::adapters::git {
 					&& information.nNumberOfLinks == 1U
 					&& GetFileSizeEx(Handle, &size) != 0 && size.QuadPart >= 0
 					&& static_cast<std::uint64_t>(size.QuadPart)
-					== expected_bytes;
+					== aExpectedBytes;
 #else
-				static_cast<void>(expected_bytes);
+				static_cast<void>(aExpectedBytes);
 				return false;
 #endif
 			}
@@ -1270,7 +1270,7 @@ namespace bpr::adapters::git {
 				const auto process = OpenProcess(
 					PROCESS_SET_QUOTA | PROCESS_TERMINATE,
 					FALSE,
-					static_cast<DWORD>(process_id));
+					static_cast<DWORD>(aProcessId));
 				if (process == nullptr) {
 					return false;
 				}
@@ -4383,10 +4383,10 @@ namespace bpr::adapters::git {
 				};
 			}
 #if defined(Q_OS_WIN)
-			const auto system_root = aConfiguration.WindowsSystemRoot.has_value()
+			const auto systemRoot = aConfiguration.WindowsSystemRoot.has_value()
 				? canonical_existing(*aConfiguration.WindowsSystemRoot)
 				: std::nullopt;
-			if (!system_root.has_value()) {
+			if (!systemRoot.has_value()) {
 				return std::unexpected{
 					application::git_process_failure::
 						invalid_configuration

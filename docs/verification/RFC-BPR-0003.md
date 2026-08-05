@@ -599,8 +599,18 @@ Neither covers the other, and together they cover the function. That is the
 whole design: the gate reads what the compiler cannot, and defers to the
 compiler everywhere else.
 
-The gate proves one class of mistake is absent from the source. It is not
-platform verification and must not be read as any.
+The gate proves that a fixed set of drift shapes is absent from the source. It
+is not platform verification and must not be read as any.
+
+BPR-0157 added two more shapes after the first repair left the Linux build
+broken. A local renamed `finalPath` was still `final_path` in the `__linux__`
+branch, which the parameter rule could not see; and a chain declaring
+`requested_vfs` in one branch beside `requestedVfs` in another compiled
+wherever the second branch was taken, so nothing appeared undefined at all.
+Eleven more sites in five files.
+
+None of the three rules relates a name to a *different* name. Had `finalPath`
+become `catalogPath`, only a compiler for that platform would object.
 
 ### The same rot in the architecture contract
 

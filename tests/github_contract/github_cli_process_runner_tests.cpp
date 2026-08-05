@@ -115,7 +115,7 @@ namespace {
 			&& environment.value(QStringLiteral("PATH")).isEmpty()
 			&& environment.value(QStringLiteral("SystemRoot"))
 			== aArguments.at(7)
-			&& !environment.contains(unknown_name);
+			&& !environment.contains(aUnknownName);
 #else
 		static_cast<void>(aArguments);
 		std::vector<std::pair<std::string, std::string>> actual;
@@ -167,7 +167,7 @@ namespace {
 		const auto& mode = aArguments.at(2);
 		if (mode == QStringLiteral("exact")) {
 #if defined(_WIN32)
-			constexpr auto exact_argument_count = 8;
+			constexpr auto exactArgumentCount = 8;
 #else
 			constexpr auto exactArgumentCount = 7;
 #endif
@@ -1227,7 +1227,7 @@ namespace {
 			"stop token cancellation kills and reaps the child");
 
 #if defined(_WIN32)
-		const auto invalid_child_name = QStringLiteral("invalid-child.exe");
+		const auto invalidChildName = QStringLiteral("invalid-child.exe");
 #else
 		const auto invalidChildName = QStringLiteral("invalid-child");
 #endif

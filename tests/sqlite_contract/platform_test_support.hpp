@@ -65,8 +65,8 @@ namespace bpr::tests::sqlite_contract {
 		const std::string_view       aSuffix) -> std::filesystem::path
 	{
 #if defined(_WIN32)
-		auto native = path.native();
-		for (const auto character : suffix) {
+		auto native = aPath.native();
+		for (const auto character : aSuffix) {
 			native.push_back(static_cast<wchar_t>(
 				static_cast<unsigned char>(character)));
 		}

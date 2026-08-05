@@ -2777,7 +2777,7 @@ namespace bpr::adapters::git {
 				if (attributes == INVALID_FILE_ATTRIBUTES) {
 					return false;
 				}
-				const auto link_like = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U;
+				const auto linkLike = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U;
 #else
 				const auto linkLike = std::filesystem::is_symlink(status);
 #endif
