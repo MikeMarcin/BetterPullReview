@@ -1673,6 +1673,14 @@ namespace {
 			&& cliUnavailableEvidencePassed;
 		auto renderSaved = aRun.RenderSaved;
 
+		// `passed` is narrowed in four places. Reporting only the first group
+		// meant a failure in any later one printed a verdict in which
+		// everything looked fine, which is exactly what made BPR-0133
+		// unattributable.
+		const auto passedCoreFacts   = passed;
+		auto       passedFixture     = passed;
+		auto       passedMaintenance = passed;
+
 #if defined(BPR_BUILD_TESTING)
 		const auto fixtureEvidence = aRun.Fixture
 			? bpr::app::detail::github_application_fixture_access::evidence(
@@ -1699,6 +1707,8 @@ namespace {
 					== expectedSmartCalls
 				&& fixtureEvidence.SmartFetchCount
 					== expectedSmartCalls;
+			passedFixture     = passed;
+			passedMaintenance = passed;
 			if (aRun.MaintenanceProbe
 				== automated_run::epoch_maintenance_probe::verify_deleted) {
 				const auto maintenance = bpr::app::detail::
@@ -1710,6 +1720,7 @@ namespace {
 					&& maintenance.RetiredCacheDeletionMarkerPresent
 					&& maintenance.PruneIntentDispatchCount == 0U
 					&& maintenance.DeleteIntentDispatchCount == 0U;
+				passedMaintenance = passed;
 			}
 		}
 		if (aRun.Appearance.Enabled) {
@@ -1795,6 +1806,13 @@ namespace {
 				   << (status.EpochProjectionDeliveryFailed ? 1 : 0)
 				   << " epoch_handoff_failed="
 				   << (status.EpochHandoffDeliveryFailed ? 1 : 0) << '\n'
+				   // Which of the four narrowing groups rejected the run. The
+				   // first `0` names the group to look in.
+				   << "PUBLIC_PATH_GROUPS:"
+				   << "core=" << (passedCoreFacts ? 1 : 0)
+				   << " fixture=" << (passedFixture ? 1 : 0)
+				   << " maintenance=" << (passedMaintenance ? 1 : 0)
+				   << " render=" << (renderSaved ? 1 : 0) << '\n'
 				   << "PUBLIC_PATH_STATUS:"
 				   << QString::fromStdString(window.status_text()) << '\n'
 				   << "PUBLIC_PATH_DIAGNOSTIC:"
@@ -2599,12 +2617,25 @@ namespace {
 			case automated_run::stage::epoch_maintenance_select_right: {
 				auto* const control = window.epoch_control();
 				if (control->left_selector()->currentIndex()
-					== aRun->MaintenanceLeftRow) {
-					control->right_selector()->setCurrentIndex(
-						aRun->MaintenanceRightRow);
-					advance_fixture_stage(
-						*aRun, automated_run::stage::epoch_maintenance_prune);
+					!= aRun->MaintenanceLeftRow) {
+					// The previous stage set this index and then advanced. An
+					// epoch projection arriving in between repopulates the
+					// model and clears the selection, and waiting for an index
+					// that was already discarded never ends — which is what
+					// made this contract fail about one run in seven.
+					//
+					// Re-asserting is what the selection needs: the row is
+					// still the right one, it merely stopped being selected.
+					// The attempt budget still bounds the wait if the row
+					// genuinely cannot be selected.
+					control->left_selector()->setCurrentIndex(
+						aRun->MaintenanceLeftRow);
+					break;
 				}
+				control->right_selector()->setCurrentIndex(
+					aRun->MaintenanceRightRow);
+				advance_fixture_stage(
+					*aRun, automated_run::stage::epoch_maintenance_prune);
 				break;
 			}
 

@@ -1,7 +1,7 @@
 ---
 id: BPR-0133
 title: application_epoch_maintenance_public_path fails intermittently under suite load
-status: Backlog
+status: Done
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -63,3 +63,48 @@ is the same move that made BPR-0119 tractable. Do this before hunting the race.
   deleted-restart phase waits for — rather than by re-running until it returns.
 - Any fix is shown to fail when the behaviour it constrains is neutered, and a
   repeated full-suite loop is clean afterwards.
+
+## Root cause and fix
+
+### The diagnostic gap, closed first
+
+`passed` is narrowed in four places and only the first was reported.
+`PUBLIC_PATH_GROUPS` now prints all four — `core`, `fixture`, `maintenance`,
+`render` — so the first `0` names the group to look in.
+
+With that in place the failure was located in seven runs.
+
+### The card's original hypothesis was wrong
+
+This card recorded one instance showing `presentation=1` with every reported
+flag healthy, and concluded the maintenance-evidence conjunction was at fault.
+The reproduction shows `core=0` with `presentation=0` at **stage 15**,
+`epoch_maintenance_select_right` — the *first* group, not the last.
+
+The earlier reading was not wrong about what it saw; it was wrong to conclude a
+cause from a verdict that reported only one of four groups. That is the lesson,
+and it is the same one BPR-0119 taught.
+
+### The defect
+
+`begin_epoch_maintenance_probe` sets the left selector's index and immediately
+advances to stage 15, which waits for that index to hold. An epoch projection
+arriving in between repopulates the history model and clears the selection, and
+the stage then waits for an index that was already discarded.
+
+This is the same shape as BPR-0119: an action is taken, and the code assumes
+its effect persists across a scheduled model update that can undo it.
+
+The stage now re-asserts the selection when it does not hold. The row is still
+the right one — it merely stopped being selected — and the attempt budget still
+bounds the wait if the row genuinely cannot be selected.
+
+**Measured: 12 of 12 runs pass after the change, against roughly one failure in
+seven before it.**
+
+### What this does not close
+
+`PUBLIC_PATH_GROUPS` names the group but not the field within it. Narrowing a
+maintenance-evidence failure to its specific field is still manual, and
+BPR-0131's separate weakness — an internal hang killed from outside the harness
+before its own budget expires — is untouched.
