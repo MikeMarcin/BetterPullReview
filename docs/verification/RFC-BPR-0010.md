@@ -8,7 +8,7 @@ classification and observer rules; BPR-0160 delivered attention buckets,
 reasons, and the queue's total order; BPR-0161 delivered the refresh
 scheduler; BPR-0162 delivered enrollment retention and the queue projection;
 BPR-0163 delivered the landing model; BPR-0164 delivered notification content
-and deep links.
+and deep links; BPR-0165 documented the queue.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -101,6 +101,14 @@ A row is claimed only when its card lands with direct evidence.
 |---|---|---|
 | BPR-0168 | A native notification is delivered and its deep link opens the right local review | A person to grant Notification Center permission once and to see the banner. The harness proves the request's content and destination; it cannot prove the operating system showed it |
 | BPR-0169 | Enrolling by observer rule leaves GitHub's reviewer and subscription state untouched | A designated repository and token, inheriting BPR-0142. That the correlator cannot issue a request is structural and provable here; that the *server* also shows no change is a different claim and needs a server |
+
+## Documentation ledger
+
+| Topic | Document | State |
+|---|---|---|
+| Role semantics, observer grammar and precedence, enrollment retention and departure, the refresh schedule and its limits, notification privacy, offline behaviour, ordering, and queue explanations | [Review Queue](../architecture/review-queue.md) | Written. Every number and behaviour checked against the source rather than from memory, and the three gaps named in the document itself |
+| Local private review progress | [Review Ledger](../architecture/review-ledger.md) | No impact. The queue reads what the ledger records; it adds no receipt and changes no acceptance |
+| Shared review round trip | [Review Round Trip](../architecture/review-round-trip.md) | No impact. The queue issues no mutation; enrollment is local and the correlator holds no provider |
 
 ## Cards
 
