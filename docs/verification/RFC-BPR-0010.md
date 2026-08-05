@@ -2,10 +2,10 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: available-target implementation complete, with one piece of remaining
-work that nothing blocks. BPR-0159 through BPR-0164 delivered the core, host,
-and Qt slices; BPR-0165 documented them; BPR-0166 removed the surface nothing
-read.
+Status: available-target implementation complete. BPR-0159 through BPR-0164
+delivered the core, host, and Qt slices; BPR-0165 documented them; BPR-0166
+removed the surface nothing read; BPR-0170 added the durable enrollment
+store.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -89,7 +89,7 @@ A row is claimed only when its card lands with direct evidence.
 | Decisions are clock and network independent | Core under `core-only` | Replay one observation set twice | Identical buckets and ordering, with no clock read and no timer scheduled | Verified. BPR-0160 orders by bucket then identity, so 64 items supplied ascending, descending, and rotated give one queue. The observation carries no timestamp: "new since I last looked" is a comparison against what the ledger records, not against a wall clock |
 | Refresh respects the host's limits | Host with manual executor | Drive simulated primary and secondary rate limits, ETags, offline state, and cancellation | Bounded backoff, conditional requests reused, and no work issued while offline | Verified. BPR-0161 doubles backoff to a 900-second cap, prefers the provider's own `Retry-After`, reuses validators so an unchanged pull request costs a conditional request, reports offline explicitly, and treats cancellation as neither a failure nor a reason to back off |
 | A completion cannot cross sessions | Host | Deliver a stale completion after an account, repository, or pull-request switch | The completion is refused by identity rather than by ordering luck | Verified. BPR-0161 checks identity before reading anything else, so a stale answer changes no validator, no backoff, and no online state. A session is host, account, and generation: an account switch reusing the generation is still refused |
-| Enrollment survives the path it matched | Host | Enroll by path rule, then project without re-deriving membership | The item stays enrolled with its original reason until closed or removed | Verified for the retention policy. BPR-0162 retains membership as enrolled rather than recomputing it, so the pull request a path rule caught stays when the path leaves it — the moment the change becomes interesting is exactly when a recomputing queue would drop it. A durable store is not built here, so "and after a restart" is not claimed |
+| Enrollment survives the path it matched | Host plus store | Enroll by path rule, project without re-deriving membership, and read it back from a separate process | The item stays enrolled with its original reason until closed or removed | Verified. BPR-0162 retains membership as enrolled rather than recomputing it, so the pull request a path rule caught stays when the path leaves it. BPR-0170 makes that survive a restart: a forked child writes and this process reads back the rule that brought the item in and the departure reason of one that left |
 | The queue updates incrementally | Qt | Replace a queue projection with one differing in a few items | Exact insert, remove, move, and data signals by stable identity, and no routine reset | Verified. BPR-0163's `review_landing_model` matches rows by `pull_request_ref`, so an item that becomes urgent moves and keeps its persistent index rather than being replaced. Re-applying an unchanged queue emits nothing at all. A positional diff — which RFC-BPR-0007's model uses for a different job — would have reported a reorder as a run of changes on rows that did not change |
 | Notifications carry no content | Host | Request a notification for a review with comments and a matched path rule | The request type has no field a body, a title, or a path could occupy | Verified. BPR-0164 reads the whole notification and requires it to be exactly identity, the bucket's fixed sentence, and a count — not merely free of a list of bad words. Leaking the matched rule's path takes three deliberate edits, and the test catches it |
 | A notification links to the right review | Host | Resolve the target of a requested notification | The link resolves to the host, account, repository, and pull request the item names | Verified for the target. BPR-0164's target is a local reference rather than a URL: a `https://` address would open a browser, and a link the operating system can hand to any handler is one another application can claim. That following it from a delivered banner selects that review is BPR-0168 |
@@ -134,19 +134,11 @@ Both core suites run under `core-only`, which links neither Qt nor SQLite, so
 "the core reads no clock and reaches no provider" is a property of the build
 rather than of a review.
 
-## Remaining work that nothing blocks
+## Not built
 
-| Card | What is missing |
-|---|---|
-| BPR-0170 | A durable enrollment store. The retention policy is built and correct; it lives only as long as the process. A queue rebuilt on every launch would re-derive membership from whatever the paths look like then, which is exactly the recomputation BPR-0162 exists to prevent — the policy would be right and the behaviour wrong |
-
-This is listed apart from the deferred gates deliberately. It needs no Windows
-host, no person, and no credential; it is unbuilt, not blocked, and calling it
-a gate would make this RFC look more finished than it is.
-
-Filters and sorting presentation are also not built. BPR-0163's card named
-them; the model presents what the core ordered and a filter is a view concern
-that would sit above it. Nothing was built that only appears to filter.
+Filters and sorting presentation. BPR-0163's card named them; the model
+presents what the core ordered, and a filter is a view concern that would sit
+above it. Nothing was built that only appears to filter.
 
 ## Documentation ledger
 

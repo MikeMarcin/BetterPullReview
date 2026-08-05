@@ -4,6 +4,7 @@ add_library(
         src/catalog_database.cpp
         src/sqlite_connection.cpp
         src/review_ledger_database.cpp
+        src/queue_enrollment_database.cpp
         src/review_ledger_store.cpp
         src/epoch_catalog.cpp
 )

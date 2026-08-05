@@ -109,3 +109,37 @@ add_test(
     NAME sqlite_review_ledger_storage
     COMMAND test_better_pull_review_sqlite_review_ledger_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_queue_enrollment_tests
+    queue_enrollment_storage_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_queue_enrollment_tests
+    PRIVATE
+        BetterPullReview::AdapterSQLite
+        BetterPullReview::SQLite3
+)
+target_compile_definitions(
+    test_better_pull_review_queue_enrollment_tests
+    PRIVATE BPR_SQLITE_TESTING=1
+)
+if(WIN32)
+    target_link_libraries(
+        test_better_pull_review_queue_enrollment_tests
+        PRIVATE advapi32
+    )
+endif()
+bpr_enable_hardening(test_better_pull_review_queue_enrollment_tests)
+bpr_enable_warnings(test_better_pull_review_queue_enrollment_tests)
+
+add_test(
+    NAME sqlite_queue_enrollment_storage
+    COMMAND test_better_pull_review_queue_enrollment_tests
+)
+set_tests_properties(
+    sqlite_queue_enrollment_storage
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "queue-enrollment-storage-tests:pass"
+        TIMEOUT 60
+)
