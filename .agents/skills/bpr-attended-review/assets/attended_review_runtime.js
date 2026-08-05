@@ -1,0 +1,360 @@
+(function (root) {
+  "use strict";
+
+  const STORAGE_PREFIX = "bpr.attended-review.v1";
+  const VERDICT_SCHEMA = "bpr.attended_review_verdict";
+
+  function identityKey(subject) {
+    return `${subject.subject_id}@${subject.subject_digest}`;
+  }
+
+  function storageKey(batchId, subject) {
+    return `${STORAGE_PREFIX}:${batchId}:${subject.subject_id}:${subject.subject_digest}`;
+  }
+
+  function createMemoryStorage() {
+    const values = new Map();
+    return {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      },
+    };
+  }
+
+  function availableStorage() {
+    try {
+      if (!root.localStorage) {
+        return createMemoryStorage();
+      }
+      const probe = `${STORAGE_PREFIX}:probe`;
+      root.localStorage.setItem(probe, "1");
+      root.localStorage.removeItem(probe);
+      return root.localStorage;
+    } catch (_error) {
+      return createMemoryStorage();
+    }
+  }
+
+  function normalizeSaved(value) {
+    if (!value || typeof value !== "object") {
+      return { decision: null, notes: "" };
+    }
+    const decision = value.decision === "accept" || value.decision === "reject"
+      ? value.decision
+      : null;
+    return {
+      decision,
+      notes: typeof value.notes === "string" ? value.notes : "",
+    };
+  }
+
+  function auditFailed(subject) {
+    return Boolean(subject.audit_verdict && subject.audit_verdict.status === "fail");
+  }
+
+  class ReviewController {
+    constructor(config, storage) {
+      if (!config || !Array.isArray(config.subjects)) {
+        throw new Error("review config must contain subjects");
+      }
+      if (!config.downstream_claims || typeof config.downstream_claims !== "object") {
+        throw new Error("review config must declare downstream_claims");
+      }
+      this.config = config;
+      this.storage = storage || availableStorage();
+      this.states = new Map();
+      for (const subject of config.subjects) {
+        const raw = this.storage.getItem(storageKey(config.batch_id, subject));
+        let parsed = null;
+        if (raw !== null) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (_error) {
+            parsed = null;
+          }
+        }
+        const state = normalizeSaved(parsed);
+        if (state.decision === "accept" && auditFailed(subject)) {
+          state.decision = null;
+        }
+        this.states.set(identityKey(subject), state);
+      }
+    }
+
+    subject(subjectId, subjectDigest) {
+      const found = this.config.subjects.find(
+        (item) => item.subject_id === subjectId && item.subject_digest === subjectDigest
+      );
+      if (!found) {
+        throw new Error(`unknown subject identity: ${subjectId}@${subjectDigest}`);
+      }
+      return found;
+    }
+
+    state(subject) {
+      return this.states.get(identityKey(subject));
+    }
+
+    save(subject) {
+      this.storage.setItem(
+        storageKey(this.config.batch_id, subject),
+        JSON.stringify(this.state(subject))
+      );
+    }
+
+    setDecision(subjectId, subjectDigest, decision) {
+      if (decision !== "accept" && decision !== "reject" && decision !== null) {
+        throw new Error(`invalid decision: ${decision}`);
+      }
+      const subject = this.subject(subjectId, subjectDigest);
+      if (decision === "accept" && auditFailed(subject)) {
+        throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      this.state(subject).decision = decision;
+      this.save(subject);
+      return this.summary();
+    }
+
+    setNotes(subjectId, subjectDigest, notes) {
+      const subject = this.subject(subjectId, subjectDigest);
+      this.state(subject).notes = String(notes || "");
+      this.save(subject);
+      return this.summary();
+    }
+
+    summary() {
+      let accepted = 0;
+      let rejected = 0;
+      for (const state of this.states.values()) {
+        if (state.decision === "accept") accepted += 1;
+        if (state.decision === "reject") rejected += 1;
+      }
+      const total = this.config.subjects.length;
+      return {
+        accepted,
+        rejected,
+        resolved: accepted + rejected,
+        pending: total - accepted - rejected,
+        total,
+      };
+    }
+
+    buildVerdict() {
+      const summary = this.summary();
+      if (summary.pending !== 0) {
+        throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
+      }
+      const accepted = [];
+      const rejected = [];
+      const notes = {};
+      for (const subject of this.config.subjects) {
+        const state = this.state(subject);
+        const identity = {
+          subject_id: subject.subject_id,
+          subject_digest: subject.subject_digest,
+        };
+        (state.decision === "accept" ? accepted : rejected).push(identity);
+        if (state.notes.trim()) {
+          notes[identityKey(subject)] = state.notes;
+        }
+      }
+      return {
+        schema_name: VERDICT_SCHEMA,
+        schema_version: 1,
+        batch_id: this.config.batch_id,
+        review_gate: this.config.review_gate,
+        review_scope: this.config.review_scope,
+        accepted_subjects: accepted,
+        rejected_subjects: rejected,
+        notes_by_subject_identity: notes,
+        downstream_claims: { ...this.config.downstream_claims },
+      };
+    }
+  }
+
+  async function copyText(text, environment) {
+    const env = environment || root;
+    if (env.navigator && env.navigator.clipboard && env.navigator.clipboard.writeText) {
+      try {
+        await env.navigator.clipboard.writeText(text);
+        return "clipboard";
+      } catch (_error) {
+        // Local file origins frequently expose Clipboard API but deny writes.
+        // Continue to the legacy selection-based copy path in that case.
+      }
+    }
+    const document = env.document;
+    if (!document || !document.execCommand) {
+      throw new Error("clipboard copy is unavailable; copy the displayed JSON manually");
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error("clipboard copy failed; copy the displayed JSON manually");
+    }
+    return "execCommand";
+  }
+
+  function initializePage(document) {
+    const configNode = document.getElementById("attended-review-config");
+    if (!configNode) return null;
+    const config = JSON.parse(configNode.textContent);
+    const controller = new ReviewController(config);
+    const cards = Array.from(document.querySelectorAll("[data-subject-id]"));
+    const progress = document.getElementById("review-progress");
+    const totals = document.getElementById("review-totals");
+    const pendingOnly = document.getElementById("pending-only");
+    const exportButton = document.getElementById("export-verdict");
+    const exportOutput = document.getElementById("verdict-output");
+    const reviewStatus = document.getElementById("review-status");
+
+    function cardSubject(card) {
+      return controller.subject(card.dataset.subjectId, card.dataset.subjectDigest);
+    }
+
+    function render() {
+      const summary = controller.summary();
+      progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
+      totals.textContent = `${summary.accepted} accepted · ${summary.rejected} rejected · ${summary.pending} pending`;
+      exportButton.disabled = summary.pending !== 0;
+      if (summary.pending !== 0) {
+        exportButton.textContent = "Copy the complete verdict";
+      }
+      for (const card of cards) {
+        const subject = cardSubject(card);
+        const state = controller.state(subject);
+        card.dataset.reviewState = state.decision || "pending";
+        card.hidden = Boolean(pendingOnly.checked && state.decision);
+        for (const button of card.querySelectorAll("[data-decision]")) {
+          button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+    }
+
+    for (const card of cards) {
+      const subject = cardSubject(card);
+      const state = controller.state(subject);
+      const notes = card.querySelector("[data-review-notes]");
+      notes.value = state.notes;
+      for (const button of card.querySelectorAll("[data-decision]")) {
+        button.addEventListener("click", () => {
+          const decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          try {
+            controller.setDecision(subject.subject_id, subject.subject_digest, decision);
+          } catch (error) {
+            reviewStatus.textContent = error.message;
+            return;
+          }
+          exportOutput.value = "";
+          reviewStatus.textContent = "Decision saved in this browser.";
+          exportButton.textContent = "Copy the complete verdict";
+          render();
+        });
+      }
+      notes.addEventListener("input", () => {
+        controller.setNotes(subject.subject_id, subject.subject_digest, notes.value);
+        exportOutput.value = "";
+        reviewStatus.textContent = "Notes saved in this browser.";
+        exportButton.textContent = "Copy the complete verdict";
+      });
+    }
+
+    pendingOnly.addEventListener("change", render);
+    exportButton.addEventListener("click", async () => {
+      try {
+        const text = `${JSON.stringify(controller.buildVerdict(), null, 2)}\n`;
+        exportOutput.value = text;
+        const method = await copyText(text);
+        exportButton.textContent = "Copied — return it to the agent";
+        reviewStatus.textContent = method === "clipboard"
+          ? "Complete verdict copied. Paste it back to the requesting agent session."
+          : "Complete verdict copied with the local fallback. Paste it back to the requesting agent session.";
+      } catch (error) {
+        exportButton.textContent = "Copy the complete verdict";
+        exportOutput.focus();
+        exportOutput.select();
+        reviewStatus.textContent = `${error.message}. The complete JSON below is selected for manual copy.`;
+      }
+    });
+    render();
+    return controller;
+  }
+
+  const api = {
+    ReviewController,
+    copyText,
+    createMemoryStorage,
+    identityKey,
+    initializePage,
+    storageKey,
+  };
+  root.BprAttendedReview = api;
+  if (root.document) {
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", () => initializePage(root.document));
+    } else {
+      initializePage(root.document);
+    }
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// Full-resolution inspection. Opening and closing the viewer must not
+// touch decision state or the export lock, so this only reads the DOM.
+(function attachFullResolutionViewer() {
+  // The runtime is loaded browserless by the skill's own tests, so it must not
+  // touch the DOM at import time.
+  if (typeof document === 'undefined' || !document.body) { return; }
+  var viewer = document.createElement('div');
+  viewer.className = 'media-viewer';
+  viewer.hidden = true;
+  viewer.setAttribute('role', 'dialog');
+  viewer.setAttribute('aria-modal', 'true');
+  viewer.innerHTML =
+    '<div class="media-viewer-bar">' +
+    '<span class="media-viewer-label"></span>' +
+    '<button type="button" class="media-viewer-close">Close</button>' +
+    '</div><div class="media-viewer-surface"><img alt=""></div>';
+  document.body.appendChild(viewer);
+
+  var image = viewer.querySelector('.media-viewer-surface img');
+  var label = viewer.querySelector('.media-viewer-label');
+  var closeButton = viewer.querySelector('.media-viewer-close');
+  var lastTrigger = null;
+
+  function close() {
+    viewer.hidden = true;
+    image.removeAttribute('src');
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  }
+
+  function open(trigger) {
+    lastTrigger = trigger;
+    image.src = trigger.getAttribute('data-full-source');
+    image.alt = trigger.getAttribute('data-full-label') || '';
+    label.textContent = trigger.getAttribute('data-full-label') || '';
+    viewer.hidden = false;
+    closeButton.focus();
+  }
+
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
+    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (event.target === viewer || event.target === closeButton) { close(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !viewer.hidden) { close(); }
+  });
+})();

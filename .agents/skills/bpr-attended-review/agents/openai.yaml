@@ -1,0 +1,4 @@
+interface:
+  display_name: "BPR Attended Review"
+  short_description: "Build digest-bound human review pages and packets"
+  default_prompt: "Use $bpr-attended-review to prepare this attended checkpoint: build the offline review page or operator packet bound to exact digests, collect the complete human verdict, validate it against the batch manifest, and record the evidence."
