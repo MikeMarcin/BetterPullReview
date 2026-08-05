@@ -334,6 +334,84 @@ namespace {
 			"the reviewer verifies what the evidence flagged");
 	}
 
+	[[nodiscard]] auto history(const core::defect_state aState)
+		-> core::defect_history
+	{
+		const auto record = defect(aState);
+		return core::defect_history{
+			.Defect         = record,
+			.OriginalAnchor = record.Anchor,
+		};
+	}
+
+	// A defect outlives the code it was filed against. Losing the anchor is a
+	// fact about the code, not a judgement about the defect.
+	void test_losing_an_anchor_changes_no_lifecycle_state()
+	{
+		for (const auto starting :
+			 { state::open, state::fix_claimed, state::needs_verification,
+			   state::verified, state::reopened, state::withdrawn,
+			   state::accepted_as_is }) {
+			for (const auto lost :
+				 { core::defect_anchor_availability::outdated,
+				   core::defect_anchor_availability::thread_deleted }) {
+				const auto after = core::lose_anchor(history(starting), lost);
+				expect(
+					after.Defect.State == starting,
+					"an anchor going out of date decides nothing about the "
+					"defect");
+				expect(
+					after.Availability == lost && !core::context_available(after),
+					"the unavailability is recorded and explicit");
+			}
+		}
+	}
+
+	// "Somewhere in this file, once" is not an answer to what was being
+	// complained about.
+	void test_the_original_context_is_retained()
+	{
+		const auto before = history(state::open);
+		const auto after  = core::lose_anchor(
+			before,
+			core::defect_anchor_availability::thread_deleted);
+
+		expect(
+			after.OriginalAnchor == before.OriginalAnchor,
+			"the anchor the defect was filed against is kept");
+		expect(
+			after.Defect.Anchor == before.Defect.Anchor,
+			"and the defect still names it, rather than being blanked");
+	}
+
+	void test_an_available_anchor_reports_itself_available()
+	{
+		const auto intact = history(state::fix_claimed);
+		expect(
+			core::context_available(intact)
+				&& intact.Availability
+					== core::defect_anchor_availability::available,
+			"an untouched defect reports its context available");
+	}
+
+	void test_the_two_ways_of_losing_context_are_distinguishable()
+	{
+		const auto outdated = core::lose_anchor(
+			history(state::open),
+			core::defect_anchor_availability::outdated);
+		const auto deleted = core::lose_anchor(
+			history(state::open),
+			core::defect_anchor_availability::thread_deleted);
+
+		expect(
+			outdated.Availability != deleted.Availability,
+			"an outdated anchor and a deleted thread are not the same thing");
+		expect(
+			core::name(core::defect_anchor_availability::outdated)
+				!= core::name(core::defect_anchor_availability::thread_deleted),
+			"and they say so");
+	}
+
 	void test_every_enumerator_names_itself()
 	{
 		expect(
@@ -368,6 +446,10 @@ auto main() -> int
 	test_repeated_evidence_does_not_ask_harder();
 	test_evidence_for_another_defect_is_refused();
 	test_a_reviewer_may_verify_what_evidence_flagged();
+	test_losing_an_anchor_changes_no_lifecycle_state();
+	test_the_original_context_is_retained();
+	test_an_available_anchor_reports_itself_available();
+	test_the_two_ways_of_losing_context_are_distinguishable();
 	test_every_enumerator_names_itself();
 
 	std::cout << "defect-workflow-core-tests:pass\n";

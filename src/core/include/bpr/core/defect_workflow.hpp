@@ -144,6 +144,59 @@ namespace bpr::core {
 		auto operator<=>(const defect_outcome&) const = default;
 	};
 
+	/// \brief Reports whether a defect's anchor can still be located.
+	///
+	/// \details A defect outlives the code it was filed against. When the
+	/// anchor can no longer be resolved — the file was deleted, the comparison
+	/// it referred to is gone, or GitHub dropped the thread as outdated — the
+	/// defect does not disappear and does not silently move.
+	enum class defect_anchor_availability : std::uint8_t {
+		available,
+		outdated,
+		thread_deleted,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(defect_anchor_availability aAvailability) noexcept
+		-> std::string_view;
+
+	/// \brief Holds a defect together with the context it was filed against.
+	///
+	/// \details `OriginalAnchor` is kept even when the anchor can no longer be
+	/// resolved, because a defect whose context vanished still has to be
+	/// answerable: a reviewer needs to know what was being complained about,
+	/// and "somewhere in this file, once" is not an answer.
+	///
+	/// There is deliberately no field for a substitute anchor. Repairing a lost
+	/// anchor with a nearest-line guess would attach the defect to code nobody
+	/// filed it against, and the reviewer would have no way to tell that had
+	/// happened.
+	struct defect_history
+	{
+		defect_record              Defect;
+		source_line_ref            OriginalAnchor;
+		defect_anchor_availability Availability
+			= defect_anchor_availability::available;
+
+		auto operator<=>(const defect_history&) const = default;
+	};
+
+	/// \brief Reports whether the defect's shared context can still be shown.
+	[[nodiscard]] constexpr auto context_available(
+		const defect_history& aHistory) noexcept -> bool
+	{
+		return aHistory.Availability == defect_anchor_availability::available;
+	}
+
+	/// \brief Records that a defect's anchor could no longer be resolved.
+	///
+	/// \details The lifecycle state is untouched. An anchor going out of date
+	/// is a fact about the code, not a judgement about the defect: an open
+	/// defect stays open, and a verified one stays verified.
+	[[nodiscard]] auto lose_anchor(
+		const defect_history&      aHistory,
+		defect_anchor_availability aAvailability) noexcept -> defect_history;
+
 	/// \brief Names something that happened which might bear on a defect.
 	///
 	/// \details Every one of these is a *suggestion*. None of them is a

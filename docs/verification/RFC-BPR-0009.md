@@ -3,8 +3,8 @@
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
 Status: implementation in progress. The core defect lifecycle, its evidence
-policy, host correlation, and the Qt defect card have landed (BPR-0146 through
-BPR-0149). RFC-BPR-0009 stays `Proposed`.
+policy, host correlation, the Qt defect card, and anchor history have landed
+(BPR-0146 through BPR-0150). RFC-BPR-0009 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -54,7 +54,7 @@ A row is claimed only when its card lands with direct evidence.
 | Only an explicit reviewer intent verifies | Core, host, and Qt | Attempt to verify from each layer without the intent | No host correlation and no widget action can produce `verified` | Verified in all three layers, each asserting it separately rather than inheriting. BPR-0149 presents every defect state, triggers every action, and shows the card's own state never moves |
 | Classifying mutates nothing shared | Host | Classify an existing thread | No request is issued until a distinct shared action is taken | Verified. BPR-0148's correlator is a pure function with no provider, so there is nothing here that could issue a request; mutation goes through RFC-BPR-0008's coordinator, reached by a separate action |
 | Reopening is a separate explicit action | Core and host | Reopen a verified defect | Reopening never rides along with another action and may unresolve the thread only when asked | Planned |
-| An outdated anchor is honest | Core | Remove the anchor a defect was filed against | The original context and state are retained and the unavailability is explicit, never repaired with a nearest-line guess | Planned |
+| An outdated anchor is honest | Core | Remove the anchor a defect was filed against | The original context and state are retained and the unavailability is explicit, never repaired with a nearest-line guess | Verified. BPR-0150 keeps the original anchor and the lifecycle state through both ways of losing context, and the type has no field for a substitute anchor — the absence is the guarantee, since there is nothing to set |
 | Counts and navigation agree | Core plus Qt | Compare the queue to local state and thread status | The presented counts follow the projection rather than a separately maintained tally | Partially verified. BPR-0149's card derives its badge, explanation, and every action's enablement from the presented projection and holds no state of its own, so there is no separate tally to disagree; a queue view aggregating many defects is not built |
 | The published prose stands alone | Documentation plus fixture | Read a published defect without local metadata | Severity and category enrich the local UI only; the comment is comprehensible without them | Planned |
 

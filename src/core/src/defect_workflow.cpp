@@ -96,6 +96,32 @@ namespace bpr::core {
 		return "none";
 	}
 
+	auto name(const defect_anchor_availability aAvailability) noexcept
+		-> std::string_view
+	{
+		switch (aAvailability) {
+		case defect_anchor_availability::available:
+			return "available";
+		case defect_anchor_availability::outdated:
+			return "outdated";
+		case defect_anchor_availability::thread_deleted:
+			return "thread_deleted";
+		}
+		return "available";
+	}
+
+	auto lose_anchor(
+		const defect_history&            aHistory,
+		const defect_anchor_availability aAvailability) noexcept -> defect_history
+	{
+		auto next         = aHistory;
+		next.Availability = aAvailability;
+		// OriginalAnchor and Defect.State are both left exactly as they were.
+		// The anchor is the record of what was complained about, and the state
+		// is a judgement nobody has revisited.
+		return next;
+	}
+
 	auto name(const defect_evidence_kind aKind) noexcept -> std::string_view
 	{
 		switch (aKind) {
