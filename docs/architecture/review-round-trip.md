@@ -9,6 +9,10 @@ app, no label scheme, and no hidden metadata.
 That constraint is the point of the whole RFC. Everything below is in service
 of it.
 
+Inspection-style defect semantics are layered over these threads as a local
+projection; see [Defect Workflow](defect-workflow.md). Nothing there changes
+the shared protocol described here.
+
 ## Ownership
 
 | Region | Owns |

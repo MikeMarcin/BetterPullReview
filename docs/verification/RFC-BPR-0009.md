@@ -83,6 +83,14 @@ prose sufficient.
 | BPR-0151 | Documentation |
 | BPR-0152 | Simplification and closeout preparation |
 
+## Documentation ledger
+
+| Scope | Required documents | Disposition |
+|---|---|---|
+| Defect semantics, state machine, GitHub mapping, severity and category privacy, verification rules, anchor history, user-facing action labels | [Defect Workflow](../architecture/defect-workflow.md) | Written. Records ownership, the typed command/decision/observation/delta vocabulary, the state machine, the three evidence kinds, the shared mapping, the privacy rule, anchors and history, and the badge and action labels — each checked against the source rather than from memory |
+| Shared review round trip | [Review Round Trip](../architecture/review-round-trip.md) | No impact. Defects are a local projection over the threads that document describes; the shared protocol is unchanged and no new GitHub surface is introduced |
+| Private review ledger | [Review Ledger](../architecture/review-ledger.md) | No impact. Defect state is its own projection and shares no table with the receipt ledger |
+
 ## Closeout blockers
 
 RFC-BPR-0009 cannot become `Auto-Verified` until RFC-BPR-0008 is, and therefore
