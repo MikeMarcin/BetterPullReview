@@ -47,7 +47,13 @@ set(
     "(^|[^A-Za-z0-9_])(SecItem|CredRead|CredWrite|CredDelete)"
     "(^|[^A-Za-z0-9_])(SecretService|libsecret|secret_password_)"
     "https?://"
-    "Q[A-Z][A-Za-z0-9_]*"
+    # Anchored like every other identifier pattern here. Without the
+    # boundary it matched inside ordinary uppercase words: the include
+    # guard `BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_QUEUE_HPP` contains
+    # `QUEUE`, which is not a Qt type and never was. A real Qt name is
+    # always preceded by a space, an angle bracket, a colon, or a
+    # pointer or reference token.
+    "(^|[^A-Za-z0-9_])Q[A-Z][A-Za-z0-9_]*"
 )
 
 foreach(core_file IN LISTS core_files)

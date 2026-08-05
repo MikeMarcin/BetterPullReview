@@ -2,8 +2,9 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: planned. BPR-0158 allocates cards BPR-0159 through BPR-0167 and parks
-two gates as BPR-0168 and BPR-0169.
+Status: in progress. BPR-0158 allocated cards BPR-0159 through BPR-0167 and
+parked two gates as BPR-0168 and BPR-0169. BPR-0159 delivered the core's role
+classification and observer rules.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -74,13 +75,12 @@ their own queue is owed the reason it is there.
 
 ## Claim matrix
 
-A row is claimed only when its card lands with direct evidence. Every row is
-unstarted.
+A row is claimed only when its card lands with direct evidence.
 
 | Claim | Direct surface | Command or interaction | What will prove it | Result |
 |---|---|---|---|---|
-| Role classification matches GitHub | Core plus fixture | Classify author, reviewer, requested reviewer, participant, and observer from sanitized fixtures | Each role derived from the observation alone, with no provider reachable from the core | Unstarted (BPR-0159) |
-| Observer rules enroll locally | Core | Match repository, author, and path rules, including exclusions for generated and vendor paths | Enrollment is a pure function; there is no request path to suppress | Unstarted (BPR-0159) |
+| Role classification matches GitHub | Core plus fixture | Classify author, reviewer, requested reviewer, participant, and observer from sanitized fixtures | Each role derived from the observation alone, with no provider reachable from the core | Verified. BPR-0159 carries every role through unchanged, keeps `requested_reviewer` distinct from `reviewer`, and gives each a distinct name |
+| Observer rules enroll locally | Core | Match repository, author, and path rules, including exclusions for generated and vendor paths | Enrollment is a pure function; there is no request path to suppress | Verified. BPR-0159's `enrollment_for` takes no provider and `queue_membership` has no field a request could occupy. Path rules stop at a component boundary, and exclusions beat other rules but never a GitHub role — hiding an assigned review is a way to miss work nobody would think to look for |
 | Every item explains itself | Core | Read the bucket and the observer reason for each enrolled item | The reason is carried by the item rather than recomputed by the presentation | Unstarted (BPR-0160) |
 | Decisions are clock and network independent | Core under `core-only` | Replay one observation set twice | Identical buckets and ordering, with no clock read and no timer scheduled | Unstarted (BPR-0160) |
 | Refresh respects the host's limits | Host with manual executor | Drive simulated primary and secondary rate limits, ETags, offline state, and cancellation | Bounded backoff, conditional requests reused, and no work issued while offline | Unstarted (BPR-0161) |

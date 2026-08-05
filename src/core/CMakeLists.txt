@@ -15,6 +15,7 @@ add_library(
         src/github_transition.cpp
         src/model.cpp
         src/review_ledger.cpp
+        src/review_queue.cpp
         src/review_round_trip.cpp
         src/sha256.cpp
         src/theme_exchange.cpp
