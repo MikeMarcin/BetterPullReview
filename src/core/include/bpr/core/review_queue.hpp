@@ -67,16 +67,29 @@ namespace bpr::core {
 		auto operator<=>(const observer_rule&) const = default;
 	};
 
+	/// \brief Names one pull request under one account on one host.
+	///
+	/// \details The whole identity, because a number is unique only within a
+	/// repository, a repository only within an account, and an account only
+	/// within a host. It orders lexicographically, which is what lets a queue
+	/// be totally ordered without inventing a ranking between two reviews.
+	struct pull_request_ref
+	{
+		std::string  Host;
+		std::string  Account;
+		std::string  Repository;
+		std::int64_t Number = 0;
+
+		auto operator<=>(const pull_request_ref&) const = default;
+	};
+
 	/// \brief What the host observed about one pull request.
 	///
 	/// \details A bounded record the host builds from the provider. The core
 	/// reaches nothing to obtain it and holds no provider that could.
 	struct pull_request_observation
 	{
-		std::string  Host;
-		std::string  Account;
-		std::string  Repository;
-		std::int64_t Number = 0;
+		pull_request_ref Ref;
 
 		std::string Author;
 		github_role Role = github_role::none;

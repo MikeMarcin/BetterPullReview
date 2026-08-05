@@ -64,7 +64,7 @@ namespace bpr::core {
 		switch (aRule.Kind) {
 		case observer_rule_kind::repository:
 			return !aRule.Pattern.empty()
-				&& aRule.Pattern == aObservation.Repository;
+				&& aRule.Pattern == aObservation.Ref.Repository;
 		case observer_rule_kind::author:
 			return !aRule.Pattern.empty()
 				&& aRule.Pattern == aObservation.Author;

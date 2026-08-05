@@ -24,10 +24,12 @@ namespace {
 		-> core::pull_request_observation
 	{
 		return core::pull_request_observation{
-			.Host         = "github.com",
-			.Account      = "reviewer",
-			.Repository   = "octo/app",
-			.Number       = 7,
+			.Ref = core::pull_request_ref{
+				.Host       = "github.com",
+				.Account    = "reviewer",
+				.Repository = "octo/app",
+				.Number     = 7,
+			},
 			.Author       = std::string{ aAuthor },
 			.Role         = aRole,
 			.ChangedPaths = std::move(aPaths),

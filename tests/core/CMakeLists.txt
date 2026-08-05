@@ -264,3 +264,21 @@ add_test(
     NAME core_review_queue
     COMMAND test_better_pull_review_review_queue_core_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_review_queue_attention_core_tests
+    review_queue_attention_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_review_queue_attention_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_review_queue_attention_core_tests)
+bpr_enable_warnings(test_better_pull_review_review_queue_attention_core_tests)
+
+add_test(
+    NAME core_review_queue_attention
+    COMMAND test_better_pull_review_review_queue_attention_core_tests
+)

@@ -1,0 +1,122 @@
+#ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_QUEUE_ATTENTION_HPP
+#define BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_QUEUE_ATTENTION_HPP
+
+#include "bpr/core/review_queue.hpp"
+
+#include <compare>
+#include <cstdint>
+#include <span>
+#include <string_view>
+#include <vector>
+
+namespace bpr::core {
+	/// \brief Names why a queue item wants the reviewer's attention.
+	///
+	/// \details The order is the order of attention. `initial_review_requested`
+	/// first because nobody has looked at all; `quiet` last because nothing is
+	/// asked of anyone. A reviewer scanning from the top is scanning by
+	/// urgency, and the enumeration says so rather than leaving each surface to
+	/// invent an order and disagree.
+	enum class attention_bucket : std::uint8_t {
+		initial_review_requested,
+		changed_since_my_review,
+		new_comments_or_author_replies,
+		fixes_awaiting_verification,
+		authored_awaiting_reviewer_action,
+		observed_with_new_activity,
+		quiet,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(attention_bucket aBucket) noexcept
+		-> std::string_view;
+
+	/// \brief Returns the sentence explaining what a bucket asks of the reader.
+	///
+	/// \details A bucket name says where an item is. It does not say what the
+	/// reviewer is expected to do about it, and a queue that only labelled
+	/// would leave them to guess.
+	[[nodiscard]] auto explanation(attention_bucket aBucket) noexcept
+		-> std::string_view;
+
+	/// \brief What the host observed about one enrolled pull request's state.
+	///
+	/// \details A bounded record. Every field is something the host read from
+	/// the provider or from the local ledger; the core derives the bucket from
+	/// these and from nothing else, and reaches nothing to obtain more.
+	///
+	/// There is no timestamp here, and that is deliberate. "New since I last
+	/// looked" is a comparison against what this reviewer has already seen,
+	/// which the ledger records; deriving it from a wall clock would make the
+	/// answer depend on when the question was asked.
+	struct queue_activity_observation
+	{
+		// Nothing about this pull request has been reviewed by this reviewer.
+		bool ReviewedByMe = false;
+
+		// The head this reviewer last reviewed differs from the current head.
+		bool HeadMovedSinceMyReview = false;
+
+		// Comments or replies exist that this reviewer has not seen.
+		std::uint32_t UnseenComments = 0U;
+
+		// Local defects in `needs verification` or `fix claimed`.
+		std::uint32_t DefectsAwaitingVerification = 0U;
+
+		// For a pull request this reviewer authored: a reviewer has been asked
+		// and has not answered.
+		std::uint32_t ReviewersAwaited = 0U;
+
+		// Activity since this reviewer last looked, for an item they are here
+		// for only because a rule matched.
+		bool ObservedActivity = false;
+
+		auto operator<=>(const queue_activity_observation&) const = default;
+	};
+
+	/// \brief One queue item, with the reason it is where it is.
+	///
+	/// \details The reason travels with the item. A presentation that
+	/// recomputed it from the same observation might agree today and disagree
+	/// after either side is edited, and the reviewer would have no way to tell
+	/// which was right.
+	struct queue_item
+	{
+		pull_request_ref Ref;
+		queue_membership Membership;
+		attention_bucket Bucket = attention_bucket::quiet;
+
+		auto operator<=>(const queue_item&) const = default;
+	};
+
+	/// \brief Decides which bucket one enrolled pull request belongs in.
+	///
+	/// \details The whole of the attention policy. It reads no clock, reaches
+	/// no provider, and returns a decision rather than performing one.
+	///
+	/// The order of the tests is the order of the enumeration, and the first
+	/// that holds wins. An item can be true of several — a pull request you
+	/// authored can also have unseen comments — and a queue that placed it in
+	/// all of them would ask the reviewer to notice the same work repeatedly.
+	/// Placing it in the most urgent is what a queue is for.
+	[[nodiscard]] auto bucket_for(
+		const queue_membership&           aMembership,
+		const queue_activity_observation& aActivity) noexcept
+		-> attention_bucket;
+
+	/// \brief Builds the ordered queue from enrolled items.
+	///
+	/// \details Ordered by bucket, then by identity. The identity is what makes
+	/// the order *total*: a queue ordered by bucket alone would leave items
+	/// sharing a bucket in whatever order the host happened to read them, and
+	/// a queue that reshuffles between refreshes is one a reviewer cannot keep
+	/// their place in.
+	///
+	/// Identity is a tiebreak and not a ranking. It says nothing about which of
+	/// two equally urgent reviews matters more, because nothing here could say
+	/// that; it only makes the answer the same every time.
+	[[nodiscard]] auto ordered_queue(std::span<const queue_item> aItems)
+		-> std::vector<queue_item>;
+} // namespace bpr::core
+
+#endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_QUEUE_ATTENTION_HPP
