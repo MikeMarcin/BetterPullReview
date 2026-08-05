@@ -1,6 +1,7 @@
 #include "catalog_database.hpp"
 
 #include "sqlite_connection.hpp"
+#include "state_directory.hpp"
 
 #include "bpr/application/epoch_catalog_port.hpp"
 
@@ -3648,6 +3649,190 @@ namespace bpr::adapters::sqlite::detail {
 #endif
 	} // namespace
 
+	// The one bootstrap for `<root>/state/v1`. Both durable stores in this
+	// adapter call it, so neither can establish the directory on terms the
+	// other would have refused.
+	//
+	// It is defined here, beside the primitives it composes, rather than moved
+	// into a translation unit of its own. Those primitives are not separable:
+	// the handle types, the ownership and mode checks, the ancestor validation,
+	// and the security descriptor are each used more by the catalog's lock,
+	// files, and VFS than by this bootstrap, so relocating them would produce a
+	// component whose name did not describe its contents. What the ledger
+	// needed was one bootstrap rather than two, and calling one defined here
+	// imposes no ordering on it: this is a function, not a composed adapter.
+	struct state_directory::opened final
+	{
+#if defined(_WIN32)
+		private_security                    Security;
+		std::vector<private_windows_object> Directories;
+#else
+		file_descriptor Root;
+		file_descriptor State;
+		file_descriptor Version;
+#endif
+		std::filesystem::path Path;
+	};
+
+	state_directory::state_directory(std::unique_ptr<opened> aOpened) noexcept
+		: Opened{ std::move(aOpened) }
+	{
+	}
+
+	state_directory::state_directory(state_directory&&) noexcept = default;
+
+	auto state_directory::operator=(state_directory&&) noexcept
+		-> state_directory& = default;
+
+	state_directory::~state_directory() = default;
+
+	auto state_directory::path() const noexcept -> const std::filesystem::path&
+	{
+		return Opened->Path;
+	}
+
+	auto state_directory::handles() noexcept -> opened&
+	{
+		return *Opened;
+	}
+
+	namespace {
+		[[nodiscard]] constexpr auto as_state_directory_failure(
+			const failure aFailure) noexcept -> state_directory_failure
+		{
+			switch (aFailure) {
+			case failure::invalid_path:
+				return state_directory_failure::invalid_path;
+			case failure::invalid_permissions:
+				return state_directory_failure::invalid_permissions;
+			case failure::platform_unsupported:
+				return state_directory_failure::platform_unsupported;
+			case failure::integrity_failure:
+			case failure::schema_mismatch:
+			case failure::cancelled:
+			case failure::quota_exceeded:
+			case failure::unavailable:
+				break;
+			}
+			return state_directory_failure::unavailable;
+		}
+
+		[[nodiscard]] constexpr auto as_catalog_failure(
+			const state_directory_failure aFailure) noexcept -> failure
+		{
+			switch (aFailure) {
+			case state_directory_failure::invalid_path:
+				return failure::invalid_path;
+			case state_directory_failure::invalid_permissions:
+				return failure::invalid_permissions;
+			case state_directory_failure::platform_unsupported:
+				return failure::platform_unsupported;
+			case state_directory_failure::unavailable:
+				break;
+			}
+			return failure::unavailable;
+		}
+	} // namespace
+
+	auto open_state_directory(const std::filesystem::path& aRoot)
+		-> std::expected<state_directory, state_directory_failure>
+	{
+#if defined(_WIN32)
+		try {
+			auto canonicalRoot = canonical_windows_root(aRoot);
+			if (!canonicalRoot) {
+				return std::unexpected(
+					as_state_directory_failure(canonicalRoot.error()));
+			}
+			auto directories = validate_ancestor_chain(*canonicalRoot);
+			if (!directories) {
+				return std::unexpected(
+					as_state_directory_failure(directories.error()));
+			}
+			auto security = private_security::load();
+			if (!security) {
+				return std::unexpected(
+					as_state_directory_failure(security.error()));
+			}
+			if (directories->empty()) {
+				return std::unexpected(state_directory_failure::invalid_path);
+			}
+			directories->reserve(directories->size() + 2U);
+			auto& root = directories->back();
+			if (auto permissions = validate_private_security(
+					root.Handle.Value,
+					*security,
+					windows_object_kind::directory);
+				!permissions) {
+				return std::unexpected(
+					as_state_directory_failure(permissions.error()));
+			}
+			if (!reliable_local_filesystem(root)) {
+				return std::unexpected(
+					state_directory_failure::platform_unsupported);
+			}
+			auto state = ensure_private_child(root, L"state", *security);
+			if (!state) {
+				return std::unexpected(
+					as_state_directory_failure(state.error()));
+			}
+			directories->push_back(std::move(*state));
+			auto& retainedState = directories->back();
+			auto  version       = ensure_private_child(retainedState, L"v1", *security);
+			if (!version) {
+				return std::unexpected(
+					as_state_directory_failure(version.error()));
+			}
+			directories->push_back(std::move(*version));
+
+			auto opened         = std::make_unique<state_directory::opened>();
+			opened->Path        = directories->back().Path;
+			opened->Security    = std::move(*security);
+			opened->Directories = std::move(*directories);
+			return state_directory{ std::move(opened) };
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(state_directory_failure::unavailable);
+		} catch (const std::filesystem::filesystem_error&) {
+			return std::unexpected(state_directory_failure::invalid_path);
+		} catch (...) {
+			return std::unexpected(state_directory_failure::unavailable);
+		}
+#else
+		if (aRoot.empty() || !aRoot.is_absolute()) {
+			return std::unexpected(state_directory_failure::invalid_path);
+		}
+		std::error_code canonicalError;
+		const auto      canonicalRoot
+			= std::filesystem::canonical(aRoot, canonicalError);
+		if (canonicalError || canonicalRoot != aRoot.lexically_normal()) {
+			return std::unexpected(state_directory_failure::invalid_path);
+		}
+		auto root = open_private_directory(aRoot);
+		if (!root) {
+			return std::unexpected(as_state_directory_failure(root.error()));
+		}
+		if (!reliable_local_filesystem(*root)) {
+			return std::unexpected(
+				state_directory_failure::platform_unsupported);
+		}
+		auto state = ensure_private_child(*root, "state");
+		if (!state) {
+			return std::unexpected(as_state_directory_failure(state.error()));
+		}
+		auto version = ensure_private_child(*state, "v1");
+		if (!version) {
+			return std::unexpected(as_state_directory_failure(version.error()));
+		}
+
+		auto opened     = std::make_unique<state_directory::opened>();
+		opened->Root    = std::move(*root);
+		opened->State   = std::move(*state);
+		opened->Version = std::move(*version);
+		opened->Path    = aRoot / "state" / "v1";
+		return state_directory{ std::move(opened) };
+#endif
+	}
+
 	struct catalog_database_platform_state final
 	{
 #if defined(_WIN32)
@@ -3763,51 +3948,19 @@ namespace bpr::adapters::sqlite::detail {
 		}
 #if defined(_WIN32)
 		try {
-			auto canonical_root = canonical_windows_root(aStorageRoot);
-			if (!canonical_root) {
-				return std::unexpected(canonical_root.error());
+			auto directory = open_state_directory(aStorageRoot);
+			if (!directory) {
+				return std::unexpected(as_catalog_failure(directory.error()));
 			}
-			auto directories = validate_ancestor_chain(*canonical_root);
-			if (!directories) {
-				return std::unexpected(directories.error());
-			}
-			auto security = private_security::load();
-			if (!security) {
-				return std::unexpected(security.error());
-			}
-			if (directories->empty()) {
-				return std::unexpected(failure::invalid_path);
-			}
-			directories->reserve(directories->size() + 2U);
-			auto& root = directories->back();
-			if (auto permissions = validate_private_security(
-					root.Handle.Value, *security, windows_object_kind::directory);
-				!permissions) {
-				return std::unexpected(permissions.error());
-			}
-			if (!reliable_local_filesystem(root)) {
-				return std::unexpected(failure::platform_unsupported);
-			}
-			auto state = ensure_private_child(root, L"state", *security);
-			if (!state) {
-				return std::unexpected(state.error());
-			}
-			directories->push_back(std::move(*state));
-			auto& retained_state = directories->back();
-			auto  version        = ensure_private_child(
-				retained_state, L"v1", *security);
-			if (!version) {
-				return std::unexpected(version.error());
-			}
-			directories->push_back(std::move(*version));
-			auto& retained_version = directories->back();
+			auto& security         = directory->handles().Security;
+			auto& retained_version = directory->handles().Directories.back();
 			auto  lock             = catalog_lock::acquire(
-				retained_version, *security, aStop);
+				retained_version, security, aStop);
 			if (!lock) {
 				return std::unexpected(lock.error());
 			}
 			if (auto cleaned = cleanup_bootstrap_orphans(
-					retained_version, *security);
+					retained_version, security);
 				!cleaned) {
 				return std::unexpected(cleaned.error());
 			}
@@ -3818,26 +3971,33 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			if (*missing) {
 				auto created = create_bootstrap(
-					retained_version, *security, aStop);
+					retained_version, security, aStop);
 				if (!created) {
 					return std::unexpected(created.error());
 				}
 			}
 			if (auto paths = validate_database_paths(
-					retained_version, *security, true);
+					retained_version, security, true);
 				!paths) {
 				return std::unexpected(paths.error());
 			}
 			auto expected_file = identity_at(
-				retained_version, CatalogNameWide, *security);
+				retained_version, CatalogNameWide, security);
 			if (!expected_file) {
 				return std::unexpected(expected_file.error());
 			}
-			const auto expected_root    = root.Identity;
-			const auto expected_state   = retained_state.Identity;
+			// The last three entries of the retained chain are the storage
+			// root, `state`, and `v1`. They are read back below and compared
+			// to what is on disk, so a directory replaced after the bootstrap
+			// is refused rather than used.
+			const auto& retained = directory->handles().Directories;
+			const auto  expected_root
+				= retained.at(retained.size() - 3U).Identity;
+			const auto expected_state
+				= retained.at(retained.size() - 2U).Identity;
 			const auto expected_version = retained_version.Identity;
 			auto       private_vfs      = secure_windows_vfs::create(
-				retained_version, *security, native_final_path);
+				retained_version, security, native_final_path);
 			if (!private_vfs) {
 				return std::unexpected(private_vfs.error());
 			}
@@ -3852,7 +4012,7 @@ namespace bpr::adapters::sqlite::detail {
 				database,
 				retained_version,
 				*expected_file,
-				*security);
+				security);
 			auto configured = current
 				? configure_connection(database)
 				: std::expected<void, failure>{
@@ -3868,11 +4028,12 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(
 					(*private_vfs)->failure_or(validated.error()));
 			}
-			auto live_root  = open_private_directory(*canonical_root, *security);
+			auto live_root = open_private_directory(
+				retained.at(retained.size() - 3U).Path, security);
 			auto live_state = open_private_directory(
-				retained_state.Path, *security);
+				retained.at(retained.size() - 2U).Path, security);
 			auto live_version = open_private_directory(
-				retained_version.Path, *security);
+				retained_version.Path, security);
 			if (!live_root || !live_state || !live_version
 				|| live_root->Identity != expected_root
 				|| live_state->Identity != expected_state
@@ -3884,13 +4045,13 @@ namespace bpr::adapters::sqlite::detail {
 					database,
 					retained_version,
 					*expected_file,
-					*security);
+					security);
 				!final_current) {
 				(void)::sqlite3_close_v2(database);
 				return std::unexpected(final_current.error());
 			}
 			if (auto paths = validate_database_paths(
-					retained_version, *security, true);
+					retained_version, security, true);
 				!paths) {
 				(void)::sqlite3_close_v2(database);
 				return std::unexpected(paths.error());
@@ -3905,9 +4066,10 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			const auto public_path = aStorageRoot / "state" / "v1"
 				/ std::string{ CatalogName };
-			auto platform_state         = std::make_unique<catalog_database_platform_state>();
-			platform_state->Directories = std::move(*directories);
-			platform_state->Vfs         = std::move(*private_vfs);
+			auto platform_state = std::make_unique<catalog_database_platform_state>();
+			platform_state->Directories
+				= std::move(directory->handles().Directories);
+			platform_state->Vfs = std::move(*private_vfs);
 			return catalog_database{
 				database, public_path, std::move(platform_state)
 			};
@@ -3919,30 +4081,11 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(failure::unavailable);
 		}
 #else
-		if (aStorageRoot.empty() || !aStorageRoot.is_absolute()) {
-			return std::unexpected(failure::invalid_path);
+		auto directory = open_state_directory(aStorageRoot);
+		if (!directory) {
+			return std::unexpected(as_catalog_failure(directory.error()));
 		}
-		std::error_code canonicalError;
-		const auto      canonicalRoot = std::filesystem::canonical(aStorageRoot, canonicalError);
-		if (canonicalError
-			|| canonicalRoot != aStorageRoot.lexically_normal()) {
-			return std::unexpected(failure::invalid_path);
-		}
-		auto root = open_private_directory(aStorageRoot);
-		if (!root) {
-			return std::unexpected(root.error());
-		}
-		if (!reliable_local_filesystem(*root)) {
-			return std::unexpected(failure::platform_unsupported);
-		}
-		auto state = ensure_private_child(*root, "state");
-		if (!state) {
-			return std::unexpected(state.error());
-		}
-		auto version = ensure_private_child(*state, "v1");
-		if (!version) {
-			return std::unexpected(version.error());
-		}
+		auto& version = directory->handles().Version;
 	#if defined(__linux__)
 		auto retained_vfs = retained_linux_vfs::create();
 		if (!retained_vfs) {
@@ -3952,7 +4095,7 @@ namespace bpr::adapters::sqlite::detail {
 	#else
 		constexpr const char* requestedVfs = nullptr;
 	#endif
-		while (::flock(version->Value, LOCK_EX) != 0) {
+		while (::flock(version.Value, LOCK_EX) != 0) {
 			if (errno != EINTR) {
 				return std::unexpected(failure::unavailable);
 			}
@@ -3960,14 +4103,14 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(failure::cancelled);
 			}
 		}
-		if (auto cleaned = cleanup_bootstrap_orphans(*version); !cleaned) {
+		if (auto cleaned = cleanup_bootstrap_orphans(version); !cleaned) {
 			return std::unexpected(cleaned.error());
 		}
 		const auto        parentPath = aStorageRoot / "state" / "v1";
 		const std::string catalogName{ CatalogName };
 		struct stat       existing{ };
 		const auto        status = ::fstatat(
-			version->Value,
+			version.Value,
 			catalogName.c_str(),
 			&existing,
 			AT_SYMLINK_NOFOLLOW);
@@ -3975,23 +4118,23 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(failure::invalid_path);
 		}
 		if (status != 0) {
-			auto created = create_bootstrap(*version, aStop, requestedVfs);
+			auto created = create_bootstrap(version, aStop, requestedVfs);
 			if (!created) {
 				return std::unexpected(created.error());
 			}
 		}
-		if (auto paths = validate_database_paths(*version); !paths) {
+		if (auto paths = validate_database_paths(version); !paths) {
 			return std::unexpected(paths.error());
 		}
-		auto expectedFile      = identity_at(*version, CatalogName);
-		auto expectedDirectory = identity_of(*version);
+		auto expectedFile      = identity_at(version, CatalogName);
+		auto expectedDirectory = identity_of(version);
 		if (!expectedFile || !expectedDirectory) {
 			return std::unexpected(
 				expectedFile ? expectedDirectory.error() : expectedFile.error());
 		}
 		const auto finalPath = parentPath / CatalogName;
 		auto       opened    = open_sqlite(
-			descriptor_child_path(*version, CatalogName), requestedVfs);
+			descriptor_child_path(version, CatalogName), requestedVfs);
 		if (!opened) {
 			return std::unexpected(opened.error());
 		}
@@ -4016,12 +4159,12 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(failure::invalid_path);
 		}
 		if (auto current = sqlite_main_file_is_current(
-				database, *version, *expectedFile);
+				database, version, *expectedFile);
 			!current) {
 			(void)::sqlite3_close_v2(database);
 			return std::unexpected(current.error());
 		}
-		if (auto paths = validate_database_paths(*version); !paths) {
+		if (auto paths = validate_database_paths(version); !paths) {
 			(void)::sqlite3_close_v2(database);
 			return std::unexpected(paths.error());
 		}
@@ -4032,9 +4175,12 @@ namespace bpr::adapters::sqlite::detail {
 	#if defined(__linux__)
 		auto platform_state = std::make_unique<catalog_database_platform_state>();
 		platform_state->Directories.reserve(3U);
-		platform_state->Directories.push_back(std::move(*root));
-		platform_state->Directories.push_back(std::move(*state));
-		platform_state->Directories.push_back(std::move(*version));
+		platform_state->Directories.push_back(
+			std::move(directory->handles().Root));
+		platform_state->Directories.push_back(
+			std::move(directory->handles().State));
+		platform_state->Directories.push_back(
+			std::move(directory->handles().Version));
 		platform_state->Vfs = std::move(*retained_vfs);
 		return catalog_database{
 			database, finalPath, std::move(platform_state)

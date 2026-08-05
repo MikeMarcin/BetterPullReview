@@ -1,10 +1,14 @@
 #include "../../src/adapters/sqlite/src/review_ledger_database.hpp"
 #include "../../src/adapters/sqlite/src/sqlite_connection.hpp"
+#include "../../src/adapters/sqlite/src/state_directory.hpp"
+
+#include "bpr/adapters/sqlite/review_ledger_store.hpp"
 
 #include <sqlite3.h>
 
 #if !defined(_WIN32)
 	#include <csignal>
+	#include <sys/stat.h>
 	#include <sys/wait.h>
 	#include <unistd.h>
 #endif
@@ -20,6 +24,7 @@
 #include <expected>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -87,6 +92,15 @@ namespace {
 				/ ("bpr-ledger-" + std::to_string(Counter++));
 			std::filesystem::remove_all(Path);
 			std::filesystem::create_directories(Path);
+			// Both stores require the root to be the path it resolves to, and
+			// the temporary directory on macOS reaches it through a symbolic
+			// link. `prepare_application_data_root` canonicalizes for the same
+			// reason.
+			std::error_code ignored;
+			if (auto resolved = std::filesystem::canonical(Path, ignored);
+				!ignored) {
+				Path = std::move(resolved);
+			}
 		}
 		scratch_directory(const scratch_directory&)                    = delete;
 		auto operator=(const scratch_directory&) -> scratch_directory& = delete;
@@ -102,6 +116,27 @@ namespace {
 			-> std::filesystem::path
 		{
 			return Path / aName;
+		}
+
+		[[nodiscard]] auto path() const -> const std::filesystem::path&
+		{
+			return Path;
+		}
+
+		/// \brief Narrows the root to owner-only, as the application does.
+		///
+		/// \details `prepare_application_data_root` gives the real storage
+		/// root `owner_all` before either store sees it. A scratch directory
+		/// created with the default mode is not a root either store would
+		/// accept, and pretending otherwise would test the wrong refusal.
+		void make_private() const
+		{
+			std::error_code ignored;
+			std::filesystem::permissions(
+				Path,
+				std::filesystem::perms::owner_all,
+				std::filesystem::perm_options::replace,
+				ignored);
 		}
 
 	private:
@@ -622,6 +657,167 @@ namespace {
 			kept.has_value() && kept->has_value() && **kept == receipt,
 			"deleting the ledger changed nothing in the store beside it");
 	}
+
+#if !defined(_WIN32)
+	[[nodiscard]] auto ledger_composes(const std::filesystem::path& aRoot) -> bool
+	{
+		return bpr::adapters::sqlite::make_review_ledger_store({
+																   .StorageRoot = aRoot,
+																   .Host        = "github.com",
+																   .Account     = "octo",
+																   .Repository  = "app",
+																   .PullRequest = 7,
+															   })
+			.has_value();
+	}
+
+	[[nodiscard]] auto catalog_composes(const std::filesystem::path& aRoot) -> bool
+	{
+		return catalog_database::open(aRoot, { }).has_value();
+	}
+
+	[[nodiscard]] auto mode_of(const std::filesystem::path& aPath)
+		-> std::optional<::mode_t>
+	{
+		struct stat status{ };
+		if (::lstat(aPath.c_str(), &status) != 0) {
+			return std::nullopt;
+		}
+		return status.st_mode;
+	}
+
+	// The ordering that used to produce the weaker directory. The ledger must
+	// not depend on the catalog having been composed first, and before
+	// BPR-0132 it discharged that by creating `state/v1` itself with
+	// `create_directories` and a `chmod`. The directory it left was one the
+	// catalog would accept but would never have made: no symlink refusal, no
+	// ownership check, and nothing holding it open.
+	//
+	// The assertion that matters is the last one. Checking the mode alone
+	// would have passed against the old code too.
+	void test_the_ledger_composing_first_hardens_the_state_directory()
+	{
+		const scratch_directory directory;
+		directory.make_private();
+
+		expect(
+			ledger_composes(directory.path()),
+			"the ledger composes in a root no other store has touched");
+
+		const auto state = directory.path() / "state" / "v1";
+		const auto mode  = mode_of(state);
+		expect(mode.has_value(), "the state directory exists");
+		expect(
+			S_ISDIR(*mode),
+			"and is a directory rather than a link to one");
+		expect(
+			(*mode & 0777) == 0700,
+			"reachable only by its owner");
+
+		struct stat status{ };
+		expect(
+			::lstat(state.c_str(), &status) == 0
+				&& status.st_uid == ::geteuid(),
+			"and owned by this user");
+
+		expect(
+			catalog_composes(directory.path()),
+			"the catalog accepts the directory the ledger made");
+	}
+
+	// A symlinked `state/v1` is the case the ledger's own bootstrap could not
+	// see: `create_directories` is content with a link, and `chmod` follows it
+	// and narrows whatever is on the other end.
+	void test_a_symlinked_state_directory_is_refused_by_either_store()
+	{
+		for (const auto ledgerFirst : { true, false }) {
+			const scratch_directory directory;
+			directory.make_private();
+
+			const auto elsewhere = directory.path() / "elsewhere";
+			std::filesystem::create_directories(elsewhere);
+			expect(
+				::chmod(elsewhere.c_str(), S_IRWXU) == 0,
+				"the link target is itself private");
+
+			const auto state = directory.path() / "state";
+			std::filesystem::create_directories(state);
+			expect(
+				::chmod(state.c_str(), S_IRWXU) == 0,
+				"the parent is private, so only the link is wrong");
+			std::filesystem::create_directory_symlink(elsewhere, state / "v1");
+
+			if (ledgerFirst) {
+				expect(
+					!ledger_composes(directory.path()),
+					"the ledger refuses a symlinked state directory");
+				expect(
+					!catalog_composes(directory.path()),
+					"and so does the catalog");
+			} else {
+				expect(
+					!catalog_composes(directory.path()),
+					"the catalog refuses a symlinked state directory");
+				expect(
+					!ledger_composes(directory.path()),
+					"and so does the ledger");
+			}
+		}
+	}
+
+	// A directory anyone can read is not one private review state belongs in.
+	// The old ledger would have narrowed it and carried on; narrowing is not
+	// the same as refusing, because whoever set 0755 may already have looked.
+	void test_a_group_readable_state_directory_is_refused_by_either_store()
+	{
+		for (const auto ledgerFirst : { true, false }) {
+			const scratch_directory directory;
+			directory.make_private();
+
+			const auto state = directory.path() / "state" / "v1";
+			std::filesystem::create_directories(state);
+			expect(
+				::chmod((directory.path() / "state").c_str(), S_IRWXU) == 0,
+				"the parent is private");
+			expect(
+				::chmod(state.c_str(), S_IRWXU | S_IRGRP | S_IXGRP) == 0,
+				"the state directory is not");
+
+			if (ledgerFirst) {
+				expect(
+					!ledger_composes(directory.path()),
+					"the ledger refuses a group-readable state directory");
+				expect(
+					!catalog_composes(directory.path()),
+					"and so does the catalog");
+			} else {
+				expect(
+					!catalog_composes(directory.path()),
+					"the catalog refuses a group-readable state directory");
+				expect(
+					!ledger_composes(directory.path()),
+					"and so does the ledger");
+			}
+		}
+	}
+
+	// One bootstrap means one refusal. A root the catalog would not open is
+	// not one the ledger opens either.
+	void test_a_public_storage_root_is_refused_by_either_store()
+	{
+		const scratch_directory directory;
+		expect(
+			::chmod(directory.path().c_str(), S_IRWXU | S_IRGRP | S_IXGRP) == 0,
+			"the root is left readable by others");
+
+		expect(
+			!ledger_composes(directory.path()),
+			"the ledger refuses a root it cannot call private");
+		expect(
+			!catalog_composes(directory.path()),
+			"and so does the catalog, as it always did");
+	}
+#endif
 } // namespace
 
 auto main() -> int
@@ -637,6 +833,12 @@ auto main() -> int
 	test_a_killed_write_discards_only_the_uncommitted_work();
 #endif
 	test_deleting_the_ledger_leaves_the_neighbouring_store_intact();
+#if !defined(_WIN32)
+	test_the_ledger_composing_first_hardens_the_state_directory();
+	test_a_symlinked_state_directory_is_refused_by_either_store();
+	test_a_group_readable_state_directory_is_refused_by_either_store();
+	test_a_public_storage_root_is_refused_by_either_store();
+#endif
 
 	std::cout << "review-ledger-storage-tests:pass\n";
 	return EXIT_SUCCESS;

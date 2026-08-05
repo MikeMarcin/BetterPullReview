@@ -1,13 +1,10 @@
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 
 #include "review_ledger_database.hpp"
+#include "state_directory.hpp"
 
 #include <system_error>
 #include <utility>
-
-#if !defined(_WIN32)
-	#include <sys/stat.h>
-#endif
 
 namespace bpr::adapters::sqlite {
 	namespace {
@@ -32,34 +29,19 @@ namespace bpr::adapters::sqlite {
 			return application::ledger_store_failure::unavailable;
 		}
 
-		/// \brief Ensures the state directory exists and is owner-private.
-		///
-		/// \details The epoch catalog builds this same directory through a
-		/// hardened platform-specific bootstrap. This adapter must not depend on
-		/// the catalog having been composed first, so it creates what it needs
-		/// and narrows the mode. Reaching full parity with the catalog's
-		/// bootstrap is tracked separately rather than assumed here.
-		[[nodiscard]] auto ensure_state_directory(
-			const std::filesystem::path& aRoot)
-			-> std::expected<std::filesystem::path, application::ledger_store_failure>
+		/// \brief Translates a state-directory refusal for this store.
+		[[nodiscard]] constexpr auto translate(
+			const detail::state_directory_failure aFailure) noexcept
+			-> application::ledger_store_failure
 		{
-			if (aRoot.empty()) {
-				return std::unexpected(application::ledger_store_failure::unavailable);
+			switch (aFailure) {
+			case detail::state_directory_failure::invalid_path:
+			case detail::state_directory_failure::invalid_permissions:
+			case detail::state_directory_failure::platform_unsupported:
+			case detail::state_directory_failure::unavailable:
+				break;
 			}
-
-			auto directory = aRoot / "state" / "v1";
-			auto code      = std::error_code{ };
-			std::filesystem::create_directories(directory, code);
-			if (code && !std::filesystem::is_directory(directory)) {
-				return std::unexpected(application::ledger_store_failure::unavailable);
-			}
-
-#if !defined(_WIN32)
-			if (::chmod(directory.c_str(), S_IRWXU) != 0) {
-				return std::unexpected(application::ledger_store_failure::unavailable);
-			}
-#endif
-			return directory;
+			return application::ledger_store_failure::unavailable;
 		}
 
 		/// \brief Binds one durable ledger to one review scope.
@@ -109,13 +91,17 @@ namespace bpr::adapters::sqlite {
 			std::unique_ptr<application::review_ledger_store_port>,
 			application::ledger_store_failure>
 	{
-		auto directory = ensure_state_directory(aConfiguration.StorageRoot);
+		// The same bootstrap the epoch catalog uses. This store used to make
+		// the directory itself, which meant whichever store opened first
+		// decided what it was — and the one that got there first was often
+		// this one, with the weaker policy.
+		auto directory = detail::open_state_directory(aConfiguration.StorageRoot);
 		if (!directory) {
-			return std::unexpected(directory.error());
+			return std::unexpected(translate(directory.error()));
 		}
 
 		auto opened = detail::review_ledger_database::open(
-			*directory / LedgerName,
+			directory->path() / LedgerName,
 			std::move(aStop));
 		if (!opened) {
 			return std::unexpected(translate(opened.error()));
