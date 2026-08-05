@@ -412,6 +412,48 @@ namespace {
 			"and they say so");
 	}
 
+	// Reopening is a decision in its own right. Nothing may produce it as a
+	// side effect of doing something else, or a reviewer would find defects
+	// back in their queue without having put them there.
+	void test_only_an_explicit_reopen_reaches_reopened()
+	{
+		constexpr auto everythingElse = std::array{
+			kind::claim_fix,
+			kind::verify,
+			kind::withdraw,
+			kind::accept_as_is,
+			kind::reclassify,
+		};
+
+		for (const auto starting :
+			 { state::open, state::fix_claimed, state::needs_verification,
+			   state::verified, state::reopened }) {
+			for (const auto attempt : everythingElse) {
+				auto issued = command(attempt);
+				if (attempt == kind::reclassify) {
+					issued.Severity = core::defect_severity::major;
+				}
+				const auto outcome = core::apply(defect(starting), issued);
+				expect(
+					outcome.Defect.State != state::reopened
+						|| starting == state::reopened,
+					"no command other than reopen ever reaches reopened");
+			}
+
+			// Nor does any evidence.
+			for (const auto kindOf :
+				 { proof::author_reply, proof::nearby_code_change,
+				   proof::thread_resolved_externally }) {
+				const auto outcome
+					= core::observe(defect(starting), evidence(kindOf));
+				expect(
+					outcome.Defect.State != state::reopened
+						|| starting == state::reopened,
+					"no evidence ever reopens a defect");
+			}
+		}
+	}
+
 	void test_every_enumerator_names_itself()
 	{
 		expect(
@@ -450,6 +492,7 @@ auto main() -> int
 	test_the_original_context_is_retained();
 	test_an_available_anchor_reports_itself_available();
 	test_the_two_ways_of_losing_context_are_distinguishable();
+	test_only_an_explicit_reopen_reaches_reopened();
 	test_every_enumerator_names_itself();
 
 	std::cout << "defect-workflow-core-tests:pass\n";
