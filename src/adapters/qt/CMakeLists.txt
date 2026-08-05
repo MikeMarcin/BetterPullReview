@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/appearance_profile.cpp
         src/review_queue_model.cpp
+        src/review_landing_model.cpp
         src/defect_card_view.cpp
         src/review_draft_editor.cpp
         src/comparison_scroll_controller.cpp

@@ -435,3 +435,26 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "${bpr_qt_github_common_environment}"
 )
+
+bpr_add_executable(
+    test_better_pull_review_qt_review_landing_model_tests
+    review_landing_model_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_review_landing_model_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_review_landing_model_tests)
+bpr_enable_warnings(test_better_pull_review_qt_review_landing_model_tests)
+
+add_test(
+    NAME qt_review_landing_model
+    COMMAND test_better_pull_review_qt_review_landing_model_tests
+)
+set_tests_properties(
+    qt_review_landing_model
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+)
