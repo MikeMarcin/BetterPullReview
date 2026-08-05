@@ -2,13 +2,13 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: in progress. BPR-0158 allocated cards BPR-0159 through BPR-0167 and
-parked two gates as BPR-0168 and BPR-0169. BPR-0159 delivered the core's role
-classification and observer rules; BPR-0160 delivered attention buckets,
-reasons, and the queue's total order; BPR-0161 delivered the refresh
-scheduler; BPR-0162 delivered enrollment retention and the queue projection;
-BPR-0163 delivered the landing model; BPR-0164 delivered notification content
-and deep links; BPR-0165 documented the queue.
+Status: available-target implementation complete, with one piece of remaining
+work that nothing blocks. BPR-0159 through BPR-0164 delivered the core, host,
+and Qt slices; BPR-0165 documented them; BPR-0166 removed the surface nothing
+read.
+
+RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
+remains ordered behind RFC-BPR-0002.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -101,6 +101,52 @@ A row is claimed only when its card lands with direct evidence.
 |---|---|---|
 | BPR-0168 | A native notification is delivered and its deep link opens the right local review | A person to grant Notification Center permission once and to see the banner. The harness proves the request's content and destination; it cannot prove the operating system showed it |
 | BPR-0169 | Enrolling by observer rule leaves GitHub's reviewer and subscription state untouched | A designated repository and token, inheriting BPR-0142. That the correlator cannot issue a request is structural and provable here; that the *server* also shows no change is a different claim and needs a server |
+
+## Closeout replay
+
+Run at commit `8903b4d`, on macOS 15.7.7 arm64 with Qt 6.11.1.
+
+| Command | Result |
+|---|---|
+| `ctest --preset dev --output-on-failure` | 118/118 in 698.90 s |
+| `ctest --preset core-only --output-on-failure` | 53/53 in 81.72 s |
+| `cmake --build --preset dev --target coding-format-check` | 272 files, passed |
+| `cmake --build --preset dev --target coding-tidy` | passed |
+| `python3 scripts/verify_documentation.py --root .` | `DOCUMENTATION_OK` |
+| `python3 scripts/verify_conditional_branches.py --root .` | `CONDITIONAL_BRANCH_IDENTIFIERS_OK:272` |
+| `python3 scripts/verify_binary_dependencies.py …` | `BINARY_DEPENDENCIES_OK` |
+| `python3 scripts/verify_runtime_surface.py …` | `RUNTIME_SURFACE_OK` |
+| `git ls-files \| grep -c '^.github/workflows/'` | 0 |
+| `git diff --check` | clean |
+
+The RFC-BPR-0010 suites specifically:
+
+| Suite | Preset |
+|---|---|
+| `core_review_queue` | `dev` and `core-only` |
+| `core_review_queue_attention` | `dev` and `core-only` |
+| `application_review_queue_refresh` | `dev` |
+| `application_review_queue_enrollment` | `dev` |
+| `application_review_queue_notification` | `dev` |
+| `qt_review_landing_model` | `dev` |
+
+Both core suites run under `core-only`, which links neither Qt nor SQLite, so
+"the core reads no clock and reaches no provider" is a property of the build
+rather than of a review.
+
+## Remaining work that nothing blocks
+
+| Card | What is missing |
+|---|---|
+| BPR-0170 | A durable enrollment store. The retention policy is built and correct; it lives only as long as the process. A queue rebuilt on every launch would re-derive membership from whatever the paths look like then, which is exactly the recomputation BPR-0162 exists to prevent — the policy would be right and the behaviour wrong |
+
+This is listed apart from the deferred gates deliberately. It needs no Windows
+host, no person, and no credential; it is unbuilt, not blocked, and calling it
+a gate would make this RFC look more finished than it is.
+
+Filters and sorting presentation are also not built. BPR-0163's card named
+them; the model presents what the core ordered and a filter is a view concern
+that would sit above it. Nothing was built that only appears to filter.
 
 ## Documentation ledger
 
