@@ -300,3 +300,20 @@ add_test(
     NAME application_defect_correlation
     COMMAND test_better_pull_review_defect_correlation_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_review_queue_refresh_tests
+    review_queue_refresh_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_queue_refresh_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_review_queue_refresh_tests)
+bpr_enable_warnings(test_better_pull_review_review_queue_refresh_tests)
+
+add_test(
+    NAME application_review_queue_refresh
+    COMMAND test_better_pull_review_review_queue_refresh_tests
+)
