@@ -1,10 +1,15 @@
 cmake_minimum_required(VERSION 4.4.2)
 
-foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT)
+foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
         message(FATAL_ERROR "${required} is required")
     endif()
 endforeach()
+
+# A backstop, not the bound. The phase bounds itself at `BPR_RUN_BUDGET_MS` and
+# reports what it was doing; this only catches a process that never reached its
+# own limit, and is derived from that limit so it can never fire first.
+math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
@@ -18,11 +23,13 @@ function(run_phase label)
             github-com
             --epoch-fixture-root
             "${BPR_ROOT}"
+            --automated-run-budget-ms
+            "${BPR_RUN_BUDGET_MS}"
             ${arguments}
         RESULT_VARIABLE phase_result
         OUTPUT_VARIABLE phase_output
         ERROR_VARIABLE phase_error
-        TIMEOUT 240
+        TIMEOUT ${bpr_phase_timeout}
     )
     if(NOT phase_result EQUAL 0)
         message(FATAL_ERROR

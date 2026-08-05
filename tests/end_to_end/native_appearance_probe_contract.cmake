@@ -4,6 +4,16 @@ endif()
 if(NOT DEFINED BPR_BEFORE_RENDER OR NOT DEFINED BPR_AFTER_RENDER)
     message(FATAL_ERROR "appearance render paths are required")
 endif()
+if(NOT DEFINED BPR_RUN_BUDGET_MS OR "${BPR_RUN_BUDGET_MS}" STREQUAL "")
+    message(FATAL_ERROR "BPR_RUN_BUDGET_MS is required")
+endif()
+
+# A backstop, not the bound. The probe bounds itself at `BPR_RUN_BUDGET_MS` and
+# reports what it was doing; this only catches a process that never reached its
+# own limit, and is derived from that limit so it can never fire first. The
+# configuration-failure cases below keep their own short timeout: each exits
+# during argument parsing without ever scheduling a run, so no budget applies.
+math(EXPR bpr_probe_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 10")
 
 file(REMOVE "${BPR_BEFORE_RENDER}" "${BPR_AFTER_RENDER}")
 
@@ -184,10 +194,12 @@ execute_process(
         "${BPR_BEFORE_RENDER}"
         --changed-render-evidence
         "${BPR_AFTER_RENDER}"
+        --automated-run-budget-ms
+        "${BPR_RUN_BUDGET_MS}"
     RESULT_VARIABLE offscreen_result
     OUTPUT_VARIABLE offscreen_output
     ERROR_VARIABLE offscreen_error
-    TIMEOUT 30
+    TIMEOUT ${bpr_probe_timeout}
 )
 if(offscreen_result EQUAL 0)
     message(FATAL_ERROR "offscreen probe was accepted")

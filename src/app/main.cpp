@@ -43,6 +43,8 @@
 #endif
 
 #include <algorithm>
+#include <charconv>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -59,6 +61,25 @@
 #endif
 
 namespace {
+	// How long an automated run may take before it stops waiting, records why,
+	// and shuts itself down.
+	//
+	// Every harness that starts this process bounds it with a CTest `TIMEOUT`,
+	// and a run killed by that timeout reports nothing at all: no stage, no
+	// verdict, no evidence. The run therefore has to reach its own limit first,
+	// which means the limit has to be measured in the same units the harness
+	// uses. Wall clock, not ticks: a tick budget is only comparable to a
+	// timeout if every tick costs what it costs on an idle machine, and under
+	// load the event loop stretches exactly when the harness clock does not.
+	//
+	// Tests state their own budget next to their `TIMEOUT` so the two numbers
+	// are read together. This default is only for a run started without one,
+	// and fits inside the shortest timeout in the suite (15 s) with room left
+	// for process start, shutdown, and writing evidence.
+	using automated_clock = std::chrono::steady_clock;
+
+	constexpr auto default_automated_run_budget = std::chrono::milliseconds{ 8'000 };
+
 	auto has_argument(
 		const int              aArgc,
 		char* const* const     aArgv,
@@ -312,8 +333,18 @@ namespace {
 			std::string                ExpectedActiveHostText;
 		};
 
-		stage                       Stage                     = stage::start;
-		std::size_t                 Attempts                  = 0U;
+		stage Stage = stage::start;
+		// Ticks spent in the current stage. Not the bound — the bound is
+		// `Budget` below — but reported alongside it, because a run that
+		// exhausted its budget after a handful of ticks was blocked, and one
+		// that exhausted it after thousands was waiting for something that
+		// never became true. Those need different investigations.
+		std::size_t Attempts = 0U;
+		// When the run started, and how long it may take. See
+		// `default_automated_run_budget`.
+		automated_clock::time_point Started;
+		std::chrono::milliseconds   Budget                    = default_automated_run_budget;
+		bool                        BudgetExpired             = false;
 		bool                        PresentationPassed        = false;
 		bool                        RenderSaved               = true;
 		bool                        VerifyNativePlatformVault = false;
@@ -370,9 +401,14 @@ namespace {
 			native_appearance_evidence_paths             EvidencePaths;
 		};
 
-		bool                                         Fixture                       = false;
-		bool                                         DiffProbe                     = false;
-		bool                                         DiffShutdownProbe             = false;
+		bool Fixture           = false;
+		bool DiffProbe         = false;
+		bool DiffShutdownProbe = false;
+		// A stage that never becomes ready. Every real readiness condition in
+		// an automated run is one the fixture eventually satisfies, so without
+		// a deliberate stall there is no way to reach the run's own timeout and
+		// show that it fires before the harness kills the process.
+		bool                                         StallProbe                    = false;
 		bool                                         DiffInteractionEvidencePassed = false;
 		bool                                         DiffRequested                 = false;
 		bool                                         LedgerPresentOnEntry          = false;
@@ -1813,6 +1849,22 @@ namespace {
 				   << " fixture=" << (passedFixture ? 1 : 0)
 				   << " maintenance=" << (passedMaintenance ? 1 : 0)
 				   << " render=" << (renderSaved ? 1 : 0) << '\n'
+				   // Whether the run stopped itself or failed a check, with
+				   // the numbers to set against the harness timeout. A run
+				   // killed from outside prints none of this, so the presence
+				   // of the line is itself the evidence that the process
+				   // reached its own limit first.
+				   << "PUBLIC_PATH_BUDGET:"
+				   << "expired=" << (aRun.BudgetExpired ? 1 : 0)
+				   << " budget_ms="
+				   << static_cast<long long>(aRun.Budget.count())
+				   << " elapsed_ms="
+				   << static_cast<long long>(
+						  std::chrono::duration_cast<std::chrono::milliseconds>(
+							  automated_clock::now() - aRun.Started)
+							  .count())
+				   << " stage_ticks="
+				   << static_cast<unsigned long long>(aRun.Attempts) << '\n'
 				   << "PUBLIC_PATH_STATUS:"
 				   << QString::fromStdString(window.status_text()) << '\n'
 				   << "PUBLIC_PATH_DIAGNOSTIC:"
@@ -2082,30 +2134,21 @@ namespace {
 		}
 #endif
 
+		aRun->Started = automated_clock::now();
+
 		auto tick = std::make_shared<std::function<void()>>();
 		*tick     = [&aApplication, aRun, tick] {
-			auto&      window = aApplication.window();
-			const auto maximumAttempts =
-#if defined(BPR_BUILD_TESTING)
-				aRun->Fixture
-					&& (aRun->Stage == automated_run::stage::start
-						|| aRun->Stage == automated_run::stage::connect
-						|| aRun->Stage == automated_run::stage::open
-						|| aRun->Stage == automated_run::stage::epoch_history
-						|| aRun->Stage == automated_run::stage::epoch_refresh
-						|| aRun->Stage
-							== automated_run::stage::epoch_maintenance_history
-						|| aRun->Stage
-							== automated_run::stage::epoch_maintenance_prune_result
-						|| aRun->Stage
-							== automated_run::stage::epoch_maintenance_delete_result
-						|| aRun->Stage == automated_run::stage::appearance)
-				? 6'000U
-				:
-#endif
-				1'000U;
+			auto& window = aApplication.window();
+			++aRun->Attempts;
+			// One budget for the whole run rather than one per stage. What has
+			// to be provably smaller than the harness `TIMEOUT` is the
+			// process's own lifetime, and per-stage budgets sum: a run of
+			// fourteen stages each allowed a minute is a run the harness kills
+			// long before any single stage gives up.
 			if (aRun->Stage != automated_run::stage::shutdown
-				&& ++aRun->Attempts > maximumAttempts) {
+				&& automated_clock::now() - aRun->Started
+					> aRun->Budget) {
+				aRun->BudgetExpired = true;
 				capture_automated_timeout_evidence(aApplication, *aRun);
 			}
 
@@ -2195,6 +2238,12 @@ namespace {
 
 			case automated_run::stage::open:
 #if defined(BPR_BUILD_TESTING)
+				// The deliberate stall. `open` is where every long fixture
+				// wait lives, so a stall here is the shape of the hang this
+				// budget exists to catch.
+				if (aRun->StallProbe) {
+					break;
+				}
 				if (aRun->MaintenanceProbe
 					== automated_run::epoch_maintenance_probe::verify_deleted) {
 					if (begin_epoch_maintenance_probe(aApplication, *aRun)) {
@@ -2903,7 +2952,31 @@ auto main(int argc, char** argv) -> int
 
 		const auto selfTest   = has_argument(argc, argv, "--self-test");
 		const auto renderPath = argument_value(argc, argv, "--render-evidence");
+
+		// The harness that starts this process knows its own timeout; this is
+		// how it tells the run to stop first. Refused rather than clamped when
+		// it does not parse: a budget silently replaced by the default is one
+		// the harness believes it set, and the first thing anyone would learn
+		// is a timeout with nothing reported — the failure this exists to end.
+		auto automatedRunBudget = default_automated_run_budget;
+		if (const auto budget
+			= argument_value(argc, argv, "--automated-run-budget-ms");
+			budget.has_value()) {
+			auto              milliseconds = 0LL;
+			const auto* const first        = budget->data();
+			const auto* const last         = first + budget->size();
+			const auto        parsed       = std::from_chars(first, last, milliseconds);
+			if (parsed.ec != std::errc{ } || parsed.ptr != last
+				|| milliseconds <= 0) {
+				QTextStream{ stdout }
+					<< "AUTOMATED_RUN_BUDGET_CONFIGURATION_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			automatedRunBudget = std::chrono::milliseconds{ milliseconds };
+		}
 #if defined(BPR_BUILD_TESTING)
+		const auto automatedStallProbe = has_argument(
+			argc, argv, "--automated-stall-probe");
 		const auto nativeAppearanceProbe      = has_argument(argc, argv, "--native-appearance-probe");
 		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
 		const auto diffWorkbenchShutdownProbe = has_argument(
@@ -2995,6 +3068,7 @@ auto main(int argc, char** argv) -> int
 					automated_run{
 						.Stage                     = automated_run::stage::start,
 						.Attempts                  = 0U,
+						.Budget                    = automatedRunBudget,
 						.PresentationPassed        = false,
 						.RenderSaved               = true,
 						.VerifyNativePlatformVault = verifyNativePlatformVault,
@@ -3006,6 +3080,7 @@ auto main(int argc, char** argv) -> int
 						.Fixture                = !fixtureName.empty(),
 						.DiffProbe              = diffWorkbenchProbe,
 						.DiffShutdownProbe      = diffWorkbenchShutdownProbe,
+						.StallProbe             = automatedStallProbe,
 						.FixtureName            = std::move(fixtureName),
 						.ExpectedActiveHostText = std::move(expectedActiveHostText),
 						.EpochPhase             = fixtureOptions.EpochPhase,

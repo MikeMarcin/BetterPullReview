@@ -540,6 +540,79 @@ System-theme evidence for the current composition belongs to BPR-0083 under
 RFC-BPR-0004; it is not a reproduction of BPR-0059 and does not retroactively
 extend or invalidate it.
 
+## Automated-run bounds
+
+Every end-to-end test starts the real application and waits for markers. When
+a stage never becomes ready the run has to say so itself, because a process
+killed by CTest prints nothing: no stage, no verdict, no evidence. BPR-0119
+hit exactly that — a forced-never-ready condition produced a bare 45-second
+timeout — and BPR-0131 closes it.
+
+The bound is wall clock, from the moment the run is scheduled to the moment it
+gives up. It is not a tick count. A tick budget is only comparable to a CTest
+`TIMEOUT` if every tick costs what it costs on an idle machine, and under load
+the event loop stretches exactly when the harness clock does not; the previous
+6,000-tick budget was nominally 60 seconds and outlasted four of the timeouts
+containing it.
+
+`bpr_bound_automated_run` in `tests/end_to_end/CMakeLists.txt` is the only way
+these tests get a `TIMEOUT`, so a timeout cannot be changed without restating
+the budget beside it. It refuses any pair where the worst case the application
+permits itself exceeds three quarters of the harness allowance, and prints the
+arithmetic at configure time.
+
+| Test | Timeout | Budgeted runs | Budget | Reserve | Worst case | Three-quarter share | Observed |
+|---|---|---|---|---|---|---|---|
+| `application_public_path` | 15 s | 1 | 8 s | 2 s | 10 s | 11.25 s | 0.46 s |
+| `application_public_path_ghes_cli_unavailable` | 15 s | 1 | 8 s | 2 s | 10 s | 11.25 s | 0.20 s |
+| `application_render` | 15 s | 1 | 8 s | 2 s | 10 s | 11.25 s | 0.23 s |
+| `application_automated_run_budget` | 30 s | 1 | 5 s | 2 s | 7 s | 22.5 s | 6.39 s |
+| `application_github_public_path_github_com` | 60 s | 1 | 40 s | 2 s | 42 s | 45 s | 12.26 s |
+| `application_github_public_path_ghes_3_18` | 60 s | 1 | 40 s | 2 s | 42 s | 45 s | 12.18 s |
+| `application_diff_workbench_public_path` | 60 s | 1 | 40 s | 2 s | 42 s | 45 s | 13.10 s |
+| `application_diff_workbench_shutdown_public_path` | 60 s | 1 | 40 s | 2 s | 42 s | 45 s | 12.13 s |
+| `application_native_appearance_probe_contract` | 60 s | 1 | 30 s | 10 s | 40 s | 45 s | 12.95 s |
+| `application_epoch_persistence_github-com` | 240 s | 2 | 60 s | 4 s | 124 s | 180 s | 50.04 s |
+| `application_epoch_persistence_ghes-3_18` | 240 s | 2 | 60 s | 4 s | 124 s | 180 s | 50.72 s |
+| `application_epoch_maintenance_public_path` | 360 s | 4 | 60 s | 8 s | 248 s | 270 s | 54.47 s |
+
+Reserve is everything the budget does not cover: process start, shutdown,
+writing evidence, and — for the appearance contract — eight
+configuration-failure invocations that exit during argument parsing without
+ever scheduling a run. Observed times are whole-test wall clock on macOS
+15.7.7 arm64, Qt 6.11.1, idle.
+
+The smallest ratio between a budget and what the run actually takes is 2.4x
+(`application_epoch_persistence_*`: 60 s against 25 s per phase). The largest
+is 40x (`application_render`). The margin left to CTest after the application
+has spent its whole budget is never less than 5 seconds and never less than a
+quarter of the timeout.
+
+Driver scripts derive their per-invocation `execute_process` timeouts from the
+same budget, so an inner backstop cannot fire before the run's own limit
+either.
+
+`application_automated_run_budget` exercises the bound. `--automated-stall-probe`
+holds the `open` stage forever, which is the shape of a hang: nothing crashes,
+nothing errors, a readiness condition simply never becomes true. The run
+reports `PUBLIC_PATH_STAGE:2`, the verdict conjunction, the narrowing groups,
+and `PUBLIC_PATH_BUDGET:expired=1 budget_ms=5000 elapsed_ms=5928
+stage_ticks=505`, then exits 1 — 6.39 seconds inside a 30-second timeout.
+
+`stage_ticks` is reported because it separates two failures that otherwise
+look identical: 505 ticks in 5.9 seconds is a run that was waiting, and a
+handful of ticks in the same interval is a run whose event loop was blocked.
+
+Four independent breaks show the assertions are not vacuous. Each was built
+successfully before being run:
+
+| Break | Result |
+|---|---|
+| Budget guard disabled | CTest killed the process at 30.04 s with no markers at all — the original failure, reproduced |
+| Expiry recorded but never flagged | `PUBLIC_PATH_BUDGET:expired=0`, regular expression not found |
+| Stall moved from `open` to `connect` | `PUBLIC_PATH_STAGE:1`, regular expression not found |
+| Fixture budget raised to 50 s under a 60 s timeout | Configure failed: 52,000 ms exceeds the 45,000 ms three-quarter share |
+
 ## Claim matrix
 
 | Claim | Direct surface | Proof | Result |
