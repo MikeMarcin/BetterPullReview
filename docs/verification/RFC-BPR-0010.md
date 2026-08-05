@@ -7,7 +7,8 @@ parked two gates as BPR-0168 and BPR-0169. BPR-0159 delivered the core's role
 classification and observer rules; BPR-0160 delivered attention buckets,
 reasons, and the queue's total order; BPR-0161 delivered the refresh
 scheduler; BPR-0162 delivered enrollment retention and the queue projection;
-BPR-0163 delivered the landing model.
+BPR-0163 delivered the landing model; BPR-0164 delivered notification content
+and deep links.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -90,8 +91,8 @@ A row is claimed only when its card lands with direct evidence.
 | A completion cannot cross sessions | Host | Deliver a stale completion after an account, repository, or pull-request switch | The completion is refused by identity rather than by ordering luck | Verified. BPR-0161 checks identity before reading anything else, so a stale answer changes no validator, no backoff, and no online state. A session is host, account, and generation: an account switch reusing the generation is still refused |
 | Enrollment survives the path it matched | Host | Enroll by path rule, then project without re-deriving membership | The item stays enrolled with its original reason until closed or removed | Verified for the retention policy. BPR-0162 retains membership as enrolled rather than recomputing it, so the pull request a path rule caught stays when the path leaves it — the moment the change becomes interesting is exactly when a recomputing queue would drop it. A durable store is not built here, so "and after a restart" is not claimed |
 | The queue updates incrementally | Qt | Replace a queue projection with one differing in a few items | Exact insert, remove, move, and data signals by stable identity, and no routine reset | Verified. BPR-0163's `review_landing_model` matches rows by `pull_request_ref`, so an item that becomes urgent moves and keeps its persistent index rather than being replaced. Re-applying an unchanged queue emits nothing at all. A positional diff — which RFC-BPR-0007's model uses for a different job — would have reported a reorder as a run of changes on rows that did not change |
-| Notifications carry no content | Host plus Qt | Request a notification for a review with comments | The request type has no body field, so no path can carry one | Unstarted (BPR-0164) |
-| A notification links to the right review | Host plus Qt | Follow the deep link from a requested notification | The link resolves to the host, repository, and pull request the item names | Unstarted (BPR-0164) |
+| Notifications carry no content | Host | Request a notification for a review with comments and a matched path rule | The request type has no field a body, a title, or a path could occupy | Verified. BPR-0164 reads the whole notification and requires it to be exactly identity, the bucket's fixed sentence, and a count — not merely free of a list of bad words. Leaking the matched rule's path takes three deliberate edits, and the test catches it |
+| A notification links to the right review | Host | Resolve the target of a requested notification | The link resolves to the host, account, repository, and pull request the item names | Verified for the target. BPR-0164's target is a local reference rather than a URL: a `https://` address would open a browser, and a link the operating system can hand to any handler is one another application can claim. That following it from a delivered banner selects that review is BPR-0168 |
 | Closure and permission loss are honest | Host | Close, reopen, transfer, and lose permission to an enrolled pull request | Each produces an explicit queue state rather than a silent disappearance | Verified. BPR-0162 keeps forbidden and gone distinct — one is a permission a reviewer may be able to ask for, the other a pull request that is not there — retains a departed item with its reason while dropping it from the queue, and restores the same record on reopening. Only a withdrawal moves an item out, so an outage does not empty the queue |
 
 ## Deferred gates

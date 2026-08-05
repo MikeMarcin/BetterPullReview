@@ -57,8 +57,31 @@ which settles it in one line:
   of BPR-0119 and BPR-0133 — a repeat count that would have caught the original
   rate.
 
+## A recurrence, whose evidence was thrown away
+
+It happened again during BPR-0164's gate, at commit `2ef53fe`. The test failed
+in a run where everything else passed, and passed on the next invocation in
+56.66 seconds.
+
+**The `PUBLIC_PATH_BUDGET` line was not captured.** The gate command piped
+`ctest --output-on-failure` through `tail -8`, so the summary survived and the
+failure output did not. Re-running overwrote `LastTest.log` with the passing
+run, taking the last copy with it.
+
+That is a harness mistake and worth naming as one: `--output-on-failure` exists
+to print the failure, and truncating its output discards exactly the diagnostic
+BPR-0131 was written to produce. The gate now keeps the whole run and greps it
+for a summary rather than the other way round.
+
+So the count is two observations, neither attributable. The rate is roughly one
+in ten full-suite runs.
+
 ## Why this is not being fixed now
 
-One observation in five runs, with evidence that cannot distinguish the two
-candidate causes, is not enough to change behaviour on. The instrumentation
-that would settle it is now in place; what is missing is a second occurrence.
+Two observations, neither carrying the line that would distinguish the two
+candidate causes — the first because it predates the instrumentation, the
+second because the harness discarded it. Guessing between a stalled stage and a
+genuinely false check would put a fix on the wrong side of the question.
+
+The instrumentation is in place and the harness no longer throws it away. What
+is missing is one more occurrence, captured.
