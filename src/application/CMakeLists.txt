@@ -7,6 +7,7 @@ add_library(
         src/defect_correlation.cpp
         src/review_synchronization.cpp
         src/review_queue_refresh.cpp
+        src/review_queue_enrollment.cpp
         src/diff_application_host.cpp
         src/github_capability_cache.cpp
         src/epoch_application_host.cpp

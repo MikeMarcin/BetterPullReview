@@ -6,7 +6,7 @@ Status: in progress. BPR-0158 allocated cards BPR-0159 through BPR-0167 and
 parked two gates as BPR-0168 and BPR-0169. BPR-0159 delivered the core's role
 classification and observer rules; BPR-0160 delivered attention buckets,
 reasons, and the queue's total order; BPR-0161 delivered the refresh
-scheduler.
+scheduler; BPR-0162 delivered enrollment retention and the queue projection.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -87,11 +87,11 @@ A row is claimed only when its card lands with direct evidence.
 | Decisions are clock and network independent | Core under `core-only` | Replay one observation set twice | Identical buckets and ordering, with no clock read and no timer scheduled | Verified. BPR-0160 orders by bucket then identity, so 64 items supplied ascending, descending, and rotated give one queue. The observation carries no timestamp: "new since I last looked" is a comparison against what the ledger records, not against a wall clock |
 | Refresh respects the host's limits | Host with manual executor | Drive simulated primary and secondary rate limits, ETags, offline state, and cancellation | Bounded backoff, conditional requests reused, and no work issued while offline | Verified. BPR-0161 doubles backoff to a 900-second cap, prefers the provider's own `Retry-After`, reuses validators so an unchanged pull request costs a conditional request, reports offline explicitly, and treats cancellation as neither a failure nor a reason to back off |
 | A completion cannot cross sessions | Host | Deliver a stale completion after an account, repository, or pull-request switch | The completion is refused by identity rather than by ordering luck | Verified. BPR-0161 checks identity before reading anything else, so a stale answer changes no validator, no backoff, and no online state. A session is host, account, and generation: an account switch reusing the generation is still refused |
-| Enrollment survives the path it matched | Host plus store | Enroll by path rule, remove the path, reopen | The item stays enrolled with its original reason until closed or removed | Unstarted (BPR-0162) |
+| Enrollment survives the path it matched | Host | Enroll by path rule, then project without re-deriving membership | The item stays enrolled with its original reason until closed or removed | Verified for the retention policy. BPR-0162 retains membership as enrolled rather than recomputing it, so the pull request a path rule caught stays when the path leaves it — the moment the change becomes interesting is exactly when a recomputing queue would drop it. A durable store is not built here, so "and after a restart" is not claimed |
 | The queue updates incrementally | Qt | Replace a queue projection with one differing in a few items | Exact insert, remove, move, and data signals by stable identity, and no routine reset | Unstarted (BPR-0163) |
 | Notifications carry no content | Host plus Qt | Request a notification for a review with comments | The request type has no body field, so no path can carry one | Unstarted (BPR-0164) |
 | A notification links to the right review | Host plus Qt | Follow the deep link from a requested notification | The link resolves to the host, repository, and pull request the item names | Unstarted (BPR-0164) |
-| Closure and permission loss are honest | Core plus host | Close, reopen, transfer, and lose permission to an enrolled pull request | Each produces an explicit queue state rather than a silent disappearance | Unstarted (BPR-0162) |
+| Closure and permission loss are honest | Host | Close, reopen, transfer, and lose permission to an enrolled pull request | Each produces an explicit queue state rather than a silent disappearance | Verified. BPR-0162 keeps forbidden and gone distinct — one is a permission a reviewer may be able to ask for, the other a pull request that is not there — retains a departed item with its reason while dropping it from the queue, and restores the same record on reopening. Only a withdrawal moves an item out, so an outage does not empty the queue |
 
 ## Deferred gates
 
