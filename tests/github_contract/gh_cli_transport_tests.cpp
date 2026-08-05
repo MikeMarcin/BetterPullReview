@@ -72,7 +72,7 @@ namespace {
 			error);
 		expect(!error, "temporary file permissions are set");
 #else
-		static_cast<void>(executable);
+		static_cast<void>(aExecutable);
 #endif
 	}
 
@@ -179,16 +179,16 @@ namespace {
 		};
 #elif defined(_WIN32)
 		return gh_cli_windows_environment_facts{
-			.UserProfileDirectory            = layout.HomeDirectory,
-			.RoamingApplicationDataDirectory = layout.RoamingDirectory,
-			.LocalApplicationDataDirectory   = layout.LocalDirectory,
-			.SystemRootDirectory             = layout.SystemRootDirectory,
+			.UserProfileDirectory            = aLayout.HomeDirectory,
+			.RoamingApplicationDataDirectory = aLayout.RoamingDirectory,
+			.LocalApplicationDataDirectory   = aLayout.LocalDirectory,
+			.SystemRootDirectory             = aLayout.SystemRootDirectory,
 		};
 #elif defined(__linux__)
 		return gh_cli_linux_environment_facts{
-			.HomeDirectory     = layout.HomeDirectory,
-			.RuntimeDirectory  = layout.RuntimeDirectory,
-			.SessionBusAddress = "unix:path=" + path_bytes(layout.RuntimeDirectory / "bus"),
+			.HomeDirectory     = aLayout.HomeDirectory,
+			.RuntimeDirectory  = aLayout.RuntimeDirectory,
+			.SessionBusAddress = "unix:path=" + path_bytes(aLayout.RuntimeDirectory / "bus"),
 		};
 #else
 	#error Unsupported contract-test platform
@@ -229,23 +229,23 @@ namespace {
 			{ "HOME", path_bytes(std::filesystem::canonical(aLayout.HomeDirectory)) });
 #elif defined(_WIN32)
 		result.push_back(
-			{ "USERPROFILE", path_bytes(std::filesystem::canonical(layout.HomeDirectory)) });
+			{ "USERPROFILE", path_bytes(std::filesystem::canonical(aLayout.HomeDirectory)) });
 		result.push_back(
-			{ "APPDATA", path_bytes(std::filesystem::canonical(layout.RoamingDirectory)) });
+			{ "APPDATA", path_bytes(std::filesystem::canonical(aLayout.RoamingDirectory)) });
 		result.push_back(
-			{ "LOCALAPPDATA", path_bytes(std::filesystem::canonical(layout.LocalDirectory)) });
+			{ "LOCALAPPDATA", path_bytes(std::filesystem::canonical(aLayout.LocalDirectory)) });
 		result.push_back(
-			{ "SystemRoot", path_bytes(std::filesystem::canonical(layout.SystemRootDirectory)) });
+			{ "SystemRoot", path_bytes(std::filesystem::canonical(aLayout.SystemRootDirectory)) });
 		result.push_back({ "PATH", "" });
 #elif defined(__linux__)
 		result.push_back(
-			{ "HOME", path_bytes(std::filesystem::canonical(layout.HomeDirectory)) });
+			{ "HOME", path_bytes(std::filesystem::canonical(aLayout.HomeDirectory)) });
 		result.push_back(
-			{ "XDG_RUNTIME_DIR", path_bytes(std::filesystem::canonical(layout.RuntimeDirectory)) });
+			{ "XDG_RUNTIME_DIR", path_bytes(std::filesystem::canonical(aLayout.RuntimeDirectory)) });
 		result.push_back(
 			{
 				"DBUS_SESSION_BUS_ADDRESS",
-				"unix:path=" + path_bytes(layout.RuntimeDirectory / "bus"),
+				"unix:path=" + path_bytes(aLayout.RuntimeDirectory / "bus"),
 			});
 #endif
 		result.push_back(
@@ -466,8 +466,8 @@ namespace {
 	{
 #if defined(_WIN32)
 		const auto result = _putenv_s(
-			name.c_str(),
-			present ? value.c_str() : "");
+			aName.c_str(),
+			aPresent ? aValue.c_str() : "");
 		expect(result == 0, "unknown parent environment canary is updated");
 #else
 		const auto result = aPresent

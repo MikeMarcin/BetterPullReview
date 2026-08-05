@@ -41,7 +41,7 @@ namespace bpr::tests::sqlite_contract {
 		-> std::string
 	{
 #if defined(_WIN32)
-		const auto encoded = path.u8string();
+		const auto encoded = aPath.u8string();
 		return {
 			reinterpret_cast<const char*>(encoded.data()),
 			encoded.size(),

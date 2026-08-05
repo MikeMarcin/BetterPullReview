@@ -231,7 +231,7 @@ namespace bpr::adapters::git {
 				&& information.st_uid == ::geteuid()
 				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
 #elif defined(Q_OS_WIN)
-			const auto attributes = GetFileAttributesW(path.c_str());
+			const auto attributes = GetFileAttributesW(aPath.c_str());
 			return attributes != INVALID_FILE_ATTRIBUTES
 				&& (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0U
 				&& (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0U;
@@ -262,7 +262,7 @@ namespace bpr::adapters::git {
 				&& information.st_nlink == 1
 				&& (information.st_mode & (S_IRWXG | S_IRWXO)) == 0;
 #elif defined(Q_OS_WIN)
-			const auto attributes = GetFileAttributesW(path.c_str());
+			const auto attributes = GetFileAttributesW(aPath.c_str());
 			return attributes != INVALID_FILE_ATTRIBUTES
 				&& (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0U
 				&& (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0U;
@@ -373,7 +373,7 @@ namespace bpr::adapters::git {
 				: std::nullopt;
 #elif defined(Q_OS_WIN)
 			const auto handle = CreateFileW(
-				path.c_str(),
+				aPath.c_str(),
 				FILE_READ_ATTRIBUTES,
 				FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
 				nullptr,
@@ -384,7 +384,7 @@ namespace bpr::adapters::git {
 			if (handle == INVALID_HANDLE_VALUE) {
 				return std::nullopt;
 			}
-			const auto result = exact_identity(handle, kind);
+			const auto result = exact_identity(handle, aKind);
 			static_cast<void>(CloseHandle(handle));
 			return result;
 #else
@@ -477,7 +477,7 @@ namespace bpr::adapters::git {
 				: std::nullopt;
 #elif defined(Q_OS_WIN)
 			const auto handle = CreateFileW(
-				path.c_str(),
+				aPath.c_str(),
 				GENERIC_READ,
 				0U,
 				nullptr,
@@ -553,7 +553,7 @@ namespace bpr::adapters::git {
 			return synchronized && private_regular_file(aPath);
 #elif defined(Q_OS_WIN)
 			const auto handle = CreateFileW(
-				path.c_str(),
+				aPath.c_str(),
 				GENERIC_WRITE,
 				0U,
 				nullptr,
@@ -565,16 +565,16 @@ namespace bpr::adapters::git {
 				return false;
 			}
 			std::size_t offset = 0U;
-			while (offset < bytes.size()) {
+			while (offset < aBytes.size()) {
 				const auto requested = static_cast<DWORD>(
 					std::min<std::size_t>(
-						bytes.size() - offset,
+						aBytes.size() - offset,
 						std::numeric_limits<DWORD>::max()));
 				DWORD written = 0U;
 				if (
 					WriteFile(
 						handle,
-						bytes.data() + offset,
+						aBytes.data() + offset,
 						requested,
 						&written,
 						nullptr)
@@ -587,7 +587,7 @@ namespace bpr::adapters::git {
 			}
 			const auto synchronized = FlushFileBuffers(handle) != 0;
 			static_cast<void>(CloseHandle(handle));
-			return synchronized && private_regular_file(path);
+			return synchronized && private_regular_file(aPath);
 #else
 			static_cast<void>(bytes);
 			return false;
@@ -919,7 +919,7 @@ namespace bpr::adapters::git {
 				return true;
 #elif defined(Q_OS_WIN)
 				Handle = CreateFileW(
-					path.c_str(),
+					aPath.c_str(),
 					GENERIC_READ | GENERIC_WRITE,
 					0U,
 					nullptr,
@@ -1820,7 +1820,7 @@ namespace bpr::adapters::git {
 				return Descriptor >= 0;
 #elif defined(Q_OS_WIN)
 				Handle = CreateFileW(
-					path.c_str(),
+					aPath.c_str(),
 					GENERIC_WRITE,
 					0U,
 					nullptr,
@@ -1854,13 +1854,13 @@ namespace bpr::adapters::git {
 #elif defined(Q_OS_WIN)
 					const auto requested = static_cast<DWORD>(
 						std::min<std::size_t>(
-							bytes.size() - offset,
+							aBytes.size() - offset,
 							std::numeric_limits<DWORD>::max()));
 					DWORD written = 0U;
 					if (
 						WriteFile(
 							Handle,
-							bytes.data() + offset,
+							aBytes.data() + offset,
 							requested,
 							&written,
 							nullptr)
@@ -1990,14 +1990,14 @@ namespace bpr::adapters::git {
 #elif defined(Q_OS_WIN)
 			if (
 				MoveFileExW(
-					receiving.c_str(),
-					completed.c_str(),
+					aReceiving.c_str(),
+					aCompleted.c_str(),
 					MOVEFILE_WRITE_THROUGH)
 				== 0) {
 				return { };
 			}
 			return {
-				.Success        = private_regular_file(completed),
+				.Success        = private_regular_file(aCompleted),
 				.CompletedOwned = true,
 			};
 #else
@@ -2323,7 +2323,7 @@ namespace bpr::adapters::git {
 			static_cast<void>(::close(descriptor));
 			return synchronized;
 #elif defined(Q_OS_WIN)
-			static_cast<void>(path);
+			static_cast<void>(aPath);
 			return true;
 #else
 			static_cast<void>(path);
@@ -2353,25 +2353,25 @@ namespace bpr::adapters::git {
 				::syscall(
 					SYS_renameat2,
 					AT_FDCWD,
-					source.c_str(),
+					aSource.c_str(),
 					AT_FDCWD,
-					destination.c_str(),
+					aDestination.c_str(),
 					RENAME_NOREPLACE)
 				== 0) {
 				return true;
 			}
-			error = std::error_code{ errno, std::generic_category() };
+			aError = std::error_code{ errno, std::generic_category() };
 			return false;
 #elif defined(Q_OS_WIN)
 			if (
 				MoveFileExW(
-					source.c_str(),
-					destination.c_str(),
+					aSource.c_str(),
+					aDestination.c_str(),
 					MOVEFILE_WRITE_THROUGH)
 				!= 0) {
 				return true;
 			}
-			error = std::error_code{
+			aError = std::error_code{
 				static_cast<int>(GetLastError()),
 				std::system_category()
 			};

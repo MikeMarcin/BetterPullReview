@@ -1101,7 +1101,12 @@ set(
     "finish_background_reap"
     "abandon_unreaped_process"
     "empty_private_directory"
-    "stop\\.stop_requested\\(\\)"
+    # Both spellings, as every other cancellation pattern in this file already
+    # accepts. Until BPR-0155 this one required the bare `stop.`, and the only
+    # line in the runner that still spelled it that way was inside
+    # `#elif defined(Q_OS_WIN)`. The contract's evidence that the runner honours
+    # cancellation was a line no compiler on this host built.
+    "(stop|aStop)\\.stop_requested\\(\\)"
     "maximum_pending_input_bytes"
     "bufferedInputOffset"
     "class[ \t]+private_input_file[ \t]+final"

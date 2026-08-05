@@ -540,6 +540,82 @@ System-theme evidence for the current composition belongs to BPR-0083 under
 RFC-BPR-0004; it is not a reproduction of BPR-0059 and does not retroactively
 extend or invalidate it.
 
+## Branches no local compiler reads
+
+Parameters here are named `aXxx`. A rename to that convention was applied only
+to the code the macOS compiler builds. Every `#if defined(_WIN32)` and
+`#elif defined(__linux__)` branch in the affected functions kept referring to
+the old names, which are not declared there.
+
+**The Windows and Linux builds did not compile at HEAD**, and the whole local
+gate stayed green throughout, because the preprocessor removes those branches
+before any compiler on this host sees them. BPR-0155 found it and repaired it.
+
+That fact reaches back into this ledger. Two entries below record platform
+evidence gathered before the rename:
+
+- **BPR-0044's MinGW compile/link evidence** — 47/47 steps, PE32+ outputs.
+- **BPR-0050's Ubuntu 26.04 x86_64 GCC 15.2 matrix** — process, protocol,
+  Secret Service, cache, catalog, maintenance, public Qt, dependency, and
+  runtime.
+
+Both runs happened. Neither was reproducible at HEAD before BPR-0155, and the
+Linux one is still not reproducible here, because this host has no Linux
+toolchain, container runtime, or emulator. BPR-0156 carries it.
+
+### What BPR-0155 established
+
+| Surface | Result |
+|---|---|
+| Sources repaired | 9 files, 114 lines: `catalog_database.cpp`, `gh_cli_transport.cpp`, `epoch_runtime_ports.cpp`, `installed_git_process.cpp`, `installed_git_cache.cpp`, and four test files |
+| MinGW x86-64 syntax check | 47 non-Qt translation units clean; 8 unreachable without Qt for Windows; 7 unreachable without libsecret, CoreFoundation, or KSyntaxHighlighting headers |
+| macOS `dev` build | Unchanged — none of these branches is compiled here |
+
+Compiling is not running. The Windows runtime claims stay in BPR-0053 and the
+Linux ones in BPR-0156.
+
+### The gate
+
+`scripts/verify_conditional_branches.py`, wired as `conditional_branch_identifiers`.
+
+It looks only where the local compiler cannot: inside preprocessor branches
+that are false for the host running it. Code the compiler already checks is
+left to the compiler. Within those branches it reports a bare `xxx` only where
+the enclosing function has a parameter `aXxx` and the branch declares no local
+`xxx` — the exact shape a half-finished rename leaves behind. An unrecognised
+condition is treated as compiled here, which is the safe direction: the
+compiler is then the check.
+
+The division of labour was measured on one file, `epoch_runtime_ports.cpp`,
+whose `fill_entropy` has a branch per platform:
+
+| Break | Gate | macOS compiler |
+|---|---|---|
+| `aBytes` → `bytes` at line 39, inside `#if defined(_WIN32)` | names the line | silent |
+| `aBytes` → `bytes` at line 54, inside `#elif defined(__linux__)` | names the line | silent |
+| `aBytes` → `bytes` at line 45, inside `#elif defined(__APPLE__)` | silent | `error: use of undeclared identifier 'bytes'` |
+
+Neither covers the other, and together they cover the function. That is the
+whole design: the gate reads what the compiler cannot, and defers to the
+compiler everywhere else.
+
+The gate proves one class of mistake is absent from the source. It is not
+platform verification and must not be read as any.
+
+### The same rot in the architecture contract
+
+Repairing the sources broke `architecture_boundaries`. Its Installed-Git runner
+contract required the pattern `stop\.stop_requested\(\)`, and after the rename
+nothing matched.
+
+The runner calls `aStop.stop_requested()` in twelve places. The only line that
+still spelled it `stop.` was inside `#elif defined(Q_OS_WIN)`. The contract's
+evidence that the runner honours cancellation was one line no compiler on this
+host built, while eleven compiled ones counted for nothing.
+
+Every other cancellation pattern in that file already accepted `(stop|aStop)`.
+This one now does too.
+
 ## Automated-run bounds
 
 Every end-to-end test starts the real application and waits for markers. When

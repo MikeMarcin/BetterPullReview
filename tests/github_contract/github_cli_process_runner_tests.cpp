@@ -114,7 +114,7 @@ namespace {
 			== QStringLiteral("fixed")
 			&& environment.value(QStringLiteral("PATH")).isEmpty()
 			&& environment.value(QStringLiteral("SystemRoot"))
-			== arguments.at(7)
+			== aArguments.at(7)
 			&& !environment.contains(unknown_name);
 #else
 		static_cast<void>(aArguments);

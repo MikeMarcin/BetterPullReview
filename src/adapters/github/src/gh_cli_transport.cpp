@@ -84,7 +84,7 @@ namespace bpr::adapters::github::detail {
 			const std::filesystem::path& aPath) -> bool
 		{
 #if defined(_WIN32)
-			auto name = path.filename().string();
+			auto name = aPath.filename().string();
 			std::ranges::transform(
 				name,
 				name.begin(),
@@ -104,7 +104,7 @@ namespace bpr::adapters::github::detail {
 			const std::filesystem::path& aPath) -> bool
 		{
 #if defined(_WIN32)
-			return executable_name(path);
+			return executable_name(aPath);
 #else
 			return ::access(aPath.c_str(), X_OK) == 0;
 #endif
@@ -348,7 +348,7 @@ namespace bpr::adapters::github::detail {
 			}
 			append_environment(aEnvironment, "HOME", home);
 #elif defined(_WIN32)
-			const auto* platform = std::get_if<gh_cli_windows_environment_facts>(&facts);
+			const auto* platform = std::get_if<gh_cli_windows_environment_facts>(&aFacts);
 			if (platform == nullptr) {
 				return gh_cli_configuration_failure::irrelevant_platform_facts;
 			}
@@ -371,13 +371,13 @@ namespace bpr::adapters::github::detail {
 					system_root)) {
 				return gh_cli_configuration_failure::invalid_platform_environment;
 			}
-			append_environment(environment, "USERPROFILE", profile);
-			append_environment(environment, "APPDATA", roaming);
-			append_environment(environment, "LOCALAPPDATA", local);
-			append_environment(environment, "SystemRoot", system_root);
-			append_environment(environment, "PATH", "");
+			append_environment(aEnvironment, "USERPROFILE", profile);
+			append_environment(aEnvironment, "APPDATA", roaming);
+			append_environment(aEnvironment, "LOCALAPPDATA", local);
+			append_environment(aEnvironment, "SystemRoot", system_root);
+			append_environment(aEnvironment, "PATH", "");
 #elif defined(__linux__)
-			const auto* platform = std::get_if<gh_cli_linux_environment_facts>(&facts);
+			const auto* platform = std::get_if<gh_cli_linux_environment_facts>(&aFacts);
 			if (platform == nullptr) {
 				return gh_cli_configuration_failure::irrelevant_platform_facts;
 			}
@@ -391,15 +391,15 @@ namespace bpr::adapters::github::detail {
 				|| !valid_session_bus_address(platform->SessionBusAddress)) {
 				return gh_cli_configuration_failure::invalid_platform_environment;
 			}
-			append_environment(environment, "HOME", home);
-			append_environment(environment, "XDG_RUNTIME_DIR", runtime);
+			append_environment(aEnvironment, "HOME", home);
+			append_environment(aEnvironment, "XDG_RUNTIME_DIR", runtime);
 			append_environment(
-				environment,
+				aEnvironment,
 				"DBUS_SESSION_BUS_ADDRESS",
 				platform->SessionBusAddress);
 #else
-			static_cast<void>(facts);
-			static_cast<void>(environment);
+			static_cast<void>(aFacts);
+			static_cast<void>(aEnvironment);
 			return gh_cli_configuration_failure::irrelevant_platform_facts;
 #endif
 			return std::nullopt;
@@ -652,9 +652,9 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 #else
-		if (candidate.Https.CertificateFile.has_value()) {
+		if (aCandidate.Https.CertificateFile.has_value()) {
 			std::filesystem::path certificate;
-			if (!canonical_file(*candidate.Https.CertificateFile, certificate)) {
+			if (!canonical_file(*aCandidate.Https.CertificateFile, certificate)) {
 				return std::unexpected{
 					gh_cli_configuration_failure::invalid_certificate_file
 				};
@@ -664,10 +664,10 @@ namespace bpr::adapters::github::detail {
 				"SSL_CERT_FILE",
 				path_bytes(certificate));
 		}
-		if (candidate.Https.CertificateDirectory.has_value()) {
+		if (aCandidate.Https.CertificateDirectory.has_value()) {
 			std::filesystem::path certificate_directory;
 			if (!canonical_directory(
-					*candidate.Https.CertificateDirectory,
+					*aCandidate.Https.CertificateDirectory,
 					certificate_directory)) {
 				return std::unexpected{
 					gh_cli_configuration_failure::invalid_certificate_directory

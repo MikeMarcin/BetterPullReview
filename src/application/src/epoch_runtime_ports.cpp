@@ -36,8 +36,8 @@ namespace bpr::application {
 				<= static_cast<std::size_t>(std::numeric_limits<ULONG>::max()));
 			return ::BCryptGenRandom(
 					   nullptr,
-					   bytes.data(),
-					   static_cast<ULONG>(bytes.size()),
+					   aBytes.data(),
+					   static_cast<ULONG>(aBytes.size()),
 					   BCRYPT_USE_SYSTEM_PREFERRED_RNG)
 				== 0;
 #elif defined(__APPLE__)
@@ -51,9 +51,9 @@ namespace bpr::application {
 			}
 #elif defined(__linux__)
 			std::size_t offset = 0U;
-			while (offset < bytes.size()) {
+			while (offset < aBytes.size()) {
 				const auto count = ::getrandom(
-					bytes.data() + offset, bytes.size() - offset, 0U);
+					aBytes.data() + offset, aBytes.size() - offset, 0U);
 				if (count > 0) {
 					offset += static_cast<std::size_t>(count);
 					continue;

@@ -583,7 +583,7 @@ namespace {
 					static_cast<std::uint64_t>(information.st_ino));
 #elif defined(Q_OS_WIN)
 				const auto handle = CreateFileW(
-					path.c_str(),
+					aPath.c_str(),
 					FILE_READ_ATTRIBUTES,
 					FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
 					nullptr,

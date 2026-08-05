@@ -37,6 +37,25 @@ add_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/git_protocol_boundary_tests.py"
 )
 
+# The branches this host does not compile. Every other gate here is downstream
+# of a compiler, and a compiler that never sees `#elif defined(__linux__)`
+# cannot report anything about it. Before BPR-0155 three translation units did
+# not compile for Windows or Linux while every local gate stayed green.
+add_test(
+    NAME conditional_branch_identifiers
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/scripts/verify_conditional_branches.py"
+        --root
+        "${PROJECT_SOURCE_DIR}"
+)
+set_tests_properties(
+    conditional_branch_identifiers
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "CONDITIONAL_BRANCH_IDENTIFIERS_OK"
+        TIMEOUT 60
+)
+
 add_test(
     NAME documentation_structure
     COMMAND

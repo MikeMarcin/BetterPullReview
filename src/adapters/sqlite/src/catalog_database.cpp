@@ -834,12 +834,12 @@ namespace bpr::adapters::sqlite::detail {
 				| SQLITE_OPEN_PRIVATECACHE | SQLITE_OPEN_NOFOLLOW
 				| SQLITE_OPEN_EXRESCODE;
 #if defined(_WIN32)
-			const auto encoded = path.u8string();
+			const auto encoded = aPath.u8string();
 			const auto native  = std::string{
 				reinterpret_cast<const char*>(encoded.data()), encoded.size()
 			};
-			const auto* vfs          = requested_vfs != nullptr
-				? requested_vfs
+			const auto* vfs          = aRequestedVfs != nullptr
+				? aRequestedVfs
 				: "win32-longpath";
 			const auto* selected_vfs = ::sqlite3_vfs_find(vfs);
 			if (selected_vfs == nullptr
@@ -915,9 +915,9 @@ namespace bpr::adapters::sqlite::detail {
 	#endif
 	#if !defined(__APPLE__)
 			return std::filesystem::path{
-				std::string{ Prefix } + std::to_string(parent.Value)
+				std::string{ Prefix } + std::to_string(aParent.Value)
 			}
-			/ std::string{ name };
+			/ std::string{ aName };
 	#endif
 		}
 
@@ -1012,9 +1012,9 @@ namespace bpr::adapters::sqlite::detail {
 			return true;
 	#elif defined(__linux__)
 			std::size_t completed = 0;
-			while (completed != output.size()) {
+			while (completed != aOutput.size()) {
 				const auto result = ::getrandom(
-					output.data() + completed, output.size() - completed, 0);
+					aOutput.data() + completed, aOutput.size() - completed, 0);
 				if (result < 0 && errno == EINTR) {
 					continue;
 				}
@@ -1025,7 +1025,7 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			return true;
 	#else
-			(void)output;
+			(void)aOutput;
 			return false;
 	#endif
 		}
@@ -1249,9 +1249,9 @@ namespace bpr::adapters::sqlite::detail {
 	#elif defined(__linux__)
 			const auto code = static_cast<int>(::syscall(
 				SYS_renameat2,
-				parent.Value,
+				aParent.Value,
 				temporary.c_str(),
-				parent.Value,
+				aParent.Value,
 				catalog.c_str(),
 				RENAME_NOREPLACE));
 	#else
@@ -3763,7 +3763,7 @@ namespace bpr::adapters::sqlite::detail {
 		}
 #if defined(_WIN32)
 		try {
-			auto canonical_root = canonical_windows_root(storage_root);
+			auto canonical_root = canonical_windows_root(aStorageRoot);
 			if (!canonical_root) {
 				return std::unexpected(canonical_root.error());
 			}
@@ -3802,7 +3802,7 @@ namespace bpr::adapters::sqlite::detail {
 			directories->push_back(std::move(*version));
 			auto& retained_version = directories->back();
 			auto  lock             = catalog_lock::acquire(
-				retained_version, *security, stop);
+				retained_version, *security, aStop);
 			if (!lock) {
 				return std::unexpected(lock.error());
 			}
@@ -3818,7 +3818,7 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			if (*missing) {
 				auto created = create_bootstrap(
-					retained_version, *security, stop);
+					retained_version, *security, aStop);
 				if (!created) {
 					return std::unexpected(created.error());
 				}
@@ -3859,7 +3859,7 @@ namespace bpr::adapters::sqlite::detail {
 					  std::unexpected(current.error())
 				  };
 			auto validated  = configured
-				? validate_schema(database, stop)
+				? validate_schema(database, aStop)
 				: std::expected<void, failure>{
 					  std::unexpected(configured.error())
 				  };
@@ -3903,7 +3903,7 @@ namespace bpr::adapters::sqlite::detail {
 				(void)::sqlite3_close_v2(database);
 				return std::unexpected(authorizer.error());
 			}
-			const auto public_path = storage_root / "state" / "v1"
+			const auto public_path = aStorageRoot / "state" / "v1"
 				/ std::string{ CatalogName };
 			auto platform_state         = std::make_unique<catalog_database_platform_state>();
 			platform_state->Directories = std::move(*directories);
