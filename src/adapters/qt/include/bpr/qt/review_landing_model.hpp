@@ -5,22 +5,11 @@
 
 #include <QAbstractListModel>
 
-#include <cstddef>
 #include <optional>
 #include <span>
 #include <vector>
 
 namespace bpr::qt {
-	/// \brief Records directly observable landing-model activity.
-	struct review_landing_model_statistics
-	{
-		std::size_t RowsInserted = 0U;
-		std::size_t RowsRemoved  = 0U;
-		std::size_t RowsMoved    = 0U;
-		std::size_t RowsChanged  = 0U;
-		std::size_t ModelResets  = 0U;
-	};
-
 	/// \brief Returns the bucket badge, readable without colour.
 	[[nodiscard]] auto badge_for(core::attention_bucket aBucket) -> QString;
 
@@ -76,15 +65,12 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto item_at(const QModelIndex& aIndex) const
 			-> std::optional<core::queue_item>;
-		[[nodiscard]] auto statistics() const noexcept
-			-> review_landing_model_statistics;
 
 	private:
 		[[nodiscard]] auto position_of(const core::pull_request_ref& aRef) const
 			-> std::optional<std::size_t>;
 
-		std::vector<core::queue_item>   Items;
-		review_landing_model_statistics Statistics;
+		std::vector<core::queue_item> Items;
 	};
 } // namespace bpr::qt
 

@@ -110,7 +110,6 @@ namespace bpr::qt {
 			beginRemoveRows({ }, static_cast<int>(position), static_cast<int>(position));
 			Items.erase(Items.begin() + static_cast<std::ptrdiff_t>(position));
 			endRemoveRows();
-			++Statistics.RowsRemoved;
 		}
 
 		// Then place each item where the core put it, matching by identity. An
@@ -127,7 +126,6 @@ namespace bpr::qt {
 				Items.insert(
 					Items.begin() + static_cast<std::ptrdiff_t>(target), wanted);
 				endInsertRows();
-				++Statistics.RowsInserted;
 				continue;
 			}
 
@@ -144,14 +142,12 @@ namespace bpr::qt {
 					Items.begin() + static_cast<std::ptrdiff_t>(target),
 					std::move(moved));
 				endMoveRows();
-				++Statistics.RowsMoved;
 			}
 
 			if (Items[target] != wanted) {
 				Items[target]  = wanted;
 				const auto row = index(static_cast<int>(target));
 				emit       dataChanged(row, row);
-				++Statistics.RowsChanged;
 			}
 		}
 	}
@@ -162,10 +158,8 @@ namespace bpr::qt {
 			return;
 		}
 		beginRemoveRows({ }, 0, static_cast<int>(Items.size() - 1U));
-		const auto removed = Items.size();
 		Items.clear();
 		endRemoveRows();
-		Statistics.RowsRemoved += removed;
 	}
 
 	auto review_landing_model::item_at(const QModelIndex& aIndex) const
@@ -179,11 +173,5 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		return Items[row];
-	}
-
-	auto review_landing_model::statistics() const noexcept
-		-> review_landing_model_statistics
-	{
-		return Statistics;
 	}
 } // namespace bpr::qt

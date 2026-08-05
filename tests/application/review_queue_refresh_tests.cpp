@@ -79,6 +79,10 @@ namespace {
 		expect(
 			scheduler.statistics().ConditionalAsked == 1U,
 			"and exactly one conditional request has been made");
+		expect(
+			scheduler.statistics().Requested == 2U,
+			"out of two requests, so the first cost a full transfer and only "
+			"the first");
 	}
 
 	// An unchanged answer costs nothing further and must not disturb anything.
@@ -217,6 +221,12 @@ namespace {
 			previous
 				== application::queue_refresh_scheduler::MaximumBackoffSeconds,
 			"twelve refusals reach the cap");
+		expect(
+			scheduler.statistics().Deferred == 12U,
+			"and every one of them was held back rather than applied");
+		expect(
+			scheduler.statistics().Applied == 0U,
+			"with nothing applied from a host that refused every time");
 	}
 
 	// The provider knows when its allowance resets and this does not, so its

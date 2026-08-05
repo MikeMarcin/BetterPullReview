@@ -57,26 +57,31 @@ namespace bpr::core {
 		return "repository";
 	}
 
-	auto matches(
-		const observer_rule&            aRule,
-		const pull_request_observation& aObservation) noexcept -> bool
-	{
-		switch (aRule.Kind) {
-		case observer_rule_kind::repository:
-			return !aRule.Pattern.empty()
-				&& aRule.Pattern == aObservation.Ref.Repository;
-		case observer_rule_kind::author:
-			return !aRule.Pattern.empty()
-				&& aRule.Pattern == aObservation.Author;
-		case observer_rule_kind::path:
-			return std::ranges::any_of(
-				aObservation.ChangedPaths,
-				[&aRule](const std::string& aPath) {
-					return matches_path(aRule.Pattern, aPath);
-				});
+	namespace {
+		// Internal. `enrollment_for` is the whole of the public policy; a
+		// caller asking "did this one rule match" would be asking a question
+		// nothing yet needs answered.
+		[[nodiscard]] auto matches(
+			const observer_rule&            aRule,
+			const pull_request_observation& aObservation) noexcept -> bool
+		{
+			switch (aRule.Kind) {
+			case observer_rule_kind::repository:
+				return !aRule.Pattern.empty()
+					&& aRule.Pattern == aObservation.Ref.Repository;
+			case observer_rule_kind::author:
+				return !aRule.Pattern.empty()
+					&& aRule.Pattern == aObservation.Author;
+			case observer_rule_kind::path:
+				return std::ranges::any_of(
+					aObservation.ChangedPaths,
+					[&aRule](const std::string& aPath) {
+						return matches_path(aRule.Pattern, aPath);
+					});
+			}
+			return false;
 		}
-		return false;
-	}
+	} // namespace
 
 	auto enrollment_for(
 		const pull_request_observation&      aObservation,

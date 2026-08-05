@@ -149,15 +149,6 @@ namespace bpr::core {
 	[[nodiscard]] auto enrollment_for(
 		const pull_request_observation& aObservation,
 		std::span<const observer_rule>  aRules) -> queue_membership;
-
-	/// \brief Whether one rule matches one observation, ignoring exclusion.
-	///
-	/// \details Exposed because "did this rule match" and "is this pull request
-	/// enrolled" are different questions, and a reviewer editing rules needs
-	/// the first.
-	[[nodiscard]] auto matches(
-		const observer_rule&            aRule,
-		const pull_request_observation& aObservation) noexcept -> bool;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_QUEUE_HPP
