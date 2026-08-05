@@ -2,8 +2,8 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: implementation in progress. The core defect lifecycle and its
-evidence policy have landed (BPR-0146, BPR-0147). RFC-BPR-0009 stays `Proposed`.
+Status: implementation in progress. The core defect lifecycle, its evidence
+policy, and host correlation have landed (BPR-0146 through BPR-0148). RFC-BPR-0009 stays `Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -50,8 +50,8 @@ A row is claimed only when its card lands with direct evidence.
 |---|---|---|---|---|
 | The lifecycle is decided in the core | Core | Drive every transition and every illegal one | Each refusal carries its own reason; the suite runs under `core-only` | Verified. BPR-0146 drives the ordinary lifecycle end to end and refuses verifying nothing, reopening what was never verified, commanding a settled defect, and reclassifying nothing — each with its own reason |
 | A fix claim is not a verification | Core | Apply author reply and nearby-change evidence | Both reach `needs verification`; no evidence path reaches `verified` | Verified. BPR-0147 drives all three evidence kinds from all three receiving states — nine cases — and none reaches `verified`. An externally resolved thread, which is what a verification looks like from outside, reaches `needs_verification` like everything else |
-| Only an explicit reviewer intent verifies | Core, host, and Qt | Attempt to verify from each layer without the intent | No host correlation and no widget action can produce `verified` | Planned |
-| Classifying mutates nothing shared | Host | Classify an existing thread | No request is issued until a distinct shared action is taken | Planned |
+| Only an explicit reviewer intent verifies | Core, host, and Qt | Attempt to verify from each layer without the intent | No host correlation and no widget action can produce `verified` | Core and host verified. BPR-0148 drives every defect state with code movement, an author reply, and an external resolution simultaneously and none verifies; the Qt half lands with BPR-0149 |
+| Classifying mutates nothing shared | Host | Classify an existing thread | No request is issued until a distinct shared action is taken | Verified. BPR-0148's correlator is a pure function with no provider, so there is nothing here that could issue a request; mutation goes through RFC-BPR-0008's coordinator, reached by a separate action |
 | Reopening is a separate explicit action | Core and host | Reopen a verified defect | Reopening never rides along with another action and may unresolve the thread only when asked | Planned |
 | An outdated anchor is honest | Core | Remove the anchor a defect was filed against | The original context and state are retained and the unavailability is explicit, never repaired with a nearest-line guess | Planned |
 | Counts and navigation agree | Core plus Qt | Compare the queue to local state and thread status | The presented counts follow the projection rather than a separately maintained tally | Planned |

@@ -4,6 +4,7 @@ add_library(
         src/appearance_application_host.cpp
         src/review_ledger_application_host.cpp
         src/review_mutation_coordinator.cpp
+        src/defect_correlation.cpp
         src/review_synchronization.cpp
         src/diff_application_host.cpp
         src/github_capability_cache.cpp
