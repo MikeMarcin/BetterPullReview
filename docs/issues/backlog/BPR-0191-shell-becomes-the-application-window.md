@@ -3,12 +3,18 @@ id: BPR-0191
 title: The workbench shell becomes the application's window
 status: Backlog
 rfc: RFC-BPR-0005
-depends_on: [BPR-0190]
+depends_on: [BPR-0190, BPR-0195]
 ---
 
 # The workbench shell becomes the application's window
 
 The largest slice on the board, and the one that makes RFC-BPR-0005 real.
+
+Its preparation was split into BPR-0195 after measuring the size: ~2700 lines
+of window implementation and ~4600 lines of tests across three projection-port
+contracts. BPR-0195 extracts the session chrome into a composable panel while
+preserving behaviour and leaving every existing test untouched, so that this
+card changes exactly one thing — which window the application shows.
 
 `github_window` and `workbench_window` both compose `diff_workbench` and
 `epoch_comparison_control`. The application shows `github_window`, so the
