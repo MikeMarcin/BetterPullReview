@@ -62,7 +62,7 @@ choice.
 | Renderer is virtualized | Instrumented application | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified. 60/6,000/60,000 lines produce 68/68/68 window widgets, 29/29/29 surface, 5/5/5 pane |
 | Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Verified. Toggles and navigation emit core intents only; enablement and disabled reasons come from projections; drawer contents use insert/remove/data-change rather than reset |
 | Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Verified. Exact untruncated OIDs, four distinguishable textual states, declared focus order, unique accessible names and key sequences |
-| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100, owner-attended |
+| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100, owner-attended — and blocked before it is deferred. BPR-0186 records that no launch can be inspected by a person at all: a fixture launch schedules an automated run and exits, and a launch with no fixture takes the real credentialed path. BPR-0187 records the real public pull request to judge it against |
 
 ## Deferred gates
 
@@ -70,6 +70,14 @@ RFC-BPR-0005's own text names no owner-attended requirement. One is inherited:
 the RFC-BPR-0003 and RFC-BPR-0004 ledgers both defer the integrated-workbench
 presentation-polish and native visual-acceptance pass to this RFC. BPR-0100
 owns it and is the only owner-attended card here.
+
+Attendance turned out not to be the binding constraint. BPR-0186 and BPR-0187
+were allocated by BPR-0180 after an attended sitting on 2026-08-06 could not
+proceed: there is no way to launch this application such that a person can look
+at it. `--github-fixture github-com` composes the fixture-backed application
+and immediately schedules an automated run that drives itself to shutdown, and
+a launch without a fixture takes the real credentialed path. Both cards are
+unattended work and neither needs Windows, a credential, or a network service.
 
 No RFC-BPR-0005 requirement needs target-native Windows execution, a GitHub
 mutation, a credential, or a network service. Non-goals exclude full GitHub
