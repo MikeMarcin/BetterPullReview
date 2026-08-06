@@ -143,3 +143,37 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "queue-enrollment-storage-tests:pass"
         TIMEOUT 60
 )
+
+bpr_add_executable(
+    test_better_pull_review_workbench_settings_tests
+    workbench_settings_storage_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_workbench_settings_tests
+    PRIVATE
+        BetterPullReview::AdapterSQLite
+        BetterPullReview::SQLite3
+)
+target_compile_definitions(
+    test_better_pull_review_workbench_settings_tests
+    PRIVATE BPR_SQLITE_TESTING=1
+)
+if(WIN32)
+    target_link_libraries(
+        test_better_pull_review_workbench_settings_tests
+        PRIVATE advapi32
+    )
+endif()
+bpr_enable_hardening(test_better_pull_review_workbench_settings_tests)
+bpr_enable_warnings(test_better_pull_review_workbench_settings_tests)
+
+add_test(
+    NAME sqlite_workbench_settings_storage
+    COMMAND test_better_pull_review_workbench_settings_tests
+)
+set_tests_properties(
+    sqlite_workbench_settings_storage
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "workbench-settings-storage-tests:pass"
+        TIMEOUT 60
+)

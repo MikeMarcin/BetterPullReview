@@ -65,8 +65,8 @@ The application shows `github_window`. It does not contain
 | `nm build/dev/src/app/better_pull_review \| c++filt \| grep -cF workbench_application_host` | `0` |
 | the same for `workbench_window` | `0` |
 | the same for `workbench_drawer` | `0` |
-| implementations of `workbench_settings_port` in `src/` | none |
-| implementations of `workbench_observation_port` in `src/` | none |
+| implementations of `workbench_settings_port` in `src/` | none at the time of measurement; **supplied by BPR-0189** |
+| implementations of `workbench_observation_port` in `src/` | none; BPR-0192 owns it |
 
 So the shell this RFC is named for — primary navigation, compact overflow,
 drawers, the full-width detail pane, the declared focus order, the accessible
@@ -79,9 +79,18 @@ windows own one review surface, and the product shows the one that predates
 this RFC. BPR-0188 decided the shell becomes the application's window and
 recorded why the cheaper alternative was refused.
 
-Neither of this RFC's two ports has ever had an adapter. That is not an
+Neither of this RFC's two ports had ever had an adapter. That was not an
 oversight that was tracked and deferred — a port satisfied by a fake never asks
 for one, so nothing ever reported it missing.
+
+BPR-0189 supplied the settings adapter and found a defect that only a real
+implementation could surface. `progress_scope` installs a SQLite progress
+handler every 256 virtual-machine steps; a small statement finishes in fewer,
+so a pre-cancelled call is never interrupted by it. With only a post-step
+check, a cancelled write **is performed and then reported as cancelled** — the
+caller is told it did not happen while the bytes on disk say it did. A fake
+port answering `cancelled` from a flag would never have shown this, because a
+fake has no bytes on disk to disagree with it.
 
 The architecture allocation above is worth re-reading with this in mind. It
 names a fourth region, **Composition root**, whose selected responsibility is

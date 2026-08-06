@@ -3,7 +3,7 @@ id: BPR-0190
 title: Compose the workbench application host into the application
 status: Backlog
 rfc: RFC-BPR-0005
-depends_on: [BPR-0189]
+depends_on: [BPR-0189, BPR-0192]
 ---
 
 # Compose the workbench application host into the application
@@ -14,7 +14,8 @@ binary.
 
 ## What this slice does
 
-Construct it alongside the other three, with BPR-0189's adapters, the executors
+Construct it alongside the other three, with the settings adapter from
+BPR-0189 and the observation adapter from BPR-0192, the executors
 the application already owns, and a projection port the window implements —
 the shape `epoch_projection_port` already uses and `workbench_window` already
 implements.
