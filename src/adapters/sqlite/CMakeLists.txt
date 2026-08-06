@@ -5,6 +5,8 @@ add_library(
         src/sqlite_connection.cpp
         src/review_ledger_database.cpp
         src/queue_enrollment_database.cpp
+        src/appearance_settings_database.cpp
+        src/appearance_settings_store.cpp
         src/workbench_settings_database.cpp
         src/workbench_settings_store.cpp
         src/review_ledger_store.cpp
