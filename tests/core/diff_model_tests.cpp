@@ -7,6 +7,7 @@
 #include <iostream>
 #include <limits>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -1173,6 +1174,71 @@ namespace {
 				   "fixed-seed malformed alignment is rejected");
 		}
 	}
+	auto test_file_identity_is_derived_from_the_path() -> void
+	{
+		const auto alpha = file_identity_of("src/app/main.cpp");
+		const auto beta  = file_identity_of("src/app/other.cpp");
+		expect(alpha.valid() && beta.valid(),
+			   "an ordinary repository path derives a usable identity");
+		expect(alpha != beta,
+			   "two different paths derive two different identities");
+		expect(alpha == file_identity_of("src/app/main.cpp"),
+			   "the same path derives the same identity");
+
+		// Pinned to a recorded value rather than recomputed beside the
+		// assertion. Recomputing would agree with any derivation, including a
+		// changed one, and this identity is the key of RFC-BPR-0007's durable
+		// receipts: a reviewer's stored progress stops matching their files on
+		// the day this encoding silently moves. The value is
+		// sha256("BPR-file-identity-v1" || u32be(16) || "src/app/main.cpp").
+		constexpr auto recorded = digest_bytes(
+			"5977615b7e623569e66c5aaecf6f4569b2b90b0b9da630dda22abe838116bfbf");
+		expect(alpha.bytes() == recorded,
+			   "the derived identity is byte-for-byte the recorded encoding, "
+			   "so a change to the domain, the length prefix, or the ordering "
+			   "is caught rather than silently re-keying every receipt");
+
+		// Two paths with the same bytes and the same length, differing only in
+		// where the separator falls.
+		//
+		// This does NOT test the length prefix, and an earlier comment here
+		// claimed it did. With a fixed domain and the path as the final field,
+		// no two distinct paths can encode identically whatever the prefix
+		// says, so the prefix is defensive against the day a further field is
+		// appended rather than load-bearing today. The recorded-digest
+		// assertion above is what actually pins the encoding.
+		expect(file_identity_of("a/bc") != file_identity_of("ab/c"),
+			   "paths differing only in separator placement differ");
+
+		expect(!file_identity_of("").valid(),
+			   "an empty path names no file and derives no identity");
+		expect(!file_identity_of(
+					std::string(maximum_identified_path_bytes + 1U, 'p'))
+					.valid(),
+			   "a path beyond the published bound is refused, never truncated");
+		expect(file_identity_of(
+				   std::string(maximum_identified_path_bytes, 'p'))
+				   .valid(),
+			   "the published bound itself is usable, so it is inclusive");
+	}
+
+	auto test_a_rename_produces_a_new_identity() -> void
+	{
+		// This is the consequence of deriving from the path, and it is asserted
+		// so that changing it is a deliberate act rather than a quiet drift.
+		//
+		// A reviewer who marked `old/name.cpp` read sees the file unread again
+		// once it is renamed, even though no byte of it changed. That cost was
+		// accepted: the alternative carried identity across a rename by
+		// consuming the host's reported previous path, which makes identity
+		// depend on the review snapshot rather than on the file. Two callers
+		// holding different snapshots would then derive different identities
+		// for the same file and the receipt key would stop being well defined.
+		expect(file_identity_of("old/name.cpp")
+				   != file_identity_of("new/name.cpp"),
+			   "a rename produces a new identity, so a receipt does not follow "
+			   "a file to its new path");
+	}
 } // namespace
 
 int main()
@@ -1183,6 +1249,8 @@ int main()
 	test_stable_record_identities();
 	test_validator_failures();
 	test_generated_replay_and_rejection();
+	test_file_identity_is_derived_from_the_path();
+	test_a_rename_produces_a_new_identity();
 	std::cout << "DIFF_MODEL_TESTS_OK\n";
 	return EXIT_SUCCESS;
 }

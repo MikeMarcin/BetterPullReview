@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 namespace bpr::core {
@@ -28,6 +29,41 @@ namespace bpr::core {
 	using change_group_id         = fixed_identity_256<change_group_id_tag>;
 	using move_relation_id        = fixed_identity_256<move_relation_id_tag>;
 	using diff_algorithm_revision = strong_id<diff_algorithm_revision_tag>;
+
+	/// \brief The longest repository path this build will name.
+	///
+	/// \details Matches the read model's own path bound. A path beyond it is
+	/// refused rather than truncated, because two paths sharing a prefix would
+	/// otherwise collapse to one identity and a reviewer's receipt for one file
+	/// would silently answer for another.
+	inline constexpr std::size_t maximum_identified_path_bytes = 4U * 1024U;
+
+	/// \brief Derives one file's stable identity from its repository path.
+	///
+	/// \details `file_identity` names the *file*; `file_material_id` names its
+	/// *content*. A receipt pairs them, so changing a file's bytes makes a
+	/// receipt stale without making it meaningless. This is the single
+	/// derivation of the former, and it must stay single: RFC-BPR-0007 keys
+	/// receipts by this identity, so a second derivation anywhere would make a
+	/// reviewer's receipts quietly stop matching their files.
+	///
+	/// It is a pure function of one path, and that is the decision rather than
+	/// an accident of implementation. **A rename therefore produces a new
+	/// identity**, and a reviewer who had marked the file read sees it unread
+	/// again even though no byte changed.
+	///
+	/// The alternative was to carry identity across a rename by consuming the
+	/// host's reported previous path. That was refused: identity would then
+	/// depend on the review snapshot rather than on the file, two callers
+	/// holding different snapshots could derive different identities for the
+	/// same file, and the receipt key would stop being well defined. Re-reading
+	/// a moved file is a small cost paid visibly; receipts that silently stop
+	/// matching are not.
+	///
+	/// \returns An invalid identity for an empty path or one beyond
+	/// `maximum_identified_path_bytes`. Callers check `valid()`.
+	[[nodiscard]] auto file_identity_of(std::string_view aPath) noexcept
+		-> file_identity;
 
 	enum class whitespace_policy : std::uint8_t {
 		exact,

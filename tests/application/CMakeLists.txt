@@ -351,3 +351,26 @@ add_test(
     NAME application_review_queue_notification
     COMMAND test_better_pull_review_review_queue_notification_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_workbench_snapshot_observation_tests
+    workbench_snapshot_observation_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_workbench_snapshot_observation_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_workbench_snapshot_observation_tests)
+bpr_enable_warnings(test_better_pull_review_workbench_snapshot_observation_tests)
+
+add_test(
+    NAME application_workbench_snapshot_observation
+    COMMAND test_better_pull_review_workbench_snapshot_observation_tests
+)
+set_tests_properties(
+    application_workbench_snapshot_observation
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "workbench-snapshot-observation-tests:pass"
+        TIMEOUT 60
+)

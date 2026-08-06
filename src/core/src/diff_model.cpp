@@ -346,6 +346,29 @@ namespace bpr::core {
 		return normalized.has_value() && *normalized == aOptions;
 	}
 
+	auto file_identity_of(const std::string_view aPath) noexcept -> file_identity
+	{
+		// An empty path names no file, and a path beyond the bound is refused
+		// rather than truncated: two paths sharing a prefix would otherwise
+		// collapse to one identity, and a receipt for one file would answer for
+		// another.
+		if (aPath.empty() || aPath.size() > maximum_identified_path_bytes) {
+			return { };
+		}
+		// Domain first, then the length, then the bytes. The domain keeps this
+		// identity from colliding with another kind derived from the same
+		// bytes; the length keeps two different paths from encoding
+		// identically once the domain prefix is fixed.
+		auto encoder = canonical_encoder<
+			maximum_identified_path_bytes + 64U>{ };
+		encoder.append_domain("BPR-file-identity-v1");
+		encoder.append_u32(static_cast<std::uint32_t>(aPath.size()));
+		for (const auto character : aPath) {
+			encoder.append_u8(static_cast<std::uint8_t>(character));
+		}
+		return identity_from<file_identity>(encoder);
+	}
+
 	auto options_digest(const diff_options& aOptions) noexcept
 		-> std::optional<diff_options_digest>
 	{

@@ -1,7 +1,7 @@
 ---
 id: BPR-0192
 title: File identity derivation and the workbench observation adapter
-status: Backlog
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0188]
 ---
@@ -109,3 +109,98 @@ half-truth this pack keeps finding.
   ledger records it as unfinished rather than verified.
 - Each new assertion is shown to fail when the behaviour it constrains is
   neutered.
+
+## The decision: identity is a pure function of the path
+
+**A rename produces a new identity.** A reviewer who marked `old/name.cpp` read
+sees it unread again once it moves, even though not one byte changed.
+
+That cost was chosen, not overlooked. The alternative carried identity across a
+rename by consuming `github_file_record::PreviousPath`, and it fails on
+something worse than inconvenience: identity would depend on the review
+*snapshot* rather than on the file. Two callers holding different snapshots
+would derive different identities for the same file, and the receipt key would
+stop being well defined — which is the one thing it cannot be, because
+RFC-BPR-0007 stores receipts under it.
+
+Re-reading a moved file is a small cost paid visibly. Receipts that silently
+stop matching are neither small nor visible.
+
+`core::file_identity_of` is the single derivation, and the doc comment says so
+in those terms. A second one anywhere re-keys every stored receipt.
+
+## What was built
+
+- `core::file_identity_of(std::string_view)` in `diff_model.hpp`/`.cpp`, using
+  the existing domain-separated canonical encoding: `BPR-file-identity-v1`,
+  then the length, then the path bytes. Empty or beyond
+  `core::maximum_identified_path_bytes` derives an invalid identity.
+- `application::snapshot_workbench_observation` — a
+  `workbench_observation_port` over `github_pull_request_snapshot::Files`. No
+  repository, no process, no clock. The snapshot source is a plain callable so
+  composition decides where it comes from.
+- Tests: two cases in `tests/core/diff_model_tests.cpp`, seven in
+  `tests/application/workbench_snapshot_observation_tests.cpp`.
+
+### The encoding is pinned to a recorded digest
+
+`sha256("BPR-file-identity-v1" || u32be(16) || "src/app/main.cpp")` is written
+into the test as a literal rather than recomputed beside the assertion.
+Recomputing would agree with any derivation including a changed one, and this
+value is the key of durable receipts: the day the encoding moves silently is
+the day every reviewer's stored progress stops matching their files.
+
+### Absent is not empty
+
+The supplier returns `std::optional<std::vector<...>>`. A disengaged optional
+means the snapshot is not held; an engaged empty vector means the review has no
+files. Both cases are constructed in the tests, because collapsing them would
+tell a reviewer that a busy pull request was empty.
+
+### Staged actionability
+
+The adapter reports every file, unfiltered. `Actionable` is named for a filter
+that cannot exist yet — actionability is decided from receipts and
+RFC-BPR-0007's ledger host is not composed. That is stated in the adapter and
+in the RFC-BPR-0005 ledger rather than left to be inferred from an unfiltered
+list.
+
+## A false claim in my own test comment, caught by a break
+
+Two breaks landed on the same assertion, which exposed it. The test compares
+`"a/bc"` against `"ab/c"` and the comment claimed this proved the length prefix
+load-bearing. It does not: both are four bytes, so they differ with or without
+the prefix. With a fixed domain and the path as the final field, no two
+distinct paths can collide whatever the prefix says — the prefix is defensive
+against a future appended field, and the recorded digest is what actually pins
+the encoding. The comment now says that.
+
+## Evidence
+
+### Six breaks, each with 0 compile errors, each on its own assertion
+
+| Break | Assertion that failed |
+|---|---|
+| Domain string changed to `-v2` | the recorded-encoding assertion |
+| Length prefix dropped from the encoding | the recorded-encoding assertion |
+| Path bound no longer refused | "a path beyond the published bound is refused, never truncated" |
+| `limit_exceeded` reports *and* truncates | "and hands back no partial order at all" |
+| Duplicate paths no longer collapsed | "a snapshot repeating a path yields one entry for it" |
+| Unnameable path silently skipped | "a path this build cannot name makes the whole answer unavailable rather than silently dropping the file" |
+
+The truncation break is the one that justifies its own test. It reported
+`limit_exceeded` **and** handed back four rows; the status assertion passed and
+only the empty-order assertion caught it. A test checking the status alone
+would have certified an implementation that gives the core false neighbour
+facts — the last file it could see looking like the last file there is.
+
+### Gates
+
+- `ctest --preset dev` — **121/121**.
+- `ctest --preset core-only` — **56/56**, up from 55.
+- `coding-format-check` — 283 files, passed.
+- `verify_documentation.py` — `DOCUMENTATION_OK`. `git diff --check` clean.
+
+The core-only count rising is the useful part. The observation adapter's suite
+runs under a configuration that links neither Qt nor SQLite, so the adapter is
+proven free of both by linkage rather than by reading it.

@@ -66,7 +66,7 @@ The application shows `github_window`. It does not contain
 | the same for `workbench_window` | `0` |
 | the same for `workbench_drawer` | `0` |
 | implementations of `workbench_settings_port` in `src/` | none at the time of measurement; **supplied by BPR-0189** |
-| implementations of `workbench_observation_port` in `src/` | none; BPR-0192 owns it |
+| implementations of `workbench_observation_port` in `src/` | none at the time of measurement; **supplied by BPR-0192** |
 
 So the shell this RFC is named for — primary navigation, compact overflow,
 drawers, the full-width detail pane, the declared focus order, the accessible
@@ -82,6 +82,20 @@ recorded why the cheaper alternative was refused.
 Neither of this RFC's two ports had ever had an adapter. That was not an
 oversight that was tracked and deferred — a port satisfied by a fake never asks
 for one, so nothing ever reported it missing.
+
+### Staged actionability, stated rather than implied
+
+BPR-0192's observation adapter reports **every file in the review**, unfiltered.
+`workbench_file_observation::Actionable` is named for a filter that does not
+exist yet: actionability is decided from receipts, and RFC-BPR-0007's review
+ledger host is not composed. The filter arrives when it is.
+
+This is recorded here, and in the adapter itself, rather than left for a reader
+to infer from an unfiltered list. An "actionable" set that quietly means "all
+files" is the same class of half-truth as a ledger row naming a surface it was
+not proven against.
+
+### What a real adapter found that a fake could not
 
 BPR-0189 supplied the settings adapter and found a defect that only a real
 implementation could surface. `progress_scope` installs a SQLite progress
