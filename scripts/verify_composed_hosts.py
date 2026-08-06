@@ -39,13 +39,13 @@ COMPOSED = (
     "epoch_application_host",        # RFC-BPR-0003
     "diff_application_host",         # RFC-BPR-0004
     "workbench_application_host",    # RFC-BPR-0005, composed by BPR-0190
+    "appearance_application_host",   # RFC-BPR-0006, composed by BPR-0182
 )
 
 # Not composed yet: symbols must be absent. Each names the card that will
 # compose it. Moving a name up to COMPOSED is part of landing that card.
 NOT_COMPOSED = {
     "workbench_window": "BPR-0191",
-    "appearance_application_host": "BPR-0182",
     "packaged_syntax_classifier": "BPR-0185",
     "review_ledger_application_host": "RFC-BPR-0007 composition",
     "review_mutation_coordinator": "RFC-BPR-0008 composition",

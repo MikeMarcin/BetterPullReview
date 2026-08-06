@@ -2000,7 +2000,10 @@ namespace {
 		// place, so a symbol check alone would still report success.
 		stream << (aApplication.status().WorkbenchHostComposed
 					   ? "WORKBENCH_HOST_COMPOSED_OK\n"
-					   : "WORKBENCH_HOST_COMPOSED_FAILED\n");
+					   : "WORKBENCH_HOST_COMPOSED_FAILED\n")
+			   << (aApplication.status().AppearanceHostComposed
+					   ? "APPEARANCE_HOST_COMPOSED_OK\n"
+					   : "APPEARANCE_HOST_COMPOSED_FAILED\n");
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Appearance.Enabled) {
 			stream << "NATIVE_APPEARANCE_TRANSITION:"

@@ -18,9 +18,11 @@
 #endif
 
 #include "bpr/adapters/git/installed_git_cache.hpp"
+#include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
@@ -401,6 +403,70 @@ namespace bpr::app {
 		}
 	}
 
+	/// \brief Answers every classification request as unavailable.
+	///
+	/// \details BPR-0185 links `BetterPullReview::AdapterSyntax` and gives the
+	/// appearance host the real `packaged_syntax_classifier`. Until it does,
+	/// the host still needs a classification port to be constructed at all.
+	///
+	/// `unavailable` is the port's own default status and is the truth here:
+	/// no classification is available, because the classifier is not linked.
+	/// This deliberately does not pretend to classify - it produces no spans,
+	/// so nothing downstream can mistake an empty answer for "this file has no
+	/// tokens". It repeats the request context and key, because the host
+	/// refuses a terminal that does not.
+	class unlinked_syntax_classification final
+		: public application::syntax_classification_port
+	{
+	public:
+		[[nodiscard]] auto classify(
+			const application::syntax_classification_request& aRequest,
+			std::stop_token) -> application::syntax_classification override
+		{
+			return application::syntax_classification{
+				.Context = aRequest.Context,
+				.Key     = aRequest.Key,
+				.Status  = application::syntax_classification_status::unavailable,
+				.Spans   = { },
+			};
+		}
+	};
+
+	/// \brief Holds the appearance projections until a surface consumes them.
+	///
+	/// \details The same intermediate shape as the workbench sink below, and
+	/// for the same reason: BPR-0182 composes the host, BPR-0183 makes the
+	/// appearance profile drive the composed window. `github_window` does not
+	/// implement `appearance_projection_port` today.
+	class composition_appearance_projections final
+		: public application::appearance_projection_port
+	{
+	public:
+		void publish(const application::appearance_projection&) override
+		{
+			++Published;
+		}
+
+		void fail(const application::appearance_failure_publication&) override
+		{
+			++Failed;
+		}
+
+		[[nodiscard]] auto published() const noexcept -> std::size_t
+		{
+			return Published;
+		}
+
+		[[nodiscard]] auto failed() const noexcept -> std::size_t
+		{
+			return Failed;
+		}
+
+	private:
+		std::size_t Published = 0U;
+		std::size_t Failed    = 0U;
+	};
+
 	/// \brief Holds the workbench projections until a surface consumes them.
 	///
 	/// \details BPR-0190 composes the workbench host; BPR-0191 makes the shell
@@ -648,6 +714,16 @@ namespace bpr::app {
 				WorkbenchSettings = std::move(*layout);
 			}
 
+			// A fourth database, kept apart for the same reason as the rest.
+			// Composition failure is not fatal: a reviewer whose theme cannot
+			// be stored still gets the composed defaults.
+			auto appearance = adapters::sqlite::make_appearance_settings_store({
+				.StorageRoot = applicationDataRoot,
+			});
+			if (appearance) {
+				AppearanceSettings = std::move(*appearance);
+			}
+
 			EpochEntropy = application::make_system_epoch_entropy();
 			EpochClock   = application::make_system_epoch_clock();
 			if (!EpochEntropy || !EpochClock) {
@@ -730,6 +806,23 @@ namespace bpr::app {
 				// restoring never writes it back, so a launch that only looks
 				// leaves a fresh installation looking fresh.
 				WorkbenchHost->restore();
+			}
+
+			if (AppearanceSettings) {
+				AppearanceHost = std::make_unique<
+					application::appearance_application_host>(
+					qt::default_appearance_settings(),
+					*AppearanceSettings,
+					SyntaxClassification,
+					AppearanceEffects,
+					DecisionLane,
+					AppearanceProjections,
+					core::application_session_id{ 1U });
+				// Loads the durable record. An absent record keeps the composed
+				// settings and is never written back, so a fresh installation
+				// stays a fresh installation until the reviewer chooses
+				// something.
+				AppearanceHost->restore();
 			}
 		}
 
@@ -923,6 +1016,9 @@ namespace bpr::app {
 			if (WorkbenchHost) {
 				WorkbenchHost->shutdown();
 			}
+			if (AppearanceHost) {
+				AppearanceHost->shutdown();
+			}
 			DiffHost->shutdown();
 			EpochHost->shutdown();
 			Host->shutdown();
@@ -952,13 +1048,15 @@ namespace bpr::app {
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
 				|| !Host->is_quiescent()
-				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())) {
+				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
+				|| (AppearanceHost && !AppearanceHost->is_quiescent())) {
 				schedule_shutdown_poll();
 				return;
 			}
 
 			ShutdownCleanupFailed         = Host->shutdown_cleanup_failed();
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
+			AppearanceEffects.close_and_drain();
 			WorkbenchEffects.close_and_drain();
 			DiffEffects.close_and_drain();
 			EpochEffects.close_and_drain();
@@ -990,15 +1088,20 @@ namespace bpr::app {
 		std::unique_ptr<application::review_ledger_store_port>       ReviewLedger;
 		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
 		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
+		std::unique_ptr<application::appearance_settings_port>       AppearanceSettings;
+		unlinked_syntax_classification                               SyntaxClassification;
+		composition_appearance_projections                           AppearanceProjections;
 		std::unique_ptr<application::epoch_entropy_port>             EpochEntropy;
 		std::unique_ptr<application::epoch_clock_port>               EpochClock;
 		worker_executor                                              EpochEffects;
 		worker_executor                                              DiffEffects;
 		worker_executor                                              WorkbenchEffects;
+		worker_executor                                              AppearanceEffects;
 		composition_workbench_projections                            WorkbenchProjections;
 		std::unique_ptr<application::epoch_application_host>         EpochHost;
 		std::unique_ptr<application::diff_application_host>          DiffHost;
 		std::unique_ptr<application::workbench_application_host>     WorkbenchHost;
+		std::unique_ptr<application::appearance_application_host>    AppearanceHost;
 		std::unique_ptr<application::github_application_host>        Host;
 		bool                                                         Closing                       = false;
 		bool                                                         ShutdownPollScheduled         = false;
@@ -1049,6 +1152,7 @@ namespace bpr::app {
 			.EpochHandoffDeliveryFailed    = Implementation->Host->epoch_handoff_delivery_failed(),
 			.EpochStatus                   = Implementation->EpochHost->state().Status,
 			.WorkbenchHostComposed         = Implementation->WorkbenchHost != nullptr,
+			.AppearanceHostComposed        = Implementation->AppearanceHost != nullptr,
 		};
 	}
 

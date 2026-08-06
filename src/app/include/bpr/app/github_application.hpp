@@ -34,8 +34,9 @@ namespace bpr::app {
 		// opposed to merely linking it. `nm` cannot tell those apart: the code
 		// is compiled and its symbols are present whether or not the
 		// constructor ever runs. This is the runtime half of that evidence.
-		bool               WorkbenchHostComposed = false;
-		core::epoch_status EpochStatus           = core::epoch_status::inactive;
+		bool               WorkbenchHostComposed  = false;
+		bool               AppearanceHostComposed = false;
+		core::epoch_status EpochStatus            = core::epoch_status::inactive;
 	};
 
 	/// \brief Provides the github application contract.
