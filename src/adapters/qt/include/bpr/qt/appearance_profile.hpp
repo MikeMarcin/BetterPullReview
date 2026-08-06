@@ -38,14 +38,12 @@ namespace bpr::qt {
 	public:
 		[[nodiscard]] static auto registered_type() noexcept -> QEvent::Type;
 
-		code_typography_event(qreal aTabStopDistance, qreal aLineHeight);
+		explicit code_typography_event(qreal aTabStopDistance);
 
 		[[nodiscard]] auto tab_stop_distance() const noexcept -> qreal;
-		[[nodiscard]] auto line_height() const noexcept -> qreal;
 
 	private:
 		qreal TabStopDistance = 0.0;
-		qreal LineHeight      = 0.0;
 	};
 
 	/// \brief Converts one core appearance colour to its Qt colour.
@@ -98,14 +96,16 @@ namespace bpr::qt {
 	[[nodiscard]] auto to_presentation_font(const core::code_font_settings& aCode)
 		-> QFont;
 
-	/// \brief Returns the line height one font record asks a code surface for.
+	/// \brief Returns the line height one UI font record asks for.
 	///
 	/// \details The result is the font's own line spacing scaled by the record's
-	/// percentage, in device-independent pixels. It is a published measurement
-	/// rather than an applied one, because Qt's plain-text document layout
-	/// ignores a block's proportional line height; the surface owning the code
-	/// document is the only place that can honour this number.
-	[[nodiscard]] auto line_height_of(const core::font_settings& aFont) -> qreal;
+	/// percentage, in device-independent pixels.
+	///
+	/// This takes a `ui_font_settings` and not a `font_settings` because only
+	/// the UI font has a line height. The code font's was retired by BPR-0118:
+	/// `QPlainTextDocumentLayout` ignores every line-height mode Qt offers, and
+	/// block margins with it, so the number could be computed and never applied.
+	[[nodiscard]] auto line_height_of(const core::ui_font_settings& aFont) -> qreal;
 
 	/// \brief Returns the tab stop distance one code font record asks for.
 	///
@@ -247,7 +247,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto code_font_for(bool aBold, bool aItalic) const -> QFont;
 
 		[[nodiscard]] auto ui_line_height() const -> qreal;
-		[[nodiscard]] auto code_line_height() const -> qreal;
 		[[nodiscard]] auto code_tab_stop_distance() const -> qreal;
 
 		/// \brief Offers one complete typography record.
@@ -264,7 +263,7 @@ namespace bpr::qt {
 		///
 		/// \returns The core's verdict, and whether the applied presentation
 		/// changed.
-		auto select_ui_font(core::font_settings aFont) -> typography_selection;
+		auto select_ui_font(core::ui_font_settings aFont) -> typography_selection;
 
 		/// \brief Offers one code font record, keeping the applied UI font.
 		///

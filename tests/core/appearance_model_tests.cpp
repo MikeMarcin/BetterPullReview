@@ -244,7 +244,7 @@ namespace {
 	[[nodiscard]] auto legal_settings() -> typography_settings
 	{
 		auto settings             = typography_settings{ };
-		settings.Ui.Family        = "Sample Interface Family";
+		settings.Ui.Font.Family   = "Sample Interface Family";
 		settings.Code.Font.Family = "Sample Code Family";
 		return settings;
 	}
@@ -260,7 +260,8 @@ namespace {
 		typography_settings&    aSettings,
 		const typography_target aTarget) -> font_settings&
 	{
-		return aTarget == typography_target::ui_font ? aSettings.Ui : aSettings.Code.Font;
+		return aTarget == typography_target::ui_font ? aSettings.Ui.Font
+													 : aSettings.Code.Font;
 	}
 
 	auto assign(
@@ -276,14 +277,34 @@ namespace {
 			aFont.Weight = aValue;
 			break;
 		case typography_field::line_height:
-			aFont.LineHeightPercent = aValue;
-			break;
 		case typography_field::family:
 		case typography_field::tab_width:
-			expect(false, "only the numeric font fields are assignable here");
+			expect(false, "only the shared numeric font fields are assignable here");
 			break;
 		}
 	}
+
+	template <typename Record>
+	concept carries_a_line_height = requires(Record aRecord) {
+		aRecord.LineHeightPercent;
+	};
+
+	// BPR-0118 retired the code line height, and this is where that decision is
+	// held. It reads the types rather than a construction site, so re-adding
+	// the field anywhere fails here even if nothing ever assigns to it.
+	//
+	// The third assertion is the one that matters. `code_font_settings` embeds
+	// `font_settings`, so putting a line height back on the shared record would
+	// silently give the code font one again, and the first two would still pass.
+	static_assert(
+		carries_a_line_height<ui_font_settings>,
+		"the UI font carries a line height");
+	static_assert(
+		!carries_a_line_height<code_font_settings>,
+		"the code font has no field a line height could occupy");
+	static_assert(
+		!carries_a_line_height<font_settings>,
+		"the shared font record has no line height, so no font gains one by embedding it");
 
 	auto test_the_core_invents_no_font_family() -> void
 	{
@@ -316,8 +337,8 @@ namespace {
 					   .Reason = typography_reason::above_maximum },
 			   "one byte over the published family maximum is rejected as too long");
 
-		auto malformed      = legal_settings();
-		malformed.Ui.Family = "Sample\nFamily";
+		auto malformed           = legal_settings();
+		malformed.Ui.Font.Family = "Sample\nFamily";
 		expect(only_rejection(validate_typography(malformed))
 				   == typography_rejection{
 					   .Target = typography_target::ui_font,
@@ -325,18 +346,20 @@ namespace {
 					   .Reason = typography_reason::malformed_value },
 			   "a control byte in a family name is refused under its own typed reason");
 
-		auto nonAscii      = legal_settings();
-		nonAscii.Ui.Family = "\xe3\x83\x92\xe3\x83\xa9\xe3\x82\xae\xe3\x83\x8e";
+		auto nonAscii           = legal_settings();
+		nonAscii.Ui.Font.Family = "\xe3\x83\x92\xe3\x83\xa9\xe3\x82\xae\xe3\x83\x8e";
 		expect(validate_typography(nonAscii).empty(),
 			   "a non-ASCII family name is opaque to the core, not malformed");
 	}
 
 	auto test_typography_bounds_are_enforced_exactly() -> void
 	{
+		// Line height is absent from this loop because it is absent from the
+		// shared record. It is exercised on its own below, against the UI font,
+		// which is now the only font that has one.
 		constexpr auto numericFields = std::array{
 			typography_field::point_size,
 			typography_field::weight,
-			typography_field::line_height,
 		};
 		constexpr auto targets = std::array{
 			typography_target::ui_font,
@@ -377,6 +400,36 @@ namespace {
 			}
 		}
 
+		const auto heightBounds = bounds_of(typography_field::line_height);
+		expect(heightBounds.Minimum > 0U && heightBounds.Maximum > heightBounds.Minimum,
+			   "the line height publishes a usable inclusive range");
+
+		auto tooShort                 = legal_settings();
+		tooShort.Ui.LineHeightPercent = heightBounds.Minimum - 1U;
+		expect(only_rejection(validate_typography(tooShort))
+				   == typography_rejection{
+					   .Target = typography_target::ui_font,
+					   .Field  = typography_field::line_height,
+					   .Reason = typography_reason::below_minimum },
+			   "a UI line height under the published minimum is rejected with its exact typed reason");
+
+		auto tooTall                 = legal_settings();
+		tooTall.Ui.LineHeightPercent = heightBounds.Maximum + 1U;
+		expect(only_rejection(validate_typography(tooTall))
+				   == typography_rejection{
+					   .Target = typography_target::ui_font,
+					   .Field  = typography_field::line_height,
+					   .Reason = typography_reason::above_maximum },
+			   "a UI line height over the published maximum is rejected with its exact typed reason");
+
+		auto shortest                 = legal_settings();
+		shortest.Ui.LineHeightPercent = heightBounds.Minimum;
+		auto tallest                  = legal_settings();
+		tallest.Ui.LineHeightPercent  = heightBounds.Maximum;
+		expect(validate_typography(shortest).empty()
+				   && validate_typography(tallest).empty(),
+			   "both published line-height edges are legal");
+
 		const auto tabBounds    = bounds_of(typography_field::tab_width);
 		auto       tooNarrow    = legal_settings();
 		tooNarrow.Code.TabWidth = tabBounds.Minimum - 1U;
@@ -416,9 +469,9 @@ namespace {
 	auto test_every_violation_is_reported_in_order() -> void
 	{
 		auto settings = legal_settings();
-		settings.Ui.Family.clear();
-		settings.Ui.PointSizeCentipoints        = 1U;
-		settings.Ui.Weight                      = 5000U;
+		settings.Ui.Font.Family.clear();
+		settings.Ui.Font.PointSizeCentipoints   = 1U;
+		settings.Ui.Font.Weight                 = 5000U;
 		settings.Ui.LineHeightPercent           = 1U;
 		settings.Code.Font.PointSizeCentipoints = 999999U;
 		settings.Code.TabWidth                  = 0U;

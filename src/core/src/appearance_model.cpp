@@ -172,9 +172,6 @@ namespace bpr::core {
 			append_rejection(
 				aRejections,
 				check_bounds(aTarget, typography_field::weight, aFont.Weight));
-			append_rejection(
-				aRejections,
-				check_bounds(aTarget, typography_field::line_height, aFont.LineHeightPercent));
 		}
 	} // namespace
 
@@ -367,7 +364,18 @@ namespace bpr::core {
 		-> std::vector<typography_rejection>
 	{
 		auto rejections = std::vector<typography_rejection>{ };
-		append_font_rejections(rejections, typography_target::ui_font, aSettings.Ui);
+		append_font_rejections(
+			rejections, typography_target::ui_font, aSettings.Ui.Font);
+		// Line height is checked here rather than inside the shared helper
+		// because only the UI font has one. The code font cannot carry a line
+		// height at all, so there is no code-font value to check and no way to
+		// write one that would be silently ignored.
+		append_rejection(
+			rejections,
+			check_bounds(
+				typography_target::ui_font,
+				typography_field::line_height,
+				aSettings.Ui.LineHeightPercent));
 		append_font_rejections(rejections, typography_target::code_font, aSettings.Code.Font);
 		append_rejection(
 			rejections,

@@ -16,21 +16,26 @@ class QPlainTextEdit;
 
 namespace bpr::qt {
 	/// \brief Identifies a presentation fact that invalidates measured diff geometry.
+	///
+	/// \details There is no `line_spacing`. BPR-0118 retired the code line
+	/// height on the product owner's decision, after measuring that
+	/// `QPlainTextDocumentLayout` ignores every line-height mode Qt offers.
+	/// A flag naming a fact that can never occur is a branch nothing reaches
+	/// and a reader has to rule out.
 	enum class measured_geometry_change : std::uint32_t {
 		none                 = 0U,
 		accepted_diff        = 1U << 0U,
 		file_or_epoch        = 1U << 1U,
 		font                 = 1U << 2U,
 		zoom                 = 1U << 3U,
-		line_spacing         = 1U << 4U,
-		tab_width            = 1U << 5U,
-		device_pixel_ratio   = 1U << 6U,
-		screen               = 1U << 7U,
-		viewport_or_divider  = 1U << 8U,
-		wrapping             = 1U << 9U,
-		folding              = 1U << 10U,
-		document_layout      = 1U << 11U,
-		variable_height_item = 1U << 12U,
+		tab_width            = 1U << 4U,
+		device_pixel_ratio   = 1U << 5U,
+		screen               = 1U << 6U,
+		viewport_or_divider  = 1U << 7U,
+		wrapping             = 1U << 8U,
+		folding              = 1U << 9U,
+		document_layout      = 1U << 10U,
+		variable_height_item = 1U << 11U,
 	};
 
 	[[nodiscard]] constexpr auto operator|(

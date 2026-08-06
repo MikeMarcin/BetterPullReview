@@ -596,7 +596,17 @@ namespace {
 										core::typography_field::point_size)
 										.Minimum
 				+ 600U,
-			.Weight            = 400U,
+			.Weight = 400U,
+		};
+	}
+
+	// The UI font is the only one with a line height. BPR-0118 retired the code
+	// font's, so there is no code-font counterpart to this and cannot be one.
+	[[nodiscard]] auto legal_ui_font(const std::string_view aFamily)
+		-> core::ui_font_settings
+	{
+		return core::ui_font_settings{
+			.Font              = legal_font(aFamily),
 			.LineHeightPercent = 100U,
 		};
 	}
@@ -608,7 +618,7 @@ namespace {
 			core::validate_typography(defaults).empty(),
 			"the composed fresh-install typography is legal by the core's own validator");
 		expect(
-			!defaults.Ui.Family.empty() && !defaults.Code.Font.Family.empty(),
+			!defaults.Ui.Font.Family.empty() && !defaults.Code.Font.Family.empty(),
 			"the composition supplies both families the core cannot know");
 		expect(
 			qt::default_appearance_settings().Typography == defaults,
@@ -625,7 +635,7 @@ namespace {
 		// A durable record can carry a font this build rejects. Only the
 		// rejected font is replaced, and what replaces it must itself be legal.
 		auto hostile                        = qt::default_appearance_settings();
-		hostile.Typography.Ui               = legal_font("Courier");
+		hostile.Typography.Ui               = legal_ui_font("Courier");
 		hostile.Typography.Code.Font.Family = std::string{ };
 		hostile.Typography.Code.TabWidth    = core::bounds_of(
 												  core::typography_field::tab_width)
@@ -636,7 +646,7 @@ namespace {
 			core::validate_typography(guarded.typography()).empty(),
 			"a rejected durable typography is replaced by a legal record");
 		expect(
-			guarded.typography().Ui == legal_font("Courier"),
+			guarded.typography().Ui == legal_ui_font("Courier"),
 			"an illegal code font does not discard the legal UI font beside it");
 		expect(
 			guarded.typography().Code == defaults.Code,
@@ -689,15 +699,17 @@ namespace {
 				&& ligated.featureValue(QFont::Tag{ "clig" }) == 1U,
 			"turning ligatures on enables both standard and contextual ligatures");
 
-		auto doubled              = record;
+		const auto single         = core::ui_font_settings{ .Font              = record,
+															.LineHeightPercent = 100U };
+		auto       doubled        = single;
 		doubled.LineHeightPercent = 200U;
 		expect(
-			close(qt::line_height_of(doubled), 2.0 * qt::line_height_of(record))
-				&& qt::line_height_of(record) > 0.0,
+			close(qt::line_height_of(doubled), 2.0 * qt::line_height_of(single))
+				&& qt::line_height_of(single) > 0.0,
 			"line height scales the font's own line spacing by the record's percentage");
 		expect(
-			qt::to_presentation_font(doubled).pointSizeF()
-				== qt::to_presentation_font(record).pointSizeF(),
+			qt::to_presentation_font(doubled.Font).pointSizeF()
+				== qt::to_presentation_font(single.Font).pointSizeF(),
 			"line height is a layout fact and does not resize the glyphs");
 
 		auto wide       = code;
@@ -727,11 +739,11 @@ namespace {
 				&& canvas.font().family() == profile.code_font().family(),
 			"the live surfaces start on the profile's own UI and code families");
 
-		const auto uiBefore = profile.ui_font();
-		auto       chosenUi = profile.typography().Ui;
-		chosenUi.Family     = "Courier";
-		chosenUi.PointSizeCentipoints += 250U;
-		chosenUi.Weight            = 700U;
+		const auto uiBefore  = profile.ui_font();
+		auto       chosenUi  = profile.typography().Ui;
+		chosenUi.Font.Family = "Courier";
+		chosenUi.Font.PointSizeCentipoints += 250U;
+		chosenUi.Font.Weight       = 700U;
 		chosenUi.LineHeightPercent = 140U;
 		const auto uiSelection     = profile.select_ui_font(chosenUi);
 		expect(
@@ -823,13 +835,13 @@ namespace {
 		auto       published  = std::size_t{ 0U };
 		profile.set_sink([&published] { ++published; });
 
-		auto atMinimum                 = profile.typography().Ui;
-		atMinimum.PointSizeCentipoints = sizeBounds.Minimum;
+		auto atMinimum                      = profile.typography().Ui;
+		atMinimum.Font.PointSizeCentipoints = sizeBounds.Minimum;
 		expect(
 			profile.select_ui_font(atMinimum).accepted(),
 			"the published minimum point size is applied, so the bound is inclusive");
-		auto atMaximum                 = profile.typography().Ui;
-		atMaximum.PointSizeCentipoints = sizeBounds.Maximum;
+		auto atMaximum                      = profile.typography().Ui;
+		atMaximum.Font.PointSizeCentipoints = sizeBounds.Maximum;
 		expect(
 			profile.select_ui_font(atMaximum).accepted(),
 			"the published maximum point size is applied, so the bound is inclusive");
@@ -839,9 +851,9 @@ namespace {
 		const auto generation  = profile.generation();
 		const auto beforeCount = published;
 
-		auto tooLarge                 = applied.Ui;
-		tooLarge.PointSizeCentipoints = sizeBounds.Maximum + 1U;
-		const auto oversized          = profile.select_ui_font(tooLarge);
+		auto tooLarge                      = applied.Ui;
+		tooLarge.Font.PointSizeCentipoints = sizeBounds.Maximum + 1U;
+		const auto oversized               = profile.select_ui_font(tooLarge);
 		expect(
 			!oversized.accepted() && !oversized.Changed
 				&& oversized.Rejections.size() == 1U
@@ -857,9 +869,9 @@ namespace {
 				&& profile.ui_font().pointSizeF() == appliedUi.pointSizeF(),
 			"a rejected point size never reaches the applied typography or its font");
 
-		auto tooSmall                 = applied.Ui;
-		tooSmall.PointSizeCentipoints = sizeBounds.Minimum - 1U;
-		const auto undersized         = profile.select_ui_font(tooSmall);
+		auto tooSmall                      = applied.Ui;
+		tooSmall.Font.PointSizeCentipoints = sizeBounds.Minimum - 1U;
+		const auto undersized              = profile.select_ui_font(tooSmall);
 		expect(
 			!undersized.accepted()
 				&& undersized.Rejections.front().Reason
@@ -885,8 +897,8 @@ namespace {
 					qt::tab_stop_distance_of(applied.Code)),
 			"one illegal field rejects the whole offer rather than applying the legal half");
 
-		auto longFamily   = applied.Ui;
-		longFamily.Family = std::string(
+		auto longFamily        = applied.Ui;
+		longFamily.Font.Family = std::string(
 			core::bounds_of(core::typography_field::family).Maximum + 1U,
 			'F');
 		expect(

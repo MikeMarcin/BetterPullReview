@@ -53,17 +53,18 @@ namespace {
 	[[nodiscard]] auto base_settings() -> application::appearance_settings
 	{
 		auto settings          = application::appearance_settings{ };
-		settings.Typography.Ui = core::font_settings{
-			.Family               = "Base UI",
-			.PointSizeCentipoints = 1200U,
-			.Weight               = 400U,
-			.LineHeightPercent    = 120U,
+		settings.Typography.Ui = core::ui_font_settings{
+			.Font = core::font_settings{
+				.Family               = "Base UI",
+				.PointSizeCentipoints = 1200U,
+				.Weight               = 400U,
+			},
+			.LineHeightPercent = 120U,
 		};
 		settings.Typography.Code.Font = core::font_settings{
 			.Family               = "Base Code",
 			.PointSizeCentipoints = 1300U,
 			.Weight               = 400U,
-			.LineHeightPercent    = 130U,
 		};
 		settings.Typography.Code.TabWidth = 4U;
 		settings.Palette[core::index_of(core::appearance_role::code_background)]
@@ -78,16 +79,16 @@ namespace {
 		settings.Mode = core::appearance_mode::dark;
 		settings.Palette[core::index_of(core::appearance_role::code_background)]
 			= core::appearance_color{ .Red = 200U, .Green = 200U, .Blue = 200U };
-		settings.Typography.Ui.PointSizeCentipoints = 1100U;
+		settings.Typography.Ui.Font.PointSizeCentipoints = 1100U;
 		return settings;
 	}
 
 	/// \brief Returns typography with one illegal value in each font.
 	[[nodiscard]] auto illegal_typography() -> core::typography_settings
 	{
-		auto typography                    = base_settings().Typography;
-		typography.Ui.PointSizeCentipoints = 100U;
-		typography.Code.TabWidth           = 64U;
+		auto typography                         = base_settings().Typography;
+		typography.Ui.Font.PointSizeCentipoints = 100U;
+		typography.Code.TabWidth                = 64U;
 		return typography;
 	}
 
@@ -381,7 +382,7 @@ namespace {
 
 		expect(harnessed.Host.settings() == base_settings(),
 			   "a record the core rejects is refused whole");
-		expect(harnessed.Host.settings().Typography.Ui.PointSizeCentipoints == 1200U,
+		expect(harnessed.Host.settings().Typography.Ui.Font.PointSizeCentipoints == 1200U,
 			   "the refused value is never clamped into range");
 		expect(harnessed.Host.settings().Mode == core::appearance_mode::system,
 			   "no domain of a refused record is adopted");
@@ -517,8 +518,8 @@ namespace {
 		expect_exact_rejections(harnessed.Projections.Failed.front().Rejections,
 								"the refusal carries the core's exact typed reasons");
 
-		auto legal                    = base_settings().Typography;
-		legal.Ui.PointSizeCentipoints = 1400U;
+		auto legal                         = base_settings().Typography;
+		legal.Ui.Font.PointSizeCentipoints = 1400U;
 		harnessed.Host.apply(legal);
 		harnessed.settle();
 		expect(harnessed.Host.settings().Typography == legal,

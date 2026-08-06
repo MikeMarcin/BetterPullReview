@@ -102,7 +102,7 @@ out.
 | Font change preserves semantics | An `appearance_profile` and a `diff_workbench` constructed together by a test | Change the code font | The measured axis and ribbon geometry invalidate, semantic selection survives, and the shared position reprojects without changing mapping or confidence | Verified of that pair. Geometry rebuilds and the measured extent grow while the mapping is byte-identical and selection survives. **This row previously named its surface `Composed comparison`.** The pair is composed by the test; the application composes neither member. BPR-0183 owns it |
 | Fresh install defaults to System | `appearance_settings`, the type's own default | Inspect the default with no persisted value | The resolved mode is System | Verified of the type. With no persisted value the resolved selection is System. No application path reads it, because no application path constructs the host that would |
 | System mode follows the OS; explicit does not | Real macOS composition | Owner-authorised OS scheme change | System mode follows and an explicit mode does not | **Blocked, not deferred.** BPR-0114 was filed as owner-attended, which asserted the behaviour existed. It does not: there is no mode to select and no variant to observe. Blocked behind BPR-0183 and BPR-0184; attended afterwards |
-| Settings persist and preview immediately | `appearance_application_host`, fake ports | Change each setting, restart | Each value previews without restart and survives one | Verified of the component only. **This row previously named its surface `Real application`.** The host is absent from the shipped binary and no adapter implements `appearance_settings_port`, so nothing persists and nothing previews; BPR-0181 and BPR-0182 own that. Within the component: each typography field previews without restart and a core-rejected record is refused whole rather than clamped, and BPR-0116 added the typography publication so a tab-width-only change invalidates measured geometry. Code line height is computed and reaches no surface, because `QPlainTextDocumentLayout` ignores every line-height mode — measured, not assumed — and the product owner retired the setting on 2026-08-06 under BPR-0118 |
+| Settings persist and preview immediately | `appearance_application_host`, fake ports | Change each setting, restart | Each value previews without restart and survives one | Verified of the component only. **This row previously named its surface `Real application`.** The host is absent from the shipped binary and no adapter implements `appearance_settings_port`, so nothing persists and nothing previews; BPR-0181 and BPR-0182 own that. Within the component: each typography field previews without restart and a core-rejected record is refused whole rather than clamped, and BPR-0116 added the typography publication so a tab-width-only change invalidates measured geometry. The code line height is **retired**, not outstanding: `QPlainTextDocumentLayout` ignores every line-height mode Qt offers — measured, not assumed — so the product owner retired it on 2026-08-06 and BPR-0118 removed it structurally. `code_font_settings` now has no field one could occupy, and the RFC's goal and criterion were amended in place |
 | Theme import is safe | Import validator, in isolation | Offer unknown fields, URLs, includes, oversized files, and executable payloads | Each rejection is distinct; a catch-all that refuses everything is not sufficient | Verified of the component. Each refusal is typed and named, and a valid document round-trips to an identical palette. No application path imports a theme, because there is no theme surface |
 | State survives without colour | The four shipped palettes, in isolation | Inspect every state signal | Icons, labels, marks, prefixes, outlines, or accessible names carry the meaning too | Verified of the palettes. BPR-0117 ran the enumerated pairs against all four shipped palettes; 191 pairs failed and were repaired by refitting lightness, and the ten pairs colour alone cannot separate are recorded and asserted exactly. None of the four is applied by the application; the window uses Qt's native palette |
 | The core stays free of presentation types | Dependency scan | Scan the core target | No font, colour, Qt, or KSyntaxHighlighting type appears | Verified. No font, colour, Qt, or KSyntaxHighlighting identifier appears in the core, and the dependency scan passes |
@@ -120,9 +120,16 @@ network service.
 | BPR-0184 | Qt: the appearance settings gesture |
 | BPR-0185 | Link the syntax adapter and highlight the diff panes |
 
-BPR-0118 retires the code line-height setting on the product owner's decision
+BPR-0118 retired the code line-height setting on the product owner's decision
 and is independent of these: it rests on Qt's measured behaviour, which holds
-whether or not anything is composed.
+whether or not anything is composed. It is in `done/`.
+
+Its structural half is worth carrying into BPR-0184. Deleting the accessor
+would have left `code_font_settings::Font.LineHeightPercent` validated,
+persisted, and inapplicable, because the code font embeds the shared record.
+The field moved to a UI-only `ui_font_settings` instead, so the code font has
+no field a line height could occupy. A settings surface cannot offer what the
+type cannot hold.
 
 ## Deferred gates
 

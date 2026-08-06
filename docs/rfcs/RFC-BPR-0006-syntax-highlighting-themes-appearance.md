@@ -24,7 +24,17 @@ Code-review readability requires editor-grade syntax treatment and user-controll
 - Add syntax highlighting through KSyntaxHighlighting's low-level API.
 - Highlight complete old/new blobs independently.
 - Support System, Light, and Dark appearance modes plus high-contrast variants.
-- Add separate UI and code font family, size, weight, line-height, tab-width, ligature, bold, and italic settings.
+- Add separate UI and code font family, size, weight, tab-width, ligature, bold, and italic settings, plus a UI line height.
+
+The code font has no line-height setting. It was specified here and retired by
+product-owner decision on 2026-08-06, after it was measured that
+`QPlainTextDocumentLayout` ignores line height in every mode Qt offers —
+`ProportionalHeight`, `FixedHeight`, `MinimumHeight`, and `LineDistanceHeight`
+all leave the block height unchanged, and block margins are ignored with them.
+Honouring it would mean replacing the code panes' text-rendering strategy,
+which RFC-BPR-0005's bounded-widget and large-file evidence rests on. Code line
+spacing is whatever the code font supplies. The setting is not deferred and no
+later RFC inherits it; `core::code_font_settings` has no field it could occupy.
 - Add semantic UI, diff, review-state, and syntax color customization.
 - Provide immediate preview, safe import/export, and deterministic packaged resources.
 
@@ -65,7 +75,7 @@ Colors are semantic roles, including code background, gutters, additions, remova
   while preserving semantic selection, then reprojects the one shared
   comparison position without changing mapping or confidence.
 - System mode responds to OS scheme changes; explicit mode does not.
-- UI and code fonts, sizes, line height, tab width, ligatures, bold, italic, and semantic colors persist and preview immediately.
+- UI and code fonts, sizes, UI line height, tab width, ligatures, bold, italic, and semantic colors persist and preview immediately. The code line height is retired; see the goals above.
 - Theme imports reject unknown fields, URLs, includes, oversized files, and executable/style payloads.
 - High-contrast and color-vision checks prove state remains understandable without color alone.
 - Dependency scans prove no font/color/KSyntaxHighlighting/Qt types enter the functional core; theme/font interactions update host caches and Qt presentation without mutating review semantics.

@@ -320,7 +320,6 @@ namespace {
 			| qt::measured_geometry_change::file_or_epoch
 			| qt::measured_geometry_change::font
 			| qt::measured_geometry_change::zoom
-			| qt::measured_geometry_change::line_spacing
 			| qt::measured_geometry_change::tab_width
 			| qt::measured_geometry_change::device_pixel_ratio
 			| qt::measured_geometry_change::screen

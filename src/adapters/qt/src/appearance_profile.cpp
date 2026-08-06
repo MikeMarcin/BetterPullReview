@@ -359,6 +359,16 @@ namespace bpr::qt {
 					core::typography_field::weight,
 					static_cast<std::uint64_t>(
 						std::max(0, static_cast<int>(system.weight())))),
+			};
+		}
+
+		/// \brief Reads one platform system font into a legal core UI record.
+		[[nodiscard]] auto native_ui_font(
+			const QFontDatabase::SystemFont aRole,
+			const std::string_view          aFallbackFamily) -> core::ui_font_settings
+		{
+			return core::ui_font_settings{
+				.Font              = native_font(aRole, aFallbackFamily),
 				.LineHeightPercent = within_bounds(
 					core::typography_field::line_height,
 					nominal_line_height_percent),
@@ -485,9 +495,9 @@ namespace bpr::qt {
 		return font;
 	}
 
-	auto line_height_of(const core::font_settings& aFont) -> qreal
+	auto line_height_of(const core::ui_font_settings& aFont) -> qreal
 	{
-		return QFontMetricsF{ to_presentation_font(aFont) }.lineSpacing()
+		return QFontMetricsF{ to_presentation_font(aFont.Font) }.lineSpacing()
 			* static_cast<qreal>(aFont.LineHeightPercent) / percent_scale;
 	}
 
@@ -501,7 +511,7 @@ namespace bpr::qt {
 	auto default_typography_settings() -> core::typography_settings
 	{
 		return core::typography_settings{
-			.Ui = native_font(
+			.Ui = native_ui_font(
 				QFontDatabase::GeneralFont,
 				general_fallback_family),
 			.Code = core::code_font_settings{
@@ -660,11 +670,6 @@ namespace bpr::qt {
 		return line_height_of(Typography.Ui);
 	}
 
-	auto appearance_profile::code_line_height() const -> qreal
-	{
-		return line_height_of(Typography.Code.Font);
-	}
-
 	auto appearance_profile::code_tab_stop_distance() const -> qreal
 	{
 		return tab_stop_distance_of(Typography.Code);
@@ -692,7 +697,7 @@ namespace bpr::qt {
 		return selection;
 	}
 
-	auto appearance_profile::select_ui_font(core::font_settings aFont)
+	auto appearance_profile::select_ui_font(core::ui_font_settings aFont)
 		-> typography_selection
 	{
 		auto candidate = Typography;
@@ -846,23 +851,15 @@ namespace bpr::qt {
 		return type;
 	}
 
-	code_typography_event::code_typography_event(
-		const qreal aTabStopDistance,
-		const qreal aLineHeight)
+	code_typography_event::code_typography_event(const qreal aTabStopDistance)
 		: QEvent{ registered_type() }
 		, TabStopDistance{ aTabStopDistance }
-		, LineHeight{ aLineHeight }
 	{
 	}
 
 	auto code_typography_event::tab_stop_distance() const noexcept -> qreal
 	{
 		return TabStopDistance;
-	}
-
-	auto code_typography_event::line_height() const noexcept -> qreal
-	{
-		return LineHeight;
 	}
 
 	void appearance_profile::apply_code_font_to(QWidget& aSurface)
@@ -880,8 +877,7 @@ namespace bpr::qt {
 		// Published after the fonts so a subscriber that rebuilds on this event
 		// measures the typography that is already applied rather than the one
 		// being replaced.
-		auto published
-			= code_typography_event{ code_tab_stop_distance(), code_line_height() };
+		auto published = code_typography_event{ code_tab_stop_distance() };
 		QCoreApplication::sendEvent(&aSurface, &published);
 
 		++Statistics.AppliedFontSurfaces;
@@ -897,7 +893,7 @@ namespace bpr::qt {
 
 	void appearance_profile::rebuild_typography()
 	{
-		UiFont   = to_presentation_font(Typography.Ui);
+		UiFont   = to_presentation_font(Typography.Ui.Font);
 		CodeFont = to_presentation_font(Typography.Code);
 	}
 

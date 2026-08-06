@@ -311,17 +311,45 @@ namespace bpr::core {
 	/// the host supplies a family. The numeric members are fixed point so that
 	/// every legal value is exactly representable and comparable without floating
 	/// point: `PointSizeCentipoints` is hundredths of a point, so 1000 is
-	/// 10.00pt; `Weight` is the usual 100-to-900 axis, where 400 is regular; and
-	/// `LineHeightPercent` is a percentage of the natural line height, so 100 is
-	/// 1.00x. Their defaults are legal placeholders the host may replace.
+	/// 10.00pt, and `Weight` is the usual 100-to-900 axis, where 400 is regular.
+	/// Their defaults are legal placeholders the host may replace.
+	///
+	/// There is no line height here. It belongs to `ui_font_settings` alone, so
+	/// that `code_font_settings` has no field one could occupy — see BPR-0118.
 	struct font_settings
 	{
 		std::string   Family;
 		std::uint32_t PointSizeCentipoints = 1000U;
 		std::uint32_t Weight               = 400U;
-		std::uint32_t LineHeightPercent    = 100U;
 
 		auto operator<=>(const font_settings&) const = default;
+	};
+
+	/// \brief Describes the UI font's settings.
+	///
+	/// \details `LineHeightPercent` is a percentage of the natural line height,
+	/// so 100 is 1.00x.
+	///
+	/// It lives on the UI font and not on `font_settings` because the code font
+	/// must not be able to carry one. The product owner retired the code line
+	/// height on 2026-08-06, after the presentation adapter measured that its
+	/// plain-text document layout ignores line height in every mode the toolkit
+	/// offers, and block margins with it. Leaving the field on the shared record
+	/// would have left a code setting that validates, persists, and can never
+	/// apply — which is worse than not offering it, because it defeats the next
+	/// reader's attempt to find the bug.
+	///
+	/// Which toolkit and which layout class is deliberately not named here. The
+	/// core states the rule; the measurement that forced it belongs to the
+	/// adapter that took it, and naming a presentation type in this header is a
+	/// boundary violation the dependency scan refuses — as it refused an earlier
+	/// draft of this very comment.
+	struct ui_font_settings
+	{
+		font_settings Font;
+		std::uint32_t LineHeightPercent = 100U;
+
+		auto operator<=>(const ui_font_settings&) const = default;
 	};
 
 	/// \brief Describes the code font's settings.
@@ -330,6 +358,8 @@ namespace bpr::core {
 	/// code-only: a tab width for application chrome has no meaning. The three
 	/// boolean members have no legality rule because every boolean value is
 	/// legal, and that omission is deliberate rather than missing.
+	///
+	/// There is deliberately no line height. See `ui_font_settings`.
 	struct code_font_settings
 	{
 		font_settings Font;
@@ -344,7 +374,7 @@ namespace bpr::core {
 	/// \brief Describes the complete typography settings record.
 	struct typography_settings
 	{
-		font_settings      Ui;
+		ui_font_settings   Ui;
 		code_font_settings Code;
 
 		auto operator<=>(const typography_settings&) const = default;
