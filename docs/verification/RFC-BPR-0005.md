@@ -2,10 +2,15 @@
 
 RFC base: `55d365f16847d2ffc2c8fab83a5ce62eb695e2a0`
 
-Status: available-target implementation complete. Documentation reconciled by
-BPR-0098; simplification and closeout preparation remain. RFC-BPR-0005 stays
-`Proposed` and ends its available-target work at the BPR-0101 closeout card in
+Status: **components complete, composition absent.** Everything this RFC
+specifies is built and tested against `qt::workbench_window` — a window the
+shipped application does not contain. BPR-0188 measured it and allocated
+BPR-0189 through BPR-0191 to close it. Documentation reconciled by BPR-0098.
+RFC-BPR-0005 stays `Proposed` and its BPR-0101 closeout card stays in
 `backlog/`.
+
+Read the Composition section before the claim matrix. Every `Verified` row is
+true of the harness it names and true of nothing a user can open.
 
 ## Why this RFC can be implemented now
 
@@ -50,16 +55,55 @@ Introducing a second mapping, presentation-side regrouping, follower-scroll
 coupling, or synthetic alignment rows is a defect, not an implementation
 choice.
 
+## Composition
+
+The application shows `github_window`. It does not contain
+`workbench_window`, and never has.
+
+| Measurement | Result |
+|---|---|
+| `nm build/dev/src/app/better_pull_review \| c++filt \| grep -cF workbench_application_host` | `0` |
+| the same for `workbench_window` | `0` |
+| the same for `workbench_drawer` | `0` |
+| implementations of `workbench_settings_port` in `src/` | none |
+| implementations of `workbench_observation_port` in `src/` | none |
+
+So the shell this RFC is named for — primary navigation, compact overflow,
+drawers, the full-width detail pane, the declared focus order, the accessible
+names BPR-0097 repaired — has never been on screen. What the application does
+show is `github_window`, RFC-BPR-0002's window, which grew the RFC-BPR-0003 and
+RFC-BPR-0004 surfaces directly.
+
+Both windows compose `diff_workbench` and `epoch_comparison_control`. Two
+windows own one review surface, and the product shows the one that predates
+this RFC. BPR-0188 decided the shell becomes the application's window and
+recorded why the cheaper alternative was refused.
+
+Neither of this RFC's two ports has ever had an adapter. That is not an
+oversight that was tracked and deferred — a port satisfied by a fake never asks
+for one, so nothing ever reported it missing.
+
+The architecture allocation above is worth re-reading with this in mind. It
+names a fourth region, **Composition root**, whose selected responsibility is
+"wiring the workbench into the real application" and whose planned evidence is
+"selected public-path evidence through the real executable." That region was
+allocated at planning time and never delivered, and no row of the claim matrix
+covers it — the matrix has rows for the core, the host, and the adapter, and
+none for the composition root. The plan named the gap before the work started;
+the verification table simply had no line for it.
+
 ## Claim matrix
+
+Every row's `Direct surface` now names the harness it was proven against.
 
 | Claim | Direct surface | Command or interaction | What proves it | Result |
 |---|---|---|---|---|
-| Primary actions are top-level | Real application | Invoke previous/next file and change by button and shortcut at supported widths | Actions are reachable and keyboard addressable at every supported width, or move into an explicit compact overflow without losing keyboard access | Verified. `qt_workbench_window` at three scales; compact overflow keeps window association so shortcuts survive both modes |
-| Drawers return space to the centre | Real application | Collapse and reopen each drawer, measure the central viewport, restart | Central viewport width is restored and persisted widths survive restart | Verified. Central viewport measured across five drawer stages; collapse hides rather than zero-sizes so the splitter returns the width |
+| Primary actions are top-level | `qt_workbench_window` harness | Invoke previous/next file and change by button and shortcut at supported widths | Actions are reachable and keyboard addressable at every supported width, or move into an explicit compact overflow without losing keyboard access | Verified. `qt_workbench_window` at three scales; compact overflow keeps window association so shortcuts survive both modes |
+| Drawers return space to the centre | `qt_workbench_window` harness | Collapse and reopen each drawer, measure the central viewport, restart | Central viewport width is restored and persisted widths survive restart | Verified. Central viewport measured across five drawer stages; collapse hides rather than zero-sizes so the splitter returns the width |
 | Link map maps groups | Rendered fixture | Compare ribbon and wedge bounds and selected identity to the RFC-BPR-0004 model through scroll and resize | Every visible ribbon agrees with the canonical group model and stays monotonic and noncrossing | Verified. `test_composed_ribbons_follow_the_group_model_through_scroll_and_resize` checks visible ribbon identity and bounds against the canonical model through scroll and resize |
-| One shared scrollbar, no synthetic rows | Rendered composition | Inspect scrollbar policy on both panes and the document contents | Exactly one shared vertical scrollbar exists and neither document contains invented rows | Verified. Exactly one shared vertical scrollbar, both panes always-off, composed unchanged |
-| Lower pane is full-width detail | Real application | Select a group and inspect paired rows and central width | The pane spans the central width and its rows agree with the canonical mapping | Verified. Pane width equals the centre across five drawer stages; rows checked against `core::detail_for_selection` at canonically mapped lines |
-| Renderer is virtualized | Instrumented application | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified. 60/6,000/60,000 lines produce 68/68/68 window widgets, 29/29/29 surface, 5/5/5 pane |
+| One shared scrollbar, no synthetic rows | `qt_workbench_window` harness | Inspect scrollbar policy on both panes and the document contents | Exactly one shared vertical scrollbar exists and neither document contains invented rows | Verified. Exactly one shared vertical scrollbar, both panes always-off, composed unchanged |
+| Lower pane is full-width detail | `qt_workbench_window` harness | Select a group and inspect paired rows and central width | The pane spans the central width and its rows agree with the canonical mapping | Verified. Pane width equals the centre across five drawer stages; rows checked against `core::detail_for_selection` at canonically mapped lines |
+| Renderer is virtualized | Instrumented `qt_workbench_window` harness | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified of the harness. 60/6,000/60,000 lines produce 68/68/68 window widgets, 29/29/29 surface, 5/5/5 pane — measured on a window the application does not contain. BPR-0191 re-measures on the composed window and restates the figure if it differs |
 | Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Verified. Toggles and navigation emit core intents only; enablement and disabled reasons come from projections; drawer contents use insert/remove/data-change rather than reset |
 | Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Verified. Exact untruncated OIDs, four distinguishable textual states, declared focus order, unique accessible names and key sequences |
 | Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100, owner-attended — and blocked before it is deferred. BPR-0186 records that no launch can be inspected by a person at all: a fixture launch schedules an automated run and exits, and a launch with no fixture takes the real credentialed path. BPR-0187 records the real public pull request to judge it against |

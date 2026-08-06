@@ -3,7 +3,7 @@ id: BPR-0186
 title: Attended interactive launch, so a person can inspect the composition
 status: Backlog
 rfc: RFC-BPR-0005
-depends_on: [BPR-0097]
+depends_on: [BPR-0097, BPR-0191]
 ---
 
 # Attended interactive launch, so a person can inspect the composition
