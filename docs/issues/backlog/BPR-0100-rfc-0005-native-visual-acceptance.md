@@ -29,3 +29,30 @@ reads unauthenticated.
 
 Judge the assembled workbench against the recorded review, not against
 synthetic content.
+
+## An attended run happened on 2026-08-06 and did not satisfy this card
+
+The product owner was at the keyboard and authorised a live appearance change.
+`--native-appearance-probe` ran on a real Cocoa/`QMacStyle` display, Light →
+Dark, and passed every marker — the first time it has ever passed anywhere,
+because its automated contract can only prove it *refuses* offscreen.
+
+That run does not close this card, for a reason worth stating plainly: it
+inspected `github_window`. This card asks for the **assembled workbench**, and
+the rendered evidence corroborated BPR-0188 visually — no drawers, no primary
+navigation toolbar, no files or conversations panels appear, matching
+`workbench_window` reporting zero symbols in the shipped binary.
+
+What the run did establish, and what is worth keeping:
+
+- The composed window renders natively under `QMacStyle` and follows a real
+  operating-system scheme change: window, epoch control, and diff workbench
+  palettes invert, the diff font is unchanged, and geometry rebuilds exactly
+  once.
+- Two defects that the probe's own assertions do not cover, now carded as
+  BPR-0194: the selected line measures 1.11:1 against its background in Light,
+  and a menu button's dropdown indicator renders outside its frame.
+
+Both were found by a person looking at the captured rasters after every
+automated marker had reported OK. That is the argument for this card existing
+at all, and it applies again once the shell is the window.
