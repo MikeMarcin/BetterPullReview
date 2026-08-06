@@ -81,6 +81,28 @@ belongs to the appearance palette, and hard-coding a readable value in the
 widget would leave the same hole open for every other role while making the
 next reader believe the palette is in charge.
 
+### DEFERRED CLASS: owner-attended, for defect 1 only
+
+Not because the measurement is unclear — it is exact — but because the remedy
+is a visible product choice with a real cost either way, of the same kind as
+BPR-0118's line-height decision.
+
+The two honest routes, both of which reach 3:1:
+
+1. **Opaque or near-opaque band.** Simplest, and it dims or hides the syntax
+   colouring of the very line the reviewer is reading. On a code surface that
+   is a real loss, and it is the line they are most likely to be studying.
+2. **Keep the translucent fill and add a full-opacity non-colour marker** — a
+   left edge bar or outline. RFC-BPR-0006 already requires state to survive
+   without colour, so this direction is mandated rather than invented, and the
+   marker alone can carry the 3:1. It costs custom painting in a surface whose
+   bounded-widget behaviour is load-bearing for RFC-BPR-0005's virtualization
+   evidence.
+
+An implementer should not pick between these silently. Defect 2, the menu
+indicator escaping its button, is a plain layout bug with no such fork and
+needs no decision.
+
 Do not simply raise the alpha until the number passes. A full-opacity band
 hides the syntax colouring of the line it marks, which is a different defect on
 the same surface. The honest options are a lower alpha plus a non-colour
