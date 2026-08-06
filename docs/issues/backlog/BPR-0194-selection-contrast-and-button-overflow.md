@@ -21,6 +21,7 @@ selected row (`old-a`) against the row above it:
 |---|---|---|---|
 | Light | `#f3f3f3` | `#ffffff` | **1.11:1** |
 | Dark | `#404b59` | `#171717` | **2.02:1** |
+| Light, after BPR-0183 composed the palette | derived | `#ffffff` | **1.23:1** |
 
 WCAG's minimum for non-text user-interface components is **3:1**. Both fail.
 Light fails so badly the band is not perceptible.
@@ -46,12 +47,46 @@ selection indicator.
 That is the composition gap producing a user-visible defect, rather than merely
 an unshipped feature. It is the strongest argument yet for BPR-0183.
 
+### The cause, found by BPR-0183, is not the palette
+
+The original diagnosis on this card was that the shipped palette was at fault
+and that composing it would fix this. **That was wrong**, and BPR-0183 proved
+it by composing the palette and re-measuring: selection contrast moved from
+1.11:1 to 1.23:1. Still nowhere near 3:1.
+
+The cause is `src/adapters/qt/src/diff_workbench.cpp`:
+
+```cpp
+auto color = aPane.palette().color(QPalette::Highlight);
+color.setAlpha(72);
+```
+
+The band is the highlight colour at **28% opacity** over the pane background.
+At that alpha the requirement is unreachable by any colour whatsoever:
+
+| Pane | Best possible band | Contrast |
+|---|---|---|
+| light `#ffffff` | pure black at 28% → `#b7b7b7` | **2.01:1** |
+| dark `#171717` | pure white at 28% → `#595959` | **2.56:1** |
+
+So no palette change can satisfy 3:1 while `setAlpha(72)` stands. Refitting
+`code_selection_background` — the obvious fix, and the one this card originally
+prescribed — would have been work that could not possibly succeed, and the
+measurement would have come back barely moved.
+
 ### What the fix must not be
 
 Do not special-case the selection colour in the pane. The selection role
 belongs to the appearance palette, and hard-coding a readable value in the
 widget would leave the same hole open for every other role while making the
 next reader believe the palette is in charge.
+
+Do not simply raise the alpha until the number passes. A full-opacity band
+hides the syntax colouring of the line it marks, which is a different defect on
+the same surface. The honest options are a lower alpha plus a non-colour
+indicator (a gutter mark or an outline, which RFC-BPR-0006 already requires for
+state anyway), or an opaque band with a foreground the palette guarantees
+against it. Choose deliberately and record which.
 
 ## 2. A menu indicator renders outside its button
 

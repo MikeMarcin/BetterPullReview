@@ -68,7 +68,7 @@ build:
 |---|---|
 | `nm build/dev/src/app/better_pull_review \| c++filt \| grep -c appearance_application_host` | `0` at the time of measurement; **non-zero after BPR-0182** |
 | `nm build/dev/src/app/better_pull_review \| c++filt \| grep -c packaged_syntax_classifier` | `0` |
-| Non-test references to `appearance_profile` in `src/` | one stale include in `diff_workbench.hpp` |
+| Non-test references to `appearance_profile` in `src/` | one stale include at the time of measurement; **the composition owns one after BPR-0183** |
 | `grep -rln appearance src/app/` | `main.cpp` only, and only its test probe |
 | `BetterPullReview::AdapterSyntax` in the composition's link list | absent |
 

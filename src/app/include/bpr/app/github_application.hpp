@@ -34,9 +34,21 @@ namespace bpr::app {
 		// opposed to merely linking it. `nm` cannot tell those apart: the code
 		// is compiled and its symbols are present whether or not the
 		// constructor ever runs. This is the runtime half of that evidence.
-		bool               WorkbenchHostComposed  = false;
-		bool               AppearanceHostComposed = false;
-		core::epoch_status EpochStatus            = core::epoch_status::inactive;
+		bool WorkbenchHostComposed  = false;
+		bool AppearanceHostComposed = false;
+		// The window palette's selection and code-background colours after the
+		// profile was applied, as #rrggbb. Empty when no profile was applied.
+		// Reported rather than a bare boolean because "a profile exists" and
+		// "the palette reached the window" are different claims, and only the
+		// second one matters.
+		std::string AppliedSelectionColor;
+		std::string AppliedBaseColor;
+		// Whether those colours came from the appearance profile's semantic
+		// roles rather than from the platform style. Reporting the colours
+		// alone is not evidence: a window that was never given the profile
+		// still has well-formed colours.
+		bool               AppliedFromProfile = false;
+		core::epoch_status EpochStatus        = core::epoch_status::inactive;
 	};
 
 	/// \brief Provides the github application contract.

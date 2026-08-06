@@ -2004,6 +2004,17 @@ namespace {
 			   << (aApplication.status().AppearanceHostComposed
 					   ? "APPEARANCE_HOST_COMPOSED_OK\n"
 					   : "APPEARANCE_HOST_COMPOSED_FAILED\n");
+		// Reports the colours actually on the window, so a reader can check
+		// that presentation came from the appearance palette rather than from
+		// the platform style.
+		stream << "APPEARANCE_APPLIED:"
+			   << QString::fromStdString(
+					  aApplication.status().AppliedSelectionColor)
+			   << ':'
+			   << QString::fromStdString(aApplication.status().AppliedBaseColor)
+			   << (aApplication.status().AppliedFromProfile ? ":from-profile"
+															: ":from-platform")
+			   << '\n';
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Appearance.Enabled) {
 			stream << "NATIVE_APPEARANCE_TRANSITION:"

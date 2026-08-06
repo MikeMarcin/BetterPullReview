@@ -30,13 +30,17 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QFileInfo>
+#include <QGuiApplication>
+#include <QPalette>
 #include <QStandardPaths>
+#include <QStyleHints>
 #include <QTimer>
 
 #include <algorithm>
@@ -823,6 +827,31 @@ namespace bpr::app {
 				// stays a fresh installation until the reviewer chooses
 				// something.
 				AppearanceHost->restore();
+
+				// The Qt adapter is the presentation authority for appearance;
+				// the host owns the durable record and the span cache. The
+				// profile is therefore built *from* the host's settings after
+				// restore, so a stored mode is the one presentation starts on
+				// rather than one it is corrected to a frame later.
+				AppearanceProfile = std::make_unique<qt::appearance_profile>(
+					AppearanceHost->settings(),
+					native_appearance_observation());
+				AppearanceProfile->set_sink([this] { apply_appearance(); });
+
+				// The native scheme is an *observation*, not a setting. This is
+				// the inversion the whole slice exists for: before it, the
+				// operating system decided presentation directly and an
+				// explicit mode had nothing to ignore. Now the system reports
+				// and `core::resolve_appearance` decides.
+				if (auto* const hints = QGuiApplication::styleHints();
+					hints != nullptr) {
+					QObject::connect(
+						hints,
+						&QStyleHints::colorSchemeChanged,
+						Window.get(),
+						[this] { observe_native_appearance(); });
+				}
+				apply_appearance();
 			}
 		}
 
@@ -1002,6 +1031,80 @@ namespace bpr::app {
 			}
 		}
 
+		/// \brief Reads the operating system's appearance as a bounded fact.
+		[[nodiscard]] static auto native_appearance_observation() noexcept
+			-> core::appearance_observation
+		{
+			auto* const hints = QGuiApplication::styleHints();
+			if (hints == nullptr) {
+				return { };
+			}
+			auto observation = core::appearance_observation{ };
+			switch (hints->colorScheme()) {
+			case Qt::ColorScheme::Light:
+				observation.Scheme = core::os_color_scheme::light;
+				break;
+			case Qt::ColorScheme::Dark:
+				observation.Scheme = core::os_color_scheme::dark;
+				break;
+			case Qt::ColorScheme::Unknown:
+				observation.Scheme = core::os_color_scheme::unknown;
+				break;
+			}
+			return observation;
+		}
+
+		/// \brief Reports a changed operating-system appearance to both owners.
+		void observe_native_appearance()
+		{
+			if (Closing || !AppearanceProfile) {
+				return;
+			}
+			const auto observation = native_appearance_observation();
+			// Both, because they own different things: the host records the
+			// observation against its durable settings, and the profile
+			// re-resolves what presentation should look like. Telling only one
+			// leaves them disagreeing about the same fact.
+			if (AppearanceHost) {
+				AppearanceHost->observe(observation);
+			}
+			AppearanceProfile->observe(observation);
+		}
+
+		/// \brief Applies the resolved appearance to the composed window.
+		void apply_appearance()
+		{
+			if (Closing || !AppearanceProfile || Window == nullptr) {
+				return;
+			}
+			// Applied to the window, so every composed surface inherits it.
+			// `derive` maps the core's semantic roles onto Qt's palette roles,
+			// which is how `code_selection_background` becomes
+			// `QPalette::Highlight` - the selection colour BPR-0117 fitted for
+			// contrast and which, until now, nothing applied.
+			AppearanceProfile->apply_to(*Window);
+
+			// Read back off the window rather than off the profile. The claim
+			// is that the palette reached the window; asking the profile what
+			// it would have applied proves only that it decided something.
+			const auto& applied   = Window->palette();
+			AppliedSelectionColor = applied.color(QPalette::Highlight).name().toStdString();
+			AppliedBaseColor      = applied.color(QPalette::Base).name().toStdString();
+
+			// And whether those colours actually came from the profile. Without
+			// this the evidence is only that *some* colours were reported, which
+			// stays true when the window keeps the platform's own palette - a
+			// break that removed the application entirely still produced
+			// well-formed output. Compared against the profile's semantic roles,
+			// so the answer is no when presentation is still the platform's.
+			AppliedFromProfile = applied.color(QPalette::Highlight)
+					== AppearanceProfile->color(
+						core::appearance_role::code_selection_background)
+				&& applied.color(QPalette::Base)
+					== AppearanceProfile->color(
+						core::appearance_role::code_background);
+		}
+
 		void begin_shutdown()
 		{
 			if (Closing) {
@@ -1091,6 +1194,10 @@ namespace bpr::app {
 		std::unique_ptr<application::appearance_settings_port>       AppearanceSettings;
 		unlinked_syntax_classification                               SyntaxClassification;
 		composition_appearance_projections                           AppearanceProjections;
+		std::unique_ptr<qt::appearance_profile>                      AppearanceProfile;
+		std::string                                                  AppliedSelectionColor;
+		std::string                                                  AppliedBaseColor;
+		bool                                                         AppliedFromProfile = false;
 		std::unique_ptr<application::epoch_entropy_port>             EpochEntropy;
 		std::unique_ptr<application::epoch_clock_port>               EpochClock;
 		worker_executor                                              EpochEffects;
@@ -1153,6 +1260,9 @@ namespace bpr::app {
 			.EpochStatus                   = Implementation->EpochHost->state().Status,
 			.WorkbenchHostComposed         = Implementation->WorkbenchHost != nullptr,
 			.AppearanceHostComposed        = Implementation->AppearanceHost != nullptr,
+			.AppliedSelectionColor         = Implementation->AppliedSelectionColor,
+			.AppliedBaseColor              = Implementation->AppliedBaseColor,
+			.AppliedFromProfile            = Implementation->AppliedFromProfile,
 		};
 	}
 
