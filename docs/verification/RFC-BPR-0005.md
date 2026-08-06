@@ -62,7 +62,7 @@ The application shows `github_window`. It does not contain
 
 | Measurement | Result |
 |---|---|
-| `nm build/dev/src/app/better_pull_review \| c++filt \| grep -cF workbench_application_host` | `0` |
+| `nm build/dev/src/app/better_pull_review \| c++filt \| grep -cF workbench_application_host` | `0` at the time of measurement; **1393 after BPR-0190** |
 | the same for `workbench_window` | `0` |
 | the same for `workbench_drawer` | `0` |
 | implementations of `workbench_settings_port` in `src/` | none at the time of measurement; **supplied by BPR-0189** |

@@ -1994,6 +1994,13 @@ namespace {
 				   << (aRun.LedgerRoundTripped ? "REVIEW_LEDGER_OK\n"
 											   : "REVIEW_LEDGER_FAILED\n");
 		}
+		// The runtime half of the composed-host evidence. `nm` proves the
+		// workbench host is linked; only the running application can say its
+		// constructor ran. Disabling the construction leaves every symbol in
+		// place, so a symbol check alone would still report success.
+		stream << (aApplication.status().WorkbenchHostComposed
+					   ? "WORKBENCH_HOST_COMPOSED_OK\n"
+					   : "WORKBENCH_HOST_COMPOSED_FAILED\n");
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Appearance.Enabled) {
 			stream << "NATIVE_APPEARANCE_TRANSITION:"

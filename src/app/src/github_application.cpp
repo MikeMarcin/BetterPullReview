@@ -20,11 +20,14 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
+#include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/workbench_application_host.hpp"
+#include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 
@@ -398,6 +401,53 @@ namespace bpr::app {
 		}
 	}
 
+	/// \brief Holds the workbench projections until a surface consumes them.
+	///
+	/// \details BPR-0190 composes the workbench host; BPR-0191 makes the shell
+	/// the application's window. Between the two, the host is real - it
+	/// restores a durable layout, runs its effects, and quiesces on shutdown -
+	/// but nothing renders what it publishes, because `github_window` does not
+	/// implement `workbench_projection_port` and `workbench_window` is not the
+	/// application's window yet.
+	///
+	/// This sink exists so that intermediate state is stated rather than
+	/// disguised. It retains the last projection and counts what it received,
+	/// which is what the composition test asserts against. It is deliberately
+	/// not a second presentation authority: it renders nothing and decides
+	/// nothing, and BPR-0191 replaces it with the shell.
+	class composition_workbench_projections final
+		: public application::workbench_projection_port
+	{
+	public:
+		void publish(const application::workbench_projection& aProjection) override
+		{
+			Last = aProjection;
+			++Published;
+		}
+
+		void fail(const application::workbench_failure_publication& aFailure) override
+		{
+			LastFailure = aFailure;
+			++Failed;
+		}
+
+		[[nodiscard]] auto published() const noexcept -> std::size_t
+		{
+			return Published;
+		}
+
+		[[nodiscard]] auto failed() const noexcept -> std::size_t
+		{
+			return Failed;
+		}
+
+	private:
+		std::optional<application::workbench_projection>          Last;
+		std::optional<application::workbench_failure_publication> LastFailure;
+		std::size_t                                               Published = 0U;
+		std::size_t                                               Failed    = 0U;
+	};
+
 	class github_application::implementation final
 		: public application::github_epoch_handoff_port
 	{
@@ -585,6 +635,19 @@ namespace bpr::app {
 			if (ledger) {
 				ReviewLedger = std::move(*ledger);
 			}
+			// The workbench layout is a third database beside the catalog and
+			// the ledger, for the same reason those two are apart: deleting one
+			// kind of local state must not destroy another. Losing a drawer
+			// width must not lose reading progress. Composition failure is not
+			// fatal - a reviewer whose layout cannot be stored still gets the
+			// composed defaults.
+			auto layout = adapters::sqlite::make_workbench_settings_store({
+				.StorageRoot = applicationDataRoot,
+			});
+			if (layout) {
+				WorkbenchSettings = std::move(*layout);
+			}
+
 			EpochEntropy = application::make_system_epoch_entropy();
 			EpochClock   = application::make_system_epoch_clock();
 			if (!EpochEntropy || !EpochClock) {
@@ -617,6 +680,24 @@ namespace bpr::app {
 				DecisionLane,
 				*Window->diff_comparison_workbench());
 
+			// The workbench observes the review's files through the read model
+			// the provider already produces. The supplier is read at call time
+			// rather than captured, because the accepted snapshot changes as
+			// the reviewer opens pull requests.
+			WorkbenchObservations = std::make_unique<
+				application::snapshot_workbench_observation>(
+				[this](const core::pull_request_authority&)
+					-> std::optional<
+						std::vector<application::github_file_record>> {
+					const auto& snapshot = Host->accepted_snapshot();
+					if (!snapshot) {
+						// Not held is not the same as no files. The port keeps
+						// that distinction and so must this.
+						return std::nullopt;
+					}
+					return snapshot->Files;
+				});
+
 			Host = std::make_unique<application::github_application_host>(
 				initial_github_state(),
 				*Provider,
@@ -630,6 +711,26 @@ namespace bpr::app {
 				application::github_credential_shutdown_policy::
 					delete_retained_on_shutdown,
 				this);
+
+			// Composed last, because its observation supplier reads `Host`.
+			// Only when a durable layout store exists: the host requires a
+			// settings port, and a reviewer whose layout cannot be stored is
+			// better served by the composed defaults than by no workbench.
+			if (WorkbenchSettings) {
+				WorkbenchHost = std::make_unique<
+					application::workbench_application_host>(
+					core::workbench_interaction_state{ },
+					*WorkbenchObservations,
+					*WorkbenchSettings,
+					WorkbenchEffects,
+					DecisionLane,
+					WorkbenchProjections,
+					core::application_session_id{ 1U });
+				// Reads the durable layout. The host's own contract is that
+				// restoring never writes it back, so a launch that only looks
+				// leaves a fresh installation looking fresh.
+				WorkbenchHost->restore();
+			}
 		}
 
 		~implementation() override
@@ -814,6 +915,14 @@ namespace bpr::app {
 				return;
 			}
 			Closing = true;
+			// Every composed host must be told, or the shutdown poll waits on a
+			// host that was never asked to stop and the application never
+			// exits. Adding a host to the composition without adding it here is
+			// a hang, not a leak, and it presents as a test timeout rather than
+			// as anything that names the cause.
+			if (WorkbenchHost) {
+				WorkbenchHost->shutdown();
+			}
 			DiffHost->shutdown();
 			EpochHost->shutdown();
 			Host->shutdown();
@@ -842,13 +951,15 @@ namespace bpr::app {
 			}
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
-				|| !Host->is_quiescent()) {
+				|| !Host->is_quiescent()
+				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())) {
 				schedule_shutdown_poll();
 				return;
 			}
 
 			ShutdownCleanupFailed         = Host->shutdown_cleanup_failed();
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
+			WorkbenchEffects.close_and_drain();
 			DiffEffects.close_and_drain();
 			EpochEffects.close_and_drain();
 			Provider->shutdown();
@@ -868,28 +979,33 @@ namespace bpr::app {
 		std::size_t                                                    EpochDeleteIntentDispatchCount = 0U;
 		std::size_t                                                    EpochCancelIntentDispatchCount = 0U;
 #endif
-		std::unique_ptr<application::github_credential_vault_port> OwnedVault;
-		std::shared_ptr<github_wire_transport_factory_port>        TransportFactory;
-		std::unique_ptr<github_provider>                           Provider;
-		qt::event_loop_executor                                    DecisionLane;
-		std::unique_ptr<qt::github_window>                         Window;
-		application::github_credential_binding_catalog             CredentialBindings;
-		std::unique_ptr<application::git_cache_port>               GitCaches;
-		std::unique_ptr<application::epoch_catalog_port>           EpochCatalogs;
-		std::unique_ptr<application::review_ledger_store_port>     ReviewLedger;
-		std::unique_ptr<application::epoch_entropy_port>           EpochEntropy;
-		std::unique_ptr<application::epoch_clock_port>             EpochClock;
-		worker_executor                                            EpochEffects;
-		worker_executor                                            DiffEffects;
-		std::unique_ptr<application::epoch_application_host>       EpochHost;
-		std::unique_ptr<application::diff_application_host>        DiffHost;
-		std::unique_ptr<application::github_application_host>      Host;
-		bool                                                       Closing                       = false;
-		bool                                                       ShutdownPollScheduled         = false;
-		bool                                                       ShutdownComplete              = false;
-		bool                                                       ShutdownCleanupFailed         = false;
-		bool                                                       NativePlatformVaultSelected   = false;
-		bool                                                       EpochProjectionDeliveryFailed = false;
+		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
+		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
+		std::unique_ptr<github_provider>                             Provider;
+		qt::event_loop_executor                                      DecisionLane;
+		std::unique_ptr<qt::github_window>                           Window;
+		application::github_credential_binding_catalog               CredentialBindings;
+		std::unique_ptr<application::git_cache_port>                 GitCaches;
+		std::unique_ptr<application::epoch_catalog_port>             EpochCatalogs;
+		std::unique_ptr<application::review_ledger_store_port>       ReviewLedger;
+		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
+		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
+		std::unique_ptr<application::epoch_entropy_port>             EpochEntropy;
+		std::unique_ptr<application::epoch_clock_port>               EpochClock;
+		worker_executor                                              EpochEffects;
+		worker_executor                                              DiffEffects;
+		worker_executor                                              WorkbenchEffects;
+		composition_workbench_projections                            WorkbenchProjections;
+		std::unique_ptr<application::epoch_application_host>         EpochHost;
+		std::unique_ptr<application::diff_application_host>          DiffHost;
+		std::unique_ptr<application::workbench_application_host>     WorkbenchHost;
+		std::unique_ptr<application::github_application_host>        Host;
+		bool                                                         Closing                       = false;
+		bool                                                         ShutdownPollScheduled         = false;
+		bool                                                         ShutdownComplete              = false;
+		bool                                                         ShutdownCleanupFailed         = false;
+		bool                                                         NativePlatformVaultSelected   = false;
+		bool                                                         EpochProjectionDeliveryFailed = false;
 	};
 
 	github_application::github_application(github_application_config aConfig)
@@ -932,6 +1048,7 @@ namespace bpr::app {
 			.EpochProjectionDeliveryFailed = Implementation->EpochProjectionDeliveryFailed,
 			.EpochHandoffDeliveryFailed    = Implementation->Host->epoch_handoff_delivery_failed(),
 			.EpochStatus                   = Implementation->EpochHost->state().Status,
+			.WorkbenchHostComposed         = Implementation->WorkbenchHost != nullptr,
 		};
 	}
 

@@ -274,7 +274,7 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+DIFF_WORKBENCH_OK[\r\n]+DIFF_INTERACTION_EVIDENCE_OK[\r\n]+RENDER_OK[\r\n]+REVIEW_LEDGER_PRESENT_ON_ENTRY:0[\r\n]+REVIEW_LEDGER_OK"
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:github.com[\r\n]+DIFF_WORKBENCH_OK[\r\n]+DIFF_INTERACTION_EVIDENCE_OK[\r\n]+RENDER_OK[\r\n]+REVIEW_LEDGER_PRESENT_ON_ENTRY:0[\r\n]+REVIEW_LEDGER_OK[\r\n]+WORKBENCH_HOST_COMPOSED_OK"
 )
 bpr_bound_automated_run(
     application_diff_workbench_public_path
@@ -464,6 +464,20 @@ set_tests_properties(
     PROPERTIES
         PASS_REGULAR_EXPRESSION "RUNTIME_SURFACE_OK"
         TIMEOUT 15
+)
+
+add_test(
+    NAME composed_application_hosts
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/scripts/verify_composed_hosts.py"
+        $<TARGET_FILE:app_better_pull_review>
+)
+set_tests_properties(
+    composed_application_hosts
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "COMPOSED_HOSTS_OK"
+        TIMEOUT 30
 )
 
 add_test(

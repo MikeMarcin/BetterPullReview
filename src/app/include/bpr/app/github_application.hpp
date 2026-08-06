@@ -24,13 +24,18 @@ namespace bpr::app {
 	/// \brief Describes the github application status record.
 	struct github_application_status
 	{
-		bool               Closing                       = false;
-		bool               ShutdownComplete              = false;
-		bool               ShutdownCleanupFailed         = false;
-		bool               NativePlatformVaultSelected   = false;
-		bool               EpochProjectionDeliveryFailed = false;
-		bool               EpochHandoffDeliveryFailed    = false;
-		core::epoch_status EpochStatus                   = core::epoch_status::inactive;
+		bool Closing                       = false;
+		bool ShutdownComplete              = false;
+		bool ShutdownCleanupFailed         = false;
+		bool NativePlatformVaultSelected   = false;
+		bool EpochProjectionDeliveryFailed = false;
+		bool EpochHandoffDeliveryFailed    = false;
+		// Whether the composition actually constructed the workbench host, as
+		// opposed to merely linking it. `nm` cannot tell those apart: the code
+		// is compiled and its symbols are present whether or not the
+		// constructor ever runs. This is the runtime half of that evidence.
+		bool               WorkbenchHostComposed = false;
+		core::epoch_status EpochStatus           = core::epoch_status::inactive;
 	};
 
 	/// \brief Provides the github application contract.
