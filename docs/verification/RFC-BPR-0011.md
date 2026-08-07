@@ -81,14 +81,14 @@ unstarted.
 
 | Claim | Direct surface | Command or interaction | What will prove it | Result |
 |---|---|---|---|---|
-| The agent owns authentication | Host, fixture process | Launch and inspect the child's argv and environment | No credential appears, and no request type has a field one could occupy | Unstarted (BPR-0175) |
-| Host policy is enforced | Core | Select a forbidden personal provider on a corporate host | Refused by policy, and the refusal names which host forbade it | Unstarted (BPR-0172) |
-| Every invocation is explicit | Core plus Qt | Refresh, navigate, and receive new activity | No launch occurs without a user command; the Qt path emits an intent and launches nothing itself | Unstarted (BPR-0172, BPR-0177) |
-| Context never travels in argv | Host | Launch with a context supplement | The supplement reaches the child over its input channel, and the argv is inspected in full | Unstarted (BPR-0175) |
-| A session is revision-pinned | Core | Move the head under a live session | The session becomes stale rather than retargeting, and the original identity is retained | Unstarted (BPR-0173) |
-| The supplement carries only local state | Core | Build a supplement for a review | It carries what GitHub cannot supply, and no provider credential or token | Unstarted (BPR-0174) |
-| A disposable workspace is pinned | Host | Prepare a workspace and dirty the active worktree | The workspace matches the session's head and is unaffected | Unstarted (BPR-0176) |
-| Existing-checkout mode is explicit | Host plus Qt | Choose an existing checkout with uncommitted changes | The choice is deliberate and the dirty-worktree risk is shown | Unstarted (BPR-0176, BPR-0177) |
+| The agent owns authentication | Core types, and a real child process | `core_agent_profile`, `application_agent_launch`, `qt_agent_launch_canary` | No credential appears, and no request type has a field one could occupy | **Verified** (BPR-0172, BPR-0175). `agent_profile` and `agent_context_supplement` each have a guard that reads the type; adding a `Token` field fails to compile. The canary launches a real child and reports its own environment, compared name for name against the whole allowlist while the parent holds three planted secrets. Inheriting the system environment in the launcher fails it. |
+| Host policy is enforced | Core | `core_agent_profile` | Refused by policy, and the refusal names which host forbade it | **Verified** (BPR-0172). The verdict carries `RefusedBy` and, where a host requires a profile, `RequiredInstead`. An unmapped host refuses before any other check, so a well-formed profile cannot reach a permissive answer there; making it permit fails the suite. |
+| Every invocation is explicit | Qt, structurally | `qt_agent_launch_panel`, `architecture_boundaries` | No launch occurs without a user command; the Qt path emits an intent and launches nothing itself | **Verified structurally** (BPR-0177). `agent_launch_panel` holds no process and no launcher, and the architecture scan enforces that the whole Qt adapter contains no `QProcess` — so a refresh or a navigation cannot reach one because there is none to reach. The refresh-and-navigate interaction the row originally imagined is not run, because there is no composed surface to run it against; see *Not delivered*. |
+| Context never travels in argv | Host, and a real child | `application_agent_launch`, `qt_agent_launch_canary` | The supplement reaches the child over its input channel, and the argv is inspected in full | **Verified** (BPR-0175). `agent_launch_request` separates `Arguments` from `Input` and `build_agent_launch` has no branch reading the supplement into the former. argv is compared argument for argument — in the request and again from the child — and the note is found on standard input. |
+| A session is revision-pinned | Core | `core_agent_session` | The session becomes stale rather than retargeting, and the original identity is retained | **Verified** (BPR-0173). Nothing in the header rewrites a binding; `continue_against_binding` returns the session's own unconditionally. The epoch pair is part of the identity, asserted after first asserting both bindings agree on every revision. |
+| The supplement carries only local state | Core | `core_agent_context_supplement` | It carries what GitHub cannot supply, and no provider credential or token | **Verified** (BPR-0174). `Notes` is copied from `SelectedNotes` and from nowhere else — the builder holds no note store — so an unselected note has no source rather than being filtered out. The default case is compared field for field against a fully specified empty supplement. |
+| A disposable workspace is pinned | Host | `application_agent_workspace` | The workspace matches the session's head and is unaffected | **Verified** (BPR-0176). The pin is `Binding.HeadOid`, never the checkout's. The same workspace is prepared twice with the worktree dirtied in between and the pin does not move. |
+| Existing-checkout mode is explicit | Host plus Qt | `application_agent_workspace`, `qt_agent_launch_panel` | The choice is deliberate and the dirty-worktree risk is shown | **Verified** (BPR-0176, BPR-0177). A profile cannot opt itself in: the mode is refused without a choice made for this invocation, carried on the intent rather than read from a setting. `checkout_cleanliness` keeps `unknown` distinct from `clean`, so a host that could not determine the state cannot report the reassuring answer. The toggle's tooltip states the risk; whether that wording is sufficient is a presentation question no attended review has yet judged. |
 
 ## Cards
 
@@ -102,3 +102,57 @@ unstarted.
 | BPR-0177 | Qt: explicit launch, disclosure, cancellation |
 | BPR-0178 | Documentation: extend `docs/architecture/ai-agent-boundary.md` |
 | BPR-0179 | Simplification and closeout preparation |
+
+## Simplification
+
+One behaviour-preserving removal, and the reasoning for what was *not* removed.
+
+**Removed: the `sizeof`-sum credential guard.** `core_agent_context_supplement`
+first asserted the struct's size against the sum of its members. It was
+replaced by a structured binding over every field. The sum had to be
+hand-computed with padding — it was wrong on the first attempt — and it fails
+for the wrong reason on a layout change while passing for a field swapped with
+one of equal size. The binding form requires the exact field count and names
+each one.
+
+`core_agent_profile` still uses the sum form. It was left alone deliberately:
+it is committed, it was *proven* to fire on a `Token` field, and rewriting a
+working guard to match a sibling's style is churn rather than simplification.
+The reasoning is recorded here so the next person choosing between the two
+forms does not have to rediscover it.
+
+**Not removed: `agent_run_outcome::failed_to_start`.** Nothing in the suite
+reaches it, because the canary always starts. It stays because the state is
+real — an executable a reviewer configured wrongly — and deleting it would
+force the launcher to report a failure to start as a cancellation, which is a
+different thing to a reviewer.
+
+**Not removed: the `external_terminal` protocol.** It carries no arguments and
+nothing exercises it end to end. The RFC makes it mandatory: a corporate
+harness exposing no supported machine-readable interface must still be
+launchable, and removing it would push reviewers onto a personal provider
+their host forbids.
+
+## Closeout preparation
+
+RFC-BPR-0011 stays **`Proposed`**. No closure claim is made, and closure order
+is unchanged: RFC-BPR-0002 still needs real Windows x64 evidence (BPR-0036),
+and every later RFC inherits that block.
+
+### Not delivered
+
+Named rather than left for a reader to infer from silence:
+
+- **Nothing composes the agent surface.** `agent_launch_panel` is built,
+  tested, and shown by no window; `review_queue_notifier`'s neighbours are
+  composed but this is not. `verify_composed_hosts.py` will say so the day it
+  is, and until then the honest statement is that a reviewer cannot invoke an
+  agent in the product.
+- **No agent tool is ever really run.** The canary is the RFC's named surface.
+  A smoke test against an installed Codex or Claude harness is optional extra
+  validation, not a gate — checked against the RFC text rather than assumed.
+- **No streaming, findings, chat, or MCP helper.** RFC-BPR-0012 owns those.
+- **No result events or session store.** A session records what was asked; what
+  came back, and where sessions live, are not this RFC's.
+- **The existing-checkout risk wording is unjudged.** It is shown, and no
+  attended review has said whether it is enough.
