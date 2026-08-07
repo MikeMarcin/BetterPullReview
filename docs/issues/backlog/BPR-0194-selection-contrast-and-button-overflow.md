@@ -105,6 +105,13 @@ nothing, because nothing is painted underneath it. Neither candidate could be
 judged on its merits, and offering them was a mistake in how the decision was
 framed, not in how it was measured.
 
+The reference behaves like the wash, not the band. The owner observed that
+p4merge tints a multi-line selection while the syntax colouring survives
+underneath — which is the candidate they called "best in terms of the
+selection" before rejecting the batch on other grounds. Weigh that when this is
+re-presented; the opaque band is no longer the option with a reference behind
+it.
+
 **This card is blocked behind BPR-0196.** Re-present the selection treatment
 once a selected line has an added-line tint, intraline emphasis, and syntax
 colour beneath it to compete with.

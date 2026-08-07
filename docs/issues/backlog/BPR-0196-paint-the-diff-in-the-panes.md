@@ -65,6 +65,67 @@ not be answered on the evidence offered, and the owner was right to refuse it.
 Decide the selection treatment once a selected line has an added-line tint,
 intraline emphasis, and syntax colour underneath it to compete with.
 
+## The reference the owner supplied, read precisely
+
+Two p4merge captures were provided, dark and light. The owner's judgement:
+light reads better than dark. What the light capture actually does, in the
+order it matters:
+
+| Element | Treatment |
+|---|---|
+| Unchanged lines | **no tint at all**, plain background — the eye goes straight to what moved |
+| Removed / left-only lines | pale lavender across the full pane width |
+| Added / right-only lines | pale mint green across the full pane width |
+| Changed spans inside a tinted line | a **second, stronger** box within the tint |
+| Change blocks | delimited by dashed rules, connectors across the gutter |
+| Syntax colouring | full, and legible **on top of** the tints |
+| Selection | a blue **tint over a multi-line range**; syntax colouring survives underneath it |
+
+Two properties are load-bearing and easy to lose:
+
+- **The tints are pale because syntax colour has to survive on them.** A
+  saturated added-line background that swallows the keyword colouring trades
+  one signal for another rather than adding one.
+- **Intraline emphasis is a second level on top of the line tint**, not a
+  replacement for it. A reviewer sees "this line changed" and "this is the part
+  that changed" simultaneously; collapsing them to one level loses the cheaper
+  of the two.
+
+### What this settles for BPR-0194, after two corrections
+
+The owner corrected two claims made here from their captures, and both
+corrections point the same way.
+
+First: an earlier draft said the selection covered "exactly one line". It does
+not — the third capture shows a range of roughly twenty lines.
+
+Second: this section then said the syntax colouring was *lost* under the
+selection. It is not. Pointing at
+`// We only check for SSE3 instruction set. SSSE3 instructions are not used.`,
+the owner observed the colouring survives beneath the band. The selection
+**tints** rather than replaces.
+
+So the reference does what the owner's preferred candidate did: a translucent
+wash that preserves what is underneath, applied across a range. The opaque band
+this card previously read into the screenshots was never there.
+
+**A limit on this kind of evidence, recorded because it produced two wrong
+claims.** Structure reads reliably from these captures — tints, change blocks,
+connectors, the extent of a selection. Per-glyph foreground colour under a
+translucent band does not. Do not assert token-level colour from a downscaled
+screenshot; measure it from a capture this repository produced, or ask.
+
+### A capability gap the correction exposed
+
+`set_line_selection` takes a single `std::optional<core::source_line_ref>`.
+BetterPullReview can mark **one line**. The reference selects a multi-line
+range across a change block.
+
+That is a functional difference rather than a presentation one, and nothing on
+the board currently owns it. Decide whether range selection is in scope before
+choosing a selection treatment, because a marking that reads well on one line
+and badly across twenty is not the same choice.
+
 ## What this card must not become
 
 Do not paint colours the core did not decide. The semantic model already
