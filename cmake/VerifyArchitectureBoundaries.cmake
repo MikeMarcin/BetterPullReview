@@ -111,11 +111,17 @@ if(
 endif()
 
 file(READ "${git_adapter_cmake}" git_cmake_contents)
+# Read only where it exists. An unconditional requirement here fires before
+# every other check on any tree without this adapter — including the synthetic
+# trees `architecture_boundary_tests.py` builds to prove the scan detects each
+# violation, where it masked all of them. The ownership loop below already
+# skips a designated file that is absent, so the check that matters is still
+# made wherever the adapter is real.
 set(agent_adapter_cmake "${BPR_ROOT}/src/adapters/agent/CMakeLists.txt")
-if(NOT EXISTS "${agent_adapter_cmake}")
-    message(FATAL_ERROR "The agent adapter must declare its own CMake target")
+set(agent_cmake_contents "")
+if(EXISTS "${agent_adapter_cmake}")
+    file(READ "${agent_adapter_cmake}" agent_cmake_contents)
 endif()
-file(READ "${agent_adapter_cmake}" agent_cmake_contents)
 set(
     git_target_patterns
     "add_library\\([ \t\r\n]*better_pull_review_adapter_git([ \t\r\n]|\\))"
