@@ -54,6 +54,15 @@ set(
     git_process_runner_relative
     "src/adapters/git/src/installed_git_process.cpp"
 )
+# The third designated process owner, added by BPR-0175. RFC-BPR-0011 launches
+# separately installed agent tools, which is a process this product starts and
+# does not audit; it therefore needs an owner of its own rather than borrowing
+# the Git adapter's. The list is deliberately short and adding to it is
+# deliberately a visible act.
+set(
+    agent_process_runner_relative
+    "src/adapters/agent/src/agent_process_launcher.cpp"
+)
 set(
     git_process_port_relative
     "src/application/include/bpr/application/git_process_port.hpp"
@@ -102,6 +111,11 @@ if(
 endif()
 
 file(READ "${git_adapter_cmake}" git_cmake_contents)
+set(agent_adapter_cmake "${BPR_ROOT}/src/adapters/agent/CMakeLists.txt")
+if(NOT EXISTS "${agent_adapter_cmake}")
+    message(FATAL_ERROR "The agent adapter must declare its own CMake target")
+endif()
+file(READ "${agent_adapter_cmake}" agent_cmake_contents)
 set(
     git_target_patterns
     "add_library\\([ \t\r\n]*better_pull_review_adapter_git([ \t\r\n]|\\))"
@@ -991,6 +1005,9 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         if(current_allowed_relative MATCHES "^src/adapters/git/")
             set(effect_owner_cmake "${git_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_git")
+        elseif(current_allowed_relative MATCHES "^src/adapters/agent/")
+            set(effect_owner_cmake "${agent_cmake_contents}")
+            set(effect_owner_target "better_pull_review_adapter_agent")
         else()
             set(effect_owner_cmake "${github_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_github")
@@ -1010,12 +1027,14 @@ verify_effect_owner(
     "QProcess"
     "${github_process_runner_relative}"
     "${git_process_runner_relative}"
+    "${agent_process_runner_relative}"
 )
 verify_effect_owner(
     "QProcessEnvironment"
     "QProcessEnvironment"
     "${github_process_runner_relative}"
     "${git_process_runner_relative}"
+    "${agent_process_runner_relative}"
 )
 verify_effect_owner(
     "QNetworkAccessManager"

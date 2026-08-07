@@ -261,6 +261,50 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+# The canary is a real process, so the launcher's guarantee is measured
+# against what a child actually receives rather than against the request.
+bpr_add_executable(
+    test_better_pull_review_agent_canary
+    "${PROJECT_SOURCE_DIR}/tests/fixtures/agent/agent_canary_main.cpp"
+)
+target_compile_features(test_better_pull_review_agent_canary PRIVATE cxx_std_23)
+bpr_enable_hardening(test_better_pull_review_agent_canary)
+bpr_enable_warnings(test_better_pull_review_agent_canary)
+
+bpr_add_executable(
+    test_better_pull_review_qt_agent_launch_canary_tests
+    agent_launch_canary_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_agent_launch_canary_tests
+    PRIVATE
+        BetterPullReview::AdapterAgent
+        Qt6::Core
+)
+target_compile_definitions(
+    test_better_pull_review_qt_agent_launch_canary_tests
+    PRIVATE
+        "BPR_AGENT_CANARY_EXECUTABLE=\"$<TARGET_FILE:test_better_pull_review_agent_canary>\""
+)
+add_dependencies(
+    test_better_pull_review_qt_agent_launch_canary_tests
+    test_better_pull_review_agent_canary
+)
+bpr_enable_hardening(test_better_pull_review_qt_agent_launch_canary_tests)
+bpr_enable_warnings(test_better_pull_review_qt_agent_launch_canary_tests)
+
+add_test(
+    NAME qt_agent_launch_canary
+    COMMAND test_better_pull_review_qt_agent_launch_canary_tests
+)
+set_tests_properties(
+    qt_agent_launch_canary
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "agent-launch-canary-tests:pass"
+        TIMEOUT 120
+)
+
 # Linked against both adapters on purpose. Each is proven on its own elsewhere;
 # only a target that carries the two together can show the classifier's answer
 # arriving in the pane's rendered formats.

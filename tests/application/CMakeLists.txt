@@ -353,6 +353,28 @@ add_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_agent_launch_tests
+    agent_launch_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_launch_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_agent_launch_tests)
+bpr_enable_warnings(test_better_pull_review_agent_launch_tests)
+
+add_test(
+    NAME application_agent_launch
+    COMMAND test_better_pull_review_agent_launch_tests
+)
+set_tests_properties(
+    application_agent_launch
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-launch-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_notification_delivery_tests
     notification_delivery_tests.cpp
 )
