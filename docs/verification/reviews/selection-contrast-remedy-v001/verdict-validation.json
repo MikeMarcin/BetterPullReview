@@ -1,0 +1,36 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "recorded_at": "2026-08-07T04:15:36Z",
+  "batch_id": "bpr:/attended-review/betterpullreview/e50fdb53f4dc541069051598",
+  "review_gate": "selection_contrast_remedy",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/selection-contrast-remedy-v001/offline-package/attended-review-manifest.json --verdict docs/verification/reviews/selection-contrast-remedy-v001/human-verdict.json",
+  "result": "valid complete verdict",
+  "outcome": "all_subjects_rejected",
+  "manifest": {
+    "path": "docs/verification/reviews/selection-contrast-remedy-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:87af00040a2ef8c5421081551f90f36eb8d88253b9ccf842560b92320922e4c2",
+    "byte_length": 12538
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/selection-contrast-remedy-v001/human-verdict.json",
+    "sha256": "sha256:2b9411ec8074accf361a722745a25755e6ade56ed4f42d948e54e60c660fdeac",
+    "byte_length": 1901
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:f1518d23cfa91eb181a60f693e900cb50f4e3be58d3bad4981797f07120ee6f4",
+    "byte_length": 32152
+  },
+  "claims": {
+    "verdict_validated_against_its_batch_manifest": true,
+    "any_subject_accepted": false,
+    "bpr_0194_closed": false,
+    "selection_remedy_chosen": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false,
+    "all_four_palettes_audited": false,
+    "dark_scheme_verified": false
+  }
+}

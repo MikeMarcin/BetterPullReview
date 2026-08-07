@@ -1,0 +1,38 @@
+{
+  "producing_command": "better_pull_review --github-fixture github-com --diff-workbench-probe --diff-interaction-evidence <dir> --render-evidence <png> --automated-run-budget-ms 30000",
+  "frame": "int/01-selected-composition.png",
+  "commit": "47c8ab4",
+  "preset": "dev",
+  "configuration": "Debug",
+  "platform": "macOS 15.7.7 arm64",
+  "qt_version": "6.11.1",
+  "qpa_platform": "offscreen",
+  "device_pixel_ratio": 1.0,
+  "scheme": "light (offscreen reports Unknown; core resolves the light default)",
+  "captures": {
+    "current-full.png": {
+      "sha256": "a43e529cd65591001a4848152fafe60f2afae5fa906076eed1b25433624e422d",
+      "bytes": 128513
+    },
+    "current-zoom.png": {
+      "sha256": "67a839e24d4c2cb06149f333e50b96c87fca8b2e6dc0d5e716963870ac0356bb",
+      "bytes": 12440
+    },
+    "opaque-full.png": {
+      "sha256": "0210feb8c9e54bcee44c0c4eed5e48b8e3e0a4c4156c9ecc4396e71793fa1600",
+      "bytes": 128524
+    },
+    "opaque-zoom.png": {
+      "sha256": "c5dc9875f9d3bbf8331cc5f2ea2521604c975e03fc4908cea74d506feeea729d",
+      "bytes": 12683
+    },
+    "wash-full.png": {
+      "sha256": "3ed1149523dd5a91aab66b3b7a505319abe8e2cf1cc6bddd865be3d0036289f0",
+      "bytes": 128525
+    },
+    "wash-zoom.png": {
+      "sha256": "77547c029922ba6d57ff1310320b175fe8a52e095179ecc80fe8a309be5b6281",
+      "bytes": 12558
+    }
+  }
+}

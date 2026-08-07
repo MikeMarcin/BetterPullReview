@@ -1,0 +1,189 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Selected-line indication remedy (BPR-0194, RFC-BPR-0006)",
+  "review_gate": "selection_contrast_remedy",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false,
+    "bpr_0194_closed": false,
+    "all_four_palettes_audited": false,
+    "dark_scheme_verified": false
+  },
+  "reference_disclaimer": "Captures are the light scheme only, offscreen at device pixel ratio 1.0. The dark scheme and the other three shipped palettes are NOT covered by this batch. Both candidates were rendered by patching a literal colour into the pane; the real change must refit code_selection_background in the palettes, which is a different diff from the one that produced these pixels.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/current-rendering",
+      "subject_key": "current-alpha-72",
+      "display_name": "Current rendering: is the selected line distinguishable from its neighbours?",
+      "description": "The line the reviewer just navigated to with Next change. If it cannot be told from the rows around it, the reviewer has no confirmation of where they landed, and the lower pane's 'Change 1 of 3' is keyed to a row they cannot see.",
+      "acceptance_criteria": [
+        "The selected row is distinguishable from the row above and below it",
+        "The band reaches 3:1 against the pane background, the WCAG minimum for non-text user-interface components"
+      ],
+      "known_concerns": [
+        "Measured 1.06:1 in these captures",
+        "Cause is twofold and each half fails alone: setAlpha(72) caps any colour at 2.01:1, and code_selection_background #d8e9ff is only 1.23:1 against #ffffff even fully opaque"
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "fail",
+        "note": "Measured 1.06:1 against a 3:1 requirement. Accept is disabled: this is the defect, included so the comparison has a baseline."
+      },
+      "media_groups": [
+        {
+          "group_id": "state-captures",
+          "title": "Current rendering",
+          "required": true,
+          "layout": "grid",
+          "note": "Click either image to open it at native size. The selected row is old-a.",
+          "items": [
+            {"label": "Composed window, light, DPR 1.0", "path": "captures/current-full.png"},
+            {"label": "Selected row, magnified", "path": "captures/current-zoom.png"}
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measurement",
+          "kind": "definitions",
+          "items": [
+            {"term": "Band", "definition": "#f4f9ff sampled at x=400,y=681, clear of glyphs"},
+            {"term": "Row above", "definition": "#ffffff sampled at x=400,y=666"},
+            {"term": "Contrast", "definition": "1.06:1 against a 3:1 requirement"}
+          ]
+        }
+      ],
+      "identity_files": [
+        {"label": "Capture manifest", "path": "captures/manifest.json"}
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/opaque-band",
+      "subject_key": "opaque-saturated",
+      "display_name": "Opaque band: acceptable remedy for the selected line?",
+      "description": "A solid selection band with a white foreground, the way ordinary text selection works. Reaches the contrast requirement with certainty and needs no painting work. The cost is that the syntax colouring of the selected line is replaced while it is selected, on the one line the reviewer is most likely studying.",
+      "acceptance_criteria": [
+        "The selected row is unmistakable",
+        "Replacing the selected line's syntax colouring while selected is an acceptable trade"
+      ],
+      "known_concerns": [
+        "Syntax colouring on the selected line is lost while it is selected",
+        "Requires refitting code_selection_background in all four shipped palettes, not only the two rendered here"
+      ],
+      "ab_group": "selection-remedy",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Measured 3.69:1 from the captured pixels, above the 3:1 minimum."
+      },
+      "media_groups": [
+        {
+          "group_id": "state-captures",
+          "title": "Opaque band",
+          "required": true,
+          "layout": "grid",
+          "note": "Selection colour #308cc6 at full opacity, foreground white.",
+          "items": [
+            {"label": "Composed window, light, DPR 1.0", "path": "captures/opaque-full.png"},
+            {"label": "Selected row, magnified", "path": "captures/opaque-zoom.png"}
+          ]
+        },
+        {
+          "group_id": "against-current",
+          "title": "Against the current rendering",
+          "required": false,
+          "layout": "compare",
+          "note": "Current on the left, opaque on the right.",
+          "items": [
+            {"label": "Current (1.06:1)", "path": "captures/current-zoom.png"},
+            {"label": "Opaque (3.69:1)", "path": "captures/opaque-zoom.png"}
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measurement",
+          "kind": "definitions",
+          "items": [
+            {"term": "Band", "definition": "#308cc6 sampled at x=400,y=681"},
+            {"term": "Row above", "definition": "#ffffff sampled at x=400,y=666"},
+            {"term": "Contrast", "definition": "3.69:1"}
+          ]
+        }
+      ],
+      "identity_files": [
+        {"label": "Capture manifest", "path": "captures/manifest.json"}
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/translucent-wash",
+      "subject_key": "wash-saturated",
+      "display_name": "67% wash: acceptable remedy for the selected line?",
+      "description": "A heavier translucent wash in a saturated colour. Clears the requirement while leaving some of the underlying line visible through it. Syntax colouring survives but is tinted, which may read as a different colour rather than as the same colour under a highlight.",
+      "acceptance_criteria": [
+        "The selected row is unmistakable",
+        "Tinting the selected line's syntax colouring is preferable to replacing it"
+      ],
+      "known_concerns": [
+        "3.04:1 leaves almost no margin; a lighter palette refit would drop it back below the minimum",
+        "Tinted syntax colours may be misread as different token categories",
+        "Requires refitting code_selection_background in all four shipped palettes"
+      ],
+      "ab_group": "selection-remedy",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Measured 3.04:1 from the captured pixels, just above the 3:1 minimum."
+      },
+      "media_groups": [
+        {
+          "group_id": "state-captures",
+          "title": "67% wash",
+          "required": true,
+          "layout": "grid",
+          "note": "Selection colour #0a66c2 at alpha 172 of 255.",
+          "items": [
+            {"label": "Composed window, light, DPR 1.0", "path": "captures/wash-full.png"},
+            {"label": "Selected row, magnified", "path": "captures/wash-zoom.png"}
+          ]
+        },
+        {
+          "group_id": "against-opaque",
+          "title": "Against the opaque band",
+          "required": false,
+          "layout": "compare",
+          "note": "Opaque on the left, 67% wash on the right.",
+          "items": [
+            {"label": "Opaque (3.69:1)", "path": "captures/opaque-zoom.png"},
+            {"label": "Wash (3.04:1)", "path": "captures/wash-zoom.png"}
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measurement",
+          "kind": "definitions",
+          "items": [
+            {"term": "Band", "definition": "#5a98d6 composited, sampled at x=400,y=681"},
+            {"term": "Row above", "definition": "#ffffff sampled at x=400,y=666"},
+            {"term": "Contrast", "definition": "3.04:1"}
+          ]
+        },
+        {
+          "heading": "What was ruled out and why",
+          "kind": "list",
+          "items": [
+            "Keeping alpha 72 and only refitting the palette: capped at 2.01:1 by the alpha, so it cannot reach 3:1 with any colour.",
+            "Opaque band keeping the current #d8e9ff: 1.23:1, because that colour is too pale even fully opaque.",
+            "Translucent wash plus a full-opacity underline: QTextCharFormat underline is not drawn for a full-width ExtraSelection, so this mechanism does not exist.",
+            "A painted left-margin bar: needs viewport-margin painting, which perturbs the pane geometry RFC-BPR-0005's measured axis and bounded-widget counts rest on. Not rendered here; say so if you want it costed."
+          ]
+        }
+      ],
+      "identity_files": [
+        {"label": "Capture manifest", "path": "captures/manifest.json"}
+      ]
+    }
+  ]
+}

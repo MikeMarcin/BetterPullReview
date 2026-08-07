@@ -1,0 +1,34 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/e50fdb53f4dc541069051598",
+  "review_gate": "selection_contrast_remedy",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/current-rendering",
+      "subject_digest": "sha256:83f253760bc7947219d38062f508b0f48d5465267ef64c261759cf01199552c2"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/opaque-band",
+      "subject_digest": "sha256:0f29e60ba5a44e665b2b354199f7a5284a99bb7d9b732a724355886dd354ef7e"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/translucent-wash",
+      "subject_digest": "sha256:8988c903c089d91cc41f1c8135dcb6a84aa0874c7fd300e0c32ed8f3f6864287"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0194/current-rendering@sha256:83f253760bc7947219d38062f508b0f48d5465267ef64c261759cf01199552c2": "I can't see any evidence of selection at all, plus this looks like a list box not a document view, i'm not sure if that's a real issue or just a side effect of the text chosen.",
+    "criterion:/betterpullreview/bpr-0194/opaque-band@sha256:0f29e60ba5a44e665b2b354199f7a5284a99bb7d9b732a724355886dd354ef7e": "It's more readable as a selection, but the bigger issue is this just looks like a list box.",
+    "criterion:/betterpullreview/bpr-0194/translucent-wash@sha256:8988c903c089d91cc41f1c8135dcb6a84aa0874c7fd300e0c32ed8f3f6864287": "Best in terms of the selection probably but I don't know I'm going to attach a screenshot of our target behavior."
+  },
+  "downstream_claims": {
+    "all_four_palettes_audited": false,
+    "bpr_0194_closed": false,
+    "dark_scheme_verified": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

@@ -3,7 +3,7 @@ id: BPR-0194
 title: The selected line is invisible in Light, and a menu indicator escapes its button
 status: Backlog
 rfc: RFC-BPR-0006
-depends_on: [BPR-0183]
+depends_on: [BPR-0183, BPR-0196]
 ---
 
 # The selected line is invisible in Light, and a menu indicator escapes its button
@@ -80,6 +80,34 @@ Do not special-case the selection colour in the pane. The selection role
 belongs to the appearance palette, and hard-coding a readable value in the
 widget would leave the same hole open for every other role while making the
 next reader believe the palette is in charge.
+
+## Rejected at attended review on 2026-08-06, and why the question was wrong
+
+All three subjects of the `selection_contrast_remedy` batch
+(`bpr:/attended-review/betterpullreview/e50fdb53f4dc541069051598`) were
+rejected. Evidence:
+`docs/verification/reviews/selection-contrast-remedy-v001/`.
+
+Two candidates cleared the mechanical gate — an opaque band at 3.69:1 and a 67%
+wash at 3.04:1, both measured from captured pixels. The owner rejected them
+anyway, on grounds the batch had not anticipated:
+
+> this looks like a list box not a document view
+
+BPR-0196 confirms that is a real defect and not the fixture text: the panes make
+one `setBackground` call in the entire file and use zero of the palette's 45
+semantic roles, so added lines, removed lines, intraline spans, moved code, and
+hunk headers are all unpainted.
+
+That invalidates the question this card asked. The choice between a band and a
+wash is entirely about **what the marking obscures** — and it currently obscures
+nothing, because nothing is painted underneath it. Neither candidate could be
+judged on its merits, and offering them was a mistake in how the decision was
+framed, not in how it was measured.
+
+**This card is blocked behind BPR-0196.** Re-present the selection treatment
+once a selected line has an added-line tint, intraline emphasis, and syntax
+colour beneath it to compete with.
 
 ### DEFERRED CLASS: owner-attended, for defect 1 only
 
