@@ -6,6 +6,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_session_panel.hpp"
 
 #include <QMainWindow>
 #include <QString>
@@ -95,27 +96,12 @@ namespace bpr::qt {
 	private:
 		void apply_transition(
 			const application::github_transition_projection& aTransition);
-		void apply_session(
-			const application::github_session_projection& aSession);
+		void apply_content_command(const core::github_command_projection& aCommand);
 		void apply_pull_request(
 			const application::github_pull_request_projection& aPullRequest);
 		void apply_host_diagnostic(
 			const application::github_host_diagnostic_projection& aDiagnostic);
-		void apply_command(const core::github_command_projection& aCommand);
-		void apply_identity(const core::github_identity_delta& aIdentity);
-		void apply_capabilities(const core::github_capabilities& aCapabilities);
-		void apply_status(core::github_status aStatus);
-		void apply_diagnostic(
-			core::github_reason_code     aReason,
-			std::optional<std::uint32_t> aRetryAfter = std::nullopt,
-			const std::optional<
-				application::github_rate_limit_projection>& aRateLimit  = std::nullopt,
-			bool                                            aHostDetail = false);
-		void apply_rate_limits(
-			const application::github_rate_limits_projection& aLimits);
 		void clear_pull_request();
-		void update_selected_profile();
-		void update_connect_enabled();
 		void update_presentation_state();
 		void update_splitter_orientation();
 		void refresh_native_appearance();
@@ -123,12 +109,6 @@ namespace bpr::qt {
 		void focus_review_threads();
 
 		[[nodiscard]] auto presentation_summary_text() const -> QString;
-		[[nodiscard]] auto selected_profile() const
-			-> std::optional<core::host_profile_id>;
-		[[nodiscard]] auto profile_option(core::host_profile_id aProfile) const
-			-> const application::github_profile_option*;
-		[[nodiscard]] auto profile_index(core::host_profile_id aProfile) const
-			-> int;
 
 		application::github_intent_dispatch             Dispatch;
 		std::vector<application::github_profile_option> Profiles;
@@ -137,21 +117,8 @@ namespace bpr::qt {
 		QAction*                   OpenAction                    = nullptr;
 		QAction*                   RefreshAction                 = nullptr;
 		QAction*                   ShowReviewThreadsAction       = nullptr;
-		QToolButton*               ConnectButton                 = nullptr;
-		QToolButton*               OpenButton                    = nullptr;
-		QToolButton*               RefreshButton                 = nullptr;
 		QToolButton*               ShowReviewThreadsButton       = nullptr;
-		QToolButton*               ConnectionDetailsButton       = nullptr;
 		QToolButton*               TechnicalDetailsButton        = nullptr;
-		QComboBox*                 ProfileSelector               = nullptr;
-		QLineEdit*                 OwnerEditor                   = nullptr;
-		QLineEdit*                 RepositoryEditor              = nullptr;
-		QSpinBox*                  PullRequestEditor             = nullptr;
-		QLabel*                    HostLabel                     = nullptr;
-		QLabel*                    TransportLabel                = nullptr;
-		QLabel*                    AccountLabel                  = nullptr;
-		QLabel*                    CapabilityLabel               = nullptr;
-		QLabel*                    RateLimitLabel                = nullptr;
 		QLabel*                    PullRequestLabel              = nullptr;
 		QLabel*                    TitleLabel                    = nullptr;
 		QLabel*                    StateLabel                    = nullptr;
@@ -161,15 +128,9 @@ namespace bpr::qt {
 		QLabel*                    CountLabel                    = nullptr;
 		QPlainTextEdit*            BodyEditor                    = nullptr;
 		QLabel*                    ConversationAvailabilityLabel = nullptr;
-		QLabel*                    DiagnosticLabel               = nullptr;
-		QLabel*                    StatusLabel                   = nullptr;
 		QLabel*                    EmptyStateTitleLabel          = nullptr;
 		QLabel*                    EmptyStateBodyLabel           = nullptr;
-		QFrame*                    StatusBanner                  = nullptr;
-		QWidget*                   ConnectionDetails             = nullptr;
 		QWidget*                   TechnicalDetails              = nullptr;
-		QWidget*                   LocatorActions                = nullptr;
-		QGridLayout*               LocatorLayout                 = nullptr;
 		QStackedWidget*            PullRequestStack              = nullptr;
 		QStackedWidget*            ConversationStack             = nullptr;
 		QSplitter*                 ContentSplitter               = nullptr;
@@ -177,19 +138,13 @@ namespace bpr::qt {
 		github_conversation_model* ConversationModel             = nullptr;
 		epoch_comparison_control*  EpochControl                  = nullptr;
 		diff_workbench*            DiffWorkbench                 = nullptr;
+		github_session_panel*      SessionPanel                  = nullptr;
 		appearance_settings_panel* AppearanceSettings            = nullptr;
 
-		std::optional<core::host_profile_id>    ActiveProfile;
-		std::optional<core::github_account_id>  SessionAccount;
-		std::optional<core::github_reason_code> LastDiagnosticReason;
-		bool                                    LastDiagnosticHasHostDetail = false;
-		bool                                    ConnectCommandEnabled       = true;
-		core::github_reason_code                ConnectDisabledReason       = core::github_reason_code::none;
-		core::github_status                     CurrentStatus               = core::github_status::no_profile;
-		QString                                 LastAnnouncement;
-		bool                                    HasPullRequest                      = false;
-		bool                                    ExpandConversationsOnNextProjection = true;
-		github_window_statistics                Statistics;
+		QString                  LastAnnouncement;
+		bool                     HasPullRequest                      = false;
+		bool                     ExpandConversationsOnNextProjection = true;
+		github_window_statistics Statistics;
 	};
 }
 
