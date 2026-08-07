@@ -9,6 +9,7 @@ add_library(
         src/review_queue_refresh.cpp
         src/review_queue_enrollment.cpp
         src/agent_launch.cpp
+        src/agent_workspace.cpp
         src/notification_delivery.cpp
         src/review_queue_notification.cpp
         src/workbench_snapshot_observation.cpp

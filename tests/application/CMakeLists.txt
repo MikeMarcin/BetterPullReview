@@ -353,6 +353,28 @@ add_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_agent_workspace_tests
+    agent_workspace_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_workspace_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_agent_workspace_tests)
+bpr_enable_warnings(test_better_pull_review_agent_workspace_tests)
+
+add_test(
+    NAME application_agent_workspace
+    COMMAND test_better_pull_review_agent_workspace_tests
+)
+set_tests_properties(
+    application_agent_workspace
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-workspace-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_agent_launch_tests
     agent_launch_tests.cpp
 )
