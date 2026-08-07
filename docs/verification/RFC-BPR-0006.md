@@ -67,10 +67,10 @@ build:
 | Measurement | Result |
 |---|---|
 | `nm build/dev/src/app/better_pull_review \| c++filt \| grep -c appearance_application_host` | `0` at the time of measurement; **non-zero after BPR-0182** |
-| `nm build/dev/src/app/better_pull_review \| c++filt \| grep -c packaged_syntax_classifier` | `0` |
+| `nm build/dev/src/app/better_pull_review \| c++filt \| grep -c packaged_syntax_classifier` | `0` at the time of measurement; **non-zero after BPR-0185** |
 | Non-test references to `appearance_profile` in `src/` | one stale include at the time of measurement; **the composition owns one after BPR-0183** |
 | `grep -rln appearance src/app/` | `main.cpp` only, and only its test probe |
-| `BetterPullReview::AdapterSyntax` in the composition's link list | absent |
+| `BetterPullReview::AdapterSyntax` in the composition's link list | absent at the time of measurement; **present after BPR-0185** |
 
 So there is no appearance mode, no font setting, no theme, and **no syntax
 highlighting in the diff panes**. `diff_workbench.cpp`'s only `Highlight` is
@@ -96,9 +96,9 @@ out.
 
 | Claim | Direct surface | Command or interaction | What proves it | Result |
 |---|---|---|---|---|
-| Definitions are selected correctly | `packaged_syntax_classifier`, in isolation | Classify C++, CMake, Markdown, JSON, Python, and plain-text fixtures | Each fixture selects its expected definition | Verified of the component. Six fixture languages each select their expected definition from packaged records. The classifier has zero symbols in the shipped binary; BPR-0185 links it |
-| Hunk classification equals whole-blob classification | `packaged_syntax_classifier`, in isolation | Classify a hunk beginning inside a multiline comment or string | The hunk receives the same classification as the complete blob, which a hunk-local highlighter would fail | Verified of the component. Dropping spans that opened before the hunk's first line fails the case, so the projection is load-bearing. Not reached by any pane; BPR-0185 owns that |
-| Theme change does not re-parse | `appearance_application_host`, fake ports | Switch theme and colour, counting lexical parses | The parse count does not increase | Verified of the component. The span cache key omits the theme, so a palette change cannot evict; the suite pins one classification to one lexical pass. The host is not linked into the binary; BPR-0182 composes it |
+| Definitions are selected correctly | `packaged_syntax_classifier`, in isolation, and the shipped binary | Classify C++, CMake, Markdown, JSON, Python, and plain-text fixtures; `verify_composed_hosts.py` on the shipped binary | Each fixture selects its expected definition, and the classifier is present in the product | Verified. Six fixture languages each select their expected definition from packaged records. **BPR-0185 linked the adapter**: `packaged_syntax_classifier` is now in the shipped binary and is on the standing COMPOSED list, and the composed application constructs it - `SYNTAX_CLASSIFIER_COMPOSED_OK` is the runtime half, because a symbol proves the link and not the constructor |
+| Hunk classification equals whole-blob classification | `packaged_syntax_classifier`, in isolation, and a real `diff_workbench` | Classify a hunk beginning inside a multiline comment or string; read the colour off the pane's block layout | The hunk receives the same classification as the complete blob, which a hunk-local highlighter would fail | Verified of the component and of the pane. **BPR-0185 added `qt_syntax_pane_composition`**, which links both adapters, classifies a blob whose block comment opens four hundred lines above the assertion, scrolls until the opening delimiter is off screen, and reads the comment colour off `QTextBlock::layout()->formats()`. Indexing the spans by window offset instead of blob line leaves the marker line unpainted, which was measured |
+| Theme change does not re-parse | `appearance_application_host` with fake ports, and the composed application | Switch theme and colour, counting lexical parses; switch appearance mode on the running application with a classified comparison on screen | The parse count does not increase | Verified of the component and of the product. The span cache key omits the theme, so a palette change cannot evict; the suite pins one classification to one lexical pass. **BPR-0182 composed the host and BPR-0185 measured the composed claim**: `SYNTAX_THEME_REPAINT_OK` asserts that a mode change on the running application leaves `classification_submissions()` where it was, having already adopted a classification. The Qt suite proves the other half - the panes repaint in the new palette from the retained spans without adopting a new classification |
 | Font change preserves semantics | An `appearance_profile` and a `diff_workbench` constructed together by a test | Change the code font | The measured axis and ribbon geometry invalidate, semantic selection survives, and the shared position reprojects without changing mapping or confidence | Verified of that pair. Geometry rebuilds and the measured extent grow while the mapping is byte-identical and selection survives. **This row previously named its surface `Composed comparison`.** The pair is composed by the test; the application composes neither member. BPR-0183 owns it |
 | Fresh install defaults to System | `appearance_settings`, the type's own default | Inspect the default with no persisted value | The resolved mode is System | Verified of the type. With no persisted value the resolved selection is System. No application path reads it, because no application path constructs the host that would |
 | System mode follows the OS; explicit does not | Real macOS composition | Owner-authorised OS scheme change | System mode follows and an explicit mode does not | **Blocked, not deferred.** BPR-0114 was filed as owner-attended, which asserted the behaviour existed. It does not: there is no mode to select and no variant to observe. Blocked behind BPR-0183 and BPR-0184; attended afterwards |
@@ -118,7 +118,7 @@ network service.
 | BPR-0182 | Compose `appearance_application_host` into the application |
 | BPR-0183 | Qt: the appearance profile drives the composed window |
 | BPR-0184 | Qt: the appearance settings gesture |
-| BPR-0185 | Link the syntax adapter and highlight the diff panes |
+| BPR-0185 | Link the syntax adapter and highlight the diff panes — **done** |
 
 BPR-0118 retired the code line-height setting on the product owner's decision
 and is independent of these: it rests on Qt's measured behaviour, which holds

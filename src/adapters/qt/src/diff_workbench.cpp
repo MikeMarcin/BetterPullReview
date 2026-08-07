@@ -16,6 +16,7 @@
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextCursor>
+#include <QTextLayout>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -952,16 +953,50 @@ namespace bpr::qt {
 
 	void diff_workbench::adopt_appearance(const appearance_profile& aProfile)
 	{
-		using role = core::appearance_role;
-		Colors     = diff_presentation_colors{
+		using role  = core::appearance_role;
+		auto colors = diff_presentation_colors{
 			.Added            = aProfile.color(role::diff_added_background),
 			.Removed          = aProfile.color(role::diff_removed_background),
 			.IntralineAdded   = aProfile.color(role::diff_intraline_added_background),
 			.IntralineRemoved = aProfile.color(role::diff_intraline_removed_background),
 			.Moved            = aProfile.color(role::diff_moved_background),
+			.Syntax           = { },
 			.Supplied         = true,
 		};
+		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
+			 ++index) {
+			colors.Syntax[index] = aProfile.color(
+				static_cast<core::appearance_role>(index));
+		}
+		Colors = std::move(colors);
 		update_diff_paint();
+	}
+
+	auto diff_workbench::adopt_token_spans(
+		const core::diff_side           aSide,
+		application::shared_token_spans aSpans) -> bool
+	{
+		if (aSpans && !std::ranges::is_sorted(*aSpans, { }, [](const application::token_span& aSpan) {
+				return aSpan.Line;
+			})) {
+			// Refused whole rather than sorted here. A copy would double the
+			// memory of the one thing this design deliberately shares, and a
+			// linear scan per repaint is the unbounded cost BPR-0196 removed.
+			// Refusing makes a classifier that broke the contract visible.
+			++Statistics.RejectedTokenSpans;
+			return false;
+		}
+		auto& retained = aSide == core::diff_side::left ? LeftSpans : RightSpans;
+		retained       = std::move(aSpans);
+		++Statistics.TokenSpanAdoptions;
+		update_diff_paint();
+		return true;
+	}
+
+	auto diff_workbench::token_spans(const core::diff_side aSide) const noexcept
+		-> const application::shared_token_spans&
+	{
+		return aSide == core::diff_side::left ? LeftSpans : RightSpans;
 	}
 
 	/// \brief Paints the diff the core decided, in one pass per pane.
@@ -983,6 +1018,10 @@ namespace bpr::qt {
 							   const core::diff_side aSide) {
 			auto       selections = QList<QTextEdit::ExtraSelection>{ };
 			const auto paintable  = paintable_line_bounds(aPane);
+
+			// Under the bands rather than over them, because it is a
+			// foreground and they are backgrounds.
+			apply_syntax_formats(aPane, aSide, paintable);
 
 			if (CurrentResult && Colors.Supplied) {
 				const auto& alignment = CurrentResult->Alignment;
@@ -1033,6 +1072,108 @@ namespace bpr::qt {
 
 		paint(*Left, core::diff_side::left);
 		paint(*Right, core::diff_side::right);
+	}
+
+	/// \brief Colours the classified tokens of the lines a pane can show.
+	///
+	/// \details The formats go on each block's own layout rather than into the
+	/// document. `QTextCursor::setCharFormat` would mutate the document once
+	/// per span — an edit, an undo entry, and a relayout apiece — to express a
+	/// change that alters no text. The block layout is what a highlighter
+	/// writes to for the same reason, and it is destroyed with the block, so
+	/// nothing written here can outlive the document it describes.
+	///
+	/// Syntax is a foreground and the diff bands are backgrounds, so the two
+	/// compose rather than compete: an added line keeps its tint and its
+	/// keywords keep their colour. That is why syntax is not an extra
+	/// selection — the bands are, and a selection that had to carry both would
+	/// make one of them win.
+	///
+	/// Bounded to the paintable window, and applied only where the formats
+	/// actually differ. Re-setting a block's formats marks its contents dirty,
+	/// so an unconditional write would relayout every visible block on every
+	/// scroll to restate colours it already carried.
+	void diff_workbench::apply_syntax_formats(
+		QPlainTextEdit&       aPane,
+		const core::diff_side aSide,
+		const core::line_span aPaintable)
+	{
+		const auto& spans = aSide == core::diff_side::left ? LeftSpans
+														   : RightSpans;
+		if (!spans || !CurrentResult) {
+			return;
+		}
+		const auto& document = aSide == core::diff_side::left
+			? CurrentResult->LeftDocument
+			: CurrentResult->RightDocument;
+		if (!document) {
+			return;
+		}
+
+		// The window is found by search because the spans are ordered, which
+		// `adopt_token_spans` established. Scanning from the front would make
+		// the cost of one screenful proportional to the whole file.
+		auto span = std::ranges::lower_bound(
+			*spans,
+			aPaintable.Begin,
+			{ },
+			[](const application::token_span& aSpan) { return aSpan.Line; });
+		const auto last = spans->end();
+		for (auto line = aPaintable.Begin;
+			 line < aPaintable.End && line < document->Lines.size();
+			 ++line) {
+			while (span != last && span->Line < line) {
+				++span;
+				++Statistics.SyntaxSpansVisited;
+			}
+			const auto block = aPane.document()->findBlockByNumber(
+				static_cast<int>(line));
+			if (!block.isValid() || block.layout() == nullptr) {
+				continue;
+			}
+			const auto& decoded = document->Lines[line];
+			const auto  bytes   = std::span<const std::uint8_t>{
+				document->Bytes.data() + decoded.Content.Begin,
+				static_cast<std::size_t>(
+					decoded.Content.End - decoded.Content.Begin)
+			};
+			auto formats = QList<QTextLayout::FormatRange>{ };
+			for (; span != last && span->Line == line; ++span) {
+				++Statistics.SyntaxSpansVisited;
+				const auto index = static_cast<std::size_t>(span->Role);
+				if (
+					span->Length == 0U || index >= Colors.Syntax.size()
+					|| span->Role == core::appearance_role::syntax_normal) {
+					// Normal text is what the pane already draws. Restating it
+					// as a format would cost a range per unclassified word to
+					// change nothing.
+					continue;
+				}
+				const auto& color = Colors.Syntax[index];
+				if (!color.isValid()) {
+					continue;
+				}
+				const auto from = character_offset(bytes, span->Column);
+				const auto to   = character_offset(
+					bytes,
+					static_cast<std::uint64_t>(span->Column) + span->Length);
+				if (from >= to) {
+					continue;
+				}
+				auto range   = QTextLayout::FormatRange{ };
+				range.start  = from;
+				range.length = to - from;
+				range.format.setForeground(color);
+				formats.push_back(range);
+			}
+			if (block.layout()->formats() == formats) {
+				continue;
+			}
+			block.layout()->setFormats(formats);
+			aPane.document()->markContentsDirty(
+				block.position(), block.length());
+			++Statistics.SyntaxBlocksFormatted;
+		}
 	}
 
 	/// \brief Marks the exact byte spans the core reported as changed.
@@ -1146,6 +1287,12 @@ namespace bpr::qt {
 		CurrentDetail.reset();
 		SemanticIndex.reset();
 		CurrentResult.reset();
+		// A classification belongs to one blob. Keeping it across a cleared
+		// projection would colour the next comparison's text with the previous
+		// file's tokens, which reads as a highlighter bug and is a stale-state
+		// bug. The composition re-adopts once the new blobs are classified.
+		LeftSpans.reset();
+		RightSpans.reset();
 		Interaction.Selection.reset();
 		Left->clear();
 		Right->clear();

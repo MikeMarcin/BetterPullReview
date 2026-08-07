@@ -16,6 +16,7 @@
 #include <QSysInfo>
 #include <QTextBlock>
 #include <QTextCursor>
+#include <QTextLayout>
 #include <QThread>
 #include <QToolButton>
 #include <QWheelEvent>
@@ -1137,6 +1138,240 @@ namespace {
 			   "a comparison ten times longer paints no more than a constant "
 			   "factor more line backgrounds");
 	}
+	/// The left side of the classified fixture. Line 1 is the load-bearing
+	/// one: nothing about `that continues here` reads as a comment, and only
+	/// the `/*` two lines above makes it one. A pane that reasoned about the
+	/// line in front of it could not colour it, so painting it proves the
+	/// pane took the answer from the complete-blob classification.
+	///
+	/// Line 4 carries a two-byte character ahead of a span, which is where a
+	/// byte offset used as a character index goes wrong by exactly one.
+	constexpr std::string_view classified_left
+		= "/* a long banner comment\n"
+		  "   that continues here\n"
+		  "   and ends here */\n"
+		  "int alpha = 1;\n"
+		  "const char* na\xc3\xafve = \"text\";\n"
+		  "int beta = 2;\n";
+	constexpr std::string_view classified_right
+		= "/* a long banner comment\n"
+		  "   that continues here\n"
+		  "   and ends here */\n"
+		  "int alpha = 1;\n"
+		  "const char* na\xc3\xafve = \"text\";\n"
+		  "int beta = 3;\n";
+
+	[[nodiscard]] auto classified_spans() -> application::token_span_list
+	{
+		using role = core::appearance_role;
+		return {
+			{ .Line = 0U, .Column = 0U, .Length = 24U, .Role = role::syntax_comment },
+			{ .Line = 1U, .Column = 0U, .Length = 22U, .Role = role::syntax_comment },
+			{ .Line = 2U, .Column = 0U, .Length = 19U, .Role = role::syntax_comment },
+			{ .Line = 3U, .Column = 0U, .Length = 3U, .Role = role::syntax_type },
+			{ .Line = 4U, .Column = 0U, .Length = 5U, .Role = role::syntax_keyword },
+			// Byte 21 of the line, but character 20: the `ï` ahead of it is two
+			// bytes and one UTF-16 unit.
+			{ .Line = 4U, .Column = 21U, .Length = 6U, .Role = role::syntax_string },
+			{ .Line = 5U, .Column = 0U, .Length = 3U, .Role = role::syntax_type },
+		};
+	}
+
+	[[nodiscard]] auto block_formats(QPlainTextEdit& aPane, const int aLine)
+		-> QList<QTextLayout::FormatRange>
+	{
+		const auto block = aPane.document()->findBlockByNumber(aLine);
+		if (!block.isValid() || block.layout() == nullptr) {
+			return { };
+		}
+		return block.layout()->formats();
+	}
+
+	/// \brief A classified blob must reach the pane's rendered formats.
+	auto test_syntax_spans_colour_the_panes() -> void
+	{
+		const auto diff      = computed(classified_left, classified_right, { }, 44U);
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+
+		auto profile = qt::appearance_profile{ };
+		static_cast<void>(profile.select_mode(core::appearance_mode::light));
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 90U, 90U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		expect(
+			block_formats(*workbench.left_pane(), 1).isEmpty(),
+			"a pane that was handed no classification paints no token colour, "
+			"rather than inventing one");
+
+		const auto adopted = workbench.adopt_token_spans(
+			core::diff_side::left,
+			std::make_shared<const application::token_span_list>(
+				classified_spans()));
+		expect(adopted, "an ordered classification is adopted");
+		process_events();
+
+		const auto comment      = profile.color(core::appearance_role::syntax_comment);
+		const auto continuation = block_formats(*workbench.left_pane(), 1);
+		expect(
+			continuation.size() == 1 && continuation.front().start == 0
+				&& continuation.front().length == 22
+				&& continuation.front().format.foreground().color() == comment,
+			"a line the complete-blob pass classified as comment is painted as "
+			"one, though nothing in the line itself says so");
+
+		const auto stringColor = profile.color(core::appearance_role::syntax_string);
+		const auto literalLine = block_formats(*workbench.left_pane(), 4);
+		expect(
+			literalLine.size() == 2,
+			"both spans of the literal line are painted");
+		expect(
+			literalLine.at(1).start == 20 && literalLine.at(1).length == 6
+				&& literalLine.at(1).format.foreground().color() == stringColor,
+			"a span behind a two-byte character starts at its character index, "
+			"not at its byte offset");
+
+		expect(
+			block_formats(*workbench.left_pane(), 3).size() == 1
+				&& block_formats(*workbench.right_pane(), 3).isEmpty(),
+			"a classification adopted for one side colours that side alone");
+
+		// The whole point of keying spans by blob and definition: appearance is
+		// not part of the key, so a theme change repaints and never reparses.
+		const auto beforeTheme = workbench.statistics();
+		auto       dark        = qt::appearance_profile{ };
+		static_cast<void>(dark.select_mode(core::appearance_mode::dark));
+		workbench.adopt_appearance(dark);
+		process_events();
+		const auto darkComment = dark.color(core::appearance_role::syntax_comment);
+		const auto repainted   = block_formats(*workbench.left_pane(), 1);
+		expect(
+			darkComment != comment && repainted.size() == 1
+				&& repainted.front().format.foreground().color() == darkComment,
+			"switching theme repaints the retained classification in the new "
+			"palette");
+		expect(
+			workbench.statistics().TokenSpanAdoptions
+				== beforeTheme.TokenSpanAdoptions,
+			"switching theme adopts no new classification, so nothing "
+			"downstream of the pane had to reparse");
+
+		auto unordered = classified_spans();
+		std::ranges::reverse(unordered);
+		const auto refused = workbench.adopt_token_spans(
+			core::diff_side::left,
+			std::make_shared<const application::token_span_list>(unordered));
+		expect(
+			!refused
+				&& workbench.statistics().RejectedTokenSpans
+					== beforeTheme.RejectedTokenSpans + 1U,
+			"a classification that is not ordered by line is refused whole");
+		process_events();
+		expect(
+			block_formats(*workbench.left_pane(), 1).size() == 1,
+			"a refused classification leaves the adopted one painting");
+
+		// A classification belongs to one blob, so the next comparison must not
+		// inherit it.
+		workbench.clear();
+		process_events();
+		expect(
+			!workbench.token_spans(core::diff_side::left),
+			"clearing the projection drops the classification with it");
+	}
+
+	/// \brief Token colouring must not grow with the file it is colouring.
+	auto test_syntax_formatting_stays_bounded_by_the_viewport() -> void
+	{
+		using role        = core::appearance_role;
+		using measurement = std::pair<std::uint64_t, std::uint64_t>;
+		const auto measure
+			= [](const std::size_t aLines) -> measurement {
+			const auto text      = large_comparison_text(aLines, 8U);
+			const auto diff      = computed(text.first, text.second, { }, 45U);
+			auto       workbench = qt::diff_workbench{ };
+			workbench.resize(1'200, 760);
+			workbench.show();
+			process_events();
+			workbench.adopt_appearance(qt::appearance_profile{ });
+			const auto selected = context(diff, 91U, 91U);
+			workbench.set_loading(selected);
+			workbench.publish({
+				.Context = selected,
+				.Result  = std::make_shared<const core::computed_file_diff>(diff),
+			});
+			process_events();
+
+			// One span on every line, which is the worst case a classifier can
+			// hand over: if the pane walked the list rather than searching it,
+			// this cost would scale with the file.
+			auto spans = application::token_span_list{ };
+			spans.reserve(aLines);
+			for (auto line = std::size_t{ 0U }; line < aLines; ++line) {
+				spans.push_back({
+					.Line   = static_cast<std::uint32_t>(line),
+					.Column = 0U,
+					.Length = 7U,
+					.Role   = role::syntax_keyword,
+				});
+			}
+			expect(
+				workbench.adopt_token_spans(
+					core::diff_side::left,
+					std::make_shared<const application::token_span_list>(
+						std::move(spans))),
+				"the per-line classification is adopted");
+			process_events();
+
+			// Measured at the far end of the file rather than at the top. At
+			// line zero the visible window begins where the span list begins,
+			// so a painter that scanned from the front and one that searched
+			// would be indistinguishable — which is exactly how a scan-shaped
+			// cost hides from a measurement taken on arrival.
+			auto* const bar = workbench.shared_scrollbar();
+			bar->setValue(bar->maximum());
+			process_events();
+
+			// One repaint, forced by a palette the panes do not already carry.
+			// A second scroll would be a weaker instrument: the window barely
+			// moves, and blocks whose formats are unchanged are deliberately
+			// left alone.
+			const auto before = workbench.statistics();
+			auto       other  = qt::appearance_profile{ };
+			static_cast<void>(other.select_mode(core::appearance_mode::dark));
+			workbench.adopt_appearance(other);
+			process_events();
+			const auto after = workbench.statistics();
+			return measurement{
+				after.SyntaxBlocksFormatted - before.SyntaxBlocksFormatted,
+				after.SyntaxSpansVisited - before.SyntaxSpansVisited,
+			};
+		};
+
+		const auto small = measure(200U);
+		const auto large = measure(2'000U);
+		expect(small.first > 0U && small.second > 0U,
+			   "the bounds below are not satisfied by formatting nothing");
+		expect(
+			large.first <= 4U * small.first,
+			"a file ten times longer formats no more than a constant factor "
+			"more blocks");
+		// The block count alone would be satisfied by a painter that walked
+		// every span in the file to find the visible ones. This is the half of
+		// the bound that a block count cannot see.
+		expect(
+			large.second <= 4U * small.second,
+			"a file ten times longer visits no more than a constant factor "
+			"more classified spans");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -1146,6 +1381,8 @@ auto main(int argc, char** argv) -> int
 	test_selected_composition();
 	test_scale_and_high_frequency_evidence();
 	test_line_painting_stays_bounded_by_the_viewport();
+	test_syntax_spans_colour_the_panes();
+	test_syntax_formatting_stays_bounded_by_the_viewport();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }

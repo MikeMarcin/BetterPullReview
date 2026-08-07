@@ -22,6 +22,7 @@
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
@@ -48,11 +49,15 @@
 #include <cstddef>
 #include <deque>
 #include <filesystem>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <stdexcept>
+#include <stop_token>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -407,48 +412,115 @@ namespace bpr::app {
 		}
 	}
 
-	/// \brief Answers every classification request as unavailable.
+	/// \brief Supplies blob bytes to the classifier through the epoch host.
 	///
-	/// \details BPR-0185 links `BetterPullReview::AdapterSyntax` and gives the
-	/// appearance host the real `packaged_syntax_classifier`. Until it does,
-	/// the host still needs a classification port to be constructed at all.
+	/// \details The classifier reads no repository. It asks for one blob's
+	/// bytes, and the only component allowed to produce them is the epoch
+	/// host, whose cache session is lifetime-exclusive - a second reader
+	/// opening its own Git cache writer is the failure this indirection
+	/// exists to prevent.
 	///
-	/// `unavailable` is the port's own default status and is the truth here:
-	/// no classification is available, because the classifier is not linked.
-	/// This deliberately does not pretend to classify - it produces no spans,
-	/// so nothing downstream can mistake an empty answer for "this file has no
-	/// tokens". It repeats the request context and key, because the host
-	/// refuses a terminal that does not.
-	class unlinked_syntax_classification final
-		: public application::syntax_classification_port
+	/// `materialize` needs the request context that names the authority its
+	/// cache session was opened for, so the comparison currently being
+	/// classified is retained here. It is set on the decision lane and read on
+	/// the appearance effect executor, which is why it is guarded.
+	///
+	/// The retained value is a comparison, never a classification: this class
+	/// holds no span, decides no role, and would be useless to anything that
+	/// wanted to skip the classifier.
+	class composition_blob_source final : public adapters::syntax::blob_source
 	{
 	public:
-		[[nodiscard]] auto classify(
-			const application::syntax_classification_request& aRequest,
-			std::stop_token) -> application::syntax_classification override
+		explicit composition_blob_source(application::diff_blob_port& aBlobs)
+			: Blobs{ aBlobs }
 		{
-			return application::syntax_classification{
-				.Context = aRequest.Context,
-				.Key     = aRequest.Key,
-				.Status  = application::syntax_classification_status::unavailable,
-				.Spans   = { },
+		}
+
+		void set_comparison(const core::diff_request_context& aContext)
+		{
+			const auto guard = std::lock_guard{ Mutex };
+			Context          = aContext;
+		}
+
+		void clear_comparison()
+		{
+			const auto guard = std::lock_guard{ Mutex };
+			Context.reset();
+		}
+
+		[[nodiscard]] auto blob_bytes(const core::git_blob_oid& aBlob)
+			-> std::optional<std::string> override
+		{
+			const auto context = [this] {
+				const auto guard = std::lock_guard{ Mutex };
+				return Context;
+			}();
+			if (!context.has_value()) {
+				return std::nullopt;
+			}
+			// Side is reported back rather than acted on, so it is derived
+			// from the comparison instead of guessed. A blob that belongs to
+			// neither side is not this comparison's to read.
+			const auto side = context->Key.LeftBlob == std::optional{ aBlob }
+				? core::diff_side::left
+				: core::diff_side::right;
+			if (
+				context->Key.LeftBlob != std::optional{ aBlob }
+				&& context->Key.RightBlob != std::optional{ aBlob }) {
+				return std::nullopt;
+			}
+			const auto observation = Blobs.materialize(
+				application::diff_blob_request{
+					.Context      = *context,
+					.Side         = side,
+					.Blob         = aBlob,
+					.MaximumBytes = adapters::syntax::maximum_classified_blob_bytes,
+				},
+				std::stop_token{ });
+			if (
+				observation.Status != application::diff_blob_status::available) {
+				// Absent rather than empty. An empty string would classify as
+				// a file with no tokens, which is a different and wrong
+				// answer from "these bytes were not available".
+				return std::nullopt;
+			}
+			return std::string{
+				observation.Bytes.begin(), observation.Bytes.end()
 			};
 		}
+
+	private:
+		application::diff_blob_port&              Blobs;
+		std::mutex                                Mutex;
+		std::optional<core::diff_request_context> Context;
 	};
 
-	/// \brief Holds the appearance projections until a surface consumes them.
+	/// \brief Routes appearance projections to the surfaces that consume them.
 	///
-	/// \details The same intermediate shape as the workbench sink below, and
-	/// for the same reason: BPR-0182 composes the host, BPR-0183 makes the
-	/// appearance profile drive the composed window. `github_window` does not
-	/// implement `appearance_projection_port` today.
+	/// \details BPR-0182 composed the host, BPR-0183 made the appearance
+	/// profile drive the composed window, and BPR-0185 gives the classified
+	/// spans somewhere to go. `github_window` still does not implement
+	/// `appearance_projection_port`, so the presentation invalidation half of
+	/// a projection is counted rather than routed; the span half is handed to
+	/// the sink the composition installs.
 	class composition_appearance_projections final
 		: public application::appearance_projection_port
 	{
 	public:
-		void publish(const application::appearance_projection&) override
+		using span_sink
+			= std::function<void(const application::token_span_publication&)>;
+
+		void set_span_sink(span_sink aSink)
+		{
+			SpanSink = std::move(aSink);
+		}
+
+		void publish(const application::appearance_projection& aProjection) override
 		{
 			++Published;
+			if (aProjection.Spans.has_value() && SpanSink) {
+				SpanSink(*aProjection.Spans);
+			}
 		}
 
 		void fail(const application::appearance_failure_publication&) override
@@ -467,6 +539,7 @@ namespace bpr::app {
 		}
 
 	private:
+		span_sink   SpanSink;
 		std::size_t Published = 0U;
 		std::size_t Failed    = 0U;
 	};
@@ -812,12 +885,27 @@ namespace bpr::app {
 				WorkbenchHost->restore();
 			}
 
+			// Composed before the appearance host, which needs a live
+			// classification port. The blob source reads through the epoch
+			// host rather than opening a second Git cache session.
+			SyntaxDefinitions = std::make_unique<
+				adapters::syntax::packaged_definition_catalog>();
+			SyntaxBlobs          = std::make_unique<composition_blob_source>(*EpochHost);
+			SyntaxClassification = std::make_unique<
+				adapters::syntax::packaged_syntax_classifier>(
+				*SyntaxDefinitions,
+				*SyntaxBlobs);
+
 			if (AppearanceSettings) {
+				AppearanceProjections.set_span_sink(
+					[this](const application::token_span_publication& aSpans) {
+						adopt_classification(aSpans);
+					});
 				AppearanceHost = std::make_unique<
 					application::appearance_application_host>(
 					qt::default_appearance_settings(),
 					*AppearanceSettings,
-					SyntaxClassification,
+					*SyntaxClassification,
 					AppearanceEffects,
 					DecisionLane,
 					AppearanceProjections,
@@ -996,6 +1084,13 @@ namespace bpr::app {
 			if (DiffHost != nullptr) {
 				DiffHost->cancel();
 			}
+			if (SyntaxBlobs != nullptr) {
+				// A classification still in flight now has no comparison to
+				// read for. Dropping the context makes it report unavailable
+				// rather than materialize bytes for a file the reviewer has
+				// left.
+				SyntaxBlobs->clear_comparison();
+			}
 			if (Window != nullptr) {
 				Window->diff_comparison_workbench()->clear();
 			}
@@ -1017,17 +1112,93 @@ namespace bpr::app {
 			}
 		}
 
+		/// \brief Requests one comparison and the classification of its blobs.
+		///
+		/// \details The path is not part of the comparison key and deliberately
+		/// stays out of it: the key identifies a file by digest, and a second
+		/// spelling of the same file inside it would be a second identity. It
+		/// is carried alongside because choosing a syntax definition is the one
+		/// thing that needs the name a file was given.
 		void request_diff(
 			core::file_comparison_key aKey,
-			core::diff_options        aOptions)
+			core::diff_options        aOptions,
+			const std::string_view    aPath)
 		{
 			if (Closing || DiffHost == nullptr) {
 				return;
 			}
 			DiffHost->request(std::move(aKey), std::move(aOptions));
-			if (DiffHost->state().Pending.has_value()) {
-				Window->diff_comparison_workbench()->set_loading(
-					*DiffHost->state().Pending);
+			if (!DiffHost->state().Pending.has_value()) {
+				return;
+			}
+			const auto pending = *DiffHost->state().Pending;
+			// Clears the previous comparison's spans before the new ones are
+			// asked for, so a classification that lands first is not thrown
+			// away by the surface it was meant for.
+			Window->diff_comparison_workbench()->set_loading(pending);
+			classify_comparison(pending, aPath);
+		}
+
+		/// \brief Asks the appearance host to classify both sides of one
+		/// comparison.
+		///
+		/// \details Nothing here classifies. The host answers from its cache
+		/// when the blob and definition are already known and reaches the
+		/// classifier only when they are not, which is the whole reason the
+		/// cache key carries no colour.
+		void classify_comparison(
+			const core::diff_request_context& aContext,
+			const std::string_view            aPath)
+		{
+			if (AppearanceHost == nullptr) {
+				return;
+			}
+			SyntaxBlobs->set_comparison(aContext);
+			const auto definition = SyntaxDefinitions->definition_for_path(aPath);
+			for (const auto& blob :
+				 { aContext.Key.LeftBlob, aContext.Key.RightBlob }) {
+				if (!blob.has_value()) {
+					continue;
+				}
+				AppearanceHost->classify(application::token_span_cache_key{
+					.Blob       = *blob,
+					.Definition = definition,
+				});
+			}
+		}
+
+		/// \brief Hands one published classification to the side it describes.
+		///
+		/// \details The side is decided by blob identity, which is the only
+		/// thing that can decide it: a classification names a blob, and a
+		/// comparison is the only thing that knows which side that blob is on.
+		/// A classification for neither side belongs to a comparison the
+		/// reviewer has already left, and is dropped.
+		void adopt_classification(
+			const application::token_span_publication& aSpans)
+		{
+			if (Closing || Window == nullptr || DiffHost == nullptr) {
+				return;
+			}
+			const auto& state   = DiffHost->state();
+			const auto* context = state.Current.has_value()
+				? &*state.Current
+				: state.Pending.has_value() ? &*state.Pending
+											: nullptr;
+			if (context == nullptr) {
+				return;
+			}
+			const auto side = context->Key.LeftBlob == std::optional{ aSpans.Key.Blob }
+				? std::optional{ core::diff_side::left }
+				: context->Key.RightBlob == std::optional{ aSpans.Key.Blob }
+				? std::optional{ core::diff_side::right }
+				: std::nullopt;
+			if (!side.has_value() || !aSpans.Spans) {
+				return;
+			}
+			if (Window->diff_comparison_workbench()->adopt_token_spans(
+					*side, aSpans.Spans)) {
+				++AdoptedClassifications;
 			}
 		}
 
@@ -1200,30 +1371,39 @@ namespace bpr::app {
 		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
 		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
 		std::unique_ptr<application::appearance_settings_port>       AppearanceSettings;
-		unlinked_syntax_classification                               SyntaxClassification;
-		composition_appearance_projections                           AppearanceProjections;
-		std::unique_ptr<qt::appearance_profile>                      AppearanceProfile;
-		std::string                                                  AppliedSelectionColor;
-		std::string                                                  AppliedBaseColor;
-		bool                                                         AppliedFromProfile = false;
-		std::unique_ptr<application::epoch_entropy_port>             EpochEntropy;
-		std::unique_ptr<application::epoch_clock_port>               EpochClock;
-		worker_executor                                              EpochEffects;
-		worker_executor                                              DiffEffects;
-		worker_executor                                              WorkbenchEffects;
-		worker_executor                                              AppearanceEffects;
-		composition_workbench_projections                            WorkbenchProjections;
-		std::unique_ptr<application::epoch_application_host>         EpochHost;
-		std::unique_ptr<application::diff_application_host>          DiffHost;
-		std::unique_ptr<application::workbench_application_host>     WorkbenchHost;
-		std::unique_ptr<application::appearance_application_host>    AppearanceHost;
-		std::unique_ptr<application::github_application_host>        Host;
-		bool                                                         Closing                       = false;
-		bool                                                         ShutdownPollScheduled         = false;
-		bool                                                         ShutdownComplete              = false;
-		bool                                                         ShutdownCleanupFailed         = false;
-		bool                                                         NativePlatformVaultSelected   = false;
-		bool                                                         EpochProjectionDeliveryFailed = false;
+		// Built once and shared. The catalog is immutable after construction
+		// and the classifier holds no theme, palette, or font, so neither has
+		// to be rebuilt when appearance changes.
+		std::unique_ptr<adapters::syntax::packaged_definition_catalog> SyntaxDefinitions;
+		std::unique_ptr<composition_blob_source>                       SyntaxBlobs;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>  SyntaxClassification;
+		composition_appearance_projections                             AppearanceProjections;
+		std::unique_ptr<qt::appearance_profile>                        AppearanceProfile;
+		std::string                                                    AppliedSelectionColor;
+		std::string                                                    AppliedBaseColor;
+		bool                                                           AppliedFromProfile = false;
+		std::unique_ptr<application::epoch_entropy_port>               EpochEntropy;
+		std::unique_ptr<application::epoch_clock_port>                 EpochClock;
+		worker_executor                                                EpochEffects;
+		worker_executor                                                DiffEffects;
+		worker_executor                                                WorkbenchEffects;
+		worker_executor                                                AppearanceEffects;
+		composition_workbench_projections                              WorkbenchProjections;
+		std::unique_ptr<application::epoch_application_host>           EpochHost;
+		std::unique_ptr<application::diff_application_host>            DiffHost;
+		std::unique_ptr<application::workbench_application_host>       WorkbenchHost;
+		std::unique_ptr<application::appearance_application_host>      AppearanceHost;
+		std::unique_ptr<application::github_application_host>          Host;
+		bool                                                           Closing                       = false;
+		bool                                                           ShutdownPollScheduled         = false;
+		bool                                                           ShutdownComplete              = false;
+		bool                                                           ShutdownCleanupFailed         = false;
+		bool                                                           NativePlatformVaultSelected   = false;
+		bool                                                           EpochProjectionDeliveryFailed = false;
+		// Classifications the panes actually took. Counted because "the
+		// classifier is linked" and "a pane received its answer" are different
+		// claims, and only the second one shows a reviewer anything.
+		std::size_t AdoptedClassifications = 0U;
 	};
 
 	github_application::github_application(github_application_config aConfig)
@@ -1271,6 +1451,11 @@ namespace bpr::app {
 			.AppliedSelectionColor         = Implementation->AppliedSelectionColor,
 			.AppliedBaseColor              = Implementation->AppliedBaseColor,
 			.AppliedFromProfile            = Implementation->AppliedFromProfile,
+			.SyntaxClassifierComposed      = Implementation->SyntaxClassification != nullptr,
+			.AdoptedClassifications        = Implementation->AdoptedClassifications,
+			.ClassificationSubmissions     = Implementation->AppearanceHost != nullptr
+				? Implementation->AppearanceHost->classification_submissions()
+				: 0U,
 		};
 	}
 
@@ -1567,6 +1752,23 @@ namespace bpr::app {
 		}
 	} // namespace
 
+	auto detail::github_application_fixture_access::select_other_appearance_mode(
+		github_application& aApplication) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr
+			|| implementation->AppearanceHost == nullptr) {
+			return false;
+		}
+		const auto current = implementation->AppearanceHost->settings().Mode;
+		const auto other   = current == core::appearance_mode::dark
+			? core::appearance_mode::light
+			: core::appearance_mode::dark;
+		implementation->AppearanceHost->select(other);
+		return implementation->AppearanceHost->settings().Mode == other;
+	}
+
 	auto detail::github_application_fixture_access::review_ledger_receipt_present(
 		github_application& aApplication) -> bool
 	{
@@ -1656,7 +1858,11 @@ namespace bpr::app {
 				.Options     = *digest,
 				.Algorithm   = core::supported_diff_algorithm_revision,
 			},
-			options);
+			options,
+			// The fixture repository's single file. Named here because the
+			// comparison key carries a digest and the syntax definition needs
+			// a name; BPR-0197 owns making that name a source file.
+			"review.txt");
 		return implementation->DiffHost->state().Pending.has_value();
 	}
 

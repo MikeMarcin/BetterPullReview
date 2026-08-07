@@ -105,6 +105,17 @@ namespace bpr::app::detail {
 		/// same application data root can tell persistence from a fresh write.
 		[[nodiscard]] static auto review_ledger_receipt_present(
 			github_application& aApplication) -> bool;
+		/// \brief Selects a different appearance mode through the composed host.
+		///
+		/// \details Exists so a probe can measure what a theme change costs.
+		/// The token-span cache is keyed by blob identity and definition
+		/// version alone, so this must repaint and must not reparse; the
+		/// submission count in the application status is what says which
+		/// happened.
+		///
+		/// \returns Whether the composed host applied a different mode.
+		[[nodiscard]] static auto select_other_appearance_mode(
+			github_application& aApplication) -> bool;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

@@ -408,11 +408,16 @@ namespace {
 		// an automated run is one the fixture eventually satisfies, so without
 		// a deliberate stall there is no way to reach the run's own timeout and
 		// show that it fires before the harness kills the process.
-		bool                                         StallProbe                    = false;
-		bool                                         DiffInteractionEvidencePassed = false;
-		bool                                         DiffRequested                 = false;
-		bool                                         LedgerPresentOnEntry          = false;
-		bool                                         LedgerRoundTripped            = false;
+		bool StallProbe                    = false;
+		bool DiffInteractionEvidencePassed = false;
+		bool DiffRequested                 = false;
+		// Whether a theme change on the composed application repainted without
+		// costing a complete-blob pass. The token-span cache is keyed by blob
+		// identity and definition version alone, so a submission count that
+		// moved across an appearance change means the key acquired a colour.
+		bool                                         SyntaxThemeRepaintPassed = false;
+		bool                                         LedgerPresentOnEntry     = false;
+		bool                                         LedgerRoundTripped       = false;
 		std::string                                  FixtureName;
 		std::string                                  ExpectedActiveHostText;
 		bpr::app::detail::github_epoch_fixture_phase EpochPhase = bpr::app::detail::github_epoch_fixture_phase::single;
@@ -1969,6 +1974,9 @@ namespace {
 			stream << (aRun.DiffInteractionEvidencePassed
 						   ? "DIFF_INTERACTION_EVIDENCE_OK\n"
 						   : "DIFF_INTERACTION_EVIDENCE_FAILED\n");
+			stream << (aRun.SyntaxThemeRepaintPassed
+						   ? "SYNTAX_THEME_REPAINT_OK\n"
+						   : "SYNTAX_THEME_REPAINT_FAILED\n");
 		}
 		if (aRun.DiffShutdownProbe) {
 			stream << (passed ? "DIFF_WORKBENCH_SHUTDOWN_OK\n"
@@ -2003,7 +2011,17 @@ namespace {
 					   : "WORKBENCH_HOST_COMPOSED_FAILED\n")
 			   << (aApplication.status().AppearanceHostComposed
 					   ? "APPEARANCE_HOST_COMPOSED_OK\n"
-					   : "APPEARANCE_HOST_COMPOSED_FAILED\n");
+					   : "APPEARANCE_HOST_COMPOSED_FAILED\n")
+			   << (aApplication.status().SyntaxClassifierComposed
+					   ? "SYNTAX_CLASSIFIER_COMPOSED_OK\n"
+					   : "SYNTAX_CLASSIFIER_COMPOSED_FAILED\n");
+		// Classifications the panes took, and the complete-blob passes the
+		// host had to run to produce them. Reported together because they
+		// answer different questions: the first says a surface received an
+		// answer, the second says how much lexical work that cost.
+		stream << "SYNTAX_CLASSIFICATION:"
+			   << aApplication.status().AdoptedClassifications << ':'
+			   << aApplication.status().ClassificationSubmissions << '\n';
 		// Reports the colours actually on the window, so a reader can check
 		// that presentation came from the appearance palette rather than from
 		// the platform style.
@@ -2423,6 +2441,26 @@ namespace {
 																  window, aRun->DiffEvidenceDirectory);
 						aRun->RenderSaved = aRun->DiffInteractionEvidencePassed
 							&& save_render_evidence(window, aRun->RenderPath);
+
+						// Measured here, while a classified comparison is on
+						// screen and before the reaccept sequence clears it.
+						// A theme change must repaint from the retained spans;
+						// if it reparses, the submission count says so.
+						{
+							const auto adoptedBefore   = aApplication.status()
+															 .AdoptedClassifications;
+							const auto submittedBefore = aApplication.status()
+															 .ClassificationSubmissions;
+							const auto switched        = bpr::app::detail::
+								github_application_fixture_access::
+									select_other_appearance_mode(aApplication);
+							QApplication::processEvents();
+							aRun->SyntaxThemeRepaintPassed = switched
+								&& adoptedBefore > 0U
+								&& aApplication.status().ClassificationSubmissions
+									== submittedBefore;
+						}
+
 						const auto retainedResult    = workbench->current_result();
 						const auto retainedSelection = workbench->selection();
 						const auto retainedContext   = workbench->current_context();

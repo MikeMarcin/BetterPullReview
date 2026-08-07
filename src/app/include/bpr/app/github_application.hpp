@@ -47,8 +47,18 @@ namespace bpr::app {
 		// roles rather than from the platform style. Reporting the colours
 		// alone is not evidence: a window that was never given the profile
 		// still has well-formed colours.
-		bool               AppliedFromProfile = false;
-		core::epoch_status EpochStatus        = core::epoch_status::inactive;
+		bool AppliedFromProfile = false;
+		// Whether the composition constructed the packaged syntax classifier.
+		// Separate from the count below because "the classifier exists" and "a
+		// pane took its answer" fail independently: a classifier nothing asks
+		// and a pane nothing tells look identical from a symbol table.
+		bool        SyntaxClassifierComposed = false;
+		std::size_t AdoptedClassifications   = 0U;
+		// Complete-blob passes the appearance host actually submitted. It
+		// advances exactly when lexical work was unavoidable, so a repaint that
+		// moves it is a repaint that reparsed.
+		std::size_t        ClassificationSubmissions = 0U;
+		core::epoch_status EpochStatus               = core::epoch_status::inactive;
 	};
 
 	/// \brief Provides the github application contract.

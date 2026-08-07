@@ -26,6 +26,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterGitHub
             BetterPullReview::AdapterGit
             BetterPullReview::AdapterSQLite
+            BetterPullReview::AdapterSyntax
             BetterPullReview::AdapterAI
             BetterPullReview::AdapterQt
             Threads::Threads

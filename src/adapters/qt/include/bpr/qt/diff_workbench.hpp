@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DIFF_WORKBENCH_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_DIFF_WORKBENCH_HPP
 
+#include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -13,6 +14,7 @@
 #include <QString>
 #include <QWidget>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -30,17 +32,26 @@ namespace bpr::qt {
 	/// \brief Records directly observable composed-workbench activity.
 	struct diff_workbench_statistics
 	{
-		std::uint64_t Publications         = 0U;
-		std::uint64_t Failures             = 0U;
-		std::uint64_t Invalidations        = 0U;
-		std::uint64_t GeometryRebuilds     = 0U;
-		std::uint64_t GeometryFailures     = 0U;
-		std::uint64_t FrameApplications    = 0U;
-		std::uint64_t SelectionChanges     = 0U;
-		std::uint64_t RejectedStaleInput   = 0U;
-		std::uint64_t SemanticIndexBuilds  = 0U;
-		std::uint64_t SemanticQueries      = 0U;
-		std::uint64_t PaneMeasurements     = 0U;
+		std::uint64_t Publications          = 0U;
+		std::uint64_t Failures              = 0U;
+		std::uint64_t Invalidations         = 0U;
+		std::uint64_t GeometryRebuilds      = 0U;
+		std::uint64_t GeometryFailures      = 0U;
+		std::uint64_t FrameApplications     = 0U;
+		std::uint64_t SelectionChanges      = 0U;
+		std::uint64_t RejectedStaleInput    = 0U;
+		std::uint64_t SemanticIndexBuilds   = 0U;
+		std::uint64_t SemanticQueries       = 0U;
+		std::uint64_t PaneMeasurements      = 0U;
+		std::uint64_t TokenSpanAdoptions    = 0U;
+		std::uint64_t RejectedTokenSpans    = 0U;
+		std::uint64_t SyntaxBlocksFormatted = 0U;
+		/// Classified spans the painter stepped over or consumed. Counted
+		/// separately from the blocks it formatted because those two can come
+		/// apart: a painter that scanned the list from the front would format
+		/// exactly the same blocks and visit every span in the file to do it,
+		/// which is the shape of the cost a block count cannot see.
+		std::uint64_t SyntaxSpansVisited   = 0U;
 		std::size_t   SemanticIndexEntries = 0U;
 
 		auto operator<=>(const diff_workbench_statistics&) const = default;
@@ -102,6 +113,30 @@ namespace bpr::qt {
 		/// unpainted diff instead of a plausible but unowned one.
 		void adopt_appearance(const appearance_profile& aProfile);
 
+		/// \brief Adopts the classification of one side's blob.
+		///
+		/// \details The pane runs no lexer. Spans arrive from the appearance
+		/// host, which keys them by blob identity and definition version alone,
+		/// so a theme, palette, or font change repaints from the same retained
+		/// classification and cannot cause a reparse. A pane that classified
+		/// for itself would defeat that cache while every counter still read
+		/// as though the cache were working.
+		///
+		/// Spans must be non-decreasing in `Line`. That is how the classifier
+		/// produces them — one pass over the blob, line by line — and it is
+		/// what lets painting find the visible window by search instead of by
+		/// scanning every span on every scroll. A list that violates it is
+		/// refused whole and counted, because painting it linearly would
+		/// reintroduce exactly the unbounded repaint BPR-0196 removed.
+		///
+		/// \returns Whether the spans were adopted.
+		auto adopt_token_spans(
+			core::diff_side                 aSide,
+			application::shared_token_spans aSpans) -> bool;
+
+		[[nodiscard]] auto token_spans(core::diff_side aSide) const noexcept
+			-> const application::shared_token_spans&;
+
 	protected:
 		[[nodiscard]] auto event(QEvent* aEvent) -> bool override;
 		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent)
@@ -117,11 +152,20 @@ namespace bpr::qt {
 			QColor IntralineAdded;
 			QColor IntralineRemoved;
 			QColor Moved;
-			bool   Supplied = false;
+			/// One colour per core role, indexed by the role's own value. A
+			/// token span names a role and never a colour, so this table is
+			/// the only place a role becomes visible, and it is copied whole
+			/// from the composed palette rather than derived here.
+			std::array<QColor, core::appearance_role_count> Syntax;
+			bool                                            Supplied = false;
 		};
 
 		void adopt_code_typography(const code_typography_event& aTypography);
 		void update_diff_paint();
+		void apply_syntax_formats(
+			QPlainTextEdit& aPane,
+			core::diff_side aSide,
+			core::line_span aPaintable);
 		void append_intraline_emphasis(
 			QList<QTextEdit::ExtraSelection>& aSelections,
 			QPlainTextEdit&                   aPane,
@@ -156,6 +200,8 @@ namespace bpr::qt {
 
 		std::optional<core::diff_request_context>       CurrentContext;
 		diff_presentation_colors                        Colors;
+		application::shared_token_spans                 LeftSpans;
+		application::shared_token_spans                 RightSpans;
 		std::shared_ptr<const core::computed_file_diff> CurrentResult;
 		std::optional<core::diff_semantic_index>        SemanticIndex;
 		std::optional<core::line_detail_input>          CurrentDetail;
