@@ -41,6 +41,13 @@ COMPOSED = (
     "workbench_application_host",    # RFC-BPR-0005, composed by BPR-0190
     "appearance_application_host",   # RFC-BPR-0006, composed by BPR-0182
     "packaged_syntax_classifier",    # RFC-BPR-0006, composed by BPR-0185
+    # The decision's own free functions rather than its translation unit: a
+    # file name is not a symbol, and the entry that used to read
+    # "review_queue_notification" could never have matched anything.
+    "notification_title",            # RFC-BPR-0010, composed by BPR-0193
+    "warrants_notification",         # RFC-BPR-0010, composed by BPR-0193
+    "review_queue_notifier",         # RFC-BPR-0010, composed by BPR-0193
+    "system_tray_notification_sink", # RFC-BPR-0010, composed by BPR-0193
 )
 
 # Not composed yet: symbols must be absent. Each names the card that will
@@ -53,7 +60,6 @@ NOT_COMPOSED = {
     "defect_correlation": "RFC-BPR-0009 composition",
     "review_queue_refresh": "RFC-BPR-0010 composition",
     "review_queue_enrollment": "RFC-BPR-0010 composition",
-    "review_queue_notification": "BPR-0193",
 }
 
 

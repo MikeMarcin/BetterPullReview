@@ -4,6 +4,7 @@ add_library(
         src/appearance_profile.cpp
         src/appearance_settings_panel.cpp
         src/github_session_panel.cpp
+        src/system_tray_notification_sink.cpp
         src/review_queue_model.cpp
         src/review_landing_model.cpp
         src/defect_card_view.cpp

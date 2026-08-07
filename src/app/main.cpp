@@ -902,6 +902,20 @@ namespace {
 		QCoreApplication::sendEvent(&aSurface, &release);
 	}
 
+	[[nodiscard]] auto notification_permission_name(
+		const bpr::application::notification_permission aPermission) -> QString
+	{
+		switch (aPermission) {
+		case bpr::application::notification_permission::not_determined:
+			return QStringLiteral("not-determined");
+		case bpr::application::notification_permission::granted:
+			return QStringLiteral("granted");
+		case bpr::application::notification_permission::refused:
+			return QStringLiteral("refused");
+		}
+		return QStringLiteral("unknown");
+	}
+
 	[[nodiscard]] auto capture_diff_interaction_evidence(
 		bpr::qt::github_window&                aWindow,
 		const std::optional<std::string_view>& aRawDirectory) -> bool
@@ -2038,6 +2052,16 @@ namespace {
 		// the same core function, so a non-zero count means they disagree about
 		// legality - reported rather than hidden, because a divergence nobody
 		// prints is a divergence nobody finds.
+		// Composed delivery path, and what the desktop allows. A refused or
+		// absent notification surface is a normal outcome and is reported as
+		// one; only a missing delivery path is a failure.
+		stream << (aApplication.status().NotificationDeliveryComposed
+					   ? "NOTIFICATION_DELIVERY_COMPOSED_OK\n"
+					   : "NOTIFICATION_DELIVERY_COMPOSED_FAILED\n");
+		stream << "NOTIFICATION_PERMISSION:"
+			   << notification_permission_name(
+					  aApplication.status().NotificationPermission)
+			   << '\n';
 		stream << "APPEARANCE_DIVERGENCE:"
 			   << aApplication.status().AppearanceDivergences << '\n';
 #if defined(BPR_BUILD_TESTING)

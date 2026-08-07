@@ -353,6 +353,28 @@ add_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_notification_delivery_tests
+    notification_delivery_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_notification_delivery_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_notification_delivery_tests)
+bpr_enable_warnings(test_better_pull_review_notification_delivery_tests)
+
+add_test(
+    NAME application_notification_delivery
+    COMMAND test_better_pull_review_notification_delivery_tests
+)
+set_tests_properties(
+    application_notification_delivery
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "notification-delivery-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_workbench_snapshot_observation_tests
     workbench_snapshot_observation_tests.cpp
 )

@@ -29,11 +29,13 @@
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
+#include "bpr/qt/system_tray_notification_sink.hpp"
 
 #include <QComboBox>
 #include <QCoreApplication>
@@ -914,6 +916,29 @@ namespace bpr::app {
 				WorkbenchHost->restore();
 			}
 
+			// The queue notification surface. Composed here so the delivery
+			// path exists in the product rather than only in its suite; what
+			// still does not exist is a composed review queue to produce
+			// requests, which RFC-BPR-0010's own composition owns. Every
+			// delivery in this build therefore comes from the fixture probe.
+			NotificationSink = std::make_unique<qt::system_tray_notification_sink>(
+				Window.get());
+			Notifications = std::make_unique<application::review_queue_notifier>(
+				*NotificationSink,
+				[this](application::queue_notification_target aTarget) {
+					// The notifier selects nothing; this is where a chosen
+					// review would be opened. RFC-BPR-0010's queue surface
+					// owns that, so the target is recorded and the separation
+					// is kept rather than short-circuited.
+					ActivatedNotification = std::move(aTarget);
+				});
+			NotificationSink->set_activation_sink(
+				[this](application::queue_notification_target aTarget) {
+					if (Notifications) {
+						Notifications->activate(aTarget);
+					}
+				});
+
 			// Composed before the appearance host, which needs a live
 			// classification port. The blob source reads through the epoch
 			// host rather than opening a second Git cache session.
@@ -1528,7 +1553,10 @@ namespace bpr::app {
 		// Times the presentation profile refused typography the host accepted.
 		// Both validate with the same core function, so this must stay zero;
 		// it exists so that if it ever does not, something says so.
-		std::size_t AppearanceDivergences = 0U;
+		std::size_t                                           AppearanceDivergences = 0U;
+		std::unique_ptr<qt::system_tray_notification_sink>    NotificationSink;
+		std::unique_ptr<application::review_queue_notifier>   Notifications;
+		std::optional<application::queue_notification_target> ActivatedNotification;
 	};
 
 	github_application::github_application(github_application_config aConfig)
@@ -1589,6 +1617,10 @@ namespace bpr::app {
 				? Implementation->AppearanceHost->settings().Typography.Code.TabWidth
 				: 0U,
 			.AppearanceDivergences         = Implementation->AppearanceDivergences,
+			.NotificationDeliveryComposed  = Implementation->Notifications != nullptr,
+			.NotificationPermission        = Implementation->NotificationSink != nullptr
+				? Implementation->NotificationSink->permission()
+				: application::notification_permission::refused,
 		};
 	}
 

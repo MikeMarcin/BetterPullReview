@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
+#include "bpr/application/notification_delivery.hpp"
 #include "bpr/qt/github_window.hpp"
 
 #include <filesystem>
@@ -71,10 +72,17 @@ namespace bpr::app {
 		// The restart claim survives the correction. A composition starts from
 		// `system` and a tab width of four, so a run that makes no gesture and
 		// reports anything else read it from the durable record.
-		std::string        AppearanceMode;
-		std::uint32_t      AppearanceTabWidth    = 0U;
-		std::size_t        AppearanceDivergences = 0U;
-		core::epoch_status EpochStatus           = core::epoch_status::inactive;
+		std::string   AppearanceMode;
+		std::uint32_t AppearanceTabWidth    = 0U;
+		std::size_t   AppearanceDivergences = 0U;
+		// Whether the composition constructed the queue notification delivery
+		// path, and what the desktop says about showing one. Reported rather
+		// than assumed: a refused or absent notification surface is a normal
+		// outcome and must not read as a failure.
+		bool                                 NotificationDeliveryComposed = false;
+		application::notification_permission NotificationPermission
+			= application::notification_permission::refused;
+		core::epoch_status EpochStatus = core::epoch_status::inactive;
 	};
 
 	/// \brief Provides the github application contract.
