@@ -16,6 +16,7 @@ add_library(
         src/model.cpp
         src/review_ledger.cpp
         src/review_queue.cpp
+        src/agent_profile.cpp
         src/review_queue_attention.cpp
         src/review_round_trip.cpp
         src/sha256.cpp
