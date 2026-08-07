@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <set>
 
 class QEvent;
 class QLabel;
@@ -51,8 +52,14 @@ namespace bpr::qt {
 		/// apart: a painter that scanned the list from the front would format
 		/// exactly the same blocks and visit every span in the file to do it,
 		/// which is the shape of the cost a block count cannot see.
-		std::uint64_t SyntaxSpansVisited   = 0U;
-		std::size_t   SemanticIndexEntries = 0U;
+		std::uint64_t SyntaxSpansVisited = 0U;
+		/// Alignment segments the band painter examined. Counted for the same
+		/// reason as the spans above: the band count is bounded by the
+		/// viewport whether or not the search that found them was.
+		std::uint64_t AlignmentSegmentsVisited = 0U;
+		std::uint64_t GroupBoundariesPainted   = 0U;
+		std::uint64_t MovedBandsPainted        = 0U;
+		std::size_t   SemanticIndexEntries     = 0U;
 
 		auto operator<=>(const diff_workbench_statistics&) const = default;
 	};
@@ -166,6 +173,15 @@ namespace bpr::qt {
 			QPlainTextEdit& aPane,
 			core::diff_side aSide,
 			core::line_span aPaintable);
+		/// \brief Marks where the model places each change group's boundary.
+		void append_group_boundaries(
+			QList<QTextEdit::ExtraSelection>& aSelections,
+			QPlainTextEdit&                   aPane,
+			core::diff_side                   aSide,
+			core::line_span                   aPaintable);
+		/// \brief Whether the named segment takes part in a detected move.
+		[[nodiscard]] auto moved(const core::alignment_segment_id& aSegment) const
+			-> bool;
 		void append_intraline_emphasis(
 			QList<QTextEdit::ExtraSelection>& aSelections,
 			QPlainTextEdit&                   aPane,
@@ -198,8 +214,13 @@ namespace bpr::qt {
 		QSplitter*                    Vertical       = nullptr;
 		QPlainTextEdit*               Detail         = nullptr;
 
-		std::optional<core::diff_request_context>       CurrentContext;
-		diff_presentation_colors                        Colors;
+		std::optional<core::diff_request_context> CurrentContext;
+		diff_presentation_colors                  Colors;
+		/// Segment identities that take part in a detected move, built once
+		/// per publication. `file_alignment::Moves` is unordered with respect
+		/// to the segment list, so answering per segment by searching it would
+		/// make painting one screenful cost the whole move table.
+		std::set<core::alignment_segment_id>            MovedSegments;
 		application::shared_token_spans                 LeftSpans;
 		application::shared_token_spans                 RightSpans;
 		std::shared_ptr<const core::computed_file_diff> CurrentResult;

@@ -1177,6 +1177,71 @@ namespace {
 		};
 	}
 
+	[[nodiscard]] auto segment_by_id(
+		const core::computed_file_diff&   aDiff,
+		const core::alignment_segment_id& aId) -> const core::alignment_segment&
+	{
+		const auto found = std::ranges::find_if(
+			aDiff.Alignment.Segments,
+			[&aId](const core::alignment_segment& aSegment) {
+				return aSegment.Id == aId;
+			});
+		expect(
+			found != aDiff.Alignment.Segments.end(),
+			"a move names a segment the alignment contains");
+		return *found;
+	}
+
+	/// \brief The diff line band painted on one line, if any.
+	///
+	/// \details The **first** full-width selection on the line, not the last.
+	/// Three different things are full-width - the diff band, the change-group
+	/// boundary, and the reviewer's selection - and they are emitted in that
+	/// order because that is the order they must composite in. Reading the last
+	/// one reports the selection colour on whichever line the reviewer is on,
+	/// which is what the first version of this helper did: it reported the
+	/// selection highlight and made a correctly painted moved band look wrong.
+	///
+	/// Anything narrower is intraline emphasis and is deliberately not reported
+	/// here.
+	[[nodiscard]] auto band_color(QPlainTextEdit& aPane, const int aLine)
+		-> QColor
+	{
+		for (const auto& selection : aPane.extraSelections()) {
+			if (
+				selection.format.boolProperty(QTextFormat::FullWidthSelection)
+				&& selection.cursor.blockNumber() == aLine) {
+				return selection.format.background().color();
+			}
+		}
+		return { };
+	}
+
+	/// \brief The character range of one line's intraline emphasis.
+	[[nodiscard]] auto emphasis_range(
+		QPlainTextEdit& aPane,
+		const int       aLine,
+		const QColor&   aColor) -> std::optional<std::pair<qsizetype, qsizetype>>
+	{
+		for (const auto& selection : aPane.extraSelections()) {
+			if (
+				selection.format.boolProperty(QTextFormat::FullWidthSelection)
+				|| selection.cursor.blockNumber() != aLine
+				|| selection.format.background().color() != aColor) {
+				continue;
+			}
+			const auto block = selection.cursor.block();
+			return std::pair{
+				static_cast<qsizetype>(
+					selection.cursor.selectionStart() - block.position()),
+				static_cast<qsizetype>(
+					selection.cursor.selectionEnd()
+					- selection.cursor.selectionStart()),
+			};
+		}
+		return std::nullopt;
+	}
+
 	[[nodiscard]] auto block_formats(QPlainTextEdit& aPane, const int aLine)
 		-> QList<QTextLayout::FormatRange>
 	{
@@ -1291,8 +1356,13 @@ namespace {
 	/// \brief Token colouring must not grow with the file it is colouring.
 	auto test_syntax_formatting_stays_bounded_by_the_viewport() -> void
 	{
-		using role        = core::appearance_role;
-		using measurement = std::pair<std::uint64_t, std::uint64_t>;
+		using role = core::appearance_role;
+		struct measurement
+		{
+			std::uint64_t Blocks   = 0U;
+			std::uint64_t Spans    = 0U;
+			std::uint64_t Segments = 0U;
+		};
 		const auto measure
 			= [](const std::size_t aLines) -> measurement {
 			const auto text      = large_comparison_text(aLines, 8U);
@@ -1351,26 +1421,239 @@ namespace {
 			process_events();
 			const auto after = workbench.statistics();
 			return measurement{
-				after.SyntaxBlocksFormatted - before.SyntaxBlocksFormatted,
-				after.SyntaxSpansVisited - before.SyntaxSpansVisited,
+				.Blocks = after.SyntaxBlocksFormatted - before.SyntaxBlocksFormatted,
+				.Spans  = after.SyntaxSpansVisited - before.SyntaxSpansVisited,
+				.Segments
+				= after.AlignmentSegmentsVisited - before.AlignmentSegmentsVisited,
 			};
 		};
 
 		const auto small = measure(200U);
 		const auto large = measure(2'000U);
-		expect(small.first > 0U && small.second > 0U,
-			   "the bounds below are not satisfied by formatting nothing");
 		expect(
-			large.first <= 4U * small.first,
+			small.Blocks > 0U && small.Spans > 0U && small.Segments > 0U,
+			"the bounds below are not satisfied by doing nothing");
+		expect(
+			large.Blocks <= 4U * small.Blocks,
 			"a file ten times longer formats no more than a constant factor "
 			"more blocks");
 		// The block count alone would be satisfied by a painter that walked
 		// every span in the file to find the visible ones. This is the half of
 		// the bound that a block count cannot see.
 		expect(
-			large.second <= 4U * small.second,
+			large.Spans <= 4U * small.Spans,
 			"a file ten times longer visits no more than a constant factor "
 			"more classified spans");
+		// And the same again for the alignment. BPR-0196 bounded the number of
+		// bands it emitted and left the scan that chose them proportional to
+		// the file; the selection count could not see the difference, and
+		// neither could the two assertions above.
+		expect(
+			large.Segments <= 4U * small.Segments,
+			"a file ten times longer visits no more than a constant factor "
+			"more alignment segments");
+	}
+	/// \brief Moved code must not read as an unrelated delete plus add.
+	auto test_moved_blocks_carry_the_moved_role() -> void
+	{
+		auto moveOptions         = core::diff_options{ };
+		moveOptions.Moves        = core::move_detection_policy::deterministic_exact;
+		const auto [left, right] = dense_move_text();
+		const auto diff          = computed(left, right, moveOptions, 46U);
+		expect(
+			!diff.Alignment.Moves.empty(),
+			"the fixture really does produce move relations, so the assertions "
+			"below are about detected moves and not about their absence");
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 92U, 92U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		expect(
+			workbench.statistics().MovedBandsPainted > 0U,
+			"a comparison the core reports moves for paints moved bands");
+
+		// Read off the pane, and compared against the model's own answer: the
+		// left side of a move is a deletion segment, so a surface that ignored
+		// `Moves` would paint it with the removed colour and still look
+		// plausible.
+		const auto movedColor
+			= profile.color(core::appearance_role::diff_moved_background);
+		const auto removedColor
+			= profile.color(core::appearance_role::diff_removed_background);
+		expect(
+			movedColor != removedColor,
+			"the palette distinguishes the two, so the assertion below can");
+
+		const auto& source = segment_by_id(diff, diff.Alignment.Moves.front().SourceDeletion);
+		expect(
+			source.Kind == core::alignment_kind::left_only,
+			"the move's source really is a deletion, which is what would be "
+			"painted as an ordinary removal by a surface that read no moves");
+		expect(
+			band_color(*workbench.left_pane(), static_cast<int>(source.Left.Begin))
+				== movedColor,
+			"the source of a move is painted as moved rather than as removed");
+
+		const auto& destination
+			= segment_by_id(diff, diff.Alignment.Moves.front().DestinationInsertion);
+		expect(
+			band_color(
+				*workbench.right_pane(),
+				static_cast<int>(destination.Right.Begin))
+				== movedColor,
+			"the destination of a move is painted as moved rather than as added");
+
+		// An unrelated deletion must keep the removed colour, or "moved" would
+		// mean nothing.
+		const auto& plain = segment_of_kind(diff, core::alignment_kind::equal);
+		expect(
+			!band_color(*workbench.left_pane(), static_cast<int>(plain.Left.Begin))
+				 .isValid(),
+			"an unchanged line stays untinted, so the moved colour is a mark "
+			"and not a wash");
+	}
+
+	/// \brief Painted intraline ranges must be the ranges the core computed.
+	auto test_intraline_ranges_match_the_model() -> void
+	{
+		// A two-byte character sits ahead of the edit on the changed line, so a
+		// byte offset used as a character index is wrong by exactly one here
+		// and right on every ASCII line around it.
+		const auto left = std::string{
+			"context-before\n"
+			"const auto na\xc3\xafve = compute(alpha);\n"
+			"context-after\n"
+		};
+		const auto right = std::string{
+			"context-before\n"
+			"const auto na\xc3\xafve = compute(omega);\n"
+			"context-after\n"
+		};
+		const auto diff = computed(left, right, { }, 47U);
+		expect(
+			!diff.Intraline.empty(),
+			"the fixture produces intraline edits, so the comparison below is "
+			"against something");
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 93U, 93U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		const auto emphasis
+			= profile.color(core::appearance_role::diff_intraline_added_background);
+		auto compared = 0U;
+		for (const auto& edit : diff.Intraline) {
+			const auto pair = std::ranges::find_if(
+				diff.Alignment.Pairs,
+				[&edit](const core::line_pair& aPair) {
+					return aPair.Id == edit.Pair;
+				});
+			expect(
+				pair != diff.Alignment.Pairs.end(),
+				"every intraline edit resolves through the model's own pairs");
+			if (edit.Right.Begin >= edit.Right.End) {
+				continue;
+			}
+			// The expectation is computed from the model and the document
+			// bytes, not from the widget: this is the comparison the card asks
+			// for, and reading the widget for both sides would compare the
+			// painter with itself.
+			const auto& document = diff.RightDocument;
+			const auto& decoded  = document->Lines[pair->RightLine];
+			const auto  prefix   = QString::fromUtf8(
+				reinterpret_cast<const char*>(
+					document->Bytes.data() + decoded.Content.Begin),
+				static_cast<qsizetype>(edit.Right.Begin));
+			const auto through = QString::fromUtf8(
+				reinterpret_cast<const char*>(
+					document->Bytes.data() + decoded.Content.Begin),
+				static_cast<qsizetype>(edit.Right.End));
+			const auto expectedStart  = prefix.size();
+			const auto expectedLength = through.size() - prefix.size();
+			expect(
+				expectedStart
+					!= static_cast<qsizetype>(edit.Right.Begin),
+				"the multi-byte character really does put the character index "
+				"and the byte offset apart, so this comparison can fail");
+
+			const auto painted = emphasis_range(
+				*workbench.right_pane(),
+				static_cast<int>(pair->RightLine),
+				emphasis);
+			expect(
+				painted.has_value(),
+				"the changed line carries painted intraline emphasis");
+			expect(
+				painted->first == expectedStart
+					&& painted->second == expectedLength,
+				"the painted character range is the range the core computed, "
+				"converted from bytes rather than assumed equal to them");
+			++compared;
+		}
+		expect(compared > 0U, "at least one intraline edit was compared");
+	}
+
+	/// \brief Change-group boundaries must be marked where the model puts them.
+	auto test_group_boundaries_are_painted() -> void
+	{
+		const auto [left, right] = representative_text();
+		const auto diff          = computed(left, right, { }, 48U);
+		expect(
+			!diff.Alignment.Groups.empty(),
+			"the fixture produces change groups");
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 94U, 94U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		expect(
+			workbench.statistics().GroupBoundariesPainted > 0U,
+			"a comparison with change groups marks at least one boundary");
+
+		const auto header
+			= profile.color(core::appearance_role::diff_hunk_header_background);
+		const auto& group = diff.Alignment.Groups.front();
+		expect(
+			group.First.Left > 0U,
+			"the first group does not start at the top of the file, so it has "
+			"a line above it to mark");
+		expect(
+			band_color(
+				*workbench.left_pane(),
+				static_cast<int>(group.First.Left - 1U))
+				== header,
+			"the line above a change group carries the hunk header background");
 	}
 } // namespace
 
@@ -1383,6 +1666,9 @@ auto main(int argc, char** argv) -> int
 	test_line_painting_stays_bounded_by_the_viewport();
 	test_syntax_spans_colour_the_panes();
 	test_syntax_formatting_stays_bounded_by_the_viewport();
+	test_moved_blocks_carry_the_moved_role();
+	test_intraline_ranges_match_the_model();
+	test_group_boundaries_are_painted();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }

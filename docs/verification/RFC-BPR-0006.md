@@ -119,6 +119,8 @@ network service.
 | BPR-0183 | Qt: the appearance profile drives the composed window |
 | BPR-0184 | Qt: the appearance settings gesture — **done** |
 | BPR-0185 | Link the syntax adapter and highlight the diff panes — **done** |
+| BPR-0196 | Paint the diff in the panes — **done** |
+| BPR-0198 | Moved code, change-group boundaries, intraline evidence — **done** |
 
 BPR-0118 retired the code line-height setting on the product owner's decision
 and is independent of these: it rests on Qt's measured behaviour, which holds

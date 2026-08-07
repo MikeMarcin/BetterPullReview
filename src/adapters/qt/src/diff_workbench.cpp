@@ -465,6 +465,15 @@ namespace bpr::qt {
 		}
 		CurrentResult = aPublication.Result;
 		SemanticIndex = std::move(semanticIndex);
+		// Built once here rather than searched per segment per repaint. The
+		// move table is keyed by segment identity and is unordered with
+		// respect to the segment list, so the alternative is a linear search
+		// inside the paint loop.
+		MovedSegments.clear();
+		for (const auto& move : CurrentResult->Alignment.Moves) {
+			MovedSegments.insert(move.SourceDeletion);
+			MovedSegments.insert(move.DestinationInsertion);
+		}
 		++Statistics.SemanticIndexBuilds;
 		Statistics.SemanticIndexEntries
 			= SemanticIndex->statistics().IndexEntries;
@@ -1025,12 +1034,41 @@ namespace bpr::qt {
 
 			if (CurrentResult && Colors.Supplied) {
 				const auto& alignment = CurrentResult->Alignment;
-				for (const auto& segment : alignment.Segments) {
-					const auto span  = aSide == core::diff_side::left
-						? segment.Left
-						: segment.Right;
-					const auto color = [&]() -> QColor {
-						switch (segment.Kind) {
+				// Segments are ordered by line, so the visible run is found by
+				// search. Scanning all of them was the shape of cost BPR-0196's
+				// selection count could not see: it emitted a bounded number of
+				// bands and walked every segment in the file to decide which,
+				// which on an all-changed comparison is one visit per line per
+				// repaint.
+				const auto first = std::ranges::lower_bound(
+					alignment.Segments,
+					paintable.Begin,
+					{ },
+					[aSide](const core::alignment_segment& aSegment) {
+						return (aSide == core::diff_side::left ? aSegment.Left
+															   : aSegment.Right)
+							.End;
+					});
+				for (auto segment = first; segment != alignment.Segments.end();
+					 ++segment) {
+					const auto span = aSide == core::diff_side::left
+						? segment->Left
+						: segment->Right;
+					if (span.Begin >= paintable.End) {
+						break;
+					}
+					++Statistics.AlignmentSegmentsVisited;
+					const auto isMoved = moved(segment->Id);
+					const auto color   = [&]() -> QColor {
+						if (isMoved) {
+							// A move is a deletion here and an insertion there.
+							// Painting it as an ordinary removal and addition
+							// would discard the one thing move detection
+							// computed: that these two blocks are the same
+							// code.
+							return Colors.Moved;
+						}
+						switch (segment->Kind) {
 						case core::alignment_kind::equal:
 							// Unchanged lines are left untinted on purpose. The
 							// eye should go to what moved, and a background on
@@ -1050,10 +1088,14 @@ namespace bpr::qt {
 						}
 						return { };
 					}();
-					append_line_band(
-						selections, aPane, intersection(span, paintable), color);
+					const auto visible = intersection(span, paintable);
+					append_line_band(selections, aPane, visible, color);
+					if (isMoved && !visible.empty()) {
+						++Statistics.MovedBandsPainted;
+					}
 				}
 
+				append_group_boundaries(selections, aPane, aSide, paintable);
 				append_intraline_emphasis(selections, aPane, aSide, paintable);
 			}
 
@@ -1072,6 +1114,78 @@ namespace bpr::qt {
 
 		paint(*Left, core::diff_side::left);
 		paint(*Right, core::diff_side::right);
+	}
+
+	auto diff_workbench::moved(const core::alignment_segment_id& aSegment) const
+		-> bool
+	{
+		return MovedSegments.contains(aSegment);
+	}
+
+	/// \brief Marks where the model places each change group's boundary.
+	///
+	/// \details The panes show whole documents side by side, not a unified
+	/// hunk stream, so a hunk header cannot be a row of text: inserting one
+	/// would make pane line N stop being document line N, and every mapping
+	/// built on that equality - intraline emphasis, token spans, selection,
+	/// the measured axis - would silently shift by the number of headers above
+	/// it. The delimiter therefore has to be a marking on a line that already
+	/// exists.
+	///
+	/// It goes on the unchanged line immediately above the group. That line is
+	/// deliberately untinted otherwise, so the marking costs no change signal;
+	/// putting it on the group's own first line would take an added or removed
+	/// line's colour away to say something the band already implies.
+	///
+	/// This is a visible product choice: an unchanged line acquires a role it
+	/// did not have. It is the only placement the mechanism allows without
+	/// custom viewport painting, which RFC-BPR-0005's measured-axis evidence
+	/// rests on not happening — but "only option available" is not "owner
+	/// approved", and BPR-0194 is the standing reminder of the difference.
+	void diff_workbench::append_group_boundaries(
+		QList<QTextEdit::ExtraSelection>& aSelections,
+		QPlainTextEdit&                   aPane,
+		const core::diff_side             aSide,
+		const core::line_span             aPaintable)
+	{
+		const auto background
+			= Colors.Syntax[static_cast<std::size_t>(
+				core::appearance_role::diff_hunk_header_background)];
+		const auto foreground
+			= Colors.Syntax[static_cast<std::size_t>(
+				core::appearance_role::diff_hunk_header_text)];
+		if (!background.isValid()) {
+			return;
+		}
+		for (const auto& group : CurrentResult->Alignment.Groups) {
+			const auto boundary = aSide == core::diff_side::left
+				? group.First.Left
+				: group.First.Right;
+			if (boundary == 0U) {
+				// A group that starts at the top of the file has no line above
+				// it to delimit. Skipped rather than painted on line zero,
+				// which would mark the first line of the group itself.
+				continue;
+			}
+			const auto line = boundary - 1U;
+			if (line < aPaintable.Begin || line >= aPaintable.End) {
+				continue;
+			}
+			const auto block = aPane.document()->findBlockByNumber(
+				static_cast<int>(line));
+			if (!block.isValid()) {
+				continue;
+			}
+			auto band   = QTextEdit::ExtraSelection{ };
+			band.cursor = QTextCursor{ block };
+			band.format.setProperty(QTextFormat::FullWidthSelection, true);
+			band.format.setBackground(background);
+			if (foreground.isValid()) {
+				band.format.setForeground(foreground);
+			}
+			aSelections.push_back(band);
+			++Statistics.GroupBoundariesPainted;
+		}
 	}
 
 	/// \brief Colours the classified tokens of the lines a pane can show.
@@ -1293,6 +1407,7 @@ namespace bpr::qt {
 		// bug. The composition re-adopts once the new blobs are classified.
 		LeftSpans.reset();
 		RightSpans.reset();
+		MovedSegments.clear();
 		Interaction.Selection.reset();
 		Left->clear();
 		Right->clear();
