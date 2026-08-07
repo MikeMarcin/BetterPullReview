@@ -1083,6 +1083,14 @@ namespace bpr::app {
 			// `QPalette::Highlight` - the selection colour BPR-0117 fitted for
 			// contrast and which, until now, nothing applied.
 			AppearanceProfile->apply_to(*Window);
+			// QPalette carries no role for "an added line", so the comparison
+			// surface is given the semantic palette directly. Without this the
+			// panes paint no line backgrounds at all, which is visibly wrong
+			// rather than quietly wrong.
+			if (auto* const workbench = Window->diff_comparison_workbench();
+				workbench != nullptr) {
+				workbench->adopt_appearance(*AppearanceProfile);
+			}
 
 			// Read back off the window rather than off the profile. The claim
 			// is that the palette reached the window; asking the profile what

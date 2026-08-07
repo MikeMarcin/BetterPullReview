@@ -5,6 +5,9 @@
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_link_map.hpp"
+#include <QColor>
+#include <QList>
+#include <QTextEdit>
 
 #include <QPointer>
 #include <QString>
@@ -86,6 +89,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto statistics() const noexcept
 			-> diff_workbench_statistics;
 
+		/// \brief Adopts the semantic colours the panes paint the diff with.
+		///
+		/// \details `QPalette` has no role for "an added line", so the pane
+		/// cannot get these the way it gets its background and selection. They
+		/// come from the composed appearance palette, which is the single
+		/// authority on what each `core::appearance_role` looks like.
+		///
+		/// Supplying them is optional. A workbench that was never given a
+		/// palette paints no line backgrounds at all rather than inventing
+		/// colours, so a composition that forgot this shows an obviously
+		/// unpainted diff instead of a plausible but unowned one.
+		void adopt_appearance(const appearance_profile& aProfile);
+
 	protected:
 		[[nodiscard]] auto event(QEvent* aEvent) -> bool override;
 		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent)
@@ -93,7 +109,24 @@ namespace bpr::qt {
 		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
+		/// \brief The semantic colours one side paints with.
+		struct diff_presentation_colors
+		{
+			QColor Added;
+			QColor Removed;
+			QColor IntralineAdded;
+			QColor IntralineRemoved;
+			QColor Moved;
+			bool   Supplied = false;
+		};
+
 		void adopt_code_typography(const code_typography_event& aTypography);
+		void update_diff_paint();
+		void append_intraline_emphasis(
+			QList<QTextEdit::ExtraSelection>& aSelections,
+			QPlainTextEdit&                   aPane,
+			core::diff_side                   aSide,
+			core::line_span                   aPaintable);
 		void schedule_geometry_rebuild(measured_geometry_change aChange);
 		void rebuild_geometry();
 		void apply_frame(const comparison_scroll_frame& aFrame);
@@ -122,6 +155,7 @@ namespace bpr::qt {
 		QPlainTextEdit*               Detail         = nullptr;
 
 		std::optional<core::diff_request_context>       CurrentContext;
+		diff_presentation_colors                        Colors;
 		std::shared_ptr<const core::computed_file_diff> CurrentResult;
 		std::optional<core::diff_semantic_index>        SemanticIndex;
 		std::optional<core::line_detail_input>          CurrentDetail;

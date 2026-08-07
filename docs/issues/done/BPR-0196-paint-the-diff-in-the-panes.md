@@ -1,7 +1,7 @@
 ---
 id: BPR-0196
 title: The diff panes paint no diff
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0183]
 ---
@@ -152,3 +152,97 @@ made reachable.
   lines are re-measured and either hold or are restated.
 - Each new assertion is shown to fail when the behaviour it constrains is
   neutered.
+
+## What was done
+
+`diff_workbench` paints the diff the core decided. It went from one
+`setBackground` call and zero appearance roles to five roles applied:
+
+| Element | Source | Role |
+|---|---|---|
+| Removed lines | `alignment_kind::left_only`, and the left side of a `replacement` | `diff_removed_background` |
+| Added lines | `alignment_kind::right_only`, and the right side of a `replacement` | `diff_added_background` |
+| Intraline emphasis | `computed_file_diff::Intraline`, via `Pairs` for the line | `diff_intraline_*_background` |
+| Unchanged lines | `alignment_kind::equal` | **deliberately none** |
+
+Nothing here decides what changed. Every span is read from
+`core::diff_semantics`, and `alignment_kind` is switched over exhaustively so a
+new kind is a compile error rather than a silently unpainted line.
+
+`QPalette` carries no role for "an added line", so the surface takes the
+semantic palette through `adopt_appearance`. A workbench never given one paints
+**no** line backgrounds rather than inventing colours — a composition that
+forgets the wiring shows an obviously unpainted diff instead of a plausible but
+unowned one.
+
+### Layer order is the design
+
+Qt draws extra selections in the order supplied: line band, then intraline
+emphasis, then selection. That is what makes "this line changed", "this is the
+part that changed", and "this is where I am" three readable levels instead of
+one winning and two vanishing. It matches the two-level structure in the
+owner's reference.
+
+### Byte offsets are converted, not assumed
+
+The core reports intraline edits as byte spans because bytes are what it
+compared; Qt addresses text in UTF-16. The prefix is decoded and measured. The
+current fixture is pure ASCII, so assuming the two were equal would have looked
+correct here and shifted every emphasis left by one continuation byte per
+non-ASCII character on the first real file.
+
+## A regression this card introduced, and the evidence that could not see it
+
+The first working version emitted one `ExtraSelection` per changed line for the
+**whole document**. `QPlainTextEdit` walks that entire list on every paint, so a
+large comparison would have cost tens of thousands of list entries per repaint.
+
+**The full suite passed, 123/123, including every bounded-widget assertion.**
+Extra selections are text formats rather than widgets, so the 68/68/68 counts
+at 60, 6,000, and 60,000 lines were untouched. RFC-BPR-0005's virtualization
+evidence held perfectly while the surface acquired an unbounded per-paint cost.
+That evidence is structurally incapable of seeing this, and recording it here is
+the point: a bounded widget count is not a bounded renderer.
+
+Painting is now bounded to the lines a pane can show plus a screenful either
+side, and `apply_frame` repaints on scroll — without that the bound would be a
+rendering bug rather than an optimisation, and a reviewer would scroll into a
+changed region and find it untinted. The bounded render is **pixel-identical**
+to the unbounded one.
+
+## What this card does NOT deliver
+
+- **No syntax colouring.** `packaged_syntax_classifier` still has zero symbols
+  in the binary; BPR-0185 owns linking it.
+- **No moved-code indication.** `diff_moved_background` is adopted but never
+  applied — `file_alignment::Moves` is not yet consulted.
+- **No hunk headers.** `diff_hunk_header_*` remain unapplied.
+- **No change-block boundaries or intraline evidence against the model.** The
+  intraline spans are painted from `Intraline`, but no test yet compares the
+  painted spans to the model's; only the line bands are proven.
+
+Three of seven elements from the reference, up from one.
+
+## Evidence
+
+- `ctest --preset dev` — **123/123**. `ctest --preset core-only` — **57/57**.
+- `coding-format-check` passed. `DOCUMENTATION_OK`.
+- `qt_diff_workbench_scale_100/125/200` and `qt_workbench_window_scale_*` pass,
+  so the measured axis and bounded-widget counts are unchanged.
+- Captured render shows removed lines tinted on the left, added on the right,
+  unchanged untinted, with the connector between them.
+
+### Break
+
+Widening the paint bound back to the whole document fails, with 0 compile
+errors, on "a comparison ten times longer paints no more than a constant factor
+more line backgrounds".
+
+An earlier break attempt was invalid and is recorded because the pattern has now
+recurred three times this session: the edit left a variable unused under
+`-Werror`, so the target failed to build and `ctest` reported `Passed` against a
+stale binary. A break is evidence only when the build succeeded.
+
+The all-changed 20,000-line case the test first used was **refused by the core**
+— that comparison is quadratic and exceeds `MaximumMatrixCells`. The limit
+behaved correctly; the test was rescaled to a computable one.

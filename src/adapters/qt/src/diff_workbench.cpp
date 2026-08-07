@@ -26,6 +26,8 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <ranges>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -183,6 +185,110 @@ namespace bpr::qt {
 				return QStringLiteral("Comparison unavailable");
 			}
 			return QStringLiteral("Comparison unavailable");
+		}
+
+		/// \brief Converts a byte offset inside one line to a character index.
+		///
+		/// \details The core reports intraline edits as byte spans, because
+		/// bytes are what it compared. Qt addresses text in UTF-16 code units,
+		/// so the prefix is decoded and measured rather than assumed equal:
+		/// every non-ASCII character ahead of the edit would otherwise shift
+		/// the emphasis left by however many continuation bytes it carries.
+		[[nodiscard]] auto character_offset(
+			const std::span<const std::uint8_t> aLineBytes,
+			const std::uint64_t                 aByteOffset) -> int
+		{
+			const auto bounded = std::min<std::size_t>(
+				static_cast<std::size_t>(aByteOffset), aLineBytes.size());
+			return static_cast<int>(
+				QString::fromUtf8(
+					reinterpret_cast<const char*>(aLineBytes.data()),
+					static_cast<qsizetype>(bounded))
+					.size());
+		}
+
+		/// \brief The lines one pane could currently show, with a margin.
+		///
+		/// \details Painting is bounded to this. `QPlainTextEdit` walks its
+		/// whole extra-selection list on every paint, so one selection per
+		/// changed line over a sixty-thousand-line comparison would cost sixty
+		/// thousand list entries per repaint while the widget count stayed at
+		/// sixty-eight. RFC-BPR-0005's bounded-widget evidence would still hold
+		/// and the surface would still be slow, which is precisely the failure
+		/// that evidence cannot see.
+		///
+		/// The margin is a screenful either side so a scroll reveals painted
+		/// lines rather than a band appearing late.
+		[[nodiscard]] auto paintable_line_bounds(QPlainTextEdit& aPane)
+			-> core::line_span
+		{
+			const auto height = aPane.viewport()->height();
+			const auto top    = aPane.cursorForPosition(QPoint{ 0, 0 })
+									.blockNumber();
+			const auto bottom = aPane.cursorForPosition(QPoint{ 0, height })
+									.blockNumber();
+			const auto span   = std::max(bottom - top, 0) + 1;
+			const auto begin  = std::max(top - span, 0);
+			const auto end    = bottom + span + 1;
+			return core::line_span{
+				.Begin = static_cast<std::uint32_t>(begin),
+				.End   = static_cast<std::uint32_t>(std::max(end, 0)),
+			};
+		}
+
+		/// \brief Returns the overlap of two line spans, empty when disjoint.
+		[[nodiscard]] constexpr auto intersection(
+			const core::line_span aLeft, const core::line_span aRight) noexcept
+			-> core::line_span
+		{
+			const auto begin = std::max(aLeft.Begin, aRight.Begin);
+			const auto end   = std::min(aLeft.End, aRight.End);
+			return core::line_span{ .Begin = begin,
+									.End   = begin < end ? end : begin };
+		}
+
+		/// \brief Appends one full-width background over a span of lines.
+		void append_line_band(
+			QList<QTextEdit::ExtraSelection>& aSelections,
+			QPlainTextEdit&                   aPane,
+			const core::line_span             aSpan,
+			const QColor&                     aColor)
+		{
+			if (!aColor.isValid() || aSpan.empty()) {
+				return;
+			}
+			for (auto line = aSpan.Begin; line < aSpan.End; ++line) {
+				const auto block = aPane.document()->findBlockByNumber(
+					static_cast<int>(line));
+				if (!block.isValid()) {
+					continue;
+				}
+				auto band   = QTextEdit::ExtraSelection{ };
+				band.cursor = QTextCursor{ block };
+				band.format.setProperty(QTextFormat::FullWidthSelection, true);
+				band.format.setBackground(aColor);
+				aSelections.push_back(band);
+			}
+		}
+
+		/// \brief Appends the band marking where the reviewer is.
+		void append_selection_band(
+			QList<QTextEdit::ExtraSelection>& aSelections,
+			QPlainTextEdit&                   aPane,
+			const core::source_line_ref&      aLine)
+		{
+			const auto block = aPane.document()->findBlockByNumber(
+				static_cast<int>(aLine.Line));
+			if (!block.isValid()) {
+				return;
+			}
+			auto band   = QTextEdit::ExtraSelection{ };
+			band.cursor = QTextCursor{ block };
+			band.format.setProperty(QTextFormat::FullWidthSelection, true);
+			auto color = aPane.palette().color(QPalette::Highlight);
+			color.setAlpha(72);
+			band.format.setBackground(color);
+			aSelections.push_back(band);
 		}
 
 		void set_line_selection(
@@ -692,6 +798,11 @@ namespace bpr::qt {
 			static_cast<void>(LinkMap->set_frame(aFrame));
 		}
 		ApplyingFrame = false;
+		// Painting is bounded to what the panes can show, so a scroll that
+		// reveals new lines must repaint them. Without this the bound would be
+		// a rendering bug rather than an optimisation: the reviewer would
+		// scroll into a changed region and find it untinted.
+		update_diff_paint();
 		++Statistics.FrameApplications;
 	}
 
@@ -836,14 +947,156 @@ namespace bpr::qt {
 
 	void diff_workbench::update_selection_paint()
 	{
-		if (!CurrentResult || !Interaction.Selection.has_value()
-			|| !CurrentDetail.has_value()) {
-			set_line_selection(*Left, std::nullopt);
-			set_line_selection(*Right, std::nullopt);
+		update_diff_paint();
+	}
+
+	void diff_workbench::adopt_appearance(const appearance_profile& aProfile)
+	{
+		using role = core::appearance_role;
+		Colors     = diff_presentation_colors{
+			.Added            = aProfile.color(role::diff_added_background),
+			.Removed          = aProfile.color(role::diff_removed_background),
+			.IntralineAdded   = aProfile.color(role::diff_intraline_added_background),
+			.IntralineRemoved = aProfile.color(role::diff_intraline_removed_background),
+			.Moved            = aProfile.color(role::diff_moved_background),
+			.Supplied         = true,
+		};
+		update_diff_paint();
+	}
+
+	/// \brief Paints the diff the core decided, in one pass per pane.
+	///
+	/// \details Order is the whole design. Qt layers extra selections in the
+	/// order they are given, so the line band goes down first, the intraline
+	/// emphasis over it, and the selection last. A reviewer therefore sees
+	/// "this line changed", "this is the part that changed", and "this is where
+	/// I am" as three readable levels rather than one winning and two
+	/// vanishing.
+	///
+	/// Nothing here decides what changed. Every span comes from
+	/// `core::diff_semantics`, and a second opinion about which lines differ is
+	/// the defect RFC-BPR-0005's reuse rules forbid.
+	void diff_workbench::update_diff_paint()
+	{
+		const auto paint = [this](
+							   QPlainTextEdit&       aPane,
+							   const core::diff_side aSide) {
+			auto       selections = QList<QTextEdit::ExtraSelection>{ };
+			const auto paintable  = paintable_line_bounds(aPane);
+
+			if (CurrentResult && Colors.Supplied) {
+				const auto& alignment = CurrentResult->Alignment;
+				for (const auto& segment : alignment.Segments) {
+					const auto span  = aSide == core::diff_side::left
+						? segment.Left
+						: segment.Right;
+					const auto color = [&]() -> QColor {
+						switch (segment.Kind) {
+						case core::alignment_kind::equal:
+							// Unchanged lines are left untinted on purpose. The
+							// eye should go to what moved, and a background on
+							// every line marks nothing.
+							return { };
+						case core::alignment_kind::left_only:
+							return Colors.Removed;
+						case core::alignment_kind::right_only:
+							return Colors.Added;
+						case core::alignment_kind::replacement:
+							// A replacement is a removal on the left and an
+							// addition on the right, which is what the reviewer
+							// is actually looking at on each side.
+							return aSide == core::diff_side::left
+								? Colors.Removed
+								: Colors.Added;
+						}
+						return { };
+					}();
+					append_line_band(
+						selections, aPane, intersection(span, paintable), color);
+				}
+
+				append_intraline_emphasis(selections, aPane, aSide, paintable);
+			}
+
+			if (CurrentResult && Interaction.Selection.has_value()
+				&& CurrentDetail.has_value()) {
+				const auto& line = aSide == core::diff_side::left
+					? CurrentDetail->LeftLine
+					: CurrentDetail->RightLine;
+				if (line.has_value()) {
+					append_selection_band(selections, aPane, *line);
+				}
+			}
+
+			aPane.setExtraSelections(selections);
+		};
+
+		paint(*Left, core::diff_side::left);
+		paint(*Right, core::diff_side::right);
+	}
+
+	/// \brief Marks the exact byte spans the core reported as changed.
+	void diff_workbench::append_intraline_emphasis(
+		QList<QTextEdit::ExtraSelection>& aSelections,
+		QPlainTextEdit&                   aPane,
+		const core::diff_side             aSide,
+		const core::line_span             aPaintable)
+	{
+		const auto& document = aSide == core::diff_side::left
+			? CurrentResult->LeftDocument
+			: CurrentResult->RightDocument;
+		if (!document) {
 			return;
 		}
-		set_line_selection(*Left, CurrentDetail->LeftLine);
-		set_line_selection(*Right, CurrentDetail->RightLine);
+		const auto color = aSide == core::diff_side::left
+			? Colors.IntralineRemoved
+			: Colors.IntralineAdded;
+		if (!color.isValid()) {
+			return;
+		}
+
+		const auto& pairs = CurrentResult->Alignment.Pairs;
+		for (const auto& edit : CurrentResult->Intraline) {
+			const auto pair = std::ranges::find_if(
+				pairs,
+				[&edit](const core::line_pair& aPair) {
+					return aPair.Id == edit.Pair;
+				});
+			if (pair == pairs.end()) {
+				continue;
+			}
+			const auto line = aSide == core::diff_side::left ? pair->LeftLine
+															 : pair->RightLine;
+			const auto span = aSide == core::diff_side::left ? edit.Left
+															 : edit.Right;
+			if (span.Begin >= span.End || line >= document->Lines.size()
+				|| line < aPaintable.Begin || line >= aPaintable.End) {
+				continue;
+			}
+			const auto& decoded = document->Lines[line];
+			const auto  bytes   = std::span<const std::uint8_t>{
+				document->Bytes.data() + decoded.Content.Begin,
+				static_cast<std::size_t>(
+					decoded.Content.End - decoded.Content.Begin)
+			};
+			const auto block = aPane.document()->findBlockByNumber(
+				static_cast<int>(line));
+			if (!block.isValid()) {
+				continue;
+			}
+			const auto from = character_offset(bytes, span.Begin);
+			const auto to   = character_offset(bytes, span.End);
+			if (from >= to) {
+				continue;
+			}
+			auto emphasis   = QTextEdit::ExtraSelection{ };
+			emphasis.cursor = QTextCursor{ block };
+			emphasis.cursor.setPosition(block.position() + from);
+			emphasis.cursor.setPosition(
+				block.position() + to, QTextCursor::KeepAnchor);
+			emphasis.format.setBackground(color);
+			aSelections.push_back(emphasis);
+		}
 	}
 
 	void diff_workbench::update_action_state()

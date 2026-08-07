@@ -1085,6 +1085,58 @@ namespace {
 			<< " input_dispatch_ms=" << inputDispatchMilliseconds
 			<< " event_drain_ms=" << eventDrainMilliseconds << '\n';
 	}
+
+	/// \brief The painted diff must not grow with the file it is painting.
+	auto test_line_painting_stays_bounded_by_the_viewport() -> void
+	{
+		// Every line differs, so an unbounded painter emits one selection per
+		// line per pane. That is the shape of the defect: the widget count
+		// stays at its bound and QPlainTextEdit still walks the whole
+		// extra-selection list on every paint.
+		// The same change interval the existing large-comparison test already
+		// proves computable, so only the length varies - which is the thing
+		// under test. An all-changed comparison would be a better stress but is
+		// quadratic, and the core refuses it on its own matrix-cell budget.
+		const auto small = large_comparison_text(200U, 8U);
+		const auto large = large_comparison_text(2'000U, 8U);
+		const auto lines = [](const auto& aPair) {
+			return std::ranges::count(aPair.first, '\n');
+		};
+		expect(lines(large) >= 10 * lines(small),
+			   "the large comparison really is an order of magnitude longer");
+
+		const auto measure = [](const std::pair<std::string, std::string>& aText)
+			-> std::size_t {
+			const auto diff      = computed(aText.first, aText.second, { }, 40U);
+			auto       workbench = qt::diff_workbench{ };
+			workbench.resize(1'200, 760);
+			workbench.show();
+			process_events();
+			// Painting only happens once the surface has been given the
+			// semantic palette; a workbench without one paints nothing.
+			workbench.adopt_appearance(qt::appearance_profile{ });
+			const auto selected = context(diff, 80U, 80U);
+			workbench.set_loading(selected);
+			workbench.publish({
+				.Context = selected,
+				.Result  = std::make_shared<const core::computed_file_diff>(diff),
+			});
+			process_events();
+			return static_cast<std::size_t>(
+				workbench.left_pane()->extraSelections().size());
+		};
+
+		const auto smallSelections = measure(small);
+		const auto largeSelections = measure(large);
+		expect(smallSelections > 0U,
+			   "an all-changed comparison paints something at all, so the "
+			   "bound below is not satisfied by painting nothing");
+		// The ratio is the claim, exactly as it is for the widget count. A
+		// hundredfold longer file must not cost a hundredfold more selections.
+		expect(largeSelections <= 4U * smallSelections,
+			   "a comparison ten times longer paints no more than a constant "
+			   "factor more line backgrounds");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -1093,6 +1145,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
 	test_selected_composition();
 	test_scale_and_high_frequency_evidence();
+	test_line_painting_stays_bounded_by_the_viewport();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }
