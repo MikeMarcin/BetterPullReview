@@ -206,7 +206,7 @@ def main() -> None:
                 "-p",
                 record["tree"],
             ).stdout.decode()
-            expected_tree = f"100644 blob {record['blob']}\treview.txt\n"
+            expected_tree = f"100644 blob {record['blob']}\treview.cpp\n"
             if tree != expected_tree:
                 fail(f"{name} tree content drifted")
             commit = run(

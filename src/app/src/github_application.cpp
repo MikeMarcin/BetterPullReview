@@ -2028,7 +2028,7 @@ namespace bpr::app {
 			return false;
 		}
 		auto                              fileBytes = std::array<std::uint8_t, 32U>{ };
-		static constexpr std::string_view identity  = "fixture/review.txt/v1";
+		static constexpr std::string_view identity  = "fixture/review.cpp/v1";
 		std::ranges::copy(identity, fileBytes.begin());
 		implementation->request_diff(
 			core::file_comparison_key{
@@ -2046,8 +2046,9 @@ namespace bpr::app {
 			options,
 			// The fixture repository's single file. Named here because the
 			// comparison key carries a digest and the syntax definition needs
-			// a name; BPR-0197 owns making that name a source file.
-			"review.txt");
+			// a name, and BPR-0197 made that name a source file so the
+			// classifier selects C++ rather than plain text.
+			"review.cpp");
 		return implementation->DiffHost->state().Pending.has_value();
 	}
 

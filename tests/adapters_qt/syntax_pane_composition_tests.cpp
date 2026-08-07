@@ -213,13 +213,19 @@ namespace {
 				&& outcome.Result.has_value(),
 			"the classified comparison computes");
 
-		auto       catalog    = syntax::packaged_definition_catalog{ };
-		auto       blobs      = single_blob{ left };
-		auto       classifier = syntax::packaged_syntax_classifier{ catalog, blobs };
+		auto catalog    = syntax::packaged_definition_catalog{ };
+		auto blobs      = single_blob{ left };
+		auto classifier = syntax::packaged_syntax_classifier{ catalog, blobs };
+		// The epoch-history fixture's own file name, so this asserts the thing
+		// BPR-0197 changed: the surface every attended review looks at selects
+		// a real definition rather than plain text. Read from the catalog
+		// rather than from the extension, because the extension is not what
+		// decides.
 		const auto definition = catalog.definition_for_path("review.cpp");
 		expect(
 			definition.Name != syntax::plain_text_definition_name,
-			"a C++ path selects a packaged definition rather than plain text");
+			"the review fixture's path selects a packaged definition rather "
+			"than plain text");
 
 		const auto classification = classifier.classify(
 			{

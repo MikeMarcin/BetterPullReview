@@ -10,7 +10,7 @@ private cache refs.
 Every commit uses author and committer
 `BetterPullReview Fixture <fixture@betterpullreview.invalid>`, timezone
 `+0000`, the timestamp in `manifest.json`, and the recorded message. Each tree
-contains one `100644 review.txt` entry whose content is recorded in the
+contains one `100644 review.cpp` entry whose content is recorded in the
 manifest. A deterministic semantic regeneration recipe is:
 
 1. Initialize a temporary bare SHA-1 repository with system/global config
@@ -27,3 +27,23 @@ to exact sizes and SHA-256 digests by the manifest. Git/zlib versions may
 encode a semantically identical regenerated pack differently, so the
 contract verifies exact frozen bytes separately from exact regenerated Git
 object identities and topology.
+
+## Constraints the content must satisfy
+
+The line counts are not the whole contract. Two properties of the *text* are
+load-bearing, and BPR-0197 established both by breaking them:
+
+**Every line is unique.** The comparison is computed by the application, not
+read from this manifest. A repeated line lets the longest-common-subsequence
+match somewhere else and reshapes the alignment while every recorded count
+stays correct.
+
+**The replacement's two sides must not pair line by line.** The core pairs
+lines whose similarity clears `SimilarityThresholdPermille`, and a paired line
+splits the four-into-seven replacement into equal-width segments. The
+`--diff-workbench-probe` course reveals the first replacement segment at 0.2
+and 0.8 and requires the right pane to advance further than the left, which is
+true only while that segment really is four lines against seven. An earlier
+regeneration whose two sides both read as calibration code paired on
+`read_scale`, produced a one-line-to-one-line first segment, and failed that
+assertion with no indication of why. The two sides now share no identifier.
