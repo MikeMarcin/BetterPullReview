@@ -888,6 +888,24 @@ namespace bpr::qt {
 		PullRequestStack->addWidget(pullRequestContent);
 		centralLayout->addWidget(PullRequestStack, 1);
 
+		// The settings surface lives with the presentation it governs rather
+		// than behind a modal dialog, so a reviewer sees a font or mode change
+		// take effect on the very comparison they are reading. It translates
+		// gestures only: the composition wires its dispatch to the appearance
+		// host, and until it does, every gesture goes nowhere visible - which
+		// is the honest state for an unwired surface.
+		auto* const appearanceGroup = new QGroupBox{
+			QStringLiteral("Appearance"),
+			central,
+		};
+		appearanceGroup->setObjectName(QStringLiteral("appearanceSettingsGroup"));
+		auto* const appearanceLayout = new QVBoxLayout{ appearanceGroup };
+		AppearanceSettings           = new appearance_settings_panel{ { }, appearanceGroup };
+		AppearanceSettings->setObjectName(
+			QStringLiteral("appearanceSettingsPanel"));
+		appearanceLayout->addWidget(AppearanceSettings);
+		centralLayout->addWidget(appearanceGroup);
+
 		presentationScroll->setWidget(central);
 		setCentralWidget(presentationScroll);
 		statusBar()->hide();
@@ -1091,6 +1109,12 @@ namespace bpr::qt {
 		-> diff_workbench*
 	{
 		return DiffWorkbench;
+	}
+
+	auto github_window::appearance_settings() const noexcept
+		-> appearance_settings_panel*
+	{
+		return AppearanceSettings;
 	}
 
 	auto github_window::status_text() const -> std::string

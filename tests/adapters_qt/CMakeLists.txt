@@ -237,6 +237,30 @@ foreach(bpr_diff_link_map_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+bpr_add_executable(
+    test_better_pull_review_qt_appearance_settings_panel_tests
+    appearance_settings_panel_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_appearance_settings_panel_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_appearance_settings_panel_tests)
+bpr_enable_warnings(test_better_pull_review_qt_appearance_settings_panel_tests)
+
+add_test(
+    NAME qt_appearance_settings_panel
+    COMMAND test_better_pull_review_qt_appearance_settings_panel_tests
+)
+set_tests_properties(
+    qt_appearance_settings_panel
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "appearance-settings-panel-tests:pass"
+        TIMEOUT 120
+)
+
 # Linked against both adapters on purpose. Each is proven on its own elsewhere;
 # only a target that carries the two together can show the classifier's answer
 # arriving in the pane's rendered formats.

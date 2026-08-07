@@ -9,10 +9,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stop_token>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace bpr::application {
@@ -352,6 +354,39 @@ namespace bpr::application {
 		superseded,
 		cancelled,
 	};
+
+	/// \brief Asks for one appearance mode.
+	struct select_appearance_mode_intent
+	{
+		core::appearance_mode Mode = core::appearance_mode::system;
+
+		auto operator<=>(const select_appearance_mode_intent&) const = default;
+	};
+
+	/// \brief Offers one complete typography record.
+	///
+	/// \details Complete rather than per-field on purpose. The core validates a
+	/// record whole and refuses it whole, so an intent carrying one field would
+	/// have to be merged with retained state somewhere before it could be
+	/// judged — and whoever held that state would become a second authority on
+	/// what the current typography is.
+	struct apply_typography_intent
+	{
+		core::typography_settings Typography;
+
+		auto operator<=>(const apply_typography_intent&) const = default;
+	};
+
+	/// \brief Every gesture an appearance surface can express.
+	///
+	/// \details A closed set, so a surface cannot invent a way to change
+	/// appearance that the host has no rule for. Palette customisation is
+	/// deliberately absent: no card has designed that surface, and adding an
+	/// intent nothing sends would make this list a plan rather than a contract.
+	using appearance_intent
+		= std::variant<select_appearance_mode_intent, apply_typography_intent>;
+
+	using appearance_intent_dispatch = std::function<void(appearance_intent)>;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_RUNTIME_PORTS_HPP

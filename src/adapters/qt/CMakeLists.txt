@@ -2,6 +2,7 @@ add_library(
     better_pull_review_adapter_qt
     STATIC
         src/appearance_profile.cpp
+        src/appearance_settings_panel.cpp
         src/review_queue_model.cpp
         src/review_landing_model.cpp
         src/defect_card_view.cpp

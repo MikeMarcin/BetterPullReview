@@ -116,6 +116,25 @@ namespace bpr::app::detail {
 		/// \returns Whether the composed host applied a different mode.
 		[[nodiscard]] static auto select_other_appearance_mode(
 			github_application& aApplication) -> bool;
+		/// \brief Drives the composed settings surface as a reviewer would.
+		///
+		/// \details Goes through the widgets rather than through the host, so
+		/// what it proves is that a gesture reaches the record. Calling the
+		/// host directly would prove only that the host works, which its own
+		/// suite already establishes and which was true while no person could
+		/// reach it.
+		///
+		/// \returns Whether the host adopted both the mode and the tab width.
+		[[nodiscard]] static auto apply_appearance_gesture(
+			github_application&   aApplication,
+			core::appearance_mode aMode,
+			std::uint32_t         aTabWidth) -> bool;
+		/// \brief Offers an illegal family through the composed surface.
+		///
+		/// \returns Whether the record was refused whole, the surface reported
+		/// a typed reason, and the previous value stayed in effect.
+		[[nodiscard]] static auto refuse_appearance_gesture(
+			github_application& aApplication) -> bool;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

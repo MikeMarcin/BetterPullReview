@@ -35,11 +35,14 @@
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QLineEdit>
 #include <QPalette>
+#include <QSpinBox>
 #include <QStandardPaths>
 #include <QStyleHints>
 #include <QTimer>
@@ -509,10 +512,23 @@ namespace bpr::app {
 	public:
 		using span_sink
 			= std::function<void(const application::token_span_publication&)>;
+		using presentation_sink = std::function<void()>;
+		using refusal_sink      = std::function<void(
+			const application::appearance_failure_publication&)>;
 
 		void set_span_sink(span_sink aSink)
 		{
 			SpanSink = std::move(aSink);
+		}
+
+		void set_presentation_sink(presentation_sink aSink)
+		{
+			PresentationSink = std::move(aSink);
+		}
+
+		void set_refusal_sink(refusal_sink aSink)
+		{
+			RefusalSink = std::move(aSink);
 		}
 
 		void publish(const application::appearance_projection& aProjection) override
@@ -521,11 +537,22 @@ namespace bpr::app {
 			if (aProjection.Spans.has_value() && SpanSink) {
 				SpanSink(*aProjection.Spans);
 			}
+			// The host publishes a bounded invalidation naming which domains
+			// changed. What actually changed is read from the host's own
+			// settings rather than reconstructed from the invalidation,
+			// because the invalidation says a domain moved and not what it
+			// moved to - and the record is the thing a surface has to show.
+			if (aProjection.Presentation.has_value() && PresentationSink) {
+				PresentationSink();
+			}
 		}
 
-		void fail(const application::appearance_failure_publication&) override
+		void fail(const application::appearance_failure_publication& aFailure) override
 		{
 			++Failed;
+			if (RefusalSink) {
+				RefusalSink(aFailure);
+			}
 		}
 
 		[[nodiscard]] auto published() const noexcept -> std::size_t
@@ -539,9 +566,11 @@ namespace bpr::app {
 		}
 
 	private:
-		span_sink   SpanSink;
-		std::size_t Published = 0U;
-		std::size_t Failed    = 0U;
+		span_sink         SpanSink;
+		presentation_sink PresentationSink;
+		refusal_sink      RefusalSink;
+		std::size_t       Published = 0U;
+		std::size_t       Failed    = 0U;
 	};
 
 	/// \brief Holds the workbench projections until a surface consumes them.
@@ -901,6 +930,11 @@ namespace bpr::app {
 					[this](const application::token_span_publication& aSpans) {
 						adopt_classification(aSpans);
 					});
+				AppearanceProjections.set_presentation_sink(
+					[this] { adopt_appearance_settings(); });
+				AppearanceProjections.set_refusal_sink(
+					[this](const application::appearance_failure_publication&
+							   aFailure) { report_appearance_refusal(aFailure); });
 				AppearanceHost = std::make_unique<
 					application::appearance_application_host>(
 					qt::default_appearance_settings(),
@@ -939,6 +973,21 @@ namespace bpr::app {
 						Window.get(),
 						[this] { observe_native_appearance(); });
 				}
+				// The settings surface dispatches into the host, never into
+				// presentation. That is what makes the host the single
+				// authority on what is in effect: a gesture that reached the
+				// profile directly would change the screen without changing
+				// the record, and the next launch would silently disagree.
+				if (auto* const panel = Window->appearance_settings();
+					panel != nullptr) {
+					panel->set_dispatch(
+						[this](application::appearance_intent aIntent) {
+							dispatch_appearance_intent(std::move(aIntent));
+						});
+				}
+				// Shows what restore() loaded, so the surface opens on the
+				// settings actually in effect rather than on its own defaults.
+				adopt_appearance_settings();
 				apply_appearance();
 			}
 		}
@@ -1243,6 +1292,78 @@ namespace bpr::app {
 		}
 
 		/// \brief Applies the resolved appearance to the composed window.
+		/// \brief Routes one settings gesture to the appearance host.
+		///
+		/// \details The host decides. It validates, refuses whole, persists
+		/// what it accepted, and publishes; nothing here judges a value or
+		/// touches presentation, so a gesture cannot change the screen without
+		/// changing the record.
+		void dispatch_appearance_intent(application::appearance_intent aIntent)
+		{
+			if (Closing || AppearanceHost == nullptr) {
+				return;
+			}
+			std::visit(
+				[this](auto&& aValue) {
+					using intent = std::decay_t<decltype(aValue)>;
+					if constexpr (std::is_same_v<
+									  intent,
+									  application::select_appearance_mode_intent>) {
+						AppearanceHost->select(aValue.Mode);
+					} else {
+						AppearanceHost->apply(std::move(aValue.Typography));
+					}
+				},
+				std::move(aIntent));
+		}
+
+		/// \brief Puts the host's accepted settings into presentation.
+		///
+		/// \details Read off the host rather than off the intent that caused
+		/// the change: an intent is what was asked for, and the host is the
+		/// only thing that knows what was accepted. Offering the intent to
+		/// presentation would show a refused value as though it had applied.
+		///
+		/// The palette is deliberately not pushed. No card has designed a
+		/// palette-customisation gesture, so the profile's built-in palette for
+		/// the resolved variant is still the whole story, and pretending
+		/// otherwise here would invent a path nothing sends.
+		void adopt_appearance_settings()
+		{
+			if (Closing || AppearanceHost == nullptr || !AppearanceProfile) {
+				return;
+			}
+			const auto settings = AppearanceHost->settings();
+			static_cast<void>(AppearanceProfile->select_mode(settings.Mode));
+			const auto selection
+				= AppearanceProfile->select_typography(settings.Typography);
+			if (!selection.accepted()) {
+				// The host validated with the same core function, so this
+				// cannot happen without the two disagreeing about legality.
+				// Counted rather than ignored, because a silent divergence
+				// here is exactly the kind of thing that stays invisible.
+				++AppearanceDivergences;
+			}
+			if (Window != nullptr) {
+				if (auto* const panel = Window->appearance_settings();
+					panel != nullptr) {
+					panel->adopt(settings);
+				}
+			}
+		}
+
+		void report_appearance_refusal(
+			const application::appearance_failure_publication& aFailure)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (auto* const panel = Window->appearance_settings();
+				panel != nullptr) {
+				panel->report(aFailure.Rejections);
+			}
+		}
+
 		void apply_appearance()
 		{
 			if (Closing || !AppearanceProfile || Window == nullptr) {
@@ -1404,6 +1525,10 @@ namespace bpr::app {
 		// classifier is linked" and "a pane received its answer" are different
 		// claims, and only the second one shows a reviewer anything.
 		std::size_t AdoptedClassifications = 0U;
+		// Times the presentation profile refused typography the host accepted.
+		// Both validate with the same core function, so this must stay zero;
+		// it exists so that if it ever does not, something says so.
+		std::size_t AppearanceDivergences = 0U;
 	};
 
 	github_application::github_application(github_application_config aConfig)
@@ -1456,6 +1581,14 @@ namespace bpr::app {
 			.ClassificationSubmissions     = Implementation->AppearanceHost != nullptr
 				? Implementation->AppearanceHost->classification_submissions()
 				: 0U,
+			.AppearanceMode                = Implementation->AppearanceHost != nullptr
+				? std::string{ core::stable_name(
+					  Implementation->AppearanceHost->settings().Mode) }
+				: std::string{ },
+			.AppearanceTabWidth            = Implementation->AppearanceHost != nullptr
+				? Implementation->AppearanceHost->settings().Typography.Code.TabWidth
+				: 0U,
+			.AppearanceDivergences         = Implementation->AppearanceDivergences,
 		};
 	}
 
@@ -1767,6 +1900,58 @@ namespace bpr::app {
 			: core::appearance_mode::dark;
 		implementation->AppearanceHost->select(other);
 		return implementation->AppearanceHost->settings().Mode == other;
+	}
+
+	auto detail::github_application_fixture_access::apply_appearance_gesture(
+		github_application&         aApplication,
+		const core::appearance_mode aMode,
+		const std::uint32_t         aTabWidth) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->Window == nullptr
+			|| implementation->AppearanceHost == nullptr) {
+			return false;
+		}
+		auto* const panel = implementation->Window->appearance_settings();
+		if (panel == nullptr) {
+			return false;
+		}
+		// Through the controls, which is the whole claim. Setting the combo box
+		// index and the spin box value is what a reviewer's click and keystroke
+		// produce; if the wiring between them and the host is missing, nothing
+		// below moves.
+		panel->mode_selector()->setCurrentIndex(static_cast<int>(aMode));
+		panel->tab_width_editor()->setValue(static_cast<int>(aTabWidth));
+		const auto& settings = implementation->AppearanceHost->settings();
+		return settings.Mode == aMode
+			&& settings.Typography.Code.TabWidth == aTabWidth;
+	}
+
+	auto detail::github_application_fixture_access::refuse_appearance_gesture(
+		github_application& aApplication) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->Window == nullptr
+			|| implementation->AppearanceHost == nullptr) {
+			return false;
+		}
+		auto* const panel = implementation->Window->appearance_settings();
+		if (panel == nullptr) {
+			return false;
+		}
+		const auto before = implementation->AppearanceHost->settings();
+		// An empty family is the one illegal value a control can express: the
+		// numeric controls carry the core's own bounds, so they cannot.
+		panel->code_family_editor()->setText(QString{ });
+		Q_EMIT panel->code_family_editor()->editingFinished();
+		const auto& after = implementation->AppearanceHost->settings();
+		return after == before
+			&& !implementation->AppearanceHost->last_rejections().empty()
+			&& panel->status_text().startsWith(QStringLiteral("Refused"))
+			&& panel->code_family_editor()->text().toStdString()
+			== before.Typography.Code.Font.Family;
 	}
 
 	auto detail::github_application_fixture_access::review_ledger_receipt_present(

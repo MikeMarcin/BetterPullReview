@@ -415,9 +415,15 @@ namespace {
 		// costing a complete-blob pass. The token-span cache is keyed by blob
 		// identity and definition version alone, so a submission count that
 		// moved across an appearance change means the key acquired a colour.
-		bool                                         SyntaxThemeRepaintPassed = false;
-		bool                                         LedgerPresentOnEntry     = false;
-		bool                                         LedgerRoundTripped       = false;
+		bool SyntaxThemeRepaintPassed = false;
+		// Whether this run should drive the composed settings surface. Off by
+		// default so every other probe keeps reporting the settings the record
+		// held, unchanged by anything this process did.
+		bool                                         AppearanceGestureProbe  = false;
+		bool                                         AppearanceGesturePassed = false;
+		bool                                         AppearanceRefusalPassed = false;
+		bool                                         LedgerPresentOnEntry    = false;
+		bool                                         LedgerRoundTripped      = false;
 		std::string                                  FixtureName;
 		std::string                                  ExpectedActiveHostText;
 		bpr::app::detail::github_epoch_fixture_phase EpochPhase = bpr::app::detail::github_epoch_fixture_phase::single;
@@ -2022,6 +2028,28 @@ namespace {
 		stream << "SYNTAX_CLASSIFICATION:"
 			   << aApplication.status().AdoptedClassifications << ':'
 			   << aApplication.status().ClassificationSubmissions << '\n';
+		// The settings in effect. A composition starts from `system` and a tab
+		// width of four, so a run that made no gesture and reports anything
+		// else read it from the durable record - which is the restart claim.
+		stream << "APPEARANCE_SETTINGS:"
+			   << QString::fromStdString(aApplication.status().AppearanceMode)
+			   << ':' << aApplication.status().AppearanceTabWidth << '\n';
+		// Must stay zero. The host and the presentation profile validate with
+		// the same core function, so a non-zero count means they disagree about
+		// legality - reported rather than hidden, because a divergence nobody
+		// prints is a divergence nobody finds.
+		stream << "APPEARANCE_DIVERGENCE:"
+			   << aApplication.status().AppearanceDivergences << '\n';
+#if defined(BPR_BUILD_TESTING)
+		if (aRun.AppearanceGestureProbe) {
+			stream << (aRun.AppearanceGesturePassed
+						   ? "APPEARANCE_GESTURE_OK\n"
+						   : "APPEARANCE_GESTURE_FAILED\n")
+				   << (aRun.AppearanceRefusalPassed
+						   ? "APPEARANCE_REFUSAL_OK\n"
+						   : "APPEARANCE_REFUSAL_FAILED\n");
+		}
+#endif
 		// Reports the colours actually on the window, so a reader can check
 		// that presentation came from the appearance palette rather than from
 		// the platform style.
@@ -2204,6 +2232,35 @@ namespace {
 					aRun->LedgerRoundTripped = bpr::app::detail::
 						github_application_fixture_access::
 							review_ledger_round_trip(aApplication);
+					if (aRun->AppearanceGestureProbe) {
+						// Here rather than in a later stage because this is the
+						// one point every fixture path passes through, seed and
+						// reuse included. The gesture needs the window and the
+						// appearance host, both of which exist from
+						// construction; it needs no pull request and no
+						// comparison.
+						//
+						// Driven through the composed controls, and judged on
+						// the window rather than on the host: the claim is that
+						// a gesture reaches presentation, and a host that
+						// adopted a mode nothing applied would satisfy a
+						// host-only check.
+						const auto before  = aApplication.status().AppliedBaseColor;
+						const auto applied = bpr::app::detail::
+							github_application_fixture_access::
+								apply_appearance_gesture(
+									aApplication,
+									bpr::core::appearance_mode::dark,
+									8U);
+						QApplication::processEvents();
+						aRun->AppearanceGesturePassed = applied
+							&& aApplication.status().AppliedBaseColor != before
+							&& aApplication.status().AppliedFromProfile;
+						aRun->AppearanceRefusalPassed = bpr::app::detail::
+							github_application_fixture_access::
+								refuse_appearance_gesture(aApplication);
+						QApplication::processEvents();
+					}
 					window.connect_action()->trigger();
 					advance_fixture_stage(
 						*aRun, automated_run::stage::connect);
@@ -2979,6 +3036,13 @@ auto main(int argc, char** argv) -> int
 				fixtureOptions.EpochPhase = bpr::app::detail::github_epoch_fixture_phase::seed;
 			} else if (*epochFixturePhase == "reuse") {
 				fixtureOptions.EpochPhase = bpr::app::detail::github_epoch_fixture_phase::reuse;
+			} else if (*epochFixturePhase == "single") {
+				// A persistent application data root with no epoch phase. The
+				// enum already had this state and it was the default; naming
+				// it is what lets a probe that cares about durable settings
+				// rather than about epochs choose a root, without a second
+				// flag meaning the same thing or a weakened root/phase gate.
+				fixtureOptions.EpochPhase = bpr::app::detail::github_epoch_fixture_phase::single;
 			} else {
 				QTextStream{ stdout }
 					<< "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
@@ -3040,6 +3104,8 @@ auto main(int argc, char** argv) -> int
 		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
 		const auto diffWorkbenchShutdownProbe = has_argument(
 			argc, argv, "--diff-workbench-shutdown-probe");
+		const auto appearanceGestureProbe = has_argument(
+			argc, argv, "--appearance-gesture-probe");
 		const auto diffEvidenceDirectory = argument_value(
 			argc, argv, "--diff-interaction-evidence");
 		const auto changedRenderPath     = argument_value(argc, argv, "--changed-render-evidence");
@@ -3091,6 +3157,14 @@ auto main(int argc, char** argv) -> int
 				<< "DIFF_WORKBENCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
+		// The gesture probe drives the composed settings surface, which only
+		// exists on the fixture window. Refused rather than ignored, so a
+		// mistyped invocation cannot report a silent success.
+		if (appearanceGestureProbe && !selectedFixture.has_value()) {
+			QTextStream{ stdout }
+				<< "APPEARANCE_GESTURE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
 #endif
 
 		auto application =
@@ -3137,6 +3211,7 @@ auto main(int argc, char** argv) -> int
 						},
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                = !fixtureName.empty(),
+						.AppearanceGestureProbe = appearanceGestureProbe,
 						.DiffProbe              = diffWorkbenchProbe,
 						.DiffShutdownProbe      = diffWorkbenchShutdownProbe,
 						.StallProbe             = automatedStallProbe,
