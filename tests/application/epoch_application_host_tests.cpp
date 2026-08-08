@@ -283,7 +283,14 @@ namespace {
 		std::deque<std::pair<std::string, application::epoch_catalog_failure>>
 			MaintenanceCatalogFailures;
 		std::deque<std::pair<std::string, application::git_cache_failure>>
-															MaintenanceCacheFailures;
+			MaintenanceCacheFailures;
+		/// Failures for the *resolve* path rather than maintenance. A catalog
+		/// retained across a change of history names commits the cache can no
+		/// longer produce, and the question BPR-0200 asks is what a reviewer is
+		/// told when that happens. Nothing could answer it while the only
+		/// injectable failures were prune and delete.
+		std::deque<std::pair<std::string, application::git_cache_failure>>
+															PrepareCacheFailures;
 		bool                                                PromoteAppliesThenFails           = false;
 		bool                                                AssociationAppliesThenFails       = false;
 		bool                                                CacheDeleteFinalizesWithoutChange = false;
@@ -1284,6 +1291,10 @@ namespace {
 			++State.CacheMutationCalls;
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (const auto failure = take_failure(
+					State.PrepareCacheFailures, "cache.prepare-revision")) {
+				return std::unexpected{ *failure };
 			}
 			return application::git_prepared_revision{
 				.Operation     = aRequest.Authorization.Operation,
@@ -4845,6 +4856,63 @@ namespace {
 		}
 	}
 
+	/// \brief A retained catalog naming absent commits must say so.
+	///
+	/// \details BPR-0200. A catalog written before the repository's history
+	/// changed still names commits by OID, and nothing in the storage layer can
+	/// notice they have gone: `validate_schema` checks the schema, the
+	/// application id and the catalog incarnation, none of which move when only
+	/// the objects do. The guard is the cache, which refuses to prepare a
+	/// revision it cannot produce.
+	///
+	/// What matters is what a reviewer is then told. Three outcomes were
+	/// plausible when this was carded — a silent rebuild, an actionable failure,
+	/// or stale history presented as correct — and the last is the one that
+	/// would be a wrong answer about their own review state.
+	///
+	/// This asserts the second: `object_mismatch` from the resolve path reaches
+	/// presentation as `repair_required`, which the comparison control words as
+	/// "The local review history requires repair."
+	void retained_catalog_naming_absent_commits_asks_for_repair()
+	{
+		{
+			fixture value;
+			value.State.PrepareCacheFailures.emplace_back(
+				"cache.prepare-revision",
+				application::git_cache_failure::object_mismatch);
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			// Drained rather than driven through a fixed number of effects. A
+			// preparation that fails queues fewer of them, and
+			// drive_through_preparation runs exactly three.
+			drain(value);
+
+			expect(
+				has_repair_diagnostic(value.State),
+				"a commit the cache cannot produce is reported as requiring "
+				"repair rather than as an empty history");
+			expect(
+				!value.Host->state().AcceptedComparison.has_value(),
+				"no comparison is accepted against commits that are gone, so "
+				"nothing stale is presented as current");
+		}
+
+		// And the neighbouring failure, so the diagnostic is not simply what
+		// this path always says. An inventory mismatch is a different cause with
+		// the same remedy; a cancellation is neither.
+		{
+			fixture value;
+			value.State.PrepareCacheFailures.emplace_back(
+				"cache.prepare-revision",
+				application::git_cache_failure::cancelled);
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(
+				!has_repair_diagnostic(value.State),
+				"a cancelled preparation is not reported as requiring repair, "
+				"so the repair diagnostic means what it says");
+		}
+	}
+
 	void shutdown_waits_for_worker_and_decision_quiescence()
 	{
 		fixture value;
@@ -4922,6 +4990,7 @@ int main()
 	maintenance_restart_recovery_aborts_or_completes_by_phase();
 	maintenance_restart_recovery_covers_every_durable_phase();
 	maintenance_faults_fail_closed_and_restart_from_durable_phase();
+	retained_catalog_naming_absent_commits_asks_for_repair();
 	shutdown_waits_for_worker_and_decision_quiescence();
 	return EXIT_SUCCESS;
 }

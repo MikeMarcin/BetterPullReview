@@ -1,7 +1,7 @@
 ---
 id: BPR-0200
 title: A persisted catalog survives a fixture identity change and no test notices
-status: Backlog
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0197]
 ---
@@ -92,7 +92,38 @@ So there is no contradicting evidence. There is no evidence at all, which is a
 different and less alarming position, and it is what the card originally said
 before this section over-read a marker.
 
-### What is still unproven
+### Proven, 2026-08-08
+
+`application_epoch_host` now asserts it. The fake cache gained a failure queue
+for the **resolve** path — it previously had one only for prune and delete, which
+is why nothing could answer this card: the failure a stale catalog causes happens
+while preparing a revision, and that path could not be made to fail.
+
+With `object_mismatch` injected there, a diagnostic carrying
+`epoch_reason_code::repair_required` reaches presentation and **no comparison is
+accepted**. So the third possibility — stale history presented as correct — is
+excluded by assertion rather than by reading: there is nothing to present,
+because nothing was accepted.
+
+The neighbouring case is asserted too. A *cancelled* preparation produces no
+repair diagnostic, so the repair wording means what it says rather than being
+what that path always emits.
+
+Shown non-vacuous by remapping `object_mismatch` to `unavailable`, which fails
+the assertion with a clean build.
+
+### What the storage layer does not do, and should not
+
+Nothing in `catalog_database` detects this, and that is correct rather than a
+gap. `validate_schema` checks the schema objects, the application id, and the
+catalog incarnation; none of them moves when only the repository's objects do. A
+catalog cannot know whether a commit still exists, and a storage layer that tried
+would need a repository to consult — which is exactly the dependency it is built
+not to have.
+
+The guard belongs to the cache, and the cache has it.
+
+### Superseded — what was unproven
 
 Whether a stale catalog reaches the cache at all. Three levels are confirmed by
 reading — the adapter returns a typed failure, the host maps it to
