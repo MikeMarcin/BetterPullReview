@@ -287,6 +287,34 @@ namespace bpr::qt {
 		return View;
 	}
 
+	void workbench_drawer_panel::set_content_widget(
+		QWidget* const aWidget,
+		QWidget* const aFocusStop)
+	{
+		auto* const column = qobject_cast<QVBoxLayout*>(layout());
+		if (aWidget == nullptr || column == nullptr) {
+			return;
+		}
+		if (View != nullptr) {
+			column->removeWidget(View);
+			delete View;
+			View = nullptr;
+			// Parented to the panel rather than to the view, so it outlives the
+			// view unless it is deleted here as well.
+			delete Contents;
+			Contents = nullptr;
+		}
+		aWidget->setParent(this);
+		column->addWidget(aWidget, 1);
+		ContentFocus = aFocusStop != nullptr ? aFocusStop : aWidget;
+	}
+
+	auto workbench_drawer_panel::focus_stop() const noexcept -> QWidget*
+	{
+		return ContentFocus != nullptr ? ContentFocus
+									   : static_cast<QWidget*>(View);
+	}
+
 	void workbench_drawer_panel::set_width_dispatch(
 		workbench_drawer_width_dispatch aDispatch)
 	{

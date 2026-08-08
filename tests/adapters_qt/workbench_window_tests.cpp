@@ -30,6 +30,8 @@
 #include <QToolButton>
 #include <QWidget>
 
+#include <QTreeView>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -906,10 +908,57 @@ namespace {
 				   && statistics.RowsChanged == emitted.Changed,
 			   "the model's own record agrees with the signals it emitted");
 
-		auto* const conversations = window.conversations_drawer()->contents();
-		expect(conversations != nullptr && conversations != contents
-				   && conversations->rowCount() == 0,
-			   "each drawer owns its own independent contents");
+		// The conversations drawer no longer has a list model of its own: it
+		// hosts RFC-BPR-0002's threaded conversation, which is a forest and
+		// cannot be a QAbstractListModel. So the old "each drawer owns its own
+		// independent contents" reading is restated rather than kept -- the two
+		// drawers stopped being the same kind of thing, which is exactly what
+		// BPR-0191's route 2 decided.
+		expect(window.conversations_drawer()->contents() == nullptr
+				   && window.conversations_drawer()->contents_view() == nullptr,
+			   "a drawer that hosts a tree reports no list, rather than a hidden "
+			   "one a caller could mistake for its content");
+		expect(window.files_drawer()->contents() == contents,
+			   "the files drawer is untouched by that: a file list is a list");
+	}
+
+	void test_the_conversations_drawer_hosts_the_threaded_conversation()
+	{
+		qt::workbench_window window;
+
+		auto* const panel = window.conversation_panel();
+		expect(panel != nullptr, "the shell composes the conversation");
+		expect(panel != nullptr
+				   && panel->parentWidget() == window.conversations_drawer(),
+			   "and it lives inside the conversations drawer rather than beside "
+			   "it");
+
+		// The drawer keeps every behaviour that makes it a drawer. Swapping what
+		// it shows must not have cost it collapse, which is core-owned state.
+		window.conversations_drawer()->adopt(
+			core::workbench_drawer_state::collapsed);
+		expect(window.conversations_drawer()->state()
+				   == core::workbench_drawer_state::collapsed,
+			   "a hosted drawer still adopts the collapse the core decided");
+		window.conversations_drawer()->adopt(
+			core::workbench_drawer_state::expanded);
+
+		// The declared focus order names one stop per drawer. For the files
+		// drawer that is still its list; for this one it is the tree, and the
+		// window must not be reaching past the drawer to find it.
+		expect(window.conversations_drawer()->focus_stop() == panel->view(),
+			   "the drawer's one interactive stop is the conversation tree");
+		expect(window.files_drawer()->focus_stop()
+				   == window.files_drawer()->contents_view(),
+			   "the files drawer's stop is still its list view");
+
+		const auto order = window.focus_order();
+		expect(std::find(order.begin(), order.end(),
+						 static_cast<QWidget*>(panel->view()))
+				   != order.end(),
+			   "and the declared focus order names it");
+		expect(std::find(order.begin(), order.end(), nullptr) == order.end(),
+			   "no drawer contributes a null stop");
 	}
 
 	[[nodiscard]] auto close(
@@ -2545,6 +2594,7 @@ auto main(int argc, char** argv) -> int
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_drawer_resize_emits_the_host_layout_path();
 	test_drawer_contents_use_incremental_model_signals();
+	test_the_conversations_drawer_hosts_the_threaded_conversation();
 	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
 	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
 	test_the_lower_detail_pane_is_full_width_line_over_line();

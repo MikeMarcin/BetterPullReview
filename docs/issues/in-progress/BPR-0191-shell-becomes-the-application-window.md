@@ -217,10 +217,39 @@ properties of the assembled window rather than of either panel. The description
 editor is built by the panel, since it is pull-request content, and placed by
 whoever assembles the window.
 
-**Still to do on this card**: the shell composes the three panels and implements
-`github_projection_port`, the application constructs the shell, `github_window`
-is deleted, and the virtualization figures are re-measured at 60/6,000/60,000
-lines on the composed window.
+### Route 2 built, 2026-08-08: the conversations drawer hosts the tree
+
+`workbench_drawer_panel::set_content_widget` swaps what a drawer shows while it
+keeps everything that makes it a drawer — collapse, width reporting, the toggle,
+the heading. The shell composes `github_conversation_panel` into the
+conversations drawer through it. The files drawer is untouched: a file list is a
+list.
+
+The list and its model are **destroyed rather than hidden**. A hidden list would
+still answer `contents()`, and a caller reading rows off it would believe it was
+reading the drawer's content while the drawer showed something else. Both
+`contents()` and `contents_view()` now answer `nullptr` for that drawer, which
+is the honest report.
+
+Because of that, the drawer stopped being able to answer "what is your one
+interactive stop" through `contents_view()`. `focus_stop()` answers it instead —
+the list for a list drawer, the tree for a hosted one — and `focus_order()` asks
+that rather than reaching past the drawer for a view that may not exist. Without
+it the composed window would have contributed a null focus stop, which is the
+silent-failure shape BPR-0097 was about.
+
+One existing assertion was **restated, not relaxed**: "each drawer owns its own
+independent contents" could not survive a drawer with no list. It now reads that
+a hosting drawer reports no list at all, plus a separate check that the files
+drawer still has one. Both new assertions were shown to bite with a clean build:
+neutering `focus_stop()` fails *"the drawer's one interactive stop is the
+conversation tree"*, and hiding the list instead of destroying it fails *"a
+drawer that hosts a tree reports no list…"*.
+
+**Still to do on this card**: the shell composes the session and pull-request
+panels and implements `github_projection_port`, the application constructs the
+shell, `github_window` is deleted, and the virtualization figures are re-measured
+at 60/6,000/60,000 lines on the composed window.
 
 ## Required direct evidence
 

@@ -126,6 +126,33 @@ namespace bpr::qt {
 		[[nodiscard]] auto contents() const noexcept -> workbench_drawer_model*;
 		[[nodiscard]] auto contents_view() const noexcept -> QListView*;
 
+		/// \brief Hosts a supplied widget as this drawer's content.
+		///
+		/// \details BPR-0191 route 2. The conversations drawer shows a threaded
+		/// forest, and `workbench_drawer_model` derives from
+		/// `QAbstractListModel`, which cannot represent a thread. So the drawer
+		/// keeps everything that makes it a drawer — collapse, width reporting,
+		/// the toggle, the heading — and swaps only what it shows.
+		///
+		/// The list and its model are destroyed rather than hidden. A hidden
+		/// list would still answer `contents()`, and a caller reading rows from
+		/// it would believe it was reading the drawer's content when the drawer
+		/// is showing something else entirely. After this call both `contents()`
+		/// and `contents_view()` answer `nullptr`, which is the honest report.
+		///
+		/// \param aWidget The content to show. Reparented to this panel.
+		/// \param aFocusStop The single interactive stop the drawer contributes,
+		/// or `nullptr` to use \p aWidget itself.
+		void set_content_widget(QWidget* aWidget, QWidget* aFocusStop = nullptr);
+
+		/// \brief The one interactive stop this drawer contributes.
+		///
+		/// \details The list view for a list drawer, the supplied stop for a
+		/// hosted one. The window declares focus order over this rather than
+		/// reaching for `contents_view()`, so a drawer that stopped having a list
+		/// does not silently contribute a null stop.
+		[[nodiscard]] auto focus_stop() const noexcept -> QWidget*;
+
 		void set_width_dispatch(workbench_drawer_width_dispatch aDispatch);
 
 		/// \brief Adopts the drawer state the core decided.
@@ -137,10 +164,11 @@ namespace bpr::qt {
 	private:
 		core::workbench_drawer          Drawer;
 		workbench_drawer_width_dispatch WidthDispatch;
-		QLabel*                         Heading  = nullptr;
-		QListView*                      View     = nullptr;
-		workbench_drawer_model*         Contents = nullptr;
-		core::workbench_drawer_state    State    = core::workbench_drawer_state::expanded;
+		QLabel*                         Heading      = nullptr;
+		QListView*                      View         = nullptr;
+		workbench_drawer_model*         Contents     = nullptr;
+		QWidget*                        ContentFocus = nullptr;
+		core::workbench_drawer_state    State        = core::workbench_drawer_state::expanded;
 	};
 } // namespace bpr::qt
 

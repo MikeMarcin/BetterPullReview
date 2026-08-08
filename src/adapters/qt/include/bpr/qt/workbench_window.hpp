@@ -4,6 +4,7 @@
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QList>
@@ -153,6 +154,14 @@ namespace bpr::qt {
 			-> workbench_drawer_panel*;
 		[[nodiscard]] auto conversations_drawer() const noexcept
 			-> workbench_drawer_panel*;
+
+		/// \brief The threaded conversation the conversations drawer hosts.
+		///
+		/// \details BPR-0191 route 2: the drawer shows a forest of review
+		/// threads rather than a list, so it has no `contents()` model of its
+		/// own. This is what it shows instead.
+		[[nodiscard]] auto conversation_panel() const noexcept
+			-> github_conversation_panel*;
 		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
@@ -276,6 +285,7 @@ namespace bpr::qt {
 
 		std::array<navigation_entry, 4>                    Navigation{ };
 		std::array<drawer_entry, 2>                        Drawers{ };
+		github_conversation_panel*                         ConversationPanel = nullptr;
 		core::workbench_command_delta                      Commands;
 		core::workbench_drawer_delta                       DrawerStates;
 		std::optional<application::workbench_layout_delta> LayoutWidths;

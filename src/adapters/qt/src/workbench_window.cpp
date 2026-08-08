@@ -21,6 +21,7 @@
 #include <QStyle>
 #include <QToolBar>
 #include <QToolButton>
+#include <QTreeView>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -409,6 +410,15 @@ namespace bpr::qt {
 		Drawers[1].Panel = new workbench_drawer_panel{
 			core::workbench_drawer::conversations
 		};
+
+		// Route 2 of BPR-0191. The conversations drawer shows RFC-BPR-0002's
+		// threaded review conversation, which is a forest and cannot be a list,
+		// so the drawer keeps its collapse, width and toggle behaviour and hosts
+		// the tree instead of its own list model. The files drawer is unchanged:
+		// a file list is a list.
+		ConversationPanel = new github_conversation_panel{ Drawers[1].Panel };
+		Drawers[1].Panel->set_content_widget(
+			ConversationPanel, ConversationPanel->view());
 		CentralSplitter->addWidget(Drawers[0].Panel);
 		CentralSplitter->addWidget(CentreSurface);
 		CentralSplitter->addWidget(Drawers[1].Panel);
@@ -579,6 +589,12 @@ namespace bpr::qt {
 		return Drawers[1].Panel;
 	}
 
+	auto workbench_window::conversation_panel() const noexcept
+		-> github_conversation_panel*
+	{
+		return ConversationPanel;
+	}
+
 	auto workbench_window::files_drawer_toggle_action() const noexcept -> QAction*
 	{
 		return Drawers[0].Toggle;
@@ -620,7 +636,7 @@ namespace bpr::qt {
 			append(qobject_cast<QToolButton*>(
 				DrawerToolbar->widgetForAction(entry.Toggle)));
 		}
-		append(Drawers[0].Panel->contents_view());
+		append(Drawers[0].Panel->focus_stop());
 		// The two selectors sit on one grid row above their two exact OIDs, so
 		// the declared order is the row order the composed control already walks.
 		append(EpochSelectors->left_selector());
@@ -632,7 +648,7 @@ namespace bpr::qt {
 		// order, which the shell reports through that card rather than restating
 		// here.
 		append(ComparisonSurface->detail_pane());
-		append(Drawers[1].Panel->contents_view());
+		append(Drawers[1].Panel->focus_stop());
 		append(StatusLabel);
 		return order;
 	}
