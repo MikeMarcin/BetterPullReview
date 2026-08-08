@@ -1,0 +1,136 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Both schemes, after the four rejections were acted on",
+  "review_gate": "diff_scheme_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false,
+    "bpr_0194_closed": false,
+    "bpr_0199_closed": false,
+    "all_four_palettes_audited": false,
+    "high_contrast_schemes_reviewed": false
+  },
+  "reference_disclaimer": "All captures are commit 4b71fc1, offscreen, QFusionStyle, device pixel ratio 1.0. Each carries the palette it was taken under in appearance-at-capture.json and both are in the manifest — light reports #ffffff/#7fb0e8, dark #0d1117/#28518c. Zoomed images are nearest-neighbour 2x crops, so soft edges are magnification. Only light and dark are covered; the two high-contrast profiles are NOT in this batch and have never been reviewed. Everything you rejected last time has been changed, so treat this as a fresh look rather than a re-check.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0199/light-scheme",
+      "subject_key": "light-scheme",
+      "display_name": "Light: the whole diff surface",
+      "description": "Four things moved since you last saw light, and the ribbon one was your finding. The gutter ribbons now meet the panes at the blocks they name. The selection washes the whole change group instead of one line, so the first image shows selected-removed on the left and selected-added on the right with unselected code directly below both — which is the comparison you said was missing. Judge the surface as a whole; the individual pieces have all been measured and pass.",
+      "acceptance_criteria": [
+        "The ribbons meet the panes at the blocks they connect",
+        "A selected line's added or removed tint is still readable through the selection",
+        "The syntax colouring reads as distinct categories",
+        "It reads as a document view"
+      ],
+      "known_concerns": [
+        "syntax_warning and syntax_error cannot be told apart by colour alone under deuteranopia in this profile. Recorded as owing a non-colour signal, which does not exist yet.",
+        "The change-group rule is grey rather than blue, deliberately — blue is reserved for selection, which is the inversion you identified.",
+        "The menu indicator overflowing its button, from the very first review, is still open and is not in these frames."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Every contrast pair meets its published minimum, measured against the composited selection rather than the raw palette. Ribbon endpoints assert exact equality with their blocks at 100, 125 and 200 per cent."
+      },
+      "media_groups": [
+        {
+          "group_id": "light",
+          "title": "Light",
+          "required": true,
+          "layout": "grid",
+          "note": "Group selection first — that is the one that answers the tint question. Click any image for native resolution.",
+          "items": [
+            { "label": "Change group selected, 2x", "path": "captures/light-groupsel.png" },
+            { "label": "Replacement, 2x", "path": "captures/light-replace.png" },
+            { "label": "Change groups and scrollbars, 2x", "path": "captures/light-groups.png" },
+            { "label": "Whole window", "path": "captures/light-window.png" }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "What changed since the last light look",
+          "kind": "list",
+          "items": [
+            "Ribbons meet their blocks exactly. Two independent causes: the map drew at its own y though it does not share the panes' band, and the scroll origin was a fraction of the scrollbar's travel rather than a document measurement.",
+            "Selecting a change group washes every line of it, so a change tint under the wash can be compared against one beside it.",
+            "The chrome family — buttons, scrollbars, frames — now comes from the profile rather than an inherited default.",
+            "Nothing in the syntax palette moved this round; it is the one you accepted."
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0199/dark-scheme",
+      "subject_key": "dark-scheme",
+      "display_name": "Dark: softer bands, stronger selection, themed chrome",
+      "description": "All three things you raised about dark are changed. The bands are softer: rebuilt at Git Fork's own lightness and chroma offsets measured from your screenshot, applied to our pane rather than copied as hex, since our pane is twelve L* darker than theirs. The selection is much stronger. The white scrollbars are gone. Same crops as the light subject so the two can be compared directly.",
+      "acceptance_criteria": [
+        "The red and green read as soft rather than harsh",
+        "The selected line is obvious without strain",
+        "A selected line's tint is still readable through the selection",
+        "No control on the surface is brighter than the code"
+      ],
+      "known_concerns": [
+        "Seven dark syntax colours were lightened to pay for the stronger selection, so they are brighter than in any frame you have seen.",
+        "syntax_keyword and syntax_error collided exactly once red clipped, and are separated by hue at #F49795 and #F39B73. Judge whether they still read as different things.",
+        "The intraline green and red now collapse under deuteranopia — accepted and recorded, rather than paid for by keeping the harsher tones you rejected.",
+        "diff_moved_background went darker rather than lighter, because added and moved stopped separating under protanopia at similar lightness. Moved code is not in these frames."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Contrast passes with the selection applied. Band offsets now +14.7 and +11.1 L* above the pane against Fork's +14.7 and +10.9."
+      },
+      "media_groups": [
+        {
+          "group_id": "dark",
+          "title": "Dark",
+          "required": true,
+          "layout": "grid",
+          "note": "Same crops as light. The third image is where the white scrollbars used to be.",
+          "items": [
+            { "label": "Change group selected, 2x", "path": "captures/dark-groupsel.png" },
+            { "label": "Replacement, 2x", "path": "captures/dark-replace.png" },
+            { "label": "Change groups and scrollbars, 2x", "path": "captures/dark-groups.png" },
+            { "label": "Whole window", "path": "captures/dark-window.png" }
+          ]
+        },
+        {
+          "group_id": "compare",
+          "title": "The light equivalents",
+          "required": false,
+          "layout": "grid",
+          "note": "Identical crops from the light profile, for direct comparison.",
+          "items": [
+            { "label": "Light group selected, 2x", "path": "captures/light-groupsel.png" },
+            { "label": "Light replacement, 2x", "path": "captures/light-replace.png" }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured against your reference",
+          "kind": "list",
+          "items": [
+            "Fork's bands sit +14.7 and +10.9 L* above its pane with chroma 20.6 and 16.3.",
+            "Ours were +11.6 and +7.4 with the red at chroma 20.7 — darker and more saturated on both counts, the red especially.",
+            "They are now +14.7 and +11.1 with chroma 19.9 and 16.4.",
+            "Selection distance from the pane: 7.3 before, 14.2 now. Light is 12.5 for comparison.",
+            "Comparison scrollbar: #F6F6F6 before, #282B32 now."
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" }
+      ]
+    }
+  ]
+}

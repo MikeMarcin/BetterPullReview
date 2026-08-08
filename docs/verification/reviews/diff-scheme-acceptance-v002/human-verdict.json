@@ -1,0 +1,27 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/236327ff3e80f7d487e7c187",
+  "review_gate": "diff_scheme_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0199/light-scheme",
+      "subject_digest": "sha256:8d37b0b33d76015c92ac03654f3e88e6c1096317b96f7eaa4de46794657e7a6f"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0199/dark-scheme",
+      "subject_digest": "sha256:86e1e2e266d8635b882c7ad445833407797fa8a7b50653ea8d2f77bf8a5ba828"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "all_four_palettes_audited": false,
+    "bpr_0194_closed": false,
+    "bpr_0199_closed": false,
+    "high_contrast_schemes_reviewed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

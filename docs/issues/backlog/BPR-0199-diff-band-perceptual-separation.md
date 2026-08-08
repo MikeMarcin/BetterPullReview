@@ -89,7 +89,26 @@ gutter break — rather than a wash. That is worth weighing against strengthenin
 value 2 and 3 above, and is a genuine fork in the design rather than a defect
 to repair.
 
-## Required direct evidence
+## Accepted on 2026-08-07, both schemes, no notes
+
+Batch `bpr:/attended-review/betterpullreview/236327ff3e80f7d487e7c187`.
+Evidence: `docs/verification/reviews/diff-scheme-acceptance-v002/`. Both
+subjects accepted with no further comment, after three rounds in which every
+subject had been rejected.
+
+What this card asked for is answered. The bands separate, the change-group
+marking is a rule rather than a fill, and the dark scheme is rebuilt at the
+reference's own lightness and chroma offsets — measured from the owner's
+screenshot in LCh and applied to our pane rather than copied as hex, since ours
+is twelve L* darker.
+
+**What it does not cover.** The two high-contrast profiles have still never had
+a rendered frame reviewed, and the batch said so. They are not covered by this
+acceptance and the palette work behind them is untested by any human eye — the
+same gap that hid a white scrollbar in the dark scheme for as long as dark had
+no captures. That is [[BPR-0209]].
+
+## Superseded — required direct evidence
 
 - Each band's ΔE76 against its own pane background, in every shipped scheme,
   computed from **pixels sampled out of a captured raster**, not from the

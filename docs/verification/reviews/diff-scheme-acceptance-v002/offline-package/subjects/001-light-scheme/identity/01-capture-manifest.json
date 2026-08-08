@@ -1,0 +1,54 @@
+{
+ "appearance_at_capture": {
+  "dark": {
+   "base": "#0d1117",
+   "highlight": "#28518c"
+  },
+  "light": {
+   "base": "#ffffff",
+   "highlight": "#7fb0e8"
+  }
+ },
+ "commit": "4b71fc1",
+ "crops": {
+  "*-groups.png": "box (18,612,1230,880) scale 2 from 11-deletion-early.png",
+  "*-groupsel.png": "box (18,612,1230,800) scale 2 from 16-ribbon-selection.png",
+  "*-replace.png": "box (18,612,1230,790) scale 2 from 14-replacement-late.png",
+  "*-window.png": "unmodified 16-ribbon-selection.png"
+ },
+ "device_pixel_ratio": 1.0,
+ "digests": {
+  "dark-groups.png": "70c767829d21d6d1380bad7dc2fbbef704a82da3048a528842a2a7c5f3095dae",
+  "dark-groupsel.png": "4745661051554a75cef000532dc944fecf4b524fb715ea599af6b3a87b22a134",
+  "dark-replace.png": "0474f6e8869cae23d5c19b9b9b2659c6666fe76dce6d954f15d446ceae57c738",
+  "dark-window.png": "7ed579e4768435f6931a9c2ca61ebe01672124c5f92cda2cd29ae04d8cefde79",
+  "light-groups.png": "b443f8df2a93a78b405a73a7e2d5c3bea40cf6ace1ca4348a4f3936fd6f50368",
+  "light-groupsel.png": "f72311735f0f3ae45693d7d5a8fb89a3eec9e2a77992faceff115044782e5b88",
+  "light-replace.png": "3ba90129724a4a8f4de3c4e936bcf8f4d2d0bbf0d53a978dfa97f310acbd9bcb",
+  "light-window.png": "f91c798db17414bbf983fbefb9df115dd805b4ab2e215963d77df3f43c0bfa4c"
+ },
+ "measured": {
+  "dark_band_offsets_L_star_above_pane": {
+   "added": 14.7,
+   "removed": 11.1
+  },
+  "dark_scrollbar": {
+   "after": "#282B32",
+   "before": "#F6F6F6"
+  },
+  "fork_reference_offsets": {
+   "added": 14.7,
+   "removed": 10.9
+  },
+  "selection_dE_vs_pane": {
+   "dark": 14.2,
+   "light": 12.5
+  }
+ },
+ "platform": "macOS 15.7.7 arm64",
+ "preset": "dev",
+ "producing_command": "better_pull_review --github-fixture github-com --diff-workbench-probe --diff-evidence-appearance {light|dark} --diff-interaction-evidence <dir> --automated-run-budget-ms 30000",
+ "qpa_platform": "offscreen",
+ "qt_style": "QFusionStyle",
+ "qt_version": "6.11.1"
+}
