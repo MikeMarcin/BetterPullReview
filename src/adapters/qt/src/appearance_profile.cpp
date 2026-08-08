@@ -552,13 +552,23 @@ namespace bpr::qt {
 		// customisation relative to the built-in profile of the variant that
 		// record's own mode resolves to. A fresh record, whose palette is that
 		// profile, therefore carries no customisation at all.
-		const auto& builtin = builtin_appearance_palette(
-			core::resolve_appearance(Mode, Observation).Variant);
-		for (auto index = std::size_t{ 0U };
-			 index < core::appearance_role_count;
-			 ++index) {
-			if (aSettings.Palette[index] != builtin[index]) {
-				Overrides[index] = aSettings.Palette[index];
+		//
+		// Only a *stored* palette is read this way. A composed default is built
+		// under an empty observation and is therefore the light palette
+		// whatever the desktop is doing, so comparing it against the built-in
+		// palette of the resolved variant made every role differ on a dark
+		// desktop and banked forty-six overrides pinning light colours over a
+		// correctly resolved dark variant. That was BPR-0216, and the fix is to
+		// stop treating the absence of a record as a set of decisions.
+		if (aSettings.PaletteStored) {
+			const auto& builtin = builtin_appearance_palette(
+				core::resolve_appearance(Mode, Observation).Variant);
+			for (auto index = std::size_t{ 0U };
+				 index < core::appearance_role_count;
+				 ++index) {
+				if (aSettings.Palette[index] != builtin[index]) {
+					Overrides[index] = aSettings.Palette[index];
+				}
 			}
 		}
 		rebuild();
@@ -630,6 +640,12 @@ namespace bpr::qt {
 		settings.Mode       = Mode;
 		settings.Palette    = Palette;
 		settings.Typography = Typography;
+		// This record is what gets written, so its palette is by definition a
+		// stored one. Without saying so, a round trip through the durable
+		// record would read a reviewer's chosen colours back as the absence of
+		// any choice, which is the same confusion as BPR-0216 in the other
+		// direction.
+		settings.PaletteStored = true;
 		return settings;
 	}
 

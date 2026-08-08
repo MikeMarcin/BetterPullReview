@@ -1,7 +1,7 @@
 ---
 id: BPR-0216
 title: System mode paints the light palette on a dark desktop
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0183, BPR-0186]
 ---
@@ -90,3 +90,40 @@ which it is.
 
 Treating this as a presentation bug in `rebuild()`. The rebuild is doing exactly
 what it was told; it was told 46 lies.
+
+## Fixed, 2026-08-08
+
+`application::appearance_settings` gained `PaletteStored`. The host sets it when
+a record actually comes off disk; `appearance_profile::settings()` sets it on
+what it emits, because that record is by definition about to be stored. The
+constructor reads a palette as customisation only when it is a stored one.
+
+That keeps the two cases the card said must stay distinguishable: a fresh record
+is the absence of a decision whatever desktop it is read on, and a genuinely
+stored light palette on a dark desktop is still forty-six deliberate overrides.
+
+### Measured, on the owner's machine, both directions
+
+| Desktop | Marker |
+|---|---|
+| Dark | `APPEARANCE_OBSERVED:dark:dark:0`, `APPEARANCE_APPLIED:#28518c:#0d1117:from-profile` |
+| Light | `APPEARANCE_OBSERVED:light:light:0`, `APPEARANCE_APPLIED:#7fb0e8:#ffffff:from-profile` |
+
+Before the fix the dark desktop reported `dark:dark:46` and applied
+`#7fb0e8:#ffffff` — the light palette. The global appearance was changed under
+the product owner's standing authorisation given the same day, and restored to
+Dark afterwards with the restoration confirmed by reading it back.
+
+### The assertion that would have caught it
+
+`qt_appearance_profile` already asserted that a fresh installation customises no
+semantic colour, and it passed throughout. It ran under an *empty* observation —
+the one case where the composed default's palette and the built-in palette of
+the resolved variant are the same table. The same claim under a **dark**
+observation is now asserted, along with the variant resolving dark and the
+palette actually being the dark one.
+
+Shown non-vacuous: restoring the defect — recording overrides regardless of
+whether the palette was stored — fails *"a fresh installation customises no
+semantic colour on a dark desktop either"* with the build confirmed clean at
+zero `error:` lines.

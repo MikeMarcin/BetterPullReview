@@ -80,6 +80,10 @@ namespace {
 		settings.Palette[core::index_of(core::appearance_role::code_background)]
 			= core::appearance_color{ .Red = 200U, .Green = 200U, .Blue = 200U };
 		settings.Typography.Ui.Font.PointSizeCentipoints = 1100U;
+		// It is a persisted record, so its palette is a stored one. BPR-0216:
+		// a default palette and a chosen one are different facts, and only the
+		// second is customisation.
+		settings.PaletteStored = true;
 		return settings;
 	}
 

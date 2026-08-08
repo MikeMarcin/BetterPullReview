@@ -177,6 +177,30 @@ namespace {
 		expect(
 			profile.customised_roles() == 0U,
 			"a fresh installation customises no semantic colour");
+
+		// BPR-0216. The check above runs under an empty observation, which is
+		// the one case where the composed default's palette and the built-in
+		// palette of the resolved variant happen to be the same table -- so it
+		// passed while the product painted light on a dark desktop.
+		//
+		// A fresh record is the absence of a decision, and the desktop it is
+		// read on cannot turn it into forty-six of them.
+		const auto onDark = qt::appearance_profile{
+			qt::default_appearance_settings(),
+			core::appearance_observation{ .Scheme = core::os_color_scheme::dark },
+		};
+		expect(
+			onDark.variant() == core::appearance_variant::dark,
+			"System mode on a dark desktop resolves the dark variant");
+		expect(
+			onDark.customised_roles() == 0U,
+			"a fresh installation customises no semantic colour on a dark "
+			"desktop either");
+		expect(
+			onDark.palette()
+				== qt::builtin_appearance_palette(core::appearance_variant::dark),
+			"and therefore paints the dark palette, not the default record's "
+			"light one");
 		expect(
 			profile.palette()
 				== qt::builtin_appearance_palette(core::appearance_variant::light),

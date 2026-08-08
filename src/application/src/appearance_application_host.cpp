@@ -805,6 +805,10 @@ namespace bpr::application {
 				return;
 			}
 			auto loaded = std::move(**aResult);
+			// A record that came off disk carries a palette a reviewer chose,
+			// which a composed default does not. BPR-0216 is what happens when
+			// nothing can tell the two apart.
+			loaded.PaletteStored = true;
 			if (!known(loaded.Mode)) {
 				publish_failure(aContext,
 								appearance_host_failure::unknown_appearance_mode);

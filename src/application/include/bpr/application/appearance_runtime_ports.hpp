@@ -83,6 +83,15 @@ namespace bpr::application {
 		core::appearance_mode     Mode = core::appearance_mode::system;
 		core::appearance_palette  Palette{ };
 		core::typography_settings Typography;
+		/// \brief Whether `Palette` came from a durable record.
+		///
+		/// \details A composed default and a stored palette are different
+		/// facts, and a record that could not tell them apart is BPR-0216: the
+		/// default palette is built under an empty observation, so on a dark
+		/// desktop it differs from the built-in dark palette in every role and
+		/// was read as forty-six deliberate overrides. Only a stored palette is
+		/// customisation; a default one is the absence of any.
+		bool PaletteStored = false;
 
 		auto operator<=>(const appearance_settings&) const = default;
 	};
