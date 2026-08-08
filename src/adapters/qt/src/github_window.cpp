@@ -1,5 +1,7 @@
 #include "bpr/qt/github_window.hpp"
+
 #include "bpr/qt/github_conversation_delegate.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 
 #include <QAbstractItemView>
 #include <QAccessible>
@@ -299,65 +301,10 @@ namespace bpr::qt {
 		BodyEditor->setParent(descriptionGroup);
 		descriptionLayout->addWidget(BodyEditor);
 
-		auto* const conversationGroup = new QGroupBox{ QStringLiteral("Conversations"), ContentSplitter };
-		conversationGroup->setObjectName(
-			QStringLiteral("pullRequestConversationGroup"));
-		conversationGroup->setAccessibleName(
-			QStringLiteral("Read-only GitHub conversations"));
-		auto* const conversationLayout = new QVBoxLayout{ conversationGroup };
-		ConversationAvailabilityLabel  = new QLabel{ conversationGroup };
-		ConversationAvailabilityLabel->setObjectName(
-			QStringLiteral("reviewThreadAvailability"));
-		ConversationAvailabilityLabel->setAccessibleName(
-			QStringLiteral("Review-thread availability"));
-		ConversationAvailabilityLabel->setWordWrap(true);
-		set_plain_text_label(ConversationAvailabilityLabel);
-		auto* const conversationHeader = new QHBoxLayout;
-		conversationHeader->addWidget(ConversationAvailabilityLabel, 1);
-		ShowReviewThreadsButton = new QToolButton{ conversationGroup };
-		ShowReviewThreadsButton->setDefaultAction(ShowReviewThreadsAction);
-		ShowReviewThreadsButton->setObjectName(
-			QStringLiteral("showReviewThreadsButton"));
-		ShowReviewThreadsButton->setAccessibleName(
-			QStringLiteral("Show review threads"));
-		ShowReviewThreadsButton->setFocusPolicy(Qt::StrongFocus);
-		ShowReviewThreadsButton->setToolButtonStyle(
-			Qt::ToolButtonTextBesideIcon);
-		conversationHeader->addWidget(ShowReviewThreadsButton);
-		conversationLayout->addLayout(conversationHeader);
-
-		ConversationStack = new QStackedWidget{ conversationGroup };
-		ConversationStack->setObjectName(
-			QStringLiteral("githubConversationState"));
-		auto* const conversationEmpty = new QWidget{ ConversationStack };
-		conversationEmpty->setObjectName(
-			QStringLiteral("githubConversationEmptyState"));
-		ConversationStack->addWidget(conversationEmpty);
-		ConversationModel = new github_conversation_model{ this };
-		ConversationView  = new QTreeView{ ConversationStack };
-		ConversationView->setObjectName(QStringLiteral("githubConversationView"));
-		ConversationView->setAccessibleName(
-			QStringLiteral("Read-only GitHub conversations"));
-		ConversationView->setAccessibleDescription(
-			QStringLiteral(
-				"Reviews, review threads, and pull request comments"));
-		ConversationView->setModel(ConversationModel);
-		ConversationView->setSelectionBehavior(QAbstractItemView::SelectRows);
-		ConversationView->setSelectionMode(QAbstractItemView::SingleSelection);
-		ConversationView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-		ConversationView->setRootIsDecorated(true);
-		ConversationView->setItemsExpandable(true);
-		ConversationView->setWordWrap(true);
-		ConversationView->setUniformRowHeights(false);
-		ConversationView->setTextElideMode(Qt::ElideNone);
-		ConversationView->header()->hide();
-		ConversationView->setItemDelegate(
-			new github_conversation_delegate{ ConversationView });
-		ConversationStack->addWidget(ConversationView);
-		conversationLayout->addWidget(ConversationStack, 1);
+		ConversationPanel = new github_conversation_panel{ ContentSplitter };
 
 		ContentSplitter->addWidget(descriptionGroup);
-		ContentSplitter->addWidget(conversationGroup);
+		ContentSplitter->addWidget(ConversationPanel);
 		ContentSplitter->setStretchFactor(0, 2);
 		ContentSplitter->setStretchFactor(1, 3);
 		ContentSplitter->setMinimumHeight(240);
@@ -422,8 +369,8 @@ namespace bpr::qt {
 		setTabOrder(SessionPanel->open_button(), SessionPanel->refresh_button());
 		setTabOrder(SessionPanel->refresh_button(), TechnicalDetailsButton);
 		setTabOrder(TechnicalDetailsButton, BodyEditor);
-		setTabOrder(BodyEditor, ShowReviewThreadsButton);
-		setTabOrder(ShowReviewThreadsButton, ConversationView);
+		ConversationPanel->set_reveal_action(ShowReviewThreadsAction);
+		setTabOrder(BodyEditor, ConversationPanel->reveal_button());
 
 		SessionPanel->apply_capabilities({ });
 		SessionPanel->apply_rate_limits({ });
@@ -442,7 +389,7 @@ namespace bpr::qt {
 		});
 		apply_action_state(
 			ShowReviewThreadsAction,
-			ShowReviewThreadsButton,
+			ConversationPanel->reveal_button(),
 			false,
 			core::github_reason_code::no_active_pull_request,
 			QStringLiteral("Focus the review-thread conversations"));
@@ -511,13 +458,13 @@ namespace bpr::qt {
 
 	auto github_window::conversation_view() const noexcept -> QTreeView*
 	{
-		return ConversationView;
+		return ConversationPanel->view();
 	}
 
 	auto github_window::conversation_model() const noexcept
 		-> github_conversation_model*
 	{
-		return ConversationModel;
+		return ConversationPanel->model();
 	}
 
 	auto github_window::epoch_control() const noexcept
@@ -629,8 +576,6 @@ namespace bpr::qt {
 	void github_window::apply_pull_request(
 		const application::github_pull_request_projection& aPullRequest)
 	{
-		const auto selectedIdentity = ConversationModel->id_for_index(ConversationView->currentIndex());
-
 		PullRequestLabel->setText(
 			QStringLiteral("%1/%2 #%3")
 				.arg(
@@ -661,29 +606,13 @@ namespace bpr::qt {
 					QString::number(aPullRequest.ReviewThreadCount),
 					QString::number(aPullRequest.IssueCommentCount)));
 		BodyEditor->setPlainText(text(aPullRequest.Body));
-		ConversationAvailabilityLabel->setText(
+		ConversationPanel->adopt(
+			aPullRequest.Conversations,
 			review_thread_availability_text(
 				aPullRequest.ReviewThreadsAvailable,
 				aPullRequest.ReviewThreadCount,
 				aPullRequest.Capabilities.ReviewThreads));
-		ConversationModel->apply(aPullRequest.Conversations);
 		HasPullRequest = true;
-		ConversationStack->setCurrentIndex(
-			aPullRequest.Conversations.empty() ? 0 : 1);
-		ConversationView->doItemsLayout();
-		if (
-			ExpandConversationsOnNextProjection
-			&& !aPullRequest.Conversations.empty()) {
-			ConversationView->expandAll();
-			ExpandConversationsOnNextProjection = false;
-		}
-		if (!selectedIdentity.empty()) {
-			const auto restored = ConversationModel->index_for_id(selectedIdentity);
-			if (restored.isValid()) {
-				const QSignalBlocker blocker{ ConversationView->selectionModel() };
-				ConversationView->setCurrentIndex(restored);
-			}
-		}
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
 		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
 		update_presentation_state();
@@ -699,7 +628,7 @@ namespace bpr::qt {
 		}
 		apply_action_state(
 			ShowReviewThreadsAction,
-			ShowReviewThreadsButton,
+			ConversationPanel->reveal_button(),
 			aCommand.Enabled,
 			aCommand.DisabledReason,
 			QStringLiteral("Focus the review-thread conversations"));
@@ -719,8 +648,8 @@ namespace bpr::qt {
 
 	void github_window::clear_pull_request()
 	{
-		HasPullRequest                      = false;
-		ExpandConversationsOnNextProjection = true;
+		HasPullRequest = false;
+
 		PullRequestLabel->setText(QStringLiteral("No pull request is open"));
 		TitleLabel->setText(QStringLiteral("Not available"));
 		StateLabel->setText(QStringLiteral("Not available"));
@@ -729,11 +658,8 @@ namespace bpr::qt {
 		OidLabel->setText(QStringLiteral("Not available"));
 		CountLabel->setText(QStringLiteral("No records"));
 		BodyEditor->clear();
-		ConversationAvailabilityLabel->setText(
-			QStringLiteral(
-				"Review threads are unavailable until a pull request is open."));
-		ConversationModel->clear();
-		ConversationStack->setCurrentIndex(0);
+		ConversationPanel->clear(QStringLiteral(
+			"Review threads are unavailable until a pull request is open."));
 		TechnicalDetailsButton->setChecked(false);
 		update_presentation_state();
 	}
@@ -888,8 +814,8 @@ namespace bpr::qt {
 		ShowReviewThreadsAction->setIcon(
 			style()->standardIcon(QStyle::SP_FileDialogListView));
 
-		ConversationView->doItemsLayout();
-		ConversationView->viewport()->update();
+		ConversationPanel->relayout();
+		ConversationPanel->view()->viewport()->update();
 		PullRequestStack->update();
 	}
 
@@ -913,20 +839,20 @@ namespace bpr::qt {
 
 	void github_window::focus_review_threads()
 	{
-		for (auto row = 0; row < ConversationModel->rowCount(); ++row) {
-			const auto modelIndex = ConversationModel->index(row, 0);
+		for (auto row = 0; row < ConversationPanel->model()->rowCount(); ++row) {
+			const auto modelIndex = ConversationPanel->model()->index(row, 0);
 			if (
 				modelIndex.data(github_conversation_model::kind_role).toInt()
 				== static_cast<int>(
 					application::github_conversation_kind::review_thread)) {
-				ConversationView->expand(modelIndex);
-				ConversationView->setCurrentIndex(modelIndex);
-				ConversationView->scrollTo(
+				ConversationPanel->view()->expand(modelIndex);
+				ConversationPanel->view()->setCurrentIndex(modelIndex);
+				ConversationPanel->view()->scrollTo(
 					modelIndex, QAbstractItemView::PositionAtCenter);
 				break;
 			}
 		}
-		ConversationView->setFocus(Qt::ShortcutFocusReason);
+		ConversationPanel->view()->setFocus(Qt::ShortcutFocusReason);
 	}
 
 }

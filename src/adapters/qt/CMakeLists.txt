@@ -20,6 +20,7 @@ add_library(
         src/foundation_window.cpp
         src/github_conversation_delegate.cpp
         src/github_conversation_model.cpp
+    src/github_conversation_panel.cpp
         src/github_window.cpp
         src/measured_alignment_axis.cpp
         src/sensitive_text_input.cpp

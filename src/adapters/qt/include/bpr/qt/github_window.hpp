@@ -6,6 +6,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 
 #include <QMainWindow>
@@ -113,37 +114,32 @@ namespace bpr::qt {
 		application::github_intent_dispatch             Dispatch;
 		std::vector<application::github_profile_option> Profiles;
 
-		QAction*                   ConnectAction                 = nullptr;
-		QAction*                   OpenAction                    = nullptr;
-		QAction*                   RefreshAction                 = nullptr;
-		QAction*                   ShowReviewThreadsAction       = nullptr;
-		QToolButton*               ShowReviewThreadsButton       = nullptr;
-		QToolButton*               TechnicalDetailsButton        = nullptr;
-		QLabel*                    PullRequestLabel              = nullptr;
-		QLabel*                    TitleLabel                    = nullptr;
-		QLabel*                    StateLabel                    = nullptr;
-		QLabel*                    AuthorLabel                   = nullptr;
-		QLabel*                    BranchLabel                   = nullptr;
-		QLabel*                    OidLabel                      = nullptr;
-		QLabel*                    CountLabel                    = nullptr;
-		QPlainTextEdit*            BodyEditor                    = nullptr;
-		QLabel*                    ConversationAvailabilityLabel = nullptr;
-		QLabel*                    EmptyStateTitleLabel          = nullptr;
-		QLabel*                    EmptyStateBodyLabel           = nullptr;
-		QWidget*                   TechnicalDetails              = nullptr;
-		QStackedWidget*            PullRequestStack              = nullptr;
-		QStackedWidget*            ConversationStack             = nullptr;
-		QSplitter*                 ContentSplitter               = nullptr;
-		QTreeView*                 ConversationView              = nullptr;
-		github_conversation_model* ConversationModel             = nullptr;
-		epoch_comparison_control*  EpochControl                  = nullptr;
-		diff_workbench*            DiffWorkbench                 = nullptr;
-		github_session_panel*      SessionPanel                  = nullptr;
-		appearance_settings_panel* AppearanceSettings            = nullptr;
+		QAction*                   ConnectAction           = nullptr;
+		QAction*                   OpenAction              = nullptr;
+		QAction*                   RefreshAction           = nullptr;
+		QAction*                   ShowReviewThreadsAction = nullptr;
+		QToolButton*               TechnicalDetailsButton  = nullptr;
+		QLabel*                    PullRequestLabel        = nullptr;
+		QLabel*                    TitleLabel              = nullptr;
+		QLabel*                    StateLabel              = nullptr;
+		QLabel*                    AuthorLabel             = nullptr;
+		QLabel*                    BranchLabel             = nullptr;
+		QLabel*                    OidLabel                = nullptr;
+		QLabel*                    CountLabel              = nullptr;
+		QPlainTextEdit*            BodyEditor              = nullptr;
+		QLabel*                    EmptyStateTitleLabel    = nullptr;
+		QLabel*                    EmptyStateBodyLabel     = nullptr;
+		QWidget*                   TechnicalDetails        = nullptr;
+		QStackedWidget*            PullRequestStack        = nullptr;
+		QSplitter*                 ContentSplitter         = nullptr;
+		epoch_comparison_control*  EpochControl            = nullptr;
+		diff_workbench*            DiffWorkbench           = nullptr;
+		github_session_panel*      SessionPanel            = nullptr;
+		github_conversation_panel* ConversationPanel       = nullptr;
+		appearance_settings_panel* AppearanceSettings      = nullptr;
 
 		QString                  LastAnnouncement;
-		bool                     HasPullRequest                      = false;
-		bool                     ExpandConversationsOnNextProjection = true;
+		bool                     HasPullRequest = false;
 		github_window_statistics Statistics;
 	};
 }
