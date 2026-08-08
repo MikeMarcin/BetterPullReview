@@ -455,6 +455,9 @@ namespace {
 		int                             EpochRightRow            = -1;
 		native_appearance_probe_state   Appearance;
 		std::optional<std::string_view> DiffEvidenceDirectory;
+		/// The appearance the diff captures are taken under, when one was
+		/// asked for. Absent leaves the run on whatever composition resolved.
+		std::optional<bpr::core::appearance_mode> DiffEvidenceAppearance;
 #endif
 		std::optional<std::string_view> RenderPath;
 	};
@@ -2602,6 +2605,21 @@ namespace {
 							scroll->ensureWidgetVisible(workbench, 24, 24);
 						}
 						QApplication::processEvents();
+						// Selected before the rasters are written, not after.
+						// BPR-0201: the appearance-gesture assertion changes
+						// the mode later in this same process, so a capture
+						// only shows the scheme it was taken under and the
+						// end-of-run marker is no guide to it.
+						if (aRun->DiffEvidenceAppearance.has_value()) {
+							static_cast<void>(
+								bpr::app::detail::
+									github_application_fixture_access::
+										apply_appearance_gesture(
+											aApplication,
+											*aRun->DiffEvidenceAppearance,
+											8U));
+							QApplication::processEvents();
+						}
 						aRun->DiffInteractionEvidencePassed = ready
 							&& capture_diff_interaction_evidence(
 																  window, aRun->DiffEvidenceDirectory);
@@ -3257,6 +3275,35 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--diff-workbench-shutdown-probe");
 		const auto appearanceGestureProbe = has_argument(
 			argc, argv, "--appearance-gesture-probe");
+		const auto diffEvidenceAppearanceName = argument_value(
+			argc, argv, "--diff-evidence-appearance");
+		// Named rather than boolean, so adding a scheme later is a new name and
+		// not a new flag. An unrecognised name is refused rather than ignored:
+		// a capture silently taken under the wrong appearance is exactly the
+		// confusion BPR-0201 cost a session to unpick.
+		const auto diffEvidenceAppearance
+			= [&diffEvidenceAppearanceName]()
+			-> std::optional<std::optional<bpr::core::appearance_mode>> {
+			if (!diffEvidenceAppearanceName.has_value()) {
+				return std::optional<bpr::core::appearance_mode>{ };
+			}
+			if (*diffEvidenceAppearanceName == "light") {
+				return bpr::core::appearance_mode::light;
+			}
+			if (*diffEvidenceAppearanceName == "dark") {
+				return bpr::core::appearance_mode::dark;
+			}
+			if (*diffEvidenceAppearanceName == "system") {
+				return bpr::core::appearance_mode::system;
+			}
+			return std::nullopt;
+		}();
+		if (!diffEvidenceAppearance.has_value()) {
+			QTextStream{ stdout }
+				<< "DIFF_EVIDENCE_APPEARANCE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+
 		const auto diffEvidenceDirectory = argument_value(
 			argc, argv, "--diff-interaction-evidence");
 		const auto changedRenderPath     = argument_value(argc, argv, "--changed-render-evidence");
@@ -3374,7 +3421,8 @@ auto main(int argc, char** argv) -> int
 							.Enabled       = nativeAppearanceProbe,
 							.EvidencePaths = nativeAppearancePaths.value_or(native_appearance_evidence_paths{ }),
 						},
-						.DiffEvidenceDirectory = diffEvidenceDirectory,
+						.DiffEvidenceDirectory  = diffEvidenceDirectory,
+						.DiffEvidenceAppearance = *diffEvidenceAppearance,
 #endif
 						.RenderPath = renderPath,
 					}));
