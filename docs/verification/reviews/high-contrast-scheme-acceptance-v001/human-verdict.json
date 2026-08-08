@@ -1,0 +1,25 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/3099091a38a163ff670dec72",
+  "review_gate": "high_contrast_scheme_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0209/high-contrast-light",
+      "subject_digest": "sha256:0fa4f5c53eea07194058a7a212216d9fbf1215b4723737ece61102e1108a4c8d"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0209/high-contrast-dark",
+      "subject_digest": "sha256:a08903a73e5985c28f9ed1209502dfa1fc43e80bb524a712647cce1957d8461c"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "all_four_palettes_audited": false,
+    "high_contrast_schemes_reviewed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

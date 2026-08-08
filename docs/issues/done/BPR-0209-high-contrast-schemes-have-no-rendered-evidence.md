@@ -1,7 +1,7 @@
 ---
 id: BPR-0209
 title: The two high-contrast profiles have never been seen
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0201]
 ---
@@ -66,9 +66,20 @@ in the first frame, and the only way to know which case a profile is in is to
 look. It does mean the two profiles enter attended review from a stronger
 position than dark did.
 
-**Still owed:** a verdict. Batch
-`bpr:/attended-review/betterpullreview/3099091a38a163ff670dec72`. A capture
-nobody has judged is the same gap one step later, which this card already says.
+## Accepted, 2026-08-08, both profiles, no notes
+
+Batch `bpr:/attended-review/betterpullreview/3099091a38a163ff670dec72`, verdict
+and package at
+`docs/verification/reviews/high-contrast-scheme-acceptance-v001/`.
+
+**All four shipped profiles are now reviewed surfaces.** That was not true of
+any of them a week ago, and was not true of two of them this morning.
+
+The card's argument stands even though it found nothing: the point was never
+that these profiles were probably broken, but that nobody could say either way,
+and that the contrast sweep is not the instrument that answers it. A white
+scrollbar passed that sweep for as long as dark had no captures. These two
+turned out fine, which is a result rather than a vindication of not looking.
 
 ## Superseded — required direct evidence
 

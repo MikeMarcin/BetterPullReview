@@ -1,7 +1,7 @@
 ---
 id: BPR-0201
 title: The app reports a dark profile applied while rendering light pixels
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0183]
 ---
@@ -169,7 +169,28 @@ resolved, and on this host that is light. Obtaining dark rasters means running
 the probe with an explicit dark mode selected before it captures, which is new
 work rather than a fix. [[BPR-0199]]'s dark half stays blocked on that.
 
-## Required direct evidence
+## Closed, 2026-08-08
+
+Every item below is met.
+
+- **Which explanation holds** — none of the three this card proposed. The
+  appearance-gesture assertion changes the mode later in the same process than
+  the diff probe captures, so the marker and the frames describe different
+  moments of a run that deliberately changes appearance mid-flight. There was no
+  defect.
+- **An assertion that fails when the marker and the pixels disagree** — the
+  probe grabs the left pane and fails unless its commonest colour is the
+  palette's base, so a stamp describing an appearance the panes are not painting
+  fails the run rather than being believed.
+- **Shown to fail when neutered** — inverting that comparison fails
+  `application_diff_workbench_public_path` with a clean build.
+
+The consequence outlived the investigation: `--diff-evidence-appearance` came
+out of it, which is what made the dark and both high-contrast profiles
+capturable at all. Every profile this project ships has now been rendered and
+reviewed, and none of them could have been before this card was worked.
+
+## Superseded — required direct evidence
 
 - Which of the three explanations holds, established by inspection rather than
   inferred from the marker.
