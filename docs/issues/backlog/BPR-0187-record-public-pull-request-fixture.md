@@ -204,11 +204,45 @@ discover them. The generator refuses to write a pack whose diff does not
 reproduce the recording file by file — run against `directxmath-336` it fails
 correctly, because that recording has no blobs to build from.
 
-**Step 3 remains**: a `github_public_path_fixture` value, a directory, a
-`--github-fixture` name, and the ten-interaction manifest, so the product reads
-this pack instead of `deterministic_git_fixture`'s hardcoded synthetic graph.
-That is the mechanical part, and it is the last thing between this card and
-[[BPR-0214]].
+**Step 3 remains**, and it was attempted and reverted. What it needs, measured
+by doing it:
+
+`scripts/build_recorded_pull_request_contract.py` is committed and works. It
+writes the ten-interaction manifest and its responses from `recording.json`, so
+the number, title, file list and commit identifiers cannot drift from the
+recording. The generated manifest matches `github-com`'s shape exactly — same
+top-level keys, same ten operations in order, same interaction keys, every
+response file present.
+
+The C++ side is three small edits and they all compile: a
+`github_public_path_fixture::uiforetw_74` value, its directory name, its server
+contract, and a `--github-fixture uiforetw-74` name. `-Wswitch` catches the
+sites, which is why there is no risk of missing one.
+
+Two things stop it, and neither is guesswork:
+
+1. **A capability fixture is required per fixture name.** Without
+   `tests/fixtures/github/capabilities/v1/<name>/` the run reports
+   `STARTUP_FAILED` before anything else. Copying `github-com`'s gets past it,
+   but copying is the wrong answer — the capability set a recorded fixture
+   should claim is a decision, not a duplication.
+2. **The generated payloads do not satisfy the provider.** With the capability
+   fixture in place the run reaches the connect stage and fails with
+   `GitHub returned data that BetterPullReview could not safely use` —
+   `malformed_response`, evidence `00100000:13:0:-1`. So the response shapes
+   need more than matching `github-com`'s key sets; something the provider
+   validates is absent or wrong, and finding it is a payload-by-payload job.
+
+And one gate that must be part of the change rather than an afterthought:
+`github_contract_fixture_security` **enumerates every fixture file by name**. It
+failed on the six files added here, exactly as designed. A new fixture is not
+complete until that list includes it, and updating that list is a security
+decision — the gate exists so fixture content cannot be added without somebody
+looking.
+
+The wiring was reverted rather than left half-applied, so the tree is green. The
+generator is kept because it is correct and reusable, and because writing it
+again is the least interesting part of the remaining work.
 
 ### Why the estimate was wrong before
 
