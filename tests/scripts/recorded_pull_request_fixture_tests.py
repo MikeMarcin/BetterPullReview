@@ -15,16 +15,40 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RECORDING = (
-    ROOT / "tests/fixtures/github/pull-requests/directxmath-336/recording.json"
+# Each recorded pull request as it was on its retrieval date. A re-fetch that
+# drifted must fail here rather than change the content a presentation judgement
+# was made against.
+#
+# `MinimumModificationPairs` is why there are two. A pure addition has no removed
+# line to pair an added line against, so it cannot produce intraline emphasis at
+# all -- BPR-0214. A recording that claims to carry that shape has to be held to
+# it, or the next capture taken from it fails the same way and nobody knows why.
+RECORDINGS = (
+    {
+        "Directory": "directxmath-336",
+        "Source": "https://api.github.com/repos/microsoft/DirectXMath/pulls/336",
+        "Head": "c5d86c3dfc28fc661cc03a151a3643f41da7a12d",
+        "Base": "0332efa39ab80fd1417d5ba120abbde6373e15ed",
+        "Number": 336,
+        "Additions": 221,
+        "Deletions": 0,
+        "Files": 2,
+        "Commits": 2,
+        "MinimumModificationPairs": 0,
+    },
+    {
+        "Directory": "uiforetw-74",
+        "Source": "https://api.github.com/repos/google/UIforETW/pulls/74",
+        "Head": "9b01c587b3e46637ff69c3801841993bd054f106",
+        "Base": "7c519e97eb906bdc6b83c8f576c91c063d6ceee9",
+        "Number": 74,
+        "Additions": 46,
+        "Deletions": 6,
+        "Files": 5,
+        "Commits": 1,
+        "MinimumModificationPairs": 3,
+    },
 )
-
-# The pull request as it was on the retrieval date. A re-fetch that drifted must
-# fail here rather than change the content a presentation judgement was made
-# against.
-EXPECTED_HEAD = "c5d86c3dfc28fc661cc03a151a3643f41da7a12d"
-EXPECTED_BASE = "0332efa39ab80fd1417d5ba120abbde6373e15ed"
-EXPECTED_SOURCE = "https://api.github.com/repos/microsoft/DirectXMath/pulls/336"
 
 # Credential-shaped strings. Not an exhaustive list of every secret format, and
 # not meant to be: an unauthenticated read has no credential to leak, so any
@@ -52,67 +76,144 @@ def expect(condition: bool, message: str) -> None:
         FAILURES.append(message)
 
 
-def main() -> int:
-    expect(RECORDING.is_file(), f"the recording exists at {RECORDING}")
-    if not RECORDING.is_file():
-        print("FAILED: the recording is missing", file=sys.stderr)
-        return 1
+def modification_pairs(recording: dict) -> int:
+    """Counts removed/added line pairs that are mostly the same text.
 
-    raw = RECORDING.read_text()
+    Deliberately crude -- a shared prefix and suffix, not the product's own
+    aligner. Asking the aligner whether the fixture can exercise the aligner
+    would be circular; this only has to establish that the raw text contains
+    pairs an aligner could reasonably match.
+    """
+    found = 0
+    for entry in recording.get("files", []):
+        lines = entry.get("patch", "").split("\n")
+        for index in range(len(lines) - 1):
+            removed, added = lines[index], lines[index + 1]
+            if not (removed.startswith("-") and not removed.startswith("---")):
+                continue
+            if not (added.startswith("+") and not added.startswith("+++")):
+                continue
+            old_text, new_text = removed[1:], added[1:]
+            if not old_text or not new_text or old_text == new_text:
+                continue
+            prefix = 0
+            while (prefix < min(len(old_text), len(new_text))
+                   and old_text[prefix] == new_text[prefix]):
+                prefix += 1
+            suffix = 0
+            while (suffix < min(len(old_text), len(new_text)) - prefix
+                   and old_text[-1 - suffix] == new_text[-1 - suffix]):
+                suffix += 1
+            if (prefix + suffix) / max(len(old_text), len(new_text)) > 0.5:
+                found += 1
+    return found
+
+
+def check(expected: dict) -> None:
+    path = ROOT / "tests/fixtures/github/pull-requests" / expected["Directory"] / "recording.json"
+    name = expected["Directory"]
+    expect(path.is_file(), f"{name}: the recording exists at {path}")
+    if not path.is_file():
+        return
+
+    raw = path.read_text()
     lowered = raw.lower()
     for token in FORBIDDEN:
         expect(
             token not in lowered,
-            f"the recording carries no {token!r}; an unauthenticated read has "
-            "no credential to record, so a match means it was not one",
+            f"{name}: the recording carries no {token!r}; an unauthenticated "
+            "read has no credential to record, so a match means it was not one",
         )
 
-    urls = [url.rstrip('",') for url in re.findall(r"https?://\S+", raw)]
+    # URLs inside a patch are reviewed content -- the pull request's own source
+    # may legitimately contain links. Only the recording's own fields are held
+    # to carrying nothing but the provenance line.
+    recording = json.loads(raw)
+    patches = [entry.get("patch", "") for entry in recording.get("files", [])]
+    fields = raw
+    for patch in patches:
+        fields = fields.replace(json.dumps(patch)[1:-1], "")
+    urls = [url.rstrip('",') for url in re.findall(r"https?://\S+", fields)]
     expect(
-        urls == [EXPECTED_SOURCE],
-        f"the recording contains exactly one URL and it is the provenance "
+        urls == [expected["Source"]],
+        f"{name}: outside the recorded patches the only URL is the provenance "
         f"line; found {urls!r}",
     )
 
-    recording = json.loads(raw)
     expect(
-        recording.get("recorded_from") == EXPECTED_SOURCE,
-        "the recording names where it came from",
+        recording.get("recorded_from") == expected["Source"],
+        f"{name}: the recording names where it came from",
     )
     expect(
         bool(recording.get("recorded_on")),
-        "the recording names when it was retrieved",
+        f"{name}: the recording names when it was retrieved",
     )
 
     pull = recording.get("pull_request", {})
     expect(
-        pull.get("head", {}).get("sha") == EXPECTED_HEAD,
-        f"the recorded head is {EXPECTED_HEAD}; a re-fetch that drifted is a "
-        "failure and not a silent content change",
+        pull.get("head", {}).get("sha") == expected["Head"],
+        f"{name}: the recorded head is {expected['Head']}; a re-fetch that "
+        "drifted is a failure and not a silent content change",
     )
     expect(
-        pull.get("base", {}).get("sha") == EXPECTED_BASE,
-        f"the recorded base is {EXPECTED_BASE}",
+        pull.get("base", {}).get("sha") == expected["Base"],
+        f"{name}: the recorded base is {expected['Base']}",
     )
-    expect(pull.get("number") == 336, "the recorded pull request is #336")
-    expect(pull.get("additions") == 221 and pull.get("deletions") == 0,
-           "the recorded shape is +221 -0")
+    expect(
+        pull.get("number") == expected["Number"],
+        f"{name}: the recorded pull request is #{expected['Number']}",
+    )
+    expect(
+        pull.get("additions") == expected["Additions"]
+        and pull.get("deletions") == expected["Deletions"],
+        f"{name}: the recorded shape is "
+        f"+{expected['Additions']} -{expected['Deletions']}",
+    )
 
     files = recording.get("files", [])
-    expect(len(files) == 2, f"the recording carries two files, found {len(files)}")
+    expect(
+        len(files) == expected["Files"],
+        f"{name}: the recording carries {expected['Files']} files, found {len(files)}",
+    )
     for entry in files:
         expect(
             bool(entry.get("patch")),
-            f"{entry.get('filename')!r} carries a patch, which is the whole "
-            "point of recording it rather than writing one",
+            f"{name}: {entry.get('filename')!r} carries a patch, which is the "
+            "whole point of recording it rather than writing one",
         )
 
     commits = recording.get("commits", [])
-    expect(len(commits) == 2, f"the recording carries two commits, found {len(commits)}")
     expect(
-        any(commit.get("sha") == EXPECTED_HEAD for commit in commits),
-        "the head commit is among the recorded commits",
+        len(commits) == expected["Commits"],
+        f"{name}: the recording carries {expected['Commits']} commits, "
+        f"found {len(commits)}",
     )
+    expect(
+        any(commit.get("sha") == expected["Head"] for commit in commits),
+        f"{name}: the head commit is among the recorded commits",
+    )
+
+    # The shape claim, held rather than described. A recording kept for
+    # intraline emphasis that stopped carrying modification pairs would still
+    # look like a valid recording, and the capture taken from it would silently
+    # show nothing -- which is exactly how BPR-0214 went unnoticed.
+    pairs = modification_pairs(recording)
+    expect(
+        pairs >= expected["MinimumModificationPairs"],
+        f"{name}: carries at least {expected['MinimumModificationPairs']} "
+        f"near-identical removed/added pairs, found {pairs}",
+    )
+    if expected["MinimumModificationPairs"] == 0:
+        expect(
+            pull.get("deletions") == 0,
+            f"{name}: is recorded as a pure addition, so it cannot show "
+            "intraline emphasis and must not be used to claim it does",
+        )
+
+
+def main() -> int:
+    for expected in RECORDINGS:
+        check(expected)
 
     for failure in FAILURES:
         print(f"FAILED: {failure}", file=sys.stderr)

@@ -56,10 +56,11 @@ somebody pushes to a branch is not a fixture.
 Everything the API returns that a review surface has no use for was dropped:
 avatars, node identifiers, reaction counts, and the URL fields on every object.
 
-Grepping the recording finds three URLs rather than one. Two of them are inside
-the diff text — `msdn.microsoft.com` links in comments the pull request itself
-adds — so they are reviewed content, not API metadata. The provenance line above
-is the only URL the recording carries as a field.
+Grepping the recording finds three URLs rather than one. Two are inside the
+diff text — `msdn.microsoft.com` links in comments the pull request itself adds
+— so they are reviewed content, not API metadata. Outside the patches the
+provenance line is the only URL, and the validator holds that distinction rather
+than counting URLs in the file as a whole.
 
 **No credential is involved.** These are unauthenticated reads of public data,
 and nothing here is written back.

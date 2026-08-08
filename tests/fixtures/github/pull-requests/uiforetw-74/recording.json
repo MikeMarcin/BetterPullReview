@@ -82,7 +82,7 @@
 		"title": "add CLR runtime tracing support",
 		"updated_at": "2016-03-30T09:46:51Z"
 	},
-	"recorded_from": "https://github.com/google/UIforETW/pull/74",
+	"recorded_from": "https://api.github.com/repos/google/UIforETW/pulls/74",
 	"recorded_on": "2026-08-08",
 	"repository": {
 		"name": "UIforETW",

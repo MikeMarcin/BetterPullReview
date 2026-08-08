@@ -74,3 +74,43 @@ Do not synthesise a fixture whose only purpose is to show emphasis. The reason
 this went unnoticed is that the existing fixture's content was written to satisfy
 the code reading it; another one written to satisfy a painter would repeat the
 mistake one layer up.
+
+## Fixture designated and recorded, 2026-08-08
+
+The product owner designated `google/UIforETW#74`. It is recorded at
+`tests/fixtures/github/pull-requests/uiforetw-74/`: 5 files, +46 −6, 1 commit,
+carrying three modification pairs where the removed and added lines are 97–99%
+the same text and differ by one or two characters.
+
+```
+-#define _APS_NEXT_RESOURCE_VALUE        136
++#define _APS_NEXT_RESOURCE_VALUE        137
+```
+
+That shape is held rather than described: `recorded_pull_request_fixture_tests`
+now counts near-identical removed/added pairs and fails if this recording stops
+carrying at least three, and separately asserts that `directxmath-336` is a pure
+addition so it can never be used to claim intraline emphasis. Shown non-vacuous
+by stripping the additions from the recording, which fails the count at zero.
+
+## Measured, and it is the blocker: nothing serves a recording
+
+`grep -rn "recording.json" src/` finds nothing. The recordings are read by one
+Python validator and by no part of the application. The `--github-fixture`
+vocabulary is `github_com` and `ghes_3_18`, both hand-written payload builders,
+so there is currently **no way to point the product at a recorded pull request
+at all**.
+
+That is BPR-0187's actual work, and it was mis-stated as done when the recording
+landed. Recording a fixture and serving one are different tasks; only the first
+happened.
+
+So the remaining order is:
+
+1. BPR-0187 — teach the fixture transport to serve a recording, and add the
+   selection that names one.
+2. This card — take a capture from `uiforetw-74` and put the intraline rows in
+   front of a reviewer.
+
+Nothing about the emphasis itself is known to be broken. What is known is that
+no capture has ever been able to show it, and until step 1 lands none can.
