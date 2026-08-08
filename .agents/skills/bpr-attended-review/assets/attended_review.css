@@ -278,6 +278,28 @@ textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); b
   padding: 0.3rem 0.7rem;
   cursor: pointer;
 }
+.media-viewer-counter {
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  padding-right: 1rem;
+}
+.media-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
+  padding: .45rem .75rem .6rem;
+  border-radius: .35rem;
+}
+.media-viewer-nav[hidden] { display: none; }
+.media-viewer-prev { left: .75rem; }
+.media-viewer-next { right: .75rem; }
 .media-viewer-surface { flex: 1; overflow: auto; }
 /* Native size, not fitted: fitting it would reproduce the defect this fixes. */
 .media-viewer-surface img { display: block; image-rendering: pixelated; }

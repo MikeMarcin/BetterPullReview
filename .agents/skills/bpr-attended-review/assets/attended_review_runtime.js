@@ -443,14 +443,27 @@
   viewer.innerHTML =
     '<div class="media-viewer-bar">' +
     '<span class="media-viewer-label"></span>' +
+    '<span class="media-viewer-counter"></span>' +
     '<button type="button" class="media-viewer-close">Close</button>' +
-    '</div><div class="media-viewer-surface"><img alt=""></div>';
+    '</div><div class="media-viewer-surface"><img alt=""></div>' +
+    '<button type="button" class="media-viewer-nav media-viewer-prev" aria-label="Previous image">&#8249;</button>' +
+    '<button type="button" class="media-viewer-nav media-viewer-next" aria-label="Next image">&#8250;</button>';
   document.body.appendChild(viewer);
 
   var image = viewer.querySelector('.media-viewer-surface img');
   var label = viewer.querySelector('.media-viewer-label');
+  var counter = viewer.querySelector('.media-viewer-counter');
   var closeButton = viewer.querySelector('.media-viewer-close');
+  var prevButton = viewer.querySelector('.media-viewer-prev');
+  var nextButton = viewer.querySelector('.media-viewer-next');
   var lastTrigger = null;
+
+  function visibleTriggers() {
+    return Array.prototype.filter.call(
+      document.querySelectorAll('.media-zoom'),
+      function (candidate) { return candidate.offsetParent !== null; }
+    );
+  }
 
   function close() {
     viewer.hidden = true;
@@ -458,21 +471,41 @@
     if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
   }
 
-  function open(trigger) {
+  function open(trigger, focusClose) {
     lastTrigger = trigger;
     image.src = trigger.getAttribute('data-full-source');
     image.alt = trigger.getAttribute('data-full-label') || '';
     label.textContent = trigger.getAttribute('data-full-label') || '';
+    var list = visibleTriggers();
+    var index = list.indexOf(trigger);
+    var navigable = list.length > 1;
+    counter.textContent = navigable && index >= 0 ? (index + 1) + ' / ' + list.length : '';
+    prevButton.hidden = !navigable;
+    nextButton.hidden = !navigable;
     viewer.hidden = false;
-    closeButton.focus();
+    if (focusClose !== false) { closeButton.focus(); }
+  }
+
+  function step(delta) {
+    var list = visibleTriggers();
+    if (!list.length) { return; }
+    var index = list.indexOf(lastTrigger);
+    var next = ((index < 0 ? 0 : index + delta) + list.length) % list.length;
+    open(list[next], false);
   }
 
   document.addEventListener('click', function (event) {
     var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
     if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (viewer.hidden) { return; }
+    if (event.target.closest && event.target.closest('.media-viewer-prev')) { step(-1); return; }
+    if (event.target.closest && event.target.closest('.media-viewer-next')) { step(1); return; }
     if (event.target === viewer || event.target === closeButton) { close(); }
   });
   document.addEventListener('keydown', function (event) {
-    if (event.key === 'Escape' && !viewer.hidden) { close(); }
+    if (viewer.hidden) { return; }
+    if (event.key === 'Escape') { close(); return; }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); return; }
+    if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
   });
 })();

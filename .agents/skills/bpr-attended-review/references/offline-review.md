@@ -93,7 +93,10 @@ Field rules:
   no information about the product. Clicking an image opens it at native
   size, unscaled and unfitted; Escape or a click outside closes it. The
   viewer only reads the DOM, so decision state, the pending count, and
-  the export lock are unaffected.
+  the export lock are unaffected. Arrow keys or the on-screen chevrons step
+  through every visible full-size image in page order, with a position
+  counter, so walking a capture matrix or comparing alternatives is one
+  keypress per image; navigation never touches decision state.
 - `audit_verdict`: the mechanical precondition. `fail` renders the accept
   button disabled and makes any accepting verdict invalid; the subject can
   still be explicitly rejected.
