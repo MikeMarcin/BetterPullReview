@@ -606,6 +606,20 @@ namespace bpr::qt {
 					QString::number(aPullRequest.ReviewThreadCount),
 					QString::number(aPullRequest.IssueCommentCount)));
 		BodyEditor->setPlainText(text(aPullRequest.Body));
+		// The drawer follows the code the reviewer is reading. The comparison
+		// surface names the file it is showing, and a conversation names the
+		// file it is about, so the anchor is set from one and matched against
+		// the other. Nothing here decides what a file is - both sides go
+		// through core::file_identity_of.
+		//
+		// Absent when nothing is on screen, which shows the whole review rather
+		// than an empty drawer: with no file being read there is no narrower
+		// answer to give.
+		ConversationPanel->set_anchor_file(
+			DiffWorkbench != nullptr && DiffWorkbench->current_context().has_value()
+				? std::optional<core::file_identity>{
+					  DiffWorkbench->current_context()->Key.File }
+				: std::nullopt);
 		ConversationPanel->adopt(
 			aPullRequest.Conversations,
 			review_thread_availability_text(

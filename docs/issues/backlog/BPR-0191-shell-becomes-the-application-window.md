@@ -142,6 +142,28 @@ The extraction in `github_conversation_panel` is unaffected — it presents
 whatever forest it is handed. What changes is who decides which subset that is,
 and that decision belongs above the panel rather than inside it.
 
+### Wired, with one gap that the merge itself closes
+
+`github_conversation_panel::set_anchor_file` is implemented and asserted, and
+`github_window` sets the anchor from `diff_workbench`'s current context so the
+drawer shows the file being read.
+
+**It follows a conversation projection, not a bare file change.** `diff_workbench`
+exposes no sink for a context change — the application publishes into it as a
+`diff_projection_port` and nothing observes the result — so a reviewer who opens
+a different file without a new conversation projection keeps the previous file's
+threads.
+
+Deliberately not fixed by adding a context sink to `diff_workbench`. That would
+widen RFC-BPR-0004's surface for a presentation concern belonging to this card,
+and it is unnecessary: the shell composes *both* the comparison surface and the
+conversation, so once it is the window it can set the anchor when it publishes a
+diff. The gap is an artefact of the two windows and closes when they become one.
+
+The panel-level behaviour is already correct and tested — changing the anchor
+re-filters from what was retained without waiting for a projection. It is only
+the *caller* that is currently under-informed.
+
 ### One caveat that lands on [[BPR-0212]]
 
 A comment's `Line` is an anchor *in some revision*. "Anchored to a line of the
