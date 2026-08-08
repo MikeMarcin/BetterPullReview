@@ -8,7 +8,10 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QPaintEvent>
+#include <QPainter>
 #include <QPalette>
+#include <QPen>
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScrollBar>
@@ -31,13 +34,40 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	namespace {
+		/// Width of the change-group boundary rule, in device-independent pixels.
+		constexpr auto BoundaryRuleWidth = 2.0;
+
 		class source_pane final : public QPlainTextEdit
 		{
 		public:
 			using QPlainTextEdit::QPlainTextEdit;
+
+			/// \brief Adopts the lines each change group starts on.
+			///
+			/// \details Held sorted so a repaint can find the visible ones by
+			/// bisection. Computed once when a result is published rather than
+			/// per paint, because the group count follows the size of the diff
+			/// and only the search may be allowed to follow the viewport.
+			void set_group_boundaries(std::vector<std::uint32_t> aBoundaries)
+			{
+				Boundaries = std::move(aBoundaries);
+				viewport()->update();
+			}
+
+			void set_boundary_rule_color(const QColor& aColor)
+			{
+				RuleColor = aColor;
+				viewport()->update();
+			}
+
+			[[nodiscard]] auto painted_rules() const noexcept -> std::uint64_t
+			{
+				return PaintedRules;
+			}
 
 			[[nodiscard]] auto set_document_origin(
 				const qreal aOrigin, const qreal aMaximumOrigin) -> qreal
@@ -60,6 +90,59 @@ namespace bpr::qt {
 					/ static_cast<qreal>(bar->maximum() - bar->minimum());
 				return appliedFraction * aMaximumOrigin;
 			}
+
+		protected:
+			/// \brief Draws a rule where each visible change group begins.
+			///
+			/// \details A boundary is a position between two lines, not a
+			/// property of either one, so it is drawn on the edge between them.
+			/// The previous implementation filled the unchanged line above the
+			/// group instead. That said "this line is special" about a line
+			/// that had not changed, in the same full-width tint the added and
+			/// removed bands use, carrying the opposite meaning — and it was
+			/// mistaken for the selected line at attended review.
+			///
+			/// Only blocks the viewport can show are walked, and the boundary
+			/// list is entered by bisection rather than scanned, so the work
+			/// here follows the visible line count and not the diff's size.
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				QPlainTextEdit::paintEvent(aEvent);
+				if (Boundaries.empty() || !RuleColor.isValid()) {
+					return;
+				}
+				auto block = firstVisibleBlock();
+				if (!block.isValid()) {
+					return;
+				}
+				auto       top   = blockBoundingGeometry(block)
+									   .translated(contentOffset())
+									   .top();
+				const auto limit = static_cast<qreal>(viewport()->height());
+				const auto width = viewport()->width();
+				auto       next  = std::ranges::lower_bound(
+					Boundaries,
+					static_cast<std::uint32_t>(std::max(block.blockNumber(), 0)));
+				auto painter = QPainter{ viewport() };
+				painter.setPen(QPen{ RuleColor, BoundaryRuleWidth });
+				while (block.isValid() && top <= limit && next != Boundaries.end()) {
+					if (
+						block.isVisible()
+						&& *next == static_cast<std::uint32_t>(block.blockNumber())) {
+						const auto y = qRound(top);
+						painter.drawLine(0, y, width, y);
+						++PaintedRules;
+						++next;
+					}
+					top += blockBoundingRect(block).height();
+					block = block.next();
+				}
+			}
+
+		private:
+			std::vector<std::uint32_t> Boundaries;
+			QColor                     RuleColor;
+			std::uint64_t              PaintedRules = 0U;
 		};
 
 		[[nodiscard]] auto pane(QPlainTextEdit* const aPane) noexcept
@@ -640,7 +723,16 @@ namespace bpr::qt {
 	auto diff_workbench::statistics() const noexcept
 		-> diff_workbench_statistics
 	{
-		return Statistics;
+		// Boundary rules are counted where they are drawn, not where they are
+		// requested. The bands can be tallied at composition time because an
+		// extra selection reaching the pane is the whole of their effect; a
+		// rule is only real once the viewport has painted it, and counting the
+		// intent would let a rule that never reaches the screen read as
+		// painted.
+		auto statistics                   = Statistics;
+		statistics.GroupBoundariesPainted = pane(Left)->painted_rules()
+			+ pane(Right)->painted_rules();
+		return statistics;
 	}
 
 	auto diff_workbench::event(QEvent* const aEvent) -> bool
@@ -1022,6 +1114,8 @@ namespace bpr::qt {
 	/// the defect RFC-BPR-0005's reuse rules forbid.
 	void diff_workbench::update_diff_paint()
 	{
+		apply_group_boundaries();
+
 		const auto paint = [this](
 							   QPlainTextEdit&       aPane,
 							   const core::diff_side aSide) {
@@ -1095,7 +1189,6 @@ namespace bpr::qt {
 					}
 				}
 
-				append_group_boundaries(selections, aPane, aSide, paintable);
 				append_intraline_emphasis(selections, aPane, aSide, paintable);
 			}
 
@@ -1122,70 +1215,47 @@ namespace bpr::qt {
 		return MovedSegments.contains(aSegment);
 	}
 
-	/// \brief Marks where the model places each change group's boundary.
+	/// \brief Hands each pane the lines its change groups start on.
 	///
-	/// \details The panes show whole documents side by side, not a unified
-	/// hunk stream, so a hunk header cannot be a row of text: inserting one
-	/// would make pane line N stop being document line N, and every mapping
-	/// built on that equality - intraline emphasis, token spans, selection,
-	/// the measured axis - would silently shift by the number of headers above
-	/// it. The delimiter therefore has to be a marking on a line that already
-	/// exists.
+	/// \details The panes show whole documents side by side, not a unified hunk
+	/// stream, so a boundary cannot be a row of text: inserting one would make
+	/// pane line N stop being document line N, and every mapping built on that
+	/// equality - intraline emphasis, token spans, selection, the measured axis -
+	/// would silently shift by the number of rows above it.
 	///
-	/// It goes on the unchanged line immediately above the group. That line is
-	/// deliberately untinted otherwise, so the marking costs no change signal;
-	/// putting it on the group's own first line would take an added or removed
-	/// line's colour away to say something the band already implies.
+	/// So it is drawn as a rule on the edge above the group's first line, which
+	/// is where the boundary actually is. The earlier version tinted the
+	/// unchanged line above the group instead, and BPR-0202 records why that was
+	/// wrong: a full-width fill is how this surface says "this line changed", and
+	/// spending it on a line that did not change inverts the vocabulary. At
+	/// attended review the marking was read as the selected line.
 	///
-	/// This is a visible product choice: an unchanged line acquires a role it
-	/// did not have. It is the only placement the mechanism allows without
-	/// custom viewport painting, which RFC-BPR-0005's measured-axis evidence
-	/// rests on not happening — but "only option available" is not "owner
-	/// approved", and BPR-0194 is the standing reminder of the difference.
-	void diff_workbench::append_group_boundaries(
-		QList<QTextEdit::ExtraSelection>& aSelections,
-		QPlainTextEdit&                   aPane,
-		const core::diff_side             aSide,
-		const core::line_span             aPaintable)
+	/// A group starting at line zero is skipped. There is no edge above the first
+	/// line of a file, and a rule drawn there would mark the document's start
+	/// rather than a separation between two groups.
+	void diff_workbench::apply_group_boundaries()
 	{
-		const auto background
-			= Colors.Syntax[static_cast<std::size_t>(
-				core::appearance_role::diff_hunk_header_background)];
-		const auto foreground
-			= Colors.Syntax[static_cast<std::size_t>(
-				core::appearance_role::diff_hunk_header_text)];
-		if (!background.isValid()) {
-			return;
+		auto left  = std::vector<std::uint32_t>{ };
+		auto right = std::vector<std::uint32_t>{ };
+		if (CurrentResult) {
+			for (const auto& group : CurrentResult->Alignment.Groups) {
+				if (group.First.Left > 0U) {
+					left.push_back(group.First.Left);
+				}
+				if (group.First.Right > 0U) {
+					right.push_back(group.First.Right);
+				}
+			}
 		}
-		for (const auto& group : CurrentResult->Alignment.Groups) {
-			const auto boundary = aSide == core::diff_side::left
-				? group.First.Left
-				: group.First.Right;
-			if (boundary == 0U) {
-				// A group that starts at the top of the file has no line above
-				// it to delimit. Skipped rather than painted on line zero,
-				// which would mark the first line of the group itself.
-				continue;
-			}
-			const auto line = boundary - 1U;
-			if (line < aPaintable.Begin || line >= aPaintable.End) {
-				continue;
-			}
-			const auto block = aPane.document()->findBlockByNumber(
-				static_cast<int>(line));
-			if (!block.isValid()) {
-				continue;
-			}
-			auto band   = QTextEdit::ExtraSelection{ };
-			band.cursor = QTextCursor{ block };
-			band.format.setProperty(QTextFormat::FullWidthSelection, true);
-			band.format.setBackground(background);
-			if (foreground.isValid()) {
-				band.format.setForeground(foreground);
-			}
-			aSelections.push_back(band);
-			++Statistics.GroupBoundariesPainted;
-		}
+		std::ranges::sort(left);
+		std::ranges::sort(right);
+		pane(Left)->set_group_boundaries(std::move(left));
+		pane(Right)->set_group_boundaries(std::move(right));
+
+		const auto rule = Colors.Syntax[static_cast<std::size_t>(
+			core::appearance_role::diff_group_boundary_rule)];
+		pane(Left)->set_boundary_rule_color(rule);
+		pane(Right)->set_boundary_rule_color(rule);
 	}
 
 	/// \brief Colours the classified tokens of the lines a pane can show.

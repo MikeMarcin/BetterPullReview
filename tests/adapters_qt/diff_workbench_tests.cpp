@@ -1637,23 +1637,77 @@ namespace {
 		});
 		process_events();
 
+		auto& leftPane = *workbench.left_pane();
+
+		// The boundary is a drawn rule, so the pane has to have painted for
+		// there to be anything to assert. Grabbing the viewport is what makes
+		// that happen, and it is also the only place the rule exists — it is
+		// deliberately not an extra selection.
+		const auto pixels = leftPane.viewport()->grab().toImage();
 		expect(
 			workbench.statistics().GroupBoundariesPainted > 0U,
-			"a comparison with change groups marks at least one boundary");
+			"a comparison with change groups draws at least one boundary rule");
 
-		const auto header
-			= profile.color(core::appearance_role::diff_hunk_header_background);
-		const auto& group = diff.Alignment.Groups.front();
-		expect(
-			group.First.Left > 0U,
-			"the first group does not start at the top of the file, so it has "
-			"a line above it to mark");
-		expect(
-			band_color(
-				*workbench.left_pane(),
-				static_cast<int>(group.First.Left - 1U))
-				== header,
-			"the line above a change group carries the hunk header background");
+		const auto rule
+			= profile.color(core::appearance_role::diff_group_boundary_rule);
+		expect(rule.isValid(), "the profile supplies a boundary rule colour");
+
+		// A boundary belongs on the edge above the group's first line. Find a
+		// group the viewport is actually showing and check the pixels there.
+		auto checked = false;
+		for (const auto& group : diff.Alignment.Groups) {
+			if (group.First.Left == 0U) {
+				continue;
+			}
+			const auto block = leftPane.document()->findBlockByNumber(
+				static_cast<int>(group.First.Left));
+			if (!block.isValid()) {
+				continue;
+			}
+			// cursorRect is in logical pixels and the grab is in device ones,
+			// so the two only agree at a device pixel ratio of one. The scaled
+			// courses run at 1.25 and 2.0, where reading the image at a logical
+			// y lands on a different line entirely.
+			const auto ratio = pixels.devicePixelRatio();
+			const auto top   = qRound(
+				leftPane.cursorRect(QTextCursor{ block }).top() * ratio);
+			if (top <= 0 || top >= pixels.height()) {
+				continue;
+			}
+			// The pen is BoundaryRuleWidth logical pixels, so the run is that
+			// many device rows thick and the search widens with the ratio.
+			const auto reach = qRound(2.0 * ratio) + 1;
+			auto       found = false;
+			for (auto offset = -reach; offset <= reach && !found; ++offset) {
+				const auto y = top + offset;
+				if (y < 0 || y >= pixels.height()) {
+					continue;
+				}
+				auto run = 0;
+				for (auto x = 0; x < pixels.width(); ++x) {
+					if (QColor{ pixels.pixelColor(x, y) } == rule) {
+						++run;
+					}
+				}
+				found = run > pixels.width() / 2;
+			}
+			expect(
+				found,
+				"the edge above a change group's first line carries a rule in "
+				"the boundary colour, spanning the pane");
+
+			// The defect BPR-0202 repaired: the unchanged line above the group
+			// used to be filled edge to edge, in the same vocabulary the added
+			// and removed bands use, to say something that was not true of it.
+			expect(
+				!band_color(leftPane, static_cast<int>(group.First.Left - 1U))
+					 .isValid(),
+				"the unchanged line above a change group carries no band of "
+				"its own");
+			checked = true;
+			break;
+		}
+		expect(checked, "at least one change group boundary was visible to check");
 	}
 } // namespace
 

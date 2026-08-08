@@ -230,25 +230,49 @@ namespace {
 			appearance_role::diff_moved_background,
 		};
 		for (const auto background : canvasBackgrounds) {
+			// Counted by kind. A canvas background can also carry marks drawn
+			// over it - the change-group boundary rule is one - and those are
+			// held to the indicator ratio, not the text one. Counting every
+			// pair regardless of kind would make this assertion about how many
+			// obligations a background happens to have rather than about
+			// syntax coverage, which is what it is for.
 			const auto count = std::ranges::count_if(
 				pairs,
 				[background](const contrast_pair& aPair) {
-					return aPair.Background == background;
+					return aPair.Background == background
+						&& aPair.Kind == contrast_kind::text;
 				});
 			expect_equal(static_cast<std::uint32_t>(count), 25U,
 						 "every syntax role is checked over every canvas background");
 		}
 
+		// Against the application surface, which is where the state marks are
+		// drawn. The change-group boundary rule is also an indicator but is
+		// drawn on the code canvas, so it is counted separately below rather
+		// than inflating the state total.
 		const auto indicators = std::ranges::count_if(
 			pairs,
 			[](const contrast_pair& aPair) {
-				return aPair.Kind == contrast_kind::indicator;
+				return aPair.Kind == contrast_kind::indicator
+					&& aPair.Background == appearance_role::application_surface;
 			});
 		expect_equal(static_cast<std::uint32_t>(indicators), 6U,
 					 "all six review-state roles are checked as indicators");
 
-		expect_equal(static_cast<std::uint32_t>(pairs.size()), 209U,
-					 "the checked set is the three fixed pairs, 25 syntax roles over "
+		const auto canvasIndicators = std::ranges::count_if(
+			pairs,
+			[](const contrast_pair& aPair) {
+				return aPair.Kind == contrast_kind::indicator
+					&& aPair.Background == appearance_role::code_background;
+			});
+		expect_equal(
+			static_cast<std::uint32_t>(canvasIndicators), 1U,
+			"the change-group boundary rule is held to the indicator ratio "
+			"against the code surface it is drawn on");
+
+		expect_equal(static_cast<std::uint32_t>(pairs.size()), 210U,
+					 "the checked set is the three fixed pairs, the boundary rule, "
+					 "25 syntax roles over "
 					 "eight canvas backgrounds, and six state indicators");
 	}
 

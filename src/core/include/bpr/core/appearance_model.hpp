@@ -59,6 +59,10 @@ namespace bpr::core {
 		diff_moved_background,
 		diff_hunk_header_background,
 		diff_hunk_header_text,
+		/// The rule drawn on the edge where one change group begins. A mark on
+		/// the code canvas rather than a fill of it, so it is held to the
+		/// indicator ratio and not treated as a background wash.
+		diff_group_boundary_rule,
 
 		// Review state indicators. RFC-BPR-0006 also requires a non-colour
 		// indicator for each state; that redundancy is presentation work and is
@@ -100,7 +104,7 @@ namespace bpr::core {
 		syntax_other,
 	};
 
-	inline constexpr std::size_t appearance_role_count = 45U;
+	inline constexpr std::size_t appearance_role_count = 46U;
 
 	static_assert(
 		static_cast<std::size_t>(appearance_role::syntax_other) + 1U == appearance_role_count,

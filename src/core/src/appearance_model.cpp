@@ -204,6 +204,8 @@ namespace bpr::core {
 			return "diff_moved_background";
 		case appearance_role::diff_hunk_header_background:
 			return "diff_hunk_header_background";
+		case appearance_role::diff_group_boundary_rule:
+			return "diff_group_boundary_rule";
 		case appearance_role::diff_hunk_header_text:
 			return "diff_hunk_header_text";
 		case appearance_role::state_unread:

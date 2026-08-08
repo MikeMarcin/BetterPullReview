@@ -224,6 +224,19 @@ namespace bpr::core {
 			},
 		};
 
+		/// \brief Marks drawn on the code canvas rather than filled behind it.
+		///
+		/// \details The boundary rule is a drawn line, so the indicator ratio is
+		/// the right obligation for it - unlike the row fills above, where a
+		/// luminance ratio measures the wrong property of a tint.
+		constexpr auto canvas_indicator_pairs = std::array{
+			contrast_pair{
+				.Foreground = appearance_role::diff_group_boundary_rule,
+				.Background = appearance_role::code_background,
+				.Kind       = contrast_kind::indicator,
+			},
+		};
+
 		/// \brief The review-state roles, which are marks rather than text.
 		constexpr auto state_roles = std::array{
 			appearance_role::state_unread,
@@ -235,6 +248,7 @@ namespace bpr::core {
 		};
 
 		constexpr auto required_pair_count = fixed_text_pairs.size()
+			+ canvas_indicator_pairs.size()
 			+ (syntax_role_count * code_canvas_backgrounds.size())
 			+ state_roles.size();
 
@@ -259,6 +273,11 @@ namespace bpr::core {
 					++next;
 				}
 			}
+			for (const auto pair : canvas_indicator_pairs) {
+				pairs[next] = pair;
+				++next;
+			}
+
 			for (const auto state : state_roles) {
 				pairs[next] = contrast_pair{
 					.Foreground = state,

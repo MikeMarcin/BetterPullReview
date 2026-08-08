@@ -173,12 +173,8 @@ namespace bpr::qt {
 			QPlainTextEdit& aPane,
 			core::diff_side aSide,
 			core::line_span aPaintable);
-		/// \brief Marks where the model places each change group's boundary.
-		void append_group_boundaries(
-			QList<QTextEdit::ExtraSelection>& aSelections,
-			QPlainTextEdit&                   aPane,
-			core::diff_side                   aSide,
-			core::line_span                   aPaintable);
+		/// \brief Hands each pane the lines its change groups start on.
+		void apply_group_boundaries();
 		/// \brief Whether the named segment takes part in a detected move.
 		[[nodiscard]] auto moved(const core::alignment_segment_id& aSegment) const
 			-> bool;
