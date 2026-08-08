@@ -1,7 +1,7 @@
 ---
 id: BPR-0194
 title: The selected line is invisible in Light, and a menu indicator escapes its button
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0183, BPR-0196]
 ---
@@ -211,6 +211,55 @@ the same surface. The honest options are a lower alpha plus a non-colour
 indicator (a gutter mark or an outline, which RFC-BPR-0006 already requires for
 state anyway), or an opaque band with a foreground the palette guarantees
 against it. Choose deliberately and record which.
+
+## Defect 1 is resolved, 2026-08-08
+
+`code_selection_background` is `#7FB0E8` in Light, chosen by the owner and
+landed once [[BPR-0204]] made the contrast model measure the wash as painted
+and [[BPR-0206]] refitted the light syntax palette to survive it. The selected
+line now measures ΔE 12.5 against the plain pane and 13.2 against a removed
+one, against the 5.2 that produced "I can only see it with eye strain".
+
+Both schemes were then accepted at attended review with no notes
+(`docs/verification/reviews/diff-scheme-acceptance-v002/`), and both
+high-contrast profiles after them. All four shipped palettes are reviewed
+surfaces.
+
+## Defect 2 is resolved, 2026-08-08
+
+It reproduces offscreen under `QFusionStyle`, so no real display was needed
+after all. Measured, the button asked for **168** device-independent pixels to
+hold **153** of label and a **16** pixel indicator — one short, which is enough
+to put the chevron over the frame.
+
+The cause is a `QToolButton` contract detail. It reserves indicator width in its
+size hint for `MenuButtonPopup`, where the indicator is a separate clickable
+zone, but not for `InstantPopup`, where the whole button opens the menu. The
+indicator is painted either way.
+
+`bpr::qt::menu_tool_button` overrides both hints to add
+`PM_MenuButtonIndicator` when a menu is set and the mode is `InstantPopup`. The
+width is asked of the style rather than assumed, because it varies by style and
+by device pixel ratio and a constant would be right only where it was measured.
+
+**Two buttons had this defect, not one.** The maintenance menu here and the
+workbench toolbar's overflow button both use `InstantPopup` with a menu, so the
+repair is a shared type rather than a fix at the reported site. The overflow
+button is the one a reviewer meets when the window is narrow.
+
+### A draft that widened it twice
+
+The first implementation applied the correction in `minimumSizeHint` as well.
+`QToolButton::minimumSizeHint` is defined as its size hint, so it called the
+override that had already added the indicator and the button came out sixteen
+pixels broader than it asked to be. The minimum now inherits the size hint
+instead.
+
+That draft **passed** an earlier version of these assertions, which bounded the
+width instead of pinning it. The assertions now compare against the same button
+without a menu and require exactly one indicator of difference, and require the
+minimum to equal the size hint. Both the omission and the double correction fail
+them, each shown separately with a clean build.
 
 ## 2. A menu indicator renders outside its button
 

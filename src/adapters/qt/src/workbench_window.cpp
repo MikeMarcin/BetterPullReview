@@ -1,5 +1,7 @@
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/qt/menu_tool_button.hpp"
+
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 
@@ -265,7 +267,7 @@ namespace bpr::qt {
 			QStringLiteral("Review navigation overflow"));
 		OverflowMenu->setAccessibleDescription(QStringLiteral(
 			"Primary review navigation moved into the compact overflow"));
-		OverflowButton = new QToolButton{ this };
+		OverflowButton = new menu_tool_button{ this };
 		OverflowButton->setObjectName(
 			QStringLiteral("workbenchNavigationOverflowButton"));
 		OverflowButton->setText(QStringLiteral("&Navigation"));

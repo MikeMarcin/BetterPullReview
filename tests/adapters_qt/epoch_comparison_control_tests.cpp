@@ -12,6 +12,8 @@
 #include <QPersistentModelIndex>
 #include <QPixmap>
 #include <QPushButton>
+#include <QStyle>
+#include <QStyleOptionToolButton>
 #include <QTimer>
 #include <QToolButton>
 
@@ -939,6 +941,64 @@ namespace {
 				   && !maintenanceButton->accessibleDescription().isEmpty(),
 			   "one secondary public maintenance menu exposes stable action, object, "
 			   "and accessibility contracts");
+
+		// The menu indicator has to fit inside the button that owns it. It is
+		// drawn by the style at the trailing edge, and if the size hint covers
+		// only the text the chevron lands past the frame - reported at the
+		// first attended review of BPR-0194, on a real display, as an
+		// indicator drawn outside its own widget rectangle.
+		//
+		// Asserted against the style's own metric rather than a fixed number,
+		// because the indicator's width is the style's to decide and a
+		// constant here would pass on the one platform it was measured on.
+		{
+			auto option = QStyleOptionToolButton{ };
+			option.initFrom(maintenanceButton);
+			option.text          = maintenanceButton->text();
+			option.features      = QStyleOptionToolButton::HasMenu;
+			const auto indicator = maintenanceButton->style()->pixelMetric(
+				QStyle::PM_MenuButtonIndicator, &option, maintenanceButton);
+			const auto textWidth = maintenanceButton->fontMetrics()
+									   .horizontalAdvance(maintenanceButton->text());
+			expect(
+				indicator > 0,
+				"the style reserves a real width for a menu indicator, so this "
+				"comparison can fail");
+			expect(
+				maintenanceButton->sizeHint().width() >= textWidth + indicator,
+				"the maintenance button asks for room for its label and its "
+				"menu indicator, not just its label");
+			// The minimum carries the indicator too — a layout under pressure
+			// squeezes towards it — and carries it exactly once. Asserting
+			// equality with the size hint catches both the omission and the
+			// double correction; a >= bound catches only the first, and let a
+			// draft through that widened the minimum twice.
+			expect(
+				maintenanceButton->minimumSizeHint().width()
+					>= textWidth + indicator,
+				"even squeezed to its minimum the button keeps room for the "
+				"indicator rather than letting it escape the frame");
+			expect(
+				maintenanceButton->minimumSizeHint().width()
+					== maintenanceButton->sizeHint().width(),
+				"the minimum applies the indicator correction once, not once "
+				"per hint");
+			// Exactly one indicator wider than the same button without a menu,
+			// measured rather than bounded by a guess. A tolerance here passed
+			// a first draft that added the indicator twice — the button was
+			// then wide enough for the assertion and sixteen pixels wider than
+			// it asked to be.
+			auto plain = QToolButton{ };
+			plain.setToolButtonStyle(maintenanceButton->toolButtonStyle());
+			plain.setText(maintenanceButton->text());
+			plain.setFont(maintenanceButton->font());
+			plain.setStyle(maintenanceButton->style());
+			expect(
+				maintenanceButton->sizeHint().width()
+					== plain.sizeHint().width() + indicator,
+				"the button is exactly one menu indicator wider than the same "
+				"button without a menu");
+		}
 	}
 
 	auto test_explicit_loading_empty_failure_and_availability_states() -> void

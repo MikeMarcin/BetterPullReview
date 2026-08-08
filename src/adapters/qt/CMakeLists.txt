@@ -15,6 +15,7 @@ add_library(
 		src/diff_workbench.cpp
         src/event_loop_executor.cpp
         src/epoch_comparison_control.cpp
+    src/menu_tool_button.cpp
         src/epoch_history_model.cpp
         src/foundation_window.cpp
         src/github_conversation_delegate.cpp

@@ -1,5 +1,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 
+#include "bpr/qt/menu_tool_button.hpp"
+
 #include <QAccessible>
 #include <QAction>
 #include <QActionGroup>
@@ -391,7 +393,7 @@ namespace bpr::qt {
 		maintenanceMenu->addAction(DeleteCacheAction);
 		maintenanceMenu->addSeparator();
 		maintenanceMenu->addAction(CancelMaintenanceAction);
-		MaintenanceButton = new QToolButton{ this };
+		MaintenanceButton = new menu_tool_button{ this };
 		MaintenanceButton->setObjectName(
 			QStringLiteral("localHistoryMaintenanceButton"));
 		MaintenanceButton->setText(QStringLiteral("Local history maintenance"));

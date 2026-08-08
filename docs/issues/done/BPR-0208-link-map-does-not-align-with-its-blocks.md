@@ -1,7 +1,7 @@
 ---
 id: BPR-0208
 title: The gutter link map does not line up with the blocks it connects
-status: Backlog
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0192]
 ---

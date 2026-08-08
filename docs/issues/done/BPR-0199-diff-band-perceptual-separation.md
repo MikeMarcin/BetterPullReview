@@ -1,7 +1,7 @@
 ---
 id: BPR-0199
 title: Diff bands and change-group markings are too close to the pane to read apart
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0196, BPR-0198]
 ---
