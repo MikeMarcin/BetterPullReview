@@ -104,6 +104,40 @@ namespace bpr::core {
 		syntax_other,
 	};
 
+	/// \brief The opacity the code panes composite the selection wash at.
+	///
+	/// \details The selection is not painted as a solid fill over the code
+	/// canvas; it is laid over whatever band the line already carries, so the
+	/// background syntax text is actually drawn on is this colour composited
+	/// over that band. The value lives here rather than in the painter because
+	/// it decides whether the result is legible, and a number that decides
+	/// legibility belongs in the contract that checks legibility. A painter
+	/// holding it privately is how the contrast obligation came to be measured
+	/// against a colour the panes never paint.
+	inline constexpr std::uint8_t selection_wash_alpha = 72U;
+
+	/// \brief Lays one colour over another at the given opacity.
+	[[nodiscard]] constexpr auto composited(
+		const appearance_color aOver,
+		const appearance_color aUnder,
+		const std::uint8_t     aAlpha) noexcept -> appearance_color
+	{
+		const auto blend = [aAlpha](
+							   const std::uint8_t aTop,
+							   const std::uint8_t aBottom) -> std::uint8_t {
+			const auto over  = static_cast<std::uint32_t>(aTop) * aAlpha;
+			const auto under = static_cast<std::uint32_t>(aBottom)
+				* (255U - static_cast<std::uint32_t>(aAlpha));
+			return static_cast<std::uint8_t>((over + under + 127U) / 255U);
+		};
+		return appearance_color{
+			.Red   = blend(aOver.Red, aUnder.Red),
+			.Green = blend(aOver.Green, aUnder.Green),
+			.Blue  = blend(aOver.Blue, aUnder.Blue),
+			.Alpha = 255U,
+		};
+	}
+
 	inline constexpr std::size_t appearance_role_count = 46U;
 
 	static_assert(

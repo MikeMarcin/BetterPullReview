@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -50,12 +51,19 @@ namespace {
 	constexpr auto black = srgb(0x000000);
 	constexpr auto white = srgb(0xFFFFFF);
 
-	/// \brief Reports whether a role is a background of some required pair.
+	/// \brief Reports whether a role is read as a background of some pair.
+	///
+	/// \details A wash counts. It is composited over the named background
+	/// before the ratio is taken, so a palette that made it a foreground colour
+	/// would put a dark layer over every canvas background and no pair could
+	/// reach the maximum through it.
 	[[nodiscard]] auto is_checked_background(const appearance_role aRole) -> bool
 	{
 		return std::ranges::any_of(
 			required_contrast_pairs(),
-			[aRole](const contrast_pair& aPair) { return aPair.Background == aRole; });
+			[aRole](const contrast_pair& aPair) {
+				return aPair.Background == aRole || aPair.Wash == std::optional{ aRole };
+			});
 	}
 
 	/// \brief Builds a palette in which every required pair reaches 21.00:1.
@@ -222,7 +230,6 @@ namespace {
 		constexpr auto canvasBackgrounds = std::array{
 			appearance_role::code_background,
 			appearance_role::code_current_line_background,
-			appearance_role::code_selection_background,
 			appearance_role::diff_added_background,
 			appearance_role::diff_removed_background,
 			appearance_role::diff_intraline_added_background,
@@ -240,10 +247,34 @@ namespace {
 				pairs,
 				[background](const contrast_pair& aPair) {
 					return aPair.Background == background
-						&& aPair.Kind == contrast_kind::text;
+						&& aPair.Kind == contrast_kind::text
+						&& !aPair.Wash.has_value();
 				});
 			expect_equal(static_cast<std::uint32_t>(count), 25U,
 						 "every syntax role is checked over every canvas background");
+
+			// And again through the selection wash, for the backgrounds a wash
+			// can land on. Selecting a line must not be what makes it
+			// unreadable, which checking the bare background cannot see.
+			// code_current_line_background is excluded: it is the item-view
+			// alternate base, which no pane paints and which views draw a
+			// solid selection over rather than a wash.
+			const auto washable
+				= background != appearance_role::code_current_line_background;
+			const auto washed = std::ranges::count_if(
+				pairs,
+				[background](const contrast_pair& aPair) {
+					return aPair.Background == background
+						&& aPair.Kind == contrast_kind::text
+						&& aPair.Wash
+						== std::optional{
+							   appearance_role::code_selection_background
+						   };
+				});
+			expect_equal(
+				static_cast<std::uint32_t>(washed), washable ? 25U : 0U,
+				"every syntax role is checked over every washable canvas "
+				"background with the selection wash on top");
 		}
 
 		// Against the application surface, which is where the state marks are
@@ -270,7 +301,7 @@ namespace {
 			"the change-group boundary rule is held to the indicator ratio "
 			"against the code surface it is drawn on");
 
-		expect_equal(static_cast<std::uint32_t>(pairs.size()), 210U,
+		expect_equal(static_cast<std::uint32_t>(pairs.size()), 335U,
 					 "the checked set is the three fixed pairs, the boundary rule, "
 					 "25 syntax roles over "
 					 "eight canvas backgrounds, and six state indicators");
@@ -300,40 +331,72 @@ namespace {
 	auto test_a_failing_pair_is_reported_with_its_ratio() -> void
 	{
 		// Two colours the built-in light profile actually assigns: its string
-		// colour drawn over its selection fill.
-		constexpr auto stringColor    = srgb(0x0A7B54);
-		constexpr auto selectionColor = srgb(0xB6D7FF);
-		expect_equal(contrast_ratio_hundredths(stringColor, selectionColor), 356U,
+		// colour over the blue it used to fill a selected line with. That fill
+		// is now an added-line band, because the selection is no longer a
+		// background in its own right - it is a wash laid over one.
+		constexpr auto stringColor = srgb(0x0A7B54);
+		constexpr auto bandColor   = srgb(0xB6D7FF);
+		expect_equal(contrast_ratio_hundredths(stringColor, bandColor), 356U,
 					 "the sample pair measures 3.56:1");
 
 		const auto palette = with_role(
 			with_role(maximal_contrast_palette(),
 					  appearance_role::syntax_string,
 					  stringColor),
-			appearance_role::code_selection_background,
-			selectionColor);
+			appearance_role::diff_added_background,
+			bandColor);
 
+		// Two, not one: the band is checked bare and again through the
+		// selection wash, because selecting a line must not be what makes it
+		// unreadable. Both fail here, and the pair is what distinguishes them.
 		const auto failures = failing_contrast(palette, appearance_variant::light);
-		expect_equal(static_cast<std::uint32_t>(failures.size()), 1U,
-					 "exactly the one pair below the minimum is reported");
+		expect_equal(static_cast<std::uint32_t>(failures.size()), 2U,
+					 "exactly the pairs below the minimum are reported, bare and "
+					 "washed");
 
-		const auto& failure = failures.front();
-		expect(failure.Pair.Foreground == appearance_role::syntax_string
-				   && failure.Pair.Background == appearance_role::code_selection_background,
-			   "the failure names the pair that failed");
-		expect_equal(failure.RatioHundredths, 356U,
-					 "the failure carries the measured ratio, not just a verdict");
-		expect_equal(failure.MinimumHundredths, 450U,
-					 "the failure carries the minimum it was measured against");
-		expect(!failure.Meets, "the failure is reported as failing");
+		const auto bare = std::ranges::find_if(
+			failures, [](const contrast_finding& aFinding) {
+				return !aFinding.Pair.Wash.has_value();
+			});
+		const auto washed = std::ranges::find_if(
+			failures, [](const contrast_finding& aFinding) {
+				return aFinding.Pair.Wash.has_value();
+			});
+		expect(bare != failures.end() && washed != failures.end(),
+			   "one failure is the bare band and the other is the washed one");
+
+		for (const auto* finding : { &*bare, &*washed }) {
+			expect(finding->Pair.Foreground == appearance_role::syntax_string
+					   && finding->Pair.Background
+						   == appearance_role::diff_added_background,
+				   "the failure names the pair that failed");
+			expect_equal(finding->MinimumHundredths, 450U,
+						 "the failure carries the minimum it was measured against");
+			expect(!finding->Meets, "the failure is reported as failing");
+		}
+
+		expect_equal(bare->RatioHundredths, 356U,
+					 "the bare failure carries the measured ratio, not just a "
+					 "verdict");
+		expect(
+			washed->Pair.Wash
+				== std::optional{ appearance_role::code_selection_background },
+			"the washed failure names the wash it was measured through");
+
+		// The wash in this palette is white, so compositing it over the band
+		// can only move the background towards white and away from the dark
+		// string colour. A washed ratio that did not exceed the bare one would
+		// mean the wash was not applied at all.
+		expect(washed->RatioHundredths > bare->RatioHundredths,
+			   "measuring through the wash uses the composited background");
 
 		const auto measured = measure_contrast(
 			palette,
 			contrast_pair{ .Foreground = appearance_role::syntax_string,
-						   .Background = appearance_role::code_selection_background,
+						   .Background = appearance_role::diff_added_background,
 						   .Kind       = contrast_kind::text },
 			appearance_variant::light);
-		expect(measured == failure,
+		expect(measured == *bare,
 			   "measuring one pair agrees with the sweep over every pair");
 	}
 

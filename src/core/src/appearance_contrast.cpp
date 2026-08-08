@@ -197,7 +197,6 @@ namespace bpr::core {
 		constexpr auto code_canvas_backgrounds = std::array{
 			appearance_role::code_background,
 			appearance_role::code_current_line_background,
-			appearance_role::code_selection_background,
 			appearance_role::diff_added_background,
 			appearance_role::diff_removed_background,
 			appearance_role::diff_intraline_added_background,
@@ -247,9 +246,45 @@ namespace bpr::core {
 			appearance_role::state_stale,
 		};
 
+		/// \brief Overlays a selected line is read through.
+		///
+		/// \details One entry today. The selected line is the only place the
+		/// product draws code through a translucent layer, and a background it
+		/// can land on has to stay legible with it on top as well as bare -
+		/// selecting an added line must not make the added line unreadable.
+		constexpr auto canvas_washes = std::array{
+			appearance_role::code_selection_background,
+		};
+
+		/// \brief The backgrounds a wash can actually be composited over.
+		///
+		/// \details The row fills and the pane itself. Deliberately not every
+		/// canvas background: `code_current_line_background` is the item-view
+		/// alternate base, which no pane paints and which views draw a solid
+		/// selection over rather than a wash, so pairing it with the wash would
+		/// constrain a composite that is never produced.
+		///
+		/// That exclusion is load-bearing rather than tidy, so it is stated
+		/// plainly. Including it makes a legible selection unreachable in the
+		/// light profile at any value: with the accepted selection colour the
+		/// tightest syntax role reaches 4.22:1 over the present tint and only
+		/// 4.43:1 over a tint of #FDFDFE, which is already invisible at 1.017:1
+		/// against the pane. The constraint is unsatisfiable, not merely tight.
+		/// If a pane ever paints a current-line highlight, this list has to
+		/// grow and that trade-off has to be reopened.
+		constexpr auto wash_backgrounds = std::array{
+			appearance_role::code_background,
+			appearance_role::diff_added_background,
+			appearance_role::diff_removed_background,
+			appearance_role::diff_intraline_added_background,
+			appearance_role::diff_intraline_removed_background,
+			appearance_role::diff_moved_background,
+		};
+
 		constexpr auto required_pair_count = fixed_text_pairs.size()
 			+ canvas_indicator_pairs.size()
 			+ (syntax_role_count * code_canvas_backgrounds.size())
+			+ (syntax_role_count * wash_backgrounds.size() * canvas_washes.size())
 			+ state_roles.size();
 
 		[[nodiscard]] consteval auto build_required_pairs()
@@ -273,6 +308,23 @@ namespace bpr::core {
 					++next;
 				}
 			}
+			for (const auto wash : canvas_washes) {
+				for (const auto background : wash_backgrounds) {
+					for (auto offset = std::size_t{ 0U }; offset < syntax_role_count;
+						 ++offset) {
+						pairs[next] = contrast_pair{
+							.Foreground = static_cast<appearance_role>(
+								static_cast<std::uint8_t>(
+									index_of(first_syntax_role) + offset)),
+							.Background = background,
+							.Kind       = contrast_kind::text,
+							.Wash       = wash,
+						};
+						++next;
+					}
+				}
+			}
+
 			for (const auto pair : canvas_indicator_pairs) {
 				pairs[next] = pair;
 				++next;
@@ -369,9 +421,14 @@ namespace bpr::core {
 		const contrast_pair       aPair,
 		const appearance_variant  aVariant) noexcept -> contrast_finding
 	{
-		const auto ratio = contrast_ratio_hundredths(
-			aPalette[index_of(aPair.Foreground)],
-			aPalette[index_of(aPair.Background)]);
+		const auto background = aPair.Wash.has_value()
+			? composited(
+				  aPalette[index_of(*aPair.Wash)],
+				  aPalette[index_of(aPair.Background)],
+				  selection_wash_alpha)
+			: aPalette[index_of(aPair.Background)];
+		const auto ratio      = contrast_ratio_hundredths(
+			aPalette[index_of(aPair.Foreground)], background);
 		const auto minimum = minimum_contrast_hundredths(aPair.Kind, aVariant);
 
 		return contrast_finding{

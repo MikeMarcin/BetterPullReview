@@ -5,6 +5,7 @@
 
 #include <compare>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -98,6 +99,16 @@ namespace bpr::core {
 		appearance_role Foreground = appearance_role::application_text;
 		appearance_role Background = appearance_role::application_surface;
 		contrast_kind   Kind       = contrast_kind::text;
+		/// \brief A wash laid over `Background` before the ratio is taken.
+		///
+		/// \details Set for the pairs where the reader sees the foreground
+		/// through a translucent overlay rather than directly on the named
+		/// background - the selected line being the only one today. Measuring
+		/// such a pair against the wash's own colour asks whether text would be
+		/// legible on a fill that is never painted, which is how a selection
+		/// dark enough to see could read as failing while the pixels it
+		/// produces pass.
+		std::optional<appearance_role> Wash;
 
 		auto operator<=>(const contrast_pair&) const = default;
 	};

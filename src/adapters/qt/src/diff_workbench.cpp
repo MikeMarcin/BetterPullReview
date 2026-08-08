@@ -370,7 +370,7 @@ namespace bpr::qt {
 			band.cursor = QTextCursor{ block };
 			band.format.setProperty(QTextFormat::FullWidthSelection, true);
 			auto color = aPane.palette().color(QPalette::Highlight);
-			color.setAlpha(72);
+			color.setAlpha(core::selection_wash_alpha);
 			band.format.setBackground(color);
 			aSelections.push_back(band);
 		}
@@ -389,7 +389,7 @@ namespace bpr::qt {
 					selection.format.setProperty(
 						QTextFormat::FullWidthSelection, true);
 					auto color = aPane.palette().color(QPalette::Highlight);
-					color.setAlpha(72);
+					color.setAlpha(core::selection_wash_alpha);
 					selection.format.setBackground(color);
 					selections.push_back(selection);
 				}
