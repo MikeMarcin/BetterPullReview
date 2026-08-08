@@ -46,7 +46,7 @@ namespace bpr::qt {
 				byId.emplace(aConversations[index].Id, index);
 			}
 
-			const auto rooted_in_file = [&](std::size_t aIndex) {
+			const auto rootedInFile = [&](std::size_t aIndex) {
 				// Bounded by the node count, so a projection that somehow
 				// contained a cycle cannot spin here.
 				for (auto step = std::size_t{ 0U }; step <= aConversations.size();
@@ -70,7 +70,7 @@ namespace bpr::qt {
 			kept.reserve(aConversations.size());
 			for (auto index = std::size_t{ 0U }; index < aConversations.size();
 				 ++index) {
-				if (rooted_in_file(index)) {
+				if (rootedInFile(index)) {
 					kept.push_back(aConversations[index]);
 				}
 			}

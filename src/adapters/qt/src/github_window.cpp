@@ -2,6 +2,7 @@
 
 #include "bpr/qt/github_conversation_delegate.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/github_pull_request_panel.hpp"
 
 #include <QAbstractItemView>
 #include <QAccessible>
@@ -175,92 +176,14 @@ namespace bpr::qt {
 		auto* const pullRequestLayout = new QVBoxLayout{ pullRequestContent };
 		pullRequestLayout->setContentsMargins(0, 0, 0, 0);
 
-		auto* const metadataGroup = new QFrame{ pullRequestContent };
-		metadataGroup->setFrameShape(QFrame::NoFrame);
-		metadataGroup->setObjectName(QStringLiteral("pullRequestMetadataGroup"));
-		metadataGroup->setAccessibleName(QStringLiteral("Pull request metadata"));
-		auto* const metadataLayout = new QGridLayout{ metadataGroup };
-		metadataLayout->setContentsMargins(0, 0, 0, 0);
-		metadataLayout->setColumnStretch(0, 1);
-
-		PullRequestLabel = new QLabel{ metadataGroup };
-		PullRequestLabel->setObjectName(QStringLiteral("pullRequestIdentity"));
-		PullRequestLabel->setAccessibleName(
-			QStringLiteral("Pull request identity"));
-		set_plain_text_label(PullRequestLabel);
-		TitleLabel = new QLabel{ metadataGroup };
-		TitleLabel->setObjectName(QStringLiteral("pullRequestTitle"));
-		TitleLabel->setAccessibleName(QStringLiteral("Pull request title"));
-		TitleLabel->setWordWrap(true);
-		set_plain_text_label(TitleLabel);
-		StateLabel = new QLabel{ metadataGroup };
-		StateLabel->setObjectName(QStringLiteral("pullRequestState"));
-		StateLabel->setAccessibleName(QStringLiteral("Pull request state"));
-		set_plain_text_label(StateLabel);
-		AuthorLabel = new QLabel{ metadataGroup };
-		AuthorLabel->setObjectName(QStringLiteral("pullRequestAuthor"));
-		AuthorLabel->setAccessibleName(QStringLiteral("Pull request author"));
-		set_plain_text_label(AuthorLabel);
-		BranchLabel = new QLabel{ metadataGroup };
-		BranchLabel->setObjectName(QStringLiteral("pullRequestBranches"));
-		BranchLabel->setAccessibleName(QStringLiteral("Pull request branches"));
-		BranchLabel->setWordWrap(true);
-		set_plain_text_label(BranchLabel);
-		OidLabel = new QLabel{ metadataGroup };
-		OidLabel->setObjectName(QStringLiteral("pullRequestCommitOids"));
-		OidLabel->setAccessibleName(
-			QStringLiteral("Pull request commit identities"));
-		OidLabel->setWordWrap(true);
-		set_plain_text_label(OidLabel);
-		CountLabel = new QLabel{ metadataGroup };
-		CountLabel->setObjectName(QStringLiteral("pullRequestCounts"));
-		CountLabel->setAccessibleName(QStringLiteral("Pull request record counts"));
-		CountLabel->setWordWrap(true);
-		set_plain_text_label(CountLabel);
-		BodyEditor = new QPlainTextEdit{ metadataGroup };
-		BodyEditor->setObjectName(QStringLiteral("pullRequestBody"));
-		BodyEditor->setAccessibleName(QStringLiteral("Pull request description"));
-		BodyEditor->setReadOnly(true);
-		BodyEditor->setTabChangesFocus(true);
-		BodyEditor->setMinimumHeight(120);
-
-		TechnicalDetailsButton = new QToolButton{ metadataGroup };
-		TechnicalDetailsButton->setObjectName(
-			QStringLiteral("githubTechnicalDetailsButton"));
-		TechnicalDetailsButton->setText(QStringLiteral("Technical details"));
-		TechnicalDetailsButton->setAccessibleName(
-			QStringLiteral("Show pull request technical details"));
-		TechnicalDetailsButton->setCheckable(true);
-		TechnicalDetailsButton->setArrowType(Qt::RightArrow);
-		TechnicalDetailsButton->setToolButtonStyle(
-			Qt::ToolButtonTextBesideIcon);
-		TechnicalDetails = new QWidget{ metadataGroup };
-		TechnicalDetails->setObjectName(
-			QStringLiteral("githubTechnicalDetails"));
-		auto* const technicalLayout = new QHBoxLayout{ TechnicalDetails };
-		technicalLayout->setContentsMargins(0, 0, 0, 0);
-		auto* const commitsLabel = new QLabel{ QStringLiteral("Commit identities:"), TechnicalDetails };
-		technicalLayout->addWidget(commitsLabel);
-		technicalLayout->addWidget(OidLabel, 1);
-		TechnicalDetails->hide();
-
-		metadataLayout->addWidget(PullRequestLabel, 0, 0);
-		metadataLayout->addWidget(
-			StateLabel,
-			0,
-			1,
-			Qt::AlignRight | Qt::AlignVCenter);
-		metadataLayout->addWidget(TitleLabel, 1, 0, 1, 2);
-		metadataLayout->addWidget(AuthorLabel, 2, 0);
-		metadataLayout->addWidget(BranchLabel, 3, 0, 1, 2);
-		metadataLayout->addWidget(CountLabel, 4, 0);
-		metadataLayout->addWidget(
-			TechnicalDetailsButton,
-			4,
-			1,
-			Qt::AlignRight | Qt::AlignVCenter);
-		metadataLayout->addWidget(TechnicalDetails, 5, 0, 1, 2);
-		pullRequestLayout->addWidget(metadataGroup);
+		// The metadata region is a panel of its own (BPR-0191) so that the
+		// workbench shell can compose pull-request content without inheriting
+		// this window. Object names and wording moved unchanged, which is what
+		// lets the tests below stay untouched evidence that they still hold.
+		PullRequestPanel       = new github_pull_request_panel{ pullRequestContent };
+		BodyEditor             = PullRequestPanel->body_editor();
+		TechnicalDetailsButton = PullRequestPanel->technical_details_button();
+		pullRequestLayout->addWidget(PullRequestPanel);
 
 		auto* const comparisonGroup = new QGroupBox{ QStringLiteral("Review comparison"), pullRequestContent };
 		comparisonGroup->setObjectName(
@@ -334,19 +257,6 @@ namespace bpr::qt {
 		setCentralWidget(presentationScroll);
 		statusBar()->hide();
 
-		connect(
-			TechnicalDetailsButton,
-			&QToolButton::toggled,
-			this,
-			[this](const bool aVisible) {
-				TechnicalDetails->setVisible(aVisible);
-				TechnicalDetailsButton->setArrowType(
-					aVisible ? Qt::DownArrow : Qt::RightArrow);
-				TechnicalDetailsButton->setAccessibleName(
-					aVisible
-						? QStringLiteral("Hide pull request technical details")
-						: QStringLiteral("Show pull request technical details"));
-			});
 		connect(ShowReviewThreadsAction,
 				&QAction::triggered,
 				this,
@@ -576,36 +486,7 @@ namespace bpr::qt {
 	void github_window::apply_pull_request(
 		const application::github_pull_request_projection& aPullRequest)
 	{
-		PullRequestLabel->setText(
-			QStringLiteral("%1/%2 #%3")
-				.arg(
-					text(aPullRequest.Owner),
-					text(aPullRequest.RepositoryName),
-					QString::number(aPullRequest.Number.value())));
-		TitleLabel->setText(text(aPullRequest.Title));
-		StateLabel->setText(
-			pull_request_state_text(aPullRequest.State, aPullRequest.Draft));
-		AuthorLabel->setText(
-			aPullRequest.AuthorLogin.empty()
-				? QStringLiteral("Unknown author")
-				: QStringLiteral("@%1").arg(text(aPullRequest.AuthorLogin)));
-		BranchLabel->setText(
-			QStringLiteral("%1 → %2")
-				.arg(text(aPullRequest.BaseRef), text(aPullRequest.HeadRef)));
-		OidLabel->setText(
-			QStringLiteral("Base %1\nHead %2")
-				.arg(text(aPullRequest.BaseOid), text(aPullRequest.HeadOid)));
-		CountLabel->setText(
-			QStringLiteral(
-				"%1 files · %2 commits · %3 reviews · %4 review threads · "
-				"%5 pull request comments")
-				.arg(
-					QString::number(aPullRequest.FileCount),
-					QString::number(aPullRequest.CommitCount),
-					QString::number(aPullRequest.ReviewCount),
-					QString::number(aPullRequest.ReviewThreadCount),
-					QString::number(aPullRequest.IssueCommentCount)));
-		BodyEditor->setPlainText(text(aPullRequest.Body));
+		PullRequestPanel->adopt(aPullRequest);
 		// The drawer follows the code the reviewer is reading. The comparison
 		// surface names the file it is showing, and a conversation names the
 		// file it is about, so the anchor is set from one and matched against
@@ -664,17 +545,9 @@ namespace bpr::qt {
 	{
 		HasPullRequest = false;
 
-		PullRequestLabel->setText(QStringLiteral("No pull request is open"));
-		TitleLabel->setText(QStringLiteral("Not available"));
-		StateLabel->setText(QStringLiteral("Not available"));
-		AuthorLabel->setText(QStringLiteral("Not available"));
-		BranchLabel->setText(QStringLiteral("Not available"));
-		OidLabel->setText(QStringLiteral("Not available"));
-		CountLabel->setText(QStringLiteral("No records"));
-		BodyEditor->clear();
+		PullRequestPanel->clear();
 		ConversationPanel->clear(QStringLiteral(
 			"Review threads are unavailable until a pull request is open."));
-		TechnicalDetailsButton->setChecked(false);
 		update_presentation_state();
 	}
 
@@ -804,12 +677,7 @@ namespace bpr::qt {
 
 	void github_window::refresh_native_appearance()
 	{
-		auto titleFont = font();
-		titleFont.setWeight(QFont::DemiBold);
-		if (titleFont.pointSizeF() > 0.0) {
-			titleFont.setPointSizeF(titleFont.pointSizeF() * 1.35);
-		}
-		TitleLabel->setFont(titleFont);
+		PullRequestPanel->refresh_native_appearance();
 
 		auto emptyTitleFont = font();
 		emptyTitleFont.setWeight(QFont::DemiBold);
@@ -819,10 +687,6 @@ namespace bpr::qt {
 		}
 		EmptyStateTitleLabel->setFont(emptyTitleFont);
 
-		auto emphasisFont = font();
-		emphasisFont.setWeight(QFont::DemiBold);
-		PullRequestLabel->setFont(emphasisFont);
-		StateLabel->setFont(emphasisFont);
 		SessionPanel->refresh_native_appearance();
 
 		ShowReviewThreadsAction->setIcon(

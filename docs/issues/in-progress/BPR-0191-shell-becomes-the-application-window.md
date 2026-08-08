@@ -1,7 +1,7 @@
 ---
 id: BPR-0191
 title: The workbench shell becomes the application's window
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0005
 depends_on: [BPR-0190, BPR-0195]
 ---
@@ -181,9 +181,46 @@ Both routes need the pull-request metadata and the conversation to be
 composable outside `github_window`, exactly as BPR-0195 made the session chrome
 composable. That extraction is the enabler and is not affected by the choice.
 
-**Nothing has been extracted yet.** This finding arrived before that work
-started, which is the useful order: three hours of moving layout in service of
-route 1 would have been three hours spent on the route not taken.
+This finding arrived before that work started, which is the useful order: three
+hours of moving layout in service of route 1 would have been three hours spent
+on the route not taken.
+
+### Extracted, 2026-08-08: both composable regions exist
+
+`github_conversation_panel` and `github_pull_request_panel` now own what
+`github_window` used to hold inline. `github_window.cpp` went from 932 lines to
+736 and composes three panels — session, pull request, conversation.
+
+Object names, accessible names, and every reviewer-facing string moved
+unchanged, so the window tests that reach these widgets through `findChild` were
+not edited at all. That is deliberate and it is the only evidence available that
+the move preserved behaviour: a test rewritten alongside the code it covers
+cannot distinguish a faithful extraction from a plausible one.
+
+Shown non-vacuous rather than assumed: neutering
+`github_pull_request_panel`'s disclosure toggle — with a clean build, zero
+`error:` lines — fails `qt_github_window_scale_100` on *"technical disclosure
+opens in place without moving focus"*. The untouched window assertions do reach
+into the panel.
+
+This slice also repairs the previous one: `github_conversation_panel.cpp` was
+committed with a `readability-identifier-naming` failure — a lambda named
+`rooted_in_file` where the project spells locals in camel case — so the
+`coding-tidy` gate was red from that commit until this one. It was missed
+because the gate's output had been captured through `tail`, which both discards
+the diagnostic and replaces the build's exit status with the pipe's. Capture
+long gates whole.
+
+Two members stay on the window as borrowed pointers, `TechnicalDetailsButton`
+and `BodyEditor`, because the tab order and the description splitter are
+properties of the assembled window rather than of either panel. The description
+editor is built by the panel, since it is pull-request content, and placed by
+whoever assembles the window.
+
+**Still to do on this card**: the shell composes the three panels and implements
+`github_projection_port`, the application constructs the shell, `github_window`
+is deleted, and the virtualization figures are re-measured at 60/6,000/60,000
+lines on the composed window.
 
 ## Required direct evidence
 

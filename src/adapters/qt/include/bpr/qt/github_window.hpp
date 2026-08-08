@@ -7,6 +7,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 
 #include <QMainWindow>
@@ -114,29 +115,25 @@ namespace bpr::qt {
 		application::github_intent_dispatch             Dispatch;
 		std::vector<application::github_profile_option> Profiles;
 
-		QAction*                   ConnectAction           = nullptr;
-		QAction*                   OpenAction              = nullptr;
-		QAction*                   RefreshAction           = nullptr;
-		QAction*                   ShowReviewThreadsAction = nullptr;
-		QToolButton*               TechnicalDetailsButton  = nullptr;
-		QLabel*                    PullRequestLabel        = nullptr;
-		QLabel*                    TitleLabel              = nullptr;
-		QLabel*                    StateLabel              = nullptr;
-		QLabel*                    AuthorLabel             = nullptr;
-		QLabel*                    BranchLabel             = nullptr;
-		QLabel*                    OidLabel                = nullptr;
-		QLabel*                    CountLabel              = nullptr;
-		QPlainTextEdit*            BodyEditor              = nullptr;
-		QLabel*                    EmptyStateTitleLabel    = nullptr;
-		QLabel*                    EmptyStateBodyLabel     = nullptr;
-		QWidget*                   TechnicalDetails        = nullptr;
-		QStackedWidget*            PullRequestStack        = nullptr;
-		QSplitter*                 ContentSplitter         = nullptr;
-		epoch_comparison_control*  EpochControl            = nullptr;
-		diff_workbench*            DiffWorkbench           = nullptr;
-		github_session_panel*      SessionPanel            = nullptr;
-		github_conversation_panel* ConversationPanel       = nullptr;
-		appearance_settings_panel* AppearanceSettings      = nullptr;
+		QAction* ConnectAction           = nullptr;
+		QAction* OpenAction              = nullptr;
+		QAction* RefreshAction           = nullptr;
+		QAction* ShowReviewThreadsAction = nullptr;
+		// Borrowed from the pull-request panel, which owns them. They are held
+		// here only for the tab order and the description splitter, both of
+		// which are properties of the assembled window.
+		QToolButton*               TechnicalDetailsButton = nullptr;
+		QPlainTextEdit*            BodyEditor             = nullptr;
+		QLabel*                    EmptyStateTitleLabel   = nullptr;
+		QLabel*                    EmptyStateBodyLabel    = nullptr;
+		QStackedWidget*            PullRequestStack       = nullptr;
+		QSplitter*                 ContentSplitter        = nullptr;
+		epoch_comparison_control*  EpochControl           = nullptr;
+		diff_workbench*            DiffWorkbench          = nullptr;
+		github_session_panel*      SessionPanel           = nullptr;
+		github_pull_request_panel* PullRequestPanel       = nullptr;
+		github_conversation_panel* ConversationPanel      = nullptr;
+		appearance_settings_panel* AppearanceSettings     = nullptr;
 
 		QString                  LastAnnouncement;
 		bool                     HasPullRequest = false;
