@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How dark should the selected line be</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #101419;
+  --panel: #192027;
+  --panel-strong: #202a33;
+  --text: #edf3f7;
+  --muted: #a8b5bf;
+  --line: #3a4853;
+  --accent: #75b9d5;
+  --accept: #57c48c;
+  --reject: #ed7777;
+  --pending: #e6b85d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+a { color: #9fdcf3; }
+header, main { width: min(1480px, calc(100% - 2rem)); margin-inline: auto; }
+header { padding: 2rem 0 1rem; }
+h1, h2, h3, p { margin-top: 0; }
+.lede, .muted { color: var(--muted); }
+.scope-warning {
+  border-left: 4px solid var(--pending);
+  background: #282418;
+  padding: 1rem;
+}
+.reference-disclaimer {
+  border-left: 4px solid var(--accent);
+  background: #16222a;
+  padding: 1rem;
+  margin-top: .75rem;
+}
+.review-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  background: #081016;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 .25rem .75rem #0008;
+}
+.review-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+}
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .9rem;
+  font-weight: 700;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+  margin-left: auto;
+}
+#review-status {
+  min-height: 1.3em;
+  margin: .4rem 0 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+button, textarea { font: inherit; }
+button {
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .55rem .8rem;
+  background: #28343e;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  color: #c2cdd4;
+  background: #2f3b43;
+  border-color: #61717a;
+}
+.subject {
+  scroll-margin-top: 8rem;
+  margin: 0 0 1.25rem;
+  padding: 1.1rem;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: .7rem;
+}
+.subject[data-review-state="accept"] { border-color: var(--accept); }
+.subject[data-review-state="reject"] { border-color: var(--reject); }
+.subject[data-review-state="pending"] { border-color: var(--pending); }
+.subject-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+.identity { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; word-break: break-all; }
+.audit-banner {
+  padding: .55rem .8rem;
+  border-radius: .4rem;
+  font-weight: 700;
+}
+.audit-banner[data-audit="pass"] { background: #12281c; color: var(--accept); border: 1px solid var(--accept); }
+.audit-banner[data-audit="fail"] { background: #2b1414; color: var(--reject); border: 1px solid var(--reject); }
+.media-groups { display: grid; gap: 1rem; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .75rem; }
+.media-grid.compare { grid-template-columns: 1fr 1fr; }
+figure { margin: 0; padding: .6rem; background: var(--panel-strong); border-radius: .4rem; }
+figure img, figure video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  background-color: #6d7479;
+  background-image:
+    linear-gradient(45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(-45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #8a9297 75%),
+    linear-gradient(-45deg, transparent 75%, #8a9297 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+figure audio { display: block; width: 100%; margin: .5rem 0; }
+figcaption { padding-top: .45rem; color: var(--muted); }
+.criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.detail-sections { display: grid; gap: 1rem; margin-top: 1rem; }
+.detail-sections dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+.detail-sections dt { color: var(--muted); }
+.detail-sections dd { margin: 0; }
+.detail-sections pre {
+  margin: 0;
+  padding: .65rem;
+  overflow-x: auto;
+  background: #11171c;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem;
+}
+.identity-files { margin-top: 1rem; }
+.decision-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+button[data-decision="accept"][aria-pressed="true"] { color: #07150f; background: var(--accept); }
+button[data-decision="reject"][aria-pressed="true"] { color: #1b0808; background: var(--reject); }
+.audit-note { margin: -.5rem 0 1rem; }
+.notes { display: grid; gap: .35rem; }
+textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); background: #11171c; border: 1px solid var(--line); border-radius: .35rem; }
+.export-panel { margin: 1rem 0 3rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; }
+#verdict-output { min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+@media (max-width: 850px) {
+  .criteria, .media-grid.compare { grid-template-columns: 1fr; }
+  .review-actions { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  .review-summary, .review-actions { width: 100%; }
+}
+
+/* Full-resolution inspection. A quiet affordance on the thumbnail,
+   and an overlay that shows the image at its native size so a one-pixel
+   connector can actually be judged. */
+.media-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  position: relative;
+}
+.media-zoom img { display: block; width: 100%; }
+.media-zoom-hint {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 0.2rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.media-zoom:hover .media-zoom-hint,
+.media-zoom:focus-visible .media-zoom-hint { opacity: 1; }
+.media-zoom:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.media-viewer[hidden] { display: none; }
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+}
+.media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.media-viewer-close {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.media-viewer-surface { flex: 1; overflow: auto; }
+/* Native size, not fitted: fitting it would reproduce the defect this fixes. */
+.media-viewer-surface img { display: block; image-rendering: pixelated; }
+
+</style>
+</head>
+<body>
+  <header>
+    <h1>How dark should the selected line be</h1>
+    <p class="lede">Project: betterpullreview · Gate: selection_shade · Scope: human_ui_criterion_isolation_only · Batch: bpr:/attended-review/betterpullreview/d201c1be5ca2715d337c7c03</p>
+    <p class="scope-warning"><strong>Scope:</strong> This page records attended human decisions for this exact batch and gate only. It stores choices in this browser and cannot write repository evidence. Acceptance asserts nothing beyond this gate; these claims remain false: all_four_palettes_audited, bpr_0194_closed, dark_scheme_verified, release_gate_satisfied, rfc_closeout_claimed. Export the complete verdict and return it to the requesting agent session for validation.</p>
+    <p class="reference-disclaimer"><strong>Reference:</strong> Light palette only, offscreen, device pixel ratio 1.0. All four builds are commit 46fa6ce with one colour literal changed. Zoomed images are nearest-neighbour 2x crops, so soft edges are magnification and not rendering. These captures are re-rendered since you last looked: the change-group boundary is now a neutral grey rule on the edge above the group (BPR-0202), so nothing blue competes with the selection any more. The selected line in every capture is &#x27;teardown_render_pipeline(handle);&#x27; - the line directly below the grey rule, and the first line of the red removed block. The earlier batch is withdrawn: its crops were cut from the wrong part of the window and showed you chrome instead of diff.</p>
+  </header>
+  <main>
+    <section class="review-controls" aria-label="Review progress and export">
+      <div class="review-controls-row">
+        <div class="review-summary">
+          <span id="review-progress">0/3 reviewed</span>
+          <span id="review-totals">0 accepted · 0 rejected · 3 pending</span>
+        </div>
+        <div class="review-actions">
+          <label><input id="pending-only" type="checkbox"> Show pending only</label>
+          <button id="export-verdict" type="button" disabled>Copy the complete verdict</button>
+        </div>
+      </div>
+      <p id="review-status" role="status" aria-live="polite" aria-atomic="true">Resolve every exact subject to unlock the final verdict.</p>
+    </section>
+    <article class="subject" data-subject-id="criterion:/betterpullreview/bpr-0194/selection-shade-soft" data-subject-digest="sha256:b69f2789960253cc7926c602373cdf83a4524e4c43c2279aa73ff514b5cf0a4f" data-ab-group="selection-shade" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Selection shade A - the smallest step that is still a change</h2>
+      <p>The selected line is &#x27;teardown_render_pipeline(handle);&#x27; - directly below the grey boundary rule, and the first line of the red removed block. In the current build it is washed grey-lilac at a strength you already told me was too light. This candidate darkens the selection colour from #D8E9FF to #A8CCF0, keeping the same 28% translucency so the red removed tint still shows through. Compare against the four-panel strip: top panel is the current build, this candidate is the second.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/bpr-0194/selection-shade-soft<br>sha256:b69f2789960253cc7926c602373cdf83a4524e4c43c2279aa73ff514b5cf0a4f</div>
+  </div>
+  <p class="audit-banner" data-audit="fail">Mechanical audit: FAIL — dE76 8.9 against the band underneath, short of the 10 threshold. Included because &#x27;a little darker&#x27; was your direction and this is the most conservative reading of it.</p>
+  <div class="media-groups">
+    <section><h3>All four shades, current at top</h3><p class="muted">Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel - &#x27;teardown_render_pipeline(handle);&#x27;.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-selection-shade-soft/compare/01-four-shades-stacked-2x.png" data-full-label="Four shades stacked, 2x" aria-label="View Four shades stacked, 2x at full resolution"><img loading="lazy" src="subjects/001-selection-shade-soft/compare/01-four-shades-stacked-2x.png" alt="Four shades stacked, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Four shades stacked, 2x</figcaption></figure></div></section>
+<section><h3>This candidate on its own</h3><p class="muted">Click for native resolution. The third image shows the repaired boundary marking in context.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-selection-shade-soft/this-one/01-candidate-a-2x.png" data-full-label="Candidate A, 2x" aria-label="View Candidate A, 2x at full resolution"><img loading="lazy" src="subjects/001-selection-shade-soft/this-one/01-candidate-a-2x.png" alt="Candidate A, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Candidate A, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-selection-shade-soft/this-one/02-current-build-2x.png" data-full-label="Current build, 2x" aria-label="View Current build, 2x at full resolution"><img loading="lazy" src="subjects/001-selection-shade-soft/this-one/02-current-build-2x.png" alt="Current build, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Current build, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-selection-shade-soft/this-one/03-the-new-boundary-rule-both-panes-2x.png" data-full-label="The new boundary rule, both panes, 2x" aria-label="View The new boundary rule, both panes, 2x at full resolution"><img loading="lazy" src="subjects/001-selection-shade-soft/this-one/03-the-new-boundary-rule-both-panes-2x.png" alt="The new boundary rule, both panes, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>The new boundary rule, both panes, 2x</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>You can tell which line is selected without being told</li><li>The red removed tint is still readable through the selection</li><li>It does not read as a solid block that hides the code</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>Measures dE76 8.9 against the removed band it sits on, below the ~10 that counts as comfortably distinct - this is the weakest of the three candidates and may still be too subtle</li><li>Only the Light palette is covered; the other three shipped palettes need the same decision</li><li>Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Measured from the rendered pixels</h3><ul><li>Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.</li><li>This candidate: selected line #E6E3EB, dE76 8.9.</li><li>dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.</li><li>Sampled from the rendered raster, not read from the palette.</li></ul></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/001-selection-shade-soft/identity/01-capture-manifest.json">Capture manifest</a> <span class="identity">sha256:ca7e704d0fbe91b5ef854aae025e95c54597228dffb4a6c7133487cfb7344b75</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Selection shade A - the smallest step that is still a change">
+    <button type="button" data-decision="accept" aria-pressed="false" disabled>Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+  <p class="muted audit-note">Accept is unavailable: this subject failed its mechanical audit. Reject it, or fix the failure and rebuild the batch.</p>
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="criterion:/betterpullreview/bpr-0194/selection-shade-mid" data-subject-digest="sha256:27f0f7c24143871a28f993a919db4c1a464a010c08bc811da19a875c82c702ad" data-ab-group="selection-shade" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Selection shade B - clears the distinctness threshold</h2>
+      <p>Same as candidate A but darker again, #8FBCEA at the same 28% translucency. This is the lightest of the three that clears the distinctness threshold. In the four-panel strip it is the third panel down.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/bpr-0194/selection-shade-mid<br>sha256:27f0f7c24143871a28f993a919db4c1a464a010c08bc811da19a875c82c702ad</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — dE76 11.2 against the band underneath, clear of the 10 threshold, with the underlying tint still visible.</p>
+  <div class="media-groups">
+    <section><h3>All four shades, current at top</h3><p class="muted">Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/002-selection-shade-mid/compare/01-four-shades-stacked-2x.png" data-full-label="Four shades stacked, 2x" aria-label="View Four shades stacked, 2x at full resolution"><img loading="lazy" src="subjects/002-selection-shade-mid/compare/01-four-shades-stacked-2x.png" alt="Four shades stacked, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Four shades stacked, 2x</figcaption></figure></div></section>
+<section><h3>This candidate on its own</h3><p class="muted">Click for native resolution. The third image shows the repaired boundary marking in context.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/002-selection-shade-mid/this-one/01-candidate-b-2x.png" data-full-label="Candidate B, 2x" aria-label="View Candidate B, 2x at full resolution"><img loading="lazy" src="subjects/002-selection-shade-mid/this-one/01-candidate-b-2x.png" alt="Candidate B, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Candidate B, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-selection-shade-mid/this-one/02-current-build-2x.png" data-full-label="Current build, 2x" aria-label="View Current build, 2x at full resolution"><img loading="lazy" src="subjects/002-selection-shade-mid/this-one/02-current-build-2x.png" alt="Current build, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Current build, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-selection-shade-mid/this-one/03-the-new-boundary-rule-both-panes-2x.png" data-full-label="The new boundary rule, both panes, 2x" aria-label="View The new boundary rule, both panes, 2x at full resolution"><img loading="lazy" src="subjects/002-selection-shade-mid/this-one/03-the-new-boundary-rule-both-panes-2x.png" alt="The new boundary rule, both panes, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>The new boundary rule, both panes, 2x</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>You can tell which line is selected without being told</li><li>The red removed tint is still readable through the selection</li><li>It does not read as a solid block that hides the code</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>Only the Light palette is covered; the other three shipped palettes need the same decision</li><li>Still fails the WCAG 3:1 non-text luminance minimum, which no colour can reach at 28% opacity. I am no longer treating that threshold as the target for a background wash - it is the wrong measure for a tint and hitting it would swamp the syntax colouring. If you want that requirement honoured literally, the alpha has to go and the band becomes opaque.</li><li>Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Measured from the rendered pixels</h3><ul><li>Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.</li><li>This candidate: selected line #DFDEE9, dE76 11.2.</li><li>dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.</li><li>Sampled from the rendered raster, not read from the palette.</li></ul></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/002-selection-shade-mid/identity/01-capture-manifest.json">Capture manifest</a> <span class="identity">sha256:ca7e704d0fbe91b5ef854aae025e95c54597228dffb4a6c7133487cfb7344b75</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Selection shade B - clears the distinctness threshold">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="criterion:/betterpullreview/bpr-0194/selection-shade-strong" data-subject-digest="sha256:2718c4a66f1c53f67297b78c8f223582ab04d16ffb8d8b8e07b5220cac6ec3df" data-ab-group="selection-shade" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Selection shade C - the darkest that keeps the tint visible</h2>
+      <p>#7FB0E8 at 28% translucency, the bottom panel in the strip. This is about as dark as the selection can go before the red removed tint underneath starts to be overwhelmed rather than merely tinted.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/bpr-0194/selection-shade-strong<br>sha256:2718c4a66f1c53f67297b78c8f223582ab04d16ffb8d8b8e07b5220cac6ec3df</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — dE76 12.9 against the band underneath. Mechanically the strongest, which does not make it the right choice.</p>
+  <div class="media-groups">
+    <section><h3>All four shades, current at top</h3><p class="muted">Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/003-selection-shade-strong/compare/01-four-shades-stacked-2x.png" data-full-label="Four shades stacked, 2x" aria-label="View Four shades stacked, 2x at full resolution"><img loading="lazy" src="subjects/003-selection-shade-strong/compare/01-four-shades-stacked-2x.png" alt="Four shades stacked, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Four shades stacked, 2x</figcaption></figure></div></section>
+<section><h3>This candidate on its own</h3><p class="muted">Click for native resolution. The third image shows the repaired boundary marking in context.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/003-selection-shade-strong/this-one/01-candidate-c-2x.png" data-full-label="Candidate C, 2x" aria-label="View Candidate C, 2x at full resolution"><img loading="lazy" src="subjects/003-selection-shade-strong/this-one/01-candidate-c-2x.png" alt="Candidate C, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Candidate C, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-selection-shade-strong/this-one/02-current-build-2x.png" data-full-label="Current build, 2x" aria-label="View Current build, 2x at full resolution"><img loading="lazy" src="subjects/003-selection-shade-strong/this-one/02-current-build-2x.png" alt="Current build, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Current build, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/003-selection-shade-strong/this-one/03-the-new-boundary-rule-both-panes-2x.png" data-full-label="The new boundary rule, both panes, 2x" aria-label="View The new boundary rule, both panes, 2x at full resolution"><img loading="lazy" src="subjects/003-selection-shade-strong/this-one/03-the-new-boundary-rule-both-panes-2x.png" alt="The new boundary rule, both panes, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>The new boundary rule, both panes, 2x</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>You can tell which line is selected without being told</li><li>The red removed tint is still readable through the selection</li><li>It does not read as a solid block that hides the code</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>This is the point where the underlying change colour starts to lose out. Judge the second criterion carefully here rather than only the first.</li><li>Only the Light palette is covered; the other three shipped palettes need the same decision</li><li>Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Measured from the rendered pixels</h3><ul><li>Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.</li><li>This candidate: selected line #DBDBE9, dE76 12.9.</li><li>dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.</li><li>Sampled from the rendered raster, not read from the palette.</li></ul></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/003-selection-shade-strong/identity/01-capture-manifest.json">Capture manifest</a> <span class="identity">sha256:ca7e704d0fbe91b5ef854aae025e95c54597228dffb4a6c7133487cfb7344b75</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Selection shade C - the darkest that keeps the tint visible">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+    <section class="export-panel">
+      <h2>Final result</h2>
+      <p>The pinned copy button unlocks after every exact subject has Accept or Reject selected. Its result stays visible in the top review bar, and the complete JSON remains below as a manual-copy fallback.</p>
+      <textarea id="verdict-output" readonly aria-label="Exported verdict JSON"></textarea>
+    </section>
+  </main>
+  <script id="attended-review-config" type="application/json">{"batch_id":"bpr:/attended-review/betterpullreview/d201c1be5ca2715d337c7c03","downstream_claims":{"all_four_palettes_audited":false,"bpr_0194_closed":false,"dark_scheme_verified":false,"release_gate_satisfied":false,"rfc_closeout_claimed":false},"project_id":"betterpullreview","reference_disclaimer":"Light palette only, offscreen, device pixel ratio 1.0. All four builds are commit 46fa6ce with one colour literal changed. Zoomed images are nearest-neighbour 2x crops, so soft edges are magnification and not rendering. These captures are re-rendered since you last looked: the change-group boundary is now a neutral grey rule on the edge above the group (BPR-0202), so nothing blue competes with the selection any more. The selected line in every capture is 'teardown_render_pipeline(handle);' - the line directly below the grey rule, and the first line of the red removed block. The earlier batch is withdrawn: its crops were cut from the wrong part of the window and showed you chrome instead of diff.","review_gate":"selection_shade","review_scope":"human_ui_criterion_isolation_only","schema_name":"bpr.attended_review_batch","schema_version":1,"subjects":[{"ab_group":"selection-shade","acceptance_criteria":["You can tell which line is selected without being told","The red removed tint is still readable through the selection","It does not read as a solid block that hides the code"],"audit_verdict":{"note":"dE76 8.9 against the band underneath, short of the 10 threshold. Included because 'a little darker' was your direction and this is the most conservative reading of it.","status":"fail"},"description":"The selected line is 'teardown_render_pipeline(handle);' - directly below the grey boundary rule, and the first line of the red removed block. In the current build it is washed grey-lilac at a strength you already told me was too light. This candidate darkens the selection colour from #D8E9FF to #A8CCF0, keeping the same 28% translucency so the red removed tint still shows through. Compare against the four-panel strip: top panel is the current build, this candidate is the second.","detail_sections":[{"heading":"Measured from the rendered pixels","items":["Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.","This candidate: selected line #E6E3EB, dE76 8.9.","dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.","Sampled from the rendered raster, not read from the palette."],"kind":"list"}],"display_name":"Selection shade A - the smallest step that is still a change","identity_files":[{"label":"Capture manifest","media_kind":"file","path":"subjects/001-selection-shade-soft/identity/01-capture-manifest.json","sha256":"sha256:ca7e704d0fbe91b5ef854aae025e95c54597228dffb4a6c7133487cfb7344b75"}],"known_concerns":["Measures dE76 8.9 against the removed band it sits on, below the ~10 that counts as comfortably distinct - this is the weakest of the three candidates and may still be too subtle","Only the Light palette is covered; the other three shipped palettes need the same decision","Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything."],"media_groups":[{"group_id":"compare","items":[{"label":"Four shades stacked, 2x","media_kind":"image","path":"subjects/001-selection-shade-soft/compare/01-four-shades-stacked-2x.png","sha256":"sha256:e05aef45f0033c50f7940797a773ebfd816dccb2f10fc2bea8d5addd9743ea65"}],"layout":"grid","note":"Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel - 'teardown_render_pipeline(handle);'.","required":true,"title":"All four shades, current at top"},{"group_id":"this-one","items":[{"label":"Candidate A, 2x","media_kind":"image","path":"subjects/001-selection-shade-soft/this-one/01-candidate-a-2x.png","sha256":"sha256:9038deba7602896ee318cf7b685a45da01f99e563b371064d444e6b6ee46c2a7"},{"label":"Current build, 2x","media_kind":"image","path":"subjects/001-selection-shade-soft/this-one/02-current-build-2x.png","sha256":"sha256:7d5da906ec00018a9c3f5a55c907a5d3b596709a15de72bc487cd4102c2ea70f"},{"label":"The new boundary rule, both panes, 2x","media_kind":"image","path":"subjects/001-selection-shade-soft/this-one/03-the-new-boundary-rule-both-panes-2x.png","sha256":"sha256:09ce0280e81b60ea70e2161f3e82cfe832e557b966618da6c8756375a338124e"}],"layout":"grid","note":"Click for native resolution. The third image shows the repaired boundary marking in context.","required":true,"title":"This candidate on its own"}],"subject_digest":"sha256:b69f2789960253cc7926c602373cdf83a4524e4c43c2279aa73ff514b5cf0a4f","subject_id":"criterion:/betterpullreview/bpr-0194/selection-shade-soft","subject_key":"selection-shade-soft"},{"ab_group":"selection-shade","acceptance_criteria":["You can tell which line is selected without being told","The red removed tint is still readable through the selection","It does not read as a solid block that hides the code"],"audit_verdict":{"note":"dE76 11.2 against the band underneath, clear of the 10 threshold, with the underlying tint still visible.","status":"pass"},"description":"Same as candidate A but darker again, #8FBCEA at the same 28% translucency. This is the lightest of the three that clears the distinctness threshold. In the four-panel strip it is the third panel down.","detail_sections":[{"heading":"Measured from the rendered pixels","items":["Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.","This candidate: selected line #DFDEE9, dE76 11.2.","dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.","Sampled from the rendered raster, not read from the palette."],"kind":"list"}],"display_name":"Selection shade B - clears the distinctness threshold","identity_files":[{"label":"Capture manifest","media_kind":"file","path":"subjects/002-selection-shade-mid/identity/01-capture-manifest.json","sha256":"sha256:ca7e704d0fbe91b5ef854aae025e95c54597228dffb4a6c7133487cfb7344b75"}],"known_concerns":["Only the Light palette is covered; the other three shipped palettes need the same decision","Still fails the WCAG 3:1 non-text luminance minimum, which no colour can reach at 28% opacity. I am no longer treating that threshold as the target for a background wash - it is the wrong measure for a tint and hitting it would swamp the syntax colouring. If you want that requirement honoured literally, the alpha has to go and the band becomes opaque.","Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything."],"media_groups":[{"group_id":"compare","items":[{"label":"Four shades stacked, 2x","media_kind":"image","path":"subjects/002-selection-shade-mid/compare/01-four-shades-stacked-2x.png","sha256":"sha256:e05aef45f0033c50f7940797a773ebfd816dccb2f10fc2bea8d5addd9743ea65"}],"layout":"grid","note":"Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel.","required":true,"title":"All four shades, current at top"},{"group_id":"this-one","items":[{"label":"Candidate B, 2x","media_kind":"image","path":"subjects/002-selection-shade-mid/this-one/01-candidate-b-2x.png","sha256":"sha256:97345a5401b928d7b23b887527d2c606ecd8516ecd770451770adf26832b0a92"},{"label":"Current build, 2x","media_kind":"image","path":"subjects/002-selection-shade-mid/this-one/02-current-build-2x.png","sha256":"sha256:7d5da906ec00018a9c3f5a55c907a5d3b596709a15de72bc487cd4102c2ea70f"},{"label":"The new boundary rule, both panes, 2x","media_kind":"image","path":"subjects/002-selection-shade-mid/this-one/03-the-new-boundary-rule-both-panes-2x.png","sha256":"sha256:09ce0280e81b60ea70e2161f3e82cfe832e557b966618da6c8756375a338124e"}],"layout":"grid","note":"Click for native resolution. The third image shows the repaired boundary marking in context.","required":true,"title":"This candidate on its own"}],"subject_digest":"sha256:27f0f7c24143871a28f993a919db4c1a464a010c08bc811da19a875c82c702ad","subject_id":"criterion:/betterpullreview/bpr-0194/selection-shade-mid","subject_key":"selection-shade-mid"},{"ab_group":"selection-shade","acceptance_criteria":["You can tell which line is selected without being told","The red removed tint is still readable through the selection","It does not read as a solid block that hides the code"],"audit_verdict":{"note":"dE76 12.9 against the band underneath. Mechanically the strongest, which does not make it the right choice.","status":"pass"},"description":"#7FB0E8 at 28% translucency, the bottom panel in the strip. This is about as dark as the selection can go before the red removed tint underneath starts to be overwhelmed rather than merely tinted.","detail_sections":[{"heading":"Measured from the rendered pixels","items":["Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.","This candidate: selected line #DBDBE9, dE76 12.9.","dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.","Sampled from the rendered raster, not read from the palette."],"kind":"list"}],"display_name":"Selection shade C - the darkest that keeps the tint visible","identity_files":[{"label":"Capture manifest","media_kind":"file","path":"subjects/003-selection-shade-strong/identity/01-capture-manifest.json","sha256":"sha256:ca7e704d0fbe91b5ef854aae025e95c54597228dffb4a6c7133487cfb7344b75"}],"known_concerns":["This is the point where the underlying change colour starts to lose out. Judge the second criterion carefully here rather than only the first.","Only the Light palette is covered; the other three shipped palettes need the same decision","Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything."],"media_groups":[{"group_id":"compare","items":[{"label":"Four shades stacked, 2x","media_kind":"image","path":"subjects/003-selection-shade-strong/compare/01-four-shades-stacked-2x.png","sha256":"sha256:e05aef45f0033c50f7940797a773ebfd816dccb2f10fc2bea8d5addd9743ea65"}],"layout":"grid","note":"Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel.","required":true,"title":"All four shades, current at top"},{"group_id":"this-one","items":[{"label":"Candidate C, 2x","media_kind":"image","path":"subjects/003-selection-shade-strong/this-one/01-candidate-c-2x.png","sha256":"sha256:60bb15ffd8b164a7cccdc1d12717d2b080309aa5b70a44fca4e1e7313afca333"},{"label":"Current build, 2x","media_kind":"image","path":"subjects/003-selection-shade-strong/this-one/02-current-build-2x.png","sha256":"sha256:7d5da906ec00018a9c3f5a55c907a5d3b596709a15de72bc487cd4102c2ea70f"},{"label":"The new boundary rule, both panes, 2x","media_kind":"image","path":"subjects/003-selection-shade-strong/this-one/03-the-new-boundary-rule-both-panes-2x.png","sha256":"sha256:09ce0280e81b60ea70e2161f3e82cfe832e557b966618da6c8756375a338124e"}],"layout":"grid","note":"Click for native resolution. The third image shows the repaired boundary marking in context.","required":true,"title":"This candidate on its own"}],"subject_digest":"sha256:2718c4a66f1c53f67297b78c8f223582ab04d16ffb8d8b8e07b5220cac6ec3df","subject_id":"criterion:/betterpullreview/bpr-0194/selection-shade-strong","subject_key":"selection-shade-strong"}],"title":"How dark should the selected line be"}</script>
+  <script>
+(function (root) {
+  "use strict";
+
+  const STORAGE_PREFIX = "bpr.attended-review.v1";
+  const VERDICT_SCHEMA = "bpr.attended_review_verdict";
+
+  function identityKey(subject) {
+    return `${subject.subject_id}@${subject.subject_digest}`;
+  }
+
+  function storageKey(batchId, subject) {
+    return `${STORAGE_PREFIX}:${batchId}:${subject.subject_id}:${subject.subject_digest}`;
+  }
+
+  function createMemoryStorage() {
+    const values = new Map();
+    return {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      },
+    };
+  }
+
+  function availableStorage() {
+    try {
+      if (!root.localStorage) {
+        return createMemoryStorage();
+      }
+      const probe = `${STORAGE_PREFIX}:probe`;
+      root.localStorage.setItem(probe, "1");
+      root.localStorage.removeItem(probe);
+      return root.localStorage;
+    } catch (_error) {
+      return createMemoryStorage();
+    }
+  }
+
+  function normalizeSaved(value) {
+    if (!value || typeof value !== "object") {
+      return { decision: null, notes: "" };
+    }
+    const decision = value.decision === "accept" || value.decision === "reject"
+      ? value.decision
+      : null;
+    return {
+      decision,
+      notes: typeof value.notes === "string" ? value.notes : "",
+    };
+  }
+
+  function auditFailed(subject) {
+    return Boolean(subject.audit_verdict && subject.audit_verdict.status === "fail");
+  }
+
+  class ReviewController {
+    constructor(config, storage) {
+      if (!config || !Array.isArray(config.subjects)) {
+        throw new Error("review config must contain subjects");
+      }
+      if (!config.downstream_claims || typeof config.downstream_claims !== "object") {
+        throw new Error("review config must declare downstream_claims");
+      }
+      this.config = config;
+      this.storage = storage || availableStorage();
+      this.states = new Map();
+      for (const subject of config.subjects) {
+        const raw = this.storage.getItem(storageKey(config.batch_id, subject));
+        let parsed = null;
+        if (raw !== null) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (_error) {
+            parsed = null;
+          }
+        }
+        const state = normalizeSaved(parsed);
+        if (state.decision === "accept" && auditFailed(subject)) {
+          state.decision = null;
+        }
+        this.states.set(identityKey(subject), state);
+      }
+    }
+
+    subject(subjectId, subjectDigest) {
+      const found = this.config.subjects.find(
+        (item) => item.subject_id === subjectId && item.subject_digest === subjectDigest
+      );
+      if (!found) {
+        throw new Error(`unknown subject identity: ${subjectId}@${subjectDigest}`);
+      }
+      return found;
+    }
+
+    state(subject) {
+      return this.states.get(identityKey(subject));
+    }
+
+    save(subject) {
+      this.storage.setItem(
+        storageKey(this.config.batch_id, subject),
+        JSON.stringify(this.state(subject))
+      );
+    }
+
+    setDecision(subjectId, subjectDigest, decision) {
+      if (decision !== "accept" && decision !== "reject" && decision !== null) {
+        throw new Error(`invalid decision: ${decision}`);
+      }
+      const subject = this.subject(subjectId, subjectDigest);
+      if (decision === "accept" && auditFailed(subject)) {
+        throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      this.state(subject).decision = decision;
+      this.save(subject);
+      return this.summary();
+    }
+
+    setNotes(subjectId, subjectDigest, notes) {
+      const subject = this.subject(subjectId, subjectDigest);
+      this.state(subject).notes = String(notes || "");
+      this.save(subject);
+      return this.summary();
+    }
+
+    summary() {
+      let accepted = 0;
+      let rejected = 0;
+      for (const state of this.states.values()) {
+        if (state.decision === "accept") accepted += 1;
+        if (state.decision === "reject") rejected += 1;
+      }
+      const total = this.config.subjects.length;
+      return {
+        accepted,
+        rejected,
+        resolved: accepted + rejected,
+        pending: total - accepted - rejected,
+        total,
+      };
+    }
+
+    buildVerdict() {
+      const summary = this.summary();
+      if (summary.pending !== 0) {
+        throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
+      }
+      const accepted = [];
+      const rejected = [];
+      const notes = {};
+      for (const subject of this.config.subjects) {
+        const state = this.state(subject);
+        const identity = {
+          subject_id: subject.subject_id,
+          subject_digest: subject.subject_digest,
+        };
+        (state.decision === "accept" ? accepted : rejected).push(identity);
+        if (state.notes.trim()) {
+          notes[identityKey(subject)] = state.notes;
+        }
+      }
+      return {
+        schema_name: VERDICT_SCHEMA,
+        schema_version: 1,
+        batch_id: this.config.batch_id,
+        review_gate: this.config.review_gate,
+        review_scope: this.config.review_scope,
+        accepted_subjects: accepted,
+        rejected_subjects: rejected,
+        notes_by_subject_identity: notes,
+        downstream_claims: { ...this.config.downstream_claims },
+      };
+    }
+  }
+
+  async function copyText(text, environment) {
+    const env = environment || root;
+    if (env.navigator && env.navigator.clipboard && env.navigator.clipboard.writeText) {
+      try {
+        await env.navigator.clipboard.writeText(text);
+        return "clipboard";
+      } catch (_error) {
+        // Local file origins frequently expose Clipboard API but deny writes.
+        // Continue to the legacy selection-based copy path in that case.
+      }
+    }
+    const document = env.document;
+    if (!document || !document.execCommand) {
+      throw new Error("clipboard copy is unavailable; copy the displayed JSON manually");
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error("clipboard copy failed; copy the displayed JSON manually");
+    }
+    return "execCommand";
+  }
+
+  function initializePage(document) {
+    const configNode = document.getElementById("attended-review-config");
+    if (!configNode) return null;
+    const config = JSON.parse(configNode.textContent);
+    const controller = new ReviewController(config);
+    const cards = Array.from(document.querySelectorAll("[data-subject-id]"));
+    const progress = document.getElementById("review-progress");
+    const totals = document.getElementById("review-totals");
+    const pendingOnly = document.getElementById("pending-only");
+    const exportButton = document.getElementById("export-verdict");
+    const exportOutput = document.getElementById("verdict-output");
+    const reviewStatus = document.getElementById("review-status");
+
+    function cardSubject(card) {
+      return controller.subject(card.dataset.subjectId, card.dataset.subjectDigest);
+    }
+
+    function render() {
+      const summary = controller.summary();
+      progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
+      totals.textContent = `${summary.accepted} accepted · ${summary.rejected} rejected · ${summary.pending} pending`;
+      exportButton.disabled = summary.pending !== 0;
+      if (summary.pending !== 0) {
+        exportButton.textContent = "Copy the complete verdict";
+      }
+      for (const card of cards) {
+        const subject = cardSubject(card);
+        const state = controller.state(subject);
+        card.dataset.reviewState = state.decision || "pending";
+        card.hidden = Boolean(pendingOnly.checked && state.decision);
+        for (const button of card.querySelectorAll("[data-decision]")) {
+          button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+    }
+
+    for (const card of cards) {
+      const subject = cardSubject(card);
+      const state = controller.state(subject);
+      const notes = card.querySelector("[data-review-notes]");
+      notes.value = state.notes;
+      for (const button of card.querySelectorAll("[data-decision]")) {
+        button.addEventListener("click", () => {
+          const decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          try {
+            controller.setDecision(subject.subject_id, subject.subject_digest, decision);
+          } catch (error) {
+            reviewStatus.textContent = error.message;
+            return;
+          }
+          exportOutput.value = "";
+          reviewStatus.textContent = "Decision saved in this browser.";
+          exportButton.textContent = "Copy the complete verdict";
+          render();
+        });
+      }
+      notes.addEventListener("input", () => {
+        controller.setNotes(subject.subject_id, subject.subject_digest, notes.value);
+        exportOutput.value = "";
+        reviewStatus.textContent = "Notes saved in this browser.";
+        exportButton.textContent = "Copy the complete verdict";
+      });
+    }
+
+    pendingOnly.addEventListener("change", render);
+    exportButton.addEventListener("click", async () => {
+      try {
+        const text = `${JSON.stringify(controller.buildVerdict(), null, 2)}\n`;
+        exportOutput.value = text;
+        const method = await copyText(text);
+        exportButton.textContent = "Copied — return it to the agent";
+        reviewStatus.textContent = method === "clipboard"
+          ? "Complete verdict copied. Paste it back to the requesting agent session."
+          : "Complete verdict copied with the local fallback. Paste it back to the requesting agent session.";
+      } catch (error) {
+        exportButton.textContent = "Copy the complete verdict";
+        exportOutput.focus();
+        exportOutput.select();
+        reviewStatus.textContent = `${error.message}. The complete JSON below is selected for manual copy.`;
+      }
+    });
+    render();
+    return controller;
+  }
+
+  const api = {
+    ReviewController,
+    copyText,
+    createMemoryStorage,
+    identityKey,
+    initializePage,
+    storageKey,
+  };
+  root.BprAttendedReview = api;
+  if (root.document) {
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", () => initializePage(root.document));
+    } else {
+      initializePage(root.document);
+    }
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// Full-resolution inspection. Opening and closing the viewer must not
+// touch decision state or the export lock, so this only reads the DOM.
+(function attachFullResolutionViewer() {
+  // The runtime is loaded browserless by the skill's own tests, so it must not
+  // touch the DOM at import time.
+  if (typeof document === 'undefined' || !document.body) { return; }
+  var viewer = document.createElement('div');
+  viewer.className = 'media-viewer';
+  viewer.hidden = true;
+  viewer.setAttribute('role', 'dialog');
+  viewer.setAttribute('aria-modal', 'true');
+  viewer.innerHTML =
+    '<div class="media-viewer-bar">' +
+    '<span class="media-viewer-label"></span>' +
+    '<button type="button" class="media-viewer-close">Close</button>' +
+    '</div><div class="media-viewer-surface"><img alt=""></div>';
+  document.body.appendChild(viewer);
+
+  var image = viewer.querySelector('.media-viewer-surface img');
+  var label = viewer.querySelector('.media-viewer-label');
+  var closeButton = viewer.querySelector('.media-viewer-close');
+  var lastTrigger = null;
+
+  function close() {
+    viewer.hidden = true;
+    image.removeAttribute('src');
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  }
+
+  function open(trigger) {
+    lastTrigger = trigger;
+    image.src = trigger.getAttribute('data-full-source');
+    image.alt = trigger.getAttribute('data-full-label') || '';
+    label.textContent = trigger.getAttribute('data-full-label') || '';
+    viewer.hidden = false;
+    closeButton.focus();
+  }
+
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
+    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (event.target === viewer || event.target === closeButton) { close(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !viewer.hidden) { close(); }
+  });
+})();
+
+</script>
+</body>
+</html>

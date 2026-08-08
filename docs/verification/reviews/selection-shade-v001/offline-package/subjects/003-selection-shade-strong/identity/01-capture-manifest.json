@@ -1,0 +1,44 @@
+{
+ "boundary_marking": "change-group boundary is a neutral grey rule (#8C8C8C) on the edge above the group, per BPR-0202; no blue fill competes with the selection",
+ "commit": "46fa6ce",
+ "crops": {
+  "boundary-after.png": "box (18,612,1230,860) scale 2 from 11-deletion-early.png",
+  "sel-*.png": "box (18,620,600,740) scale 2 from 01-selected-composition.png"
+ },
+ "device_pixel_ratio": 1.0,
+ "digests": {
+  "boundary-after.png": "09ce0280e81b60ea70e2161f3e82cfe832e557b966618da6c8756375a338124e",
+  "sel-current.png": "7d5da906ec00018a9c3f5a55c907a5d3b596709a15de72bc487cd4102c2ea70f",
+  "sel-mid.png": "97345a5401b928d7b23b887527d2c606ecd8516ecd770451770adf26832b0a92",
+  "sel-soft.png": "9038deba7602896ee318cf7b685a45da01f99e563b371064d444e6b6ee46c2a7",
+  "sel-strip.png": "e05aef45f0033c50f7940797a773ebfd816dccb2f10fc2bea8d5addd9743ea65",
+  "sel-strong.png": "60bb15ffd8b164a7cccdc1d12717d2b080309aa5b70a44fca4e1e7313afca333",
+  "selection-full.png": "96c3b277b9775239b7d710b954b3a0568a1be7ccb3e5e2827e668b3403274c5f"
+ },
+ "measured_dE76_vs_removed_band": {
+  "current": 5.1,
+  "mid": 11.2,
+  "soft": 8.9,
+  "strong": 12.9
+ },
+ "measured_selected_line": {
+  "current": "#F4EBEF",
+  "mid": "#DFDEE9",
+  "soft": "#E6E3EB",
+  "strong": "#DBDBE9",
+  "unselected_removed_band": "#FFEBE9"
+ },
+ "platform": "macOS 15.7.7 arm64",
+ "preset": "dev",
+ "producing_command": "better_pull_review --github-fixture github-com --diff-workbench-probe --diff-interaction-evidence <dir> --render-evidence <png> --automated-run-budget-ms 30000",
+ "qpa_platform": "offscreen",
+ "qt_version": "6.11.1",
+ "scheme": "light palette as rendered; note the app reported APPEARANCE_APPLIED dark while painting light - see known concerns",
+ "selection_alpha": 72,
+ "variants": {
+  "current": "code_selection_background #D8E9FF",
+  "mid": "#8FBCEA",
+  "soft": "#A8CCF0",
+  "strong": "#7FB0E8"
+ }
+}

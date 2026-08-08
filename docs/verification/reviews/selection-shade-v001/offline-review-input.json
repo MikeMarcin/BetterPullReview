@@ -1,0 +1,243 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "How dark should the selected line be",
+  "review_gate": "selection_shade",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false,
+    "bpr_0194_closed": false,
+    "all_four_palettes_audited": false,
+    "dark_scheme_verified": false
+  },
+  "reference_disclaimer": "Light palette only, offscreen, device pixel ratio 1.0. All four builds are commit 46fa6ce with one colour literal changed. Zoomed images are nearest-neighbour 2x crops, so soft edges are magnification and not rendering. These captures are re-rendered since you last looked: the change-group boundary is now a neutral grey rule on the edge above the group (BPR-0202), so nothing blue competes with the selection any more. The selected line in every capture is 'teardown_render_pipeline(handle);' - the line directly below the grey rule, and the first line of the red removed block. The earlier batch is withdrawn: its crops were cut from the wrong part of the window and showed you chrome instead of diff.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/selection-shade-soft",
+      "subject_key": "selection-shade-soft",
+      "display_name": "Selection shade A - the smallest step that is still a change",
+      "description": "The selected line is 'teardown_render_pipeline(handle);' - directly below the grey boundary rule, and the first line of the red removed block. In the current build it is washed grey-lilac at a strength you already told me was too light. This candidate darkens the selection colour from #D8E9FF to #A8CCF0, keeping the same 28% translucency so the red removed tint still shows through. Compare against the four-panel strip: top panel is the current build, this candidate is the second.",
+      "acceptance_criteria": [
+        "You can tell which line is selected without being told",
+        "The red removed tint is still readable through the selection",
+        "It does not read as a solid block that hides the code"
+      ],
+      "known_concerns": [
+        "Measures dE76 8.9 against the removed band it sits on, below the ~10 that counts as comfortably distinct - this is the weakest of the three candidates and may still be too subtle",
+        "Only the Light palette is covered; the other three shipped palettes need the same decision",
+        "Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything."
+      ],
+      "ab_group": "selection-shade",
+      "audit_verdict": {
+        "status": "fail",
+        "note": "dE76 8.9 against the band underneath, short of the 10 threshold. Included because 'a little darker' was your direction and this is the most conservative reading of it."
+      },
+      "media_groups": [
+        {
+          "group_id": "compare",
+          "title": "All four shades, current at top",
+          "required": true,
+          "layout": "grid",
+          "note": "Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel - 'teardown_render_pipeline(handle);'.",
+          "items": [
+            {
+              "label": "Four shades stacked, 2x",
+              "path": "captures/sel-strip.png"
+            }
+          ]
+        },
+        {
+          "group_id": "this-one",
+          "title": "This candidate on its own",
+          "required": true,
+          "layout": "grid",
+          "note": "Click for native resolution. The third image shows the repaired boundary marking in context.",
+          "items": [
+            {
+              "label": "Candidate A, 2x",
+              "path": "captures/sel-soft.png"
+            },
+            {
+              "label": "Current build, 2x",
+              "path": "captures/sel-current.png"
+            },
+            {
+              "label": "The new boundary rule, both panes, 2x",
+              "path": "captures/boundary-after.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured from the rendered pixels",
+          "kind": "list",
+          "items": [
+            "Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.",
+            "This candidate: selected line #E6E3EB, dE76 8.9.",
+            "dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.",
+            "Sampled from the rendered raster, not read from the palette."
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "path": "captures/manifest.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/selection-shade-mid",
+      "subject_key": "selection-shade-mid",
+      "display_name": "Selection shade B - clears the distinctness threshold",
+      "description": "Same as candidate A but darker again, #8FBCEA at the same 28% translucency. This is the lightest of the three that clears the distinctness threshold. In the four-panel strip it is the third panel down.",
+      "acceptance_criteria": [
+        "You can tell which line is selected without being told",
+        "The red removed tint is still readable through the selection",
+        "It does not read as a solid block that hides the code"
+      ],
+      "known_concerns": [
+        "Only the Light palette is covered; the other three shipped palettes need the same decision",
+        "Still fails the WCAG 3:1 non-text luminance minimum, which no colour can reach at 28% opacity. I am no longer treating that threshold as the target for a background wash - it is the wrong measure for a tint and hitting it would swamp the syntax colouring. If you want that requirement honoured literally, the alpha has to go and the band becomes opaque.",
+        "Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything."
+      ],
+      "ab_group": "selection-shade",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "dE76 11.2 against the band underneath, clear of the 10 threshold, with the underlying tint still visible."
+      },
+      "media_groups": [
+        {
+          "group_id": "compare",
+          "title": "All four shades, current at top",
+          "required": true,
+          "layout": "grid",
+          "note": "Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel.",
+          "items": [
+            {
+              "label": "Four shades stacked, 2x",
+              "path": "captures/sel-strip.png"
+            }
+          ]
+        },
+        {
+          "group_id": "this-one",
+          "title": "This candidate on its own",
+          "required": true,
+          "layout": "grid",
+          "note": "Click for native resolution. The third image shows the repaired boundary marking in context.",
+          "items": [
+            {
+              "label": "Candidate B, 2x",
+              "path": "captures/sel-mid.png"
+            },
+            {
+              "label": "Current build, 2x",
+              "path": "captures/sel-current.png"
+            },
+            {
+              "label": "The new boundary rule, both panes, 2x",
+              "path": "captures/boundary-after.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured from the rendered pixels",
+          "kind": "list",
+          "items": [
+            "Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.",
+            "This candidate: selected line #DFDEE9, dE76 11.2.",
+            "dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.",
+            "Sampled from the rendered raster, not read from the palette."
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "path": "captures/manifest.json"
+        }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/selection-shade-strong",
+      "subject_key": "selection-shade-strong",
+      "display_name": "Selection shade C - the darkest that keeps the tint visible",
+      "description": "#7FB0E8 at 28% translucency, the bottom panel in the strip. This is about as dark as the selection can go before the red removed tint underneath starts to be overwhelmed rather than merely tinted.",
+      "acceptance_criteria": [
+        "You can tell which line is selected without being told",
+        "The red removed tint is still readable through the selection",
+        "It does not read as a solid block that hides the code"
+      ],
+      "known_concerns": [
+        "This is the point where the underlying change colour starts to lose out. Judge the second criterion carefully here rather than only the first.",
+        "Only the Light palette is covered; the other three shipped palettes need the same decision",
+        "Light palette only. The dark scheme cannot be captured until BPR-0201 is resolved: the app reported a dark profile applied while rendering light pixels, so a dark capture is not yet evidence of anything."
+      ],
+      "ab_group": "selection-shade",
+      "audit_verdict": {
+        "status": "pass",
+        "note": "dE76 12.9 against the band underneath. Mechanically the strongest, which does not make it the right choice."
+      },
+      "media_groups": [
+        {
+          "group_id": "compare",
+          "title": "All four shades, current at top",
+          "required": true,
+          "layout": "grid",
+          "note": "Top to bottom: current build, candidate A, candidate B, candidate C. The selected line is the third line in each panel.",
+          "items": [
+            {
+              "label": "Four shades stacked, 2x",
+              "path": "captures/sel-strip.png"
+            }
+          ]
+        },
+        {
+          "group_id": "this-one",
+          "title": "This candidate on its own",
+          "required": true,
+          "layout": "grid",
+          "note": "Click for native resolution. The third image shows the repaired boundary marking in context.",
+          "items": [
+            {
+              "label": "Candidate C, 2x",
+              "path": "captures/sel-strong.png"
+            },
+            {
+              "label": "Current build, 2x",
+              "path": "captures/sel-current.png"
+            },
+            {
+              "label": "The new boundary rule, both panes, 2x",
+              "path": "captures/boundary-after.png"
+            }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured from the rendered pixels",
+          "kind": "list",
+          "items": [
+            "Current build: selected line #F4EBEF, dE76 5.1 from the removed band underneath.",
+            "This candidate: selected line #DBDBE9, dE76 12.9.",
+            "dE76 of about 2.3 is the just-noticeable difference; about 10 is comfortably distinct.",
+            "Sampled from the rendered raster, not read from the palette."
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "path": "captures/manifest.json"
+        }
+      ]
+    }
+  ]
+}

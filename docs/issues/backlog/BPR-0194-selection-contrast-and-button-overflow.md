@@ -145,6 +145,44 @@ The re-presentation must not repeat this one's mistake. The owner should not
 have to assume which line is selected — show the same pane with the selection
 on and off, side by side, and say in the prompt which line it is.
 
+## Decided on 2026-08-07: candidate C, blocked on a contract question
+
+Batch `bpr:/attended-review/betterpullreview/d201c1be5ca2715d337c7c03`, three
+shades of the translucent wash. Evidence:
+`docs/verification/reviews/selection-shade-v001/`.
+
+**Chosen: `code_selection_background` `#7FB0E8`**, the darkest of the three,
+ΔE 12.9 against the removed band it sits on, against the current 5.1.
+
+> C looks best
+
+> I assume teardown pipeline is selected, if so C is the only one I can easily
+> see without eye strain.
+
+"Eye strain" settles the direction the earlier note only gestured at. It also
+retires route 1 above: the owner picked a translucent wash over the opaque band
+twice now, and the opaque candidate was already rejected in the first batch.
+
+The record says A and B were *rejected*. They were not; they lost a
+three-way choice the verdict schema could only express as one accept and two
+rejects. [[BPR-0203]] carries that.
+
+### It is not applied, and must not be applied yet
+
+`#7FB0E8` fails `qt_appearance_profile`: about twenty syntax roles drop to
+2.45-3.47:1 over it against a 4.50 minimum. The failure is against the role
+treated as an opaque fill; the panes composite it at 28%, where the same worst
+role measures 4.51:1. [[BPR-0204]] carries the discrepancy and the two honest
+routes out of it. The palette is deliberately left at `#D8E9FF` so the tree
+stays green rather than carrying a known-red check.
+
+### One acceptance criterion is unanswered, not met
+
+The batch asked whether the change tint survives the wash. Every capture showed
+a single selected line, so there was nothing to compare it against and the
+question could not be answered from the evidence. [[BPR-0205]] carries that,
+together with the multi-line span this card already noted nobody owns.
+
 ### DEFERRED CLASS: owner-attended, for defect 1 only
 
 Not because the measurement is unclear — it is exact — but because the remedy

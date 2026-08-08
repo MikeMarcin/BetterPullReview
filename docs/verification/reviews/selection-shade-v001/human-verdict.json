@@ -1,0 +1,35 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/d201c1be5ca2715d337c7c03",
+  "review_gate": "selection_shade",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/selection-shade-strong",
+      "subject_digest": "sha256:2718c4a66f1c53f67297b78c8f223582ab04d16ffb8d8b8e07b5220cac6ec3df"
+    }
+  ],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/selection-shade-soft",
+      "subject_digest": "sha256:b69f2789960253cc7926c602373cdf83a4524e4c43c2279aa73ff514b5cf0a4f"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/selection-shade-mid",
+      "subject_digest": "sha256:27f0f7c24143871a28f993a919db4c1a464a010c08bc811da19a875c82c702ad"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0194/selection-shade-soft@sha256:b69f2789960253cc7926c602373cdf83a4524e4c43c2279aa73ff514b5cf0a4f": "I assume teardown pipeline is selected, if so C is the only one I can easily see without eye strain.",
+    "criterion:/betterpullreview/bpr-0194/selection-shade-mid@sha256:27f0f7c24143871a28f993a919db4c1a464a010c08bc811da19a875c82c702ad": "In order to tell if the red removed tint is readable through the selection I need a selection of more than just 1 line, it needs to select a non-removed line as well to contrast",
+    "criterion:/betterpullreview/bpr-0194/selection-shade-strong@sha256:2718c4a66f1c53f67297b78c8f223582ab04d16ffb8d8b8e07b5220cac6ec3df": "C looks best"
+  },
+  "downstream_claims": {
+    "all_four_palettes_audited": false,
+    "bpr_0194_closed": false,
+    "dark_scheme_verified": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}
