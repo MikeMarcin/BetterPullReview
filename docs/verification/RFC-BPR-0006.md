@@ -82,6 +82,20 @@ whether or not this RFC exists. It is not `core::appearance_mode::system`
 resolving, because the application never asks — and mistaking one for the other
 is what kept this invisible.
 
+> **Superseded, 2026-08-08.** Every measurement above was true when taken and
+> is false now. BPR-0183 composed the profile, BPR-0185 linked the classifier,
+> and BPR-0184 supplied the gesture. The appearance the application paints is
+> the profile's, and `--diff-evidence-appearance` renders any of the six modes
+> on demand. All four shipped palettes have since been rendered and accepted at
+> attended review: light and dark in
+> `docs/verification/reviews/diff-scheme-acceptance-v002/`, both high-contrast
+> profiles in `docs/verification/reviews/high-contrast-scheme-acceptance-v001/`.
+>
+> The section is kept rather than rewritten because the reasoning in it — that a
+> component can be exhaustively tested and still be unreachable from the
+> product, and that only the linker settles it — is what found the gap. The
+> numbers are a record of the state it found.
+
 Every component below was proven non-vacuous: assertions broken, failures
 observed, behaviour restored. That establishes a test constrains its subject.
 It cannot establish that the subject is reachable from the product, and no
@@ -100,11 +114,11 @@ out.
 | Hunk classification equals whole-blob classification | `packaged_syntax_classifier`, in isolation, and a real `diff_workbench` | Classify a hunk beginning inside a multiline comment or string; read the colour off the pane's block layout | The hunk receives the same classification as the complete blob, which a hunk-local highlighter would fail | Verified of the component and of the pane. **BPR-0185 added `qt_syntax_pane_composition`**, which links both adapters, classifies a blob whose block comment opens four hundred lines above the assertion, scrolls until the opening delimiter is off screen, and reads the comment colour off `QTextBlock::layout()->formats()`. Indexing the spans by window offset instead of blob line leaves the marker line unpainted, which was measured |
 | Theme change does not re-parse | `appearance_application_host` with fake ports, and the composed application | Switch theme and colour, counting lexical parses; switch appearance mode on the running application with a classified comparison on screen | The parse count does not increase | Verified of the component and of the product. The span cache key omits the theme, so a palette change cannot evict; the suite pins one classification to one lexical pass. **BPR-0182 composed the host and BPR-0185 measured the composed claim**: `SYNTAX_THEME_REPAINT_OK` asserts that a mode change on the running application leaves `classification_submissions()` where it was, having already adopted a classification. The Qt suite proves the other half - the panes repaint in the new palette from the retained spans without adopting a new classification |
 | Font change preserves semantics | An `appearance_profile` and a `diff_workbench` constructed together by a test | Change the code font | The measured axis and ribbon geometry invalidate, semantic selection survives, and the shared position reprojects without changing mapping or confidence | Verified of that pair. Geometry rebuilds and the measured extent grow while the mapping is byte-identical and selection survives. **This row previously named its surface `Composed comparison`.** The pair is composed by the test; the application composes neither member. BPR-0183 owns it |
-| Fresh install defaults to System | `appearance_settings`, the type's own default | Inspect the default with no persisted value | The resolved mode is System | Verified of the type. With no persisted value the resolved selection is System. No application path reads it, because no application path constructs the host that would |
+| Fresh install defaults to System | `appearance_settings`, the type's own default | Inspect the default with no persisted value | The resolved mode is System | Verified of the type and of the product. With no persisted value the resolved selection is System, and the composed application now reads it: `application_appearance_gesture_contract`'s first phase reports `system` from a fresh root. Previously verified of the type alone, when no application path constructed the host |
 | System mode follows the OS; explicit does not | Real macOS composition | Owner-authorised OS scheme change | System mode follows and an explicit mode does not | **Unblocked by BPR-0184, still attended.** The card was originally filed as owner-attended, which asserted the behaviour existed; it did not, because there was no mode to select. There is now: the composed surface offers all six modes and a selection reaches the durable record, proven unattended by `application_appearance_gesture_contract`. What still needs a person is the other half — that a *live* operating-system scheme change moves System and leaves an explicit mode alone. Formerly: BPR-0114 was filed as owner-attended, which asserted the behaviour existed. It does not: there is no mode to select and no variant to observe. Blocked behind BPR-0183 and BPR-0184; attended afterwards |
 | Settings persist and preview immediately | The composed application, across separate processes | Drive the composed settings surface, then run a second process against the same application data root | Each value previews without restart and survives one | Verified of the product. **BPR-0184 added the gesture and `application_appearance_gesture_contract`**, three phases of the real binary: a fresh composition reports `system` and a tab width of four, a run driving the composed controls reports `dark:8` with `APPEARANCE_GESTURE_OK`, and a separate process against the same root making no gesture reports `dark:8`. The first phase is what makes the third mean anything - without it a build defaulting to the checked-for value would pass. Unwiring the panel's dispatch, and separately cutting the route from published presentation to the profile, each fail it. Previously verified of the component only, with the note below. | <!-- superseded:  **This row previously named its surface `Real application`.** The host is absent from the shipped binary and no adapter implements `appearance_settings_port`, so nothing persists and nothing previews; BPR-0181 and BPR-0182 own that. Within the component: each typography field previews without restart and a core-rejected record is refused whole rather than clamped, and BPR-0116 added the typography publication so a tab-width-only change invalidates measured geometry. The code line height is **retired**, not outstanding: `QPlainTextDocumentLayout` ignores every line-height mode Qt offers — measured, not assumed — so the product owner retired it on 2026-08-06 and BPR-0118 removed it structurally. `code_font_settings` now has no field one could occupy, and the RFC's goal and criterion were amended in place  -->|
 | Theme import is safe | Import validator, in isolation | Offer unknown fields, URLs, includes, oversized files, and executable payloads | Each rejection is distinct; a catch-all that refuses everything is not sufficient | Verified of the component. Each refusal is typed and named, and a valid document round-trips to an identical palette. No application path imports a theme, because there is no theme surface |
-| State survives without colour | The four shipped palettes, in isolation | Inspect every state signal | Icons, labels, marks, prefixes, outlines, or accessible names carry the meaning too | Verified of the palettes. BPR-0117 ran the enumerated pairs against all four shipped palettes; 191 pairs failed and were repaired by refitting lightness, and the ten pairs colour alone cannot separate are recorded and asserted exactly. None of the four is applied by the application; the window uses Qt's native palette |
+| State survives without colour | The four shipped palettes, in isolation | Inspect every state signal | Icons, labels, marks, prefixes, outlines, or accessible names carry the meaning too | Verified of the palettes and of the product. BPR-0117 ran the enumerated pairs against all four shipped palettes; 191 pairs failed and were repaired by refitting lightness, and the pairs colour alone cannot separate are recorded and asserted exactly. **All four are now applied and all four have been rendered and accepted at attended review.** The recorded colour-only obligations grew by two as a consequence of that review — the light profile's warning against error after its syntax refit, and the dark profile's intraline pair after its bands were softened to the owner's reference — each accepted deliberately rather than paid for by keeping tones the owner rejected. BPR-0204's ratchet additionally names the tightest contrast pair in each profile and holds its headroom, which is how high-contrast light was found to have none (BPR-0210) |
 | The core stays free of presentation types | Dependency scan | Scan the core target | No font, colour, Qt, or KSyntaxHighlighting type appears | Verified. No font, colour, Qt, or KSyntaxHighlighting identifier appears in the core, and the dependency scan passes |
 
 ## Composition cards
@@ -136,9 +150,34 @@ type cannot hold.
 ## Deferred gates
 
 One owner-attended gate: BPR-0114, the live operating-system scheme change.
-It is **blocked before it is deferred** — the behaviour it observes does not
-exist until BPR-0183 and BPR-0184 land. The static fresh-install default is a
-separate claim and is proven unattended.
+It is **blocked before it is deferred** — the behaviour it observes did not
+exist until BPR-0183 and BPR-0184 landed, which they since have. The static
+fresh-install default is a separate claim and is proven unattended.
+
+BPR-0114 also inherits BPR-0154's open-stage attribution: the probe that would
+carry the attended observation reports a fixture presentation fact false and
+resolves no epoch pair, deterministically, in about twelve seconds. Attendance
+means nothing until that path reaches an attendable state, which is why the
+card depends on it.
+
+Everything else this RFC defers to a person has been done. Four attended
+batches were run between 2026-08-06 and 2026-08-08, three of them rejected in
+whole or in part:
+
+| batch | outcome |
+|---|---|
+| `selection_contrast_remedy` | all three subjects rejected — nothing was painted beneath the selection, so the question could not be judged |
+| `diff_presentation_acceptance` | both subjects rejected — the captures were cropped to the wrong region of the window |
+| `selection_shade` | candidate C chosen; one acceptance criterion unanswerable from single-line captures |
+| `diff_scheme_acceptance` v001 | light accepted, dark and its selection rejected |
+| `diff_scheme_acceptance` v002 | both schemes accepted, no notes |
+| `high_contrast_scheme_acceptance` | both profiles accepted, no notes |
+
+The rejections are the useful part of that record. Two of them were defects in
+how the question was asked rather than in the product, and both were the
+reviewer catching an error the measurements could not: a marking mistaken for
+the selection because it was more prominent than the selection, and a criterion
+that no single-line capture could answer.
 
 No RFC-BPR-0006 requirement needs target-native Windows execution, a GitHub
 mutation, a credential, or a network service at runtime. The one build-time
