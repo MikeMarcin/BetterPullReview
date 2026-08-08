@@ -183,6 +183,8 @@ namespace bpr::qt {
 			QPlainTextEdit&                   aPane,
 			core::diff_side                   aSide,
 			core::line_span                   aPaintable);
+		/// \brief Tells the link map where the pane viewports actually are.
+		void declare_link_map_band();
 		void schedule_geometry_rebuild(measured_geometry_change aChange);
 		void rebuild_geometry();
 		void apply_frame(const comparison_scroll_frame& aFrame);

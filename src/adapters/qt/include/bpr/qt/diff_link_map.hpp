@@ -118,6 +118,17 @@ namespace bpr::qt {
 			std::span<const core::move_relation> aMoves = { });
 		void clear_geometry();
 		/// \brief Applies one same-comparison shared-scroll frame.
+		/// \brief Declares where the pane viewports sit against this widget.
+		///
+		/// \details Ribbon endpoints are computed in a pane's viewport
+		/// coordinates, and this widget is a sibling of the panes rather than
+		/// a child of either, so its own top and height are not theirs. They
+		/// differ by the pane frame and by whatever a horizontal scrollbar
+		/// takes, which is why a ribbon drawn at its own y met the pane in the
+		/// wrong place - BPR-0208. Given the band, the conversion is exact;
+		/// assumed, it is wrong by however much the layout happens to differ.
+		void set_viewport_band(qreal aTopOffset, qreal aHeight);
+
 		[[nodiscard]] auto set_frame(const comparison_scroll_frame& aFrame)
 			-> bool;
 		/// \brief Returns the frame currently used for paint and hit testing.
@@ -192,6 +203,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto navigation_index(
 			const diff_link_map_identity& aIdentity) const noexcept
 			-> std::optional<std::size_t>;
+		[[nodiscard]] auto band_height() const noexcept -> qreal;
 		void               rebuild_visible_geometry();
 		[[nodiscard]] auto refresh_hover_from_pointer() -> bool;
 		void               update_accessible_status();
@@ -208,9 +220,15 @@ namespace bpr::qt {
 			-> qreal;
 		[[nodiscard]] auto handle_position() const noexcept -> int;
 
-		diff_link_map_configuration                       Configuration;
-		std::optional<measured_alignment_axis>            Axis;
-		std::optional<comparison_scroll_frame>            Frame;
+		diff_link_map_configuration            Configuration;
+		std::optional<measured_alignment_axis> Axis;
+		std::optional<comparison_scroll_frame> Frame;
+		/// Offset of the pane viewports' top from this widget's top.
+		qreal ViewportBandTop = 0.0;
+		/// Height of the pane viewports. Zero means "not yet declared", and
+		/// the widget's own height stands in so a map that is never told
+		/// still draws rather than collapsing to nothing.
+		qreal                                             ViewportBandHeight = 0.0;
 		std::vector<retained_entry>                       Entries;
 		std::vector<retained_move>                        Moves;
 		std::map<core::alignment_segment_id, std::size_t> EntryBySegment;

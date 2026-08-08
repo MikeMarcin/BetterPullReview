@@ -628,6 +628,24 @@ namespace bpr::qt {
 			std::distance(NavigationEntryIndexes.begin(), following) - 1);
 	}
 
+	void diff_link_map::set_viewport_band(
+		const qreal aTopOffset, const qreal aHeight)
+	{
+		if (ViewportBandTop == aTopOffset && ViewportBandHeight == aHeight) {
+			return;
+		}
+		ViewportBandTop    = aTopOffset;
+		ViewportBandHeight = aHeight;
+		rebuild_visible_geometry();
+		update();
+	}
+
+	auto diff_link_map::band_height() const noexcept -> qreal
+	{
+		return ViewportBandHeight > 0.0 ? ViewportBandHeight
+										: static_cast<qreal>(height());
+	}
+
 	void diff_link_map::rebuild_visible_geometry()
 	{
 		const auto candidateCapacity = CandidateEntryIndexes.capacity();
@@ -656,13 +674,11 @@ namespace bpr::qt {
 			return;
 		}
 
-		const auto margin   = Configuration.NearVisibleMargin;
-		const auto leftLow  = Frame->Left.DocumentOriginY - margin;
-		const auto leftHigh = Frame->Left.DocumentOriginY
-			+ static_cast<qreal>(height()) + margin;
+		const auto margin    = Configuration.NearVisibleMargin;
+		const auto leftLow   = Frame->Left.DocumentOriginY - margin;
+		const auto leftHigh  = Frame->Left.DocumentOriginY + band_height() + margin;
 		const auto rightLow  = Frame->Right.DocumentOriginY - margin;
-		const auto rightHigh = Frame->Right.DocumentOriginY
-			+ static_cast<qreal>(height()) + margin;
+		const auto rightHigh = Frame->Right.DocumentOriginY + band_height() + margin;
 
 		const auto leftFirst = std::lower_bound(
 			Entries.begin(), Entries.end(), leftLow,
@@ -715,9 +731,9 @@ namespace bpr::qt {
 
 		const auto clip = QRectF{
 			0.0,
-			-margin,
+			ViewportBandTop - margin,
 			static_cast<qreal>(width()),
-			static_cast<qreal>(height()) + 2.0 * margin,
+			band_height() + 2.0 * margin,
 		};
 		for (const auto index : CandidateEntryIndexes) {
 			const auto path = path_for(Entries[index]);
@@ -731,17 +747,17 @@ namespace bpr::qt {
 				.Identity           = entry.Identity,
 				.Kind               = entry.Kind,
 				.Path               = path,
-				.LeftTop            = entry.LeftBegin - Frame->Left.DocumentOriginY,
-				.LeftBottom         = entry.LeftEnd - Frame->Left.DocumentOriginY,
-				.RightTop           = entry.RightBegin - Frame->Right.DocumentOriginY,
-				.RightBottom        = entry.RightEnd - Frame->Right.DocumentOriginY,
+				.LeftTop            = entry.LeftBegin - Frame->Left.DocumentOriginY + ViewportBandTop,
+				.LeftBottom         = entry.LeftEnd - Frame->Left.DocumentOriginY + ViewportBandTop,
+				.RightTop           = entry.RightBegin - Frame->Right.DocumentOriginY + ViewportBandTop,
+				.RightBottom        = entry.RightEnd - Frame->Right.DocumentOriginY + ViewportBandTop,
 				.SourceMove         = entry.SourceMove.has_value()
 					? std::optional<core::move_relation_id>{
 						  Moves[*entry.SourceMove].Id }
 					: std::nullopt,
 				.DestinationMove    = entry.DestinationMove.has_value() ? std::optional<core::move_relation_id>{ Moves[*entry.DestinationMove].Id } : std::nullopt,
-				.SourceMarkerY      = entry.SourceMove.has_value() ? std::optional<qreal>{ (entry.LeftBegin + entry.LeftEnd) / 2.0 - Frame->Left.DocumentOriginY } : std::nullopt,
-				.DestinationMarkerY = entry.DestinationMove.has_value() ? std::optional<qreal>{ (entry.RightBegin + entry.RightEnd) / 2.0 - Frame->Right.DocumentOriginY } : std::nullopt,
+				.SourceMarkerY      = entry.SourceMove.has_value() ? std::optional<qreal>{ (entry.LeftBegin + entry.LeftEnd) / 2.0 - Frame->Left.DocumentOriginY + ViewportBandTop } : std::nullopt,
+				.DestinationMarkerY = entry.DestinationMove.has_value() ? std::optional<qreal>{ (entry.RightBegin + entry.RightEnd) / 2.0 - Frame->Right.DocumentOriginY + ViewportBandTop } : std::nullopt,
 			});
 			VisibleEntryIndexes.push_back(index);
 		}

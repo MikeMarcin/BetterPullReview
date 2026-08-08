@@ -85,6 +85,11 @@ namespace bpr::qt {
 					static_cast<qreal>(bar->maximum()),
 					fraction);
 				bar->setValue(static_cast<int>(std::llround(value)));
+				// An estimate, and known to be one: the bar counts blocks, so
+				// the fraction between its minimum and maximum is not the
+				// fraction of the document above the viewport. BPR-0208 records
+				// the drift this causes in the ribbons and why fixing it needs
+				// the measured boundaries rather than a local change here.
 				const auto appliedFraction = static_cast<qreal>(
 												 bar->value() - bar->minimum())
 					/ static_cast<qreal>(bar->maximum() - bar->minimum());
@@ -686,6 +691,30 @@ namespace bpr::qt {
 		return Comparison;
 	}
 
+	/// \brief Tells the link map where the pane viewports actually are.
+	///
+	/// \details The map is a sibling of the panes, so its own top and height
+	/// are not theirs: a pane contributes a frame, and a horizontal scrollbar
+	/// takes height from the viewport without taking any from the map. Ribbon
+	/// endpoints are computed in viewport coordinates, so drawing them at
+	/// their own y met the panes in the wrong place, which is BPR-0208. The
+	/// band is declared rather than inferred because the difference depends on
+	/// style and on whether a scrollbar is showing, and neither is knowable
+	/// from the map.
+	void diff_workbench::declare_link_map_band()
+	{
+		auto* const parent = LinkMap->parentWidget();
+		if (parent == nullptr) {
+			return;
+		}
+		const auto mapTop = LinkMap->mapTo(parent, QPoint{ 0, 0 }).y();
+		const auto paneTop
+			= Left->viewport()->mapTo(parent, QPoint{ 0, 0 }).y();
+		LinkMap->set_viewport_band(
+			static_cast<qreal>(paneTop - mapTop),
+			static_cast<qreal>(Left->viewport()->height()));
+	}
+
 	auto diff_workbench::link_map() const noexcept -> diff_link_map*
 	{
 		return LinkMap;
@@ -816,6 +845,10 @@ namespace bpr::qt {
 	void diff_workbench::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QWidget::resizeEvent(aEvent);
+		// Before the rebuild, because a resize can add or remove a pane's
+		// horizontal scrollbar and that changes the band without changing
+		// anything the axis knows about.
+		declare_link_map_band();
 		schedule_geometry_rebuild(
 			measured_geometry_change::viewport_or_divider);
 	}
@@ -862,6 +895,7 @@ namespace bpr::qt {
 		const auto axis            = *AxisCache.axis();
 		const auto revealSelection = !Controller->current_frame().has_value()
 			|| Controller->current_frame()->Comparison != axis.comparison();
+		declare_link_map_band();
 		LinkMap->set_geometry(axis, CurrentResult->Alignment.Moves);
 		Controller->set_axis(axis);
 		++Statistics.GeometryRebuilds;

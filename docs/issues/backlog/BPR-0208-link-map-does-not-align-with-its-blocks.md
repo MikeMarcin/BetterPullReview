@@ -51,6 +51,79 @@ that grows down the file points at 1, and one that appears only in motion
 points at 3. **Measure which before changing anything** — the capture on file is
 a single still, so it cannot distinguish them.
 
+## Measured, 2026-08-07 — two causes, one fixed
+
+Instrumenting the layout and then the endpoints found both, and they are
+independent.
+
+### Cause A, fixed: the map's band was not the panes' band
+
+```
+map_top=0  left_viewport_top=1  map_h=306  pane_h=286
+```
+
+Ribbon endpoints are computed in a pane's *viewport* coordinates and drawn on a
+widget that is a **sibling** of the panes. Its top differs by the pane frame,
+and its height by whatever a horizontal scrollbar takes from the viewport and
+not from the map — twenty pixels here. The map was using its own `height()` for
+culling and its own `y` for drawing, so both the window and the offset were
+wrong.
+
+`diff_link_map::set_viewport_band` now takes the offset and the extent, and
+`diff_workbench::declare_link_map_band` supplies them from the real widgets on
+publish and on resize. Declared rather than inferred, because the difference
+depends on style and on whether a scrollbar is showing, neither of which the
+map can know.
+
+### Cause B, diagnosed and not fixed: the document origin is an estimate
+
+With the band correct, a ribbon still missed its block by **nine pixels** at
+line 29 of the fixture:
+
+```
+scrollval=14  docmargin=4  leftTop=234.7  cursorTop=225  delta=9
+```
+
+`source_pane::set_document_origin` returns
+`appliedFraction * aMaximumOrigin` — the fraction between the scrollbar's
+minimum and maximum, scaled. **`QPlainTextEdit` scrolls in blocks, and the last
+page cannot be scrolled past**, so that fraction is not the fraction of the
+document above the viewport. The two agree at the top and diverge as the file
+is scrolled, which is exactly the drifting signature this card listed as
+candidate 1 — for the origin rather than for the endpoints.
+
+Two attempts at a local fix failed and were reverted:
+
+- `QAbstractTextDocumentLayout::blockBoundingRect(block).top()` returns `0.0`
+  for every block in this path, including blocks well down the document. The
+  layout is not resolved when the frame is applied, so it cannot supply the
+  document y.
+- `blockBoundingGeometry(block).translated(contentOffset()).top()` returns
+  `0.0` in the same call for the same reason.
+
+The measurement that *is* trustworthy already exists: `pane_line_measurements::
+Boundaries`, accumulated block by block from `documentMargin`, is what the
+endpoints themselves are built from. But `measured_alignment_axis` keeps only
+`Boundaries.front()`, so the array is discarded before the frame path could use
+it.
+
+**So the fix is: retain the boundaries on the axis and compute the origin as
+`Boundaries[firstVisibleBlock] - contentOffset().y()`.** That makes the origin
+and the endpoints share one measurement basis, so they cannot disagree by
+construction — rather than agreeing because two independent derivations were
+checked against each other.
+
+### No assertion was landed, deliberately
+
+An alignment test was written and removed. Unscrolled — the only state where
+the origin contributes no error — this fixture shows no ribbons at all, so the
+assertion could not run where it would be exact. Scrolled, it fails on cause B.
+Landing it with a tolerance wide enough to pass would have meant a test whose
+tolerance hid the defect it was written to catch.
+
+The assertion belongs with the cause-B fix, where it can be exact at any scroll
+position.
+
 ## Required direct evidence
 
 - For a known segment, the ribbon's endpoint y in the rendered raster matches
