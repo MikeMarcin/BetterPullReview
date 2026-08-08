@@ -45,6 +45,52 @@ observed against the owner's stale root, which is *consistent with* 2 or 3 but
 does not distinguish them, and is confounded with [[BPR-0154]] appearing on the
 same run. Do not treat that observation as evidence for any of the three.
 
+## Traced, 2026-08-08 — possibility 3 is unlikely, and not yet excluded
+
+The card offered three possibilities and called the third — stale history
+presented as correct — the serious one. Reading the path end to end says the
+product is built for the second.
+
+A commit the cache cannot produce is a typed failure, not an absence:
+
+```
+git_cache_failure::object_mismatch      (or inventory_mismatch)
+  -> core::epoch_failure::repair_required        epoch_application_host.cpp:184
+  -> core::epoch_reason_code::repair_required
+  -> "The local review history requires repair."  epoch_comparison_control.cpp:91
+```
+
+Schema drift has its own route to the same place: `validate_schema` checks
+`application_id`, `user_version`, and a `catalog_meta` row carrying the schema
+format and a non-zero incarnation, and any mismatch is
+`failure::schema_mismatch`, which maps to `repair_required` too.
+
+So the wording a reviewer would see already exists, and it is actionable rather
+than silent.
+
+### What this does not establish, and the card said so first
+
+**This is a reading of the code path, not an observation of it.** Nothing here
+demonstrates that a catalog whose rows name commits that no longer exist
+actually *takes* that path. It could equally return an empty history and report
+nothing — and the one observation on file points that way rather than this way:
+the owner's stale root produced `PUBLIC_PATH_EPOCH_CORE_STATUS:-1` and "Review
+history is inactive", which is not the repair wording.
+
+That observation is confounded with [[BPR-0154]] and cannot carry weight either
+way. But it is the only evidence about the actual behaviour that exists, and it
+does not agree with the trace.
+
+### What remains is narrower than it was
+
+The test this card asks for is unchanged, but its purpose is now sharper: not
+"find out what happens" but "confirm the typed repair path is the one taken,
+and that the reviewer is told rather than shown an empty history".
+
+The design decision the card implied — rebuild, surface, or refuse — is largely
+answered by the code that exists. The product surfaces. What is unproven is
+whether it surfaces *here*.
+
 ## Required direct evidence
 
 - A course that opens a catalog written against different commit identities and

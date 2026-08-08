@@ -55,6 +55,49 @@ the assembled window is now checked over a strictly larger widget set, and it
 is the assertion most likely to fail when these two windows merge. That is the
 point of moving it rather than rewriting it.
 
+## Measured, 2026-08-08 — the conversation cannot move as written
+
+This card says RFC-BPR-0002's "threaded conversation view moves into the
+conversations drawer region". RFC-BPR-0005 agrees: *"Comments remain in the
+right drawer."*
+
+**The drawer as built cannot hold it.** `workbench_drawer_panel` is `final` and
+composes a `QListView` over `workbench_drawer_model`, which derives from
+`QAbstractListModel`. The conversation is a `QTreeView` over
+`github_conversation_model`, and it is threaded — that is the whole point of it.
+A list model cannot represent a thread.
+
+So the sentence in this card is not a move, it is a design decision that has not
+been made. Two routes, and they are not close in cost:
+
+1. **Widen the drawer** to host a tree — `workbench_drawer_model` becomes a tree
+   model, or the panel gains a second content mode. Every RFC-BPR-0005 drawer
+   assertion is written against a list: bounded row counts, the width
+   persistence, the virtualization figures. Each has to be re-established
+   against whatever replaces it, and the 68/68/68 bounded-widget figure this
+   card already flags for re-measurement is measured on the list.
+2. **The conversations drawer hosts the existing tree instead of its list.** The
+   drawer keeps its collapse, width and toggle behaviour and swaps its content.
+   Smaller, but it means the files drawer and the conversations drawer stop
+   being the same kind of thing, and `workbench_drawer_panel` stops being one
+   type serving two regions.
+
+Route 2 looks cheaper and is probably right — the two drawers genuinely show
+different kinds of content, and pretending otherwise is what produced a list
+model for a threaded view. But it is a product-shaped decision about what a
+drawer *is*, and it changes assertions RFC-BPR-0005 already banked, so it is
+not mine to take silently.
+
+### What is unblocked either way
+
+Both routes need the pull-request metadata and the conversation to be
+composable outside `github_window`, exactly as BPR-0195 made the session chrome
+composable. That extraction is the enabler and is not affected by the choice.
+
+**Nothing has been extracted yet.** This finding arrived before that work
+started, which is the useful order: three hours of moving layout in service of
+route 1 would have been three hours spent on the route not taken.
+
 ## Required direct evidence
 
 - `nm` on the shipped binary reports `workbench_window` symbols, and the
