@@ -3,7 +3,7 @@ id: BPR-0114
 title: Verify System mode follows a live OS scheme change
 status: Backlog
 rfc: RFC-BPR-0006
-depends_on: [BPR-0106, BPR-0183, BPR-0184, BPR-0154]
+depends_on: [BPR-0106, BPR-0183, BPR-0184]
 ---
 
 # Verify System mode follows a live OS scheme change
@@ -57,3 +57,24 @@ this gap invisible for as long as it was.
 
 The static fresh-install-defaults-to-System claim is separate and is proven
 unattended by BPR-0106.
+
+## The blocker, attributed 2026-08-08
+
+[[BPR-0154]] is closed and it was not this card's blocker after all. Its
+signature had nothing to do with a fixture or a stall: decoding the evidence bits
+showed the fixture working perfectly, and `PUBLIC_PATH_VERDICT` in the same log
+already named the failing fact.
+
+**`presentation=0`.** The probe's presentation never passes, `RENDER_FAILED`
+appears alongside it, and every other core fact — shutdown, cleanup, epoch
+projection and handoff delivery — is fine. `GITHUB_FIXTURE_FAILED` was printed
+only because the fixture verdict is emitted from a `passed` that presentation had
+already narrowed, which is [[BPR-0213]].
+
+So the attended observation is blocked on presentation failing in
+`--native-appearance-probe`, not on a fixture and not on a stall. That is a
+single, named fact to chase rather than a signature to attribute, which is a
+considerably better position than this card has been in.
+
+Evidence: `docs/verification/reviews/appearance-probe-open-stage-v001/`, lines 8
+and 9 of the recorded run.

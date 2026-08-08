@@ -1,7 +1,7 @@
 ---
 id: BPR-0154
 title: Attribute the epoch-maintenance open-stage stall if it recurs
-status: Backlog
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0131]
 ---
@@ -130,5 +130,68 @@ fact that reads false is now the thing to identify. That is a bounded
 investigation against a deterministic reproducer, which is a considerably better
 position than waiting for a one-in-ten flake.
 
-**Next step is not a fix.** It is to decode which of the eight facts in
-`11111110` is the false one and why `open` reports it in 12 seconds.
+## Attributed, 2026-08-08 — and the answer was in the log
+
+Decoding `GITHUB_FIXTURE_EVIDENCE:11111110`, bit by bit against the order
+`main.cpp` prints them:
+
+| bit | fact | value |
+|---|---|---|
+| 1 | `RecordingConsumed` | 1 |
+| 2 | `CapabilityProbeConsumed` | 1 |
+| 3 | `BootstrapTransportSelected` | 1 |
+| 4 | `AccountTransportSelected` | 1 |
+| 5 | `CredentialStored` | 1 |
+| 6 | `CredentialRetrieved` | 1 |
+| 7 | `CredentialDeleted` | 1 |
+| 8 | `SecretRetained` | **0** |
+
+**`11111110` is the all-good pattern, not seven of eight.** The pass condition
+requires `!fixtureEvidence.SecretRetained` — a retained secret is the defect, so
+a zero there is the credential correctly not surviving its deletion. Every one of
+the eight facts is as required.
+
+The smart-call counts match too. `GITHUB_FIXTURE_SMART_EVIDENCE:1:1:1:1` against
+`expected_fixture_smart_calls(single) == 1`.
+
+So no fixture condition failed, and `GITHUB_FIXTURE_FAILED` fired because
+`passed` was **already false** when the fixture checks ran:
+
+```
+passed = aRun.PresentationPassed && status.ShutdownComplete && ...
+```
+
+The recorded evidence says which fact, on the two lines this card never read:
+
+```
+PUBLIC_PATH_VERDICT:presentation=0 shutdown_complete=1 cleanup_failed=0
+                    epoch_projection_failed=0 epoch_handoff_failed=0
+PUBLIC_PATH_GROUPS:core=0 fixture=0 maintenance=0 render=0
+```
+
+`presentation=0`, and everything else in the core group is fine. `main.cpp`'s
+own comment on that second line reads *"the first `0` names the group to look
+in"* — the first zero is `core`, so `fixture=0` and `maintenance=0` are
+**cascading, not independent**. They are the same `passed` narrowed further.
+
+### What this card believed, and what was true
+
+It opened on the reading that the signature meant "one fixture presentation fact
+false, no resolved epoch pair, and every maintenance counter zero", and treated
+that as consistent with a stalled `open` stage. Every part of that was a
+misreading of cascading zeros through a marker whose name says *fixture* while
+its condition covers presentation and shutdown.
+
+The stall hypothesis was already eliminated by the budget line (`expired=0` at
+11.9 s of 600 s). What remained was never a fixture question at all.
+
+### Closed, with the real defect carded
+
+There is nothing left to attribute: presentation did not pass, `RENDER_FAILED`
+appeared in the same log, and the fixture was working correctly throughout.
+Why presentation fails in that probe is [[BPR-0114]]'s own blocker and is
+recorded there.
+
+The misleading marker is [[BPR-0213]]. `GITHUB_FIXTURE_FAILED` should not be the
+line a reader sees when the fixture is fine — it cost this card three
+occurrences and two wrong hypotheses.
