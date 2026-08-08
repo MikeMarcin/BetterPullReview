@@ -73,6 +73,13 @@ add_test(
 )
 
 add_test(
+    NAME github_recorded_fixture_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/recorded_pull_request_fixture_tests.py"
+)
+
+add_test(
     NAME attended_review_verdict_contract
     COMMAND
         Python3::Interpreter
