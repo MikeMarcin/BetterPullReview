@@ -175,6 +175,9 @@ namespace bpr::qt {
 			core::line_span aPaintable);
 		/// \brief Hands each pane the lines its change groups start on.
 		void apply_group_boundaries();
+		/// \brief The lines one side's selection covers.
+		[[nodiscard]] auto selected_lines(core::diff_side aSide) const
+			-> std::optional<core::line_span>;
 		/// \brief Whether the named segment takes part in a detected move.
 		[[nodiscard]] auto moved(const core::alignment_segment_id& aSegment) const
 			-> bool;

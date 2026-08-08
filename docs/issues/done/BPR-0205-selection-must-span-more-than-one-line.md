@@ -1,9 +1,9 @@
 ---
 id: BPR-0205
 title: A one-line selection cannot show whether the change tint survives it
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
-depends_on: [BPR-0194]
+depends_on: [BPR-0196]
 ---
 
 # A one-line selection cannot show whether the change tint survives it
@@ -59,7 +59,46 @@ where the marking genuinely was ambiguous. Here the owner went on to say C was
 "the only one I can easily see without eye strain", so the shade was legible;
 what remained uncertain was which row the question was about.
 
-## Required direct evidence
+## Fixed, 2026-08-07 — the model already said it, the painter ignored it
+
+`semantic_selection_kind::group` has existed all along, and a `change_group`
+carries its own `Left` and `Right` line spans. Clicking a ribbon has always
+produced a group selection. The painter simply washed
+`CurrentDetail->LeftLine` whatever the kind, so a group selection rendered as a
+line selection and nothing downstream could tell.
+
+`diff_workbench::selected_lines` now answers with the group's span when the
+selection is a group and the single line when it is a line. A group the
+alignment no longer holds yields nothing rather than falling back to the
+preferred line — a wash drawn somewhere other than where the model says the
+selection is would be worse than no wash.
+
+`append_selection_band` takes a span and clips it to the paintable window, so
+selecting a group the size of the file costs the viewport and not the file.
+
+### It answers the criterion that could not be answered
+
+Rendered with a ribbon selected, in both schemes: on the left the removed lines
+read lavender — the blue wash over the red band — and on the right the added
+lines read teal, blue over green. Both sit directly above unwashed, unchanged
+code. The comparison the owner asked for is now in a single frame, which is
+what makes "is the change tint readable through the selection" a question the
+evidence can settle.
+
+### Verification
+
+`qt_diff_workbench` selects through the ribbon rather than by setting a field,
+because the claim is that a reviewer can reach this and not that the painter
+reads a struct member. It then counts, from the pane's own extra selections,
+the wash-coloured full-width bands inside the group's span.
+
+**Matched by colour, not merely by being full width.** The added and removed
+bands are also full-width selections over those same lines, so a count that
+ignored colour tallied them and passed with the wash collapsed to one row —
+which the first draft of this test did. Corrected, collapsing the span fails it
+at all three scales with a clean build.
+
+## Superseded — required direct evidence
 
 - A capture with a multi-line selection crossing a change boundary, and the
   removed tint measured under the wash on the removed row and absent on the

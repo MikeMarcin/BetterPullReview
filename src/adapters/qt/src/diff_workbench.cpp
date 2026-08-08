@@ -406,23 +406,40 @@ namespace bpr::qt {
 		}
 
 		/// \brief Appends the band marking where the reviewer is.
+		/// \brief Washes the selected lines, bounded to what the pane shows.
+		///
+		/// \details A selection can be one line or a whole change group, and
+		/// the core already says which: `semantic_selection_kind::group`
+		/// carries the group's exact span per side. Painting only the
+		/// preferred line whatever the kind made a group selection look like a
+		/// line selection, and left the question of whether a change tint
+		/// survives the wash unanswerable — a single washed row has nothing
+		/// beside it to compare against (BPR-0205).
+		///
+		/// Clipped to the paintable window rather than the span, so selecting
+		/// a group the size of the file costs the viewport and not the file.
 		void append_selection_band(
 			QList<QTextEdit::ExtraSelection>& aSelections,
 			QPlainTextEdit&                   aPane,
-			const core::source_line_ref&      aLine)
+			const core::line_span             aLines,
+			const core::line_span             aPaintable)
 		{
-			const auto block = aPane.document()->findBlockByNumber(
-				static_cast<int>(aLine.Line));
-			if (!block.isValid()) {
-				return;
-			}
-			auto band   = QTextEdit::ExtraSelection{ };
-			band.cursor = QTextCursor{ block };
-			band.format.setProperty(QTextFormat::FullWidthSelection, true);
-			auto color = aPane.palette().color(QPalette::Highlight);
+			const auto begin = std::max(aLines.Begin, aPaintable.Begin);
+			const auto end   = std::min(aLines.End, aPaintable.End);
+			auto       color = aPane.palette().color(QPalette::Highlight);
 			color.setAlpha(core::selection_wash_alpha);
-			band.format.setBackground(color);
-			aSelections.push_back(band);
+			for (auto line = begin; line < end; ++line) {
+				const auto block = aPane.document()->findBlockByNumber(
+					static_cast<int>(line));
+				if (!block.isValid()) {
+					continue;
+				}
+				auto band   = QTextEdit::ExtraSelection{ };
+				band.cursor = QTextCursor{ block };
+				band.format.setProperty(QTextFormat::FullWidthSelection, true);
+				band.format.setBackground(color);
+				aSelections.push_back(band);
+			}
 		}
 
 		void set_line_selection(
@@ -1282,13 +1299,11 @@ namespace bpr::qt {
 				append_intraline_emphasis(selections, aPane, aSide, paintable);
 			}
 
-			if (CurrentResult && Interaction.Selection.has_value()
-				&& CurrentDetail.has_value()) {
-				const auto& line = aSide == core::diff_side::left
-					? CurrentDetail->LeftLine
-					: CurrentDetail->RightLine;
-				if (line.has_value()) {
-					append_selection_band(selections, aPane, *line);
+			if (CurrentResult && Interaction.Selection.has_value()) {
+				const auto lines = selected_lines(aSide);
+				if (lines.has_value()) {
+					append_selection_band(
+						selections, aPane, *lines, paintable);
 				}
 			}
 
@@ -1297,6 +1312,46 @@ namespace bpr::qt {
 
 		paint(*Left, core::diff_side::left);
 		paint(*Right, core::diff_side::right);
+	}
+
+	/// \brief The lines one side's selection covers.
+	///
+	/// \details A group selection names a change group, and the group carries
+	/// its own span per side, so the answer is exact rather than derived from
+	/// the preferred line. A line selection is that one line. Anything else —
+	/// a group the alignment no longer holds — yields nothing rather than
+	/// falling back to the preferred line, because a selection drawn somewhere
+	/// other than where the model says it is would be worse than none.
+	auto diff_workbench::selected_lines(const core::diff_side aSide) const
+		-> std::optional<core::line_span>
+	{
+		if (!CurrentResult || !Interaction.Selection.has_value()) {
+			return std::nullopt;
+		}
+		const auto& selection = *Interaction.Selection;
+		if (selection.Kind == core::semantic_selection_kind::group) {
+			if (!selection.Group.has_value()) {
+				return std::nullopt;
+			}
+			const auto group = std::ranges::find(
+				CurrentResult->Alignment.Groups,
+				*selection.Group,
+				&core::change_group::Id);
+			if (group == CurrentResult->Alignment.Groups.end()) {
+				return std::nullopt;
+			}
+			return aSide == core::diff_side::left ? group->Left : group->Right;
+		}
+		if (!CurrentDetail.has_value()) {
+			return std::nullopt;
+		}
+		const auto& line = aSide == core::diff_side::left
+			? CurrentDetail->LeftLine
+			: CurrentDetail->RightLine;
+		return line.has_value()
+			? std::optional<core::line_span>{ core::line_span{
+				  .Begin = line->Line, .End = line->Line + 1U } }
+			: std::nullopt;
 	}
 
 	auto diff_workbench::moved(const core::alignment_segment_id& aSegment) const

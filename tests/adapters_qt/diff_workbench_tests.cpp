@@ -1614,6 +1614,77 @@ namespace {
 		expect(compared > 0U, "at least one intraline edit was compared");
 	}
 
+	/// \brief Selecting a change group must wash the whole group.
+	auto test_group_selection_washes_every_line() -> void
+	{
+		const auto [left, right] = representative_text();
+		const auto diff          = computed(left, right, { }, 48U);
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 94U, 94U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		// Selecting through the ribbon, because that is the gesture that
+		// produces a group selection; setting one directly would prove the
+		// painter reads a field rather than that a reviewer can reach it.
+		const auto visible = workbench.link_map()->visible_links();
+		expect(!visible.empty(), "a ribbon is available to select");
+		const auto& ribbon = visible.front();
+		send_click(
+			*workbench.link_map(), ribbon.Path.boundingRect().center());
+		process_events();
+
+		const auto selection = workbench.selection();
+		expect(
+			selection.has_value()
+				&& selection->Kind == core::semantic_selection_kind::group
+				&& selection->Group.has_value(),
+			"clicking a ribbon selects a change group, not a line");
+
+		const auto group = std::ranges::find(
+			diff.Alignment.Groups, *selection->Group, &core::change_group::Id);
+		expect(group != diff.Alignment.Groups.end(), "the group is in the alignment");
+		const auto span = group->Left.End - group->Left.Begin;
+		expect(
+			span > 1U,
+			"the selected group covers more than one line on the left, so a "
+			"single-line wash and a group wash can be told apart");
+
+		// Counted from the pane's own selections rather than from the model:
+		// the claim is that the wash reaches the lines, and a model that knew
+		// the span while the pane painted one row is exactly the defect.
+		//
+		// Matched by colour, not merely by being full width. The added and
+		// removed bands are full-width selections over these same lines, so a
+		// count that ignored colour would tally them and pass with the wash
+		// collapsed to a single row — which an earlier draft of this test did.
+		auto wash = workbench.left_pane()->palette().color(QPalette::Highlight);
+		wash.setAlpha(core::selection_wash_alpha);
+		const auto washed = std::ranges::count_if(
+			workbench.left_pane()->extraSelections(),
+			[&](const QTextEdit::ExtraSelection& aSelection) {
+				const auto line = aSelection.cursor.blockNumber();
+				return aSelection.format.boolProperty(
+						   QTextFormat::FullWidthSelection)
+					&& aSelection.format.background().color() == wash
+					&& line >= static_cast<int>(group->Left.Begin)
+					&& line < static_cast<int>(group->Left.End);
+			});
+		expect(
+			static_cast<std::uint64_t>(washed) >= span,
+			"every line of the selected group carries a selection band");
+	}
+
 	/// \brief A ribbon must meet the pane at the block it names.
 	///
 	/// \details Checked scrolled, which is where BPR-0208 lived. Two separate
@@ -1807,6 +1878,7 @@ auto main(int argc, char** argv) -> int
 	test_intraline_ranges_match_the_model();
 	test_group_boundaries_are_painted();
 	test_link_map_endpoints_meet_their_blocks();
+	test_group_selection_washes_every_line();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }
