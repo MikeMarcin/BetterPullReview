@@ -4,6 +4,7 @@
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -63,6 +64,14 @@ namespace bpr::qt {
 		std::uint64_t LayoutUpdates      = 0U;
 		std::uint64_t EpochUpdates       = 0U;
 		std::uint64_t FocusOrderUpdates  = 0U;
+		/// \brief Full GitHub presentation resets, which must stay at zero.
+		///
+		/// \details Carried over from `github_window` because the render probes
+		/// assert on it: a projection must reach the panels incrementally rather
+		/// than by rebuilding the presentation.
+		std::uint64_t GithubFullResets        = 0U;
+		std::uint64_t GithubIdentityUpdates   = 0U;
+		std::uint64_t GithubDiagnosticUpdates = 0U;
 
 		auto operator<=>(const workbench_window_statistics&) const = default;
 	};
@@ -187,6 +196,28 @@ namespace bpr::qt {
 		[[nodiscard]] auto github_open_action() const noexcept -> QAction*;
 		[[nodiscard]] auto github_refresh_action() const noexcept -> QAction*;
 		[[nodiscard]] auto show_review_threads_action() const noexcept -> QAction*;
+
+		/// \brief RFC-BPR-0002's session wording, which the shell now presents.
+		///
+		/// \details Named apart from `status_text()`, which is the workbench's
+		/// own status and a different string in a different type. Two windows
+		/// each having a `status_text` was survivable; one window with two is
+		/// not, and silently returning the wrong one would be worse than the
+		/// longer name.
+		[[nodiscard]] auto github_status_text() const -> std::string;
+		[[nodiscard]] auto github_diagnostic_text() const -> std::string;
+		[[nodiscard]] auto active_host_text() const -> std::string;
+		[[nodiscard]] auto active_account_text() const -> std::string;
+
+		/// \brief The composed conversation's view and model.
+		[[nodiscard]] auto conversation_view() const noexcept -> QTreeView*;
+		[[nodiscard]] auto conversation_model() const noexcept
+			-> github_conversation_model*;
+		[[nodiscard]] auto profile_selector() const noexcept -> QComboBox*;
+
+		/// \brief The appearance surface, composed beside the review it governs.
+		[[nodiscard]] auto appearance_settings() const noexcept
+			-> appearance_settings_panel*;
 		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
@@ -324,6 +355,7 @@ namespace bpr::qt {
 		QScrollArea*                                       HeaderScroll            = nullptr;
 		github_session_panel*                              SessionPanel            = nullptr;
 		github_pull_request_panel*                         PullRequestPanel        = nullptr;
+		appearance_settings_panel*                         AppearanceSettings      = nullptr;
 		QAction*                                           GithubConnectAction     = nullptr;
 		QAction*                                           GithubOpenAction        = nullptr;
 		QAction*                                           GithubRefreshAction     = nullptr;

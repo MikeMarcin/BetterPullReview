@@ -2,7 +2,7 @@
 #define BPR_SRC_APP_INCLUDE_BPR_APP_GITHUB_APPLICATION_HPP
 
 #include "bpr/application/notification_delivery.hpp"
-#include "bpr/qt/github_window.hpp"
+#include "bpr/qt/workbench_window.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -108,7 +108,7 @@ namespace bpr::app {
 		void show();
 		void begin_shutdown();
 
-		[[nodiscard]] auto window() noexcept -> qt::github_window&;
+		[[nodiscard]] auto window() noexcept -> qt::workbench_window&;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;
 
 	private:

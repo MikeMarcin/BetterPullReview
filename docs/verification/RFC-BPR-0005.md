@@ -2,15 +2,16 @@
 
 RFC base: `55d365f16847d2ffc2c8fab83a5ce62eb695e2a0`
 
-Status: **components complete, composition absent.** Everything this RFC
-specifies is built and tested against `qt::workbench_window` — a window the
-shipped application does not contain. BPR-0188 measured it and allocated
-BPR-0189 through BPR-0191 to close it. Documentation reconciled by BPR-0098.
+Status: **composed.** Everything this RFC specifies is built and tested
+against `qt::workbench_window`, and since BPR-0191 that is the window the
+shipped application opens. BPR-0188 measured the gap and allocated BPR-0189
+through BPR-0191 to close it; they have. Documentation reconciled by BPR-0098.
 RFC-BPR-0005 stays `Proposed` and its BPR-0101 closeout card stays in
-`backlog/`.
+`backlog/`, because closure is strictly ordered and RFC-BPR-0002 still holds
+real Windows x64 evidence in BPR-0036.
 
-Read the Composition section before the claim matrix. Every `Verified` row is
-true of the harness it names and true of nothing a user can open.
+Every `Verified` row below is now true of a window a user can open. It was not
+before BPR-0191, and the Composition section records what changed.
 
 ## Why this RFC can be implemented now
 
@@ -57,13 +58,23 @@ choice.
 
 ## Composition
 
-The application shows `github_window`. It does not contain
-`workbench_window`, and never has.
+The application showed `github_window` and did not contain `workbench_window`.
+**BPR-0191 reversed both.** The shipped binary now contains 591
+`workbench_window` symbols and *zero* `github_window` symbols — the old window
+is not merely unreachable, nothing links it in at all.
+
+`github_window` and its 2,074 lines of tests are deliberately still in the
+repository and still green. Each of those assertions was forced by a real
+shipped defect, and this card's own instruction is that they move to the
+composed window rather than being deleted with it. Porting them is the last
+piece of BPR-0191; deleting them to make the tree tidy would discard the
+evidence that made the merge safe.
 
 | Measurement | Result |
 |---|---|
 | `nm build/dev/src/app/better_pull_review \| c++filt \| grep -cF workbench_application_host` | `0` at the time of measurement; **1393 after BPR-0190** |
-| the same for `workbench_window` | `0` |
+| the same for `workbench_window` | `0` at the time of measurement; **591 after BPR-0191** |
+| the same for `github_window` | non-zero at the time of measurement; **0 after BPR-0191** |
 | the same for `workbench_drawer` | `0` |
 | implementations of `workbench_settings_port` in `src/` | none at the time of measurement; **supplied by BPR-0189** |
 | implementations of `workbench_observation_port` in `src/` | none at the time of measurement; **supplied by BPR-0192** |
@@ -126,7 +137,7 @@ Every row's `Direct surface` now names the harness it was proven against.
 | Link map maps groups | Rendered fixture | Compare ribbon and wedge bounds and selected identity to the RFC-BPR-0004 model through scroll and resize | Every visible ribbon agrees with the canonical group model and stays monotonic and noncrossing | Verified. `test_composed_ribbons_follow_the_group_model_through_scroll_and_resize` checks visible ribbon identity and bounds against the canonical model through scroll and resize |
 | One shared scrollbar, no synthetic rows | `qt_workbench_window` harness | Inspect scrollbar policy on both panes and the document contents | Exactly one shared vertical scrollbar exists and neither document contains invented rows | Verified. Exactly one shared vertical scrollbar, both panes always-off, composed unchanged |
 | Lower pane is full-width detail | `qt_workbench_window` harness | Select a group and inspect paired rows and central width | The pane spans the central width and its rows agree with the canonical mapping | Verified. Pane width equals the centre across five drawer stages; rows checked against `core::detail_for_selection` at canonically mapped lines |
-| Renderer is virtualized | Instrumented `qt_workbench_window` harness | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified of the harness. 60/6,000/60,000 lines produce 68/68/68 window widgets, 29/29/29 surface, 5/5/5 pane — measured on a window the application does not contain. BPR-0191 re-measures on the composed window and restates the figure if it differs |
+| Renderer is virtualized | Instrumented `qt_workbench_window` harness | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified of the composed window. 60/6,000/60,000 lines produce **218/218/218** window widgets, 29/29/29 surface, 5/5/5 pane, at all three scales. Restated by BPR-0191: the earlier 68/68/68 was measured before the shell composed the session chrome, pull-request metadata, description and appearance surface, which is why the window figure rose. The surface and pane figures did not move, which is the substantive claim — the comparison surface itself builds no widget per line |
 | Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Verified. Toggles and navigation emit core intents only; enablement and disabled reasons come from projections; drawer contents use insert/remove/data-change rather than reset |
 | Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Verified. Exact untruncated OIDs, four distinguishable textual states, declared focus order, unique accessible names and key sequences |
 | Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100, owner-attended — and blocked before it is deferred. BPR-0186 records that no launch can be inspected by a person at all: a fixture launch schedules an automated run and exits, and a launch with no fixture takes the real credentialed path. BPR-0187 records the real public pull request to judge it against |

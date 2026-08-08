@@ -1,4 +1,7 @@
 #include "bpr/app/github_application.hpp"
+#include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/epoch_history_model.hpp"
 
 #include "bpr/app/worker_executor.hpp"
 
@@ -838,8 +841,14 @@ namespace bpr::app {
 				throw std::runtime_error{ "Epoch runtime ports are unavailable" };
 			}
 
-			Window = std::make_unique<qt::github_window>(
-				qt::github_view_config{ .Profiles = ProfileOptions },
+			// BPR-0191: the application shows RFC-BPR-0005's shell. Until this
+			// line changed, the shell existed only in its own tests and every
+			// reviewer saw the RFC-BPR-0002 window instead.
+			Window = std::make_unique<qt::workbench_window>(
+				qt::workbench_intent_dispatch{ },
+				qt::workbench_change_dispatch{ },
+				qt::workbench_drawer_width_dispatch{ },
+				ProfileOptions,
 				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); });
 
 			EpochHost = std::make_unique<application::epoch_application_host>(
@@ -852,8 +861,8 @@ namespace bpr::app {
 				*EpochClock,
 				EpochEffects,
 				DecisionLane,
-				*Window->epoch_control());
-			Window->epoch_control()->set_dispatch(
+				*Window->epoch_selectors());
+			Window->epoch_selectors()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
 			DiffHost = std::make_unique<application::diff_application_host>(
 				core::diff_state{
@@ -862,7 +871,7 @@ namespace bpr::app {
 				*EpochHost,
 				DiffEffects,
 				DecisionLane,
-				*Window->diff_comparison_workbench());
+				*Window->comparison_surface());
 
 			// The workbench observes the review's files through the read model
 			// the provider already produces. The supplier is read at call time
@@ -1166,7 +1175,7 @@ namespace bpr::app {
 				SyntaxBlobs->clear_comparison();
 			}
 			if (Window != nullptr) {
-				Window->diff_comparison_workbench()->clear();
+				Window->comparison_surface()->clear();
 			}
 		}
 
@@ -1209,7 +1218,7 @@ namespace bpr::app {
 			// Clears the previous comparison's spans before the new ones are
 			// asked for, so a classification that lands first is not thrown
 			// away by the surface it was meant for.
-			Window->diff_comparison_workbench()->set_loading(pending);
+			Window->comparison_surface()->set_loading(pending);
 			classify_comparison(pending, aPath);
 		}
 
@@ -1270,7 +1279,7 @@ namespace bpr::app {
 			if (!side.has_value() || !aSpans.Spans) {
 				return;
 			}
-			if (Window->diff_comparison_workbench()->adopt_token_spans(
+			if (Window->comparison_surface()->adopt_token_spans(
 					*side, aSpans.Spans)) {
 				++AdoptedClassifications;
 			}
@@ -1404,7 +1413,7 @@ namespace bpr::app {
 			// surface is given the semantic palette directly. Without this the
 			// panes paint no line backgrounds at all, which is visibly wrong
 			// rather than quietly wrong.
-			if (auto* const workbench = Window->diff_comparison_workbench();
+			if (auto* const workbench = Window->comparison_surface();
 				workbench != nullptr) {
 				workbench->adopt_appearance(*AppearanceProfile);
 			}
@@ -1509,7 +1518,7 @@ namespace bpr::app {
 		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
 		std::unique_ptr<github_provider>                             Provider;
 		qt::event_loop_executor                                      DecisionLane;
-		std::unique_ptr<qt::github_window>                           Window;
+		std::unique_ptr<qt::workbench_window>                        Window;
 		application::github_credential_binding_catalog               CredentialBindings;
 		std::unique_ptr<application::git_cache_port>                 GitCaches;
 		std::unique_ptr<application::epoch_catalog_port>             EpochCatalogs;
@@ -1584,7 +1593,7 @@ namespace bpr::app {
 		Implementation->begin_shutdown();
 	}
 
-	auto github_application::window() noexcept -> qt::github_window&
+	auto github_application::window() noexcept -> qt::workbench_window&
 	{
 		return *Implementation->Window;
 	}

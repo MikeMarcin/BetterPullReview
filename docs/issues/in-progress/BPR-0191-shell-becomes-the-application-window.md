@@ -260,17 +260,29 @@ So the remainder is one coherent chunk, not three:
 
 1. ~~`workbench_window` implements `application::github_projection_port` and
    composes both panels.~~ Done, below.
-2. The application constructs the shell instead of `github_window`, and
-   `github_window` is deleted. **Measured: this is larger than it reads.**
-   `main.cpp` names `github_window` in twelve places — the appearance probes,
-   the render-evidence path, the public-path markers — and reaches for
-   `conversation_view()`, `epoch_control()`, `diff_comparison_workbench()`,
-   `appearance_settings()` and `status_text()` on it. Each has an equivalent on
-   the shell, but they are not the same names, so this is a rewrite of the
-   evidence harness rather than a one-line substitution. Do it as its own slice
-   with room to re-run the render evidence afterwards.
-3. Virtualization re-measured at 60/6,000/60,000 lines on the composed window,
-   restating 68/68/68 if the merged bounded widget count differs.
+2. ~~The application constructs the shell.~~ Done. `nm` on the shipped binary
+   reports **591 `workbench_window` symbols and zero `github_window`** — the old
+   window is not merely unreachable, nothing links it in.
+3. ~~Virtualization re-measured.~~ Done, and restated: **218/218/218** window
+   widgets at 60/6,000/60,000 lines, with surface 29/29/29 and pane 5/5/5
+   unchanged. The window figure rose from 68 because the shell now composes the
+   session chrome, metadata, description and appearance surface; the surface and
+   pane figures not moving is the substantive claim, since that is where a
+   per-line widget would appear.
+
+### Still open: the assertions must move before the old window goes
+
+`github_window` and its 2,074 lines of tests remain in the repository, green,
+and out of the shipped binary. Deleting them was tried and reverted: this card
+says every one of those assertions "applies to the composed window and must pass
+against it", and each was forced by a real shipped defect. Deleting them to tidy
+the tree would discard exactly the evidence that made this merge safe.
+
+What is left is porting them onto `workbench_window` and then removing
+`github_window`. The merge has already shown this pays: moving the session
+chrome under the shell's stricter rules found four widgets — the connection
+details button and all three locator editors — that had been shipping with no
+accessible description at all.
 
 ### Built, 2026-08-08: the shell is the projection port
 

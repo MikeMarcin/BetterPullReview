@@ -494,6 +494,14 @@ namespace bpr::qt {
 		column->addWidget(PullRequestPanel->body_editor());
 		column->addStretch(0);
 
+		// The settings surface lives with the presentation it governs rather than
+		// behind a modal dialog, so a reviewer sees a font or mode change take
+		// effect on the very comparison they are reading.
+		AppearanceSettings = new appearance_settings_panel{ { } };
+		AppearanceSettings->setObjectName(
+			QStringLiteral("appearanceSettingsPanel"));
+		column->addWidget(AppearanceSettings);
+
 		// Scrolled and bounded rather than free to grow. The comparison is what a
 		// review is looking at, and a long description or a wide locator must not
 		// be able to take the height it needs -- at 820 high with the header
@@ -724,6 +732,7 @@ namespace bpr::qt {
 		}
 		if (aTransition.Identity.has_value()) {
 			SessionPanel->apply_identity(*aTransition.Identity);
+			++Statistics.GithubIdentityUpdates;
 		}
 		if (aTransition.Capabilities.has_value()) {
 			SessionPanel->apply_capabilities(
@@ -738,6 +747,7 @@ namespace bpr::qt {
 		}
 		for (const auto& diagnostic : aTransition.Diagnostics) {
 			SessionPanel->apply_diagnostic(diagnostic.Code);
+			++Statistics.GithubDiagnosticUpdates;
 		}
 	}
 
@@ -797,6 +807,48 @@ namespace bpr::qt {
 		PullRequestPanel->clear();
 		ConversationPanel->clear(QStringLiteral(
 			"Review threads are unavailable until a pull request is open."));
+	}
+
+	auto workbench_window::appearance_settings() const noexcept
+		-> appearance_settings_panel*
+	{
+		return AppearanceSettings;
+	}
+
+	auto workbench_window::github_status_text() const -> std::string
+	{
+		return SessionPanel->status_text();
+	}
+
+	auto workbench_window::github_diagnostic_text() const -> std::string
+	{
+		return SessionPanel->diagnostic_text();
+	}
+
+	auto workbench_window::active_host_text() const -> std::string
+	{
+		return SessionPanel->active_host_text();
+	}
+
+	auto workbench_window::active_account_text() const -> std::string
+	{
+		return SessionPanel->active_account_text();
+	}
+
+	auto workbench_window::conversation_view() const noexcept -> QTreeView*
+	{
+		return ConversationPanel->view();
+	}
+
+	auto workbench_window::conversation_model() const noexcept
+		-> github_conversation_model*
+	{
+		return ConversationPanel->model();
+	}
+
+	auto workbench_window::profile_selector() const noexcept -> QComboBox*
+	{
+		return SessionPanel->profile_selector();
 	}
 
 	auto workbench_window::session_panel() const noexcept -> github_session_panel*

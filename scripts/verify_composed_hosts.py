@@ -48,12 +48,12 @@ COMPOSED = (
     "warrants_notification",         # RFC-BPR-0010, composed by BPR-0193
     "review_queue_notifier",         # RFC-BPR-0010, composed by BPR-0193
     "system_tray_notification_sink", # RFC-BPR-0010, composed by BPR-0193
+    "workbench_window",              # RFC-BPR-0005, composed by BPR-0191
 )
 
 # Not composed yet: symbols must be absent. Each names the card that will
 # compose it. Moving a name up to COMPOSED is part of landing that card.
 NOT_COMPOSED = {
-    "workbench_window": "BPR-0191",
     "review_ledger_application_host": "RFC-BPR-0007 composition",
     "review_mutation_coordinator": "RFC-BPR-0008 composition",
     "review_synchronization": "RFC-BPR-0008 composition",

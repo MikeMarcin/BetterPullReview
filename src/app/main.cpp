@@ -1,4 +1,9 @@
 #include "bpr/app/github_application.hpp"
+#include "bpr/qt/diff_link_map.hpp"
+#include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/epoch_history_model.hpp"
+#include "bpr/qt/github_conversation_model.hpp"
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
@@ -106,7 +111,7 @@ namespace {
 	}
 
 	auto save_render_evidence(
-		bpr::qt::github_window&                aWindow,
+		bpr::qt::workbench_window&             aWindow,
 		const std::optional<std::string_view>& aRenderPath) -> bool
 	{
 		if (!aRenderPath.has_value()) {
@@ -177,7 +182,7 @@ namespace {
 	}
 
 	[[nodiscard]] auto capture_normalized_render(
-		bpr::qt::github_window& aWindow) -> QImage
+		bpr::qt::workbench_window& aWindow) -> QImage
 	{
 		auto image = aWindow.grab().toImage();
 		if (image.isNull()) {
@@ -478,18 +483,18 @@ namespace {
 	}
 
 	[[nodiscard]] auto native_appearance_context_passed(
-		const bpr::qt::github_window& aWindow,
-		const automated_run&          aRun) -> bool
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
 	{
 		const auto* const view          = aWindow.conversation_view();
 		const auto* const model         = aWindow.conversation_model();
-		const auto* const control       = aWindow.epoch_control();
+		const auto* const control       = aWindow.epoch_selectors();
 		const auto* const epochModel    = control->history_model();
 		const auto* const leftSelector  = control->left_selector();
 		const auto* const rightSelector = control->right_selector();
 		const auto* const leftOid       = control->left_oid_editor();
 		const auto* const rightOid      = control->right_oid_editor();
-		const auto* const workbench     = aWindow.diff_comparison_workbench();
+		const auto* const workbench     = aWindow.comparison_surface();
 
 		const auto epochContextPreserved = aRun.Appearance.EpochLeft.isValid()
 			&& aRun.Appearance.EpochRight.isValid()
@@ -567,7 +572,7 @@ namespace {
 			&& diffContextPreserved
 			&& model->statistics().ModelResets
 			== aRun.Appearance.InitialModelResets
-			&& aWindow.statistics().FullResets == 0U
+			&& aWindow.statistics().GithubFullResets == 0U
 			&& !aWindow.testAttribute(Qt::WA_SetPalette)
 			&& !aWindow.testAttribute(Qt::WA_SetStyle)
 			&& !aWindow.testAttribute(Qt::WA_SetFont)
@@ -606,8 +611,8 @@ namespace {
 	}
 
 	[[nodiscard]] auto native_appearance_light_state_passed(
-		const bpr::qt::github_window& aWindow,
-		const automated_run&          aRun) -> bool
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
 	{
 		const auto* const hints = QGuiApplication::styleHints();
 		return hints != nullptr && !aRun.Appearance.SignalObserved
@@ -618,17 +623,17 @@ namespace {
 			&& macos_global_color_scheme() == Qt::ColorScheme::Light
 			&& hints->colorScheme() == Qt::ColorScheme::Light
 			&& aWindow.palette() == aRun.Appearance.InitialPalette
-			&& aWindow.epoch_control()->palette()
+			&& aWindow.epoch_selectors()->palette()
 			== aRun.Appearance.InitialEpochPalette
-			&& native_palette_readable(aWindow.epoch_control()->palette())
-			&& aWindow.epoch_control()->statistics().AppearanceUpdates
+			&& native_palette_readable(aWindow.epoch_selectors()->palette())
+			&& aWindow.epoch_selectors()->statistics().AppearanceUpdates
 			== aRun.Appearance.InitialEpochAppearanceUpdates
 			&& native_appearance_context_passed(aWindow, aRun);
 	}
 
 	[[nodiscard]] auto native_appearance_dark_state_passed(
-		const bpr::qt::github_window& aWindow,
-		const automated_run&          aRun) -> bool
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
 	{
 		const auto&       finalPalette       = aWindow.palette();
 		const auto        initialWindow      = aRun.Appearance.InitialPalette.color(QPalette::Window).lightness();
@@ -638,14 +643,14 @@ namespace {
 		const auto        finalBase          = finalPalette.color(QPalette::Base).lightness();
 		const auto        finalText          = finalPalette.color(QPalette::Text).lightness();
 		const auto        initialEpoch       = aRun.Appearance.InitialEpochPalette;
-		const auto        finalEpoch         = aWindow.epoch_control()->palette();
+		const auto        finalEpoch         = aWindow.epoch_selectors()->palette();
 		const auto        initialEpochWindow = initialEpoch.color(QPalette::Window).lightness();
 		const auto        initialEpochBase   = initialEpoch.color(QPalette::Base).lightness();
 		const auto        initialEpochText   = initialEpoch.color(QPalette::Text).lightness();
 		const auto        finalEpochWindow   = finalEpoch.color(QPalette::Window).lightness();
 		const auto        finalEpochBase     = finalEpoch.color(QPalette::Base).lightness();
 		const auto        finalEpochText     = finalEpoch.color(QPalette::Text).lightness();
-		const auto* const workbench          = aWindow.diff_comparison_workbench();
+		const auto* const workbench          = aWindow.comparison_surface();
 		const auto&       finalDiffPalette   = workbench->palette();
 
 		return aRun.Appearance.SignalObserved
@@ -670,7 +675,7 @@ namespace {
 			&& finalDiffPalette != aRun.Appearance.InitialDiffPalette
 			&& native_palette_readable(finalDiffPalette)
 			&& workbench->font() == aRun.Appearance.InitialDiffFont
-			&& aWindow.epoch_control()->statistics().AppearanceUpdates
+			&& aWindow.epoch_selectors()->statistics().AppearanceUpdates
 			> aRun.Appearance.InitialEpochAppearanceUpdates
 			&& workbench->statistics().GeometryRebuilds
 			== aRun.Appearance.InitialDiffGeometryRebuilds + 1U
@@ -678,16 +683,16 @@ namespace {
 	}
 
 	[[nodiscard]] auto prepare_native_appearance_probe(
-		bpr::qt::github_window& aWindow,
-		automated_run&          aRun) -> bool
+		bpr::qt::workbench_window& aWindow,
+		automated_run&             aRun) -> bool
 	{
 		aRun.RenderSaved       = false;
 		auto* const hints      = QGuiApplication::styleHints();
 		auto* const view       = aWindow.conversation_view();
 		auto* const model      = aWindow.conversation_model();
-		auto* const control    = aWindow.epoch_control();
+		auto* const control    = aWindow.epoch_selectors();
 		auto* const epochModel = control->history_model();
-		auto* const workbench  = aWindow.diff_comparison_workbench();
+		auto* const workbench  = aWindow.comparison_surface();
 		const auto  thread     = model->index_for_id("review-thread:PRRT_fixture_1");
 		const auto  leftEpoch  = epochModel->index(
 			control->left_selector()->currentIndex(), 0);
@@ -931,7 +936,7 @@ namespace {
 	}
 
 	[[nodiscard]] auto capture_diff_interaction_evidence(
-		bpr::qt::github_window&                aWindow,
+		bpr::qt::workbench_window&             aWindow,
 		const std::optional<std::string_view>& aRawDirectory) -> bool
 	{
 		if (!aRawDirectory.has_value() || aRawDirectory->empty()) {
@@ -950,7 +955,7 @@ namespace {
 			return false;
 		}
 
-		auto* const workbench = aWindow.diff_comparison_workbench();
+		auto* const workbench = aWindow.comparison_surface();
 		if (workbench == nullptr || workbench->current_result() == nullptr
 			|| !workbench->current_context().has_value()
 			|| !workbench->selection().has_value()) {
@@ -1385,15 +1390,15 @@ namespace {
 
 #if defined(BPR_BUILD_TESTING)
 	[[nodiscard]] auto fixture_presentation_passed(
-		bpr::qt::github_window& aWindow,
-		const std::string_view  aExpectedActiveHostText) -> bool
+		bpr::qt::workbench_window& aWindow,
+		const std::string_view     aExpectedActiveHostText) -> bool
 	{
 		const auto* const title = aWindow.findChild<QLabel*>(QStringLiteral("pullRequestTitle"));
-		return aWindow.status_text() == "Pull request ready."
+		return aWindow.github_status_text() == "Pull request ready."
 			&& aWindow.active_account_text() == "Octo Reviewer (@octo-reviewer)"
 			&& aWindow.active_host_text() == aExpectedActiveHostText
-			&& aWindow.open_action()->isEnabled()
-			&& aWindow.refresh_action()->isEnabled()
+			&& aWindow.github_open_action()->isEnabled()
+			&& aWindow.github_refresh_action()->isEnabled()
 			&& title != nullptr
 			&& title->text()
 			== QStringLiteral("Keep review snapshots deterministic")
@@ -1401,14 +1406,14 @@ namespace {
 			&& aWindow.conversation_model()
 				   ->index_for_id("review-thread:PRRT_fixture_1")
 				   .isValid()
-			&& aWindow.statistics().FullResets == 0U;
+			&& aWindow.statistics().GithubFullResets == 0U;
 	}
 
 	[[nodiscard]] auto fixture_epoch_presentation_passed(
-		const bpr::qt::github_window& aWindow,
-		const std::size_t             aMinimumEpochs = 1U) -> bool
+		const bpr::qt::workbench_window& aWindow,
+		const std::size_t                aMinimumEpochs = 1U) -> bool
 	{
-		const auto* const control = aWindow.epoch_control();
+		const auto* const control = aWindow.epoch_selectors();
 		return control->status_text().startsWith(
 				   QStringLiteral("Review history is ready."))
 			&& control->comparison_text().endsWith(
@@ -1419,12 +1424,12 @@ namespace {
 	}
 
 	[[nodiscard]] auto fixture_epoch_pair_passed(
-		const bpr::qt::github_window& aWindow,
-		const std::string&            aLeft,
-		const std::string&            aRight,
-		const std::size_t             aMinimumEpochs = 2U) -> bool
+		const bpr::qt::workbench_window& aWindow,
+		const std::string&               aLeft,
+		const std::string&               aRight,
+		const std::size_t                aMinimumEpochs = 2U) -> bool
 	{
-		const auto* const control = aWindow.epoch_control();
+		const auto* const control = aWindow.epoch_selectors();
 		return fixture_epoch_presentation_passed(aWindow, aMinimumEpochs)
 			&& control->left_oid_editor()->text()
 			== QString::fromStdString(aLeft)
@@ -1554,7 +1559,7 @@ namespace {
 		bpr::app::github_application& aApplication,
 		automated_run&                aRun) -> bool
 	{
-		auto* const control = aApplication.window().epoch_control();
+		auto* const control = aApplication.window().epoch_selectors();
 		auto* const model   = control->history_model();
 		if (aRun.MaintenanceProbe
 			== automated_run::epoch_maintenance_probe::verify_deleted) {
@@ -1640,7 +1645,7 @@ namespace {
 						aApplication, true);
 				return aRun.DiffRequested;
 			}
-			if (aApplication.window().diff_comparison_workbench()->current_result()
+			if (aApplication.window().comparison_surface()->current_result()
 				== nullptr) {
 				return true;
 			}
@@ -1685,24 +1690,24 @@ namespace {
 #endif
 
 	[[nodiscard]] auto cli_fail_closed_presentation_passed(
-		const bpr::qt::github_window& aWindow,
-		const automated_run&          aRun) -> bool
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
 	{
 		const auto  statistics = aWindow.statistics();
 		const auto& cli        = aRun.Cli;
 		return aWindow.profile_selector()->currentIndex()
 			== cli.ActiveRow
 			&& aWindow.active_host_text() == cli.ExpectedActiveHostText
-			&& statistics.IdentityUpdates
+			&& statistics.GithubIdentityUpdates
 			== cli.IdentityUpdatesBeforeConnect + 1U
-			&& statistics.DiagnosticUpdates
+			&& statistics.GithubDiagnosticUpdates
 			== cli.DiagnosticUpdatesBeforeConnect + 1U
-			&& aWindow.status_text() == "The GitHub connection failed."
-			&& aWindow.diagnostic_text()
+			&& aWindow.github_status_text() == "The GitHub connection failed."
+			&& aWindow.github_diagnostic_text()
 			== "The selected GitHub CLI connection is unavailable."
 			&& aWindow.active_account_text() == "Not authenticated"
-			&& !aWindow.open_action()->isEnabled()
-			&& statistics.FullResets == 0U;
+			&& !aWindow.github_open_action()->isEnabled()
+			&& statistics.GithubFullResets == 0U;
 	}
 
 	[[nodiscard]] auto is_cli_unavailable_profile(
@@ -1757,9 +1762,9 @@ namespace {
 	}
 
 	[[nodiscard]] auto activate_cli_unavailable_profile(
-		bpr::qt::github_window& aWindow,
-		automated_run&          aRun,
-		const int               aRow) -> bool
+		bpr::qt::workbench_window& aWindow,
+		automated_run&             aRun,
+		const int                  aRow) -> bool
 	{
 		auto& cli          = aRun.Cli;
 		auto  expectedHost = expected_cli_active_host_text(
@@ -1771,16 +1776,16 @@ namespace {
 		aWindow.profile_selector()->setCurrentIndex(aRow);
 		if (
 			aWindow.profile_selector()->currentIndex() != aRow
-			|| !aWindow.connect_action()->isEnabled()) {
+			|| !aWindow.github_connect_action()->isEnabled()) {
 			return false;
 		}
 
 		const auto statistics              = aWindow.statistics();
 		cli.ActiveRow                      = aRow;
-		cli.IdentityUpdatesBeforeConnect   = statistics.IdentityUpdates;
-		cli.DiagnosticUpdatesBeforeConnect = statistics.DiagnosticUpdates;
+		cli.IdentityUpdatesBeforeConnect   = statistics.GithubIdentityUpdates;
+		cli.DiagnosticUpdatesBeforeConnect = statistics.GithubDiagnosticUpdates;
 		cli.ExpectedActiveHostText         = std::move(*expectedHost);
-		aWindow.connect_action()->trigger();
+		aWindow.github_connect_action()->trigger();
 		return true;
 	}
 
@@ -1974,47 +1979,47 @@ namespace {
 				   << " stage_ticks="
 				   << static_cast<unsigned long long>(aRun.Attempts) << '\n'
 				   << "PUBLIC_PATH_STATUS:"
-				   << QString::fromStdString(window.status_text()) << '\n'
+				   << QString::fromStdString(window.github_status_text()) << '\n'
 				   << "PUBLIC_PATH_DIAGNOSTIC:"
-				   << QString::fromStdString(window.diagnostic_text()) << '\n'
+				   << QString::fromStdString(window.github_diagnostic_text()) << '\n'
 				   << "PUBLIC_PATH_ACCOUNT:"
 				   << QString::fromStdString(window.active_account_text()) << '\n'
 				   << "PUBLIC_PATH_EPOCH_STATUS:"
 				   << (aRun.LastEpochStatus.isEmpty()
-						   ? window.epoch_control()->status_text()
+						   ? window.epoch_selectors()->status_text()
 						   : aRun.LastEpochStatus)
 				   << '\n'
 				   << "PUBLIC_PATH_EPOCH_COMPARISON:"
 				   << (aRun.LastEpochComparison.isEmpty()
-						   ? window.epoch_control()->comparison_text()
+						   ? window.epoch_selectors()->comparison_text()
 						   : aRun.LastEpochComparison)
 				   << '\n'
 				   << "PUBLIC_PATH_EPOCH_PAIR:"
 				   << (aRun.LastEpochLeft.isEmpty()
-						   ? window.epoch_control()->left_oid_editor()->text()
+						   ? window.epoch_selectors()->left_oid_editor()->text()
 						   : aRun.LastEpochLeft)
 				   << ':'
 				   << (aRun.LastEpochRight.isEmpty()
-						   ? window.epoch_control()->right_oid_editor()->text()
+						   ? window.epoch_selectors()->right_oid_editor()->text()
 						   : aRun.LastEpochRight)
 				   << ':'
 				   << (aRun.LastEpochLeftRow >= 0
 						   ? aRun.LastEpochLeftRow
-						   : window.epoch_control()->left_selector()->currentIndex())
+						   : window.epoch_selectors()->left_selector()->currentIndex())
 				   << ':'
 				   << (aRun.LastEpochRightRow >= 0
 						   ? aRun.LastEpochRightRow
-						   : window.epoch_control()->right_selector()->currentIndex())
+						   : window.epoch_selectors()->right_selector()->currentIndex())
 				   << ':'
 				   << static_cast<unsigned long long>(
 						  aRun.LastEpochCount != 0U
 							  ? aRun.LastEpochCount
-							  : window.epoch_control()
+							  : window.epoch_selectors()
 									->history_model()
 									->epoch_count())
 				   << ':'
 				   << (aRun.LastEpochHistoryEnabled
-							   || window.epoch_control()
+							   || window.epoch_selectors()
 									  ->load_history_action()
 									  ->isEnabled()
 						   ? 1
@@ -2282,14 +2287,14 @@ namespace {
 		auto& window                 = aApplication.window();
 		aRun.PresentationPassed      = false;
 		aRun.FailedStage             = static_cast<int>(aRun.Stage);
-		aRun.LastEpochStatus         = window.epoch_control()->status_text();
-		aRun.LastEpochComparison     = window.epoch_control()->comparison_text();
-		aRun.LastEpochLeft           = window.epoch_control()->left_oid_editor()->text();
-		aRun.LastEpochRight          = window.epoch_control()->right_oid_editor()->text();
-		aRun.LastEpochLeftRow        = window.epoch_control()->left_selector()->currentIndex();
-		aRun.LastEpochRightRow       = window.epoch_control()->right_selector()->currentIndex();
-		aRun.LastEpochCount          = window.epoch_control()->history_model()->epoch_count();
-		aRun.LastEpochHistoryEnabled = window.epoch_control()->load_history_action()->isEnabled();
+		aRun.LastEpochStatus         = window.epoch_selectors()->status_text();
+		aRun.LastEpochComparison     = window.epoch_selectors()->comparison_text();
+		aRun.LastEpochLeft           = window.epoch_selectors()->left_oid_editor()->text();
+		aRun.LastEpochRight          = window.epoch_selectors()->right_oid_editor()->text();
+		aRun.LastEpochLeftRow        = window.epoch_selectors()->left_selector()->currentIndex();
+		aRun.LastEpochRightRow       = window.epoch_selectors()->right_selector()->currentIndex();
+		aRun.LastEpochCount          = window.epoch_selectors()->history_model()->epoch_count();
+		aRun.LastEpochHistoryEnabled = window.epoch_selectors()->load_history_action()->isEnabled();
 		aRun.LastEpochCoreStatus     = static_cast<int>(aApplication.status().EpochStatus);
 #if defined(BPR_BUILD_TESTING)
 		if (!aRun.Appearance.Enabled)
@@ -2380,7 +2385,7 @@ namespace {
 								refuse_appearance_gesture(aApplication);
 						QApplication::processEvents();
 					}
-					window.connect_action()->trigger();
+					window.github_connect_action()->trigger();
 					advance_fixture_stage(
 						*aRun, automated_run::stage::connect);
 				} else
@@ -2417,15 +2422,15 @@ namespace {
 			case automated_run::stage::connect:
 #if defined(BPR_BUILD_TESTING)
 				if (aRun->Fixture) {
-					if (window.status_text() != "GitHub account connected."
-						|| !window.open_action()->isEnabled()) {
+					if (window.github_status_text() != "GitHub account connected."
+						|| !window.github_open_action()->isEnabled()) {
 						break;
 					}
-					window.owner_editor()->setText(QStringLiteral("octo-org"));
-					window.repository_editor()->setText(
+					window.session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
+					window.session_panel()->repository_editor()->setText(
 						QStringLiteral("review-repository"));
-					window.pull_request_editor()->setValue(17);
-					window.open_action()->trigger();
+					window.session_panel()->pull_request_editor()->setValue(17);
+					window.github_open_action()->trigger();
 					advance_fixture_stage(*aRun, automated_run::stage::open);
 				} else if (cli_fail_closed_presentation_passed(window, *aRun))
 #else
@@ -2499,11 +2504,11 @@ namespace {
 					}
 					if (aRun->EpochPhase
 						== bpr::app::detail::github_epoch_fixture_phase::seed) {
-						window.refresh_action()->trigger();
+						window.github_refresh_action()->trigger();
 						advance_fixture_stage(
 							*aRun, automated_run::stage::epoch_refresh);
 					} else if (persistentPhase) {
-						auto* const control = window.epoch_control();
+						auto* const control = window.epoch_selectors();
 						if (control->history_model()->epoch_count() < 2U) {
 							if (control->return_to_newest_action()->isEnabled()) {
 								control->return_to_newest_action()->trigger();
@@ -2531,7 +2536,7 @@ namespace {
 							}
 							break;
 						}
-						if (window.diff_comparison_workbench()->current_result() == nullptr) {
+						if (window.comparison_surface()->current_result() == nullptr) {
 							break;
 						}
 						const auto waitingForOwnerFocus = QGuiApplication::platformName() == "cocoa"
@@ -2580,7 +2585,7 @@ namespace {
 							}
 							break;
 						}
-						auto* const workbench = window.diff_comparison_workbench();
+						auto* const workbench = window.comparison_surface();
 						if (workbench->current_result() == nullptr) {
 							break;
 						}
@@ -2700,10 +2705,10 @@ namespace {
 				if (fixture_epoch_pair_passed(
 						window, evidence.BaseOid, evidence.HeadTwoOid)
 					&& fixture_epoch_cause_passed(
-						*window.epoch_control()->history_model(),
+						*window.epoch_selectors()->history_model(),
 						2U,
 						bpr::core::epoch_primary_cause::force_push_rebase)) {
-					window.epoch_control()->whole_pr_action()->trigger();
+					window.epoch_selectors()->whole_pr_action()->trigger();
 					advance_fixture_stage(
 						*aRun, automated_run::stage::epoch_whole_pr);
 				}
@@ -2720,10 +2725,10 @@ namespace {
 						evidence.BaseOid,
 						evidence.HeadTwoOid)
 					&& fixture_epoch_cause_passed(
-						*window.epoch_control()->history_model(),
+						*window.epoch_selectors()->history_model(),
 						2U,
 						bpr::core::epoch_primary_cause::force_push_rebase)) {
-					window.epoch_control()->whole_pr_action()->trigger();
+					window.epoch_selectors()->whole_pr_action()->trigger();
 					advance_fixture_stage(
 						*aRun, automated_run::stage::epoch_whole_pr);
 				}
@@ -2733,7 +2738,7 @@ namespace {
 			case automated_run::stage::epoch_whole_pr: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.BaseOid, evidence.HeadTwoOid)
 					&& control->whole_pr_action()->isChecked()) {
@@ -2748,7 +2753,7 @@ namespace {
 			case automated_run::stage::epoch_previous_upload: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.HeadOneOid, evidence.HeadTwoOid)
 					&& control->previous_upload_action()->isChecked()) {
@@ -2763,7 +2768,7 @@ namespace {
 			case automated_run::stage::epoch_last_reviewed: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.HeadOneOid, evidence.HeadTwoOid)
 					&& control->last_reviewed_action()->isChecked()) {
@@ -2790,7 +2795,7 @@ namespace {
 			case automated_run::stage::epoch_arbitrary_left: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.HeadOneOid, evidence.HeadTwoOid)
 					&& control->left_selector()->currentIndex()
@@ -2809,7 +2814,7 @@ namespace {
 			case automated_run::stage::epoch_arbitrary: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.HeadOneOid, evidence.BaseOid)
 					&& control->left_selector()->currentIndex()
@@ -2831,7 +2836,7 @@ namespace {
 			case automated_run::stage::epoch_reverse_left: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.BaseOid, evidence.BaseOid)
 					&& control->left_selector()->currentIndex()
@@ -2849,7 +2854,7 @@ namespace {
 			case automated_run::stage::epoch_reverse: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.BaseOid, evidence.HeadOneOid)
 					&& control->left_selector()->currentIndex()
@@ -2876,7 +2881,7 @@ namespace {
 			case automated_run::stage::epoch_identical_left: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.HeadTwoOid, evidence.HeadOneOid)
 					&& control->left_selector()->currentIndex()
@@ -2892,7 +2897,7 @@ namespace {
 			case automated_run::stage::epoch_identical: {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (fixture_epoch_pair_passed(
 						window, evidence.HeadTwoOid, evidence.HeadTwoOid)
 					&& control->left_selector()->currentIndex()
@@ -2907,7 +2912,7 @@ namespace {
 			}
 
 			case automated_run::stage::epoch_maintenance_history:
-				if (window.epoch_control()->history_model()->epoch_count() >= 2U) {
+				if (window.epoch_selectors()->history_model()->epoch_count() >= 2U) {
 					if (!begin_epoch_maintenance_probe(aApplication, *aRun)) {
 						fail_automated_run(aApplication, *aRun);
 					} else if (aRun->MaintenanceProbe
@@ -2922,7 +2927,7 @@ namespace {
 				break;
 
 			case automated_run::stage::epoch_maintenance_select_right: {
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (control->left_selector()->currentIndex()
 					!= aRun->MaintenanceLeftRow) {
 					// The previous stage set this index and then advanced. An
@@ -2947,7 +2952,7 @@ namespace {
 			}
 
 			case automated_run::stage::epoch_maintenance_prune: {
-				auto* const control = window.epoch_control();
+				auto* const control = window.epoch_selectors();
 				if (control->left_selector()->currentIndex()
 						== aRun->MaintenanceLeftRow
 					&& control->right_selector()->currentIndex()
@@ -2964,7 +2969,7 @@ namespace {
 			}
 
 			case automated_run::stage::epoch_maintenance_prune_result: {
-				auto* const control  = window.epoch_control();
+				auto* const control  = window.epoch_selectors();
 				const auto  provider = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
 				const auto maintenance = bpr::app::detail::
@@ -2994,13 +2999,13 @@ namespace {
 			}
 
 			case automated_run::stage::epoch_maintenance_delete_result: {
-				auto* const control  = window.epoch_control();
+				auto* const control  = window.epoch_selectors();
 				const auto  provider = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
 				const auto maintenance = bpr::app::detail::
 					github_application_fixture_access::maintenance_evidence(
 						aApplication, aRun->MaintenanceTarget);
-				auto* const workbench = window.diff_comparison_workbench();
+				auto* const workbench = window.comparison_surface();
 				if (fixture_all_epoch_availability_is(*control->history_model(),
 													  bpr::core::anchor_availability::cache_deleted)
 					&& maintenance.PruneIntentDispatchCount == 0U
@@ -3053,7 +3058,7 @@ namespace {
 						== Qt::ColorScheme::Dark
 					&& ++aRun->Appearance.SettleAttempts >= 50U) {
 					const auto* const appearanceWorkbench
-						= window.diff_comparison_workbench();
+						= window.comparison_surface();
 					aRun->Appearance.ObservedDiffPalette
 						= appearanceWorkbench->palette();
 					aRun->Appearance.ObservedDiffFont
