@@ -39,7 +39,38 @@ Two specific reasons to expect surprises rather than none:
    `syntax_warning` / `syntax_error` since it was written. Whether that reads as
    a problem on screen is unknown.
 
-## Required direct evidence
+## Captured, 2026-08-08 — and they render correctly
+
+`--diff-evidence-appearance` now accepts `high-contrast-light`,
+`high-contrast-dark` and `high-contrast-system`, so all six modes can be
+captured. First frames of both profiles are at
+`docs/verification/reviews/high-contrast-scheme-acceptance-v001/`.
+
+Nothing was changed to produce them. These are the profiles as they ship.
+
+The two expectations this card recorded both resolved in the product's favour:
+
+- **The inverted change-group pair renders correctly.** The boundary rule
+  resolves to the header *background* in these profiles — solid black on light,
+  solid white on dark — where light and dark resolve it to the header text
+  colour. That branch had never been executed against a real surface. It picks
+  the right one.
+- **Selection strength is not the weakness it was in dark.** Distance from the
+  pane measures 16.6 in high-contrast light and 12.5 in high-contrast dark,
+  against 12.5 in the accepted light profile and 14.2 in the accepted dark one.
+  Both are at or above what was approved.
+
+So the honest outcome is that looking found no defect this time. That does not
+retire the argument — the dark scrollbar was invisible to the sweep and visible
+in the first frame, and the only way to know which case a profile is in is to
+look. It does mean the two profiles enter attended review from a stronger
+position than dark did.
+
+**Still owed:** a verdict. Batch
+`bpr:/attended-review/betterpullreview/3099091a38a163ff670dec72`. A capture
+nobody has judged is the same gap one step later, which this card already says.
+
+## Superseded — required direct evidence
 
 - A rendered frame of each profile, captured with
   `--diff-evidence-appearance`, carrying its own `appearance-at-capture.json`

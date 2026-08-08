@@ -1,0 +1,202 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/3099091a38a163ff670dec72",
+  "downstream_claims": {
+    "all_four_palettes_audited": false,
+    "high_contrast_schemes_reviewed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "Commit 190984e, offscreen, QFusionStyle, device pixel ratio 1.0. Each capture carries the palette it was taken under in appearance-at-capture.json. These two profiles have shipped since they were written and no rendered frame of either has ever been looked at — they passed the contrast sweep, which is exactly how a white scrollbar survived in the dark profile for as long as dark had no captures. Nothing about them was changed to produce this batch; these are the profiles as they stand.",
+  "review_gate": "high_contrast_scheme_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Added and removed are distinguishable from the pane and from each other",
+        "The selected group is obvious, and the tint under it is still readable",
+        "The change-group rule reads as a divider",
+        "Syntax colouring is readable against every band"
+      ],
+      "audit_verdict": {
+        "note": "Every pair meets the 7.00:1 high-contrast text minimum. Selection distance 16.6 from the pane, above both accepted profiles.",
+        "status": "pass"
+      },
+      "description": "The first rendered frame of this profile. Nothing was changed to make it — this is what ships. The selection is yellow, so a selected removed line reads orange and a selected added line reads yellow-green. The change-group rule is solid black here rather than the grey used in light and dark, because this profile inverts the pair the rule picks from.",
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "items": [
+            "Selection distance from the pane: high-contrast light 16.6, high-contrast dark 12.5. Accepted light is 12.5 and accepted dark 14.2, so both of these are at or above what you approved.",
+            "Text is held to 7.00:1 in these profiles against 4.50 in the other two, and every pair passes.",
+            "The change-group rule resolves to the header background here rather than the header text, because these profiles invert that pair. That branch had never been rendered before these frames."
+          ],
+          "kind": "list"
+        }
+      ],
+      "display_name": "High contrast light: never before seen",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/001-high-contrast-light/identity/01-capture-manifest.json",
+          "sha256": "sha256:2830063aae7fe475b82f0df3b28264255f3691d206bdcfdde2153067a11515e1"
+        }
+      ],
+      "known_concerns": [
+        "Selecting a line shifts its colour a long way — pink to orange, green to yellow-green — rather than tinting it. Judge whether the change kind is still legible under the selection.",
+        "syntax_warning and syntax_error have owed a non-colour signal in this profile since it was written; no such signal exists yet.",
+        "diff_intraline_added_background was lightened slightly during earlier work to clear a contrast failure the old model hid. That is the only value here that has moved."
+      ],
+      "media_groups": [
+        {
+          "group_id": "frames",
+          "items": [
+            {
+              "label": "Change group selected, 2x",
+              "media_kind": "image",
+              "path": "subjects/001-high-contrast-light/frames/01-change-group-selected-2x.png",
+              "sha256": "sha256:8e5da42ff1008585523ae236b51bdd4ed1180e0df43d5d917ecd7a105a0b9693"
+            },
+            {
+              "label": "Replacement, 2x",
+              "media_kind": "image",
+              "path": "subjects/001-high-contrast-light/frames/02-replacement-2x.png",
+              "sha256": "sha256:ed26a7ea091d0b7c7921a05293c262c81f795467b1c9f2ff25645164431ca5ab"
+            },
+            {
+              "label": "Change groups and scrollbars, 2x",
+              "media_kind": "image",
+              "path": "subjects/001-high-contrast-light/frames/03-change-groups-and-scrollbars-2x.png",
+              "sha256": "sha256:7b1a0e90fad7f7ed7c9e89f5ffec6fde6ccd63d47eea445ceb47e7e39bd852b3"
+            },
+            {
+              "label": "Whole window",
+              "media_kind": "image",
+              "path": "subjects/001-high-contrast-light/frames/04-whole-window.png",
+              "sha256": "sha256:b61cfa593bc9c24496f5fe9fca9d1a9fc42c9d7b18c62390bf19d9adf215b90a"
+            }
+          ],
+          "layout": "grid",
+          "note": "Same fixture, crops and geometry as the accepted light and dark batches, so all four can be compared on one axis.",
+          "required": true,
+          "title": "High contrast light"
+        },
+        {
+          "group_id": "sibling",
+          "items": [
+            {
+              "label": "Selected group, 2x",
+              "media_kind": "image",
+              "path": "subjects/001-high-contrast-light/sibling/01-selected-group-2x.png",
+              "sha256": "sha256:eb8b1a4b4ca511be7887d995cbd69a6715aa722a782014ecf39037615e9d243a"
+            }
+          ],
+          "layout": "grid",
+          "note": "For comparison.",
+          "required": false,
+          "title": "The other high-contrast profile"
+        }
+      ],
+      "subject_digest": "sha256:0fa4f5c53eea07194058a7a212216d9fbf1215b4723737ece61102e1108a4c8d",
+      "subject_id": "criterion:/betterpullreview/bpr-0209/high-contrast-light",
+      "subject_key": "high-contrast-light"
+    },
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Added and removed are distinguishable from the pane and from each other",
+        "The selected group is obvious, and the tint under it is still readable",
+        "The change-group rule reads as a divider",
+        "Syntax colouring is readable against every band"
+      ],
+      "audit_verdict": {
+        "note": "Every pair meets the 7.00:1 minimum. Selection distance 12.5 from the pane, equal to the accepted light profile.",
+        "status": "pass"
+      },
+      "description": "The first rendered frame of this profile. Pure black pane, white text, and a deep navy selection. The change-group rule is solid white. Same caveat: nothing was changed to produce this.",
+      "detail_sections": [
+        {
+          "heading": "Measured",
+          "items": [
+            "Selection distance from the pane: high-contrast light 16.6, high-contrast dark 12.5. Accepted light is 12.5 and accepted dark 14.2, so both of these are at or above what you approved.",
+            "Text is held to 7.00:1 in these profiles against 4.50 in the other two, and every pair passes.",
+            "The change-group rule resolves to the header background here rather than the header text, because these profiles invert that pair. That branch had never been rendered before these frames."
+          ],
+          "kind": "list"
+        }
+      ],
+      "display_name": "High contrast dark: never before seen",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/002-high-contrast-dark/identity/01-capture-manifest.json",
+          "sha256": "sha256:2830063aae7fe475b82f0df3b28264255f3691d206bdcfdde2153067a11515e1"
+        }
+      ],
+      "known_concerns": [
+        "The selection is very dark navy over already-dark bands, so a selected removed line reads maroon and a selected added line reads deep green. It measures well, but measurement is what this card says not to trust on its own.",
+        "The pane is pure black, unlike the near-black used in the ordinary dark profile.",
+        "No value in this profile has been touched by any of the recent palette work."
+      ],
+      "media_groups": [
+        {
+          "group_id": "frames",
+          "items": [
+            {
+              "label": "Change group selected, 2x",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark/frames/01-change-group-selected-2x.png",
+              "sha256": "sha256:eb8b1a4b4ca511be7887d995cbd69a6715aa722a782014ecf39037615e9d243a"
+            },
+            {
+              "label": "Replacement, 2x",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark/frames/02-replacement-2x.png",
+              "sha256": "sha256:2ceef5741e6a0e2ecc995b1d9b6bf98010e5c4faf402c76a470f77f7beb9a230"
+            },
+            {
+              "label": "Change groups and scrollbars, 2x",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark/frames/03-change-groups-and-scrollbars-2x.png",
+              "sha256": "sha256:0cde841e694f13803d66715d6dd4d6092145638b5f724754bd84420dbc490235"
+            },
+            {
+              "label": "Whole window",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark/frames/04-whole-window.png",
+              "sha256": "sha256:c5f70820994e0800a0b3c0405131517865691d72f0a5ba5c99232ee0c923a30f"
+            }
+          ],
+          "layout": "grid",
+          "note": "Same fixture, crops and geometry as the accepted light and dark batches, so all four can be compared on one axis.",
+          "required": true,
+          "title": "High contrast dark"
+        },
+        {
+          "group_id": "sibling",
+          "items": [
+            {
+              "label": "Selected group, 2x",
+              "media_kind": "image",
+              "path": "subjects/002-high-contrast-dark/sibling/01-selected-group-2x.png",
+              "sha256": "sha256:8e5da42ff1008585523ae236b51bdd4ed1180e0df43d5d917ecd7a105a0b9693"
+            }
+          ],
+          "layout": "grid",
+          "note": "For comparison.",
+          "required": false,
+          "title": "The other high-contrast profile"
+        }
+      ],
+      "subject_digest": "sha256:a08903a73e5985c28f9ed1209502dfa1fc43e80bb524a712647cce1957d8461c",
+      "subject_id": "criterion:/betterpullreview/bpr-0209/high-contrast-dark",
+      "subject_key": "high-contrast-dark"
+    }
+  ],
+  "title": "The two high-contrast profiles, seen for the first time"
+}

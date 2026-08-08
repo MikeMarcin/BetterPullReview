@@ -1,0 +1,51 @@
+{
+ "appearance_at_capture": {
+  "high-contrast-dark": {
+   "base": "#000000",
+   "highlight": "#002d6c"
+  },
+  "high-contrast-light": {
+   "base": "#ffffff",
+   "highlight": "#ffe877"
+  }
+ },
+ "commit": "190984e",
+ "crops": {
+  "*-groups.png": "box (18,612,1230,880) scale 2 from 11-deletion-early.png",
+  "*-groupsel.png": "box (18,612,1230,800) scale 2 from 16-ribbon-selection.png",
+  "*-replace.png": "box (18,612,1230,790) scale 2 from 14-replacement-late.png"
+ },
+ "device_pixel_ratio": 1.0,
+ "digests": {
+  "high-contrast-dark-groups.png": "0cde841e694f13803d66715d6dd4d6092145638b5f724754bd84420dbc490235",
+  "high-contrast-dark-groupsel.png": "eb8b1a4b4ca511be7887d995cbd69a6715aa722a782014ecf39037615e9d243a",
+  "high-contrast-dark-replace.png": "2ceef5741e6a0e2ecc995b1d9b6bf98010e5c4faf402c76a470f77f7beb9a230",
+  "high-contrast-dark-window.png": "c5f70820994e0800a0b3c0405131517865691d72f0a5ba5c99232ee0c923a30f",
+  "high-contrast-light-groups.png": "7b1a0e90fad7f7ed7c9e89f5ffec6fde6ccd63d47eea445ceb47e7e39bd852b3",
+  "high-contrast-light-groupsel.png": "8e5da42ff1008585523ae236b51bdd4ed1180e0df43d5d917ecd7a105a0b9693",
+  "high-contrast-light-replace.png": "ed26a7ea091d0b7c7921a05293c262c81f795467b1c9f2ff25645164431ca5ab",
+  "high-contrast-light-window.png": "b61cfa593bc9c24496f5fe9fca9d1a9fc42c9d7b18c62390bf19d9adf215b90a"
+ },
+ "measured_selection_dE": {
+  "dark": {
+   "pane": 14.2
+  },
+  "hc_dark": {
+   "added": 17.5,
+   "pane": 12.5,
+   "removed": 22.3
+  },
+  "hc_light": {
+   "added": 12.4,
+   "pane": 16.6,
+   "removed": 15.9
+  },
+  "light": {
+   "pane": 12.5
+  }
+ },
+ "preset": "dev",
+ "producing_command": "better_pull_review --github-fixture github-com --diff-workbench-probe --diff-evidence-appearance {high-contrast-light|high-contrast-dark} --diff-interaction-evidence <dir>",
+ "qpa_platform": "offscreen",
+ "qt_style": "QFusionStyle"
+}

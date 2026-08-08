@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The two high-contrast profiles, seen for the first time</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #101419;
+  --panel: #192027;
+  --panel-strong: #202a33;
+  --text: #edf3f7;
+  --muted: #a8b5bf;
+  --line: #3a4853;
+  --accent: #75b9d5;
+  --accept: #57c48c;
+  --reject: #ed7777;
+  --pending: #e6b85d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+a { color: #9fdcf3; }
+header, main { width: min(1480px, calc(100% - 2rem)); margin-inline: auto; }
+header { padding: 2rem 0 1rem; }
+h1, h2, h3, p { margin-top: 0; }
+.lede, .muted { color: var(--muted); }
+.scope-warning {
+  border-left: 4px solid var(--pending);
+  background: #282418;
+  padding: 1rem;
+}
+.reference-disclaimer {
+  border-left: 4px solid var(--accent);
+  background: #16222a;
+  padding: 1rem;
+  margin-top: .75rem;
+}
+.review-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  background: #081016;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 .25rem .75rem #0008;
+}
+.review-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+}
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .9rem;
+  font-weight: 700;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+  margin-left: auto;
+}
+#review-status {
+  min-height: 1.3em;
+  margin: .4rem 0 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+button, textarea { font: inherit; }
+button {
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .55rem .8rem;
+  background: #28343e;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  color: #c2cdd4;
+  background: #2f3b43;
+  border-color: #61717a;
+}
+.subject {
+  scroll-margin-top: 8rem;
+  margin: 0 0 1.25rem;
+  padding: 1.1rem;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: .7rem;
+}
+.subject[data-review-state="accept"] { border-color: var(--accept); }
+.subject[data-review-state="reject"] { border-color: var(--reject); }
+.subject[data-review-state="pending"] { border-color: var(--pending); }
+.subject-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+.identity { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; word-break: break-all; }
+.audit-banner {
+  padding: .55rem .8rem;
+  border-radius: .4rem;
+  font-weight: 700;
+}
+.audit-banner[data-audit="pass"] { background: #12281c; color: var(--accept); border: 1px solid var(--accept); }
+.audit-banner[data-audit="fail"] { background: #2b1414; color: var(--reject); border: 1px solid var(--reject); }
+.media-groups { display: grid; gap: 1rem; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .75rem; }
+.media-grid.compare { grid-template-columns: 1fr 1fr; }
+figure { margin: 0; padding: .6rem; background: var(--panel-strong); border-radius: .4rem; }
+figure img, figure video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  background-color: #6d7479;
+  background-image:
+    linear-gradient(45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(-45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #8a9297 75%),
+    linear-gradient(-45deg, transparent 75%, #8a9297 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+figure audio { display: block; width: 100%; margin: .5rem 0; }
+figcaption { padding-top: .45rem; color: var(--muted); }
+.criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.detail-sections { display: grid; gap: 1rem; margin-top: 1rem; }
+.detail-sections dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+.detail-sections dt { color: var(--muted); }
+.detail-sections dd { margin: 0; }
+.detail-sections pre {
+  margin: 0;
+  padding: .65rem;
+  overflow-x: auto;
+  background: #11171c;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem;
+}
+.identity-files { margin-top: 1rem; }
+.decision-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+button[data-decision="accept"][aria-pressed="true"] { color: #07150f; background: var(--accept); }
+button[data-decision="reject"][aria-pressed="true"] { color: #1b0808; background: var(--reject); }
+.audit-note { margin: -.5rem 0 1rem; }
+.notes { display: grid; gap: .35rem; }
+textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); background: #11171c; border: 1px solid var(--line); border-radius: .35rem; }
+.export-panel { margin: 1rem 0 3rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; }
+#verdict-output { min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+@media (max-width: 850px) {
+  .criteria, .media-grid.compare { grid-template-columns: 1fr; }
+  .review-actions { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  .review-summary, .review-actions { width: 100%; }
+}
+
+/* Full-resolution inspection. A quiet affordance on the thumbnail,
+   and an overlay that shows the image at its native size so a one-pixel
+   connector can actually be judged. */
+.media-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  position: relative;
+}
+.media-zoom img { display: block; width: 100%; }
+.media-zoom-hint {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 0.2rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.media-zoom:hover .media-zoom-hint,
+.media-zoom:focus-visible .media-zoom-hint { opacity: 1; }
+.media-zoom:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.media-viewer[hidden] { display: none; }
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+}
+.media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.media-viewer-close {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.media-viewer-surface { flex: 1; overflow: auto; }
+/* Native size, not fitted: fitting it would reproduce the defect this fixes. */
+.media-viewer-surface img { display: block; image-rendering: pixelated; }
+
+</style>
+</head>
+<body>
+  <header>
+    <h1>The two high-contrast profiles, seen for the first time</h1>
+    <p class="lede">Project: betterpullreview · Gate: high_contrast_scheme_acceptance · Scope: human_ui_criterion_isolation_only · Batch: bpr:/attended-review/betterpullreview/3099091a38a163ff670dec72</p>
+    <p class="scope-warning"><strong>Scope:</strong> This page records attended human decisions for this exact batch and gate only. It stores choices in this browser and cannot write repository evidence. Acceptance asserts nothing beyond this gate; these claims remain false: all_four_palettes_audited, high_contrast_schemes_reviewed, release_gate_satisfied, rfc_closeout_claimed. Export the complete verdict and return it to the requesting agent session for validation.</p>
+    <p class="reference-disclaimer"><strong>Reference:</strong> Commit 190984e, offscreen, QFusionStyle, device pixel ratio 1.0. Each capture carries the palette it was taken under in appearance-at-capture.json. These two profiles have shipped since they were written and no rendered frame of either has ever been looked at — they passed the contrast sweep, which is exactly how a white scrollbar survived in the dark profile for as long as dark had no captures. Nothing about them was changed to produce this batch; these are the profiles as they stand.</p>
+  </header>
+  <main>
+    <section class="review-controls" aria-label="Review progress and export">
+      <div class="review-controls-row">
+        <div class="review-summary">
+          <span id="review-progress">0/2 reviewed</span>
+          <span id="review-totals">0 accepted · 0 rejected · 2 pending</span>
+        </div>
+        <div class="review-actions">
+          <label><input id="pending-only" type="checkbox"> Show pending only</label>
+          <button id="export-verdict" type="button" disabled>Copy the complete verdict</button>
+        </div>
+      </div>
+      <p id="review-status" role="status" aria-live="polite" aria-atomic="true">Resolve every exact subject to unlock the final verdict.</p>
+    </section>
+    <article class="subject" data-subject-id="criterion:/betterpullreview/bpr-0209/high-contrast-light" data-subject-digest="sha256:0fa4f5c53eea07194058a7a212216d9fbf1215b4723737ece61102e1108a4c8d" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>High contrast light: never before seen</h2>
+      <p>The first rendered frame of this profile. Nothing was changed to make it — this is what ships. The selection is yellow, so a selected removed line reads orange and a selected added line reads yellow-green. The change-group rule is solid black here rather than the grey used in light and dark, because this profile inverts the pair the rule picks from.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/bpr-0209/high-contrast-light<br>sha256:0fa4f5c53eea07194058a7a212216d9fbf1215b4723737ece61102e1108a4c8d</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Every pair meets the 7.00:1 high-contrast text minimum. Selection distance 16.6 from the pane, above both accepted profiles.</p>
+  <div class="media-groups">
+    <section><h3>High contrast light</h3><p class="muted">Same fixture, crops and geometry as the accepted light and dark batches, so all four can be compared on one axis.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-high-contrast-light/frames/01-change-group-selected-2x.png" data-full-label="Change group selected, 2x" aria-label="View Change group selected, 2x at full resolution"><img loading="lazy" src="subjects/001-high-contrast-light/frames/01-change-group-selected-2x.png" alt="Change group selected, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Change group selected, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-high-contrast-light/frames/02-replacement-2x.png" data-full-label="Replacement, 2x" aria-label="View Replacement, 2x at full resolution"><img loading="lazy" src="subjects/001-high-contrast-light/frames/02-replacement-2x.png" alt="Replacement, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Replacement, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-high-contrast-light/frames/03-change-groups-and-scrollbars-2x.png" data-full-label="Change groups and scrollbars, 2x" aria-label="View Change groups and scrollbars, 2x at full resolution"><img loading="lazy" src="subjects/001-high-contrast-light/frames/03-change-groups-and-scrollbars-2x.png" alt="Change groups and scrollbars, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Change groups and scrollbars, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-high-contrast-light/frames/04-whole-window.png" data-full-label="Whole window" aria-label="View Whole window at full resolution"><img loading="lazy" src="subjects/001-high-contrast-light/frames/04-whole-window.png" alt="Whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Whole window</figcaption></figure></div></section>
+<section><h3>The other high-contrast profile</h3><p class="muted">For comparison.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-high-contrast-light/sibling/01-selected-group-2x.png" data-full-label="Selected group, 2x" aria-label="View Selected group, 2x at full resolution"><img loading="lazy" src="subjects/001-high-contrast-light/sibling/01-selected-group-2x.png" alt="Selected group, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Selected group, 2x</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>Added and removed are distinguishable from the pane and from each other</li><li>The selected group is obvious, and the tint under it is still readable</li><li>The change-group rule reads as a divider</li><li>Syntax colouring is readable against every band</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>Selecting a line shifts its colour a long way — pink to orange, green to yellow-green — rather than tinting it. Judge whether the change kind is still legible under the selection.</li><li>syntax_warning and syntax_error have owed a non-colour signal in this profile since it was written; no such signal exists yet.</li><li>diff_intraline_added_background was lightened slightly during earlier work to clear a contrast failure the old model hid. That is the only value here that has moved.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Measured</h3><ul><li>Selection distance from the pane: high-contrast light 16.6, high-contrast dark 12.5. Accepted light is 12.5 and accepted dark 14.2, so both of these are at or above what you approved.</li><li>Text is held to 7.00:1 in these profiles against 4.50 in the other two, and every pair passes.</li><li>The change-group rule resolves to the header background here rather than the header text, because these profiles invert that pair. That branch had never been rendered before these frames.</li></ul></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/001-high-contrast-light/identity/01-capture-manifest.json">Capture manifest</a> <span class="identity">sha256:2830063aae7fe475b82f0df3b28264255f3691d206bdcfdde2153067a11515e1</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for High contrast light: never before seen">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+<article class="subject" data-subject-id="criterion:/betterpullreview/bpr-0209/high-contrast-dark" data-subject-digest="sha256:a08903a73e5985c28f9ed1209502dfa1fc43e80bb524a712647cce1957d8461c" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>High contrast dark: never before seen</h2>
+      <p>The first rendered frame of this profile. Pure black pane, white text, and a deep navy selection. The change-group rule is solid white. Same caveat: nothing was changed to produce this.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/bpr-0209/high-contrast-dark<br>sha256:a08903a73e5985c28f9ed1209502dfa1fc43e80bb524a712647cce1957d8461c</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — Every pair meets the 7.00:1 minimum. Selection distance 12.5 from the pane, equal to the accepted light profile.</p>
+  <div class="media-groups">
+    <section><h3>High contrast dark</h3><p class="muted">Same fixture, crops and geometry as the accepted light and dark batches, so all four can be compared on one axis.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/002-high-contrast-dark/frames/01-change-group-selected-2x.png" data-full-label="Change group selected, 2x" aria-label="View Change group selected, 2x at full resolution"><img loading="lazy" src="subjects/002-high-contrast-dark/frames/01-change-group-selected-2x.png" alt="Change group selected, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Change group selected, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-high-contrast-dark/frames/02-replacement-2x.png" data-full-label="Replacement, 2x" aria-label="View Replacement, 2x at full resolution"><img loading="lazy" src="subjects/002-high-contrast-dark/frames/02-replacement-2x.png" alt="Replacement, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Replacement, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-high-contrast-dark/frames/03-change-groups-and-scrollbars-2x.png" data-full-label="Change groups and scrollbars, 2x" aria-label="View Change groups and scrollbars, 2x at full resolution"><img loading="lazy" src="subjects/002-high-contrast-dark/frames/03-change-groups-and-scrollbars-2x.png" alt="Change groups and scrollbars, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Change groups and scrollbars, 2x</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/002-high-contrast-dark/frames/04-whole-window.png" data-full-label="Whole window" aria-label="View Whole window at full resolution"><img loading="lazy" src="subjects/002-high-contrast-dark/frames/04-whole-window.png" alt="Whole window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Whole window</figcaption></figure></div></section>
+<section><h3>The other high-contrast profile</h3><p class="muted">For comparison.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/002-high-contrast-dark/sibling/01-selected-group-2x.png" data-full-label="Selected group, 2x" aria-label="View Selected group, 2x at full resolution"><img loading="lazy" src="subjects/002-high-contrast-dark/sibling/01-selected-group-2x.png" alt="Selected group, 2x"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Selected group, 2x</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>Added and removed are distinguishable from the pane and from each other</li><li>The selected group is obvious, and the tint under it is still readable</li><li>The change-group rule reads as a divider</li><li>Syntax colouring is readable against every band</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>The selection is very dark navy over already-dark bands, so a selected removed line reads maroon and a selected added line reads deep green. It measures well, but measurement is what this card says not to trust on its own.</li><li>The pane is pure black, unlike the near-black used in the ordinary dark profile.</li><li>No value in this profile has been touched by any of the recent palette work.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Measured</h3><ul><li>Selection distance from the pane: high-contrast light 16.6, high-contrast dark 12.5. Accepted light is 12.5 and accepted dark 14.2, so both of these are at or above what you approved.</li><li>Text is held to 7.00:1 in these profiles against 4.50 in the other two, and every pair passes.</li><li>The change-group rule resolves to the header background here rather than the header text, because these profiles invert that pair. That branch had never been rendered before these frames.</li></ul></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/002-high-contrast-dark/identity/01-capture-manifest.json">Capture manifest</a> <span class="identity">sha256:2830063aae7fe475b82f0df3b28264255f3691d206bdcfdde2153067a11515e1</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for High contrast dark: never before seen">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+    <section class="export-panel">
+      <h2>Final result</h2>
+      <p>The pinned copy button unlocks after every exact subject has Accept or Reject selected. Its result stays visible in the top review bar, and the complete JSON remains below as a manual-copy fallback.</p>
+      <textarea id="verdict-output" readonly aria-label="Exported verdict JSON"></textarea>
+    </section>
+  </main>
+  <script id="attended-review-config" type="application/json">{"batch_id":"bpr:/attended-review/betterpullreview/3099091a38a163ff670dec72","downstream_claims":{"all_four_palettes_audited":false,"high_contrast_schemes_reviewed":false,"release_gate_satisfied":false,"rfc_closeout_claimed":false},"project_id":"betterpullreview","reference_disclaimer":"Commit 190984e, offscreen, QFusionStyle, device pixel ratio 1.0. Each capture carries the palette it was taken under in appearance-at-capture.json. These two profiles have shipped since they were written and no rendered frame of either has ever been looked at — they passed the contrast sweep, which is exactly how a white scrollbar survived in the dark profile for as long as dark had no captures. Nothing about them was changed to produce this batch; these are the profiles as they stand.","review_gate":"high_contrast_scheme_acceptance","review_scope":"human_ui_criterion_isolation_only","schema_name":"bpr.attended_review_batch","schema_version":1,"subjects":[{"ab_group":"","acceptance_criteria":["Added and removed are distinguishable from the pane and from each other","The selected group is obvious, and the tint under it is still readable","The change-group rule reads as a divider","Syntax colouring is readable against every band"],"audit_verdict":{"note":"Every pair meets the 7.00:1 high-contrast text minimum. Selection distance 16.6 from the pane, above both accepted profiles.","status":"pass"},"description":"The first rendered frame of this profile. Nothing was changed to make it — this is what ships. The selection is yellow, so a selected removed line reads orange and a selected added line reads yellow-green. The change-group rule is solid black here rather than the grey used in light and dark, because this profile inverts the pair the rule picks from.","detail_sections":[{"heading":"Measured","items":["Selection distance from the pane: high-contrast light 16.6, high-contrast dark 12.5. Accepted light is 12.5 and accepted dark 14.2, so both of these are at or above what you approved.","Text is held to 7.00:1 in these profiles against 4.50 in the other two, and every pair passes.","The change-group rule resolves to the header background here rather than the header text, because these profiles invert that pair. That branch had never been rendered before these frames."],"kind":"list"}],"display_name":"High contrast light: never before seen","identity_files":[{"label":"Capture manifest","media_kind":"file","path":"subjects/001-high-contrast-light/identity/01-capture-manifest.json","sha256":"sha256:2830063aae7fe475b82f0df3b28264255f3691d206bdcfdde2153067a11515e1"}],"known_concerns":["Selecting a line shifts its colour a long way — pink to orange, green to yellow-green — rather than tinting it. Judge whether the change kind is still legible under the selection.","syntax_warning and syntax_error have owed a non-colour signal in this profile since it was written; no such signal exists yet.","diff_intraline_added_background was lightened slightly during earlier work to clear a contrast failure the old model hid. That is the only value here that has moved."],"media_groups":[{"group_id":"frames","items":[{"label":"Change group selected, 2x","media_kind":"image","path":"subjects/001-high-contrast-light/frames/01-change-group-selected-2x.png","sha256":"sha256:8e5da42ff1008585523ae236b51bdd4ed1180e0df43d5d917ecd7a105a0b9693"},{"label":"Replacement, 2x","media_kind":"image","path":"subjects/001-high-contrast-light/frames/02-replacement-2x.png","sha256":"sha256:ed26a7ea091d0b7c7921a05293c262c81f795467b1c9f2ff25645164431ca5ab"},{"label":"Change groups and scrollbars, 2x","media_kind":"image","path":"subjects/001-high-contrast-light/frames/03-change-groups-and-scrollbars-2x.png","sha256":"sha256:7b1a0e90fad7f7ed7c9e89f5ffec6fde6ccd63d47eea445ceb47e7e39bd852b3"},{"label":"Whole window","media_kind":"image","path":"subjects/001-high-contrast-light/frames/04-whole-window.png","sha256":"sha256:b61cfa593bc9c24496f5fe9fca9d1a9fc42c9d7b18c62390bf19d9adf215b90a"}],"layout":"grid","note":"Same fixture, crops and geometry as the accepted light and dark batches, so all four can be compared on one axis.","required":true,"title":"High contrast light"},{"group_id":"sibling","items":[{"label":"Selected group, 2x","media_kind":"image","path":"subjects/001-high-contrast-light/sibling/01-selected-group-2x.png","sha256":"sha256:eb8b1a4b4ca511be7887d995cbd69a6715aa722a782014ecf39037615e9d243a"}],"layout":"grid","note":"For comparison.","required":false,"title":"The other high-contrast profile"}],"subject_digest":"sha256:0fa4f5c53eea07194058a7a212216d9fbf1215b4723737ece61102e1108a4c8d","subject_id":"criterion:/betterpullreview/bpr-0209/high-contrast-light","subject_key":"high-contrast-light"},{"ab_group":"","acceptance_criteria":["Added and removed are distinguishable from the pane and from each other","The selected group is obvious, and the tint under it is still readable","The change-group rule reads as a divider","Syntax colouring is readable against every band"],"audit_verdict":{"note":"Every pair meets the 7.00:1 minimum. Selection distance 12.5 from the pane, equal to the accepted light profile.","status":"pass"},"description":"The first rendered frame of this profile. Pure black pane, white text, and a deep navy selection. The change-group rule is solid white. Same caveat: nothing was changed to produce this.","detail_sections":[{"heading":"Measured","items":["Selection distance from the pane: high-contrast light 16.6, high-contrast dark 12.5. Accepted light is 12.5 and accepted dark 14.2, so both of these are at or above what you approved.","Text is held to 7.00:1 in these profiles against 4.50 in the other two, and every pair passes.","The change-group rule resolves to the header background here rather than the header text, because these profiles invert that pair. That branch had never been rendered before these frames."],"kind":"list"}],"display_name":"High contrast dark: never before seen","identity_files":[{"label":"Capture manifest","media_kind":"file","path":"subjects/002-high-contrast-dark/identity/01-capture-manifest.json","sha256":"sha256:2830063aae7fe475b82f0df3b28264255f3691d206bdcfdde2153067a11515e1"}],"known_concerns":["The selection is very dark navy over already-dark bands, so a selected removed line reads maroon and a selected added line reads deep green. It measures well, but measurement is what this card says not to trust on its own.","The pane is pure black, unlike the near-black used in the ordinary dark profile.","No value in this profile has been touched by any of the recent palette work."],"media_groups":[{"group_id":"frames","items":[{"label":"Change group selected, 2x","media_kind":"image","path":"subjects/002-high-contrast-dark/frames/01-change-group-selected-2x.png","sha256":"sha256:eb8b1a4b4ca511be7887d995cbd69a6715aa722a782014ecf39037615e9d243a"},{"label":"Replacement, 2x","media_kind":"image","path":"subjects/002-high-contrast-dark/frames/02-replacement-2x.png","sha256":"sha256:2ceef5741e6a0e2ecc995b1d9b6bf98010e5c4faf402c76a470f77f7beb9a230"},{"label":"Change groups and scrollbars, 2x","media_kind":"image","path":"subjects/002-high-contrast-dark/frames/03-change-groups-and-scrollbars-2x.png","sha256":"sha256:0cde841e694f13803d66715d6dd4d6092145638b5f724754bd84420dbc490235"},{"label":"Whole window","media_kind":"image","path":"subjects/002-high-contrast-dark/frames/04-whole-window.png","sha256":"sha256:c5f70820994e0800a0b3c0405131517865691d72f0a5ba5c99232ee0c923a30f"}],"layout":"grid","note":"Same fixture, crops and geometry as the accepted light and dark batches, so all four can be compared on one axis.","required":true,"title":"High contrast dark"},{"group_id":"sibling","items":[{"label":"Selected group, 2x","media_kind":"image","path":"subjects/002-high-contrast-dark/sibling/01-selected-group-2x.png","sha256":"sha256:8e5da42ff1008585523ae236b51bdd4ed1180e0df43d5d917ecd7a105a0b9693"}],"layout":"grid","note":"For comparison.","required":false,"title":"The other high-contrast profile"}],"subject_digest":"sha256:a08903a73e5985c28f9ed1209502dfa1fc43e80bb524a712647cce1957d8461c","subject_id":"criterion:/betterpullreview/bpr-0209/high-contrast-dark","subject_key":"high-contrast-dark"}],"title":"The two high-contrast profiles, seen for the first time"}</script>
+  <script>
+(function (root) {
+  "use strict";
+
+  const STORAGE_PREFIX = "bpr.attended-review.v1";
+  const VERDICT_SCHEMA = "bpr.attended_review_verdict";
+
+  function identityKey(subject) {
+    return `${subject.subject_id}@${subject.subject_digest}`;
+  }
+
+  function storageKey(batchId, subject) {
+    return `${STORAGE_PREFIX}:${batchId}:${subject.subject_id}:${subject.subject_digest}`;
+  }
+
+  function createMemoryStorage() {
+    const values = new Map();
+    return {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      },
+    };
+  }
+
+  function availableStorage() {
+    try {
+      if (!root.localStorage) {
+        return createMemoryStorage();
+      }
+      const probe = `${STORAGE_PREFIX}:probe`;
+      root.localStorage.setItem(probe, "1");
+      root.localStorage.removeItem(probe);
+      return root.localStorage;
+    } catch (_error) {
+      return createMemoryStorage();
+    }
+  }
+
+  function normalizeSaved(value) {
+    if (!value || typeof value !== "object") {
+      return { decision: null, notes: "" };
+    }
+    const decision = value.decision === "accept" || value.decision === "reject"
+      ? value.decision
+      : null;
+    return {
+      decision,
+      notes: typeof value.notes === "string" ? value.notes : "",
+    };
+  }
+
+  function auditFailed(subject) {
+    return Boolean(subject.audit_verdict && subject.audit_verdict.status === "fail");
+  }
+
+  class ReviewController {
+    constructor(config, storage) {
+      if (!config || !Array.isArray(config.subjects)) {
+        throw new Error("review config must contain subjects");
+      }
+      if (!config.downstream_claims || typeof config.downstream_claims !== "object") {
+        throw new Error("review config must declare downstream_claims");
+      }
+      this.config = config;
+      this.storage = storage || availableStorage();
+      this.states = new Map();
+      for (const subject of config.subjects) {
+        const raw = this.storage.getItem(storageKey(config.batch_id, subject));
+        let parsed = null;
+        if (raw !== null) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (_error) {
+            parsed = null;
+          }
+        }
+        const state = normalizeSaved(parsed);
+        if (state.decision === "accept" && auditFailed(subject)) {
+          state.decision = null;
+        }
+        this.states.set(identityKey(subject), state);
+      }
+    }
+
+    subject(subjectId, subjectDigest) {
+      const found = this.config.subjects.find(
+        (item) => item.subject_id === subjectId && item.subject_digest === subjectDigest
+      );
+      if (!found) {
+        throw new Error(`unknown subject identity: ${subjectId}@${subjectDigest}`);
+      }
+      return found;
+    }
+
+    state(subject) {
+      return this.states.get(identityKey(subject));
+    }
+
+    save(subject) {
+      this.storage.setItem(
+        storageKey(this.config.batch_id, subject),
+        JSON.stringify(this.state(subject))
+      );
+    }
+
+    setDecision(subjectId, subjectDigest, decision) {
+      if (decision !== "accept" && decision !== "reject" && decision !== null) {
+        throw new Error(`invalid decision: ${decision}`);
+      }
+      const subject = this.subject(subjectId, subjectDigest);
+      if (decision === "accept" && auditFailed(subject)) {
+        throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      this.state(subject).decision = decision;
+      this.save(subject);
+      return this.summary();
+    }
+
+    setNotes(subjectId, subjectDigest, notes) {
+      const subject = this.subject(subjectId, subjectDigest);
+      this.state(subject).notes = String(notes || "");
+      this.save(subject);
+      return this.summary();
+    }
+
+    summary() {
+      let accepted = 0;
+      let rejected = 0;
+      for (const state of this.states.values()) {
+        if (state.decision === "accept") accepted += 1;
+        if (state.decision === "reject") rejected += 1;
+      }
+      const total = this.config.subjects.length;
+      return {
+        accepted,
+        rejected,
+        resolved: accepted + rejected,
+        pending: total - accepted - rejected,
+        total,
+      };
+    }
+
+    buildVerdict() {
+      const summary = this.summary();
+      if (summary.pending !== 0) {
+        throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
+      }
+      const accepted = [];
+      const rejected = [];
+      const notes = {};
+      for (const subject of this.config.subjects) {
+        const state = this.state(subject);
+        const identity = {
+          subject_id: subject.subject_id,
+          subject_digest: subject.subject_digest,
+        };
+        (state.decision === "accept" ? accepted : rejected).push(identity);
+        if (state.notes.trim()) {
+          notes[identityKey(subject)] = state.notes;
+        }
+      }
+      return {
+        schema_name: VERDICT_SCHEMA,
+        schema_version: 1,
+        batch_id: this.config.batch_id,
+        review_gate: this.config.review_gate,
+        review_scope: this.config.review_scope,
+        accepted_subjects: accepted,
+        rejected_subjects: rejected,
+        notes_by_subject_identity: notes,
+        downstream_claims: { ...this.config.downstream_claims },
+      };
+    }
+  }
+
+  async function copyText(text, environment) {
+    const env = environment || root;
+    if (env.navigator && env.navigator.clipboard && env.navigator.clipboard.writeText) {
+      try {
+        await env.navigator.clipboard.writeText(text);
+        return "clipboard";
+      } catch (_error) {
+        // Local file origins frequently expose Clipboard API but deny writes.
+        // Continue to the legacy selection-based copy path in that case.
+      }
+    }
+    const document = env.document;
+    if (!document || !document.execCommand) {
+      throw new Error("clipboard copy is unavailable; copy the displayed JSON manually");
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error("clipboard copy failed; copy the displayed JSON manually");
+    }
+    return "execCommand";
+  }
+
+  function initializePage(document) {
+    const configNode = document.getElementById("attended-review-config");
+    if (!configNode) return null;
+    const config = JSON.parse(configNode.textContent);
+    const controller = new ReviewController(config);
+    const cards = Array.from(document.querySelectorAll("[data-subject-id]"));
+    const progress = document.getElementById("review-progress");
+    const totals = document.getElementById("review-totals");
+    const pendingOnly = document.getElementById("pending-only");
+    const exportButton = document.getElementById("export-verdict");
+    const exportOutput = document.getElementById("verdict-output");
+    const reviewStatus = document.getElementById("review-status");
+
+    function cardSubject(card) {
+      return controller.subject(card.dataset.subjectId, card.dataset.subjectDigest);
+    }
+
+    function render() {
+      const summary = controller.summary();
+      progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
+      totals.textContent = `${summary.accepted} accepted · ${summary.rejected} rejected · ${summary.pending} pending`;
+      exportButton.disabled = summary.pending !== 0;
+      if (summary.pending !== 0) {
+        exportButton.textContent = "Copy the complete verdict";
+      }
+      for (const card of cards) {
+        const subject = cardSubject(card);
+        const state = controller.state(subject);
+        card.dataset.reviewState = state.decision || "pending";
+        card.hidden = Boolean(pendingOnly.checked && state.decision);
+        for (const button of card.querySelectorAll("[data-decision]")) {
+          button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+    }
+
+    for (const card of cards) {
+      const subject = cardSubject(card);
+      const state = controller.state(subject);
+      const notes = card.querySelector("[data-review-notes]");
+      notes.value = state.notes;
+      for (const button of card.querySelectorAll("[data-decision]")) {
+        button.addEventListener("click", () => {
+          const decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          try {
+            controller.setDecision(subject.subject_id, subject.subject_digest, decision);
+          } catch (error) {
+            reviewStatus.textContent = error.message;
+            return;
+          }
+          exportOutput.value = "";
+          reviewStatus.textContent = "Decision saved in this browser.";
+          exportButton.textContent = "Copy the complete verdict";
+          render();
+        });
+      }
+      notes.addEventListener("input", () => {
+        controller.setNotes(subject.subject_id, subject.subject_digest, notes.value);
+        exportOutput.value = "";
+        reviewStatus.textContent = "Notes saved in this browser.";
+        exportButton.textContent = "Copy the complete verdict";
+      });
+    }
+
+    pendingOnly.addEventListener("change", render);
+    exportButton.addEventListener("click", async () => {
+      try {
+        const text = `${JSON.stringify(controller.buildVerdict(), null, 2)}\n`;
+        exportOutput.value = text;
+        const method = await copyText(text);
+        exportButton.textContent = "Copied — return it to the agent";
+        reviewStatus.textContent = method === "clipboard"
+          ? "Complete verdict copied. Paste it back to the requesting agent session."
+          : "Complete verdict copied with the local fallback. Paste it back to the requesting agent session.";
+      } catch (error) {
+        exportButton.textContent = "Copy the complete verdict";
+        exportOutput.focus();
+        exportOutput.select();
+        reviewStatus.textContent = `${error.message}. The complete JSON below is selected for manual copy.`;
+      }
+    });
+    render();
+    return controller;
+  }
+
+  const api = {
+    ReviewController,
+    copyText,
+    createMemoryStorage,
+    identityKey,
+    initializePage,
+    storageKey,
+  };
+  root.BprAttendedReview = api;
+  if (root.document) {
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", () => initializePage(root.document));
+    } else {
+      initializePage(root.document);
+    }
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// Full-resolution inspection. Opening and closing the viewer must not
+// touch decision state or the export lock, so this only reads the DOM.
+(function attachFullResolutionViewer() {
+  // The runtime is loaded browserless by the skill's own tests, so it must not
+  // touch the DOM at import time.
+  if (typeof document === 'undefined' || !document.body) { return; }
+  var viewer = document.createElement('div');
+  viewer.className = 'media-viewer';
+  viewer.hidden = true;
+  viewer.setAttribute('role', 'dialog');
+  viewer.setAttribute('aria-modal', 'true');
+  viewer.innerHTML =
+    '<div class="media-viewer-bar">' +
+    '<span class="media-viewer-label"></span>' +
+    '<button type="button" class="media-viewer-close">Close</button>' +
+    '</div><div class="media-viewer-surface"><img alt=""></div>';
+  document.body.appendChild(viewer);
+
+  var image = viewer.querySelector('.media-viewer-surface img');
+  var label = viewer.querySelector('.media-viewer-label');
+  var closeButton = viewer.querySelector('.media-viewer-close');
+  var lastTrigger = null;
+
+  function close() {
+    viewer.hidden = true;
+    image.removeAttribute('src');
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  }
+
+  function open(trigger) {
+    lastTrigger = trigger;
+    image.src = trigger.getAttribute('data-full-source');
+    image.alt = trigger.getAttribute('data-full-label') || '';
+    label.textContent = trigger.getAttribute('data-full-label') || '';
+    viewer.hidden = false;
+    closeButton.focus();
+  }
+
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
+    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (event.target === viewer || event.target === closeButton) { close(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && !viewer.hidden) { close(); }
+  });
+})();
+
+</script>
+</body>
+</html>

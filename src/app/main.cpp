@@ -3296,6 +3296,15 @@ auto main(int argc, char** argv) -> int
 			if (*diffEvidenceAppearanceName == "system") {
 				return bpr::core::appearance_mode::system;
 			}
+			if (*diffEvidenceAppearanceName == "high-contrast-light") {
+				return bpr::core::appearance_mode::high_contrast_light;
+			}
+			if (*diffEvidenceAppearanceName == "high-contrast-dark") {
+				return bpr::core::appearance_mode::high_contrast_dark;
+			}
+			if (*diffEvidenceAppearanceName == "high-contrast-system") {
+				return bpr::core::appearance_mode::high_contrast_system;
+			}
 			return std::nullopt;
 		}();
 		if (!diffEvidenceAppearance.has_value()) {
