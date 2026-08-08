@@ -285,6 +285,21 @@ bpr_bound_automated_run(
 )
 
 add_test(
+    NAME application_attended_launch_contract
+    COMMAND
+        Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/attended_launch_contract.py"
+        $<TARGET_FILE:app_better_pull_review>
+)
+set_tests_properties(
+    application_attended_launch_contract
+    PROPERTIES
+        TIMEOUT 180
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "ATTENDED_LAUNCH_OK"
+)
+
+add_test(
     NAME application_diff_workbench_shutdown_public_path
     COMMAND
         $<TARGET_FILE:app_better_pull_review>

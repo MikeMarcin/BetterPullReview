@@ -3270,6 +3270,7 @@ auto main(int argc, char** argv) -> int
 		const auto automatedStallProbe = has_argument(
 			argc, argv, "--automated-stall-probe");
 		const auto nativeAppearanceProbe      = has_argument(argc, argv, "--native-appearance-probe");
+		const auto attendedLaunch             = has_argument(argc, argv, "--attended-launch");
 		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
 		const auto diffWorkbenchShutdownProbe = has_argument(
 			argc, argv, "--diff-workbench-shutdown-probe");
@@ -3345,6 +3346,21 @@ auto main(int argc, char** argv) -> int
 				<< "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
+		// An attended launch and an automated run are contradictory
+		// instructions about who is driving, so the pair is refused here rather
+		// than letting one quietly win. It also requires a fixture: without one
+		// the composition takes the real credentialed path, which is not a
+		// thing to hold open for inspection.
+		if (attendedLaunch
+			&& (selfTest || renderPath.has_value() || fixtureName.empty()
+				|| diffWorkbenchProbe || diffWorkbenchShutdownProbe
+				|| appearanceGestureProbe || automatedStallProbe
+				|| epochMaintenanceProbe || nativeAppearanceProbe
+				|| diffEvidenceDirectory.has_value())) {
+			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+
 		if (
 			(diffWorkbenchProbe && diffWorkbenchShutdownProbe)
 			|| ((diffWorkbenchProbe || diffWorkbenchShutdownProbe)
@@ -3397,11 +3413,25 @@ auto main(int argc, char** argv) -> int
 		verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
 		verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
 #endif
-		if (selfTest || renderPath.has_value()
+		// The person is the run. Everything else about the composition is
+		// unchanged - same fixture-backed application, same window - so what
+		// is inspected is what the automated courses drive.
+		//
+		// Guarded, not merely false, in a tests-disabled build: the flag does
+		// not exist there and neither does the fixture it requires, so the
+		// seam leaves no trace for the Release composition contract to find.
 #if defined(BPR_BUILD_TESTING)
-			|| !fixtureName.empty()
+		const auto heldOpenForInspection = attendedLaunch;
+#else
+		constexpr auto heldOpenForInspection = false;
 #endif
-		) {
+		const auto scheduleAutomatedRun = !heldOpenForInspection
+			&& (selfTest || renderPath.has_value()
+#if defined(BPR_BUILD_TESTING)
+				|| !fixtureName.empty()
+#endif
+			);
+		if (scheduleAutomatedRun) {
 			schedule_automated_run(
 				*application,
 				std::make_shared<automated_run>(

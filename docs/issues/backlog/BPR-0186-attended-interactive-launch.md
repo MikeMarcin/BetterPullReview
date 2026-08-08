@@ -35,6 +35,46 @@ automated run are contradictory instructions about who is driving; refuse the
 pair at argument parsing the way the existing probe combinations are refused,
 rather than letting one quietly win.
 
+## Landed, 2026-08-08
+
+`--attended-launch` composes the fixture-backed application, shows the window,
+and schedules nothing. Everything else about the composition is unchanged —
+same fixture, same window — so what a person inspects is what the automated
+courses drive.
+
+It refuses to share the wheel. Combined with a self-test, a render capture, any
+of the four probes, a diff-evidence directory, or run with no fixture at all, it
+prints `ATTENDED_LAUNCH_CONFIGURATION_FAILED` and exits without composing
+anything. The fixture requirement is part of that: without one the composition
+takes the real credentialed path, which is not a thing to hold open.
+
+The seam is guarded rather than merely disabled in a tests-disabled build — the
+flag does not exist there and neither does the fixture it requires.
+`application_composition_contract`, which builds a fresh `BUILD_TESTING=OFF`
+Release tree and scans it, still passes.
+
+`application_attended_launch_contract` asserts both halves: the process is still
+running past a budget an automated run would have exited at, and each illegal
+combination is refused with no capture produced. Shown non-vacuous by scheduling
+the run anyway, and separately by removing the refusal.
+
+**A defect in the first draft of that test is worth recording.** With the
+refusal removed, a fixture-less attended launch takes the credentialed path and
+waits for a person, so the process never exits — and the test raised a
+`TimeoutExpired` traceback after two minutes instead of reporting a failure. A
+timeout *is* the result there, not an accident, and it now reports as one.
+
+## Still blocked for its original purpose
+
+This card exists so [[BPR-0100]] can be run. It cannot be yet: the window a
+person would inspect is still `github_window`, and the shell RFC-BPR-0005
+specified is `workbench_window`. [[BPR-0191]] is what changes which window the
+application shows, and until it lands an attended inspection would be judging
+the wrong surface.
+
+What has changed is that the *mechanism* is no longer missing. When BPR-0191
+lands there is a window to hold open.
+
 ## Required direct evidence
 
 - The window is composed, shown, and still open after the automated budget
