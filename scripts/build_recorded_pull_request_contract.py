@@ -59,20 +59,33 @@ def main() -> int:
         "owner": {"login": owner},
         "private": False,
     })
+    # `repo` on both sides and `node_id` on every actor. The provider reads
+    # these, and a payload missing them is refused as `malformed_response` —
+    # which is what a shape comparison over top-level keys alone will not tell
+    # you, because the difference is one level down.
+    repo_reference = {"full_name": slug, "id": 2}
     write(root / "responses/pull_request.json", {
-        "base": {"ref": pull["base"]["ref"], "sha": pull["base"]["sha"]},
+        "base": {
+            "ref": pull["base"]["ref"],
+            "repo": repo_reference,
+            "sha": pull["base"]["sha"],
+        },
         "body": pull["body"],
         "changed_files": pull["changed_files"],
         "commits": pull["commits"],
         "draft": False,
-        "head": {"ref": pull["head"]["ref"], "sha": pull["head"]["sha"]},
+        "head": {
+            "ref": pull["head"]["ref"],
+            "repo": repo_reference,
+            "sha": pull["head"]["sha"],
+        },
         "id": 3,
         "merged": False,
         "node_id": f"PR_{number}",
         "number": number,
         "state": pull["state"],
         "title": pull["title"],
-        "user": {"login": login},
+        "user": {"login": login, "node_id": f"U_{login}"},
     })
     # Metadata only. The content a reviewer sees is diffed from git objects, not
     # from this, which is the whole reason `objects.pack` exists beside it.
@@ -87,7 +100,7 @@ def main() -> int:
     ])
     write(root / "responses/commits.json", [
         {
-            "author": {"login": login},
+            "author": {"login": login, "node_id": f"U_{login}"},
             "commit": {"message": commit["message"]},
             "node_id": f"C_{commit['sha'][:8]}",
             "sha": commit["sha"],

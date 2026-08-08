@@ -244,6 +244,47 @@ The wiring was reverted rather than left half-applied, so the tree is green. The
 generator is kept because it is correct and reusable, and because writing it
 again is the least interesting part of the remaining work.
 
+### Step 3 is not mechanical. That was said twice and was wrong twice.
+
+Two further measurements, both from running it rather than reading it.
+
+**The payload shapes needed fixing one level down, and a shallow check hid it.**
+Comparing top-level keys said the generated responses matched `github-com`. A
+comparison of the *nested* shapes found `pull_request.json` missing `base.repo`
+and `head.repo` (`full_name`, `id`) and `user.node_id`, and `commits.json`
+missing `author.node_id`. The generator now writes them. This is worth stating
+because the shallow comparison had already been reported as evidence that the
+shapes matched, and it was not.
+
+**The fixture is written around one synthetic pull request identity.**
+
+```cpp
+aContext.Authority.PullRequest != core::pull_request_id{ 3001U }
+|| aContext.Authority.Number   != core::pull_request_number{ 17U }
+    .Owner = "octo-org",
+    .Name  = "review-repository",
+```
+
+`github_public_path_fixture.cpp` hardcodes the owner, the repository name, the
+pull request number and its identifier. A second fixture serving
+`google/UIforETW#74` cannot satisfy those, and the run still fails at connect
+with `malformed_response` after the payload shapes were corrected.
+
+So the real step 3 is **parameterising the fixture over the pull request it
+serves**, not adding a directory beside the existing one. That is a change to
+`github_public_path_fixture.cpp`'s safe-target and authority handling, and it
+touches the checks that keep a fixture from being pointed at something it should
+not be — which is exactly the code that must not be loosened casually.
+
+**And a design question nobody has answered yet.** `objects.pack` contains
+commits `8b70ee17…` and `e40058be…`, built from the blobs. The recorded pull
+request names GitHub's real commits `7c519e97…` and `9b01c587…`. Those cannot be
+reproduced without the original trees, parents and author records, which the
+recording does not carry. So either the served metadata uses the generated SHAs —
+and the fixture stops matching the pull request it is named after — or the
+recording grows enough to rebuild GitHub's exact objects. That decision comes
+before any of the wiring is worth finishing.
+
 ### Why the estimate was wrong before
 
 This card was previously read as "record a public pull request", and recording
