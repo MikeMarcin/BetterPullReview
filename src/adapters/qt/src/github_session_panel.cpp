@@ -81,6 +81,11 @@ namespace bpr::qt {
 		ConnectionDetailsButton->setText(QStringLiteral("Details"));
 		ConnectionDetailsButton->setAccessibleName(
 			QStringLiteral("Show GitHub connection details"));
+		// The shell asserts a description on every declared focus stop; the
+		// window this panel came from never checked, so this one was empty on
+		// screen the whole time.
+		ConnectionDetailsButton->setAccessibleDescription(QStringLiteral(
+			"Reveal the connected host, account, capabilities and rate limits"));
 		ConnectionDetailsButton->setCheckable(true);
 		ConnectionDetailsButton->setArrowType(Qt::RightArrow);
 		ConnectionDetailsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -147,6 +152,8 @@ namespace bpr::qt {
 		OwnerEditor = new QLineEdit{ locatorGroup };
 		OwnerEditor->setObjectName(QStringLiteral("repositoryOwnerEditor"));
 		OwnerEditor->setAccessibleName(QStringLiteral("Repository owner"));
+		OwnerEditor->setAccessibleDescription(
+			QStringLiteral("The account or organisation that owns the repository"));
 		OwnerEditor->setMaxLength(
 			static_cast<int>(core::maximum_repository_owner_length));
 		auto* const ownerLabel = new QLabel{ QStringLiteral("&Owner:"), locatorGroup };
@@ -155,6 +162,8 @@ namespace bpr::qt {
 		RepositoryEditor = new QLineEdit{ locatorGroup };
 		RepositoryEditor->setObjectName(QStringLiteral("repositoryNameEditor"));
 		RepositoryEditor->setAccessibleName(QStringLiteral("Repository name"));
+		RepositoryEditor->setAccessibleDescription(
+			QStringLiteral("The repository holding the pull request to review"));
 		RepositoryEditor->setMaxLength(
 			static_cast<int>(core::maximum_repository_name_length));
 		auto* const repositoryLabel = new QLabel{ QStringLiteral("&Repository:"), locatorGroup };
@@ -163,6 +172,8 @@ namespace bpr::qt {
 		PullRequestEditor = new QSpinBox{ locatorGroup };
 		PullRequestEditor->setObjectName(QStringLiteral("pullRequestNumberEditor"));
 		PullRequestEditor->setAccessibleName(QStringLiteral("Pull request number"));
+		PullRequestEditor->setAccessibleDescription(
+			QStringLiteral("The number of the pull request to open"));
 		PullRequestEditor->setRange(
 			1, static_cast<int>(core::maximum_pull_request_number));
 		auto* const numberLabel = new QLabel{ QStringLiteral("&PR:"), locatorGroup };

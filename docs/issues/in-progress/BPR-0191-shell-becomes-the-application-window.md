@@ -258,17 +258,54 @@ metadata region on screen with no source of data.
 
 So the remainder is one coherent chunk, not three:
 
-1. `workbench_window` implements `application::github_projection_port`, gaining
-   the intent dispatch, the three actions, and the profile list, and composes
-   `github_session_panel` and `github_pull_request_panel` into a header above
-   the central splitter. The panel builds the description editor but does not lay
-   it out — `github_window` reparents it into a splitter — so the shell must
-   place `body_editor()` explicitly rather than rely on Qt's reparent-removal
-   behaviour.
+1. ~~`workbench_window` implements `application::github_projection_port` and
+   composes both panels.~~ Done, below.
 2. The application constructs the shell instead of `github_window`, and
-   `github_window` is deleted.
+   `github_window` is deleted. **Measured: this is larger than it reads.**
+   `main.cpp` names `github_window` in twelve places — the appearance probes,
+   the render-evidence path, the public-path markers — and reaches for
+   `conversation_view()`, `epoch_control()`, `diff_comparison_workbench()`,
+   `appearance_settings()` and `status_text()` on it. Each has an equivalent on
+   the shell, but they are not the same names, so this is a rewrite of the
+   evidence harness rather than a one-line substitution. Do it as its own slice
+   with room to re-run the render evidence afterwards.
 3. Virtualization re-measured at 60/6,000/60,000 lines on the composed window,
    restating 68/68/68 if the merged bounded widget count differs.
+
+### Built, 2026-08-08: the shell is the projection port
+
+`workbench_window` implements `application::github_projection_port` and composes
+the session chrome and the pull-request metadata into a bounded, scrolled review
+header above the workbench. The publish path is delegation — session, metadata,
+conversation each own their region — which is what extracting the three panels
+bought: it is about 90 lines, not the 400 the two-window arrangement carried.
+
+**The anchor gap this card recorded is closed.** In the two-window arrangement
+the conversation anchor could only follow a conversation projection, because
+nothing observed a comparison-context change. The shell composes both surfaces,
+so it sets the anchor from the file the reviewer is actually reading, exactly as
+predicted.
+
+Three defects the merge surfaced, none of them cosmetic:
+
+- **`githubConnectionDetailsButton`, `repositoryOwnerEditor`,
+  `repositoryNameEditor` and `pullRequestNumberEditor` had no accessible
+  description at all.** They have been shipping that way. `github_window` never
+  asserted descriptions; the shell asserts one on every declared focus stop, and
+  the moment the session chrome moved under that rule it failed. This is the
+  merge doing the job BPR-0097 set it — a stricter window inheriting a laxer
+  window's widgets is how the gap became visible.
+- **The review header cannot be free to grow.** With an unbounded header the
+  comparison at 820 high became too short to hold a correspondence, and the
+  composed-ribbon assertion caught it. The header is capped at 220 and scrolls
+  internally: a long description must never take the height the comparison
+  needs, because the comparison is the review.
+- **RFC-BPR-0005's composed-ribbon geometry was measured on a header-less
+  shell.** Any header at all — 96 pixels was enough — moves the fixture's last
+  page past its final correspondence. The assertion is unchanged and the window
+  it runs on is now the composed one, re-measured at 820+220 and 700+220, in the
+  same spirit as the 68/68/68 figure this card already flags. It is not relaxed:
+  it still demands that scrolling to the bottom paints correspondences.
 
 The uniqueness evidence this card calls for needs no new test: the shell's
 existing assertions already walk `findChildren<QWidget*>()` for duplicate

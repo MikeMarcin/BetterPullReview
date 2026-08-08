@@ -1,5 +1,7 @@
 #include "bpr/qt/workbench_window.hpp"
 
+#include "github_presentation_text.hpp"
+
 #include "bpr/qt/menu_tool_button.hpp"
 
 #include "bpr/qt/diff_workbench.hpp"
@@ -15,7 +17,9 @@
 #include <QListView>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QScrollArea>
 #include <QSizePolicy>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QStyle>
@@ -150,14 +154,18 @@ namespace bpr::qt {
 	}
 
 	workbench_window::workbench_window(
-		workbench_intent_dispatch       aDispatch,
-		workbench_change_dispatch       aChangeDispatch,
-		workbench_drawer_width_dispatch aWidthDispatch,
-		QWidget* const                  aParent)
+		workbench_intent_dispatch                       aDispatch,
+		workbench_change_dispatch                       aChangeDispatch,
+		workbench_drawer_width_dispatch                 aWidthDispatch,
+		std::vector<application::github_profile_option> aProfiles,
+		application::github_intent_dispatch             aGithubDispatch,
+		QWidget* const                                  aParent)
 		: QMainWindow{ aParent }
 		, Dispatch{ std::move(aDispatch) }
 		, ChangeDispatch{ std::move(aChangeDispatch) }
 		, WidthDispatch{ std::move(aWidthDispatch) }
+		, GithubProfiles{ std::move(aProfiles) }
+		, GithubDispatch{ std::move(aGithubDispatch) }
 	{
 		setObjectName(QStringLiteral("workbenchWindow"));
 		setWindowTitle(QStringLiteral("BetterPullReview"));
@@ -170,6 +178,7 @@ namespace bpr::qt {
 		build_primary_toolbar();
 		build_drawer_toolbar();
 		build_central_surface();
+		build_github_header();
 
 		StatusLabel = new QLabel{ this };
 		StatusLabel->setObjectName(QStringLiteral("workbenchStatus"));
@@ -435,7 +444,106 @@ namespace bpr::qt {
 					observe_drawer_width(aDrawer, aWidth);
 				});
 		}
-		setCentralWidget(CentralSplitter);
+	}
+
+	void workbench_window::build_github_header()
+	{
+		// RFC-BPR-0002's session chrome and pull-request metadata sit above the
+		// workbench rather than in a window of their own. BPR-0188 decided this
+		// window is the review surface; a second window owning the same
+		// comparison is the defect that decision closes.
+		GithubConnectAction = new QAction{ QStringLiteral("Connect"), this };
+		GithubConnectAction->setObjectName(QStringLiteral("githubConnectAction"));
+		GithubOpenAction = new QAction{ QStringLiteral("Open"), this };
+		GithubOpenAction->setObjectName(QStringLiteral("githubOpenAction"));
+		GithubRefreshAction = new QAction{ QStringLiteral("Refresh"), this };
+		GithubRefreshAction->setObjectName(QStringLiteral("githubRefreshAction"));
+		ShowReviewThreadsAction = new QAction{
+			QStringLiteral("Review threads"), this
+		};
+		ShowReviewThreadsAction->setObjectName(
+			QStringLiteral("githubShowReviewThreadsAction"));
+
+		SessionPanel = new github_session_panel{
+			GithubProfiles,
+			GithubDispatch,
+			GithubConnectAction,
+			GithubOpenAction,
+			GithubRefreshAction,
+			github_session_environment{
+				.HasPullRequest = [this] { return HasGithubPullRequest; },
+				.PresentationChanged = [] { },
+			},
+			nullptr,
+		};
+		PullRequestPanel = new github_pull_request_panel{ };
+
+		auto* const header = new QWidget;
+		header->setObjectName(QStringLiteral("workbenchReviewHeader"));
+		header->setAccessibleName(QStringLiteral("Pull request"));
+		auto* const column = new QVBoxLayout{ header };
+		column->setContentsMargins(0, 0, 0, 0);
+		column->addWidget(SessionPanel);
+		column->addWidget(PullRequestPanel);
+		// The panel builds the description but deliberately does not lay it out:
+		// where a description belongs is a decision for whoever assembles the
+		// window, and this one puts it under the metadata it describes. Bounded
+		// rather than stretching, because a long description must not be able to
+		// take the height the comparison needs -- the comparison is the review.
+		PullRequestPanel->body_editor()->setMaximumHeight(120);
+		column->addWidget(PullRequestPanel->body_editor());
+		column->addStretch(0);
+
+		// Scrolled and bounded rather than free to grow. The comparison is what a
+		// review is looking at, and a long description or a wide locator must not
+		// be able to take the height it needs -- at 820 high with the header
+		// unbounded the comparison became too short to hold a correspondence at
+		// all, which the composed link map assertion caught.
+		HeaderScroll = new QScrollArea{ this };
+		HeaderScroll->setObjectName(QStringLiteral("workbenchReviewHeaderScroll"));
+		HeaderScroll->setWidgetResizable(true);
+		HeaderScroll->setFrameShape(QFrame::NoFrame);
+		HeaderScroll->setMaximumHeight(220);
+		HeaderScroll->setFocusPolicy(Qt::NoFocus);
+		HeaderScroll->setWidget(header);
+
+		auto* const host = new QWidget{ this };
+		host->setObjectName(QStringLiteral("workbenchReviewHost"));
+		auto* const stack = new QVBoxLayout{ host };
+		stack->setContentsMargins(0, 0, 0, 0);
+		stack->addWidget(HeaderScroll);
+		stack->addWidget(CentralSplitter, 1);
+		setCentralWidget(host);
+
+		ConversationPanel->set_reveal_action(ShowReviewThreadsAction);
+		SessionPanel->apply_capabilities({ });
+		SessionPanel->apply_rate_limits({ });
+		clear_github_pull_request();
+		SessionPanel->update_selected_profile();
+		SessionPanel->update_connect_enabled();
+		// Seeded, exactly as the window it replaces seeded them. A command's
+		// enablement and its disabled reason arrive from projections, and until
+		// one does every one of these stops would carry an empty accessible
+		// description -- which the shell's own "every interactive element is
+		// named and described" assertion catches.
+		SessionPanel->apply_command({
+			.Id             = core::github_command_id::open_pull_request,
+			.Enabled        = false,
+			.DisabledReason = core::github_reason_code::session_required,
+		});
+		SessionPanel->apply_command({
+			.Id             = core::github_command_id::refresh_pull_request,
+			.Enabled        = false,
+			.DisabledReason = core::github_reason_code::no_active_pull_request,
+		});
+		detail::apply_action_state(
+			ShowReviewThreadsAction,
+			ConversationPanel->reveal_button(),
+			false,
+			core::github_reason_code::no_active_pull_request,
+			QStringLiteral("Focus the review-thread conversations"));
+		PullRequestPanel->refresh_native_appearance();
+		apply_focus_order();
 	}
 
 	void workbench_window::publish(
@@ -589,6 +697,139 @@ namespace bpr::qt {
 		return Drawers[1].Panel;
 	}
 
+	void workbench_window::publish(
+		const application::github_presentation_update& aUpdate)
+	{
+		if (aUpdate.Transition.has_value()) {
+			apply_github_transition(*aUpdate.Transition);
+		}
+		if (aUpdate.Session.has_value()) {
+			SessionPanel->apply_session(*aUpdate.Session);
+		}
+		if (aUpdate.PullRequest.has_value()) {
+			apply_github_pull_request(*aUpdate.PullRequest);
+		}
+		for (const auto& diagnostic : aUpdate.HostDiagnostics) {
+			apply_github_host_diagnostic(diagnostic);
+		}
+	}
+
+	void workbench_window::apply_github_transition(
+		const application::github_transition_projection& aTransition)
+	{
+		for (const auto& command : aTransition.Commands) {
+			if (!SessionPanel->apply_command(command)) {
+				apply_github_content_command(command);
+			}
+		}
+		if (aTransition.Identity.has_value()) {
+			SessionPanel->apply_identity(*aTransition.Identity);
+		}
+		if (aTransition.Capabilities.has_value()) {
+			SessionPanel->apply_capabilities(
+				aTransition.Capabilities->Capabilities);
+		}
+		if (aTransition.PullRequest.has_value()
+			&& !aTransition.PullRequest->Summary.has_value()) {
+			clear_github_pull_request();
+		}
+		if (aTransition.Status.has_value()) {
+			SessionPanel->apply_status(aTransition.Status->Status);
+		}
+		for (const auto& diagnostic : aTransition.Diagnostics) {
+			SessionPanel->apply_diagnostic(diagnostic.Code);
+		}
+	}
+
+	void workbench_window::apply_github_pull_request(
+		const application::github_pull_request_projection& aPullRequest)
+	{
+		PullRequestPanel->adopt(aPullRequest);
+		// The gap BPR-0191 recorded closes here. In the two-window arrangement
+		// the anchor could only follow a conversation projection, because nothing
+		// observed a comparison context change. The shell composes both surfaces,
+		// so it sets the anchor from the file the reviewer is actually reading.
+		ConversationPanel->set_anchor_file(
+			ComparisonSurface != nullptr
+					&& ComparisonSurface->current_context().has_value()
+				? std::optional<core::file_identity>{
+					  ComparisonSurface->current_context()->Key.File }
+				: std::nullopt);
+		ConversationPanel->adopt(
+			aPullRequest.Conversations,
+			detail::review_thread_availability_text(
+				aPullRequest.ReviewThreadsAvailable,
+				aPullRequest.ReviewThreadCount,
+				aPullRequest.Capabilities.ReviewThreads));
+		HasGithubPullRequest = true;
+		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
+		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
+	}
+
+	void workbench_window::apply_github_content_command(
+		const core::github_command_projection& aCommand)
+	{
+		if (aCommand.Id != core::github_command_id::show_review_threads) {
+			return;
+		}
+		detail::apply_action_state(
+			ShowReviewThreadsAction,
+			ConversationPanel->reveal_button(),
+			aCommand.Enabled,
+			aCommand.DisabledReason,
+			QStringLiteral("Focus the review-thread conversations"));
+	}
+
+	void workbench_window::apply_github_host_diagnostic(
+		const application::github_host_diagnostic_projection& aDiagnostic)
+	{
+		SessionPanel->apply_rate_limits(aDiagnostic.RateLimits);
+		SessionPanel->apply_diagnostic(
+			aDiagnostic.Reason,
+			aDiagnostic.RetryAfterSeconds,
+			aDiagnostic.RateLimitCause,
+			true);
+	}
+
+	void workbench_window::clear_github_pull_request()
+	{
+		HasGithubPullRequest = false;
+		PullRequestPanel->clear();
+		ConversationPanel->clear(QStringLiteral(
+			"Review threads are unavailable until a pull request is open."));
+	}
+
+	auto workbench_window::session_panel() const noexcept -> github_session_panel*
+	{
+		return SessionPanel;
+	}
+
+	auto workbench_window::pull_request_panel() const noexcept
+		-> github_pull_request_panel*
+	{
+		return PullRequestPanel;
+	}
+
+	auto workbench_window::github_connect_action() const noexcept -> QAction*
+	{
+		return GithubConnectAction;
+	}
+
+	auto workbench_window::github_open_action() const noexcept -> QAction*
+	{
+		return GithubOpenAction;
+	}
+
+	auto workbench_window::github_refresh_action() const noexcept -> QAction*
+	{
+		return GithubRefreshAction;
+	}
+
+	auto workbench_window::show_review_threads_action() const noexcept -> QAction*
+	{
+		return ShowReviewThreadsAction;
+	}
+
 	auto workbench_window::conversation_panel() const noexcept
 		-> github_conversation_panel*
 	{
@@ -635,6 +876,22 @@ namespace bpr::qt {
 		for (const auto& entry : Drawers) {
 			append(qobject_cast<QToolButton*>(
 				DrawerToolbar->widgetForAction(entry.Toggle)));
+		}
+		// The review header sits under the toolbars and above the workbench, so
+		// its stops are declared there. Reading order and focus order agree.
+		if (SessionPanel != nullptr) {
+			append(SessionPanel->profile_selector());
+			append(SessionPanel->connect_button());
+			append(SessionPanel->connection_details_button());
+			append(SessionPanel->owner_editor());
+			append(SessionPanel->repository_editor());
+			append(SessionPanel->pull_request_editor());
+			append(SessionPanel->open_button());
+			append(SessionPanel->refresh_button());
+		}
+		if (PullRequestPanel != nullptr) {
+			append(PullRequestPanel->technical_details_button());
+			append(PullRequestPanel->body_editor());
 		}
 		append(Drawers[0].Panel->focus_stop());
 		// The two selectors sit on one grid row above their two exact OIDs, so

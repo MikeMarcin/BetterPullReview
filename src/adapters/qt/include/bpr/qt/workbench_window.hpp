@@ -5,6 +5,8 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/github_pull_request_panel.hpp"
+#include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QList>
@@ -17,6 +19,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <vector>
 
 class QAction;
 class QEvent;
@@ -24,6 +27,7 @@ class QLabel;
 class QMenu;
 class QPlainTextEdit;
 class QResizeEvent;
+class QScrollArea;
 class QSplitter;
 class QToolBar;
 class QToolButton;
@@ -97,14 +101,17 @@ namespace bpr::qt {
 	class workbench_window final
 		: public QMainWindow,
 		  public application::workbench_projection_port,
-		  public application::epoch_projection_port
+		  public application::epoch_projection_port,
+		  public application::github_projection_port
 	{
 	public:
 		explicit workbench_window(
-			workbench_intent_dispatch       aDispatch       = { },
-			workbench_change_dispatch       aChangeDispatch = { },
-			workbench_drawer_width_dispatch aWidthDispatch  = { },
-			QWidget*                        aParent         = nullptr);
+			workbench_intent_dispatch                       aDispatch       = { },
+			workbench_change_dispatch                       aChangeDispatch = { },
+			workbench_drawer_width_dispatch                 aWidthDispatch  = { },
+			std::vector<application::github_profile_option> aProfiles       = { },
+			application::github_intent_dispatch             aGithubDispatch = { },
+			QWidget*                                        aParent         = nullptr);
 		~workbench_window() override;
 
 		workbench_window(const workbench_window&)                    = delete;
@@ -120,6 +127,16 @@ namespace bpr::qt {
 		/// refreshes its combined status line so the review-history state the
 		/// control decided is also stated in the shell's own text.
 		void publish(const application::epoch_presentation_update& aUpdate) override;
+
+		/// \brief Adopts one GitHub presentation update.
+		///
+		/// \details BPR-0191: the shell is the window, so it is the window that
+		/// implements RFC-BPR-0002's projection port. The work is delegation —
+		/// the session chrome, the pull-request metadata and the conversation
+		/// each own their own region — which is what extracting those three
+		/// panels bought.
+		void publish(
+			const application::github_presentation_update& aUpdate) override;
 		void fail(
 			const application::workbench_failure_publication& aFailure) override;
 
@@ -162,6 +179,14 @@ namespace bpr::qt {
 		/// own. This is what it shows instead.
 		[[nodiscard]] auto conversation_panel() const noexcept
 			-> github_conversation_panel*;
+
+		[[nodiscard]] auto session_panel() const noexcept -> github_session_panel*;
+		[[nodiscard]] auto pull_request_panel() const noexcept
+			-> github_pull_request_panel*;
+		[[nodiscard]] auto github_connect_action() const noexcept -> QAction*;
+		[[nodiscard]] auto github_open_action() const noexcept -> QAction*;
+		[[nodiscard]] auto github_refresh_action() const noexcept -> QAction*;
+		[[nodiscard]] auto show_review_threads_action() const noexcept -> QAction*;
 		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
@@ -245,6 +270,16 @@ namespace bpr::qt {
 		void build_primary_toolbar();
 		void build_drawer_toolbar();
 		void build_central_surface();
+		void build_github_header();
+		void apply_github_transition(
+			const application::github_transition_projection& aTransition);
+		void apply_github_pull_request(
+			const application::github_pull_request_projection& aPullRequest);
+		void apply_github_content_command(
+			const core::github_command_projection& aCommand);
+		void apply_github_host_diagnostic(
+			const application::github_host_diagnostic_projection& aDiagnostic);
+		void clear_github_pull_request();
 		void dispatch_navigation(std::size_t aIndex);
 		void dispatch_drawer_toggle(std::size_t aIndex);
 		void observe_drawer_width(
@@ -285,7 +320,17 @@ namespace bpr::qt {
 
 		std::array<navigation_entry, 4>                    Navigation{ };
 		std::array<drawer_entry, 2>                        Drawers{ };
-		github_conversation_panel*                         ConversationPanel = nullptr;
+		github_conversation_panel*                         ConversationPanel       = nullptr;
+		QScrollArea*                                       HeaderScroll            = nullptr;
+		github_session_panel*                              SessionPanel            = nullptr;
+		github_pull_request_panel*                         PullRequestPanel        = nullptr;
+		QAction*                                           GithubConnectAction     = nullptr;
+		QAction*                                           GithubOpenAction        = nullptr;
+		QAction*                                           GithubRefreshAction     = nullptr;
+		QAction*                                           ShowReviewThreadsAction = nullptr;
+		std::vector<application::github_profile_option>    GithubProfiles;
+		application::github_intent_dispatch                GithubDispatch;
+		bool                                               HasGithubPullRequest = false;
 		core::workbench_command_delta                      Commands;
 		core::workbench_drawer_delta                       DrawerStates;
 		std::optional<application::workbench_layout_delta> LayoutWidths;

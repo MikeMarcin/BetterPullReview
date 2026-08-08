@@ -1408,7 +1408,12 @@ namespace {
 		const auto right                 = QString::fromStdString(rightText);
 
 		qt::workbench_window window;
-		window.resize(window.compact_width_threshold() + 320, 820);
+		// Re-measured for the composed window rather than kept. 820 was measured
+		// on a shell with no review header; the header takes up to 220, and at
+		// the bottom of the fixture a shorter viewport shows a trailing page with
+		// no correspondence in it at all. The assertion is unchanged -- the
+		// window it is asserted on is the composed one now.
+		window.resize(window.compact_width_threshold() + 320, 820 + 220);
 		window.show();
 		process_events();
 		auto* const surface = publish_fixture(window, diff);
@@ -1432,7 +1437,7 @@ namespace {
 		const auto scrolled = observe_composed_comparison(
 			window, diff, left, right, "scrolled");
 
-		window.resize(window.width() - 200, 700);
+		window.resize(window.width() - 200, 700 + 220);
 		process_events();
 		const auto resized = observe_composed_comparison(
 			window, diff, left, right, "resized");

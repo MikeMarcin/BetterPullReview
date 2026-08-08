@@ -62,6 +62,8 @@ namespace bpr::qt {
 		BodyEditor = new QPlainTextEdit{ this };
 		BodyEditor->setObjectName(QStringLiteral("pullRequestBody"));
 		BodyEditor->setAccessibleName(QStringLiteral("Pull request description"));
+		BodyEditor->setAccessibleDescription(
+			QStringLiteral("The pull request description as its author wrote it"));
 		BodyEditor->setReadOnly(true);
 		BodyEditor->setTabChangesFocus(true);
 		BodyEditor->setMinimumHeight(120);
@@ -72,6 +74,8 @@ namespace bpr::qt {
 		DetailsButton->setText(QStringLiteral("Technical details"));
 		DetailsButton->setAccessibleName(
 			QStringLiteral("Show pull request technical details"));
+		DetailsButton->setAccessibleDescription(
+			QStringLiteral("Reveal the base and head commit identities"));
 		DetailsButton->setCheckable(true);
 		DetailsButton->setArrowType(Qt::RightArrow);
 		DetailsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
