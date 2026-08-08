@@ -1,0 +1,52 @@
+{
+  "deletion-zoom": {
+    "box": [
+      300,
+      620,
+      1000,
+      780
+    ],
+    "scale": 2,
+    "source": "deletion.png"
+  },
+  "digests": {
+    "deletion-zoom.png": "d1f0bdbb9d5816dc1da87ce96013fbbc340e642517cc19feaa8e2909e2b69cd5",
+    "deletion.png": "2c9da76511a799f75db2dc05461bfc87591a6baa5a28bc8177af5b3b8a3832e7",
+    "full-window.png": "92153fda643e89cf25ea4e054f2ee5963572eb3a028932bbc3a2ac5a7d4908a6",
+    "insertion-zoom.png": "bc3b373f2dfe5412ebe1be3662f05abc3c0d47fdca4d2e7d7fb067f024670e45",
+    "insertion.png": "95b75fcbe866a5edc087805be523a2f9f3aae694d992c4275b83ae5e38e60d11",
+    "replacement-zoom.png": "af1a6295ef9011513b3be07af566db5324e49158f21dc6f008204fc0aac712d5",
+    "replacement.png": "89a85171042057d45fc2f02ffb4fe56752c9f837aa0accc553c7503c2c3c585c",
+    "selection-zoom.png": "2c5f806832cf614aba8146a19ae2038cddf0313fdda7716dfbd2d9e87b793c4a"
+  },
+  "insertion-zoom": {
+    "box": [
+      300,
+      860,
+      1000,
+      1000
+    ],
+    "scale": 2,
+    "source": "insertion.png"
+  },
+  "replacement-zoom": {
+    "box": [
+      300,
+      400,
+      1000,
+      560
+    ],
+    "scale": 2,
+    "source": "replacement.png"
+  },
+  "selection-zoom": {
+    "box": [
+      300,
+      640,
+      1000,
+      800
+    ],
+    "scale": 2,
+    "source": "full-window.png"
+  }
+}

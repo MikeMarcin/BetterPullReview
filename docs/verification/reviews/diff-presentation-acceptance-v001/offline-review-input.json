@@ -1,0 +1,130 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Diff presentation: selection marking and change-group boundaries",
+  "review_gate": "diff_presentation_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false,
+    "bpr_0194_closed": false,
+    "bpr_0198_placement_approved": false,
+    "all_four_palettes_audited": false,
+    "dark_scheme_verified": false
+  },
+  "reference_disclaimer": "Light scheme only, offscreen at device pixel ratio 1.0, from the composed application's own diff-interaction course. The dark scheme and the other three shipped palettes are NOT covered. Zoomed images are nearest-neighbour 2x crops of the same captures, so a soft edge is magnification and not a rendering artefact. You rejected the previous batch on these grounds: the panes looked like a list box because they painted nothing. They paint now, which is what makes the question answerable rather than what makes the answer yes.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/selection-over-painted-diff",
+      "subject_key": "selection-over-painted-diff",
+      "display_name": "Is the selected line distinguishable now that the diff is painted?",
+      "description": "You rejected this question in the previous batch because nothing was painted underneath a selection, so there was no trade-off to judge. Added lines are now tinted green, removed lines red, intraline edits emphasised, and moved code marked. The selection is the highlight at 28% opacity layered over whichever band the line already carries. The question is whether you can tell where you landed after Next change, without the marking destroying the change signal it sits on.",
+      "acceptance_criteria": [
+        "The selected row is distinguishable from the rows above and below it",
+        "The added or removed tint of the selected line is still readable through the marking",
+        "It reads as a document view rather than a list box"
+      ],
+      "known_concerns": [
+        "Measured 1.06:1 against the pane background in the previous batch; setAlpha(72) caps any colour at 2.01:1 in Light, so the WCAG 3:1 non-text minimum is unreachable while that alpha stands",
+        "No syntax colouring is visible here: the fixture path now selects C++ but these captures predate that reaching a rendered pane",
+        "The selection spans one line; you noted p4merge marks a multi-line span, and nothing owns that yet"
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "fail",
+        "note": "The contrast measurement that failed in the previous batch has not been remedied. This subject asks whether the painted diff changes your judgement of the question, not whether the number moved."
+      },
+      "media_groups": [
+        {
+          "group_id": "state-captures",
+          "title": "Composed window and selected row",
+          "required": true,
+          "layout": "grid",
+          "note": "Click either image for native resolution. The selected row is where the workbench placed the first change group.",
+          "items": [
+            {"label": "Composed window, Light, DPR 1.0", "path": "captures/full-window.png"},
+            {"label": "Selected row, 2x", "path": "captures/selection-zoom.png"}
+          ]
+        },
+        {
+          "group_id": "painted-kinds",
+          "title": "What is painted underneath",
+          "required": false,
+          "layout": "grid",
+          "note": "The three change kinds the selection has to coexist with.",
+          "items": [
+            {"label": "Replacement, 2x", "path": "captures/replacement-zoom.png"},
+            {"label": "Deletion, 2x", "path": "captures/deletion-zoom.png"},
+            {"label": "Insertion, 2x", "path": "captures/insertion-zoom.png"}
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "What changed since you rejected this",
+          "kind": "list",
+          "items": [
+            "BPR-0196 paints removed and added line bands and intraline emphasis, bounded to the viewport.",
+            "BPR-0198 paints moved code with its own role, so a move is no longer an unrelated delete plus add.",
+            "BPR-0185 links the syntax classifier and BPR-0197 renamed the fixture file to review.cpp, so a C++ definition is selected — but these captures do not yet show token colour.",
+            "The selection treatment itself is unchanged. That is deliberate: you rejected the remedy candidates, so none was applied."
+          ]
+        }
+      ],
+      "identity_files": [
+        {"label": "Capture manifest", "path": "captures/manifest.json"}
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0198/group-boundary-placement",
+      "subject_key": "group-boundary-placement",
+      "display_name": "Is marking the line above a change group the right place for a hunk boundary?",
+      "description": "A hunk header cannot be a row of text here. These panes show whole documents side by side, so inserting a header row would make pane line N stop being document line N, and every mapping built on that equality would shift by the number of headers above it. The delimiter therefore has to be a marking on a line that already exists. I put it on the unchanged line immediately above each group, which is otherwise untinted. This is my choice, not one you approved, and it is the only placement the mechanism allows without custom viewport painting.",
+      "acceptance_criteria": [
+        "The boundary reads as a delimiter between change blocks rather than as a change",
+        "Giving an unchanged line a role it did not have is an acceptable cost",
+        "The alternative — taking a changed line's own tint to mark the boundary — would be worse"
+      ],
+      "known_concerns": [
+        "An unchanged context line now carries a background it did not before, which could read as 'this line changed'",
+        "diff_hunk_header_text is applied as a foreground on that line, so the context line's own text is recoloured",
+        "A group starting at the very top of a file has no line above it and is not marked at all",
+        "The only alternative placement, custom viewport painting, perturbs the pane geometry RFC-BPR-0005's measured-axis and bounded-widget evidence rests on"
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Mechanically correct: qt_diff_workbench asserts the marking lands on the line the model places the group boundary at, and fails when moved to the group's own first line. Whether the placement is right is what you are being asked."
+      },
+      "media_groups": [
+        {
+          "group_id": "boundary-captures",
+          "title": "Boundaries above each change kind",
+          "required": true,
+          "layout": "grid",
+          "note": "The marked line is the unchanged one directly above each tinted block.",
+          "items": [
+            {"label": "Above a replacement, 2x", "path": "captures/replacement-zoom.png"},
+            {"label": "Above a deletion, 2x", "path": "captures/deletion-zoom.png"},
+            {"label": "Above an insertion, 2x", "path": "captures/insertion-zoom.png"}
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Why not a header row",
+          "kind": "definitions",
+          "items": [
+            {"term": "The constraint", "definition": "pane line N must equal document line N, or intraline emphasis, token spans, selection, and the measured axis all shift"},
+            {"term": "What breaks", "definition": "every mapping built on that equality, by the number of headers above the line"},
+            {"term": "What is left", "definition": "a marking on a line that already exists, or custom viewport painting"}
+          ]
+        }
+      ],
+      "identity_files": [
+        {"label": "Capture manifest", "path": "captures/manifest.json"}
+      ]
+    }
+  ]
+}

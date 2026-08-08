@@ -1,0 +1,30 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/b90e0fe263af7dbf3bd75451",
+  "review_gate": "diff_presentation_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/selection-over-painted-diff",
+      "subject_digest": "sha256:d12893ed3e081b72b742aa336477bfdea83265f70345d89cbaf795118754cbbd"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0198/group-boundary-placement",
+      "subject_digest": "sha256:83359dc02bc48b7c843db3aa28c0fa314adaffbbf82127bdc5cf1b523e895a31"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0194/selection-over-painted-diff@sha256:d12893ed3e081b72b742aa336477bfdea83265f70345d89cbaf795118754cbbd": "Assuming the selected line is prefix_27 then yes but could stand to be a little darker on the selection shading.",
+    "criterion:/betterpullreview/bpr-0198/group-boundary-placement@sha256:83359dc02bc48b7c843db3aa28c0fa314adaffbbf82127bdc5cf1b523e895a31": "I have no idea what these images are showing me. Or even what a hunk is."
+  },
+  "downstream_claims": {
+    "all_four_palettes_audited": false,
+    "bpr_0194_closed": false,
+    "bpr_0198_placement_approved": false,
+    "dark_scheme_verified": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

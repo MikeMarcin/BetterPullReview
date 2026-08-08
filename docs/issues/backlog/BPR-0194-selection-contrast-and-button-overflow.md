@@ -116,6 +116,35 @@ it.
 once a selected line has an added-line tint, intraline emphasis, and syntax
 colour beneath it to compete with.
 
+## Rejected again on 2026-08-07, with usable direction this time
+
+Batch `bpr:/attended-review/betterpullreview/b90e0fe263af7dbf3bd75451`, subject
+`selection-contrast`. Evidence:
+`docs/verification/reviews/diff-presentation-acceptance-v001/`. Rejected, with:
+
+> Assuming the selected line is prefix_27 then yes but could stand to be a
+> little darker on the selection shading.
+
+Two things in one sentence, and the first matters more than the second.
+
+**"Assuming."** The owner could not tell which line was selected, in a capture
+whose entire purpose was to show the selection. That is the 1.06:1 defect
+reproducing under attended review rather than being reported by measurement —
+independent confirmation from a person, which is what this card has been
+missing since it was opened.
+
+**"A little darker."** That is a direction, and it is compatible with route 2
+above but not route 1: *darker*, not *opaque*. It also sits within reach at the
+current alpha — light-mode best-possible is 2.01:1 at `setAlpha(72)` — only if
+the requirement is relaxed off 3:1, which [[BPR-0199]] argues is the wrong
+target for a background wash anyway. Re-derive the target before fitting to it;
+do not read "a little darker" as authorisation to keep the alpha and stop when
+it looks better.
+
+The re-presentation must not repeat this one's mistake. The owner should not
+have to assume which line is selected — show the same pane with the selection
+on and off, side by side, and say in the prompt which line it is.
+
 ### DEFERRED CLASS: owner-attended, for defect 1 only
 
 Not because the measurement is unclear — it is exact — but because the remedy
