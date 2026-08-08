@@ -285,6 +285,21 @@ bpr_bound_automated_run(
 )
 
 add_test(
+    NAME application_fixture_verdict_contract
+    COMMAND
+        Python3::Interpreter
+        "${CMAKE_CURRENT_SOURCE_DIR}/fixture_verdict_contract.py"
+        $<TARGET_FILE:app_better_pull_review>
+)
+set_tests_properties(
+    application_fixture_verdict_contract
+    PROPERTIES
+        TIMEOUT 300
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "FIXTURE_VERDICT_OK"
+)
+
+add_test(
     NAME application_attended_launch_contract
     COMMAND
         Python3::Interpreter

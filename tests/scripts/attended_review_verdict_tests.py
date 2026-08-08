@@ -86,7 +86,12 @@ def subject(key: str, choice_group: str | None) -> dict:
     return record
 
 
-def build_batch(root: Path, choice_group: str | None) -> dict:
+def build_batch(
+    root: Path,
+    choice_group: str | None,
+    selection: str | None = None,
+    bounds: tuple[int, int] | None = None,
+) -> dict:
     source = root / "src"
     source.mkdir(parents=True, exist_ok=True)
     for index, key in enumerate(("alt-a", "alt-b", "alt-c")):
@@ -102,6 +107,19 @@ def build_batch(root: Path, choice_group: str | None) -> dict:
         "reference_disclaimer": "Synthetic fixture built by the verdict tests.",
         "subjects": [subject(key, choice_group) for key in ("alt-a", "alt-b", "alt-c")],
     }
+    if selection is not None:
+        for record in batch["subjects"]:
+            record.pop("choice_group", None)
+            record["selection_group"] = selection
+        low, high = bounds or (1, 1)
+        batch["selection_groups"] = [
+            {
+                "group_id": selection,
+                "title": "shade",
+                "min_accept": low,
+                "max_accept": high,
+            }
+        ]
     (root / "input.json").write_text(json.dumps(batch))
     result = run("build", "--input", str(root / "input.json"), "--out", str(root / "pkg"))
     expect(result.returncode == 0, f"the synthetic batch builds: {result.stderr.strip()}")
@@ -211,9 +229,50 @@ def test_batches_without_a_choice_group_are_unaffected(root: Path) -> None:
     stray = validate(
         root / "plain", manifest, verdict_for(manifest, [0], [1], [2])
     )
+    # Matched on the rule, not the sentence. An earlier draft asserted the full
+    # phrase "only contain members of a choice group" and broke the moment
+    # choice groups were generalized into selection groups and the wording
+    # gained "or selection" -- a test failing because someone improved a message
+    # is a test measuring prose.
     expect(
-        stray.returncode != 0 and "only contain members of a choice group" in stray.stderr,
-        "an unchosen subject outside any choice group is refused",
+        stray.returncode != 0
+        and "not_chosen_subjects may only contain members" in stray.stderr,
+        f"an unchosen subject outside any group is refused: {stray.stderr.strip()[:160]}",
+    )
+
+
+def test_a_selection_group_holds_its_cardinality(root: Path) -> None:
+    """The generalized form: a group accepting between two and three of four.
+
+    `choice_group` is the choose-exactly-one shorthand; `selection_group` carries
+    an explicit `min_accept`..`max_accept`. Both reduce to the same question — how
+    many of these alternatives may a reviewer take — and the arithmetic has to
+    hold at both ends of the range, not just refuse the empty answer.
+    """
+    # Two of three, so both ends of the range are reachable with this fixture:
+    # one acceptance is below the floor and three is above the ceiling. Bounds of
+    # (2, 3) over three subjects would make the ceiling untestable, since taking
+    # everything would be legal.
+    manifest = build_batch(root / "select", None, selection="shade", bounds=(2, 2))
+
+    within = validate(root / "select", manifest, verdict_for(manifest, [0, 1], [2], []))
+    expect(
+        within.returncode == 0,
+        f"two acceptances in a group of exactly two validates: {within.stderr.strip()[:160]}",
+    )
+
+    too_few = validate(root / "select", manifest, verdict_for(manifest, [0], [1], [2]))
+    expect(
+        too_few.returncode != 0,
+        "one acceptance is refused when the group requires two",
+    )
+
+    too_many = validate(
+        root / "select", manifest, verdict_for(manifest, [0, 1, 2], [], [])
+    )
+    expect(
+        too_many.returncode != 0,
+        "three acceptances are refused when the group allows two",
     )
 
 
@@ -244,6 +303,7 @@ def main() -> int:
         root = Path(raw)
         test_choice_group_arithmetic(root)
         test_batches_without_a_choice_group_are_unaffected(root)
+        test_a_selection_group_holds_its_cardinality(root)
     test_recorded_verdicts_still_validate()
 
     for failure in FAILURES:

@@ -1,7 +1,7 @@
 ---
 id: BPR-0213
 title: GITHUB_FIXTURE_FAILED is printed when the fixture is fine
-status: Backlog
+status: Done
 rfc: RFC-BPR-0003
 depends_on: []
 ---
@@ -43,7 +43,45 @@ Do not solve it by deleting `GITHUB_FIXTURE_FAILED`: several CTest
 would turn those into silent passes-by-absence. Whatever replaces it has to be
 matched by those gates deliberately.
 
-## Required direct evidence
+## Fixed, 2026-08-08
+
+`fixtureFactsPassed` is computed from the fixture's own facts alone, and the
+marker is printed from that. `passed` still narrows by it, so the run-level
+verdict is unchanged — only the attribution moved.
+
+**No assertion was lost.** Every CTest gate matching `GITHUB_FIXTURE_OK` already
+requires `PUBLIC_PATH_OK` beside it in the same regex, so the run verdict was
+never resting on the fixture marker. Naming it honestly cost nothing, which is
+why the six gates needed no edit.
+
+### The test needed two verdicts that could disagree
+
+`application_fixture_verdict_contract` gets that from a render capture aimed at
+an unwritable path: the fixture does all its work and passes, and
+`passed = passed && renderSaved` fails the run. That produces, offscreen and
+deterministically:
+
+```
+PUBLIC_PATH_FAILED
+GITHUB_FIXTURE_OK:github.com
+RENDER_FAILED
+```
+
+which is exactly the shape that used to be impossible to print. Restoring the
+old behaviour — the marker printed from `passed` — fails two of its assertions
+with a clean build.
+
+The contract also checks the ordinary case still reports both, because a marker
+that had become unconditionally true would be caught by the existing gates only
+while it is still printed at all.
+
+### One thing the test got wrong first, recorded because it is easy to repeat
+
+The flag takes `github-com` and the marker prints the fixture's own
+`github.com`. An earlier draft used one constant for both and failed on a
+mismatch that had nothing to do with the behaviour under test.
+
+## Superseded — required direct evidence
 
 - A run whose fixture facts are all correct and whose presentation fails does
   **not** print a marker blaming the fixture.

@@ -1807,9 +1807,12 @@ namespace {
 		// meant a failure in any later one printed a verdict in which
 		// everything looked fine, which is exactly what made BPR-0133
 		// unattributable.
-		const auto passedCoreFacts   = passed;
-		auto       passedFixture     = passed;
-		auto       passedMaintenance = passed;
+		const auto passedCoreFacts = passed;
+		auto       passedFixture   = passed;
+		// True when the fixture has nothing to say, which is the honest reading
+		// for a run that never engaged one: the fixture did not fail.
+		auto fixtureFactsPassed = true;
+		auto passedMaintenance  = passed;
 
 #if defined(BPR_BUILD_TESTING)
 		const auto fixtureEvidence = aRun.Fixture
@@ -1821,22 +1824,33 @@ namespace {
 					== automated_run::epoch_maintenance_probe::verify_deleted
 				? 1
 				: expected_fixture_smart_calls(aRun.EpochPhase);
-			passed                        = passed && fixtureEvidence.RecordingConsumed
+			// The fixture's own verdict, computed from the fixture's own facts
+			// and nothing else. Folding it into `passed` and then printing that
+			// under a fixture-shaped marker is what made BPR-0154 take three
+			// occurrences and two wrong hypotheses to attribute: a run whose
+			// presentation failed printed GITHUB_FIXTURE_FAILED while the
+			// fixture had been working perfectly throughout.
+			//
+			// The run-level verdict is `PUBLIC_PATH_OK` / `PUBLIC_PATH_FAILED`,
+			// and every gate that matches the fixture marker already requires
+			// that one beside it, so naming this honestly costs no assertion.
+			fixtureFactsPassed = fixtureEvidence.RecordingConsumed
 				&& fixtureEvidence.CapabilityProbeConsumed
 				&& fixtureEvidence.BootstrapTransportSelected
 				&& fixtureEvidence.AccountTransportSelected
 				&& fixtureEvidence.CredentialStored
 				&& fixtureEvidence.CredentialRetrieved
 				&& fixtureEvidence.CredentialDeleted
+				// A retained secret is the defect, so this reads false when the
+				// credential correctly did not survive its deletion. `11111110`
+				// is the all-good pattern, which is the other half of what
+				// misled BPR-0154.
 				&& !fixtureEvidence.SecretRetained
-				&& fixtureEvidence.SmartAcquireCount
-					== expectedSmartCalls
-				&& fixtureEvidence.SmartDiscoveryCount
-					== expectedSmartCalls
-				&& fixtureEvidence.SmartLsRefsCount
-					== expectedSmartCalls
-				&& fixtureEvidence.SmartFetchCount
-					== expectedSmartCalls;
+				&& fixtureEvidence.SmartAcquireCount == expectedSmartCalls
+				&& fixtureEvidence.SmartDiscoveryCount == expectedSmartCalls
+				&& fixtureEvidence.SmartLsRefsCount == expectedSmartCalls
+				&& fixtureEvidence.SmartFetchCount == expectedSmartCalls;
+			passed            = passed && fixtureFactsPassed;
 			passedFixture     = passed;
 			passedMaintenance = passed;
 			if (aRun.MaintenanceProbe
@@ -2035,7 +2049,8 @@ namespace {
 		}
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture) {
-			stream << (passed ? "GITHUB_FIXTURE_OK:" : "GITHUB_FIXTURE_FAILED:")
+			stream << (fixtureFactsPassed ? "GITHUB_FIXTURE_OK:"
+										  : "GITHUB_FIXTURE_FAILED:")
 				   << QString::fromStdString(aRun.FixtureName) << '\n';
 			if (!passed) {
 				stream << "GITHUB_FIXTURE_EVIDENCE:"
