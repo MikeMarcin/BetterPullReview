@@ -1527,6 +1527,70 @@ namespace {
 					  << " checked pairs miss their published minimum\n";
 		}
 
+		// Naming the tightest pair in each profile, and ratcheting it.
+		//
+		// BPR-0204 recorded the gap this closes. The selection colour the owner
+		// chose landed at 4.51:1 against a 4.50 minimum -- a hundredth of a
+		// point -- and nothing said so. A palette edit that ate that hundredth
+		// would have failed only when it finally crossed, with no warning that
+		// the margin had been spent, and whoever made it would have had no
+		// reason to connect their change to a role they never touched.
+		//
+		// The figures below are what the shipped palettes have, not what they
+		// ought to have. Buying more would mean moving colours the product
+		// owner accepted at attended review, so this is a ratchet: an edit that
+		// spends the remaining margin fails here and has to lower a number
+		// deliberately, which is the decision that used to be invisible.
+		//
+		// high_contrast_light has *none*. It sits exactly on its 7.00:1
+		// minimum, so any erosion at all is a failure rather than a warning.
+		{
+			struct tightest_pair
+			{
+				core::appearance_variant Variant;
+				std::uint32_t            HeadroomHundredths;
+			};
+			constexpr auto recorded = std::array{
+				tightest_pair{ core::appearance_variant::light, 5U },
+				tightest_pair{ core::appearance_variant::dark, 5U },
+				tightest_pair{ core::appearance_variant::high_contrast_light, 0U },
+				tightest_pair{ core::appearance_variant::high_contrast_dark, 4U },
+			};
+			auto eroded = std::size_t{ 0U };
+			for (const auto& expectation : recorded) {
+				const auto& palette = qt::builtin_appearance_palette(expectation.Variant);
+				const auto  findings
+					= core::measure_required_contrast(palette, expectation.Variant);
+				const auto tightest = std::ranges::min_element(
+					findings,
+					{ },
+					[](const core::contrast_finding& aFinding) {
+						return aFinding.RatioHundredths - aFinding.MinimumHundredths;
+					});
+				if (tightest == findings.end()) {
+					continue;
+				}
+				const auto headroom
+					= tightest->RatioHundredths - tightest->MinimumHundredths;
+				std::cerr << "  variant " << static_cast<int>(expectation.Variant)
+						  << " tightest pair: foreground role "
+						  << static_cast<int>(tightest->Pair.Foreground)
+						  << " on background role "
+						  << static_cast<int>(tightest->Pair.Background)
+						  << (tightest->Pair.Wash ? " through the selection wash" : "")
+						  << ", headroom " << headroom << " hundredths (recorded "
+						  << expectation.HeadroomHundredths << ")\n";
+				if (headroom < expectation.HeadroomHundredths) {
+					++eroded;
+				}
+			}
+			expect(
+				eroded == 0U,
+				"no profile's tightest checked pair has less headroom than the "
+				"figure recorded for it, so spending the remaining margin is a "
+				"deliberate edit rather than a surprise");
+		}
+
 		expect(
 			failures == 0U,
 			"every built-in profile meets the published minimum for every "

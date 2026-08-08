@@ -1,7 +1,7 @@
 ---
 id: BPR-0204
 title: The selection contrast obligation checks a colour the panes never paint
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0194]
 ---
