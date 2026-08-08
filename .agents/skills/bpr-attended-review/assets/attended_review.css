@@ -300,6 +300,8 @@ textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); b
 .media-viewer-nav[hidden] { display: none; }
 .media-viewer-prev { left: .75rem; }
 .media-viewer-next { right: .75rem; }
-.media-viewer-surface { flex: 1; overflow: auto; }
-/* Native size, not fitted: fitting it would reproduce the defect this fixes. */
-.media-viewer-surface img { display: block; image-rendering: pixelated; }
+.media-viewer-surface { flex: 1; overflow: auto; display: flex; }
+/* Native size, not fitted: fitting it would reproduce the defect this fixes.
+   Auto margins center an image smaller than the viewport and collapse to zero
+   when it overflows, keeping large captures scrollable from their origin. */
+.media-viewer-surface img { display: block; image-rendering: pixelated; margin: auto; }
