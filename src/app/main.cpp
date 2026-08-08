@@ -1789,6 +1789,36 @@ namespace {
 		return true;
 	}
 
+	[[nodiscard]] auto os_color_scheme_name(
+		const bpr::core::os_color_scheme aScheme) -> QString
+	{
+		switch (aScheme) {
+		case bpr::core::os_color_scheme::light:
+			return QStringLiteral("light");
+		case bpr::core::os_color_scheme::dark:
+			return QStringLiteral("dark");
+		case bpr::core::os_color_scheme::unknown:
+			return QStringLiteral("unknown");
+		}
+		return QStringLiteral("unknown");
+	}
+
+	[[nodiscard]] auto appearance_variant_name(
+		const bpr::core::appearance_variant aVariant) -> QString
+	{
+		switch (aVariant) {
+		case bpr::core::appearance_variant::light:
+			return QStringLiteral("light");
+		case bpr::core::appearance_variant::dark:
+			return QStringLiteral("dark");
+		case bpr::core::appearance_variant::high_contrast_light:
+			return QStringLiteral("high-contrast-light");
+		case bpr::core::appearance_variant::high_contrast_dark:
+			return QStringLiteral("high-contrast-dark");
+		}
+		return QStringLiteral("light");
+	}
+
 	void finish_automated_run(
 		bpr::app::github_application& aApplication,
 		const automated_run&          aRun)
@@ -2153,6 +2183,15 @@ namespace {
 			   << '\n';
 		stream << "APPEARANCE_DIVERGENCE:"
 			   << aApplication.status().AppearanceDivergences << '\n';
+		// What was observed and what it resolved to, beside what was applied.
+		// Without this a System-mode window painted light on a dark desktop is
+		// indistinguishable from a correctly resolved light one, which is how
+		// BPR-0216 survived an entirely green marker set.
+		stream << "APPEARANCE_OBSERVED:"
+			   << os_color_scheme_name(aApplication.status().ObservedScheme)
+			   << ':'
+			   << appearance_variant_name(aApplication.status().ResolvedVariant)
+			   << ':' << aApplication.status().CustomisedRoles << '\n';
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.AppearanceGestureProbe) {
 			stream << (aRun.AppearanceGesturePassed
@@ -3150,12 +3189,32 @@ namespace {
 		QTimer::singleShot(0, &aApplication.window(), *tick);
 	}
 
-	void schedule_interactive_shutdown(
-		bpr::app::github_application& aApplication)
+	/// \brief Drives an interactive shutdown, and can be disarmed.
+	///
+	/// \details The poll re-arms every 10 ms until shutdown completes, so when
+	/// it calls `QCoreApplication::exit` there is normally still one armed timer
+	/// behind it. That timer survives `exec()` returning, and
+	/// `~github_application::implementation` pumps `processEvents` in its own
+	/// shutdown loop -- which delivers it. By then the owning
+	/// `unique_ptr<implementation>` has already been nulled, because libc++'s
+	/// `reset` assigns the new pointer before running the deleter, so
+	/// `status()` read a member off a null `Implementation` and the process
+	/// segfaulted on Command-Q.
+	///
+	/// The returned token is what stops that. The poll holds a weak reference
+	/// and does nothing once the token is gone, so the caller destroys the token
+	/// before the application and a late delivery becomes a no-op instead of a
+	/// crash. Nothing about the shutdown sequence itself changes.
+	[[nodiscard]] auto schedule_interactive_shutdown(
+		bpr::app::github_application& aApplication) -> std::shared_ptr<void>
 	{
 		aApplication.begin_shutdown();
-		auto poll = std::make_shared<std::function<void()>>();
-		*poll     = [&aApplication, poll] {
+		auto alive = std::make_shared<int>(0);
+		auto poll  = std::make_shared<std::function<void()>>();
+		*poll      = [&aApplication, poll, watch = std::weak_ptr<int>{ alive }] {
+			if (watch.expired()) {
+				return;
+			}
 			const auto status = aApplication.status();
 			if (status.ShutdownComplete) {
 				QCoreApplication::exit(
@@ -3165,6 +3224,7 @@ namespace {
 			QTimer::singleShot(10, &aApplication.window(), *poll);
 		};
 		QTimer::singleShot(0, &aApplication.window(), *poll);
+		return alive;
 	}
 }
 
@@ -3421,11 +3481,17 @@ auto main(int argc, char** argv) -> int
 				std::move(config));
 		application->show();
 
+		// Declared after the application so it is destroyed first: the token
+		// dying disarms any poll still in flight before the application it would
+		// have reached into goes away.
+		auto interactiveShutdown = std::shared_ptr<void>{ };
 		QObject::connect(
 			&qtApplication,
 			&QGuiApplication::lastWindowClosed,
 			&application->window(),
-			[&application] { schedule_interactive_shutdown(*application); });
+			[&application, &interactiveShutdown] {
+				interactiveShutdown = schedule_interactive_shutdown(*application);
+			});
 
 		auto verifyNativePlatformVault = selfTest;
 		auto verifyCliUnavailable      = selfTest;

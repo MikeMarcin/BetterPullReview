@@ -1606,6 +1606,15 @@ namespace bpr::app {
 			.ShutdownCleanupFailed         = Implementation->ShutdownCleanupFailed,
 			.NativePlatformVaultSelected   = Implementation->NativePlatformVaultSelected,
 			.EpochProjectionDeliveryFailed = Implementation->EpochProjectionDeliveryFailed,
+			.ObservedScheme                = Implementation->AppearanceProfile
+				? Implementation->AppearanceProfile->observation().Scheme
+				: core::os_color_scheme::unknown,
+			.ResolvedVariant               = Implementation->AppearanceProfile
+				? Implementation->AppearanceProfile->variant()
+				: core::appearance_variant::light,
+			.CustomisedRoles               = Implementation->AppearanceProfile
+				? Implementation->AppearanceProfile->customised_roles()
+				: 0U,
 			.EpochHandoffDeliveryFailed    = Implementation->Host->epoch_handoff_delivery_failed(),
 			.EpochStatus                   = Implementation->EpochHost->state().Status,
 			.WorkbenchHostComposed         = Implementation->WorkbenchHost != nullptr,

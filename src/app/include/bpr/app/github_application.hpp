@@ -49,6 +49,17 @@ namespace bpr::app {
 		// alone is not evidence: a window that was never given the profile
 		// still has well-formed colours.
 		bool AppliedFromProfile = false;
+		// What the composition observed of the operating system, and what that
+		// resolved to. Reported because the applied colours alone cannot say
+		// *why* they are what they are: a System-mode window painted light on a
+		// dark desktop looks identical to a correctly resolved light one, which
+		// is how BPR-0216 stayed invisible behind an all-green marker set.
+		core::os_color_scheme    ObservedScheme  = core::os_color_scheme::unknown;
+		core::appearance_variant ResolvedVariant = core::appearance_variant::light;
+		// Roles the profile believes a reviewer customised. On a fresh
+		// installation this must be zero; anything else means a default record
+		// was mistaken for a set of deliberate overrides.
+		std::size_t CustomisedRoles = 0U;
 		// Whether the composition constructed the packaged syntax classifier.
 		// Separate from the count below because "the classifier exists" and "a
 		// pane took its answer" fail independently: a classifier nothing asks
