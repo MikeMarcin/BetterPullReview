@@ -198,3 +198,47 @@ The earlier epoch-context reading is not retracted so much as demoted: it was
 one observation, it did not reproduce, and the aggregate `0` it came from could
 not distinguish forty terms. The split marker below exists so the next run says
 which half failed instead of that it failed.
+
+### Localised, 2026-08-08: it is the `Clean` group, not epoch, focus or thread
+
+The aggregate context check is now reported as five named groups. With the
+desktop genuinely in Light and the owner's window clicked to the front:
+
+```
+NATIVE_APPEARANCE_EPOCH_CONTEXT:1:1:1:1:0
+NATIVE_APPEARANCE_CONTEXT_DETAIL:1:1:1:1:0     Epoch Diff Thread Window Clean
+NATIVE_APPEARANCE_FOCUS:1:1:1:1:QPlainTextEdit:diffLeftSource:11
+```
+
+Epoch, diff, conversation-thread and window-activation all hold. The failing
+group is `presentationClean`:
+
+- the platform name and style class are unchanged from capture,
+- no full GitHub presentation reset happened,
+- **the window carries no `WA_SetPalette`, `WA_SetStyle` or `WA_SetFont`, and no
+  stylesheet.**
+
+The shell applies the appearance profile with
+`AppearanceProfile->apply_to(*Window)`, which sets a palette on the window and
+therefore sets `WA_SetPalette`. That is the prime suspect and it has **not** yet
+been isolated to a single field — the group is reported, the individual terms
+are not.
+
+If it is `WA_SetPalette`, the rule itself is what needs deciding rather than the
+code: the check was written to catch presentation being overridden behind the
+appearance model's back, and the appearance model applying its own palette is
+the opposite of that. Distinguishing "the profile set this" from "something else
+set this" is the actual question, and it is not answerable from
+`testAttribute` alone.
+
+Two other findings from the same runs:
+
+- `prepare_native_appearance_probe` still does
+  `qobject_cast<QScrollArea*>(aWindow.centralWidget())` to scroll the comparison
+  into view. The shell's central widget is a plain `QWidget` since BPR-0191, so
+  that cast fails and the call silently does nothing. Harmless here, wrong
+  everywhere.
+- The earlier claim that the probe "waits for owner focus and never gets it" was
+  wrong for this run: `NATIVE_APPEARANCE_FOCUS` reports the window active, and
+  the probe did not wait at all. The wait path is real but was not what stopped
+  these runs.

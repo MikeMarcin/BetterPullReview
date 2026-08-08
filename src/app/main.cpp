@@ -494,6 +494,12 @@ namespace {
 	{
 		bool Epoch = false;
 		bool Diff  = false;
+		/// \brief The conversation selection the probe set up is still in place.
+		bool Thread = false;
+		/// \brief The window is active, frontmost, and holding its focus widget.
+		bool Window = false;
+		/// \brief Nothing overrode palette, style, font or stylesheet.
+		bool Clean = false;
 		bool All   = false;
 	};
 
@@ -568,34 +574,36 @@ namespace {
 			&& !workbench->testAttribute(Qt::WA_SetFont)
 			&& workbench->styleSheet().isEmpty();
 
-		const auto all = aRun.Appearance.Thread.isValid()
-			&& QGuiApplication::platformName()
-				== aRun.Appearance.InitialPlatformName
-			&& QString::fromLatin1(
-				   QApplication::style()->metaObject()->className())
-				== aRun.Appearance.InitialStyleClass
+		const auto threadPreserved = aRun.Appearance.Thread.isValid()
 			&& view->currentIndex() == aRun.Appearance.Thread
 			&& view->selectionModel()->isSelected(aRun.Appearance.Thread)
 			&& !view->isExpanded(aRun.Appearance.Thread)
-			&& aRun.Appearance.InitialWindowActive
+			&& model->statistics().ModelResets
+				== aRun.Appearance.InitialModelResets;
+		const auto windowPreserved = aRun.Appearance.InitialWindowActive
 			&& aRun.Appearance.InitialFocus != nullptr
 			&& aRun.Appearance.InitialFocus->window() == &aWindow
 			&& aWindow.isActiveWindow()
 			&& QApplication::activeWindow() == &aWindow
-			&& QApplication::focusWidget() == aRun.Appearance.InitialFocus
-			&& epochContextPreserved
-			&& diffContextPreserved
-			&& model->statistics().ModelResets
-				== aRun.Appearance.InitialModelResets
+			&& QApplication::focusWidget() == aRun.Appearance.InitialFocus;
+		const auto presentationClean = QGuiApplication::platformName()
+				== aRun.Appearance.InitialPlatformName
+			&& QString::fromLatin1(
+				   QApplication::style()->metaObject()->className())
+				== aRun.Appearance.InitialStyleClass
 			&& aWindow.statistics().GithubFullResets == 0U
 			&& !aWindow.testAttribute(Qt::WA_SetPalette)
 			&& !aWindow.testAttribute(Qt::WA_SetStyle)
 			&& !aWindow.testAttribute(Qt::WA_SetFont)
 			&& aWindow.styleSheet().isEmpty();
 		return {
-			.Epoch = epochContextPreserved,
-			.Diff  = diffContextPreserved,
-			.All   = all,
+			.Epoch  = epochContextPreserved,
+			.Diff   = diffContextPreserved,
+			.Thread = threadPreserved,
+			.Window = windowPreserved,
+			.Clean  = presentationClean,
+			.All    = epochContextPreserved && diffContextPreserved
+				&& threadPreserved && windowPreserved && presentationClean,
 		};
 	}
 
@@ -822,6 +830,8 @@ namespace {
 		aRun.Appearance.InitialWindowActive = aWindow.isActiveWindow();
 		aRun.Appearance.InitialFocus        = QApplication::focusWidget();
 		if (!native_appearance_light_state_passed(aWindow, aRun)) {
+			const auto contextDetail
+				= native_appearance_context_detail_of(aWindow, aRun);
 			const auto* const focus = QApplication::focusWidget();
 			QTextStream{ stdout }
 				<< "NATIVE_APPEARANCE_EPOCH_CONTEXT:"
@@ -836,11 +846,11 @@ namespace {
 					== aRun.Appearance.InitialEpochAppearanceUpdates)
 				<< ':'
 				<< native_appearance_context_passed(aWindow, aRun) << '\n'
-				<< "NATIVE_APPEARANCE_CONTEXT_DETAIL:"
-				<< native_appearance_context_detail_of(aWindow, aRun).Epoch
-				<< ':'
-				<< native_appearance_context_detail_of(aWindow, aRun).Diff
+				<< "NATIVE_APPEARANCE_CONTEXT_DETAIL:" << contextDetail.Epoch
+				<< ':' << contextDetail.Diff << ':' << contextDetail.Thread
+				<< ':' << contextDetail.Window << ':' << contextDetail.Clean
 				<< '\n'
+				<< "NATIVE_APPEARANCE_FOCUS:"
 				<< aWindow.isActiveWindow() << ':' << view->isVisible() << ':'
 				<< control->isVisible() << ':'
 				<< control->right_oid_editor()->isVisible() << ':'
