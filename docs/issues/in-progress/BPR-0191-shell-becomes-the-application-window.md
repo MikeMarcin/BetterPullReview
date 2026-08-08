@@ -246,10 +246,36 @@ neutering `focus_stop()` fails *"the drawer's one interactive stop is the
 conversation tree"*, and hiding the list instead of destroying it fails *"a
 drawer that hosts a tree reports no list…"*.
 
-**Still to do on this card**: the shell composes the session and pull-request
-panels and implements `github_projection_port`, the application constructs the
-shell, `github_window` is deleted, and the virtualization figures are re-measured
-at 60/6,000/60,000 lines on the composed window.
+### Measured, 2026-08-08: the last two slices cannot be separated
+
+The obvious next step looked like "compose the remaining two panels, then wire
+the port". It does not decompose that way. `github_session_panel`'s constructor
+takes the profile list, the intent dispatch, and the connect/open/refresh
+`QAction`s — so the shell cannot construct it before it is a
+`github_projection_port` with a dispatch of its own. `github_pull_request_panel`
+needs nothing at construction, but composing it alone would put an inert
+metadata region on screen with no source of data.
+
+So the remainder is one coherent chunk, not three:
+
+1. `workbench_window` implements `application::github_projection_port`, gaining
+   the intent dispatch, the three actions, and the profile list, and composes
+   `github_session_panel` and `github_pull_request_panel` into a header above
+   the central splitter. The panel builds the description editor but does not lay
+   it out — `github_window` reparents it into a splitter — so the shell must
+   place `body_editor()` explicitly rather than rely on Qt's reparent-removal
+   behaviour.
+2. The application constructs the shell instead of `github_window`, and
+   `github_window` is deleted.
+3. Virtualization re-measured at 60/6,000/60,000 lines on the composed window,
+   restating 68/68/68 if the merged bounded widget count differs.
+
+The uniqueness evidence this card calls for needs no new test: the shell's
+existing assertions already walk `findChildren<QWidget*>()` for duplicate
+accessible names among reachable focusable widgets, and `findChildren<QAction*>()`
+for duplicate key sequences. Composing the GitHub panels puts them under those
+rules automatically, which is why the conversation panel landing changed nothing
+there and why the session chrome is the one to watch.
 
 ## Required direct evidence
 
