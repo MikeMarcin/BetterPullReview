@@ -78,3 +78,43 @@ considerably better position than this card has been in.
 
 Evidence: `docs/verification/reviews/appearance-probe-open-stage-v001/`, lines 8
 and 9 of the recorded run.
+
+### The chain, as far as it can be followed without a display
+
+From the recorded run and the code, in order:
+
+1. `PUBLIC_PATH_STAGE:2` with `PUBLIC_PATH_FAILED` — the run failed in the
+   `open` stage.
+2. No `NATIVE_APPEARANCE_WAITING_FOR_OWNER_FOCUS` in that log, so it failed
+   *before* the focus wait. In that branch the only failure is
+   `request_fixture_diff` returning false, which calls `fail_automated_run`.
+3. `request_fixture_diff` requires
+   `state.Authority.has_value() && state.AcceptedComparison.has_value()`.
+4. The same log reports `PUBLIC_PATH_EPOCH_PAIR:::-1:-1:0:0` and
+   `PUBLIC_PATH_EPOCH_CORE_STATUS:-1` — **no accepted comparison**.
+
+So: no accepted epoch comparison → `request_fixture_diff` false → fail at stage
+2 → `presentation=0`. That is the whole chain, and it is deterministic because
+nothing in it depends on timing: the branch fails on its first attempt rather
+than retrying.
+
+### The remaining question, and why it needs the display
+
+`--diff-workbench-probe` uses the same `request_fixture_diff` with the same
+fail-fast structure and succeeds every time. So the difference is *when* each
+probe reaches that branch relative to the epoch handoff, not what the branch
+checks.
+
+**That cannot be investigated on this host.** The appearance probe refuses
+offscreen at argument parsing — `NATIVE_APPEARANCE_CONFIGURATION_FAILED` — which
+is deliberate and correct, and it also means the failing path cannot be reached
+without a real display. Every attempt to narrow it further here would be reading
+rather than measuring.
+
+**Next step, when a display is available:** run the probe and print the epoch
+state at the moment the `open` branch is entered. The candidate is that the
+appearance run reaches `open` before the epoch handoff has been accepted, and
+fails immediately where the diff run happens to arrive later. If that is it, the
+fix is to wait for the accepted comparison rather than to fail on the first
+attempt — which is what the surrounding code already does for
+`current_result() == nullptr` one line below.
