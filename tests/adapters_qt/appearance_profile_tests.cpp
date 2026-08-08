@@ -1555,6 +1555,18 @@ namespace {
 		color_only_obligation{ core::appearance_variant::light,
 							   role::state_fixed,
 							   role::state_unread },
+		// Warning and error both have to be dark enough to stay legible on a
+		// selected line, and deuteranopia collapses the axis that separates a
+		// dark amber from a dark red. The high-contrast light profile has owed
+		// this same pair a non-colour signal since it was written; refitting
+		// the light syntax colours for the selection wash brings the default
+		// light profile to the same place. RFC-BPR-0006 already requires a
+		// non-colour indicator, so the obligation is dischargeable - it is
+		// recorded here rather than dodged by keeping the tokens too light to
+		// read when selected.
+		color_only_obligation{ core::appearance_variant::light,
+							   role::syntax_warning,
+							   role::syntax_error },
 		color_only_obligation{ core::appearance_variant::dark,
 							   role::diff_added_background,
 							   role::diff_removed_background },
