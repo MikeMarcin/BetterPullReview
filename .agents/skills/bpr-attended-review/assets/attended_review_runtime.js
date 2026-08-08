@@ -67,6 +67,16 @@
         throw new Error("review config must declare downstream_claims");
       }
       this.config = config;
+      this.groups = new Map();
+      for (const group of config.selection_groups || []) {
+        this.groups.set(group.group_id, group);
+      }
+      for (const subject of config.subjects) {
+        const token = subject.choice_group;
+        if (token && !this.groups.has(token)) {
+          this.groups.set(token, { group_id: token, min_accept: 1, max_accept: 1 });
+        }
+      }
       this.storage = storage || availableStorage();
       this.states = new Map();
       for (const subject of config.subjects) {
@@ -108,6 +118,30 @@
       );
     }
 
+    subjectGroupId(subject) {
+      return subject.selection_group || subject.choice_group || null;
+    }
+
+    groupMembers(groupId) {
+      return this.config.subjects.filter((item) => this.subjectGroupId(item) === groupId);
+    }
+
+    groupTally(groupId) {
+      const group = this.groups.get(groupId);
+      const members = this.groupMembers(groupId);
+      let chosen = 0;
+      let rejected = 0;
+      for (const member of members) {
+        const decision = this.state(member).decision;
+        if (decision === "accept") chosen += 1;
+        if (decision === "reject") rejected += 1;
+      }
+      const undecided = members.length - chosen - rejected;
+      const satisfied = (chosen >= group.min_accept && chosen <= group.max_accept)
+        || (chosen === 0 && rejected === members.length);
+      return { group, members, chosen, rejected, undecided, satisfied };
+    }
+
     setDecision(subjectId, subjectDigest, decision) {
       if (decision !== "accept" && decision !== "reject" && decision !== null) {
         throw new Error(`invalid decision: ${decision}`);
@@ -115,6 +149,26 @@
       const subject = this.subject(subjectId, subjectDigest);
       if (decision === "accept" && auditFailed(subject)) {
         throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      const groupId = this.subjectGroupId(subject);
+      if (decision === "accept" && groupId && this.groups.has(groupId)) {
+        const tally = this.groupTally(groupId);
+        const alreadyChosen = this.state(subject).decision === "accept";
+        if (!alreadyChosen && tally.chosen >= tally.group.max_accept) {
+          if (tally.group.max_accept === 1) {
+            for (const member of tally.members) {
+              const memberState = this.state(member);
+              if (memberState.decision === "accept") {
+                memberState.decision = null;
+                this.save(member);
+              }
+            }
+          } else {
+            throw new Error(
+              `selection group '${groupId}' allows at most ${tally.group.max_accept} chosen alternatives; clear one first`
+            );
+          }
+        }
       }
       this.state(subject).decision = decision;
       this.save(subject);
@@ -131,27 +185,50 @@
     summary() {
       let accepted = 0;
       let rejected = 0;
-      for (const state of this.states.values()) {
-        if (state.decision === "accept") accepted += 1;
-        if (state.decision === "reject") rejected += 1;
+      let notChosen = 0;
+      let pending = 0;
+      for (const subject of this.config.subjects) {
+        const decision = this.state(subject).decision;
+        if (decision === "accept") accepted += 1;
+        if (decision === "reject") rejected += 1;
+        if (!decision && !this.subjectGroupId(subject)) pending += 1;
+      }
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (tally.satisfied) {
+          notChosen += tally.undecided;
+        } else {
+          pending += tally.undecided || 1;
+        }
       }
       const total = this.config.subjects.length;
       return {
         accepted,
         rejected,
-        resolved: accepted + rejected,
-        pending: total - accepted - rejected,
+        notChosen,
+        resolved: total - pending,
+        pending,
         total,
       };
     }
 
     buildVerdict() {
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (!tally.satisfied) {
+          throw new Error(
+            `cannot export: selection group '${groupId}' is unresolved; choose between `
+            + `${tally.group.min_accept} and ${tally.group.max_accept} alternatives or reject every member`
+          );
+        }
+      }
       const summary = this.summary();
       if (summary.pending !== 0) {
         throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
       }
       const accepted = [];
       const rejected = [];
+      const notChosen = [];
       const notes = {};
       for (const subject of this.config.subjects) {
         const state = this.state(subject);
@@ -159,12 +236,18 @@
           subject_id: subject.subject_id,
           subject_digest: subject.subject_digest,
         };
-        (state.decision === "accept" ? accepted : rejected).push(identity);
+        if (state.decision === "accept") {
+          accepted.push(identity);
+        } else if (state.decision === "reject") {
+          rejected.push(identity);
+        } else {
+          notChosen.push(identity);
+        }
         if (state.notes.trim()) {
           notes[identityKey(subject)] = state.notes;
         }
       }
-      return {
+      const verdict = {
         schema_name: VERDICT_SCHEMA,
         schema_version: 1,
         batch_id: this.config.batch_id,
@@ -175,6 +258,10 @@
         notes_by_subject_identity: notes,
         downstream_claims: { ...this.config.downstream_claims },
       };
+      if (this.groups.size > 0) {
+        verdict.not_chosen_subjects = notChosen;
+      }
+      return verdict;
     }
   }
 
@@ -228,18 +315,49 @@
     function render() {
       const summary = controller.summary();
       progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
-      totals.textContent = `${summary.accepted} accepted · ${summary.rejected} rejected · ${summary.pending} pending`;
+      const segments = [`${summary.accepted} accepted`, `${summary.rejected} rejected`];
+      if (controller.groups.size > 0) {
+        segments.push(`${summary.notChosen} not chosen`);
+      }
+      segments.push(`${summary.pending} pending`);
+      totals.textContent = segments.join(" · ");
       exportButton.disabled = summary.pending !== 0;
       if (summary.pending !== 0) {
         exportButton.textContent = "Copy the complete verdict";
       }
+      const tallies = new Map();
+      for (const groupId of controller.groups.keys()) {
+        tallies.set(groupId, controller.groupTally(groupId));
+      }
       for (const card of cards) {
         const subject = cardSubject(card);
         const state = controller.state(subject);
-        card.dataset.reviewState = state.decision || "pending";
-        card.hidden = Boolean(pendingOnly.checked && state.decision);
+        let reviewState = state.decision || "pending";
+        const groupId = controller.subjectGroupId(subject);
+        if (!state.decision && groupId) {
+          const tally = tallies.get(groupId);
+          if (tally && tally.satisfied) {
+            reviewState = "not-chosen";
+          }
+        }
+        card.dataset.reviewState = reviewState;
+        card.hidden = Boolean(pendingOnly.checked && reviewState !== "pending");
         for (const button of card.querySelectorAll("[data-decision]")) {
           button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+      for (const node of document.querySelectorAll("[data-selection-group-status]")) {
+        const tally = tallies.get(node.dataset.selectionGroupStatus);
+        if (!tally) continue;
+        const range = tally.group.min_accept === tally.group.max_accept
+          ? String(tally.group.max_accept)
+          : `${tally.group.min_accept}-${tally.group.max_accept}`;
+        if (tally.satisfied && tally.chosen === 0) {
+          node.textContent = `Every alternative rejected: this question has no acceptable answer (needs ${range}).`;
+        } else if (tally.satisfied) {
+          node.textContent = `Satisfied: ${tally.chosen} chosen of ${range}; ${tally.undecided} not chosen, ${tally.rejected} rejected.`;
+        } else {
+          node.textContent = `Unresolved: ${tally.chosen} chosen of ${range} needed; ${tally.undecided} undecided, ${tally.rejected} rejected.`;
         }
       }
     }

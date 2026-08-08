@@ -49,12 +49,15 @@ resolved. Gates, scopes, claims, and media groups are caller-declared.
 
 Field rules:
 
-- `ab_group`, `choice_group`: at most one of the two, never both.
+- `ab_group`, `choice_group`, `selection_group`: at most one of the three.
   `ab_group` groups subjects for presentation and leaves each an independent
   pass or fail. `choice_group` declares them **alternatives to one question**,
   and changes what a verdict must say: exactly one member accepted, and every
   other member listed in `not_chosen_subjects` rather than
-  `rejected_subjects`.
+  `rejected_subjects`. `selection_group` is the general form — a declared
+  batch-level group with `min_accept`..`max_accept` cardinality covering A/B
+  comparisons, multiple choice, and select-N; see Selection Groups below.
+  `choice_group` remains the choose-exactly-one shorthand.
 
   Use `choice_group` whenever the subjects are shades of one decision. Without
   it, an n-way choice has to be recorded as one acceptance and n-1 rejections,
@@ -98,6 +101,40 @@ Field rules:
   provenance, state coverage, or excerpts. Code lines are stored with
   trailing whitespace stripped.
 
+## Selection Groups
+
+Declare a batch-level selection group and reference it from each member
+when subjects are alternatives to one question with declared bounds:
+
+```json
+"selection_groups": [
+  {"group_id": "hero", "title": "Pick the hero capture",
+   "min_accept": 1, "max_accept": 1}
+]
+```
+
+- An A/B comparison is a two-member choose-exactly-one group; multiple
+  choice is the same with more members; select-N declares its bounds,
+  including `min_accept: 0` for "keep up to N".
+- The authoring tell: if accepting one subject would make its siblings
+  pointless to accept, they are one question — declare a group instead of
+  emitting independent pass/fail subjects.
+- Members must be contiguous in subject order, at least two per group, and
+  a member may not also declare `choice_group` or `ab_group`. The group
+  definitions and memberships are part of batch identity.
+- On the page, declared groups render under a header with a cardinality
+  line and a live status; choose-exactly-one groups (including
+  `choice_group` shorthand members) behave like radios, and wider groups
+  refuse choices beyond `max_accept` until one is cleared. Unchosen
+  members of a satisfied group are recorded as not chosen; Reject still
+  means genuinely defective.
+- Zero accepted members is valid only when every member is explicitly
+  rejected — "none of these are acceptable" is a recordable answer, and
+  the only alternative to meeting the declared range. (`choice_group`
+  keeps its strict exactly-one contract for compatibility; use a
+  `selection_group` when the no-acceptable-answer outcome must be
+  expressible.)
+
 ## Identity And Digests
 
 `subject_digest` hashes the subject's metadata plus each bound file's
@@ -123,16 +160,25 @@ Never assemble a verdict yourself from screenshots, partial page state, or
 verdict for a packet-adjacent flow, list subjects in manifest order — the
 validator enforces it.
 
-## The Nine Validator Checks
+## The Validator Checks
 
 1. The manifest is a `bpr.attended_review_batch` v1.
 2. `schema_name`, `schema_version`, `batch_id`, `review_gate`, and
    `review_scope` equal the manifest's values exactly.
-3. Every accepted/rejected entry is exactly `{subject_id, subject_digest}`.
-4. Accepted plus rejected is an exact, duplicate-free partition of all
-   manifest subjects (missing and extra identities are reported).
+3. Every entry in every subject list is exactly `{subject_id, subject_digest}`.
+4. Accepted, rejected, and not-chosen form an exact, duplicate-free
+   partition of all manifest subjects (missing and extra identities are
+   reported; `not_chosen_subjects` absent means empty).
 5. Note keys are `subject_id@subject_digest` with string values.
 6. `downstream_claims` equals the manifest's declared false-only map.
-7. The verdict has exactly the eight expected top-level fields.
-8. Both lists preserve manifest subject order.
+7. The verdict has exactly the expected top-level fields;
+   `not_chosen_subjects` is required when the manifest has any choice or
+   selection group.
+8. Every list preserves manifest subject order.
 9. No accepted subject failed its mechanical audit.
+10. `not_chosen_subjects` contains only members of a choice or selection
+    group.
+11. Each `choice_group` has exactly one accepted member with the remainder
+    not chosen; each `selection_group`'s accepted count is within its
+    declared `min_accept`..`max_accept` range, or zero with every member
+    explicitly rejected.

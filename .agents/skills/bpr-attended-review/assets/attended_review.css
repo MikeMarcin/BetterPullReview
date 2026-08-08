@@ -102,6 +102,16 @@ button:disabled {
 .subject[data-review-state="accept"] { border-color: var(--accept); }
 .subject[data-review-state="reject"] { border-color: var(--reject); }
 .subject[data-review-state="pending"] { border-color: var(--pending); }
+.subject[data-review-state="not-chosen"] { border-color: var(--line); opacity: .78; }
+.selection-group {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  background: #131c24;
+  border: 1px solid var(--accent);
+  border-radius: .7rem;
+}
+.selection-group h2 { margin-bottom: .35rem; }
+.selection-group-status { margin: 0; font-weight: 700; color: var(--accent); }
 .subject-head {
   display: flex;
   justify-content: space-between;

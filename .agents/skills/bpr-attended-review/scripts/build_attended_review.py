@@ -288,6 +288,12 @@ def prepare_subject(
             f"{field} may declare choice_group or ab_group, not both: a set of "
             "alternatives is either a choice or a presentation grouping"
         )
+    selection_group = optional_string(raw.get("selection_group"), f"{field}.selection_group")
+    if selection_group and (ab_group or choice_group):
+        raise ReviewError(
+            f"{field} may declare only one of selection_group, choice_group, or ab_group; "
+            "selection_group is the general form and choice_group its choose-exactly-one shorthand"
+        )
     audit_verdict = prepare_audit_verdict(raw.get("audit_verdict"), f"{field}.audit_verdict")
     detail_sections = prepare_detail_sections(raw.get("detail_sections"), f"{field}.detail_sections")
 
@@ -347,9 +353,8 @@ def prepare_subject(
         "detail_sections": detail_sections,
         "identity_files": file_identity,
     }
-    return {
+    record = {
         "subject_id": subject_id,
-        "subject_digest": sha256_bytes(canonical_bytes(digest_input)),
         "subject_key": subject_key,
         "display_name": display_name,
         "description": description,
@@ -362,6 +367,46 @@ def prepare_subject(
         "detail_sections": detail_sections,
         "identity_files": identity_files,
     }
+    if selection_group:
+        digest_input["selection_group"] = selection_group
+        record["selection_group"] = selection_group
+    record["subject_digest"] = sha256_bytes(canonical_bytes(digest_input))
+    return record
+
+
+def prepare_selection_groups(raw: Any) -> dict[str, dict[str, Any]]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, list) or not raw:
+        raise ReviewError("selection_groups must be a non-empty array when present")
+    groups: dict[str, dict[str, Any]] = {}
+    for index, entry in enumerate(raw):
+        field = f"selection_groups[{index}]"
+        if not isinstance(entry, dict):
+            raise ReviewError(f"{field} must be an object")
+        group_id = require_token(entry.get("group_id"), f"{field}.group_id", GROUP_ID_RE)
+        if group_id in groups:
+            raise ReviewError(f"{field}.group_id must be unique")
+        title = require_string(entry.get("title"), f"{field}.title")
+        note = optional_string(entry.get("note"), f"{field}.note")
+        min_accept = entry.get("min_accept", 1)
+        max_accept = entry.get("max_accept", 1)
+        if not isinstance(min_accept, int) or isinstance(min_accept, bool) or min_accept < 0:
+            raise ReviewError(f"{field}.min_accept must be a non-negative integer")
+        if not isinstance(max_accept, int) or isinstance(max_accept, bool) or max_accept < 1:
+            raise ReviewError(f"{field}.max_accept must be a positive integer")
+        if min_accept > max_accept:
+            raise ReviewError(f"{field}.min_accept must not exceed max_accept")
+        if set(entry) - {"group_id", "title", "note", "min_accept", "max_accept"}:
+            raise ReviewError(f"{field} contains unsupported keys")
+        groups[group_id] = {
+            "group_id": group_id,
+            "title": title,
+            "note": note,
+            "min_accept": min_accept,
+            "max_accept": max_accept,
+        }
+    return groups
 
 
 def prepare_claims(raw: Any) -> dict[str, bool]:
@@ -387,6 +432,7 @@ def build_manifest(source: dict[str, Any], input_path: Path, output_root: Path) 
     review_gate = require_token(source.get("review_gate"), "review_gate", TOKEN_RE)
     review_scope = require_token(source.get("review_scope"), "review_scope", TOKEN_RE)
     downstream_claims = prepare_claims(source.get("downstream_claims"))
+    selection_groups = prepare_selection_groups(source.get("selection_groups"))
     reference_disclaimer = optional_string(source.get("reference_disclaimer"), "reference_disclaimer")
     raw_subjects = source.get("subjects")
     if not isinstance(raw_subjects, list) or not raw_subjects:
@@ -405,6 +451,26 @@ def build_manifest(source: dict[str, Any], input_path: Path, output_root: Path) 
     if len(subject_ids) != len(set(subject_ids)):
         raise ReviewError("subject_id values must be unique within a batch")
 
+    group_indexes: dict[str, list[int]] = {}
+    for index, subject in enumerate(subjects):
+        group = subject.get("selection_group", "")
+        if group:
+            if group not in selection_groups:
+                raise ReviewError(
+                    f"subjects[{index}].selection_group references undeclared group {group!r}"
+                )
+            group_indexes.setdefault(group, []).append(index)
+    for group_id, group in selection_groups.items():
+        indexes = group_indexes.get(group_id, [])
+        if len(indexes) < 2:
+            raise ReviewError(f"selection group {group_id!r} needs at least two member subjects")
+        if indexes != list(range(indexes[0], indexes[0] + len(indexes))):
+            raise ReviewError(
+                f"selection group {group_id!r} members must be contiguous in subject order"
+            )
+        if group["max_accept"] > len(indexes):
+            raise ReviewError(f"selection group {group_id!r} max_accept exceeds its member count")
+
     batch_identity = {
         "project_id": project_id,
         "title": title,
@@ -420,9 +486,11 @@ def build_manifest(source: dict[str, Any], input_path: Path, output_root: Path) 
             for subject in subjects
         ],
     }
+    if selection_groups:
+        batch_identity["selection_groups"] = list(selection_groups.values())
     batch_hash = hashlib.sha256(canonical_bytes(batch_identity)).hexdigest()[:24]
     batch_id = f"bpr:/attended-review/{slug(project_id, 'project')}/{batch_hash}"
-    return {
+    manifest = {
         "schema_name": OUTPUT_SCHEMA,
         "schema_version": SCHEMA_VERSION,
         "batch_id": batch_id,
@@ -434,6 +502,9 @@ def build_manifest(source: dict[str, Any], input_path: Path, output_root: Path) 
         "reference_disclaimer": reference_disclaimer,
         "subjects": subjects,
     }
+    if selection_groups:
+        manifest["selection_groups"] = list(selection_groups.values())
+    return manifest
 
 
 def media_html(items: list[dict[str, Any]]) -> str:
@@ -499,11 +570,55 @@ def media_groups_html(groups: list[dict[str, Any]]) -> str:
     return "\n".join(sections)
 
 
+def cardinality_line(group: dict[str, Any]) -> str:
+    low, high = group["min_accept"], group["max_accept"]
+    if low == high:
+        core = "Choose exactly one alternative." if high == 1 else f"Choose exactly {high} alternatives."
+    elif low == 0:
+        core = f"Choose up to {high} alternatives."
+    else:
+        core = f"Choose {low} to {high} alternatives."
+    return (
+        f"{core} Unchosen alternatives are recorded as not chosen, never as rejections; "
+        "Reject marks an alternative genuinely defective."
+    )
+
+
+def selection_group_html(group: dict[str, Any]) -> str:
+    group_id = html.escape(group["group_id"], quote=True)
+    note = f'<p class="muted">{html.escape(group["note"])}</p>' if group["note"] else ""
+    return (
+        f'<section class="selection-group" data-selection-group-header="{group_id}">'
+        f'<h2>{html.escape(group["title"])}</h2>'
+        f'<p class="muted">{html.escape(cardinality_line(group))}</p>{note}'
+        f'<p class="selection-group-status" data-selection-group-status="{group_id}">'
+        "No alternatives chosen yet.</p></section>"
+    )
+
+
+def subjects_html(manifest: dict[str, Any]) -> str:
+    groups = {group["group_id"]: group for group in manifest.get("selection_groups", [])}
+    seen: set[str] = set()
+    parts: list[str] = []
+    for subject in manifest["subjects"]:
+        group_id = subject.get("selection_group", "")
+        if group_id and group_id not in seen:
+            seen.add(group_id)
+            parts.append(selection_group_html(groups[group_id]))
+        parts.append(subject_html(subject))
+    return "\n".join(parts)
+
+
 def subject_html(subject: dict[str, Any]) -> str:
     subject_id = html.escape(subject["subject_id"], quote=True)
     digest = html.escape(subject["subject_digest"], quote=True)
+    selection_group = subject.get("selection_group", "")
     ab_group_attr = ""
-    if subject["ab_group"]:
+    if selection_group:
+        ab_group_attr = f' data-selection-group="{html.escape(selection_group, quote=True)}"'
+    elif subject["choice_group"]:
+        ab_group_attr = f' data-choice-group="{html.escape(subject["choice_group"], quote=True)}"'
+    elif subject["ab_group"]:
         ab_group_attr = f' data-ab-group="{html.escape(subject["ab_group"], quote=True)}"'
     identity_files = subject["identity_files"]
     if identity_files:
@@ -551,8 +666,8 @@ def subject_html(subject: dict[str, Any]) -> str:
   {detail_sections_html(subject["detail_sections"])}
   <section class="identity-files"><h3>Identity-bound files</h3>{links}</section>
   <div class="decision-row" role="group" aria-label="Decision for {html.escape(subject["display_name"], quote=True)}">
-    <button type="button" data-decision="accept" aria-pressed="false"{accept_disabled}>Accept exact subject</button>
-    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="accept" aria-pressed="false"{accept_disabled}>{"Choose exact alternative" if selection_group or subject["choice_group"] else "Accept exact subject"}</button>
+    <button type="button" data-decision="reject" aria-pressed="false">{"Reject exact alternative" if selection_group or subject["choice_group"] else "Reject exact subject"}</button>
     <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
   </div>
   {audit_explanation}
@@ -563,7 +678,7 @@ def subject_html(subject: dict[str, Any]) -> str:
 def render_html(manifest: dict[str, Any], css: str, runtime: str) -> str:
     config_json = json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     config_json = config_json.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
-    cards = "\n".join(subject_html(subject) for subject in manifest["subjects"])
+    cards = subjects_html(manifest)
     claim_names = html.escape(", ".join(sorted(manifest["downstream_claims"])))
     disclaimer = ""
     if manifest["reference_disclaimer"]:
@@ -711,11 +826,22 @@ def validate_verdict(manifest: dict[str, Any], verdict: dict[str, Any]) -> None:
     # and a record that cannot tell the two apart forces the next batch to
     # re-litigate a decision that was already made.
     choice_groups: dict[str, set[tuple[str, str]]] = {}
+    selection_defs = {
+        group["group_id"]: group for group in manifest.get("selection_groups", [])
+    }
+    selection_members: dict[str, set[tuple[str, str]]] = {}
     for subject in manifest_subjects:
+        identity = (subject["subject_id"], subject["subject_digest"])
         group = subject.get("choice_group")
         if group:
-            identity = (subject["subject_id"], subject["subject_digest"])
             choice_groups.setdefault(group, set()).add(identity)
+        selection = subject.get("selection_group", "")
+        if selection:
+            if selection not in selection_defs:
+                raise ReviewError(
+                    f"manifest subject references undeclared selection group {selection!r}"
+                )
+            selection_members.setdefault(selection, set()).add(identity)
     accepted_set = {
         identity_tuple(value, f"accepted_subjects[{index}]")
         for index, value in enumerate(verdict.get("accepted_subjects", []))
@@ -737,14 +863,31 @@ def validate_verdict(manifest: dict[str, Any], verdict: dict[str, Any]) -> None:
                 f"every unchosen alternative of choice group {group!r} must be "
                 "recorded as not chosen rather than rejected"
             )
-    stray = not_chosen_set - {
+    grouped_identities = {
         identity for members in choice_groups.values() for identity in members
-    }
+    } | {identity for members in selection_members.values() for identity in members}
+    stray = not_chosen_set - grouped_identities
     if stray:
         raise ReviewError(
-            "not_chosen_subjects may only contain members of a choice group; "
+            "not_chosen_subjects may only contain members of a choice or selection group; "
             f"stray={sorted(stray)!r}"
         )
+
+    rejected_set = {
+        identity_tuple(value, f"rejected_subjects[{index}]")
+        for index, value in enumerate(verdict.get("rejected_subjects", []))
+    }
+    for group_id, members in sorted(selection_members.items()):
+        group = selection_defs[group_id]
+        chosen = len(members & accepted_set)
+        if chosen == 0 and members <= rejected_set:
+            continue
+        if not (group["min_accept"] <= chosen <= group["max_accept"]):
+            raise ReviewError(
+                f"selection group {group_id!r} requires between {group['min_accept']} and "
+                f"{group['max_accept']} accepted alternatives, found {chosen}; rejecting "
+                "every member is the only alternative to meeting that range"
+            )
 
     audit_failed = {
         (subject["subject_id"], subject["subject_digest"])
@@ -778,9 +921,9 @@ def validate_verdict(manifest: dict[str, Any], verdict: dict[str, Any]) -> None:
         raise ReviewError("verdict contains missing top-level fields")
     if not set(verdict) <= required_fields | {"not_chosen_subjects"}:
         raise ReviewError("verdict contains unsupported top-level fields")
-    if choice_groups and "not_chosen_subjects" not in verdict:
+    if (choice_groups or selection_members) and "not_chosen_subjects" not in verdict:
         raise ReviewError(
-            "a batch with a choice group needs not_chosen_subjects, so a losing "
+            "a batch with a choice or selection group needs not_chosen_subjects, so a losing "
             "alternative is recorded as unchosen rather than as a rejection"
         )
 

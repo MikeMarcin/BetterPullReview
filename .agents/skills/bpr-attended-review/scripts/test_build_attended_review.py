@@ -324,6 +324,297 @@ class AttendedReviewPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(review.ReviewError, "preserve manifest subject order"):
             review.validate_verdict(manifest, reordered)
 
+    def selection_source(self, min_accept: int = 1, max_accept: int = 1):
+        source = copy.deepcopy(self.source)
+        source["selection_groups"] = [
+            {
+                "group_id": "hero",
+                "title": "Pick the hero capture",
+                "min_accept": min_accept,
+                "max_accept": max_accept,
+            }
+        ]
+        for letter in ("a", "b", "c"):
+            source["subjects"].append(
+                {
+                    "subject_id": f"candidate:/fixture/hero-{letter}",
+                    "subject_key": f"hero-{letter}",
+                    "display_name": f"Hero option {letter.upper()}",
+                    "selection_group": "hero",
+                    "media_groups": [
+                        {
+                            "group_id": "shot",
+                            "title": "Shot",
+                            "items": [{"label": "Shot", "path": "capture.png"}],
+                        }
+                    ],
+                }
+            )
+        return source
+
+    def selection_verdict(self, manifest, accepted_ids, rejected_ids, not_chosen_ids):
+        def entries(wanted):
+            return [
+                {
+                    "subject_id": subject["subject_id"],
+                    "subject_digest": subject["subject_digest"],
+                }
+                for subject in manifest["subjects"]
+                if subject["subject_id"] in wanted
+            ]
+
+        return {
+            "schema_name": review.VERDICT_SCHEMA,
+            "schema_version": 1,
+            "batch_id": manifest["batch_id"],
+            "review_gate": manifest["review_gate"],
+            "review_scope": manifest["review_scope"],
+            "accepted_subjects": entries(accepted_ids),
+            "rejected_subjects": entries(rejected_ids),
+            "not_chosen_subjects": entries(not_chosen_ids),
+            "notes_by_subject_identity": {},
+            "downstream_claims": copy.deepcopy(manifest["downstream_claims"]),
+        }
+
+    def test_selection_group_build_renders_and_binds_identity(self) -> None:
+        base_manifest = self.build("groupless")
+        base_text = (self.root / "groupless/attended-review-manifest.json").read_text(encoding="utf-8")
+        self.assertNotIn("selection_group", base_text)
+
+        self.reset()
+        self.source = self.selection_source()
+        self.write_source()
+        manifest = self.build("selection")
+        page = (self.root / "selection/index.html").read_text(encoding="utf-8")
+        self.assertIn('data-selection-group-header="hero"', page)
+        self.assertIn("Choose exactly one alternative.", page)
+        self.assertIn("Choose exact alternative", page)
+        self.assertIn('data-selection-group="hero"', page)
+        self.assertEqual(manifest["selection_groups"][0]["max_accept"], 1)
+        self.assertNotEqual(manifest["batch_id"], base_manifest["batch_id"])
+
+    def test_selection_group_structural_errors(self) -> None:
+        source = self.selection_source()
+        source["subjects"][2]["selection_group"] = "unknown"
+        self.source = source
+        self.write_source()
+        with self.assertRaisesRegex(review.ReviewError, "undeclared group"):
+            self.build("undeclared")
+
+        self.reset()
+        source = self.selection_source()
+        source["subjects"] = [s for s in source["subjects"] if s["subject_key"] != "hero-b"]
+        source["subjects"] = [s for s in source["subjects"] if s["subject_key"] != "hero-c"]
+        self.source = source
+        self.write_source()
+        with self.assertRaisesRegex(review.ReviewError, "at least two member subjects"):
+            self.build("one-member")
+
+        self.reset()
+        source = self.selection_source(max_accept=4)
+        self.source = source
+        self.write_source()
+        with self.assertRaisesRegex(review.ReviewError, "max_accept exceeds"):
+            self.build("over-max")
+
+        self.reset()
+        source = self.selection_source(min_accept=2, max_accept=1)
+        self.source = source
+        self.write_source()
+        with self.assertRaisesRegex(review.ReviewError, "must not exceed max_accept"):
+            self.build("min-over-max")
+
+        self.reset()
+        source = self.selection_source()
+        source["subjects"].insert(3, source["subjects"].pop(0))
+        self.source = source
+        self.write_source()
+        with self.assertRaisesRegex(review.ReviewError, "contiguous in subject order"):
+            self.build("split-group")
+
+        self.reset()
+        source = self.selection_source()
+        source["subjects"][2]["ab_group"] = "family-2"
+        self.source = source
+        self.write_source()
+        with self.assertRaisesRegex(review.ReviewError, "only one of selection_group"):
+            self.build("both-groupings")
+
+    def test_selection_group_verdicts(self) -> None:
+        self.source = self.selection_source()
+        self.write_source()
+        manifest = self.build("mc")
+        base = {"criterion:/fixture/ac-01"}
+        audio = {"candidate:/fixture/audio-a"}
+        heroes = {f"candidate:/fixture/hero-{letter}" for letter in ("a", "b", "c")}
+
+        chosen_one = self.selection_verdict(
+            manifest, base | {"candidate:/fixture/hero-a"}, audio, heroes - {"candidate:/fixture/hero-a"}
+        )
+        review.validate_verdict(manifest, chosen_one)
+
+        over_chosen = self.selection_verdict(
+            manifest,
+            base | {"candidate:/fixture/hero-a", "candidate:/fixture/hero-b"},
+            audio,
+            {"candidate:/fixture/hero-c"},
+        )
+        with self.assertRaisesRegex(review.ReviewError, "requires between 1 and 1"):
+            review.validate_verdict(manifest, over_chosen)
+
+        under_chosen = self.selection_verdict(
+            manifest, base, audio | {"candidate:/fixture/hero-b"},
+            heroes - {"candidate:/fixture/hero-b"},
+        )
+        with self.assertRaisesRegex(review.ReviewError, "requires between 1 and 1"):
+            review.validate_verdict(manifest, under_chosen)
+
+        all_defective = self.selection_verdict(manifest, base, audio | heroes, set())
+        review.validate_verdict(manifest, all_defective)
+
+        stray = self.selection_verdict(
+            manifest, base | {"candidate:/fixture/hero-a"},
+            set(), heroes - {"candidate:/fixture/hero-a"} | audio,
+        )
+        with self.assertRaisesRegex(review.ReviewError, "members of a choice or selection group"):
+            review.validate_verdict(manifest, stray)
+
+        missing_field = self.selection_verdict(
+            manifest, base | {"candidate:/fixture/hero-a"}, audio, heroes - {"candidate:/fixture/hero-a"}
+        )
+        del missing_field["not_chosen_subjects"]
+        with self.assertRaisesRegex(review.ReviewError, "partition is not exact|needs not_chosen_subjects"):
+            review.validate_verdict(manifest, missing_field)
+
+    def test_groupless_batch_tolerates_empty_not_chosen_only(self) -> None:
+        manifest = self.build("plain")
+        verdict = self.complete_verdict(manifest, accept_indices={0})
+        verdict["not_chosen_subjects"] = []
+        review.validate_verdict(manifest, verdict)
+        moved = self.complete_verdict(manifest, accept_indices={0})
+        moved["not_chosen_subjects"] = moved["rejected_subjects"]
+        moved["rejected_subjects"] = []
+        with self.assertRaisesRegex(review.ReviewError, "members of a choice or selection group"):
+            review.validate_verdict(manifest, moved)
+
+    def test_select_n_cardinality(self) -> None:
+        self.source = self.selection_source(min_accept=2, max_accept=2)
+        self.write_source()
+        manifest = self.build("select-n")
+        base = {"criterion:/fixture/ac-01"}
+        audio = {"candidate:/fixture/audio-a"}
+        two_chosen = self.selection_verdict(
+            manifest,
+            base | {"candidate:/fixture/hero-a", "candidate:/fixture/hero-b"},
+            audio,
+            {"candidate:/fixture/hero-c"},
+        )
+        review.validate_verdict(manifest, two_chosen)
+        one_chosen = self.selection_verdict(
+            manifest,
+            base | {"candidate:/fixture/hero-a"},
+            audio,
+            {"candidate:/fixture/hero-b", "candidate:/fixture/hero-c"},
+        )
+        with self.assertRaisesRegex(review.ReviewError, "requires between 2 and 2"):
+            review.validate_verdict(manifest, one_chosen)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for the selection runtime test")
+    def test_browserless_selection_runtime(self) -> None:
+        runtime = SCRIPT_DIR.parent / "assets" / "attended_review_runtime.js"
+        runner = self.root / "selection-runtime-test.js"
+        runner_source = r"""
+const assert = require("assert");
+require(__RUNTIME_PATH__);
+const api = globalThis.BprAttendedReview;
+const heroA = {subject_id: "hero-a", subject_digest: "sha256:aaa", selection_group: "hero"};
+const heroB = {subject_id: "hero-b", subject_digest: "sha256:bbb", selection_group: "hero"};
+const heroC = {subject_id: "hero-c", subject_digest: "sha256:ccc", selection_group: "hero"};
+const lone = {subject_id: "lone", subject_digest: "sha256:ddd"};
+const config = {
+  batch_id: "batch-sel",
+  review_gate: "gate",
+  review_scope: "scope",
+  downstream_claims: {claimed: false},
+  selection_groups: [{group_id: "hero", title: "Hero", min_accept: 1, max_accept: 1}],
+  subjects: [heroA, heroB, heroC, lone],
+};
+const controller = new api.ReviewController(config, api.createMemoryStorage());
+assert.throws(() => controller.buildVerdict(), /unresolved/);
+controller.setDecision("hero-a", "sha256:aaa", "accept");
+controller.setDecision("hero-b", "sha256:bbb", "accept");
+assert.strictEqual(controller.state(heroA).decision, null, "radio semantics clear the prior choice");
+assert.strictEqual(controller.state(heroB).decision, "accept");
+assert.strictEqual(controller.summary().notChosen, 2);
+controller.setDecision("lone", "sha256:ddd", "accept");
+const verdict = controller.buildVerdict();
+assert.deepStrictEqual(verdict.accepted_subjects.map((s) => s.subject_id), ["hero-b", "lone"]);
+assert.deepStrictEqual(verdict.not_chosen_subjects.map((s) => s.subject_id), ["hero-a", "hero-c"]);
+const wide = new api.ReviewController(
+  {...config, selection_groups: [{group_id: "hero", title: "Hero", min_accept: 1, max_accept: 2}]},
+  api.createMemoryStorage()
+);
+wide.setDecision("hero-a", "sha256:aaa", "accept");
+wide.setDecision("hero-b", "sha256:bbb", "accept");
+assert.throws(() => wide.setDecision("hero-c", "sha256:ccc", "accept"), /at most 2/);
+const plain = new api.ReviewController(
+  {batch_id: "b", review_gate: "g", review_scope: "s", downstream_claims: {claimed: false}, subjects: [lone]},
+  api.createMemoryStorage()
+);
+plain.setDecision("lone", "sha256:ddd", "reject");
+assert.ok(!("not_chosen_subjects" in plain.buildVerdict()));
+"""
+        runner.write_text(
+            runner_source.replace("__RUNTIME_PATH__", json.dumps(str(runtime))),
+            encoding="utf-8",
+        )
+        completed = subprocess.run(
+            ["node", str(runner)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
+
+    def test_choice_group_shorthand_remains_valid(self) -> None:
+        source = copy.deepcopy(self.source)
+        for letter in ("a", "b"):
+            source["subjects"].append(
+                {
+                    "subject_id": f"candidate:/fixture/dir-{letter}",
+                    "subject_key": f"dir-{letter}",
+                    "display_name": f"Direction {letter.upper()}",
+                    "choice_group": "direction",
+                    "media_groups": [
+                        {
+                            "group_id": "shot",
+                            "title": "Shot",
+                            "items": [{"label": "Shot", "path": "capture.png"}],
+                        }
+                    ],
+                }
+            )
+        self.source = source
+        self.write_source()
+        manifest = self.build("choice")
+        page = (self.root / "choice/index.html").read_text(encoding="utf-8")
+        self.assertIn('data-choice-group="direction"', page)
+        self.assertIn("Choose exact alternative", page)
+        base = {"criterion:/fixture/ac-01"}
+        audio = {"candidate:/fixture/audio-a"}
+        verdict = self.selection_verdict(
+            manifest, base | {"candidate:/fixture/dir-a"}, audio, {"candidate:/fixture/dir-b"}
+        )
+        review.validate_verdict(manifest, verdict)
+        both = self.selection_verdict(
+            manifest,
+            base | {"candidate:/fixture/dir-a", "candidate:/fixture/dir-b"},
+            audio,
+            set(),
+        )
+        with self.assertRaisesRegex(review.ReviewError, "exactly one accepted"):
+            review.validate_verdict(manifest, both)
+
     @unittest.skipUnless(shutil.which("node"), "Node.js is required for the browserless runtime test")
     def test_browserless_runtime(self) -> None:
         runtime = SCRIPT_DIR.parent / "assets" / "attended_review_runtime.js"
