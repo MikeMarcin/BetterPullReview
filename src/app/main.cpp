@@ -482,9 +482,24 @@ namespace {
 		return "Unknown";
 	}
 
-	[[nodiscard]] auto native_appearance_context_passed(
+	/// \brief Reports which half of the light-state context held.
+	///
+	/// \details `native_appearance_context_passed` is one conjunction of about
+	/// forty terms, and it reported a single aggregate. A run that failed it
+	/// said `0` and nothing else, which located the failure no better than not
+	/// checking. The two halves are the ones that can fail for product reasons
+	/// -- the epoch selectors' resolved pair, and the comparison surface's
+	/// result -- so they are reported separately.
+	struct native_appearance_context_detail
+	{
+		bool Epoch = false;
+		bool Diff  = false;
+		bool All   = false;
+	};
+
+	[[nodiscard]] auto native_appearance_context_detail_of(
 		const bpr::qt::workbench_window& aWindow,
-		const automated_run&             aRun) -> bool
+		const automated_run&             aRun) -> native_appearance_context_detail
 	{
 		const auto* const view          = aWindow.conversation_view();
 		const auto* const model         = aWindow.conversation_model();
@@ -553,12 +568,12 @@ namespace {
 			&& !workbench->testAttribute(Qt::WA_SetFont)
 			&& workbench->styleSheet().isEmpty();
 
-		return aRun.Appearance.Thread.isValid()
+		const auto all = aRun.Appearance.Thread.isValid()
 			&& QGuiApplication::platformName()
-			== aRun.Appearance.InitialPlatformName
+				== aRun.Appearance.InitialPlatformName
 			&& QString::fromLatin1(
 				   QApplication::style()->metaObject()->className())
-			== aRun.Appearance.InitialStyleClass
+				== aRun.Appearance.InitialStyleClass
 			&& view->currentIndex() == aRun.Appearance.Thread
 			&& view->selectionModel()->isSelected(aRun.Appearance.Thread)
 			&& !view->isExpanded(aRun.Appearance.Thread)
@@ -571,12 +586,24 @@ namespace {
 			&& epochContextPreserved
 			&& diffContextPreserved
 			&& model->statistics().ModelResets
-			== aRun.Appearance.InitialModelResets
+				== aRun.Appearance.InitialModelResets
 			&& aWindow.statistics().GithubFullResets == 0U
 			&& !aWindow.testAttribute(Qt::WA_SetPalette)
 			&& !aWindow.testAttribute(Qt::WA_SetStyle)
 			&& !aWindow.testAttribute(Qt::WA_SetFont)
 			&& aWindow.styleSheet().isEmpty();
+		return {
+			.Epoch = epochContextPreserved,
+			.Diff  = diffContextPreserved,
+			.All   = all,
+		};
+	}
+
+	[[nodiscard]] auto native_appearance_context_passed(
+		const bpr::qt::workbench_window& aWindow,
+		const automated_run&             aRun) -> bool
+	{
+		return native_appearance_context_detail_of(aWindow, aRun).All;
 	}
 
 	[[nodiscard]] auto native_palette_readable(
@@ -809,7 +836,11 @@ namespace {
 					== aRun.Appearance.InitialEpochAppearanceUpdates)
 				<< ':'
 				<< native_appearance_context_passed(aWindow, aRun) << '\n'
-				<< "NATIVE_APPEARANCE_FOCUS:"
+				<< "NATIVE_APPEARANCE_CONTEXT_DETAIL:"
+				<< native_appearance_context_detail_of(aWindow, aRun).Epoch
+				<< ':'
+				<< native_appearance_context_detail_of(aWindow, aRun).Diff
+				<< '\n'
 				<< aWindow.isActiveWindow() << ':' << view->isVisible() << ':'
 				<< control->isVisible() << ':'
 				<< control->right_oid_editor()->isVisible() << ':'

@@ -162,6 +162,39 @@ served fixture is a synthetic three-commit graph, and what this needs is a
 comparison the epoch machinery will accept. Whether that is a wider synthetic
 graph or a served recording is the decision to take first.
 
-**Attendance is no longer the missing thing.** The standing authorisation and
-the working probe removed that. Recorded here so the card stops being filed as
-owner-attended when it is not.
+### Withdrawn the same day: attendance *is* still the missing thing
+
+The paragraph above claimed the epoch comparison was the blocker and that this
+card was no longer owner-attended. Both were wrong, and were drawn from a single
+run.
+
+Re-run with the aggregate context check split into its two halves, the epoch
+state came back healthy — *"Review history is ready. Left available; right
+available. Ready for diff."* — and the failure was somewhere else entirely:
+
+```
+NATIVE_APPEARANCE_WAITING_FOR_OWNER_FOCUS
+NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED
+```
+
+The probe requires its window to be the **active, focused, frontmost** window,
+and says so in the marker's name. Driving it from a background shell never
+satisfies that. An attempt to raise the process with `System Events` did not
+either: the following run reported `APPEARANCE_VARIANTS:-1:-1:-1:-1`, meaning no
+baseline was ever captured, and `NATIVE_APPEARANCE_TRANSITION:Dark->Dark`
+despite the desktop having been set to Light first.
+
+So the standing authorisation to change the global scheme removes one of the two
+things a person was needed for, and not the other. Somebody still has to put
+this window in front. That is a deliberate gate — an appearance judgement made
+against a window that was never frontmost is a judgement about a window nobody
+was looking at.
+
+**What is actually needed:** the owner launches the probe and clicks the window
+to the front, then changes the scheme in System Settings. The scheme change can
+now be scripted under the standing authorisation; the focus cannot.
+
+The earlier epoch-context reading is not retracted so much as demoted: it was
+one observation, it did not reproduce, and the aggregate `0` it came from could
+not distinguish forty terms. The split marker below exists so the next run says
+which half failed instead of that it failed.
