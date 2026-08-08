@@ -118,3 +118,50 @@ fails immediately where the diff run happens to arrive later. If that is it, the
 fix is to wait for the accepted comparison rather than to fail on the first
 attempt — which is what the surrounding code already does for
 `current_result() == nullptr` one line below.
+
+## Run on a real display, 2026-08-08, and it is no longer attendance that blocks
+
+The product owner gave standing authorisation to change the global appearance
+for testing, so this was driven without a person at the keyboard: host set to
+Light, `--native-appearance-probe` started, the scheme changed to Dark while it
+ran, and the host restored to Dark afterwards with the restoration read back.
+
+The probe **reached the display and refused nothing**, which is new — its
+automated contract can only prove it declines offscreen. It then failed before
+any appearance stage:
+
+```
+NATIVE_APPEARANCE_EPOCH_CONTEXT:1:1:1:1:0
+NATIVE_APPEARANCE_FOCUS:1:1:1:1:QPlainTextEdit:diffLeftSource:11
+PUBLIC_PATH_FAILED
+PUBLIC_PATH_STAGE:2
+PUBLIC_PATH_VERDICT:presentation=0 ...
+PUBLIC_PATH_EPOCH_COMPARISON:Whole PR. No exact pair is resolved.
+```
+
+Stage 2 is `open`, and the pull request did load — the status line reads *"Pull
+request ready."* and the account resolved. Of the five context fields, four pass:
+focus is preserved, the epoch control's palette is unchanged, that palette is
+readable, and no spurious appearance update was counted. The fifth,
+`native_appearance_context_passed`, is `0`, and the comparison line says why:
+**no exact epoch pair is resolved**.
+
+So `APPEARANCE_SYSTEM_FOLLOWS_OK` and `APPEARANCE_EXPLICIT_IGNORES_OK` were never
+reached. Nothing here says the appearance behaviour is wrong; it says the probe
+cannot get far enough to ask.
+
+### What actually blocks this card now
+
+An accepted epoch comparison in the fixture run. The `github-com` fixture opens
+a pull request whose review history is inactive and whose comparison never
+resolves an exact pair, so the light-state precondition the probe checks before
+touching appearance can never hold.
+
+That is a fixture-content problem, and it is the same shape as [[BPR-0187]]: the
+served fixture is a synthetic three-commit graph, and what this needs is a
+comparison the epoch machinery will accept. Whether that is a wider synthetic
+graph or a served recording is the decision to take first.
+
+**Attendance is no longer the missing thing.** The standing authorisation and
+the working probe removed that. Recorded here so the card stops being filed as
+owner-attended when it is not.
