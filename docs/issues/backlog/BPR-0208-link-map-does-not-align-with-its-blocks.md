@@ -113,16 +113,44 @@ and the endpoints share one measurement basis, so they cannot disagree by
 construction — rather than agreeing because two independent derivations were
 checked against each other.
 
-### No assertion was landed, deliberately
+### Cause B, fixed
 
-An alignment test was written and removed. Unscrolled — the only state where
-the origin contributes no error — this fixture shows no ribbons at all, so the
-assertion could not run where it would be exact. Scrolled, it fails on cause B.
-Landing it with a tolerance wide enough to pass would have meant a test whose
-tolerance hid the defect it was written to catch.
+`measured_alignment_axis` now retains the per-line boundaries instead of
+keeping only their first element, and exposes `left_line_origin` /
+`right_line_origin`. `source_pane::visible_origin` reports which block the
+viewport starts on and how far above the edge it begins — `firstVisibleBlock`
+and `contentOffset` are protected, so the pane is the only place they can be
+read. The origin is then
 
-The assertion belongs with the cause-B fix, where it can be exact at any scroll
-position.
+    Boundaries[firstVisibleBlock] - contentOffset().y()
+
+which is the same measurement the ribbon endpoints are built from. The
+scrollbar-fraction value is still computed, and kept only as a fallback for the
+torn case where the pane cannot name a first block or the axis has no boundary
+for it.
+
+That is the point of the shape rather than an implementation detail: origin and
+endpoints now share one basis, so they cannot disagree by construction. Before,
+they were two independent derivations of the same quantity that happened to
+agree at the top of a file.
+
+### The assertion
+
+`qt_diff_workbench` at 100, 125 and 200 per cent asserts that a visible
+ribbon's endpoint and its block's top are **the same integer**, both mapped
+into the parent's coordinates.
+
+Exact, not approximate, and that is load-bearing. Measured at all three scales
+the difference is zero rather than small, and the band error is one pixel on
+this platform — so any tolerance wide enough to be "safe" would admit the very
+error the test exists to catch. An earlier draft used ±2 and passed with the
+band deliberately broken.
+
+Both causes shown non-vacuous separately, each with a clean build:
+
+- zeroing the band offset fails it at all three scales;
+- returning the scrollbar estimate instead of the measured origin fails it at
+  all three scales.
 
 ## Required direct evidence
 

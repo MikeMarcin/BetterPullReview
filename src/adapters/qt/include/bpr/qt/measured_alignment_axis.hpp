@@ -123,6 +123,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto right_document_extent() const noexcept -> qreal;
 		[[nodiscard]] auto left_viewport_extent() const noexcept -> qreal;
 		[[nodiscard]] auto right_viewport_extent() const noexcept -> qreal;
+		/// \brief Document y of a line's top, on one side.
+		///
+		/// \details The same measurement the ribbon endpoints are built from.
+		/// Exposed so the scroll origin can be taken from it too: BPR-0208 was
+		/// two derivations of the same quantity that agreed at the top of a
+		/// file and drifted apart down it, and sharing one basis is what stops
+		/// that being possible rather than merely unlikely.
+		[[nodiscard]] auto left_line_origin(std::size_t aLine) const noexcept
+			-> std::optional<qreal>;
+		[[nodiscard]] auto right_line_origin(std::size_t aLine) const noexcept
+			-> std::optional<qreal>;
+
 		[[nodiscard]] auto clamp(qreal aPosition) const noexcept -> qreal;
 		[[nodiscard]] auto project(qreal aPosition) const noexcept
 			-> std::optional<measured_alignment_projection>;
@@ -136,13 +148,17 @@ namespace bpr::qt {
 		core::file_comparison_digest            Comparison;
 		std::vector<measured_alignment_segment> Segments;
 		std::vector<std::size_t>                PositiveSegments;
-		qreal                                   ComparisonExtent    = 0.0;
-		qreal                                   LeftDocumentBegin   = 0.0;
-		qreal                                   LeftDocumentExtent  = 0.0;
-		qreal                                   RightDocumentBegin  = 0.0;
-		qreal                                   RightDocumentExtent = 0.0;
-		qreal                                   LeftViewportExtent  = 0.0;
-		qreal                                   RightViewportExtent = 0.0;
+		/// Per-line document tops, retained rather than discarded after the
+		/// segments are built, because the scroll origin needs them too.
+		std::vector<qreal> LeftBoundaries;
+		std::vector<qreal> RightBoundaries;
+		qreal              ComparisonExtent    = 0.0;
+		qreal              LeftDocumentBegin   = 0.0;
+		qreal              LeftDocumentExtent  = 0.0;
+		qreal              RightDocumentBegin  = 0.0;
+		qreal              RightDocumentExtent = 0.0;
+		qreal              LeftViewportExtent  = 0.0;
+		qreal              RightViewportExtent = 0.0;
 	};
 
 	/// \brief Identifies why measured-axis construction failed closed.

@@ -120,6 +120,22 @@ namespace bpr::qt {
 			: std::nullopt;
 	}
 
+	auto measured_alignment_axis::left_line_origin(
+		const std::size_t aLine) const noexcept -> std::optional<qreal>
+	{
+		return aLine < LeftBoundaries.size()
+			? std::optional<qreal>{ LeftBoundaries[aLine] }
+			: std::nullopt;
+	}
+
+	auto measured_alignment_axis::right_line_origin(
+		const std::size_t aLine) const noexcept -> std::optional<qreal>
+	{
+		return aLine < RightBoundaries.size()
+			? std::optional<qreal>{ RightBoundaries[aLine] }
+			: std::nullopt;
+	}
+
 	auto measured_alignment_segment::positive_extent() const noexcept -> bool
 	{
 		return ComparisonEnd > ComparisonBegin;
@@ -227,6 +243,8 @@ namespace bpr::qt {
 
 		auto axis                = measured_alignment_axis{ };
 		axis.Comparison          = aAlignment.Digest;
+		axis.LeftBoundaries      = aLeft.Boundaries;
+		axis.RightBoundaries     = aRight.Boundaries;
 		axis.LeftDocumentBegin   = aLeft.Boundaries.front();
 		axis.RightDocumentBegin  = aRight.Boundaries.front();
 		axis.LeftDocumentExtent  = aLeft.DocumentExtent;

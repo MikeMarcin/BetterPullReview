@@ -1614,6 +1614,89 @@ namespace {
 		expect(compared > 0U, "at least one intraline edit was compared");
 	}
 
+	/// \brief A ribbon must meet the pane at the block it names.
+	///
+	/// \details Checked scrolled, which is where BPR-0208 lived. Two separate
+	/// errors put ribbons out of place: the map drew at its own y though it is
+	/// a sibling of the panes and does not share their band, and the scroll
+	/// origin was a fraction of the scrollbar's travel rather than a document
+	/// measurement. Both are exercised here — the first by comparing in the
+	/// parent's coordinates, the second by asserting after a reveal has
+	/// scrolled the panes well down the file.
+	auto test_link_map_endpoints_meet_their_blocks() -> void
+	{
+		const auto [left, right] = representative_text();
+		const auto diff          = computed(left, right, { }, 48U);
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		const auto selected = context(diff, 94U, 94U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+
+		auto* const map    = workbench.link_map();
+		auto* const pane   = workbench.left_pane();
+		auto* const parent = map->parentWidget();
+		expect(
+			map != nullptr && pane != nullptr && parent != nullptr,
+			"the composed workbench has a link map, a pane and a parent");
+		expect(
+			pane->verticalScrollBar()->value()
+				> pane->verticalScrollBar()->minimum(),
+			"the pane really is scrolled, so a document-origin error can show");
+
+		const auto links = map->visible_links();
+		expect(!links.empty(), "the comparison shows at least one ribbon");
+
+		const auto mapTop  = map->mapTo(parent, QPoint{ 0, 0 }).y();
+		const auto paneTop = pane->viewport()->mapTo(parent, QPoint{ 0, 0 }).y();
+		expect(
+			mapTop != paneTop,
+			"the map and the pane viewport really do start at different y, so "
+			"the band correction can fail");
+
+		auto checked = 0U;
+		for (const auto& link : links) {
+			const auto segment = std::ranges::find_if(
+				diff.Alignment.Segments,
+				[&link](const core::alignment_segment& aSegment) {
+					return aSegment.Id == link.Identity.Segment;
+				});
+			if (segment == diff.Alignment.Segments.end()) {
+				continue;
+			}
+			const auto block = pane->document()->findBlockByNumber(
+				static_cast<int>(segment->Left.Begin));
+			if (!block.isValid()) {
+				continue;
+			}
+			const auto blockTop = pane->cursorRect(QTextCursor{ block }).top()
+				+ paneTop;
+			if (blockTop < paneTop
+				|| blockTop > paneTop + pane->viewport()->height()) {
+				continue;
+			}
+			const auto ribbonTop = qRound(link.LeftTop) + mapTop;
+			// Exact, not approximate. Both quantities are integers derived
+			// from the same per-line measurement, and measured at 100, 125 and
+			// 200 per cent the difference is zero rather than small. A
+			// tolerance would have to be two pixels wide to admit the band
+			// error this test exists to catch, which would make it admit the
+			// error rather than catch it.
+			expect(
+				ribbonTop == blockTop,
+				"a ribbon meets the pane at the top of the block it names");
+			++checked;
+		}
+		expect(checked > 0U, "at least one visible ribbon was checked");
+	}
+
 	/// \brief Change-group boundaries must be marked where the model puts them.
 	auto test_group_boundaries_are_painted() -> void
 	{
@@ -1723,6 +1806,7 @@ auto main(int argc, char** argv) -> int
 	test_moved_blocks_carry_the_moved_role();
 	test_intraline_ranges_match_the_model();
 	test_group_boundaries_are_painted();
+	test_link_map_endpoints_meet_their_blocks();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }

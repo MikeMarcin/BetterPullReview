@@ -69,6 +69,26 @@ namespace bpr::qt {
 				return PaintedRules;
 			}
 
+			/// \brief The first block the viewport can show, and where it sits.
+			///
+			/// \details `firstVisibleBlock` and `contentOffset` are protected
+			/// on `QPlainTextEdit`, so this is the only place they can be read.
+			/// Together they say which line is at the top and how far above the
+			/// viewport edge it starts, which is everything needed to turn a
+			/// per-line document measurement into a scroll origin.
+			[[nodiscard]] auto visible_origin() const
+				-> std::optional<std::pair<std::size_t, qreal>>
+			{
+				const auto block = firstVisibleBlock();
+				if (!block.isValid() || block.blockNumber() < 0) {
+					return std::nullopt;
+				}
+				return std::pair{
+					static_cast<std::size_t>(block.blockNumber()),
+					contentOffset().y(),
+				};
+			}
+
 			[[nodiscard]] auto set_document_origin(
 				const qreal aOrigin, const qreal aMaximumOrigin) -> qreal
 			{
@@ -154,6 +174,31 @@ namespace bpr::qt {
 			-> source_pane*
 		{
 			return static_cast<source_pane*>(aPane);
+		}
+
+		/// \brief The document y the viewport's top edge sits at.
+		///
+		/// \details Taken from the axis's own per-line boundaries so the
+		/// origin and the ribbon endpoints share one measurement basis and
+		/// cannot disagree by construction. Falls back to the caller's estimate
+		/// only when the pane cannot say which block is first or the axis has
+		/// no boundary for it, which is a torn state rather than a normal one -
+		/// returning something wrong quietly is what this replaces.
+		[[nodiscard]] auto measured_document_origin(
+			const source_pane&             aPane,
+			const measured_alignment_axis& aAxis,
+			const core::diff_side          aSide,
+			const qreal                    aEstimate) -> qreal
+		{
+			const auto visible = aPane.visible_origin();
+			if (!visible.has_value()) {
+				return aEstimate;
+			}
+			const auto boundary = aSide == core::diff_side::left
+				? aAxis.left_line_origin(visible->first)
+				: aAxis.right_line_origin(visible->first);
+			return boundary.has_value() ? *boundary - visible->second
+										: aEstimate;
 		}
 
 		[[nodiscard]] auto text_document(
@@ -912,19 +957,30 @@ namespace bpr::qt {
 		ApplyingFrame          = true;
 		const auto* const axis = AxisCache.axis();
 		if (axis != nullptr && axis->comparison() == aFrame.Comparison) {
-			auto rendered                 = aFrame;
-			rendered.Left.DocumentOriginY = pane(Left)->set_document_origin(
+			auto rendered = aFrame;
+			// Set the bar, then read the origin back off the same per-line
+			// measurement the ribbon endpoints are built from. The value the
+			// setter returns is a fraction of the scrollbar's travel, and
+			// `QPlainTextEdit` scrolls in blocks with a last page it cannot
+			// scroll past, so that fraction is not the fraction of the document
+			// above the viewport. It agreed at the top of a file and drifted
+			// down it, which put every ribbon out by the difference - BPR-0208.
+			const auto leftEstimate = pane(Left)->set_document_origin(
 				aFrame.Left.DocumentOriginY,
 				std::max(
 					0.0,
 					axis->left_document_extent()
 						- axis->left_viewport_extent()));
-			rendered.Right.DocumentOriginY = pane(Right)->set_document_origin(
+			const auto rightEstimate = pane(Right)->set_document_origin(
 				aFrame.Right.DocumentOriginY,
 				std::max(
 					0.0,
 					axis->right_document_extent()
 						- axis->right_viewport_extent()));
+			rendered.Left.DocumentOriginY = measured_document_origin(
+				*pane(Left), *axis, core::diff_side::left, leftEstimate);
+			rendered.Right.DocumentOriginY = measured_document_origin(
+				*pane(Right), *axis, core::diff_side::right, rightEstimate);
 			rendered.Left.ViewportY = rendered.Left.ProjectedDocumentY
 				- rendered.Left.DocumentOriginY;
 			rendered.Right.ViewportY = rendered.Right.ProjectedDocumentY
