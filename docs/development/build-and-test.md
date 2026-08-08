@@ -763,7 +763,7 @@ cmake --build --preset dev --target \
   test_better_pull_review_qt_github_tests
 
 ctest --test-dir build/dev --output-on-failure \
-  -R '^(application_github_host|qt_github_window_scale_(100|125|200)|architecture_boundaries|architecture_boundary_contract)$'
+  -R '^(application_github_host|qt_composed_github_scale_(100|125|200)|architecture_boundaries|architecture_boundary_contract)$'
 ```
 
 The presentation path receives only synthetic normalized projections and
@@ -782,7 +782,7 @@ cmake --build --preset dev --target \
   test_better_pull_review_qt_github_tests \
   test_better_pull_review_qt_github_conversation_model_property_tests
 ctest --test-dir build/dev --output-on-failure \
-  -R '^(qt_github_window_scale_(100|125|200)|qt_github_conversation_model_property)$'
+  -R '^(qt_composed_github_scale_(100|125|200)|qt_github_conversation_model_property)$'
 ```
 
 Each scale also saves representative disconnected, loading, first-load error,

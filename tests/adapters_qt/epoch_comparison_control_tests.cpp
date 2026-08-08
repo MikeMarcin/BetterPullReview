@@ -1,5 +1,5 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
-#include "bpr/qt/github_window.hpp"
+#include "bpr/qt/workbench_window.hpp"
 
 #include <QAccessible>
 #include <QAction>
@@ -1204,8 +1204,11 @@ namespace {
 
 	auto test_real_loaded_window_composition_renders() -> void
 	{
-		qt::github_window window{
-			qt::github_view_config{ },
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			{ },
 			[](application::github_intent) { },
 		};
 		window.publish(application::github_presentation_update{
@@ -1222,9 +1225,9 @@ namespace {
 			page.push_back(epoch_row(ordinal, '1', '2'));
 		}
 		const auto renderTop = page.front();
-		window.epoch_control()->publish(
+		window.epoch_selectors()->publish(
 			loaded_catalog_update(std::move(page)));
-		window.epoch_control()->publish(comparison_update(
+		window.epoch_selectors()->publish(comparison_update(
 			core::named_selection(core::named_comparison::whole_pr),
 			{
 				.Left = anchor(
@@ -1235,16 +1238,16 @@ namespace {
 		window.resize(1'100, 820);
 		window.show();
 		QApplication::processEvents();
-		expect(window.epoch_control()->isVisible()
-				   && window.epoch_control()->left_selector()->isVisible()
-				   && window.epoch_control()->right_selector()->isVisible()
-				   && window.epoch_control()->history_model()->epoch_count()
+		expect(window.epoch_selectors()->isVisible()
+				   && window.epoch_selectors()->left_selector()->isVisible()
+				   && window.epoch_selectors()->right_selector()->isVisible()
+				   && window.epoch_selectors()->history_model()->epoch_count()
 					   == core::maximum_epoch_history_page_size
-				   && window.epoch_control()->history_model()->rowCount()
+				   && window.epoch_selectors()->history_model()->rowCount()
 					   == static_cast<int>(
 						   core::maximum_epoch_history_page_size * 2U)
-				   && window.epoch_control()->left_selector()->currentIndex() == 0
-				   && window.epoch_control()->right_selector()->currentIndex() == 1,
+				   && window.epoch_selectors()->left_selector()->currentIndex() == 0
+				   && window.epoch_selectors()->right_selector()->currentIndex() == 1,
 			   "the exact 100-epoch/200-anchor working set is reachable in the real "
 			   "loaded-content window");
 

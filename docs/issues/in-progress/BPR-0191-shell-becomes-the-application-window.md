@@ -306,19 +306,34 @@ details button and all three locator editors — that had been shipping with no
 accessible description at all, and the port attempt is what surfaced the
 empty-state regression above.
 
-**The port is started and not finished.** Mechanically the file translates: the
-type, the constructor, and the renamed accessors are a substitution, and it
-compiles against the shell. Two assertions genuinely had to be restated rather
-than kept, because `github_window`'s `githubContentSplitter` has no counterpart
-— the conversation now lives in the conversations drawer, whose width is
-host-persisted and whose collapse is core-owned, which is RFC-BPR-0005's own
-mechanism for the thing the splitter orientation used to express.
+### Ported, 2026-08-08, and the old window deleted
 
-It then segfaults, before the first assertion reports. The crash is in the
-ported harness rather than in the shell: with the ported file reverted the shell
-carries all of the behaviour above and the Qt suite is 34/34. Diagnosing it
-needs a session with room to work, so the port is deliberately not committed
-half-applied.
+`github_window_tests.cpp` became `composed_github_tests.cpp` and runs against
+`workbench_window`. Mechanically most of it is a substitution — the type, the
+constructor, the renamed accessors — and the assertions themselves are
+untouched. Three had to be restated, each because the shell genuinely replaced
+the mechanism they measured, and each restated to the guarantee the original
+bought rather than dropped:
+
+- `githubContentSplitter` has no counterpart. The conversation lives in the
+  conversations drawer now, whose width is host-persisted and whose collapse is
+  core-owned — RFC-BPR-0005's own mechanism for what the splitter orientation
+  expressed. The two orientation assertions became: at the 640-pixel minimum the
+  conversation is still hosted by the drawer, and at 960 the drawer holds it
+  beside the comparison.
+- `githubPresentationScroll` has no counterpart either, because the shell does
+  not scroll as a whole: the workbench fills it and the review header is
+  separately bounded. The lower-render evidence is simply the window, and what
+  is scrolled is the header when it has anything to scroll.
+
+The segfault that stopped an earlier attempt was that third one: the shell has
+no whole-window scroll area, so `findChild` returned null and the harness
+dereferenced it unguarded. It crashed in the last of nine test functions, after
+every assertion before it had already passed — which is why it looked like a
+crash on startup until the functions were traced.
+
+`github_window.cpp` and its header are deleted. `epoch_comparison_control_tests`
+held the last reference and now composes the shell.
 
 ### Built, 2026-08-08: the shell is the projection port
 

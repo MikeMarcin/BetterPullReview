@@ -20,7 +20,7 @@ set_tests_properties(
 
 bpr_add_executable(
     test_better_pull_review_qt_github_tests
-    github_window_tests.cpp
+    composed_github_tests.cpp
 )
 
 target_link_libraries(
@@ -39,38 +39,38 @@ if(UNIX AND NOT APPLE)
 endif()
 
 add_test(
-    NAME qt_github_window_scale_100
+    NAME qt_composed_github_scale_100
     COMMAND test_better_pull_review_qt_github_tests
 )
 set_tests_properties(
-    qt_github_window_scale_100
+    qt_composed_github_scale_100
     PROPERTIES
         ENVIRONMENT
-            "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0;BPR_QT_MIN_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-minimum-100.png;BPR_QT_MIN_LOWER_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-minimum-lower-100.png;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-100.png"
+            "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0;BPR_QT_MIN_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-minimum-100.png;BPR_QT_MIN_LOWER_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-minimum-lower-100.png;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-100.png"
         TIMEOUT 120
 )
 
 add_test(
-    NAME qt_github_window_scale_125
+    NAME qt_composed_github_scale_125
     COMMAND test_better_pull_review_qt_github_tests
 )
 set_tests_properties(
-    qt_github_window_scale_125
+    qt_composed_github_scale_125
     PROPERTIES
         ENVIRONMENT
-            "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.25;BPR_EXPECTED_QT_SCALE=1.25;BPR_QT_MIN_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-minimum-125.png;BPR_QT_MIN_LOWER_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-minimum-lower-125.png;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-125.png"
+            "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.25;BPR_EXPECTED_QT_SCALE=1.25;BPR_QT_MIN_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-minimum-125.png;BPR_QT_MIN_LOWER_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-minimum-lower-125.png;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-125.png"
         TIMEOUT 120
 )
 
 add_test(
-    NAME qt_github_window_scale_200
+    NAME qt_composed_github_scale_200
     COMMAND test_better_pull_review_qt_github_tests
 )
 set_tests_properties(
-    qt_github_window_scale_200
+    qt_composed_github_scale_200
     PROPERTIES
         ENVIRONMENT
-            "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=2.0;BPR_EXPECTED_QT_SCALE=2.0;BPR_QT_MIN_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-minimum-200.png;BPR_QT_MIN_LOWER_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-minimum-lower-200.png;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/github-window-200.png"
+            "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=2.0;BPR_EXPECTED_QT_SCALE=2.0;BPR_QT_MIN_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-minimum-200.png;BPR_QT_MIN_LOWER_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-minimum-lower-200.png;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/composed-github-200.png"
         TIMEOUT 120
 )
 

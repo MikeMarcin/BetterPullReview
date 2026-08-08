@@ -63,12 +63,12 @@ The application showed `github_window` and did not contain `workbench_window`.
 `workbench_window` symbols and *zero* `github_window` symbols — the old window
 is not merely unreachable, nothing links it in at all.
 
-`github_window` and its 2,074 lines of tests are deliberately still in the
-repository and still green. Each of those assertions was forced by a real
-shipped defect, and this card's own instruction is that they move to the
-composed window rather than being deleted with it. Porting them is the last
-piece of BPR-0191; deleting them to make the tree tidy would discard the
-evidence that made the merge safe.
+`github_window` is **deleted**. Its 2,074 lines of assertions were not deleted
+with it: they moved to `composed_github_tests.cpp` and now run against
+`workbench_window`. Each was forced by a real shipped defect, so moving them was
+the condition on removing the window — three were restated where the shell
+genuinely replaced the mechanism they measured (the content splitter and the
+whole-window scroll), each to the guarantee the original bought.
 
 | Measurement | Result |
 |---|---|
