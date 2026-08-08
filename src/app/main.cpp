@@ -50,6 +50,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -952,6 +953,61 @@ namespace {
 			|| !workbench->selection().has_value()) {
 			return false;
 		}
+		// Records the appearance the frames are taken under, next to the
+		// frames. The end-of-run APPEARANCE_APPLIED marker cannot serve: the
+		// appearance-gesture assertion deliberately dispatches an explicit
+		// dark mode later in the same process to prove a gesture reaches
+		// presentation, so the marker reports a mode adopted after every
+		// raster here was written. BPR-0201 spent an investigation on that
+		// gap, reading a light capture beside a dark marker as a composition
+		// defect when the two were describing different moments.
+		{
+			auto stamp = QFile{
+				directory.filePath(QStringLiteral("appearance-at-capture.json"))
+			};
+			if (!stamp.open(
+					QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+				return false;
+			}
+			auto out = QTextStream{ &stamp };
+			out << "{\"base\":\""
+				<< aWindow.palette().color(QPalette::Base).name()
+				<< "\",\"highlight\":\""
+				<< aWindow.palette().color(QPalette::Highlight).name()
+				<< "\",\"window_text\":\""
+				<< aWindow.palette().color(QPalette::WindowText).name()
+				<< "\"}\n";
+			out.flush();
+			if (stamp.error() != QFileDevice::NoError) {
+				return false;
+			}
+
+			// And the stamp is held to the pixels, so it cannot drift into
+			// describing an appearance the panes are not painting. Sampling
+			// the commonest colour rather than one point keeps a band or a
+			// glyph from deciding the answer.
+			auto* const pane = workbench->left_pane();
+			if (pane == nullptr) {
+				return false;
+			}
+			const auto raster = pane->viewport()->grab().toImage();
+			auto       tally  = std::map<QRgb, int>{ };
+			for (auto y = 0; y < raster.height(); ++y) {
+				for (auto x = 0; x < raster.width(); ++x) {
+					++tally[raster.pixel(x, y)];
+				}
+			}
+			if (tally.empty()) {
+				return false;
+			}
+			const auto commonest = std::ranges::max_element(
+				tally, { }, [](const auto& aEntry) { return aEntry.second; });
+			if (QColor{ commonest->first }
+				!= aWindow.palette().color(QPalette::Base)) {
+				return false;
+			}
+		}
+
 		auto* const controller = workbench->scroll_controller();
 		const auto& alignment  = workbench->current_result()->Alignment;
 		const auto  findFirst  = [&alignment](const bpr::core::alignment_kind aKind)

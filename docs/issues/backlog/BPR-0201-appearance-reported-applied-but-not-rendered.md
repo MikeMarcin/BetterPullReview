@@ -104,11 +104,70 @@ It also means the light-scheme captures used throughout BPR-0194, BPR-0202 and
 BPR-0206 are sound: they were taken under the light profile and reported the
 light profile, and the two agree.
 
-### The next step is to find the late trigger, not to widen the drain
+### The late trigger, found — and it is not the operating system
 
-Instrument `observe_native_appearance` with a timestamp or sequence number and
-find what invokes it after the probe returns. Widening the wait without knowing
-what is being waited for is what the three attempts above already were.
+Instrumenting the observation and the mode together:
+
+```
+DBG construct scheme=0 colorScheme=0     <- Unknown, at composition
+DBG before adopt_settings mode=0         <- system
+DBG apply mode=0 added=#e6ffec           <- resolves light
+DBG composition complete
+DBG probe begin colorScheme=0            <- still Unknown
+DBG apply mode=2 added=#0f2f1c           <- explicit dark, after every capture
+APPEARANCE_APPLIED:#193151:#0d1117:from-profile
+```
+
+`observe_native_appearance` **never fires**, and `QStyleHints::colorScheme()`
+reports `Unknown` from start to finish. The operating system is not involved at
+all. What changes is the *mode*: `0` (system) at composition, `2` (explicit
+dark) afterwards.
+
+The source is `main.cpp`, in the appearance-**gesture** assertion:
+
+```cpp
+apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 8U);
+```
+
+That assertion deliberately dispatches an explicit dark mode to prove a gesture
+reaches presentation, and it runs later in the same process than the diff
+probe's captures. So the run ends dark, the marker reports dark, and every
+raster was written while the run was still light.
+
+**There is no defect.** All three explanations were wrong, including the two
+this card called plausible: the profile reaches the panes, the capture is not
+merely early in the sense of racing a signal, and nothing is misreported. Two
+assertions share one process and one of them changes the appearance the other
+is capturing under. The marker describes the end of the run; the frames
+describe the middle.
+
+### Resolved by making a capture describe itself
+
+`--diff-interaction-evidence` now writes `appearance-at-capture.json` beside
+the frames, holding the window's base, highlight and text colours as they were
+when the rasters were taken. A reader no longer has to reconcile a capture
+against a marker written at a different moment:
+
+```json
+{"base":"#ffffff","highlight":"#7fb0e8","window_text":"#1f2328"}
+```
+
+next to an end-of-run `APPEARANCE_APPLIED:#193151:#0d1117`. The disagreement is
+now visible in the evidence rather than being a discovery.
+
+The stamp is held to the pixels: the probe grabs the left pane and fails unless
+the commonest colour in it is the palette's base. A stamp that described an
+appearance the panes were not painting would fail the run rather than be
+believed. Shown non-vacuous by inverting the comparison, which fails
+`application_diff_workbench_public_path` with a clean build.
+
+### What is still true
+
+Dark-scheme captures remain unavailable from this probe, but for a mundane
+reason rather than a mysterious one: it runs under whatever mode composition
+resolved, and on this host that is light. Obtaining dark rasters means running
+the probe with an explicit dark mode selected before it captures, which is new
+work rather than a fix. [[BPR-0199]]'s dark half stays blocked on that.
 
 ## Required direct evidence
 
