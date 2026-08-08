@@ -113,6 +113,46 @@ rather than a visualisation gimmick.
 A secondary Treeverse-style overview was considered and deliberately deferred —
 [[BPR-0211]].
 
+### Refined, 2026-08-08: anchored to the current file, not the whole review
+
+The owner narrowed what the drawer is for:
+
+> A dedicated whole PR conversation view might be nice, but what I typically
+> want is a SmartBear Collaborator style conversation anchored to a line of code
+> for the currently viewed file
+
+So the drawer's content is **the current file's threads, anchored to lines** —
+not the review's entire conversation forest. The whole-review view becomes the
+secondary thing, which is roughly [[BPR-0211]]'s territory rather than this
+card's.
+
+**This is expressible today with no new plumbing**, which is the useful part:
+
+- `github_conversation_projection` already carries `Path` and an optional
+  `Line`, which is the anchor.
+- `core::workbench_interaction` already holds a selected
+  `std::optional<workbench_file_id> File`, and `select_workbench_file_intent`
+  already changes it.
+- The two are joined by `core::file_identity_of(path)`, which
+  `workbench_snapshot_observation` documents as *the only way to name a file*.
+  Path to identity is a pure function, so filtering the forest to the current
+  file is a comparison and not a lookup table.
+
+The extraction in `github_conversation_panel` is unaffected — it presents
+whatever forest it is handed. What changes is who decides which subset that is,
+and that decision belongs above the panel rather than inside it.
+
+### One caveat that lands on [[BPR-0212]]
+
+A comment's `Line` is an anchor *in some revision*. "Anchored to a line of the
+currently viewed file" is therefore only stable while the revision is fixed, and
+the moment a reviewer changes the epoch pair the anchors refer to code that may
+have moved. The product cannot say which revision a comment's line belongs to —
+that is exactly the missing datum BPR-0212 records.
+
+So this design works inside one revision today and needs BPR-0212 to work across
+them. Worth knowing before the line anchoring is built, not after.
+
 ### What is unblocked either way
 
 Both routes need the pull-request metadata and the conversation to be

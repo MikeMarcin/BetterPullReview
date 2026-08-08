@@ -8,6 +8,13 @@ depends_on: [BPR-0191]
 
 # A secondary overview for conversations too large to follow inline
 
+> **Scope widened, 2026-08-08.** The owner narrowed the drawer to the *current
+> file's* line-anchored threads, SmartBear Collaborator style, and called a
+> whole-review conversation view "might be nice" rather than what they typically
+> want. So this card now owns two related secondary views and not one: the
+> whole-review conversation, and a Treeverse-style overview of a thread too deep
+> to follow. Both are secondary to the anchored drawer, and both stay deferred.
+
 Deferred deliberately, on the product owner's instruction, 2026-08-08.
 
 The conversations drawer will draw its threads in a git-graph style with
