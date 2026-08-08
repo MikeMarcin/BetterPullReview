@@ -1,7 +1,7 @@
 ---
 id: BPR-0186
 title: Attended interactive launch, so a person can inspect the composition
-status: Backlog
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0097, BPR-0191]
 ---
@@ -86,3 +86,20 @@ lands there is a window to hold open.
   neutered.
 
 Unblocks BPR-0100 and every later owner-attended UI inspection.
+
+## Run, 2026-08-08
+
+The product owner launched
+`better_pull_review --attended-launch --github-fixture github-com` on the real
+macOS composition and reported the window as inspectable. That is this card's
+whole claim: before BPR-0191 there was no shell to open, and before this flag a
+fixture launch scheduled an automated run and exited while a fixture-less launch
+took the real credentialed path. Neither could be looked at.
+
+The only diagnostic emitted was `QSystemTrayIcon::setVisible: No Icon set`,
+which is RFC-BPR-0010's notification sink having no icon assigned in a fixture
+launch. It is noted rather than fixed here: it belongs to the notification
+delivery card, not to whether a window can be inspected.
+
+Judging what is *in* that window is BPR-0100, which is a separate card and
+deliberately so.
