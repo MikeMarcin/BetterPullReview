@@ -584,7 +584,7 @@ def cardinality_line(group: dict[str, Any]) -> str:
     )
 
 
-def selection_group_html(group: dict[str, Any]) -> str:
+def selection_group_open_html(group: dict[str, Any]) -> str:
     group_id = html.escape(group["group_id"], quote=True)
     note = f'<p class="muted">{html.escape(group["note"])}</p>' if group["note"] else ""
     return (
@@ -592,31 +592,94 @@ def selection_group_html(group: dict[str, Any]) -> str:
         f'<h2>{html.escape(group["title"])}</h2>'
         f'<p class="muted">{html.escape(cardinality_line(group))}</p>{note}'
         f'<p class="selection-group-status" data-selection-group-status="{group_id}">'
-        "No alternatives chosen yet.</p></section>"
+        'No alternatives chosen yet.</p><div class="selection-group-members">'
     )
+
+
+def option_html(subject: dict[str, Any]) -> str:
+    subject_id = html.escape(subject["subject_id"], quote=True)
+    digest = html.escape(subject["subject_digest"], quote=True)
+    selection_group = html.escape(subject.get("selection_group", ""), quote=True)
+    audit = subject["audit_verdict"]
+    if audit:
+        audit_note = f" — {html.escape(audit['note'])}" if audit["note"] else ""
+        audit_banner = (
+            f'<p class="audit-banner" data-audit="{audit["status"]}">'
+            f'Mechanical audit: {audit["status"].upper()}{audit_note}</p>'
+        )
+    else:
+        audit_banner = ""
+    accept_disabled = " disabled" if audit and audit["status"] == "fail" else ""
+    description = (
+        f'<p class="muted">{html.escape(subject["description"])}</p>'
+        if subject["description"]
+        else ""
+    )
+    extras: list[str] = []
+    if subject["acceptance_criteria"]:
+        extras.append(
+            f'<section><h4>Acceptance criteria</h4>{list_html(subject["acceptance_criteria"], "")}</section>'
+        )
+    if subject["known_concerns"]:
+        extras.append(
+            f'<section><h4>Known concerns</h4>{list_html(subject["known_concerns"], "")}</section>'
+        )
+    detail = detail_sections_html(subject["detail_sections"])
+    if detail:
+        extras.append(detail)
+    if subject["identity_files"]:
+        links = "<ul>" + "".join(
+            f'<li><a href="{html.escape(item["path"], quote=True)}">{html.escape(item["label"])}</a> '
+            f'<span class="identity">{html.escape(item["sha256"])}</span></li>'
+            for item in subject["identity_files"]
+        ) + "</ul>"
+        extras.append(f'<section><h4>Identity-bound files</h4>{links}</section>')
+    extras.append(f'<p class="identity">{subject_id}<br>{digest}</p>')
+    extras_html = (
+        '<details class="option-extra"><summary>Details and identity</summary>'
+        + "".join(extras)
+        + "</details>"
+    )
+    return f"""<article class="subject option" data-subject-id="{subject_id}" data-subject-digest="{digest}" data-selection-group="{selection_group}" data-review-state="pending">
+  <h3>{html.escape(subject["display_name"])}</h3>
+  {description}
+  {audit_banner}
+  <div class="media-groups">
+    {media_groups_html(subject["media_groups"])}
+  </div>
+  {extras_html}
+  <div class="decision-row option-actions" role="group" aria-label="Decision for {html.escape(subject["display_name"], quote=True)}">
+    <button type="button" class="choose" data-decision="accept" aria-pressed="false"{accept_disabled}>Choose</button>
+    <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
+    <button type="button" class="minor" data-decision="clear" aria-pressed="false">Clear</button>
+  </div>
+  <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
+</article>"""
 
 
 def subjects_html(manifest: dict[str, Any]) -> str:
     groups = {group["group_id"]: group for group in manifest.get("selection_groups", [])}
-    seen: set[str] = set()
     parts: list[str] = []
+    open_group = ""
     for subject in manifest["subjects"]:
         group_id = subject.get("selection_group", "")
-        if group_id and group_id not in seen:
-            seen.add(group_id)
-            parts.append(selection_group_html(groups[group_id]))
-        parts.append(subject_html(subject))
+        if open_group and group_id != open_group:
+            parts.append("</div></section>")
+            open_group = ""
+        if group_id and group_id != open_group:
+            parts.append(selection_group_open_html(groups[group_id]))
+            open_group = group_id
+        parts.append(option_html(subject) if group_id else subject_html(subject))
+    if open_group:
+        parts.append("</div></section>")
     return "\n".join(parts)
 
 
 def subject_html(subject: dict[str, Any]) -> str:
     subject_id = html.escape(subject["subject_id"], quote=True)
     digest = html.escape(subject["subject_digest"], quote=True)
-    selection_group = subject.get("selection_group", "")
     ab_group_attr = ""
-    if selection_group:
-        ab_group_attr = f' data-selection-group="{html.escape(selection_group, quote=True)}"'
-    elif subject["choice_group"]:
+    if subject["choice_group"]:
         ab_group_attr = f' data-choice-group="{html.escape(subject["choice_group"], quote=True)}"'
     elif subject["ab_group"]:
         ab_group_attr = f' data-ab-group="{html.escape(subject["ab_group"], quote=True)}"'
@@ -666,8 +729,8 @@ def subject_html(subject: dict[str, Any]) -> str:
   {detail_sections_html(subject["detail_sections"])}
   <section class="identity-files"><h3>Identity-bound files</h3>{links}</section>
   <div class="decision-row" role="group" aria-label="Decision for {html.escape(subject["display_name"], quote=True)}">
-    <button type="button" data-decision="accept" aria-pressed="false"{accept_disabled}>{"Choose exact alternative" if selection_group or subject["choice_group"] else "Accept exact subject"}</button>
-    <button type="button" data-decision="reject" aria-pressed="false">{"Reject exact alternative" if selection_group or subject["choice_group"] else "Reject exact subject"}</button>
+    <button type="button" data-decision="accept" aria-pressed="false"{accept_disabled}>{"Choose exact alternative" if subject["choice_group"] else "Accept exact subject"}</button>
+    <button type="button" data-decision="reject" aria-pressed="false">{"Reject exact alternative" if subject["choice_group"] else "Reject exact subject"}</button>
     <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
   </div>
   {audit_explanation}
