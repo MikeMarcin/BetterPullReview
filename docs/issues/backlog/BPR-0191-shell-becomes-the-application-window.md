@@ -88,6 +88,31 @@ model for a threaded view. But it is a product-shaped decision about what a
 drawer *is*, and it changes assertions RFC-BPR-0005 already banked, so it is
 not mine to take silently.
 
+### Decided, 2026-08-08: route 2, with custom drawing
+
+The product owner took route 2 and asked for a threaded conversations drawer
+drawn in a git-graph / DAGVIZ style, with filtering by lane.
+
+**The conversation is a forest of trees, not a general DAG**, and that makes
+this considerably cheaper than the framing suggests.
+`github_conversation_projection` carries `std::optional<std::string> ParentId` —
+exactly one optional parent per node. No node has two parents, so there are no
+merges, so there are no edge crossings to resolve. Lane assignment in a git
+graph is mostly merge topology; without merges it is a depth-first walk with a
+lane counter.
+
+A tree *is* a DAG, so the owner's reading is not wrong — it is strictly wider
+than what the model can express, and the narrower fact is the useful one. Do not
+build merge handling for a shape that cannot have merges.
+
+Roots are the threads: a node with no `ParentId` is a top-level comment or a
+thread anchored to a file and line, which `Path` and `Line` carry. Filtering by
+lane therefore means filtering by thread, which is a real reviewer gesture
+rather than a visualisation gimmick.
+
+A secondary Treeverse-style overview was considered and deliberately deferred —
+[[BPR-0211]].
+
 ### What is unblocked either way
 
 Both routes need the pull-request metadata and the conversation to be
