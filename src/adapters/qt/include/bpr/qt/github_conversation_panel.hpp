@@ -2,6 +2,9 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_GITHUB_CONVERSATION_PANEL_HPP
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/core/diff_model.hpp"
+
+#include <optional>
 
 #include <QWidget>
 
@@ -61,6 +64,32 @@ namespace bpr::qt {
 		/// \brief Returns to the empty state, keeping the availability wording.
 		void clear(QString aAvailabilityText);
 
+		/// \brief Restricts the drawer to one file's threads.
+		///
+		/// \details The reviewer usually wants the conversation about the code
+		/// in front of them, not the review's entire discussion — a comment
+		/// anchored to a line of the file being read, the way SmartBear
+		/// Collaborator presents it. Set the file and the panel keeps only the
+		/// threads anchored in it.
+		///
+		/// Matching is by `core::file_identity_of`, which
+		/// `snapshot_workbench_observation` names as the only way to identify a
+		/// file. A conversation carries a path and the workbench carries an
+		/// identity, and deriving one from the other is a pure function, so this
+		/// is a comparison rather than a table that could fall out of step.
+		///
+		/// Whole threads survive or none of one does. A reply carries no anchor
+		/// of its own — only its root does — so filtering per node would keep a
+		/// root and drop its replies, or worse keep a reply whose root is gone
+		/// and present it as a top-level remark.
+		///
+		/// Absent means show everything, which is what the review-wide view
+		/// needs.
+		void set_anchor_file(std::optional<core::file_identity> aFile);
+
+		[[nodiscard]] auto anchor_file() const noexcept
+			-> const std::optional<core::file_identity>&;
+
 		/// \brief Binds the action that reveals the threads.
 		///
 		/// \details The action stays owned by the window, which adds it for its
@@ -85,6 +114,14 @@ namespace bpr::qt {
 		/// A reviewer who then collapses a thread keeps it collapsed across the
 		/// next refresh, which re-expanding on every projection would undo.
 		bool ExpandOnNextProjection = true;
+		/// The file whose threads are shown, or nothing for all of them.
+		std::optional<core::file_identity> AnchorFile;
+		/// Retained so a change of anchor file re-filters without waiting for
+		/// the next projection. A reviewer moving between files expects the
+		/// drawer to follow immediately, and the projection does not arrive
+		/// again just because they scrolled.
+		std::vector<application::github_conversation_projection> Retained;
+		QString                                                  RetainedAvailability;
 	};
 } // namespace bpr::qt
 

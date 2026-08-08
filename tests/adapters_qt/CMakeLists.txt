@@ -75,6 +75,34 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_qt_github_conversation_panel_tests
+    github_conversation_panel_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_github_conversation_panel_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(
+    test_better_pull_review_qt_github_conversation_panel_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_qt_github_conversation_panel_tests
+)
+
+add_test(
+    NAME qt_github_conversation_panel
+    COMMAND test_better_pull_review_qt_github_conversation_panel_tests
+)
+set_tests_properties(
+    qt_github_conversation_panel
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION "conversation-panel-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_qt_github_conversation_model_property_tests
     github_conversation_model_property_tests.cpp
 )

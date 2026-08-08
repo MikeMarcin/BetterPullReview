@@ -15,9 +15,69 @@
 #include <QTreeView>
 #include <QVBoxLayout>
 
+#include <algorithm>
+#include <unordered_map>
 #include <utility>
 
 namespace bpr::qt {
+	namespace {
+		/// \brief Keeps the threads whose root is anchored in one file.
+		///
+		/// \details A reply carries no anchor — only a thread's root names a
+		/// path — so membership is decided at the root and inherited. Filtering
+		/// node by node would keep a root without its replies, or keep a reply
+		/// whose root was dropped and present it as a top-level remark.
+		///
+		/// Roots are found by following `ParentId`, which is single and optional,
+		/// so every chain terminates. A parent naming a node that is not in the
+		/// projection is treated as a root: the alternative is discarding a
+		/// comment because its ancestor is missing, and a visible orphan is
+		/// better than a silent omission.
+		[[nodiscard]] auto anchored_in(
+			const std::vector<application::github_conversation_projection>&
+									  aConversations,
+			const core::file_identity aFile)
+			-> std::vector<application::github_conversation_projection>
+		{
+			auto byId = std::unordered_map<std::string, std::size_t>{ };
+			byId.reserve(aConversations.size());
+			for (auto index = std::size_t{ 0U }; index < aConversations.size();
+				 ++index) {
+				byId.emplace(aConversations[index].Id, index);
+			}
+
+			const auto rooted_in_file = [&](std::size_t aIndex) {
+				// Bounded by the node count, so a projection that somehow
+				// contained a cycle cannot spin here.
+				for (auto step = std::size_t{ 0U }; step <= aConversations.size();
+					 ++step) {
+					const auto& node = aConversations[aIndex];
+					if (!node.ParentId.has_value()) {
+						return !node.Path.empty()
+							&& core::file_identity_of(node.Path) == aFile;
+					}
+					const auto parent = byId.find(*node.ParentId);
+					if (parent == byId.end()) {
+						return !node.Path.empty()
+							&& core::file_identity_of(node.Path) == aFile;
+					}
+					aIndex = parent->second;
+				}
+				return false;
+			};
+
+			auto kept = std::vector<application::github_conversation_projection>{ };
+			kept.reserve(aConversations.size());
+			for (auto index = std::size_t{ 0U }; index < aConversations.size();
+				 ++index) {
+				if (rooted_in_file(index)) {
+					kept.push_back(aConversations[index]);
+				}
+			}
+			return kept;
+		}
+	} // namespace
+
 	github_conversation_panel::github_conversation_panel(QWidget* const aParent)
 		: QWidget{ aParent }
 	{
@@ -86,11 +146,16 @@ namespace bpr::qt {
 		// a reply lands above it.
 		const auto selected = Model->id_for_index(View->currentIndex());
 
+		Retained             = aConversations;
+		RetainedAvailability = aAvailabilityText;
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
-		Model->apply(aConversations);
-		Stack->setCurrentIndex(aConversations.empty() ? 0 : 1);
+		const auto shown = AnchorFile.has_value()
+			? anchored_in(aConversations, *AnchorFile)
+			: aConversations;
+		Model->apply(shown);
+		Stack->setCurrentIndex(shown.empty() ? 0 : 1);
 		View->doItemsLayout();
-		if (ExpandOnNextProjection && !aConversations.empty()) {
+		if (ExpandOnNextProjection && !shown.empty()) {
 			View->expandAll();
 			ExpandOnNextProjection = false;
 		}
@@ -108,9 +173,38 @@ namespace bpr::qt {
 	void github_conversation_panel::clear(QString aAvailabilityText)
 	{
 		ExpandOnNextProjection = true;
+		Retained.clear();
+		RetainedAvailability.clear();
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
 		Model->clear();
 		Stack->setCurrentIndex(0);
+	}
+
+	void github_conversation_panel::set_anchor_file(
+		std::optional<core::file_identity> aFile)
+	{
+		if (AnchorFile == aFile) {
+			return;
+		}
+		AnchorFile = std::move(aFile);
+		// Re-filtered from what was retained rather than waiting for the next
+		// projection. Moving between files is a reviewer gesture and the
+		// drawer has to follow it, not follow the network.
+		if (!Retained.empty()) {
+			// Copied deliberately. Passing `Retained` straight back in would
+			// make `adopt`'s first act a self-assignment, which is legal and
+			// still the kind of thing that becomes a defect the moment someone
+			// adds a clear() to the top of it.
+			const auto retained     = Retained;
+			const auto availability = RetainedAvailability;
+			adopt(retained, availability);
+		}
+	}
+
+	auto github_conversation_panel::anchor_file() const noexcept
+		-> const std::optional<core::file_identity>&
+	{
+		return AnchorFile;
 	}
 
 	void github_conversation_panel::set_reveal_action(QAction* const aAction)
