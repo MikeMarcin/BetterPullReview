@@ -651,7 +651,6 @@ def option_html(subject: dict[str, Any]) -> str:
   <div class="decision-row option-actions" role="group" aria-label="Decision for {html.escape(subject["display_name"], quote=True)}">
     <button type="button" class="choose" data-decision="accept" aria-pressed="false"{accept_disabled}>Choose</button>
     <button type="button" class="minor" data-decision="reject" aria-pressed="false">Defective</button>
-    <button type="button" class="minor" data-decision="clear" aria-pressed="false">Clear</button>
   </div>
   <details class="notes-fold"><summary>Note</summary><label class="notes">Review notes<textarea data-review-notes placeholder="Optional note for this alternative"></textarea></label></details>
 </article>"""

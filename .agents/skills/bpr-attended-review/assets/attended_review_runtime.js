@@ -369,7 +369,10 @@
       notes.value = state.notes;
       for (const button of card.querySelectorAll("[data-decision]")) {
         button.addEventListener("click", () => {
-          const decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          let decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          if (decision && controller.state(subject).decision === decision) {
+            decision = null;
+          }
           try {
             controller.setDecision(subject.subject_id, subject.subject_digest, decision);
           } catch (error) {
