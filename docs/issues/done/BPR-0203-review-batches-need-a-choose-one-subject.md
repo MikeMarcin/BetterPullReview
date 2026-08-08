@@ -1,7 +1,7 @@
 ---
 id: BPR-0203
 title: An A/B/C choice is not three pass/fail questions
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: []
 ---
@@ -38,7 +38,43 @@ The mechanical `audit_verdict` precondition still applies per alternative: a
 candidate that fails its measurement should be presented as ineligible rather
 than silently offered, which is what happened to candidate A here.
 
-## Required direct evidence
+## Done, 2026-08-08
+
+A subject may declare `choice_group`, and doing so changes what a verdict is
+allowed to say: exactly one member accepted, every other member in
+`not_chosen_subjects`, and `rejected_subjects` reserved for something that
+actually failed. `ab_group` keeps its old meaning — related for presentation,
+independently pass or fail — and the two are mutually exclusive, because a set
+of alternatives is one or the other and never both.
+
+### Compatibility was the constraint, not the feature
+
+`not_chosen_subjects` is optional and refused outside a choice group. Every
+verdict already on file omits it, and those files are the durable record of
+decisions a person actually made — a validator change that invalidated one of
+them would rewrite history rather than extend it. All six recorded verdicts
+are re-validated by the test, against their own manifests, on every run.
+
+### Verification
+
+`attended_review_verdict_contract` builds synthetic batches with and without a
+choice group and exercises the arithmetic end to end:
+
+- one winner and two unchosen alternatives validates;
+- two winners is refused;
+- no winner is refused;
+- **a losing alternative recorded as rejected is refused** — the defect this
+  card was opened for;
+- a choice batch omitting `not_chosen_subjects` is refused;
+- a pass/fail batch still validates without the field, and an unchosen subject
+  outside any choice group is refused;
+- every recorded verdict still validates against its own manifest.
+
+Shown non-vacuous by disabling each of the two new checks separately: the
+winner-count check and the loser-placement check each fail their own
+assertions.
+
+## Superseded — required direct evidence
 
 - A batch with a choose-one subject builds, renders, and validates.
 - A verdict that selects one alternative validates; one that selects two, or

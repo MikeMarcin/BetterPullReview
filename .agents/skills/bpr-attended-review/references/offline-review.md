@@ -30,6 +30,7 @@ resolved. Gates, scopes, claims, and media groups are caller-declared.
       "acceptance_criteria": ["Selected rows map to identical file lines on both sides"],
       "known_concerns": ["Intra-line change casing near hunk boundaries"],
       "ab_group": null,
+      "choice_group": null,
       "audit_verdict": {"status": "pass", "note": "Offscreen public-path course passed at <commit>."},
       "media_groups": [
         {"group_id": "state-captures", "title": "State captures", "required": true,
@@ -48,6 +49,23 @@ resolved. Gates, scopes, claims, and media groups are caller-declared.
 
 Field rules:
 
+- `ab_group`, `choice_group`: at most one of the two, never both.
+  `ab_group` groups subjects for presentation and leaves each an independent
+  pass or fail. `choice_group` declares them **alternatives to one question**,
+  and changes what a verdict must say: exactly one member accepted, and every
+  other member listed in `not_chosen_subjects` rather than
+  `rejected_subjects`.
+
+  Use `choice_group` whenever the subjects are shades of one decision. Without
+  it, an n-way choice has to be recorded as one acceptance and n-1 rejections,
+  which puts candidates on the record as defective when they merely lost — and
+  if the winner is later withdrawn, nothing distinguishes a runner-up from a
+  real failure. A product owner said as much: *"it also feels a lot more like
+  multiple choice rather than pass/fail"*.
+
+  `not_chosen_subjects` is optional and must be omitted when no subject
+  declares a `choice_group`. Verdicts recorded before choice groups existed do
+  not carry it and still validate.
 - `review_gate`, `review_scope`: free tokens matching
   `^[a-z0-9][a-z0-9_.-]{0,63}$`. Declare what this batch is and is not.
 - `downstream_claims`: non-empty; keys match `^[a-z0-9][a-z0-9_]{0,63}$`;

@@ -73,6 +73,13 @@ add_test(
 )
 
 add_test(
+    NAME attended_review_verdict_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/attended_review_verdict_tests.py"
+)
+
+add_test(
     NAME project_source_dump_contract
     COMMAND
         Python3::Interpreter

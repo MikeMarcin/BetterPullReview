@@ -276,6 +276,18 @@ def prepare_subject(
     acceptance_criteria = string_list(raw.get("acceptance_criteria"), f"{field}.acceptance_criteria")
     known_concerns = string_list(raw.get("known_concerns"), f"{field}.known_concerns")
     ab_group = optional_string(raw.get("ab_group"), f"{field}.ab_group")
+    # Alternatives to one question, of which the reviewer picks exactly one.
+    # `ab_group` marks subjects as related for presentation; this says they are
+    # mutually exclusive answers, which is a claim the verdict can be checked
+    # against. Without it an n-way choice has to be recorded as one accept and
+    # n-1 rejects, and a candidate that merely lost is indistinguishable from
+    # one that failed.
+    choice_group = optional_string(raw.get("choice_group"), f"{field}.choice_group")
+    if choice_group and ab_group:
+        raise ReviewError(
+            f"{field} may declare choice_group or ab_group, not both: a set of "
+            "alternatives is either a choice or a presentation grouping"
+        )
     audit_verdict = prepare_audit_verdict(raw.get("audit_verdict"), f"{field}.audit_verdict")
     detail_sections = prepare_detail_sections(raw.get("detail_sections"), f"{field}.detail_sections")
 
@@ -329,6 +341,7 @@ def prepare_subject(
         "acceptance_criteria": acceptance_criteria,
         "known_concerns": known_concerns,
         "ab_group": ab_group,
+        "choice_group": choice_group,
         "audit_verdict": audit_verdict,
         "media_groups": group_identities,
         "detail_sections": detail_sections,
@@ -343,6 +356,7 @@ def prepare_subject(
         "acceptance_criteria": acceptance_criteria,
         "known_concerns": known_concerns,
         "ab_group": ab_group,
+        "choice_group": choice_group,
         "audit_verdict": audit_verdict,
         "media_groups": groups,
         "detail_sections": detail_sections,
@@ -668,7 +682,12 @@ def validate_verdict(manifest: dict[str, Any], verdict: dict[str, Any]) -> None:
     }
     expected = set(manifest_order)
     decided: list[tuple[str, str]] = []
-    for collection in ("accepted_subjects", "rejected_subjects"):
+    for collection in ("accepted_subjects", "rejected_subjects", "not_chosen_subjects"):
+        # not_chosen_subjects is optional: a batch with no choice group has
+        # nothing to put in it, and every verdict recorded before choice groups
+        # existed omits it. Absent means empty, not malformed.
+        if collection == "not_chosen_subjects" and collection not in verdict:
+            continue
         values = verdict.get(collection)
         if not isinstance(values, list):
             raise ReviewError(f"verdict {collection} must be an array")
@@ -686,6 +705,46 @@ def validate_verdict(manifest: dict[str, Any], verdict: dict[str, Any]) -> None:
         missing = expected - set(decided)
         extra = set(decided) - expected
         raise ReviewError(f"verdict subject partition is not exact; missing={sorted(missing)!r}, extra={sorted(extra)!r}")
+
+    # Exactly one winner per choice group, and every other member recorded as
+    # not chosen rather than rejected. A losing alternative is not a defect,
+    # and a record that cannot tell the two apart forces the next batch to
+    # re-litigate a decision that was already made.
+    choice_groups: dict[str, set[tuple[str, str]]] = {}
+    for subject in manifest_subjects:
+        group = subject.get("choice_group")
+        if group:
+            identity = (subject["subject_id"], subject["subject_digest"])
+            choice_groups.setdefault(group, set()).add(identity)
+    accepted_set = {
+        identity_tuple(value, f"accepted_subjects[{index}]")
+        for index, value in enumerate(verdict.get("accepted_subjects", []))
+    }
+    not_chosen_set = {
+        identity_tuple(value, f"not_chosen_subjects[{index}]")
+        for index, value in enumerate(verdict.get("not_chosen_subjects", []))
+    }
+    for group, members in sorted(choice_groups.items()):
+        chosen = members & accepted_set
+        if len(chosen) != 1:
+            raise ReviewError(
+                f"choice group {group!r} must have exactly one accepted "
+                f"alternative, found {len(chosen)}"
+            )
+        remainder = members - chosen
+        if not remainder <= not_chosen_set:
+            raise ReviewError(
+                f"every unchosen alternative of choice group {group!r} must be "
+                "recorded as not chosen rather than rejected"
+            )
+    stray = not_chosen_set - {
+        identity for members in choice_groups.values() for identity in members
+    }
+    if stray:
+        raise ReviewError(
+            "not_chosen_subjects may only contain members of a choice group; "
+            f"stray={sorted(stray)!r}"
+        )
 
     audit_failed = {
         (subject["subject_id"], subject["subject_digest"])
@@ -709,14 +768,21 @@ def validate_verdict(manifest: dict[str, Any], verdict: dict[str, Any]) -> None:
     if verdict.get("downstream_claims") != manifest.get("downstream_claims"):
         raise ReviewError("verdict downstream_claims must equal the manifest's declared false-only claim set")
 
-    expected_fields = set(expected_scalars) | {
+    required_fields = set(expected_scalars) | {
         "accepted_subjects",
         "rejected_subjects",
         "notes_by_subject_identity",
         "downstream_claims",
     }
-    if set(verdict) != expected_fields:
-        raise ReviewError("verdict contains missing or unsupported top-level fields")
+    if not required_fields <= set(verdict):
+        raise ReviewError("verdict contains missing top-level fields")
+    if not set(verdict) <= required_fields | {"not_chosen_subjects"}:
+        raise ReviewError("verdict contains unsupported top-level fields")
+    if choice_groups and "not_chosen_subjects" not in verdict:
+        raise ReviewError(
+            "a batch with a choice group needs not_chosen_subjects, so a losing "
+            "alternative is recorded as unchosen rather than as a rejection"
+        )
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
