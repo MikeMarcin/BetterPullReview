@@ -2,11 +2,14 @@
 
 #include "github_presentation_text.hpp"
 
+#include "bpr/qt/github_conversation_model.hpp"
+
 #include "bpr/qt/menu_tool_button.hpp"
 
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 
+#include <QAbstractItemView>
 #include <QAccessible>
 #include <QAction>
 #include <QComboBox>
@@ -21,6 +24,7 @@
 #include <QSizePolicy>
 #include <QSpinBox>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyle>
 #include <QToolBar>
@@ -452,17 +456,33 @@ namespace bpr::qt {
 		// workbench rather than in a window of their own. BPR-0188 decided this
 		// window is the review surface; a second window owning the same
 		// comparison is the defect that decision closes.
-		GithubConnectAction = new QAction{ QStringLiteral("Connect"), this };
-		GithubConnectAction->setObjectName(QStringLiteral("githubConnectAction"));
-		GithubOpenAction = new QAction{ QStringLiteral("Open"), this };
-		GithubOpenAction->setObjectName(QStringLiteral("githubOpenAction"));
-		GithubRefreshAction = new QAction{ QStringLiteral("Refresh"), this };
-		GithubRefreshAction->setObjectName(QStringLiteral("githubRefreshAction"));
+		// Object names, mnemonics, shortcuts and contexts carried over from
+		// `github_window` unchanged, so the assertions that moved with them
+		// still measure the same thing.
+		GithubConnectAction = new QAction{ QStringLiteral("&Connect"), this };
+		GithubConnectAction->setObjectName(QStringLiteral("connectGithubAction"));
+		GithubConnectAction->setShortcut(
+			QKeySequence{ QStringLiteral("Ctrl+Shift+C") });
+		GithubConnectAction->setShortcutContext(Qt::ApplicationShortcut);
+		addAction(GithubConnectAction);
+		GithubOpenAction = new QAction{
+			QStringLiteral("&Open pull request"), this
+		};
+		GithubOpenAction->setObjectName(QStringLiteral("openPullRequestAction"));
+		GithubOpenAction->setShortcut(QKeySequence::Open);
+		GithubOpenAction->setShortcutContext(Qt::ApplicationShortcut);
+		addAction(GithubOpenAction);
+		GithubRefreshAction = new QAction{ QStringLiteral("&Refresh"), this };
+		GithubRefreshAction->setObjectName(
+			QStringLiteral("refreshPullRequestAction"));
+		GithubRefreshAction->setShortcut(QKeySequence::Refresh);
+		GithubRefreshAction->setShortcutContext(Qt::ApplicationShortcut);
+		addAction(GithubRefreshAction);
 		ShowReviewThreadsAction = new QAction{
-			QStringLiteral("Review threads"), this
+			QStringLiteral("Show review &threads"), this
 		};
 		ShowReviewThreadsAction->setObjectName(
-			QStringLiteral("githubShowReviewThreadsAction"));
+			QStringLiteral("showReviewThreadsAction"));
 
 		SessionPanel = new github_session_panel{
 			GithubProfiles,
@@ -472,7 +492,11 @@ namespace bpr::qt {
 			GithubRefreshAction,
 			github_session_environment{
 				.HasPullRequest = [this] { return HasGithubPullRequest; },
-				.PresentationChanged = [] { },
+				// The panel reports that something it owns changed the
+				// presentation -- a status, an identity, a diagnostic. Stubbing
+				// this out left the empty state frozen on whatever it said when
+				// the window was built.
+				.PresentationChanged = [this] { update_github_presentation_state(); },
 			},
 			nullptr,
 		};
@@ -484,7 +508,42 @@ namespace bpr::qt {
 		auto* const column = new QVBoxLayout{ header };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->addWidget(SessionPanel);
-		column->addWidget(PullRequestPanel);
+
+		// The empty state is not decoration. Without it a reviewer with no pull
+		// request open sees a comparison of nothing and no indication of what to
+		// do, which is what the shell shipped for exactly one commit before this
+		// restored it. The session chrome stays visible either way, because
+		// connecting is the action the empty state is asking for.
+		PullRequestStack = new QStackedWidget{ header };
+		PullRequestStack->setObjectName(QStringLiteral("githubViewState"));
+		auto* const emptyState = new QWidget{ PullRequestStack };
+		emptyState->setObjectName(QStringLiteral("githubEmptyState"));
+		auto* const emptyLayout = new QVBoxLayout{ emptyState };
+		EmptyStateTitleLabel    = new QLabel{ emptyState };
+		EmptyStateTitleLabel->setObjectName(QStringLiteral("githubEmptyStateTitle"));
+		EmptyStateTitleLabel->setAccessibleName(QStringLiteral("GitHub view state"));
+		EmptyStateTitleLabel->setAlignment(Qt::AlignCenter);
+		EmptyStateTitleLabel->setWordWrap(true);
+		detail::set_plain_text_label(EmptyStateTitleLabel);
+		EmptyStateBodyLabel = new QLabel{ emptyState };
+		EmptyStateBodyLabel->setObjectName(QStringLiteral("githubEmptyStateBody"));
+		EmptyStateBodyLabel->setAccessibleName(QStringLiteral("GitHub view guidance"));
+		EmptyStateBodyLabel->setAlignment(Qt::AlignCenter);
+		EmptyStateBodyLabel->setWordWrap(true);
+		detail::set_plain_text_label(EmptyStateBodyLabel);
+		emptyLayout->addStretch(1);
+		emptyLayout->addWidget(EmptyStateTitleLabel);
+		emptyLayout->addWidget(EmptyStateBodyLabel);
+		emptyLayout->addStretch(2);
+		PullRequestStack->addWidget(emptyState);
+
+		auto* const content = new QWidget{ PullRequestStack };
+		content->setObjectName(QStringLiteral("githubPullRequestContent"));
+		auto* const contentLayout = new QVBoxLayout{ content };
+		contentLayout->setContentsMargins(0, 0, 0, 0);
+		contentLayout->addWidget(PullRequestPanel);
+		PullRequestStack->addWidget(content);
+		column->addWidget(PullRequestStack);
 		// The panel builds the description but deliberately does not lay it out:
 		// where a description belongs is a decision for whoever assembles the
 		// window, and this one puts it under the metadata it describes. Bounded
@@ -524,6 +583,9 @@ namespace bpr::qt {
 		setCentralWidget(host);
 
 		ConversationPanel->set_reveal_action(ShowReviewThreadsAction);
+		connect(ShowReviewThreadsAction, &QAction::triggered, this, [this] {
+			focus_review_threads();
+		});
 		SessionPanel->apply_capabilities({ });
 		SessionPanel->apply_rate_limits({ });
 		clear_github_pull_request();
@@ -551,6 +613,7 @@ namespace bpr::qt {
 			core::github_reason_code::no_active_pull_request,
 			QStringLiteral("Focus the review-thread conversations"));
 		PullRequestPanel->refresh_native_appearance();
+		update_github_presentation_state();
 		apply_focus_order();
 	}
 
@@ -720,6 +783,26 @@ namespace bpr::qt {
 		for (const auto& diagnostic : aUpdate.HostDiagnostics) {
 			apply_github_host_diagnostic(diagnostic);
 		}
+		announce_github_presentation_update();
+	}
+
+	void workbench_window::announce_github_presentation_update()
+	{
+		// One polite announcement per material change, not one per projection
+		// field. A screen reader that is told the same thing twice has been told
+		// nothing the second time.
+		if (SessionPanel == nullptr || SessionPanel->status_banner() == nullptr) {
+			return;
+		}
+		const auto announcement = SessionPanel->summary_text();
+		if (announcement.isEmpty() || announcement == LastGithubAnnouncement) {
+			return;
+		}
+		LastGithubAnnouncement = announcement;
+		QAccessibleAnnouncementEvent event{ SessionPanel->status_banner(),
+											announcement };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&event);
 	}
 
 	void workbench_window::apply_github_transition(
@@ -774,6 +857,7 @@ namespace bpr::qt {
 		HasGithubPullRequest = true;
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
 		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
+		update_github_presentation_state();
 	}
 
 	void workbench_window::apply_github_content_command(
@@ -807,6 +891,139 @@ namespace bpr::qt {
 		PullRequestPanel->clear();
 		ConversationPanel->clear(QStringLiteral(
 			"Review threads are unavailable until a pull request is open."));
+		update_github_presentation_state();
+	}
+
+	void workbench_window::update_github_presentation_state()
+	{
+		// The session panel reports a presentation change from inside its own
+		// constructor, before the member holding it has been assigned, so this
+		// can run with nothing to read. Guarding here rather than deferring the
+		// callback keeps the panel free to report whenever it likes.
+		if (SessionPanel == nullptr || PullRequestStack == nullptr) {
+			return;
+		}
+		PullRequestStack->setCurrentIndex(HasGithubPullRequest ? 1 : 0);
+
+		QString state;
+		if (HasGithubPullRequest) {
+			switch (SessionPanel->status()) {
+			case core::github_status::loading_pull_request:
+				state = QStringLiteral("refreshing");
+				break;
+			case core::github_status::pull_request_failed:
+				state = QStringLiteral("loaded-error");
+				break;
+			case core::github_status::pull_request_cancelled:
+				state = QStringLiteral("loaded-cancelled");
+				break;
+			default:
+				state = QStringLiteral("loaded");
+				break;
+			}
+		} else {
+			switch (SessionPanel->status()) {
+			case core::github_status::no_profile:
+				state = QStringLiteral("disconnected");
+				EmptyStateTitleLabel->setText(
+					QStringLiteral("Connect to GitHub"));
+				EmptyStateBodyLabel->setText(
+					GithubProfiles.empty()
+						? QStringLiteral(
+							  "No GitHub host profiles are configured.")
+						: QStringLiteral(
+							  "Choose a host profile above, then connect."));
+				break;
+			case core::github_status::establishing_session:
+				state = QStringLiteral("connecting");
+				EmptyStateTitleLabel->setText(
+					QStringLiteral("Connecting to GitHub…"));
+				EmptyStateBodyLabel->setText(
+					QStringLiteral(
+						"The selected host is establishing an authenticated "
+						"session."));
+				break;
+			case core::github_status::session_ready:
+			case core::github_status::pull_request_ready:
+				state = QStringLiteral("empty");
+				EmptyStateTitleLabel->setText(
+					QStringLiteral("Open a pull request"));
+				EmptyStateBodyLabel->setText(
+					QStringLiteral(
+						"Enter an owner, repository, and pull request number "
+						"above."));
+				break;
+			case core::github_status::loading_pull_request:
+				state = QStringLiteral("loading");
+				EmptyStateTitleLabel->setText(
+					QStringLiteral("Loading pull request…"));
+				EmptyStateBodyLabel->setText(
+					QStringLiteral(
+						"BetterPullReview is reading the selected GitHub "
+						"snapshot."));
+				break;
+			case core::github_status::session_failed:
+				state = QStringLiteral("error");
+				EmptyStateTitleLabel->setText(
+					QStringLiteral("Connection unavailable"));
+				EmptyStateBodyLabel->setText(
+					!SessionPanel->showing_diagnostic()
+						? QStringLiteral(
+							  "Review the connection details and try again.")
+						: QString::fromStdString(SessionPanel->diagnostic_text()));
+				break;
+			case core::github_status::session_cancelled:
+				state = QStringLiteral("cancelled");
+				EmptyStateTitleLabel->setText(
+					QStringLiteral("Connection canceled"));
+				EmptyStateBodyLabel->setText(
+					QStringLiteral(
+						"Choose Connect when you are ready to try again."));
+				break;
+			case core::github_status::pull_request_failed:
+				state = QStringLiteral("error");
+				EmptyStateTitleLabel->setText(
+					QStringLiteral("Pull request unavailable"));
+				EmptyStateBodyLabel->setText(
+					!SessionPanel->showing_diagnostic()
+						? QStringLiteral(
+							  "Check the locator and try opening it again.")
+						: QString::fromStdString(SessionPanel->diagnostic_text()));
+				break;
+			case core::github_status::pull_request_cancelled:
+				state = QStringLiteral("cancelled");
+				EmptyStateTitleLabel->setText(
+					QStringLiteral("Pull request loading canceled"));
+				EmptyStateBodyLabel->setText(
+					QStringLiteral(
+						"The locator is unchanged and can be opened again."));
+				break;
+			}
+		}
+		PullRequestStack->setProperty("githubPresentationState", state);
+
+		if (auto* const banner = SessionPanel->status_banner();
+			banner != nullptr) {
+			banner->setAccessibleDescription(SessionPanel->summary_text());
+		}
+	}
+
+	void workbench_window::focus_review_threads()
+	{
+		for (auto row = 0; row < ConversationPanel->model()->rowCount(); ++row) {
+			const auto modelIndex = ConversationPanel->model()->index(row, 0);
+			if (
+				modelIndex.data(github_conversation_model::kind_role).toInt()
+				== static_cast<int>(
+					application::github_conversation_kind::review_thread)) {
+				ConversationPanel->view()->expand(modelIndex);
+				ConversationPanel->view()->setCurrentIndex(modelIndex);
+				ConversationPanel->view()->scrollTo(
+					modelIndex, QAbstractItemView::PositionAtCenter);
+				break;
+			}
+		}
+		ConversationPanel->view()->setFocus(Qt::ShortcutFocusReason);
 	}
 
 	auto workbench_window::appearance_settings() const noexcept
@@ -996,6 +1213,16 @@ namespace bpr::qt {
 			// The threshold is style- and font-derived, so a native appearance
 			// change can legitimately move the window across it.
 			apply_layout_mode();
+			// The pull-request title and identity carry derived emphasis fonts,
+			// which stop tracking the application font unless they are re-derived
+			// here. `github_window` did this; the shell must too, or a reviewer
+			// who enlarges the system font gets a title that does not grow.
+			if (PullRequestPanel != nullptr) {
+				PullRequestPanel->refresh_native_appearance();
+			}
+			if (ConversationPanel != nullptr) {
+				ConversationPanel->relayout();
+			}
 			break;
 		default:
 			break;

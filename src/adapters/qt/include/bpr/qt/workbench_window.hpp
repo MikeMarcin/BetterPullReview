@@ -30,6 +30,7 @@ class QPlainTextEdit;
 class QResizeEvent;
 class QScrollArea;
 class QSplitter;
+class QStackedWidget;
 class QToolBar;
 class QToolButton;
 
@@ -311,6 +312,9 @@ namespace bpr::qt {
 		void apply_github_host_diagnostic(
 			const application::github_host_diagnostic_projection& aDiagnostic);
 		void clear_github_pull_request();
+		void update_github_presentation_state();
+		void focus_review_threads();
+		void announce_github_presentation_update();
 		void dispatch_navigation(std::size_t aIndex);
 		void dispatch_drawer_toggle(std::size_t aIndex);
 		void observe_drawer_width(
@@ -351,11 +355,15 @@ namespace bpr::qt {
 
 		std::array<navigation_entry, 4>                    Navigation{ };
 		std::array<drawer_entry, 2>                        Drawers{ };
-		github_conversation_panel*                         ConversationPanel       = nullptr;
-		QScrollArea*                                       HeaderScroll            = nullptr;
-		github_session_panel*                              SessionPanel            = nullptr;
-		github_pull_request_panel*                         PullRequestPanel        = nullptr;
-		appearance_settings_panel*                         AppearanceSettings      = nullptr;
+		github_conversation_panel*                         ConversationPanel    = nullptr;
+		QScrollArea*                                       HeaderScroll         = nullptr;
+		github_session_panel*                              SessionPanel         = nullptr;
+		github_pull_request_panel*                         PullRequestPanel     = nullptr;
+		appearance_settings_panel*                         AppearanceSettings   = nullptr;
+		QStackedWidget*                                    PullRequestStack     = nullptr;
+		QLabel*                                            EmptyStateTitleLabel = nullptr;
+		QLabel*                                            EmptyStateBodyLabel  = nullptr;
+		QString                                            LastGithubAnnouncement;
 		QAction*                                           GithubConnectAction     = nullptr;
 		QAction*                                           GithubOpenAction        = nullptr;
 		QAction*                                           GithubRefreshAction     = nullptr;

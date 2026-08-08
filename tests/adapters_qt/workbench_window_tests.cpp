@@ -1857,7 +1857,6 @@ namespace {
 		expect(assembled > 0U,
 			   "the assembled workbench retains a live widget tree to count");
 
-
 		const auto small  = observe_sized_publication(window, 9U, 1U);
 		const auto medium = observe_sized_publication(window, 999U, 2U);
 		const auto large  = observe_sized_publication(window, 9'999U, 3U);

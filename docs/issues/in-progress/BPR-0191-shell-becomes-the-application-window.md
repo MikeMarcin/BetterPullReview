@@ -270,6 +270,27 @@ So the remainder is one coherent chunk, not three:
    pane figures not moving is the substantive claim, since that is where a
    per-line widget would appear.
 
+### Regression found and fixed, 2026-08-08
+
+Composing the shell dropped RFC-BPR-0002's empty-state region, and for exactly
+one commit the shipped application showed a reviewer with no pull request open
+an empty comparison and no indication of what to do. Three behaviours had been
+left behind with it and are now moved:
+
+- the `githubViewState` stack and its `githubPresentationState` property, with
+  the full disconnected/connecting/empty/loaded/refreshing state machine;
+- `focus_review_threads`, so Show Review Threads still expands, selects and
+  scrolls to the first review thread;
+- the single polite accessibility announcement, and re-deriving the title and
+  identity emphasis fonts on an application font change — without which a
+  reviewer who enlarges the system font gets a title that does not grow.
+
+The `PresentationChanged` callback had been stubbed to `[] { }` during
+composition, which froze the empty state on whatever it said when the window was
+built. It reports from inside the session panel's own constructor, before the
+member holding the panel is assigned, so the update guards against being called
+with nothing to read.
+
 ### Still open: the assertions must move before the old window goes
 
 `github_window` and its 2,074 lines of tests remain in the repository, green,
@@ -282,7 +303,22 @@ What is left is porting them onto `workbench_window` and then removing
 `github_window`. The merge has already shown this pays: moving the session
 chrome under the shell's stricter rules found four widgets — the connection
 details button and all three locator editors — that had been shipping with no
-accessible description at all.
+accessible description at all, and the port attempt is what surfaced the
+empty-state regression above.
+
+**The port is started and not finished.** Mechanically the file translates: the
+type, the constructor, and the renamed accessors are a substitution, and it
+compiles against the shell. Two assertions genuinely had to be restated rather
+than kept, because `github_window`'s `githubContentSplitter` has no counterpart
+— the conversation now lives in the conversations drawer, whose width is
+host-persisted and whose collapse is core-owned, which is RFC-BPR-0005's own
+mechanism for the thing the splitter orientation used to express.
+
+It then segfaults, before the first assertion reports. The crash is in the
+ported harness rather than in the shell: with the ported file reverted the shell
+carries all of the behaviour above and the Qt suite is 34/34. Diagnosing it
+needs a session with room to work, so the port is deliberately not committed
+half-applied.
 
 ### Built, 2026-08-08: the shell is the projection port
 
