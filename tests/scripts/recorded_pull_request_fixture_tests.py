@@ -9,6 +9,8 @@ trusting the intent behind it. BPR-0187.
 
 from __future__ import annotations
 
+import base64
+import difflib
 import json
 import re
 import sys
@@ -35,6 +37,7 @@ RECORDINGS = (
         "Files": 2,
         "Commits": 2,
         "MinimumModificationPairs": 0,
+        "RequiresBlobs": False,
     },
     {
         "Directory": "uiforetw-74",
@@ -47,6 +50,7 @@ RECORDINGS = (
         "Files": 5,
         "Commits": 1,
         "MinimumModificationPairs": 3,
+        "RequiresBlobs": True,
     },
 )
 
@@ -203,6 +207,46 @@ def check(expected: dict) -> None:
         f"{name}: carries at least {expected['MinimumModificationPairs']} "
         f"near-identical removed/added pairs, found {pairs}",
     )
+    # Blobs, and blobs that actually agree with the recorded shape. The
+    # comparison surface diffs real file content out of git objects, not the
+    # API's patch text, so a recording without base and head contents cannot be
+    # served at all -- a patch is hunks with context, not whole files. BPR-0187.
+    #
+    # Reconstructing the counts is the load-bearing half. Two base64 strings
+    # that decode are not evidence of anything; two that diff to exactly the
+    # additions and deletions the API reported are the same change the fixture
+    # claims to carry.
+    if expected["RequiresBlobs"]:
+        for entry in recording.get("files", []):
+            label = entry.get("filename")
+            if entry.get("status") == "added":
+                continue
+            base_text = entry.get("base_content_base64")
+            head_text = entry.get("head_content_base64")
+            expect(
+                bool(base_text) and bool(head_text),
+                f"{name}: {label!r} carries base and head content, which is what "
+                "a git object can be built from",
+            )
+            if not (base_text and head_text):
+                continue
+            before = base64.b64decode(base_text).decode("utf-8", "replace").splitlines()
+            after = base64.b64decode(head_text).decode("utf-8", "replace").splitlines()
+            adds = sum(
+                1 for line in difflib.unified_diff(before, after, n=0)
+                if line.startswith("+") and not line.startswith("+++")
+            )
+            dels = sum(
+                1 for line in difflib.unified_diff(before, after, n=0)
+                if line.startswith("-") and not line.startswith("---")
+            )
+            expect(
+                adds == entry.get("additions") and dels == entry.get("deletions"),
+                f"{name}: {label!r} blobs diff to "
+                f"+{adds} -{dels}, and the recording says "
+                f"+{entry.get('additions')} -{entry.get('deletions')}",
+            )
+
     if expected["MinimumModificationPairs"] == 0:
         expect(
             pull.get("deletions") == 0,

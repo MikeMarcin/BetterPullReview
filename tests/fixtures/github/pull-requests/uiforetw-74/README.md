@@ -46,6 +46,23 @@ It also keeps a plain addition-only file (`UIforETWDlg.cpp`, +22 −0) and a
 mixed one, so a capture can hold added, removed and modified rows together
 rather than needing three fixtures to compare them.
 
+## Blobs, not just patches
+
+Each file carries `base_content_base64` and `head_content_base64` — its whole
+content on both sides — beside the patch.
+
+That is not redundancy. The comparison surface diffs real file content out of
+git objects; the served fixture's `responses/files.json` carries no patch at
+all, and the content comes from git packfiles. A patch is hunks with context,
+so the base and head of a file cannot be reconstructed from one. Without the
+blobs this recording could be validated but never rendered, which is the gap
+BPR-0187 records.
+
+The blobs are checked against the recording rather than trusted: each pair is
+diffed and must produce exactly the additions and deletions the API reported.
+All five files reconstruct exactly. Two base64 strings that merely decode would
+be evidence of nothing.
+
 ## Recorded, not read live
 
 Fetched once with three unauthenticated `GET`s — the pull request, its files,
