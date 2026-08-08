@@ -1581,7 +1581,18 @@ namespace bpr::app {
 	{
 	}
 
-	github_application::~github_application() = default;
+	github_application::~github_application()
+	{
+		// Before any member is destroyed, so a callback delivered by the pump
+		// inside `~implementation` sees an expired token rather than a null
+		// `Implementation`.
+		Liveness.reset();
+	}
+
+	auto github_application::liveness() const noexcept -> std::weak_ptr<const void>
+	{
+		return Liveness;
+	}
 
 	void github_application::show()
 	{

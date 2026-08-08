@@ -1,7 +1,7 @@
 ---
 id: BPR-0215
 title: Command-Q segfaults during shutdown
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: [BPR-0186]
 ---
@@ -82,3 +82,22 @@ same order and the same exit code is reported.
 Making `status()` null-tolerant. That hides a callback reaching into a
 half-destroyed object rather than stopping it, and the next accessor added to
 the same path would crash the same way.
+
+## Confirmed, 2026-08-08
+
+The product owner relaunched the composed shell and pressed Command-Q, and the
+process exited with no crash report. The automated shutdown and public-path
+contracts stayed green, so the interactive safety was not bought by weakening
+the path the fixtures drive.
+
+## The fix was too narrow — see [[BPR-0217]]
+
+`schedule_interactive_shutdown` was one of three pollers with this shape.
+`schedule_automated_run` has the same one and was not touched, and the owner hit
+the identical crash through it about an hour later. The token local to this
+scheduler has been replaced by `github_application::liveness()`: one mechanism,
+owned by the object whose lifetime it describes.
+
+The diagnosis here was exact. What was wrong was fixing the observed path
+without looking for the same shape elsewhere, which left the defect in place
+under a different name.

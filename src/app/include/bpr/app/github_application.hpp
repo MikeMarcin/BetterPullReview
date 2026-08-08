@@ -111,6 +111,26 @@ namespace bpr::app {
 		explicit github_application(github_application_config aConfig = { });
 		~github_application();
 
+		/// \brief Expires the moment this application stops being usable.
+		///
+		/// \details `~implementation` pumps `processEvents` in its own shutdown
+		/// loop, which delivers whatever timers were still armed when `exec()`
+		/// returned. By then the owning `unique_ptr` has already been nulled —
+		/// libc++'s `reset` assigns before invoking the deleter — so any queued
+		/// callback that reaches back in through this class reads a member off
+		/// a null pointer and the process segfaults.
+		///
+		/// Every poller that re-enters the application holds a weak reference
+		/// to this and does nothing once it has expired. It is cleared in the
+		/// destructor body, which runs before any member is destroyed, so the
+		/// window between "unusable" and "says so" is empty.
+		///
+		/// BPR-0215 first fixed this with a token local to one scheduler, and a
+		/// second scheduler with the identical shape crashed the same way an
+		/// hour later. One mechanism, owned by the thing whose lifetime it
+		/// describes, is what stops that recurring.
+		[[nodiscard]] auto liveness() const noexcept -> std::weak_ptr<const void>;
+
 		github_application(const github_application&)                    = delete;
 		auto operator=(const github_application&) -> github_application& = delete;
 		github_application(github_application&&)                         = delete;
@@ -129,6 +149,10 @@ namespace bpr::app {
 
 		friend class detail::github_application_fixture_access;
 
+		// Declared before `Implementation` only for readability; what matters is
+		// that the destructor body clears it, which precedes member destruction
+		// regardless of order.
+		std::shared_ptr<const int>      Liveness = std::make_shared<const int>(0);
 		std::unique_ptr<implementation> Implementation;
 	};
 }

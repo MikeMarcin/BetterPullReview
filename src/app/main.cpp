@@ -2398,7 +2398,17 @@ namespace {
 		aRun->Started = automated_clock::now();
 
 		auto tick = std::make_shared<std::function<void()>>();
-		*tick     = [&aApplication, aRun, tick] {
+		*tick     = [&aApplication, aRun, tick,
+					 alive = aApplication.liveness()] {
+			// A tick still armed when `exec()` returns is delivered by the pump
+			// inside `~implementation`, at which point reaching into the
+			// application reads off a null pointer. BPR-0217.
+			// A tick still armed when `exec()` returns is delivered by the pump
+			// inside `~implementation`, at which point reaching into the
+			// application reads off a null pointer. BPR-0217.
+			if (alive.expired()) {
+				return;
+			}
 			auto& window = aApplication.window();
 			++aRun->Attempts;
 			// One budget for the whole run rather than one per stage. What has
@@ -3232,17 +3242,22 @@ namespace {
 	/// `status()` read a member off a null `Implementation` and the process
 	/// segfaulted on Command-Q.
 	///
-	/// The returned token is what stops that. The poll holds a weak reference
-	/// and does nothing once the token is gone, so the caller destroys the token
-	/// before the application and a late delivery becomes a no-op instead of a
-	/// crash. Nothing about the shutdown sequence itself changes.
-	[[nodiscard]] auto schedule_interactive_shutdown(
-		bpr::app::github_application& aApplication) -> std::shared_ptr<void>
+	/// `github_application::liveness()` is what stops that. The poll holds a
+	/// weak reference and does nothing once it has expired, and the application
+	/// clears it in its destructor body before any member is destroyed, so a
+	/// late delivery becomes a no-op instead of a crash. Nothing about the
+	/// shutdown sequence itself changes.
+	///
+	/// This first shipped as a token local to this function, which left
+	/// `schedule_automated_run` — the same shape, the same crash — untouched.
+	/// BPR-0217 replaced it with one mechanism owned by the object whose
+	/// lifetime it describes.
+	void schedule_interactive_shutdown(
+		bpr::app::github_application& aApplication)
 	{
 		aApplication.begin_shutdown();
-		auto alive = std::make_shared<int>(0);
-		auto poll  = std::make_shared<std::function<void()>>();
-		*poll      = [&aApplication, poll, watch = std::weak_ptr<int>{ alive }] {
+		auto poll = std::make_shared<std::function<void()>>();
+		*poll     = [&aApplication, poll, watch = aApplication.liveness()] {
 			if (watch.expired()) {
 				return;
 			}
@@ -3255,7 +3270,6 @@ namespace {
 			QTimer::singleShot(10, &aApplication.window(), *poll);
 		};
 		QTimer::singleShot(0, &aApplication.window(), *poll);
-		return alive;
 	}
 }
 
@@ -3515,14 +3529,11 @@ auto main(int argc, char** argv) -> int
 		// Declared after the application so it is destroyed first: the token
 		// dying disarms any poll still in flight before the application it would
 		// have reached into goes away.
-		auto interactiveShutdown = std::shared_ptr<void>{ };
 		QObject::connect(
 			&qtApplication,
 			&QGuiApplication::lastWindowClosed,
 			&application->window(),
-			[&application, &interactiveShutdown] {
-				interactiveShutdown = schedule_interactive_shutdown(*application);
-			});
+			[&application] { schedule_interactive_shutdown(*application); });
 
 		auto verifyNativePlatformVault = selfTest;
 		auto verifyCliUnavailable      = selfTest;
