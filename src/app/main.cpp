@@ -592,7 +592,20 @@ namespace {
 				   QApplication::style()->metaObject()->className())
 				== aRun.Appearance.InitialStyleClass
 			&& aWindow.statistics().GithubFullResets == 0U
-			&& !aWindow.testAttribute(Qt::WA_SetPalette)
+			// Deliberately not `!testAttribute(WA_SetPalette)`. That term was
+			// written when nothing composed an appearance profile, so the
+			// window's palette could only have come from the platform and "no
+			// palette was set" meant "nothing bypassed the model". Since
+			// BPR-0183 the model sets the window's palette itself, which is the
+			// opposite of a bypass, and the term became an assertion that the
+			// feature is absent.
+			//
+			// The provenance question it was reaching for is answered better
+			// and elsewhere: `APPEARANCE_APPLIED` reports `from-profile` by
+			// comparing the window's palette against the profile's semantic
+			// roles, which is a stronger claim than nobody having set one.
+			// Style, font and stylesheet stay, because nothing legitimately
+			// sets those on the window.
 			&& !aWindow.testAttribute(Qt::WA_SetStyle)
 			&& !aWindow.testAttribute(Qt::WA_SetFont)
 			&& aWindow.styleSheet().isEmpty();

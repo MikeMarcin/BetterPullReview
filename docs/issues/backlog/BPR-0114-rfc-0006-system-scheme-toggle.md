@@ -242,3 +242,74 @@ Two other findings from the same runs:
   wrong for this run: `NATIVE_APPEARANCE_FOCUS` reports the window active, and
   the probe did not wait at all. The wait path is real but was not what stopped
   these runs.
+
+## Both claims proven, 2026-08-08
+
+With `!testAttribute(WA_SetPalette)` removed from the window check, the probe
+reached the appearance stages and the transition was driven under the owner's
+standing authorisation, unattended:
+
+```
+NATIVE_APPEARANCE_TRANSITION:Light->Dark
+APPEARANCE_SYSTEM_FOLLOWS_OK
+APPEARANCE_EXPLICIT_IGNORES_OK
+APPEARANCE_VARIANTS:0:1:0:1
+NATIVE_APPEARANCE_SIGNAL_OK
+```
+
+The variants are the claim in full. System resolved **light → dark** when the
+operating system changed (`0:1`). With an explicit mode selected through
+BPR-0184's gesture the same operating-system change left the variant at
+**light** (`0`). Returned to System, it resolved **dark** again (`1`).
+
+The second of those is the one this card exists for, and the one QMacStyle
+following the operating system cannot fake.
+
+### The term that was blocking it asserted the feature was absent
+
+`presentationClean` required the window to carry no `WA_SetPalette`. That was
+written when nothing composed an `appearance_profile` — BPR-0180 measured
+exactly that — so the window's palette could only have come from the platform,
+and "no palette was set" meant "nothing bypassed the model". Since BPR-0183 the
+model sets the window's palette itself, which is the opposite of a bypass.
+
+The provenance question the term was reaching for is answered better elsewhere:
+`APPEARANCE_APPLIED` reports `from-profile` by comparing the window's palette
+against the profile's own semantic roles, which is stronger than nobody having
+set one. Style, font and stylesheet checks stay, because nothing legitimately
+sets those on the window.
+
+## Still failing, and deliberately not fixed here
+
+```
+NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED
+NATIVE_APPEARANCE_STATE_FAILED
+NATIVE_APPEARANCE_PIXELS_DIFFER_FAILED
+NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_FAILED
+NATIVE_APPEARANCE_DIFF_FONT_INHERITED_FAILED
+NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_FAILED   (delta 2)
+NATIVE_APPEARANCE_DIFF_SELECTION_FAILED
+NATIVE_APPEARANCE_CHANGED_RENDER_FAILED
+```
+
+`ACTIVE_FOCUS_FAILED` is an artefact of this run: the process was launched into
+the background so the window was never frontmost, and several of the rest
+plausibly cascade from it.
+
+`DIFF_PALETTE_INHERITED` is **not** an artefact. It is the diff workbench's
+version of the term just removed: the shell calls
+`workbench->adopt_appearance(*AppearanceProfile)` deliberately, so the pane's
+palette is no longer inherited, and an assertion that it is inherited is again
+an assertion that the appearance model does nothing.
+
+**These were not repaired in the same sitting, on purpose.** Removing one term
+after establishing that it encoded the feature's absence is a judgement.
+Removing eight because a probe is red is how a probe stops meaning anything, and
+this card's own rule — *"Showing that Qt's native palette propagates and calling
+it System mode"* — is a warning against exactly that direction of travel. Each
+remaining term needs the same question asked separately: is this catching a
+bypass, or asserting that nothing happened?
+
+`DIFF_GEOMETRY_REBUILD_DELTA:2` in particular is a product signal, not a rule
+question: an appearance change rebuilding the comparison geometry twice may be
+correct or may be a double application, and nobody has looked.
