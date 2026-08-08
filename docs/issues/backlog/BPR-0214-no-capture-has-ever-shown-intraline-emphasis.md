@@ -48,11 +48,15 @@ A comparison whose two sides share enough of a line to produce intraline edits.
 asserts an emphasis range against it — so the shape is known and only the
 public-path fixture lacks it.
 
-[[BPR-0187]] is the natural home: `microsoft/DirectXMath#336` is a real pull
-request with a 220-line addition, and real edits produce real intraline spans.
-Whoever serves that recording should check whether it does, and say so either
-way, because a second fixture that also cannot show emphasis would leave this
-open while looking closed.
+[[BPR-0187]] was the natural home and **is not**. Checked rather than assumed,
+which is what that paragraph asked for: `microsoft/DirectXMath#336` removes zero
+lines across both its files. A pull request that only adds has no line present on
+both sides, so it cannot contain an intraline edit. Serving that recording would
+leave this exactly as unobserved as it is now.
+
+What is needed is a recording with **removals and edits within lines** — a
+replacement, not an addition. That is a second recording, and BPR-0187 now
+records the same finding from its own side.
 
 ## Required direct evidence
 

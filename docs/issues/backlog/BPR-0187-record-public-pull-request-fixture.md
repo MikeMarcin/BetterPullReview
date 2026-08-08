@@ -67,6 +67,53 @@ file, no credential-shaped string, and exactly one URL. Each shown non-vacuous
 by drifting the head, emptying a patch, inserting a bearer token, and adding a
 second URL.
 
+## The recording is weaker presentation evidence than this card assumed
+
+Measured from the recording itself, 2026-08-08:
+
+| file | removed | added |
+|---|---|---|
+| `Inc/DirectXMath.h` | 0 | 1 |
+| `Inc/DirectXMathMatrix.inl` | 0 | 220 |
+
+**`microsoft/DirectXMath#336` is a pure addition.** No line is removed anywhere
+in it, which means:
+
+- no removed-line band is ever painted;
+- no replacement pairs a left line against a right one;
+- **no intraline edit exists**, because an intraline edit is a difference
+  *within* a line that appears on both sides;
+- no moved code, for the same reason.
+
+So of the diff surface's painted vocabulary, this fixture exercises the added
+band and nothing else. It is real code, which is what this card wanted, and it is
+narrow evidence for judging a *diff* viewer, which is what this card wanted it
+for.
+
+That does not make the recording useless. Real 220-line C++ with real line
+lengths and real formatting is still better ground for judging syntax colouring,
+line height, and how a long addition reads than hand-written payloads are. It
+just cannot answer the questions that need two sides.
+
+**It also does not unblock [[BPR-0214]]**, which is the case that card explicitly
+asked to be checked either way rather than assumed. Serving this recording would
+leave intraline emphasis exactly as unobserved as it is now.
+
+### What this implies for the remaining half
+
+Wiring 1,143 lines of fixture to serve content that paints one band out of five
+is a poor trade if the goal is presentation evidence. Two honest options, and the
+choice is the product owner's since they designated this pull request:
+
+1. **Serve it anyway** for what it does cover, and record a second recording with
+   a replacement for what it does not.
+2. **Record a second pull request first** — one with removals and edits within
+   lines — and serve whichever better repays the wiring.
+
+Either way the finding is that one recording cannot be the presentation fixture,
+because a pull request that only adds cannot show what a diff does when code
+changes.
+
 ## Half done, deliberately
 
 **Nothing reads the recording yet.** Serving it through
