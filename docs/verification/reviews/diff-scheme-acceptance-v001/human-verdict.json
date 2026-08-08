@@ -1,0 +1,36 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/3aa22619b1d3ff846a0bf4d1",
+  "review_gate": "diff_scheme_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0206/light-after-refit",
+      "subject_digest": "sha256:cbfc1132835e745e03aca7de51d9865831db6504fa35f20f4edfc4643b571b22"
+    }
+  ],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0199/dark-diff",
+      "subject_digest": "sha256:63fe23e42bbe13f415e7805fa76e7be8a45deb59bb0d0fb585f39e1345ff4844"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/dark-selection-strength",
+      "subject_digest": "sha256:94c1368a597383eab771c7ac696e1f590470ae22f99111bb82011853252436d8"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0206/light-after-refit@sha256:cbfc1132835e745e03aca7de51d9865831db6504fa35f20f4edfc4643b571b22": "The gutter swoosh (visible clearly in the whole window) doesn't line up with the text blocks",
+    "criterion:/betterpullreview/bpr-0199/dark-diff@sha256:63fe23e42bbe13f415e7805fa76e7be8a45deb59bb0d0fb585f39e1345ff4844": "I prefer the slightly softer red and green tones of the fork dark mode.",
+    "criterion:/betterpullreview/bpr-0194/dark-selection-strength@sha256:94c1368a597383eab771c7ac696e1f590470ae22f99111bb82011853252436d8": "Dark selection not nearly visible enough, might be compounded by using too dark of red and green."
+  },
+  "downstream_claims": {
+    "all_four_palettes_audited": false,
+    "bpr_0194_closed": false,
+    "bpr_0199_closed": false,
+    "high_contrast_schemes_reviewed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

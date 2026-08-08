@@ -1570,6 +1570,16 @@ namespace {
 		color_only_obligation{ core::appearance_variant::dark,
 							   role::diff_added_background,
 							   role::diff_removed_background },
+		// The intraline pair, one level down from the row pair above and for
+		// the same reason: softening the dark bands toward the reference the
+		// owner asked for brought the green and the red close enough that
+		// deuteranopia collapses them. Accepting it here rather than keeping
+		// the harsher tones the owner rejected -- the row bands have owed the
+		// same signal in this profile since it was written, so the intraline
+		// spans owing it too is consistent rather than new in kind.
+		color_only_obligation{ core::appearance_variant::dark,
+							   role::diff_intraline_added_background,
+							   role::diff_intraline_removed_background },
 		color_only_obligation{ core::appearance_variant::high_contrast_light,
 							   role::diff_added_background,
 							   role::diff_removed_background },

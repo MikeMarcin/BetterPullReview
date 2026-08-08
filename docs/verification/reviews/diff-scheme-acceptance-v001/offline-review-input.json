@@ -1,0 +1,180 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "The diff in both schemes, after the palette changes",
+  "review_gate": "diff_scheme_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false,
+    "bpr_0194_closed": false,
+    "bpr_0199_closed": false,
+    "all_four_palettes_audited": false,
+    "high_contrast_schemes_reviewed": false
+  },
+  "reference_disclaimer": "All captures are commit e01ab28, offscreen, device pixel ratio 1.0. Each carries the palette it was taken under in appearance-at-capture.json, and both are in the manifest — the light frames report #ffffff/#7fb0e8 and the dark ones #0d1117/#193151. Zoomed images are nearest-neighbour 2x crops, so soft edges are magnification. Only the light and dark profiles are covered; the two high-contrast profiles are NOT in this batch. The dark scheme has never been reviewed before — until this week the probe could only produce light rasters.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0206/light-after-refit",
+      "subject_key": "light-after-refit",
+      "display_name": "Light: does the diff still look right after the colour changes?",
+      "description": "You accepted the darker selection from captures taken BEFORE the syntax colours moved, so the thing you approved is not the thing that shipped. Eleven of the twenty-five syntax colours were darkened to make that selection legible — keywords, strings, types, comments and six others. This asks whether the result is still a code surface you would want to read, not whether the selection is visible. The selected line is 'teardown_render_pipeline(handle);', the top line of the replacement image and the one under the grey rule in the change-group image.",
+      "acceptance_criteria": [
+        "The syntax colouring still reads as distinct categories rather than a muddy set of dark tones",
+        "Added green, removed red and the selection are all distinguishable from each other and from the plain pane",
+        "The change-group rule reads as a divider rather than as a change"
+      ],
+      "known_concerns": [
+        "Eleven syntax colours are darker than the ones in every capture you have seen before. Keyword red went #CA212D to #B51D27, string green #0A7752 to #086A49, type purple #7B46DD to #6E3EC8.",
+        "syntax_warning and syntax_error can no longer be told apart by colour alone under deuteranopia in this profile. That is recorded as owing a non-colour signal, which does not exist yet.",
+        "Only one line is selected, so whether the red tint survives underneath the selection still cannot be judged from these frames — BPR-0205."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Every contrast pair meets its published minimum, measured against the composited selection rather than the raw palette value."
+      },
+      "media_groups": [
+        {
+          "group_id": "light",
+          "title": "Light, both panes",
+          "required": true,
+          "layout": "grid",
+          "note": "Replacement shows removed left and added right. Change groups shows a deleted block with the grey boundary rule above it. Click either for native resolution.",
+          "items": [
+            { "label": "Replacement, 2x", "path": "captures/light-replace.png" },
+            { "label": "Change groups, 2x", "path": "captures/light-groups.png" },
+            { "label": "Selected line, 2x", "path": "captures/light-sel.png" },
+            { "label": "Whole window", "path": "captures/light-window.png" }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "What moved since you last saw light",
+          "kind": "list",
+          "items": [
+            "code_selection_background #D8E9FF to #7FB0E8, the candidate C you chose.",
+            "Eleven syntax colours darkened, each scaled in linear RGB so hue and saturation are unchanged and only lightness moved.",
+            "Two intraline band values lightened imperceptibly to clear a contrast failure the old model was hiding.",
+            "The change-group marking became a grey rule on the edge instead of a blue fill on an unchanged line."
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0199/dark-diff",
+      "subject_key": "dark-diff",
+      "display_name": "Dark: the first look at this scheme",
+      "description": "The dark profile has shipped since it was written and has never had a rendered frame reviewed, because the capture probe could only produce light ones until this week. This is the first look. Same fixture, same crops, same geometry as the light subject, so the two can be compared directly. You gave Git Fork's dark scheme as the reference for this one.",
+      "acceptance_criteria": [
+        "Added and removed bands are distinguishable from the pane and from each other",
+        "Syntax colouring is readable against the dark pane and against both bands",
+        "The change-group rule reads as a divider"
+      ],
+      "known_concerns": [
+        "KNOWN DEFECT, already carded as BPR-0207, please do not spend a verdict on it: both horizontal scrollbars render as bright white troughs at the bottom of each pane. They are the brightest thing on the surface. It is not yet known whether the platform style is overriding the palette, which decides whether the fix is small or large.",
+        "The dark syntax colours have NOT been refitted the way the light ones were. They were already clear of the minimum, but they were fitted against the old bare-background model.",
+        "The selected line is deliberately weak here and is asked about separately in the next subject."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Contrast pairs pass, worst washed syntax 6.06:1 against a 4.50 minimum. The scrollbar defect is not a contrast pair and is invisible to the sweep."
+      },
+      "media_groups": [
+        {
+          "group_id": "dark",
+          "title": "Dark, both panes",
+          "required": true,
+          "layout": "grid",
+          "note": "Same crops as the light subject, for direct comparison. Click for native resolution.",
+          "items": [
+            { "label": "Replacement, 2x", "path": "captures/dark-replace.png" },
+            { "label": "Change groups, 2x", "path": "captures/dark-groups.png" },
+            { "label": "Selected line, 2x", "path": "captures/dark-sel.png" },
+            { "label": "Whole window", "path": "captures/dark-window.png" }
+          ]
+        },
+        {
+          "group_id": "side-by-side",
+          "title": "The light equivalents, for comparison",
+          "required": false,
+          "layout": "grid",
+          "note": "Identical crops from the light profile.",
+          "items": [
+            { "label": "Light replacement, 2x", "path": "captures/light-replace.png" },
+            { "label": "Light change groups, 2x", "path": "captures/light-groups.png" }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "The dark palette's diff colours",
+          "kind": "list",
+          "items": [
+            "Pane #0D1117, added #0F2F1C, removed #3A1416, moved #3A2E0C.",
+            "Change-group rule #808080, a neutral grey, so blue stays reserved for selection.",
+            "Perceptual distance from the pane: added 24.5, removed 23.8, moved 30.8. Git Fork's own dark bands measure about 25.3 and 19.6 by the same method, so these are in the same family."
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" }
+      ]
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0194/dark-selection-strength",
+      "subject_key": "dark-selection-strength",
+      "display_name": "Dark: is the selected line strong enough?",
+      "description": "In the dark profile the selected line is markedly weaker than the light one you just approved. Against the plain pane it measures 7.3 where light now measures 12.5 — roughly the strength light had when you said you could only see it with eye strain. Over a removed line it is fine at 13.0. So the weakness is specifically a selected line in unchanged code, which is most of the file. The selected line is the top one in the replacement and selected-line images.",
+      "acceptance_criteria": [
+        "You can tell which line is selected in unchanged code, without being told",
+        "The selection does not overwhelm the band it sits on when the line is added or removed"
+      ],
+      "known_concerns": [
+        "Strengthening it costs exactly what it cost in light, and the numbers are already measured. Moving the dark selection from #193151 to #204272 raises distance against the pane from 7.3 to 11.5 — but drops the worst syntax pair from 4.58:1 to 4.27:1, below the 4.50 minimum. So a stronger dark selection requires refitting the dark syntax colours the way the light ones were just refitted, which is real work rather than a value change.",
+        "That is why no candidates are offered here. Offering shades that fail the contract is what produced a wasted round last time.",
+        "Reject this if 7.3 is not enough and the dark refit is worth doing. Accept it if the dark scheme is acceptable as it stands and the effort belongs elsewhere."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "Passes every contrast obligation at 4.58:1 worst. This subject is not about legality — it is about whether a legal selection is a visible one, which measurement cannot settle."
+      },
+      "media_groups": [
+        {
+          "group_id": "dark-selection",
+          "title": "The selected line in dark",
+          "required": true,
+          "layout": "grid",
+          "note": "The selected row is the top line, 'teardown_render_pipeline(handle);'. Compare against the light equivalent below it.",
+          "items": [
+            { "label": "Dark selected line, 2x", "path": "captures/dark-sel.png" },
+            { "label": "Light selected line, 2x", "path": "captures/light-sel.png" },
+            { "label": "Dark replacement, 2x", "path": "captures/dark-replace.png" }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Measured, both schemes",
+          "kind": "list",
+          "items": [
+            "Light selection against the plain pane: 12.5. Against a removed line: 13.2.",
+            "Dark selection against the plain pane: 7.3. Against a removed line: 13.0.",
+            "About 2.3 is the just-noticeable difference and about 10 is comfortably distinct.",
+            "The light value was 5.2 before this week, which is the one you rejected."
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" }
+      ]
+    }
+  ]
+}

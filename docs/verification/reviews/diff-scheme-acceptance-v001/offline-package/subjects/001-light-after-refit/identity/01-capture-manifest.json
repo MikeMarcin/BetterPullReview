@@ -1,0 +1,41 @@
+{
+ "appearance_at_capture": {
+  "dark": {
+   "base": "#0d1117",
+   "highlight": "#193151"
+  },
+  "light": {
+   "base": "#ffffff",
+   "highlight": "#7fb0e8"
+  }
+ },
+ "commit": "e01ab28",
+ "crops": {
+  "*-groups.png": "box (18,612,1230,860) scale 2 from 11-deletion-early.png",
+  "*-replace.png": "box (18,612,1230,790) scale 2 from 14-replacement-late.png",
+  "*-sel.png": "box (18,620,600,745) scale 2 from 01-selected-composition.png",
+  "*-window.png": "unmodified 01-selected-composition.png"
+ },
+ "device_pixel_ratio": 1.0,
+ "digests": {
+  "dark-groups.png": "5b339dc63a075de140766c82d014fa5a8da76bdd8e79750fa0341422af0521cb",
+  "dark-replace.png": "e4c6a7a9b72a32ddf7c4fe569c0b6039c22e6a8ac3b079898d3830f2ad369db7",
+  "dark-sel.png": "20b8108b52175f79d4692a9d686745e1d9795d66960f034b7a4bd400f4aa1d01",
+  "dark-window.png": "78f95fa44fa750b9f24205ccb3d22a267a225d7915b1cc171923e9a0d71105fb",
+  "light-groups.png": "09ce0280e81b60ea70e2161f3e82cfe832e557b966618da6c8756375a338124e",
+  "light-replace.png": "8d6b9ac1c3427943d61a88e9f530227392b05f76675b67c72104071e3021b19a",
+  "light-sel.png": "198dccf551a76dc76378a3a812e15c3608cdf05008ef5af50e3b87a2f398dce1",
+  "light-window.png": "952c3425b5199a7d84d4de0b650fcbf07570b760b560ae32bb691d0845bad7e4"
+ },
+ "measured_dE_selection_vs_band": {
+  "dark_pane": 7.3,
+  "dark_removed": 13.0,
+  "light_pane": 12.5,
+  "light_removed": 13.2
+ },
+ "platform": "macOS 15.7.7 arm64",
+ "preset": "dev",
+ "producing_command": "better_pull_review --github-fixture github-com --diff-workbench-probe --diff-evidence-appearance {light|dark} --diff-interaction-evidence <dir> --automated-run-budget-ms 30000",
+ "qpa_platform": "offscreen",
+ "qt_version": "6.11.1"
+}
