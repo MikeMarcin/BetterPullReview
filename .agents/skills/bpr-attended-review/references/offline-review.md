@@ -112,7 +112,9 @@ when subjects are alternatives to one question with declared bounds:
 ```json
 "selection_groups": [
   {"group_id": "hero", "title": "Pick the hero capture",
-   "min_accept": 1, "max_accept": 1}
+   "min_accept": 1, "max_accept": 1},
+  {"group_id": "supports", "title": "Keep up to two supporting shots",
+   "min_accept": 1, "max_accept": 2}
 ]
 ```
 
