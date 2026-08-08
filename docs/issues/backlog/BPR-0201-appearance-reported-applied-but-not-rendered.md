@@ -54,6 +54,62 @@ reviewed at all until this is resolved.
 
 That is why the selection-shade batch is Light-only and says so.
 
+## Narrowed by instrumentation, 2026-08-07 — explanation 3 is eliminated
+
+The profile **does** reach the panes. A temporary print inside
+`apply_appearance` and `diff_workbench::adopt_appearance` shows exactly two
+adoptions in a probe run:
+
+```
+DBG adopt added=#e6ffec      <- light, at composition
+DBG settle start
+DBG first capture
+DBG adopt added=#0f2f1c      <- dark, after every capture
+APPEARANCE_APPLIED:#193151:#0d1117:from-profile
+```
+
+`#0f2f1c` is the dark profile's `diff_added_background`, so the workbench
+receives it. Nothing is broken in the appearance path, and explanation 3 — the
+only user-visible one — is **eliminated**. This is explanation 2: the capture is
+early. The marker reports end-of-run state; the rasters are mid-run state.
+
+### The reason it cannot simply be waited out
+
+Three attempts, all ineffective, all reverted:
+
+1. Drain until the window palette stops moving. Exits after two turns, because
+   the palette settles instantly at whatever the profile currently resolves.
+   Draining until *that* is stable finishes long before the observation and
+   proves nothing.
+2. Drain while `QStyleHints::colorScheme()` is `Unknown`. Exits immediately —
+   the platform already reports Dark by then. It is the *signal* that has not
+   been delivered, not the value that is missing.
+3. Drain unconditionally, 64 turns. Still light in all nineteen frames.
+
+So the dark adoption is not reachable from inside the probe by turning the event
+loop. It arrives after the probe's whole lifetime, on a path this investigation
+has not identified. `colorSchemeChanged` is the only connected trigger, so
+either that signal is delivered very late under the offscreen platform, or
+something outside the probe re-observes at shutdown.
+
+### What this changes
+
+Captures from `--diff-workbench-probe` are evidence of the profile in effect
+**at composition**, not of the one the run ends on, and the two differ whenever
+the observation lands late. That is a property of the harness rather than of
+the product, but it makes every dark-scheme capture unusable until it is fixed,
+because the frames will show light while the markers say dark.
+
+It also means the light-scheme captures used throughout BPR-0194, BPR-0202 and
+BPR-0206 are sound: they were taken under the light profile and reported the
+light profile, and the two agree.
+
+### The next step is to find the late trigger, not to widen the drain
+
+Instrument `observe_native_appearance` with a timestamp or sequence number and
+find what invokes it after the probe returns. Widening the wait without knowing
+what is being waited for is what the three attempts above already were.
+
 ## Required direct evidence
 
 - Which of the three explanations holds, established by inspection rather than
