@@ -1,7 +1,7 @@
 ---
 id: BPR-0207
 title: The comparison scrollbars stay light in the dark scheme
-status: Backlog
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0183]
 ---
@@ -42,7 +42,59 @@ or a `QStyle` that honours the requested scheme. Establish which before
 choosing, because those two have very different costs and only one is a palette
 edit.
 
-## Required direct evidence
+## Cause, 2026-08-07 — an incomplete palette, not a style override
+
+The open question was whether the platform style was drawing scrollbars from
+the system theme rather than the widget palette, because that decides whether a
+palette edit can help at all. It is not.
+
+Two measurements settled it. The active style is **`QFusionStyle`**, not
+`QMacStyle` — and the scrollbar was `#F6F6F6` under the dark profile against
+`#F9F9F9` under the light one. Not identical, so the palette *was* reaching it;
+it was reading a role nothing had set.
+
+`appearance_profile::derive` assigned seven roles — `Window`, `WindowText`,
+`Base`, `AlternateBase`, `Text`, `Highlight`, `HighlightedText` — and left the
+rest at whatever the inherited palette held, which under a dark profile is a
+light default. Qt's styles draw scrollbars, buttons, frames and separators from
+`Button` and from the shade family, and **`setColor(Button, …)` does not
+recompute `Light`, `Midlight`, `Mid`, `Dark` or `Shadow`**. So every one of
+them stayed light.
+
+## Fixed
+
+`derive` now also owns `Button`, `ButtonText`, `ToolTipBase`, `ToolTipText`,
+`PlaceholderText` and the shade family, all derived from
+`application_surface` using Qt's own shade factors. Keeping those factors
+matters: a style that expects `Light` to be lighter than `Button` still gets
+that in a dark scheme, where a hand-picked set would have to re-establish the
+ordering by hand and could silently fail to.
+
+Dark comparison scrollbar: `#F6F6F6` before, `#282B32` after.
+
+Nothing is hard-coded per widget, which is what this card warned against. The
+scrollbar was only the visible symptom; every control Qt draws from the chrome
+family had the same latent defect, and all of them are fixed by the same
+change.
+
+## Verification
+
+`qt_appearance_profile` asserts, against a deliberately dark profile, that
+`Button` and `ToolTipBase` carry the application surface, that the shade family
+stays ordered light through dark, and that the shades follow a dark surface
+rather than an inherited light one.
+
+Shown non-vacuous by two separate breaks, each with a clean build: dropping the
+`Button` assignment fails the chrome assertion, and dropping one shade fails the
+ordering assertion.
+
+The test that previously used `Button` as an example of *an unowned role* now
+uses `Link`, which the diff surface genuinely never draws. That assertion was
+not deleted — the principle it protects, that the profile must not clobber roles
+it has no opinion about, still holds; `Button` simply stopped being an honest
+example of one.
+
+## Superseded — required direct evidence
 
 - A dark capture in which the scrollbar trough and handle are drawn from the
   dark palette, measured from pixels rather than from the palette object.

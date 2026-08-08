@@ -817,6 +817,37 @@ namespace bpr::qt {
 		assign(QPalette::Highlight, highlight);
 		assign(QPalette::HighlightedText, highlightText);
 
+		// The chrome family. Qt's own styles draw scrollbars, buttons, frames
+		// and separators from `Button` and the shades derived from it, and
+		// `setColor` does not recompute the shades - so assigning only the
+		// seven roles above left every one of them at whatever the inherited
+		// palette happened to hold. Under the dark profile that was a light
+		// default, which is why the comparison scrollbars rendered as bright
+		// white troughs against a near-black pane (BPR-0207).
+		//
+		// Derived from the surface rather than named individually, so a
+		// profile cannot ship a chrome colour that belongs to no role. The
+		// factors are Qt's own conventions for the shade family; keeping them
+		// means a style that expects `Light` to be lighter than `Button` still
+		// gets that in a dark scheme, where a hand-picked set would have to
+		// re-establish the ordering by hand.
+		assign(QPalette::Button, surface);
+		assign(QPalette::ButtonText, surfaceText);
+		assign(QPalette::Light, surface.lighter(150));
+		assign(QPalette::Midlight, surface.lighter(115));
+		assign(QPalette::Mid, surface.darker(150));
+		assign(QPalette::Dark, surface.darker(200));
+		assign(QPalette::Shadow, surface.darker(300));
+		assign(QPalette::ToolTipBase, surface);
+		assign(QPalette::ToolTipText, surfaceText);
+		assign(QPalette::PlaceholderText, blend_midpoint(baseText, base));
+		derived.setColor(
+			QPalette::Disabled, QPalette::Button, surface);
+		derived.setColor(
+			QPalette::Disabled,
+			QPalette::ButtonText,
+			blend_midpoint(surfaceText, surface));
+
 		derived.setColor(QPalette::Disabled, QPalette::Window, surface);
 		derived.setColor(QPalette::Disabled, QPalette::Base, base);
 		derived.setColor(QPalette::Disabled, QPalette::AlternateBase, alternateBase);

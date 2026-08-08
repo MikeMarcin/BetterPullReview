@@ -401,8 +401,13 @@ namespace {
 
 		QWidget canvas;
 		canvas.setObjectName(QStringLiteral("bpr-appearance-canvas"));
-		const auto inheritedButton
-			= canvas.palette().color(QPalette::Active, QPalette::Button);
+		// A role the profile has no opinion about. Button used to serve here,
+		// and it stopped being a fair example when BPR-0207 showed that
+		// leaving Qt's chrome family inherited renders a white scrollbar on a
+		// dark theme. Link is still genuinely unowned: nothing in the diff
+		// surface draws one.
+		const auto inheritedLink
+			= canvas.palette().color(QPalette::Active, QPalette::Link);
 
 		auto profile = qt::appearance_profile{ };
 		expect(
@@ -449,8 +454,35 @@ namespace {
 			"disabled text stays distinguishable from enabled text");
 
 		expect(
-			applied.color(QPalette::Active, QPalette::Button) == inheritedButton,
+			applied.color(QPalette::Active, QPalette::Link) == inheritedLink,
 			"a role the profile does not own stays exactly as inherited");
+
+		// And the chrome family, which it now does own. Qt's styles draw
+		// scrollbars, frames and separators from these and do not recompute
+		// the shades when Button alone is set, so leaving any of them
+		// inherited puts a light control on a dark surface.
+		const auto surface = profile.color(role::application_surface);
+		expect(
+			applied.color(QPalette::Active, QPalette::Button) == surface,
+			"the chrome fill carries the profile's application surface");
+		expect(
+			applied.color(QPalette::Active, QPalette::ToolTipBase) == surface,
+			"tooltips carry the profile's application surface");
+		const auto light    = applied.color(QPalette::Active, QPalette::Light);
+		const auto midlight = applied.color(QPalette::Active, QPalette::Midlight);
+		const auto mid      = applied.color(QPalette::Active, QPalette::Mid);
+		const auto dark     = applied.color(QPalette::Active, QPalette::Dark);
+		expect(
+			light.lightness() > midlight.lightness()
+				&& midlight.lightness() > mid.lightness()
+				&& mid.lightness() > dark.lightness(),
+			"the shade family stays ordered light to dark, which is what a "
+			"style assumes when it picks one of them for an edge");
+		expect(
+			mid.lightness() < QColor{ Qt::white }.lightness() / 2,
+			"the shades follow a dark surface rather than an inherited light "
+			"one, which is the defect that put a white scrollbar on the dark "
+			"comparison panes");
 		expect(
 			QApplication::palette() == inheritedApplication,
 			"applying a profile writes no application palette");
