@@ -296,11 +296,36 @@ NATIVE_APPEARANCE_CHANGED_RENDER_FAILED
 the background so the window was never frontmost, and several of the rest
 plausibly cascade from it.
 
-`DIFF_PALETTE_INHERITED` is **not** an artefact. It is the diff workbench's
-version of the term just removed: the shell calls
-`workbench->adopt_appearance(*AppearanceProfile)` deliberately, so the pane's
-palette is no longer inherited, and an assertion that it is inherited is again
-an assertion that the appearance model does nothing.
+**Correction.** The paragraph originally here claimed
+`DIFF_PALETTE_INHERITED` was the same latent assertion one level down. That was
+a guess and it was wrong. The check is
+
+```cpp
+InitialDiffPalette != ObservedDiffPalette && StatePassed
+```
+
+which asserts the pane's palette *did* change — the opposite of an absence
+assertion — and the palette did change, from light to dark, at the comparison
+surface itself:
+
+```
+NATIVE_APPEARANCE_DIFF_PALETTE_BEFORE:#fff6f7f9:#ffffffff:#ff1f2328:#ff1f2328
+NATIVE_APPEARANCE_DIFF_PALETTE_AFTER :#ff1c2026:#ff0d1117:#ffe6edf3:#ffe6edf3
+```
+
+That is RFC-BPR-0006's claim holding one level below the window, and it is
+evidence *for* the product rather than against it. The marker reads FAILED only
+because it is conjoined with `StatePassed`.
+
+So the eight failures have **one root**: `StatePassed`, which is
+`stateAfterRender`, which is gated by the window being active. That is
+`ACTIVE_FOCUS_FAILED`, and that is the launch artefact — the process was started
+into the background and never became frontmost. The font marker is gated the
+same way, and the font correctly did not change.
+
+The next step is therefore a foreground run rather than eight judgements: if
+`ACTIVE_FOCUS` passes, most or all of the cascade should resolve on its own, and
+whatever is left will be a much smaller question.
 
 **These were not repaired in the same sitting, on purpose.** Removing one term
 after establishing that it encoded the feature's absence is a judgement.
