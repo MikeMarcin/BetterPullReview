@@ -68,18 +68,37 @@ format and a non-zero incarnation, and any mismatch is
 So the wording a reviewer would see already exists, and it is actionable rather
 than silent.
 
-### What this does not establish, and the card said so first
+### The trace holds at the adapter boundary too
 
-**This is a reading of the code path, not an observation of it.** Nothing here
-demonstrates that a catalog whose rows name commits that no longer exist
-actually *takes* that path. It could equally return an empty history and report
-nothing — and the one observation on file points that way rather than this way:
-the owner's stale root produced `PUBLIC_PATH_EPOCH_CORE_STATUS:-1` and "Review
-history is inactive", which is not the repair wording.
+`installed_git_cache` returns `object_mismatch` and `repair_required` as
+`std::unexpected`, never as an empty success. A commit the cache cannot produce
+is a failure, not an absence, so there is no route by which a missing object
+becomes a quietly empty history.
 
-That observation is confounded with [[BPR-0154]] and cannot carry weight either
-way. But it is the only evidence about the actual behaviour that exists, and it
-does not agree with the trace.
+### Correcting what this card said an hour earlier
+
+An earlier revision of this section claimed the one observation on file
+*disagreed* with the trace, because the owner's stale root reported "Review
+history is inactive" rather than the repair wording. **That was a misreading and
+it is withdrawn.**
+
+`epoch_status::inactive` is the *initial* status — what the control shows before
+any pull request has been accepted and before any epoch work has begun. The run
+that produced it also reported `GITHUB_FIXTURE_FAILED`, so no pull request was
+accepted and the epoch path never started. The observation is therefore about
+[[BPR-0154]] and says nothing whatever about how a stale catalog is handled.
+
+So there is no contradicting evidence. There is no evidence at all, which is a
+different and less alarming position, and it is what the card originally said
+before this section over-read a marker.
+
+### What is still unproven
+
+Whether a stale catalog reaches the cache at all. Three levels are confirmed by
+reading — the adapter returns a typed failure, the host maps it to
+`repair_required`, the control words it as repair — and none of that demonstrates
+that resolving an epoch pair against absent commits enters the first of them
+rather than short-circuiting earlier.
 
 ### What remains is narrower than it was
 
