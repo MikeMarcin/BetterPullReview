@@ -1,0 +1,83 @@
+---
+id: BPR-0212
+title: Show conversation and code evolving together across revisions
+status: Backlog
+rfc: none
+depends_on: [BPR-0191]
+---
+
+# Show conversation and code evolving together across revisions
+
+Product owner, 2026-08-08:
+
+> There is a thing that IMO existing github is extra terrible at and maybe we
+> can do better which is seeing the evolution of conversations and code together
+> as PRs get new revisions
+
+**This is RFC-scale and has no RFC.** It is recorded here so the idea and the
+measurement behind it survive; it is not an issue slice and should not be worked
+as one.
+
+## Why the complaint is well founded
+
+GitHub collapses a comment's history to one boolean. When a branch is pushed,
+a review comment whose anchor moved becomes *outdated*, the diff it referred to
+is folded away, and the reader is left with a remark about code they can no
+longer see next to code nobody remarked on. The conversation and the code both
+have a history and the interface shows neither.
+
+## What this project already has, which is most of it
+
+Two axes exist and have never been joined.
+
+**The revision axis is real and retained.** `accepted_pull_request_revision`
+carries `Base` and `Head` OIDs and a `pull_request_revision_origin` of live or
+recorded, and RFC-BPR-0003's epoch catalog keeps arbitrary retained epochs.
+`epoch_comparison_control` already offers *independent left and right selectors
+over arbitrary retained epochs*, so a reviewer can already compare any two
+revisions of the code. That is the hard part and it is done.
+
+**The conversation axis is a forest of trees**, one optional parent per node,
+with `Path` and `Line` anchors — see [[BPR-0191]].
+
+## The gap, exactly
+
+`github_conversation_projection` carries `Outdated` and `Resolved` — both
+booleans GitHub computed — and **no revision identity at all**. Not a commit
+OID, not an epoch, nothing. A comment does not know which revision of the code
+it was written against.
+
+So the join cannot be made today, not because the views are missing but because
+the datum is. That is the whole finding: this is a *model* gap first and a
+presentation feature second, and building the presentation first would mean
+inventing the anchor in the view.
+
+## What it would enable, once a comment knows its revision
+
+For a chosen left/right epoch pair, all of which the product can already
+resolve:
+
+- which comments were live on each side;
+- which went outdated *between* those two revisions, and what the code did in
+  that same interval — the two facts side by side, which is the thing being
+  asked for;
+- a comment shown against the code it was actually written about, because the
+  revision it was made against is retained rather than folded away.
+
+`Outdated` stops being a dead end and becomes a question with an answer.
+
+## Why this needs an RFC rather than a card
+
+It changes what a conversation *is* in the model, which is RFC-BPR-0002's
+territory, and it consumes the epoch axis, which is RFC-BPR-0003's. It also
+implies a fetch that records the revision a comment was made against, and
+whether that is available unauthenticated from the API has not been checked.
+
+Do not add a revision field to the projection as a side effect of a
+presentation card. The two owners have to agree on it first.
+
+## Not this card
+
+[[BPR-0211]] is a secondary *view* of a conversation that is hard to follow.
+This is a different thing: the conversation is not hard to follow, it is missing
+the axis that would make it make sense. Neither substitutes for the other.
