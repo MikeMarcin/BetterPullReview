@@ -85,3 +85,50 @@ genuinely false check would put a fix on the wrong side of the question.
 
 The instrumentation is in place and the harness no longer throws it away. What
 is missing is one more occurrence, captured.
+
+## Captured, 2026-08-07 — and it is not a stall
+
+The signature reproduced while running `--native-appearance-probe` for
+[[BPR-0114]], and this time the budget line survived. Evidence:
+`docs/verification/reviews/appearance-probe-open-stage-v001/`.
+
+```
+PUBLIC_PATH_BUDGET:expired=0 budget_ms=600000 elapsed_ms=11907 stage_ticks=1077
+PUBLIC_PATH_EPOCH_STATUS:Review history is inactive.
+PUBLIC_PATH_EPOCH_CORE_STATUS:-1
+GITHUB_FIXTURE_FAILED:github.com
+GITHUB_FIXTURE_EVIDENCE:11111110:-1:10:9
+```
+
+`GITHUB_FIXTURE_EVIDENCE` matches the first observation character for
+character. The budget line settles the question BPR-0131 was written to answer:
+
+**`expired=0`, at 11.9 s of a 600 s budget, after 1077 stage ticks.** The
+budget did not expire, and the event loop was turning the whole time. The
+`open` stage did not stall — it ran, completed, and reported failure. The
+candidate cause this card has carried since it was opened is **eliminated**.
+
+What remains is the other candidate: a genuinely false check. One of the eight
+fixture presentation facts is false (`11111110`) and no epoch pair resolves
+(`-1`), and it does so *fast*.
+
+### Two things this does not establish
+
+1. **The path is different.** This is the appearance-probe entry point, not
+   `application_epoch_maintenance_public_path`. The signature is identical and
+   that is strong, but "same signature" is not "same cause" until the
+   maintenance path is caught with its own budget line showing `expired=0`.
+2. **This occurrence was deterministic, and the original was not.** Three
+   consecutive probe runs failed identically at ~12 s. The maintenance test
+   fails roughly one run in ten. A deterministic failure and an intermittent
+   one with the same signature may be one defect reached two ways, or two
+   defects — and reasoning from one to the other is exactly the leap this card
+   has twice refused to make.
+
+So: the stall hypothesis is dead on the probe path, and the fixture-presentation
+fact that reads false is now the thing to identify. That is a bounded
+investigation against a deterministic reproducer, which is a considerably better
+position than waiting for a one-in-ten flake.
+
+**Next step is not a fix.** It is to decode which of the eight facts in
+`11111110` is the false one and why `open` reports it in 12 seconds.

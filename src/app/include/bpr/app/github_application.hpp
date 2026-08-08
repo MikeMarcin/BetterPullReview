@@ -75,6 +75,14 @@ namespace bpr::app {
 		std::string   AppearanceMode;
 		std::uint32_t AppearanceTabWidth    = 0U;
 		std::size_t   AppearanceDivergences = 0U;
+		// The composed profile's selected mode and the variant it resolved to.
+		// BPR-0114's claim is about these two, not about the platform palette:
+		// the existing native probe proves Qt's palette follows the operating
+		// system, which it would whether or not this product had an appearance
+		// model at all.
+		core::appearance_mode    ProfileMode = core::appearance_mode::system;
+		core::appearance_variant ProfileVariant
+			= core::appearance_variant::light;
 		// Whether the composition constructed the queue notification delivery
 		// path, and what the desktop says about showing one. Reported rather
 		// than assumed: a refused or absent notification surface is a normal

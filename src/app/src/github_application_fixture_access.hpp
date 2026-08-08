@@ -116,6 +116,15 @@ namespace bpr::app::detail {
 		/// \returns Whether the composed host applied a different mode.
 		[[nodiscard]] static auto select_other_appearance_mode(
 			github_application& aApplication) -> bool;
+		/// \brief Selects one exact appearance mode through the composed host.
+		///
+		/// \details BPR-0114 needs an explicit mode selected while the
+		/// operating system reports the opposite scheme, which is the only way
+		/// to show that an explicit mode ignores the observation rather than
+		/// happening to agree with it.
+		[[nodiscard]] static auto select_appearance_mode(
+			github_application&   aApplication,
+			core::appearance_mode aMode) -> bool;
 		/// \brief Drives the composed settings surface as a reviewer would.
 		///
 		/// \details Goes through the widgets rather than through the host, so

@@ -394,11 +394,21 @@ namespace {
 			std::optional<bpr::core::semantic_selection> InitialDiffSelection;
 			QPalette                                     InitialDiffPalette;
 			QPalette                                     ObservedDiffPalette;
-			QFont                                        InitialDiffFont;
-			QFont                                        ObservedDiffFont;
-			std::uint64_t                                InitialDiffGeometryRebuilds = 0U;
-			std::uint64_t                                DiffGeometryRebuildDelta    = 0U;
-			native_appearance_evidence_paths             EvidencePaths;
+			// BPR-0114's own evidence, distinct from the palette assertions
+			// above. Those prove the toolkit follows the operating system;
+			// these prove *this product's* appearance model does, and that an
+			// explicit mode does not.
+			bool                             ProfileFollowsPassed  = false;
+			bool                             ExplicitIgnoresPassed = false;
+			int                              VariantBeforeChange   = -1;
+			int                              VariantAfterChange    = -1;
+			int                              VariantUnderExplicit  = -1;
+			int                              VariantBackOnSystem   = -1;
+			QFont                            InitialDiffFont;
+			QFont                            ObservedDiffFont;
+			std::uint64_t                    InitialDiffGeometryRebuilds = 0U;
+			std::uint64_t                    DiffGeometryRebuildDelta    = 0U;
+			native_appearance_evidence_paths EvidencePaths;
 		};
 
 		bool Fixture           = false;
@@ -2087,6 +2097,17 @@ namespace {
 			   << '\n';
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Appearance.Enabled) {
+			stream << (aRun.Appearance.ProfileFollowsPassed
+						   ? "APPEARANCE_SYSTEM_FOLLOWS_OK\n"
+						   : "APPEARANCE_SYSTEM_FOLLOWS_FAILED\n")
+				   << (aRun.Appearance.ExplicitIgnoresPassed
+						   ? "APPEARANCE_EXPLICIT_IGNORES_OK\n"
+						   : "APPEARANCE_EXPLICIT_IGNORES_FAILED\n")
+				   << "APPEARANCE_VARIANTS:"
+				   << aRun.Appearance.VariantBeforeChange << ':'
+				   << aRun.Appearance.VariantAfterChange << ':'
+				   << aRun.Appearance.VariantUnderExplicit << ':'
+				   << aRun.Appearance.VariantBackOnSystem << '\n';
 			stream << "NATIVE_APPEARANCE_TRANSITION:"
 				   << color_scheme_name(
 						  aRun.Appearance.InitialColorScheme)
@@ -2453,6 +2474,14 @@ namespace {
 							break;
 						}
 						if (prepare_native_appearance_probe(window, *aRun)) {
+							// Read here rather than inside the preparation,
+							// which sees the window and not the application.
+							// This is the variant the composed profile
+							// resolved while the operating system still
+							// reported Light.
+							aRun->Appearance.VariantBeforeChange
+								= static_cast<int>(
+									aApplication.status().ProfileVariant);
 							aRun->Stage = automated_run::stage::appearance;
 						} else {
 							fail_automated_run(aApplication, *aRun);
@@ -2966,8 +2995,50 @@ namespace {
 					if (aRun->Appearance.PixelsDiffer) {
 						aRun->Appearance.ChangedRender = changedRender;
 					}
+					// BPR-0114 proper. The scheme has moved and the mode is
+					// still System, so the profile's variant must have moved
+					// with it.
+					aRun->Appearance.VariantAfterChange
+						= static_cast<int>(aApplication.status().ProfileVariant);
+					aRun->Appearance.ProfileFollowsPassed
+						= aRun->Appearance.VariantBeforeChange
+							== static_cast<int>(bpr::core::appearance_variant::light)
+						&& aRun->Appearance.VariantAfterChange
+							== static_cast<int>(bpr::core::appearance_variant::dark)
+						&& aApplication.status().ProfileMode
+							== bpr::core::appearance_mode::system;
+
+					// And the other half, which needs no further help from the
+					// owner: with the operating system still reporting Dark,
+					// select an explicit Light mode and require the variant to
+					// be light. An explicit mode that merely happened to agree
+					// with the scheme would prove nothing, so this is asserted
+					// while the two disagree.
+					const auto explicitSelected = bpr::app::detail::
+						github_application_fixture_access::select_appearance_mode(
+							aApplication, bpr::core::appearance_mode::light);
+					QApplication::processEvents();
+					aRun->Appearance.VariantUnderExplicit
+						= static_cast<int>(aApplication.status().ProfileVariant);
+					const auto restored = bpr::app::detail::
+						github_application_fixture_access::select_appearance_mode(
+							aApplication, bpr::core::appearance_mode::system);
+					QApplication::processEvents();
+					aRun->Appearance.VariantBackOnSystem
+						= static_cast<int>(aApplication.status().ProfileVariant);
+					aRun->Appearance.ExplicitIgnoresPassed = explicitSelected
+						&& restored
+						&& QGuiApplication::styleHints()->colorScheme()
+							== Qt::ColorScheme::Dark
+						&& aRun->Appearance.VariantUnderExplicit
+							== static_cast<int>(bpr::core::appearance_variant::light)
+						&& aRun->Appearance.VariantBackOnSystem
+							== static_cast<int>(bpr::core::appearance_variant::dark);
+
 					aRun->PresentationPassed = aRun->Appearance.StatePassed
-						&& aRun->Appearance.PixelsDiffer;
+						&& aRun->Appearance.PixelsDiffer
+						&& aRun->Appearance.ProfileFollowsPassed
+						&& aRun->Appearance.ExplicitIgnoresPassed;
 					transition_to_shutdown(aApplication, *aRun);
 				}
 				break;

@@ -1617,6 +1617,12 @@ namespace bpr::app {
 				? Implementation->AppearanceHost->settings().Typography.Code.TabWidth
 				: 0U,
 			.AppearanceDivergences         = Implementation->AppearanceDivergences,
+			.ProfileMode                   = Implementation->AppearanceProfile
+				? Implementation->AppearanceProfile->mode()
+				: core::appearance_mode::system,
+			.ProfileVariant                = Implementation->AppearanceProfile
+				? Implementation->AppearanceProfile->variant()
+				: core::appearance_variant::light,
 			.NotificationDeliveryComposed  = Implementation->Notifications != nullptr,
 			.NotificationPermission        = Implementation->NotificationSink != nullptr
 				? Implementation->NotificationSink->permission()
@@ -1984,6 +1990,20 @@ namespace bpr::app {
 			&& panel->status_text().startsWith(QStringLiteral("Refused"))
 			&& panel->code_family_editor()->text().toStdString()
 			== before.Typography.Code.Font.Family;
+	}
+
+	auto detail::github_application_fixture_access::select_appearance_mode(
+		github_application&         aApplication,
+		const core::appearance_mode aMode) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr
+			|| implementation->AppearanceHost == nullptr) {
+			return false;
+		}
+		implementation->AppearanceHost->select(aMode);
+		return implementation->AppearanceHost->settings().Mode == aMode;
 	}
 
 	auto detail::github_application_fixture_access::review_ledger_receipt_present(
