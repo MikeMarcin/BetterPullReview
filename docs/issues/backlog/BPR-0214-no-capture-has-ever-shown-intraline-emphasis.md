@@ -107,8 +107,11 @@ happened.
 
 So the remaining order is:
 
-1. BPR-0187 — teach the fixture transport to serve a recording, and add the
-   selection that names one.
+1. BPR-0187 — teach the fixture transport to serve a recording. Measured
+   afterwards and larger than it reads: the comparison surface diffs real git
+   blobs from embedded packfiles, not API patch text, so the recording has to
+   grow file contents at base and head before anything can render it. The card
+   carries the detail.
 2. This card — take a capture from `uiforetw-74` and put the intraline rows in
    front of a reviewer.
 

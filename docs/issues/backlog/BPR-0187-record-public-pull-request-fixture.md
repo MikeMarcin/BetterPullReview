@@ -140,3 +140,49 @@ made against.
   one.
 - Each new assertion is shown to fail when the behaviour it constrains is
   neutered.
+
+## Measured, 2026-08-08 — serving a recording is not a JSON problem
+
+Two facts found while trying to serve `uiforetw-74`, and they change this
+card's shape.
+
+**Nothing reads the pull-request recordings.** `grep -rn "recording.json" src/`
+finds nothing. `recording.json` is read by
+`tests/scripts/recorded_pull_request_fixture_tests.py` and by no part of the
+application. Recording a fixture and serving one are separate tasks, and only
+the first has happened — for either recording.
+
+**The diff content the reviewer sees does not come from the GitHub API.** The
+served fixture is `tests/fixtures/github/contracts/v1/<name>/manifest.json`, ten
+recorded HTTP exchanges. Its `responses/files.json` carries exactly
+`additions`, `deletions`, `filename`, `status` — **no patch**. The file content
+the comparison surface diffs comes from `deterministic_git_fixture`: two
+base64-embedded git packfiles with hardcoded commit and blob SHAs, imported
+through the installed-Git adapter so the public path exercises real pack import.
+
+So a recorded pull request cannot be served by writing JSON. It needs the real
+blobs at base and head as git objects. And a `recording.json` as captured
+**cannot supply them**: a patch is hunks with context, not whole files, so the
+before and after contents are not reconstructable from what was recorded.
+
+### What this card actually needs
+
+1. Extend the recording to carry file contents at base and head, fetched as
+   blobs, alongside the patches already recorded. This is still unauthenticated
+   public reads.
+2. Build a git pack from those blobs, or have the fixture initialise a real
+   repository from them, so `deterministic_git_fixture` has something other than
+   its hardcoded synthetic graph to offer.
+3. Add the fixture selection — a `github_public_path_fixture` value, a directory
+   name, and a `--github-fixture` name — and generate the ten-interaction
+   manifest with the recorded metadata.
+
+Step 2 is the one with substance. Steps 1 and 3 are mechanical.
+
+### Why the estimate was wrong before
+
+This card was previously read as "record a public pull request", and recording
+one made it look nearly done. The recording is real and useful — it is what
+[[BPR-0214]] needed to establish that a fixture with intraline emphasis is even
+obtainable — but the product still has no path from a recording to a rendered
+comparison, and that was never measured until now.
