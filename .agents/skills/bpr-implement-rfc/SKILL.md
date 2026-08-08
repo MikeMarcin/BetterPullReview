@@ -210,6 +210,6 @@ If review finds a gap, do not mark the RFC Auto-Verified. Create or reactivate t
 Begin the next requested RFC only after the current RFC is committed and Auto-Verified. At the end of the requested set:
 
 1. Verify the worktree and identify any intentional unrelated changes still present.
-2. Summarize planning/import commits, task commits, simplification, closeout, verification commands and interactions, UI evidence, GitHub/GHE contract coverage, documentation updates, generated facts refreshed, approved no-impact results, delegated roles used, serial fallbacks, and omitted or deferred lanes.
+2. Summarize planning/import commits, task commits, simplification, closeout, verification commands and interactions, UI evidence, GitHub/GHE contract coverage, documentation updates, generated facts refreshed, approved no-impact results, delegated roles used, serial fallbacks, and omitted or deferred lanes. Run `python3 .agents/skills/bpr-implement-rfc/scripts/audit_delegation.py --repo-root .` and include its per-role launch counts; a substantive run with zero delegation is a finding against the delegation policy, not a neutral fact.
 3. Where a goal or mirrored session task list exists, mark it complete only when every requested RFC has actually closed, every documentation obligation is satisfied, every required issue card is done, and every material verification-matrix claim has direct passing evidence.
 4. If a later review exposes a blocking gap, reopen or add issue cards and correct the RFC status before continuing dependent work.

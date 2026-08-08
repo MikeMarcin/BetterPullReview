@@ -12,7 +12,7 @@ Delegation is successful only when it improves at least one of these without wea
 
 Do not optimize for agent count or aggregate parallel activity. A subagent normally adds total model work, so it must replace work the primary agent would otherwise perform, isolate noisy intermediate output, or add a meaningfully independent quality check.
 
-On long multi-commit runs, weigh the third objective heaviest: integrator context spent absorbing raw scan output is the direct precursor of lost run state, so a delegation that merely keeps large reads out of the primary context usually pays for itself.
+On long multi-commit runs, weigh the third objective heaviest: integrator context spent absorbing raw scan output is the direct precursor of lost run state, so a delegation that merely keeps large reads out of the primary context usually pays for itself. Bulk token volume belongs on the mechanical route; the deep and maximum tiers are for judgment, not reading.
 
 ## Primary-Agent Authority
 
