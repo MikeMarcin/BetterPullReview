@@ -1,7 +1,7 @@
 ---
 id: BPR-0191
 title: The workbench shell becomes the application's window
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0190, BPR-0195]
 ---
@@ -291,20 +291,28 @@ built. It reports from inside the session panel's own constructor, before the
 member holding the panel is assigned, so the update guards against being called
 with nothing to read.
 
-### Still open: the assertions must move before the old window goes
+### Closed
 
-`github_window` and its 2,074 lines of tests remain in the repository, green,
-and out of the shipped binary. Deleting them was tried and reverted: this card
-says every one of those assertions "applies to the composed window and must pass
-against it", and each was forced by a real shipped defect. Deleting them to tidy
-the tree would discard exactly the evidence that made this merge safe.
+Every required-evidence item on this card is satisfied:
 
-What is left is porting them onto `workbench_window` and then removing
-`github_window`. The merge has already shown this pays: moving the session
-chrome under the shell's stricter rules found four widgets — the connection
-details button and all three locator editors — that had been shipping with no
-accessible description at all, and the port attempt is what surfaced the
-empty-state regression above.
+- `nm` on the shipped binary reports `workbench_window`, and the application's
+  window is the shell. `github_window` is gone from the repository.
+- `diff_workbench` and `epoch_comparison_control` have exactly one composing
+  parent, asserted by `composed_application_hosts`.
+- Accessible names and key sequences are unique over the merged widget set,
+  checked by walking `findChildren<QWidget*>()` and `findChildren<QAction*>()`.
+  Enforcing that over the larger set found four widgets — the connection details
+  button and all three locator editors — that had been shipping with no
+  accessible description at all.
+- The declared focus order names the composed shell's stops, and the comparison
+  surface still contributes exactly one.
+- Connect, open, refresh and the locator still emit intents and still take
+  enablement and disabled reasons from command projections.
+- The compact overflow threshold is still style- and font-derived.
+- Virtualization re-measured and restated: 218/218/218 window widgets at
+  60/6,000/60,000 lines, surface 29/29/29, pane 5/5/5.
+- Each new assertion was shown to fail with a build confirmed clean at zero
+  `error:` lines before being restored.
 
 ### Ported, 2026-08-08, and the old window deleted
 
