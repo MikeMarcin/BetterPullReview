@@ -3,7 +3,7 @@ id: BPR-0210
 title: High-contrast light sits exactly on its minimum with no margin
 status: Backlog
 rfc: RFC-BPR-0006
-depends_on: [BPR-0206]
+depends_on: [BPR-0206, BPR-0214]
 ---
 
 # High-contrast light sits exactly on its minimum with no margin
@@ -70,6 +70,23 @@ and still leaves 27.7.
 
 **The bound is not tight. 7.00:1 exactly is not the best this profile can do**,
 which was the possibility this card raised and can now be dismissed.
+
+## The candidates cannot be reviewed yet
+
+Rendering them was attempted on 2026-08-08 and produced **nineteen
+pixel-identical frames** between the current values and the strongest candidate.
+The public-path fixture's comparison contains no intraline edits, so intraline
+emphasis is never painted, so changing its two colours changes nothing on screen.
+
+A review of those images would compare a thing to itself and come back accepted.
+That is worse than not asking.
+
+[[BPR-0214]] carries the fixture gap, including the larger finding it exposed:
+all four palettes were accepted in batches that never showed intraline emphasis,
+while those same values were fitted twice on measurement alone.
+
+**So this card is blocked on BPR-0214**, not on the owner's time. The numbers
+below stand and need no re-measuring once there is a frame that shows the thing.
 
 ## Deliberately not applied
 
