@@ -179,6 +179,37 @@ before and after contents are not reconstructable from what was recorded.
 
 Step 2 is the one with substance. Steps 1 and 3 are mechanical.
 
+## Steps 1 and 2 done, 2026-08-08
+
+**Step 1.** `uiforetw-74`'s five files each carry `base_content_base64` and
+`head_content_base64`. All five are modifications, so both sides exist. The
+blobs are held against the recording rather than trusted: each pair is diffed
+and must produce exactly the additions and deletions the API reported, and all
+five reconstruct exactly. Shown non-vacuous by appending one line to a head
+blob, which fails with *"blobs diff to +4 -1, and the recording says +2 -1"*.
+
+**Step 2.** `scripts/build_recorded_pull_request_pack.py` builds those blobs
+into a two-commit repository and packs it to
+`tests/fixtures/github/pull-requests/uiforetw-74/objects.pack`.
+
+| | |
+|---|---|
+| base | `8b70ee179fe55b705ee4e613ecbc89a0acebc1bc` |
+| head | `e40058be7d5fe319342dffb567ce30e42bc6f4de` |
+| size | 32,229 bytes |
+
+Deterministic: author, committer and both timestamps are pinned, and two runs
+produce byte-identical packs, so a test can name these identifiers rather than
+discover them. The generator refuses to write a pack whose diff does not
+reproduce the recording file by file — run against `directxmath-336` it fails
+correctly, because that recording has no blobs to build from.
+
+**Step 3 remains**: a `github_public_path_fixture` value, a directory, a
+`--github-fixture` name, and the ten-interaction manifest, so the product reads
+this pack instead of `deterministic_git_fixture`'s hardcoded synthetic graph.
+That is the mechanical part, and it is the last thing between this card and
+[[BPR-0214]].
+
 ### Why the estimate was wrong before
 
 This card was previously read as "record a public pull request", and recording
