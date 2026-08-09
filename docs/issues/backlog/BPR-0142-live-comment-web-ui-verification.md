@@ -3,7 +3,7 @@ id: BPR-0142
 title: Verify a published comment in the GitHub web UI
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0139]
+depends_on: [BPR-0139, BPR-0221]
 ---
 
 # Verify a published comment in the GitHub web UI
@@ -54,3 +54,50 @@ must be asserted rather than arranged.
 - A reply posted in the web UI is shown returning to the workbench.
 - The account shown as author is the authenticated profile.
 - The designated repository is named in documentation before the run, not after.
+
+## Owner decision, 2026-08-08: the designated repository
+
+`https://github.com/MikeMarcin/BPR-Test`. It is named in
+`docs/architecture/review-round-trip.md` under "The live provider contract",
+which discharges the first of the three missing things above **and** this
+card's last completion criterion: the repository is documented before the run,
+not after.
+
+The token is minted at session time with `gh auth token` and pasted into the
+application's Qt-owned credential input. It is never committed, logged, echoed,
+or fixtured, and never typed into a shell that records history.
+
+## The guard was rebuilt first, 2026-08-08
+
+The section above — *"A guard that must be rebuilt when this card lands"* — is
+satisfied in advance by [[BPR-0221]], now in `done/` and added to this card's
+`depends_on`. The standing `live_mutation_isolation` gate asserts that the live
+implementation is unreachable from every non-production binary, rather than
+that it happens not to exist.
+
+Doing it before the live provider existed was the point: it is the only moment
+the guard could be shown to fail on a tree whose answer was already known, and
+it was — a rogue provider compiled into `review_mutation_tests` was caught by
+both the source and binary halves.
+
+**Three things this card now inherits as obligations, not choices.**
+
+1. The live implementation must use the contracted name, factory, namespace,
+   and file paths recorded in `docs/architecture/review-round-trip.md`. Any
+   other name fails clause (A) of the gate. The code moves to fit the contract;
+   the contract does not widen to fit the code.
+2. The safe-target check goes in the composition root, immediately before the
+   coordinator is constructed, comparing the requested repository against the
+   compiled-in designated constant. Not in the coordinator, which cannot know
+   what is documented, and not in the provider, which must not police itself.
+3. **The runtime complement is this card's work.** Clause (B) deliberately
+   excludes `app_better_pull_review`, because end-to-end tests execute it and
+   after this card it will contain live code while running in fixture mode. A
+   fixture-driven run must therefore emit `REVIEW_MUTATION_PROVIDER:fixture`,
+   asserted in the end-to-end `PASS_REGULAR_EXPRESSION` chains. Symbol absence
+   and runtime selection are different claims; the gate proves the first and
+   only this marker proves the second.
+
+Landing the provider also requires moving `live_review_mutation_provider` from
+`NOT_COMPOSED` to `COMPOSED` in `scripts/verify_composed_hosts.py` in the same
+commit — that entry exists so this cannot be forgotten.

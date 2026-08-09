@@ -56,6 +56,7 @@ COMPOSED = (
 NOT_COMPOSED = {
     "review_ledger_application_host": "RFC-BPR-0007 composition",
     "review_mutation_coordinator": "RFC-BPR-0008 composition",
+    "live_review_mutation_provider": "BPR-0142 live mutation composition (RFC-BPR-0008)",
     "review_synchronization": "RFC-BPR-0008 composition",
     "defect_correlation": "RFC-BPR-0009 composition",
     "review_queue_refresh": "RFC-BPR-0010 composition",

@@ -123,6 +123,56 @@ Weakening the coordinator's target check to let a test through would remove the
 property the test exists to exercise. It is not an acceptable shortcut under
 any deadline.
 
+## The live provider contract
+
+The designated repository is **`MikeMarcin/BPR-Test`**, named by the product
+owner on 2026-08-08. It is the only repository any BetterPullReview run may
+mutate. Naming it here rather than in a card is deliberate: BPR-0142 requires
+the target to be named in documentation *before* the first live run, not after.
+
+Until BPR-0142 lands, "no automated test can mutate an undesignated live
+repository" holds for a structural reason — `review_mutation_port` has exactly
+one implementation, a fake inside a test, and nothing constructs a coordinator
+in production. That argument dies the moment a live implementation exists. The
+`live_mutation_isolation` gate replaces it with one that survives:
+
+| | Fixed by contract |
+|---|---|
+| Class | `live_review_mutation_provider` |
+| Factory | `make_live_review_mutation_provider` |
+| Namespace | `bpr::adapters::github` |
+| Files | `src/adapters/github/src/live_review_mutation_provider.{hpp,cpp}` |
+
+These names are load-bearing, not conventional. The gate asserts three things
+against them, and a live implementation that uses any other name or path fails
+the first one rather than quietly becoming reachable:
+
+1. **Inventory.** The set of files implementing `application::review_mutation_port`
+   is a subset of `{the test fake, the live provider's two files}` — and the
+   fake must be found, because an inventory that reads nothing satisfies a
+   subset check perfectly.
+2. **Unreachability.** No first-party non-production executable contains a
+   `live_review_mutation_provider` symbol. The binaries are enumerated by the
+   build itself: every `bpr_add_executable` target not prefixed `app_` is
+   collected into a generated manifest, so a future `bench_`, `demo_`, `fuzz_`,
+   or `tool_` target is covered the day it is added. The `review_mutation_tests`
+   binary must be in that manifest and must contain `review_mutation_coordinator`
+   symbols, which is what distinguishes a clean symbol table from an unread one.
+3. **Construction.** `make_live_review_mutation_provider` appears nowhere under
+   `tests/`, and under `src/` only in the live provider's own two files and the
+   composition root `src/app/src/github_application.cpp`.
+
+The production binary is deliberately excluded from clause 2. End-to-end tests
+execute `app_better_pull_review`, so after BPR-0142 the shipped application will
+contain live code while being driven in fixture mode. The runtime complement is
+BPR-0142's own work: a fixture-driven run emits `REVIEW_MUTATION_PROVIDER:fixture`,
+asserted in the end-to-end pass expressions. Symbol absence and runtime
+selection are different claims and neither substitutes for the other.
+
+The safe-target check itself stays in the composition root, immediately before
+the coordinator is constructed. Not in the coordinator, which cannot know what
+is documented; not in the provider, which must not police itself.
+
 ## Identity
 
 The acting identity travels in the request, and the request carries the

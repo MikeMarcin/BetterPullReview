@@ -75,6 +75,20 @@ function(bpr_add_executable target)
     add_executable("${target}" ${ARGN})
     string(REGEX REPLACE "^[^_]+_" "" output_name "${target}")
     set_target_properties("${target}" PROPERTIES OUTPUT_NAME "${output_name}")
+
+    # Every first-party executable passes through here, which is the only
+    # place that can enumerate them without a directory walk guessing at the
+    # naming convention. Non-production targets are collected so
+    # `live_mutation_isolation` can prove none of them links a live GitHub
+    # mutation. A future bench_, demo_, fuzz_, or tool_ target is covered the
+    # day it is added, because it has to be added here.
+    if(NOT target MATCHES "^app_")
+        set_property(
+            GLOBAL
+            APPEND
+            PROPERTY BPR_AUTOMATED_EXECUTABLES "${target}"
+        )
+    endif()
 endfunction()
 
 add_subdirectory(third_party/sqlite)

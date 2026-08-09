@@ -22,6 +22,12 @@ CONCRETE_SELECTION_PATTERNS = (
     re.compile(r"\bmake_linux_secret_service_vault\s*\("),
     re.compile(r"\bnative_github_wire_transport_factory\b"),
     re.compile(r"\bworker_executor\b"),
+    # BPR-0142's factory, forbidden here before it exists. This list covers a
+    # curated subset of src/, so it is not the whole guarantee: clause (C) of
+    # `live_mutation_isolation` walks the entire tree with a two-path
+    # allowlist. This entry is the part that fails in the same suite that
+    # already owns concrete-selection policy.
+    re.compile(r"\bmake_live_review_mutation_provider\s*\("),
 )
 RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"--github-fixture",

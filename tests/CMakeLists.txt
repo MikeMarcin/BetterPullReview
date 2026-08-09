@@ -163,3 +163,72 @@ if(BPR_BUILD_QT)
     add_subdirectory(syntax_contract)
     add_subdirectory(end_to_end)
 endif()
+
+# Deliberately last: every `bpr_add_executable` call in the tree must already
+# have run, or the manifest describes a subset of the binaries and the
+# isolation guard passes by not looking. The list is smaller under `core-only`
+# because the Qt suites above are not added there, which is correct - each
+# configuration proves the property for the binaries it actually built.
+get_property(bpr_automated_executables GLOBAL PROPERTY BPR_AUTOMATED_EXECUTABLES)
+if(NOT bpr_automated_executables)
+    message(
+        FATAL_ERROR
+        "No non-production executables were registered. Either bpr_add_executable "
+        "stopped collecting them or this block moved above the test "
+        "subdirectories; in both cases live_mutation_isolation would pass "
+        "against an empty manifest."
+    )
+endif()
+list(LENGTH bpr_automated_executables bpr_automated_executable_count)
+message(
+    STATUS
+    "bpr: live_mutation_isolation covers ${bpr_automated_executable_count} "
+    "non-production executables"
+)
+
+set(bpr_automated_executable_manifest
+    "${CMAKE_BINARY_DIR}/_bpr/automated-executables.txt"
+)
+set(bpr_automated_executable_files "")
+foreach(bpr_automated_target IN LISTS bpr_automated_executables)
+    string(
+        APPEND
+        bpr_automated_executable_files
+        "$<TARGET_FILE:${bpr_automated_target}>\n"
+    )
+endforeach()
+file(
+    GENERATE
+    OUTPUT "${bpr_automated_executable_manifest}"
+    CONTENT "${bpr_automated_executable_files}"
+)
+
+add_test(
+    NAME live_mutation_isolation
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/scripts/verify_live_mutation_isolation.py"
+        --root
+        "${PROJECT_SOURCE_DIR}"
+        --manifest
+        "${bpr_automated_executable_manifest}"
+)
+set_tests_properties(
+    live_mutation_isolation
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "LIVE_MUTATION_ISOLATION_OK"
+        TIMEOUT 300
+)
+
+add_test(
+    NAME live_mutation_isolation_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_live_mutation_isolation_tests.py"
+)
+set_tests_properties(
+    live_mutation_isolation_contract
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "OK"
+        TIMEOUT 60
+)
