@@ -39,6 +39,8 @@ story told by intermediate commits.
 - BPR-0232: compose explicit agent invocation into the shipped workbench.
 - BPR-0233: exercise the recorded UIforETW diff and intraline pixels through
   the selected public path.
+- BPR-0234: add immutable RFC bases and executable acceptance checklists to
+  every open RFC closeout card.
 - Existing BPR-0220 retains the native appearance rebuild-attribution
   question. Existing BPR-0223 retains notification delivery and activation
   after BPR-0231 supplies real queue items.
@@ -76,6 +78,7 @@ story told by intermediate commits.
 | Review ledger, mutations, defects, queue, and agents | RFC-BPR-0007 through RFC-BPR-0011 ledgers and owning architecture docs | Unresolved | BPR-0228 through BPR-0232 | Composition inventory and public traces | User-reachable later-RFC workflows |
 | Appearance and recorded fixture evidence | RFC-BPR-0006 ledger, BPR-0114, BPR-0214, fixture catalog | Unresolved | BPR-0220, BPR-0233 | Native probe and recorded selected-diff path | Foreground/native and attended verdicts |
 | Issue-board final state | Board index and affected cards | Unresolved | This card | `verify_documentation.py` plus lane inventory | External-authority and target-native blockers remain open |
+| RFC closeout rigor | Open closeout cards and their verification ledgers | Unresolved | BPR-0234 | Exact immutable bases and executable acceptance checklists | No RFC may close from narrative-only evidence |
 
 ## Review constraints
 

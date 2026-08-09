@@ -451,7 +451,7 @@ finding and will leave the narrower truth when a public path remains absent.
 
 ### Open right now
 
-After BPR-0225 closes, twenty-eight cards remain in `backlog/` and two in
+After BPR-0225 closes, twenty-eight cards remain in `backlog/` and three in
 `ready/`. The groups below describe the actual remaining authority or product
 surface; closure cards may also depend transitively on more than one group.
 
@@ -462,6 +462,7 @@ surface; closure cards may also depend transitively on more than one group.
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta |
 | Product composition | Ready BPR-0226; backlog BPR-0227 through BPR-0232 and BPR-0223 | Connect the implemented workbench, diff, ledger, review, defect, queue, notification, and agent capabilities to public gestures and projections |
 | Recorded selected-diff proof | BPR-0233, gating BPR-0214, BPR-0210, and BPR-0100 | BPR-0187 already serves UIforETW; the remaining work is to select its diff and prove semantic ranges and rendered intraline-role pixels |
+| Closeout rigor | Ready BPR-0234 | Add an immutable RFC base and an executable acceptance checklist to each open narrative-only closeout card before any status transition |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
