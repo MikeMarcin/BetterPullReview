@@ -24,6 +24,60 @@ import sys
 from pathlib import Path
 
 
+# Byte-for-byte what the application compiles. `strict_recorded_transport`
+# compares headers with `!=` over the whole vector, so an empty table is not a
+# wildcard — it is a mismatch, reported as `unexpected_headers` on the very
+# first bootstrap read. Mirrors `rest_headers()` and `graphql_headers()` in
+# src/adapters/github/src/github_read_contract.cpp:423-457.
+REST_VERSION = "2022-11-28"
+REST_HEADERS = {
+    "Accept": "application/vnd.github+json",
+    "User-Agent": "BetterPullReview/0.1",
+    "X-GitHub-Api-Version": REST_VERSION,
+}
+GRAPHQL_HEADERS = {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "User-Agent": "BetterPullReview/0.1",
+}
+
+# The exact document the application compiles for ListReviewThreads. Qt emits
+# object keys sorted with compact separators, which is why the body below is
+# built the same way rather than pasted as a string.
+GRAPHQL_QUERY = (
+    "query GetReviewData($owner:String!,$name:String!,$number:Int!){"
+    "repository(owner:$owner,name:$name){id pullRequest(number:$number){id "
+    "files(first:100){totalCount nodes{path viewerViewedState} "
+    "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount "
+    "nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
+    "subjectType path line originalLine comments(first:100){totalCount "
+    "nodes{id bodyText path line originalLine outdated author{login ... on "
+    "Node{id}} replyTo{id}} "
+    "pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}"
+)
+
+# Served metadata carries placeholders, substituted at load time by the same
+# `replace_all` the github-com fixture already uses. The recording names
+# GitHub's real commits, which cannot be rebuilt from it — a commit OID hashes
+# its trees, parents and author records, and the recording carries none of
+# them. Serving the real OIDs alongside a pack built from generated ones is the
+# half-divergence that connects and then fails at import, so the served
+# metadata is generated end to end and the divergence is documented.
+BASE_OID_PLACEHOLDER = "1" * 40
+HEAD_OID_PLACEHOLDER = "2" * 40
+
+
+def graphql_body(owner: str, name: str, number: int) -> str:
+    return json.dumps(
+        {
+            "query": GRAPHQL_QUERY,
+            "variables": {"name": name, "number": number, "owner": owner},
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
 def write(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent="\t", sort_keys=True) + "\n")
@@ -43,6 +97,23 @@ def main() -> int:
     number = pull["number"]
     slug = f"{owner}/{name}"
     login = pull["author"]["login"]
+
+    # `build_recorded_pull_request_pack.py` builds a two-commit repository:
+    # a synthesised base and one head carrying every change. A recording whose
+    # commit list holds anything other than the head describes a history this
+    # pack cannot represent, and serving it would name commits that are not in
+    # `objects.pack`. Refuse rather than generate a fixture that fails at
+    # import.
+    recorded = [commit["sha"] for commit in recording["commits"]]
+    if recorded != [pull["head"]["sha"]]:
+        print(
+            f"CONTRACT_REFUSED:{slug}#{number}: the pack represents one head "
+            f"commit, and this recording names {len(recorded)} commit(s) "
+            f"{recorded}. Serving it would reference objects the pack does "
+            f"not contain.",
+            file=sys.stderr,
+        )
+        return 1
 
     write(root / "responses/viewer.json", {
         "id": 1,
@@ -68,7 +139,7 @@ def main() -> int:
         "base": {
             "ref": pull["base"]["ref"],
             "repo": repo_reference,
-            "sha": pull["base"]["sha"],
+            "sha": BASE_OID_PLACEHOLDER,
         },
         "body": pull["body"],
         "changed_files": pull["changed_files"],
@@ -77,7 +148,7 @@ def main() -> int:
         "head": {
             "ref": pull["head"]["ref"],
             "repo": repo_reference,
-            "sha": pull["head"]["sha"],
+            "sha": HEAD_OID_PLACEHOLDER,
         },
         "id": 3,
         "merged": False,
@@ -102,8 +173,8 @@ def main() -> int:
         {
             "author": {"login": login, "node_id": f"U_{login}"},
             "commit": {"message": commit["message"]},
-            "node_id": f"C_{commit['sha'][:8]}",
-            "sha": commit["sha"],
+            "node_id": f"C_{HEAD_OID_PLACEHOLDER[:8]}",
+            "sha": HEAD_OID_PLACEHOLDER,
         }
         for commit in recording["commits"]
     ])
@@ -135,45 +206,46 @@ def main() -> int:
         "sanitized": True,
         "interactions": [
             {"operation": "GetViewerIdentity", "method": "GET", "path": "/user",
-             "canonical_query": "", "safe_headers": {}, "body": None,
+             "canonical_query": "", "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/viewer.json"},
             {"operation": "GetRepository", "method": "GET",
              "path": f"/repos/{slug}", "canonical_query": "",
-             "safe_headers": {}, "body": None,
+             "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/repository.json"},
             {"operation": "GetPullRequest", "method": "GET",
              "path": f"/repos/{slug}/pulls/{number}", "canonical_query": "",
-             "safe_headers": {}, "body": None,
+             "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/pull_request.json"},
             {"operation": "ListPullRequestFiles", "method": "GET",
              "path": f"/repos/{slug}/pulls/{number}/files",
-             "canonical_query": paged, "safe_headers": {}, "body": None,
+             "canonical_query": paged, "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/files.json"},
             {"operation": "ListPullRequestCommits", "method": "GET",
              "path": f"/repos/{slug}/pulls/{number}/commits",
-             "canonical_query": paged, "safe_headers": {}, "body": None,
+             "canonical_query": paged, "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/commits.json"},
             {"operation": "ListReviews", "method": "GET",
              "path": f"/repos/{slug}/pulls/{number}/reviews",
-             "canonical_query": paged, "safe_headers": {}, "body": None,
+             "canonical_query": paged, "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/reviews.json"},
             {"operation": "ListReviewThreads", "method": "POST",
-             "path": "/graphql", "canonical_query": "", "safe_headers": {},
-             "body": None, "response_file": "responses/review_threads.json"},
+             "path": "/graphql", "canonical_query": "",
+             "safe_headers": GRAPHQL_HEADERS,
+             "body": graphql_body(owner, name, number), "response_file": "responses/review_threads.json"},
             {"operation": "ListIssueComments", "method": "GET",
              "path": f"/repos/{slug}/issues/{number}/comments",
-             "canonical_query": paged, "safe_headers": {}, "body": None,
+             "canonical_query": paged, "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/issue_comments.json"},
             {"operation": "ListChecks", "method": "GET",
-             "path": f"/repos/{slug}/commits/{pull['head']['sha']}/check-runs",
-             "canonical_query": paged, "safe_headers": {}, "body": None,
+             "path": f"/repos/{slug}/commits/{HEAD_OID_PLACEHOLDER}/check-runs",
+             "canonical_query": paged, "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/checks.json"},
             {"operation": "SearchPullRequests", "method": "GET",
              "path": "/search/issues",
              "canonical_query": (
                  f"{paged}&q=is%3Apr%20is%3Aopen%20repo%3A"
                  f"{owner}%2F{name}"),
-             "safe_headers": {}, "body": None,
+             "safe_headers": REST_HEADERS, "body": None,
              "response_file": "responses/search.json"},
         ],
     })
