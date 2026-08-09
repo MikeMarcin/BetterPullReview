@@ -1,7 +1,7 @@
 ---
 id: BPR-0234
 title: Anchor open RFC closeout cards to immutable bases and checklists
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0013
 depends_on: []
 ---
