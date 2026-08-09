@@ -143,3 +143,39 @@ The instrument that would have caught it was one command, and it is the same
 one that caught the previous two: ask the linker what is actually in the
 binary, and ask it about the thing you are depending on rather than the thing
 you are looking at.
+
+## Attempted and reverted, 2026-08-09 — what the attempt established
+
+A composition attempt was made and reverted rather than left half-applied. The
+tree is green and unchanged; this section is what the attempt bought.
+
+**The shape that works.** `queue_enrollment_register::project()` takes
+`std::span<const core::queue_activity_observation>` and returns
+`std::vector<core::queue_item>`, and `application::notification_for(item,
+unreadComments)` turns one of those into a request. So the composition is:
+enroll the accepted pull request, keep a per-ref activity observation, project,
+and call `notification_for` on each item. That much is right and does not need
+rediscovering.
+
+**Two markers the card needs, and why they are separate.**
+`NotificationDeliveryComposed` was true for the whole period in which nothing
+called `deliver()`. A count of deliveries *asked for* is a different fact and
+needs its own field; so does the projected queue size. Both belong beside the
+existing marker rather than replacing it.
+
+**Where the attempt went wrong**, recorded so the next one does not repeat it:
+it tried to give `application::github_application_host` a pointer to the
+composition's own `implementation` so the host could call back into it. The
+host's constructor takes no such argument and should not: the host is an
+application-layer type and handing it the composition root inverts the
+dependency the architecture exists to keep. The callback has to run the other
+way — the composition observes the host, as it already does for the epoch and
+diff hosts.
+
+**Scope confirmed by the attempt.** Enrollment, projection, the landing model,
+and the two wires are one coherent slice; the refresh scheduler is not part of
+it and `review_queue_refresh` stays in `NOT_COMPOSED`. A refresh loop against
+GitHub is separate work with its own live-behaviour questions.
+
+The card stays in `ready/`. It is a feature slice with a known shape and one
+known wrong turn, which is a better starting position than it had this morning.
