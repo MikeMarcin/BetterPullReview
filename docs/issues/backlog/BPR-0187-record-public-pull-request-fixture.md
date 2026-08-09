@@ -367,6 +367,53 @@ Slice 2 carries a security decision: `github_contract_fixture_security`
 enumerates every fixture file by name and must be restructured to a table keyed
 by directory without weakening a single check.
 
+### Slice 2's constraints, measured before writing any of it
+
+Generating the tree into `contracts/v1/uiforetw-74/` and running the gate:
+`FAIL: test_fixture_tree_is_exact_and_every_byte_is_sanitized`, exit 1, all
+eleven files named individually. The gate works. The tree was removed again,
+because a red gate must not be committed.
+
+Six of the twelve tests are identity-dependent and two facts about them decide
+the restructure. Both were measured, and both make the obvious approach wrong.
+
+**1. A shared expected-field table cannot be reused, and loosening it is a real
+weakening.** `EXPECTED_RESPONSE_FIELDS` is asserted with **exact equality**
+(`:797-801`), and `json_fields` recursively unions every key in the document.
+`uiforetw-74` has legitimately empty `reviews`, `issue_comments`,
+`search.items`, and `check_runs`, so its field sets are strictly smaller than
+`github-com`'s. Reusing the table fails; relaxing the assertion to a subset
+check would weaken it for *every* fixture, including the existing ones. The
+answer is a per-fixture exact table, which keeps exact equality intact.
+
+**2. The trap: the artifact key-name scanner is not where it looks.**
+`byte_security_violations` runs over raw bytes and is driven by whatever the
+tree-shape test iterates, so a new directory is covered the moment it is
+admitted to `expected_files` — no registration needed. But
+`artifact_field_violations`, which catches forbidden JSON **key names**
+(`_links`, `headers`, `request`, `response`, `cwd`, `environment`, `command`,
+`local_path`) that carry no forbidden byte substring, is invoked from exactly
+one place: `:803`, inside
+`test_responses_have_exact_fields_and_equivalent_semantics`, which hardcodes
+the two directory paths at `:777-782`.
+
+So adding `uiforetw-74` to the tree-shape test alone makes the gate **green
+while the new fixture's JSON keys are never checked at all**. The raw-byte scan
+still runs, which is exactly what would make the omission invisible. Routing
+the new directory through the artifact-field check is not optional polish; it
+is the difference between extending the gate and hollowing it out.
+
+**3. That test also assumes two mirrored hosts.** It byte-compares
+`github-com` against `ghes-3.18` for every operation except
+`SearchPullRequests` (`:786-795`). `uiforetw-74` is a single identity with no
+mirror, so it cannot join that comparison — it needs the per-operation field
+and artifact checks without the cross-host byte equality.
+
+Non-vacuity for slice 2 must therefore include: planting a forbidden key name
+(not a forbidden byte) in a `uiforetw-74` response and watching the gate catch
+it. If it does not, the restructure hollowed out the check and the green run
+means nothing.
+
 ### Why the estimate was wrong before
 
 This card was previously read as "record a public pull request", and recording
