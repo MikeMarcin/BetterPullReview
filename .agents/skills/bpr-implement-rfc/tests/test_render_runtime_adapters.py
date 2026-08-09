@@ -231,7 +231,8 @@ class RenderRuntimeAdaptersTests(unittest.TestCase):
         )["roles"]
 
         self.assertEqual(fragment["agents"]["max_concurrent_threads_per_session"], 10)
-        self.assertIn("no more than five concurrent child lanes", skill)
+        self.assertIn("runtime's advertised active-child concurrency cap", skill)
+        self.assertIn("simultaneous, not lifetime", skill)
         self.assertIn("at most one writer", skill)
         self.assertIn("runtime-visible name that begins with its semantic role", skill)
         self.assertIn("Role: <role> | Model: <model> | Effort: <effort>", skill)
