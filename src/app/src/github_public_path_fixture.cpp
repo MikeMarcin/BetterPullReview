@@ -6,6 +6,7 @@
 
 #include "bpr/application/git_smart_transport_port.hpp"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -1025,8 +1026,13 @@ namespace bpr::app::detail {
 				return;
 			}
 
+			// Absolute, because a relative template resolves against the
+			// process working directory: launched from the repository root,
+			// this fixture wrote its scratch state into the repository. A
+			// clean run auto-removes it and hid that, so what survived was
+			// exactly the crash runs.
 			ApplicationData = std::make_unique<QTemporaryDir>(
-				QStringLiteral("bpr-public-path-XXXXXX"));
+				QDir::temp().filePath(QStringLiteral("bpr-public-path-XXXXXX")));
 			if (!ApplicationData->isValid()) {
 				throw std::runtime_error{
 					"GitHub public-path application data is unavailable"
