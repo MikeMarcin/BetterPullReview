@@ -457,7 +457,7 @@ pretending to complete them inside the review:
   scope missed by the first review pass: theme customization/import, durable
   ledger state, queue filtering/sorting, and exact agent context/process
   lifecycle.
-- Ready BPR-0234 hardens the closeout contract. BPR-0241 through BPR-0245 are
+- Done BPR-0234 hardens the closeout contract. BPR-0241 through BPR-0245 are
   the newly explicit terminal closeout cards for RFC-BPR-0007 through
   RFC-BPR-0011.
 
@@ -468,9 +468,10 @@ path remains absent.
 
 ### Open right now
 
-After BPR-0225 closes, thirty-seven cards remain in `backlog/` and five in
-`ready/`. The groups below describe the actual remaining authority or product
-surface; closure cards may also depend transitively on more than one group.
+With BPR-0234 and BPR-0236 done, thirty-six cards remain in `backlog/`, four in
+`ready/`, and none in `in-progress/`. The groups below describe the actual
+remaining authority or product surface; closure cards may also depend
+transitively on more than one group.
 
 | Group | Cards | What is actually missing |
 |---|---|---|
@@ -480,7 +481,7 @@ surface; closure cards may also depend transitively on more than one group.
 | Product composition | Ready BPR-0226; backlog BPR-0227 through BPR-0232 and BPR-0223 | Connect the implemented workbench, diff, ledger, review, defect, queue, notification, and agent capabilities to public gestures and projections |
 | Missing component and resilience scope | Ready BPR-0235 and BPR-0237; backlog BPR-0238 through BPR-0240 | Enforce durable live-test isolation and complete required theme, ledger, queue, and agent contracts; BPR-0236's appearance-storage fallback is done |
 | Recorded selected-diff proof | BPR-0233, gating BPR-0214, BPR-0210, and BPR-0100 | BPR-0187 already serves UIforETW; the remaining work is to select its diff and prove semantic ranges and rendered intraline-role pixels |
-| Closeout rigor and terminal cards | Ready BPR-0234; backlog BPR-0241 through BPR-0245 | Harden every closeout card with an immutable base/checklist and retain a live terminal card for each Proposed RFC |
+| Closeout rigor and terminal cards | Done BPR-0234; backlog BPR-0241 through BPR-0245 | Replay each now-anchored executable checklist and retain a live terminal card for each Proposed RFC |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
