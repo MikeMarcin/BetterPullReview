@@ -2426,9 +2426,6 @@ namespace {
 			// A tick still armed when `exec()` returns is delivered by the pump
 			// inside `~implementation`, at which point reaching into the
 			// application reads off a null pointer. BPR-0217.
-			// A tick still armed when `exec()` returns is delivered by the pump
-			// inside `~implementation`, at which point reaching into the
-			// application reads off a null pointer. BPR-0217.
 			if (alive.expired()) {
 				return;
 			}
@@ -3549,9 +3546,8 @@ auto main(int argc, char** argv) -> int
 				std::move(config));
 		application->show();
 
-		// Declared after the application so it is destroyed first: the token
-		// dying disarms any poll still in flight before the application it would
-		// have reached into goes away.
+		// Closing the last window starts the shutdown poll rather than letting
+		// Qt quit under an application that is still running effects.
 		QObject::connect(
 			&qtApplication,
 			&QGuiApplication::lastWindowClosed,

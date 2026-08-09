@@ -202,6 +202,38 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
+bpr_add_executable(
+    test_better_pull_review_github_application_liveness_tests
+    github_application_liveness_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_github_application_liveness_tests
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_features(
+    test_better_pull_review_github_application_liveness_tests
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_github_application_liveness_tests)
+bpr_enable_warnings(test_better_pull_review_github_application_liveness_tests)
+
+# Constructs the real application, so it needs the same offscreen platform the
+# fixture runs use. Nothing is shown and no fixture is selected: the subject is
+# the destructor, not a course.
+add_test(
+    NAME application_poller_liveness
+    COMMAND test_better_pull_review_github_application_liveness_tests
+)
+set_tests_properties(
+    application_poller_liveness
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "github-application-liveness-tests:pass"
+        TIMEOUT 60
+)
+
 add_test(
     NAME application_native_appearance_probe_contract
     COMMAND
