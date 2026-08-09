@@ -238,6 +238,14 @@ QT_QPA_PLATFORM=offscreen \
   build/dev/src/app/better_pull_review \
   --github-fixture ghes-3.18 \
   --render-evidence build/dev/github-public-path-ghes-3.18.png
+
+# The recorded public pull request google/UIforETW#74, served from
+# tests/fixtures/github/pull-requests/uiforetw-74/. Serves the generated
+# commits rather than GitHub's; see docs/verification/fixture-catalog.md.
+QT_QPA_PLATFORM=offscreen \
+  build/dev/src/app/better_pull_review \
+  --github-fixture uiforetw-74 \
+  --render-evidence build/dev/github-public-path-uiforetw-74.png
 ```
 
 On headless Linux, also set `QT_STYLE_OVERRIDE=Windows`. Each run must report

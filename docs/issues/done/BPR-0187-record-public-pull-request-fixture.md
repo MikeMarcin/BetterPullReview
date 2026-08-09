@@ -1,7 +1,7 @@
 ---
 id: BPR-0187
 title: Record a real public pull request as a replayable fixture
-status: Backlog
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0186]
 ---
@@ -421,3 +421,109 @@ one made it look nearly done. The recording is real and useful — it is what
 [[BPR-0214]] needed to establish that a fixture with intraline emphasis is even
 obtainable — but the product still has no path from a recording to a rendered
 comparison, and that was never measured until now.
+
+## Step 3 done, 2026-08-09
+
+`--github-fixture uiforetw-74` serves the recorded pull request through the
+public path, registered as `application_github_public_path_uiforetw_74`:
+
+```
+PUBLIC_PATH_OK
+GITHUB_FIXTURE_OK:uiforetw-74
+RENDER_OK
+```
+
+A 1280x820 render, `dev` 143/143, `core-only` 67/67.
+
+| slice | commit |
+|---|---|
+| 1 — wire-exact generator | `b87cbad` |
+| 2 — fixture tree and the enumerating security gate | `d11dc21` |
+| 3 — descriptor extraction, behaviour-neutral | `0caa6a4` |
+| 4 — the `uiforetw_74` value, its wiring, and the payload fix | `f1527f1` |
+| 5 — the end-to-end run | `fe682c4` |
+| 6 — catalog, docs, and this card | this commit |
+
+### What the two wrong estimates had in common
+
+This card said step 3 was mechanical twice and was wrong twice, then said the
+real work was parameterising the fixture. That third answer was right but
+incomplete, and the pattern in all three is the same: each was a reading of the
+code rather than a measurement of a run.
+
+The parameterisation was real and is slice 3. But two things sat in front of it
+that only running the thing could find, and both were misattributed evidence
+codes.
+
+**`00100000:13:0:-1` was never the authority check.** This card read it as
+payload shapes, then as the hardcoded identity. Eight booleans showing only
+`BootstrapTransportSelected`, `AccountReadCount=0`, `LastReadOperation=-1` says
+the *first* bootstrap read failed, and `13` counted from zero in
+`contract_failure_code` is `unexpected_headers`. The generator wrote
+`"safe_headers": {}` against a transport that compares headers with `!=`. No
+amount of identity work would have moved it.
+
+**`01111110:20:6:5`, after the wiring, was not `list_reviews`.**
+`LastReadOperation` records the last *successful* read, so six successes means
+the failure is operation **6**, `ListReviewThreads`. `20` is
+`unexpected_response_fields`, and `validate_review_threads_fixture` requires
+exact key sets at every level, node identifiers on the repository and the pull
+request, a `files` block whose `totalCount` equals its node count,
+`viewerViewedState` from a fixed vocabulary, and an `endCursor` null exactly
+when the page is empty. The generator was writing four levels of nothing.
+
+An evidence code is worth decoding before it is worth theorising about.
+
+### The security decision, and the trap inside it
+
+`github_contract_fixture_security` enumerates every fixture file by name and
+failed on all eleven new ones, as designed. Extending it needed a `FIXTURES`
+table keyed by directory and `operation_contracts(identity)` in place of a
+table with one pull request written into nine paths.
+
+The part that would have quietly gone wrong: `artifact_field_violations`, which
+catches forbidden JSON *key names* carrying no forbidden byte, is invoked from
+one test that hardcodes the two original directories. The raw-byte scanner is
+driven by the tree-shape test and picks up a new directory automatically. So
+the obvious extension leaves the gate green while the new fixture's keys are
+never inspected, and the byte scan that keeps running is exactly what hides it.
+
+Measured rather than reasoned about: `_links` planted in a uiforetw-74 response
+passed the complete gate at exit 0 before, and fails after. A structural test
+now asserts every fixture is claimed by one of the two field-and-artifact
+checks, because the failure mode was not a missing check but a check nobody
+noticed did not apply.
+
+The expected-field table stayed exact. uiforetw-74's empty reviews, issue
+comments, search items and check runs give strictly smaller key sets, and the
+tempting fix — a subset check — would have weakened the assertion for the two
+fixtures that predate this one. It has its own table instead.
+
+### Evidence against this card's own requirements
+
+- **Replays without a network.** No test reaches `api.github.com`; the run
+  consumes ten recorded interactions and imports a committed pack.
+- **The recorded head OID is asserted.** Held two ways: a re-fetch that drifted
+  fails `recorded_pull_request_fixture_tests.py`, and the real OIDs are
+  asserted to appear nowhere under `contracts/v1/`.
+- **The workbench shows the recorded review.** `RENDER_OK` with a real render.
+- **No `Authorization`, `Cookie` or `Set-Cookie`.** Asserted by reading bytes.
+- **Each new assertion shown to fail.** The planted key name, a real OID in a
+  served response, a drifted header byte, a removed response file, a
+  hand-edited response, a corrupted pack header, and — for the serve itself —
+  one byte flipped deep inside `objects.pack`, which fails the run and passes
+  again when restored. That last one is what proves the pack is imported
+  through `index-pack --strict` rather than bypassed.
+
+### What this does not do
+
+It does not unblock [[BPR-0214]] on its own. This card already measured that
+`directxmath-336` is a pure addition and cannot show intraline emphasis;
+`uiforetw-74`'s five files are all modifications, so both sides exist and
+intraline edits are *possible*. Whether they are actually painted is BPR-0214's
+measurement to make, not this card's claim.
+
+The capability decision was taken rather than deferred: `uiforetw-74` names
+`github-com`'s capability directory. The recorded pull request lives on
+github.com, so the honest capability claim is GitHub.com's pinned schema
+snapshot in one greppable line, not a 177 KB copy that can silently diverge.

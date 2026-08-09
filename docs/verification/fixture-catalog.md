@@ -5,11 +5,54 @@ The implementation must maintain sanitized deterministic fixtures covering at le
 ## Implemented GitHub read contract v1
 
 `tests/fixtures/github/contracts/v1/` contains paired `github-com` and
-`ghes-3.18` manifests for the ten RFC-BPR-0002 read operations. Each manifest
+`ghes-3.18` manifests, plus the recorded `uiforetw-74` described below, for the
+ten RFC-BPR-0002 read operations. Each manifest
 pins the product, synthetic authority, API roots, request method, relative
 path, canonical query, non-secret headers, GraphQL document and variables,
 and selected response projection. The two response trees contain the same
 synthetic semantic facts.
+
+### `uiforetw-74`, a recorded public pull request
+
+The third `--github-fixture` name. Where `github-com` and `ghes-3.18` are
+hand-written payloads written to satisfy the code that reads them,
+`uiforetw-74` is generated from a recording of the real public pull request
+`google/UIforETW#74` — five modified files, 2026-08-08. It exists because a
+presentation judgement made against content authored to please a reader is
+weak evidence, and because BPR-0214 needs a comparison with two sides.
+
+Every served byte is produced by
+`scripts/build_recorded_pull_request_contract.py` from
+`tests/fixtures/github/pull-requests/uiforetw-74/recording.json`, so the served
+tree cannot drift from the recording; `recorded_pull_request_fixture_tests.py`
+regenerates it into a temporary directory and compares bytes.
+
+**The served commit identifiers are not GitHub's.** The recording names
+`7c519e97…` and `9b01c587…`; the fixture serves `8b70ee17…` and `e40058be…`,
+which are the commits `build_recorded_pull_request_pack.py` builds from the
+recorded blobs into `objects.pack`.
+
+| | recorded | served |
+|---|---|---|
+| base | `7c519e97eb906bdc6b83c8f576c91c063d6ceee9` | `8b70ee179fe55b705ee4e613ecbc89a0acebc1bc` |
+| head | `9b01c587b3e46637ff69c3801841993bd054f106` | `e40058be7d5fe319342dffb567ce30e42bc6f4de` |
+
+This divergence is deliberate and was the product owner's decision on
+2026-08-08. A commit OID hashes its trees, parents and author records, none of
+which the recording carries, so GitHub's real objects cannot be rebuilt from
+it — and `index-pack --strict --check-self-contained-and-connected` plus
+`fsck --connectivity-only` require every named ancestor to be present. Serving
+the real OIDs beside a pack built from generated ones is the half-divergence
+that connects and then fails at import. The alternative was committing a clone.
+
+The served metadata therefore carries placeholders — `1`×40 for the base and
+`2`×40 for the head — substituted at load time by the same mechanism
+`github-com` already uses. That the real OIDs appear nowhere under
+`contracts/v1/` is asserted by reading bytes, not intended.
+
+It claims `github-com`'s capability directory rather than a copy of it: the
+recorded pull request lives on github.com, so the honest capability claim is
+GitHub.com's pinned schema snapshot.
 
 These fixtures are hand-minimized, sanitized provider projections, not
 literal complete wire dumps. They deliberately omit authorization, cookies,

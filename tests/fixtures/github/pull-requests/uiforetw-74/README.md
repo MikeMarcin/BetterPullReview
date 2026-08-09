@@ -102,3 +102,33 @@ than counting URLs in the file as a whole.
 
 **No credential is involved.** These are unauthenticated reads of public data,
 and nothing here is written back.
+
+## What is served, and what is not
+
+This recording is now served through the public path as
+`--github-fixture uiforetw-74`. The contract tree under
+`tests/fixtures/github/contracts/v1/uiforetw-74/` is generated from this file
+by `scripts/build_recorded_pull_request_contract.py`; it is not edited by hand,
+and `recorded_pull_request_fixture_tests.py` regenerates it into a temporary
+directory and compares bytes so the two cannot drift.
+
+**The commit identifiers the product serves are not the ones recorded here.**
+
+| | recorded above | served |
+|---|---|---|
+| base | `7c519e97eb906bdc6b83c8f576c91c063d6ceee9` | `8b70ee179fe55b705ee4e613ecbc89a0acebc1bc` |
+| head | `9b01c587b3e46637ff69c3801841993bd054f106` | `e40058be7d5fe319342dffb567ce30e42bc6f4de` |
+
+The served pair are the commits `build_recorded_pull_request_pack.py` builds
+from the blobs recorded here into `objects.pack`. GitHub's real commits cannot
+be reproduced from this recording: a commit OID hashes its trees, parents and
+author records, and none of those were recorded — a patch is hunks with
+context, not whole objects. The product owner decided on 2026-08-08 to serve
+the generated pair and document the divergence rather than grow the recording,
+which would have meant committing a clone of the repository.
+
+The recorded OIDs above are still asserted. They are what a re-fetch is checked
+against, so a drifted re-fetch fails rather than silently changing content a
+presentation judgement was made against. They are also asserted to appear
+*nowhere* under `contracts/v1/`, because serving a real OID beside a pack built
+from generated ones is the state that connects and then fails at import.
