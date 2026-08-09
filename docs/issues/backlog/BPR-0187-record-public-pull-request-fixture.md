@@ -285,6 +285,88 @@ and the fixture stops matching the pull request it is named after — or the
 recording grows enough to rebuild GitHub's exact objects. That decision comes
 before any of the wiring is worth finishing.
 
+## Step 3 slice 1 done, 2026-08-08 — and the evidence was misread
+
+**Owner decision, 2026-08-08.** The design question above is answered: the
+fixture serves the **generated** commits (`8b70ee17…` base, `e40058be…` head),
+the real↔generated mapping is recorded in the fixture README, and the
+divergence is asserted in the contract test. The recording is *not* grown to
+rebuild GitHub's real objects.
+
+Validated rather than accepted: rebuilding `7c519e97…`/`9b01c587…` is not
+"grow the recording", it is "commit a clone". A commit OID hashes its trees,
+parents and author records; `git index-pack --strict
+--check-self-contained-and-connected` plus `fsck --connectivity-only` require
+every named ancestor to be present; and the `shallow` escape hatch is forbidden
+by cache validation. The only cheap variant loosens those gates, which is
+prohibited.
+
+### Correction: `00100000:13:0:-1` was never the authority check
+
+This card attributed the reverted attempt's connect failure to payload shapes
+and then to the hardcoded fixture identity. The hardcoded identity is real and
+is still ahead. The evidence code was misread.
+
+`GITHUB_FIXTURE_EVIDENCE` is eight booleans then
+`RecordingFailure:AccountReadCount:LastReadOperation`. `00100000` is
+`BootstrapTransportSelected` alone, `AccountReadCount=0`,
+`LastReadOperation=-1` — the failure was the **first bootstrap read**, before
+any payload was parsed. Counting `contract_failure_code`
+(`github_read_contract.hpp:135-160`) from zero, `13` is **`unexpected_headers`**,
+not `malformed_response`.
+
+Measured on both sides:
+
+- `build_recorded_pull_request_contract.py` wrote `"safe_headers": {}` and
+  `"body": None` for all ten interactions.
+- The application compiles three REST headers (`rest_headers()`,
+  `github_read_contract.cpp:423-439`) and three GraphQL headers plus a document
+  body (`:441-457`).
+- `strict_recorded_transport::perform` compares with `aRequest.Headers !=
+  expected.Request.Headers`, so an empty table is a mismatch, not a wildcard.
+
+So the ordering is: fix headers first, identity second. The payload-shape work
+already recorded above was real and is kept; it simply was not what that
+evidence code named.
+
+### What slice 1 landed
+
+The generator is wire-exact. Verified against the `github-com` fixture rather
+than against the source that produces both: same operation set, identical
+`safe_headers` for every operation, identical GraphQL query, variables
+parameterised to `google`/`UIforETW`/`74`.
+
+Served metadata carries placeholder OIDs (`1`×40 base, `2`×40 head) in
+`pull_request.json`, `commits.json`, and the ListChecks path — the convention
+`github-com` already uses, substituted at load time by the existing
+`replace_all`. **Zero new C++ mechanism.** Checked by reading bytes: the real
+OIDs appear nowhere in the generated tree.
+
+The generator now refuses a recording whose commit list is not exactly the
+head, because the pack builder produces a two-commit repository and any other
+commit would be named but absent. Shown non-vacuous both ways: a synthesised
+second commit is refused with exit 1 and no directory written, and
+`directxmath-336` is refused for this reason as well as for having no blobs.
+
+A note on the measurement, not the code: that refusal was first read through a
+pipe, which reported the pipe's exit status as `0`. The true exit is `1`. A
+gate measured through `head` or `tail` reports the pipe.
+
+### Where step 3 stands
+
+| slice | state |
+|---|---|
+| 1 — wire-exact generator | **done**, commit `b87cbad` |
+| 2 — commit the fixture tree, extend the enumerating security gate | next |
+| 3 — descriptor extraction, behaviour-neutral | not started |
+| 4 — the `uiforetw_74` value and its wiring | not started |
+| 5 — the end-to-end run | not started |
+| 6 — catalog, docs, and this card | not started |
+
+Slice 2 carries a security decision: `github_contract_fixture_security`
+enumerates every fixture file by name and must be restructured to a table keyed
+by directory without weakening a single check.
+
 ### Why the estimate was wrong before
 
 This card was previously read as "record a public pull request", and recording
