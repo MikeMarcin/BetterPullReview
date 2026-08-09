@@ -5,7 +5,7 @@ description: "Implement one or more BetterPullReview RFCs end to end with bounde
 
 # BetterPullReview RFC portable entrypoint
 
-This is a generated Claude Code entrypoint (e10bfc8776ef6fae). Read and follow
+This is a generated Claude Code entrypoint (e5a192e4cfb7aba0). Read and follow
 `${CLAUDE_PROJECT_DIR}/.agents/skills/bpr-implement-rfc/SKILL.md` as the
 authoritative skill before doing any RFC work. Resolve every relative path in
 that skill from `${CLAUDE_PROJECT_DIR}/.agents/skills/bpr-implement-rfc/`.

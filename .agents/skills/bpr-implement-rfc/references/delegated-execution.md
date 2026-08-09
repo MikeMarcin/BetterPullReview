@@ -125,7 +125,7 @@ Use this default decision table.
 | Exact locating, inventory, command execution, schema/drift check, or log condensation | One `rfc-utility` |
 | Post-resume board-state and queue inventory snapshot for reorientation | One `rfc-utility`; the primary agent still decides the next task |
 | Broad ownership, public execution-path, build-selection, verification, documentation-impact, or root-cause analysis | One `rfc-scout` |
-| Two genuinely independent semantic read-only questions | Up to two direct scout/reviewer lanes; nested utilities may support them within the five-lane cap |
+| Two genuinely independent semantic read-only questions | Up to two direct scout/reviewer lanes; nested utilities may support them within the runtime's active-child cap |
 | Clear current issue-card slice | Optional single `rfc-worker`; primary agent does not edit concurrently; worker should offload prescribed tests or inventories to utility lanes when useful |
 | Substantial non-critical public behavior, provider, diff, UI, persistence, package, integration, migration, or application RFC | One `rfc-reviewer` before status closeout |
 | Capability-critical RFC under `references/model-routing.md` | One `rfc-critical-reviewer` instead of the ordinary reviewer |
@@ -138,9 +138,11 @@ A second read-only agent must own a different question. Do not ask two agents to
 - Preserve the skill's one-RFC-at-a-time and one-issue-slice-at-a-time discipline.
 - Before every spawn, restart, or follow-up task, recursively count every
   nonterminal descendant, including initializing or status-unknown agents, and
-  classify its role. Across the complete descendant tree, schedule at most five
-  concurrent child lanes, excluding the primary agent. Do not reuse a lane
-  until the prior agent has left Working/nonterminal status.
+  classify its role. Across the complete descendant tree, use up to the
+  runtime's advertised active-child concurrency cap, excluding the primary
+  agent; it is not a lifetime quota, and completed or interrupted descendants
+  release capacity. Do not reuse a lane until the prior agent has left
+  Working/nonterminal status.
 - Permit at most one writing agent across the complete tree. The primary does
   not edit while a writing child runs. Read-only work may coexist only when it
   cannot overlap or redirect the settled writer assignment.
@@ -148,7 +150,7 @@ A second read-only agent must own a different question. Do not ask two agents to
   only read-only `rfc-utility` descendants for exact locating, inventories,
   prescribed commands/tests, schema or generated drift checks, and log
   condensation. Each of those roles has a runtime-local nested cap of two,
-  while the recursive workflow cap of five remains authoritative.
+  while the recursive workflow cap remains authoritative.
 - A nested utility must receive the exact command or mechanical question,
   cannot spawn descendants, and cannot decide architecture, root cause,
   implementation, verification sufficiency, or closeout. Its parent remains
@@ -157,6 +159,20 @@ A second read-only agent must own a different question. Do not ask two agents to
 - Preserve unrelated user changes. A writing worker must stop and report when its required edit overlaps unexplained existing modifications.
 - Never put credentials, tokens, cookies, secret-bearing logs, or unnecessary source bodies into a delegation message. A delegated agent may inspect the repository under the same local trust boundary, but its result should cite paths and symbols rather than reproduce private source.
 - Never delegate a live GitHub or GHES mutation unless the user has already identified the safe repository and pull request and the current issue explicitly requires that validation.
+
+## Delegation Continuity
+
+At every task boundary, resume, reorientation, and post-compaction recovery,
+query live agent status rather than trusting remembered or summarized state.
+Reconcile active sessions with the planned delegated lanes, collect completed
+results, and reconsider newly released capacity for independent pending work.
+This skill itself explicitly requests this bounded delegation in runtimes that
+require a user or applicable-skill request.
+
+Never count previously created sessions as a lifetime quota. Never refill
+capacity with duplicate work merely to stay busy. If a useful planned lane runs
+serially, record why. If the live session is a writer, every other agent,
+including the primary integrator, stays read-only until it completes.
 
 ## Delegation Message
 

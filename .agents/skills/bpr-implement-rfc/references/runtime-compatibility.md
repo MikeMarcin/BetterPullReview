@@ -24,7 +24,7 @@ Important limitation: live parent permission and sandbox overrides can be reappl
 
 Merge `config/codex-config.fragment.toml` into `.codex/config.toml` to set the
 supported runtime ceiling to ten concurrent spawned threads, excluding the
-primary. The skill deliberately schedules at most five nonterminal child lanes
+primary. The skill schedules within the runtime's advertised active-child cap
 across the recursive workflow and permits at most one writer. The remaining
 runtime capacity is headroom for nested utility and tool behavior, not
 permission for uncontrolled fan-out. The supported numeric cap cannot enforce
