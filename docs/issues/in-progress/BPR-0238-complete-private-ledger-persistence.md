@@ -1,7 +1,7 @@
 ---
 id: BPR-0238
 title: Complete private ledger persistence for notes heads and defects
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0007
 depends_on: []
 ---
