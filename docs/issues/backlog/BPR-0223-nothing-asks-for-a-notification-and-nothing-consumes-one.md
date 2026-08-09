@@ -1,7 +1,7 @@
 ---
 id: BPR-0223
 title: Nothing asks for a notification and nothing consumes an activation
-status: Ready
+status: Backlog
 rfc: RFC-BPR-0010
 depends_on: []
 ---
@@ -179,3 +179,61 @@ GitHub is separate work with its own live-behaviour questions.
 
 The card stays in `ready/`. It is a feature slice with a known shape and one
 known wrong turn, which is a better starting position than it had this morning.
+
+## Blocked, 2026-08-09 — the queue cannot be populated honestly
+
+Attempted a second time, directly rather than delegated, and stopped at a
+semantic blocker rather than a mechanical one. This is not "too large to
+finish"; it is "cannot be done without inventing evidence".
+
+`core::queue_membership::enrolled()` is true only when a pull request has a
+GitHub role or matched a local observer rule:
+
+```cpp
+return Role != github_role::none || MatchedRule;
+```
+
+Both inputs are absent from the composed application.
+
+| Input | Present? |
+|---|---|
+| `github_role` — participant, reviewer, requested_reviewer, author | **No.** The GitHub adapter carries no viewer-role signal: no `requested_reviewer`, no viewer role on the pull request, nothing in the conversation projection. |
+| A matched `observer_rule` — repository, author, or path | **No.** No observer-rule surface exists anywhere in `src/app/` or `src/adapters/qt/`. Nothing configures one. |
+
+The accepted handoff carries host, account, repository, number and locator —
+**identity, not role**. So enrolling the pull request a reviewer has opened
+would mean either claiming a GitHub role the application has never observed, or
+fabricating a matched rule nobody configured. Either one synthesises exactly
+the evidence the queue exists to represent, and the projected bucket, the
+notification's `warrants_notification` decision, and the banner the reviewer
+eventually sees would all rest on it.
+
+That is the same failure as serving a fixture written to satisfy the code that
+reads it, one layer up.
+
+### What this card now depends on
+
+One of, and it is a product decision which:
+
+- the provider learning the viewer's role on a pull request — a read the
+  GitHub adapter does not currently make, and a projection field it does not
+  carry; or
+- an observer-rule surface, so a reviewer can say "enrol this repository" and
+  the rule match is a real local fact.
+
+Until one exists there is nothing to enrol, and therefore nothing to project,
+notify about, or select. Moved to `backlog/`: it is blocked on a missing input
+rather than unblocked and merely unstarted.
+
+### The pattern, now four layers deep
+
+BPR-0168 was misfiled as attended when the delivery adapter did not exist. It
+was misfiled again when the adapter existed but nothing called it. This card
+diagnosed that and framed it as wiring, when the queue in the middle was
+missing. And the queue turns out to be unpopulatable, because the facts it
+enrols on are never observed.
+
+Each layer looked like the last one until it was measured. The measurement is
+cheap every time — ask whether the thing you are about to depend on exists —
+and it is the step that keeps being skipped because the layer above it looks
+finished.
