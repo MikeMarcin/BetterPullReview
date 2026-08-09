@@ -98,3 +98,26 @@ and closes nothing.
 This response applies only to the foreground probe run. The per-term audit of
 whatever remains red is separate work, one term per commit, and
 `DIFF_GEOMETRY_REBUILD` belongs to BPR-0220 either way.
+
+## Addendum, 2026-08-09: this run also answers BPR-0220
+
+[[BPR-0220]] asks whether an appearance change rebuilding the comparison
+geometry twice is a double application or two legitimate causes. It was
+measured offscreen and narrowed but not answered:
+
+| Run | Rebuilds |
+|---|---|
+| diff-workbench probe, offscreen | 4 |
+| the same with an appearance change | 5 |
+
+Offscreen the change costs **one** rebuild. The probe reports **two**. So the
+second rebuild is either display-dependent, or specific to the scheme change
+rather than a profile capture — and this run is the only configuration that can
+tell those apart.
+
+Nothing extra is asked of you. The delta is already in the marker output the
+run produces; pasting the complete log is what records it.
+
+**This does not change the decision requested above.** Approving the foreground
+run approves that the run happened as described. It does not approve any
+conclusion about the geometry delta, which is BPR-0220's to draw from the log.

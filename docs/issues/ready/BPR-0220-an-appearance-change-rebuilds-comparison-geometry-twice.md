@@ -70,3 +70,59 @@ Deferring this into [[BPR-0114]]'s foreground run and treating a still-red
 `DIFF_GEOMETRY_REBUILD` term as part of the focus cascade. It is not part of
 that cascade. It will still be red after the window is frontmost, and it should
 be — that is the signal working.
+
+## Measured offscreen, 2026-08-09 — partial, and it narrows the question
+
+Instrumented `diff_workbench::schedule_geometry_rebuild` to record the cause
+bitmask of every scheduling call and every rebuild that actually happened, then
+ran the diff-workbench probe offscreen with and without an appearance change.
+Instrumentation reverted afterwards; the numbers below are what it recorded.
+
+| Run | Rebuilds |
+|---|---|
+| `--diff-workbench-probe` | 4 |
+| the same plus `--diff-evidence-appearance dark` | 5 |
+
+**Offscreen, an appearance change costs exactly one rebuild, not two.**
+
+The scheduling causes across a whole run:
+
+```
+ 35  cause=128   viewport_or_divider
+  1  cause=64    screen
+  1  cause=1     accepted_diff
+```
+
+Thirty-seven scheduling calls coalesced into four rebuilds, which is the
+mechanism working as designed: `schedule_geometry_rebuild` returns early while
+`GeometryScheduled` is set, so any number of calls inside one event-loop turn
+produce one rebuild. **Two rebuilds therefore means two separate turns, not two
+calls** — that is the fact worth carrying into the display run.
+
+Two absences are informative. `font` (4) and `tab_width` (16) never fire for a
+colour-only profile change, so the second rebuild is not typography. And
+`screen` (64) fires exactly once per run in both, so it is startup, not the
+appearance change.
+
+## What is still unmeasured, and why
+
+`DIFF_GEOMETRY_REBUILD_DELTA:2` is sampled by the **native appearance probe**,
+which refuses to run offscreen — deliberately, and correctly. So the offscreen
+delta of one and the probe's delta of two are measurements of different runs,
+and the difference between them is now the actual question:
+
+- either the second rebuild is display-dependent — a real screen, device pixel
+  ratio, or window-activation effect that offscreen cannot produce;
+- or the probe's scheme change drives a path the profile capture does not.
+
+Both are testable in one run, and it is a run somebody is about to do anyway.
+
+**Fold this into [[BPR-0114]]'s foreground run.** The owner's probe is the only
+configuration that reaches the code path, and it already reports the delta. Re-
+instrumenting `schedule_geometry_rebuild` for that run — recording the cause
+mask per rebuild — answers this card from the same sitting. This card stays in
+`ready/` rather than moving to `done/`: the product question is not answered,
+only narrowed from "why twice" to "which of two named candidates".
+
+The `== 1U` expectation at `main.cpp:728-729` and `:2339` is unchanged, and must
+stay unchanged until that measurement exists.
