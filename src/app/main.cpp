@@ -297,6 +297,51 @@ namespace {
 		return Qt::ColorScheme::Unknown;
 	#endif
 	}
+
+	/// \brief What one fixture's run opens, and what it then expects to see.
+	///
+	/// \details The connect stage used to type one pull request's coordinates as
+	/// literals, and the presentation check asserted that same pull request's
+	/// title, viewer, and conversation shape. Two fixtures could share those
+	/// literals because they serve the same synthetic pull request; a recorded
+	/// one serves a different one, so the pair is named here and both sites read
+	/// the run's own expectations rather than a constant.
+	///
+	/// `ExpectedThreadId` is the one optional field. A fixture whose recording
+	/// carries no review thread has no row to find by identity, and an absent
+	/// expectation is not a relaxed one - it is the honest statement that there
+	/// is nothing there. `ExpectedConversationRows` still fixes the count
+	/// exactly, so an unexpected row is still a failure.
+	struct fixture_run_expectations
+	{
+		std::string                Owner;
+		std::string                Repository;
+		int                        Number = 0;
+		std::string                ExpectedTitle;
+		std::string                ExpectedAccountText;
+		int                        ExpectedConversationRows = 0;
+		std::optional<std::string> ExpectedThreadId;
+	};
+
+	/// \brief States what the synthetic pull request both hand-written fixtures
+	/// serve looks like.
+	///
+	/// \details `github-com` and `ghes-3.18` are the same pull request on two
+	/// hosts, which is the whole point of the pair, so they answer with one
+	/// value rather than two copies of it.
+	[[nodiscard]] auto synthetic_fixture_expectations()
+		-> fixture_run_expectations
+	{
+		return {
+			.Owner                    = "octo-org",
+			.Repository               = "review-repository",
+			.Number                   = 17,
+			.ExpectedTitle            = "Keep review snapshots deterministic",
+			.ExpectedAccountText      = "Octo Reviewer (@octo-reviewer)",
+			.ExpectedConversationRows = 3,
+			.ExpectedThreadId         = "review-thread:PRRT_fixture_1",
+		};
+	}
 #endif
 
 	struct automated_run
@@ -442,6 +487,7 @@ namespace {
 		bool                                         LedgerRoundTripped      = false;
 		std::string                                  FixtureName;
 		std::string                                  ExpectedActiveHostText;
+		fixture_run_expectations                     Expectations;
 		bpr::app::detail::github_epoch_fixture_phase EpochPhase = bpr::app::detail::github_epoch_fixture_phase::single;
 		enum class epoch_maintenance_probe {
 			none,
@@ -1444,22 +1490,25 @@ namespace {
 
 #if defined(BPR_BUILD_TESTING)
 	[[nodiscard]] auto fixture_presentation_passed(
-		bpr::qt::workbench_window& aWindow,
-		const std::string_view     aExpectedActiveHostText) -> bool
+		bpr::qt::workbench_window&      aWindow,
+		const std::string_view          aExpectedActiveHostText,
+		const fixture_run_expectations& aExpected) -> bool
 	{
 		const auto* const title = aWindow.findChild<QLabel*>(QStringLiteral("pullRequestTitle"));
 		return aWindow.github_status_text() == "Pull request ready."
-			&& aWindow.active_account_text() == "Octo Reviewer (@octo-reviewer)"
+			&& aWindow.active_account_text() == aExpected.ExpectedAccountText
 			&& aWindow.active_host_text() == aExpectedActiveHostText
 			&& aWindow.github_open_action()->isEnabled()
 			&& aWindow.github_refresh_action()->isEnabled()
 			&& title != nullptr
 			&& title->text()
-			== QStringLiteral("Keep review snapshots deterministic")
-			&& aWindow.conversation_model()->rowCount() == 3
-			&& aWindow.conversation_model()
-				   ->index_for_id("review-thread:PRRT_fixture_1")
-				   .isValid()
+			== QString::fromStdString(aExpected.ExpectedTitle)
+			&& aWindow.conversation_model()->rowCount()
+			== aExpected.ExpectedConversationRows
+			&& (!aExpected.ExpectedThreadId.has_value()
+				|| aWindow.conversation_model()
+					   ->index_for_id(*aExpected.ExpectedThreadId)
+					   .isValid())
 			&& aWindow.statistics().GithubFullResets == 0U;
 	}
 
@@ -2526,10 +2575,12 @@ namespace {
 						|| !window.github_open_action()->isEnabled()) {
 						break;
 					}
-					window.session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
+					window.session_panel()->owner_editor()->setText(
+						QString::fromStdString(aRun->Expectations.Owner));
 					window.session_panel()->repository_editor()->setText(
-						QStringLiteral("review-repository"));
-					window.session_panel()->pull_request_editor()->setValue(17);
+						QString::fromStdString(aRun->Expectations.Repository));
+					window.session_panel()->pull_request_editor()->setValue(
+						aRun->Expectations.Number);
 					window.github_open_action()->trigger();
 					advance_fixture_stage(*aRun, automated_run::stage::open);
 				} else if (cli_fail_closed_presentation_passed(window, *aRun))
@@ -2573,7 +2624,9 @@ namespace {
 					break;
 				}
 				if (fixture_presentation_passed(
-						window, aRun->ExpectedActiveHostText)) {
+						window,
+						aRun->ExpectedActiveHostText,
+						aRun->Expectations)) {
 					const auto evidence = bpr::app::detail::
 						github_application_fixture_access::evidence(aApplication);
 					const auto persistentPhase = aRun->EpochPhase
@@ -2819,7 +2872,9 @@ namespace {
 				const auto evidence = bpr::app::detail::
 					github_application_fixture_access::evidence(aApplication);
 				if (fixture_presentation_passed(
-						window, aRun->ExpectedActiveHostText)
+						window,
+						aRun->ExpectedActiveHostText,
+						aRun->Expectations)
 					&& fixture_epoch_pair_passed(
 						window,
 						evidence.BaseOid,
@@ -3315,6 +3370,7 @@ auto main(int argc, char** argv) -> int
 #if defined(BPR_BUILD_TESTING)
 		auto fixtureName            = std::string{ };
 		auto expectedActiveHostText = std::string{ };
+		auto fixtureExpectations    = fixture_run_expectations{ };
 		auto selectedFixture        = std::optional<
 			bpr::app::detail::github_public_path_fixture>{ };
 		auto fixtureOptions = bpr::app::detail::github_public_path_fixture_options{ };
@@ -3324,11 +3380,31 @@ auto main(int argc, char** argv) -> int
 				selectedFixture        = bpr::app::detail::github_public_path_fixture::github_com;
 				fixtureName            = "github.com";
 				expectedActiveHostText = "Active host: github.com (GitHub.com)";
+				fixtureExpectations    = synthetic_fixture_expectations();
 			} else if (*fixture == "ghes-3.18") {
 				selectedFixture        = bpr::app::detail::github_public_path_fixture::ghes_3_18;
 				fixtureName            = "ghes-3.18";
 				expectedActiveHostText = "Active host: ghe.example.invalid "
 										 "(GitHub Enterprise Server)";
+				fixtureExpectations    = synthetic_fixture_expectations();
+			} else if (*fixture == "uiforetw-74") {
+				selectedFixture = bpr::app::detail::github_public_path_fixture::uiforetw_74;
+				fixtureName     = "uiforetw-74";
+				// The recorded pull request is on github.com, so the active-host
+				// text is github.com's. Only the served pull request differs.
+				expectedActiveHostText = "Active host: github.com (GitHub.com)";
+				fixtureExpectations    = {
+					.Owner               = "google",
+					.Repository          = "UIforETW",
+					.Number              = 74,
+					.ExpectedTitle       = "add CLR runtime tracing support",
+					.ExpectedAccountText = "MikeMarcin (@MikeMarcin)",
+					// Measured against the recording, not assumed: it carries no
+					// review, no review thread and no issue comment, and the
+					// conversation model's roots are exactly those three kinds.
+					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else {
 				QTextStream{ stdout } << "PUBLIC_PATH_FAILED\n";
 				return EXIT_FAILURE;
@@ -3362,6 +3438,22 @@ auto main(int argc, char** argv) -> int
 					<< "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
 				return EXIT_FAILURE;
 			}
+		}
+		// Seed, reuse, and every maintenance probe compare a second head against
+		// a first. A fixture that records one head cannot run a reduced version
+		// of those courses, so the pairing is refused here rather than degraded
+		// into the single-head course, which would print a phase marker for a
+		// phase the run never took. Asked of the serving descriptor, so a
+		// fixture added later answers for itself.
+		if (selectedFixture.has_value()
+			&& (fixtureOptions.EpochPhase
+					!= bpr::app::detail::github_epoch_fixture_phase::single
+				|| epochMaintenanceProbe.has_value())
+			&& !bpr::app::detail::
+				   github_public_path_fixture_serves_second_head(
+					   *selectedFixture)) {
+			QTextStream{ stdout } << "EPOCH_FIXTURE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
 		}
 		auto selectedMaintenanceProbe = automated_run::epoch_maintenance_probe::none;
 		if (epochMaintenanceProbe) {
@@ -3601,6 +3693,7 @@ auto main(int argc, char** argv) -> int
 						.StallProbe             = automatedStallProbe,
 						.FixtureName            = std::move(fixtureName),
 						.ExpectedActiveHostText = std::move(expectedActiveHostText),
+						.Expectations           = std::move(fixtureExpectations),
 						.EpochPhase             = fixtureOptions.EpochPhase,
 						.MaintenanceProbe       = selectedMaintenanceProbe,
 						.Appearance             = automated_run::native_appearance_probe_state{

@@ -18,7 +18,21 @@ namespace bpr::app::detail {
 	enum class github_public_path_fixture {
 		github_com,
 		ghes_3_18,
+		/// google/UIforETW#74, recorded once and replayed. Served on github.com
+		/// like `github_com`, and unlike it serves a real pull request with a
+		/// single recorded head rather than a synthetic two-head graph.
+		uiforetw_74,
 	};
+
+	/// \brief Reports whether the named fixture serves a second head.
+	///
+	/// \details The epoch seed and reuse phases, and every epoch maintenance
+	/// probe, compare a second head against a first. A fixture that records one
+	/// head cannot perform a weaker version of those runs - it cannot perform
+	/// them at all. Answered from the serving descriptor rather than from a list
+	/// kept beside the caller, so a fixture added later answers for itself.
+	[[nodiscard]] auto github_public_path_fixture_serves_second_head(
+		github_public_path_fixture aFixture) noexcept -> bool;
 
 	enum class github_epoch_fixture_phase {
 		single,

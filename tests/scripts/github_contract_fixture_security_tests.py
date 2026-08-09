@@ -350,7 +350,7 @@ RECORDED_RESPONSE_FIELDS = {
     "ListPullRequestFiles": {"additions", "deletions", "filename", "status"},
     "ListPullRequestCommits": {"author", "commit", "login", "message", "node_id", "sha"},
     "ListReviews": set(),
-    "ListReviewThreads": {"data", "endCursor", "hasNextPage", "nodes", "pageInfo", "pullRequest", "repository", "reviewThreads"},
+    "ListReviewThreads": {"data", "endCursor", "files", "hasNextPage", "id", "nodes", "pageInfo", "path", "pullRequest", "repository", "reviewThreads", "totalCount", "viewerViewedState"},
     "ListIssueComments": set(),
     "ListChecks": {"check_runs", "total_count"},
     "SearchPullRequests": {"incomplete_results", "items", "total_count"},

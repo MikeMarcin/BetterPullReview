@@ -118,46 +118,58 @@ def main() -> None:
         if not pack.startswith(b"PACK"):
             fail(f"{name} is not a Git pack")
 
-    # The OIDs moved from `std::string Base = ...` members on
-    # `deterministic_git_fixture` into the per-fixture descriptor, so this reads
-    # the designated initialisers instead. It is still the C++ source being
-    # compared against the manifest, which is the whole point: the identifiers
-    # the product serves and the identifiers this fixture claims cannot drift
-    # apart without one of them being edited.
-    found: dict[str, set[str]] = {}
-    for field, oid in re.findall(
-        r'\.(BaseOid|HeadOneOid|HeadTwoOid)\s*=\s*"([0-9a-f]{40})"',
-        source,
-    ):
-        found.setdefault(field, set()).add(oid)
-
+    # This manifest pins the synthetic three-commit graph, and only the
+    # fixtures below serve it. A recorded pull request serves its own commits
+    # from its own pack, so scraping the whole file would compare this manifest
+    # against whichever identifiers the regex happened to see last. The
+    # descriptor blocks are read individually and only these two are checked.
+    #
+    # The identifiers used to be `std::string Base = ...` members on
+    # `deterministic_git_fixture`; they are per-fixture descriptor initialisers
+    # now. It is still the C++ source being held against the manifest, which is
+    # the point: what the product serves and what this fixture claims cannot
+    # drift apart without one of them being edited.
+    synthetic = ("github-com", "ghes-3.18")
     expected_oids = {
         "Base": objects["base"]["oid"],
         "HeadOne": objects["head_one"]["oid"],
         "HeadTwo": objects["head_two"]["oid"],
     }
 
-    # Every synthetic fixture shares one three-commit graph, so each field has
-    # exactly one distinct value today. A second fixture serving different
-    # commits makes that false, and this must fail loudly and be scoped to the
-    # synthetic descriptors rather than silently comparing against whichever
-    # value the scrape happened to see last.
-    for field, values in sorted(found.items()):
-        if len(values) != 1:
-            fail(
-                f"{field} now has {len(values)} distinct values in the fixture "
-                f"source, so this contract can no longer assume one synthetic "
-                f"graph and must name which descriptor it pins"
-            )
+    blocks = re.split(r"case\s+github_public_path_fixture::", source)[1:]
+    if not blocks:
+        fail(
+            "no fixture descriptors found in the source; this contract reads "
+            "the descriptor switch and the switch has moved or been renamed"
+        )
 
-    # Back to the manifest's own names, so the rest of this contract and its
-    # messages are unchanged by where the identifiers happen to live in C++.
-    source_oids = {
-        field.removesuffix("Oid"): next(iter(values))
-        for field, values in found.items()
-    }
-    if source_oids != expected_oids:
-        fail("fixture source OIDs disagree with the manifest")
+    checked: list[str] = []
+    for block in blocks:
+        directory = re.search(
+            r'\.ContractDirectory\s*=\s*"([^"]+)"',
+            block,
+        )
+        if directory is None or directory.group(1) not in synthetic:
+            continue
+        found = {
+            field.removesuffix("Oid"): oid
+            for field, oid in re.findall(
+                r'\.(BaseOid|HeadOneOid|HeadTwoOid)\s*=\s*"([0-9a-f]{40})"',
+                block,
+            )
+        }
+        if found != expected_oids:
+            fail(
+                f"fixture source OIDs disagree with the manifest for "
+                f"{directory.group(1)}"
+            )
+        checked.append(directory.group(1))
+
+    if sorted(checked) != sorted(synthetic):
+        fail(
+            f"expected the synthetic graph to be served by {sorted(synthetic)} "
+            f"but the descriptor switch carries it for {sorted(checked)}"
+        )
     if packs["initial"].get("head") != expected_oids["HeadOne"]:
         fail("initial pack head drifted")
     if packs["force_push"].get("head") != expected_oids["HeadTwo"]:

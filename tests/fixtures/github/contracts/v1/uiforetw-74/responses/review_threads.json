@@ -1,13 +1,45 @@
 {
 	"data": {
 		"repository": {
+			"id": "R_UIforETW",
 			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "UIforETW/Resource.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "UIforETW/Support.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "UIforETW/UIforETW.rc",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "UIforETW/UIforETWDlg.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "UIforETW/UIforETWDlg.h",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:google/UIforETW:74:files",
+						"hasNextPage": false
+					},
+					"totalCount": 5
+				},
+				"id": "PR_74",
 				"reviewThreads": {
 					"nodes": [],
 					"pageInfo": {
 						"endCursor": null,
 						"hasNextPage": false
-					}
+					},
+					"totalCount": 0
 				}
 			}
 		}

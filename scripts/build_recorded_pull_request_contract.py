@@ -180,11 +180,45 @@ def main() -> int:
     ])
     write(root / "responses/reviews.json", [])
     write(root / "responses/issue_comments.json", [])
+    # The GraphQL response is validated far more strictly than its REST
+    # siblings: `validate_review_threads_fixture` requires an exact key set at
+    # every level, a node identifier on the repository and the pull request,
+    # a `files` block whose `totalCount` equals its node count, a
+    # `viewerViewedState` drawn from a fixed vocabulary, and a `pageInfo` whose
+    # `endCursor` is null exactly when the page is empty and a non-empty string
+    # otherwise. A response missing any of it is refused as
+    # `unexpected_response_fields`, which is what an earlier version of this
+    # generator produced.
+    #
+    # The file paths are the recorded ones. `viewerViewedState` is UNVIEWED
+    # because an unauthenticated read carries no viewer state and there is
+    # nothing recorded to claim otherwise.
+    file_nodes = [
+        {"path": entry["filename"], "viewerViewedState": "UNVIEWED"}
+        for entry in recording["files"]
+    ]
     write(root / "responses/review_threads.json", {
-        "data": {"repository": {"pullRequest": {"reviewThreads": {
-            "nodes": [],
-            "pageInfo": {"endCursor": None, "hasNextPage": False},
-        }}}}
+        "data": {
+            "repository": {
+                "id": f"R_{name}",
+                "pullRequest": {
+                    "id": f"PR_{number}",
+                    "files": {
+                        "nodes": file_nodes,
+                        "pageInfo": {
+                            "endCursor": f"cursor:{slug}:{number}:files",
+                            "hasNextPage": False,
+                        },
+                        "totalCount": len(file_nodes),
+                    },
+                    "reviewThreads": {
+                        "nodes": [],
+                        "pageInfo": {"endCursor": None, "hasNextPage": False},
+                        "totalCount": 0,
+                    },
+                },
+            }
+        }
     })
     write(root / "responses/checks.json", {"check_runs": [], "total_count": 0})
     write(root / "responses/search.json", {

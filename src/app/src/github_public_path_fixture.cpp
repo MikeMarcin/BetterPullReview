@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -101,6 +102,30 @@ namespace bpr::app::detail {
 				}
 			}
 
+			/// \brief Serves one recorded pull request's pack from a file.
+			///
+			/// \details A recorded repository's objects are tens of kilobytes of
+			/// binary, which is why they are committed beside the recording
+			/// rather than embedded above. The path is relative to the recorded
+			/// pull-request fixture root and the same two invariants hold: a
+			/// served pack is long enough to have a header and begins with one.
+			///
+			/// `PackTwo` stays empty because a recorded fixture serves a single
+			/// head. That is not a weaker second pack, it is the absence of one:
+			/// the descriptor names no second head, so `fixture_smart_transport`
+			/// never selects it, and an empty pack is refused there rather than
+			/// served.
+			explicit deterministic_git_fixture(const std::string_view aPackFile)
+				: PackOne{ QByteArray::fromStdString(read_all(
+					  std::filesystem::path{
+						  BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT }
+					  / aPackFile)) }
+			{
+				if (PackOne.size() < 32 || !PackOne.startsWith("PACK")) {
+					throw std::runtime_error{ "Git fixture pack is invalid" };
+				}
+			}
+
 			QByteArray PackOne;
 			QByteArray PackTwo;
 		};
@@ -133,6 +158,19 @@ namespace bpr::app::detail {
 			return aValue.toUtf8().toStdString();
 		}
 
+		/// \brief Says where the packs one fixture serves come from.
+		///
+		/// \details Two shapes, and a descriptor picks one. The synthetic
+		/// three-commit graph is small enough to state in the source that serves
+		/// it, and it is the only graph with a second head, so its pair stays
+		/// embedded. A recorded pull request names a file instead. An absent
+		/// `File` selects the embedded pair; a present one is relative to
+		/// `BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT`.
+		struct fixture_pack_source
+		{
+			std::optional<std::string_view> File;
+		};
+
 		/// \brief States everything one served fixture is, in one place.
 		///
 		/// \details The public path used to hardcode a single pull request's
@@ -142,9 +180,10 @@ namespace bpr::app::detail {
 		/// and every site reads them from the descriptor of the fixture it is
 		/// serving.
 		///
-		/// `HeadTwoOid` is the only optional field: a fixture that serves one head
-		/// leaves it empty. An empty value is not a wildcard and must never match
-		/// an observed head - see `fixture_recorded_wire_transport::acquire`.
+		/// `HeadTwoOid` is the only optional identity: a fixture that serves one
+		/// head leaves it empty. An empty value is not a wildcard and must never
+		/// match an observed head - see
+		/// `fixture_recorded_wire_transport::acquire`.
 		struct fixture_descriptor
 		{
 			std::string_view          ContractDirectory;
@@ -163,6 +202,7 @@ namespace bpr::app::detail {
 			std::string_view          BaseBlob;
 			std::string_view          HeadOneBlob;
 			std::string_view          HeadTwoBlob;
+			fixture_pack_source       Packs;
 		};
 
 		/// \brief Selects the descriptor the named fixture serves.
@@ -192,6 +232,7 @@ namespace bpr::app::detail {
 					.BaseBlob            = "7fc38b17790c8f590618f6d1884466dd2b0d42d8",
 					.HeadOneBlob         = "88979e3f655e5b605ffbfe52ef40f9ff4d4766a0",
 					.HeadTwoBlob         = "6492ffe72d75f6c783b8ea948f3a94732cbdd628",
+					.Packs               = { .File = std::nullopt },
 				};
 			case github_public_path_fixture::ghes_3_18:
 				return {
@@ -211,9 +252,55 @@ namespace bpr::app::detail {
 					.BaseBlob            = "7fc38b17790c8f590618f6d1884466dd2b0d42d8",
 					.HeadOneBlob         = "88979e3f655e5b605ffbfe52ef40f9ff4d4766a0",
 					.HeadTwoBlob         = "6492ffe72d75f6c783b8ea948f3a94732cbdd628",
+					.Packs               = { .File = std::nullopt },
+				};
+			// google/UIforETW#74, recorded 2026-08-08 and replayed. The
+			// capability directory is `github-com` by reference rather than by
+			// copy: this pull request lives on github.com, so the honest
+			// capability claim is GitHub.com's own pinned snapshot, and a second
+			// copy of it would be a second thing to keep true.
+			//
+			// The commit identifiers are the ones
+			// `scripts/build_recorded_pull_request_pack.py` writes, not the ones
+			// GitHub served. Rebuilding GitHub's requires trees, parents and
+			// author records the recording does not carry, and the divergence is
+			// recorded in the fixture's README rather than hidden.
+			//
+			// The blob identifiers are empty because nothing this fixture can
+			// run reads them: they exist for `request_fixture_diff`, which the
+			// diff-workbench and native-appearance probes reach and which both
+			// refuse every fixture but `github-com`.
+			case github_public_path_fixture::uiforetw_74:
+				return {
+					.ContractDirectory   = "uiforetw-74",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 74U },
+					.Owner               = "google",
+					.Name                = "UIforETW",
+					.BaseRef             = "refs/heads/master",
+					.BaseOid             = "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+					.HeadOneOid          = "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "uiforetw-74/objects.pack" },
 				};
 			}
 			return { };
+		}
+
+		/// \brief Builds the pack pair one descriptor asks for.
+		[[nodiscard]] auto make_git_fixture(const fixture_pack_source aSource)
+			-> std::shared_ptr<deterministic_git_fixture>
+		{
+			return aSource.File.has_value()
+				? std::make_shared<deterministic_git_fixture>(*aSource.File)
+				: std::make_shared<deterministic_git_fixture>();
 		}
 
 		[[nodiscard]] auto response_headers()
@@ -1042,6 +1129,12 @@ namespace bpr::app::detail {
 		}
 	}
 
+	auto github_public_path_fixture_serves_second_head(
+		const github_public_path_fixture aFixture) noexcept -> bool
+	{
+		return !descriptor(aFixture).HeadTwoOid.empty();
+	}
+
 	class github_public_path_fixture_components::implementation final
 	{
 	public:
@@ -1061,9 +1154,10 @@ namespace bpr::app::detail {
 					"GitHub public-path installed Git is unavailable"
 				};
 			}
-			Git       = std::make_shared<deterministic_git_fixture>();
-			Recording = std::make_shared<fixture_recording_state>(
-				descriptor(aFixture), aProfile, Git, aOptions.EpochPhase);
+			const auto served = descriptor(aFixture);
+			Git               = make_git_fixture(served.Packs);
+			Recording         = std::make_shared<fixture_recording_state>(
+				served, aProfile, Git, aOptions.EpochPhase);
 			Factory    = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState = std::make_shared<fixture_vault_state>();
 			Vault      = std::make_unique<fixture_credential_vault>(

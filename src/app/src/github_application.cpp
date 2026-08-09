@@ -190,6 +190,19 @@ namespace bpr::app {
 					.Hostname = "ghe.example.invalid",
 					.Label    = "GHES 3.18 — Recorded native HTTPS",
 				};
+			// The recorded pull request lives on github.com, so it is served on
+			// the same host profile the synthetic github.com fixture uses. Only
+			// the label differs, and the label is not what the active-host text
+			// is built from - that is the hostname and the product.
+			case detail::github_public_path_fixture::uiforetw_74:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Recorded google/UIforETW#74",
+				};
 			}
 			return { };
 		}
