@@ -58,6 +58,8 @@ namespace bpr::qt {
 			QWidget*                                aParent   = nullptr);
 
 		void set_dispatch(application::appearance_intent_dispatch aDispatch);
+		/// \brief Reports that an accepted session change could not be persisted.
+		void report_persistence_unavailable();
 
 		/// \brief Shows the settings the host has put into effect.
 		void adopt(const application::appearance_settings& aSettings);
@@ -98,6 +100,9 @@ namespace bpr::qt {
 		/// produced it, and a rejection would re-offer the record that was just
 		/// refused.
 		void show_adopted();
+		/// \brief Adds the session-only diagnostic when persistence is unavailable.
+		[[nodiscard]] auto with_persistence_status(QString aStatus) const
+			-> QString;
 
 		application::appearance_intent_dispatch Dispatch;
 		/// The last record the host published. This is a mirror rather than an
@@ -105,20 +110,21 @@ namespace bpr::qt {
 		/// refusal has something exact to restore.
 		application::appearance_settings AdoptedSettings;
 
-		QComboBox* ModeSelector = nullptr;
-		QLineEdit* UiFamily     = nullptr;
-		QSpinBox*  UiSize       = nullptr;
-		QSpinBox*  UiWeight     = nullptr;
-		QSpinBox*  UiLineHeight = nullptr;
-		QLineEdit* CodeFamily   = nullptr;
-		QSpinBox*  CodeSize     = nullptr;
-		QSpinBox*  CodeWeight   = nullptr;
-		QSpinBox*  TabWidth     = nullptr;
-		QCheckBox* Ligatures    = nullptr;
-		QCheckBox* SyntaxBold   = nullptr;
-		QCheckBox* SyntaxItalic = nullptr;
-		QLabel*    Status       = nullptr;
-		bool       Echoing      = false;
+		QComboBox* ModeSelector         = nullptr;
+		QLineEdit* UiFamily             = nullptr;
+		QSpinBox*  UiSize               = nullptr;
+		QSpinBox*  UiWeight             = nullptr;
+		QSpinBox*  UiLineHeight         = nullptr;
+		QLineEdit* CodeFamily           = nullptr;
+		QSpinBox*  CodeSize             = nullptr;
+		QSpinBox*  CodeWeight           = nullptr;
+		QSpinBox*  TabWidth             = nullptr;
+		QCheckBox* Ligatures            = nullptr;
+		QCheckBox* SyntaxBold           = nullptr;
+		QCheckBox* SyntaxItalic         = nullptr;
+		QLabel*    Status               = nullptr;
+		bool       Echoing              = false;
+		bool       PersistenceAvailable = true;
 
 		appearance_settings_panel_statistics Statistics;
 	};

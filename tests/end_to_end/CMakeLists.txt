@@ -562,6 +562,32 @@ bpr_bound_automated_run(
 )
 
 add_test(
+    NAME application_appearance_store_fallback_contract
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-store-fallback-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/appearance_store_fallback_contract.cmake"
+)
+set_tests_properties(
+    application_appearance_store_fallback_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "APPEARANCE_STORE_FALLBACK_CONTRACT_OK"
+)
+# Two budgeted real-executable runs: the session switch with a classified diff,
+# then a restart against the same obstructed appearance-store path.
+bpr_bound_automated_run(
+    application_appearance_store_fallback_contract
+    TIMEOUT 120
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 2
+    RESERVE_MS 4000
+)
+
+add_test(
     NAME binary_dependency_surface
     COMMAND
         Python3::Interpreter

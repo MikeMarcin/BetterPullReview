@@ -456,6 +456,43 @@ namespace bpr::app {
 			};
 		}
 
+		/// \brief Keeps the appearance host usable without claiming persistence.
+		///
+		/// \details A missing record is the System-mode composed default. Writes
+		/// report unavailable because the host's `persisted_settings` counter is
+		/// explicitly a durable-success counter; returning success here would turn
+		/// a session-only change into false persistence evidence.
+		class session_only_appearance_settings final
+			: public application::appearance_settings_port
+		{
+		public:
+			[[nodiscard]] auto load(const std::stop_token aStop)
+				-> application::appearance_settings_result<
+					std::optional<application::appearance_settings>> override
+			{
+				if (aStop.stop_requested()) {
+					return std::unexpected{
+						application::appearance_settings_error{
+							.Failure = application::appearance_settings_failure::cancelled,
+						}
+					};
+				}
+				return std::nullopt;
+			}
+
+			[[nodiscard]] auto store(
+				const application::appearance_settings&,
+				const std::stop_token aStop)
+				-> application::appearance_settings_result<void> override
+			{
+				return std::unexpected{ application::appearance_settings_error{
+					.Failure = aStop.stop_requested()
+						? application::appearance_settings_failure::cancelled
+						: application::appearance_settings_failure::unavailable,
+				} };
+			}
+		};
+
 		[[nodiscard]] auto prompt_for_credential(
 			QWidget* aParent) -> std::optional<application::github_credential_material>
 		{
@@ -881,7 +918,11 @@ namespace bpr::app {
 				.StorageRoot = applicationDataRoot,
 			});
 			if (appearance) {
-				AppearanceSettings = std::move(*appearance);
+				AppearanceSettings             = std::move(*appearance);
+				AppearancePersistenceAvailable = true;
+			} else {
+				AppearanceSettings
+					= std::make_unique<session_only_appearance_settings>();
 			}
 
 			EpochEntropy = application::make_system_epoch_entropy();
@@ -1008,71 +1049,72 @@ namespace bpr::app {
 				*SyntaxDefinitions,
 				*SyntaxBlobs);
 
-			if (AppearanceSettings) {
-				AppearanceProjections.set_span_sink(
-					[this](const application::token_span_publication& aSpans) {
-						adopt_classification(aSpans);
-					});
-				AppearanceProjections.set_presentation_sink(
-					[this] { adopt_appearance_settings(); });
-				AppearanceProjections.set_refusal_sink(
-					[this](const application::appearance_failure_publication&
-							   aFailure) { report_appearance_refusal(aFailure); });
-				AppearanceHost = std::make_unique<
-					application::appearance_application_host>(
-					qt::default_appearance_settings(),
-					*AppearanceSettings,
-					*SyntaxClassification,
-					AppearanceEffects,
-					DecisionLane,
-					AppearanceProjections,
-					core::application_session_id{ 1U });
-				// Loads the durable record. An absent record keeps the composed
-				// settings and is never written back, so a fresh installation
-				// stays a fresh installation until the reviewer chooses
-				// something.
-				AppearanceHost->restore();
+			AppearanceProjections.set_span_sink(
+				[this](const application::token_span_publication& aSpans) {
+					adopt_classification(aSpans);
+				});
+			AppearanceProjections.set_presentation_sink(
+				[this] { adopt_appearance_settings(); });
+			AppearanceProjections.set_refusal_sink(
+				[this](const application::appearance_failure_publication&
+						   aFailure) { report_appearance_refusal(aFailure); });
+			AppearanceHost = std::make_unique<
+				application::appearance_application_host>(
+				qt::default_appearance_settings(),
+				*AppearanceSettings,
+				*SyntaxClassification,
+				AppearanceEffects,
+				DecisionLane,
+				AppearanceProjections,
+				core::application_session_id{ 1U });
+			// Loads the durable record. An absent record keeps the composed
+			// settings and is never written back, so a fresh installation
+			// stays a fresh installation until the reviewer chooses
+			// something.
+			AppearanceHost->restore();
 
-				// The Qt adapter is the presentation authority for appearance;
-				// the host owns the durable record and the span cache. The
-				// profile is therefore built *from* the host's settings after
-				// restore, so a stored mode is the one presentation starts on
-				// rather than one it is corrected to a frame later.
-				AppearanceProfile = std::make_unique<qt::appearance_profile>(
-					AppearanceHost->settings(),
-					native_appearance_observation());
-				AppearanceProfile->set_sink([this] { apply_appearance(); });
+			// The Qt adapter is the presentation authority for appearance;
+			// the host owns the durable record and the span cache. The
+			// profile is therefore built *from* the host's settings after
+			// restore, so a stored mode is the one presentation starts on
+			// rather than one it is corrected to a frame later.
+			AppearanceProfile = std::make_unique<qt::appearance_profile>(
+				AppearanceHost->settings(),
+				native_appearance_observation());
+			AppearanceProfile->set_sink([this] { apply_appearance(); });
 
-				// The native scheme is an *observation*, not a setting. This is
-				// the inversion the whole slice exists for: before it, the
-				// operating system decided presentation directly and an
-				// explicit mode had nothing to ignore. Now the system reports
-				// and `core::resolve_appearance` decides.
-				if (auto* const hints = QGuiApplication::styleHints();
-					hints != nullptr) {
-					QObject::connect(
-						hints,
-						&QStyleHints::colorSchemeChanged,
-						Window.get(),
-						[this] { observe_native_appearance(); });
-				}
-				// The settings surface dispatches into the host, never into
-				// presentation. That is what makes the host the single
-				// authority on what is in effect: a gesture that reached the
-				// profile directly would change the screen without changing
-				// the record, and the next launch would silently disagree.
-				if (auto* const panel = Window->appearance_settings();
-					panel != nullptr) {
-					panel->set_dispatch(
-						[this](application::appearance_intent aIntent) {
-							dispatch_appearance_intent(std::move(aIntent));
-						});
-				}
-				// Shows what restore() loaded, so the surface opens on the
-				// settings actually in effect rather than on its own defaults.
-				adopt_appearance_settings();
-				apply_appearance();
+			// The native scheme is an *observation*, not a setting. This is
+			// the inversion the whole slice exists for: before it, the
+			// operating system decided presentation directly and an
+			// explicit mode had nothing to ignore. Now the system reports
+			// and `core::resolve_appearance` decides.
+			if (auto* const hints = QGuiApplication::styleHints();
+				hints != nullptr) {
+				QObject::connect(
+					hints,
+					&QStyleHints::colorSchemeChanged,
+					Window.get(),
+					[this] { observe_native_appearance(); });
 			}
+			// The settings surface dispatches into the host, never into
+			// presentation. That is what makes the host the single
+			// authority on what is in effect: a gesture that reached the
+			// profile directly would change the screen without changing
+			// the record, and the next launch would silently disagree.
+			if (auto* const panel = Window->appearance_settings();
+				panel != nullptr) {
+				if (!AppearancePersistenceAvailable) {
+					panel->report_persistence_unavailable();
+				}
+				panel->set_dispatch(
+					[this](application::appearance_intent aIntent) {
+						dispatch_appearance_intent(std::move(aIntent));
+					});
+			}
+			// Shows what restore() loaded, so the surface opens on the
+			// settings actually in effect rather than on its own defaults.
+			adopt_appearance_settings();
+			apply_appearance();
 		}
 
 		~implementation() override
@@ -1443,7 +1485,13 @@ namespace bpr::app {
 			}
 			if (auto* const panel = Window->appearance_settings();
 				panel != nullptr) {
-				panel->report(aFailure.Rejections);
+				if (!AppearancePersistenceAvailable
+					&& aFailure.Failure
+						== application::appearance_host_failure::settings_unavailable) {
+					panel->report_persistence_unavailable();
+				} else {
+					panel->report(aFailure.Rejections);
+				}
 			}
 		}
 
@@ -1585,7 +1633,8 @@ namespace bpr::app {
 		std::unique_ptr<qt::appearance_profile>                        AppearanceProfile;
 		std::string                                                    AppliedSelectionColor;
 		std::string                                                    AppliedBaseColor;
-		bool                                                           AppliedFromProfile = false;
+		bool                                                           AppliedFromProfile             = false;
+		bool                                                           AppearancePersistenceAvailable = false;
 		std::unique_ptr<application::epoch_entropy_port>               EpochEntropy;
 		std::unique_ptr<application::epoch_clock_port>                 EpochClock;
 		worker_executor                                                EpochEffects;
@@ -1661,48 +1710,52 @@ namespace bpr::app {
 	auto github_application::status() const noexcept -> github_application_status
 	{
 		return {
-			.Closing                       = Implementation->Closing,
-			.ShutdownComplete              = Implementation->ShutdownComplete,
-			.ShutdownCleanupFailed         = Implementation->ShutdownCleanupFailed,
-			.NativePlatformVaultSelected   = Implementation->NativePlatformVaultSelected,
-			.EpochProjectionDeliveryFailed = Implementation->EpochProjectionDeliveryFailed,
-			.ObservedScheme                = Implementation->AppearanceProfile
+			.Closing                        = Implementation->Closing,
+			.ShutdownComplete               = Implementation->ShutdownComplete,
+			.ShutdownCleanupFailed          = Implementation->ShutdownCleanupFailed,
+			.NativePlatformVaultSelected    = Implementation->NativePlatformVaultSelected,
+			.EpochProjectionDeliveryFailed  = Implementation->EpochProjectionDeliveryFailed,
+			.ObservedScheme                 = Implementation->AppearanceProfile
 				? Implementation->AppearanceProfile->observation().Scheme
 				: core::os_color_scheme::unknown,
-			.ResolvedVariant               = Implementation->AppearanceProfile
+			.ResolvedVariant                = Implementation->AppearanceProfile
 				? Implementation->AppearanceProfile->variant()
 				: core::appearance_variant::light,
-			.CustomisedRoles               = Implementation->AppearanceProfile
+			.CustomisedRoles                = Implementation->AppearanceProfile
 				? Implementation->AppearanceProfile->customised_roles()
 				: 0U,
-			.EpochHandoffDeliveryFailed    = Implementation->Host->epoch_handoff_delivery_failed(),
-			.EpochStatus                   = Implementation->EpochHost->state().Status,
-			.WorkbenchHostComposed         = Implementation->WorkbenchHost != nullptr,
-			.AppearanceHostComposed        = Implementation->AppearanceHost != nullptr,
-			.AppliedSelectionColor         = Implementation->AppliedSelectionColor,
-			.AppliedBaseColor              = Implementation->AppliedBaseColor,
-			.AppliedFromProfile            = Implementation->AppliedFromProfile,
-			.SyntaxClassifierComposed      = Implementation->SyntaxClassification != nullptr,
-			.AdoptedClassifications        = Implementation->AdoptedClassifications,
-			.ClassificationSubmissions     = Implementation->AppearanceHost != nullptr
+			.EpochHandoffDeliveryFailed     = Implementation->Host->epoch_handoff_delivery_failed(),
+			.EpochStatus                    = Implementation->EpochHost->state().Status,
+			.WorkbenchHostComposed          = Implementation->WorkbenchHost != nullptr,
+			.AppearanceHostComposed         = Implementation->AppearanceHost != nullptr,
+			.AppearancePersistenceAvailable = Implementation->AppearancePersistenceAvailable,
+			.AppearanceDurableWrites        = Implementation->AppearanceHost != nullptr
+				? Implementation->AppearanceHost->persisted_settings()
+				: 0U,
+			.AppliedSelectionColor          = Implementation->AppliedSelectionColor,
+			.AppliedBaseColor               = Implementation->AppliedBaseColor,
+			.AppliedFromProfile             = Implementation->AppliedFromProfile,
+			.SyntaxClassifierComposed       = Implementation->SyntaxClassification != nullptr,
+			.AdoptedClassifications         = Implementation->AdoptedClassifications,
+			.ClassificationSubmissions      = Implementation->AppearanceHost != nullptr
 				? Implementation->AppearanceHost->classification_submissions()
 				: 0U,
-			.AppearanceMode                = Implementation->AppearanceHost != nullptr
+			.AppearanceMode                 = Implementation->AppearanceHost != nullptr
 				? std::string{ core::stable_name(
 					  Implementation->AppearanceHost->settings().Mode) }
 				: std::string{ },
-			.AppearanceTabWidth            = Implementation->AppearanceHost != nullptr
+			.AppearanceTabWidth             = Implementation->AppearanceHost != nullptr
 				? Implementation->AppearanceHost->settings().Typography.Code.TabWidth
 				: 0U,
-			.AppearanceDivergences         = Implementation->AppearanceDivergences,
-			.ProfileMode                   = Implementation->AppearanceProfile
+			.AppearanceDivergences          = Implementation->AppearanceDivergences,
+			.ProfileMode                    = Implementation->AppearanceProfile
 				? Implementation->AppearanceProfile->mode()
 				: core::appearance_mode::system,
-			.ProfileVariant                = Implementation->AppearanceProfile
+			.ProfileVariant                 = Implementation->AppearanceProfile
 				? Implementation->AppearanceProfile->variant()
 				: core::appearance_variant::light,
-			.NotificationDeliveryComposed  = Implementation->Notifications != nullptr,
-			.NotificationPermission        = Implementation->NotificationSink != nullptr
+			.NotificationDeliveryComposed   = Implementation->Notifications != nullptr,
+			.NotificationPermission         = Implementation->NotificationSink != nullptr
 				? Implementation->NotificationSink->permission()
 				: application::notification_permission::refused,
 		};

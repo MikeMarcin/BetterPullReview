@@ -212,13 +212,20 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 	}
 
+	void appearance_settings_panel::report_persistence_unavailable()
+	{
+		PersistenceAvailable = false;
+		Status->setText(with_persistence_status(QString{ }));
+	}
+
 	void appearance_settings_panel::adopt(
 		const application::appearance_settings& aSettings)
 	{
 		AdoptedSettings = aSettings;
 		++Statistics.Adoptions;
 		show_adopted();
-		Status->setText(QStringLiteral("Appearance settings are in effect."));
+		Status->setText(with_persistence_status(
+			QStringLiteral("Appearance settings are in effect.")));
 	}
 
 	void appearance_settings_panel::report(
@@ -230,7 +237,8 @@ namespace bpr::qt {
 		// that was not adopted.
 		show_adopted();
 		if (aRejections.empty()) {
-			Status->setText(QStringLiteral("Appearance settings were refused."));
+			Status->setText(with_persistence_status(
+				QStringLiteral("Appearance settings were refused.")));
 			return;
 		}
 		auto text = QStringLiteral("Refused, and nothing changed:");
@@ -241,7 +249,7 @@ namespace bpr::qt {
 							field_text(rejection.Field),
 							reason_text(rejection.Reason));
 		}
-		Status->setText(text);
+		Status->setText(with_persistence_status(std::move(text)));
 	}
 
 	auto appearance_settings_panel::mode_selector() const noexcept -> QComboBox*
@@ -405,5 +413,21 @@ namespace bpr::qt {
 		SyntaxBold->setChecked(record.Typography.Code.SyntaxBold);
 		SyntaxItalic->setChecked(record.Typography.Code.SyntaxItalic);
 		Echoing = false;
+	}
+
+	auto appearance_settings_panel::with_persistence_status(
+		QString aStatus) const -> QString
+	{
+		if (PersistenceAvailable) {
+			return aStatus;
+		}
+		if (!aStatus.isEmpty()) {
+			aStatus += QLatin1Char('\n');
+		}
+		aStatus += QStringLiteral(
+			"Settings storage is unavailable. Appearance changes apply only "
+			"for this session; if storage remains unavailable, the next launch "
+			"uses System defaults.");
+		return aStatus;
 	}
 } // namespace bpr::qt

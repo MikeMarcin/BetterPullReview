@@ -243,6 +243,24 @@ namespace {
 			"a refusal does not read as a success");
 	}
 
+	/// \brief Session-only settings must stay visibly session-only after adoption.
+	void test_persistence_failure_remains_visible_across_session_changes()
+	{
+		auto panel = qt::appearance_settings_panel{ };
+		panel.report_persistence_unavailable();
+		expect(
+			panel.status_text().contains(QStringLiteral("storage is unavailable"))
+				&& panel.status_text().contains(QStringLiteral("only for this session"))
+				&& panel.status_text().contains(QStringLiteral("System defaults")),
+			"the surface names the session-only fallback and restart default");
+
+		panel.adopt(legal_settings());
+		expect(
+			panel.status_text().contains(QStringLiteral("in effect"))
+				&& panel.status_text().contains(QStringLiteral("only for this session")),
+			"a later session adoption cannot hide that persistence is unavailable");
+	}
+
 	/// \brief Adopting must show, not dispatch.
 	void test_adoption_shows_without_dispatching()
 	{
@@ -282,6 +300,7 @@ auto main(int argc, char** argv) -> int
 	test_font_gestures_translate_to_intents();
 	test_numeric_controls_carry_the_core_bounds();
 	test_a_refusal_restores_and_reports();
+	test_persistence_failure_remains_visible_across_session_changes();
 	test_adoption_shows_without_dispatching();
 	std::cout << "appearance-settings-panel-tests:pass\n";
 	return EXIT_SUCCESS;

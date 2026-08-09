@@ -64,10 +64,12 @@ retained accepted content, read-only conversations, and connected epoch
 controls. The natural-layout selected-file comparison, workbench navigation,
 drawers, and detail components are directly exercised in harnesses, but a
 reviewer cannot currently reach them because the shell-to-host wires described
-above are absent. Appearance profiles and syntax components are composed only
-while their durable settings store opens; BPR-0236 owns the promised default
-fallback, and BPR-0237 owns the still-missing semantic customization and safe
-theme import.
+above are absent. Appearance profiles and syntax components remain composed
+when their durable settings store cannot open. The window then starts from
+System defaults, labels appearance changes as session-only, and keeps syntax
+classification and profile switching available; a restart under the same
+failure returns to those defaults. BPR-0237 owns the still-missing semantic
+customization and safe theme import.
 
 ## Architecture
 

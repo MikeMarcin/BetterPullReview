@@ -2370,6 +2370,13 @@ namespace {
 			   << (aApplication.status().AppliedFromProfile ? ":from-profile"
 															: ":from-platform")
 			   << '\n';
+		stream << (aApplication.status().AppearancePersistenceAvailable
+					   ? "APPEARANCE_PERSISTENCE_AVAILABLE\n"
+					   : "APPEARANCE_PERSISTENCE_UNAVAILABLE\n");
+		stream << "APPEARANCE_DURABLE_WRITES:"
+			   << static_cast<unsigned long long>(
+					  aApplication.status().AppearanceDurableWrites)
+			   << '\n';
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Appearance.Enabled) {
 			stream << (aRun.Appearance.ProfileFollowsPassed
@@ -3435,6 +3442,13 @@ auto main(int argc, char** argv) -> int
 		auto enterpriseHostname = config.EnterpriseHostname;
 
 #if defined(BPR_BUILD_TESTING)
+		const auto testApplicationDataRoot = argument_value(
+			argc, argv, "--test-application-data-root");
+		if (testApplicationDataRoot.has_value()) {
+			config.ApplicationDataRoot = std::filesystem::path{
+				std::string{ *testApplicationDataRoot }
+			};
+		}
 		auto fixtureName            = std::string{ };
 		auto expectedActiveHostText = std::string{ };
 		auto fixtureExpectations    = fixture_run_expectations{ };
@@ -3548,6 +3562,18 @@ auto main(int argc, char** argv) -> int
 
 		const auto selfTest   = has_argument(argc, argv, "--self-test");
 		const auto renderPath = argument_value(argc, argv, "--render-evidence");
+
+#if defined(BPR_BUILD_TESTING)
+		// A persistent root without a fixture exists only for restart contracts.
+		// Keep the seam out of production and refuse it on interactive or fixture
+		// runs, where it could silently redirect real local state.
+		if (testApplicationDataRoot.has_value()
+			&& (!selfTest || selectedFixture.has_value())) {
+			QTextStream{ stdout }
+				<< "TEST_APPLICATION_DATA_ROOT_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+#endif
 
 		// The harness that starts this process knows its own timeout; this is
 		// how it tells the run to stop first. Refused rather than clamped when

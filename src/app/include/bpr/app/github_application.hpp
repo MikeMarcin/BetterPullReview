@@ -37,6 +37,13 @@ namespace bpr::app {
 		// constructor ever runs. This is the runtime half of that evidence.
 		bool WorkbenchHostComposed  = false;
 		bool AppearanceHostComposed = false;
+		/// Whether the appearance host is backed by its durable settings store.
+		/// False means appearance remains available for this session, but changes
+		/// cannot survive a restart.
+		bool AppearancePersistenceAvailable = false;
+		/// Durable settings writes completed by the appearance host. Session-only
+		/// writes must never advance this evidence counter.
+		std::size_t AppearanceDurableWrites = 0U;
 		// The window palette's selection and code-background colours after the
 		// profile was applied, as #rrggbb. Empty when no profile was applied.
 		// Reported rather than a bare boolean because "a profile exists" and
