@@ -86,7 +86,9 @@ namespace bpr::app::detail {
 		public:
 			// Fixed packs from the documented synthetic three-commit graph keep
 			// process ownership in the installed-Git adapter while still exercising
-			// strict connected-pack import through the public application.
+			// strict connected-pack import through the public application. The
+			// commit and blob identifiers these packs carry are stated once, by the
+			// serving fixture's descriptor, so the served identity has one source.
 			deterministic_git_fixture()
 				: PackOne{ QByteArray::fromBase64(QByteArrayLiteral(
 					  "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")) }
@@ -99,14 +101,8 @@ namespace bpr::app::detail {
 				}
 			}
 
-			std::string Base        = "757e8f259231f0cb31b6774c14e6acdbf54b48f3";
-			std::string HeadOne     = "f9108913c053354eab2e4771eef27e957a400966";
-			std::string HeadTwo     = "6458d96bf0ccddc1ef2fcf60e61c93a28e69d665";
-			std::string BaseBlob    = "7fc38b17790c8f590618f6d1884466dd2b0d42d8";
-			std::string HeadOneBlob = "88979e3f655e5b605ffbfe52ef40f9ff4d4766a0";
-			std::string HeadTwoBlob = "6492ffe72d75f6c783b8ea948f3a94732cbdd628";
-			QByteArray  PackOne;
-			QByteArray  PackTwo;
+			QByteArray PackOne;
+			QByteArray PackTwo;
 		};
 
 		void replace_all(std::string&           aValue,
@@ -137,28 +133,87 @@ namespace bpr::app::detail {
 			return aValue.toUtf8().toStdString();
 		}
 
-		[[nodiscard]] constexpr auto fixture_directory(
-			const github_public_path_fixture aFixture) noexcept -> std::string_view
+		/// \brief States everything one served fixture is, in one place.
+		///
+		/// \details The public path used to hardcode a single pull request's
+		/// identity across its recording loader, its pack selection, and its
+		/// smart-transport authority gate. A fixture that serves a different pull
+		/// request cannot satisfy those literals, so they are named here instead
+		/// and every site reads them from the descriptor of the fixture it is
+		/// serving.
+		///
+		/// `HeadTwoOid` is the only optional field: a fixture that serves one head
+		/// leaves it empty. An empty value is not a wildcard and must never match
+		/// an observed head - see `fixture_recorded_wire_transport::acquire`.
+		struct fixture_descriptor
+		{
+			std::string_view          ContractDirectory;
+			std::string_view          CapabilityDirectory;
+			server_contract           Server;
+			core::github_account_id   AccountId;
+			core::repository_id       RepositoryId;
+			core::pull_request_id     PullRequestId;
+			core::pull_request_number Number;
+			std::string_view          Owner;
+			std::string_view          Name;
+			std::string_view          BaseRef;
+			std::string_view          BaseOid;
+			std::string_view          HeadOneOid;
+			std::string_view          HeadTwoOid;
+			std::string_view          BaseBlob;
+			std::string_view          HeadOneBlob;
+			std::string_view          HeadTwoBlob;
+		};
+
+		/// \brief Selects the descriptor the named fixture serves.
+		///
+		/// \details A switch rather than a table lookup, so `-Wswitch` makes a new
+		/// fixture value state its own identity rather than silently inheriting
+		/// the synthetic one these two share.
+		[[nodiscard]] constexpr auto descriptor(
+			const github_public_path_fixture aFixture) noexcept -> fixture_descriptor
 		{
 			switch (aFixture) {
 			case github_public_path_fixture::github_com:
-				return "github-com";
+				return {
+					.ContractDirectory   = "github-com",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1001U },
+					.RepositoryId        = core::repository_id{ 2001U },
+					.PullRequestId       = core::pull_request_id{ 3001U },
+					.Number              = core::pull_request_number{ 17U },
+					.Owner               = "octo-org",
+					.Name                = "review-repository",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "757e8f259231f0cb31b6774c14e6acdbf54b48f3",
+					.HeadOneOid          = "f9108913c053354eab2e4771eef27e957a400966",
+					.HeadTwoOid          = "6458d96bf0ccddc1ef2fcf60e61c93a28e69d665",
+					.BaseBlob            = "7fc38b17790c8f590618f6d1884466dd2b0d42d8",
+					.HeadOneBlob         = "88979e3f655e5b605ffbfe52ef40f9ff4d4766a0",
+					.HeadTwoBlob         = "6492ffe72d75f6c783b8ea948f3a94732cbdd628",
+				};
 			case github_public_path_fixture::ghes_3_18:
-				return "ghes-3.18";
+				return {
+					.ContractDirectory   = "ghes-3.18",
+					.CapabilityDirectory = "ghes-3.18",
+					.Server              = server_contract::ghes_3_18,
+					.AccountId           = core::github_account_id{ 1001U },
+					.RepositoryId        = core::repository_id{ 2001U },
+					.PullRequestId       = core::pull_request_id{ 3001U },
+					.Number              = core::pull_request_number{ 17U },
+					.Owner               = "octo-org",
+					.Name                = "review-repository",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "757e8f259231f0cb31b6774c14e6acdbf54b48f3",
+					.HeadOneOid          = "f9108913c053354eab2e4771eef27e957a400966",
+					.HeadTwoOid          = "6458d96bf0ccddc1ef2fcf60e61c93a28e69d665",
+					.BaseBlob            = "7fc38b17790c8f590618f6d1884466dd2b0d42d8",
+					.HeadOneBlob         = "88979e3f655e5b605ffbfe52ef40f9ff4d4766a0",
+					.HeadTwoBlob         = "6492ffe72d75f6c783b8ea948f3a94732cbdd628",
+				};
 			}
 			return { };
-		}
-
-		[[nodiscard]] constexpr auto fixture_server(
-			const github_public_path_fixture aFixture) noexcept -> server_contract
-		{
-			switch (aFixture) {
-			case github_public_path_fixture::github_com:
-				return server_contract::github_com;
-			case github_public_path_fixture::ghes_3_18:
-				return server_contract::ghes_3_18;
-			}
-			return server_contract::github_com;
 		}
 
 		[[nodiscard]] auto response_headers()
@@ -196,13 +251,12 @@ namespace bpr::app::detail {
 		}
 
 		[[nodiscard]] auto load_recording(
-			const github_public_path_fixture aFixture,
-			const deterministic_git_fixture& aGit,
-			const std::string_view           aHead)
+			const fixture_descriptor& aDescriptor,
+			const std::string_view    aHead)
 			-> std::vector<recorded_exchange>
 		{
 			const auto root = std::filesystem::path{ BPR_GITHUB_CONTRACT_FIXTURE_ROOT }
-				/ fixture_directory(aFixture);
+				/ aDescriptor.ContractDirectory;
 			const auto manifest     = parse_object(root / "manifest.json");
 			const auto interactions = manifest.value("interactions").toArray();
 			if (interactions.size()
@@ -264,9 +318,9 @@ namespace bpr::app::detail {
 				auto responseBody = read_all(responseFile);
 				replace_all(responseBody,
 							"1111111111111111111111111111111111111111",
-							aGit.Base);
+							aDescriptor.BaseOid);
 				const auto observedHead = *operation == read_operation::list_reviews
-					? std::string_view{ aGit.HeadOne }
+					? aDescriptor.HeadOneOid
 					: aHead;
 				replace_all(responseBody,
 							"2222222222222222222222222222222222222222",
@@ -275,7 +329,7 @@ namespace bpr::app::detail {
 					{
 						.Request = {
 							.Semantic  = { },
-							.Server    = fixture_server(aFixture),
+							.Server    = aDescriptor.Server,
 							.Operation = *operation,
 							.Method    = *method,
 							.Path      = std::move(requestPath),
@@ -295,11 +349,11 @@ namespace bpr::app::detail {
 		}
 
 		[[nodiscard]] auto load_capability_response(
-			const github_public_path_fixture aFixture) -> std::string
+			const std::string_view aCapabilityDirectory) -> std::string
 		{
 			return read_all(
 				std::filesystem::path{ BPR_GITHUB_CAPABILITY_FIXTURE_ROOT }
-				/ fixture_directory(aFixture) / "supported.json");
+				/ aCapabilityDirectory / "supported.json");
 		}
 
 		[[nodiscard]] auto same_profile(
@@ -321,11 +375,10 @@ namespace bpr::app::detail {
 		}
 
 		[[nodiscard]] auto load_bootstrap_recording(
-			const github_public_path_fixture aFixture,
-			const deterministic_git_fixture& aGit)
+			const fixture_descriptor& aDescriptor)
 			-> std::vector<recorded_exchange>
 		{
-			auto exchanges = load_recording(aFixture, aGit, aGit.HeadOne);
+			auto exchanges = load_recording(aDescriptor, aDescriptor.HeadOneOid);
 			exchanges.resize(1U);
 			return exchanges;
 		}
@@ -333,23 +386,23 @@ namespace bpr::app::detail {
 		struct fixture_recording_state
 		{
 			fixture_recording_state(
-				const github_public_path_fixture                       aSelectedFixture,
+				const fixture_descriptor&                              aDescriptor,
 				const adapters::github::validated_github_host_profile& aSelectedProfile,
 				std::shared_ptr<deterministic_git_fixture>             aGit,
 				const github_epoch_fixture_phase                       aPhase)
-				: Profile{ aSelectedProfile }
+				: Descriptor{ aDescriptor }
+				, Profile{ aSelectedProfile }
 				, Git{ std::move(aGit) }
-				, BootstrapRecording{ load_bootstrap_recording(aSelectedFixture, *Git) }
+				, BootstrapRecording{ load_bootstrap_recording(Descriptor) }
 				, Recording{ [&] {
 					auto result = load_recording(
-						aSelectedFixture,
-						*Git,
+						Descriptor,
 						aPhase == github_epoch_fixture_phase::reuse
-							? std::string_view{ Git->HeadTwo }
-							: std::string_view{ Git->HeadOne });
+							? Descriptor.HeadTwoOid
+							: Descriptor.HeadOneOid);
 					if (aPhase == github_epoch_fixture_phase::seed) {
 						auto second = load_recording(
-							aSelectedFixture, *Git, Git->HeadTwo);
+							Descriptor, Descriptor.HeadTwoOid);
 						if (second.empty()) {
 							throw std::runtime_error{
 								"GitHub fixture refresh recording is empty"
@@ -363,10 +416,14 @@ namespace bpr::app::detail {
 					}
 					return result;
 				}() }
-				, CapabilityBody{ load_capability_response(aSelectedFixture) }
+				, CapabilityBody{ load_capability_response(
+					  Descriptor.CapabilityDirectory) }
 			{
 			}
 
+			// Fixed at construction and read from the transport threads without the
+			// mutex, which the const keeps true.
+			const fixture_descriptor                        Descriptor;
 			adapters::github::validated_github_host_profile Profile;
 			std::shared_ptr<deterministic_git_fixture>      Git;
 			strict_recorded_transport                       BootstrapRecording;
@@ -571,10 +628,12 @@ namespace bpr::app::detail {
 				const auto head = std::string{
 					core::canonical_hex(Context.Revision.Head).view()
 				};
-				const auto& pack = head == State->Git->HeadOne
+				const auto& fixture = State->Descriptor;
+				const auto& pack    = head == fixture.HeadOneOid
 					? State->Git->PackOne
-					: head == State->Git->HeadTwo ? State->Git->PackTwo
-												  : QByteArray{ };
+					: (!fixture.HeadTwoOid.empty() && head == fixture.HeadTwoOid)
+					? State->Git->PackTwo
+					: QByteArray{ };
 				if (pack.isEmpty()) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::
@@ -717,18 +776,26 @@ namespace bpr::app::detail {
 			{
 				const auto base = std::string{ core::canonical_hex(aContext.Revision.Base).view() };
 				const auto head = std::string{ core::canonical_hex(aContext.Revision.Head).view() };
+				// Every field below is compared exactly against the descriptor of the
+				// one fixture this transport serves. Nothing here is a wildcard.
+				const auto& fixture = State->Descriptor;
+				// The second head is the one optional identity, and absence is not
+				// permission: an empty `HeadTwoOid` describes a fixture that serves a
+				// single head, so it is matched only when present, and then exactly.
+				const auto acceptedHead = head == fixture.HeadOneOid
+					|| (!fixture.HeadTwoOid.empty() && head == fixture.HeadTwoOid);
 				if (Role != fixture_transport_role::account
 					|| !application::valid(aContext)
-					|| aContext.Authority.Account != core::github_account_id{ 1001U }
-					|| aContext.Authority.Repository != core::repository_id{ 2001U }
-					|| aContext.Authority.PullRequest != core::pull_request_id{ 3001U }
-					|| aContext.Authority.Number != core::pull_request_number{ 17U }
+					|| aContext.Authority.Account != fixture.AccountId
+					|| aContext.Authority.Repository != fixture.RepositoryId
+					|| aContext.Authority.PullRequest != fixture.PullRequestId
+					|| aContext.Authority.Number != fixture.Number
 					|| aContext.Repository
 						!= core::repository_locator{
-							.Owner = "octo-org",
-							.Name  = "review-repository",
+							.Owner = std::string{ fixture.Owner },
+							.Name  = std::string{ fixture.Name },
 						}
-					|| aContext.BaseRef.view() != "refs/heads/main" || base != State->Git->Base || (head != State->Git->HeadOne && head != State->Git->HeadTwo)) {
+					|| aContext.BaseRef.view() != fixture.BaseRef || base != fixture.BaseOid || !acceptedHead) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::
 							invalid_request } };
@@ -996,7 +1063,7 @@ namespace bpr::app::detail {
 			}
 			Git       = std::make_shared<deterministic_git_fixture>();
 			Recording = std::make_shared<fixture_recording_state>(
-				aFixture, aProfile, Git, aOptions.EpochPhase);
+				descriptor(aFixture), aProfile, Git, aOptions.EpochPhase);
 			Factory    = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState = std::make_shared<fixture_vault_state>();
 			Vault      = std::make_unique<fixture_credential_vault>(
@@ -1111,12 +1178,13 @@ namespace bpr::app::detail {
 				Implementation->Recording->SmartLsRefsCalls);
 			result.SmartFetchCount = static_cast<int>(
 				Implementation->Recording->SmartFetchCalls);
-			result.BaseOid        = Implementation->Git->Base;
-			result.HeadOneOid     = Implementation->Git->HeadOne;
-			result.HeadTwoOid     = Implementation->Git->HeadTwo;
-			result.BaseBlobOid    = Implementation->Git->BaseBlob;
-			result.HeadOneBlobOid = Implementation->Git->HeadOneBlob;
-			result.HeadTwoBlobOid = Implementation->Git->HeadTwoBlob;
+			const auto& fixture   = Implementation->Recording->Descriptor;
+			result.BaseOid        = fixture.BaseOid;
+			result.HeadOneOid     = fixture.HeadOneOid;
+			result.HeadTwoOid     = fixture.HeadTwoOid;
+			result.BaseBlobOid    = fixture.BaseBlob;
+			result.HeadOneBlobOid = fixture.HeadOneBlob;
+			result.HeadTwoBlobOid = fixture.HeadTwoBlob;
 		}
 		{
 			const std::scoped_lock lock{ Implementation->VaultState->Mutex };

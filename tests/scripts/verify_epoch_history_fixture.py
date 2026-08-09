@@ -118,16 +118,43 @@ def main() -> None:
         if not pack.startswith(b"PACK"):
             fail(f"{name} is not a Git pack")
 
-    source_oids = dict(
-        re.findall(
-            r'std::string\s+(Base|HeadOne|HeadTwo)\s*=\s*"([0-9a-f]{40})";',
-            source,
-        )
-    )
+    # The OIDs moved from `std::string Base = ...` members on
+    # `deterministic_git_fixture` into the per-fixture descriptor, so this reads
+    # the designated initialisers instead. It is still the C++ source being
+    # compared against the manifest, which is the whole point: the identifiers
+    # the product serves and the identifiers this fixture claims cannot drift
+    # apart without one of them being edited.
+    found: dict[str, set[str]] = {}
+    for field, oid in re.findall(
+        r'\.(BaseOid|HeadOneOid|HeadTwoOid)\s*=\s*"([0-9a-f]{40})"',
+        source,
+    ):
+        found.setdefault(field, set()).add(oid)
+
     expected_oids = {
         "Base": objects["base"]["oid"],
         "HeadOne": objects["head_one"]["oid"],
         "HeadTwo": objects["head_two"]["oid"],
+    }
+
+    # Every synthetic fixture shares one three-commit graph, so each field has
+    # exactly one distinct value today. A second fixture serving different
+    # commits makes that false, and this must fail loudly and be scoped to the
+    # synthetic descriptors rather than silently comparing against whichever
+    # value the scrape happened to see last.
+    for field, values in sorted(found.items()):
+        if len(values) != 1:
+            fail(
+                f"{field} now has {len(values)} distinct values in the fixture "
+                f"source, so this contract can no longer assume one synthetic "
+                f"graph and must name which descriptor it pins"
+            )
+
+    # Back to the manifest's own names, so the rest of this contract and its
+    # messages are unchanged by where the identifiers happen to live in C++.
+    source_oids = {
+        field.removesuffix("Oid"): next(iter(values))
+        for field, values in found.items()
     }
     if source_oids != expected_oids:
         fail("fixture source OIDs disagree with the manifest")

@@ -152,6 +152,48 @@ namespace bpr::app {
 		}
 
 #if defined(BPR_BUILD_TESTING)
+		/// \brief Names the host profile one public-path fixture is served on.
+		struct fixture_host_profile
+		{
+			core::host_profile_id               Profile;
+			core::git_host_id                   Host;
+			application::github_server_contract Server;
+			std::string_view                    Hostname;
+			std::string_view                    Label;
+		};
+
+		/// \brief Selects the host profile the named fixture is served on.
+		///
+		/// \details A switch rather than an enterprise-or-not test, because
+		/// `-Wswitch` catches a switch that has not been told about a new fixture
+		/// and cannot catch an `if` that quietly answers "the other one".
+		[[nodiscard]] constexpr auto fixture_host(
+			const detail::github_public_path_fixture aFixture) noexcept
+			-> fixture_host_profile
+		{
+			switch (aFixture) {
+			case detail::github_public_path_fixture::github_com:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Recorded native HTTPS",
+				};
+			case detail::github_public_path_fixture::ghes_3_18:
+				return {
+					.Profile = core::host_profile_id{ 3U },
+					.Host    = core::git_host_id{ 2U },
+					.Server  = application::github_server_contract::
+						ghes_3_18_2022_11_28,
+					.Hostname = "ghe.example.invalid",
+					.Label    = "GHES 3.18 — Recorded native HTTPS",
+				};
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto clone_without_smart_git(
 			const application::accepted_pull_request_handoff& aHandoff)
 			-> application::accepted_pull_request_handoff
@@ -640,25 +682,19 @@ namespace bpr::app {
 		{
 #if defined(BPR_BUILD_TESTING)
 			if (aFixture.has_value()) {
-				const auto enterprise = *aFixture
-					== detail::github_public_path_fixture::ghes_3_18;
+				const auto host = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
 					ProfileOptions,
 					native_profile_candidate(
-						core::host_profile_id{ enterprise ? 3U : 1U },
-						core::git_host_id{ enterprise ? 2U : 1U },
+						host.Profile,
+						host.Host,
 						application::github_profile_revision{ 1U },
-						enterprise
-							? application::github_server_contract::
-								  ghes_3_18_2022_11_28
-							: application::github_server_contract::
-								  github_com_2022_11_28,
+						host.Server,
 						application::github_authentication_transport::native_https,
-						enterprise ? "ghe.example.invalid" : "github.com",
+						std::string{ host.Hostname },
 						github_profile_provenance::builtin),
-					enterprise ? "GHES 3.18 — Recorded native HTTPS"
-							   : "GitHub.com — Recorded native HTTPS");
+					std::string{ host.Label });
 				Fixture = std::make_unique<
 					detail::github_public_path_fixture_components>(
 					*aFixture,
