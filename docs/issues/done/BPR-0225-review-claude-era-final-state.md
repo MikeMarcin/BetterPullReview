@@ -1,7 +1,7 @@
 ---
 id: BPR-0225
 title: Review the Claude-era final state and reconcile outstanding work
-status: In Progress
+status: Done
 rfc: RFC-BPR-0013
 depends_on: []
 ---
@@ -21,6 +21,7 @@ story told by intermediate commits.
   This is the latest commit without a Claude co-author trailer; the next commit
   begins the uninterrupted Claude-coauthored range.
 - Review head at intake: `2f2074a3dd15980c9ff67c82ea6dbafcd81ecda2`.
+- Evaluation correction head before this terminal move: `c288a6b`.
 - Intake size: 216 commits, 560 changed files, 85,710 insertions and 3,351
   deletions.
 - Affected RFC set: RFC-BPR-0003 through RFC-BPR-0011, plus the
@@ -64,7 +65,7 @@ story told by intermediate commits.
 - [x] Focused final-state gates rerun at the reviewed head.
 - [x] Conservative simplification review complete.
 - [x] Documentation gate passes over the review range.
-- [ ] Independent critical review complete.
+- [x] Independent critical review complete.
 - [x] Retrospective report complete.
 
 ## Verification matrix
@@ -73,11 +74,11 @@ story told by intermediate commits.
 |---|---|---|---|---|---|---|
 | The workbench is reachable, not merely constructed | Shipped composition source and public trace | Trace window callbacks, host observation, projection sink, and one user action | Nonempty intents reach the host, accepted review facts are observed, and the window receives the projection | Not satisfied. The callbacks are empty, projections terminate in a non-rendering sink, accepted handoff reaches only the epoch host, and settings-store failure prevents host construction | BPR-0226 | `0588efa` |
 | A selected file can request a real diff | Shipped executable without fixture-access helpers | Open a fixture PR, select a file through the window, and observe the exact diff request/result | The trace contains no direct `request_fixture_diff` call and the selected file drives the request | Not satisfied. The fixture-access helper is the only caller of the composition's diff request | BPR-0227 | `0588efa` |
-| Later RFC features are honestly described | RFC text, implementation, composition root, and verification ledgers | Inventory mandatory scope plus linked, constructed, invoked, and user-reachable RFC-BPR-0006 through RFC-BPR-0011 paths | Every ledger distinguishes unimplemented scope, component proof, linking, construction, invocation, and user reachability | Reconciled after the critical review falsified the first composition-only framing. BPR-0237 through BPR-0240 own unimplemented scope; BPR-0228 through BPR-0232 own composition | New cards and corrected RFC ledgers | Final closeout commit |
+| Later RFC features are honestly described | RFC text, implementation, composition root, and verification ledgers | Inventory mandatory scope plus linked, constructed, invoked, and user-reachable RFC-BPR-0006 through RFC-BPR-0011 paths | Every ledger distinguishes unimplemented scope, component proof, linking, construction, invocation, and user reachability | Reconciled after the critical review falsified the first composition-only framing. BPR-0237 through BPR-0240 own unimplemented scope; BPR-0228 through BPR-0232 own composition | New cards and corrected RFC ledgers | `25e59a4`, `aacf638`, `c288a6b` |
 | The recorded fixture proves rendered intraline behavior | UIforETW selected-diff public path | Run the recorded fixture with the selected-diff trace and inspect semantic ranges and role pixels | A meaningful comparison, intraline ranges, and affected profile pixels are asserted before attendance | Not satisfied. The fixture is served, but its registered path opens the PR and saves a grab without selecting or asserting a diff | BPR-0233 | `0588efa` |
 | Repaired false-green gates honor exit failure | CTest registrations and tests-disabled Release graph | Run `application_composition_contract` and `live_mutation_isolation_contract`; inspect generated metadata | No pass regex overrides the suite exit code and the Release graph reaches its seam assertions | Verified by source/generated-metadata inspection and focused passing runs; no false-green override remains on either repaired test | BPR-0224 | `2f2074a` |
-| Live-mutation isolation survives a future provider | Whole automated process graph | Attempt generic HTTPS/`gh`, script subprocess, and production-app launch outside one designated lane | Network is denied by default regardless of port symbol or factory shape | Not satisfied. The current structural gate is useful for today's no-provider tree but does not cover these counterexamples | BPR-0235 | Final closeout commit |
-| The live tracker names every nonterminal slice | `docs/issues/` folders and front matter | Inventory lanes, dependencies, `NEXT_ID`, and board narrative | Counts, folder state, front matter, and dependency claims agree | Verified at the corrected pre-close state: 37 backlog, 5 ready, this one in progress, `NEXT_ID` BPR-0246, and no lane/frontmatter/dependency mismatch | This card, BPR-0234, and BPR-0241 through BPR-0245 | Final closeout commit |
+| Live-mutation isolation survives a future provider | Whole automated process graph | Attempt generic HTTPS/`gh`, script subprocess, and production-app launch outside one designated lane | Network is denied by default regardless of port symbol or factory shape | Not satisfied. The current structural gate is useful for today's no-provider tree but does not cover these counterexamples | BPR-0235 | `25e59a4` |
+| The live tracker names every nonterminal slice | `docs/issues/` folders and front matter | Inventory lanes, dependencies, `NEXT_ID`, and board narrative | Counts, folder state, front matter, and dependency claims agree | Verified at close: 37 backlog, 5 ready, 0 in progress, `NEXT_ID` BPR-0246, and no lane/frontmatter/dependency mismatch | This card, BPR-0234, and BPR-0241 through BPR-0245 | `25e59a4`, `aacf638` |
 
 ## Documentation ledger
 
@@ -120,12 +121,31 @@ story told by intermediate commits.
   current construction, invocation, projection, and gesture distinction.
 - The delegation audit reports 41 launches across four Claude sessions. The
   evaluation itself used one reorientation utility, two semantic scouts, two
-  clean-matrix utilities, and has one independent critical closeout review
-  still pending. One initially broad utility was interrupted and successfully
-  restarted with a narrower inventory question.
+  clean-matrix utilities, and one independent critical closeout reviewer. One
+  initially broad utility was interrupted and successfully restarted with a
+  narrower inventory question.
 
 No live GitHub mutation, Windows x64 run, regenerated attended verdict, or
 native appearance change is claimed. Their live cards remain the authority.
+
+## Independent critical review
+
+The first critical pass blocked closeout rather than endorsing the initial
+report. It found an incomplete live-mutation safety claim, unsuperseded
+documentation contradictions, missing mandatory RFC scope, a second settings-
+store fallback defect, and no terminal closeout graph for RFC-BPR-0007 through
+RFC-BPR-0011. Commit `25e59a4` corrected the ledgers and created the missing
+work and closeout cards.
+
+The second pass found remaining current-tense historical claims and semantic
+dependency omissions. Commit `aacf638` corrected them, made every older
+closeout depend on BPR-0234, encoded canonical and visual-evidence ordering,
+and enumerated every RFC-BPR-0011 context field and supported protocol. A final
+stale RFC-BPR-0005 completion sentence was removed in `c288a6b`.
+
+The reviewer's final verdict on `c288a6b` was: no blocking findings, no high-
+risk non-blocking findings, no verification failure, and no residual
+uncertainty. It explicitly cleared BPR-0225 to close.
 
 ## Retrospective
 

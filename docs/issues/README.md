@@ -426,7 +426,7 @@ Git cache state.
 
 ### Claude-era final-state review
 
-BPR-0225 is the in-progress final-state review of the 216 Claude-coauthored
+BPR-0225 is the done final-state review of the 216 Claude-coauthored
 commits after `11fdce0`. It treats the executable and live public path as the
 claim surface, rather than inferring reachability from a component test, a
 linked symbol, a constructed object, or an intermediate commit narrative.
@@ -460,8 +460,9 @@ pretending to complete them inside the review:
   RFC-BPR-0011.
 
 This allocation changes no RFC status and waives no closure dependency. The
-review will reconcile the older ledger prose after reproducing each final-state
-finding and will leave the narrower truth when a public path remains absent.
+review reconciled the older ledger prose after reproducing each final-state
+finding and left the narrower truth wherever a required component or public
+path remains absent.
 
 ### Open right now
 
