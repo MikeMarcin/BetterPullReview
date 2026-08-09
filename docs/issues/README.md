@@ -417,6 +417,35 @@ out of the repository: a relative `QTemporaryDir` template resolved against
 the working directory, so crash runs committed 198 files of live SQLite and
 Git cache state.
 
+### Claude-era final-state review
+
+BPR-0225 is the in-progress final-state review of the 216 Claude-coauthored
+commits after `11fdce0`. It treats the executable and live public path as the
+claim surface, rather than inferring reachability from a component test, a
+linked symbol, a constructed object, or an intermediate commit narrative.
+
+The planning slice records these directly observed composition gaps without
+pretending to complete them inside the review:
+
+- BPR-0226 is ready to connect the workbench host to the shipped window and
+  accepted pull request. At intake the window receives empty workbench
+  callbacks, the host publishes to a non-rendering intermediate sink, and no
+  accepted handoff is observed by the workbench host.
+- BPR-0227 then owns the user-selected diff path. At intake the only caller of
+  the composition's diff request is a tests-only fixture-access helper.
+- BPR-0228 through BPR-0232 own the missing shipped composition for the review
+  ledger/actionability, review round trip, defects, honest queue enrollment,
+  and explicit agent invocation. Their component tests remain evidence for the
+  components, not for product reachability.
+- BPR-0233 owns the recorded UIforETW selected-diff and intraline-pixel path.
+  BPR-0187 serves the recording, but the current registered public test only
+  opens the pull request and saves a window grab; it does not request or assert
+  the diff.
+
+This allocation changes no RFC status and waives no closure dependency. The
+review will reconcile the older ledger prose after reproducing each final-state
+finding and will leave the narrower truth when a public path remains absent.
+
 ### Open right now
 
 Twenty-one cards are in `backlog/`, in five groups:

@@ -3,7 +3,7 @@ id: BPR-0100
 title: Run the inherited native visual-acceptance pass
 status: Backlog
 rfc: RFC-BPR-0005
-depends_on: [BPR-0097, BPR-0186, BPR-0187]
+depends_on: [BPR-0097, BPR-0186, BPR-0187, BPR-0233]
 ---
 
 # Run the inherited native visual-acceptance pass

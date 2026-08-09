@@ -3,7 +3,7 @@ id: BPR-0214
 title: Intraline emphasis has never appeared in a reviewed capture
 status: Backlog
 rfc: RFC-BPR-0006
-depends_on: [BPR-0187]
+depends_on: [BPR-0233]
 ---
 
 # Intraline emphasis has never appeared in a reviewed capture
