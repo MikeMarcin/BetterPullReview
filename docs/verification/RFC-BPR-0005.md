@@ -17,12 +17,12 @@ for the ordered closure chain and the attended BPR-0100 gate.
 
 ## Why this RFC can be implemented now
 
-RFC-BPR-0002, RFC-BPR-0003, and RFC-BPR-0004 are implemented and verified on
-available targets but remain `Proposed`, because closure is strictly ordered
-and RFC-BPR-0002 retains real Windows x64 evidence in BPR-0036. Done BPR-0088
-records the product owner's direction to advance the implementation frontier
-past RFC-BPR-0004 on available targets. Closure order is unchanged: this RFC
-cannot become `Auto-Verified` before RFC-BPR-0004 does.
+RFC-BPR-0002, RFC-BPR-0003, and RFC-BPR-0004 remain incomplete and
+`Proposed`. Their live cards include target-native Windows work and
+RFC-BPR-0004's missing user-selected diff path. Done BPR-0088 records the
+product owner's direction to advance the implementation frontier despite that
+open work. Closure order is unchanged: this RFC cannot become `Auto-Verified`
+before RFC-BPR-0004 does.
 
 ## Architecture allocation
 
