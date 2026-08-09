@@ -1,7 +1,7 @@
 ---
 id: BPR-0222
 title: The composition contract scans a directory that does not exist
-status: Ready
+status: Done
 rfc: RFC-BPR-0011
 depends_on: []
 ---
@@ -79,3 +79,40 @@ is incidental.
 Deriving the root list by globbing `src/adapters/*`. It would fix the typo class
 permanently and simultaneously delete the deliberate exclusions of
 `src/adapters/github` and `src/app`, which are load-bearing.
+
+## Fixed, 2026-08-09
+
+`src/adapters/agent` and `src/adapters/syntax` are scanned, and a root that is
+not a directory now raises rather than yielding nothing:
+
+```
+AssertionError: src/adapters/typo is not a directory, so scanning it would
+examine no files and pass. Repair the name rather than the expectation.
+```
+
+`src/adapters/github` and `src/app` stay excluded deliberately, and the
+repaired scan passes — so neither newly covered adapter was hiding a concrete
+selection.
+
+### Both directions
+
+| Probe | Result |
+|---|---|
+| A root that does not exist | fails, naming the directory |
+| `native_github_wire_transport_factory` planted under `src/adapters/agent` | caught by path and pattern |
+
+The second probe is the one that matters: that file could not have been caught
+before this card, because the adapter it lives in was not being read.
+
+### This could not be demonstrated until [[BPR-0224]]
+
+The first attempt at both probes reported success. The scan was fixed, the
+probes were planted, and `ctest` said `Passed` — because
+`application_composition_contract` was registered with
+`PASS_REGULAR_EXPRESSION "OK"`, which makes CTest ignore the exit code and
+match a substring the suite's own output happens to contain.
+
+So this card's fix was unprovable through the gate it belongs to, and the
+attempt to prove it is what found that. BPR-0224 removes the property, repairs
+the three tests-disabled Release seam breaks behind it, and is what makes the
+table above real rather than assumed.

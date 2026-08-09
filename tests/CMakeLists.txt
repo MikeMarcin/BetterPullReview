@@ -226,9 +226,13 @@ add_test(
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_live_mutation_isolation_tests.py"
 )
+# No PASS_REGULAR_EXPRESSION. This is a `unittest` suite and its exit code is
+# already the verdict; setting the property makes CTest ignore that exit code
+# and pass on a substring match instead. "OK" is satisfied by any incidental
+# `..._OK` marker in captured output, which is how a failing suite reported
+# Passed.
 set_tests_properties(
     live_mutation_isolation_contract
     PROPERTIES
-        PASS_REGULAR_EXPRESSION "OK"
         TIMEOUT 60
 )

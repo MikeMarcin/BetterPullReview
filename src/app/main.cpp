@@ -67,6 +67,25 @@
 #endif
 
 namespace {
+	// Defined outside the tests-enabled guard because the evidence block that
+	// prints NOTIFICATION_PERMISSION is itself unguarded: a Release build with
+	// tests disabled still reports it. It lived inside the guard, so that build
+	// did not compile — unnoticed, because the contract that would have caught
+	// it could not fail.
+	[[nodiscard]] auto notification_permission_name(
+		const bpr::application::notification_permission aPermission) -> QString
+	{
+		switch (aPermission) {
+		case bpr::application::notification_permission::not_determined:
+			return QStringLiteral("not-determined");
+		case bpr::application::notification_permission::granted:
+			return QStringLiteral("granted");
+		case bpr::application::notification_permission::refused:
+			return QStringLiteral("refused");
+		}
+		return QStringLiteral("unknown");
+	}
+
 	// How long an automated run may take before it stops waiting, records why,
 	// and shuts itself down.
 	//
@@ -1021,20 +1040,6 @@ namespace {
 		QCoreApplication::sendEvent(&aSurface, &release);
 	}
 
-	[[nodiscard]] auto notification_permission_name(
-		const bpr::application::notification_permission aPermission) -> QString
-	{
-		switch (aPermission) {
-		case bpr::application::notification_permission::not_determined:
-			return QStringLiteral("not-determined");
-		case bpr::application::notification_permission::granted:
-			return QStringLiteral("granted");
-		case bpr::application::notification_permission::refused:
-			return QStringLiteral("refused");
-		}
-		return QStringLiteral("unknown");
-	}
-
 	[[nodiscard]] auto capture_diff_interaction_evidence(
 		bpr::qt::workbench_window&             aWindow,
 		const std::optional<std::string_view>& aRawDirectory) -> bool
@@ -1945,12 +1950,18 @@ namespace {
 		// meant a failure in any later one printed a verdict in which
 		// everything looked fine, which is exactly what made BPR-0133
 		// unattributable.
-		const auto passedCoreFacts = passed;
-		auto       passedFixture   = passed;
+		const auto passedCoreFacts   = passed;
+		auto       passedFixture     = passed;
+		auto       passedMaintenance = passed;
+#if defined(BPR_BUILD_TESTING)
 		// True when the fixture has nothing to say, which is the honest reading
 		// for a run that never engaged one: the fixture did not fail.
+		//
+		// Declared inside the guard because every use of it is: a tests-
+		// disabled build has no fixture to have facts about, and an unused
+		// local is an error under this tree's warning policy.
 		auto fixtureFactsPassed = true;
-		auto passedMaintenance  = passed;
+#endif
 
 #if defined(BPR_BUILD_TESTING)
 		const auto fixtureEvidence = aRun.Fixture
@@ -2228,6 +2239,13 @@ namespace {
 		if (aRun.RenderPath.has_value()) {
 			stream << (renderSaved ? "RENDER_OK\n" : "RENDER_FAILED\n");
 		}
+#if defined(BPR_BUILD_TESTING)
+		// `automated_run::Fixture` and the ledger fields only exist in a
+		// tests-enabled build, so this block cannot be compiled without the
+		// guard. It was outside one, and the tests-disabled Release
+		// composition has not compiled since; `application_composition_contract`
+		// reported Passed throughout because its `PASS_REGULAR_EXPRESSION "OK"`
+		// matched the `REVIEW_LEDGER_OK` literal a few lines below.
 		if (aRun.Fixture) {
 			// After the render marker rather than inside its block: the
 			// public-path expectation matches its markers contiguously, so a
@@ -2244,6 +2262,7 @@ namespace {
 				   << (aRun.LedgerRoundTripped ? "REVIEW_LEDGER_OK\n"
 											   : "REVIEW_LEDGER_FAILED\n");
 		}
+#endif
 		// The runtime half of the composed-host evidence. `nm` proves the
 		// workbench host is linked; only the running application can say its
 		// constructor ran. Disabling the construction leaves every symbol in

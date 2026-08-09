@@ -187,10 +187,14 @@ add_test(
         --cpm-source-cache
         "${CPM_SOURCE_CACHE}"
 )
+# No PASS_REGULAR_EXPRESSION. This is a `unittest` suite and its exit code is
+# already the verdict; setting the property makes CTest ignore that exit code
+# and pass on a substring match instead. "OK" is satisfied by any incidental
+# `..._OK` marker in captured output, which is how a failing suite reported
+# Passed.
 set_tests_properties(
     application_composition_contract
     PROPERTIES
-        PASS_REGULAR_EXPRESSION "OK"
         TIMEOUT 600
 )
 
