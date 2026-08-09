@@ -381,3 +381,25 @@ correction precisely, because the campaign plan that prompted the sweep
 described BPR-0154 as *withdrawn*: it was not. BPR-0154 is `status: Done` under
 RFC-BPR-0003 and lives in `done/`. It was closed, and it was not this card's
 blocker — a different thing from being withdrawn.
+
+## Prepared for an attended run, 2026-08-09
+
+The operator packet is
+`docs/verification/reviews/appearance-scheme-foreground-v001/operator-packet.md`.
+It binds the shipped binary's digest, so a rebuild reopens the gate.
+
+Composition was re-verified before asking for owner time, both ways: `nm` finds
+the appearance symbols in the shipped binary, and a run reports
+`APPEARANCE_HOST_COMPOSED_OK`. Linking is not composing and this card is on the
+board partly because that distinction was learned here.
+
+The run must also **capture and commit its marker log**, which closes the gap
+recorded above: the earlier successful run's log was never committed and no
+copy survives.
+
+One prediction is on the record and will be checked rather than assumed. Seven
+of the eight failing terms should resolve when the window is frontmost, because
+they root in `StatePassed`. `DIFF_GEOMETRY_REBUILD` should **not** — it is
+[[BPR-0220]], a product question about an appearance change rebuilding
+comparison geometry twice. If it goes green, that is a result to record, not a
+relief.

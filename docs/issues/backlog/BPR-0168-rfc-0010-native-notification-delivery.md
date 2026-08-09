@@ -3,7 +3,7 @@ id: BPR-0168
 title: Confirm a native notification is delivered and its link opens the review
 status: Backlog
 rfc: RFC-BPR-0010
-depends_on: [BPR-0164, BPR-0193]
+depends_on: [BPR-0164, BPR-0193, BPR-0223]
 ---
 
 # Confirm a native notification is delivered and its link opens the review
@@ -60,3 +60,73 @@ Granting permission from a script, or asserting the request and calling the
 delivery proven. The request is already proven; this card exists for the part
 that is not — and for most of this card's life, "the part that is not" included
 the entire delivery path, not merely the operating system's handling of it.
+
+## Misfiled a second time, 2026-08-09 — and the symbol check is what hid it
+
+This card was prepared for an attended Session 1 and pulled back before the
+owner was asked. The same measurement that corrected it the first time
+corrects it again, one level up.
+
+The first correction asked the linker and found zero notification symbols.
+That is now fixed and it passes:
+
+| Measurement | Result |
+|---|---|
+| `nm` symbols matching the notification path | 120 |
+| `verify_composed_hosts.py` | `COMPOSED_HOSTS_OK` |
+| runtime marker | `NOTIFICATION_DELIVERY_COMPOSED_OK` |
+
+**All three are true and all three are insufficient.** They prove the delivery
+path is composed. They do not prove any path can ask it to deliver.
+
+```
+$ grep -rn "deliver(" src/app/ | grep -v notification_delivery.hpp
+(nothing)
+```
+
+`review_queue_notifier::deliver()` is the outbound entry point and **nothing in
+`src/app/` ever calls it**. The only call into the notifier is
+`Notifications->activate(aTarget)` from the sink's activation sink, which is the
+inbound direction — a banner being clicked, not a banner being shown.
+
+The composition root says so itself, at `github_application.cpp:977-981`:
+
+> *"what still does not exist is a composed review queue to produce requests,
+> which RFC-BPR-0010's own composition owns. Every delivery in this build
+> therefore comes from the fixture probe."*
+
+And the activation callback, at `:988-992`:
+
+> *"The notifier selects nothing; this is where a chosen review would be
+> opened. RFC-BPR-0010's queue surface owns that, so the target is recorded and
+> the separation is kept rather than short-circuited."*
+
+`ActivatedNotification` is written there and read nowhere — the member appears
+exactly twice in the file, its declaration and that assignment.
+
+### What that means for this card's four steps
+
+| Step | State |
+|---|---|
+| 1. Grant Notification Center permission | possible |
+| 2. Trigger a queue item that requests a notification | **no code path can do this** |
+| 3. See and read the banner | unreachable, because step 2 is |
+| 4. Click it, correct local review selected | unreachable twice — no banner, and activation selects nothing by design |
+
+This card's own warning applies again, verbatim: *"Sitting a person in front of
+this today would have them wait for a banner that no code path can cause.
+Attendance was never what was missing."*
+
+Two thirds of the gap closed since that was written. BPR-0164 supplies the
+decision, BPR-0193 supplies the adapter, and both are composed. What is missing
+is the wiring at each end: something that asks for a delivery, and something
+that consumes an activation.
+
+That is [[BPR-0223]], and this card depends on it.
+
+### What must not be done instead
+
+Driving `deliver()` from a test seam to make a banner appear for the owner. It
+would produce a real banner from a path no user can reach, and step 4 would
+still have nothing to select. The banner is not the claim; the queue item
+becoming a banner becoming a selected review is.
