@@ -89,6 +89,15 @@ def read(relative_path: str) -> str:
 
 def source_files(relative_root: str) -> list[Path]:
     root = REPOSITORY_ROOT / relative_root
+    # A named root that does not exist yields nothing from `rglob` without
+    # raising, so a renamed directory turns this scan into a guard that reads
+    # no files and reports success. `src/adapters/ai` was listed here for as
+    # long as the directory had been called `agent`, and nothing said so.
+    if not root.is_dir():
+        raise AssertionError(
+            f"{relative_root} is not a directory, so scanning it would examine "
+            f"no files and pass. Repair the name rather than the expectation."
+        )
     return sorted(
         path
         for path in root.rglob("*")
@@ -187,7 +196,13 @@ class CompositionContractTests(unittest.TestCase):
             "src/adapters/qt",
             "src/adapters/git",
             "src/adapters/sqlite",
-            "src/adapters/ai",
+            # `agent` replaced `ai`, and `syntax` was never listed. Both are
+            # adapters that must not select a concrete provider themselves.
+            # `src/adapters/github` and `src/app` stay absent deliberately:
+            # the first is where the concrete provider legitimately lives and
+            # the second is the composition root.
+            "src/adapters/agent",
+            "src/adapters/syntax",
         ):
             for path in source_files(relative_root):
                 contents = path.read_text(encoding="utf-8")
