@@ -1,7 +1,7 @@
 ---
 id: BPR-0236
 title: Keep appearance and syntax composed when settings storage fails
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: []
 ---
