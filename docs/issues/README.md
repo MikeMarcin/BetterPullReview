@@ -334,6 +334,11 @@ things. Work is ordered so the appearance, typography, and theme surfaces land
 before the build foundation changes. Its one owner-attended gate is BPR-0114,
 the live scheme change; the fresh-install-defaults-to-System claim is separated
 onto BPR-0106 because it is a default-value check needing no appearance change.
+What is attended about BPR-0114 has since narrowed: both halves of the claim
+were proven on a real display on 2026-08-08 under the owner's standing
+authorisation to script the scheme change. That authorisation does not extend to
+focus, and the probe requires a frontmost window, so what remains is one click
+and an audit of the eight probe terms that root in it.
 
 Done BPR-0084 follows the completed host-execution slice and modernizes
 the shared build foundation before the remaining RFC-BPR-0004 Qt work. It
@@ -350,6 +355,79 @@ tree; integrates local format and strict tidy targets; preserves emitted
 binary names; and updates structural contracts to assert semantics without
 depending on incidental whitespace. The developer and core-only matrices,
 strict first-party clang-tidy audit, format gate, and documentation gate pass.
+
+RFC-BPR-0006's implementation is complete. BPR-0104 through BPR-0113 and
+BPR-0116 through BPR-0118 supply the appearance model, typography, contrast
+obligations, theme selection, and the KSyntaxHighlighting acquisition route.
+Two cards remain: BPR-0114 and the BPR-0115 closeout.
+
+Done BPR-0180 is the card that changed how this board reads evidence. It
+reconciled RFC-BPR-0006's ledger against what the application actually
+*composes* and found that several components were linked but never
+constructed. A symbol table cannot tell those apart, and for a while nothing
+did. The cards that closed the gap are done: BPR-0181 and BPR-0182 for the
+durable appearance settings adapter and its host, BPR-0185 for the syntax
+adapter reaching the diff panes, BPR-0189 through BPR-0192 for the workbench
+layout adapter, host, shell, and observation surface, and BPR-0193 for
+operating-system notification delivery. `github_application_status` now
+reports composition at runtime — `WorkbenchHostComposed`,
+`AppearanceHostComposed`, `SyntaxClassifierComposed` — because linking is not
+composing and only the running process can say which happened.
+
+Done BPR-0186 added the attended interactive launch that holds the window open
+so a person can inspect the composition. Doing that immediately produced
+defects no automated marker had caught: BPR-0194, BPR-0196, BPR-0199,
+BPR-0201, BPR-0202, BPR-0204, BPR-0205, BPR-0206, BPR-0207, BPR-0208,
+BPR-0209, and BPR-0216 are all closed defects found by looking. BPR-0216 is
+the sharpest of them — System mode painted the light palette on a dark desktop
+while every marker stayed green, because the markers asked whether a profile
+had been applied and never whether it was the *right* profile. BPR-0203
+records the process correction that came out of the same period: an A/B/C
+choice is not three pass/fail questions, and an attended review page has to
+present it as one selection.
+
+RFC-BPR-0007 through RFC-BPR-0011 are implemented on available targets.
+BPR-0120 through BPR-0132 supply the review ledger's core transitions, schema
+and forward-only migrations, crash recovery, Qt queue projection, and
+composition-root evidence. BPR-0134 through BPR-0141 supply the review
+round-trip: draft state, stale-head refusal, the mutation coordinator's safe
+target and idempotency, and the no-bypass proof. BPR-0145 through BPR-0152
+supply defect classification, what verification evidence may and may not
+conclude, and outdated/deleted anchor handling. BPR-0158 through BPR-0170
+supply observer rules, attention buckets, the refresh scheduler, enrollment
+retention across restarts, and metadata-only notifications. BPR-0171 through
+BPR-0179 supply the AI agent boundary: explicit-invocation legality, session
+identity and revision binding, the environment allowlist and credential
+boundary, and pinned workspace preparation.
+
+A run of test-reliability and honesty cards sits under RFC-BPR-0003:
+BPR-0119, BPR-0131, BPR-0133, BPR-0154, BPR-0155, BPR-0157, BPR-0200, and
+BPR-0213. Two are worth naming. BPR-0200 found that a persisted catalog
+survived a fixture identity change and no test noticed. BPR-0213 found the
+opposite failure of nerve — `GITHUB_FIXTURE_FAILED` printed while the fixture
+was fine.
+
+RFC-BPR-0013 now carries the crash and hygiene cards. Done BPR-0215 and
+BPR-0217 replace three ad-hoc shutdown guards with one liveness token owned by
+`github_application`, and BPR-0217 is closed by a test that *forces* the
+condition — construct the application, arm a poller, destroy it, require the
+callback to run and do nothing — rather than by the five runs that failed to
+reproduce it. Done BPR-0218 moved the public-path fixture's scratch directory
+out of the repository: a relative `QTemporaryDir` template resolved against
+the working directory, so crash runs committed 198 files of live SQLite and
+Git cache state.
+
+### Open right now
+
+Twenty-one cards are in `backlog/`, in five groups:
+
+| Group | Cards | What is actually missing |
+|---|---|---|
+| Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
+| A designated live GitHub repository | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Owner-authenticated sessions against a safe target |
+| Owner-attended judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214 | A person looking, clicking, or granting permission |
+| The fixture chain | BPR-0187, gating BPR-0214, BPR-0210, and BPR-0100 | A real recorded pull request served through the public path |
+| Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not
 final visual acceptance. RFC-BPR-0005 retains a distinct integrated-workbench

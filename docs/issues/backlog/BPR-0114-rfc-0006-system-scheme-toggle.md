@@ -338,3 +338,46 @@ bypass, or asserting that nothing happened?
 `DIFF_GEOMETRY_REBUILD_DELTA:2` in particular is a product signal, not a rule
 question: an appearance change rebuilding the comparison geometry twice may be
 correct or may be a double application, and nobody has looked.
+
+## The successful run's log does not exist, 2026-08-08
+
+The markers quoted above under *"Both claims proven"* were read from a run whose
+log was never committed, and no copy survives. Searched: the whole repository
+tree including untracked build directories, for `APPEARANCE_SYSTEM_FOLLOWS_OK`
+and `APPEARANCE_EXPLICIT_IGNORES_OK`. The only hits are this card and
+`src/app/main.cpp`, which is the source that emits them.
+
+`docs/verification/reviews/appearance-probe-open-stage-v001/` holds exactly one
+file — `native-appearance-probe-run.log`, 2.2 KB, 7 August — and it is the
+**failing** run: fourteen `FAILED` lines including
+`APPEARANCE_SYSTEM_FOLLOWS_FAILED` and `APPEARANCE_EXPLICIT_IGNORES_FAILED`.
+
+So the evidence directory currently records only the failure, and the card's
+strongest claim rests on quoted text with no committed artefact behind it. That
+is a real gap in this card's evidence, recorded rather than papered over.
+
+**Deliberately not closed by re-running the probe now.** Regenerating it would
+mean driving a second global appearance change on the owner's desktop to
+produce a log that the imminent foreground run supersedes anyway: the Session 1
+attended run captures the same two markers *plus* the frontmost-focus cascade
+these eight terms depend on. One complete log is better evidence than two
+partial ones, and it costs the owner one appearance change instead of two.
+
+**Therefore:** the Session 1 foreground run must capture and commit its complete
+marker log to `docs/verification/reviews/`, beside the failing one. That is now
+part of this card's completion evidence, not an optional extra.
+
+## Documentation corrected, 2026-08-08
+
+`docs/verification/RFC-BPR-0006.md` described this card as blocked and
+attended-only, which stopped being true when both claims were proven. Three
+places were corrected: the claim-matrix row, the deferred-gates section, and the
+closeout blockers.
+
+That edit also removed an obsolete attribution. The ledger said this card
+"inherits BPR-0154's open-stage attribution". It does not, and this card said so
+first at the top of *"The blocker, attributed 2026-08-08"*. Recording the
+correction precisely, because the campaign plan that prompted the sweep
+described BPR-0154 as *withdrawn*: it was not. BPR-0154 is `status: Done` under
+RFC-BPR-0003 and lives in `done/`. It was closed, and it was not this card's
+blocker — a different thing from being withdrawn.

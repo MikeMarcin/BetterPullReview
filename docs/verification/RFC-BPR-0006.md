@@ -115,7 +115,7 @@ out.
 | Theme change does not re-parse | `appearance_application_host` with fake ports, and the composed application | Switch theme and colour, counting lexical parses; switch appearance mode on the running application with a classified comparison on screen | The parse count does not increase | Verified of the component and of the product. The span cache key omits the theme, so a palette change cannot evict; the suite pins one classification to one lexical pass. **BPR-0182 composed the host and BPR-0185 measured the composed claim**: `SYNTAX_THEME_REPAINT_OK` asserts that a mode change on the running application leaves `classification_submissions()` where it was, having already adopted a classification. The Qt suite proves the other half - the panes repaint in the new palette from the retained spans without adopting a new classification |
 | Font change preserves semantics | An `appearance_profile` and a `diff_workbench` constructed together by a test | Change the code font | The measured axis and ribbon geometry invalidate, semantic selection survives, and the shared position reprojects without changing mapping or confidence | Verified of that pair. Geometry rebuilds and the measured extent grow while the mapping is byte-identical and selection survives. **This row previously named its surface `Composed comparison`.** The pair is composed by the test; the application composes neither member. BPR-0183 owns it |
 | Fresh install defaults to System | `appearance_settings`, the type's own default | Inspect the default with no persisted value | The resolved mode is System | Verified of the type and of the product. With no persisted value the resolved selection is System, and the composed application now reads it: `application_appearance_gesture_contract`'s first phase reports `system` from a fresh root. Previously verified of the type alone, when no application path constructed the host |
-| System mode follows the OS; explicit does not | Real macOS composition | Owner-authorised OS scheme change | System mode follows and an explicit mode does not | **Unblocked by BPR-0184, still attended.** The card was originally filed as owner-attended, which asserted the behaviour existed; it did not, because there was no mode to select. There is now: the composed surface offers all six modes and a selection reaches the durable record, proven unattended by `application_appearance_gesture_contract`. What still needs a person is the other half — that a *live* operating-system scheme change moves System and leaves an explicit mode alone. Formerly: BPR-0114 was filed as owner-attended, which asserted the behaviour existed. It does not: there is no mode to select and no variant to observe. Blocked behind BPR-0183 and BPR-0184; attended afterwards |
+| System mode follows the OS; explicit does not | Real macOS composition | Scripted OS scheme change under the owner's standing authorisation, on a real display | System mode follows and an explicit mode does not | **Both halves proven, 2026-08-08, unattended.** On a real display with the scheme driven Light→Dark: `NATIVE_APPEARANCE_TRANSITION:Light->Dark`, `APPEARANCE_SYSTEM_FOLLOWS_OK`, `APPEARANCE_EXPLICIT_IGNORES_OK`, `NATIVE_APPEARANCE_SIGNAL_OK`, and `APPEARANCE_VARIANTS:0:1:0:1` — System resolved light→dark, an explicit mode selected through BPR-0184's gesture stayed **light** across the same change, and returning to System resolved dark again. The middle value is the one QMacStyle following the operating system cannot fake. What remains is narrower than the claim: the probe must be **frontmost**, which cannot be scripted, and eight probe terms rooted in `StatePassed` are unaudited until that foreground run — one of them, `DIFF_GEOMETRY_REBUILD_DELTA:2`, is a product question rather than a focus artefact. Formerly: *"Unblocked by BPR-0184, still attended"*, and before that, filed as owner-attended when no mode existed to select |
 | Settings persist and preview immediately | The composed application, across separate processes | Drive the composed settings surface, then run a second process against the same application data root | Each value previews without restart and survives one | Verified of the product. **BPR-0184 added the gesture and `application_appearance_gesture_contract`**, three phases of the real binary: a fresh composition reports `system` and a tab width of four, a run driving the composed controls reports `dark:8` with `APPEARANCE_GESTURE_OK`, and a separate process against the same root making no gesture reports `dark:8`. The first phase is what makes the third mean anything - without it a build defaulting to the checked-for value would pass. Unwiring the panel's dispatch, and separately cutting the route from published presentation to the profile, each fail it. Previously verified of the component only, with the note below. | <!-- superseded:  **This row previously named its surface `Real application`.** The host is absent from the shipped binary and no adapter implements `appearance_settings_port`, so nothing persists and nothing previews; BPR-0181 and BPR-0182 own that. Within the component: each typography field previews without restart and a core-rejected record is refused whole rather than clamped, and BPR-0116 added the typography publication so a tab-width-only change invalidates measured geometry. The code line height is **retired**, not outstanding: `QPlainTextDocumentLayout` ignores every line-height mode Qt offers — measured, not assumed — so the product owner retired it on 2026-08-06 and BPR-0118 removed it structurally. `code_font_settings` now has no field one could occupy, and the RFC's goal and criterion were amended in place  -->|
 | Theme import is safe | Import validator, in isolation | Offer unknown fields, URLs, includes, oversized files, and executable payloads | Each rejection is distinct; a catch-all that refuses everything is not sufficient | Verified of the component. Each refusal is typed and named, and a valid document round-trips to an identical palette. No application path imports a theme, because there is no theme surface |
 | State survives without colour | The four shipped palettes, in isolation | Inspect every state signal | Icons, labels, marks, prefixes, outlines, or accessible names carry the meaning too | Verified of the palettes and of the product. BPR-0117 ran the enumerated pairs against all four shipped palettes; 191 pairs failed and were repaired by refitting lightness, and the pairs colour alone cannot separate are recorded and asserted exactly. **All four are now applied and all four have been rendered and accepted at attended review.** The recorded colour-only obligations grew by two as a consequence of that review — the light profile's warning against error after its syntax refit, and the dark profile's intraline pair after its bands were softened to the owner's reference — each accepted deliberately rather than paid for by keeping tones the owner rejected. BPR-0204's ratchet additionally names the tightest contrast pair in each profile and holds its headroom, which is how high-contrast light was found to have none (BPR-0210) |
@@ -149,16 +149,31 @@ type cannot hold.
 
 ## Deferred gates
 
-One owner-attended gate: BPR-0114, the live operating-system scheme change.
-It is **blocked before it is deferred** — the behaviour it observes did not
-exist until BPR-0183 and BPR-0184 landed, which they since have. The static
-fresh-install default is a separate claim and is proven unattended.
+One owner-attended gate: BPR-0114 — and what is attended about it is now much
+smaller than the card was filed for. The behaviour it observes did not exist
+until BPR-0183 and BPR-0184 landed; those are done, and on 2026-08-08 both
+halves of the claim were proven on a real display without a person present,
+because the product owner's standing authorisation permits the scheme change to
+be scripted. The static fresh-install default is a separate claim and is also
+proven unattended.
 
-BPR-0114 also inherits BPR-0154's open-stage attribution: the probe that would
-carry the attended observation reports a fixture presentation fact false and
-resolves no epoch pair, deterministically, in about twelve seconds. Attendance
-means nothing until that path reaches an attendable state, which is why the
-card depends on it.
+What the standing authorisation does not cover is focus. The probe requires its
+window to be **active, focused and frontmost**, and says so in the marker's
+name; a process launched from a background shell never satisfies that, and
+raising it with `System Events` produced `APPEARANCE_VARIANTS:-1:-1:-1:-1` — no
+baseline captured at all. That gate is deliberate: an appearance judgement made
+against a window that was never frontmost is a judgement about a window nobody
+was looking at. So the remaining attended step is one click, followed by a
+per-term audit of the eight probe terms that root in `StatePassed`.
+
+An earlier version of this section attributed BPR-0114's block to BPR-0154's
+open-stage signature. That attribution is obsolete and the card retracted it in
+place: *"[[BPR-0154]] is closed and it was not this card's blocker after all.
+Its signature had nothing to do with a fixture or a stall."* BPR-0154 itself is
+`Done` under RFC-BPR-0003 — it was not withdrawn, it simply was not this. The
+real sequence was `presentation=0`, then a window check (`presentationClean`)
+that required the window to carry no `WA_SetPalette` and so asserted the
+feature's own absence, which BPR-0183 had made false by design.
 
 Everything else this RFC defers to a person has been done. Four attended
 batches were run between 2026-08-06 and 2026-08-08, three of them rejected in
@@ -190,6 +205,13 @@ RFC-BPR-0006 cannot become `Auto-Verified` until RFC-BPR-0005 is, which
 requires RFC-BPR-0004, RFC-BPR-0003, and RFC-BPR-0002, and therefore real
 Windows x64 evidence.
 
-It is now also blocked by its own composition. BPR-0115 stays in `backlog/`,
-makes no closure claim, and cannot be prepared until BPR-0181 through BPR-0185
-are in `done/` and BPR-0114 has been run against something real.
+The composition half of that block is now clear: BPR-0181 through BPR-0185 are
+all in `done/`, and the composed application reports its own composition at
+runtime rather than being read off a symbol table. BPR-0114 has been run against
+something real and its two headline claims hold; it stays in `backlog/` for the
+frontmost-focus run and the eight-term audit, not for the behaviour.
+
+BPR-0115 therefore stays in `backlog/` and makes no closure claim, but its
+autonomous preparation — replaying the claim matrix against the composed
+application and resolving the documentation ledger — is no longer blocked. The
+terminal transition remains blocked by BPR-0114 and by closure ordering.
