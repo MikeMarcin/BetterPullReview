@@ -287,6 +287,38 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+# The recorded public pull request, served through the same public path as the
+# synthetic fixtures. A green run is the conjunction at main.cpp's evidence
+# gate: all ten recorded interactions consumed in order, the capability probe
+# answered once, one smart acquire/discover/ls-refs/fetch, and the pack
+# imported through `git index-pack --strict
+# --check-self-contained-and-connected` followed by `fsck --connectivity-only`.
+add_test(
+    NAME application_github_public_path_uiforetw_74
+    COMMAND
+        $<TARGET_FILE:app_better_pull_review>
+        --github-fixture
+        uiforetw-74
+        --render-evidence
+        "${CMAKE_CURRENT_BINARY_DIR}/github-public-path-uiforetw-74.png"
+        --automated-run-budget-ms
+        ${bpr_fixture_run_budget_ms}
+)
+set_tests_properties(
+    application_github_public_path_uiforetw_74
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION
+            "PUBLIC_PATH_OK[\r\n]+GITHUB_FIXTURE_OK:uiforetw-74[\r\n]+RENDER_OK"
+)
+bpr_bound_automated_run(
+    application_github_public_path_uiforetw_74
+    TIMEOUT 60
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 1
+    RESERVE_MS 2000
+)
+
 add_test(
     NAME application_diff_workbench_public_path
     COMMAND
