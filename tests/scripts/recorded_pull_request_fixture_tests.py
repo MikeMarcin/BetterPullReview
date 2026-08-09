@@ -13,7 +13,9 @@ import base64
 import difflib
 import json
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -255,9 +257,86 @@ def check(expected: dict) -> None:
         )
 
 
+
+def check_generated_contract_matches(name: str) -> None:
+    """The served tree must be exactly what the generator writes today.
+
+    The contract directory is generated from `recording.json`, so the two can
+    drift the moment somebody edits a served response by hand to make something
+    pass. Regenerating into a temporary directory and comparing bytes is the
+    only check that notices; comparing shapes would not.
+    """
+    recording = ROOT / "tests/fixtures/github/pull-requests" / name / "recording.json"
+    committed = ROOT / "tests/fixtures/github/contracts/v1" / name
+    if not committed.is_dir():
+        return
+
+    with tempfile.TemporaryDirectory() as directory:
+        regenerated = Path(directory) / name
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/build_recorded_pull_request_contract.py"),
+                str(recording),
+                str(regenerated),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            FAILURES.append(
+                f"{name}: the generator refuses its own recording: "
+                f"{result.stderr.strip()}"
+            )
+            return
+
+        committed_files = {
+            path.relative_to(committed)
+            for path in committed.rglob("*")
+            if path.is_file()
+        }
+        regenerated_files = {
+            path.relative_to(regenerated)
+            for path in regenerated.rglob("*")
+            if path.is_file()
+        }
+        if committed_files != regenerated_files:
+            FAILURES.append(
+                f"{name}: the committed contract tree and a freshly generated "
+                f"one hold different files: "
+                f"{sorted(map(str, committed_files ^ regenerated_files))}"
+            )
+            return
+        for relative in sorted(committed_files):
+            if (committed / relative).read_bytes() != (
+                regenerated / relative
+            ).read_bytes():
+                FAILURES.append(
+                    f"{name}: {relative} differs from what the generator "
+                    f"writes from recording.json - the served tree was edited "
+                    f"by hand, or the generator changed without regenerating"
+                )
+
+
+def check_pack(name: str) -> None:
+    """The git objects the comparison is actually built from."""
+    pack = ROOT / "tests/fixtures/github/pull-requests" / name / "objects.pack"
+    if not pack.is_file():
+        return
+    header = pack.read_bytes()[:4]
+    if header != b"PACK":
+        FAILURES.append(
+            f"{name}: objects.pack does not begin with PACK, so it is not a "
+            f"packfile and index-pack would refuse it"
+        )
+
+
 def main() -> int:
     for expected in RECORDINGS:
         check(expected)
+        check_generated_contract_matches(expected["Directory"])
+        check_pack(expected["Directory"])
 
     for failure in FAILURES:
         print(f"FAILED: {failure}", file=sys.stderr)

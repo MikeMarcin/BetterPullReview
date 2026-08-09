@@ -1,0 +1,32 @@
+[
+	{
+		"additions": 2,
+		"deletions": 1,
+		"filename": "UIforETW/Resource.h",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"deletions": 0,
+		"filename": "UIforETW/Support.cpp",
+		"status": "modified"
+	},
+	{
+		"additions": 18,
+		"deletions": 5,
+		"filename": "UIforETW/UIforETW.rc",
+		"status": "modified"
+	},
+	{
+		"additions": 22,
+		"deletions": 0,
+		"filename": "UIforETW/UIforETWDlg.cpp",
+		"status": "modified"
+	},
+	{
+		"additions": 3,
+		"deletions": 0,
+		"filename": "UIforETW/UIforETWDlg.h",
+		"status": "modified"
+	}
+]

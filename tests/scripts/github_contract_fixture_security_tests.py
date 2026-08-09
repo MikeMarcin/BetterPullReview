@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
+from typing import NamedTuple
 import re
 import unittest
 from urllib.parse import urlsplit
@@ -56,18 +58,45 @@ GRAPHQL_QUERY = (
     "Node{id}} replyTo{id}} "
     "pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}"
 )
-GRAPHQL_BODY = json.dumps(
-    {
-        "query": GRAPHQL_QUERY,
-        "variables": {
-            "name": "review-repository",
-            "number": 17,
-            "owner": "octo-org",
+# The served head OID. `2`x40 is what the manifest and responses carry; the
+# fixture loader substitutes the real generated OID at load time.
+HEAD_OID_PLACEHOLDER = "2" * 40
+
+# Owner and repository names are interpolated into paths and the search
+# query without escaping, exactly as the generator writes them. That is only
+# safe while they need no escaping, so it is asserted rather than assumed.
+UNRESERVED = re.compile(r"^[A-Za-z0-9._~-]+$")
+
+
+class Identity(NamedTuple):
+    """The one pull request a fixture directory is allowed to describe.
+
+    Every fixture name binds to exactly one exact identity. This is the type
+    that makes that a value rather than a literal repeated down the file.
+    """
+
+    owner: str
+    name: str
+    number: int
+
+    @property
+    def slug(self) -> str:
+        return f"{self.owner}/{self.name}"
+
+
+def graphql_body(identity: Identity) -> str:
+    return json.dumps(
+        {
+            "query": GRAPHQL_QUERY,
+            "variables": {
+                "name": identity.name,
+                "number": identity.number,
+                "owner": identity.owner,
+            },
         },
-    },
-    separators=(",", ":"),
-    sort_keys=True,
-)
+        separators=(",", ":"),
+        sort_keys=True,
+    )
 
 HOSTS = {
     "github-com": {
@@ -94,94 +123,104 @@ HOSTS = {
     },
 }
 
-OPERATION_CONTRACTS = {
-    "GetViewerIdentity": (
-        "GET",
-        "/user",
-        "",
-        REST_HEADERS,
-        None,
-        "viewer.json",
-    ),
-    "GetRepository": (
-        "GET",
-        "/repos/octo-org/review-repository",
-        "",
-        REST_HEADERS,
-        None,
-        "repository.json",
-    ),
-    "GetPullRequest": (
-        "GET",
-        "/repos/octo-org/review-repository/pulls/17",
-        "",
-        REST_HEADERS,
-        None,
-        "pull_request.json",
-    ),
-    "ListPullRequestFiles": (
-        "GET",
-        "/repos/octo-org/review-repository/pulls/17/files",
-        "page=1&per_page=100",
-        REST_HEADERS,
-        None,
-        "files.json",
-    ),
-    "ListPullRequestCommits": (
-        "GET",
-        "/repos/octo-org/review-repository/pulls/17/commits",
-        "page=1&per_page=100",
-        REST_HEADERS,
-        None,
-        "commits.json",
-    ),
-    "ListReviews": (
-        "GET",
-        "/repos/octo-org/review-repository/pulls/17/reviews",
-        "page=1&per_page=100",
-        REST_HEADERS,
-        None,
-        "reviews.json",
-    ),
-    "ListReviewThreads": (
-        "POST",
-        "",
-        "",
-        GRAPHQL_HEADERS,
-        GRAPHQL_BODY,
-        "review_threads.json",
-    ),
-    "ListIssueComments": (
-        "GET",
-        "/repos/octo-org/review-repository/issues/17/comments",
-        "page=1&per_page=100",
-        REST_HEADERS,
-        None,
-        "issue_comments.json",
-    ),
-    "ListChecks": (
-        "GET",
-        (
-            "/repos/octo-org/review-repository/commits/"
-            "2222222222222222222222222222222222222222/check-runs"
-        ),
-        "page=1&per_page=100",
-        REST_HEADERS,
-        None,
-        "checks.json",
-    ),
-    "SearchPullRequests": (
-        "GET",
-        "/search/issues",
-        (
-            "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20"
-            "repo%3Aocto-org%2Freview-repository"
-        ),
-        REST_HEADERS,
-        None,
-        "search.json",
-    ),
+
+# Every fixture directory, with the single host and single pull request it is
+# allowed to describe. `github-com` and `ghes-3.18` are the same synthetic
+# review served over two protocol variants; `uiforetw-74` is a recorded public
+# pull request served over the github.com variant. Adding a directory to disk
+# without adding it here fails the exact-tree test by name, which is the point.
+FIXTURES = {
+    "github-com": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("octo-org", "review-repository", 17),
+        "mirrors": "ghes-3.18",
+    },
+    "ghes-3.18": {
+        "host": HOSTS["ghes-3.18"],
+        "identity": Identity("octo-org", "review-repository", 17),
+        "mirrors": "github-com",
+    },
+    "uiforetw-74": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("google", "UIforETW", 74),
+        # A recorded pull request has no second-protocol twin to be compared
+        # against byte for byte. Its per-operation field and artifact checks
+        # still run; only the cross-host equality does not apply.
+        "mirrors": None,
+    },
 }
+
+# The real commits the recording names. They must appear nowhere in a served
+# fixture: the pack carries generated objects, and serving GitHub's real OIDs
+# beside it is the half-divergence that connects and then fails at import.
+RECORDED_REAL_OIDS = (
+    "7c519e97eb906bdc6b83c8f576c91c063d6ceee9",
+    "9b01c587b3e46637ff69c3801841993bd054f106",
+)
+
+
+def operation_contracts(identity: Identity) -> dict[str, tuple]:
+    """The exact request each operation must carry, for one identity.
+
+    Previously a module constant with `octo-org/review-repository/17` written
+    into nine paths. It is a function now because a second fixture serves a
+    different pull request, and a table that hardcodes one identity cannot
+    express that without a copy — and a copy is what silently drifts.
+
+    The head OID stays a placeholder here: the fixture serves `2`x40 and the
+    loader substitutes the real generated OID, so what the manifest must
+    contain is the placeholder.
+    """
+    slug = identity.slug
+    number = identity.number
+    paged = "page=1&per_page=100"
+    return {
+        "GetViewerIdentity": (
+            "GET", "/user", "", REST_HEADERS, None, "viewer.json",
+        ),
+        "GetRepository": (
+            "GET", f"/repos/{slug}", "", REST_HEADERS, None,
+            "repository.json",
+        ),
+        "GetPullRequest": (
+            "GET", f"/repos/{slug}/pulls/{number}", "", REST_HEADERS, None,
+            "pull_request.json",
+        ),
+        "ListPullRequestFiles": (
+            "GET", f"/repos/{slug}/pulls/{number}/files", paged, REST_HEADERS,
+            None, "files.json",
+        ),
+        "ListPullRequestCommits": (
+            "GET", f"/repos/{slug}/pulls/{number}/commits", paged,
+            REST_HEADERS, None, "commits.json",
+        ),
+        "ListReviews": (
+            "GET", f"/repos/{slug}/pulls/{number}/reviews", paged,
+            REST_HEADERS, None, "reviews.json",
+        ),
+        "ListReviewThreads": (
+            "POST", "", "", GRAPHQL_HEADERS, graphql_body(identity),
+            "review_threads.json",
+        ),
+        "ListIssueComments": (
+            "GET", f"/repos/{slug}/issues/{number}/comments", paged,
+            REST_HEADERS, None, "issue_comments.json",
+        ),
+        "ListChecks": (
+            "GET",
+            f"/repos/{slug}/commits/{HEAD_OID_PLACEHOLDER}/check-runs",
+            paged, REST_HEADERS, None, "checks.json",
+        ),
+        "SearchPullRequests": (
+            "GET", "/search/issues",
+            (
+                f"{paged}&q=is%3Apr%20is%3Aopen%20repo%3A"
+                f"{identity.owner}%2F{identity.name}"
+            ),
+            REST_HEADERS, None, "search.json",
+        ),
+    }
+
 
 EXPECTED_RESPONSE_FIELDS = {
     "GetViewerIdentity": {"id", "login", "name", "node_id"},
@@ -297,6 +336,26 @@ EXPECTED_RESPONSE_FIELDS = {
     },
 }
 
+
+# uiforetw-74's own exact field sets. Deliberately a second table rather than a
+# relaxation of the one above: `json_fields` unions every key recursively and
+# the assertion is exact equality, so a recorded pull request with legitimately
+# empty reviews, issue comments, search items and check runs has strictly
+# smaller sets. Loosening the shared table to a subset check would weaken it
+# for every fixture including the two that predate this one.
+RECORDED_RESPONSE_FIELDS = {
+    "GetViewerIdentity": {"id", "login", "name", "node_id"},
+    "GetRepository": {"default_branch", "full_name", "id", "login", "name", "node_id", "owner", "private"},
+    "GetPullRequest": {"base", "body", "changed_files", "commits", "draft", "full_name", "head", "id", "login", "merged", "node_id", "number", "ref", "repo", "sha", "state", "title", "user"},
+    "ListPullRequestFiles": {"additions", "deletions", "filename", "status"},
+    "ListPullRequestCommits": {"author", "commit", "login", "message", "node_id", "sha"},
+    "ListReviews": set(),
+    "ListReviewThreads": {"data", "endCursor", "hasNextPage", "nodes", "pageInfo", "pullRequest", "repository", "reviewThreads"},
+    "ListIssueComments": set(),
+    "ListChecks": {"check_runs", "total_count"},
+    "SearchPullRequests": {"incomplete_results", "items", "total_count"},
+}
+
 ALLOWED_URL_HOSTS = {
     "api.github.com",
     "docs.github.com",
@@ -327,11 +386,13 @@ FORBIDDEN_ARTIFACT_FIELDS = {
 SYNTHETIC_CANARY = "BPR_FIXTURE_SECRET_CANARY_7F2C"
 
 
-def expected_interactions(host: dict[str, object]) -> list[dict[str, object]]:
+def expected_interactions(fixture: dict[str, object]) -> list[dict[str, object]]:
+    host = fixture["host"]
+    contracts = operation_contracts(fixture["identity"])
     result = []
     for operation in OPERATIONS:
         method, path, query, headers, body, response_name = (
-            OPERATION_CONTRACTS[operation]
+            contracts[operation]
         )
         if operation == "ListReviewThreads":
             expected_path = host["graphql_path"]
@@ -352,13 +413,14 @@ def expected_interactions(host: dict[str, object]) -> list[dict[str, object]]:
 
 
 def manifest_violations(
-    host_name: str,
+    fixture_name: str,
     manifest: object,
 ) -> list[str]:
     if not isinstance(manifest, dict):
         return ["manifest must be an object"]
 
-    host = HOSTS[host_name]
+    fixture = FIXTURES[fixture_name]
+    host = fixture["host"]
     expected = {
         "schema_revision": 1,
         "product": host["product"],
@@ -366,7 +428,7 @@ def manifest_violations(
         "api_roots": host["api_roots"],
         "version": host["version"],
         "sanitized": True,
-        "interactions": expected_interactions(host),
+        "interactions": expected_interactions(fixture),
     }
     if manifest == expected:
         return []
@@ -516,12 +578,13 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
 
     def test_fixture_tree_is_exact_and_every_byte_is_sanitized(self) -> None:
         expected_files = set()
-        for host_name in HOSTS:
-            expected_files.add(f"{host_name}/manifest.json")
+        for fixture_name, fixture in FIXTURES.items():
+            expected_files.add(f"{fixture_name}/manifest.json")
+            contracts = operation_contracts(fixture["identity"])
             for operation in OPERATIONS:
-                response_name = OPERATION_CONTRACTS[operation][-1]
+                response_name = contracts[operation][-1]
                 expected_files.add(
-                    f"{host_name}/responses/{response_name}"
+                    f"{fixture_name}/responses/{response_name}"
                 )
 
         actual_files = {
@@ -755,7 +818,7 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
         )
 
     def test_manifests_pin_exact_read_only_contracts(self) -> None:
-        for host_name in HOSTS:
+        for host_name in FIXTURES:
             with self.subTest(host=host_name):
                 manifest = self.load_json(
                     FIXTURE_ROOT / host_name / "manifest.json"
@@ -772,8 +835,11 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                 self.assertNotIn("mutation", str(interactions).lower())
 
     def test_responses_have_exact_fields_and_equivalent_semantics(self) -> None:
+        octo_contracts = operation_contracts(
+            FIXTURES["github-com"]["identity"]
+        )
         for operation in OPERATIONS:
-            response_name = OPERATION_CONTRACTS[operation][-1]
+            response_name = octo_contracts[operation][-1]
             cloud_path = (
                 FIXTURE_ROOT / "github-com" / "responses" / response_name
             )
@@ -877,6 +943,89 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
             pull_request["head"]["sha"],
         ):
             self.assertRegex(oid, r"^([1-9])\1{39}$")
+
+    def test_recorded_fixtures_have_exact_fields_and_no_artifacts(self) -> None:
+        """The half of the field and artifact checks a mirrored pair cannot do.
+
+        `test_responses_have_exact_fields_and_equivalent_semantics` compares two
+        protocol variants of one identity against each other. A recorded pull
+        request has no twin, so it cannot join that comparison — but it must
+        still be held to the same per-operation field sets and the same
+        forbidden-key scan. Without this, a recorded fixture is admitted to the
+        tree by name, its bytes are scanned, and its JSON *keys* are never
+        looked at: a forbidden key carrying no forbidden byte would pass.
+        """
+        for fixture_name, fixture in FIXTURES.items():
+            if fixture["mirrors"] is not None:
+                continue
+            contracts = operation_contracts(fixture["identity"])
+            for operation in OPERATIONS:
+                response_name = contracts[operation][-1]
+                path = FIXTURE_ROOT / fixture_name / "responses" / response_name
+                with self.subTest(fixture=fixture_name, operation=operation):
+                    response = self.load_json(path)
+                    self.assertEqual(
+                        json_fields(response),
+                        RECORDED_RESPONSE_FIELDS[operation],
+                    )
+                    self.assertEqual(
+                        artifact_field_violations(response, frozenset()),
+                        [],
+                    )
+
+    def test_every_fixture_is_covered_by_a_field_and_artifact_check(
+        self,
+    ) -> None:
+        """No fixture may be admitted to the tree without being inspected.
+
+        This is the assertion that stops the previous test from being optional.
+        The mirrored pair is covered by the cross-host test and everything else
+        by the recorded test; a fixture belonging to neither would be scanned
+        for forbidden bytes and never for forbidden keys, and the gate would
+        stay green while looking at less than it did before.
+        """
+        mirrored = {
+            name for name, fixture in FIXTURES.items()
+            if fixture["mirrors"] is not None
+        }
+        recorded = {
+            name for name, fixture in FIXTURES.items()
+            if fixture["mirrors"] is None
+        }
+        self.assertEqual(mirrored | recorded, set(FIXTURES))
+        self.assertEqual(mirrored & recorded, set())
+        for name in mirrored:
+            self.assertEqual(FIXTURES[FIXTURES[name]["mirrors"]]["mirrors"], name)
+        self.assertTrue(recorded, "the recorded-fixture check must have work")
+
+    def test_no_served_fixture_carries_a_real_recorded_oid(self) -> None:
+        """The placeholder policy, held by reading bytes.
+
+        The pack carries generated commits. Serving GitHub's real OIDs beside it
+        is the half-divergence that connects and then fails at import, so the
+        real OIDs must appear nowhere under the served tree.
+        """
+        for path in sorted(FIXTURE_ROOT.rglob("*")):
+            if not path.is_file():
+                continue
+            payload = path.read_text(encoding="utf-8")
+            for oid in RECORDED_REAL_OIDS:
+                with self.subTest(path=str(path.relative_to(FIXTURE_ROOT))):
+                    self.assertNotIn(oid, payload)
+
+    def test_fixture_identities_need_no_escaping(self) -> None:
+        """Owner and repository are interpolated raw, so they must be safe.
+
+        The generator writes them into paths and the search query without
+        escaping. That is correct only while they contain nothing that would
+        need it, which is asserted here rather than assumed.
+        """
+        for fixture_name, fixture in FIXTURES.items():
+            identity = fixture["identity"]
+            with self.subTest(fixture=fixture_name):
+                self.assertRegex(identity.owner, UNRESERVED)
+                self.assertRegex(identity.name, UNRESERVED)
+                self.assertGreater(identity.number, 0)
 
     def test_validator_rejects_unsanitized_manifest(self) -> None:
         manifest = self.load_json(
