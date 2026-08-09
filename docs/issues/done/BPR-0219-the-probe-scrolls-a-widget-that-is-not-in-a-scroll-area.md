@@ -1,7 +1,7 @@
 ---
 id: BPR-0219
 title: The appearance probe scrolls a widget that is not in a scroll area
-status: Ready
+status: Done
 rfc: RFC-BPR-0006
 depends_on: []
 ---
@@ -79,3 +79,51 @@ visibly.
 Deleting the calls without the measurement. The conclusion may well be to
 delete them, but "the cast was dead so the code was pointless" does not follow;
 the cast being dead is why nobody knows whether the intent was needed.
+
+## Measured, then deleted, 2026-08-09
+
+The card said the fix had to be decided by a measurement rather than a reading,
+and the measurement says delete. Instrumented at the call site and run
+offscreen at the probe's own 1280x1000:
+
+```
+BPR0219_CENTRAL_CLASS:QWidget
+BPR0219_CENTRAL_RECT:1280x918
+BPR0219_WORKBENCH_RECT:260,475 760x443
+BPR0219_CONTAINED:1
+BPR0219_VISIBLE_COVERS:1
+```
+
+The central widget is a plain `QWidget`, confirming the cast fails. And the
+comparison is **already wholly visible**: its rect is contained in the central
+widget's, and its visible region covers its whole rect. So `ensureWidgetVisible`
+had nothing to do even in the world where the cast succeeded. Both calls are
+gone.
+
+## What replaced them
+
+Deleting alone would have left the next widget-tree change just as silent, so
+the property the call was reaching for is now asserted:
+`comparison_is_wholly_visible()`, used at both former cast sites.
+
+- In `prepare_native_appearance_probe` a failure returns false and prints
+  `NATIVE_APPEARANCE_COMPARISON_VISIBLE_FAILED`, because an appearance capture
+  of a clipped comparison is evidence of the wrong thing.
+- In the diff-evidence capture it prints
+  `DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED` and fails the run.
+
+### Shown non-vacuous
+
+Moving the comparison out of view (`workbench->move(x, 5000)`) fails the run
+with the marker; removing the move passes with `DIFF_WORKBENCH_OK` and no
+marker.
+
+One correction during the work. The first version used `break`, which only
+ended the tick and sent it round again — the marker printed several hundred
+times across retries. A structural fault does not resolve by retrying, so it
+calls `fail_automated_run` instead. Measured after the change: the marker
+appears exactly **once**.
+
+That is the difference the card was after. The old code could not fail at all;
+the first replacement failed too loudly to read; this one fails once and says
+what broke.

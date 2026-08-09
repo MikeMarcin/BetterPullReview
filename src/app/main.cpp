@@ -795,6 +795,39 @@ namespace {
 			&& native_appearance_context_passed(aWindow, aRun);
 	}
 
+	/// \brief Whether the comparison is wholly inside the window and unclipped.
+	///
+	/// \details Replaces a `qobject_cast<QScrollArea*>(centralWidget())` that
+	/// had been dead since BPR-0191 made the shell's central widget a plain
+	/// `QWidget`. The guarded `ensureWidgetVisible` never ran, and measurement
+	/// showed it had nothing to do: at the probe's 1280x1000 the comparison sits
+	/// at 260,475 760x443 inside a 1280x918 central widget, fully contained and
+	/// with its visible region covering its whole rect.
+	///
+	/// There is also no scroller it could have used. The shell's only
+	/// `QScrollArea` holds the review header, is capped at 220 pixels, and does
+	/// not contain the comparison; the comparison lives in a splitter that the
+	/// layout always fits inside the central widget.
+	///
+	/// So the call is gone and the property it was reaching for is asserted
+	/// instead. A cast inside an `if` cannot fail loudly, which is why nobody
+	/// noticed for as long as nobody did.
+	[[nodiscard]] auto comparison_is_wholly_visible(
+		const bpr::qt::workbench_window& aWindow,
+		const QWidget&                   aComparison) -> bool
+	{
+		const auto* const central = aWindow.centralWidget();
+		if (central == nullptr) {
+			return false;
+		}
+		const auto placed = QRect{
+			aComparison.mapTo(central, QPoint{ 0, 0 }),
+			aComparison.size(),
+		};
+		return central->rect().contains(placed)
+			&& aComparison.visibleRegion().boundingRect() == aComparison.rect();
+	}
+
 	[[nodiscard]] auto prepare_native_appearance_probe(
 		bpr::qt::workbench_window& aWindow,
 		automated_run&             aRun) -> bool
@@ -899,10 +932,12 @@ namespace {
 		view->collapse(thread);
 		aWindow.resize(1'280, 1'000);
 		workbench->left_pane()->setFocus(Qt::OtherFocusReason);
-		if (auto* const scroll = qobject_cast<QScrollArea*>(aWindow.centralWidget())) {
-			scroll->ensureWidgetVisible(workbench, 24, 24);
-		}
 		settle_automated_events();
+		if (!comparison_is_wholly_visible(aWindow, *workbench)) {
+			QTextStream{ stdout }
+				<< "NATIVE_APPEARANCE_COMPARISON_VISIBLE_FAILED\n";
+			return false;
+		}
 		aRun.Appearance.InitialDiffGeometryRebuilds
 			= workbench->statistics().GeometryRebuilds;
 		aRun.Appearance.InitialWindowActive = aWindow.isActiveWindow();
@@ -2793,10 +2828,23 @@ namespace {
 							break;
 						}
 						window.resize(1'280, 1'000);
-						if (auto* const scroll = qobject_cast<QScrollArea*>(window.centralWidget())) {
-							scroll->ensureWidgetVisible(workbench, 24, 24);
-						}
 						QApplication::processEvents();
+						// The same assertion the appearance probe makes, in the
+						// surface that writes the captures. A capture of a
+						// clipped comparison is evidence of the wrong thing,
+						// and the code that used to sit here could not notice:
+						// it was a `qobject_cast` in an `if`, so a shell whose
+						// structure had changed simply skipped the call.
+						//
+						// Fails the run rather than breaking the tick, because
+						// breaking only sends it round again and a structural
+						// fault does not resolve by retrying.
+						if (!comparison_is_wholly_visible(window, *workbench)) {
+							QTextStream{ stdout }
+								<< "DIFF_EVIDENCE_COMPARISON_VISIBLE_FAILED\n";
+							fail_automated_run(aApplication, *aRun);
+							return;
+						}
 						// Selected before the rasters are written, not after.
 						// BPR-0201: the appearance-gesture assertion changes
 						// the mode later in this same process, so a capture
