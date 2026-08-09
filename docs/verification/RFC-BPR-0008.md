@@ -19,11 +19,11 @@ write authority and attended/mixed-client execution. RFC-BPR-0008 stays
 
 ## Why this RFC can be implemented now
 
-`depends_on` names RFC-BPR-0002, RFC-BPR-0003, and RFC-BPR-0007. All three are
-implemented and verified on available targets; all three remain `Proposed`
-because closure is strictly ordered behind RFC-BPR-0002's real Windows x64
-evidence. Done BPR-0088 records the product owner's direction to advance the
-implementation frontier on available targets. Closure order is unchanged.
+`depends_on` names RFC-BPR-0002, RFC-BPR-0003, and RFC-BPR-0007. All three
+remain incomplete and `Proposed`; their live cards name the implementation,
+composition, target-native, and attended work still open. Done BPR-0088 records
+the product owner's direction to advance the implementation frontier despite
+that work. Closure order is unchanged.
 
 ## Architecture allocation
 

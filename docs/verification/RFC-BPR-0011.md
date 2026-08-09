@@ -17,9 +17,9 @@ remains ordered behind RFC-BPR-0002.
 
 ## Why this RFC can be implemented now
 
-`depends_on` names RFC-BPR-0002, RFC-BPR-0003, and RFC-BPR-0007, all
-implemented on available targets. Done BPR-0088 records the product owner's
-direction to advance the implementation frontier on available targets.
+`depends_on` names RFC-BPR-0002, RFC-BPR-0003, and RFC-BPR-0007. All remain
+incomplete and `Proposed`; done BPR-0088 records the product owner's direction
+to advance the implementation frontier despite their open work.
 
 ## What this RFC is, in one sentence
 

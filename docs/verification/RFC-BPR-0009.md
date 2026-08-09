@@ -16,10 +16,10 @@ acceptance criterion remains blocked on a designated repository and a person. RF
 
 ## Why this RFC can be implemented now
 
-`depends_on` names RFC-BPR-0008, which is implemented on available targets and
-stays `Proposed` behind its three owner-supplied gates and the ordered closure
-chain. Done BPR-0088 records the product owner's direction to advance the
-implementation frontier on available targets.
+`depends_on` names RFC-BPR-0008, which remains incomplete and `Proposed` behind
+its product-composition, isolation, owner-supplied, and ordered-closeout gates.
+Done BPR-0088 records the product owner's direction to advance the
+implementation frontier despite that open work.
 
 ## What this RFC is, in one sentence
 

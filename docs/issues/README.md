@@ -357,10 +357,12 @@ binary names; and updates structural contracts to assert semantics without
 depending on incidental whitespace. The developer and core-only matrices,
 strict first-party clang-tidy audit, format gate, and documentation gate pass.
 
-RFC-BPR-0006's implementation is complete. BPR-0104 through BPR-0113 and
-BPR-0116 through BPR-0118 supply the appearance model, typography, contrast
-obligations, theme selection, and the KSyntaxHighlighting acquisition route.
-Two cards remain: BPR-0114 and the BPR-0115 closeout.
+RFC-BPR-0006 has substantial predefined-profile, typography, contrast,
+theme-validator, and syntax component work. It is not complete: BPR-0236 owns
+the store-failure default composition, BPR-0237 owns semantic customization and
+safe theme import, BPR-0233 owns recorded selected-diff pixels, BPR-0220 owns
+native rebuild attribution, and BPR-0114/BPR-0115 retain attended and terminal
+closeout work.
 
 Done BPR-0180 is the card that changed how this board reads evidence. It
 reconciled RFC-BPR-0006's ledger against what the application actually

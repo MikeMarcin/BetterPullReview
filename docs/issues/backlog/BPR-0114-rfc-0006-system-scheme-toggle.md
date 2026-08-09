@@ -3,7 +3,7 @@ id: BPR-0114
 title: Verify System mode follows a live OS scheme change
 status: Backlog
 rfc: RFC-BPR-0006
-depends_on: [BPR-0106, BPR-0183, BPR-0184]
+depends_on: [BPR-0106, BPR-0183, BPR-0184, BPR-0220]
 ---
 
 # Verify System mode follows a live OS scheme change

@@ -148,7 +148,7 @@ Every row's `Direct surface` now names the harness it was proven against.
 | Renderer is virtualized | Instrumented `qt_workbench_window` harness | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified of the composed window. 60/6,000/60,000 lines produce **218/218/218** window widgets, 29/29/29 surface, 5/5/5 pane, at all three scales. Restated by BPR-0191: the earlier 68/68/68 was measured before the shell composed the session chrome, pull-request metadata, description and appearance surface, which is why the window figure rose. The surface and pane figures did not move, which is the substantive claim — the comparison surface itself builds no widget per line |
 | Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Verified. Toggles and navigation emit core intents only; enablement and disabled reasons come from projections; drawer contents use insert/remove/data-change rather than reset |
 | Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Verified. Exact untruncated OIDs, four distinguishable textual states, declared focus order, unique accessible names and key sequences |
-| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100, owner-attended — and blocked before it is deferred. BPR-0186 records that no launch can be inspected by a person at all: a fixture launch schedules an automated run and exits, and a launch with no fixture takes the real credentialed path. BPR-0187 records the real public pull request to judge it against |
+| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100. BPR-0186 added the attended fixture launch and an owner successfully inspected it; BPR-0187 added the recorded pull request. Final acceptance still waits for BPR-0226/BPR-0227's real workbench/diff path and BPR-0233's meaningful recorded comparison evidence |
 
 ## Deferred gates
 
@@ -157,13 +157,12 @@ the RFC-BPR-0003 and RFC-BPR-0004 ledgers both defer the integrated-workbench
 presentation-polish and native visual-acceptance pass to this RFC. BPR-0100
 owns it and is the only owner-attended card here.
 
-Attendance turned out not to be the binding constraint. BPR-0186 and BPR-0187
-were allocated by BPR-0180 after an attended sitting on 2026-08-06 could not
-proceed: there is no way to launch this application such that a person can look
-at it. `--github-fixture github-com` composes the fixture-backed application
-and immediately schedules an automated run that drives itself to shutdown, and
-a launch without a fixture takes the real credentialed path. Both cards are
-unattended work and neither needs Windows, a credential, or a network service.
+The 2026-08-06 sitting initially could not proceed because no fixture launch
+could remain open for a person. BPR-0186 added `--attended-launch`, and the
+owner subsequently used it successfully; BPR-0187 supplied the recorded pull
+request. The remaining attended gate is about the final selected comparison,
+not launchability. BPR-0226, BPR-0227, and BPR-0233 must make that state real
+and meaningful before BPR-0100 is regenerated.
 
 No RFC-BPR-0005 requirement needs target-native Windows execution, a GitHub
 mutation, a credential, or a network service. Non-goals exclude full GitHub

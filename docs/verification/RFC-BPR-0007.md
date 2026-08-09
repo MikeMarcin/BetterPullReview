@@ -17,12 +17,11 @@ RFC-BPR-0007 stays `Proposed`. No card here makes a closure claim.
 
 ## Why this RFC can be implemented now
 
-`depends_on` names RFC-BPR-0003 and RFC-BPR-0005. Both are implemented and
-verified on available targets, and both remain `Proposed` because closure is
-strictly ordered and RFC-BPR-0002 still owes real Windows x64 evidence in
-BPR-0036. Done BPR-0088 records the product owner's direction to advance the
-implementation frontier on available targets. Closure order is unchanged: this
-RFC cannot become `Auto-Verified` before RFC-BPR-0005 does.
+`depends_on` names RFC-BPR-0003 and RFC-BPR-0005. Both remain incomplete and
+`Proposed`; their live cards name the available-target, target-native, and
+attended work still open. Done BPR-0088 records the product owner's direction
+to advance the implementation frontier despite that open work. Closure order
+is unchanged: this RFC cannot become `Auto-Verified` before RFC-BPR-0005 does.
 
 ## Architecture allocation
 

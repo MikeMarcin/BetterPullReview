@@ -18,10 +18,10 @@ remains ordered behind RFC-BPR-0002.
 
 ## Why this RFC can be implemented now
 
-`depends_on` names RFC-BPR-0007 and RFC-BPR-0008. Both are implemented on
-available targets and stay `Proposed` behind owner-supplied gates and the
-ordered closure chain. Done BPR-0088 records the product owner's direction to
-advance the implementation frontier on available targets.
+`depends_on` names RFC-BPR-0007 and RFC-BPR-0008. Both remain incomplete and
+`Proposed` behind implementation, composition, owner-supplied, and ordered-
+closeout gates. Done BPR-0088 records the product owner's direction to advance
+the implementation frontier despite that open work.
 
 ## What this RFC is, in one sentence
 
