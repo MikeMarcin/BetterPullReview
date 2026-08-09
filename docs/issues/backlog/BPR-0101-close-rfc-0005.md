@@ -14,12 +14,15 @@ This card cannot mark RFC-BPR-0005 `Auto-Verified`. Closure is strictly ordered 
 
 It stays in `backlog/` and makes no `Auto-Verified` claim.
 
-## Three composition cards were added after this card was written
+## Historical composition finding and current correction
 
-BPR-0188 measured that the application does not contain `workbench_window`,
+BPR-0188 measured that the application did not contain `workbench_window`,
 `workbench_drawer`, or `workbench_application_host`, and that neither
-`workbench_settings_port` nor `workbench_observation_port` has an adapter. The
-shell this RFC is named for has never been on screen.
+`workbench_settings_port` nor `workbench_observation_port` had an adapter. That
+historical finding led to BPR-0189 through BPR-0192. The shell is now on screen,
+but BPR-0225 found its callbacks empty, its accepted review unobserved, and its
+host projections routed to a non-rendering sink. BPR-0226 and BPR-0227 own the
+current public-path gap.
 
 When this card is eventually prepared, replay against the **composed
 application**. Replaying the component suites would reproduce exactly the gap

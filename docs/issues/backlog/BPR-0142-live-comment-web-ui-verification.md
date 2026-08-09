@@ -3,10 +3,18 @@ id: BPR-0142
 title: Verify a published comment in the GitHub web UI
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0139, BPR-0221]
+depends_on: [BPR-0139, BPR-0221, BPR-0229, BPR-0235]
 ---
 
 # Verify a published comment in the GitHub web UI
+
+## Final-state safety correction
+
+BPR-0221 repaired the false-green exit handling and added a useful structural
+inventory, but it does not deny generic network calls, scripts, helper
+subprocesses, or production-application launches. BPR-0235 must establish the
+default-deny process boundary before this card may construct or use a live
+provider. The designated repository decision below remains valid.
 
 RFC-BPR-0008 requires that a BetterPullReview comment is **readable and
 replyable in the GitHub web UI with no tool-specific marker**. A fixture cannot

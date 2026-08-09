@@ -2,9 +2,11 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: **components complete; queue and notification workflow not publicly
-reachable.** BPR-0159 through BPR-0170 delivered the deterministic queue,
+Status: **queue components are partial; public workflow is unreachable.**
+BPR-0159 through BPR-0170 delivered the deterministic queue,
 refresh, enrollment, model, notification request, and durable store components.
+The RFC-allocated filters and sorting presentation were not built; BPR-0239
+owns them.
 The public application constructs only the notification adapter. It supplies
 neither an observed GitHub role nor a user-configured observer rule, constructs
 no queue item or landing model, never calls `deliver()`, and never consumes the
@@ -92,6 +94,7 @@ A row is claimed only when its card lands with direct evidence.
 | A completion cannot cross sessions | Host | Deliver a stale completion after an account, repository, or pull-request switch | The completion is refused by identity rather than by ordering luck | Verified. BPR-0161 checks identity before reading anything else, so a stale answer changes no validator, no backoff, and no online state. A session is host, account, and generation: an account switch reusing the generation is still refused |
 | Enrollment survives the path it matched | Host plus store | Enroll by path rule, project without re-deriving membership, and read it back from a separate process | The item stays enrolled with its original reason until closed or removed | Verified. BPR-0162 retains membership as enrolled rather than recomputing it, so the pull request a path rule caught stays when the path leaves it. BPR-0170 makes that survive a restart: a forked child writes and this process reads back the rule that brought the item in and the departure reason of one that left |
 | The queue updates incrementally | Qt | Replace a queue projection with one differing in a few items | Exact insert, remove, move, and data signals by stable identity, and no routine reset | Verified. BPR-0163's `review_landing_model` matches rows by `pull_request_ref`, so an item that becomes urgent moves and keeps its persistent index rather than being replaced. Re-applying an unchanged queue emits nothing at all. A positional diff — which RFC-BPR-0007's model uses for a different job — would have reported a reorder as a run of changes on rows that did not change |
+| Filters and sorting remain deterministic and explainable | Composed Qt landing surface | Filter by role, observer reason, bucket, repository, and quiet/current state; select each supported sort | Stable identities survive, the default retains core priority, alternate sorting is explicit, and empty states explain active filters | Not implemented. The existing model presents the core order but has no filtering or sorting surface; BPR-0239 owns it |
 | Notifications carry no content | Host | Request a notification for a review with comments and a matched path rule | The request type has no field a body, a title, or a path could occupy | Verified. BPR-0164 reads the whole notification and requires it to be exactly identity, the bucket's fixed sentence, and a count — not merely free of a list of bad words. Leaking the matched rule's path takes three deliberate edits, and the test catches it |
 | A notification links to the right review | Host | Resolve the target of a requested notification | The link resolves to the host, account, repository, and pull request the item names | Verified for the target. BPR-0164's target is a local reference rather than a URL: a `https://` address would open a browser, and a link the operating system can hand to any handler is one another application can claim. That following it from a delivered banner selects that review is BPR-0168 |
 | Closure and permission loss are honest | Host | Close, reopen, transfer, and lose permission to an enrolled pull request | Each produces an explicit queue state rather than a silent disappearance | Verified. BPR-0162 keeps forbidden and gone distinct — one is a permission a reviewer may be able to ask for, the other a pull request that is not there — retains a departed item with its reason while dropping it from the queue, and restores the same record on reopening. Only a withdrawal moves an item out, so an outage does not empty the queue |

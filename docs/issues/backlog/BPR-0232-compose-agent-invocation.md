@@ -3,13 +3,16 @@ id: BPR-0232
 title: Compose explicit agent invocation into the shipped workbench
 status: Backlog
 rfc: RFC-BPR-0011
-depends_on: [BPR-0226]
+depends_on: [BPR-0226, BPR-0228, BPR-0229, BPR-0230, BPR-0240]
 ---
 
 # Compose explicit agent invocation into the shipped workbench
 
-The policy, context, process, workspace, and Qt panel components exist. The
-application constructs none of them, so a reviewer cannot invoke an agent.
+The policy, partial context, process, workspace, and Qt panel components exist.
+The application constructs none of them, so a reviewer cannot invoke an agent.
+BPR-0240 first completes the missing exact-context and process-lifecycle
+semantics; the ledger, draft, and defect dependencies then supply their real
+context authorities.
 
 ## Required final state
 
@@ -25,3 +28,5 @@ application constructs none of them, so a reviewer cannot invoke an agent.
   presented through typed events rather than direct widget/process coupling.
 - A public canary trace proves the composed surface while retaining the RFC's
   optional status for a smoke run against an actually installed agent.
+- Extend the standing composition inventory to the launcher and panel, then
+  prove construction and invocation separately from their linked symbols.

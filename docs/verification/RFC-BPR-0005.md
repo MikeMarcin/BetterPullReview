@@ -58,7 +58,13 @@ Introducing a second mapping, presentation-side regrouping, follower-scroll
 coupling, or synthetic alignment rows is a defect, not an implementation
 choice.
 
-## Composition
+## Historical composition investigation
+
+This section preserves the pre-BPR-0191 investigation that led to replacing
+`github_window`. It is not the current product state. At final HEAD the binary
+contains `workbench_application_host`, `workbench_window`, and
+`workbench_drawer`, contains no `github_window`, and still lacks the public
+wires named in the status correction above.
 
 The application showed `github_window` and did not contain `workbench_window`.
 **BPR-0191 reversed both.** The shipped binary now contains 591
@@ -74,27 +80,27 @@ whole-window scroll), each to the guarantee the original bought.
 
 | Measurement | Result |
 |---|---|
-| `nm build/dev/src/app/better_pull_review \| c++filt \| grep -cF workbench_application_host` | `0` at the time of measurement; **1393 after BPR-0190** |
-| the same for `workbench_window` | `0` at the time of measurement; **591 after BPR-0191** |
+| `nm build/dev/src/app/better_pull_review \| c++filt \| grep -cF workbench_application_host` | `0` at the time of measurement; **present after BPR-0190** |
+| the same for `workbench_window` | `0` at the time of measurement; **present after BPR-0191** |
 | the same for `github_window` | non-zero at the time of measurement; **0 after BPR-0191** |
-| the same for `workbench_drawer` | `0` |
+| the same for `workbench_drawer` | `0` at the time of measurement; **present after BPR-0191** |
 | implementations of `workbench_settings_port` in `src/` | none at the time of measurement; **supplied by BPR-0189** |
 | implementations of `workbench_observation_port` in `src/` | none at the time of measurement; **supplied by BPR-0192** |
 
-So the shell this RFC is named for — primary navigation, compact overflow,
-drawers, the full-width detail pane, the declared focus order, the accessible
-names BPR-0097 repaired — has never been on screen. What the application does
-show is `github_window`, RFC-BPR-0002's window, which grew the RFC-BPR-0003 and
-RFC-BPR-0004 surfaces directly.
+At that measurement point, the shell this RFC is named for — primary
+navigation, compact overflow, drawers, the full-width detail pane, the declared
+focus order, and the accessible names BPR-0097 repaired — had never been on
+screen. The application then showed `github_window`, which grew the RFC-0003
+and RFC-0004 surfaces directly. BPR-0188 decided the shell would replace it,
+and BPR-0191 performed that replacement.
 
-Both windows compose `diff_workbench` and `epoch_comparison_control`. Two
-windows own one review surface, and the product shows the one that predates
-this RFC. BPR-0188 decided the shell becomes the application's window and
-recorded why the cheaper alternative was refused.
+The final-state defect is different: the shell is now on screen, but its
+workbench callbacks are empty, its accepted review is not observed, and host
+projections terminate in a non-rendering sink. BPR-0226 owns those wires.
 
-Neither of this RFC's two ports had ever had an adapter. That was not an
-oversight that was tracked and deferred — a port satisfied by a fake never asks
-for one, so nothing ever reported it missing.
+At the historical measurement point neither of this RFC's two ports had an
+adapter. The later adapters and host remain valid component work; final-HEAD
+reachability is stated separately above.
 
 ### Staged actionability, stated rather than implied
 

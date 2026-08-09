@@ -3,7 +3,7 @@ id: BPR-0115
 title: Verify and close RFC-BPR-0006
 status: Backlog
 rfc: RFC-BPR-0006
-depends_on: [BPR-0104, BPR-0105, BPR-0106, BPR-0107, BPR-0108, BPR-0109, BPR-0110, BPR-0111, BPR-0112, BPR-0113, BPR-0114, BPR-0118, BPR-0181, BPR-0182, BPR-0183, BPR-0184, BPR-0185, BPR-0220, BPR-0233]
+depends_on: [BPR-0104, BPR-0105, BPR-0106, BPR-0107, BPR-0108, BPR-0109, BPR-0110, BPR-0111, BPR-0112, BPR-0113, BPR-0114, BPR-0118, BPR-0181, BPR-0182, BPR-0183, BPR-0184, BPR-0185, BPR-0220, BPR-0233, BPR-0236, BPR-0237]
 ---
 
 # Verify and close RFC-BPR-0006
@@ -14,7 +14,7 @@ This card cannot mark RFC-BPR-0006 `Auto-Verified`. Closure is strictly ordered 
 
 It stays in `backlog/` and makes no closure claim.
 
-## Five composition cards were added after this card was written
+## Historical composition finding and current correction
 
 BPR-0180 measured that nothing RFC-BPR-0006 built is connected to the
 application: `appearance_application_host` and `packaged_syntax_classifier`
@@ -22,6 +22,11 @@ have zero symbols in the shipped binary, `appearance_profile` is constructed
 only by tests, and the composition never links
 `BetterPullReview::AdapterSyntax`. BPR-0181 through BPR-0185 close that, and
 BPR-0118 retires the one setting the product owner decided not to keep.
+
+That composition finding is historical. At final HEAD the predefined profiles
+and syntax classifier are composed only when durable settings open. BPR-0236
+owns the missing default fallback, and BPR-0237 owns semantic palette
+customization, preview, persistence, and safe import.
 
 When this card is eventually prepared, the replay must be run against the
 composed application. Replaying the component suites would reproduce exactly

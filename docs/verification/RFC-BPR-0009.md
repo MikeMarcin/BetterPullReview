@@ -2,11 +2,14 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: **components complete; product composition absent.** BPR-0146 through
+Status: **policy/presentation components exist; persistence and product
+composition are absent.** BPR-0146 through
 BPR-0150 delivered the lifecycle, evidence policy, correlator, Qt card, and
 anchor history in direct component tests. BPR-0225 found no defect correlator
 or defect-card construction in the public application, and the ledger already
-states that no composed multi-defect queue exists. BPR-0230 owns that path.
+states that no composed multi-defect queue exists. The RFC-assigned host
+persistence for local classification also has no store; BPR-0238 owns that
+durable state, and BPR-0230 owns the composed workflow.
 
 RFC-BPR-0009 stays `Proposed`. No card here makes a closure claim, and one
 acceptance criterion remains blocked on a designated repository and a person. RFC-BPR-0009 stays `Proposed`.
@@ -58,6 +61,7 @@ A row is claimed only when its card lands with direct evidence.
 | A fix claim is not a verification | Core | Apply author reply and nearby-change evidence | Both reach `needs verification`; no evidence path reaches `verified` | Verified. BPR-0147 drives all three evidence kinds from all three receiving states — nine cases — and none reaches `verified`. An externally resolved thread, which is what a verification looks like from outside, reaches `needs_verification` like everything else |
 | Only an explicit reviewer intent verifies | Core, host, and Qt | Attempt to verify from each layer without the intent | No host correlation and no widget action can produce `verified` | Verified in all three layers, each asserting it separately rather than inheriting. BPR-0149 presents every defect state, triggers every action, and shows the card's own state never moves |
 | Classifying mutates nothing shared | Host | Classify an existing thread | No request is issued until a distinct shared action is taken | Verified. BPR-0148's correlator is a pure function with no provider, so there is nothing here that could issue a request; mutation goes through RFC-BPR-0008's coordinator, reached by a separate action |
+| Local classification persists | Host store | Classify defects, restart, migrate, and re-read under exact identity | Severity, category, lifecycle, and retained anchor history survive without entering GitHub shared state | Not implemented. No defect-classification store exists; BPR-0238 owns the durable authority and BPR-0230 composes it |
 | Reopening is a separate explicit action | Core and host | Reopen a verified defect | Reopening never rides along with another action and may unresolve the thread only when asked | Verified. BPR-0152 drives every other command and all three evidence kinds from every state and none reaches `reopened`; the Qt card offers reopen only from `verified`. Unresolving the shared thread is a separate mutation through RFC-BPR-0008's coordinator, which this RFC's code cannot reach |
 | An outdated anchor is honest | Core | Remove the anchor a defect was filed against | The original context and state are retained and the unavailability is explicit, never repaired with a nearest-line guess | Verified. BPR-0150 keeps the original anchor and the lifecycle state through both ways of losing context, and the type has no field for a substitute anchor — the absence is the guarantee, since there is nothing to set |
 | Counts and navigation agree | Core plus Qt | Compare the queue to local state and thread status | The presented counts follow the projection rather than a separately maintained tally | Partially verified. BPR-0149's card derives its badge, explanation, and every action's enablement from the presented projection and holds no state of its own, so there is no separate tally to disagree; a queue view aggregating many defects is not built |

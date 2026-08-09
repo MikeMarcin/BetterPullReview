@@ -2,15 +2,20 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: **components complete; product composition absent.** BPR-0135 through
+Status: **round-trip components exist; product composition and durable
+isolation are incomplete.** BPR-0135 through
 BPR-0139 delivered the draft policy, target revalidation, mutation coordinator,
 synchronization, and Qt editor against fixture/component surfaces. BPR-0225
 found no construction or invocation of those surfaces in the public
 application. BPR-0229 owns the missing gesture-to-coordinator-to-refresh path.
+The BPR-0221 structural guard accurately describes today's no-live-provider
+tree, but does not deny generic network, script, subprocess, or production-app
+test paths once a provider lands. BPR-0235 owns the standing default-deny gate.
 
-RFC-BPR-0008 stays `Proposed`. No card here makes a closure claim, and three
-acceptance criteria remain blocked on a designated repository, a token, and a
-person. RFC-BPR-0008 stays `Proposed`.
+RFC-BPR-0008 stays `Proposed`. No card here makes a closure claim. The safe
+repository is designated, but the live criteria still require session-scoped
+write authority and attended/mixed-client execution. RFC-BPR-0008 stays
+`Proposed`.
 
 ## Why this RFC can be implemented now
 
@@ -60,7 +65,7 @@ A row is claimed only when its card lands with direct evidence.
 | The mutation path cannot bypass the host | Qt plus trace | Drive every publish and resolve action | Every action produces a core proposal, then a host coordination, then a result event; no widget holds a provider | Verified. BPR-0139's editor is given two dispatch callbacks and nothing else, so there is no provider to hold; every action emits a command and leaves the editor unchanged until an accepted projection arrives, and enablement is derived from that projection rather than from what was typed |
 | Capability fallback is explicit | Host | Offer a provider without native resolve or viewed-state | The degradation is reported in typed form rather than silently skipped | Verified. BPR-0137 reports a provider that resolves no threads and records no viewed state rather than skipping the operation, which would leave a reviewer believing they had resolved something |
 | Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Verified for the request. BPR-0137 asserts the submitted request carries the acting identity and the coordinator's own designated target, so no caller can name a destination. Whether GitHub attributes the review to that account is BPR-0144 |
-| No automated test mutates an undesignated target | Whole suite | `ctest -R live_mutation_isolation` — a standing gate under both `dev` and `core-only` | Three clauses with positive controls: the port's implementations are a subset of a three-path allowlist **and the fake must be found**; no non-production binary in the build-generated manifest carries a `live_review_mutation_provider` symbol **and `review_mutation_tests` must be present and must contain `review_mutation_coordinator`**; and the factory is called from nowhere under `tests/` | Verified by a standing gate rather than by a property that expires. **The condition is discharged.** This row formerly read *"Verified, and conditionally: it holds because no live provider exists yet"* — true, and due to stop being true the moment BPR-0142 landed. BPR-0221 replaced the structural argument with an asserted one before any live code exists, which is the only point at which the guard could be shown to fail on a tree whose answer was known: a rogue implementation compiled into `review_mutation_tests` was caught by both the source and binary halves, a factory call under `tests/` by the third, and a manifest with the control binary removed by the positive control. 87 non-production binaries are covered on macOS `dev`; the four platform-guarded credential-vault targets appear only in the configurations that build them |
+| No automated test mutates an undesignated target | Whole suite | Structural `live_mutation_isolation` today; default-deny network/process lane before any live provider | Every CTest executable, script, helper subprocess, and production-app launch is network-denied unless it belongs to one explicit designated-target lane | **Conditional only.** BPR-0221's three positive-control clauses catch selected port implementations, symbols, and factory calls and correctly pass while no live provider exists. They do not cover generic HTTPS/`gh`, Python, arbitrary subprocesses, or production `app_` binaries excluded from the manifest. BPR-0235 must add process-boundary default denial before BPR-0142 can use a live provider |
 
 ## Deferred gates
 
@@ -69,12 +74,13 @@ exactly what is missing.
 
 | Card | Gate | What is missing |
 |---|---|---|
-| BPR-0142 | A comment is readable and replyable in the GitHub web UI with no tool-specific marker | A designated safe repository, a write-scoped token for it, and a human to read the web UI |
-| BPR-0143 | Mixed-client acceptance: external edit, delete, resolve, reopen | The same designated repository plus a second client acting on it |
+| BPR-0142 | A comment is readable and replyable in the GitHub web UI with no tool-specific marker | A session-scoped write token for the already designated safe repository, plus a human to read the web UI |
+| BPR-0143 | Mixed-client acceptance: external edit, delete, resolve, reopen | The designated repository, session authority, and a second client acting on it |
 | BPR-0144 | Reviews appear under the authenticated user's identity with ordinary semantics | A real account and token; the fixture proves the identity is carried, not that GitHub honours it |
 
-The product owner must designate the repository and supply the token. Nothing
-in `docs/` designates one today, and no slice here will invent one.
+The product owner designated `MikeMarcin/BPR-Test` before any run. Session
+authority and the required human/mixed-client actions remain unavailable, and
+BPR-0235 must establish default-deny isolation before a live provider runs.
 
 ## Card allocation
 
@@ -96,14 +102,16 @@ in `docs/` designates one today, and no slice here will invent one.
 | Review, comment, and thread mapping; drafts; publish semantics; identity; stale-head behaviour; retries; capability fallback; safe-test policy; mixed-client contract | [Review Round Trip](../architecture/review-round-trip.md) | Written. Records ownership, the command/decision/proposal/request/completion/observation/delta vocabulary, the draft lifecycle, semantic anchoring, the two unequal target mismatches, safe-target enforcement, identity, idempotency, synchronization and the mixed-client contract, capability fallback, and what is not proven without a live target |
 | Private review ledger boundary | [Review Ledger](../architecture/review-ledger.md) | No impact. The ledger holds private progress and this RFC holds shared state; the two share no table and no authority. Recorded rather than assumed |
 
-The document states plainly that **nothing in this repository designates a safe
-mutation target today**, and that weakening the coordinator's target check to
-let a test through would remove the property the test exists to exercise.
+The document names the safe mutation target and states that no other target is
+reachable. It also records that weakening the coordinator's target check to let
+a test through would remove the property the test exists to exercise. BPR-0235
+adds the process-boundary isolation the current structural inventory lacks.
 
 ## Closeout blockers
 
 RFC-BPR-0008 cannot become `Auto-Verified` until RFC-BPR-0007, RFC-BPR-0005,
 RFC-BPR-0004, RFC-BPR-0003, and RFC-BPR-0002 are, and therefore not before real
 Windows x64 evidence in BPR-0036 and BPR-0053. It additionally cannot close
-before BPR-0142, BPR-0143, and BPR-0144, which need a designated repository, a
-token, and a human. BPR-0141 will make no closure claim.
+before BPR-0142, BPR-0143, BPR-0144, and BPR-0235. The repository is
+designated; session authority, human/mixed-client execution, and durable
+default-deny isolation remain open. BPR-0141 will make no closure claim.

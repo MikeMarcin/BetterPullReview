@@ -2,11 +2,15 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: **components complete; product composition absent.** BPR-0172 through
-BPR-0179 delivered and simplified policy, revision binding, context, process,
-workspace, and Qt panel components. As the existing `Not delivered` section
-states, the public application constructs none of them. BPR-0232 owns the
-explicit user-invocation path.
+Status: **policy/workspace/panel components exist; context, process lifecycle,
+and product composition are incomplete.** BPR-0172 through BPR-0179 delivered
+policy, revision binding, a partial context supplement, basic process launch,
+workspace, and Qt panel components. The launch input omits last-reviewed head,
+changed-since-review, defects, and selected-file context. The process adapter
+does not stream, drain stderr, or distinguish nonzero exit. BPR-0240 owns those
+component contracts. As the existing `Not delivered` section states, the
+public application constructs none of them; BPR-0232 owns explicit invocation
+after its ledger, draft, defect, and process dependencies.
 
 RFC-BPR-0011 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -54,7 +58,9 @@ separate input channel, and the context has no path into the former.
 
 ## What this RFC needs that it does not have
 
-Nothing.
+The exact context and process-lifecycle behavior now tracked in BPR-0240, plus
+the public authorities and invocation path tracked by BPR-0228 through
+BPR-0232.
 
 That was checked against the RFC text rather than assumed. Its non-goals
 exclude calling model APIs and storing provider credentials; its acceptance
@@ -90,7 +96,8 @@ unstarted.
 | Every invocation is explicit | Qt, structurally | `qt_agent_launch_panel`, `architecture_boundaries` | No launch occurs without a user command; the Qt path emits an intent and launches nothing itself | **Verified structurally** (BPR-0177). `agent_launch_panel` holds no process and no launcher, and the architecture scan enforces that the whole Qt adapter contains no `QProcess` — so a refresh or a navigation cannot reach one because there is none to reach. The refresh-and-navigate interaction the row originally imagined is not run, because there is no composed surface to run it against; see *Not delivered*. |
 | Context never travels in argv | Host, and a real child | `application_agent_launch`, `qt_agent_launch_canary` | The supplement reaches the child over its input channel, and the argv is inspected in full | **Verified** (BPR-0175). `agent_launch_request` separates `Arguments` from `Input` and `build_agent_launch` has no branch reading the supplement into the former. argv is compared argument for argument — in the request and again from the child — and the note is found on standard input. |
 | A session is revision-pinned | Core | `core_agent_session` | The session becomes stale rather than retargeting, and the original identity is retained | **Verified** (BPR-0173). Nothing in the header rewrites a binding; `continue_against_binding` returns the session's own unconditionally. The epoch pair is part of the identity, asserted after first asserting both bindings agree on every revision. |
-| The supplement carries only local state | Core | `core_agent_context_supplement` | It carries what GitHub cannot supply, and no provider credential or token | **Verified** (BPR-0174). `Notes` is copied from `SelectedNotes` and from nowhere else — the builder holds no note store — so an unselected note has no source rather than being filtered out. The default case is compared field for field against a fully specified empty supplement. |
+| The supplement carries only local state | Core | `core_agent_context_supplement` | It carries every RFC-required local field GitHub cannot supply, and no provider credential or token | **Partially verified** (BPR-0174). The credential/type boundary and selected-note behavior are proven, but the child input omits last-reviewed head, changed-since-review, defects, and selected-file context. BPR-0240 owns the missing exact supplement. |
+| Supported process protocols stream and fail honestly | Host with real canary children | Emit partial stdout frames, stderr pressure, nonzero exit, cancellation, timeout, and stale completion | Output arrives incrementally without deadlock and each terminal condition has a distinct typed outcome | Not implemented. The current adapter waits, reads stdout once, ignores exit status and stderr, and treats any finished process as completed; BPR-0240 owns the contract |
 | A disposable workspace is pinned | Host | `application_agent_workspace` | The workspace matches the session's head and is unaffected | **Verified** (BPR-0176). The pin is `Binding.HeadOid`, never the checkout's. The same workspace is prepared twice with the worktree dirtied in between and the pin does not move. |
 | Existing-checkout mode is explicit | Host plus Qt | `application_agent_workspace`, `qt_agent_launch_panel` | The choice is deliberate and the dirty-worktree risk is shown | **Verified** (BPR-0176, BPR-0177). A profile cannot opt itself in: the mode is refused without a choice made for this invocation, carried on the intent rather than read from a setting. `checkout_cleanliness` keeps `unknown` distinct from `clean`, so a host that could not determine the state cannot report the reassuring answer. The toggle's tooltip states the risk; whether that wording is sufficient is a presentation question no attended review has yet judged. |
 
@@ -155,8 +162,12 @@ Named rather than left for a reader to infer from silence:
 - **No agent tool is ever really run.** The canary is the RFC's named surface.
   A smoke test against an installed Codex or Claude harness is optional extra
   validation, not a gate — checked against the RFC text rather than assumed.
-- **No streaming, findings, chat, or MCP helper.** RFC-BPR-0012 owns those.
-- **No result events or session store.** A session records what was asked; what
-  came back, and where sessions live, are not this RFC's.
+- **No incremental process output.** RFC-BPR-0011 itself requires supported
+  stream protocols and responsive cancellation; BPR-0240 owns stdout/stderr,
+  framing, nonzero-exit, and typed terminal behavior. Findings, chat, and MCP
+  helpers remain RFC-BPR-0012 scope.
+- **No composed result events or session store.** BPR-0232 owns the typed
+  product lifecycle; persistence beyond the RFC's pinned session identity is
+  not claimed.
 - **The existing-checkout risk wording is unjudged.** It is shown, and no
   attended review has said whether it is enough.

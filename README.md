@@ -27,11 +27,12 @@ workbench callbacks are empty, its workbench host publishes into a
 non-rendering intermediate sink, and accepted pull-request state is not offered
 to that host. A selected diff can currently be requested only by a
 tests-enabled fixture helper, not by a user-selected file. BPR-0226 and
-BPR-0227 own those missing public wires. RFC-BPR-0007 through RFC-BPR-0011 have
-substantial tested component implementations, but their review-ledger host,
-mutation/synchronization workflow, defect workflow, queue/observer surface,
-and agent invocation are not composed into the public application; BPR-0228
-through BPR-0232 track that remaining work.
+BPR-0227 own those missing public wires. RFC-BPR-0006 through RFC-BPR-0011 have
+substantial tested component implementations, but their remaining work is not
+limited to composition: theme customization/import, durable notes/heads/defect
+metadata, queue filters/sorting, and complete agent context/process lifecycle
+are also absent. BPR-0228 through BPR-0240 track the exact component,
+resilience, and public-composition slices.
 
 GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the
@@ -48,7 +49,7 @@ while that epoch remains retained rather than explicitly pruned or
 cache-deleted, but never-observed history cannot be reconstructed. Cache and
 catalog identities are opaque and isolated by
 profile, account, and repository; hard limits refuse new retention instead of
-automatically pruning prior history. The current public UI exposes comparison
+automatically pruning prior history. The current public UI exposes epoch
 selection plus a secondary `Local history maintenance` menu. Pruning captures
 the exact selected epoch IDs; whole-cache deletion captures the exact current
 repository-cache scope. Both require an explicit Qt confirmation whose default
@@ -56,21 +57,17 @@ and Escape action are Cancel, leave durable tombstones, and state that GitHub
 and developer worktrees are not modified. Users must not edit the private Git
 repository or SQLite catalog by hand.
 
-Review mutation, private-ledger behavior, and packaging remain later RFC work.
-The GitHub window now presents the available path through a compact,
-responsive hierarchy with explicit request states, retained accepted content
-during refresh, read-only conversation rendering, and a selected-file
-comparison with natural-layout source panes, one shared vertical scrollbar,
-semantic selection, and lower detail. It inherits the active native palette,
-style, and font without forcing a palette, style, or QSS, and responds to
-application appearance and font changes. Final integrated presentation polish
-remains RFC-BPR-0005 work; user-selectable appearance profiles remain
-RFC-BPR-0006 work.
-
-This GitHub window is an interim RFC-BPR-0002 integration surface, not the
-final review workbench. RFC-BPR-0005 owns the complete native workbench and
-virtualized review layout. RFC-BPR-0006 owns syntax presentation and the full
-System, Light, Dark, and high-contrast appearance profiles.
+Review mutation and private-ledger workflows remain later public-composition
+work. The shipped window is `workbench_window`, not the deleted
+`github_window`; it presents the compact pull-request shell, request states,
+retained accepted content, read-only conversations, and connected epoch
+controls. The natural-layout selected-file comparison, workbench navigation,
+drawers, and detail components are directly exercised in harnesses, but a
+reviewer cannot currently reach them because the shell-to-host wires described
+above are absent. Appearance profiles and syntax components are composed only
+while their durable settings store opens; BPR-0236 owns the promised default
+fallback, and BPR-0237 owns the still-missing semantic customization and safe
+theme import.
 
 ## Architecture
 

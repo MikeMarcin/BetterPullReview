@@ -41,6 +41,14 @@ story told by intermediate commits.
   the selected public path.
 - BPR-0234: add immutable RFC bases and executable acceptance checklists to
   every open RFC closeout card.
+- BPR-0235: replace the incomplete live-mutation inventory with default-deny
+  test network isolation and one explicit designated-target lane.
+- BPR-0236: preserve appearance and syntax composition when durable settings
+  storage cannot open.
+- BPR-0237 through BPR-0240: complete required theme customization/import,
+  ledger persistence, queue filter/sort, and agent context/process scope.
+- BPR-0241 through BPR-0245: retain live terminal closeout cards for
+  RFC-BPR-0007 through RFC-BPR-0011.
 - Existing BPR-0220 retains the native appearance rebuild-attribution
   question. Existing BPR-0223 retains notification delivery and activation
   after BPR-0231 supplies real queue items.
@@ -65,20 +73,21 @@ story told by intermediate commits.
 |---|---|---|---|---|---|---|
 | The workbench is reachable, not merely constructed | Shipped composition source and public trace | Trace window callbacks, host observation, projection sink, and one user action | Nonempty intents reach the host, accepted review facts are observed, and the window receives the projection | Not satisfied. The callbacks are empty, projections terminate in a non-rendering sink, accepted handoff reaches only the epoch host, and settings-store failure prevents host construction | BPR-0226 | `0588efa` |
 | A selected file can request a real diff | Shipped executable without fixture-access helpers | Open a fixture PR, select a file through the window, and observe the exact diff request/result | The trace contains no direct `request_fixture_diff` call and the selected file drives the request | Not satisfied. The fixture-access helper is the only caller of the composition's diff request | BPR-0227 | `0588efa` |
-| Later RFC features are honestly described | Composition root plus verification ledgers | Inventory constructed and invoked RFC-BPR-0007 through RFC-BPR-0011 paths | Every ledger distinguishes component, linked, constructed, invoked, and user-reachable state | Reconciled. Component evidence is retained; absent product composition is explicit | BPR-0228 through BPR-0232 and the RFC ledgers | `d838613` |
+| Later RFC features are honestly described | RFC text, implementation, composition root, and verification ledgers | Inventory mandatory scope plus linked, constructed, invoked, and user-reachable RFC-BPR-0006 through RFC-BPR-0011 paths | Every ledger distinguishes unimplemented scope, component proof, linking, construction, invocation, and user reachability | Reconciled after the critical review falsified the first composition-only framing. BPR-0237 through BPR-0240 own unimplemented scope; BPR-0228 through BPR-0232 own composition | New cards and corrected RFC ledgers | Final closeout commit |
 | The recorded fixture proves rendered intraline behavior | UIforETW selected-diff public path | Run the recorded fixture with the selected-diff trace and inspect semantic ranges and role pixels | A meaningful comparison, intraline ranges, and affected profile pixels are asserted before attendance | Not satisfied. The fixture is served, but its registered path opens the PR and saves a grab without selecting or asserting a diff | BPR-0233 | `0588efa` |
 | Repaired false-green gates honor exit failure | CTest registrations and tests-disabled Release graph | Run `application_composition_contract` and `live_mutation_isolation_contract`; inspect generated metadata | No pass regex overrides the suite exit code and the Release graph reaches its seam assertions | Verified by source/generated-metadata inspection and focused passing runs; no false-green override remains on either repaired test | BPR-0224 | `2f2074a` |
-| The live tracker names every nonterminal slice | `docs/issues/` folders and front matter | Inventory lanes, dependencies, `NEXT_ID`, and board narrative | Counts, folder state, front matter, and dependency claims agree | Verified at the pre-close state: 28 backlog, 3 ready, this one in progress, `NEXT_ID` BPR-0235, and `DOCUMENTATION_OK` | This card and BPR-0234 | `6470199` |
+| Live-mutation isolation survives a future provider | Whole automated process graph | Attempt generic HTTPS/`gh`, script subprocess, and production-app launch outside one designated lane | Network is denied by default regardless of port symbol or factory shape | Not satisfied. The current structural gate is useful for today's no-provider tree but does not cover these counterexamples | BPR-0235 | Final closeout commit |
+| The live tracker names every nonterminal slice | `docs/issues/` folders and front matter | Inventory lanes, dependencies, `NEXT_ID`, and board narrative | Counts, folder state, front matter, and dependency claims agree | Verified at the corrected pre-close state: 37 backlog, 5 ready, this one in progress, `NEXT_ID` BPR-0246, and no lane/frontmatter/dependency mismatch | This card, BPR-0234, and BPR-0241 through BPR-0245 | Final closeout commit |
 
 ## Documentation ledger
 
 | Scope | Required review | Disposition | Evidence | Validation | Claims left open |
 |---|---|---|---|---|---|
 | Public workbench and diff composition | README, system architecture, RFC-BPR-0004/0005 ledgers | Reconciled; product gap remains open | BPR-0226, BPR-0227 | Public composition trace | User-driven workbench and diff path |
-| Review ledger, mutations, defects, queue, and agents | RFC-BPR-0007 through RFC-BPR-0011 ledgers and owning architecture docs | Reconciled; product gaps remain open | BPR-0228 through BPR-0232 | Composition inventory and public traces | User-reachable later-RFC workflows |
-| Appearance and recorded fixture evidence | RFC-BPR-0006 ledger, BPR-0114, BPR-0214, fixture catalog | Reconciled; obsolete attended packet invalidated | BPR-0220, BPR-0233 | Native probe and recorded selected-diff path | Foreground/native and attended verdicts |
+| Review ledger, mutations, defects, queue, and agents | RFC-BPR-0007 through RFC-BPR-0011 ledgers and owning architecture docs | Reconciled after critical correction; component and product gaps remain open | BPR-0228 through BPR-0232, BPR-0235, BPR-0238 through BPR-0240 | Component contracts, isolation boundary, composition inventory, and public traces | Durable state, safe live lane, filters/sort, agent lifecycle, and user-reachable workflows |
+| Appearance and recorded fixture evidence | RFC-BPR-0006 ledger, BPR-0114, BPR-0214, fixture catalog | Reconciled after critical correction; obsolete attended packet invalidated | BPR-0220, BPR-0233, BPR-0236, BPR-0237 | Store-failure composition, theme surface, native probe, and recorded selected-diff path | Default fallback, customization/import, foreground/native, and attended verdicts |
 | Issue-board final state | Board index and affected cards | Reconciled | This card | `verify_documentation.py` plus lane inventory | External-authority and target-native blockers remain open |
-| RFC closeout rigor | Open closeout cards and their verification ledgers | Gap recorded | BPR-0234 | Exact immutable bases and executable acceptance checklists | No RFC may close from narrative-only evidence |
+| RFC closeout rigor | Open closeout cards and their verification ledgers | Full terminal graph recorded; validator hardening remains | BPR-0234 and BPR-0241 through BPR-0245 | Exact immutable bases and executable acceptance checklists | No RFC may close from narrative-only evidence |
 
 ## Review constraints
 
@@ -104,9 +113,11 @@ story told by intermediate commits.
   `DOCUMENTATION_OK`, and `git diff --check` passes.
 - `python3 scripts/verify_composed_hosts.py
   build/dev/src/app/better_pull_review` reports 11 composed symbols and the 7
-  deliberately absent later-RFC symbols. Source/caller inspection supplies
-  the required construction, invocation, projection, and gesture distinction
-  that this symbol test explicitly cannot prove.
+  deliberately absent symbols it currently inventories. The list is not a
+  complete later-RFC surface and symbol presence cannot prove construction or
+  invocation. Each owning composition card therefore requires a public trace
+  and an updated standing inventory; source/caller inspection supplies the
+  current construction, invocation, projection, and gesture distinction.
 - The delegation audit reports 41 launches across four Claude sessions. The
   evaluation itself used one reorientation utility, two semantic scouts, two
   clean-matrix utilities, and has one independent critical closeout review
@@ -134,9 +145,10 @@ native appearance change is claimed. Their live cards remain the authority.
 - Attended runs found and closed defects that automated success markers had
   missed. External-authority, Windows, and owner-attended gates stayed open;
   no later RFC was incorrectly marked Auto-Verified.
-- The Claude sessions delegated substantive work: the repository audit found
-  41 launches across four sessions, including 20 RFC workers, 6 utilities,
-  6 scouts, and one critical reviewer.
+- Four local Claude sessions delegated substantive work: the repository audit
+  found 41 launches, including 20 RFC workers, 6 utilities, 6 scouts, and one
+  critical reviewer. That session count is observable but not immutably bound
+  to the 216-commit review range.
 
 ### What went wrong
 
@@ -148,27 +160,41 @@ native appearance change is claimed. Their live cards remain the authority.
   diff through a test-only fixture helper. An earlier critical review accepted
   that as a genuine public path, so both naming and review failed to inspect
   the final caller graph.
-- RFC-BPR-0007 through RFC-BPR-0011 have broad component implementations but
-  no shipped ledger, review mutation/synchronization, defect, queue-enrollment,
-  or agent-invocation workflow. Notification objects exist, but nothing asks
-  them to deliver and activation selects nothing.
+- The first evaluation pass repeated the same category error at a narrower
+  level: it called RFC-BPR-0007 through RFC-BPR-0011's components complete and
+  only their composition absent. Mandatory theme customization/import,
+  notes/heads/defect persistence, queue filters/sort, and exact agent
+  context/process lifecycle are also unimplemented.
+- No shipped ledger, review mutation/synchronization, defect, queue-enrollment,
+  or agent-invocation workflow exists. Notification objects exist, but nothing
+  asks them to deliver and activation selects nothing. Workbench and appearance
+  store-open failures also remove behavior that their comments promise will
+  fall back to defaults.
+- The live-mutation isolation test now honors exit status, but its structural
+  inventory does not cover generic network calls, scripts, subprocesses, or
+  production-app launches. Its ledger claim was broader than its protection.
 - `RENDER_OK` proves that a window grab was saved, not that the comparison or
   intraline emphasis is present. The UIforETW recording is served but never
   selected as a diff in its registered path.
 - Tracker counts, BPR-0187's remaining role, ledger language, and the attended
-  packet drifted from final HEAD. The five open closeout cards also lack the
-  immutable base and executable acceptance checklist expected at closure.
+  packet drifted from final HEAD. Five open closeout cards lack the immutable
+  base and executable checklist expected at closure, and the next five RFCs
+  had no live terminal closeout cards at all.
 
 ### What to do next
 
-1. Land BPR-0226, then split immediately into BPR-0227's real selected-diff
+1. Land the ready safety/resilience work: BPR-0235 before any live mutation,
+   BPR-0236 for appearance fallback, and BPR-0234 for closeout enforcement.
+2. Complete the missing component authorities in BPR-0237, BPR-0238, and
+   BPR-0240. Then land BPR-0226 and split into BPR-0227's real selected-diff
    gesture and BPR-0228's ledger-derived actionability.
-2. From BPR-0228, compose the round trip (BPR-0229), defects (BPR-0230), and an
-   honest queue input/landing surface (BPR-0231); only then complete
-   notification delivery/activation in BPR-0223. BPR-0232 can proceed after
-   the workbench shell is genuinely wired.
-3. Run BPR-0233 through the real BPR-0227 path, prove semantic intraline ranges
+3. From BPR-0228, compose the round trip (BPR-0229), persisted defects
+   (BPR-0230), and an honest queue landing surface (BPR-0231). Add its filters
+   and sort in BPR-0239, then complete notification delivery/activation in
+   BPR-0223. BPR-0232 follows the ledger, draft, defect, and BPR-0240 context
+   authorities rather than launching with partial input.
+4. Run BPR-0233 through the real BPR-0227 path, prove semantic intraline ranges
    and profile-role pixels, then regenerate the attended packet and resolve
    BPR-0220's native geometry delta before seeking visual approval.
-4. Complete BPR-0234 before any RFC closeout and keep the existing Windows,
-   live-GitHub, owner-attended, and canonical-order blockers explicit.
+5. Close only through BPR-0241 through BPR-0245 after their explicit product,
+   external-authority, and canonical-order dependencies pass.

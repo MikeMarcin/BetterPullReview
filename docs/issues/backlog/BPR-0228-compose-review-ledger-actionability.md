@@ -3,7 +3,7 @@ id: BPR-0228
 title: Compose review-ledger actionability into the shipped workbench
 status: Backlog
 rfc: RFC-BPR-0007
-depends_on: [BPR-0226]
+depends_on: [BPR-0226, BPR-0238]
 ---
 
 # Compose review-ledger actionability into the shipped workbench
@@ -17,6 +17,8 @@ the workbench observation adapter reports every file as actionable.
 - The real application composes the ledger host over the store it opens.
 - Read, accepted, excluded, and seen gestures travel through core intent,
   persistence request, typed completion, and changed projection.
+- Notes, last-reviewed heads, and defect metadata from BPR-0238 enter through
+  the same bounded host authority rather than a second direct-store path.
 - Workbench file/actionable observations derive from accepted ledger facts
   rather than treating every file as actionable.
 - A two-process public trace proves persistence without direct store access

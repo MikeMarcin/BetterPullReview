@@ -26,6 +26,8 @@ application supplies neither.
   cancellation, offline, ETag, and rate-limit behavior.
 - Prove through the public path that deleting the rule or cutting the observed
   match empties the queue instead of leaving a synthetic item.
+- Extend the standing composition inventory to the landing model as well as
+  refresh and enrollment, and pair it with a gesture-to-projection trace.
 
 BPR-0223 owns notification delivery requests and activation selection after
 this card supplies a real queue item and a real landing target.
