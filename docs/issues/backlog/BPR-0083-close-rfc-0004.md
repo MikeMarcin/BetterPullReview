@@ -3,10 +3,18 @@ id: BPR-0083
 title: Verify and close RFC-BPR-0004
 status: Backlog
 rfc: RFC-BPR-0004
-depends_on: [BPR-0054, BPR-0072, BPR-0073, BPR-0074, BPR-0075, BPR-0076, BPR-0077, BPR-0078, BPR-0079, BPR-0080, BPR-0081, BPR-0082]
+depends_on: [BPR-0054, BPR-0072, BPR-0073, BPR-0074, BPR-0075, BPR-0076, BPR-0077, BPR-0078, BPR-0079, BPR-0080, BPR-0081, BPR-0082, BPR-0227]
 ---
 
 # Verify and close RFC-BPR-0004
+
+## Final-state correction
+
+BPR-0225 found that the final application requests a selected diff only
+through `github_application_fixture_access`; no reviewer gesture calls the
+composition's diff request. The earlier critical review's semantic and
+component findings remain useful, but its no-helper-only public-path conclusion
+is superseded. BPR-0227 is therefore a mandatory dependency of this closeout.
 
 Re-read every acceptance criterion and run clean relevant developer,
 core-only, sanitizer, tests-disabled Release, target-native available-platform,

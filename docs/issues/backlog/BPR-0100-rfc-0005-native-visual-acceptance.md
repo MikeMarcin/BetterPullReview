@@ -8,6 +8,14 @@ depends_on: [BPR-0097, BPR-0186, BPR-0187, BPR-0233]
 
 # Run the inherited native visual-acceptance pass
 
+## Final-state correction from BPR-0225
+
+BPR-0187 now serves the recorded UIforETW pull request. What remains before
+this attended pass is BPR-0233: the recording is not yet driven through a real
+selected-file diff path, and the current public test's saved window is not
+asserted to contain a comparison or intraline content. Attendance must judge a
+known rendered review state, not merely a window that saved successfully.
+
 The RFC-BPR-0003 and RFC-BPR-0004 ledgers both defer the integrated-workbench presentation-polish and native visual-acceptance pass to RFC-BPR-0005. This card owns it.
 
 On the real macOS composition with native Cocoa and QMacStyle, inspect the assembled workbench for presentation quality at supported window sizes and scales, with readable contrast and correct native control rendering.

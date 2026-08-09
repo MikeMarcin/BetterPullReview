@@ -2,9 +2,11 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: available-target implementation complete. BPR-0146 through BPR-0150
-delivered the lifecycle, the evidence policy, host correlation, the Qt card,
-and anchor history; BPR-0151 documented it and BPR-0152 prepared closeout.
+Status: **components complete; product composition absent.** BPR-0146 through
+BPR-0150 delivered the lifecycle, evidence policy, correlator, Qt card, and
+anchor history in direct component tests. BPR-0225 found no defect correlator
+or defect-card construction in the public application, and the ledger already
+states that no composed multi-defect queue exists. BPR-0230 owns that path.
 
 RFC-BPR-0009 stays `Proposed`. No card here makes a closure claim, and one
 acceptance criterion remains blocked on a designated repository and a person. RFC-BPR-0009 stays `Proposed`.

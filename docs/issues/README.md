@@ -276,18 +276,19 @@ linear visible move-overlay resolution, and instrumented three-scale evidence.
 Done BPR-0081 reconciles documentation/conformance and adds the worker
 boundary. Done BPR-0082 removes reviewed duplication and avoidable work.
 BPR-0083's available-platform closeout preparation and selected-composition
-replay are complete, and its outstanding independent review is now satisfied:
-an `rfc-critical-reviewer` pass returned non-blocking findings only, falsified
-no RFC-BPR-0004 semantic claim, and found no stub or helper-API-only proof
-presented as public-path evidence. Its one medium finding is closed by the
-replay at `ca424f7`, which passes 88/88 on `dev` and 33/33 on `core-only`
-including the selected public diff path. The card still remains in backlog
-because it depends on BPR-0054. Its owner-authorized native System-theme gate
-is now satisfied: an owner-activated Cocoa/QMacStyle run at commit `1e581a6`
-passed active focus, both local and global Light-to-Dark transitions, and every
-workbench palette, font, geometry-rebuild, and changed-render marker, with both
-2560x2000 rasters inspected directly and the owner's original System Dark
-restored. Done BPR-0087 closes the two actionable
+replay are complete. Its historical independent review falsified no
+RFC-BPR-0004 semantic or component claim, and its one medium finding was
+closed by the replay at `ca424f7`, which passed 88/88 on `dev` and 33/33 on
+`core-only`. BPR-0225 later falsified that review's broader public-path
+conclusion: the selected diff is requested only by a tests-only fixture helper
+at final HEAD. BPR-0227 therefore remains a required closeout dependency. The
+card also remains in backlog because it depends on BPR-0054. Its
+owner-authorized native System-theme gate is satisfied: an owner-activated
+Cocoa/QMacStyle run at commit `1e581a6` passed active focus, both local and
+global Light-to-Dark transitions, and every workbench palette, font,
+geometry-rebuild, and changed-render marker, with both 2560x2000 rasters
+inspected directly and the owner's original System Dark restored. Done
+BPR-0087 closes the two actionable
 evidence-strength findings, which were assertion weaknesses in the composed
 replay rather than defects: the wheel steps now require the retained position
 to have advanced before the receivers are compared, and the ribbon click now
@@ -386,8 +387,10 @@ records the process correction that came out of the same period: an A/B/C
 choice is not three pass/fail questions, and an attended review page has to
 present it as one selection.
 
-RFC-BPR-0007 through RFC-BPR-0011 are implemented on available targets.
-BPR-0120 through BPR-0132 supply the review ledger's core transitions, schema
+RFC-BPR-0007 through RFC-BPR-0011 have complete component implementations on
+available targets, but BPR-0225 found that the shipped application does not
+compose their public product paths. BPR-0228 through BPR-0232 own that missing
+composition. BPR-0120 through BPR-0132 supply the review ledger's core transitions, schema
 and forward-only migrations, crash recovery, Qt queue projection, and
 composition-root evidence. BPR-0134 through BPR-0141 supply the review
 round-trip: draft state, stale-head refusal, the mutation coordinator's safe
@@ -448,14 +451,17 @@ finding and will leave the narrower truth when a public path remains absent.
 
 ### Open right now
 
-Twenty-one cards are in `backlog/`, in five groups:
+After BPR-0225 closes, twenty-eight cards remain in `backlog/` and two in
+`ready/`. The groups below describe the actual remaining authority or product
+surface; closure cards may also depend transitively on more than one group.
 
 | Group | Cards | What is actually missing |
 |---|---|---|
 | Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
 | A designated live GitHub repository | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Owner-authenticated sessions against a safe target |
-| Owner-attended judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214 | A person looking, clicking, or granting permission |
-| The fixture chain | BPR-0187, gating BPR-0214, BPR-0210, and BPR-0100 | A real recorded pull request served through the public path |
+| Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta |
+| Product composition | Ready BPR-0226; backlog BPR-0227 through BPR-0232 and BPR-0223 | Connect the implemented workbench, diff, ledger, review, defect, queue, notification, and agent capabilities to public gestures and projections |
+| Recorded selected-diff proof | BPR-0233, gating BPR-0214, BPR-0210, and BPR-0100 | BPR-0187 already serves UIforETW; the remaining work is to select its diff and prove semantic ranges and rendered intraline-role pixels |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |
 
 The RFC-BPR-0003 comparison controls are an interim reusable surface, not

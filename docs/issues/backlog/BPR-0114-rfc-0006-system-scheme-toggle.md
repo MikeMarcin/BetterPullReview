@@ -8,6 +8,16 @@ depends_on: [BPR-0106, BPR-0183, BPR-0184]
 
 # Verify System mode follows a live OS scheme change
 
+## Current attended state from BPR-0225
+
+Do not run the existing foreground operator packet. It is digest-bound to an
+older application binary, and subsequent `main.cpp` changes invalidate that
+binding. Its BPR-0220 addendum also asks for the existing marker log, while
+BPR-0220 requires per-rebuild cause attribution to distinguish two legitimate
+turns from one duplicated appearance application. Regenerate the packet only
+after that attribution exists in the native probe and bind it to the rebuilt
+binary and updated card bytes.
+
 On the real macOS composition, prove that System mode follows an
 operating-system colour-scheme change while an explicit mode does not.
 

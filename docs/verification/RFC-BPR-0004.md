@@ -22,6 +22,23 @@ open. RFC-BPR-0003
 retains explicit nonblocking closeout cards, so this RFC cannot become Auto-
 Verified until that dependency can close.
 
+## Final-state correction from BPR-0225
+
+The selected diff components and fixture-driven composition below are real,
+but the phrase `public path` was too broad. At the reviewed head the only
+caller of the composition's `request_diff()` is the
+`BPR_BUILD_TESTING`-only `github_application_fixture_access::request_fixture_diff`.
+No shipped window gesture derives a selected file comparison and calls it.
+`application_diff_workbench_public_path` therefore proves the real epoch/cache,
+installed-Git, diff-host, Qt projection, interaction, rendering, and shutdown
+path *after a fixture helper injects the request*; it does not prove a reviewer
+can select a file and reach that path.
+
+BPR-0227 is now a mandatory RFC-BPR-0004/0005 integration blocker. Every older
+statement below calling that test a genuine user public path is read with this
+correction. The semantic, host, rendered-component, and lifecycle evidence is
+not retracted; the missing gesture-to-request surface is.
+
 ## BPR-0072 canonical-record evidence
 
 The public core model now provides retained normalized diff options and their
@@ -623,19 +640,15 @@ The root review removed the unnecessary test-encoder reserve, moved the native
 geometry baseline after the probe's own resize event drain, and required an
 exact link-map callback on the rendered ribbon click.
 
-An independent critical review has now completed after two earlier bounded
-attempts returned no report. Its verdict is non-blocking findings only: no
-RFC-BPR-0004 semantic claim was falsified, and it found no stub, mockup, or
-helper-API-only proof presented as public-path evidence. It confirmed the
-public path is genuine, that the retained position is a single authority with
-pane scrollbars off, that pinning, exact reversal, and the 4:7 proportional
-advance hold at 1e-6 in the composed replay and at native scrollbar and pixel
-level in components, and that semantic generation and index counters stay at
-one across every record and a 1,000-event wheel storm. It independently
-re-inspected the rendered frames and confirmed the insertion wedge collapses to
-the exact left boundary and the replacement ribbon is attached, selected, and
-agrees with the detail pane. It also confirmed the open gates are stated
-honestly.
+An independent critical review completed after two earlier bounded attempts
+returned no report. It falsified no RFC-BPR-0004 semantic or component claim,
+confirmed the single retained position, pinning, exact reversal, proportional
+advance, stable semantic generations, and inspected ribbon geometry. Its
+conclusion that the replay was a genuine public selected-diff path is
+superseded by BPR-0225: the fixture-access helper is the only final-HEAD caller
+of the composition's diff request. The replay still directly verifies the
+production host, cache, model, and rendered interaction after test-only
+injection, but it cannot close the missing reviewer gesture owned by BPR-0227.
 
 The review recorded one medium finding that is now closed: the evidence on the
 card predated three later RFC-BPR-0003 commits that touch the epoch host

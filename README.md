@@ -21,6 +21,18 @@ presentation. Pull-request metadata, conversations, and accepted revision
 history can traverse the real `QAction` -> provider -> core acceptance ->
 rendered-window path.
 
+The final-state review in BPR-0225 narrows the workbench claim. The shipped
+window is RFC-BPR-0005's shell and its epoch controls are connected, but its
+workbench callbacks are empty, its workbench host publishes into a
+non-rendering intermediate sink, and accepted pull-request state is not offered
+to that host. A selected diff can currently be requested only by a
+tests-enabled fixture helper, not by a user-selected file. BPR-0226 and
+BPR-0227 own those missing public wires. RFC-BPR-0007 through RFC-BPR-0011 have
+substantial tested component implementations, but their review-ledger host,
+mutation/synchronization workflow, defect workflow, queue/observer surface,
+and agent invocation are not composed into the public application; BPR-0228
+through BPR-0232 track that remaining work.
+
 GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the
 fixed typed `cli_unavailable` result with zero CLI executable/configuration

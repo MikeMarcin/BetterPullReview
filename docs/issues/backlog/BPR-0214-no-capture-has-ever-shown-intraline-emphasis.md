@@ -8,6 +8,17 @@ depends_on: [BPR-0233]
 
 # Intraline emphasis has never appeared in a reviewed capture
 
+## Final-state correction from BPR-0225
+
+BPR-0187 is done: the application now serves the recorded UIforETW pull
+request and the generator/contract drift checks are direct. The remaining gap
+is one layer later. `application_github_public_path_uiforetw_74` opens that
+recording and saves a window grab, but it does not request a selected diff;
+`RENDER_OK` proves only that the PNG save succeeded. BPR-0233 now owns the
+selected recorded diff, semantic intraline ranges, exact role pixels, and the
+four-profile attended capture. The historical diagnosis below is retained to
+show why BPR-0187 existed, not as the current blocker.
+
 Found while trying to render candidates for [[BPR-0210]]. Scanning every frame
 of the public-path fixture's interaction course, in the light profile and both
 high-contrast profiles, for the exact `diff_intraline_added_background` and

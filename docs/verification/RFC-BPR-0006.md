@@ -2,15 +2,18 @@
 
 RFC base: `91e6b7044ced7b73af6a1d1993c9ed97f4f6b2d4`
 
-Status: **components complete, composition absent.** Every component this RFC
-specifies is built and tested. None of them is connected to the application.
-BPR-0180 measured it and allocated BPR-0181 through BPR-0185 to close it.
-Documentation reconciled by BPR-0112. RFC-BPR-0006 stays `Proposed` and its
-BPR-0115 closeout card stays in `backlog/`.
+Status: **appearance and syntax composition present; final user and visual
+gates open.** BPR-0181 through BPR-0185 connected the appearance host, profile,
+gesture, and syntax classifier to the application after BPR-0180 found them
+absent. Those runtime markers and component tests remain valid. BPR-0225 found
+that the selected diff they style is still requested only through a
+tests-enabled fixture helper, while the recorded UIforETW public test never
+requests a diff at all. BPR-0227 and BPR-0233 own those public-selection and
+recorded-intraline gaps. BPR-0114 and BPR-0220 retain the frontmost native
+appearance run and its unexplained two-rebuild result.
 
-Read the Composition section before reading the claim matrix. Every `Verified`
-row below is true of the component it names and true of nothing the user can
-reach.
+Read the Composition and Deferred gates sections before the claim matrix. A
+`Verified` row proves only the direct surface it names.
 
 ## Architecture allocation
 

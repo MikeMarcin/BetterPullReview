@@ -2,16 +2,18 @@
 
 RFC base: `55d365f16847d2ffc2c8fab83a5ce62eb695e2a0`
 
-Status: **composed.** Everything this RFC specifies is built and tested
-against `qt::workbench_window`, and since BPR-0191 that is the window the
-shipped application opens. BPR-0188 measured the gap and allocated BPR-0189
-through BPR-0191 to close it; they have. Documentation reconciled by BPR-0098.
-RFC-BPR-0005 stays `Proposed` and its BPR-0101 closeout card stays in
-`backlog/`, because closure is strictly ordered and RFC-BPR-0002 still holds
-real Windows x64 evidence in BPR-0036.
+Status: **shell displayed; workbench behavior not publicly connected.** Since
+BPR-0191, `qt::workbench_window` is the window the shipped application opens,
+and the component suites directly exercise its layout and actions. BPR-0225
+found that the application gives it empty workbench callbacks, publishes the
+workbench host into a non-rendering intermediate sink, never offers an accepted
+pull request to that host, and requests selected diffs only through a
+tests-enabled fixture helper. BPR-0226 and BPR-0227 own those gaps.
 
-Every `Verified` row below is now true of a window a user can open. It was not
-before BPR-0191, and the Composition section records what changed.
+Rows below remain direct evidence for their named component or fixture-driven
+surface. They are not evidence that a user can currently drive the workbench
+host or select a file diff. RFC-BPR-0005 stays `Proposed`; BPR-0101 also waits
+for the ordered closure chain and the attended BPR-0100 gate.
 
 ## Why this RFC can be implemented now
 

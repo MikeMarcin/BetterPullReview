@@ -2,7 +2,11 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: planned. BPR-0171 allocates cards BPR-0172 through BPR-0179.
+Status: **components complete; product composition absent.** BPR-0172 through
+BPR-0179 delivered and simplified policy, revision binding, context, process,
+workspace, and Qt panel components. As the existing `Not delivered` section
+states, the public application constructs none of them. BPR-0232 owns the
+explicit user-invocation path.
 
 RFC-BPR-0011 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.

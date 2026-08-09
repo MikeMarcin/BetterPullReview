@@ -2,11 +2,13 @@
 
 RFC base: `ea3a3b8223c00f9e0999bf0ab2882496abf65843`
 
-Status: available-target implementation complete. BPR-0121 through BPR-0128
-delivered the core receipt policy, epoch-advance carry-over, actionability
-ranking, ledger schema and migrations, host persistence, crash recovery, the Qt
-queue projection, and the composition-root wiring. BPR-0129 documented it and
-BPR-0130 prepared closeout.
+Status: **components complete; product composition incomplete.** BPR-0121
+through BPR-0128 delivered the receipt policy, schema, persistence, recovery,
+actionability model, Qt projection, and direct store fixture. BPR-0225 found
+that the public application opens the store but never constructs
+`review_ledger_application_host`; fixture access reads and writes the store
+directly, and the workbench observation adapter reports every file rather than
+composed ledger-derived actionability. BPR-0228 owns the missing user path.
 
 RFC-BPR-0007 stays `Proposed`. No card here makes a closure claim.
 
@@ -68,7 +70,7 @@ reading `Planned` have none yet, and a partially claimed row says which half.
 | Next actionable is deterministic and explains itself | Core | Rank a fixture queue twice and read the explanation | The order is identical and the explanation names the deciding facts | Verified. BPR-0123 ranks a fixture whose top reason is tied and whose supplied order the tie-break must overturn, and re-ranks the reversed input to the identical result; the reason is a core value the adapter renders rather than composes |
 | The ledger decision and effect split holds | Core, fake store, and Qt | Drive a receipt intent end to end | Intent transition, persistence request, typed completion, and UI delta are each separately observable | Host half verified. BPR-0125's fake store and fake projection share one log, so the request, the commit, and the publication are read in order rather than assumed; the Qt delta lands with BPR-0127 |
 | The core stays free of storage and presentation | Dependency scan | Scan the core target | No SQLite, Qt, filesystem, clock, thread, or credential identifier appears | Verified. The whole ledger policy — receipts (BPR-0121), carry-over (BPR-0122), and ranking (BPR-0123) — builds and runs under `core-only`, which links neither Qt nor SQLite, so the separation is proven by the build rather than by a scan |
-| The composed application persists a receipt | Real executable | Commit a receipt through the composed store, then run the binary again against the same data root | The receipt reaches the database the application opened, and a later process finds it | Verified. BPR-0128's probe writes and reads through the store the application composed; the public path requires `REVIEW_LEDGER_OK`, and the maintenance contract asserts `PRESENT_ON_ENTRY:0` on the seeding process and `:1` on a separate later execution |
+| The application-owned store persists a receipt | Application-owned store through test-only fixture access | Commit a receipt through the fixture-access probe, then run the binary again against the same data root | The receipt reaches the database the application opened, and a later process finds it | Verified for store ownership and cross-process persistence. BPR-0128's probe writes and reads the store directly through fixture access; it does not construct `review_ledger_application_host` or prove a user gesture. BPR-0228 owns that missing product composition |
 | The ledger persists no presentation coordinate | Schema scan | Inspect every column of the created schema | No Qt index, row number, ribbon path, y-coordinate, or scroll position is stored | Verified. BPR-0124 enumerates every column of the created schema and matches each against a forbidden substring set, and names a column it did inspect so an empty schema cannot pass |
 
 ## Deferred gates

@@ -2,13 +2,14 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: available-target implementation complete. BPR-0159 through BPR-0164
-delivered the core, host, and Qt slices; BPR-0165 documented them; BPR-0166
-removed the surface nothing read; BPR-0170 added the durable enrollment
-store.
-
-RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
-remains ordered behind RFC-BPR-0002.
+Status: **components complete; queue and notification workflow not publicly
+reachable.** BPR-0159 through BPR-0170 delivered the deterministic queue,
+refresh, enrollment, model, notification request, and durable store components.
+The public application constructs only the notification adapter. It supplies
+neither an observed GitHub role nor a user-configured observer rule, constructs
+no queue item or landing model, never calls `deliver()`, and never consumes the
+recorded activation. BPR-0231 supplies an honest enrollment/landing input;
+BPR-0223 then owns delivery and activation.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.

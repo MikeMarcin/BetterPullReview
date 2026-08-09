@@ -2,10 +2,11 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: available-target implementation complete. BPR-0135 through BPR-0139
-delivered the draft policy, target revalidation, the mutation coordinator,
-synchronization, and the Qt editor; BPR-0140 documented it and BPR-0141
-prepared closeout.
+Status: **components complete; product composition absent.** BPR-0135 through
+BPR-0139 delivered the draft policy, target revalidation, mutation coordinator,
+synchronization, and Qt editor against fixture/component surfaces. BPR-0225
+found no construction or invocation of those surfaces in the public
+application. BPR-0229 owns the missing gesture-to-coordinator-to-refresh path.
 
 RFC-BPR-0008 stays `Proposed`. No card here makes a closure claim, and three
 acceptance criteria remain blocked on a designated repository, a token, and a

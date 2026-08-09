@@ -1,7 +1,12 @@
 # BPR-0114 foreground appearance probe operator review
 
-Status: **pending operator decision; not BPR-0168 notification approval, not
-BPR-0100 visual acceptance, and not RFC-BPR-0006 closeout**
+Status: **stale; do not run or approve. The bound binary changed and the
+BPR-0220 rebuild-cause evidence is not yet present.**
+
+This packet is preserved as the superseded v001 procedure. A current packet
+must bind the rebuilt binary and updated BPR-0114 bytes, and its log must carry
+per-rebuild cause attribution rather than only the aggregate delta. No response
+to this version can satisfy BPR-0114 or BPR-0220.
 
 This packet presents the one bounded human action [[BPR-0114]] still needs. It
 does not approve the appearance palettes, does not judge presentation quality,
