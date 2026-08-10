@@ -33,6 +33,7 @@
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/notification_delivery.hpp"
+#include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -1087,10 +1088,123 @@ namespace bpr::app {
 		std::optional<accepted_review> Review;
 	};
 
+	/// \brief Keeps one failed ledger authority typed and fail-closed.
+	class unavailable_review_ledger_store final
+		: public application::review_ledger_store_port
+	{
+	public:
+		explicit unavailable_review_ledger_store(
+			const application::ledger_store_failure aFailure) noexcept
+			: Failure{ aFailure }
+		{
+		}
+
+		auto commit(const application::receipt_persistence_request&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto load(const core::file_identity&) -> std::expected<
+			std::optional<core::file_receipt>,
+			application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto store_note(const application::local_note_record&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto erase_note(application::local_note_id)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto store_last_reviewed_head(const core::git_commit_oid&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto erase_last_reviewed_head()
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto store_defect(const application::durable_defect_record&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto erase_defect(core::defect_id)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto load_private() -> std::expected<
+			application::private_ledger_observation,
+			application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+	private:
+		application::ledger_store_failure Failure
+			= application::ledger_store_failure::unavailable;
+	};
+
+	/// \brief Forwards selected diff terminals and observes accepted availability.
+	class composition_diff_projection final
+		: public application::diff_projection_port
+	{
+	public:
+		using publication_sink = std::function<void(
+			const application::diff_publication&)>;
+
+		composition_diff_projection(
+			application::diff_projection_port& aTarget,
+			publication_sink                   aPublication)
+			: Target{ &aTarget }
+			, Publication{ std::move(aPublication) }
+		{
+		}
+
+		void publish(const application::diff_publication& aPublication) override
+		{
+			Target->publish(aPublication);
+			if (Publication) {
+				Publication(aPublication);
+			}
+		}
+
+		void fail(const application::diff_failure_publication& aFailure) override
+		{
+			Target->fail(aFailure);
+		}
+
+		void invalidate(
+			const core::pull_request_authority& aAuthority) override
+		{
+			Target->invalidate(aAuthority);
+		}
+
+	private:
+		application::diff_projection_port* Target = nullptr;
+		publication_sink                   Publication;
+	};
+
 	class github_application::implementation final
 		: public application::github_epoch_handoff_port,
 		  public application::epoch_projection_port,
-		  public application::workbench_selected_diff_projection_port
+		  public application::workbench_selected_diff_projection_port,
+		  public application::receipt_projection_port
 	{
 	public:
 		explicit implementation(
@@ -1106,6 +1220,8 @@ namespace bpr::app {
 			if (aFixture.has_value()) {
 				DisableWorkbenchSelectionWire
 					= aFixtureOptions.DisableWorkbenchSelectionWire;
+				DisableReviewLedgerGestureWire
+					= aFixtureOptions.DisableReviewLedgerGestureWire;
 				const auto host = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
@@ -1240,6 +1356,7 @@ namespace bpr::app {
 					"Application data or installed Git is unavailable"
 				};
 			}
+			ApplicationDataRoot = applicationDataRoot;
 
 			auto cache   = adapters::git::make_installed_git_cache({
 				.GitExecutable     = gitExecutable,
@@ -1257,21 +1374,6 @@ namespace bpr::app {
 			GitCaches     = std::move(*cache);
 			EpochCatalogs = std::move(*catalog);
 
-			// The review ledger is a separate database beside the catalog, so
-			// deleting private review state cannot take the derived git cache
-			// with it. Composition failure is not fatal to the application:
-			// the ledger holds private progress, and a reviewer with no ledger
-			// can still read a pull request.
-			auto ledger = adapters::sqlite::make_review_ledger_store({
-				.StorageRoot = applicationDataRoot,
-				.Host        = "github.com",
-				.Account     = "composition",
-				.Repository  = "composition",
-				.PullRequest = 1,
-			});
-			if (ledger) {
-				ReviewLedger = std::move(*ledger);
-			}
 			// The workbench layout is a third database beside the catalog and
 			// the ledger, for the same reason those two are apart: deleting one
 			// kind of local state must not destroy another. Losing a drawer
@@ -1332,6 +1434,15 @@ namespace bpr::app {
 				},
 				ProfileOptions,
 				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); });
+			Window->set_receipt_dispatch(
+				[this](core::file_receipt_command aCommand) {
+#if defined(BPR_BUILD_TESTING)
+					if (DisableReviewLedgerGestureWire) {
+						return;
+					}
+#endif
+					dispatch_receipt(std::move(aCommand));
+				});
 
 			EpochHost = std::make_unique<application::epoch_application_host>(
 				core::epoch_state{
@@ -1346,6 +1457,11 @@ namespace bpr::app {
 				*this);
 			Window->epoch_selectors()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
+			DiffProjections = std::make_unique<composition_diff_projection>(
+				*Window->comparison_surface(),
+				[this](const application::diff_publication& aPublication) {
+					observe_selected_material(aPublication);
+				});
 			DiffHost = std::make_unique<application::diff_application_host>(
 				core::diff_state{
 					.ApplicationSession = core::application_session_id{ 1U },
@@ -1353,7 +1469,7 @@ namespace bpr::app {
 				*EpochHost,
 				DiffEffects,
 				DecisionLane,
-				*Window->comparison_surface());
+				*DiffProjections);
 
 			// The workbench observes the review's files through the read model
 			// the provider already produces. The supplier is read at call time
@@ -1365,6 +1481,21 @@ namespace bpr::app {
 					-> std::optional<
 						std::vector<application::github_file_record>> {
 					return WorkbenchReview.files(aAuthority);
+				},
+				[this](
+					const application::workbench_pull_request_authority& aAuthority,
+					const core::file_identity                            aFile)
+					-> std::optional<core::actionability_input> {
+					const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+					if (!ReviewLedgerAuthority.has_value()
+						|| *ReviewLedgerAuthority != aAuthority
+						|| !ReviewLedgerReceipt.has_value()
+						|| ReviewLedgerReceipt->File != aFile) {
+						return std::nullopt;
+					}
+					return core::actionability_input{
+						.Receipt = *ReviewLedgerReceipt,
+					};
 				});
 
 			Host = std::make_unique<application::github_application_host>(
@@ -1579,10 +1710,164 @@ namespace bpr::app {
 			WorkbenchHost->resize(aDrawer, aWidth);
 		}
 
+		void dispatch_receipt(core::file_receipt_command aCommand)
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			static_cast<void>(ReviewLedgerHost->submit(aCommand));
+		}
+
+		void retire_review_ledger()
+		{
+			ReviewLedgerHost.reset();
+			ReviewLedger.reset();
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				ReviewLedgerAuthority.reset();
+				ReviewLedgerReceipt.reset();
+				ReviewLedgerAvailable = false;
+			}
+			if (Window != nullptr) {
+				Window->clear_review_ledger();
+			}
+		}
+
+		void compose_review_ledger(
+			const application::accepted_pull_request_handoff& aHandoff)
+		{
+			retire_review_ledger();
+			const auto repository
+				= aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name;
+			auto       opened    = adapters::sqlite::make_review_ledger_store({
+				.StorageRoot = ApplicationDataRoot,
+				.Host        = std::string{ aHandoff.Hostname.value() },
+				.Account     = std::to_string(aHandoff.Account.value()),
+				.Repository  = repository,
+				.PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()),
+			});
+			const auto available = opened.has_value();
+			if (available) {
+				ReviewLedger = std::move(*opened);
+			} else {
+				ReviewLedger = std::make_unique<unavailable_review_ledger_store>(
+					opened.error());
+			}
+			ReviewLedgerHost = std::make_unique<
+				application::review_ledger_application_host>(
+				*ReviewLedger,
+				*this);
+			{
+				const auto lock       = std::scoped_lock{ ReviewLedgerStateMutex };
+				ReviewLedgerAuthority = workbench_authority(aHandoff);
+				ReviewLedgerAvailable = available;
+			}
+			if (Window != nullptr) {
+				Window->clear_review_ledger(!available);
+			}
+		}
+
+		[[nodiscard]] auto matches_review_ledger(
+			const application::pull_request_authority_invalidation& aInvalidation) const
+			-> bool
+		{
+			const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+			if (!ReviewLedgerAuthority.has_value()) {
+				return false;
+			}
+			const auto& authority = *ReviewLedgerAuthority;
+			return authority.ApplicationSession == aInvalidation.ApplicationSession
+				&& authority.Profile == aInvalidation.Profile
+				&& authority.ProfileRevision == aInvalidation.ProfileRevision
+				&& authority.Host == aInvalidation.Host
+				&& authority.HostAuthority == aInvalidation.HostAuthority
+				&& authority.Account == aInvalidation.Account
+				&& authority.Viewer == aInvalidation.Viewer
+				&& authority.Repository == aInvalidation.Repository
+				&& authority.PullRequest == aInvalidation.PullRequest
+				&& authority.IdentityGeneration
+				== aInvalidation.IdentityGeneration;
+		}
+
+		void observe_selected_material(
+			const application::diff_publication& aPublication)
+		{
+			if (Closing || ReviewLedgerHost == nullptr
+				|| !SelectedDiffPublication.has_value()
+				|| aPublication.Result == nullptr
+				|| aPublication.Context.Key != SelectedDiffPublication->Key
+				|| aPublication.Result->Alignment.Key
+					!= SelectedDiffPublication->Key
+				|| WorkbenchHost == nullptr
+				|| WorkbenchHost->generation()
+					!= SelectedDiffPublication->Request.Context.Generation
+				|| WorkbenchHost->selected()
+					!= std::optional{
+						SelectedDiffPublication->Request.File.File }) {
+				return;
+			}
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (!ReviewLedgerAuthority.has_value()
+					|| *ReviewLedgerAuthority
+						!= SelectedDiffPublication->Request.WorkbenchAuthority) {
+					return;
+				}
+			}
+			const auto material = core::comparison_digest(
+				SelectedDiffPublication->Key);
+			if (!material.valid()) {
+				return;
+			}
+			static_cast<void>(ReviewLedgerHost->observe_material(
+				core::file_material_observation{
+					.File     = SelectedDiffPublication->Request.File.File,
+					.Material = material,
+				}));
+		}
+
+		void publish(const application::receipt_projection& aProjection) override
+		{
+			auto authority = std::optional<
+				application::workbench_pull_request_authority>{ };
+			auto actionabilityChanged = false;
+			{
+				const auto lock          = std::scoped_lock{ ReviewLedgerStateMutex };
+				const auto nowActionable = core::actionable(core::reason_for(
+					core::actionability_input{ .Receipt = aProjection.Receipt }));
+				actionabilityChanged     = ReviewLedgerReceipt.has_value()
+					? ReviewLedgerReceipt->File != aProjection.Receipt.File
+						|| core::actionable(core::reason_for(core::actionability_input{
+							   .Receipt = *ReviewLedgerReceipt,
+						   }))
+							!= nowActionable
+					: !nowActionable;
+				ReviewLedgerReceipt      = aProjection.Receipt;
+				authority                = ReviewLedgerAuthority;
+			}
+			if (Window != nullptr) {
+				Window->publish(application::project_file_receipt_actions(
+					aProjection.Receipt));
+			}
+			if (WorkbenchHost != nullptr && authority.has_value()
+				&& actionabilityChanged) {
+				WorkbenchHost->refresh_actionability();
+			}
+		}
+
+		void fail(
+			const application::receipt_failure_publication& aFailure) override
+		{
+			if (Window != nullptr) {
+				Window->fail(aFailure);
+			}
+		}
+
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			if (!Closing && EpochHost != nullptr) {
 				const auto authority = workbench_authority(aHandoff);
+				compose_review_ledger(aHandoff);
 				WorkbenchReview.adopt(
 					aHandoff,
 					Host != nullptr
@@ -1607,6 +1892,7 @@ namespace bpr::app {
 			if (Closing || EpochHost == nullptr) {
 				return;
 			}
+			const auto retiresLedger = matches_review_ledger(aInvalidation);
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
 				authority.has_value() && WorkbenchHost != nullptr) {
 #if defined(BPR_BUILD_TESTING)
@@ -1624,6 +1910,9 @@ namespace bpr::app {
 					&& aAuthority.Repository == aInvalidation.Repository
 					&& aAuthority.PullRequest == aInvalidation.PullRequest;
 			});
+			if (retiresLedger) {
+				retire_review_ledger();
+			}
 			EpochHost->invalidate(std::move(aInvalidation));
 		}
 
@@ -1730,6 +2019,7 @@ namespace bpr::app {
 
 		void clear_diff_selection()
 		{
+			SelectedDiffPublication.reset();
 			if (DiffHost != nullptr) {
 				DiffHost->cancel();
 			}
@@ -1754,6 +2044,10 @@ namespace bpr::app {
 				return;
 			}
 			clear_diff_selection();
+			if (Window != nullptr) {
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				Window->clear_review_ledger(!ReviewLedgerAvailable);
+			}
 #if defined(BPR_BUILD_TESTING)
 			++SelectedDiffBegins;
 #endif
@@ -1771,6 +2065,7 @@ namespace bpr::app {
 					!= std::optional{ aPublication.Request.Diff }) {
 				return;
 			}
+			SelectedDiffPublication = aPublication;
 			request_diff(
 				aPublication.Key,
 				aPublication.Request.Diff.Options,
@@ -2293,17 +2588,42 @@ namespace bpr::app {
 			std::uint32_t                                 InitialFilesWidth        = 0U;
 		};
 		std::optional<workbench_composition_probe_state> WorkbenchCompositionProbe;
-		std::size_t                                      WorkbenchIntentDispatches = 0U;
-		std::size_t                                      WorkbenchChangeDispatches = 0U;
-		std::size_t                                      WorkbenchWidthDispatches  = 0U;
-		std::size_t                                      WorkbenchInvalidations    = 0U;
-		std::size_t                                      SelectedDiffBegins        = 0U;
-		std::size_t                                      SelectedDiffPublications  = 0U;
-		std::size_t                                      SelectedDiffFailures      = 0U;
+		struct review_ledger_composition_probe_state
+		{
+			enum class phase {
+				awaiting_observation,
+				awaiting_diff,
+				awaiting_actionability,
+				awaiting_material_actionability,
+				passed,
+				failed,
+			};
+
+			phase                                   Phase = phase::awaiting_observation;
+			detail::review_ledger_composition_probe Course
+				= detail::review_ledger_composition_probe::seed;
+			detail::review_ledger_composition_probe_evidence Evidence;
+			application::review_ledger_host_statistics       InitialStatistics;
+			core::file_identity                              File;
+			core::file_material_id                           Material;
+			core::file_material_id                           ReopenedMaterial;
+		};
+		std::optional<review_ledger_composition_probe_state>
+					ReviewLedgerCompositionProbe;
+		std::size_t WorkbenchIntentDispatches = 0U;
+		std::size_t WorkbenchChangeDispatches = 0U;
+		std::size_t WorkbenchWidthDispatches  = 0U;
+		std::size_t WorkbenchInvalidations    = 0U;
+		std::size_t SelectedDiffBegins        = 0U;
+		std::size_t SelectedDiffPublications  = 0U;
+		std::size_t SelectedDiffFailures      = 0U;
 		std::optional<application::workbench_selected_diff_publication>
 					LastSelectedDiff;
-		std::size_t FixtureDiffHelperInvocations  = 0U;
-		bool        DisableWorkbenchSelectionWire = false;
+		std::size_t FixtureDiffHelperInvocations   = 0U;
+		bool        DisableWorkbenchSelectionWire  = false;
+		bool        DisableReviewLedgerGestureWire = false;
+		bool        ReviewLedgerWasPresentOnEntry  = false;
+		bool        ReviewLedgerRoundTripPassed    = false;
 #endif
 		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
 		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
@@ -2313,7 +2633,13 @@ namespace bpr::app {
 		application::github_credential_binding_catalog               CredentialBindings;
 		std::unique_ptr<application::git_cache_port>                 GitCaches;
 		std::unique_ptr<application::epoch_catalog_port>             EpochCatalogs;
+		std::filesystem::path                                        ApplicationDataRoot;
 		std::unique_ptr<application::review_ledger_store_port>       ReviewLedger;
+		std::unique_ptr<application::review_ledger_application_host> ReviewLedgerHost;
+		mutable std::mutex                                           ReviewLedgerStateMutex;
+		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
+		std::optional<core::file_receipt>                            ReviewLedgerReceipt;
+		bool                                                         ReviewLedgerAvailable = false;
 		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
 		composition_workbench_review                                 WorkbenchReview;
 		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
@@ -2322,33 +2648,35 @@ namespace bpr::app {
 		// Built once and shared. The catalog is immutable after construction
 		// and the classifier holds no theme, palette, or font, so neither has
 		// to be rebuilt when appearance changes.
-		std::unique_ptr<adapters::syntax::packaged_definition_catalog> SyntaxDefinitions;
-		std::unique_ptr<composition_blob_source>                       SyntaxBlobs;
-		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>  SyntaxClassification;
-		composition_appearance_projections                             AppearanceProjections;
-		std::unique_ptr<qt::appearance_profile>                        AppearanceProfile;
-		std::string                                                    AppliedSelectionColor;
-		std::string                                                    AppliedBaseColor;
-		bool                                                           AppliedFromProfile             = false;
-		bool                                                           WorkbenchPersistenceAvailable  = false;
-		bool                                                           AppearancePersistenceAvailable = false;
-		std::unique_ptr<application::epoch_entropy_port>               EpochEntropy;
-		std::unique_ptr<application::epoch_clock_port>                 EpochClock;
-		worker_executor                                                EpochEffects;
-		worker_executor                                                DiffEffects;
-		worker_executor                                                WorkbenchEffects;
-		worker_executor                                                AppearanceEffects;
-		std::unique_ptr<application::epoch_application_host>           EpochHost;
-		std::unique_ptr<application::diff_application_host>            DiffHost;
-		std::unique_ptr<application::workbench_application_host>       WorkbenchHost;
-		std::unique_ptr<application::appearance_application_host>      AppearanceHost;
-		std::unique_ptr<application::github_application_host>          Host;
-		bool                                                           Closing                       = false;
-		bool                                                           ShutdownPollScheduled         = false;
-		bool                                                           ShutdownComplete              = false;
-		bool                                                           ShutdownCleanupFailed         = false;
-		bool                                                           NativePlatformVaultSelected   = false;
-		bool                                                           EpochProjectionDeliveryFailed = false;
+		std::unique_ptr<adapters::syntax::packaged_definition_catalog>  SyntaxDefinitions;
+		std::unique_ptr<composition_blob_source>                        SyntaxBlobs;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>   SyntaxClassification;
+		composition_appearance_projections                              AppearanceProjections;
+		std::unique_ptr<qt::appearance_profile>                         AppearanceProfile;
+		std::string                                                     AppliedSelectionColor;
+		std::string                                                     AppliedBaseColor;
+		bool                                                            AppliedFromProfile             = false;
+		bool                                                            WorkbenchPersistenceAvailable  = false;
+		bool                                                            AppearancePersistenceAvailable = false;
+		std::unique_ptr<application::epoch_entropy_port>                EpochEntropy;
+		std::unique_ptr<application::epoch_clock_port>                  EpochClock;
+		worker_executor                                                 EpochEffects;
+		worker_executor                                                 DiffEffects;
+		worker_executor                                                 WorkbenchEffects;
+		worker_executor                                                 AppearanceEffects;
+		std::unique_ptr<application::epoch_application_host>            EpochHost;
+		std::unique_ptr<composition_diff_projection>                    DiffProjections;
+		std::unique_ptr<application::diff_application_host>             DiffHost;
+		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
+		std::unique_ptr<application::appearance_application_host>       AppearanceHost;
+		std::unique_ptr<application::github_application_host>           Host;
+		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
+		bool                                                            Closing                       = false;
+		bool                                                            ShutdownPollScheduled         = false;
+		bool                                                            ShutdownComplete              = false;
+		bool                                                            ShutdownCleanupFailed         = false;
+		bool                                                            NativePlatformVaultSelected   = false;
+		bool                                                            EpochProjectionDeliveryFailed = false;
 		// Classifications the panes actually took. Counted because "the
 		// classifier is linked" and "a pane received its answer" are different
 		// claims, and only the second one shows a reviewer anything.
@@ -2734,21 +3062,6 @@ namespace bpr::app {
 	}
 
 	namespace {
-		/// \brief The fixed identity the ledger probe writes and reads back.
-		[[nodiscard]] auto probe_receipt() -> core::file_receipt
-		{
-			auto file     = std::array<std::uint8_t, 32>{ };
-			auto material = std::array<std::uint8_t, 32>{ };
-			file.fill(0xA7U);
-			material.fill(0x5CU);
-			return core::file_receipt{
-				.File     = core::file_identity{ file },
-				.Material = core::file_material_id{ material },
-				.Read     = core::file_read_state::read,
-				.Accepted = true,
-			};
-		}
-
 		[[nodiscard]] auto workbench_probe_invalidation(
 			const application::accepted_pull_request_handoff& aHandoff,
 			const core::pull_request_id                       aPullRequest)
@@ -3745,6 +4058,349 @@ namespace bpr::app {
 			: detail::workbench_composition_probe_evidence{ };
 	}
 
+	namespace {
+		[[nodiscard]] auto review_ledger_probe_note(
+			const core::file_identity          aFile,
+			const core::file_comparison_digest aComparison)
+			-> application::local_note_record
+		{
+			return {
+				.Id         = application::local_note_id{ 228U },
+				.Attachment = application::local_note_attachment{
+					.File       = aFile,
+					.Comparison = aComparison,
+				},
+				.Note = { .Text = "BPR-0228 host-only composition probe." },
+			};
+		}
+
+		[[nodiscard]] auto review_ledger_probe_defect(
+			const core::file_identity          aFile,
+			const core::file_comparison_digest aComparison)
+			-> application::durable_defect_record
+		{
+			const auto anchor = core::source_line_ref{
+				.Comparison = aComparison,
+				.Side       = core::diff_side::right,
+				.Line       = 1U,
+			};
+			return {
+				.File         = aFile,
+				.Conversation = core::review_conversation_id{ 228U },
+				.History      = {
+					.Defect = {
+						.Id       = core::defect_id{ 228U },
+						.Anchor   = anchor,
+						.Severity = core::defect_severity::major,
+						.Category = core::defect_category::correctness,
+						.State    = core::defect_state::needs_verification,
+					},
+					.OriginalAnchor = anchor,
+					.Availability   = core::defect_anchor_availability::available,
+				},
+			};
+		}
+	} // namespace
+
+	auto detail::github_application_fixture_access::exercise_review_ledger_composition(
+		github_application&                   aApplication,
+		const review_ledger_composition_probe aCourse)
+		-> detail::review_ledger_composition_probe_result
+	{
+		using result     = detail::review_ledger_composition_probe_result;
+		using state_type = github_application::implementation::
+			review_ledger_composition_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Window == nullptr
+			|| implementation->WorkbenchHost == nullptr
+			|| implementation->ReviewLedgerHost == nullptr
+			|| !implementation->LastAcceptedHandoff.has_value()) {
+			return result::failed;
+		}
+
+		if (!implementation->ReviewLedgerCompositionProbe.has_value()) {
+			implementation->ReviewLedgerCompositionProbe.emplace();
+			implementation->ReviewLedgerCompositionProbe->Course = aCourse;
+		}
+		auto& probe = *implementation->ReviewLedgerCompositionProbe;
+		if (probe.Course != aCourse
+			|| probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+
+		auto* const window = implementation->Window.get();
+		auto* const host   = implementation->WorkbenchHost.get();
+		auto* const ledger = implementation->ReviewLedgerHost.get();
+		const auto  fail   = [&probe] {
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+
+		if (probe.Phase == state_type::phase::awaiting_observation) {
+			const auto& handoff  = *implementation->LastAcceptedHandoff;
+			const auto& snapshot = implementation->Host->accepted_snapshot();
+			if (!snapshot.has_value() || host->outstanding_requests() != 0U
+				|| host->actionable().empty()) {
+				return result::pending;
+			}
+			probe.Evidence.ExactAuthority
+				= implementation->ReviewLedgerAuthority
+				== std::optional{ workbench_authority(handoff) };
+			probe.Evidence.HostComposed = ledger != nullptr;
+			probe.Evidence.PublicPathAvailable
+				= window->github_status_text() == "Pull request ready.";
+			probe.Evidence.HostOnlyProbe = true;
+			probe.InitialStatistics      = ledger->statistics();
+			auto* const view             = window->files_drawer()->contents_view();
+			if (!probe.Evidence.ExactAuthority || !probe.Evidence.HostComposed
+				|| !probe.Evidence.PublicPathAvailable || view == nullptr
+				|| view->model() == nullptr || view->model()->rowCount() == 0) {
+				return fail();
+			}
+			view->setCurrentIndex(view->model()->index(0, 0));
+			probe.Phase = state_type::phase::awaiting_diff;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_diff) {
+			const auto* const comparison = window->comparison_surface();
+			if (comparison == nullptr || comparison->current_result() == nullptr
+				|| !implementation->LastSelectedDiff.has_value()) {
+				return result::pending;
+			}
+			const auto& selected   = *implementation->LastSelectedDiff;
+			const auto  material   = core::comparison_digest(selected.Key);
+			const auto  retained   = ledger->retained();
+			const auto  statistics = ledger->statistics();
+			probe.File             = selected.Request.File.File;
+			probe.Material         = material;
+			probe.Evidence.RealFileGesture
+				= window->statistics().FileSelections > 0U;
+			probe.Evidence.RealSelectedDiff
+				= selected.Request.File.File.valid()
+				&& selected.Key == comparison->current_result()->Alignment.Key;
+			probe.Evidence.ExactMaterial = material.valid()
+				&& (aCourse == review_ledger_composition_probe::unavailable
+					|| (retained.File == selected.Request.File.File
+						&& retained.Material == material));
+			probe.Evidence.ExpectedPreGesturePersistence
+				= aCourse == review_ledger_composition_probe::seed
+				? statistics.PersistenceRequests == 0U
+					&& statistics.Completions == 0U
+				: aCourse == review_ledger_composition_probe::reopen
+				? statistics.Commands == 0U
+					&& statistics.PersistenceRequests == 1U
+					&& statistics.Completions == 1U
+				: statistics.Commands == 0U
+					&& statistics.PersistenceRequests == 0U
+					&& statistics.Completions == 0U
+					&& statistics.StoreFailures > 0U;
+			probe.Evidence.ReceiptLoadedOnEntry
+				= statistics.ReceiptLoadHits == 1U;
+			implementation->ReviewLedgerWasPresentOnEntry
+				= probe.Evidence.ReceiptLoadedOnEntry;
+
+			if (!probe.Evidence.RealFileGesture
+				|| !probe.Evidence.RealSelectedDiff
+				|| !probe.Evidence.ExactMaterial
+				|| !probe.Evidence.ExpectedPreGesturePersistence) {
+				return fail();
+			}
+
+			if (aCourse == review_ledger_composition_probe::unavailable) {
+				probe.Evidence.UnavailableVisible
+					= window->status_text().contains(
+						  QStringLiteral("Private review progress is unavailable."))
+					&& !window->seen_action()->isEnabled()
+					&& !window->read_action()->isEnabled()
+					&& !window->accept_action()->isEnabled()
+					&& !window->exclude_action()->isEnabled()
+					&& statistics.StoreFailures > 0U;
+				probe.Evidence.DurableReceipt          = true;
+				probe.Evidence.PrivateRecords          = true;
+				probe.Evidence.GestureSequence         = true;
+				probe.Evidence.ActionabilityProjection = true;
+				if (!probe.Evidence.UnavailableVisible) {
+					return fail();
+				}
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+
+			if (aCourse == review_ledger_composition_probe::seed) {
+				const auto before  = ledger->statistics();
+				const auto trigger = [](QAction* const aAction) {
+					if (aAction == nullptr || !aAction->isEnabled()) {
+						return false;
+					}
+					aAction->trigger();
+					return true;
+				};
+				const auto gestures = std::array{
+					trigger(window->seen_action()),
+					trigger(window->read_action()),
+					trigger(window->accept_action()),
+					trigger(window->accept_action()),
+					trigger(window->exclude_action()),
+					trigger(window->exclude_action()),
+					trigger(window->accept_action()),
+				};
+				const auto after   = ledger->statistics();
+				const auto receipt = ledger->retained();
+				probe.Evidence.GestureSequence
+					= std::ranges::all_of(gestures, std::identity{ })
+					&& after.Commands == before.Commands + gestures.size()
+					&& after.PersistenceRequests
+						== before.PersistenceRequests + gestures.size()
+					&& after.Completions == before.Completions + gestures.size()
+					&& after.StoreFailures == before.StoreFailures
+					&& receipt.File == probe.File
+					&& receipt.Material == probe.Material
+					&& receipt.Read == core::file_read_state::read
+					&& receipt.Accepted && !receipt.Excluded;
+				if (!probe.Evidence.GestureSequence) {
+					return fail();
+				}
+
+				const auto note = review_ledger_probe_note(
+					probe.File, probe.Material);
+				const auto defect = review_ledger_probe_defect(
+					probe.File, probe.Material);
+				const auto& head = implementation->LastAcceptedHandoff->Head;
+				if (!ledger->persist(note)
+					|| !ledger->persist_last_reviewed_head(head)
+					|| !ledger->persist(defect)) {
+					return fail();
+				}
+				const auto privateState       = ledger->private_observation();
+				probe.Evidence.PrivateRecords = privateState.has_value()
+					&& privateState->Notes == std::vector{ note }
+					&& privateState->LastReviewedHead == std::optional{ head }
+					&& privateState->Defects == std::vector{ defect };
+				probe.Evidence.DurableReceipt               = true;
+				implementation->ReviewLedgerRoundTripPassed = true;
+			} else {
+				const auto receipt      = ledger->retained();
+				const auto privateState = ledger->private_observation();
+				probe.Evidence.GestureSequence
+					= ledger->statistics().Commands == 0U;
+				probe.Evidence.DurableReceipt
+					= probe.Evidence.ReceiptLoadedOnEntry
+					&& receipt.File == probe.File
+					&& receipt.Material == probe.Material
+					&& receipt.Read == core::file_read_state::unread
+					&& !receipt.Accepted && !receipt.Excluded;
+				const auto priorHead = implementation->Fixture != nullptr
+					? core::parse_git_commit_oid(
+						  implementation->Fixture->evidence().HeadOneOid)
+					: std::optional<core::git_commit_oid>{ };
+				if (privateState.has_value() && privateState->Notes.size() == 1U
+					&& privateState->Notes.front().Attachment.has_value()) {
+					const auto storedComparison
+						= privateState->Notes.front().Attachment->Comparison;
+					probe.Evidence.PrivateRecords
+						= storedComparison.valid()
+						&& storedComparison != probe.Material
+						&& privateState->Notes
+							== std::vector{ review_ledger_probe_note(
+								probe.File, storedComparison) }
+						&& priorHead.has_value()
+						&& privateState->LastReviewedHead == priorHead
+						&& privateState->Defects
+							== std::vector{ review_ledger_probe_defect(
+								probe.File, storedComparison) }
+						&& ledger->statistics().PrivateWrites == 0U;
+				}
+				implementation->ReviewLedgerRoundTripPassed
+					= probe.Evidence.DurableReceipt;
+			}
+			if (!probe.Evidence.DurableReceipt
+				|| !probe.Evidence.PrivateRecords) {
+				return fail();
+			}
+			probe.Phase = state_type::phase::awaiting_actionability;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_actionability) {
+			if (host->outstanding_requests() != 0U) {
+				return result::pending;
+			}
+			const auto&       actionable        = host->actionable();
+			const auto* const comparison        = window->comparison_surface();
+			const auto        selectionRetained = host->selected() == probe.File
+				&& implementation->LastSelectedDiff.has_value()
+				&& comparison != nullptr && comparison->current_result() != nullptr
+				&& comparison->current_result()->Alignment.Key
+					== implementation->LastSelectedDiff->Key;
+			if (aCourse == review_ledger_composition_probe::seed) {
+				if (!actionable.empty() || !selectionRetained) {
+					return fail();
+				}
+				auto materialBytes   = probe.Material.bytes();
+				materialBytes.back() = static_cast<std::uint8_t>(
+					materialBytes.back() ^ 0x01U);
+				probe.ReopenedMaterial = core::file_material_id{ materialBytes };
+				if (!ledger->observe_material(core::file_material_observation{
+						.File     = probe.File,
+						.Material = probe.ReopenedMaterial,
+					})) {
+					return fail();
+				}
+				probe.Phase = state_type::phase::awaiting_material_actionability;
+				return result::pending;
+			}
+			probe.Evidence.ActionabilityProjection = actionable.size() == 1U
+				&& actionable.front() == probe.File && selectionRetained;
+			if (!probe.Evidence.ActionabilityProjection) {
+				return fail();
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_material_actionability) {
+			if (host->outstanding_requests() != 0U) {
+				return result::pending;
+			}
+			const auto& actionable = host->actionable();
+			const auto& receipt    = ledger->retained();
+			const auto* comparison = window->comparison_surface();
+			probe.Evidence.ActionabilityProjection
+				= actionable.size() == 1U && actionable.front() == probe.File
+				&& host->selected() == probe.File
+				&& implementation->LastSelectedDiff.has_value()
+				&& comparison != nullptr && comparison->current_result() != nullptr
+				&& comparison->current_result()->Alignment.Key
+					== implementation->LastSelectedDiff->Key
+				&& receipt.File == probe.File
+				&& receipt.Material == probe.ReopenedMaterial
+				&& receipt.Read == core::file_read_state::unread
+				&& !receipt.Accepted && !receipt.Excluded;
+			if (!probe.Evidence.ActionabilityProjection) {
+				return fail();
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+
+		return fail();
+	}
+
+	auto detail::github_application_fixture_access::review_ledger_composition_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::review_ledger_composition_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr
+				&& implementation->ReviewLedgerCompositionProbe.has_value()
+			? implementation->ReviewLedgerCompositionProbe->Evidence
+			: detail::review_ledger_composition_probe_evidence{ };
+	}
+
 	auto detail::github_application_fixture_access::select_appearance_mode(
 		github_application&         aApplication,
 		const core::appearance_mode aMode) -> bool
@@ -3762,31 +4418,59 @@ namespace bpr::app {
 	auto detail::github_application_fixture_access::review_ledger_receipt_present(
 		github_application& aApplication) -> bool
 	{
-		if (aApplication.Implementation == nullptr
-			|| aApplication.Implementation->ReviewLedger == nullptr) {
-			return false;
-		}
-		const auto loaded
-			= aApplication.Implementation->ReviewLedger->load(probe_receipt().File);
-		return loaded.has_value() && loaded->has_value()
-			&& **loaded == probe_receipt();
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr
+			&& implementation->ReviewLedgerWasPresentOnEntry;
 	}
 
 	auto detail::github_application_fixture_access::review_ledger_round_trip(
 		github_application& aApplication) -> bool
 	{
-		if (aApplication.Implementation == nullptr
-			|| aApplication.Implementation->ReviewLedger == nullptr) {
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->ReviewLedgerHost == nullptr
+			|| implementation->Window == nullptr
+			|| implementation->WorkbenchHost == nullptr) {
 			return false;
 		}
-		auto&      ledger  = *aApplication.Implementation->ReviewLedger;
-		const auto receipt = probe_receipt();
-		if (!ledger.commit(application::receipt_persistence_request{
-				.Receipt = receipt })) {
+		if (implementation->ReviewLedgerRoundTripPassed) {
+			return true;
+		}
+
+		auto* const window = implementation->Window.get();
+		auto* const view   = window->files_drawer() != nullptr
+			? window->files_drawer()->contents_view()
+			: nullptr;
+		if (!implementation->LastSelectedDiff.has_value()
+			|| !implementation->ReviewLedgerHost->retained().Material.valid()) {
+			if (view != nullptr && view->model() != nullptr
+				&& view->model()->rowCount() > 0 && !view->currentIndex().isValid()) {
+				view->setCurrentIndex(view->model()->index(0, 0));
+			}
 			return false;
 		}
-		const auto loaded = ledger.load(receipt.File);
-		return loaded.has_value() && loaded->has_value() && **loaded == receipt;
+
+		const auto statistics = implementation->ReviewLedgerHost->statistics();
+		implementation->ReviewLedgerWasPresentOnEntry
+			= statistics.ReceiptLoadHits > 0U;
+		const auto& selected = *implementation->LastSelectedDiff;
+		const auto  material = core::comparison_digest(selected.Key);
+		const auto  before   = implementation->ReviewLedgerHost->retained();
+		if (before.File != selected.Request.File.File
+			|| before.Material != material) {
+			return false;
+		}
+		if (before.Read == core::file_read_state::unread) {
+			if (window->seen_action() == nullptr
+				|| !window->seen_action()->isEnabled()) {
+				return false;
+			}
+			window->seen_action()->trigger();
+		}
+		const auto after = implementation->ReviewLedgerHost->retained();
+		implementation->ReviewLedgerRoundTripPassed
+			= after.File == before.File && after.Material == before.Material
+			&& after.Read != core::file_read_state::unread;
+		return implementation->ReviewLedgerRoundTripPassed;
 	}
 
 	auto detail::github_application_fixture_access::request_fixture_diff(

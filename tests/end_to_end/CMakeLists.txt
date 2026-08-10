@@ -377,6 +377,31 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+add_test(
+    NAME application_review_ledger_composition_contract
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-ledger-composition-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        "-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_review_ledger_composition_contract.cmake"
+)
+set_tests_properties(
+    application_review_ledger_composition_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REVIEW_LEDGER_COMPOSITION_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_review_ledger_composition_contract
+    TIMEOUT 180
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 3
+    RESERVE_MS 4000
+)
+
 set(bpr_appearance_theme_budget_ms 50000)
 add_test(
     NAME application_appearance_theme_customization_contract

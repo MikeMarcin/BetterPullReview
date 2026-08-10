@@ -486,6 +486,17 @@ widget count is bounded by visible UI structure rather than source length; a
 sixty-thousand-line comparison creates no widget that a sixty-line one does
 not.
 
+The composition root binds the workbench to one review-ledger host per accepted
+pull-request authority. A real selected-diff publication supplies its exact
+file/material fact before the four receipt actions are enabled. Accepted
+receipt projections update the compact action surface and re-observe the
+workbench when actionability changes; files without an exact material fact stay
+conservatively actionable. This actionability-only refresh retains the semantic
+selection and rendered comparison even when the selected file leaves the
+filtered order; changed material reopens the receipt and returns the file to
+that order. A failed ledger open disables only private-progress actions and
+leaves GitHub, epoch, and diff authorities live.
+
 ### RFC-BPR-0006 appearance allocation
 
 The core owns appearance-mode resolution, typography legality, the closed

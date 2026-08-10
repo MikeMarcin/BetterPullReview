@@ -57,6 +57,9 @@ namespace bpr::application {
 		// Replays the retained semantic selection after an accepted comparison
 		// becomes available or changes.
 		void refresh_selected_diff();
+		// Reobserves receipt-derived actionability without replacing the accepted
+		// authority or detaching its retained selected diff.
+		void refresh_actionability();
 		void apply(core::workbench_interaction_intent aIntent);
 		// Host-owned drawer width, clamped to the configured bound and persisted.
 		void resize(core::workbench_drawer aDrawer, std::uint32_t aWidth);

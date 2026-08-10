@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 
 #include "bpr/application/epoch_projection.hpp"
+#include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -48,6 +49,9 @@ namespace bpr::qt {
 	/// folded into `core::workbench_interaction_intent`.
 	using workbench_change_dispatch = std::function<void(core::navigate_diff_change_intent)>;
 
+	/// \brief Carries one already-decided receipt command out of presentation.
+	using workbench_receipt_dispatch = std::function<void(core::file_receipt_command)>;
+
 	enum class workbench_toolbar_mode : std::uint8_t {
 		expanded,
 		compact,
@@ -67,6 +71,9 @@ namespace bpr::qt {
 		std::uint64_t LayoutUpdates      = 0U;
 		std::uint64_t EpochUpdates       = 0U;
 		std::uint64_t FocusOrderUpdates  = 0U;
+		std::uint64_t ReceiptUpdates     = 0U;
+		std::uint64_t ReceiptFailures    = 0U;
+		std::uint64_t ReceiptGestures    = 0U;
 		/// \brief Full GitHub presentation resets, which must stay at zero.
 		///
 		/// \details Carried over from `github_window` because the render probes
@@ -151,16 +158,28 @@ namespace bpr::qt {
 			const application::github_presentation_update& aUpdate) override;
 		void fail(
 			const application::workbench_failure_publication& aFailure) override;
+		/// \brief Adopts the selected file's core-decided private receipt actions.
+		void publish(
+			const application::file_receipt_action_projection& aProjection);
+		/// \brief Presents one typed receipt refusal without changing the model.
+		void fail(const application::receipt_failure_publication& aFailure);
+		/// \brief Retires receipt actions, optionally naming unavailable storage.
+		void clear_review_ledger(bool aUnavailable = false);
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
 		void set_change_dispatch(workbench_change_dispatch aChangeDispatch);
 		void set_width_dispatch(workbench_drawer_width_dispatch aWidthDispatch);
+		void set_receipt_dispatch(workbench_receipt_dispatch aReceiptDispatch);
 
 		[[nodiscard]] auto primary_toolbar() const noexcept -> QToolBar*;
 		[[nodiscard]] auto previous_file_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_file_action() const noexcept -> QAction*;
 		[[nodiscard]] auto previous_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_change_action() const noexcept -> QAction*;
+		[[nodiscard]] auto seen_action() const noexcept -> QAction*;
+		[[nodiscard]] auto read_action() const noexcept -> QAction*;
+		[[nodiscard]] auto accept_action() const noexcept -> QAction*;
+		[[nodiscard]] auto exclude_action() const noexcept -> QAction*;
 		[[nodiscard]] auto navigation_overflow_button() const noexcept
 			-> QToolButton*;
 		[[nodiscard]] auto navigation_overflow_menu() const noexcept -> QMenu*;
@@ -337,6 +356,8 @@ namespace bpr::qt {
 			const std::vector<application::workbench_file_projection>& aFiles);
 		void apply_file_selection();
 		void dispatch_file_selection(const QModelIndex& aIndex);
+		void dispatch_receipt(std::size_t aIndex);
+		void update_receipt_actions();
 
 		[[nodiscard]] auto command(core::workbench_command_id aId) const
 			-> std::optional<core::workbench_command_projection>;
@@ -345,6 +366,7 @@ namespace bpr::qt {
 		workbench_intent_dispatch       Dispatch;
 		workbench_change_dispatch       ChangeDispatch;
 		workbench_drawer_width_dispatch WidthDispatch;
+		workbench_receipt_dispatch      ReceiptDispatch;
 
 		QToolBar*       PrimaryToolbar    = nullptr;
 		QToolBar*       DrawerToolbar     = nullptr;
@@ -359,34 +381,38 @@ namespace bpr::qt {
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 
-		std::array<navigation_entry, 4>                    Navigation{ };
-		std::array<drawer_entry, 2>                        Drawers{ };
-		github_conversation_panel*                         ConversationPanel    = nullptr;
-		QScrollArea*                                       HeaderScroll         = nullptr;
-		github_session_panel*                              SessionPanel         = nullptr;
-		github_pull_request_panel*                         PullRequestPanel     = nullptr;
-		appearance_settings_panel*                         AppearanceSettings   = nullptr;
-		QStackedWidget*                                    PullRequestStack     = nullptr;
-		QLabel*                                            EmptyStateTitleLabel = nullptr;
-		QLabel*                                            EmptyStateBodyLabel  = nullptr;
-		QString                                            LastGithubAnnouncement;
-		QAction*                                           GithubConnectAction     = nullptr;
-		QAction*                                           GithubOpenAction        = nullptr;
-		QAction*                                           GithubRefreshAction     = nullptr;
-		QAction*                                           ShowReviewThreadsAction = nullptr;
-		std::vector<application::github_profile_option>    GithubProfiles;
-		application::github_intent_dispatch                GithubDispatch;
-		bool                                               HasGithubPullRequest = false;
-		core::workbench_command_delta                      Commands;
-		core::workbench_drawer_delta                       DrawerStates;
-		std::optional<application::workbench_layout_delta> LayoutWidths;
-		std::optional<core::workbench_navigation_cursor>   Cursor;
-		std::optional<application::workbench_host_failure> Failure;
-		workbench_toolbar_mode                             Mode                  = workbench_toolbar_mode::expanded;
-		bool                                               HasCommands           = false;
-		bool                                               ToolbarConfigured     = false;
-		bool                                               ApplyingLayout        = false;
-		bool                                               ApplyingFileSelection = false;
+		std::array<navigation_entry, 4>                            Navigation{ };
+		std::array<QAction*, 4>                                    ReceiptActions{ };
+		std::array<drawer_entry, 2>                                Drawers{ };
+		github_conversation_panel*                                 ConversationPanel    = nullptr;
+		QScrollArea*                                               HeaderScroll         = nullptr;
+		github_session_panel*                                      SessionPanel         = nullptr;
+		github_pull_request_panel*                                 PullRequestPanel     = nullptr;
+		appearance_settings_panel*                                 AppearanceSettings   = nullptr;
+		QStackedWidget*                                            PullRequestStack     = nullptr;
+		QLabel*                                                    EmptyStateTitleLabel = nullptr;
+		QLabel*                                                    EmptyStateBodyLabel  = nullptr;
+		QString                                                    LastGithubAnnouncement;
+		QAction*                                                   GithubConnectAction     = nullptr;
+		QAction*                                                   GithubOpenAction        = nullptr;
+		QAction*                                                   GithubRefreshAction     = nullptr;
+		QAction*                                                   ShowReviewThreadsAction = nullptr;
+		std::vector<application::github_profile_option>            GithubProfiles;
+		application::github_intent_dispatch                        GithubDispatch;
+		bool                                                       HasGithubPullRequest = false;
+		core::workbench_command_delta                              Commands;
+		core::workbench_drawer_delta                               DrawerStates;
+		std::optional<application::workbench_layout_delta>         LayoutWidths;
+		std::optional<core::workbench_navigation_cursor>           Cursor;
+		std::optional<application::workbench_host_failure>         Failure;
+		std::optional<application::file_receipt_action_projection> Receipt;
+		std::optional<application::receipt_failure_publication>    ReceiptFailure;
+		bool                                                       LedgerUnavailable     = false;
+		workbench_toolbar_mode                                     Mode                  = workbench_toolbar_mode::expanded;
+		bool                                                       HasCommands           = false;
+		bool                                                       ToolbarConfigured     = false;
+		bool                                                       ApplyingLayout        = false;
+		bool                                                       ApplyingFileSelection = false;
 		// Set by the first published review-history update. Before one arrives
 		// the shell has no review-history state to state, and quoting the
 		// control's idle wording would report activity that never happened.

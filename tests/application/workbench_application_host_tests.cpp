@@ -651,6 +651,52 @@ namespace {
 			   "the replay uses the exact changed comparison context");
 	}
 
+	void test_actionability_refresh_preserves_selected_diff_identity()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U), file(2U) };
+		value.Host.observe(authority());
+		value.Effects.drain();
+		value.Lane.drain();
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.Effects.drain();
+		value.Lane.drain();
+
+		const auto generation       = value.Host.generation();
+		const auto selectedRequests = value.SelectedDiffs.Requests.size();
+		const auto selectedResults  = value.SelectedProjections.Published.size();
+		value.Observations.Files    = { file(2U) };
+		value.Host.refresh_actionability();
+		expect(value.Host.generation() == generation
+				   && value.Host.selected() == file(1U),
+			   "an actionability refresh preserves generation and selection in flight");
+		value.Effects.drain();
+		value.Lane.drain();
+
+		expect(value.Host.actionable().size() == 1U
+				   && value.Host.actionable().front() == file(2U)
+				   && value.Host.selected() == file(1U),
+			   "filtering a selected file preserves its semantic selection");
+		expect(value.Host.state().Navigation.has_value()
+				   && value.Host.state().Navigation->File == file(1U)
+				   && value.Host.state().Navigation->ActionableCount == 1U
+				   && value.Host.state().Navigation->Ordinal == 0U,
+			   "the core sees the retained selection outside the filtered order");
+		expect(value.SelectedDiffs.Requests.size() == selectedRequests
+				   && value.SelectedProjections.Published.size() == selectedResults
+				   && value.SelectedProjections.Failed.empty(),
+			   "actionability refresh neither restarts nor stales the selected diff");
+
+		value.Observations.Files = { file(1U), file(2U) };
+		value.Host.refresh_actionability();
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(value.Host.actionable().size() == 2U
+				   && value.Host.selected() == file(1U)
+				   && value.Host.state().Navigation->Ordinal == 1U,
+			   "changed material can re-enter actionability without detaching selection");
+	}
+
 	void test_failed_authority_refresh_clears_rows_and_old_selection()
 	{
 		auto value               = selected_harness{ };
@@ -1090,6 +1136,7 @@ auto main() -> int
 	test_navigation_resolves_through_the_host_order();
 	test_selected_diff_lifecycle_is_exactly_once_and_typed();
 	test_selected_diff_replays_after_context_arrives_and_changes();
+	test_actionability_refresh_preserves_selected_diff_identity();
 	test_failed_authority_refresh_clears_rows_and_old_selection();
 	test_exact_invalidation_clears_authority_bound_selection();
 	test_drawer_gesture_publishes_and_persists();

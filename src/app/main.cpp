@@ -486,7 +486,12 @@ namespace {
 		bool WorkbenchCompositionStarted = false;
 		bool WorkbenchCompositionPassed  = false;
 		bpr::app::detail::workbench_composition_probe_evidence
-			 WorkbenchCompositionEvidence;
+			WorkbenchCompositionEvidence;
+		std::optional<bpr::app::detail::review_ledger_composition_probe>
+			 ReviewLedgerCompositionProbe;
+		bool ReviewLedgerCompositionPassed = false;
+		bpr::app::detail::review_ledger_composition_probe_evidence
+			 ReviewLedgerCompositionEvidence;
 		bool DiffProbe         = false;
 		bool DiffShutdownProbe = false;
 		// A stage that never becomes ready. Every real readiness condition in
@@ -2025,25 +2030,34 @@ namespace {
 			// The run-level verdict is `PUBLIC_PATH_OK` / `PUBLIC_PATH_FAILED`,
 			// and every gate that matches the fixture marker already requires
 			// that one beside it, so naming this honestly costs no assertion.
-			fixtureFactsPassed = fixtureEvidence.RecordingConsumed
-				&& fixtureEvidence.CapabilityProbeConsumed
-				&& fixtureEvidence.BootstrapTransportSelected
-				&& fixtureEvidence.AccountTransportSelected
-				&& fixtureEvidence.CredentialStored
-				&& fixtureEvidence.CredentialRetrieved
-				&& fixtureEvidence.CredentialDeleted
-				// A retained secret is the defect, so this reads false when the
-				// credential correctly did not survive its deletion. `11111110`
-				// is the all-good pattern, which is the other half of what
-				// misled BPR-0154.
-				&& !fixtureEvidence.SecretRetained
-				&& fixtureEvidence.SmartAcquireCount == expectedSmartCalls
-				&& fixtureEvidence.SmartDiscoveryCount == expectedSmartCalls
-				&& fixtureEvidence.SmartLsRefsCount == expectedSmartCalls
-				&& fixtureEvidence.SmartFetchCount == expectedSmartCalls;
-			passed            = passed && fixtureFactsPassed;
-			passedFixture     = passed;
-			passedMaintenance = passed;
+			fixtureFactsPassed = aRun.ReviewLedgerCompositionProbe.has_value()
+				? aRun.ReviewLedgerCompositionPassed
+					&& fixtureEvidence.CapabilityProbeConsumed
+					&& fixtureEvidence.BootstrapTransportSelected
+					&& fixtureEvidence.AccountTransportSelected
+					&& fixtureEvidence.CredentialStored
+					&& fixtureEvidence.CredentialRetrieved
+					&& fixtureEvidence.CredentialDeleted
+					&& !fixtureEvidence.SecretRetained
+				: fixtureEvidence.RecordingConsumed
+					&& fixtureEvidence.CapabilityProbeConsumed
+					&& fixtureEvidence.BootstrapTransportSelected
+					&& fixtureEvidence.AccountTransportSelected
+					&& fixtureEvidence.CredentialStored
+					&& fixtureEvidence.CredentialRetrieved
+					&& fixtureEvidence.CredentialDeleted
+					// A retained secret is the defect, so this reads false when the
+					// credential correctly did not survive its deletion. `11111110`
+					// is the all-good pattern, which is the other half of what
+					// misled BPR-0154.
+					&& !fixtureEvidence.SecretRetained
+					&& fixtureEvidence.SmartAcquireCount == expectedSmartCalls
+					&& fixtureEvidence.SmartDiscoveryCount == expectedSmartCalls
+					&& fixtureEvidence.SmartLsRefsCount == expectedSmartCalls
+					&& fixtureEvidence.SmartFetchCount == expectedSmartCalls;
+			passed             = passed && fixtureFactsPassed;
+			passedFixture      = passed;
+			passedMaintenance  = passed;
 			if (aRun.MaintenanceProbe
 				== automated_run::epoch_maintenance_probe::verify_deleted) {
 				const auto maintenance = bpr::app::detail::
@@ -2100,7 +2114,7 @@ namespace {
 				   << '\n';
 		}
 #if defined(BPR_BUILD_TESTING)
-		if (aRun.Fixture
+		if (aRun.Fixture && !aRun.ReviewLedgerCompositionProbe.has_value()
 			&& aRun.EpochPhase
 				!= bpr::app::detail::github_epoch_fixture_phase::single) {
 			const auto phase = aRun.EpochPhase
@@ -2240,8 +2254,12 @@ namespace {
 		}
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture) {
-			stream << (fixtureFactsPassed ? "GITHUB_FIXTURE_OK:"
-										  : "GITHUB_FIXTURE_FAILED:")
+			stream << (aRun.ReviewLedgerCompositionProbe.has_value()
+						   ? fixtureFactsPassed
+							   ? "GITHUB_FIXTURE_REVIEW_LEDGER_OK:"
+							   : "GITHUB_FIXTURE_REVIEW_LEDGER_FAILED:"
+						   : fixtureFactsPassed ? "GITHUB_FIXTURE_OK:"
+												: "GITHUB_FIXTURE_FAILED:")
 				   << QString::fromStdString(aRun.FixtureName) << '\n';
 			if (!passed) {
 				stream << "GITHUB_FIXTURE_EVIDENCE:"
@@ -2331,6 +2349,27 @@ namespace {
 						? "WORKBENCH_COMPOSITION_TRACE_OK\n"
 						: "WORKBENCH_COMPOSITION_TRACE_FAILED\n");
 		}
+		if (aRun.ReviewLedgerCompositionProbe.has_value()) {
+			const auto  course   = *aRun.ReviewLedgerCompositionProbe;
+			const auto  name     = course
+					== bpr::app::detail::review_ledger_composition_probe::seed
+				? QStringLiteral("SEED")
+				: course == bpr::app::detail::review_ledger_composition_probe::reopen
+				? QStringLiteral("REOPEN")
+				: QStringLiteral("UNAVAILABLE");
+			const auto& evidence = aRun.ReviewLedgerCompositionEvidence;
+			stream << "REVIEW_LEDGER_COMPOSITION_" << name
+				   << (aRun.ReviewLedgerCompositionPassed ? "_OK\n" : "_FAILED\n")
+				   << "REVIEW_LEDGER_COMPOSITION_EVIDENCE:"
+				   << evidence.ExactAuthority << evidence.HostComposed
+				   << evidence.RealFileGesture << evidence.RealSelectedDiff
+				   << evidence.ExactMaterial
+				   << evidence.ExpectedPreGesturePersistence
+				   << evidence.ReceiptLoadedOnEntry << evidence.GestureSequence
+				   << evidence.DurableReceipt << evidence.ActionabilityProjection
+				   << evidence.PrivateRecords << evidence.PublicPathAvailable
+				   << evidence.UnavailableVisible << evidence.HostOnlyProbe << '\n';
+		}
 #endif
 		if (aRun.RenderPath.has_value()) {
 			stream << (renderSaved ? "RENDER_OK\n" : "RENDER_FAILED\n");
@@ -2342,7 +2381,7 @@ namespace {
 		// composition has not compiled since; `application_composition_contract`
 		// reported Passed throughout because its `PASS_REGULAR_EXPRESSION "OK"`
 		// matched the `REVIEW_LEDGER_OK` literal a few lines below.
-		if (aRun.Fixture) {
+		if (aRun.Fixture && !aRun.WorkbenchCompositionProbe) {
 			// After the render marker rather than inside its block: the
 			// public-path expectation matches its markers contiguously, so a
 			// line in the middle breaks a contract that has nothing to do with
@@ -2643,15 +2682,6 @@ namespace {
 			case automated_run::stage::start:
 #if defined(BPR_BUILD_TESTING)
 				if (aRun->Fixture) {
-					// Read before writing. On a second run against the same
-					// application data root this is what distinguishes a
-					// receipt that persisted from one this run just wrote.
-					aRun->LedgerPresentOnEntry = bpr::app::detail::
-						github_application_fixture_access::
-							review_ledger_receipt_present(aApplication);
-					aRun->LedgerRoundTripped = bpr::app::detail::
-						github_application_fixture_access::
-							review_ledger_round_trip(aApplication);
 					if (aRun->AppearanceGestureProbe) {
 						// Here rather than in a later stage because this is the
 						// one point every fixture path passes through, seed and
@@ -2806,6 +2836,47 @@ namespace {
 							initialHead,
 							initialEpochs)) {
 						break;
+					}
+					if (aRun->ReviewLedgerCompositionProbe.has_value()
+						&& !aRun->ReviewLedgerCompositionPassed) {
+						const auto result = bpr::app::detail::
+							github_application_fixture_access::
+								exercise_review_ledger_composition(
+									aApplication,
+									*aRun->ReviewLedgerCompositionProbe);
+						if (result
+							== bpr::app::detail::
+								review_ledger_composition_probe_result::pending) {
+							break;
+						}
+						aRun->ReviewLedgerCompositionEvidence
+							= bpr::app::detail::github_application_fixture_access::
+								review_ledger_composition_evidence(aApplication);
+						aRun->ReviewLedgerCompositionPassed
+							= result == bpr::app::detail::review_ledger_composition_probe_result::passed;
+						aRun->LedgerPresentOnEntry
+							= aRun->ReviewLedgerCompositionEvidence.ReceiptLoadedOnEntry;
+						aRun->LedgerRoundTripped
+							= aRun->ReviewLedgerCompositionEvidence.DurableReceipt;
+						if (!aRun->ReviewLedgerCompositionPassed) {
+							fail_automated_run(aApplication, *aRun);
+							break;
+						}
+						aRun->PresentationPassed = true;
+						transition_to_shutdown(aApplication, *aRun);
+						break;
+					}
+					if (!aRun->WorkbenchCompositionProbe
+						&& !aRun->LedgerRoundTripped) {
+						aRun->LedgerRoundTripped = bpr::app::detail::
+							github_application_fixture_access::
+								review_ledger_round_trip(aApplication);
+						if (!aRun->LedgerRoundTripped) {
+							break;
+						}
+						aRun->LedgerPresentOnEntry = bpr::app::detail::
+							github_application_fixture_access::
+								review_ledger_receipt_present(aApplication);
 					}
 					if (aRun->EpochPhase
 						== bpr::app::detail::github_epoch_fixture_phase::seed) {
@@ -3730,6 +3801,24 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--workbench-composition-cut-selection-wire");
 		fixtureOptions.DisableWorkbenchSelectionWire
 			= workbenchCompositionCutSelectionWire;
+		const auto reviewLedgerCompositionProbeName = argument_value(
+			argc, argv, "--review-ledger-composition-probe");
+		auto reviewLedgerCompositionProbe = std::optional<
+			bpr::app::detail::review_ledger_composition_probe>{ };
+		if (reviewLedgerCompositionProbeName == "seed") {
+			reviewLedgerCompositionProbe
+				= bpr::app::detail::review_ledger_composition_probe::seed;
+		} else if (reviewLedgerCompositionProbeName == "reopen") {
+			reviewLedgerCompositionProbe
+				= bpr::app::detail::review_ledger_composition_probe::reopen;
+		} else if (reviewLedgerCompositionProbeName == "unavailable") {
+			reviewLedgerCompositionProbe
+				= bpr::app::detail::review_ledger_composition_probe::unavailable;
+		} else if (reviewLedgerCompositionProbeName.has_value()) {
+			QTextStream{ stdout }
+				<< "REVIEW_LEDGER_COMPOSITION_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
 		const auto appearanceGestureProbe = has_argument(
 			argc, argv, "--appearance-gesture-probe");
 		const auto appearanceThemeCustomizationPath = argument_value(
@@ -3853,6 +3942,30 @@ auto main(int argc, char** argv) -> int
 				<< "WORKBENCH_COMPOSITION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
+		if (reviewLedgerCompositionProbe.has_value()
+			&& (!selectedFixture.has_value()
+				|| *selectedFixture
+					!= bpr::app::detail::github_public_path_fixture::github_com
+				|| !epochFixtureRoot.has_value()
+				|| (*reviewLedgerCompositionProbe
+							== bpr::app::detail::review_ledger_composition_probe::seed
+						? fixtureOptions.EpochPhase
+							!= bpr::app::detail::github_epoch_fixture_phase::seed
+						: *reviewLedgerCompositionProbe
+							== bpr::app::detail::review_ledger_composition_probe::reopen
+						? fixtureOptions.EpochPhase
+							!= bpr::app::detail::github_epoch_fixture_phase::reuse
+						: fixtureOptions.EpochPhase
+							!= bpr::app::detail::github_epoch_fixture_phase::single)
+				|| workbenchCompositionProbe || diffWorkbenchProbe
+				|| diffWorkbenchShutdownProbe || nativeAppearanceProbe
+				|| appearanceGestureProbe
+				|| appearanceThemeCustomizationPath.has_value()
+				|| epochMaintenanceProbe.has_value() || automatedStallProbe)) {
+			QTextStream{ stdout }
+				<< "REVIEW_LEDGER_COMPOSITION_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
 		if (
 			(diffWorkbenchProbe && !diffEvidenceDirectory.has_value())
 			|| (!diffWorkbenchProbe && diffEvidenceDirectory.has_value())) {
@@ -3935,19 +4048,20 @@ auto main(int argc, char** argv) -> int
 							.EnterpriseHostname = std::move(enterpriseHostname),
 						},
 #if defined(BPR_BUILD_TESTING)
-						.Fixture                   = !fixtureName.empty(),
-						.WorkbenchCompositionProbe = workbenchCompositionProbe,
-						.AppearanceGestureProbe    = appearanceGestureProbe,
-						.DiffProbe                 = diffWorkbenchProbe,
-						.ThemeCustomizationPath    = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,
-						.DiffShutdownProbe         = diffWorkbenchShutdownProbe,
-						.StallProbe                = automatedStallProbe,
-						.FixtureName               = std::move(fixtureName),
-						.ExpectedActiveHostText    = std::move(expectedActiveHostText),
-						.Expectations              = std::move(fixtureExpectations),
-						.EpochPhase                = fixtureOptions.EpochPhase,
-						.MaintenanceProbe          = selectedMaintenanceProbe,
-						.Appearance                = automated_run::native_appearance_probe_state{
+						.Fixture                      = !fixtureName.empty(),
+						.WorkbenchCompositionProbe    = workbenchCompositionProbe,
+						.ReviewLedgerCompositionProbe = reviewLedgerCompositionProbe,
+						.AppearanceGestureProbe       = appearanceGestureProbe,
+						.DiffProbe                    = diffWorkbenchProbe,
+						.ThemeCustomizationPath       = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,
+						.DiffShutdownProbe            = diffWorkbenchShutdownProbe,
+						.StallProbe                   = automatedStallProbe,
+						.FixtureName                  = std::move(fixtureName),
+						.ExpectedActiveHostText       = std::move(expectedActiveHostText),
+						.Expectations                 = std::move(fixtureExpectations),
+						.EpochPhase                   = fixtureOptions.EpochPhase,
+						.MaintenanceProbe             = selectedMaintenanceProbe,
+						.Appearance                   = automated_run::native_appearance_probe_state{
 							.Enabled       = nativeAppearanceProbe,
 							.EvidencePaths = nativeAppearancePaths.value_or(native_appearance_evidence_paths{ }),
 						},

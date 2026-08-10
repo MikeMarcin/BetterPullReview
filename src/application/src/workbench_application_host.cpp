@@ -71,6 +71,10 @@ namespace bpr::application {
 		{
 		};
 
+		struct deferred_workbench_actionability_refresh
+		{
+		};
+
 		struct deferred_workbench_resize
 		{
 			core::workbench_drawer Drawer = core::workbench_drawer::files;
@@ -89,6 +93,7 @@ namespace bpr::application {
 														deferred_workbench_observe,
 														deferred_workbench_invalidate,
 														deferred_workbench_selected_diff_refresh,
+														deferred_workbench_actionability_refresh,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
 														deferred_workbench_cancel,
@@ -305,6 +310,10 @@ namespace bpr::application {
 											 ingress_type,
 											 deferred_workbench_selected_diff_refresh>) {
 						refresh_selected_diff_now();
+					} else if constexpr (std::is_same_v<
+											 ingress_type,
+											 deferred_workbench_actionability_refresh>) {
+						refresh_actionability_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_intent>) {
 						apply_now(aTyped.Intent);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_resize>) {
@@ -534,6 +543,9 @@ namespace bpr::application {
 		{
 			if (!Selected.has_value()) {
 				return nullptr;
+			}
+			if (SelectedFile.has_value() && SelectedFile->File == *Selected) {
+				return &*SelectedFile;
 			}
 			const auto found = std::ranges::find(
 				Files, *Selected, &workbench_file_observation_entry::File);
@@ -771,6 +783,7 @@ namespace bpr::application {
 			Actionable.clear();
 			Files.clear();
 			Selected.reset();
+			SelectedFile.reset();
 			const auto output = core::observe_workbench_navigation(State, std::nullopt);
 			LastReason        = output.Reason;
 			if (hadAuthorityBoundState) {
@@ -784,6 +797,16 @@ namespace bpr::application {
 			if (!Closing) {
 				submit_selected_diff();
 			}
+		}
+
+		void refresh_actionability_now()
+		{
+			if (Closing || !Authority.has_value()) {
+				return;
+			}
+			retire(workbench_request_domain::observation,
+				   workbench_terminal_rejection::superseded);
+			submit_observation(*Authority);
 		}
 
 		void invalidate_now(const workbench_pull_request_authority& aAuthority)
@@ -800,6 +823,7 @@ namespace bpr::application {
 			Actionable.clear();
 			Files.clear();
 			Selected.reset();
+			SelectedFile.reset();
 			const auto output = core::observe_workbench_navigation(State, std::nullopt);
 			LastReason        = output.Reason;
 			publish_changes(local_context());
@@ -831,7 +855,12 @@ namespace bpr::application {
 				LastReason = core::workbench_reason_code::no_actionable_files;
 				return;
 			}
-			Selected = target;
+			Selected         = target;
+			const auto found = std::ranges::find(
+				Files, *target, &workbench_file_observation_entry::File);
+			SelectedFile = found == Files.end()
+				? std::nullopt
+				: std::optional<workbench_file_observation_entry>{ *found };
 			observe_cursor();
 		}
 
@@ -904,6 +933,18 @@ namespace bpr::application {
 				return;
 			}
 			Files = std::move(aObservation.Actionable);
+			if (Selected.has_value()) {
+				const auto found = std::ranges::find(
+					Files, *Selected, &workbench_file_observation_entry::File);
+				if (found != Files.end()) {
+					SelectedFile = *found;
+				} else if (!SelectedFile.has_value()
+						   || SelectedFile->File != *Selected) {
+					SelectedFile.reset();
+				}
+			} else {
+				SelectedFile.reset();
+			}
 			Actionable.clear();
 			Actionable.reserve(Files.size());
 			std::ranges::transform(
@@ -1172,6 +1213,7 @@ namespace bpr::application {
 		std::vector<core::workbench_file_id>            Actionable;
 		std::vector<workbench_file_observation_entry>   Files;
 		std::optional<core::workbench_file_id>          Selected;
+		std::optional<workbench_file_observation_entry> SelectedFile;
 		std::optional<workbench_pull_request_authority> Authority;
 		workbench_layout_settings                       Layout;
 
@@ -1244,6 +1286,11 @@ namespace bpr::application {
 	void workbench_application_host::refresh_selected_diff()
 	{
 		Implementation->enqueue(deferred_workbench_selected_diff_refresh{ });
+	}
+
+	void workbench_application_host::refresh_actionability()
+	{
+		Implementation->enqueue(deferred_workbench_actionability_refresh{ });
 	}
 
 	void workbench_application_host::apply(core::workbench_interaction_intent aIntent)

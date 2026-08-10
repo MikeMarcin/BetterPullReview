@@ -72,6 +72,7 @@ namespace {
 	{
 		std::vector<core::workbench_interaction_intent> Workbench;
 		std::vector<core::navigate_diff_change_intent>  Change;
+		std::vector<core::file_receipt_command>         Receipt;
 		std::vector<width_report>                       Width;
 	};
 
@@ -136,6 +137,15 @@ namespace {
 		bytes.front() = aSeed;
 		bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0x5AU);
 		return core::workbench_file_id{ bytes };
+	}
+
+	[[nodiscard]] constexpr auto file_material(const std::uint8_t aSeed)
+		-> core::file_material_id
+	{
+		auto bytes    = std::array<std::uint8_t, 32U>{ };
+		bytes.front() = aSeed;
+		bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
+		return core::file_material_id{ bytes };
 	}
 
 	[[nodiscard]] auto drawer_states(
@@ -2545,6 +2555,67 @@ namespace {
 		window.hide();
 	}
 
+	void test_receipt_actions_follow_decided_projection_and_clear_while_loading()
+	{
+		intent_log           log;
+		qt::workbench_window window;
+		window.set_receipt_dispatch(
+			[&log](core::file_receipt_command aCommand) {
+				log.Receipt.push_back(std::move(aCommand));
+			});
+		window.show();
+		process_events();
+
+		const auto receipt = core::file_receipt{
+			.File     = core::file_identity_of("review.cpp"),
+			.Material = file_material(73U),
+		};
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		expect(window.seen_action()->isEnabled()
+				   && window.read_action()->isEnabled()
+				   && window.accept_action()->isEnabled()
+				   && window.exclude_action()->isEnabled(),
+			   "the four compact receipt gestures use the application projection's legality");
+
+		window.seen_action()->trigger();
+		expect(log.Receipt == std::vector{ core::file_receipt_command{
+				   .File     = receipt.File,
+				   .Material = receipt.Material,
+				   .Kind     = core::file_receipt_command_kind::mark_seen,
+			   } },
+			   "a receipt action emits the exact selected file, material, and semantic command");
+
+		auto advanced     = receipt;
+		advanced.Read     = core::file_read_state::seen;
+		advanced.Accepted = true;
+		window.publish(application::project_file_receipt_actions(advanced));
+		process_events();
+		expect(window.seen_action()->isChecked()
+				   && !window.seen_action()->isEnabled()
+				   && window.accept_action()->text().contains(
+					   QStringLiteral("Revoke"))
+				   && !window.exclude_action()->isEnabled()
+				   && window.status_text().contains(
+					   QStringLiteral("Private progress: seen, accepted")),
+			   "accepted receipt projection decides checked state, inverse gesture, and status");
+
+		window.clear_review_ledger();
+		process_events();
+		expect(!window.seen_action()->isEnabled()
+				   && !window.read_action()->isEnabled()
+				   && !window.accept_action()->isEnabled()
+				   && !window.exclude_action()->isEnabled(),
+			   "starting another selected diff clears the prior file's gesture surface");
+
+		window.clear_review_ledger(true);
+		process_events();
+		expect(window.status_text().contains(
+				   QStringLiteral("Private review progress is unavailable.")),
+			   "a store-open obstruction is visible in text while the workbench remains live");
+		window.hide();
+	}
+
 	void test_selection_synchronisation_and_restart_persistence()
 	{
 		const auto [leftText, rightText] = comparison_fixture_text();
@@ -2671,6 +2742,7 @@ auto main(int argc, char** argv) -> int
 	test_composed_epoch_selectors_show_exact_retained_epochs();
 	test_review_history_state_is_explicit_in_workbench_text();
 	test_focus_order_is_declared_named_and_walkable();
+	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";

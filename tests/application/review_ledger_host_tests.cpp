@@ -62,6 +62,10 @@ namespace {
 				std::optional<core::file_receipt>,
 				application::ledger_store_failure> override
 		{
+			if (const auto failure = take_failure()) {
+				Log->emplace_back("load-refused");
+				return std::unexpected(*failure);
+			}
 			return Committed;
 		}
 
@@ -545,6 +549,94 @@ namespace {
 				&& statistics.PrivateFailures == 1U,
 			"private statistics distinguish writes, deletes, loads, and failures");
 	}
+
+	void test_material_observation_loads_carries_and_publishes_in_order()
+	{
+		auto       log        = event_log{ };
+		auto       store      = recording_store{ log };
+		auto       projection = recording_projection{ log };
+		auto       host       = application::review_ledger_application_host{ store, projection };
+		const auto seed       = seeded_receipt();
+		const auto first      = host.observe_material(core::file_material_observation{
+			.File     = seed.File,
+			.Material = seed.Material,
+		});
+
+		expect(first.has_value() && *first == seed,
+			   "an absent durable receipt becomes an unread exact-material receipt");
+		expect(store.Requests.empty() && log == event_log{ "published" },
+			   "an absent receipt publishes without writing");
+
+		auto old        = seed;
+		old.Read        = core::file_read_state::read;
+		old.Accepted    = true;
+		old.Excluded    = true;
+		store.Committed = old;
+		log.clear();
+		const auto replacement = opaque<core::file_material_id>(19U);
+		const auto carried     = host.observe_material(
+			core::file_material_observation{
+				.File     = old.File,
+				.Material = replacement,
+			});
+
+		expect(carried.has_value()
+				   && carried->Material == replacement
+				   && carried->Read == core::file_read_state::unread
+				   && !carried->Accepted && carried->Excluded,
+			   "changed material reopens read and acceptance while preserving exclusion");
+		expect(log == event_log{ "request", "committed", "published" },
+			   "carry-over commits before its receipt projection");
+		expect(host.statistics().ReceiptLoads == 2U
+				   && host.statistics().ReceiptLoadHits == 1U
+				   && host.statistics().PersistenceRequests == 1U,
+			   "material observation distinguishes loads, hits, and carry-over writes");
+	}
+
+	void test_material_load_failure_is_typed_and_changes_nothing()
+	{
+		auto       log        = event_log{ };
+		auto       store      = recording_store{ log };
+		auto       projection = recording_projection{ log };
+		auto       host       = application::review_ledger_application_host{ store, projection };
+		const auto seed       = seeded_receipt();
+		host.retain(seed);
+		store.fail_next(application::ledger_store_failure::unavailable);
+
+		const auto observed = host.observe_material(
+			core::file_material_observation{
+				.File     = seed.File,
+				.Material = opaque<core::file_material_id>(33U),
+			});
+
+		expect(!observed
+				   && observed.error()
+					   == application::ledger_store_failure::unavailable,
+			   "a load failure stays typed");
+		expect(host.retained() == seed && store.Requests.empty(),
+			   "a failed load neither carries nor persists a receipt");
+		expect(log == event_log{ "load-refused", "failed" },
+			   "the typed load refusal reaches projection after the store terminal");
+	}
+
+	void test_receipt_action_projection_contains_only_core_legal_changes()
+	{
+		auto receipt       = seeded_receipt();
+		receipt.Read       = core::file_read_state::seen;
+		receipt.Accepted   = true;
+		const auto actions = application::project_file_receipt_actions(receipt);
+
+		expect(actions.Receipt == receipt
+				   && !actions.Actions[0].Enabled
+				   && actions.Actions[1].Enabled
+				   && actions.Actions[1].Command.Kind
+					   == core::file_receipt_command_kind::mark_read
+				   && actions.Actions[2].Enabled
+				   && actions.Actions[2].Command.Kind
+					   == core::file_receipt_command_kind::revoke_acceptance
+				   && !actions.Actions[3].Enabled,
+			   "the four compact slots carry the inverse gestures and core legality");
+	}
 } // namespace
 
 auto main() -> int
@@ -556,6 +648,9 @@ auto main() -> int
 	test_statistics_account_for_every_command();
 	test_private_records_are_validated_before_the_store();
 	test_private_records_round_trip_and_delete_through_the_host();
+	test_material_observation_loads_carries_and_publishes_in_order();
+	test_material_load_failure_is_typed_and_changes_nothing();
+	test_receipt_action_projection_contains_only_core_legal_changes();
 
 	std::cout << "review-ledger-host-tests:pass\n";
 	return EXIT_SUCCESS;

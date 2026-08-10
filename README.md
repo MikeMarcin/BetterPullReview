@@ -32,12 +32,14 @@ on the epoch host's retained cache session, and publishes the
 identity-complete comparison through the existing diff host. Accepted epoch
 comparison changes replay the retained file selection, while an authority
 refresh clears the old rows before replacement work begins.
-RFC-BPR-0006 through RFC-BPR-0011 have
-substantial tested component implementations. Durable notes, reviewed heads,
-and defect metadata now have bounded versioned persistence, while their public
-composition remains open; theme customization/import, queue filters/sorting,
-and complete agent context/process lifecycle also remain component or
-reachability work. BPR-0228 through BPR-0240 track the exact remaining slices.
+RFC-BPR-0006 through RFC-BPR-0011 have substantial tested component
+implementations. The shipped workbench now composes its review-ledger host on
+the exact accepted host/account/repository/pull-request authority: selected-file
+receipt actions persist before projection, exact material receipts inform
+actionability, and notes, reviewed heads, and defect records share that host.
+Theme customization/import is also composed. Queue filters/sorting, review
+mutation, notifications, and complete agent context/process lifecycle still
+have component or reachability work tracked by BPR-0229 through BPR-0240.
 
 GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the
@@ -62,8 +64,8 @@ and Escape action are Cancel, leave durable tombstones, and state that GitHub
 and developer worktrees are not modified. Users must not edit the private Git
 repository or SQLite catalog by hand.
 
-Review mutation and private-ledger workflows remain later public-composition
-work. The shipped window is `workbench_window`, not the deleted
+Review mutation and the broader private-ledger queue workflow remain later
+public-composition work. The shipped window is `workbench_window`, not the deleted
 `github_window`; it presents the compact pull-request shell, request states,
 retained accepted content, read-only conversations, and connected epoch
 controls. The natural-layout selected-file comparison, workbench navigation,

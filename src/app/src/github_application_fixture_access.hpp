@@ -45,8 +45,9 @@ namespace bpr::app::detail {
 	struct github_public_path_fixture_options
 	{
 		std::optional<std::filesystem::path> ApplicationDataRoot;
-		github_epoch_fixture_phase           EpochPhase                    = github_epoch_fixture_phase::single;
-		bool                                 DisableWorkbenchSelectionWire = false;
+		github_epoch_fixture_phase           EpochPhase                     = github_epoch_fixture_phase::single;
+		bool                                 DisableWorkbenchSelectionWire  = false;
+		bool                                 DisableReviewLedgerGestureWire = false;
 	};
 
 	struct github_public_path_fixture_evidence
@@ -104,6 +105,40 @@ namespace bpr::app::detail {
 		pending,
 		passed,
 		failed,
+	};
+
+	enum class review_ledger_composition_probe {
+		seed,
+		reopen,
+		unavailable,
+	};
+
+	enum class review_ledger_composition_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	/// \brief Records the independently observable receipt-composition path.
+	struct review_ledger_composition_probe_evidence
+	{
+		bool ExactAuthority                = false;
+		bool HostComposed                  = false;
+		bool RealFileGesture               = false;
+		bool RealSelectedDiff              = false;
+		bool ExactMaterial                 = false;
+		bool ExpectedPreGesturePersistence = false;
+		bool ReceiptLoadedOnEntry          = false;
+		bool GestureSequence               = false;
+		bool DurableReceipt                = false;
+		bool ActionabilityProjection       = false;
+		bool PrivateRecords                = false;
+		bool PublicPathAvailable           = false;
+		bool UnavailableVisible            = false;
+		bool HostOnlyProbe                 = false;
+
+		auto operator<=>(const review_ledger_composition_probe_evidence&) const
+			= default;
 	};
 
 	/// \brief Records independently falsifiable workbench-composition wires.
@@ -217,6 +252,14 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto workbench_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> workbench_composition_probe_evidence;
+		/// \brief Drives one process of the real selected-diff ledger contract.
+		[[nodiscard]] static auto exercise_review_ledger_composition(
+			github_application&             aApplication,
+			review_ledger_composition_probe aCourse)
+			-> review_ledger_composition_probe_result;
+		[[nodiscard]] static auto review_ledger_composition_evidence(
+			const github_application& aApplication) noexcept
+			-> review_ledger_composition_probe_evidence;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

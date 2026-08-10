@@ -1,5 +1,6 @@
 #include "bpr/application/review_ledger_application_host.hpp"
 
+#include <array>
 #include <limits>
 
 namespace bpr::application {
@@ -21,6 +22,49 @@ namespace bpr::application {
 				<= static_cast<std::uint64_t>(aMaximum);
 		}
 	} // namespace
+
+	auto project_file_receipt_actions(
+		const core::file_receipt& aReceipt) noexcept
+		-> file_receipt_action_projection
+	{
+		const auto command = [&aReceipt](
+								 const file_receipt_action_id          aId,
+								 const core::file_receipt_command_kind aKind) {
+			const auto value = core::file_receipt_command{
+				.File     = aReceipt.File,
+				.Material = aReceipt.Material,
+				.Kind     = aKind,
+			};
+			const auto outcome = core::apply(aReceipt, value);
+			return file_receipt_action_command_projection{
+				.Id      = aId,
+				.Command = value,
+				.Enabled = outcome.Rejection
+						== core::file_receipt_rejection::none
+					&& outcome.Changed,
+			};
+		};
+
+		return file_receipt_action_projection{
+			.Receipt = aReceipt,
+			.Actions = {
+				command(file_receipt_action_id::seen,
+						core::file_receipt_command_kind::mark_seen),
+				command(file_receipt_action_id::read,
+						aReceipt.Read == core::file_read_state::read
+							? core::file_receipt_command_kind::mark_unread
+							: core::file_receipt_command_kind::mark_read),
+				command(file_receipt_action_id::accepted,
+						aReceipt.Accepted
+							? core::file_receipt_command_kind::revoke_acceptance
+							: core::file_receipt_command_kind::accept),
+				command(file_receipt_action_id::excluded,
+						aReceipt.Excluded
+							? core::file_receipt_command_kind::include
+							: core::file_receipt_command_kind::exclude),
+			},
+		};
+	}
 
 	auto name(const ledger_store_failure aFailure) noexcept -> std::string_view
 	{
@@ -86,70 +130,141 @@ namespace bpr::application {
 
 	void review_ledger_application_host::retain(const core::file_receipt& aReceipt)
 	{
-		Retained = aReceipt;
+		const auto lock = std::scoped_lock{ Mutex };
+		Retained        = aReceipt;
+	}
+
+	auto review_ledger_application_host::observe_material(
+		const core::file_material_observation& aObservation)
+		-> std::expected<core::file_receipt, ledger_store_failure>
+	{
+		auto publication = receipt_projection{ };
+		auto failure     = std::optional<receipt_failure_publication>{ };
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			++Statistics.MaterialObservations;
+			++Statistics.ReceiptLoads;
+			auto loaded = Store->load(aObservation.File);
+			if (!loaded) {
+				++Statistics.StoreFailures;
+				++Statistics.FailurePublications;
+				failure = receipt_failure_publication{
+					.Retained = Retained,
+					.Store    = loaded.error(),
+				};
+			} else {
+				if (loaded->has_value()) {
+					++Statistics.ReceiptLoadHits;
+				}
+				auto observed = loaded->has_value()
+					? core::carry_over(**loaded, aObservation).Receipt
+					: core::file_receipt{
+						  .File     = aObservation.File,
+						  .Material = aObservation.Material,
+					  };
+
+				if (loaded->has_value() && observed != **loaded) {
+					++Statistics.PersistenceRequests;
+					const auto completion = Store->commit(
+						receipt_persistence_request{ .Receipt = observed });
+					++Statistics.Completions;
+					if (!completion) {
+						++Statistics.StoreFailures;
+						++Statistics.FailurePublications;
+						failure = receipt_failure_publication{
+							.Retained = Retained,
+							.Store    = completion.error(),
+						};
+					}
+				}
+
+				if (!failure.has_value()) {
+					Retained    = observed;
+					publication = receipt_projection{ .Receipt = Retained };
+					++Statistics.Publications;
+				}
+			}
+		}
+
+		if (failure.has_value()) {
+			Projection->fail(*failure);
+			return std::unexpected(*failure->Store);
+		}
+		Projection->publish(publication);
+		return publication.Receipt;
 	}
 
 	auto review_ledger_application_host::retained() const noexcept
-		-> const core::file_receipt&
+		-> core::file_receipt
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		return Retained;
 	}
 
 	auto review_ledger_application_host::statistics() const noexcept
 		-> review_ledger_host_statistics
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		return Statistics;
 	}
 
 	auto review_ledger_application_host::submit(
 		const core::file_receipt_command& aCommand) -> core::file_receipt_outcome
 	{
-		++Statistics.Commands;
+		auto publication = std::optional<receipt_projection>{ };
+		auto failure     = std::optional<receipt_failure_publication>{ };
+		auto outcome     = core::file_receipt_outcome{ };
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			++Statistics.Commands;
 
-		const auto outcome = core::apply(Retained, aCommand);
-		if (outcome.Rejection != core::file_receipt_rejection::none) {
-			++Statistics.Rejected;
-			++Statistics.FailurePublications;
-			Projection->fail(receipt_failure_publication{
-				.Retained  = Retained,
-				.Rejection = outcome.Rejection,
-			});
-			return outcome;
+			outcome = core::apply(Retained, aCommand);
+			if (outcome.Rejection != core::file_receipt_rejection::none) {
+				++Statistics.Rejected;
+				++Statistics.FailurePublications;
+				failure = receipt_failure_publication{
+					.Retained  = Retained,
+					.Rejection = outcome.Rejection,
+				};
+			} else if (!outcome.Changed) {
+				// A legal command that moved nothing is not an error and is not a
+				// write. Persisting it would turn every repeated click into a commit,
+				// and publishing it would announce a change that did not happen.
+				++Statistics.Unchanged;
+			} else {
+				++Statistics.PersistenceRequests;
+				const auto completion = Store->commit(
+					receipt_persistence_request{ .Receipt = outcome.Receipt });
+				++Statistics.Completions;
+
+				if (!completion) {
+					// The retained receipt keeps its previous value. Adopting the
+					// rejected one would leave the host disagreeing with the database
+					// until something else overwrote it.
+					++Statistics.StoreFailures;
+					++Statistics.FailurePublications;
+					failure = receipt_failure_publication{
+						.Retained = Retained,
+						.Store    = completion.error(),
+					};
+					outcome = core::file_receipt_outcome{
+						.Receipt   = Retained,
+						.Rejection = core::file_receipt_rejection::none,
+						.Changed   = false,
+					};
+				} else {
+					Retained    = outcome.Receipt;
+					publication = receipt_projection{ .Receipt = Retained };
+					++Statistics.Publications;
+				}
+			}
 		}
 
-		// A legal command that moved nothing is not an error and is not a
-		// write. Persisting it would turn every repeated click into a commit,
-		// and publishing it would announce a change that did not happen.
-		if (!outcome.Changed) {
-			++Statistics.Unchanged;
-			return outcome;
+		if (failure.has_value()) {
+			Projection->fail(*failure);
+		} else if (publication.has_value()) {
+			Projection->publish(*publication);
 		}
-
-		++Statistics.PersistenceRequests;
-		const auto completion
-			= Store->commit(receipt_persistence_request{ .Receipt = outcome.Receipt });
-		++Statistics.Completions;
-
-		if (!completion) {
-			// The retained receipt keeps its previous value. Adopting the
-			// rejected one would leave the host disagreeing with the database
-			// until something else overwrote it.
-			++Statistics.StoreFailures;
-			++Statistics.FailurePublications;
-			Projection->fail(receipt_failure_publication{
-				.Retained = Retained,
-				.Store    = completion.error(),
-			});
-			return core::file_receipt_outcome{
-				.Receipt   = Retained,
-				.Rejection = core::file_receipt_rejection::none,
-				.Changed   = false,
-			};
-		}
-
-		Retained = outcome.Receipt;
-		++Statistics.Publications;
-		Projection->publish(receipt_projection{ .Receipt = Retained });
 		return outcome;
 	}
 
@@ -157,6 +272,7 @@ namespace bpr::application {
 		const local_note_record& aNote)
 		-> std::expected<void, ledger_store_failure>
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		if (!valid(aNote)) {
 			++Statistics.PrivateFailures;
 			return std::unexpected(ledger_store_failure::invalid_record);
@@ -172,6 +288,7 @@ namespace bpr::application {
 	auto review_ledger_application_host::erase(const local_note_id aNote)
 		-> std::expected<void, ledger_store_failure>
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		if (!durable_integer(aNote.value())) {
 			++Statistics.PrivateFailures;
 			return std::unexpected(ledger_store_failure::invalid_record);
@@ -188,6 +305,7 @@ namespace bpr::application {
 		const core::git_commit_oid& aHead)
 		-> std::expected<void, ledger_store_failure>
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		if (!aHead.valid()) {
 			++Statistics.PrivateFailures;
 			return std::unexpected(ledger_store_failure::invalid_record);
@@ -203,6 +321,7 @@ namespace bpr::application {
 	auto review_ledger_application_host::erase_last_reviewed_head()
 		-> std::expected<void, ledger_store_failure>
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		++Statistics.PrivateDeletes;
 		auto erased = Store->erase_last_reviewed_head();
 		if (!erased) {
@@ -215,6 +334,7 @@ namespace bpr::application {
 		const durable_defect_record& aDefect)
 		-> std::expected<void, ledger_store_failure>
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		if (!valid(aDefect)) {
 			++Statistics.PrivateFailures;
 			return std::unexpected(ledger_store_failure::invalid_record);
@@ -230,6 +350,7 @@ namespace bpr::application {
 	auto review_ledger_application_host::erase(const core::defect_id aDefect)
 		-> std::expected<void, ledger_store_failure>
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		if (!durable_integer(aDefect.value())) {
 			++Statistics.PrivateFailures;
 			return std::unexpected(ledger_store_failure::invalid_record);
@@ -245,6 +366,7 @@ namespace bpr::application {
 	auto review_ledger_application_host::private_observation()
 		-> std::expected<private_ledger_observation, ledger_store_failure>
 	{
+		const auto lock = std::scoped_lock{ Mutex };
 		++Statistics.PrivateLoads;
 		auto loaded = Store->load_private();
 		if (!loaded) {

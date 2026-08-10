@@ -1,7 +1,7 @@
 ---
 id: BPR-0229
 title: Compose review synchronization and the mutation coordinator
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0228]
 ---

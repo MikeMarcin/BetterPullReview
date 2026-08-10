@@ -246,6 +246,55 @@ namespace {
 		expect(answered.Authority == authority(),
 			   "a cancelled answer still repeats its authority");
 	}
+
+	auto test_only_exact_accepted_ledger_facts_filter_actionability() -> void
+	{
+		const auto selected    = core::file_identity_of("read.cpp");
+		const auto material    = opaque<core::file_material_id>(91U);
+		auto       observation = application::snapshot_workbench_observation{
+			supplying({ file("read.cpp"), file("unknown.cpp") }),
+			[selected, material](
+				const application::workbench_pull_request_authority&,
+				const core::file_identity aFile)
+				-> std::optional<core::actionability_input> {
+				if (aFile != selected) {
+					return std::nullopt;
+				}
+				return core::actionability_input{
+					.Receipt = core::file_receipt{
+						.File     = selected,
+						.Material = material,
+						.Read     = core::file_read_state::read,
+					},
+				};
+			}
+		};
+
+		const auto answered = observation.assemble(request(authority()), { });
+		expect(answered.Actionable.size() == 1U
+				   && answered.Actionable.front().File
+					   == core::file_identity_of("unknown.cpp"),
+			   "read exact material leaves the queue while unknown material stays conservatively actionable");
+
+		auto mismatched = application::snapshot_workbench_observation{
+			supplying({ file("read.cpp") }),
+			[material](
+				const application::workbench_pull_request_authority&,
+				const core::file_identity)
+				-> std::optional<core::actionability_input> {
+				return core::actionability_input{
+					.Receipt = core::file_receipt{
+						.File     = core::file_identity_of("different.cpp"),
+						.Material = material,
+						.Read     = core::file_read_state::read,
+					},
+				};
+			}
+		};
+		expect(mismatched.assemble(request(authority()), { }).Actionable.size()
+				   == 1U,
+			   "a receipt for another file cannot hide the current row");
+	}
 } // namespace
 
 auto main() -> int
@@ -257,6 +306,7 @@ auto main() -> int
 	test_an_absent_snapshot_differs_from_an_empty_review();
 	test_an_unnameable_path_fails_the_whole_answer();
 	test_cancellation_is_reported();
+	test_only_exact_accepted_ledger_facts_filter_actionability();
 	std::cout << "workbench-snapshot-observation-tests:pass\n";
 	return EXIT_SUCCESS;
 }

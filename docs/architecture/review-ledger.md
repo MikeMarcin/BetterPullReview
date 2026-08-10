@@ -34,6 +34,23 @@ the independence directly and fails if the two are ever pointed at one path.
 | Application host | The database as durable authority, migrations, transactions, WAL and recovery, bounded observation construction, the persistence request and its typed completion |
 | Qt adapter | Badges, markers, explanations, and the queue projection |
 
+The shipped composition creates one `review_ledger_application_host` only
+after accepting an exact host/account/repository/pull-request handoff. The
+selected-diff publication supplies the current file/material observation;
+unknown or unselected material remains conservatively actionable. Seen, read,
+accepted, and excluded `QAction` gestures carry the projected file and material
+back through the host. Notes, reviewed heads, and defects use that same host,
+never a fixture-owned store call. Exact authority invalidation retires the host
+and store together. Receipt-driven filtering reobserves actionability without
+replacing the workbench authority or its selected comparison. When selected
+material changes, the core reopens its receipt and the same-process refresh
+returns that file to the actionable order without detaching the rendered diff.
+
+If the SQLite store cannot open, the application installs one typed unavailable
+store behind the same host. GitHub content, epoch selection, and diff rendering
+continue, while the receipt actions are disabled and the workbench states that
+private review progress is unavailable.
+
 The core holds no part of the ledger and takes no SQLite dependency; its
 receipt policy builds and runs under the `core-only` preset, which links
 neither Qt nor SQLite. The adapter holds no policy: its queue model has no

@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/review_ledger.hpp"
 
 #include <functional>
 #include <optional>
@@ -33,7 +34,19 @@ namespace bpr::application {
 			std::optional<std::vector<github_file_record>>(
 				const workbench_pull_request_authority&)>;
 
-		explicit snapshot_workbench_observation(file_supplier aFiles);
+		/// \brief Supplies accepted exact-material ledger facts for one file.
+		///
+		/// \details No value means this file's current comparison material is not
+		/// known, so it remains conservatively actionable. The supplier must never
+		/// substitute a receipt for another authority, file, or material.
+		using actionability_supplier = std::function<
+			std::optional<core::actionability_input>(
+				const workbench_pull_request_authority&,
+				core::file_identity)>;
+
+		explicit snapshot_workbench_observation(
+			file_supplier          aFiles,
+			actionability_supplier aActionability = { });
 
 		[[nodiscard]] auto assemble(
 			const workbench_observation_request& aRequest,
@@ -41,7 +54,8 @@ namespace bpr::application {
 			-> workbench_file_observation override;
 
 	private:
-		file_supplier Files;
+		file_supplier          Files;
+		actionability_supplier Actionability;
 	};
 } // namespace bpr::application
 

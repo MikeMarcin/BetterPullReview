@@ -394,8 +394,8 @@ RFC-BPR-0007 through RFC-BPR-0011 have substantial component implementations
 on available targets, but BPR-0225 found both missing required component scope
 and absent public product paths. Done BPR-0238 supplies durable
 notes/heads/defect metadata; BPR-0239 and in-progress BPR-0240 own queue
-filters/sorting and complete agent context/process lifecycle. In-progress BPR-0228
-and backlog BPR-0229 through BPR-0232 own the corresponding
+filters/sorting and complete agent context/process lifecycle. Done BPR-0228
+and ready BPR-0229 plus backlog BPR-0230 through BPR-0232 own the corresponding
 composition. BPR-0120 through BPR-0132 supply the review ledger's receipt transitions, schema
 and forward-only migrations, crash recovery, Qt queue projection, and
 composition-root evidence. BPR-0134 through BPR-0141 supply the review
@@ -440,9 +440,9 @@ pretending to complete them inside the review:
   pull request, including exact invalidation and session-only layout fallback.
 - Done BPR-0227 connects the user-selected diff path through the real file-row
   gesture and retained-cache comparison, with zero fixture-helper calls.
-- In-progress BPR-0228 and backlog BPR-0229 through BPR-0232 own the missing shipped
-  composition for the review
-  ledger/actionability, review round trip, defects, honest queue enrollment,
+- Done BPR-0228 composes the review ledger and actionability without detaching
+  the selected diff. Ready BPR-0229 and backlog BPR-0230 through BPR-0232 own
+  the remaining shipped review round trip, defects, honest queue enrollment,
   and explicit agent invocation. Their component tests remain evidence for the
   components, not for product reachability.
 - BPR-0233 owns the recorded UIforETW selected-diff and intraline-pixel path.
@@ -479,7 +479,7 @@ also depend transitively on more than one group.
 | Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
 | A designated live GitHub repository | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Owner-authenticated sessions against a safe target |
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta |
-| Product composition | In-progress BPR-0228; backlog BPR-0229 through BPR-0232 and BPR-0223; done BPR-0226 and BPR-0227 | Connect the implemented ledger, review, defect, queue, notification, and agent capabilities to public gestures and projections; the workbench host and selected-diff connections are done |
+| Product composition | Ready BPR-0229; backlog BPR-0230 through BPR-0232 and BPR-0223; done BPR-0226 through BPR-0228 | Connect the implemented review, defect, queue, notification, and agent capabilities to public gestures and projections; the workbench host, selected-diff, ledger, and actionability connections are done |
 | Missing component and resilience scope | Ready BPR-0235; in-progress BPR-0240; backlog BPR-0239; done BPR-0237 and BPR-0238 | Enforce durable live-test isolation and complete required queue and agent contracts; theme customization, durable ledger state, and BPR-0236's appearance-storage fallback are done |
 | Recorded selected-diff proof | BPR-0233, gating BPR-0214, BPR-0210, and BPR-0100 | BPR-0187 already serves UIforETW; the remaining work is to select its diff and prove semantic ranges and rendered intraline-role pixels |
 | Closeout rigor and terminal cards | Done BPR-0234; backlog BPR-0241 through BPR-0245 | Replay each now-anchored executable checklist and retain a live terminal card for each Proposed RFC |

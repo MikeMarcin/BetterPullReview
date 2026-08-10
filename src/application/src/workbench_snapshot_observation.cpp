@@ -87,8 +87,10 @@ namespace bpr::application {
 	} // namespace
 
 	snapshot_workbench_observation::snapshot_workbench_observation(
-		file_supplier aFiles)
+		file_supplier          aFiles,
+		actionability_supplier aActionability)
 		: Files{ std::move(aFiles) }
+		, Actionability{ std::move(aActionability) }
 	{
 	}
 
@@ -149,18 +151,20 @@ namespace bpr::application {
 			if (!file.has_value()) {
 				return answer(aRequest, workbench_observation_status::unavailable);
 			}
+			if (Actionability) {
+				const auto facts = Actionability(aRequest.Authority, identity);
+				if (facts.has_value() && facts->Receipt.File == identity
+					&& facts->Receipt.Material.valid()
+					&& !core::actionable(core::reason_for(*facts))) {
+					continue;
+				}
+			}
 			result.Actionable.push_back(std::move(*file));
 		}
 
-		// Presentation order is the snapshot's own order, unfiltered.
-		//
-		// `Actionable` is named for a filter that does not exist yet:
-		// actionability is decided from receipts, and RFC-BPR-0007's review
-		// ledger host is not composed. Until it is, every file in the review is
-		// reported. This is stated here and in the RFC-BPR-0005 ledger rather
-		// than left for a reader to infer from an unfiltered list, because an
-		// "actionable" set that quietly means "all files" is exactly the kind
-		// of half-truth this pack keeps finding.
+		// Presentation order remains the snapshot's own order. Only a supplied
+		// exact-material receipt may remove a file; unknown material stays visible
+		// rather than inheriting a receipt from another comparison.
 		return result;
 	}
 } // namespace bpr::application

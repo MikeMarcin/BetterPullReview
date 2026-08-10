@@ -62,6 +62,12 @@ namespace bpr::qt {
 			== file_navigation_entries);
 		static_assert(
 			static_cast<std::size_t>(core::workbench_command_id::next_change) == 3U);
+		static_assert(
+			static_cast<std::size_t>(application::file_receipt_action_id::seen)
+			== 0U);
+		static_assert(
+			static_cast<std::size_t>(application::file_receipt_action_id::excluded)
+			== 3U);
 
 		[[nodiscard]] auto reason_text(const core::workbench_reason_code aReason)
 			-> QString
@@ -158,6 +164,40 @@ namespace bpr::qt {
 				return QStringLiteral("The workbench could not be updated.");
 			}
 			return QStringLiteral("The workbench could not be updated.");
+		}
+
+		[[nodiscard]] auto receipt_failure_text(
+			const application::receipt_failure_publication& aFailure) -> QString
+		{
+			if (aFailure.Store.has_value()) {
+				switch (*aFailure.Store) {
+				case application::ledger_store_failure::unavailable:
+					return QStringLiteral("Private review progress is unavailable.");
+				case application::ledger_store_failure::conflict:
+					return QStringLiteral("Private review progress changed elsewhere.");
+				case application::ledger_store_failure::integrity_failure:
+					return QStringLiteral("Private review progress failed its integrity check.");
+				case application::ledger_store_failure::quota_exceeded:
+					return QStringLiteral("Private review progress reached its storage limit.");
+				case application::ledger_store_failure::cancelled:
+					return QStringLiteral("The private progress change was cancelled.");
+				case application::ledger_store_failure::invalid_record:
+					return QStringLiteral("The private progress change was invalid.");
+				}
+			}
+			switch (aFailure.Rejection) {
+			case core::file_receipt_rejection::none:
+				break;
+			case core::file_receipt_rejection::unknown_file:
+				return QStringLiteral("The selected file is no longer current.");
+			case core::file_receipt_rejection::material_mismatch:
+				return QStringLiteral("The selected file material changed.");
+			case core::file_receipt_rejection::excluded_file_cannot_be_accepted:
+				return QStringLiteral("Include this file before accepting it.");
+			case core::file_receipt_rejection::accepted_file_cannot_be_excluded:
+				return QStringLiteral("Revoke acceptance before excluding this file.");
+			}
+			return QStringLiteral("Private review progress could not be updated.");
 		}
 
 		void describe_action(
@@ -396,6 +436,44 @@ namespace bpr::qt {
 					this,
 					[this, index] { dispatch_drawer_toggle(index); });
 		}
+
+		DrawerToolbar->addSeparator();
+		const auto receiptAction = [this](
+									   const std::size_t aIndex,
+									   const QString&    aText,
+									   const QString&    aObjectName,
+									   const QString&    aAccessible) {
+			auto* const action = new QAction{ aText, this };
+			action->setObjectName(aObjectName);
+			action->setCheckable(true);
+			action->setIconText(aText);
+			action->setEnabled(false);
+			addAction(action);
+			DrawerToolbar->addAction(action);
+			ReceiptActions[aIndex] = action;
+			connect(action,
+					&QAction::triggered,
+					this,
+					[this, aIndex] { dispatch_receipt(aIndex); });
+			action->setToolTip(aAccessible);
+			action->setStatusTip(aAccessible);
+		};
+		receiptAction(0U,
+					  QStringLiteral("&Seen"),
+					  QStringLiteral("markSelectedFileSeenAction"),
+					  QStringLiteral("Mark the selected exact file material seen."));
+		receiptAction(1U,
+					  QStringLiteral("&Read"),
+					  QStringLiteral("toggleSelectedFileReadAction"),
+					  QStringLiteral("Change the selected exact file material's read state."));
+		receiptAction(2U,
+					  QStringLiteral("&Accept"),
+					  QStringLiteral("toggleSelectedFileAcceptanceAction"),
+					  QStringLiteral("Change private acceptance for the selected exact file material."));
+		receiptAction(3U,
+					  QStringLiteral("E&xclude"),
+					  QStringLiteral("toggleSelectedFileExclusionAction"),
+					  QStringLiteral("Change private exclusion for the selected file."));
 	}
 
 	void workbench_window::build_central_surface()
@@ -753,6 +831,41 @@ namespace bpr::qt {
 		announce_update();
 	}
 
+	void workbench_window::publish(
+		const application::file_receipt_action_projection& aProjection)
+	{
+		Receipt = aProjection;
+		ReceiptFailure.reset();
+		LedgerUnavailable = false;
+		++Statistics.ReceiptUpdates;
+		update_receipt_actions();
+		update_status_text();
+		announce_update();
+	}
+
+	void workbench_window::fail(
+		const application::receipt_failure_publication& aFailure)
+	{
+		ReceiptFailure = aFailure;
+		if (aFailure.Store == application::ledger_store_failure::unavailable) {
+			LedgerUnavailable = true;
+		}
+		++Statistics.ReceiptFailures;
+		update_receipt_actions();
+		update_status_text();
+		announce_update();
+	}
+
+	void workbench_window::clear_review_ledger(const bool aUnavailable)
+	{
+		Receipt.reset();
+		ReceiptFailure.reset();
+		LedgerUnavailable = aUnavailable;
+		update_receipt_actions();
+		update_status_text();
+		announce_update();
+	}
+
 	void workbench_window::set_dispatch(workbench_intent_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
@@ -768,6 +881,12 @@ namespace bpr::qt {
 		workbench_drawer_width_dispatch aWidthDispatch)
 	{
 		WidthDispatch = std::move(aWidthDispatch);
+	}
+
+	void workbench_window::set_receipt_dispatch(
+		workbench_receipt_dispatch aReceiptDispatch)
+	{
+		ReceiptDispatch = std::move(aReceiptDispatch);
 	}
 
 	auto workbench_window::primary_toolbar() const noexcept -> QToolBar*
@@ -793,6 +912,26 @@ namespace bpr::qt {
 	auto workbench_window::next_change_action() const noexcept -> QAction*
 	{
 		return Navigation[3].Action;
+	}
+
+	auto workbench_window::seen_action() const noexcept -> QAction*
+	{
+		return ReceiptActions[0];
+	}
+
+	auto workbench_window::read_action() const noexcept -> QAction*
+	{
+		return ReceiptActions[1];
+	}
+
+	auto workbench_window::accept_action() const noexcept -> QAction*
+	{
+		return ReceiptActions[2];
+	}
+
+	auto workbench_window::exclude_action() const noexcept -> QAction*
+	{
+		return ReceiptActions[3];
 	}
 
 	auto workbench_window::navigation_overflow_button() const noexcept
@@ -1227,6 +1366,10 @@ namespace bpr::qt {
 			append(qobject_cast<QToolButton*>(
 				DrawerToolbar->widgetForAction(entry.Toggle)));
 		}
+		for (auto* const action : ReceiptActions) {
+			append(qobject_cast<QToolButton*>(
+				DrawerToolbar->widgetForAction(action)));
+		}
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
 		if (SessionPanel != nullptr) {
@@ -1357,6 +1500,18 @@ namespace bpr::qt {
 		});
 	}
 
+	void workbench_window::dispatch_receipt(const std::size_t aIndex)
+	{
+		update_receipt_actions();
+		if (!ReceiptDispatch || !Receipt.has_value()
+			|| aIndex >= Receipt->Actions.size()
+			|| !Receipt->Actions[aIndex].Enabled) {
+			return;
+		}
+		++Statistics.ReceiptGestures;
+		ReceiptDispatch(Receipt->Actions[aIndex].Command);
+	}
+
 	void workbench_window::observe_drawer_width(
 		const core::workbench_drawer aDrawer,
 		const std::uint32_t          aWidth)
@@ -1472,6 +1627,16 @@ namespace bpr::qt {
 			button->setAccessibleDescription(entry.Collapse);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
+		for (auto* const action : ReceiptActions) {
+			auto* const button = qobject_cast<QToolButton*>(
+				DrawerToolbar->widgetForAction(action));
+			if (button == nullptr) {
+				continue;
+			}
+			button->setAccessibleName(action->text().remove(QLatin1Char{ '&' }));
+			button->setAccessibleDescription(action->toolTip());
+			button->setFocusPolicy(Qt::StrongFocus);
+		}
 	}
 
 	void workbench_window::apply_focus_order()
@@ -1528,6 +1693,67 @@ namespace bpr::qt {
 			1U,
 			core::workbench_command_id::toggle_conversations_drawer,
 			DrawerStates.Conversations);
+		update_receipt_actions();
+	}
+
+	void workbench_window::update_receipt_actions()
+	{
+		const auto disabled = LedgerUnavailable
+			? QStringLiteral("Private review progress is unavailable.")
+			: QStringLiteral("Select an available text comparison first.");
+		for (std::size_t index = 0U; index < ReceiptActions.size(); ++index) {
+			auto* const action = ReceiptActions[index];
+			if (action == nullptr) {
+				continue;
+			}
+			const auto projected = Receipt.has_value()
+					&& index < Receipt->Actions.size()
+				? &Receipt->Actions[index]
+				: nullptr;
+			const auto kind      = projected != nullptr
+				? projected->Command.Kind
+				: index == 0U
+				? core::file_receipt_command_kind::mark_seen
+				: index == 1U
+				? core::file_receipt_command_kind::mark_read
+				: index == 2U
+				? core::file_receipt_command_kind::accept
+				: core::file_receipt_command_kind::exclude;
+			const auto label     = [&] {
+				switch (kind) {
+				case core::file_receipt_command_kind::mark_seen:
+					return QStringLiteral("&Seen");
+				case core::file_receipt_command_kind::mark_read:
+					return QStringLiteral("&Read");
+				case core::file_receipt_command_kind::mark_unread:
+					return QStringLiteral("Mark &unread");
+				case core::file_receipt_command_kind::accept:
+					return QStringLiteral("&Accept");
+				case core::file_receipt_command_kind::revoke_acceptance:
+					return QStringLiteral("Revoke &acceptance");
+				case core::file_receipt_command_kind::exclude:
+					return QStringLiteral("E&xclude");
+				case core::file_receipt_command_kind::include:
+					return QStringLiteral("&Include");
+				}
+				return QStringLiteral("Private progress");
+			}();
+			action->setText(label);
+			action->setIconText(label);
+			const auto checked = Receipt.has_value()
+				&& (index == 0U
+						? Receipt->Receipt.Read != core::file_read_state::unread
+						: index == 1U
+						? Receipt->Receipt.Read == core::file_read_state::read
+						: index == 2U ? Receipt->Receipt.Accepted
+									  : Receipt->Receipt.Excluded);
+			action->setChecked(checked);
+			describe_action(
+				action,
+				projected != nullptr && projected->Enabled && !LedgerUnavailable,
+				QStringLiteral("Update private progress for the selected exact file material."),
+				disabled);
+		}
 	}
 
 	void workbench_window::update_drawer_action(
@@ -1568,6 +1794,24 @@ namespace bpr::qt {
 		}
 		if (Failure) {
 			status.append(QStringLiteral(" %1").arg(failure_text(*Failure)));
+		}
+		if (LedgerUnavailable) {
+			status.append(QStringLiteral(" Private review progress is unavailable."));
+		} else if (ReceiptFailure.has_value()) {
+			status.append(QStringLiteral(" %1").arg(receipt_failure_text(*ReceiptFailure)));
+		} else if (Receipt.has_value()) {
+			status.append(QStringLiteral(" Private progress: %1, %2%3.")
+							  .arg(Receipt->Receipt.Read == core::file_read_state::read
+									   ? QStringLiteral("read")
+									   : Receipt->Receipt.Read == core::file_read_state::seen
+									   ? QStringLiteral("seen")
+									   : QStringLiteral("unread"))
+							  .arg(Receipt->Receipt.Accepted
+									   ? QStringLiteral("accepted")
+									   : QStringLiteral("not accepted"))
+							  .arg(Receipt->Receipt.Excluded
+									   ? QStringLiteral(", excluded")
+									   : QString{ }));
 		}
 		if (HasEpochState) {
 			// Quoted, never restated. Review-history loading, failure,
