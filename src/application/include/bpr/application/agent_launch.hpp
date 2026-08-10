@@ -1,11 +1,14 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
 
+#include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_profile.hpp"
 
 #include <compare>
 #include <cstddef>
+#include <cstdint>
+#include <expected>
 #include <functional>
 #include <optional>
 #include <string>
@@ -14,73 +17,190 @@
 #include <vector>
 
 namespace bpr::application {
+	/// \brief One current file receipt supplied to context construction.
+	struct agent_file_context_input
+	{
+		std::string        Path;
+		core::file_receipt Receipt;
+		bool               ChangedSinceReview = false;
+
+		auto operator<=>(const agent_file_context_input&) const = default;
+	};
+
+	/// \brief Bounded observations approved for one agent invocation.
+	///
+	/// \details `Private` is the BPR-0238 value supplied by the caller. This
+	/// type owns no ledger and performs no load. Notes cross only when their IDs
+	/// also appear in `IncludedNotes`; drafts are explicit input values.
+	struct agent_context_observation
+	{
+		core::agent_session                              Session;
+		std::string                                      PullRequestUrl;
+		std::optional<core::git_commit_oid>              PreviousUpload;
+		std::vector<agent_file_context_input>            Files;
+		private_ledger_observation                       Private;
+		std::optional<core::supplement_semantic_context> Selection;
+		std::vector<local_note_id>                       IncludedNotes;
+		std::vector<core::supplement_draft>              IncludedDrafts;
+
+		auto operator<=>(const agent_context_observation&) const = default;
+	};
+
+	enum class agent_context_failure : std::uint8_t {
+		invalid_observation,
+		selected_note_missing,
+		duplicate_selected_note,
+	};
+
+	/// \brief Builds context only from caller-supplied bounded observations.
+	[[nodiscard]] auto build_agent_context_supplement(
+		const agent_context_observation& aObservation)
+		-> std::expected<core::agent_context_supplement, agent_context_failure>;
+
 	/// \brief What one agent process is started with.
-	///
-	/// \details **There is no field here a credential could occupy.**
-	/// `Environment` is a list of name/value pairs the host materialised from
-	/// the profile's allowlist, and the allowlist is names only — so a value
-	/// present here is present because a profile named the variable, never
-	/// because this process happened to have it.
-	///
-	/// `Arguments` is deliberately separate from `Input`, and the context
-	/// supplement has no path into the former. Command lines are world-readable
-	/// on every platform this ships to: `ps` on POSIX, the process list on
-	/// Windows. A supplement in `Arguments` naming an unreleased feature, a
-	/// customer, or a private path would be visible to every other user of a
-	/// shared machine.
 	struct agent_launch_request
 	{
+		core::agent_protocol     Protocol = core::agent_protocol::external_terminal;
+		core::agent_session_id   Session;
 		std::string              Executable;
 		std::vector<std::string> Arguments;
-		/// Materialised from the profile's allowlist. Pairs rather than a whole
-		/// environment, because the child gets exactly these and nothing else.
+		/// Materialised from the profile's environment-name allowlist.
 		std::vector<std::pair<std::string, std::string>> Environment;
-		/// Everything the agent is told, over its input channel.
+		/// Initial protocol input; complete context for non-App-Server modes.
 		std::string Input;
+		/// App Server context held until its initialized thread is identified.
+		std::string DeferredContext;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
 
-	/// \brief Reads one variable of the environment this process is running in.
-	///
-	/// \details A port so the suite can present a parent environment it
-	/// controls, and so the materialisation below can be tested without the
-	/// test's own environment deciding the answer.
 	using environment_reader
 		= std::function<std::optional<std::string>(const std::string&)>;
 
-	/// \brief Builds the child environment one profile allows.
-	///
-	/// \details An allowlist, not an inheritance. The result contains a
-	/// variable exactly when the profile named it *and* the parent had it; a
-	/// name the profile did not list cannot appear however the parent is
-	/// configured, because this function never enumerates the parent.
-	///
-	/// That is the shape of the guarantee. A function that started from the
-	/// parent's environment and removed known-sensitive names would be a
-	/// denylist wearing an allowlist's name, and would pass every secret
-	/// nobody had thought to list.
 	[[nodiscard]] auto materialize_agent_environment(
 		const core::agent_profile& aProfile,
 		const environment_reader&  aParent)
 		-> std::vector<std::pair<std::string, std::string>>;
 
-	/// \brief Builds the launch request for one profile and supplement.
-	///
-	/// \details The supplement is serialised into `Input` and reaches
-	/// `Arguments` by no path at all. `Arguments` carries only what the
-	/// protocol needs to start, which is the profile's own protocol switch.
+	enum class agent_launch_failure : std::uint8_t {
+		invalid_profile,
+		profile_session_mismatch,
+		unsupported_supplement_schema,
+	};
+
+	/// \brief Builds one protocol-specific process request.
 	[[nodiscard]] auto build_agent_launch(
 		const core::agent_profile&            aProfile,
 		const core::agent_context_supplement& aSupplement,
-		const environment_reader&             aParent) -> agent_launch_request;
+		const environment_reader&             aParent)
+		-> std::expected<agent_launch_request, agent_launch_failure>;
 
-	/// \brief Renders one supplement as the bytes an agent reads.
-	///
-	/// \details A stable, self-describing encoding carrying the schema version
-	/// first, so a tool can tell what it received before parsing the rest.
+	/// \brief Renders every supplement field with explicit count/presence data.
 	[[nodiscard]] auto encode_agent_supplement(
 		const core::agent_context_supplement& aSupplement) -> std::string;
+
+	inline constexpr std::size_t maximum_agent_stdout_bytes = 1U * 1024U * 1024U;
+	inline constexpr std::size_t maximum_agent_stderr_bytes = 1U * 1024U * 1024U;
+	inline constexpr std::size_t maximum_agent_frame_bytes  = 64U * 1024U;
+
+	enum class agent_protocol_failure : std::uint8_t {
+		malformed_frame,
+		incomplete_frame,
+		frame_too_large,
+		output_too_large,
+		remote_failed,
+		remote_interrupted,
+		causal_violation,
+	};
+
+	enum class agent_protocol_event_kind : std::uint8_t {
+		output,
+		initialization_complete,
+		context_channel_ready,
+	};
+
+	struct agent_protocol_event
+	{
+		agent_protocol_event_kind Kind = agent_protocol_event_kind::output;
+		std::string               Text;
+
+		auto operator<=>(const agent_protocol_event&) const = default;
+	};
+
+	/// \brief Builds the next App Server message after a decoded control event.
+	[[nodiscard]] auto build_agent_protocol_followup(
+		const agent_launch_request& aRequest,
+		const agent_protocol_event& aControl)
+		-> std::expected<std::string, agent_protocol_failure>;
+
+	/// \brief Incrementally decodes one selected protocol's stdout frames.
+	class agent_protocol_decoder final
+	{
+	public:
+		explicit agent_protocol_decoder(core::agent_protocol aProtocol);
+
+		[[nodiscard]] auto push(std::string_view aBytes)
+			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
+		[[nodiscard]] auto finish()
+			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
+		/// \brief Records that the host completely wrote one App Server follow-up.
+		[[nodiscard]] auto acknowledge_followup(agent_protocol_event_kind aControl)
+			-> std::expected<void, agent_protocol_failure>;
+
+	private:
+		core::agent_protocol Protocol;
+		std::string          Pending;
+		std::size_t          TotalBytes   = 0U;
+		bool                 Failed       = false;
+		std::uint8_t         Phase        = 0U;
+		bool                 SawAssistant = false;
+		std::string          RemoteSession;
+		std::string          RemoteThread;
+		std::string          RemoteTurn;
+	};
+
+	/// \brief Every terminal condition the host exposes distinctly.
+	enum class agent_run_outcome : std::uint8_t {
+		success,
+		failed_to_start,
+		nonzero_exit,
+		protocol_failure,
+		cancelled,
+		timeout,
+		stale_result,
+	};
+
+	[[nodiscard]] auto name(agent_run_outcome aOutcome) noexcept -> std::string_view;
+
+	struct agent_stream_event
+	{
+		core::agent_session_id Session;
+		std::uint64_t          Sequence = 0U;
+		std::string            Text;
+
+		auto operator<=>(const agent_stream_event&) const = default;
+	};
+
+	struct agent_run_result
+	{
+		core::agent_session_id          Session;
+		agent_run_outcome               Outcome = agent_run_outcome::failed_to_start;
+		std::vector<agent_stream_event> Events;
+		std::string                     StandardError;
+		std::optional<int>              ExitCode;
+		/// Exact decoder cause when `Outcome` is `protocol_failure`.
+		std::optional<agent_protocol_failure> ProtocolFailure;
+
+		auto operator<=>(const agent_run_result&) const = default;
+	};
+
+	using agent_output_sink = std::function<void(const agent_stream_event&)>;
+
+	/// \brief Applies the core's immutable session decision to a process result.
+	[[nodiscard]] auto finalize_agent_run(
+		agent_run_result                    aResult,
+		const core::agent_session&          aSession,
+		const core::agent_revision_binding& aObserved) -> agent_run_result;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP

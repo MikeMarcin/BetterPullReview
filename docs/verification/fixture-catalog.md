@@ -1135,6 +1135,24 @@ polish claims remain outside this deterministic fixture boundary.
 - Invalid finding anchor
 - Corporate host mapped to forbidden personal provider
 
+`tests/fixtures/agent/agent_canary_main.cpp` is the sanitized BPR-0240 process
+boundary fixture. It performs the App Server initialize/thread/id-2-turn
+exchange and emits a correlated `turn/completed`; Codex JSONL emits its
+thread/turn lifecycle; Claude emits `system/init`, assistant, and result; and
+external mode emits text. Frames are deliberately split into three-byte
+writes. A preemptive App Server mode emits the complete otherwise-valid
+id-0/id-1/id-2/delta/completed transcript after reading only `initialize` and
+before reading either host followup; the launcher must refuse that transcript
+as a causal protocol violation. Modes also add 256 KiB of stderr pressure,
+malformed JSON, structurally wrong or oversized frames, failed/interrupted
+remote terminals, nonzero exit, indefinite execution for cancel/timeout, and a
+descendant heartbeat.
+`qt_agent_launch_canary` inspects the POSIX child's full argv, environment,
+stdin, partial events, terminal classification, recovery, and heartbeat
+cessation; no credential or repository-private fixture content is present.
+On Windows the same target instead proves fail-closed refusal before process
+start. It does not claim Windows process or descendant-containment execution.
+
 ## Architecture and concurrency harnesses
 
 - Core-only build environment with Qt, SQLite, GitHub, Git, AI, and platform provider packages unavailable

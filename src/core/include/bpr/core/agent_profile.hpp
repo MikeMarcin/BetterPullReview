@@ -62,13 +62,23 @@ namespace bpr::core {
 	/// \brief The longest display name or executable a profile may carry.
 	inline constexpr std::size_t maximum_agent_text_bytes = 1024U;
 
+	/// \brief Checks one explicit child-environment name without reading a value.
+	///
+	/// \details Environment names are treated case-insensitively because Windows
+	/// does. Names whose structure denotes authentication or credential material
+	/// are refused even when a profile explicitly lists them. This keeps the
+	/// allowlist from becoming an indirect credential field.
+	[[nodiscard]] auto permitted_agent_environment_name(
+		std::string_view aName) noexcept -> bool;
+
 	/// \brief One separately installed agent tool BetterPullReview may launch.
 	///
 	/// \details **There is no field here a credential could occupy.** Not a
 	/// token, not a key, not a generic string map a caller could put one in.
-	/// `AllowedEnvironment` is a list of variable *names* the host may pass
-	/// through from the reviewer's own environment — it carries no values, so
-	/// there is nothing here for a secret to be written into.
+	/// `AllowedEnvironment` is a list of nonsecret variable *names* the host may
+	/// pass through from the reviewer's own environment. Credential-bearing names
+	/// are structurally invalid, so a profile cannot indirectly select their
+	/// values.
 	///
 	/// That absence is what makes "BetterPullReview passes no credential" a
 	/// property rather than a promise. The convenience it forecloses is

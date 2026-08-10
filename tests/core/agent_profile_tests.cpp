@@ -184,6 +184,69 @@ namespace {
 			!core::valid(oversize),
 			"an allowlist beyond its bound is refused rather than truncated");
 	}
+
+	void test_secret_bearing_environment_names_are_structurally_refused()
+	{
+		for (const auto name : {
+				 "GITHUB_TOKEN",
+				 "gh_token",
+				 "GitHub_PaT",
+				 "ANTHROPIC_API_KEY",
+				 "claude_code_oauth_token",
+				 "OPENAI_APIKEY",
+				 "AWS_ACCESS_KEY_ID",
+				 "aws_secret_access_key",
+				 "AWS_SHARED_CREDENTIALS_FILE",
+				 "SSH_AUTH_SOCK",
+				 "DATABASE_PASSWORD",
+				 "GIT_ASKPASS",
+				 "ssh_askpass",
+				 "SSH_ASKPASS_REQUIRE",
+				 "GIT_CONFIG_COUNT",
+				 "git_config_key_0",
+				 "GIT_CONFIG_VALUE_0",
+				 "GIT_CONFIG_PARAMETERS",
+				 "GIT_CONFIG_GLOBAL",
+				 "GIT_SSH",
+				 "git_ssh_command",
+				 "GIT_PROXY_COMMAND",
+				 "GIT_EXEC_PATH",
+				 "GCM_CREDENTIAL_STORE",
+			 }) {
+			expect(
+				!core::permitted_agent_environment_name(name),
+				"credential aliases and case variants are refused by name");
+			auto candidate               = profile(personal, "codex");
+			candidate.AllowedEnvironment = { std::string{ name } };
+			expect(
+				!core::valid(candidate),
+				"a profile cannot make a credential-bearing name valid");
+		}
+
+		for (const auto name : {
+				 "HOME",
+				 "PATH",
+				 "LANG",
+				 "AWS_REGION",
+				 "BPR_CANARY_ALLOWED",
+				 "GIT_TERMINAL_PROMPT",
+				 "GIT_HTTP_LOW_SPEED_LIMIT",
+			 }) {
+			expect(
+				core::permitted_agent_environment_name(name),
+				"safe explicit process configuration remains available");
+		}
+
+		expect(
+			!core::permitted_agent_environment_name("BAD=NAME")
+				&& !core::permitted_agent_environment_name("9STARTS_WITH_NUMBER"),
+			"environment names use a conservative portable syntax");
+		auto duplicate               = profile(personal, "codex");
+		duplicate.AllowedEnvironment = { "PATH", "path" };
+		expect(
+			!core::valid(duplicate),
+			"case-insensitive aliases cannot select one parent value twice");
+	}
 } // namespace
 
 auto main() -> int
@@ -193,6 +256,7 @@ auto main() -> int
 	test_an_unmapped_host_permits_nothing();
 	test_no_type_can_carry_a_credential();
 	test_a_malformed_profile_is_refused();
+	test_secret_bearing_environment_names_are_structurally_refused();
 	std::cout << "agent-profile-tests:pass\n";
 	return EXIT_SUCCESS;
 }

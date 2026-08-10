@@ -1,5 +1,5 @@
 /// \file
-/// \brief Proves no credential crosses, and nothing sensitive travels in argv.
+/// \brief Proves exact context adaptation, framing, and typed host outcomes.
 
 #include "bpr/application/agent_launch.hpp"
 
@@ -24,9 +24,135 @@ namespace {
 		}
 	}
 
-	/// The parent this process pretends to be. It carries three secrets of
-	/// different shapes on purpose: a test that searched for one name would
-	/// pass against a child that leaked either of the others.
+	template <typename Identity>
+	[[nodiscard]] constexpr auto identity(const std::uint8_t aSeed) -> Identity
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		bytes.fill(aSeed);
+		return Identity{ bytes };
+	}
+
+	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		for (auto index = std::size_t{ 0U }; index < 20U; ++index) {
+			bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+		}
+		return core::git_commit_oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto session() -> core::agent_session
+	{
+		return {
+			.Id      = core::agent_session_id{ 40U },
+			.Profile = core::agent_profile_id{ 1U },
+			.Binding = {
+				.Host        = core::git_host_id{ 10U },
+				.Repository  = core::repository_id{ 20U },
+				.PullRequest = core::pull_request_id{ 30U },
+				.BaseOid     = commit(1U),
+				.HeadOid     = commit(2U),
+				.LeftEpoch   = core::epoch_ordinal{ 1U },
+				.RightEpoch  = core::epoch_ordinal{ 2U },
+			},
+		};
+	}
+
+	[[nodiscard]] auto profile(const core::agent_protocol aProtocol)
+		-> core::agent_profile
+	{
+		return {
+			.Id          = core::agent_profile_id{ 1U },
+			.DisplayName = "Canary",
+			.Executable  = "/opt/agents/canary",
+			.Protocol    = aProtocol,
+			.Workspace
+			= core::agent_workspace_policy::disposable_review_workspace,
+			.AllowedEnvironment = { "HOME", "PATH" },
+		};
+	}
+
+	[[nodiscard]] auto observation() -> application::agent_context_observation
+	{
+		const auto comparison = identity<core::file_comparison_digest>(5U);
+		const auto anchor     = core::source_line_ref{
+			.Comparison = comparison,
+			.Side       = core::diff_side::right,
+			.Line       = 17U,
+		};
+		return {
+			.Session        = session(),
+			.PullRequestUrl = "https://github.example/octo/app/pull/30",
+			.PreviousUpload = commit(3U),
+			.Files          = {
+				{
+					.Path    = "src/retry.cpp",
+					.Receipt = {
+						.File     = identity<core::file_identity>(3U),
+						.Material = identity<core::file_material_id>(4U),
+						.Read     = core::file_read_state::read,
+						.Accepted = true,
+					},
+					.ChangedSinceReview = true,
+				},
+			},
+			.Private = {
+				.Notes = {
+					{
+						.Id   = application::local_note_id{ 1U },
+						.Note = { .Text = "not selected" },
+					},
+					{
+						.Id         = application::local_note_id{ 2U },
+						.Attachment = application::local_note_attachment{
+							.File       = identity<core::file_identity>(3U),
+							.Comparison = comparison,
+						},
+						.Note = { .Text = "check retry exhaustion" },
+					},
+				},
+				.LastReviewedHead = commit(4U),
+				.Defects          = {
+					{
+						.File         = identity<core::file_identity>(3U),
+						.Conversation = core::review_conversation_id{ 70U },
+						.History      = {
+							.Defect = {
+								.Id       = core::defect_id{ 80U },
+								.Anchor   = anchor,
+								.Severity = core::defect_severity::critical,
+								.Category = core::defect_category::security,
+								.State    = core::defect_state::verified,
+							},
+							.OriginalAnchor = anchor,
+						},
+					},
+				},
+			},
+			.Selection = core::supplement_semantic_context{
+				.File      = identity<core::file_identity>(3U),
+				.Selection = {
+					.Comparison    = comparison,
+					.PreferredLine = anchor,
+				},
+				.Confidence         = core::supplement_mapping_confidence::exact,
+				.SelectedSourceText = std::string{ "return retry();" },
+			},
+			.IncludedNotes  = { application::local_note_id{ 2U } },
+			.IncludedDrafts = {
+				{ .Anchor = anchor, .Text = "Would a bounded retry be safer?" },
+			},
+		};
+	}
+
+	[[nodiscard]] auto built_supplement()
+		-> core::agent_context_supplement
+	{
+		const auto built = application::build_agent_context_supplement(observation());
+		expect(built.has_value(), "the complete context observation builds");
+		return *built;
+	}
+
 	[[nodiscard]] auto parent_environment() -> std::map<std::string, std::string>
 	{
 		return {
@@ -48,151 +174,630 @@ namespace {
 		};
 	}
 
-	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
+	void test_private_ledger_observation_is_an_input_not_an_implicit_store()
 	{
-		auto bytes = std::array<std::uint8_t, 32U>{ };
-		for (auto index = std::size_t{ 0U }; index < 20U; ++index) {
-			bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+		const auto built = application::build_agent_context_supplement(observation());
+		expect(built.has_value(), "the bounded supplied observation builds");
+		expect(
+			built->LastReviewedHead == commit(4U) && built->Defects.size() == 1U
+				&& built->Defects.front().History.Defect.Id == core::defect_id{ 80U },
+			"last-reviewed head and exact immutable defect history come from the supplied BPR-0238 observation");
+		expect(
+			built->Notes.size() == 1U
+				&& built->Notes.front().Text == "check retry exhaustion",
+			"only the explicitly named private note crosses");
+
+		auto missing          = observation();
+		missing.IncludedNotes = { application::local_note_id{ 99U } };
+		const auto missingResult
+			= application::build_agent_context_supplement(missing);
+		expect(
+			!missingResult
+				&& missingResult.error()
+					== application::agent_context_failure::selected_note_missing,
+			"an unknown selected note is refused rather than silently omitted");
+
+		auto duplicate = observation();
+		duplicate.IncludedNotes.emplace_back(2U);
+		const auto duplicateResult
+			= application::build_agent_context_supplement(duplicate);
+		expect(
+			!duplicateResult
+				&& duplicateResult.error()
+					== application::agent_context_failure::duplicate_selected_note,
+			"a duplicated selection is refused rather than duplicated on the wire");
+
+		auto duplicateSource = observation();
+		duplicateSource.Private.Notes.push_back(
+			duplicateSource.Private.Notes.back());
+		const auto duplicateSourceResult
+			= application::build_agent_context_supplement(duplicateSource);
+		expect(
+			!duplicateSourceResult
+				&& duplicateSourceResult.error()
+					== application::agent_context_failure::invalid_observation,
+			"a supplied private observation with ambiguous note identity is refused");
+
+		auto oversized = observation();
+		oversized.IncludedDrafts.assign(
+			core::maximum_selected_drafts + 1U, { .Text = "draft" });
+		const auto oversizedResult
+			= application::build_agent_context_supplement(oversized);
+		expect(
+			!oversizedResult
+				&& oversizedResult.error()
+					== application::agent_context_failure::invalid_observation,
+			"an oversized caller observation is refused before adaptation");
+	}
+
+	void test_the_complete_encoding_preserves_presence_and_exact_identity()
+	{
+		const auto encoded = application::encode_agent_supplement(built_supplement());
+		for (const auto required : {
+				 "schema\t2\n",
+				 "session\t40\n",
+				 "profile\t1\n",
+				 "host\t10\n",
+				 "repository\t20\n",
+				 "pull_request\t30\n",
+				 "pull_request_url\thttps://github.example/octo/app/pull/30\n",
+				 "left_epoch\t1\n",
+				 "right_epoch\t2\n",
+				 "previous_upload.present\t1\n",
+				 "last_reviewed_head.present\t1\n",
+				 "file.count\t1\n",
+				 "file.0.path\tsrc/retry.cpp\n",
+				 "file.0.read\t2\n",
+				 "file.0.changed_since_review\t1\n",
+				 "file.0.accepted\t1\n",
+				 "defect.count\t1\n",
+				 "defect.0.conversation\t70\n",
+				 "defect.0.id\t80\n",
+				 "selection.present\t1\n",
+				 "selection.mapping_confidence\t0\n",
+				 "selection.source_text.present\t1\n",
+				 "selection.source_text.value\treturn retry();\n",
+				 "note.count\t1\n",
+				 "note.0.text\tcheck retry exhaustion\n",
+				 "draft.count\t1\n",
+				 "draft.0.text\tWould a bounded retry be safer?\n",
+			 }) {
+			expect(
+				encoded.find(required) != std::string::npos,
+				"the exact required context field is encoded");
 		}
-		return core::git_commit_oid{ core::git_hash_algorithm::sha1, bytes };
+
+		auto absent = built_supplement();
+		absent.PreviousUpload.reset();
+		absent.Selection->SelectedSourceText.reset();
+		const auto absentEncoded = application::encode_agent_supplement(absent);
+		expect(
+			absentEncoded.find("previous_upload.present\t0\n")
+					!= std::string::npos
+				&& absentEncoded.find("selection.source_text.present\t0\n")
+					!= std::string::npos,
+			"absent revisions and source text are explicit on the wire");
+		absent.Selection->SelectedSourceText = std::string{ };
+		const auto emptyEncoded              = application::encode_agent_supplement(absent);
+		expect(
+			emptyEncoded.find("selection.source_text.present\t1\n")
+					!= std::string::npos
+				&& emptyEncoded.find("selection.source_text.value\t\n")
+					!= std::string::npos,
+			"present empty source text does not collapse into absence");
 	}
 
-	[[nodiscard]] auto profile() -> core::agent_profile
+	void test_each_protocol_has_exact_argv_and_distinct_input_framing()
 	{
-		return {
-			.Id          = core::agent_profile_id{ 1U },
-			.DisplayName = "Codex",
-			.Executable  = "/opt/agents/codex",
-			.Protocol    = core::agent_protocol::codex_jsonl_exec,
-			.Workspace
-			= core::agent_workspace_policy::disposable_review_workspace,
-			.AllowedEnvironment = { "HOME", "PATH" },
+		const auto protocols = std::array{
+			core::agent_protocol::codex_app_server,
+			core::agent_protocol::codex_jsonl_exec,
+			core::agent_protocol::claude_stream_json,
+			core::agent_protocol::external_terminal,
 		};
-	}
-
-	[[nodiscard]] auto supplement(const std::string_view aNote)
-		-> core::agent_context_supplement
-	{
-		auto request = core::agent_supplement_request{
-			.Binding = {
-				.Host        = core::git_host_id{ 10U },
-				.Repository  = core::repository_id{ 20U },
-				.PullRequest = core::pull_request_id{ 30U },
-				.BaseOid     = commit(1U),
-				.HeadOid     = commit(2U),
-				.LeftEpoch   = core::epoch_ordinal{ 1 },
-				.RightEpoch  = core::epoch_ordinal{ 2 },
+		const auto expectedArguments = std::array{
+			std::vector<std::string>{ "app-server" },
+			std::vector<std::string>{ "exec", "--json", "-" },
+			std::vector<std::string>{
+				"-p",
+				"--input-format",
+				"stream-json",
+				"--output-format",
+				"stream-json",
+				"--verbose",
 			},
+			std::vector<std::string>{ },
 		};
-		if (!aNote.empty()) {
-			request.SelectedNotes.push_back({ .Text = std::string{ aNote } });
+		const auto inputPrefixes = std::array{
+			std::string_view{ "{\"method\":\"initialize\"" },
+			std::string_view{ "BPR-CONTEXT/2 CODEX-EXEC\n" },
+			std::string_view{ "{\"type\":\"user\"" },
+			std::string_view{ "BPR-CONTEXT/2 EXTERNAL-TERMINAL\n" },
+		};
+		for (auto index = std::size_t{ 0U }; index < protocols.size(); ++index) {
+			const auto launched = application::build_agent_launch(
+				profile(protocols[index]), built_supplement(), reader());
+			expect(launched.has_value(), "the matching profile and session launch");
+			expect(
+				launched->Arguments == expectedArguments[index]
+					&& launched->Input.starts_with(inputPrefixes[index])
+					&& (launched->DeferredContext.empty()
+						== (protocols[index]
+							!= core::agent_protocol::codex_app_server)),
+				"each protocol has its exact argv and distinct stdin framing");
+			for (const auto& argument : launched->Arguments) {
+				expect(
+					argument.find("check retry exhaustion") == std::string::npos
+						&& argument.find("github.example") == std::string::npos,
+					"no context field reaches process-list-visible argv");
+			}
 		}
-		const auto built = core::build_agent_supplement(request);
-		expect(built.has_value(), "the fixture supplement builds");
-		return *built;
+
+		const auto appServer = application::build_agent_launch(
+			profile(core::agent_protocol::codex_app_server),
+			built_supplement(),
+			reader());
+		expect(appServer.has_value(), "the App Server request builds");
+		const auto initialized = application::build_agent_protocol_followup(
+			*appServer,
+			{
+				.Kind
+				= application::agent_protocol_event_kind::initialization_complete,
+			});
+		const auto turn = application::build_agent_protocol_followup(
+			*appServer,
+			{
+				.Kind = application::agent_protocol_event_kind::context_channel_ready,
+				.Text = "thread-7",
+			});
+		expect(
+			initialized
+				&& *initialized
+					== "{\"method\":\"initialized\"}\n"
+					   "{\"method\":\"thread/start\",\"id\":1,\"params\":{}}\n"
+				&& turn && turn->find("\"threadId\":\"thread-7\"") != std::string::npos
+				&& turn->find("schema\\t2\\n") != std::string::npos,
+			"App Server context waits for its initialized thread and then travels in a turn input");
 	}
 
-	/// \brief The child's environment is read in full, not searched.
-	void test_no_credential_crosses()
+	void test_no_credential_crosses_the_environment_boundary()
 	{
-		const auto request = application::build_agent_launch(
-			profile(), supplement({ }), reader());
-
-		// Read whole. Every name the child got, compared against the whole
-		// allowlist — so a fourth variable arriving fails here even though no
-		// assertion names it.
+		const auto launched = application::build_agent_launch(
+			profile(core::agent_protocol::codex_jsonl_exec),
+			built_supplement(),
+			reader());
+		expect(launched.has_value(), "the launch request builds");
 		auto names = std::vector<std::string>{ };
-		for (const auto& [name, value] : request.Environment) {
+		for (const auto& [name, value] : launched->Environment) {
+			static_cast<void>(value);
 			names.push_back(name);
 		}
 		std::ranges::sort(names);
 		expect(
 			names == std::vector<std::string>{ "HOME", "PATH" },
-			"the child's environment is exactly the profile's allowlist, name "
-			"for name");
-
-		// And the parent really did have the secrets, so the absence above is
-		// about the allowlist rather than about a parent that had nothing.
+			"the complete child environment equals the allowlist");
 		const auto parent = parent_environment();
-		for (const auto& secret :
+		for (const auto secret :
 			 { "GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "ANTHROPIC_API_KEY" }) {
 			expect(
-				parent.contains(secret),
-				"the parent this process pretends to be carries the secret");
-			expect(
-				std::ranges::none_of(
-					request.Environment,
-					[secret](const auto& aPair) { return aPair.first == secret; }),
-				"and the child does not");
+				parent.contains(secret)
+					&& std::ranges::find(names, secret) == names.end(),
+				"a planted parent credential is absent from the child request");
 		}
-	}
 
-	/// \brief A name outside the allowlist cannot arrive however set.
-	void test_the_allowlist_is_not_a_denylist()
-	{
-		auto permissive = profile();
-		permissive.AllowedEnvironment.clear();
-		const auto request = application::build_agent_launch(
-			permissive, supplement({ }), reader());
-		expect(
-			request.Environment.empty(),
-			"a profile that allows nothing gives the child nothing, rather "
-			"than everything minus a list of known-bad names");
-	}
-
-	/// \brief The supplement travels on the input channel and nowhere else.
-	void test_the_supplement_never_reaches_argv()
-	{
-		constexpr auto note = std::string_view{
-			"unreleased Falcon pricing for customer Northwind"
+		auto hostile               = profile(core::agent_protocol::codex_jsonl_exec);
+		hostile.AllowedEnvironment = {
+			"HOME",
+			"github_token",
+			"ANTHROPIC_API_KEY",
+			"aws_secret_access_key",
+			"GIT_ASKPASS",
+			"git_config_value_0",
 		};
-		const auto request = application::build_agent_launch(
-			profile(), supplement(note), reader());
-
+		const auto filtered = application::materialize_agent_environment(
+			hostile,
+			[](const std::string& aName) -> std::optional<std::string> {
+				return aName == "HOME" ? std::optional{ std::string{ "/safe" } }
+									   : std::optional{ std::string{ "secret" } };
+			});
 		expect(
-			request.Input.find(note) != std::string::npos,
-			"the note reaches the agent over its input channel");
-		// argv read in full. Every argument compared against what the protocol
-		// needs, so anything else appearing fails here whether or not it is
-		// the note.
+			filtered.empty(),
+			"direct environment materialization refuses an invalid profile whole");
+		const auto refused = application::build_agent_launch(
+			hostile, built_supplement(), reader());
 		expect(
-			request.Arguments == std::vector<std::string>{ "exec", "--json" },
-			"argv is exactly the protocol switch, argument for argument");
-		for (const auto& argument : request.Arguments) {
-			expect(
-				argument.find(note) == std::string::npos,
-				"and no argument carries the note, which `ps` would show to "
-				"every other user of a shared machine");
-		}
-		expect(
-			request.Input.find("schema\t1") != std::string::npos,
-			"the encoded supplement leads with its schema version, so a tool "
-			"can tell what it received before parsing the rest");
+			!refused
+				&& refused.error()
+					== application::agent_launch_failure::invalid_profile,
+			"launch construction refuses a profile that names any credential alias");
 	}
 
-	/// \brief A note carrying a separator cannot forge a record.
-	void test_a_note_cannot_forge_a_record()
+	void test_launch_refuses_inexact_profile_session_and_schema()
 	{
-		const auto request = application::build_agent_launch(
-			profile(), supplement("first line\nnote\tsecond"), reader());
-		const auto encoded = request.Input;
-		auto       records = std::size_t{ 0U };
-		for (const auto character : encoded) {
-			records += character == '\n' ? 1U : 0U;
-		}
+		auto invalidProfile     = profile(core::agent_protocol::codex_jsonl_exec);
+		invalidProfile.Protocol = static_cast<core::agent_protocol>(255U);
+		const auto invalid      = application::build_agent_launch(
+			invalidProfile, built_supplement(), reader());
 		expect(
-			records == 9U,
-			"the eight binding fields and the one note make nine records, so "
-			"the note's own newline did not become a tenth");
+			!invalid
+				&& invalid.error()
+					== application::agent_launch_failure::invalid_profile,
+			"an unknown process protocol is refused before launch framing");
+
+		auto wrongProfile     = profile(core::agent_protocol::codex_jsonl_exec);
+		wrongProfile.Id       = core::agent_profile_id{ 9U };
+		const auto mismatched = application::build_agent_launch(
+			wrongProfile, built_supplement(), reader());
+		expect(
+			!mismatched
+				&& mismatched.error()
+					== application::agent_launch_failure::profile_session_mismatch,
+			"a profile cannot launch a supplement pinned to another profile");
+
+		auto wrongSchema          = built_supplement();
+		wrongSchema.SchemaVersion = 99U;
+		const auto unsupported    = application::build_agent_launch(
+			profile(core::agent_protocol::codex_jsonl_exec),
+			wrongSchema,
+			reader());
+		expect(
+			!unsupported
+				&& unsupported.error()
+					== application::agent_launch_failure::unsupported_supplement_schema,
+			"an unsupported context schema is refused rather than guessed");
+	}
+
+	void test_every_protocol_decoder_handles_partial_frames()
+	{
+		auto escapedText = std::string{ "one/two \" " };
+		escapedText += "\xE2\x98\xBA \xF0\x9F\x98\x80";
+		const auto protocols = std::array{
+			core::agent_protocol::codex_app_server,
+			core::agent_protocol::codex_jsonl_exec,
+			core::agent_protocol::claude_stream_json,
+			core::agent_protocol::external_terminal,
+		};
+		const auto frames = std::array{
+			std::string{
+				"{\"id\":0,\"result\":{}}\n"
+				"{\"id\":1,\"result\":{\"thread\":{\"id\":\"thread-7\"}}}\n"
+				"{\"id\":2,\"result\":{\"turn\":{\"id\":\"turn-8\","
+				"\"items\":[],\"status\":\"inProgress\"}}}\n"
+				"{\"method\":\"item/agentMessage/delta\",\"params\":{"
+				"\"threadId\":\"thread-7\",\"turnId\":\"turn-8\","
+				"\"itemId\":\"item-9\","
+				"\"delta\":\"one\\/two \\\" \\u263A \\uD83D\\uDE00\"}}\n"
+				"{\"method\":\"turn/completed\",\"params\":{"
+				"\"threadId\":\"thread-7\",\"turn\":{\"id\":\"turn-8\","
+				"\"items\":[],\"status\":\"completed\"}}}\n" },
+			std::string{
+				"{\"type\":\"thread.started\",\"thread_id\":\"thread-7\"}\n"
+				"{\"type\":\"turn.started\"}\n"
+				"{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\","
+				"\"type\":\"agent_message\","
+				"\"text\":\"one\\/two \\\" \\u263A \\uD83D\\uDE00\"}}\n"
+				"{\"type\":\"turn.completed\",\"usage\":{}}\n" },
+			std::string{
+				"{\"type\":\"system\",\"subtype\":\"init\","
+				"\"session_id\":\"session-6\"}\n"
+				"{\"type\":\"assistant\",\"session_id\":\"session-6\","
+				"\"message\":{\"role\":\"assistant\",\"content\":[{"
+				"\"type\":\"text\","
+				"\"text\":\"one\\/two \\\" \\u263A \\uD83D\\uDE00\"}]}}\n"
+				"{\"type\":\"result\",\"subtype\":\"success\","
+				"\"is_error\":false,\"result\":\"done\","
+				"\"session_id\":\"session-6\"}\n" },
+			std::string{ "one\ntwo" },
+		};
+		for (auto index = std::size_t{ 0U }; index < protocols.size(); ++index) {
+			auto decoder  = application::agent_protocol_decoder{ protocols[index] };
+			auto messages = std::vector<application::agent_protocol_event>{ };
+			for (const auto character : frames[index]) {
+				const auto decoded = decoder.push(std::string_view{ &character, 1U });
+				expect(decoded.has_value(), "each one-byte partial frame is accepted");
+				if (protocols[index] == core::agent_protocol::codex_app_server) {
+					for (const auto& event : *decoded) {
+						if (event.Kind != application::agent_protocol_event_kind::output) {
+							expect(
+								decoder.acknowledge_followup(event.Kind).has_value(),
+								"the next App Server response is enabled only after its follow-up write");
+						}
+					}
+				}
+				messages.insert(messages.end(), decoded->begin(), decoded->end());
+			}
+			const auto trailing = decoder.finish();
+			expect(trailing.has_value(), "the complete partial stream finishes");
+			messages.insert(messages.end(), trailing->begin(), trailing->end());
+			if (protocols[index] == core::agent_protocol::codex_app_server) {
+				expect(
+					messages
+						== std::vector<application::agent_protocol_event>{
+							{
+								.Kind = application::agent_protocol_event_kind::initialization_complete,
+							},
+							{
+								.Kind = application::agent_protocol_event_kind::context_channel_ready,
+								.Text = "thread-7",
+							},
+							{
+								.Kind = application::agent_protocol_event_kind::output,
+								.Text = escapedText,
+							},
+						},
+					"App Server control and output frames remain ordered");
+				continue;
+			}
+			const auto expected = protocols[index]
+					== core::agent_protocol::external_terminal
+				? std::vector<application::agent_protocol_event>{
+					  { .Text = "one" },
+					  { .Text = "two" },
+				  }
+				: std::vector<application::agent_protocol_event>{
+					  { .Text = escapedText },
+				  };
+			expect(
+				messages == expected,
+				"messages are emitted only after complete protocol-specific frames");
+		}
+
+		auto preemptive = application::agent_protocol_decoder{
+			core::agent_protocol::codex_app_server
+		};
+		const auto preemptiveResult = preemptive.push(
+			"{\"id\":0,\"result\":{}}\n"
+			"{\"id\":1,\"result\":{\"thread\":{\"id\":\"thread\"}}}\n"
+			"{\"id\":2,\"result\":{\"turn\":{\"id\":\"turn\","
+			"\"items\":[],\"status\":\"inProgress\"}}}\n");
+		expect(
+			!preemptiveResult
+				&& preemptiveResult.error()
+					== application::agent_protocol_failure::causal_violation,
+			"batched App Server responses cannot outrun host follow-up writes");
+
+		auto malformed
+			= application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec };
+		expect(
+			malformed.push(
+						 "{\"type\":\"thread.started\",\"thread_id\":\"thread\"}\n"
+						 "{\"type\":\"turn.started\"}\n")
+					.has_value()
+				&& !malformed.push(
+					"{\"type\":\"item.completed\" \"item\":{}}\n"),
+			"malformed JSON is refused rather than accepted by substring shape");
+
+		auto duplicateKey
+			= application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec };
+		expect(
+			!duplicateKey.push(
+				"{\"type\":\"thread.started\",\"type\":\"turn.started\","
+				"\"thread_id\":\"thread\"}\n"),
+			"duplicate JSON keys are refused rather than resolved ambiguously");
+
+		auto invalidUnicode
+			= application::agent_protocol_decoder{ core::agent_protocol::codex_jsonl_exec };
+		expect(
+			!invalidUnicode.push(
+				"{\"type\":\"thread.started\",\"thread_id\":\"\\uD800\"}\n"),
+			"an unpaired Unicode surrogate is malformed JSON");
+
+		for (const auto& invalid : {
+				 std::string{ "\x80", 1U },
+				 std::string{ "\xC0\xAF", 2U },
+				 std::string{ "\xED\xA0\x80", 3U },
+				 std::string{ "\xF4\x90\x80\x80", 4U },
+				 std::string{ "\xE2\x82", 2U },
+			 }) {
+			auto rawFrame
+				= std::string{ "{\"type\":\"thread.started\",\"thread_id\":\"" };
+			rawFrame += invalid;
+			rawFrame += "\"}\n";
+			auto rawDecoder = application::agent_protocol_decoder{
+				core::agent_protocol::codex_jsonl_exec
+			};
+			expect(
+				!rawDecoder.push(rawFrame),
+				"lone, overlong, surrogate, out-of-range, and truncated raw UTF-8 are refused");
+		}
+
+		auto rawUnicode = application::agent_protocol_decoder{
+			core::agent_protocol::codex_jsonl_exec
+		};
+		expect(
+			rawUnicode
+				.push(
+					"{\"type\":\"thread.started\",\"thread_id\":\"thread\"}\n"
+					"{\"type\":\"turn.started\"}\n")
+				.has_value(),
+			"the raw-Unicode probe enters the Codex output phase");
+		auto rawText = std::string{ "raw " };
+		rawText += "\xE2\x98\xBA \xF0\x9F\x98\x80";
+		auto rawMessage
+			= std::string{ "{\"type\":\"item.completed\",\"item\":{"
+						   "\"id\":\"item\",\"type\":\"agent_message\",\"text\":\"" };
+		rawMessage += rawText;
+		rawMessage += "\"}}\n";
+		const auto rawDecoded = rawUnicode.push(rawMessage);
+		expect(
+			rawDecoded
+				&& *rawDecoded
+					== std::vector<application::agent_protocol_event>{ {
+						.Text = rawText,
+					} },
+			"valid raw BMP and supplementary Unicode survive decoding exactly");
+		expect(
+			rawUnicode
+					.push("{\"type\":\"turn.completed\",\"usage\":{}}\n")
+					.has_value()
+				&& rawUnicode.finish().has_value(),
+			"valid raw Unicode does not disturb terminal validation");
+
+		auto incomplete = application::agent_protocol_decoder{
+			core::agent_protocol::claude_stream_json
+		};
+		expect(
+			incomplete.push(
+						  "{\"type\":\"system\",\"subtype\":\"init\","
+						  "\"session_id\":\"session\"}\n"
+						  "{\"type\":\"assistant\",\"session_id\":\"session\","
+						  "\"message\":{\"role\":\"assistant\",\"content\":[]}}\n")
+					.has_value()
+				&& !incomplete.finish(),
+			"Claude output without its terminal result is a protocol failure");
+
+		auto claudeFailure = application::agent_protocol_decoder{
+			core::agent_protocol::claude_stream_json
+		};
+		expect(
+			claudeFailure
+				.push(
+					"{\"type\":\"system\",\"subtype\":\"init\","
+					"\"session_id\":\"session\"}\n"
+					"{\"type\":\"assistant\",\"session_id\":\"session\","
+					"\"message\":{\"role\":\"assistant\",\"content\":[]}}\n")
+				.has_value(),
+			"Claude accepts its documented initialization and assistant sequence");
+		const auto claudeError = claudeFailure.push(
+			"{\"type\":\"result\",\"subtype\":\"error_during_execution\","
+			"\"is_error\":true,\"session_id\":\"session\"}\n");
+		expect(
+			!claudeError
+				&& claudeError.error()
+					== application::agent_protocol_failure::remote_failed,
+			"Claude's documented error result remains an exact typed failure");
+
+		const auto advanceAppToTurn = [](application::agent_protocol_decoder& aApp) {
+			const auto initialized = aApp.push("{\"id\":0,\"result\":{}}\n");
+			expect(
+				initialized && initialized->size() == 1U
+					&& aApp
+						   .acknowledge_followup(initialized->front().Kind)
+						   .has_value(),
+				"App Server initialization is followed before thread response");
+			const auto thread = aApp.push(
+				"{\"id\":1,\"result\":{\"thread\":{\"id\":\"thread\"}}}\n");
+			expect(
+				thread && thread->size() == 1U
+					&& aApp.acknowledge_followup(thread->front().Kind).has_value(),
+				"App Server thread start is followed before turn response");
+			expect(
+				aApp.push(
+						"{\"id\":2,\"result\":{\"turn\":{\"id\":\"turn\","
+						"\"items\":[],\"status\":\"inProgress\"}}}\n")
+					.has_value(),
+				"App Server consumes id-2 only after the turn-start write");
+		};
+
+		for (const auto& [status, failure] : {
+				 std::pair{
+					 std::string_view{ "failed" },
+					 application::agent_protocol_failure::remote_failed },
+				 std::pair{
+					 std::string_view{ "interrupted" },
+					 application::agent_protocol_failure::remote_interrupted },
+			 }) {
+			auto app = application::agent_protocol_decoder{
+				core::agent_protocol::codex_app_server
+			};
+			advanceAppToTurn(app);
+			const auto terminal = app.push(
+				"{\"method\":\"turn/completed\",\"params\":{"
+				"\"threadId\":\"thread\",\"turn\":{\"id\":\"turn\","
+				"\"items\":[],\"status\":\""
+				+ std::string{ status } + "\"}}}\n");
+			expect(
+				!terminal && terminal.error() == failure,
+				"App Server failed and interrupted statuses stay distinct");
+		}
+
+		auto missingTurnResponse = application::agent_protocol_decoder{
+			core::agent_protocol::codex_app_server
+		};
+		const auto initialized
+			= missingTurnResponse.push("{\"id\":0,\"result\":{}}\n");
+		expect(
+			initialized && initialized->size() == 1U
+				&& missingTurnResponse
+					   .acknowledge_followup(initialized->front().Kind)
+					   .has_value(),
+			"the missing-turn-response probe completes initialization causally");
+		const auto thread = missingTurnResponse.push(
+			"{\"id\":1,\"result\":{\"thread\":{\"id\":\"thread\"}}}\n");
+		expect(
+			thread && thread->size() == 1U
+				&& missingTurnResponse
+					   .acknowledge_followup(thread->front().Kind)
+					   .has_value()
+				&& !missingTurnResponse.push(
+					"{\"method\":\"turn/completed\",\"params\":{"
+					"\"threadId\":\"thread\",\"turn\":{\"id\":\"turn\","
+					"\"items\":[],\"status\":\"completed\"}}}\n"),
+			"App Server cannot skip the response to BetterPullReview's id-2 request");
+
+		auto oversized = application::agent_protocol_decoder{
+			core::agent_protocol::external_terminal
+		};
+		expect(
+			!oversized.push(std::string(
+				application::maximum_agent_frame_bytes + 1U, 'x')),
+			"a frame beyond the fixed bound is refused before further buffering");
+	}
+
+	void test_process_and_staleness_outcomes_remain_distinct()
+	{
+		const auto outcomes = std::array{
+			application::agent_run_outcome::success,
+			application::agent_run_outcome::failed_to_start,
+			application::agent_run_outcome::nonzero_exit,
+			application::agent_run_outcome::protocol_failure,
+			application::agent_run_outcome::cancelled,
+			application::agent_run_outcome::timeout,
+			application::agent_run_outcome::stale_result,
+		};
+		auto names = std::vector<std::string_view>{ };
+		for (const auto outcome : outcomes) {
+			names.push_back(application::name(outcome));
+		}
+		std::ranges::sort(names);
+		expect(
+			std::ranges::adjacent_find(names) == names.end(),
+			"every terminal condition has a distinct stable typed name");
+
+		auto success = application::agent_run_result{
+			.Session = session().Id,
+			.Outcome = application::agent_run_outcome::success,
+			.Events  = {
+				{ .Session = session().Id, .Sequence = 0U, .Text = "answer" },
+			},
+		};
+		const auto current = application::finalize_agent_run(
+			success, session(), session().Binding);
+		expect(
+			current.Outcome == application::agent_run_outcome::success
+				&& current.Events.size() == 1U,
+			"a matching pinned completion remains successful");
+
+		auto moved       = session().Binding;
+		moved.HeadOid    = commit(9U);
+		const auto stale = application::finalize_agent_run(
+			success, session(), moved);
+		expect(
+			stale.Outcome == application::agent_run_outcome::stale_result
+				&& stale.Events.empty(),
+			"the core's head-movement verdict rejects rather than retargets output");
 	}
 } // namespace
 
 auto main() -> int
 {
-	test_no_credential_crosses();
-	test_the_allowlist_is_not_a_denylist();
-	test_the_supplement_never_reaches_argv();
-	test_a_note_cannot_forge_a_record();
+	test_private_ledger_observation_is_an_input_not_an_implicit_store();
+	test_the_complete_encoding_preserves_presence_and_exact_identity();
+	test_each_protocol_has_exact_argv_and_distinct_input_framing();
+	test_no_credential_crosses_the_environment_boundary();
+	test_launch_refuses_inexact_profile_session_and_schema();
+	test_every_protocol_decoder_handles_partial_frames();
+	test_process_and_staleness_outcomes_remain_distinct();
 	std::cout << "agent-launch-tests:pass\n";
 	return EXIT_SUCCESS;
 }

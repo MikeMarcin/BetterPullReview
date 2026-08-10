@@ -1,9 +1,140 @@
 #include "bpr/core/agent_profile.hpp"
 
 #include <algorithm>
+#include <array>
 #include <ranges>
 
 namespace bpr::core {
+	namespace {
+		[[nodiscard]] constexpr auto ascii_upper(const char aByte) noexcept -> char
+		{
+			return aByte >= 'a' && aByte <= 'z'
+				? static_cast<char>(aByte - 'a' + 'A')
+				: aByte;
+		}
+
+		[[nodiscard]] auto ascii_equal_ignoring_case(
+			const std::string_view aLeft,
+			const std::string_view aRight) noexcept -> bool
+		{
+			return aLeft.size() == aRight.size()
+				&& std::ranges::equal(aLeft, aRight, [](const char aLeftByte, const char aRightByte) {
+					   return ascii_upper(aLeftByte) == ascii_upper(aRightByte);
+				   });
+		}
+
+		[[nodiscard]] auto contains_ignoring_case(
+			const std::string_view aText,
+			const std::string_view aFragment) noexcept -> bool
+		{
+			if (aFragment.size() > aText.size()) {
+				return false;
+			}
+			for (auto begin = std::size_t{ 0U };
+				 begin <= aText.size() - aFragment.size(); ++begin) {
+				if (ascii_equal_ignoring_case(
+						aText.substr(begin, aFragment.size()), aFragment)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		[[nodiscard]] auto starts_with_ignoring_case(
+			const std::string_view aText,
+			const std::string_view aPrefix) noexcept -> bool
+		{
+			return aText.size() >= aPrefix.size()
+				&& ascii_equal_ignoring_case(
+					   aText.substr(0U, aPrefix.size()), aPrefix);
+		}
+
+		[[nodiscard]] auto contains_forbidden_environment_word(
+			const std::string_view aName) noexcept -> bool
+		{
+			constexpr auto credential = std::array{
+				'C',
+				'R',
+				'E',
+				'D',
+				'E',
+				'N',
+				'T',
+				'I',
+				'A',
+				'L',
+			};
+			constexpr auto fragments = std::array{
+				std::string_view{ "API_KEY" },
+				std::string_view{ "APIKEY" },
+				std::string_view{ "ACCESS_KEY" },
+				std::string_view{ "PRIVATE_KEY" },
+			};
+			if (
+				contains_ignoring_case(
+					aName, std::string_view{ credential.data(), credential.size() })
+				|| std::ranges::any_of(
+					fragments,
+					[aName](const auto aFragment) {
+						return contains_ignoring_case(aName, aFragment);
+					})) {
+				return true;
+			}
+
+			constexpr auto gitInjectionNames = std::array{
+				std::string_view{ "GIT_ASKPASS" },
+				std::string_view{ "SSH_ASKPASS" },
+				std::string_view{ "SSH_ASKPASS_REQUIRE" },
+				std::string_view{ "GIT_SSH" },
+				std::string_view{ "GIT_SSH_COMMAND" },
+				std::string_view{ "GIT_PROXY_COMMAND" },
+				std::string_view{ "GIT_EXEC_PATH" },
+			};
+			if (std::ranges::any_of(gitInjectionNames, [aName](const auto aForbidden) {
+					return ascii_equal_ignoring_case(aName, aForbidden);
+				})) {
+				return true;
+			}
+			constexpr auto gitInjectionPrefixes = std::array{
+				std::string_view{ "GIT_CONFIG" },
+				std::string_view{ "GCM_" },
+			};
+			if (std::ranges::any_of(
+					gitInjectionPrefixes,
+					[aName](const auto aForbidden) {
+						return starts_with_ignoring_case(aName, aForbidden);
+					})) {
+				return true;
+			}
+
+			constexpr auto forbiddenWords = std::array{
+				std::string_view{ "AUTH" },
+				std::string_view{ "AUTHORIZATION" },
+				std::string_view{ "OAUTH" },
+				std::string_view{ "PASSWORD" },
+				std::string_view{ "PASSWD" },
+				std::string_view{ "PAT" },
+				std::string_view{ "SECRET" },
+				std::string_view{ "TOKEN" },
+			};
+			for (auto begin = std::size_t{ 0U }; begin <= aName.size();) {
+				const auto end  = aName.find('_', begin);
+				const auto word = aName.substr(
+					begin, end == std::string_view::npos ? aName.size() - begin : end - begin);
+				if (std::ranges::any_of(forbiddenWords, [word](const auto aForbidden) {
+						return ascii_equal_ignoring_case(word, aForbidden);
+					})) {
+					return true;
+				}
+				if (end == std::string_view::npos) {
+					break;
+				}
+				begin = end + 1U;
+			}
+			return false;
+		}
+	} // namespace
+
 	auto stable_name(const agent_protocol aProtocol) noexcept -> std::string_view
 	{
 		switch (aProtocol) {
@@ -29,6 +160,30 @@ namespace bpr::core {
 			return "existing_checkout";
 		}
 		return { };
+	}
+
+	auto permitted_agent_environment_name(const std::string_view aName) noexcept
+		-> bool
+	{
+		if (aName.empty() || aName.size() > maximum_environment_name_bytes) {
+			return false;
+		}
+		const auto isAlpha = [](const char aByte) {
+			return (aByte >= 'A' && aByte <= 'Z')
+				|| (aByte >= 'a' && aByte <= 'z');
+		};
+		const auto isDigit = [](const char aByte) {
+			return aByte >= '0' && aByte <= '9';
+		};
+		if (aName.front() != '_' && !isAlpha(aName.front())) {
+			return false;
+		}
+		if (std::ranges::any_of(aName.substr(1U), [isAlpha, isDigit](const char aByte) {
+				return aByte != '_' && !isAlpha(aByte) && !isDigit(aByte);
+			})) {
+			return false;
+		}
+		return !contains_forbidden_environment_word(aName);
 	}
 
 	auto stable_name(const agent_invocation_refusal aRefusal) noexcept
@@ -61,14 +216,20 @@ namespace bpr::core {
 			|| aProfile.AllowedEnvironment.size() > maximum_environment_allowlist) {
 			return false;
 		}
-		// Names only, and bounded ones. An empty name would allow nothing and
-		// read as allowing everything, which is the wrong way for a list like
-		// this to be ambiguous.
-		return std::ranges::all_of(
-			aProfile.AllowedEnvironment, [](const std::string& aName) {
-				return !aName.empty()
-					&& aName.size() <= maximum_environment_name_bytes;
-			});
+		for (auto index = std::size_t{ 0U };
+			 index < aProfile.AllowedEnvironment.size(); ++index) {
+			const auto& name = aProfile.AllowedEnvironment[index];
+			if (!permitted_agent_environment_name(name)) {
+				return false;
+			}
+			for (auto prior = std::size_t{ 0U }; prior < index; ++prior) {
+				if (ascii_equal_ignoring_case(
+						name, aProfile.AllowedEnvironment[prior])) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	auto decide_agent_invocation(
