@@ -1,7 +1,7 @@
 ---
 id: BPR-0235
 title: Enforce default-deny network isolation for live mutation tests
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0221]
 ---
@@ -28,3 +28,8 @@ provider, but not to discharge the standing claim after one lands.
 
 The existing structural scan remains useful defense in depth. It is no longer
 described as complete isolation by itself.
+
+Implementation proceeds first on the target-native macOS boundary and the
+cross-platform registration contract. This card must remain open until the
+same default-deny property is proved on Linux and Windows and the live lane is
+bound to an immutable designated pull-request identity.
