@@ -2,16 +2,20 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: **the fixture-safe product round trip is composed; durable live-test
-isolation and attended/live acceptance remain incomplete.** BPR-0135 through
+Status: **the fixture-safe product round trip is composed; macOS default-deny
+test isolation is directly verified, while cross-platform and attended/live
+acceptance remain incomplete.** BPR-0135 through
 BPR-0139 delivered the draft policy, target revalidation, mutation coordinator,
 synchronization, and Qt editor against fixture/component surfaces. BPR-0225
 found no construction or invocation of those surfaces in the public
 application. BPR-0229 now connects the shipped editor gesture through core,
 the exact-target fixture coordinator, server refresh, and Qt projection.
-The BPR-0221 structural guard accurately describes today's no-live-provider
-tree, but does not deny generic network, script, subprocess, or production-app
-test paths once a provider lands. BPR-0235 owns the standing default-deny gate.
+The BPR-0221 structural guard remains defense in depth. BPR-0235 now places the
+entire configured macOS CTest graph behind a process boundary and includes
+generic network, script descendant, exact fixture endpoint, unrelated local
+endpoint, and production-app counterexamples.
+Linux code awaits native replay, Windows remains fail-closed before every test
+command, and no immutable pull-request identity exists for the single live lane.
 
 RFC-BPR-0008 stays `Proposed`. No card here makes a closure claim. The safe
 repository is designated, but the live criteria still require session-scoped
@@ -66,7 +70,7 @@ A row is claimed only when its card lands with direct evidence.
 | The mutation path cannot bypass the host | Qt plus trace | Drive every publish and resolve action | Every action produces a core proposal, then a host coordination, then a result event; no widget holds a provider | Verified through the shipped fixture path. BPR-0139's editor is given dispatch callbacks and no provider. BPR-0229 drives real text and Publish actions through core proposal, exact-target coordinator, provider result, server refresh, and typed Qt projection; its source guard rejects direct coordinator/provider calls from the probe |
 | Capability fallback is explicit | Host | Offer a provider without native resolve or viewed-state | The degradation is reported in typed form rather than silently skipped | Verified through the fixture product path. BPR-0137 defines the typed capability absence, and BPR-0229 projects the fixture provider's unsupported resolve/viewed capabilities into the shipped editor rather than pretending success |
 | Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Verified for the request. BPR-0137 asserts the submitted request carries the acting identity and the coordinator's own designated target, so no caller can name a destination. Whether GitHub attributes the review to that account is BPR-0144 |
-| No automated test mutates an undesignated target | Whole suite | Structural `live_mutation_isolation` today; default-deny network/process lane before any live provider | Every CTest executable, script, helper subprocess, and production-app launch is network-denied unless it belongs to one explicit designated-target lane | **Conditional only.** BPR-0221's three positive-control clauses catch selected port implementations, symbols, and factory calls and correctly pass while no live provider exists. They do not cover generic HTTPS/`gh`, Python, arbitrary subprocesses, or production `app_` binaries excluded from the manifest. BPR-0235 must add process-boundary default denial before BPR-0142 can use a live provider |
+| No automated test mutates an undesignated target | Whole suite | Structural `live_mutation_isolation` plus the default-deny network/process lane | Every CTest executable, script, helper subprocess, and production-app launch is network-denied unless it belongs to one explicit designated-target lane | **Verified on the configured macOS graph; cross-platform/live exception still open.** Every configured command carries the exact sandbox-runner prefix, label, isolated Python startup, and pre-boundary environment scrubs; the manifest rejects injection overrides. Direct HTTPS-port access, a Python descendant, and the shipped native-HTTPS application course receive process-boundary denial. The runner grants only selected free ports plus a fresh private Unix-socket directory; exact IPv4, IPv6, and Unix fixtures pass, while separately held unrelated loopback and Unix listeners are denied and receive no connections. The structural guard still inspects provider construction and all non-production binaries, with a non-skipping Windows inspector fallback. The Linux namespace launcher has no target-native record, Windows intentionally launches no tests, and no live lane exists without an immutable PR identity. BPR-0235 remains open. |
 
 ## Deferred gates
 
@@ -80,8 +84,9 @@ exactly what is missing.
 | BPR-0144 | Reviews appear under the authenticated user's identity with ordinary semantics | A real account and token; the fixture proves the identity is carried, not that GitHub honours it |
 
 The product owner designated `MikeMarcin/BPR-Test` before any run. Session
-authority and the required human/mixed-client actions remain unavailable, and
-BPR-0235 must establish default-deny isolation before a live provider runs.
+authority, an immutable pull-request identity, and the required human/mixed-
+client actions remain unavailable. BPR-0235's macOS default-deny boundary does
+not authorize a live provider or substitute for its Linux/Windows evidence.
 
 ## Card allocation
 

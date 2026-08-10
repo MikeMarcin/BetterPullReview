@@ -11,7 +11,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_application_tests)
 bpr_enable_warnings(test_better_pull_review_application_tests)
 
-add_test(NAME application_host COMMAND test_better_pull_review_application_tests)
+bpr_add_network_isolated_test(NAME application_host COMMAND test_better_pull_review_application_tests)
 
 bpr_add_executable(
     test_better_pull_review_application_github_host_tests
@@ -26,7 +26,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_application_github_host_tests)
 bpr_enable_warnings(test_better_pull_review_application_github_host_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_github_host
     COMMAND test_better_pull_review_application_github_host_tests
 )
@@ -44,7 +44,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_application_github_contract_tests)
 bpr_enable_warnings(test_better_pull_review_application_github_contract_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_github_contract
     COMMAND test_better_pull_review_application_github_contract_tests
 )
@@ -66,7 +66,7 @@ bpr_enable_warnings(
     test_better_pull_review_application_github_capability_cache_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_github_capability_cache
     COMMAND test_better_pull_review_application_github_capability_cache_tests
 )
@@ -88,7 +88,7 @@ bpr_enable_warnings(
     test_better_pull_review_application_github_credential_vault_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_github_credential_vault
     COMMAND test_better_pull_review_application_github_credential_vault_tests
 )
@@ -110,7 +110,7 @@ bpr_enable_warnings(
     test_better_pull_review_application_git_protocol_v2_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_git_protocol_v2
     COMMAND test_better_pull_review_application_git_protocol_v2_tests
 )
@@ -131,7 +131,7 @@ bpr_enable_warnings(
     test_better_pull_review_application_epoch_catalog_contract_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_epoch_catalog_contract
     COMMAND test_better_pull_review_application_epoch_catalog_contract_tests
 )
@@ -152,7 +152,7 @@ bpr_enable_warnings(
     test_better_pull_review_application_epoch_contract_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_epoch_contract
     COMMAND test_better_pull_review_application_epoch_contract_tests
 )
@@ -177,7 +177,7 @@ bpr_enable_warnings(
     test_better_pull_review_application_epoch_host_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_epoch_host
     COMMAND test_better_pull_review_application_epoch_host_tests
 )
@@ -194,7 +194,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_application_diff_host_tests)
 bpr_enable_warnings(test_better_pull_review_application_diff_host_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_diff_host
     COMMAND test_better_pull_review_application_diff_host_tests
 )
@@ -211,7 +211,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_application_appearance_host_tests)
 bpr_enable_warnings(test_better_pull_review_application_appearance_host_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_appearance_host
     COMMAND test_better_pull_review_application_appearance_host_tests
 )
@@ -228,7 +228,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_application_workbench_host_tests)
 bpr_enable_warnings(test_better_pull_review_application_workbench_host_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_workbench_host
     COMMAND test_better_pull_review_application_workbench_host_tests
 )
@@ -245,7 +245,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_review_ledger_host_tests)
 bpr_enable_warnings(test_better_pull_review_review_ledger_host_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_review_ledger_host
     COMMAND test_better_pull_review_review_ledger_host_tests
 )
@@ -262,7 +262,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_review_mutation_tests)
 bpr_enable_warnings(test_better_pull_review_review_mutation_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_review_mutation
     COMMAND test_better_pull_review_review_mutation_tests
 )
@@ -279,7 +279,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_review_synchronization_tests)
 bpr_enable_warnings(test_better_pull_review_review_synchronization_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_review_synchronization
     COMMAND test_better_pull_review_review_synchronization_tests
 )
@@ -296,7 +296,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_defect_correlation_tests)
 bpr_enable_warnings(test_better_pull_review_defect_correlation_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_defect_correlation
     COMMAND test_better_pull_review_defect_correlation_tests
 )
@@ -313,7 +313,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_review_queue_refresh_tests)
 bpr_enable_warnings(test_better_pull_review_review_queue_refresh_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_review_queue_refresh
     COMMAND test_better_pull_review_review_queue_refresh_tests
 )
@@ -330,7 +330,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_review_queue_enrollment_tests)
 bpr_enable_warnings(test_better_pull_review_review_queue_enrollment_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_review_queue_enrollment
     COMMAND test_better_pull_review_review_queue_enrollment_tests
 )
@@ -347,7 +347,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_review_queue_notification_tests)
 bpr_enable_warnings(test_better_pull_review_review_queue_notification_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_review_queue_notification
     COMMAND test_better_pull_review_review_queue_notification_tests
 )
@@ -364,7 +364,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_agent_workspace_tests)
 bpr_enable_warnings(test_better_pull_review_agent_workspace_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_agent_workspace
     COMMAND test_better_pull_review_agent_workspace_tests
 )
@@ -386,7 +386,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_agent_launch_tests)
 bpr_enable_warnings(test_better_pull_review_agent_launch_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_agent_launch
     COMMAND test_better_pull_review_agent_launch_tests
 )
@@ -408,7 +408,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_notification_delivery_tests)
 bpr_enable_warnings(test_better_pull_review_notification_delivery_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_notification_delivery
     COMMAND test_better_pull_review_notification_delivery_tests
 )
@@ -430,7 +430,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_workbench_snapshot_observation_tests)
 bpr_enable_warnings(test_better_pull_review_workbench_snapshot_observation_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_workbench_snapshot_observation
     COMMAND test_better_pull_review_workbench_snapshot_observation_tests
 )

@@ -19,6 +19,9 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_public_path_fixture.hpp"
+	#include "github_read_contract.hpp"
+	#include "github_wire_transport.hpp"
+	#include "native_https_transport.hpp"
 #endif
 
 #include "bpr/adapters/git/installed_git_cache.hpp"
@@ -3639,6 +3642,65 @@ namespace bpr::app {
 	}
 
 #if defined(BPR_BUILD_TESTING)
+	auto detail::github_application_fixture_access::network_isolation_probe()
+		-> bool
+	{
+		using namespace adapters::github::detail;
+		const auto profile = validate_github_host_profile(native_profile_candidate(
+			core::host_profile_id{ 901U },
+			core::git_host_id{ 902U },
+			application::github_profile_revision{ 903U },
+			application::github_server_contract::ghes_3_18_2022_11_28,
+			application::github_authentication_transport::native_https,
+			"example.com",
+			github_profile_provenance::managed));
+		if (!profile.has_value()) {
+			return false;
+		}
+		const auto wire = compile_read_request({
+			.Server    = server_contract::ghes_3_18,
+			.Operation = read_operation::get_viewer_identity,
+			.Page      = 1U,
+		});
+		if (!wire.has_value()) {
+			return false;
+		}
+		const auto context = core::github_session_request_context{
+			.Request            = core::request_id{ 904U },
+			.ApplicationSession = core::application_session_id{ 905U },
+			.Profile            = profile->profile(),
+			.IdentityGeneration = core::github_identity_generation{ 906U },
+		};
+		constexpr auto credentialText = std::string_view{
+			"bpr-network-isolation-probe-not-a-credential"
+		};
+		auto credential = application::github_credential_material::create(
+			std::as_bytes(std::span{ credentialText }));
+		if (!credential.has_value()) {
+			return false;
+		}
+		auto transport = make_native_https_bootstrap_transport(
+			*profile, context, std::move(*credential));
+		if (!transport.has_value()) {
+			return false;
+		}
+		const auto        completion = (*transport)->perform(github_wire_request{
+																 .Correlation = {
+																	 .Parent          = context,
+																	 .ProfileRevision = profile->revision(),
+																	 .Host            = profile->host(),
+																	 .Operation       = read_operation::get_viewer_identity,
+																	 .Page            = 1U,
+																 },
+																 .Wire = *wire,
+															 },
+															 std::stop_token{ });
+		const auto* const failure    = std::get_if<github_wire_error>(&completion);
+		return failure != nullptr
+			&& failure->Error.Failure
+			== application::github_provider_failure::network;
+	}
+
 	auto detail::github_application_fixture_access::make(
 		const detail::github_public_path_fixture   aFixture,
 		detail::github_public_path_fixture_options aOptions)

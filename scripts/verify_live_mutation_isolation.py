@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import platform
 import re
 import shutil
 import subprocess
@@ -123,13 +124,34 @@ def construction_sites(root: pathlib.Path) -> set[str]:
     return found
 
 
+def symbol_command(binary: str) -> list[str] | None:
+    """Select one target-native symbol inspector without a skip path."""
+    if platform.system() == "Windows":
+        candidates = (
+            ("dumpbin", ["/symbols", binary]),
+            ("llvm-readobj", ["--symbols", binary]),
+            ("objdump", ["-t", "-C", binary]),
+        )
+    else:
+        candidates = (
+            ("nm", [binary]),
+            ("llvm-nm", [binary]),
+            ("objdump", ["-t", "-C", binary]),
+        )
+    for tool, arguments in candidates:
+        resolved = shutil.which(tool)
+        if resolved is not None:
+            return [resolved, *arguments]
+    return None
+
+
 def symbols(binary: str) -> str | None:
-    """Demangled symbol table, or None when `nm` cannot read the binary."""
-    nm = shutil.which("nm")
-    if nm is None:
+    """Demangled symbol table, or None when no inspector can read it."""
+    command = symbol_command(binary)
+    if command is None:
         return None
     listed = subprocess.run(
-        [nm, binary], capture_output=True, text=True, check=False
+        command, capture_output=True, text=True, check=False
     )
     if listed.returncode != 0:
         return None
@@ -241,13 +263,7 @@ def main() -> int:
     failures = _check_sources(root)
 
     inspected = 0
-    if shutil.which("nm") is None:
-        print(
-            "LIVE_MUTATION_ISOLATION_SKIPPED: nm is unavailable, so the "
-            "binary half did not run; the source half did",
-            flush=True,
-        )
-    elif not manifest.is_file():
+    if not manifest.is_file():
         failures.append(
             f"{manifest} does not exist. The build generates it, so a missing "
             f"manifest means the binary half never ran"

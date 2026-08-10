@@ -13,6 +13,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -25,6 +26,7 @@ from scripts.verify_live_mutation_isolation import (  # noqa: E402
     construction_sites,
     forbidden_symbols_in,
     port_implementations,
+    symbol_command,
 )
 
 
@@ -127,6 +129,33 @@ class ForbiddenSymbolTests(unittest.TestCase):
         # If this were absent the guard would be reading an empty or stripped
         # table and its silence would mean nothing.
         self.assertIn(POSITIVE_CONTROL_SYMBOL, CLEAN_TABLE)
+
+    @mock.patch("scripts.verify_live_mutation_isolation.platform.system")
+    @mock.patch("scripts.verify_live_mutation_isolation.shutil.which")
+    def test_windows_selects_a_supported_inspector(
+        self, which: mock.Mock, system: mock.Mock
+    ) -> None:
+        system.return_value = "Windows"
+        which.side_effect = lambda name: (
+            "C:/LLVM/bin/llvm-readobj.exe" if name == "llvm-readobj" else None
+        )
+        self.assertEqual(
+            symbol_command("C:/build/test.exe"),
+            [
+                "C:/LLVM/bin/llvm-readobj.exe",
+                "--symbols",
+                "C:/build/test.exe",
+            ],
+        )
+
+    @mock.patch("scripts.verify_live_mutation_isolation.platform.system")
+    @mock.patch("scripts.verify_live_mutation_isolation.shutil.which")
+    def test_missing_windows_inspector_fails_closed(
+        self, which: mock.Mock, system: mock.Mock
+    ) -> None:
+        system.return_value = "Windows"
+        which.return_value = None
+        self.assertIsNone(symbol_command("C:/build/test.exe"))
 
 
 class ConstructionSiteTests(unittest.TestCase):

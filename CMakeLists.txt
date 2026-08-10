@@ -91,6 +91,10 @@ function(bpr_add_executable target)
     endif()
 endfunction()
 
+if(BUILD_TESTING)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprTestIsolation.cmake")
+endif()
+
 add_subdirectory(third_party/sqlite)
 
 add_subdirectory(src/core)

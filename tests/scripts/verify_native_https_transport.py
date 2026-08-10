@@ -77,6 +77,19 @@ class ProbeFailure(RuntimeError):
         self.code = code
 
 
+def configured_loopback_ports(required: int) -> list[int]:
+    raw = os.environ.get("BPR_TEST_LOOPBACK_PORTS", "")
+    if not raw:
+        return [0] * required
+    try:
+        ports = [int(value) for value in raw.split(",") if value]
+    except ValueError as error:
+        raise ProbeFailure("invalid-loopback-ports") from error
+    if len(ports) < required or any(port < 1 or port > 65535 for port in ports):
+        raise ProbeFailure("invalid-loopback-ports")
+    return ports[:required]
+
+
 def wipe_mutable_bytes(value: bytearray) -> None:
     for index in range(len(value)):
         value[index] = 0
@@ -108,14 +121,14 @@ class Observation:
 
 
 class RefusingLoopbackProxy:
-    def __init__(self) -> None:
+    def __init__(self, port: int) -> None:
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.setsockopt(
             socket.SOL_SOCKET,
             socket.SO_REUSEADDR,
             1,
         )
-        self.listener.bind(("127.0.0.1", 0))
+        self.listener.bind(("127.0.0.1", port))
         self.listener.listen(1)
         self.listener.settimeout(0.1)
         self.port = int(self.listener.getsockname()[1])
@@ -502,6 +515,7 @@ class LoopbackConnectTlsFixture:
         scenario: str,
         token: bytearray,
         certificate: CertificateMaterial,
+        port: int,
     ) -> None:
         self.scenario = scenario
         self.token = token
@@ -509,7 +523,7 @@ class LoopbackConnectTlsFixture:
         self.stop_event = threading.Event()
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.listener.bind(("127.0.0.1", 0))
+        self.listener.bind(("127.0.0.1", port))
         self.listener.listen(4)
         self.listener.settimeout(0.1)
         self.port = int(self.listener.getsockname()[1])
@@ -1246,6 +1260,7 @@ def verify_scenario(
     certificate: CertificateMaterial,
     authority_pem: bytes,
     directory: Path,
+    ports: list[int],
 ) -> None:
     token = random_bearer_token()
     try:
@@ -1253,9 +1268,10 @@ def verify_scenario(
             scenario,
             token,
             certificate,
+            ports[0],
         ) as fixture:
             if scenario == "proxy-fallback":
-                with RefusingLoopbackProxy() as refused:
+                with RefusingLoopbackProxy(ports[1]) as refused:
                     invoke_child(
                         executable,
                         scenario,
@@ -1308,6 +1324,7 @@ def main() -> int:
                 directory,
             )
             authority_pem = certificate.authority_certificate.read_bytes()
+            ports = configured_loopback_ports(2)
             for scenario in SCENARIOS:
                 verify_scenario(
                     executable,
@@ -1315,6 +1332,7 @@ def main() -> int:
                     certificate,
                     authority_pem,
                     directory,
+                    ports,
                 )
     except ProbeFailure as error:
         print(

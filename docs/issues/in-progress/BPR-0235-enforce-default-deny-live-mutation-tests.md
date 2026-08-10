@@ -33,3 +33,47 @@ Implementation proceeds first on the target-native macOS boundary and the
 cross-platform registration contract. This card must remain open until the
 same default-deny property is proved on Linux and Windows and the live lane is
 bound to an immutable designated pull-request identity.
+
+## Implemented and directly verified on macOS
+
+- All configured tests are registered through one wrapper and carry the
+  `bpr_network_isolated` label. A source contract permits raw `add_test` only
+  inside that wrapper; the configured-manifest contract verifies the exact
+  prefix on C++, Python, CMake, helper, and application commands. Isolated
+  Python startup plus required Python/dynamic-loader environment scrubs prevent
+  a test property from executing code before the sandbox; the manifest rejects
+  any attempted override or missing scrub.
+- The macOS runner derives a private profile for each test. It grants only
+  runner-selected free IPv4/IPv6 ports and one fresh mode-0700 Unix-socket
+  directory; undeclared tests receive no TCP port. Direct HTTPS-port access and
+  the same access from a Python child receive `EPERM` while exact fixture
+  channels work. A negative control keeps unrelated loopback and Unix listeners
+  open outside the profile, proves both connections are denied, and proves
+  neither listener receives a connection.
+- The shipped application course invokes the real native HTTPS adapter and
+  requires a typed network failure, proving a production binary launched by
+  CTest inherits the boundary rather than merely selecting a no-network fixture.
+- The live-mutation binary scan no longer skips on Windows when `nm` is absent;
+  it selects `dumpbin`, `llvm-readobj`, or `objdump`, and no inspector is a
+  failure.
+
+Focused target-native evidence:
+
+```sh
+ctest --preset dev --output-on-failure \
+  -R '^(test_network_isolation_(structure_contract|manifest|external|loopback|unrelated|child|application)|live_mutation_isolation|live_mutation_isolation_contract)$'
+```
+
+All nine focused boundary, structural, and application-counterexample tests
+pass on macOS arm64. Representative C++, Python, CMake-script, native-loopback,
+and public application tests also pass under the new prefix.
+
+## Still required before terminal status
+
+- Run the checked-in user/network-namespace launcher and its counterexamples on
+  target-native Linux.
+- Replace Windows' current pre-launch refusal with a validated whole-suite
+  boundary and run the same descendant/application matrix target-native.
+- Designate an immutable `MikeMarcin/BPR-Test` pull-request identity. Register
+  exactly one live lane only after its runner verifies that identity before
+  child creation; every mismatch must remain a no-launch result.

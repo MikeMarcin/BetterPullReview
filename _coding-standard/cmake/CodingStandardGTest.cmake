@@ -75,6 +75,6 @@ function(bpr_add_gtest_suite target)
 
     list(POP_FRONT bpr_test_specs bpr_ctest_name)
     list(POP_FRONT bpr_test_specs bpr_gtest_filter)
-    add_test(NAME "${bpr_ctest_name}" COMMAND "$<TARGET_FILE:${target}>" "--gtest_filter=${bpr_gtest_filter}")
+    bpr_add_network_isolated_test(NAME "${bpr_ctest_name}" COMMAND "$<TARGET_FILE:${target}>" "--gtest_filter=${bpr_gtest_filter}")
   endwhile()
 endfunction()

@@ -58,6 +58,19 @@ class ProbeFailure(RuntimeError):
     pass
 
 
+def configured_loopback_port() -> int:
+    raw = os.environ.get("BPR_TEST_LOOPBACK_PORTS", "")
+    if not raw:
+        return 0
+    try:
+        ports = [int(value) for value in raw.split(",") if value]
+    except ValueError as error:
+        raise ProbeFailure("invalid-loopback-port") from error
+    if len(ports) != 1 or ports[0] < 1 or ports[0] > 65535:
+        raise ProbeFailure("invalid-loopback-port")
+    return ports[0]
+
+
 @dataclass(frozen=True)
 class Certificates:
     authority: Path
@@ -251,6 +264,7 @@ class SmartProxy:
         scenario: str,
         token: str,
         host: str,
+        port: int,
     ) -> None:
         self.scenario = scenario
         self.token = token
@@ -258,7 +272,7 @@ class SmartProxy:
         self.observation = Observation()
         self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.listener.bind(("127.0.0.1", 0))
+        self.listener.bind(("127.0.0.1", port))
         self.listener.listen(4)
         self.listener.settimeout(0.1)
         self.port = int(self.listener.getsockname()[1])
@@ -531,9 +545,10 @@ def run_scenario(
     scenario: str,
     profile_name: str,
     host: str,
+    port: int,
 ) -> None:
     token = secrets.token_urlsafe(32)
-    with SmartProxy(material, scenario, token, host) as proxy:
+    with SmartProxy(material, scenario, token, host, port) as proxy:
         child = subprocess.run(
             [
                 str(executable),
@@ -590,6 +605,7 @@ def main() -> int:
         with tempfile.TemporaryDirectory(prefix="bpr0043-smart-") as value:
             directory = Path(value)
             material = certificates(openssl, directory)
+            port = configured_loopback_port()
             for scenario in SCENARIOS:
                 run_scenario(
                     target,
@@ -597,6 +613,7 @@ def main() -> int:
                     scenario,
                     "ghes",
                     GHES_HOST,
+                    port,
                 )
             for scenario in GITHUB_COM_SCENARIOS:
                 run_scenario(
@@ -605,6 +622,7 @@ def main() -> int:
                     scenario,
                     "github-com",
                     GITHUB_COM_HOST,
+                    port,
                 )
         print("OK")
         return 0

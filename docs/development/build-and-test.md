@@ -99,6 +99,47 @@ Both presets use out-of-source directories under ignored `build/`.
 Both also have schema-12 workflow presets, for example
 `cmake --workflow --preset core-only`.
 
+## Automated-test network boundary
+
+Every registered test uses `bpr_add_network_isolated_test`; raw `add_test` is
+owned only by `cmake/BprTestIsolation.cmake`. The wrapper prefixes the complete
+CTest command, so C++ executables, Python and CMake scripts, helper descendants,
+and launches of `app_better_pull_review` inherit the same boundary. The
+configured-manifest gate rejects a missing prefix or isolation label, while a
+source gate rejects any second raw registration site. The macOS launcher runs
+Python with isolated/no-site flags, and every registration unsets Python and
+dynamic-loader injection variables before that launcher starts. The manifest
+gate rejects a test that sets, overrides, or omits those scrubs.
+
+On macOS, a trusted launcher reserves an exact set of free IPv4/IPv6 loopback
+ports, creates a unique mode-0700 Unix-socket directory, derives a one-test
+`/usr/bin/sandbox-exec` profile, and passes the endpoint facts only to that test.
+Fixtures bind the selected ports before their clients run; a collision is a
+test failure, not authority to contact the colliding listener. Tests without a
+declared fixture receive no TCP port. Target-native counterexamples require
+`EPERM` from direct HTTPS-port access, a Python descendant, the shipped native
+HTTPS adapter, and unrelated loopback and Unix listeners kept open by the
+unsandboxed runner. The unrelated listeners must receive zero connections. A
+positive probe separately proves exact IPv4, IPv6, and private Unix fixtures.
+
+On Linux, the checked-in launcher creates user and network namespaces, maps
+only the invoking identity, brings up only `lo`, and fails the test before
+`exec` when any step is unavailable. This implementation still requires
+target-native Linux replay. Windows test commands fail before launching their
+original command because no validated whole-suite network boundary exists yet;
+an ordinary unsandboxed Windows CTest run is not permitted. The structural
+symbol guard now selects `dumpbin`, `llvm-readobj`, or `objdump` on Windows and
+fails when none can inspect the binaries.
+
+No live-test exception is registered. The eventual single live lane remains
+blocked until documentation names an immutable repository and pull-request
+identity and the launcher validates that identity before process creation.
+
+```sh
+ctest --preset dev --output-on-failure \
+  -R '^(test_network_isolation_(structure_contract|manifest|external|loopback|unrelated|child|application)|live_mutation_isolation|live_mutation_isolation_contract)$'
+```
+
 Run the RFC-BPR-0004 core/host diff seam and its Qt-free architecture checks
 with:
 

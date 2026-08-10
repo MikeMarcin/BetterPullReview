@@ -1,0 +1,10 @@
+(version 1)
+
+;; Retain every ordinary process and filesystem capability. This profile owns
+;; only the automated-test network boundary.
+(allow default)
+
+;; Deny every network operation. The trusted per-test runner generates a
+;; private derived profile that adds only its exact loopback ports and its one
+;; mode-0700 Unix-socket directory.
+(deny network-outbound network-inbound network-bind)

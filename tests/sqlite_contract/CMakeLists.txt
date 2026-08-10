@@ -25,7 +25,7 @@ bpr_enable_warnings(
     test_better_pull_review_sqlite_storage_contract_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME sqlite_epoch_catalog_storage_contract
     COMMAND test_better_pull_review_sqlite_storage_contract_tests
 )
@@ -65,7 +65,7 @@ bpr_enable_warnings(
     test_better_pull_review_sqlite_behavior_contract_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME sqlite_epoch_catalog_behavior_contract
     COMMAND test_better_pull_review_sqlite_behavior_contract_tests
 )
@@ -105,7 +105,7 @@ endif()
 bpr_enable_hardening(test_better_pull_review_sqlite_review_ledger_tests)
 bpr_enable_warnings(test_better_pull_review_sqlite_review_ledger_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME sqlite_review_ledger_storage
     COMMAND test_better_pull_review_sqlite_review_ledger_tests
 )
@@ -133,7 +133,7 @@ endif()
 bpr_enable_hardening(test_better_pull_review_queue_enrollment_tests)
 bpr_enable_warnings(test_better_pull_review_queue_enrollment_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME sqlite_queue_enrollment_storage
     COMMAND test_better_pull_review_queue_enrollment_tests
 )
@@ -167,7 +167,7 @@ endif()
 bpr_enable_hardening(test_better_pull_review_workbench_settings_tests)
 bpr_enable_warnings(test_better_pull_review_workbench_settings_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME sqlite_workbench_settings_storage
     COMMAND test_better_pull_review_workbench_settings_tests
 )
@@ -201,7 +201,7 @@ endif()
 bpr_enable_hardening(test_better_pull_review_appearance_settings_tests)
 bpr_enable_warnings(test_better_pull_review_appearance_settings_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME sqlite_appearance_settings_storage
     COMMAND test_better_pull_review_appearance_settings_tests
 )

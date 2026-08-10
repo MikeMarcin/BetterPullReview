@@ -11,7 +11,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_product_contract_tests)
 bpr_enable_warnings(test_better_pull_review_product_contract_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME product_contract
     COMMAND test_better_pull_review_product_contract_tests
 )

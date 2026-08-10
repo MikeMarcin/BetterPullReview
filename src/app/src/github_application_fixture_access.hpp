@@ -269,6 +269,13 @@ namespace bpr::app::detail {
 	class github_application_fixture_access final
 	{
 	public:
+		/// \brief Attempts one native HTTPS read through the shipped adapter.
+		///
+		/// \details The endpoint returns an ordinary HTTP response outside the
+		/// automated-test boundary. The isolation contract requires the attempt to
+		/// fail earlier as a typed network error from the production application
+		/// binary.
+		[[nodiscard]] static auto network_isolation_probe() -> bool;
 		[[nodiscard]] static auto make(
 			github_public_path_fixture         aFixture,
 			github_public_path_fixture_options aOptions = { })

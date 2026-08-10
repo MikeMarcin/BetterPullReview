@@ -1,4 +1,4 @@
-add_test(
+bpr_add_network_isolated_test(
     NAME epoch_history_fixture_contract
     COMMAND
         Python3::Interpreter
@@ -54,7 +54,7 @@ bpr_enable_warnings(
     test_better_pull_review_git_process_contract_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME git_process_contract
     COMMAND test_better_pull_review_git_process_contract_tests
 )
@@ -102,7 +102,7 @@ bpr_enable_warnings(
     test_better_pull_review_git_cache_contract_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME git_cache_contract
     COMMAND test_better_pull_review_git_cache_contract_tests
 )
@@ -143,7 +143,7 @@ bpr_enable_warnings(
     test_better_pull_review_epoch_maintenance_integration_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME epoch_maintenance_integration
     COMMAND test_better_pull_review_epoch_maintenance_integration_tests
 )

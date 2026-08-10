@@ -28,7 +28,7 @@ bpr_enable_warnings(
     test_better_pull_review_native_https_transport_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME native_https_transport_contract
     COMMAND
         test_better_pull_review_native_https_transport_tests
@@ -70,7 +70,7 @@ bpr_enable_warnings(
     test_better_pull_review_native_git_smart_transport_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME native_git_smart_transport_contract
     COMMAND test_better_pull_review_native_git_smart_transport_tests --contract
 )
@@ -86,8 +86,9 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         NAMES openssl
         REQUIRED
     )
-    add_test(
+    bpr_add_network_isolated_test(
         NAME native_https_transport_fixture
+        LOOPBACK_PORT_COUNT 2
         COMMAND
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/verify_native_https_transport.py"
@@ -103,8 +104,9 @@ if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             TIMEOUT 90
     )
 
-    add_test(
+    bpr_add_network_isolated_test(
         NAME native_git_smart_transport_fixture
+        LOOPBACK_PORT_COUNT 1
         COMMAND
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/github_contract/verify_native_git_smart_transport.py"
@@ -143,7 +145,7 @@ bpr_enable_warnings(
     test_better_pull_review_gh_cli_transport_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME gh_cli_transport
     COMMAND test_better_pull_review_gh_cli_transport_tests
 )
@@ -176,7 +178,7 @@ bpr_enable_warnings(
     test_better_pull_review_github_cli_process_runner_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME github_cli_process_runner
     COMMAND test_better_pull_review_github_cli_process_runner_tests
 )
@@ -214,7 +216,7 @@ target_compile_definitions(
 bpr_enable_hardening(test_better_pull_review_github_contract_tests)
 bpr_enable_warnings(test_better_pull_review_github_contract_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME github_read_contract
     COMMAND test_better_pull_review_github_contract_tests
 )
@@ -242,7 +244,7 @@ bpr_enable_warnings(
     test_better_pull_review_github_paged_read_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME github_paged_read
     COMMAND test_better_pull_review_github_paged_read_tests
 )
@@ -277,7 +279,7 @@ bpr_enable_warnings(
     test_better_pull_review_github_provider_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME github_provider
     COMMAND test_better_pull_review_github_provider_tests
 )
@@ -304,7 +306,7 @@ target_include_directories(
 bpr_enable_hardening(test_better_pull_review_github_host_profile_tests)
 bpr_enable_warnings(test_better_pull_review_github_host_profile_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME github_host_profile
     COMMAND test_better_pull_review_github_host_profile_tests
 )
@@ -336,7 +338,7 @@ bpr_enable_warnings(
     test_better_pull_review_github_capability_probe_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME github_capability_probe
     COMMAND test_better_pull_review_github_capability_probe_tests
 )
@@ -377,7 +379,7 @@ if(APPLE)
         test_better_pull_review_macos_keychain_contract_tests
     )
 
-    add_test(
+    bpr_add_network_isolated_test(
         NAME macos_keychain_contract
         COMMAND test_better_pull_review_macos_keychain_contract_tests
     )
@@ -406,17 +408,17 @@ if(APPLE)
         test_better_pull_review_macos_keychain_native_tests
     )
 
-    add_test(
+    bpr_add_network_isolated_test(
         NAME macos_keychain_native_setup
         COMMAND
             test_better_pull_review_macos_keychain_native_tests
             --fixture-setup
     )
-    add_test(
+    bpr_add_network_isolated_test(
         NAME macos_keychain_native
         COMMAND test_better_pull_review_macos_keychain_native_tests
     )
-    add_test(
+    bpr_add_network_isolated_test(
         NAME macos_keychain_native_cleanup
         COMMAND
             test_better_pull_review_macos_keychain_native_tests
@@ -470,7 +472,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         test_better_pull_review_linux_secret_service_contract_tests
     )
 
-    add_test(
+    bpr_add_network_isolated_test(
         NAME linux_secret_service_contract
         COMMAND
             test_better_pull_review_linux_secret_service_contract_tests
@@ -500,18 +502,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         test_better_pull_review_linux_secret_service_native_tests
     )
 
-    add_test(
+    bpr_add_network_isolated_test(
         NAME linux_secret_service_native_setup
         COMMAND
             test_better_pull_review_linux_secret_service_native_tests
             --fixture-setup
     )
-    add_test(
+    bpr_add_network_isolated_test(
         NAME linux_secret_service_native
         COMMAND
             test_better_pull_review_linux_secret_service_native_tests
     )
-    add_test(
+    bpr_add_network_isolated_test(
         NAME linux_secret_service_native_cleanup
         COMMAND
             test_better_pull_review_linux_secret_service_native_tests
@@ -564,7 +566,7 @@ if(WIN32)
         test_better_pull_review_windows_credential_manager_contract_tests
     )
 
-    add_test(
+    bpr_add_network_isolated_test(
         NAME windows_credential_manager_contract
         COMMAND
             test_better_pull_review_windows_credential_manager_contract_tests
@@ -594,18 +596,18 @@ if(WIN32)
         test_better_pull_review_windows_credential_manager_native_tests
     )
 
-    add_test(
+    bpr_add_network_isolated_test(
         NAME windows_credential_manager_native_setup
         COMMAND
             test_better_pull_review_windows_credential_manager_native_tests
             --fixture-setup
     )
-    add_test(
+    bpr_add_network_isolated_test(
         NAME windows_credential_manager_native
         COMMAND
             test_better_pull_review_windows_credential_manager_native_tests
     )
-    add_test(
+    bpr_add_network_isolated_test(
         NAME windows_credential_manager_native_cleanup
         COMMAND
             test_better_pull_review_windows_credential_manager_native_tests

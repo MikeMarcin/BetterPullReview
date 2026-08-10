@@ -3900,6 +3900,14 @@ auto main(int argc, char** argv) -> int
 		auto enterpriseHostname = config.EnterpriseHostname;
 
 #if defined(BPR_BUILD_TESTING)
+		if (has_argument(argc, argv, "--network-isolation-probe")) {
+			const auto denied = bpr::app::detail::
+				github_application_fixture_access::network_isolation_probe();
+			QTextStream{ stdout }
+				<< (denied ? "APPLICATION_NETWORK_ISOLATION_DENIED\n"
+						   : "APPLICATION_NETWORK_ISOLATION_NOT_DENIED\n");
+			return denied ? EXIT_SUCCESS : EXIT_FAILURE;
+		}
 		const auto testApplicationDataRoot = argument_value(
 			argc, argv, "--test-application-data-root");
 		if (testApplicationDataRoot.has_value()) {

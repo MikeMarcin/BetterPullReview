@@ -97,7 +97,7 @@ if(DEFINED BPR_PRODUCER_QT6_DIR)
     set(bpr_test_qt_dir "${BPR_PRODUCER_QT6_DIR}")
 endif()
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_public_path
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
@@ -120,7 +120,7 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_public_path_ghes_cli_unavailable
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
@@ -185,7 +185,7 @@ target_compile_features(
 bpr_enable_hardening(test_better_pull_review_worker_executor_tests)
 bpr_enable_warnings(test_better_pull_review_worker_executor_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_worker_executor
     COMMAND test_better_pull_review_worker_executor_tests
 )
@@ -196,7 +196,7 @@ set_tests_properties(
         TIMEOUT 15
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_composition_contract
     COMMAND
         Python3::Interpreter
@@ -229,7 +229,7 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_queue_composition_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -272,7 +272,7 @@ bpr_enable_warnings(test_better_pull_review_github_application_liveness_tests)
 # Constructs the real application, so it needs the same offscreen platform the
 # fixture runs use. Nothing is shown and no fixture is selected: the subject is
 # the destructor, not a course.
-add_test(
+bpr_add_network_isolated_test(
     NAME application_poller_liveness
     COMMAND test_better_pull_review_github_application_liveness_tests
 )
@@ -284,7 +284,7 @@ set_tests_properties(
         TIMEOUT 60
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_native_appearance_probe_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -311,7 +311,7 @@ bpr_bound_automated_run(
     RESERVE_MS 10000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_github_public_path_github_com
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
@@ -343,7 +343,7 @@ bpr_bound_automated_run(
 # answered once, one smart acquire/discover/ls-refs/fetch, and the pack
 # imported through `git index-pack --strict
 # --check-self-contained-and-connected` followed by `fsck --connectivity-only`.
-add_test(
+bpr_add_network_isolated_test(
     NAME application_github_public_path_uiforetw_74
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
@@ -369,7 +369,7 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_uiforetw_selected_diff_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -394,7 +394,7 @@ bpr_bound_automated_run(
     RESERVE_MS 10000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_diff_workbench_public_path
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
@@ -423,7 +423,7 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_workbench_composition_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -448,7 +448,7 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_review_ledger_composition_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -473,7 +473,7 @@ bpr_bound_automated_run(
     RESERVE_MS 4000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_review_round_trip_composition_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -502,7 +502,7 @@ bpr_bound_automated_run(
     RESERVE_MS 10000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_defect_composition_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -528,7 +528,7 @@ bpr_bound_automated_run(
 )
 
 set(bpr_appearance_theme_budget_ms 50000)
-add_test(
+bpr_add_network_isolated_test(
     NAME application_appearance_theme_customization_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -552,7 +552,7 @@ bpr_bound_automated_run(
     RESERVE_MS 10000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_fixture_verdict_contract
     COMMAND
         Python3::Interpreter
@@ -567,7 +567,7 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "FIXTURE_VERDICT_OK"
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_attended_launch_contract
     COMMAND
         Python3::Interpreter
@@ -582,7 +582,7 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "ATTENDED_LAUNCH_OK"
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_diff_workbench_shutdown_public_path
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
@@ -617,7 +617,7 @@ bpr_bound_automated_run(
 # that failed to bound itself would be killed by the harness at 30 s, print
 # nothing, and fail this test; there is no arrangement of the numbers under
 # which a missing bound still passes.
-add_test(
+bpr_add_network_isolated_test(
     NAME application_automated_run_budget
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
@@ -646,7 +646,7 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_github_public_path_ghes_3_18
     COMMAND
         $<TARGET_FILE:app_better_pull_review>
@@ -682,7 +682,7 @@ foreach(
     list(GET fixture_fields 0 fixture_name)
     list(GET fixture_fields 1 fixture_label)
     string(REPLACE "." "_" fixture_test_name "${fixture_name}")
-    add_test(
+    bpr_add_network_isolated_test(
         NAME application_epoch_persistence_${fixture_test_name}
         COMMAND
             "${CMAKE_COMMAND}"
@@ -711,7 +711,7 @@ foreach(
     )
 endforeach()
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_epoch_maintenance_public_path
     COMMAND
         "${CMAKE_COMMAND}"
@@ -736,7 +736,7 @@ bpr_bound_automated_run(
     RESERVE_MS 8000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_appearance_gesture_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -761,7 +761,7 @@ bpr_bound_automated_run(
     RESERVE_MS 6000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_appearance_store_fallback_contract
     COMMAND
         "${CMAKE_COMMAND}"
@@ -787,7 +787,7 @@ bpr_bound_automated_run(
     RESERVE_MS 4000
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME binary_dependency_surface
     COMMAND
         Python3::Interpreter
@@ -801,7 +801,7 @@ set_tests_properties(
         TIMEOUT 15
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME runtime_process_surface
     COMMAND
         Python3::Interpreter
@@ -815,7 +815,7 @@ set_tests_properties(
         TIMEOUT 15
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME composed_application_hosts
     COMMAND
         Python3::Interpreter
@@ -829,7 +829,7 @@ set_tests_properties(
         TIMEOUT 30
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME application_render
     COMMAND
         $<TARGET_FILE:app_better_pull_review>

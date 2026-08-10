@@ -75,15 +75,16 @@ The token is minted at session time with `gh auth token` and pasted into the
 application's Qt-owned credential input. It is never committed, logged, echoed,
 or fixtured, and never typed into a shell that records history.
 
-## The guard was rebuilt first, 2026-08-08
+## The structural guard was rebuilt first; the executable boundary is separate
 
-The section above — *"A guard that must be rebuilt when this card lands"* — is
-satisfied in advance by [[BPR-0221]], now in `done/` and added to this card's
-`depends_on`. The standing `live_mutation_isolation` gate asserts that the live
-implementation is unreachable from every non-production binary, rather than
-that it happens not to exist.
+[[BPR-0221]], now in `done/`, rebuilt the provider inventory and binary-symbol
+guard before a live implementation existed. It does not satisfy this card's
+whole-process requirement by itself. [[BPR-0235]] separately owns the CTest
+launcher boundary and remains in progress until Linux and Windows are proved
+target-native and one immutable pull-request identity can authorize the only
+live exception.
 
-Doing it before the live provider existed was the point: it is the only moment
+Building the structural half before the live provider existed was the point: it is the only moment
 the guard could be shown to fail on a tree whose answer was already known, and
 it was — a rogue provider compiled into `review_mutation_tests` was caught by
 both the source and binary halves.

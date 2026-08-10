@@ -127,6 +127,23 @@ submissions.
 request.** Every test in this RFC runs against the fixture provider. The three
 criteria that genuinely need a live target are carded and unstarted; see below.
 
+The executable boundary no longer depends on mutation-port names alone. Every
+CTest registration crosses one process launcher before its original command.
+On macOS, the trusted runner derives a one-test sandbox profile from a template
+that grants only runner-selected free loopback ports and one fresh mode-0700
+Unix-socket directory; an occupied-port race makes the fixture bind fail before
+its client runs. Unrelated loopback and Unix listeners remain denied. Linux has
+a fail-closed user/network-namespace launcher awaiting target-native replay, and
+Windows refuses all original test commands until a validated whole-suite
+boundary exists. The boundary therefore includes Python, CMake, arbitrary
+helper descendants, and test-driven production-application launches. The
+structural provider inventory remains defense in depth.
+
+There is currently no network-enabled CTest exception. The eventual one named
+live lane cannot exist until the repository identity below is supplemented by
+an immutable pull-request identity and both are validated before its child is
+created.
+
 Weakening the coordinator's target check to let a test through would remove the
 property the test exists to exercise. It is not an acceptable shortcut under
 any deadline.
@@ -178,6 +195,12 @@ contain live code while being driven in fixture mode. The runtime complement is
 BPR-0142's own work: a fixture-driven run emits `REVIEW_MUTATION_PROVIDER:fixture`,
 asserted in the end-to-end pass expressions. Symbol absence and runtime
 selection are different claims and neither substitutes for the other.
+
+BPR-0235 adds the runtime complement at the process boundary: a test-build-only
+application course invokes the shipped native HTTPS adapter against an ordinary
+external read endpoint and must receive a typed network failure from the
+sandbox. Outside that boundary the endpoint returns an HTTP response, so the
+course cannot pass merely because the application selected a fixture provider.
 
 The safe-target check itself stays in the composition root, immediately before
 the coordinator is constructed. Not in the coordinator, which cannot know what

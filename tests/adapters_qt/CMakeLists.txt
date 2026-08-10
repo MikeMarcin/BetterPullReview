@@ -11,7 +11,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_tests)
 bpr_enable_warnings(test_better_pull_review_qt_tests)
 
-add_test(NAME qt_foundation_window COMMAND test_better_pull_review_qt_tests)
+bpr_add_network_isolated_test(NAME qt_foundation_window COMMAND test_better_pull_review_qt_tests)
 set_tests_properties(
     qt_foundation_window
     PROPERTIES
@@ -33,7 +33,7 @@ bpr_enable_hardening(
 bpr_enable_warnings(
     test_better_pull_review_qt_system_tray_notification_sink_tests
 )
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_system_tray_notification_sink
     COMMAND test_better_pull_review_qt_system_tray_notification_sink_tests
 )
@@ -64,7 +64,7 @@ if(UNIX AND NOT APPLE)
     list(APPEND bpr_qt_github_common_environment "QT_STYLE_OVERRIDE=Windows")
 endif()
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_composed_github_scale_100
     COMMAND test_better_pull_review_qt_github_tests
 )
@@ -76,7 +76,7 @@ set_tests_properties(
         TIMEOUT 120
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_composed_github_scale_125
     COMMAND test_better_pull_review_qt_github_tests
 )
@@ -88,7 +88,7 @@ set_tests_properties(
         TIMEOUT 120
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_composed_github_scale_200
     COMMAND test_better_pull_review_qt_github_tests
 )
@@ -117,7 +117,7 @@ bpr_enable_warnings(
     test_better_pull_review_qt_github_conversation_panel_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_github_conversation_panel
     COMMAND test_better_pull_review_qt_github_conversation_panel_tests
 )
@@ -145,7 +145,7 @@ bpr_enable_warnings(
     test_better_pull_review_qt_github_conversation_model_property_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_github_conversation_model_property
     COMMAND test_better_pull_review_qt_github_conversation_model_property_tests
 )
@@ -170,7 +170,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_sensitive_text_input_tests)
 bpr_enable_warnings(test_better_pull_review_qt_sensitive_text_input_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_sensitive_text_input
     COMMAND test_better_pull_review_qt_sensitive_text_input_tests
 )
@@ -203,7 +203,7 @@ foreach(bpr_epoch_scale IN ITEMS 100 125 200)
     else()
         set(bpr_epoch_scale_factor "2.0")
     endif()
-    add_test(
+    bpr_add_network_isolated_test(
         NAME qt_epoch_comparison_scale_${bpr_epoch_scale}
         COMMAND test_better_pull_review_qt_epoch_comparison_tests
     )
@@ -242,7 +242,7 @@ foreach(bpr_scroll_controller_scale IN ITEMS 100 125 200)
     else()
         set(bpr_scroll_controller_scale_factor "2.0")
     endif()
-    add_test(
+    bpr_add_network_isolated_test(
         NAME qt_comparison_scroll_controller_scale_${bpr_scroll_controller_scale}
         COMMAND test_better_pull_review_qt_comparison_scroll_controller_tests
     )
@@ -277,7 +277,7 @@ foreach(bpr_diff_link_map_scale IN ITEMS 100 125 200)
     else()
         set(bpr_diff_link_map_scale_factor "2.0")
     endif()
-    add_test(
+    bpr_add_network_isolated_test(
         NAME qt_diff_link_map_scale_${bpr_diff_link_map_scale}
         COMMAND test_better_pull_review_qt_diff_link_map_tests
     )
@@ -303,7 +303,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_appearance_settings_panel_tests)
 bpr_enable_warnings(test_better_pull_review_qt_appearance_settings_panel_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_appearance_settings_panel
     COMMAND test_better_pull_review_qt_appearance_settings_panel_tests
 )
@@ -327,7 +327,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_agent_launch_panel_tests)
 bpr_enable_warnings(test_better_pull_review_qt_agent_launch_panel_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_agent_launch_panel
     COMMAND test_better_pull_review_qt_agent_launch_panel_tests
 )
@@ -371,7 +371,7 @@ add_dependencies(
 bpr_enable_hardening(test_better_pull_review_qt_agent_launch_canary_tests)
 bpr_enable_warnings(test_better_pull_review_qt_agent_launch_canary_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_agent_launch_canary
     COMMAND test_better_pull_review_qt_agent_launch_canary_tests
 )
@@ -399,7 +399,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_syntax_pane_composition_tests)
 bpr_enable_warnings(test_better_pull_review_qt_syntax_pane_composition_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_syntax_pane_composition
     COMMAND test_better_pull_review_qt_syntax_pane_composition_tests
 )
@@ -432,7 +432,7 @@ foreach(bpr_diff_workbench_scale IN ITEMS 100 125 200)
     else()
         set(bpr_diff_workbench_scale_factor "2.0")
     endif()
-    add_test(
+    bpr_add_network_isolated_test(
         NAME qt_diff_workbench_scale_${bpr_diff_workbench_scale}
         COMMAND test_better_pull_review_qt_diff_workbench_tests
     )
@@ -467,7 +467,7 @@ foreach(bpr_workbench_window_scale IN ITEMS 100 125 200)
     else()
         set(bpr_workbench_window_scale_factor "2.0")
     endif()
-    add_test(
+    bpr_add_network_isolated_test(
         NAME qt_workbench_window_scale_${bpr_workbench_window_scale}
         COMMAND test_better_pull_review_qt_workbench_window_tests
     )
@@ -494,7 +494,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_appearance_profile_tests)
 bpr_enable_warnings(test_better_pull_review_qt_appearance_profile_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_appearance_profile
     COMMAND test_better_pull_review_qt_appearance_profile_tests
 )
@@ -527,7 +527,7 @@ foreach(bpr_diff_axis_scale IN ITEMS 100 125 200)
     else()
         set(bpr_diff_axis_scale_factor "2.0")
     endif()
-    add_test(
+    bpr_add_network_isolated_test(
         NAME qt_diff_axis_scale_${bpr_diff_axis_scale}
         COMMAND test_better_pull_review_qt_diff_axis_tests
     )
@@ -554,7 +554,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_review_queue_tests)
 bpr_enable_warnings(test_better_pull_review_qt_review_queue_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_review_queue
     COMMAND test_better_pull_review_qt_review_queue_tests
 )
@@ -577,7 +577,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_review_draft_editor_tests)
 bpr_enable_warnings(test_better_pull_review_qt_review_draft_editor_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_review_draft_editor
     COMMAND test_better_pull_review_qt_review_draft_editor_tests
 )
@@ -600,7 +600,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_defect_card_tests)
 bpr_enable_warnings(test_better_pull_review_qt_defect_card_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_defect_card
     COMMAND test_better_pull_review_qt_defect_card_tests
 )
@@ -623,7 +623,7 @@ target_link_libraries(
 bpr_enable_hardening(test_better_pull_review_qt_review_landing_model_tests)
 bpr_enable_warnings(test_better_pull_review_qt_review_landing_model_tests)
 
-add_test(
+bpr_add_network_isolated_test(
     NAME qt_review_landing_model
     COMMAND test_better_pull_review_qt_review_landing_model_tests
 )

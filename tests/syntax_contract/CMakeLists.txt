@@ -21,7 +21,7 @@ bpr_enable_warnings(
     test_better_pull_review_syntax_classification_contract_tests
 )
 
-add_test(
+bpr_add_network_isolated_test(
     NAME syntax_classification_contract
     COMMAND test_better_pull_review_syntax_classification_contract_tests
 )
