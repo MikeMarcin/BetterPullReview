@@ -1,0 +1,166 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/7be85b53158def375f406b1a",
+  "downstream_claims": {
+    "bpr_0210_closed": false,
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "These are deterministic captures from commit ff75096 using the real recorded google/UIforETW#74 Files-drawer selection path. All runs use Qt 6.11.1 offscreen QFusionStyle at device pixel ratio 1. Judge only the visible intraline-emphasis criterion. Native operating-system appearance integration, BPR-0220 geometry-rebuild attribution, BPR-0210 remediation, RFC closeout, and release readiness are outside this batch.",
+  "review_gate": "uiforetw_intraline_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Each removed replacement row has a narrow intraline-removed mark distinct from its whole-line removed band",
+        "Each added replacement row has a narrow intraline-added mark distinct from its whole-line added band",
+        "The narrow marks align with the changed coordinate digits rather than another row or unrelated text",
+        "The emphasis remains visibly distinguishable in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "audit_verdict": {
+        "note": "The registered product contract passed four exact-profile captures and a fifth run with the real Qt selection wire cut. It required three named replacement pairs across Resource.h and UIforETW.rc, exact base/head blobs, non-full-width removed/added role selections, and zero fixture-diff helper invocations.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The selected UIforETW.rc comparison contains two near-identical replacement pairs: 464,28 becomes 464,24 and 464,42 becomes 464,36. Whole-line red and green bands identify changed lines; the narrower role-coloured marks must identify the differing digits without drifting to another row or disappearing. Review the same exact blobs in Light, Dark, High-contrast Light, and High-contrast Dark.",
+      "detail_sections": [
+        {
+          "heading": "Bound identity and deterministic proof",
+          "items": [
+            {
+              "definition": "ff75096",
+              "term": "Producing commit"
+            },
+            {
+              "definition": "UIforETW/UIforETW.rc",
+              "term": "Selected file"
+            },
+            {
+              "definition": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc → e40058be7d5fe319342dffb567ce30e42bc6f4de",
+              "term": "Generated comparison"
+            },
+            {
+              "definition": "b995e189fb58da146945e1fb22380cdf4a7f4e47 → 6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+              "term": "Exact blobs"
+            },
+            {
+              "definition": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure — pass",
+              "term": "Verification"
+            },
+            {
+              "definition": "Debug/dev, macOS arm64, Qt 6.11.1, offscreen QFusionStyle, DPR 1, 1280 × 1000",
+              "term": "Capture environment"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Do the recorded replacement rows visibly identify the characters that changed in all four profiles?",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/01-capture-manifest.json",
+          "sha256": "sha256:ceb1563ce3100b5eee46b4e386d8791c79530f0a917aca4d72fad0e4a10df7ff"
+        },
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/02-light-capture-facts.json",
+          "sha256": "sha256:4e01f8b724768979ce407e26aa618d19d07a263a3d3fa078862ee46273e88938"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/03-dark-capture-facts.json",
+          "sha256": "sha256:6c2bde9c40d9b9667b0e244728ddeab5a727246892171271740b1e36e3329ea4"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/04-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:d18a2d434d890d972737533c6c7892f843ee0ce4883d0c8e867d57752e4d5a0f"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/05-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:8d9ce6f81eef41fddec6de11e8339f35e384b5df8f7132148aaaea35b3d0fe9a"
+        }
+      ],
+      "known_concerns": [
+        "The captures are offscreen QFusionStyle evidence, not a claim about native macOS, Windows, or Linux styling.",
+        "Long resource-script lines are horizontally clipped by the comparison pane; the changed coordinate region is deliberately centered and visible.",
+        "The deterministic course proves exact commits, blobs, pairs, role assignments, and a cut-wire negative. This decision is only the human visual judgement of the resulting pixels."
+      ],
+      "media_groups": [
+        {
+          "group_id": "state-captures",
+          "items": [
+            {
+              "label": "Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/01-light-full-window.png",
+              "sha256": "sha256:61292db7921ef56fbdb58f773af2f45d4d854086a040861d6d4ae03d720527ef"
+            },
+            {
+              "label": "Light — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/02-light-comparison-crop.png",
+              "sha256": "sha256:c76a357a9a7dd39334b2432afe084980654aed113150c9c137d3549736753ab4"
+            },
+            {
+              "label": "Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/03-dark-full-window.png",
+              "sha256": "sha256:fd62c5dc41d0f617fff6a7fe1137512fe550e1b94802c7c26791cbaadae39db2"
+            },
+            {
+              "label": "Dark — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/04-dark-comparison-crop.png",
+              "sha256": "sha256:c15a37a7a40365134131168e7b7c2a4ba6be785e6a8ccd8536f059cbcd5c1a9e"
+            },
+            {
+              "label": "High-contrast Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/05-high-contrast-light-full-window.png",
+              "sha256": "sha256:7b0b5c472db02f90b0cb5da1a327c5904c473200bcfcde32359f6e38bc9c661a"
+            },
+            {
+              "label": "High-contrast Light — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/06-high-contrast-light-comparison-crop.png",
+              "sha256": "sha256:092a7a2b39c29fef51086ad37f374a9bd6e674981a242111626cd6197db59fc7"
+            },
+            {
+              "label": "High-contrast Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/07-high-contrast-dark-full-window.png",
+              "sha256": "sha256:c2ae85ada13359ffcd071eec6de664f7a08c76cb0b9b4498c32272248204365a"
+            },
+            {
+              "label": "High-contrast Dark — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/08-high-contrast-dark-comparison-crop.png",
+              "sha256": "sha256:5c54cd1de16ad62c9128bdd6fa365933cfde9b3d28ab4252210a2c3faf90103d"
+            }
+          ],
+          "layout": "grid",
+          "note": "Each profile has a full application view followed by the native-resolution comparison crop. Click an image for native resolution.",
+          "required": true,
+          "title": "Exact selected comparison across all four profiles"
+        }
+      ],
+      "subject_digest": "sha256:bb9f43c5e33d287af91b8a2fd019cbec0e2e0d40fbd93e835bbab2ab98cdfcc4",
+      "subject_id": "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis",
+      "subject_key": "recorded-intraline-emphasis"
+    }
+  ],
+  "title": "Recorded UIforETW intraline emphasis"
+}

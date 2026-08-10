@@ -1,0 +1,21 @@
+{
+    "added_role": "#ff17462b",
+    "appearance": "dark",
+    "base_blob": "b995e189fb58da146945e1fb22380cdf4a7f4e47",
+    "base_commit": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+    "device_pixel_ratio": 1,
+    "fixture_diff_helper_invocations": 0,
+    "head_blob": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+    "head_commit": "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "intraline_edit_count": 5,
+    "logical_height": 1000,
+    "logical_width": 1280,
+    "pixel_height": 1000,
+    "pixel_width": 1280,
+    "qt_platform": "offscreen",
+    "qt_version": "6.11.1",
+    "removed_role": "#ff522829",
+    "schema": "bpr.uiforetw_intraline_capture.v1",
+    "selected_path": "UIforETW/UIforETW.rc",
+    "style": "QFusionStyle"
+}

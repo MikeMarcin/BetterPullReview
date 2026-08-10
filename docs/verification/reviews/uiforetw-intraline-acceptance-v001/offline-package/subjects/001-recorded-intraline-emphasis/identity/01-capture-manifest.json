@@ -1,0 +1,51 @@
+{
+  "schema": "bpr.uiforetw_intraline_capture_manifest.v1",
+  "producing_commit": "ff75096",
+  "build_preset": "dev",
+  "configuration": "Debug",
+  "platform": "macOS arm64",
+  "qt_version": "6.11.1",
+  "qt_platform": "offscreen",
+  "qt_style": "QFusionStyle",
+  "device_pixel_ratio": 1,
+  "logical_dimensions": [1280, 1000],
+  "pixel_dimensions": [1280, 1000],
+  "verification_command": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure",
+  "verification_result": "pass: 1/1, four profile captures plus cut-selection-wire negative",
+  "fixture": {
+    "identity": "google/UIforETW#74",
+    "selected_path": "UIforETW/UIforETW.rc",
+    "base_commit": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+    "head_commit": "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "base_blob": "b995e189fb58da146945e1fb22380cdf4a7f4e47",
+    "head_blob": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+    "recording_sha256": "d46b4521e12851821bf5eb64648664f84924a8f4781ab22fa416017fa29e9aaa",
+    "objects_pack_sha256": "f6016a7f75699daf66c65fbaa2427415687e95177227dea41cd6b01443563c50"
+  },
+  "captures": [
+    {
+      "profile": "light",
+      "full_window_sha256": "61292db7921ef56fbdb58f773af2f45d4d854086a040861d6d4ae03d720527ef",
+      "intraline_comparison_sha256": "c76a357a9a7dd39334b2432afe084980654aed113150c9c137d3549736753ab4",
+      "facts_sha256": "4e01f8b724768979ce407e26aa618d19d07a263a3d3fa078862ee46273e88938"
+    },
+    {
+      "profile": "dark",
+      "full_window_sha256": "fd62c5dc41d0f617fff6a7fe1137512fe550e1b94802c7c26791cbaadae39db2",
+      "intraline_comparison_sha256": "c15a37a7a40365134131168e7b7c2a4ba6be785e6a8ccd8536f059cbcd5c1a9e",
+      "facts_sha256": "6c2bde9c40d9b9667b0e244728ddeab5a727246892171271740b1e36e3329ea4"
+    },
+    {
+      "profile": "high-contrast-light",
+      "full_window_sha256": "7b0b5c472db02f90b0cb5da1a327c5904c473200bcfcde32359f6e38bc9c661a",
+      "intraline_comparison_sha256": "092a7a2b39c29fef51086ad37f374a9bd6e674981a242111626cd6197db59fc7",
+      "facts_sha256": "d18a2d434d890d972737533c6c7892f843ee0ce4883d0c8e867d57752e4d5a0f"
+    },
+    {
+      "profile": "high-contrast-dark",
+      "full_window_sha256": "c2ae85ada13359ffcd071eec6de664f7a08c76cb0b9b4498c32272248204365a",
+      "intraline_comparison_sha256": "5c54cd1de16ad62c9128bdd6fa365933cfde9b3d28ab4252210a2c3faf90103d",
+      "facts_sha256": "8d9ce6f81eef41fddec6de11e8339f35e384b5df8f7132148aaaea35b3d0fe9a"
+    }
+  ]
+}

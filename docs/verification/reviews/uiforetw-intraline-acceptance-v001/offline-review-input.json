@@ -1,0 +1,80 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Recorded UIforETW intraline emphasis",
+  "review_gate": "uiforetw_intraline_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "bpr_0233_closed": false,
+    "bpr_0214_closed": false,
+    "bpr_0210_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "These are deterministic captures from commit ff75096 using the real recorded google/UIforETW#74 Files-drawer selection path. All runs use Qt 6.11.1 offscreen QFusionStyle at device pixel ratio 1. Judge only the visible intraline-emphasis criterion. Native operating-system appearance integration, BPR-0220 geometry-rebuild attribution, BPR-0210 remediation, RFC closeout, and release readiness are outside this batch.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis",
+      "subject_key": "recorded-intraline-emphasis",
+      "display_name": "Do the recorded replacement rows visibly identify the characters that changed in all four profiles?",
+      "description": "The selected UIforETW.rc comparison contains two near-identical replacement pairs: 464,28 becomes 464,24 and 464,42 becomes 464,36. Whole-line red and green bands identify changed lines; the narrower role-coloured marks must identify the differing digits without drifting to another row or disappearing. Review the same exact blobs in Light, Dark, High-contrast Light, and High-contrast Dark.",
+      "acceptance_criteria": [
+        "Each removed replacement row has a narrow intraline-removed mark distinct from its whole-line removed band",
+        "Each added replacement row has a narrow intraline-added mark distinct from its whole-line added band",
+        "The narrow marks align with the changed coordinate digits rather than another row or unrelated text",
+        "The emphasis remains visibly distinguishable in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "known_concerns": [
+        "The captures are offscreen QFusionStyle evidence, not a claim about native macOS, Windows, or Linux styling.",
+        "Long resource-script lines are horizontally clipped by the comparison pane; the changed coordinate region is deliberately centered and visible.",
+        "The deterministic course proves exact commits, blobs, pairs, role assignments, and a cut-wire negative. This decision is only the human visual judgement of the resulting pixels."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The registered product contract passed four exact-profile captures and a fifth run with the real Qt selection wire cut. It required three named replacement pairs across Resource.h and UIforETW.rc, exact base/head blobs, non-full-width removed/added role selections, and zero fixture-diff helper invocations."
+      },
+      "media_groups": [
+        {
+          "group_id": "state-captures",
+          "title": "Exact selected comparison across all four profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Each profile has a full application view followed by the native-resolution comparison crop. Click an image for native resolution.",
+          "items": [
+            { "label": "Light — full window", "path": "captures/light-full-window.png" },
+            { "label": "Light — comparison crop", "path": "captures/light-intraline-comparison.png" },
+            { "label": "Dark — full window", "path": "captures/dark-full-window.png" },
+            { "label": "Dark — comparison crop", "path": "captures/dark-intraline-comparison.png" },
+            { "label": "High-contrast Light — full window", "path": "captures/high-contrast-light-full-window.png" },
+            { "label": "High-contrast Light — comparison crop", "path": "captures/high-contrast-light-intraline-comparison.png" },
+            { "label": "High-contrast Dark — full window", "path": "captures/high-contrast-dark-full-window.png" },
+            { "label": "High-contrast Dark — comparison crop", "path": "captures/high-contrast-dark-intraline-comparison.png" }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Bound identity and deterministic proof",
+          "kind": "definitions",
+          "items": [
+            { "term": "Producing commit", "definition": "ff75096" },
+            { "term": "Selected file", "definition": "UIforETW/UIforETW.rc" },
+            { "term": "Generated comparison", "definition": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc → e40058be7d5fe319342dffb567ce30e42bc6f4de" },
+            { "term": "Exact blobs", "definition": "b995e189fb58da146945e1fb22380cdf4a7f4e47 → 6335c1b2e14cd5e63142ce1dfc283fcf538fb134" },
+            { "term": "Verification", "definition": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure — pass" },
+            { "term": "Capture environment", "definition": "Debug/dev, macOS arm64, Qt 6.11.1, offscreen QFusionStyle, DPR 1, 1280 × 1000" }
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" },
+        { "label": "Light capture facts", "path": "captures/light-capture-facts.json" },
+        { "label": "Dark capture facts", "path": "captures/dark-capture-facts.json" },
+        { "label": "High-contrast Light capture facts", "path": "captures/high-contrast-light-capture-facts.json" },
+        { "label": "High-contrast Dark capture facts", "path": "captures/high-contrast-dark-capture-facts.json" }
+      ]
+    }
+  ]
+}
