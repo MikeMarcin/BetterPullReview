@@ -1,7 +1,7 @@
 ---
 id: BPR-0228
 title: Compose review-ledger actionability into the shipped workbench
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0007
 depends_on: [BPR-0226, BPR-0238]
 ---
