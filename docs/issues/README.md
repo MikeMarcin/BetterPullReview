@@ -360,8 +360,8 @@ strict first-party clang-tidy audit, format gate, and documentation gate pass.
 RFC-BPR-0006 has substantial predefined-profile, typography, contrast,
 theme-validator, and syntax component work. It is not complete: done BPR-0236
 keeps the appearance host, System defaults, session switching, and syntax path
-composed when durable appearance storage cannot open. Ready BPR-0237 owns
-semantic customization and safe theme import, BPR-0233 owns recorded
+composed when durable appearance storage cannot open, and done BPR-0237 adds
+semantic customization and safe theme import. BPR-0233 owns recorded
 selected-diff pixels, BPR-0220 owns native rebuild attribution, and
 BPR-0114/BPR-0115 retain attended and terminal closeout work.
 
@@ -454,8 +454,8 @@ pretending to complete them inside the review:
   process-boundary default network denial before BPR-0142 can use a live
   provider. Done BPR-0236 supplies the promised appearance fallback when its
   durable store cannot open.
-- In-progress BPR-0237 and BPR-0240, done BPR-0238, and backlog BPR-0239
-  own required component scope missed by the first review pass: theme
+- In-progress BPR-0240, done BPR-0237 and BPR-0238, and backlog BPR-0239 own
+  required component scope missed by the first review pass: theme
   customization/import, durable ledger state, queue filtering/sorting, and
   exact agent context/process lifecycle.
 - Done BPR-0234 hardens the closeout contract. BPR-0241 through BPR-0245 are
@@ -469,8 +469,8 @@ path remains absent.
 
 ### Open right now
 
-With BPR-0234, BPR-0236, and BPR-0238 done, thirty-four cards remain in
-`backlog/`, three in `ready/`, and two in `in-progress/`. The groups below
+With BPR-0234, BPR-0236, BPR-0237, and BPR-0238 done, thirty-four cards remain
+in `backlog/`, three in `ready/`, and one in `in-progress/`. The groups below
 describe the actual remaining authority or product surface; closure cards may
 also depend transitively on more than one group.
 
@@ -480,7 +480,7 @@ also depend transitively on more than one group.
 | A designated live GitHub repository | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Owner-authenticated sessions against a safe target |
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta |
 | Product composition | Ready BPR-0226; backlog BPR-0227 through BPR-0232 and BPR-0223 | Connect the implemented workbench, diff, ledger, review, defect, queue, notification, and agent capabilities to public gestures and projections |
-| Missing component and resilience scope | Ready BPR-0235; in-progress BPR-0237 and BPR-0240; backlog BPR-0239; done BPR-0238 | Enforce durable live-test isolation and complete required theme, queue, and agent contracts; durable ledger state and BPR-0236's appearance-storage fallback are done |
+| Missing component and resilience scope | Ready BPR-0235; in-progress BPR-0240; backlog BPR-0239; done BPR-0237 and BPR-0238 | Enforce durable live-test isolation and complete required queue and agent contracts; theme customization, durable ledger state, and BPR-0236's appearance-storage fallback are done |
 | Recorded selected-diff proof | BPR-0233, gating BPR-0214, BPR-0210, and BPR-0100 | BPR-0187 already serves UIforETW; the remaining work is to select its diff and prove semantic ranges and rendered intraline-role pixels |
 | Closeout rigor and terminal cards | Done BPR-0234; backlog BPR-0241 through BPR-0245 | Replay each now-anchored executable checklist and retain a live terminal card for each Proposed RFC |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |

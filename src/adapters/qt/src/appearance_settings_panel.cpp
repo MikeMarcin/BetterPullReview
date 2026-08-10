@@ -1,15 +1,22 @@
 #include "bpr/qt/appearance_settings_panel.hpp"
 
+#include "bpr/qt/appearance_profile.hpp"
+
 #include <QCheckBox>
+#include <QColor>
 #include <QComboBox>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
 
 #include <cstdint>
+#include <string>
 #include <utility>
 
 namespace bpr::qt {
@@ -86,6 +93,52 @@ namespace bpr::qt {
 			return { };
 		}
 
+		[[nodiscard]] auto theme_reason_text(const core::theme_import_reason aReason)
+			-> QString
+		{
+			switch (aReason) {
+			case core::theme_import_reason::document_too_large:
+				return QStringLiteral("the document is larger than the safe limit");
+			case core::theme_import_reason::malformed_document:
+				return QStringLiteral("the document structure is malformed");
+			case core::theme_import_reason::unsupported_version:
+				return QStringLiteral("the theme version is unsupported");
+			case core::theme_import_reason::unknown_field:
+				return QStringLiteral("the document contains an unknown field");
+			case core::theme_import_reason::duplicate_field:
+				return QStringLiteral("the document repeats a field");
+			case core::theme_import_reason::missing_field:
+				return QStringLiteral("the document omits a required field");
+			case core::theme_import_reason::external_reference:
+				return QStringLiteral("external references are not allowed");
+			case core::theme_import_reason::include_directive:
+				return QStringLiteral("include directives are not allowed");
+			case core::theme_import_reason::style_payload:
+				return QStringLiteral("style payloads are not allowed");
+			case core::theme_import_reason::executable_payload:
+				return QStringLiteral("executable payloads are not allowed");
+			case core::theme_import_reason::malformed_color:
+				return QStringLiteral("a semantic colour is malformed");
+			}
+			return QStringLiteral("the document was refused");
+		}
+
+		[[nodiscard]] auto variant_text(const core::appearance_variant aVariant)
+			-> QString
+		{
+			switch (aVariant) {
+			case core::appearance_variant::light:
+				return QStringLiteral("Light");
+			case core::appearance_variant::dark:
+				return QStringLiteral("Dark");
+			case core::appearance_variant::high_contrast_light:
+				return QStringLiteral("High contrast light");
+			case core::appearance_variant::high_contrast_dark:
+				return QStringLiteral("High contrast dark");
+			}
+			return { };
+		}
+
 		/// \brief Applies the core's own bounds to one numeric control.
 		///
 		/// \details Taken from `core::bounds_of` rather than restated, so the
@@ -148,6 +201,27 @@ namespace bpr::qt {
 		SyntaxBold   = new QCheckBox{ QStringLiteral("Bold syntax emphasis"), this };
 		SyntaxItalic = new QCheckBox{ QStringLiteral("Italic syntax emphasis"), this };
 
+		RoleSelector = new QComboBox{ this };
+		RoleSelector->setAccessibleName(QStringLiteral("Semantic colour role"));
+		for (auto index = std::size_t{ 0U };
+			 index < core::appearance_role_count;
+			 ++index) {
+			const auto name = core::stable_name(
+				static_cast<core::appearance_role>(index));
+			RoleSelector->addItem(
+				QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())),
+				static_cast<int>(index));
+		}
+		ColorEditor = new QLineEdit{ this };
+		ColorEditor->setAccessibleName(QStringLiteral("Semantic colour value"));
+		ColorEditor->setPlaceholderText(QStringLiteral("#rrggbb or #aarrggbb"));
+		PreviewButton = new QPushButton{ QStringLiteral("Preview"), this };
+		CommitButton  = new QPushButton{ QStringLiteral("Commit"), this };
+		CancelButton  = new QPushButton{ QStringLiteral("Cancel preview"), this };
+		ImportButton  = new QPushButton{ QStringLiteral("Import theme…"), this };
+		CommitButton->setEnabled(false);
+		CancelButton->setEnabled(false);
+
 		Status = new QLabel{ this };
 		Status->setWordWrap(true);
 		Status->setAccessibleName(QStringLiteral("Appearance settings status"));
@@ -173,10 +247,22 @@ namespace bpr::qt {
 		codeForm->addRow(SyntaxBold);
 		codeForm->addRow(SyntaxItalic);
 
+		auto* const colorGroup = new QGroupBox{ QStringLiteral("Semantic colours"), this };
+		auto* const colorForm  = new QFormLayout{ colorGroup };
+		colorForm->addRow(QStringLiteral("Role"), RoleSelector);
+		colorForm->addRow(QStringLiteral("Colour"), ColorEditor);
+		auto* const colorActions = new QHBoxLayout{ };
+		colorActions->addWidget(PreviewButton);
+		colorActions->addWidget(CommitButton);
+		colorActions->addWidget(CancelButton);
+		colorActions->addWidget(ImportButton);
+		colorForm->addRow(colorActions);
+
 		auto* const layout   = new QVBoxLayout{ this };
 		auto* const modeForm = new QFormLayout{ };
 		modeForm->addRow(QStringLiteral("Appearance"), ModeSelector);
 		layout->addLayout(modeForm);
+		layout->addWidget(colorGroup);
 		layout->addWidget(uiGroup);
 		layout->addWidget(codeGroup);
 		layout->addWidget(Status);
@@ -186,6 +272,27 @@ namespace bpr::qt {
 			&QComboBox::currentIndexChanged,
 			this,
 			[this](int) { dispatch_mode(); });
+		QObject::connect(
+			RoleSelector,
+			&QComboBox::currentIndexChanged,
+			this,
+			[this](int) { show_selected_color(); });
+		QObject::connect(
+			PreviewButton, &QPushButton::clicked, this, [this] {
+				dispatch_palette_preview();
+			});
+		QObject::connect(
+			CommitButton, &QPushButton::clicked, this, [this] {
+				dispatch_palette_commit();
+			});
+		QObject::connect(
+			CancelButton, &QPushButton::clicked, this, [this] {
+				dispatch_palette_cancel();
+			});
+		QObject::connect(
+			ImportButton, &QPushButton::clicked, this, [this] {
+				select_theme_file();
+			});
 
 		const auto onTypography = [this] { dispatch_typography(); };
 		QObject::connect(UiFamily, &QLineEdit::editingFinished, this, onTypography);
@@ -203,6 +310,7 @@ namespace bpr::qt {
 				});
 		}
 
+		CommittedPalette = AdoptedSettings.Palette;
 		show_adopted();
 	}
 
@@ -221,11 +329,104 @@ namespace bpr::qt {
 	void appearance_settings_panel::adopt(
 		const application::appearance_settings& aSettings)
 	{
-		AdoptedSettings = aSettings;
+		adopt(aSettings, aSettings.Palette, std::nullopt);
+	}
+
+	void appearance_settings_panel::adopt(
+		const application::appearance_settings& aSettings,
+		const core::appearance_palette&         aResolvedPalette)
+	{
+		adopt(aSettings, aResolvedPalette, std::nullopt);
+	}
+
+	void appearance_settings_panel::adopt(
+		const application::appearance_settings& aSettings,
+		const core::appearance_palette&         aResolvedPalette,
+		std::optional<core::appearance_palette> aActivePreview)
+	{
+		AdoptedSettings  = aSettings;
+		CommittedPalette = aResolvedPalette;
+		PreviewPalette   = std::move(aActivePreview);
 		++Statistics.Adoptions;
 		show_adopted();
+		Status->setText(with_persistence_status(PreviewPalette.has_value()
+													? QStringLiteral(
+														  "Appearance settings are in effect; the palette preview remains unsaved.")
+													: QStringLiteral("Appearance settings are in effect.")));
+	}
+
+	void appearance_settings_panel::preview_import(
+		const core::appearance_palette& aPalette)
+	{
+		PreviewPalette = aPalette;
+		show_selected_color();
+		CommitButton->setEnabled(true);
+		CancelButton->setEnabled(true);
 		Status->setText(with_persistence_status(
-			QStringLiteral("Appearance settings are in effect.")));
+			QStringLiteral("Imported theme is previewed only; commit to save it.")));
+	}
+
+	void appearance_settings_panel::report(
+		const std::span<const core::theme_import_rejection> aRejections)
+	{
+		++Statistics.Rejections;
+		auto text = QStringLiteral(
+			"Theme import refused; the committed palette is unchanged:");
+		for (const auto& rejection : aRejections) {
+			text += QStringLiteral("\n· Line %1, %2: %3")
+						.arg(static_cast<qulonglong>(rejection.Line))
+						.arg(QString::fromStdString(rejection.Subject))
+						.arg(theme_reason_text(rejection.Reason));
+		}
+		Status->setText(with_persistence_status(std::move(text)));
+	}
+
+	void appearance_settings_panel::report(
+		const std::span<const application::appearance_contrast_rejection> aRejections)
+	{
+		++Statistics.Rejections;
+		auto text = QStringLiteral(
+			"Palette refused; the committed palette is unchanged:");
+		for (const auto& rejection : aRejections) {
+			const auto foreground = core::stable_name(rejection.Finding.Pair.Foreground);
+			const auto background = core::stable_name(rejection.Finding.Pair.Background);
+			text += QStringLiteral("\n· %1: %2 on %3 is %4:1; %5:1 is required")
+						.arg(variant_text(rejection.Variant))
+						.arg(QString::fromUtf8(
+							foreground.data(), static_cast<qsizetype>(foreground.size())))
+						.arg(QString::fromUtf8(
+							background.data(), static_cast<qsizetype>(background.size())))
+						.arg(static_cast<double>(rejection.Finding.RatioHundredths) / 100.0,
+							 0,
+							 'f',
+							 2)
+						.arg(static_cast<double>(rejection.Finding.MinimumHundredths) / 100.0,
+							 0,
+							 'f',
+							 2);
+		}
+		Status->setText(with_persistence_status(std::move(text)));
+	}
+
+	void appearance_settings_panel::report_theme_document_unavailable()
+	{
+		++Statistics.Rejections;
+		Status->setText(with_persistence_status(QStringLiteral(
+			"Theme import failed because the selected local file could not be read; "
+			"the committed palette is unchanged.")));
+	}
+
+	void appearance_settings_panel::request_theme_import(const QString& aPath)
+	{
+		if (aPath.isEmpty()) {
+			return;
+		}
+		++Statistics.ThemeImports;
+		if (Dispatch) {
+			Dispatch(application::import_appearance_theme_intent{
+				.Path = aPath.toStdString(),
+			});
+		}
 	}
 
 	void appearance_settings_panel::report(
@@ -317,6 +518,42 @@ namespace bpr::qt {
 		return SyntaxItalic;
 	}
 
+	auto appearance_settings_panel::role_selector() const noexcept -> QComboBox*
+	{
+		return RoleSelector;
+	}
+
+	auto appearance_settings_panel::color_editor() const noexcept -> QLineEdit*
+	{
+		return ColorEditor;
+	}
+
+	auto appearance_settings_panel::preview_button() const noexcept -> QPushButton*
+	{
+		return PreviewButton;
+	}
+
+	auto appearance_settings_panel::commit_button() const noexcept -> QPushButton*
+	{
+		return CommitButton;
+	}
+
+	auto appearance_settings_panel::cancel_button() const noexcept -> QPushButton*
+	{
+		return CancelButton;
+	}
+
+	auto appearance_settings_panel::import_button() const noexcept -> QPushButton*
+	{
+		return ImportButton;
+	}
+
+	auto appearance_settings_panel::preview_palette() const noexcept
+		-> const std::optional<core::appearance_palette>&
+	{
+		return PreviewPalette;
+	}
+
 	auto appearance_settings_panel::status_text() const -> QString
 	{
 		return Status->text();
@@ -366,6 +603,85 @@ namespace bpr::qt {
 		}
 	}
 
+	void appearance_settings_panel::dispatch_palette_preview()
+	{
+		const auto index = RoleSelector->currentIndex();
+		const auto color = QColor{ ColorEditor->text() };
+		if (index < 0
+			|| static_cast<std::size_t>(index) >= core::appearance_role_count
+			|| !color.isValid()) {
+			Status->setText(with_persistence_status(QStringLiteral(
+				"Enter a valid #rrggbb or #aarrggbb semantic colour.")));
+			return;
+		}
+		auto palette                             = PreviewPalette.value_or(CommittedPalette);
+		palette[static_cast<std::size_t>(index)] = to_appearance_color(color);
+		PreviewPalette                           = palette;
+		++Statistics.PalettePreviews;
+		CommitButton->setEnabled(true);
+		CancelButton->setEnabled(true);
+		Status->setText(with_persistence_status(
+			QStringLiteral("Palette is previewed only; commit to save it.")));
+		if (Dispatch) {
+			Dispatch(application::preview_appearance_palette_intent{
+				.Palette = std::move(palette),
+			});
+		}
+	}
+
+	void appearance_settings_panel::dispatch_palette_commit()
+	{
+		if (!PreviewPalette.has_value()) {
+			return;
+		}
+		++Statistics.PaletteCommits;
+		if (Dispatch) {
+			Dispatch(application::commit_appearance_palette_intent{
+				.Palette = *PreviewPalette,
+			});
+		}
+	}
+
+	void appearance_settings_panel::dispatch_palette_cancel()
+	{
+		if (!PreviewPalette.has_value()) {
+			return;
+		}
+		PreviewPalette.reset();
+		++Statistics.PaletteCancels;
+		show_selected_color();
+		CommitButton->setEnabled(PreviewPalette.has_value());
+		CancelButton->setEnabled(PreviewPalette.has_value());
+		Status->setText(with_persistence_status(
+			QStringLiteral("Preview cancelled; the committed palette is restored.")));
+		if (Dispatch) {
+			Dispatch(application::cancel_appearance_palette_preview_intent{ });
+		}
+	}
+
+	void appearance_settings_panel::select_theme_file()
+	{
+		request_theme_import(QFileDialog::getOpenFileName(
+			this,
+			QStringLiteral("Import appearance theme"),
+			{ },
+			QStringLiteral("BetterPullReview themes (*.bprtheme *.theme);;All files (*)")));
+	}
+
+	void appearance_settings_panel::show_selected_color()
+	{
+		const auto index = RoleSelector->currentIndex();
+		if (index < 0
+			|| static_cast<std::size_t>(index) >= core::appearance_role_count) {
+			ColorEditor->clear();
+			return;
+		}
+		const auto& palette = PreviewPalette.value_or(CommittedPalette);
+		ColorEditor->setText(
+			to_presentation_color(palette[static_cast<std::size_t>(index)])
+				.name(QColor::HexArgb));
+	}
+
 	auto appearance_settings_panel::composed_typography() const
 		-> core::typography_settings
 	{
@@ -412,6 +728,9 @@ namespace bpr::qt {
 		Ligatures->setChecked(record.Typography.Code.Ligatures);
 		SyntaxBold->setChecked(record.Typography.Code.SyntaxBold);
 		SyntaxItalic->setChecked(record.Typography.Code.SyntaxItalic);
+		show_selected_color();
+		CommitButton->setEnabled(PreviewPalette.has_value());
+		CancelButton->setEnabled(PreviewPalette.has_value());
 		Echoing = false;
 	}
 

@@ -495,7 +495,9 @@ namespace {
 		// costing a complete-blob pass. The token-span cache is keyed by blob
 		// identity and definition version alone, so a submission count that
 		// moved across an appearance change means the key acquired a colour.
-		bool SyntaxThemeRepaintPassed = false;
+		bool                       SyntaxThemeRepaintPassed = false;
+		std::optional<std::string> ThemeCustomizationPath;
+		bool                       ThemeCustomizationPassed = false;
 		// Whether this run should drive the composed settings surface. Off by
 		// default so every other probe keeps reporting the settings the record
 		// held, unchanged by anything this process did.
@@ -2265,6 +2267,11 @@ namespace {
 			stream << (aRun.SyntaxThemeRepaintPassed
 						   ? "SYNTAX_THEME_REPAINT_OK\n"
 						   : "SYNTAX_THEME_REPAINT_FAILED\n");
+			if (aRun.ThemeCustomizationPath.has_value()) {
+				stream << (aRun.ThemeCustomizationPassed
+							   ? "APPEARANCE_THEME_CUSTOMIZATION_OK\n"
+							   : "APPEARANCE_THEME_CUSTOMIZATION_FAILED\n");
+			}
 		}
 		if (aRun.DiffShutdownProbe) {
 			stream << (passed ? "DIFF_WORKBENCH_SHUTDOWN_OK\n"
@@ -2834,6 +2841,22 @@ namespace {
 						if (!ready) {
 							break;
 						}
+						if (aRun->ThemeCustomizationPath.has_value()
+							&& !aRun->ThemeCustomizationPassed) {
+							const auto outcome = bpr::app::detail::
+								github_application_fixture_access::
+									exercise_appearance_theme_customization(
+										aApplication,
+										*aRun->ThemeCustomizationPath);
+							if (outcome == bpr::app::detail::appearance_theme_customization_probe_result::pending) {
+								break;
+							}
+							if (outcome == bpr::app::detail::appearance_theme_customization_probe_result::failed) {
+								fail_automated_run(aApplication, *aRun);
+								break;
+							}
+							aRun->ThemeCustomizationPassed = true;
+						}
 						window.resize(1'280, 1'000);
 						QApplication::processEvents();
 						// The same assertion the appearance probe makes, in the
@@ -2878,18 +2901,28 @@ namespace {
 						// A theme change must repaint from the retained spans;
 						// if it reparses, the submission count says so.
 						{
-							const auto adoptedBefore   = aApplication.status()
-															 .AdoptedClassifications;
-							const auto submittedBefore = aApplication.status()
-															 .ClassificationSubmissions;
-							const auto switched        = bpr::app::detail::
-								github_application_fixture_access::
-									select_other_appearance_mode(aApplication);
-							QApplication::processEvents();
-							aRun->SyntaxThemeRepaintPassed = switched
-								&& adoptedBefore > 0U
-								&& aApplication.status().ClassificationSubmissions
-									== submittedBefore;
+							if (aRun->ThemeCustomizationPath.has_value()) {
+								// The customization course already changed colours
+								// twice on this selected classified comparison and
+								// compared the host submission count exactly. A
+								// second mode gesture here would add an unrelated
+								// durable write and weaken the one-write contract.
+								aRun->SyntaxThemeRepaintPassed
+									= aRun->ThemeCustomizationPassed;
+							} else {
+								const auto adoptedBefore   = aApplication.status()
+																 .AdoptedClassifications;
+								const auto submittedBefore = aApplication.status()
+																 .ClassificationSubmissions;
+								const auto switched        = bpr::app::detail::
+									github_application_fixture_access::
+										select_other_appearance_mode(aApplication);
+								QApplication::processEvents();
+								aRun->SyntaxThemeRepaintPassed = switched
+									&& adoptedBefore > 0U
+									&& aApplication.status().ClassificationSubmissions
+										== submittedBefore;
+							}
 						}
 
 						const auto retainedResult    = workbench->current_result();
@@ -3606,6 +3639,8 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--diff-workbench-shutdown-probe");
 		const auto appearanceGestureProbe = has_argument(
 			argc, argv, "--appearance-gesture-probe");
+		const auto appearanceThemeCustomizationPath = argument_value(
+			argc, argv, "--appearance-theme-customization-probe");
 		const auto diffEvidenceAppearanceName = argument_value(
 			argc, argv, "--diff-evidence-appearance");
 		// Named rather than boolean, so adding a scheme later is a new name and
@@ -3684,7 +3719,9 @@ auto main(int argc, char** argv) -> int
 		if (attendedLaunch
 			&& (selfTest || renderPath.has_value() || fixtureName.empty()
 				|| diffWorkbenchProbe || diffWorkbenchShutdownProbe
-				|| appearanceGestureProbe || automatedStallProbe
+				|| appearanceGestureProbe
+				|| appearanceThemeCustomizationPath.has_value()
+				|| automatedStallProbe
 				|| epochMaintenanceProbe || nativeAppearanceProbe
 				|| diffEvidenceDirectory.has_value())) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
@@ -3716,6 +3753,12 @@ auto main(int argc, char** argv) -> int
 		if (appearanceGestureProbe && !selectedFixture.has_value()) {
 			QTextStream{ stdout }
 				<< "APPEARANCE_GESTURE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (appearanceThemeCustomizationPath.has_value()
+			&& (!diffWorkbenchProbe || !selectedFixture.has_value())) {
+			QTextStream{ stdout }
+				<< "APPEARANCE_THEME_CUSTOMIZATION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
 #endif
@@ -3782,6 +3825,7 @@ auto main(int argc, char** argv) -> int
 						.Fixture                = !fixtureName.empty(),
 						.AppearanceGestureProbe = appearanceGestureProbe,
 						.DiffProbe              = diffWorkbenchProbe,
+						.ThemeCustomizationPath = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,
 						.DiffShutdownProbe      = diffWorkbenchShutdownProbe,
 						.StallProbe             = automatedStallProbe,
 						.FixtureName            = std::move(fixtureName),

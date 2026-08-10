@@ -7,10 +7,13 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QColor>
 #include <QComboBox>
 #include <QLineEdit>
+#include <QPushButton>
 #include <QSpinBox>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -72,6 +75,18 @@ namespace {
 				}
 			}
 			return std::nullopt;
+		}
+
+		template <typename Intent>
+		[[nodiscard]] auto last() const -> const Intent*
+		{
+			for (auto index = Intents.size(); index > 0U; --index) {
+				if (const auto* const intent
+					= std::get_if<Intent>(&Intents[index - 1U])) {
+					return intent;
+				}
+			}
+			return nullptr;
 		}
 
 		void clear()
@@ -289,6 +304,136 @@ namespace {
 				&& panel.ligatures_switch()->isChecked(),
 			"every adopted value is shown");
 	}
+
+	void test_semantic_palette_preview_commit_cancel_and_import_are_intents()
+	{
+		auto recorded       = recorder{ };
+		auto panel          = qt::appearance_settings_panel{ recorded.sink() };
+		auto adopted        = legal_settings();
+		adopted.Mode        = core::appearance_mode::system;
+		const auto resolved = qt::builtin_appearance_palette(
+			core::appearance_variant::dark);
+		adopted.Palette       = resolved;
+		adopted.PaletteStored = true;
+		panel.adopt(adopted, resolved);
+		recorded.clear();
+
+		expect(static_cast<std::size_t>(panel.role_selector()->count())
+				   == core::appearance_role_count,
+			   "the colour editor offers every role in the core vocabulary");
+		const auto roleIndex = core::index_of(
+			core::appearance_role::diff_group_boundary_rule);
+		panel.role_selector()->setCurrentIndex(static_cast<int>(roleIndex));
+		panel.color_editor()->setText(QStringLiteral("#aabbccdd"));
+		panel.preview_button()->click();
+
+		const auto* const preview
+			= recorded.last<application::preview_appearance_palette_intent>();
+		expect(preview != nullptr
+				   && preview->Palette[roleIndex]
+					   == core::appearance_color{ 187U, 204U, 221U, 170U }
+				   && preview->Palette[core::index_of(
+						  core::appearance_role::code_background)]
+					   == resolved[core::index_of(
+						   core::appearance_role::code_background)],
+			   "preview dispatches one total semantic palette using core colours");
+		expect(panel.adopted() == adopted,
+			   "preview does not alter the host-adopted record mirrored by the widget");
+		expect(panel.commit_button()->isEnabled()
+				   && panel.cancel_button()->isEnabled(),
+			   "a preview exposes explicit commit and cancel actions");
+
+		const auto previewedPalette = preview->Palette;
+		panel.commit_button()->click();
+		const auto* const commit
+			= recorded.last<application::commit_appearance_palette_intent>();
+		expect(commit != nullptr && commit->Palette == previewedPalette,
+			   "commit sends exactly the total palette that was previewed");
+		panel.cancel_button()->click();
+		expect(recorded.last<application::cancel_appearance_palette_preview_intent>()
+					   != nullptr
+				   && !panel.preview_palette().has_value(),
+			   "cancel clears the local preview and dispatches no replacement palette");
+		expect(panel.color_editor()->text()
+				   == qt::to_presentation_color(resolved[roleIndex])
+						  .name(QColor::HexArgb),
+			   "cancel restores the exact resolved System colour in the editor");
+
+		panel.request_theme_import(QStringLiteral("/fixture/theme.bprtheme"));
+		const auto* const import
+			= recorded.last<application::import_appearance_theme_intent>();
+		expect(import != nullptr && import->Path == "/fixture/theme.bprtheme",
+			   "Qt dispatches only the selected path and performs no document read");
+
+		auto imported             = resolved;
+		imported[roleIndex].Alpha = 91U;
+		const auto before         = recorded.count();
+		panel.preview_import(imported);
+		expect(panel.preview_palette() == std::optional{ imported }
+				   && recorded.count() == before,
+			   "a host-validated import is mirrored as preview without control echo");
+
+		auto unrelatedAdoption = adopted;
+		unrelatedAdoption.Typography.Code.TabWidth += 1U;
+		panel.adopt(
+			unrelatedAdoption,
+			resolved,
+			std::optional{ imported });
+		expect(
+			panel.preview_palette() == std::optional{ imported },
+			"an unrelated host adoption retains the exact active preview");
+		expect(
+			panel.commit_button()->isEnabled()
+				&& panel.cancel_button()->isEnabled(),
+			"an unrelated host adoption retains commit and cancel authority");
+		expect(
+			panel.status_text().contains(QStringLiteral("remains unsaved")),
+			"an unrelated host adoption still identifies the palette as a preview");
+
+		panel.adopt(unrelatedAdoption, imported);
+		expect(
+			!panel.preview_palette().has_value()
+				&& !panel.commit_button()->isEnabled()
+				&& !panel.cancel_button()->isEnabled(),
+			"a terminal palette adoption clears the preview and both actions");
+	}
+
+	void test_theme_and_contrast_refusals_remain_typed_and_visible()
+	{
+		auto       panel      = qt::appearance_settings_panel{ };
+		const auto structural = std::array{
+			core::theme_import_rejection{
+				.Reason  = core::theme_import_reason::external_reference,
+				.Subject = "https://example.invalid/theme",
+				.Line    = 4U,
+			},
+		};
+		panel.report(structural);
+		expect(panel.status_text().contains(QStringLiteral("Line 4"))
+				   && panel.status_text().contains(QStringLiteral("external references")),
+			   "the structural refusal preserves its typed line and reason");
+
+		const auto contrast = std::array{
+			application::appearance_contrast_rejection{
+				.Variant = core::appearance_variant::high_contrast_dark,
+				.Finding = core::contrast_finding{
+					.Pair = core::contrast_pair{
+						.Foreground = core::appearance_role::syntax_keyword,
+						.Background = core::appearance_role::code_background,
+					},
+					.RatioHundredths   = 320U,
+					.MinimumHundredths = 700U,
+					.Meets             = false,
+				},
+			},
+		};
+		panel.report(contrast);
+		expect(panel.status_text().contains(QStringLiteral("High contrast dark"))
+				   && panel.status_text().contains(QStringLiteral("syntax_keyword"))
+				   && panel.status_text().contains(QStringLiteral("3.20:1"))
+				   && panel.status_text().contains(QStringLiteral("7.00:1")),
+			   "the contrast refusal preserves variant, roles, ratio, and threshold");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -302,6 +447,8 @@ auto main(int argc, char** argv) -> int
 	test_a_refusal_restores_and_reports();
 	test_persistence_failure_remains_visible_across_session_changes();
 	test_adoption_shows_without_dispatching();
+	test_semantic_palette_preview_commit_cancel_and_import_are_intents();
+	test_theme_and_contrast_refusals_remain_typed_and_visible();
 	std::cout << "appearance-settings-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

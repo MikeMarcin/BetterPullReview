@@ -1,7 +1,7 @@
 ---
 id: BPR-0237
 title: Implement semantic theme customization preview and safe import
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0236]
 ---

@@ -1,6 +1,7 @@
 #include "bpr/application/appearance_application_host.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -11,6 +12,7 @@
 #include <span>
 #include <stdexcept>
 #include <stop_token>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -21,7 +23,15 @@ namespace bpr::application {
 		enum class appearance_request_domain : std::uint8_t {
 			settings_load,
 			settings_store,
+			theme_import,
 			classification,
+		};
+
+		struct theme_import_attempt
+		{
+			std::optional<core::appearance_palette>    Palette;
+			std::vector<core::theme_import_rejection>  ThemeRejections;
+			std::vector<appearance_contrast_rejection> ContrastRejections;
 		};
 
 		struct staged_settings_load
@@ -34,6 +44,12 @@ namespace bpr::application {
 		{
 			appearance_request_context       Context;
 			appearance_settings_result<void> Result;
+		};
+
+		struct staged_theme_import
+		{
+			appearance_request_context                  Context;
+			theme_document_result<theme_import_attempt> Result;
 		};
 
 		struct staged_classification
@@ -65,6 +81,11 @@ namespace bpr::application {
 			core::typography_settings Typography;
 		};
 
+		struct deferred_appearance_theme_import
+		{
+			std::string Path;
+		};
+
 		struct deferred_appearance_classify
 		{
 			token_span_cache_key Key;
@@ -83,12 +104,37 @@ namespace bpr::application {
 														 deferred_appearance_observe,
 														 deferred_appearance_palette,
 														 deferred_appearance_typography,
+														 deferred_appearance_theme_import,
 														 deferred_appearance_classify,
 														 deferred_appearance_cancel,
 														 deferred_appearance_shutdown,
 														 staged_settings_load,
 														 staged_settings_store,
+														 staged_theme_import,
 														 staged_classification>;
+
+		constexpr auto all_appearance_variants = std::array{
+			core::appearance_variant::light,
+			core::appearance_variant::dark,
+			core::appearance_variant::high_contrast_light,
+			core::appearance_variant::high_contrast_dark,
+		};
+
+		[[nodiscard]] auto contrast_rejections(
+			const core::appearance_palette& aPalette)
+			-> std::vector<appearance_contrast_rejection>
+		{
+			auto rejections = std::vector<appearance_contrast_rejection>{ };
+			for (const auto variant : all_appearance_variants) {
+				for (auto finding : core::failing_contrast(aPalette, variant)) {
+					rejections.push_back(appearance_contrast_rejection{
+						.Variant = variant,
+						.Finding = std::move(finding),
+					});
+				}
+			}
+			return rejections;
+		}
 
 		[[nodiscard]] auto validated_limits(const appearance_host_limits aLimits)
 			-> appearance_host_limits
@@ -168,6 +214,7 @@ namespace bpr::application {
 
 		implementation(appearance_settings                aInitialSettings,
 					   appearance_settings_port&          aSettings,
+					   theme_document_port&               aThemeDocuments,
 					   syntax_classification_port&        aClassification,
 					   effect_executor&                   aEffects,
 					   decision_executor&                 aDecisionLane,
@@ -176,6 +223,7 @@ namespace bpr::application {
 					   const appearance_host_limits       aLimits)
 			: Settings{ validated_settings(std::move(aInitialSettings)) }
 			, SettingsPort{ aSettings }
+			, ThemeDocuments{ aThemeDocuments }
 			, Classifier{ aClassification }
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
@@ -230,6 +278,8 @@ namespace bpr::application {
 						apply_palette_now(aTyped.Palette);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_typography>) {
 						apply_typography_now(std::move(aTyped.Typography));
+					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_import>) {
+						import_theme_now(std::move(aTyped.Path));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_classify>) {
 						classify_now(std::move(aTyped.Key));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_cancel>) {
@@ -240,6 +290,8 @@ namespace bpr::application {
 						finish_settings_load(aTyped.Context, std::move(aTyped.Result));
 					} else if constexpr (std::is_same_v<ingress_type, staged_settings_store>) {
 						finish_settings_store(aTyped.Context, aTyped.Result);
+					} else if constexpr (std::is_same_v<ingress_type, staged_theme_import>) {
+						finish_theme_import(aTyped.Context, std::move(aTyped.Result));
 					} else {
 						finish_classification(std::move(aTyped.Classification));
 					}
@@ -518,6 +570,75 @@ namespace bpr::application {
 			}
 		}
 
+		void submit_theme_import(std::string aPath)
+		{
+			retire(appearance_request_domain::theme_import,
+				   appearance_terminal_rejection::superseded);
+			auto* const record = reserve(appearance_request_domain::theme_import);
+			if (record == nullptr) {
+				publish_failure(local_context(), appearance_host_failure::host_failure);
+				return;
+			}
+			const auto  context = record->Context;
+			const auto  stop    = record->Stop.get_token();
+			const auto  gate    = std::weak_ptr<completion_gate>{ Gate };
+			auto* const port    = &ThemeDocuments;
+			auto* const lane    = &DecisionLane;
+			try {
+				Effects.post([gate, lane, port, context, path = std::move(aPath), stop] {
+					auto staged = staged_theme_import{
+						.Context = context,
+						.Result  = perform_theme_import(*port, path, stop),
+					};
+					lane->post([gate, staged = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(staged));
+					});
+				});
+			} catch (...) {
+				abandon(context.Request);
+				publish_failure(context,
+								appearance_host_failure::theme_document_unavailable);
+			}
+		}
+
+		[[nodiscard]] static auto perform_theme_import(
+			theme_document_port& aPort,
+			const std::string&   aPath,
+			std::stop_token      aStop)
+			-> theme_document_result<theme_import_attempt>
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected{ theme_document_error{
+					.Failure = theme_document_failure::cancelled } };
+			}
+			try {
+				auto document = aPort.read(
+					aPath, core::theme_document_byte_limit + 1U, aStop);
+				if (!document.has_value()) {
+					return std::unexpected{ document.error() };
+				}
+				if (aStop.stop_requested()) {
+					return std::unexpected{ theme_document_error{
+						.Failure = theme_document_failure::cancelled } };
+				}
+				auto parsed  = core::import_theme(*document);
+				auto attempt = theme_import_attempt{
+					.ThemeRejections = std::move(parsed.Rejections),
+				};
+				if (parsed.Palette.has_value()) {
+					attempt.ContrastRejections
+						= contrast_rejections(*parsed.Palette);
+					if (attempt.ContrastRejections.empty()) {
+						attempt.Palette = std::move(parsed.Palette);
+					}
+				}
+				return attempt;
+			} catch (...) {
+				return std::unexpected{ theme_document_error{
+					.Failure = theme_document_failure::unavailable } };
+			}
+		}
+
 		void submit_classification(token_span_cache_key aKey)
 		{
 			auto* const record = reserve(appearance_request_domain::classification);
@@ -656,17 +777,28 @@ namespace bpr::application {
 		/// \brief Adopts a complete settings record and persists it.
 		///
 		/// \details Adoption is whole-record and only ever reached with a record the
-		/// core accepted. A record equal to the retained one is not a change: it
-		/// neither persists nor publishes, so a gesture that ends where it started
-		/// costs presentation nothing.
-		void adopt(appearance_settings aSettings)
+		/// core accepted. A record equal to the retained one is not a change and is
+		/// not persisted. Palette adoption still publishes its typed acknowledgement
+		/// so presentation can finish an equal-preview commit without inventing a
+		/// write or treating an unrelated invalidation as that acknowledgement.
+		void adopt(
+			appearance_settings                         aSettings,
+			std::optional<palette_adoption_publication> aPaletteAdoption = std::nullopt)
 		{
 			if (Settings == aSettings) {
+				if (aPaletteAdoption.has_value()) {
+					publish_changes(local_context(), std::move(aPaletteAdoption));
+				}
 				return;
 			}
+			// A reviewer gesture is newer than a startup read that has not reached
+			// the decision lane. Letting that older terminal adopt afterward would
+			// split the visible session from the record this gesture just stored.
+			retire(appearance_request_domain::settings_load,
+				   appearance_terminal_rejection::superseded);
 			Settings = std::move(aSettings);
 			submit_settings_store();
-			publish_changes(local_context());
+			publish_changes(local_context(), std::move(aPaletteAdoption));
 		}
 
 		void select_now(const core::appearance_mode aMode)
@@ -703,9 +835,25 @@ namespace bpr::application {
 			if (Closing) {
 				return;
 			}
-			auto next    = Settings;
-			next.Palette = aPalette;
-			adopt(std::move(next));
+			const auto rejections = contrast_rejections(aPalette);
+			if (!rejections.empty()) {
+				publish_contrast_rejection(local_context(), rejections);
+				return;
+			}
+			auto next          = Settings;
+			next.Palette       = aPalette;
+			next.PaletteStored = true;
+			adopt(
+				std::move(next),
+				palette_adoption_publication{ .Palette = aPalette });
+		}
+
+		void import_theme_now(std::string aPath)
+		{
+			if (Closing) {
+				return;
+			}
+			submit_theme_import(std::move(aPath));
 		}
 
 		/// \brief Adopts typography the core accepts and refuses what it rejects.
@@ -843,6 +991,37 @@ namespace bpr::application {
 			++PersistedSettings;
 		}
 
+		void finish_theme_import(
+			const appearance_request_context&           aContext,
+			theme_document_result<theme_import_attempt> aResult)
+		{
+			const auto claimed = claim(aContext,
+									   appearance_request_domain::theme_import);
+			if (claimed.Rejection != appearance_terminal_rejection::none) {
+				refuse(claimed.Rejection);
+				return;
+			}
+			if (!aResult.has_value()) {
+				publish_failure(aContext,
+								appearance_host_failure::theme_document_unavailable);
+				return;
+			}
+			if (!aResult->ThemeRejections.empty()) {
+				publish_theme_rejection(aContext, aResult->ThemeRejections);
+				return;
+			}
+			if (!aResult->ContrastRejections.empty()) {
+				publish_contrast_rejection(
+					aContext, aResult->ContrastRejections);
+				return;
+			}
+			if (!aResult->Palette.has_value()) {
+				publish_failure(aContext, appearance_host_failure::host_failure);
+				return;
+			}
+			publish_theme_preview(aContext, *aResult->Palette);
+		}
+
 		void finish_classification(syntax_classification aClassification)
 		{
 			const auto claimed = claim(aClassification.Context,
@@ -887,7 +1066,9 @@ namespace bpr::application {
 		///
 		/// This is the whole of what an appearance change does. It engages no review
 		/// state and touches no cache entry.
-		void publish_changes(const appearance_request_context& aContext)
+		void publish_changes(
+			const appearance_request_context&           aContext,
+			std::optional<palette_adoption_publication> aPaletteAdoption = std::nullopt)
 		{
 			if (Closing) {
 				return;
@@ -904,17 +1085,23 @@ namespace bpr::application {
 			if (PublishedTypography != Settings.Typography) {
 				invalidation.Typography = Settings.Typography;
 			}
-			if (empty(invalidation)) {
+			if (empty(invalidation) && !aPaletteAdoption.has_value()) {
 				return;
 			}
-			Epoch                 = appearance_epoch{ Epoch.value() + 1U };
-			invalidation.Epoch    = Epoch;
-			PublishedResolution   = resolution;
-			PublishedPalette      = Settings.Palette;
-			PublishedTypography   = Settings.Typography;
+			auto presentation
+				= std::optional<appearance_presentation_invalidation>{ };
+			if (!empty(invalidation)) {
+				Epoch               = appearance_epoch{ Epoch.value() + 1U };
+				invalidation.Epoch  = Epoch;
+				PublishedResolution = resolution;
+				PublishedPalette    = Settings.Palette;
+				PublishedTypography = Settings.Typography;
+				presentation        = std::move(invalidation);
+			}
 			const auto projection = appearance_projection{
-				.Context      = aContext,
-				.Presentation = std::move(invalidation),
+				.Context         = aContext,
+				.Presentation    = std::move(presentation),
+				.PaletteAdoption = std::move(aPaletteAdoption),
 			};
 			deliver_projection(
 				[this, &projection] { Projections.publish(projection); });
@@ -935,6 +1122,21 @@ namespace bpr::application {
 					.Spans    = std::move(aSpans),
 					.CacheHit = aCacheHit,
 				},
+			};
+			deliver_projection(
+				[this, &projection] { Projections.publish(projection); });
+		}
+
+		void publish_theme_preview(
+			const appearance_request_context& aContext,
+			const core::appearance_palette&   aPalette)
+		{
+			if (Closing) {
+				return;
+			}
+			const auto projection = appearance_projection{
+				.Context      = aContext,
+				.ThemePreview = theme_preview_publication{ .Palette = aPalette },
 			};
 			deliver_projection(
 				[this, &projection] { Projections.publish(projection); });
@@ -970,6 +1172,38 @@ namespace bpr::application {
 			});
 		}
 
+		void publish_theme_rejection(
+			const appearance_request_context&                aContext,
+			const std::vector<core::theme_import_rejection>& aRejections)
+		{
+			if (Closing) {
+				return;
+			}
+			deliver_projection([this, &aContext, &aRejections] {
+				Projections.fail(appearance_failure_publication{
+					.Context         = aContext,
+					.Failure         = appearance_host_failure::theme_import_rejected,
+					.ThemeRejections = aRejections,
+				});
+			});
+		}
+
+		void publish_contrast_rejection(
+			const appearance_request_context&                 aContext,
+			const std::vector<appearance_contrast_rejection>& aRejections)
+		{
+			if (Closing) {
+				return;
+			}
+			deliver_projection([this, &aContext, &aRejections] {
+				Projections.fail(appearance_failure_publication{
+					.Context            = aContext,
+					.Failure            = appearance_host_failure::palette_contrast_rejected,
+					.ContrastRejections = aRejections,
+				});
+			});
+		}
+
 		template <typename Callback>
 		void deliver_projection(Callback&& aCallback)
 		{
@@ -982,6 +1216,7 @@ namespace bpr::application {
 
 		appearance_settings              Settings;
 		appearance_settings_port&        SettingsPort;
+		theme_document_port&             ThemeDocuments;
 		syntax_classification_port&      Classifier;
 		effect_executor&                 Effects;
 		decision_executor&               DecisionLane;
@@ -1020,6 +1255,7 @@ namespace bpr::application {
 	appearance_application_host::appearance_application_host(
 		appearance_settings                aInitialSettings,
 		appearance_settings_port&          aSettings,
+		theme_document_port&               aThemeDocuments,
 		syntax_classification_port&        aClassification,
 		effect_executor&                   aEffects,
 		decision_executor&                 aDecisionLane,
@@ -1028,6 +1264,7 @@ namespace bpr::application {
 		const appearance_host_limits       aLimits)
 		: Implementation{ std::make_unique<implementation>(std::move(aInitialSettings),
 														   aSettings,
+														   aThemeDocuments,
 														   aClassification,
 														   aEffects,
 														   aDecisionLane,
@@ -1069,6 +1306,12 @@ namespace bpr::application {
 	{
 		Implementation->enqueue(
 			deferred_appearance_typography{ .Typography = std::move(aTypography) });
+	}
+
+	void appearance_application_host::import_theme_file(std::string aPath)
+	{
+		Implementation->enqueue(
+			deferred_appearance_theme_import{ .Path = std::move(aPath) });
 	}
 
 	void appearance_application_host::classify(token_span_cache_key aKey)

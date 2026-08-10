@@ -638,7 +638,7 @@ namespace bpr::qt {
 	{
 		auto settings       = application::appearance_settings{ };
 		settings.Mode       = Mode;
-		settings.Palette    = Palette;
+		settings.Palette    = CommittedPalette;
 		settings.Typography = Typography;
 		// This record is what gets written, so its palette is by definition a
 		// stored one. Without saying so, a round trip through the durable
@@ -765,6 +765,41 @@ namespace bpr::qt {
 		}
 		slot = aColor;
 		return adopt();
+	}
+
+	auto appearance_profile::preview_palette(core::appearance_palette aPalette)
+		-> bool
+	{
+		if (PreviewPalette.has_value() && *PreviewPalette == aPalette) {
+			return false;
+		}
+		PreviewPalette = std::move(aPalette);
+		return adopt();
+	}
+
+	auto appearance_profile::cancel_palette_preview() -> bool
+	{
+		if (!PreviewPalette.has_value()) {
+			return false;
+		}
+		PreviewPalette.reset();
+		return adopt();
+	}
+
+	auto appearance_profile::adopt_palette(
+		core::appearance_palette aPalette,
+		palette_preview_adoption aPreview) -> bool
+	{
+		set_committed_palette(aPalette);
+		if (aPreview == palette_preview_adoption::commit) {
+			PreviewPalette.reset();
+		}
+		return adopt();
+	}
+
+	auto appearance_profile::previewing_palette() const noexcept -> bool
+	{
+		return PreviewPalette.has_value();
 	}
 
 	auto appearance_profile::restore(const core::appearance_role aRole) -> bool
@@ -948,6 +983,20 @@ namespace bpr::qt {
 		CodeFont = to_presentation_font(Typography.Code);
 	}
 
+	void appearance_profile::set_committed_palette(
+		const core::appearance_palette& aPalette)
+	{
+		const auto& builtin = builtin_appearance_palette(
+			core::resolve_appearance(Mode, Observation).Variant);
+		for (auto index = std::size_t{ 0U };
+			 index < core::appearance_role_count;
+			 ++index) {
+			Overrides[index] = aPalette[index] == builtin[index]
+				? std::optional<core::appearance_color>{ }
+				: std::optional<core::appearance_color>{ aPalette[index] };
+		}
+	}
+
 	void appearance_profile::rebuild()
 	{
 		Resolution          = core::resolve_appearance(Mode, Observation);
@@ -955,8 +1004,13 @@ namespace bpr::qt {
 		for (auto index = std::size_t{ 0U };
 			 index < core::appearance_role_count;
 			 ++index) {
-			Palette[index] = Overrides[index].value_or(builtin[index]);
-			Colors[index]  = to_presentation_color(Palette[index]);
+			CommittedPalette[index] = Overrides[index].value_or(builtin[index]);
+		}
+		Palette = PreviewPalette.value_or(CommittedPalette);
+		for (auto index = std::size_t{ 0U };
+			 index < core::appearance_role_count;
+			 ++index) {
+			Colors[index] = to_presentation_color(Palette[index]);
 		}
 	}
 

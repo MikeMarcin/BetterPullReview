@@ -1,9 +1,11 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_RUNTIME_PORTS_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_RUNTIME_PORTS_HPP
 
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/model.hpp"
+#include "bpr/core/theme_exchange.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -14,6 +16,7 @@
 #include <optional>
 #include <stop_token>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -142,6 +145,39 @@ namespace bpr::application {
 			const appearance_settings& aSettings,
 			std::stop_token            aStop)
 			-> appearance_settings_result<void> = 0;
+	};
+
+	enum class theme_document_failure : std::uint8_t {
+		unavailable,
+		cancelled,
+	};
+
+	/// \brief Describes a bounded local theme-document read failure.
+	struct theme_document_error
+	{
+		theme_document_failure Failure = theme_document_failure::unavailable;
+
+		auto operator<=>(const theme_document_error&) const = default;
+	};
+
+	template <typename Value>
+	using theme_document_result = std::expected<Value, theme_document_error>;
+
+	/// \brief Reads one local theme document for the appearance host.
+	///
+	/// \details The composition owns the filesystem effect. Qt selects a path but
+	/// never opens it. `MaximumBytes` is inclusive of the one overflow byte the
+	/// core parser needs in order to return its typed `document_too_large`
+	/// rejection rather than accepting a truncated document.
+	class theme_document_port
+	{
+	public:
+		virtual ~theme_document_port() = default;
+
+		[[nodiscard]] virtual auto read(
+			std::string_view aPath,
+			std::size_t      aMaximumBytes,
+			std::stop_token  aStop) -> theme_document_result<std::string> = 0;
 	};
 
 	/// \brief Describes one syntax definition and the revision that produced it.
@@ -297,16 +333,49 @@ namespace bpr::application {
 		bool                 CacheHit = false;
 	};
 
+	/// \brief Preserves the variant alongside one core contrast finding.
+	struct appearance_contrast_rejection
+	{
+		core::appearance_variant Variant = core::appearance_variant::light;
+		core::contrast_finding   Finding;
+
+		auto operator<=>(const appearance_contrast_rejection&) const = default;
+	};
+
+	/// \brief Publishes one imported, validated total palette for preview only.
+	struct theme_preview_publication
+	{
+		core::appearance_palette Palette{ };
+
+		auto operator<=>(const theme_preview_publication&) const = default;
+	};
+
+	/// \brief Acknowledges one host-accepted palette commit intent.
+	///
+	/// \details This is distinct from presentation invalidation. A late durable
+	/// restore can invalidate the palette without accepting a preview, while a
+	/// commit equal to the already-stored palette accepts the preview without
+	/// invalidating pixels or writing the same record again.
+	struct palette_adoption_publication
+	{
+		core::appearance_palette Palette{ };
+
+		auto operator<=>(const palette_adoption_publication&) const = default;
+	};
+
 	/// \brief Describes the appearance projection record.
 	///
-	/// \details Every domain is engaged only when its published meaning changed, so
-	/// a bounded change never forces presentation to rebuild the whole appearance.
-	/// The host publishes nothing when no domain changed.
+	/// \details Every presentation domain is engaged only when its published
+	/// meaning changed, so a bounded change never forces presentation to rebuild
+	/// the whole appearance. A palette-adoption acknowledgement may stand alone:
+	/// it terminates an equal commit without inventing a pixel change.
 	struct appearance_projection
 	{
 		appearance_request_context                          Context;
 		std::optional<appearance_presentation_invalidation> Presentation;
 		std::optional<token_span_publication>               Spans;
+		std::optional<theme_preview_publication>            ThemePreview;
+		std::optional<palette_adoption_publication>         PaletteAdoption;
 	};
 
 	/// \brief Checks whether the supplied projection carries no changed domain.
@@ -314,12 +383,17 @@ namespace bpr::application {
 		const appearance_projection& aProjection) noexcept -> bool
 	{
 		return !aProjection.Presentation.has_value()
-			&& !aProjection.Spans.has_value();
+			&& !aProjection.Spans.has_value()
+			&& !aProjection.ThemePreview.has_value()
+			&& !aProjection.PaletteAdoption.has_value();
 	}
 
 	enum class appearance_host_failure : std::uint8_t {
 		settings_unavailable,
 		settings_rejected,
+		theme_document_unavailable,
+		theme_import_rejected,
+		palette_contrast_rejected,
 		unknown_appearance_mode,
 		classification_unavailable,
 		classification_limit,
@@ -335,9 +409,11 @@ namespace bpr::application {
 	/// a clamped value would tell a settings surface that it was accepted.
 	struct appearance_failure_publication
 	{
-		appearance_request_context              Context;
-		appearance_host_failure                 Failure = appearance_host_failure::host_failure;
-		std::vector<core::typography_rejection> Rejections;
+		appearance_request_context                 Context;
+		appearance_host_failure                    Failure = appearance_host_failure::host_failure;
+		std::vector<core::typography_rejection>    Rejections;
+		std::vector<core::theme_import_rejection>  ThemeRejections;
+		std::vector<appearance_contrast_rejection> ContrastRejections;
 
 		auto operator<=>(const appearance_failure_publication&) const = default;
 	};
@@ -386,14 +462,49 @@ namespace bpr::application {
 		auto operator<=>(const apply_typography_intent&) const = default;
 	};
 
+	/// \brief Offers one total semantic palette for an immediate local preview.
+	struct preview_appearance_palette_intent
+	{
+		core::appearance_palette Palette{ };
+
+		auto operator<=>(const preview_appearance_palette_intent&) const = default;
+	};
+
+	/// \brief Commits one total semantic palette through the application host.
+	struct commit_appearance_palette_intent
+	{
+		core::appearance_palette Palette{ };
+
+		auto operator<=>(const commit_appearance_palette_intent&) const = default;
+	};
+
+	/// \brief Restores presentation to the last palette adopted by the host.
+	struct cancel_appearance_palette_preview_intent
+	{
+		auto operator<=>(const cancel_appearance_palette_preview_intent&) const
+			= default;
+	};
+
+	/// \brief Requests a bounded host-owned read of one local theme document.
+	struct import_appearance_theme_intent
+	{
+		std::string Path;
+
+		auto operator<=>(const import_appearance_theme_intent&) const = default;
+	};
+
 	/// \brief Every gesture an appearance surface can express.
 	///
 	/// \details A closed set, so a surface cannot invent a way to change
-	/// appearance that the host has no rule for. Palette customisation is
-	/// deliberately absent: no card has designed that surface, and adding an
-	/// intent nothing sends would make this list a plan rather than a contract.
-	using appearance_intent
-		= std::variant<select_appearance_mode_intent, apply_typography_intent>;
+	/// appearance that the host has no rule for. Preview is explicitly distinct
+	/// from commit: the former stays in Qt presentation while the latter passes
+	/// through host validation and persistence.
+	using appearance_intent = std::variant<select_appearance_mode_intent,
+										   apply_typography_intent,
+										   preview_appearance_palette_intent,
+										   commit_appearance_palette_intent,
+										   cancel_appearance_palette_preview_intent,
+										   import_appearance_theme_intent>;
 
 	using appearance_intent_dispatch = std::function<void(appearance_intent)>;
 } // namespace bpr::application

@@ -1,6 +1,7 @@
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -70,6 +71,24 @@ namespace {
 		settings.Palette[core::index_of(core::appearance_role::code_background)]
 			= core::appearance_color{ .Red = 20U, .Green = 20U, .Blue = 20U };
 		return settings;
+	}
+
+	[[nodiscard]] auto contrast_safe_palette() -> core::appearance_palette
+	{
+		auto palette = core::appearance_palette{ };
+		palette.fill(core::appearance_color{ .Alpha = 255U });
+		for (const auto& pair : core::required_contrast_pairs()) {
+			palette[core::index_of(pair.Background)]
+				= core::appearance_color{ .Alpha = 255U };
+			if (pair.Wash.has_value()) {
+				palette[core::index_of(*pair.Wash)]
+					= core::appearance_color{ .Alpha = 255U };
+			}
+			palette[core::index_of(pair.Foreground)] = core::appearance_color{
+				.Red = 255U, .Green = 255U, .Blue = 255U, .Alpha = 255U
+			};
+		}
+		return palette;
 	}
 
 	/// \brief Returns a legal durable record that differs in every domain.
@@ -164,6 +183,35 @@ namespace {
 		std::vector<bool>                               StoreStopObserved;
 	};
 
+	class fake_theme_documents final : public application::theme_document_port
+	{
+	public:
+		[[nodiscard]] auto read(
+			const std::string_view aPath,
+			const std::size_t      aMaximumBytes,
+			const std::stop_token  aStop)
+			-> application::theme_document_result<std::string> override
+		{
+			++Reads;
+			Path         = aPath;
+			MaximumBytes = aMaximumBytes;
+			if (!Available || aStop.stop_requested()) {
+				return std::unexpected{ application::theme_document_error{
+					.Failure = aStop.stop_requested()
+						? application::theme_document_failure::cancelled
+						: application::theme_document_failure::unavailable,
+				} };
+			}
+			return Document;
+		}
+
+		std::string Document;
+		std::string Path;
+		std::size_t MaximumBytes = 0U;
+		std::size_t Reads        = 0U;
+		bool        Available    = true;
+	};
+
 	/// \brief Counts every lexical classification the host could not avoid.
 	///
 	/// \details BPR-0110 owns the real highlighter. This fake stands in for it and
@@ -255,6 +303,7 @@ namespace {
 		explicit harness(const application::appearance_host_limits aLimits = { })
 			: Host{ base_settings(),
 					Settings,
+					ThemeDocuments,
 					Classifier,
 					Effects,
 					Lane,
@@ -273,6 +322,7 @@ namespace {
 		}
 
 		fake_settings                            Settings;
+		fake_theme_documents                     ThemeDocuments;
 		counting_classifier                      Classifier;
 		recording_projections                    Projections;
 		application::manual_executor             Effects;
@@ -282,17 +332,19 @@ namespace {
 
 	void test_invalid_limits_and_base_appearance_are_rejected()
 	{
-		auto settings    = fake_settings{ };
-		auto classifier  = counting_classifier{ };
-		auto projections = recording_projections{ };
-		auto effects     = application::manual_executor{ };
-		auto lane        = application::manual_executor{ };
+		auto settings       = fake_settings{ };
+		auto themeDocuments = fake_theme_documents{ };
+		auto classifier     = counting_classifier{ };
+		auto projections    = recording_projections{ };
+		auto effects        = application::manual_executor{ };
+		auto lane           = application::manual_executor{ };
 
 		auto threwOnLimits = false;
 		try {
 			const auto host = std::make_unique<application::appearance_application_host>(
 				base_settings(),
 				settings,
+				themeDocuments,
 				classifier,
 				effects,
 				lane,
@@ -312,6 +364,7 @@ namespace {
 			const auto host    = std::make_unique<application::appearance_application_host>(
 				std::move(illegal),
 				settings,
+				themeDocuments,
 				classifier,
 				effects,
 				lane,
@@ -362,6 +415,8 @@ namespace {
 			   "the projection carries a presentation invalidation");
 		expect(!projection.Spans.has_value(),
 			   "an appearance change publishes no token spans");
+		expect(!projection.PaletteAdoption.has_value(),
+			   "a durable restore is not reported as a palette commit acknowledgement");
 
 		const auto& invalidation = *projection.Presentation;
 		expect(invalidation.Epoch == application::appearance_epoch{ 1U },
@@ -373,6 +428,44 @@ namespace {
 			   "the restored mode resolves its variant");
 		expect(harnessed.Settings.Stores == 0U,
 			   "restoring never writes the record back");
+	}
+
+	void test_a_new_settings_commit_supersedes_a_pending_startup_restore()
+	{
+		auto harnessed            = harness{ };
+		harnessed.Settings.Stored = persisted_settings();
+		auto palette              = contrast_safe_palette();
+		palette[core::index_of(core::appearance_role::diff_group_boundary_rule)]
+			.Alpha = 254U;
+
+		harnessed.Host.restore();
+		// Capture the old record on the effect lane, but deliberately hold its
+		// terminal off the decision lane until after the newer gesture.
+		harnessed.Effects.drain();
+		harnessed.Host.apply(palette);
+		harnessed.settle();
+
+		expect(harnessed.Settings.Loads == 1U
+				   && harnessed.Settings.LoadStopObserved == std::vector{ false },
+			   "the startup read captured the old record before the newer commit");
+		expect(harnessed.Settings.Stores == 1U
+				   && harnessed.Host.persisted_settings() == 1U,
+			   "the newer palette is durably written exactly once");
+		expect(harnessed.Settings.Stored.has_value()
+				   && harnessed.Settings.Stored->Palette == palette
+				   && harnessed.Host.settings() == *harnessed.Settings.Stored,
+			   "the session and durable record both retain the newer palette");
+		expect(harnessed.Projections.Published.size() == 1U
+				   && harnessed.Projections.Published.front()
+						  .PaletteAdoption.has_value()
+				   && harnessed.Projections.Published.front()
+						   .PaletteAdoption->Palette
+					   == palette,
+			   "only the newer commit reaches presentation with its exact acknowledgement");
+		expect(harnessed.Host.rejected_terminals() == 1U
+				   && harnessed.Host.last_rejection()
+					   == application::appearance_terminal_rejection::superseded,
+			   "the stale restore terminal is refused as superseded");
 	}
 
 	void test_rejected_persisted_appearance_is_not_adopted()
@@ -539,23 +632,122 @@ namespace {
 		harnessed.Host.select(core::appearance_mode::dark);
 		harnessed.settle();
 
-		auto palette = base_settings().Palette;
-		palette[core::index_of(core::appearance_role::diff_added_background)]
-			= core::appearance_color{ .Red = 8U, .Green = 96U, .Blue = 8U };
+		auto palette = contrast_safe_palette();
+		palette[core::index_of(core::appearance_role::diff_group_boundary_rule)]
+			.Alpha = 254U;
 		harnessed.Host.apply(palette);
 		harnessed.settle();
 
 		expect(harnessed.Projections.Published.size() == 2U,
 			   "a palette change publishes once");
-		const auto& invalidation = *harnessed.Projections.Published.back().Presentation;
+		const auto& projection   = harnessed.Projections.Published.back();
+		const auto& invalidation = *projection.Presentation;
 		expect(invalidation.Palette.has_value() && !invalidation.Resolution.has_value()
 				   && !invalidation.Typography.has_value(),
 			   "a bounded palette change invalidates the palette only");
 		expect(*invalidation.Palette == palette,
 			   "the invalidation carries the adopted palette");
+		expect(projection.PaletteAdoption.has_value()
+				   && projection.PaletteAdoption->Palette == palette,
+			   "the same projection acknowledges the accepted preview commit");
 		expect(harnessed.Settings.Stored.has_value()
 				   && harnessed.Settings.Stored->Palette == palette,
 			   "the palette persists");
+
+		const auto storesBeforeEqual = harnessed.Settings.Stores;
+		harnessed.Host.apply(palette);
+		harnessed.settle();
+		expect(harnessed.Settings.Stores == storesBeforeEqual,
+			   "committing the already-stored palette does not rewrite it");
+		expect(harnessed.Projections.Published.size() == 3U,
+			   "an equal commit still publishes one terminal acknowledgement");
+		const auto& equalCommit = harnessed.Projections.Published.back();
+		expect(!equalCommit.Presentation.has_value()
+				   && equalCommit.PaletteAdoption.has_value()
+				   && equalCommit.PaletteAdoption->Palette == palette,
+			   "an equal commit acknowledges without inventing a pixel invalidation");
+	}
+
+	void test_palette_commit_refuses_contrast_failures_without_writing()
+	{
+		auto harnessed = harness{ };
+		auto palette   = core::appearance_palette{ };
+		palette.fill(core::appearance_color{ .Alpha = 255U });
+		harnessed.Host.apply(palette);
+		harnessed.settle();
+
+		expect(harnessed.Host.settings() == base_settings(),
+			   "a contrast-invalid palette changes no adopted setting");
+		expect(harnessed.Settings.Stores == 0U,
+			   "a contrast-invalid palette performs no store write");
+		expect(harnessed.Projections.Published.empty(),
+			   "a contrast-invalid palette publishes no presentation change");
+		expect(harnessed.Projections.Failed.size() == 1U
+				   && harnessed.Projections.Failed.front().Failure
+					   == application::appearance_host_failure::palette_contrast_rejected,
+			   "a contrast-invalid palette is refused with the typed failure");
+		expect(!harnessed.Projections.Failed.front().ContrastRejections.empty(),
+			   "the refusal preserves the core contrast findings and variants");
+		for (const auto variant : {
+				 core::appearance_variant::light,
+				 core::appearance_variant::dark,
+				 core::appearance_variant::high_contrast_light,
+				 core::appearance_variant::high_contrast_dark,
+			 }) {
+			expect(
+				std::ranges::any_of(
+					harnessed.Projections.Failed.front().ContrastRejections,
+					[variant](const auto& aRejection) {
+						return aRejection.Variant == variant;
+					}),
+				"one invalid total palette is checked against every variant");
+		}
+	}
+
+	void test_theme_import_is_bounded_typed_and_preview_only()
+	{
+		auto       harnessed              = harness{ };
+		const auto palette                = contrast_safe_palette();
+		harnessed.ThemeDocuments.Document = core::export_theme(palette);
+		harnessed.Host.import_theme_file("fixture-safe.theme");
+		harnessed.settle();
+
+		expect(harnessed.ThemeDocuments.Reads == 1U
+				   && harnessed.ThemeDocuments.Path == "fixture-safe.theme",
+			   "theme import reads the selected path through the effect port once");
+		expect(harnessed.ThemeDocuments.MaximumBytes
+				   == core::theme_document_byte_limit + 1U,
+			   "theme import reads only the core limit plus its overflow byte");
+		expect(harnessed.Projections.Published.size() == 1U
+				   && harnessed.Projections.Published.front().ThemePreview.has_value()
+				   && harnessed.Projections.Published.front().ThemePreview->Palette
+					   == palette,
+			   "a parsed and contrast-safe import publishes the total preview palette");
+		expect(harnessed.Host.settings() == base_settings()
+				   && harnessed.Settings.Stores == 0U,
+			   "import preview changes and persists no adopted setting");
+
+		harnessed.Projections.Published.clear();
+		harnessed.ThemeDocuments.Document = "not a theme document";
+		harnessed.Host.import_theme_file("fixture-malformed.theme");
+		harnessed.settle();
+		expect(harnessed.Projections.Failed.size() == 1U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::appearance_host_failure::theme_import_rejected
+				   && !harnessed.Projections.Failed.back().ThemeRejections.empty(),
+			   "a malformed import preserves the core parser's typed rejection");
+
+		harnessed.ThemeDocuments.Document = core::export_theme(
+			core::appearance_palette{ });
+		harnessed.Host.import_theme_file("fixture-low-contrast.theme");
+		harnessed.settle();
+		expect(harnessed.Projections.Failed.size() == 2U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::appearance_host_failure::palette_contrast_rejected
+				   && !harnessed.Projections.Failed.back().ContrastRejections.empty(),
+			   "a structurally valid low-contrast import is refused with typed findings");
+		expect(harnessed.Settings.Stores == 0U,
+			   "every refused import performs zero durable writes");
 	}
 
 	void test_system_mode_follows_the_observation_and_explicit_mode_does_not()
@@ -642,9 +834,9 @@ namespace {
 		const auto retained = harnessed.Host.cached(blobKey);
 		expect(retained != nullptr, "the classification is retained");
 
-		auto palette = base_settings().Palette;
-		palette[core::index_of(core::appearance_role::syntax_keyword)]
-			= core::appearance_color{ .Red = 255U, .Green = 128U, .Blue = 0U };
+		auto palette = contrast_safe_palette();
+		palette[core::index_of(core::appearance_role::diff_group_boundary_rule)]
+			.Alpha                                = 254U;
 		auto typography                           = base_settings().Typography;
 		typography.Code.Font.PointSizeCentipoints = 1600U;
 
@@ -846,12 +1038,15 @@ auto main() -> int
 	test_invalid_limits_and_base_appearance_are_rejected();
 	test_absent_durable_record_keeps_the_composed_appearance();
 	test_persisted_appearance_is_restored();
+	test_a_new_settings_commit_supersedes_a_pending_startup_restore();
 	test_rejected_persisted_appearance_is_not_adopted();
 	test_unknown_persisted_mode_is_refused();
 	test_settings_failures_are_reported();
 	test_mode_selection_persists_and_publishes_bounded_changes();
 	test_illegal_typography_is_refused_without_clamping();
 	test_palette_change_publishes_only_the_palette();
+	test_palette_commit_refuses_contrast_failures_without_writing();
+	test_theme_import_is_bounded_typed_and_preview_only();
 	test_system_mode_follows_the_observation_and_explicit_mode_does_not();
 	test_classification_misses_once_then_hits();
 	test_appearance_changes_never_reparse();

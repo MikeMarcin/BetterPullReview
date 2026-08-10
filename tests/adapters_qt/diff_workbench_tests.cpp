@@ -802,11 +802,20 @@ namespace {
 			workbench.selection() == selectionBeforeMetrics
 				&& workbench.font() == originalFont
 				&& workbench.statistics().GeometryRebuilds
-					== rebuildsBeforePalette + 1U
+					== rebuildsBeforePalette
 				&& initialRender != changedRender,
-			"inherited theme transition changes pixels with one geometry rebuild while preserving font and selection");
+			"inherited palette transition changes pixels without rebuilding geometry "
+			"or replacing font and selection");
 		QApplication::setPalette(originalPalette);
 		process_events();
+		const auto rebuildsBeforeStyle = workbench.statistics().GeometryRebuilds;
+		auto       styleChange         = QEvent{ QEvent::StyleChange };
+		QCoreApplication::sendEvent(&workbench, &styleChange);
+		process_events();
+		expect(
+			workbench.statistics().GeometryRebuilds > rebuildsBeforeStyle
+				&& workbench.selection() == selectionBeforeMetrics,
+			"style invalidation rebuilds measured geometry while preserving semantic selection");
 
 		const auto second        = computed(leftText, rightText + "option-tail\n", options, 1U);
 		const auto secondContext = context(second, 2U, 2U);
@@ -1308,6 +1317,55 @@ namespace {
 			block_formats(*workbench.left_pane(), 3).size() == 1
 				&& block_formats(*workbench.right_pane(), 3).isEmpty(),
 			"a classification adopted for one side colours that side alone");
+
+		const auto visibleLinks = workbench.link_map()->visible_links();
+		expect(!visibleLinks.empty(),
+			   "the selected comparison exposes a semantic group to retain");
+		send_click(
+			*workbench.link_map(), visibleLinks.front().Path.boundingRect().center());
+		process_events();
+		const auto resultBeforePreview    = workbench.current_result();
+		const auto contextBeforePreview   = workbench.current_context();
+		const auto selectionBeforePreview = workbench.selection();
+		const auto positionBeforePreview  = workbench.scroll_controller()->position();
+		const auto spansBeforePreview
+			= workbench.token_spans(core::diff_side::left);
+		const auto statisticsBeforePreview = workbench.statistics();
+		const auto profileGeneration       = profile.generation();
+		auto       palettePreview          = profile.palette();
+		palettePreview[core::index_of(core::appearance_role::syntax_comment)]
+			= core::appearance_color{ 1U, 2U, 3U, 255U };
+		expect(profile.preview_palette(palettePreview),
+			   "a colour-only preview advances presentation");
+		workbench.adopt_appearance(profile);
+		process_events();
+		const auto statisticsAfterPreview = workbench.statistics();
+		expect(
+			block_formats(*workbench.left_pane(), 1).front().format.foreground().color()
+				== QColor{ 1, 2, 3 },
+			"the selected comparison repaints from the preview palette immediately");
+		expect(profile.generation() == profileGeneration + 1U
+				   && statisticsAfterPreview.SyntaxBlocksFormatted
+					   > statisticsBeforePreview.SyntaxBlocksFormatted,
+			   "only the presentation generation and paint work advance");
+		expect(workbench.current_result() == resultBeforePreview
+				   && workbench.current_context() == contextBeforePreview
+				   && workbench.selection() == selectionBeforePreview
+				   && workbench.scroll_controller()->position()
+					   == positionBeforePreview,
+			   "colour preview preserves selected diff identity, semantic selection, "
+			   "and comparison position");
+		expect(workbench.token_spans(core::diff_side::left) == spansBeforePreview
+				   && statisticsAfterPreview.TokenSpanAdoptions
+					   == statisticsBeforePreview.TokenSpanAdoptions
+				   && statisticsAfterPreview.SemanticIndexBuilds
+					   == statisticsBeforePreview.SemanticIndexBuilds
+				   && statisticsAfterPreview.SelectionChanges
+					   == statisticsBeforePreview.SelectionChanges
+				   && statisticsAfterPreview.GeometryRebuilds
+					   == statisticsBeforePreview.GeometryRebuilds,
+			   "colour preview preserves span identity and rebuilds neither semantics "
+			   "nor measured geometry");
 
 		// The whole point of keying spans by blob and definition: appearance is
 		// not part of the key, so a theme change repaints and never reparses.

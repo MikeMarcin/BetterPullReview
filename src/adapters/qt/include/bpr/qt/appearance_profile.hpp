@@ -178,6 +178,12 @@ namespace bpr::qt {
 	/// \brief Receives one published appearance presentation change.
 	using appearance_presentation_sink = std::function<void()>;
 
+	/// \brief Says what one host palette adoption means for an active preview.
+	enum class palette_preview_adoption : std::uint8_t {
+		retain,
+		commit,
+	};
+
 	/// \brief Applies one resolved appearance profile to Qt presentation.
 	///
 	/// \details The core decides which variant applies: every resolution here
@@ -293,6 +299,26 @@ namespace bpr::qt {
 		auto customise(core::appearance_role aRole, core::appearance_color aColor)
 			-> bool;
 
+		/// \brief Applies one total palette to presentation without committing it.
+		///
+		/// \details The palette remains core-owned semantic data. Preview changes
+		/// only the visible palette and never changes the settings returned for
+		/// persistence.
+		auto preview_palette(core::appearance_palette aPalette) -> bool;
+		/// \brief Restores the exact palette last adopted from the host.
+		auto cancel_palette_preview() -> bool;
+		/// \brief Adopts one host-accepted total palette as the committed palette.
+		///
+		/// \details A committed preview clears the candidate before publishing.
+		/// An unrelated mode, typography, or native-observation publication can
+		/// instead re-express the committed palette against another built-in
+		/// variant while retaining the exact visible, cancellable preview.
+		auto adopt_palette(
+			core::appearance_palette aPalette,
+			palette_preview_adoption aPreview = palette_preview_adoption::commit)
+			-> bool;
+		[[nodiscard]] auto previewing_palette() const noexcept -> bool;
+
 		/// \brief Restores one semantic colour to the built-in profile.
 		/// \returns Whether the applied presentation changed.
 		auto restore(core::appearance_role aRole) -> bool;
@@ -357,6 +383,7 @@ namespace bpr::qt {
 	private:
 		void rebuild();
 		void rebuild_typography();
+		void set_committed_palette(const core::appearance_palette& aPalette);
 		auto adopt() -> bool;
 		auto publish() -> bool;
 		void apply_code_metrics(QWidget& aSurface) const;
@@ -369,6 +396,8 @@ namespace bpr::qt {
 		std::array<std::optional<core::appearance_color>, core::appearance_role_count>
 														Overrides;
 		core::appearance_resolution                     Resolution;
+		core::appearance_palette                        CommittedPalette{ };
+		std::optional<core::appearance_palette>         PreviewPalette;
 		core::appearance_palette                        Palette{ };
 		std::array<QColor, core::appearance_role_count> Colors;
 		appearance_presentation_sink                    Sink;

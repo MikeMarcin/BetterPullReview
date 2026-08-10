@@ -836,6 +836,8 @@ namespace bpr::qt {
 			break;
 		case QEvent::PaletteChange:
 		case QEvent::ApplicationPaletteChange:
+			update_selection_paint();
+			break;
 		case QEvent::StyleChange:
 			update_selection_paint();
 			schedule_geometry_rebuild(measured_geometry_change::viewport_or_divider);

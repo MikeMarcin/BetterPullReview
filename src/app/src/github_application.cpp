@@ -40,6 +40,7 @@
 #include "bpr/qt/sensitive_text_input.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
 
+#include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -47,13 +48,16 @@
 #include <QGuiApplication>
 #include <QLineEdit>
 #include <QPalette>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QStyleHints>
+#include <QTextStream>
 #include <QTimer>
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cstddef>
 #include <deque>
 #include <filesystem>
@@ -74,6 +78,10 @@
 
 #if defined(_WIN32)
 	#include <windows.h>
+#else
+	#include <fcntl.h>
+	#include <sys/stat.h>
+	#include <unistd.h>
 #endif
 
 namespace bpr::app {
@@ -493,6 +501,196 @@ namespace bpr::app {
 			}
 		};
 
+		[[nodiscard]] auto unavailable_theme_document()
+			-> application::theme_document_result<std::string>
+		{
+			return std::unexpected{ application::theme_document_error{ } };
+		}
+
+		[[nodiscard]] auto cancelled_theme_document()
+			-> application::theme_document_result<std::string>
+		{
+			return std::unexpected{ application::theme_document_error{
+				.Failure = application::theme_document_failure::cancelled,
+			} };
+		}
+
+#if defined(_WIN32)
+		class theme_file_handle final
+		{
+		public:
+			explicit theme_file_handle(void* aHandle) noexcept
+				: Handle{ aHandle }
+			{
+			}
+			theme_file_handle(const theme_file_handle&)                    = delete;
+			auto operator=(const theme_file_handle&) -> theme_file_handle& = delete;
+			theme_file_handle(theme_file_handle&&)                         = delete;
+			auto operator=(theme_file_handle&&) -> theme_file_handle&      = delete;
+			~theme_file_handle()
+			{
+				if (valid()) {
+					(void)::CloseHandle(Handle);
+				}
+			}
+
+			[[nodiscard]] auto get() const noexcept -> void*
+			{
+				return Handle;
+			}
+
+			[[nodiscard]] auto valid() const noexcept -> bool
+			{
+				return Handle != nullptr && Handle != INVALID_HANDLE_VALUE;
+			}
+
+		private:
+			void* Handle = INVALID_HANDLE_VALUE;
+		};
+#else
+		class theme_file_descriptor final
+		{
+		public:
+			explicit theme_file_descriptor(const int aDescriptor) noexcept
+				: Descriptor{ aDescriptor }
+			{
+			}
+			theme_file_descriptor(const theme_file_descriptor&) = delete;
+			auto operator=(const theme_file_descriptor&)
+				-> theme_file_descriptor&                  = delete;
+			theme_file_descriptor(theme_file_descriptor&&) = delete;
+			auto operator=(theme_file_descriptor&&)
+				-> theme_file_descriptor& = delete;
+			~theme_file_descriptor()
+			{
+				if (Descriptor >= 0) {
+					(void)::close(Descriptor);
+				}
+			}
+
+			[[nodiscard]] auto get() const noexcept -> int
+			{
+				return Descriptor;
+			}
+
+		private:
+			int Descriptor = -1;
+		};
+#endif
+
+		[[nodiscard]] auto read_bounded_regular_theme_document(
+			const std::string_view aPath,
+			const std::size_t      aMaximumBytes,
+			const std::stop_token  aStop)
+			-> application::theme_document_result<std::string>
+		{
+			if (aStop.stop_requested()) {
+				return cancelled_theme_document();
+			}
+			if (aPath.empty() || aPath.find('\0') != std::string_view::npos) {
+				return unavailable_theme_document();
+			}
+
+#if defined(_WIN32)
+			const auto path = std::filesystem::u8path(aPath.begin(), aPath.end());
+			auto       file = theme_file_handle{ ::CreateFileW(
+				path.c_str(),
+				GENERIC_READ,
+				FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+				nullptr,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+				nullptr) };
+			if (!file.valid() || ::GetFileType(file.get()) != FILE_TYPE_DISK) {
+				return unavailable_theme_document();
+			}
+			auto information = BY_HANDLE_FILE_INFORMATION{ };
+			if (::GetFileInformationByHandle(file.get(), &information) == 0
+				|| (information.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U) {
+				return unavailable_theme_document();
+			}
+#else
+			const auto path = std::filesystem::path{ aPath };
+			auto       file = theme_file_descriptor{
+				::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NONBLOCK)
+			};
+			if (file.get() < 0) {
+				return unavailable_theme_document();
+			}
+			struct stat information{ };
+			if (::fstat(file.get(), &information) != 0
+				|| !S_ISREG(information.st_mode)) {
+				return unavailable_theme_document();
+			}
+#endif
+
+			auto document = std::string(aMaximumBytes, '\0');
+			auto offset   = std::size_t{ 0U };
+			while (offset < document.size()) {
+				if (aStop.stop_requested()) {
+					return cancelled_theme_document();
+				}
+				const auto remaining = document.size() - offset;
+				const auto chunk
+					= std::min(remaining, std::size_t{ 64U * 1'024U });
+#if defined(_WIN32)
+				auto readBytes = DWORD{ 0U };
+				if (::ReadFile(
+						file.get(),
+						document.data() + offset,
+						static_cast<DWORD>(chunk),
+						&readBytes,
+						nullptr)
+					== 0) {
+					return unavailable_theme_document();
+				}
+				if (readBytes == 0U) {
+					break;
+				}
+				offset += static_cast<std::size_t>(readBytes);
+#else
+				const auto readBytes
+					= ::read(file.get(), document.data() + offset, chunk);
+				if (readBytes == 0) {
+					break;
+				}
+				if (readBytes < 0) {
+					if (errno == EINTR) {
+						continue;
+					}
+					return unavailable_theme_document();
+				}
+				offset += static_cast<std::size_t>(readBytes);
+#endif
+			}
+			document.resize(offset);
+			if (aStop.stop_requested()) {
+				return cancelled_theme_document();
+			}
+			return document;
+		}
+
+		/// \brief Performs the only local filesystem read in theme import.
+		///
+		/// \details Qt supplies a path and the application host supplies the byte
+		/// bound. Reading one byte beyond the core limit is intentional: the core
+		/// parser then returns its typed `document_too_large` refusal instead of
+		/// receiving a silently truncated document.
+		class bounded_theme_document_reader final
+			: public application::theme_document_port
+		{
+		public:
+			[[nodiscard]] auto read(
+				const std::string_view aPath,
+				const std::size_t      aMaximumBytes,
+				const std::stop_token  aStop)
+				-> application::theme_document_result<std::string> override
+			{
+				return read_bounded_regular_theme_document(
+					aPath, aMaximumBytes, aStop);
+			}
+		};
+
 		[[nodiscard]] auto prompt_for_credential(
 			QWidget* aParent) -> std::optional<application::github_credential_material>
 		{
@@ -609,8 +807,13 @@ namespace bpr::app {
 	public:
 		using span_sink
 			= std::function<void(const application::token_span_publication&)>;
-		using presentation_sink = std::function<void()>;
-		using refusal_sink      = std::function<void(
+		using presentation_sink     = std::function<void(
+			const application::appearance_presentation_invalidation&)>;
+		using theme_preview_sink    = std::function<void(
+			const application::theme_preview_publication&)>;
+		using palette_adoption_sink = std::function<void(
+			const application::palette_adoption_publication&)>;
+		using refusal_sink          = std::function<void(
 			const application::appearance_failure_publication&)>;
 
 		void set_span_sink(span_sink aSink)
@@ -623,9 +826,19 @@ namespace bpr::app {
 			PresentationSink = std::move(aSink);
 		}
 
+		void set_theme_preview_sink(theme_preview_sink aSink)
+		{
+			ThemePreviewSink = std::move(aSink);
+		}
+
 		void set_refusal_sink(refusal_sink aSink)
 		{
 			RefusalSink = std::move(aSink);
+		}
+
+		void set_palette_adoption_sink(palette_adoption_sink aSink)
+		{
+			PaletteAdoptionSink = std::move(aSink);
 		}
 
 		void publish(const application::appearance_projection& aProjection) override
@@ -640,7 +853,13 @@ namespace bpr::app {
 			// because the invalidation says a domain moved and not what it
 			// moved to - and the record is the thing a surface has to show.
 			if (aProjection.Presentation.has_value() && PresentationSink) {
-				PresentationSink();
+				PresentationSink(*aProjection.Presentation);
+			}
+			if (aProjection.ThemePreview.has_value() && ThemePreviewSink) {
+				ThemePreviewSink(*aProjection.ThemePreview);
+			}
+			if (aProjection.PaletteAdoption.has_value() && PaletteAdoptionSink) {
+				PaletteAdoptionSink(*aProjection.PaletteAdoption);
 			}
 		}
 
@@ -663,11 +882,13 @@ namespace bpr::app {
 		}
 
 	private:
-		span_sink         SpanSink;
-		presentation_sink PresentationSink;
-		refusal_sink      RefusalSink;
-		std::size_t       Published = 0U;
-		std::size_t       Failed    = 0U;
+		span_sink             SpanSink;
+		presentation_sink     PresentationSink;
+		theme_preview_sink    ThemePreviewSink;
+		refusal_sink          RefusalSink;
+		palette_adoption_sink PaletteAdoptionSink;
+		std::size_t           Published = 0U;
+		std::size_t           Failed    = 0U;
 	};
 
 	/// \brief Holds the workbench projections until a surface consumes them.
@@ -1054,7 +1275,16 @@ namespace bpr::app {
 					adopt_classification(aSpans);
 				});
 			AppearanceProjections.set_presentation_sink(
-				[this] { adopt_appearance_settings(); });
+				[this](const application::appearance_presentation_invalidation&
+					   /*aInvalidation*/) { adopt_appearance_settings(); });
+			AppearanceProjections.set_palette_adoption_sink(
+				[this](const application::palette_adoption_publication&) {
+					adopt_appearance_settings(true);
+				});
+			AppearanceProjections.set_theme_preview_sink(
+				[this](const application::theme_preview_publication& aPreview) {
+					preview_imported_theme(aPreview.Palette);
+				});
 			AppearanceProjections.set_refusal_sink(
 				[this](const application::appearance_failure_publication&
 						   aFailure) { report_appearance_refusal(aFailure); });
@@ -1062,6 +1292,7 @@ namespace bpr::app {
 				application::appearance_application_host>(
 				qt::default_appearance_settings(),
 				*AppearanceSettings,
+				ThemeDocuments,
 				*SyntaxClassification,
 				AppearanceEffects,
 				DecisionLane,
@@ -1435,8 +1666,28 @@ namespace bpr::app {
 									  intent,
 									  application::select_appearance_mode_intent>) {
 						AppearanceHost->select(aValue.Mode);
-					} else {
+					} else if constexpr (std::is_same_v<
+											 intent,
+											 application::apply_typography_intent>) {
 						AppearanceHost->apply(std::move(aValue.Typography));
+					} else if constexpr (std::is_same_v<
+											 intent,
+											 application::preview_appearance_palette_intent>) {
+						if (AppearanceProfile) {
+							AppearanceProfile->preview_palette(std::move(aValue.Palette));
+						}
+					} else if constexpr (std::is_same_v<
+											 intent,
+											 application::commit_appearance_palette_intent>) {
+						AppearanceHost->apply(std::move(aValue.Palette));
+					} else if constexpr (std::is_same_v<
+											 intent,
+											 application::cancel_appearance_palette_preview_intent>) {
+						if (AppearanceProfile) {
+							AppearanceProfile->cancel_palette_preview();
+						}
+					} else {
+						AppearanceHost->import_theme_file(std::move(aValue.Path));
 					}
 				},
 				std::move(aIntent));
@@ -1449,17 +1700,19 @@ namespace bpr::app {
 		/// only thing that knows what was accepted. Offering the intent to
 		/// presentation would show a refused value as though it had applied.
 		///
-		/// The palette is deliberately not pushed. No card has designed a
-		/// palette-customisation gesture, so the profile's built-in palette for
-		/// the resolved variant is still the whole story, and pretending
-		/// otherwise here would invent a path nothing sends.
-		void adopt_appearance_settings()
+		void adopt_appearance_settings(const bool aPaletteCommitted = false)
 		{
 			if (Closing || AppearanceHost == nullptr || !AppearanceProfile) {
 				return;
 			}
 			const auto settings = AppearanceHost->settings();
 			static_cast<void>(AppearanceProfile->select_mode(settings.Mode));
+			if (settings.PaletteStored) {
+				static_cast<void>(AppearanceProfile->adopt_palette(
+					settings.Palette,
+					aPaletteCommitted ? qt::palette_preview_adoption::commit
+									  : qt::palette_preview_adoption::retain));
+			}
 			const auto selection
 				= AppearanceProfile->select_typography(settings.Typography);
 			if (!selection.accepted()) {
@@ -1472,8 +1725,27 @@ namespace bpr::app {
 			if (Window != nullptr) {
 				if (auto* const panel = Window->appearance_settings();
 					panel != nullptr) {
-					panel->adopt(settings);
+					auto activePreview
+						= std::optional<core::appearance_palette>{ };
+					if (AppearanceProfile->previewing_palette()) {
+						activePreview = AppearanceProfile->palette();
+					}
+					panel->adopt(
+						settings,
+						AppearanceProfile->settings().Palette,
+						std::move(activePreview));
 				}
+			}
+		}
+
+		void preview_imported_theme(const core::appearance_palette& aPalette)
+		{
+			if (Closing || !AppearanceProfile || Window == nullptr) {
+				return;
+			}
+			AppearanceProfile->preview_palette(aPalette);
+			if (auto* const panel = Window->appearance_settings(); panel != nullptr) {
+				panel->preview_import(aPalette);
 			}
 		}
 
@@ -1485,12 +1757,33 @@ namespace bpr::app {
 			}
 			if (auto* const panel = Window->appearance_settings();
 				panel != nullptr) {
-				if (!AppearancePersistenceAvailable
-					&& aFailure.Failure
-						== application::appearance_host_failure::settings_unavailable) {
-					panel->report_persistence_unavailable();
-				} else {
+				switch (aFailure.Failure) {
+				case application::appearance_host_failure::settings_unavailable:
+					if (!AppearancePersistenceAvailable) {
+						panel->report_persistence_unavailable();
+					} else {
+						panel->report(std::span<const core::typography_rejection>{ });
+					}
+					break;
+				case application::appearance_host_failure::settings_rejected:
 					panel->report(aFailure.Rejections);
+					break;
+				case application::appearance_host_failure::theme_document_unavailable:
+					panel->report_theme_document_unavailable();
+					break;
+				case application::appearance_host_failure::theme_import_rejected:
+					panel->report(aFailure.ThemeRejections);
+					break;
+				case application::appearance_host_failure::palette_contrast_rejected:
+					panel->report(aFailure.ContrastRejections);
+					break;
+				case application::appearance_host_failure::unknown_appearance_mode:
+				case application::appearance_host_failure::classification_unavailable:
+				case application::appearance_host_failure::classification_limit:
+				case application::appearance_host_failure::invalid_classification_key:
+				case application::appearance_host_failure::host_failure:
+					panel->report(std::span<const core::typography_rejection>{ });
+					break;
 				}
 			}
 		}
@@ -1610,6 +1903,45 @@ namespace bpr::app {
 		std::size_t                                                    EpochPruneIntentDispatchCount  = 0U;
 		std::size_t                                                    EpochDeleteIntentDispatchCount = 0U;
 		std::size_t                                                    EpochCancelIntentDispatchCount = 0U;
+		struct appearance_theme_probe_state
+		{
+			enum class phase {
+				awaiting_stable_comparison,
+				awaiting_manual_preview,
+				awaiting_preview_adoption,
+				awaiting_preview_restoration,
+				awaiting_first_preview,
+				awaiting_second_preview,
+				awaiting_store,
+				awaiting_stored_preview,
+				awaiting_stored_preview_adoption,
+				awaiting_stored_preview_restoration,
+				awaiting_equal_stored_preview,
+				awaiting_equal_stored_commit,
+				passed,
+				failed,
+			};
+
+			phase                                           Phase = phase::awaiting_stable_comparison;
+			std::string                                     Path;
+			application::appearance_settings                BeforeSettings;
+			core::appearance_palette                        BeforePalette{ };
+			core::appearance_palette                        ManualCandidate{ };
+			core::appearance_palette                        Candidate{ };
+			core::appearance_palette                        StoredCandidate{ };
+			core::appearance_observation                    NativeObservation;
+			std::shared_ptr<const core::computed_file_diff> Result;
+			std::optional<core::diff_request_context>       Context;
+			std::optional<core::semantic_selection>         Selection;
+			application::shared_token_spans                 LeftSpans;
+			application::shared_token_spans                 RightSpans;
+			qt::diff_workbench_statistics                   Statistics;
+			double                                          Position                  = 0.0;
+			std::uint64_t                                   ProfileGeneration         = 0U;
+			std::size_t                                     ClassificationSubmissions = 0U;
+			std::size_t                                     PersistedSettings         = 0U;
+		};
+		std::optional<appearance_theme_probe_state> AppearanceThemeProbe;
 #endif
 		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
 		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
@@ -1623,6 +1955,7 @@ namespace bpr::app {
 		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
 		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
 		std::unique_ptr<application::appearance_settings_port>       AppearanceSettings;
+		bounded_theme_document_reader                                ThemeDocuments;
 		// Built once and shared. The catalog is immutable after construction
 		// and the classifier holds no theme, palette, or font, so neither has
 		// to be rebuilt when appearance changes.
@@ -2121,6 +2454,551 @@ namespace bpr::app {
 			&& panel->status_text().startsWith(QStringLiteral("Refused"))
 			&& panel->code_family_editor()->text().toStdString()
 			== before.Typography.Code.Font.Family;
+	}
+
+	auto detail::github_application_fixture_access::
+		exercise_appearance_theme_customization(
+			github_application&    aApplication,
+			const std::string_view aThemePath)
+			-> detail::appearance_theme_customization_probe_result
+	{
+		using result               = detail::appearance_theme_customization_probe_result;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Window == nullptr
+			|| implementation->AppearanceHost == nullptr
+			|| implementation->AppearanceProfile == nullptr) {
+			return result::failed;
+		}
+		auto* const panel     = implementation->Window->appearance_settings();
+		auto* const workbench = implementation->Window->comparison_surface();
+		if (panel == nullptr || workbench == nullptr) {
+			return result::failed;
+		}
+		if (workbench->current_result() == nullptr
+			|| !workbench->current_context().has_value()
+			|| !workbench->selection().has_value()
+			|| !workbench->token_spans(core::diff_side::left)
+			|| !workbench->token_spans(core::diff_side::right)
+			|| implementation->AppearanceHost->outstanding_requests() != 0U) {
+			return result::pending;
+		}
+		const auto reportStage = [](const char* const aStage) {
+			QTextStream stream{ stdout };
+			stream << "APPEARANCE_THEME_PROBE_STAGE:" << aStage << '\n';
+			stream.flush();
+		};
+
+		if (!implementation->AppearanceThemeProbe.has_value()) {
+			implementation->AppearanceThemeProbe
+				= github_application::implementation::appearance_theme_probe_state{
+					  .Path              = std::string{ aThemePath },
+					  .BeforeSettings    = implementation->AppearanceHost->settings(),
+					  .BeforePalette     = implementation->AppearanceProfile->palette(),
+					  .NativeObservation = github_application::implementation::
+						  native_appearance_observation(),
+					  .Result            = workbench->current_result(),
+					  .Context           = workbench->current_context(),
+					  .Selection         = workbench->selection(),
+					  .LeftSpans         = workbench->token_spans(core::diff_side::left),
+					  .RightSpans        = workbench->token_spans(core::diff_side::right),
+					  .Statistics        = workbench->statistics(),
+					  .Position          = workbench->scroll_controller()->position(),
+					  .ProfileGeneration = implementation->AppearanceProfile->generation(),
+					  .ClassificationSubmissions
+					  = implementation->AppearanceHost->classification_submissions(),
+					  .PersistedSettings
+					  = implementation->AppearanceHost->persisted_settings(),
+				  };
+			return result::pending;
+		}
+
+		auto& probe = *implementation->AppearanceThemeProbe;
+		if (probe.Path != aThemePath
+			|| probe.Phase
+				== github_application::implementation::appearance_theme_probe_state::
+					phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::passed) {
+			return result::passed;
+		}
+
+		const auto unchanged = [&]() {
+			const auto statistics = workbench->statistics();
+			return workbench->current_result() == probe.Result
+				&& workbench->current_context() == probe.Context
+				&& workbench->selection() == probe.Selection
+				&& workbench->scroll_controller()->position() == probe.Position
+				&& workbench->token_spans(core::diff_side::left) == probe.LeftSpans
+				&& workbench->token_spans(core::diff_side::right) == probe.RightSpans
+				&& statistics.GeometryRebuilds == probe.Statistics.GeometryRebuilds
+				&& statistics.SemanticIndexBuilds == probe.Statistics.SemanticIndexBuilds
+				&& statistics.SelectionChanges == probe.Statistics.SelectionChanges
+				&& statistics.TokenSpanAdoptions == probe.Statistics.TokenSpanAdoptions
+				&& implementation->AppearanceHost->classification_submissions()
+				== probe.ClassificationSubmissions;
+		};
+		const auto reportIdentity = [&]() {
+			const auto  statistics = workbench->statistics();
+			QTextStream stream{ stdout };
+			stream << "APPEARANCE_THEME_PROBE_IDENTITY_FACTS:"
+				   << (workbench->current_result() == probe.Result)
+				   << (workbench->current_context() == probe.Context)
+				   << (workbench->selection() == probe.Selection)
+				   << (workbench->scroll_controller()->position() == probe.Position)
+				   << (workbench->token_spans(core::diff_side::left) == probe.LeftSpans)
+				   << (workbench->token_spans(core::diff_side::right) == probe.RightSpans)
+				   << (statistics.GeometryRebuilds == probe.Statistics.GeometryRebuilds)
+				   << (statistics.SemanticIndexBuilds == probe.Statistics.SemanticIndexBuilds)
+				   << (statistics.SelectionChanges == probe.Statistics.SelectionChanges)
+				   << (statistics.TokenSpanAdoptions == probe.Statistics.TokenSpanAdoptions)
+				   << (implementation->AppearanceHost->classification_submissions()
+					   == probe.ClassificationSubmissions)
+				   << '\n';
+			stream.flush();
+		};
+		const auto fail = [&]() {
+			reportStage("failed");
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::failed;
+			return result::failed;
+		};
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_stable_comparison) {
+			if (!unchanged()) {
+				probe.Result     = workbench->current_result();
+				probe.Context    = workbench->current_context();
+				probe.Selection  = workbench->selection();
+				probe.LeftSpans  = workbench->token_spans(core::diff_side::left);
+				probe.RightSpans = workbench->token_spans(core::diff_side::right);
+				probe.Statistics = workbench->statistics();
+				probe.Position   = workbench->scroll_controller()->position();
+				probe.ClassificationSubmissions
+					= implementation->AppearanceHost->classification_submissions();
+				return result::pending;
+			}
+			const auto role       = core::appearance_role::diff_added_background;
+			probe.ManualCandidate = probe.BeforePalette;
+			auto& color           = probe.ManualCandidate[core::index_of(role)];
+			color.Red             = color.Red == 0U ? 1U : 0U;
+			panel->role_selector()->setCurrentIndex(
+				static_cast<int>(core::index_of(role)));
+			panel->color_editor()->setText(
+				qt::to_presentation_color(color).name(QColor::HexArgb));
+			panel->preview_button()->click();
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_manual_preview;
+			reportStage("manual-preview-requested");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_manual_preview) {
+			const auto statistics = workbench->statistics();
+			const auto profilePreviewed
+				= implementation->AppearanceProfile->previewing_palette();
+			const auto profileMatches = implementation->AppearanceProfile->palette()
+				== probe.ManualCandidate;
+			const auto panelMatches
+				= panel->preview_palette() == std::optional{ probe.ManualCandidate };
+			const auto settingsUnchanged
+				= implementation->AppearanceHost->settings() == probe.BeforeSettings;
+			const auto writesUnchanged
+				= implementation->AppearanceHost->persisted_settings()
+				== probe.PersistedSettings;
+			const auto generationChanged
+				= implementation->AppearanceProfile->generation()
+				> probe.ProfileGeneration;
+			const auto paintChanged = statistics.AlignmentSegmentsVisited
+				> probe.Statistics.AlignmentSegmentsVisited;
+			const auto identityUnchanged = unchanged();
+			{
+				QTextStream stream{ stdout };
+				stream << "APPEARANCE_THEME_PROBE_MANUAL_FACTS:"
+					   << profilePreviewed << profileMatches << panelMatches
+					   << settingsUnchanged << writesUnchanged << generationChanged
+					   << paintChanged << identityUnchanged << '\n';
+				stream.flush();
+			}
+			if (!profilePreviewed || !profileMatches || !panelMatches
+				|| !settingsUnchanged || !writesUnchanged || !generationChanged
+				|| !paintChanged || !identityUnchanged) {
+				return fail();
+			}
+			reportStage("manual-preview");
+			auto alternateObservation = probe.NativeObservation;
+			alternateObservation.Scheme
+				= alternateObservation.Scheme == core::os_color_scheme::dark
+				? core::os_color_scheme::light
+				: core::os_color_scheme::dark;
+			implementation->AppearanceHost->observe(alternateObservation);
+			implementation->AppearanceProfile->observe(alternateObservation);
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_preview_adoption;
+			reportStage("unrelated-adoption-requested");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_preview_adoption) {
+			const auto adoptionFacts
+				= std::array{
+					  implementation->AppearanceProfile->previewing_palette(),
+					  implementation->AppearanceProfile->palette()
+						  == probe.ManualCandidate,
+					  panel->preview_palette()
+						  == std::optional{ probe.ManualCandidate },
+					  panel->commit_button()->isEnabled(),
+					  panel->cancel_button()->isEnabled(),
+					  implementation->AppearanceHost->settings()
+						  == probe.BeforeSettings,
+					  implementation->AppearanceHost->persisted_settings()
+						  == probe.PersistedSettings,
+					  unchanged(),
+				  };
+			{
+				QTextStream stream{ stdout };
+				stream << "APPEARANCE_THEME_PROBE_ADOPTION_FACTS:";
+				for (const auto fact : adoptionFacts) {
+					stream << fact;
+				}
+				stream << '\n';
+				stream.flush();
+			}
+			if (!std::ranges::all_of(adoptionFacts, std::identity{ })) {
+				return fail();
+			}
+			implementation->AppearanceHost->observe(probe.NativeObservation);
+			implementation->AppearanceProfile->observe(probe.NativeObservation);
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_preview_restoration;
+			reportStage("native-observation-restored");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_preview_restoration) {
+			if (!implementation->AppearanceProfile->previewing_palette()
+				|| implementation->AppearanceProfile->palette()
+					!= probe.ManualCandidate
+				|| panel->preview_palette()
+					!= std::optional{ probe.ManualCandidate }
+				|| !panel->commit_button()->isEnabled()
+				|| !panel->cancel_button()->isEnabled()
+				|| implementation->AppearanceHost->settings()
+					!= probe.BeforeSettings
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings
+				|| !unchanged()) {
+				return fail();
+			}
+			panel->cancel_button()->click();
+			if (implementation->AppearanceProfile->previewing_palette()
+				|| panel->preview_palette().has_value()
+				|| implementation->AppearanceProfile->palette()
+					!= probe.BeforePalette
+				|| implementation->AppearanceHost->settings() != probe.BeforeSettings
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings
+				|| !unchanged()) {
+				return fail();
+			}
+			reportStage("manual-cancelled");
+			probe.Statistics = workbench->statistics();
+			probe.ProfileGeneration
+				= implementation->AppearanceProfile->generation();
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_first_preview;
+			panel->request_theme_import(QString::fromStdString(probe.Path));
+			reportStage("import-requested");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_first_preview) {
+			if (!implementation->AppearanceProfile->previewing_palette()) {
+				return panel->status_text().contains(QStringLiteral("refused"), Qt::CaseInsensitive)
+						|| panel->status_text().contains(QStringLiteral("failed"), Qt::CaseInsensitive)
+					? fail()
+					: result::pending;
+			}
+			if (!panel->preview_palette().has_value()) {
+				return fail();
+			}
+			probe.Candidate = implementation->AppearanceProfile->palette();
+			reportStage("first-preview");
+			const auto statistics       = workbench->statistics();
+			const auto candidateChanged = probe.Candidate != probe.BeforePalette;
+			const auto panelMatches     = *panel->preview_palette() == probe.Candidate;
+			const auto settingsUnchanged
+				= implementation->AppearanceHost->settings() == probe.BeforeSettings;
+			const auto writesUnchanged
+				= implementation->AppearanceHost->persisted_settings()
+				== probe.PersistedSettings;
+			const auto generationChanged
+				= implementation->AppearanceProfile->generation()
+				> probe.ProfileGeneration;
+			const auto paintChanged = statistics.SyntaxBlocksFormatted
+				> probe.Statistics.SyntaxBlocksFormatted;
+			const auto identityUnchanged = unchanged();
+			reportIdentity();
+			{
+				QTextStream stream{ stdout };
+				stream << "APPEARANCE_THEME_PROBE_FIRST_FACTS:"
+					   << candidateChanged << panelMatches << settingsUnchanged
+					   << writesUnchanged << generationChanged << paintChanged
+					   << identityUnchanged << '\n';
+				stream.flush();
+			}
+			if (!candidateChanged || !panelMatches || !settingsUnchanged
+				|| !writesUnchanged || !generationChanged || !paintChanged
+				|| !identityUnchanged) {
+				return fail();
+			}
+			panel->cancel_button()->click();
+			reportStage("cancelled");
+			if (implementation->AppearanceProfile->previewing_palette()
+				|| panel->preview_palette().has_value()
+				|| implementation->AppearanceProfile->palette()
+					!= probe.BeforePalette
+				|| implementation->AppearanceHost->settings() != probe.BeforeSettings
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings
+				|| !unchanged()) {
+				return fail();
+			}
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_second_preview;
+			panel->request_theme_import(QString::fromStdString(probe.Path));
+			reportStage("second-import-requested");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_second_preview) {
+			if (!implementation->AppearanceProfile->previewing_palette()) {
+				return result::pending;
+			}
+			if (!panel->preview_palette().has_value()
+				|| *panel->preview_palette() != probe.Candidate
+				|| implementation->AppearanceHost->settings() != probe.BeforeSettings
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings
+				|| !unchanged()) {
+				return fail();
+			}
+			reportStage("second-preview");
+			panel->commit_button()->click();
+			reportStage("commit-dispatched");
+			if (implementation->AppearanceProfile->previewing_palette()
+				|| panel->preview_palette().has_value()
+				|| implementation->AppearanceProfile->palette() != probe.Candidate
+				|| implementation->AppearanceHost->settings().Palette
+					!= probe.Candidate
+				|| !implementation->AppearanceHost->settings().PaletteStored
+				|| !unchanged()) {
+				return fail();
+			}
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_store;
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_store) {
+			if (implementation->AppearanceHost->persisted_settings()
+				== probe.PersistedSettings) {
+				return result::pending;
+			}
+			if (implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings + 1U
+				|| implementation->AppearanceHost->settings().Palette
+					!= probe.Candidate
+				|| !unchanged()) {
+				return fail();
+			}
+			reportStage("persisted");
+			probe.StoredCandidate = probe.Candidate;
+			const auto role       = core::appearance_role::diff_removed_background;
+			auto&      color      = probe.StoredCandidate[core::index_of(role)];
+			color.Blue            = color.Blue == 0U ? 1U : 0U;
+			panel->role_selector()->setCurrentIndex(
+				static_cast<int>(core::index_of(role)));
+			panel->color_editor()->setText(
+				qt::to_presentation_color(color).name(QColor::HexArgb));
+			panel->preview_button()->click();
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_stored_preview;
+			reportStage("stored-palette-preview-requested");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_stored_preview) {
+			if (!implementation->AppearanceProfile->previewing_palette()
+				|| implementation->AppearanceProfile->palette()
+					!= probe.StoredCandidate
+				|| panel->preview_palette()
+					!= std::optional{ probe.StoredCandidate }
+				|| implementation->AppearanceHost->settings().Palette
+					!= probe.Candidate
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings + 1U
+				|| !unchanged()) {
+				return fail();
+			}
+			auto alternateObservation = probe.NativeObservation;
+			alternateObservation.Scheme
+				= alternateObservation.Scheme == core::os_color_scheme::dark
+				? core::os_color_scheme::light
+				: core::os_color_scheme::dark;
+			implementation->AppearanceHost->observe(alternateObservation);
+			implementation->AppearanceProfile->observe(alternateObservation);
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_stored_preview_adoption;
+			reportStage("stored-palette-adoption-requested");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_stored_preview_adoption) {
+			const auto adoptionFacts = std::array{
+				implementation->AppearanceProfile->previewing_palette(),
+				implementation->AppearanceProfile->palette()
+					== probe.StoredCandidate,
+				implementation->AppearanceProfile->settings().Palette
+					== probe.Candidate,
+				panel->preview_palette() == std::optional{ probe.StoredCandidate },
+				panel->commit_button()->isEnabled(),
+				panel->cancel_button()->isEnabled(),
+				implementation->AppearanceHost->settings().Palette
+					== probe.Candidate,
+				implementation->AppearanceHost->persisted_settings()
+					== probe.PersistedSettings + 1U,
+				unchanged(),
+			};
+			{
+				QTextStream stream{ stdout };
+				stream << "APPEARANCE_THEME_PROBE_STORED_ADOPTION_FACTS:";
+				for (const auto fact : adoptionFacts) {
+					stream << fact;
+				}
+				stream << '\n';
+				stream.flush();
+			}
+			if (!std::ranges::all_of(adoptionFacts, std::identity{ })) {
+				return fail();
+			}
+			implementation->AppearanceHost->observe(probe.NativeObservation);
+			implementation->AppearanceProfile->observe(probe.NativeObservation);
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_stored_preview_restoration;
+			reportStage("stored-palette-observation-restored");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_stored_preview_restoration) {
+			if (!implementation->AppearanceProfile->previewing_palette()
+				|| implementation->AppearanceProfile->palette()
+					!= probe.StoredCandidate
+				|| implementation->AppearanceProfile->settings().Palette
+					!= probe.Candidate
+				|| panel->preview_palette()
+					!= std::optional{ probe.StoredCandidate }
+				|| !panel->commit_button()->isEnabled()
+				|| !panel->cancel_button()->isEnabled()
+				|| implementation->AppearanceHost->settings().Palette
+					!= probe.Candidate
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings + 1U
+				|| !unchanged()) {
+				return fail();
+			}
+			panel->cancel_button()->click();
+			if (implementation->AppearanceProfile->previewing_palette()
+				|| panel->preview_palette().has_value()
+				|| implementation->AppearanceProfile->palette() != probe.Candidate
+				|| implementation->AppearanceProfile->settings().Palette
+					!= probe.Candidate
+				|| implementation->AppearanceHost->settings().Palette
+					!= probe.Candidate
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings + 1U
+				|| !unchanged()) {
+				return fail();
+			}
+			reportStage("stored-palette-preview-cancelled");
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_equal_stored_preview;
+			panel->request_theme_import(QString::fromStdString(probe.Path));
+			reportStage("equal-stored-import-requested");
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::appearance_theme_probe_state::
+				phase::awaiting_equal_stored_preview) {
+			if (!implementation->AppearanceProfile->previewing_palette()
+				|| implementation->AppearanceProfile->palette() != probe.Candidate
+				|| panel->preview_palette() != std::optional{ probe.Candidate }
+				|| !panel->commit_button()->isEnabled()
+				|| !panel->cancel_button()->isEnabled()
+				|| implementation->AppearanceHost->settings().Palette
+					!= probe.Candidate
+				|| implementation->AppearanceHost->persisted_settings()
+					!= probe.PersistedSettings + 1U
+				|| !unchanged()) {
+				return fail();
+			}
+			panel->commit_button()->click();
+			probe.Phase = github_application::implementation::
+				appearance_theme_probe_state::phase::awaiting_equal_stored_commit;
+			reportStage("equal-stored-commit-dispatched");
+			return result::pending;
+		}
+
+		const auto equalCommitFacts = std::array{
+			!implementation->AppearanceProfile->previewing_palette(),
+			implementation->AppearanceProfile->palette() == probe.Candidate,
+			implementation->AppearanceProfile->settings().Palette == probe.Candidate,
+			!panel->preview_palette().has_value(),
+			!panel->commit_button()->isEnabled(),
+			!panel->cancel_button()->isEnabled(),
+			implementation->AppearanceHost->settings().Palette == probe.Candidate,
+			implementation->AppearanceHost->persisted_settings()
+				== probe.PersistedSettings + 1U,
+			unchanged(),
+		};
+		{
+			QTextStream stream{ stdout };
+			stream << "APPEARANCE_THEME_PROBE_EQUAL_COMMIT_FACTS:";
+			for (const auto fact : equalCommitFacts) {
+				stream << fact;
+			}
+			stream << '\n';
+			stream.flush();
+		}
+		if (!std::ranges::all_of(equalCommitFacts, std::identity{ })) {
+			return fail();
+		}
+		probe.Phase = github_application::implementation::
+			appearance_theme_probe_state::phase::passed;
+		reportStage("equal-stored-commit-acknowledged");
+		return result::passed;
 	}
 
 	auto detail::github_application_fixture_access::select_appearance_mode(

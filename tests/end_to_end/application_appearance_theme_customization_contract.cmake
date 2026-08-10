@@ -1,0 +1,197 @@
+cmake_minimum_required(VERSION 4.4.2)
+
+foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_THEME BPR_RUN_BUDGET_MS)
+    if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
+        message(FATAL_ERROR "${required} is required")
+    endif()
+endforeach()
+
+math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
+
+function(run_phase label output_name)
+    execute_process(
+        COMMAND
+            "${CMAKE_COMMAND}"
+            -E
+            env
+            "QT_QPA_PLATFORM=offscreen"
+            "${BPR_APPLICATION}"
+            --automated-run-budget-ms
+            "${BPR_RUN_BUDGET_MS}"
+            ${ARGN}
+        RESULT_VARIABLE phase_result
+        OUTPUT_VARIABLE phase_output
+        ERROR_VARIABLE phase_error
+        TIMEOUT ${bpr_phase_timeout}
+    )
+    if(NOT phase_result EQUAL 0)
+        message(FATAL_ERROR
+            "${label} process failed (${phase_result})\n"
+            "stdout:\n${phase_output}\n"
+            "stderr:\n${phase_error}"
+        )
+    endif()
+    set(${output_name} "${phase_output}" PARENT_SCOPE)
+endfunction()
+
+function(require_literal label output marker)
+    string(FIND "${output}" "${marker}" found)
+    if(found EQUAL -1)
+        message(FATAL_ERROR "${label} omitted ${marker}\nstdout:\n${output}")
+    endif()
+endfunction()
+
+function(require_regex label output pattern)
+    string(REGEX MATCH "${pattern}" matched "${output}")
+    if(matched STREQUAL "")
+        message(FATAL_ERROR
+            "${label} did not match ${pattern}\nstdout:\n${output}"
+        )
+    endif()
+endfunction()
+
+file(REMOVE_RECURSE "${BPR_ROOT}")
+file(MAKE_DIRECTORY "${BPR_ROOT}")
+
+# Process one uses the real fixture-selected workbench and the real local-file
+# import path. The application probe refuses success unless preview and cancel
+# wrote nothing, commit wrote exactly once, and the selected comparison kept
+# its result, context, semantic selection, span identities, classification
+# count, comparison position, semantic index, and measured geometry.
+run_phase(
+    "theme customization"
+    customization_output
+    --github-fixture
+    github-com
+    --epoch-fixture-root
+    "${BPR_ROOT}"
+    --epoch-fixture-phase
+    single
+    --diff-workbench-probe
+    --diff-interaction-evidence
+    "${BPR_ROOT}/diff-evidence"
+    --appearance-theme-customization-probe
+    "${BPR_THEME}"
+    --render-evidence
+    "${BPR_ROOT}/customized-window.png"
+)
+foreach(marker IN ITEMS
+    "PUBLIC_PATH_OK"
+    "DIFF_WORKBENCH_OK"
+    "SYNTAX_THEME_REPAINT_OK"
+    "APPEARANCE_THEME_CUSTOMIZATION_OK"
+    "APPEARANCE_THEME_PROBE_STAGE:manual-preview"
+    "APPEARANCE_THEME_PROBE_STAGE:manual-cancelled"
+    "APPEARANCE_THEME_PROBE_MANUAL_FACTS:11111111"
+    "APPEARANCE_THEME_PROBE_ADOPTION_FACTS:11111111"
+    "APPEARANCE_THEME_PROBE_STORED_ADOPTION_FACTS:111111111"
+    "APPEARANCE_THEME_PROBE_EQUAL_COMMIT_FACTS:111111111"
+    "APPEARANCE_THEME_PROBE_IDENTITY_FACTS:11111111111"
+    "APPEARANCE_THEME_PROBE_FIRST_FACTS:1111111"
+    "APPEARANCE_SETTINGS:system:4"
+    "APPEARANCE_APPLIED:#000000:#000000:from-profile"
+    "APPEARANCE_PERSISTENCE_AVAILABLE"
+    "APPEARANCE_DURABLE_WRITES:1"
+)
+    require_literal("theme customization" "${customization_output}" "${marker}")
+endforeach()
+require_regex(
+    "theme customization"
+    "${customization_output}"
+    "SYNTAX_CLASSIFICATION:[1-9][0-9]*:[1-9][0-9]*"
+)
+require_regex(
+    "theme customization"
+    "${customization_output}"
+    "APPEARANCE_OBSERVED:[a-z]+:[a-z-]+:[1-9][0-9]*"
+)
+
+# Process two opens the same real appearance database without importing or
+# committing anything. The exact black semantic canvas can only come from
+# process one's persisted total palette; System and tab width four prove the
+# unrelated defaults remain intact.
+run_phase(
+    "theme restart"
+    restart_output
+    --self-test
+    --test-application-data-root
+    "${BPR_ROOT}"
+)
+foreach(marker IN ITEMS
+    "PUBLIC_PATH_OK"
+    "APPEARANCE_SETTINGS:system:4"
+    "APPEARANCE_APPLIED:#000000:#000000:from-profile"
+    "APPEARANCE_PERSISTENCE_AVAILABLE"
+    "APPEARANCE_DURABLE_WRITES:0"
+)
+    require_literal("theme restart" "${restart_output}" "${marker}")
+endforeach()
+require_regex(
+    "theme restart"
+    "${restart_output}"
+    "APPEARANCE_OBSERVED:[a-z]+:[a-z-]+:[1-9][0-9]*"
+)
+
+# A selected path is not sufficient authority to perform a stream read. On
+# POSIX, a FIFO would block an ordinary ifstream open until some unrelated
+# writer appeared. The product must identify it from the opened descriptor as
+# non-regular, publish the ordinary typed file failure, finish shutdown, and
+# exit under its own budget rather than under this harness timeout.
+if(UNIX)
+    find_program(BPR_MKFIFO_EXECUTABLE mkfifo REQUIRED)
+    set(special_root "${BPR_ROOT}-special-file")
+    set(special_theme "${special_root}/blocking-theme")
+    file(REMOVE_RECURSE "${special_root}")
+    file(MAKE_DIRECTORY "${special_root}")
+    execute_process(
+        COMMAND "${BPR_MKFIFO_EXECUTABLE}" "${special_theme}"
+        RESULT_VARIABLE fifo_result
+        ERROR_VARIABLE fifo_error
+    )
+    if(NOT fifo_result EQUAL 0)
+        message(FATAL_ERROR "could not create FIFO fixture: ${fifo_error}")
+    endif()
+    execute_process(
+        COMMAND
+            "${CMAKE_COMMAND}"
+            -E
+            env
+            "QT_QPA_PLATFORM=offscreen"
+            "${BPR_APPLICATION}"
+            --automated-run-budget-ms
+            "${BPR_RUN_BUDGET_MS}"
+            --github-fixture
+            github-com
+            --epoch-fixture-root
+            "${special_root}"
+            --epoch-fixture-phase
+            single
+            --diff-workbench-probe
+            --diff-interaction-evidence
+            "${special_root}/diff-evidence"
+            --appearance-theme-customization-probe
+            "${special_theme}"
+        RESULT_VARIABLE special_result
+        OUTPUT_VARIABLE special_output
+        ERROR_VARIABLE special_error
+        TIMEOUT ${bpr_phase_timeout}
+    )
+    if(special_result EQUAL 0 OR NOT special_result MATCHES "^[0-9]+$")
+        message(FATAL_ERROR
+            "special-file import did not fail normally (${special_result})\n"
+            "stdout:\n${special_output}\n"
+            "stderr:\n${special_error}"
+        )
+    endif()
+    foreach(marker IN ITEMS
+        "APPEARANCE_THEME_PROBE_STAGE:import-requested"
+        "APPEARANCE_THEME_PROBE_STAGE:failed"
+        "shutdown_complete=1"
+    )
+        require_literal("special-file import" "${special_output}" "${marker}")
+    endforeach()
+    file(REMOVE_RECURSE "${special_root}")
+endif()
+
+file(REMOVE_RECURSE "${BPR_ROOT}")
+message("APPEARANCE_THEME_CUSTOMIZATION_CONTRACT_OK")

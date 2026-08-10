@@ -640,6 +640,54 @@ namespace {
 			"the durable record reproduces exactly the customised role");
 	}
 
+	auto test_total_palette_preview_cancel_and_adoption_are_exact() -> void
+	{
+		auto profile       = qt::appearance_profile{ };
+		auto notifications = std::size_t{ 0U };
+		profile.set_sink([&notifications] { ++notifications; });
+		const auto committed                                          = profile.palette();
+		auto       preview                                            = committed;
+		preview[core::index_of(role::diff_group_boundary_rule)].Alpha = 173U;
+
+		expect(profile.preview_palette(preview)
+				   && profile.previewing_palette()
+				   && profile.palette() == preview,
+			   "a total core palette is previewed immediately");
+		expect(profile.settings().Palette == committed,
+			   "preview never enters the settings record that persistence reads");
+		expect(profile.cancel_palette_preview()
+				   && !profile.previewing_palette()
+				   && profile.palette() == committed,
+			   "cancel restores the exact last host-adopted palette");
+
+		expect(profile.preview_palette(preview),
+			   "the candidate can be previewed again before commit");
+		const auto beforeAdoption = notifications;
+		expect(!profile.adopt_palette(preview),
+			   "adopting pixels already on screen produces no duplicate repaint");
+		expect(notifications == beforeAdoption
+				   && !profile.previewing_palette()
+				   && profile.settings().Palette == preview,
+			   "host adoption clears preview state and makes the exact palette durable");
+
+		auto laterPreview                                        = preview;
+		laterPreview[core::index_of(role::syntax_keyword)].Green = 91U;
+		expect(profile.preview_palette(laterPreview),
+			   "a later preview can begin after a palette is already durable");
+		static_cast<void>(profile.select_mode(core::appearance_mode::dark));
+		expect(!profile.adopt_palette(
+				   preview,
+				   qt::palette_preview_adoption::retain)
+				   && profile.previewing_palette()
+				   && profile.palette() == laterPreview
+				   && profile.settings().Palette == preview,
+			   "an unrelated host adoption refreshes the committed baseline beneath the exact preview");
+		expect(profile.cancel_palette_preview()
+				   && profile.palette() == preview
+				   && profile.settings().Palette == preview,
+			   "cancel after unrelated adoption restores the exact durable palette");
+	}
+
 	// Typography fixtures. Every offered value is placed against the core's own
 	// published bounds, so a test can never accidentally offer a legal value it
 	// believed was illegal or the reverse.
@@ -1816,6 +1864,7 @@ auto main(int argc, char** argv) -> int
 	test_applies_semantic_colors_without_forcing_style_or_stylesheet();
 	test_immediate_preview_updates_without_restart();
 	test_customisation_round_trips_through_the_durable_record();
+	test_total_palette_preview_cancel_and_adoption_are_exact();
 	test_typography_defaults_are_legal_and_native();
 	test_fonts_are_built_from_the_core_record();
 	test_every_typography_field_previews_immediately();

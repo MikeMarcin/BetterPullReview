@@ -68,8 +68,10 @@ above are absent. Appearance profiles and syntax components remain composed
 when their durable settings store cannot open. The window then starts from
 System defaults, labels appearance changes as session-only, and keeps syntax
 classification and profile switching available; a restart under the same
-failure returns to those defaults. BPR-0237 owns the still-missing semantic
-customization and safe theme import.
+failure returns to those defaults. Done BPR-0237 adds semantic-role preview,
+cancel, persistence, restart restoration, and bounded safe theme import against
+the fixture-selected comparison. BPR-0227 still owns the production
+user-selected diff path, and BPR-0233 owns its recorded selected-diff pixels.
 
 ## Architecture
 

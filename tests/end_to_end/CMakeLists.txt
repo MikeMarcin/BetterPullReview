@@ -352,6 +352,31 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
+set(bpr_appearance_theme_budget_ms 50000)
+add_test(
+    NAME application_appearance_theme_customization_contract
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-theme-customization-root"
+        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprtheme"
+        "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_appearance_theme_customization_contract.cmake"
+)
+set_tests_properties(
+    application_appearance_theme_customization_contract
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "APPEARANCE_THEME_CUSTOMIZATION_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_appearance_theme_customization_contract
+    TIMEOUT 240
+    BUDGET_MS ${bpr_appearance_theme_budget_ms}
+    RUNS 3
+    RESERVE_MS 10000
+)
+
 add_test(
     NAME application_fixture_verdict_contract
     COMMAND

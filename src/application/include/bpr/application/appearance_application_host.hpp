@@ -36,6 +36,7 @@ namespace bpr::application {
 		appearance_application_host(
 			appearance_settings          aInitialSettings,
 			appearance_settings_port&    aSettings,
+			theme_document_port&         aThemeDocuments,
 			syntax_classification_port&  aClassification,
 			effect_executor&             aEffects,
 			decision_executor&           aDecisionLane,
@@ -60,6 +61,12 @@ namespace bpr::application {
 		void observe(core::appearance_observation aObservation);
 		void apply(core::appearance_palette aPalette);
 		void apply(core::typography_settings aTypography);
+		/// \brief Imports one local document into a preview candidate.
+		///
+		/// \details The effect reads through the bounded document port, calls the
+		/// core parser, and validates the result against every appearance variant.
+		/// Success publishes a candidate and never changes or persists settings.
+		void import_theme_file(std::string aPath);
 		// Answers from the retained cache when the key is present and runs the
 		// classification port only when it is not.
 		void classify(token_span_cache_key aKey);

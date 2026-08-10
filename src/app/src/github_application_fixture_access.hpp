@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace bpr::app::detail {
 	enum class github_public_path_fixture {
@@ -91,6 +92,12 @@ namespace bpr::app::detail {
 		int          TargetHeadAvailability            = -1;
 	};
 
+	enum class appearance_theme_customization_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
 	class github_application_fixture_access final
 	{
 	public:
@@ -158,6 +165,16 @@ namespace bpr::app::detail {
 		/// a typed reason, and the previous value stayed in effect.
 		[[nodiscard]] static auto refuse_appearance_gesture(
 			github_application& aApplication) -> bool;
+		/// \brief Advances the real selected-diff theme import/preview/commit course.
+		///
+		/// \details Repeated calls poll the host-owned import effect. The course
+		/// proves preview and cancel write nothing, commit writes once, and colour
+		/// presentation preserves comparison, selection, spans, classification,
+		/// and measured geometry.
+		[[nodiscard]] static auto exercise_appearance_theme_customization(
+			github_application& aApplication,
+			std::string_view    aThemePath)
+			-> appearance_theme_customization_probe_result;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

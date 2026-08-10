@@ -155,6 +155,68 @@ Theme customization exposes semantic roles, not arbitrary QSS or executable styl
 
 Color is never the only state signal. Icons, labels, gutter marks, line prefixes, outlines, and accessible names provide redundant meaning.
 
+### Semantic customization and local import
+
+The settings surface enumerates the core's semantic-role vocabulary and edits
+one role inside a total `appearance_palette`; a raw `QPalette`, QSS fragment, or
+widget stylesheet is never the saved authority. On a fresh System profile the
+editor starts from the palette currently resolved by presentation, not from the
+light bootstrap record whose unstored palette deliberately means “no user
+choice.” Untouched roles therefore remain the colours on screen when the
+operating system currently resolves System to Dark.
+
+Preview and commit are separate operations. Preview is a Qt-local mirror of a
+total semantic palette: it repaints the selected comparison immediately and
+does not call the settings port. Cancel discards that mirror and restores the
+exact palette last adopted from the host. Commit offers the same total palette
+to `appearance_application_host`, which validates it against every shipped
+appearance variant before adopting it. A changed durable record issues exactly
+one settings-store effect; a palette already stored exactly is acknowledged as
+committed without rewriting the same record.
+A refused commit leaves the host-adopted settings and durable record unchanged;
+the reviewer may correct the preview or cancel it. When BPR-0236's session-only
+fallback is active, the same preview and selection behavior remains available
+but the surface continues to label persistence as unavailable and restart
+returns to System defaults.
+
+The composed appearance profile is the preview authority. If mode, typography,
+or a native appearance observation is adopted while a palette preview is
+active, including when an asynchronous durable restore finishes, the panel
+receives the profile's exact active preview beside the new committed settings
+and keeps Commit and Cancel enabled. Only the host's typed successful-palette
+acknowledgement clears both profile and panel preview state; a palette
+invalidation by itself is not that acknowledgement. The controls therefore
+cannot claim there is no preview while the selected comparison still paints
+one, and an equal stored-palette commit cannot leave completed controls active.
+If a reviewer accepts a settings change while the startup read is still in
+flight, that newer local mutation supersedes the read before its terminal can
+adopt. The stale record therefore cannot overwrite the visible session after
+the newer record has been queued for persistence.
+
+Qt owns only local-file selection. It dispatches the selected path and never
+opens or parses the file. Composition supplies a narrow document reader that
+opens the selected path without following a stream protocol, verifies the
+opened operating-system handle is a regular disk file, and reads at most
+`theme_document_byte_limit + 1` bytes on the appearance effect lane. The extra
+byte lets `core::import_theme` distinguish an oversized document from a
+truncated one. FIFOs, pipes, devices, directories, and other special files are
+refused as unavailable before a blocking read. The core parser remains the
+authority for the versioned format and retains its typed refusals for malformed
+documents, unknown or duplicate fields, external references, include
+directives, executable/style payloads, malformed colours, and unsupported
+forward versions. A structurally valid palette is still refused, with the
+variant and exact `contrast_finding` preserved, if any of the four variants
+fails the conservative contrast gate. Import success publishes a preview
+candidate and performs no store write until the reviewer commits it.
+
+Colour-only changes reuse the selected diff, semantic selection, token-span
+objects, classification cache, shared comparison position, and measured
+geometry. The workbench treats palette-change events as paint invalidations;
+font, style, viewport, screen, and device-scale changes retain their existing
+geometry invalidation paths. This keeps semantic colour preview from becoming
+an accidental reparse or layout rebuild while still letting actual metric and
+style changes remeasure the comparison.
+
 Contrast is measured rather than asserted. The core publishes the relative
 luminance ratio over sRGB linearisation and three thresholds: 4.50:1 for text,
 7.00:1 for text in a high-contrast variant, and 3.00:1 for a non-text
