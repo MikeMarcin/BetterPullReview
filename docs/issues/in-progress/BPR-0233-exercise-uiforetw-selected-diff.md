@@ -26,3 +26,27 @@ PNG save succeeded, not that it contains comparison or intraline content.
   closes.
 
 Fixture serving is complete in BPR-0187. It is not the remaining blocker.
+
+## Implemented state
+
+`application_uiforetw_selected_diff_contract` now runs the recorded fixture
+through the shipped Files drawer and BPR-0227's selected-diff composition. It
+selects `UIforETW/Resource.h` and `UIforETW/UIforETW.rc`, binds the generated
+base/head commits and exact file blobs, and requires the known `136` → `137`,
+`464,28` → `464,24`, and `464,42` → `464,36` intraline pairs. The course reads
+the pane's non-full-width selections back under the removed/added intraline
+semantic roles before it can capture evidence.
+
+Four isolated processes capture Light, Dark, High-contrast Light, and
+High-contrast Dark at 1280 × 1000. A fifth process cuts the real Qt selection
+wire and must fail while the fixture-diff helper remains compiled and reports
+zero invocations. The deterministic product and capture contract is green;
+the card remains in progress until the exact captures receive the required
+attended verdict.
+
+## Verification
+
+```sh
+ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure
+ctest --preset dev -R '^(github_recorded_fixture_contract|qt_diff_workbench_scale_100|application_workbench_composition_contract)$' --output-on-failure
+```

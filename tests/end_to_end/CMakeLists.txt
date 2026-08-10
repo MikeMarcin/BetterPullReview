@@ -370,6 +370,31 @@ bpr_bound_automated_run(
 )
 
 add_test(
+    NAME application_uiforetw_selected_diff_contract
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/uiforetw-selected-diff-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        "-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_uiforetw_selected_diff_contract.cmake"
+)
+set_tests_properties(
+    application_uiforetw_selected_diff_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "UIFORETW_SELECTED_DIFF_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_uiforetw_selected_diff_contract
+    TIMEOUT 300
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 5
+    RESERVE_MS 10000
+)
+
+add_test(
     NAME application_diff_workbench_public_path
     COMMAND
         $<TARGET_FILE:app_better_pull_review>

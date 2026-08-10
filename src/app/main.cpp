@@ -486,7 +486,14 @@ namespace {
 		bool WorkbenchCompositionStarted = false;
 		bool WorkbenchCompositionPassed  = false;
 		bpr::app::detail::workbench_composition_probe_evidence
-			WorkbenchCompositionEvidence;
+			 WorkbenchCompositionEvidence;
+		bool UIforEtwSelectedDiffProbe    = false;
+		bool UIforEtwSelectedDiffStarted  = false;
+		bool UIforEtwSelectedDiffPassed   = false;
+		bool UIforEtwSelectedDiffCaptured = false;
+		bpr::app::detail::uiforetw_selected_diff_probe_evidence
+										UIforEtwSelectedDiffEvidence;
+		std::optional<std::string_view> UIforEtwSelectedDiffDirectory;
 		std::optional<bpr::app::detail::review_ledger_composition_probe>
 			 ReviewLedgerCompositionProbe;
 		bool ReviewLedgerCompositionPassed = false;
@@ -2368,6 +2375,43 @@ namespace {
 						? "WORKBENCH_COMPOSITION_TRACE_OK\n"
 						: "WORKBENCH_COMPOSITION_TRACE_FAILED\n");
 		}
+		if (aRun.UIforEtwSelectedDiffProbe) {
+			const auto& evidence = aRun.UIforEtwSelectedDiffEvidence;
+			stream
+				<< (evidence.ExactCommitPair
+						? "UIFORETW_EXACT_COMMIT_PAIR_OK\n"
+						: "UIFORETW_EXACT_COMMIT_PAIR_FAILED\n")
+				<< (evidence.ResourceGesture
+						? "UIFORETW_RESOURCE_GESTURE_OK\n"
+						: "UIFORETW_RESOURCE_GESTURE_FAILED\n")
+				<< (evidence.ResourceExactBlobs
+						? "UIFORETW_RESOURCE_BLOBS_OK\n"
+						: "UIFORETW_RESOURCE_BLOBS_FAILED\n")
+				<< (evidence.ResourceIntralinePair
+						? "UIFORETW_RESOURCE_INTRALINE_OK\n"
+						: "UIFORETW_RESOURCE_INTRALINE_FAILED\n")
+				<< (evidence.ResourceRolePaint
+						? "UIFORETW_RESOURCE_ROLE_OK\n"
+						: "UIFORETW_RESOURCE_ROLE_FAILED\n")
+				<< (evidence.RcGesture ? "UIFORETW_RC_GESTURE_OK\n"
+									   : "UIFORETW_RC_GESTURE_FAILED\n")
+				<< (evidence.RcExactBlobs ? "UIFORETW_RC_BLOBS_OK\n"
+										  : "UIFORETW_RC_BLOBS_FAILED\n")
+				<< (evidence.RcIntralinePairs
+						? "UIFORETW_RC_INTRALINE_OK\n"
+						: "UIFORETW_RC_INTRALINE_FAILED\n")
+				<< (evidence.RcRolePaint ? "UIFORETW_RC_ROLE_OK\n"
+										 : "UIFORETW_RC_ROLE_FAILED\n")
+				<< (evidence.FixtureDiffHelperUnused
+						? "UIFORETW_FIXTURE_DIFF_HELPER_UNUSED_OK\n"
+						: "UIFORETW_FIXTURE_DIFF_HELPER_UNUSED_FAILED\n")
+				<< (aRun.UIforEtwSelectedDiffPassed
+						? "UIFORETW_SELECTED_DIFF_TRACE_OK\n"
+						: "UIFORETW_SELECTED_DIFF_TRACE_FAILED\n")
+				<< (aRun.UIforEtwSelectedDiffCaptured
+						? "UIFORETW_SELECTED_DIFF_EVIDENCE_OK\n"
+						: "UIFORETW_SELECTED_DIFF_EVIDENCE_FAILED\n");
+		}
 		if (aRun.ReviewLedgerCompositionProbe.has_value()) {
 			const auto  course   = *aRun.ReviewLedgerCompositionProbe;
 			const auto  name     = course
@@ -2428,6 +2472,7 @@ namespace {
 		// reported Passed throughout because its `PASS_REGULAR_EXPRESSION "OK"`
 		// matched the `REVIEW_LEDGER_OK` literal a few lines below.
 		if (aRun.Fixture && !aRun.WorkbenchCompositionProbe
+			&& !aRun.UIforEtwSelectedDiffProbe
 			&& !aRun.ReviewRoundTripCompositionProbe
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
@@ -2654,6 +2699,41 @@ namespace {
 			fail_automated_run(aApplication, aRun);
 		}
 	}
+
+	void advance_uiforetw_selected_diff_probe(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		const auto outcome = bpr::app::detail::github_application_fixture_access::
+			exercise_uiforetw_selected_diff(aApplication);
+		aRun.UIforEtwSelectedDiffEvidence = bpr::app::detail::
+			github_application_fixture_access::uiforetw_selected_diff_evidence(
+				aApplication);
+		if (outcome
+			== bpr::app::detail::uiforetw_selected_diff_probe_result::pending) {
+			return;
+		}
+		aRun.UIforEtwSelectedDiffPassed = outcome
+			== bpr::app::detail::uiforetw_selected_diff_probe_result::passed;
+		if (!aRun.UIforEtwSelectedDiffPassed
+			|| !aRun.UIforEtwSelectedDiffDirectory.has_value()
+			|| !aRun.DiffEvidenceAppearance.has_value()) {
+			fail_automated_run(aApplication, aRun);
+			return;
+		}
+		aRun.UIforEtwSelectedDiffCaptured
+			= bpr::app::detail::github_application_fixture_access::
+				capture_uiforetw_selected_diff_evidence(
+					aApplication,
+					*aRun.UIforEtwSelectedDiffDirectory,
+					*aRun.DiffEvidenceAppearance);
+		aRun.PresentationPassed = aRun.UIforEtwSelectedDiffCaptured;
+		if (aRun.PresentationPassed) {
+			transition_to_shutdown(aApplication, aRun);
+		} else {
+			fail_automated_run(aApplication, aRun);
+		}
+	}
 #endif
 
 	void capture_automated_timeout_evidence(
@@ -2845,6 +2925,11 @@ namespace {
 					advance_workbench_composition_probe(aApplication, *aRun);
 					break;
 				}
+				if (aRun->UIforEtwSelectedDiffProbe
+					&& aRun->UIforEtwSelectedDiffStarted) {
+					advance_uiforetw_selected_diff_probe(aApplication, *aRun);
+					break;
+				}
 				if (aRun->DefectCompositionProbe.has_value()
 					&& aRun->DefectCompositionStarted
 					&& !aRun->DefectCompositionPassed) {
@@ -2982,6 +3067,7 @@ namespace {
 						break;
 					}
 					if (!aRun->WorkbenchCompositionProbe
+						&& !aRun->UIforEtwSelectedDiffProbe
 						&& !aRun->LedgerRoundTripped) {
 						aRun->LedgerRoundTripped = bpr::app::detail::
 							github_application_fixture_access::
@@ -3018,6 +3104,16 @@ namespace {
 					} else if (aRun->WorkbenchCompositionProbe) {
 						aRun->WorkbenchCompositionStarted = true;
 						advance_workbench_composition_probe(aApplication, *aRun);
+					} else if (aRun->UIforEtwSelectedDiffProbe) {
+						if (!bpr::app::detail::github_application_fixture_access::
+								apply_appearance_gesture(
+									aApplication,
+									*aRun->DiffEvidenceAppearance,
+									8U)) {
+							fail_automated_run(aApplication, *aRun);
+							break;
+						}
+						aRun->UIforEtwSelectedDiffStarted = true;
 					} else if (aRun->Appearance.Enabled) {
 						aRun->Appearance.ExpectedEpochLeftOid  = QString::fromStdString(evidence.BaseOid);
 						aRun->Appearance.ExpectedEpochRightOid = QString::fromStdString(evidence.HeadOneOid);
@@ -3914,8 +4010,15 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--workbench-composition-probe");
 		const auto workbenchCompositionCutSelectionWire = has_argument(
 			argc, argv, "--workbench-composition-cut-selection-wire");
+		const auto uiforetwSelectedDiffDirectory = argument_value(
+			argc, argv, "--uiforetw-selected-diff-evidence");
+		const auto uiforetwSelectedDiffProbe
+			= uiforetwSelectedDiffDirectory.has_value();
+		const auto uiforetwSelectedDiffCutSelectionWire = has_argument(
+			argc, argv, "--uiforetw-selected-diff-cut-selection-wire");
 		fixtureOptions.DisableWorkbenchSelectionWire
-			= workbenchCompositionCutSelectionWire;
+			= workbenchCompositionCutSelectionWire
+			|| uiforetwSelectedDiffCutSelectionWire;
 		const auto reviewLedgerCompositionProbeName = argument_value(
 			argc, argv, "--review-ledger-composition-probe");
 		auto reviewLedgerCompositionProbe = std::optional<
@@ -4033,6 +4136,7 @@ auto main(int argc, char** argv) -> int
 			&& (selfTest || renderPath.has_value() || fixtureName.empty()
 				|| diffWorkbenchProbe || diffWorkbenchShutdownProbe
 				|| workbenchCompositionProbe
+				|| uiforetwSelectedDiffProbe
 				|| appearanceGestureProbe
 				|| appearanceThemeCustomizationPath.has_value()
 				|| reviewRoundTripCompositionProbe
@@ -4073,6 +4177,29 @@ auto main(int argc, char** argv) -> int
 				&& !workbenchCompositionProbe)) {
 			QTextStream{ stdout }
 				<< "WORKBENCH_COMPOSITION_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if ((uiforetwSelectedDiffProbe
+			 && (!selectedFixture.has_value()
+				 || *selectedFixture
+					 != bpr::app::detail::github_public_path_fixture::uiforetw_74
+				 || !epochFixtureRoot.has_value()
+				 || fixtureOptions.EpochPhase
+					 != bpr::app::detail::github_epoch_fixture_phase::single
+				 || !diffEvidenceAppearanceName.has_value()
+				 || !diffEvidenceAppearance->has_value()
+				 || workbenchCompositionProbe || diffWorkbenchProbe
+				 || diffWorkbenchShutdownProbe || nativeAppearanceProbe
+				 || appearanceGestureProbe
+				 || appearanceThemeCustomizationPath.has_value()
+				 || epochMaintenanceProbe.has_value() || automatedStallProbe
+				 || reviewLedgerCompositionProbe.has_value()
+				 || reviewRoundTripCompositionProbe
+				 || defectCompositionProbe.has_value()))
+			|| (uiforetwSelectedDiffCutSelectionWire
+				&& !uiforetwSelectedDiffProbe)) {
+			QTextStream{ stdout }
+				<< "UIFORETW_SELECTED_DIFF_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
 		if (reviewLedgerCompositionProbe.has_value()
@@ -4224,6 +4351,8 @@ auto main(int argc, char** argv) -> int
 #if defined(BPR_BUILD_TESTING)
 						.Fixture                         = !fixtureName.empty(),
 						.WorkbenchCompositionProbe       = workbenchCompositionProbe,
+						.UIforEtwSelectedDiffProbe       = uiforetwSelectedDiffProbe,
+						.UIforEtwSelectedDiffDirectory   = uiforetwSelectedDiffDirectory,
 						.ReviewLedgerCompositionProbe    = reviewLedgerCompositionProbe,
 						.ReviewRoundTripCompositionProbe = reviewRoundTripCompositionProbe,
 						.DefectCompositionProbe          = defectCompositionProbe,

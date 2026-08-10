@@ -48,12 +48,17 @@
 #include "bpr/qt/sensitive_text_input.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
 
+#include <QApplication>
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QDir>
 #include <QEventLoop>
+#include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -63,6 +68,8 @@
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QStyleHints>
+#include <QTextBlock>
+#include <QTextFormat>
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
@@ -3352,6 +3359,25 @@ namespace bpr::app {
 			std::uint32_t                                 InitialFilesWidth        = 0U;
 		};
 		std::optional<workbench_composition_probe_state> WorkbenchCompositionProbe;
+		struct uiforetw_selected_diff_probe_state
+		{
+			enum class phase {
+				awaiting_observation,
+				awaiting_resource_diff,
+				awaiting_rc_diff,
+				passed,
+				failed,
+			};
+
+			phase                                         Phase = phase::awaiting_observation;
+			detail::uiforetw_selected_diff_probe_evidence Evidence;
+			qt::workbench_window_statistics               WindowStatistics;
+			std::size_t                                   SelectedDiffPublications = 0U;
+			std::size_t                                   SelectedDiffFailures     = 0U;
+			std::size_t                                   Waits                    = 0U;
+		};
+		std::optional<uiforetw_selected_diff_probe_state>
+			UIforEtwSelectedDiffProbe;
 		struct review_ledger_composition_probe_state
 		{
 			enum class phase {
@@ -4927,6 +4953,566 @@ namespace bpr::app {
 				&& implementation->WorkbenchCompositionProbe.has_value()
 			? implementation->WorkbenchCompositionProbe->Evidence
 			: detail::workbench_composition_probe_evidence{ };
+	}
+
+	namespace {
+		inline constexpr std::string_view uiforetw_base_oid
+			= "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc";
+		inline constexpr std::string_view uiforetw_head_oid
+			= "e40058be7d5fe319342dffb567ce30e42bc6f4de";
+		inline constexpr std::string_view uiforetw_resource_path
+			= "UIforETW/Resource.h";
+		inline constexpr std::string_view uiforetw_resource_base_blob
+			= "7da9aac464237ee5f1e2c9bc821598ff1f02b352";
+		inline constexpr std::string_view uiforetw_resource_head_blob
+			= "79a81a859f1b281c99e3c624b3263e618d7e1652";
+		inline constexpr std::string_view uiforetw_rc_path
+			= "UIforETW/UIforETW.rc";
+		inline constexpr std::string_view uiforetw_rc_base_blob
+			= "b995e189fb58da146945e1fb22380cdf4a7f4e47";
+		inline constexpr std::string_view uiforetw_rc_head_blob
+			= "6335c1b2e14cd5e63142ce1dfc283fcf538fb134";
+
+		[[nodiscard]] auto decoded_line(
+			const core::decoded_text_document& aDocument,
+			const std::uint32_t                aLine) -> std::string_view
+		{
+			if (aLine >= aDocument.Lines.size()) {
+				return { };
+			}
+			const auto& span = aDocument.Lines[aLine].Content;
+			if (span.End < span.Begin || span.End > aDocument.Bytes.size()) {
+				return { };
+			}
+			return {
+				reinterpret_cast<const char*>(aDocument.Bytes.data() + span.Begin),
+				static_cast<std::size_t>(span.End - span.Begin),
+			};
+		}
+
+		struct intraline_pair_location
+		{
+			std::uint32_t Left  = 0U;
+			std::uint32_t Right = 0U;
+		};
+
+		[[nodiscard]] auto find_intraline_pair(
+			const core::computed_file_diff& aResult,
+			const std::string_view          aLeftFragment,
+			const std::string_view          aRightFragment)
+			-> std::optional<intraline_pair_location>
+		{
+			if (!aResult.LeftDocument.has_value()
+				|| !aResult.RightDocument.has_value()) {
+				return std::nullopt;
+			}
+			for (const auto& edit : aResult.Intraline) {
+				if (edit.Left.empty() || edit.Right.empty()) {
+					continue;
+				}
+				const auto pair = std::ranges::find_if(
+					aResult.Alignment.Pairs,
+					[&edit](const core::line_pair& aPair) {
+						return aPair.Id == edit.Pair;
+					});
+				if (pair == aResult.Alignment.Pairs.end()) {
+					continue;
+				}
+				const auto left  = decoded_line(*aResult.LeftDocument, pair->LeftLine);
+				const auto right = decoded_line(*aResult.RightDocument, pair->RightLine);
+				if (left.find(aLeftFragment) != std::string_view::npos
+					&& right.find(aRightFragment) != std::string_view::npos) {
+					return intraline_pair_location{
+						.Left  = pair->LeftLine,
+						.Right = pair->RightLine,
+					};
+				}
+			}
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto center_intraline_pair(
+			qt::diff_workbench&             aWorkbench,
+			const core::computed_file_diff& aResult,
+			const std::string_view          aLeftFragment,
+			const std::string_view          aRightFragment) -> bool
+		{
+			const auto location = find_intraline_pair(
+				aResult, aLeftFragment, aRightFragment);
+			if (!location.has_value()) {
+				return false;
+			}
+			const auto center = [](QPlainTextEdit& aPane, const std::uint32_t aLine) {
+				const auto block = aPane.document()->findBlockByNumber(
+					static_cast<int>(aLine));
+				if (!block.isValid()) {
+					return false;
+				}
+				aPane.setTextCursor(QTextCursor{ block });
+				aPane.centerCursor();
+				return true;
+			};
+			return center(*aWorkbench.left_pane(), location->Left)
+				&& center(*aWorkbench.right_pane(), location->Right);
+		}
+
+		[[nodiscard]] auto role_paint_count(
+			const QPlainTextEdit& aPane,
+			const QColor&         aExpected) -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count_if(
+				aPane.extraSelections(),
+				[&aExpected](const QTextEdit::ExtraSelection& aSelection) {
+					return !aSelection.format.boolProperty(
+							   QTextFormat::FullWidthSelection)
+						&& aSelection.format.background().color() == aExpected
+						&& aSelection.cursor.hasSelection();
+				}));
+		}
+
+		[[nodiscard]] auto intraline_roles_visible(
+			const qt::diff_workbench&     aWorkbench,
+			const qt::appearance_profile& aProfile,
+			const std::size_t             aMinimum) -> bool
+		{
+			return role_paint_count(
+					   *aWorkbench.left_pane(),
+					   aProfile.color(
+						   core::appearance_role::diff_intraline_removed_background))
+				>= aMinimum
+				&& role_paint_count(
+					   *aWorkbench.right_pane(),
+					   aProfile.color(
+						   core::appearance_role::diff_intraline_added_background))
+				>= aMinimum;
+		}
+
+		[[nodiscard]] auto drawer_row(
+			const qt::workbench_window& aWindow,
+			const std::string_view      aPath) -> QModelIndex
+		{
+			if (aWindow.files_drawer() == nullptr
+				|| aWindow.files_drawer()->contents_view() == nullptr
+				|| aWindow.files_drawer()->contents_view()->model() == nullptr) {
+				return { };
+			}
+			const auto* const model    = aWindow.files_drawer()->contents_view()->model();
+			const auto        expected = QString::fromUtf8(
+				aPath.data(), static_cast<qsizetype>(aPath.size()));
+			for (auto row = 0; row < model->rowCount(); ++row) {
+				const auto index = model->index(row, 0);
+				if (index.data(Qt::DisplayRole).toString() == expected) {
+					return index;
+				}
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto selected_diff_publication_matches(
+			const auto&            aImplementation,
+			const std::string_view aPath,
+			const std::string_view aBaseBlob,
+			const std::string_view aHeadBlob) -> bool
+		{
+			if (!aImplementation.LastSelectedDiff.has_value()) {
+				return false;
+			}
+			const auto  left        = core::parse_git_blob_oid(aBaseBlob);
+			const auto  right       = core::parse_git_blob_oid(aHeadBlob);
+			const auto& publication = *aImplementation.LastSelectedDiff;
+			return left.has_value() && right.has_value()
+				&& publication.Request.File.PresentationPath == aPath
+				&& publication.Request.File.CurrentPath
+				== std::filesystem::path{ aPath }
+			&& publication.Request.File.File == core::file_identity_of(aPath)
+				&& publication.Key.LeftBlob == left
+				&& publication.Key.RightBlob == right
+				&& publication.Key.File == core::file_identity_of(aPath);
+		}
+
+		[[nodiscard]] auto selected_diff_matches(
+			const auto&            aImplementation,
+			const std::string_view aPath,
+			const std::string_view aBaseBlob,
+			const std::string_view aHeadBlob) -> bool
+		{
+			return selected_diff_publication_matches(
+					   aImplementation, aPath, aBaseBlob, aHeadBlob)
+				&& aImplementation.Window != nullptr
+				&& aImplementation.Window->comparison_surface() != nullptr
+				&& aImplementation.Window->comparison_surface()->current_result()
+				!= nullptr
+				&& aImplementation.Window->comparison_surface()
+					   ->current_result()
+					   ->Alignment.Key
+				== aImplementation.LastSelectedDiff->Key;
+		}
+
+		[[nodiscard]] auto appearance_mode_name(
+			const core::appearance_mode aMode) -> QString
+		{
+			switch (aMode) {
+			case core::appearance_mode::system:
+				return QStringLiteral("system");
+			case core::appearance_mode::light:
+				return QStringLiteral("light");
+			case core::appearance_mode::dark:
+				return QStringLiteral("dark");
+			case core::appearance_mode::high_contrast_system:
+				return QStringLiteral("high-contrast-system");
+			case core::appearance_mode::high_contrast_light:
+				return QStringLiteral("high-contrast-light");
+			case core::appearance_mode::high_contrast_dark:
+				return QStringLiteral("high-contrast-dark");
+			}
+			return QStringLiteral("unknown");
+		}
+	} // namespace
+
+	auto detail::github_application_fixture_access::exercise_uiforetw_selected_diff(
+		github_application& aApplication)
+		-> detail::uiforetw_selected_diff_probe_result
+	{
+		using result     = detail::uiforetw_selected_diff_probe_result;
+		using state_type = github_application::implementation::
+			uiforetw_selected_diff_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Fixture == nullptr
+			|| implementation->Host == nullptr
+			|| implementation->EpochHost == nullptr
+			|| implementation->WorkbenchHost == nullptr
+			|| implementation->Window == nullptr
+			|| implementation->AppearanceProfile == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->UIforEtwSelectedDiffProbe.has_value()) {
+			implementation->UIforEtwSelectedDiffProbe.emplace();
+		}
+		auto&      probe = *implementation->UIforEtwSelectedDiffProbe;
+		const auto fail  = [&probe, implementation] {
+			probe.Evidence.FixtureDiffHelperUnused
+				= implementation->FixtureDiffHelperInvocations == 0U;
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+
+		auto* const window             = implementation->Window.get();
+		auto* const workbench          = window->comparison_surface();
+		auto* const view               = window->files_drawer() != nullptr
+			? window->files_drawer()->contents_view()
+			: nullptr;
+		const auto  fixture            = implementation->Fixture->evidence();
+		probe.Evidence.ExactCommitPair = fixture.BaseOid == uiforetw_base_oid
+			&& fixture.HeadOneOid == uiforetw_head_oid
+			&& fixture.HeadTwoOid.empty();
+
+		if (probe.Phase == state_type::phase::awaiting_observation) {
+			const auto& snapshot = implementation->Host->accepted_snapshot();
+			const auto  resource = drawer_row(*window, uiforetw_resource_path);
+			const auto  rc       = drawer_row(*window, uiforetw_rc_path);
+			if (!snapshot.has_value()
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U
+				|| !implementation->WorkbenchHost->state().Navigation.has_value()
+				|| !resource.isValid() || !rc.isValid() || view == nullptr) {
+				return result::pending;
+			}
+			if (!probe.Evidence.ExactCommitPair) {
+				return fail();
+			}
+			probe.WindowStatistics = window->statistics();
+			probe.SelectedDiffPublications
+				= implementation->SelectedDiffPublications;
+			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
+			window->resize(1'280, 1'000);
+			QApplication::processEvents();
+			view->setCurrentIndex(resource);
+			probe.Phase = state_type::phase::awaiting_resource_diff;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_resource_diff) {
+			probe.Evidence.ResourceGesture
+				= window->statistics().FileSelections
+				== probe.WindowStatistics.FileSelections + 1U;
+			if (implementation->SelectedDiffFailures
+				!= probe.SelectedDiffFailures) {
+				return fail();
+			}
+			if (implementation->SelectedDiffPublications
+				== probe.SelectedDiffPublications) {
+				if (++probe.Waits > 32U && probe.Evidence.ResourceGesture) {
+					return fail();
+				}
+				return result::pending;
+			}
+			const auto resourcePublication
+				= implementation->SelectedDiffPublications
+				== probe.SelectedDiffPublications + 1U;
+			if (!resourcePublication
+				|| !selected_diff_publication_matches(
+					*implementation,
+					uiforetw_resource_path,
+					uiforetw_resource_base_blob,
+					uiforetw_resource_head_blob)) {
+				return fail();
+			}
+			if (!probe.Evidence.ResourcePublication) {
+				probe.Evidence.ResourcePublication = true;
+				probe.Waits                        = 0U;
+			}
+			if (!selected_diff_matches(
+					*implementation,
+					uiforetw_resource_path,
+					uiforetw_resource_base_blob,
+					uiforetw_resource_head_blob)) {
+				if (++probe.Waits > 512U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			probe.Evidence.ResourceExactBlobs    = true;
+			probe.Waits                          = 0U;
+			const auto& computed                 = *workbench->current_result();
+			probe.Evidence.ResourceIntralinePair = find_intraline_pair(
+													   computed,
+													   "_APS_NEXT_RESOURCE_VALUE        136",
+													   "_APS_NEXT_RESOURCE_VALUE        137")
+													   .has_value();
+			if (!probe.Evidence.ResourceGesture
+				|| !probe.Evidence.ResourcePublication
+				|| !probe.Evidence.ResourceExactBlobs
+				|| !probe.Evidence.ResourceIntralinePair
+				|| !center_intraline_pair(
+					*workbench,
+					computed,
+					"_APS_NEXT_RESOURCE_VALUE        136",
+					"_APS_NEXT_RESOURCE_VALUE        137")) {
+				return fail();
+			}
+			probe.Evidence.ResourceRolePaint = intraline_roles_visible(
+				*workbench, *implementation->AppearanceProfile, 1U);
+			if (!probe.Evidence.ResourceRolePaint) {
+				if (++probe.Waits > 64U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			const auto rc = drawer_row(*window, uiforetw_rc_path);
+			if (!rc.isValid() || view == nullptr) {
+				return fail();
+			}
+			probe.WindowStatistics = window->statistics();
+			probe.SelectedDiffPublications
+				= implementation->SelectedDiffPublications;
+			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
+			probe.Waits                = 0U;
+			view->setCurrentIndex(rc);
+			probe.Phase = state_type::phase::awaiting_rc_diff;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_rc_diff) {
+			probe.Evidence.RcGesture = window->statistics().FileSelections
+				== probe.WindowStatistics.FileSelections + 1U;
+			if (implementation->SelectedDiffFailures
+				!= probe.SelectedDiffFailures) {
+				return fail();
+			}
+			if (implementation->SelectedDiffPublications
+				== probe.SelectedDiffPublications) {
+				if (++probe.Waits > 32U && probe.Evidence.RcGesture) {
+					return fail();
+				}
+				return result::pending;
+			}
+			const auto rcPublication = implementation->SelectedDiffPublications
+				== probe.SelectedDiffPublications + 1U;
+			if (!rcPublication
+				|| !selected_diff_publication_matches(
+					*implementation,
+					uiforetw_rc_path,
+					uiforetw_rc_base_blob,
+					uiforetw_rc_head_blob)) {
+				return fail();
+			}
+			if (!probe.Evidence.RcPublication) {
+				probe.Evidence.RcPublication = true;
+				probe.Waits                  = 0U;
+			}
+			if (!selected_diff_matches(
+					*implementation,
+					uiforetw_rc_path,
+					uiforetw_rc_base_blob,
+					uiforetw_rc_head_blob)) {
+				if (++probe.Waits > 512U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			probe.Evidence.RcExactBlobs = true;
+			probe.Waits                 = 0U;
+			const auto& computed        = *workbench->current_result();
+			const auto  pairOne         = find_intraline_pair(
+				computed, "WS_TABSTOP,464,28,67,10", "WS_TABSTOP,464,24,67,10");
+			const auto pairTwo = find_intraline_pair(
+				computed, "WS_TABSTOP,464,42,98,10", "WS_TABSTOP,464,36,98,10");
+			probe.Evidence.RcIntralinePairs
+				= pairOne.has_value() && pairTwo.has_value();
+			if (!probe.Evidence.RcGesture || !probe.Evidence.RcPublication
+				|| !probe.Evidence.RcExactBlobs
+				|| !probe.Evidence.RcIntralinePairs
+				|| !center_intraline_pair(
+					*workbench,
+					computed,
+					"WS_TABSTOP,464,28,67,10",
+					"WS_TABSTOP,464,24,67,10")) {
+				return fail();
+			}
+			probe.Evidence.RcRolePaint = intraline_roles_visible(
+				*workbench, *implementation->AppearanceProfile, 2U);
+			if (!probe.Evidence.RcRolePaint) {
+				if (++probe.Waits > 64U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			probe.Evidence.FixtureDiffHelperUnused
+				= implementation->FixtureDiffHelperInvocations == 0U;
+			const auto all = std::array{
+				probe.Evidence.ExactCommitPair,
+				probe.Evidence.ResourceGesture,
+				probe.Evidence.ResourceExactBlobs,
+				probe.Evidence.ResourceIntralinePair,
+				probe.Evidence.ResourceRolePaint,
+				probe.Evidence.ResourcePublication,
+				probe.Evidence.RcGesture,
+				probe.Evidence.RcExactBlobs,
+				probe.Evidence.RcIntralinePairs,
+				probe.Evidence.RcRolePaint,
+				probe.Evidence.RcPublication,
+				probe.Evidence.FixtureDiffHelperUnused,
+			};
+			if (!std::ranges::all_of(all, std::identity{ })) {
+				return fail();
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+
+		return fail();
+	}
+
+	auto detail::github_application_fixture_access::uiforetw_selected_diff_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::uiforetw_selected_diff_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr
+				&& implementation->UIforEtwSelectedDiffProbe.has_value()
+			? implementation->UIforEtwSelectedDiffProbe->Evidence
+			: detail::uiforetw_selected_diff_probe_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::
+		capture_uiforetw_selected_diff_evidence(
+			github_application&         aApplication,
+			const std::string_view      aDirectory,
+			const core::appearance_mode aMode) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Window == nullptr
+			|| implementation->AppearanceHost == nullptr
+			|| implementation->AppearanceProfile == nullptr
+			|| !implementation->UIforEtwSelectedDiffProbe.has_value()
+			|| implementation->UIforEtwSelectedDiffProbe->Phase
+				!= github_application::implementation::
+					uiforetw_selected_diff_probe_state::phase::passed
+			|| implementation->AppearanceHost->settings().Mode != aMode
+			|| aDirectory.empty()) {
+			return false;
+		}
+		auto* const window    = implementation->Window.get();
+		auto* const workbench = window->comparison_surface();
+		if (workbench == nullptr || workbench->current_result() == nullptr
+			|| !selected_diff_matches(
+				*implementation,
+				uiforetw_rc_path,
+				uiforetw_rc_base_blob,
+				uiforetw_rc_head_blob)
+			|| !center_intraline_pair(
+				*workbench,
+				*workbench->current_result(),
+				"WS_TABSTOP,464,28,67,10",
+				"WS_TABSTOP,464,24,67,10")) {
+			return false;
+		}
+		for (auto tick = 0; tick < 4; ++tick) {
+			QApplication::processEvents();
+		}
+		if (!intraline_roles_visible(
+				*workbench, *implementation->AppearanceProfile, 2U)) {
+			return false;
+		}
+
+		const auto path = QString::fromUtf8(
+			aDirectory.data(), static_cast<qsizetype>(aDirectory.size()));
+		if (!QDir{ }.mkpath(path)) {
+			return false;
+		}
+		const auto directory  = QDir{ path };
+		const auto full       = window->grab();
+		const auto comparison = workbench->grab();
+		if (full.isNull() || comparison.isNull()
+			|| !full.save(directory.filePath(QStringLiteral("full-window.png")), "PNG")
+			|| !comparison.save(
+				directory.filePath(QStringLiteral("intraline-comparison.png")),
+				"PNG")) {
+			return false;
+		}
+
+		const auto removed = implementation->AppearanceProfile->color(
+			core::appearance_role::diff_intraline_removed_background);
+		const auto added = implementation->AppearanceProfile->color(
+			core::appearance_role::diff_intraline_added_background);
+		const auto& key      = implementation->LastSelectedDiff->Key;
+		const auto  blobText = [](const core::git_blob_oid& aOid) {
+			const auto text = core::canonical_hex(aOid).view();
+			return QString::fromUtf8(
+				text.data(), static_cast<qsizetype>(text.size()));
+		};
+		auto facts = QJsonObject{
+			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v1") },
+			{ QStringLiteral("appearance"), appearance_mode_name(aMode) },
+			{ QStringLiteral("qt_platform"), QGuiApplication::platformName() },
+			{ QStringLiteral("qt_version"), QString::fromLatin1(qVersion()) },
+			{ QStringLiteral("style"), QString::fromLatin1(window->style()->metaObject()->className()) },
+			{ QStringLiteral("device_pixel_ratio"), full.devicePixelRatio() },
+			{ QStringLiteral("logical_width"), window->width() },
+			{ QStringLiteral("logical_height"), window->height() },
+			{ QStringLiteral("pixel_width"), full.width() },
+			{ QStringLiteral("pixel_height"), full.height() },
+			{ QStringLiteral("selected_path"), QString::fromUtf8(uiforetw_rc_path.data(), static_cast<qsizetype>(uiforetw_rc_path.size())) },
+			{ QStringLiteral("base_commit"), QString::fromUtf8(uiforetw_base_oid.data(), static_cast<qsizetype>(uiforetw_base_oid.size())) },
+			{ QStringLiteral("head_commit"), QString::fromUtf8(uiforetw_head_oid.data(), static_cast<qsizetype>(uiforetw_head_oid.size())) },
+			{ QStringLiteral("base_blob"), blobText(*key.LeftBlob) },
+			{ QStringLiteral("head_blob"), blobText(*key.RightBlob) },
+			{ QStringLiteral("removed_role"), removed.name(QColor::HexArgb) },
+			{ QStringLiteral("added_role"), added.name(QColor::HexArgb) },
+			{ QStringLiteral("intraline_edit_count"), static_cast<qint64>(workbench->current_result()->Intraline.size()) },
+			{ QStringLiteral("fixture_diff_helper_invocations"), static_cast<qint64>(implementation->FixtureDiffHelperInvocations) },
+		};
+		auto file = QFile{ directory.filePath(QStringLiteral("capture-facts.json")) };
+		if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+			return false;
+		}
+		const auto bytes = QJsonDocument{ facts }.toJson(QJsonDocument::Indented);
+		return file.write(bytes) == bytes.size() && file.flush();
 	}
 
 	namespace {

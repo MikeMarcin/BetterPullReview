@@ -75,6 +75,14 @@ two-commit repository — base, then head — and packs it.
 | head commit | `e40058be7d5fe319342dffb567ce30e42bc6f4de` |
 | size | 32,229 bytes |
 
+The selected-diff contract pins the two recorded files that carry its known
+replacement pairs:
+
+| path | base blob | head blob |
+|---|---|---|
+| `UIforETW/Resource.h` | `7da9aac464237ee5f1e2c9bc821598ff1f02b352` | `79a81a859f1b281c99e3c624b3263e618d7e1652` |
+| `UIforETW/UIforETW.rc` | `b995e189fb58da146945e1fb22380cdf4a7f4e47` | `6335c1b2e14cd5e63142ce1dfc283fcf538fb134` |
+
 The commits are stable because the generator pins the author and committer
 identity and both timestamps. Two runs produce byte-identical packs, which is
 what lets a test name these identifiers instead of discovering them.

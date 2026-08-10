@@ -135,6 +135,12 @@ namespace bpr::app::detail {
 		failed,
 	};
 
+	enum class uiforetw_selected_diff_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
 	enum class review_ledger_composition_probe {
 		seed,
 		reopen,
@@ -240,6 +246,26 @@ namespace bpr::app::detail {
 			= default;
 	};
 
+	/// \brief Records the real recorded-file selection and intraline path.
+	struct uiforetw_selected_diff_probe_evidence
+	{
+		bool ExactCommitPair         = false;
+		bool ResourceGesture         = false;
+		bool ResourceExactBlobs      = false;
+		bool ResourceIntralinePair   = false;
+		bool ResourceRolePaint       = false;
+		bool ResourcePublication     = false;
+		bool RcGesture               = false;
+		bool RcExactBlobs            = false;
+		bool RcIntralinePairs        = false;
+		bool RcRolePaint             = false;
+		bool RcPublication           = false;
+		bool FixtureDiffHelperUnused = false;
+
+		auto operator<=>(const uiforetw_selected_diff_probe_evidence&) const
+			= default;
+	};
+
 	class github_application_fixture_access final
 	{
 	public:
@@ -342,6 +368,18 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto workbench_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> workbench_composition_probe_evidence;
+		/// \brief Selects the recorded UIforETW files through the shipped drawer.
+		[[nodiscard]] static auto exercise_uiforetw_selected_diff(
+			github_application& aApplication)
+			-> uiforetw_selected_diff_probe_result;
+		[[nodiscard]] static auto uiforetw_selected_diff_evidence(
+			const github_application& aApplication) noexcept
+			-> uiforetw_selected_diff_probe_evidence;
+		/// \brief Persists criterion-specific pixels after the semantic course passed.
+		[[nodiscard]] static auto capture_uiforetw_selected_diff_evidence(
+			github_application&   aApplication,
+			std::string_view      aDirectory,
+			core::appearance_mode aMode) -> bool;
 		/// \brief Drives one process of the real selected-diff ledger contract.
 		[[nodiscard]] static auto exercise_review_ledger_composition(
 			github_application&             aApplication,
