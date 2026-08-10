@@ -1,7 +1,7 @@
 ---
 id: BPR-0233
 title: Exercise the recorded UIforETW diff and intraline pixels through the selected public path
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0227]
 ---
