@@ -44,9 +44,9 @@ idempotently, server comments are re-read, and capability absence is explicit.
 No live mutation provider is composed. Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
-separate Publish action is still the only shared path. Notifications and
-complete agent context/process lifecycle still have component or reachability
-work tracked by BPR-0223 and BPR-0240.
+separate Publish action is still the only shared path. Complete agent
+context/process lifecycle still has target-native reachability work tracked by
+BPR-0240.
 The shipped landing surface now accepts local repository, author, and path
 observer rules, persists the exact matched reason, restores it across a restart,
 and removes the projected item when its only local rule is deleted. Explicit
@@ -78,8 +78,17 @@ and Escape action are Cancel, leave durable tombstones, and state that GitHub
 and developer worktrees are not modified. Users must not edit the private Git
 repository or SQLite catalog by hand.
 
-Native notification activation remains later public-composition work. The
-shipped window is `workbench_window`, not the deleted
+The shipped queue keeps the first accepted head as an exact session/review
+baseline and emits no activity for it. A later accepted head that differs from
+both that baseline and the accepted current-viewer review can produce one
+metadata-only notification request. Because `QSystemTrayIcon` supplies no
+per-message activation identity, the process-lifetime sink submits at most the
+first actionable payload and suppresses every later one; its first click can
+therefore select only that immutable exact queue row. A filtered or departed
+target reports a local failure without changing filters or opening provider
+navigation. Whether each desktop actually shows the native banner remains an
+attended permission/platform gate.
+The shipped window is `workbench_window`, not the deleted
 `github_window`; it presents the compact pull-request shell, request states,
 retained accepted content, read-only conversations, and connected epoch
 controls. The natural-layout selected-file comparison, workbench navigation,

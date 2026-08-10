@@ -108,7 +108,19 @@ namespace bpr::app {
 		bool                                 NotificationDeliveryComposed = false;
 		application::notification_permission NotificationPermission
 			= application::notification_permission::refused;
-		core::epoch_status EpochStatus = core::epoch_status::inactive;
+		/// Queue transitions that produced a metadata-only notification request.
+		std::size_t NotificationRequestsAttempted = 0U;
+		/// Requests the selected platform sink accepted as attributable submissions.
+		std::size_t NotificationRequestsSubmitted = 0U;
+		/// Requests suppressed because a later identityless activation is ambiguous.
+		std::size_t NotificationRequestsSuppressedUnattributable = 0U;
+		/// Submitted targets the platform routed back through the notifier.
+		std::size_t NotificationActivations = 0U;
+		/// Activated targets selected and focused in the visible queue proxy.
+		std::size_t NotificationSelections = 0U;
+		/// Activated targets that were hidden or absent from the queue proxy.
+		std::size_t        NotificationSelectionFailures = 0U;
+		core::epoch_status EpochStatus                   = core::epoch_status::inactive;
 	};
 
 	/// \brief Provides the github application contract.

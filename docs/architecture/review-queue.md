@@ -226,6 +226,39 @@ anything of this reviewer, and a tool that interrupted for them would teach the
 reviewer to ignore its notifications — after which the ones that matter are
 ignored too.
 
+The composition root retains the first accepted head for one exact queue
+session and pull-request identity. That first accepted snapshot supplies an
+empty activity observation and is quiet for a rule-only enrollment. A later
+accepted handoff for that same identity reports `ReviewedByMe` only when the
+accepted provider handoff carries a current-viewer review. It reports
+`HeadMovedSinceMyReview` only when the first accepted head differs from the
+current head and the accepted review commit also differs from the current
+head. The first baseline stays fixed, so a changed-since-review result remains
+true until accepted provider facts make it false. Replacement or invalidation
+clears the baseline and activity. No role, comment, or defect fact is inferred.
+
+The composition root forwards each accepted queue projection unchanged to the
+real workbench first, then considers a warranting `(queue session,
+pull-request identity, bucket)` transition only when the projection agrees
+with that exact accepted activity. A transition is requested once while it
+remains active. This deduplication is bounded to the active process projection
+and is never durable state. The request uses the exact known unseen-comment
+count, or zero when the composed observation has no such count.
+
+`QSystemTrayIcon` does not identify which displayed message produced its
+`messageClicked` signal. The production sink therefore fails closed for its
+entire process lifetime: it submits at most the first actionable payload,
+retains that exact immutable target, suppresses every later payload without
+calling `showMessage`, and consumes at most the first click. A duplicate or
+delayed click does nothing, and activation never rearms the sink. Submission
+is distinct from proof that the operating system displayed the banner.
+
+A submitted native activation returns through `review_queue_notifier::activate` and asks
+the real landing proxy to select the exact visible identity. The queue row is
+selected and focused without changing presentation preferences. A filtered or
+departed identity fails in the queue status text; activation never clears a
+filter, invents a provider route, or opens a browser.
+
 ## Presentation
 
 `qt::review_landing_model` matches rows by pull-request identity. An item that
@@ -277,4 +310,3 @@ with zero provider mutations.
 |---|---|
 | BPR-0168 | A person to grant Notification Center permission once and to see the banner. The harness proves the request's content and destination; it cannot prove the operating system showed it |
 | BPR-0169 | A designated repository and token. That the correlator cannot issue a request is structural and settled here; that GitHub's own reviewer state is also unchanged needs a server to answer |
-| BPR-0223 | Notification delivery requests and activation selection from a real composed queue item |

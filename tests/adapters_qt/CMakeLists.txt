@@ -19,6 +19,32 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_qt_system_tray_notification_sink_tests
+    system_tray_notification_sink_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_system_tray_notification_sink_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(
+    test_better_pull_review_qt_system_tray_notification_sink_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_qt_system_tray_notification_sink_tests
+)
+add_test(
+    NAME qt_system_tray_notification_sink
+    COMMAND test_better_pull_review_qt_system_tray_notification_sink_tests
+)
+set_tests_properties(
+    qt_system_tray_notification_sink
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION "system-tray-notification-sink-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_qt_github_tests
     composed_github_tests.cpp
 )

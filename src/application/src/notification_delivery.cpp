@@ -39,12 +39,17 @@ namespace bpr::application {
 		// Composed from the request alone. Every word comes from a fixed table
 		// the core owns; nothing here can reach the pull request, the ledger,
 		// or the diff, because this class holds none of them.
-		Sink.deliver(delivered_notification{
+		const auto submission = Sink.deliver(delivered_notification{
 			.Title  = notification_title(aRequest),
 			.Body   = notification_body(aRequest),
 			.Target = notification_target(aRequest),
 		});
-		++Statistics.Delivered;
+		if (submission
+			== notification_submission_result::suppressed_unattributable_activation) {
+			++Statistics.SuppressedUnattributableActivation;
+			return false;
+		}
+		++Statistics.Submitted;
 		return true;
 	}
 

@@ -45,10 +45,26 @@ namespace bpr::app::detail {
 	struct github_public_path_fixture_options
 	{
 		std::optional<std::filesystem::path> ApplicationDataRoot;
-		github_epoch_fixture_phase           EpochPhase                     = github_epoch_fixture_phase::single;
-		bool                                 DisableWorkbenchSelectionWire  = false;
-		bool                                 DisableReviewLedgerGestureWire = false;
-		bool                                 LoseFirstReviewMutationResult  = false;
+		github_epoch_fixture_phase           EpochPhase                       = github_epoch_fixture_phase::single;
+		bool                                 DisableWorkbenchSelectionWire    = false;
+		bool                                 DisableReviewLedgerGestureWire   = false;
+		bool                                 LoseFirstReviewMutationResult    = false;
+		bool                                 UseGrantedNotificationSink       = false;
+		bool                                 DisableNotificationRequestWire   = false;
+		bool                                 DisableNotificationSelectionWire = false;
+	};
+
+	struct queue_notification_fixture_evidence
+	{
+		std::size_t                                        RequestsAttempted                  = 0U;
+		std::size_t                                        Submitted                          = 0U;
+		std::size_t                                        SuppressedUnattributableActivation = 0U;
+		std::size_t                                        Activations                        = 0U;
+		std::size_t                                        Selections                         = 0U;
+		std::size_t                                        SelectionFailures                  = 0U;
+		std::optional<application::delivered_notification> LastSubmitted;
+
+		auto operator<=>(const queue_notification_fixture_evidence&) const = default;
 	};
 
 	struct review_mutation_fixture_evidence
@@ -237,6 +253,16 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;
+		/// \brief Reports the composed queue-to-platform notification evidence.
+		[[nodiscard]] static auto queue_notification_evidence(
+			const github_application& aApplication) noexcept
+			-> queue_notification_fixture_evidence;
+		/// \brief Simulates the identityless platform's first message click.
+		///
+		/// \details The fake sink invokes its installed platform activation callback;
+		/// this helper never calls the notifier or the queue selection surface.
+		[[nodiscard]] static auto activate_platform_notification(
+			github_application& aApplication) -> bool;
 		[[nodiscard]] static auto maintenance_evidence(
 			const github_application& aApplication,
 			core::review_epoch_id     aTarget) noexcept

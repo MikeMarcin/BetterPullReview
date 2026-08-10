@@ -23,6 +23,11 @@ namespace bpr::qt {
 	/// address, and nothing hands the operating system a link another
 	/// application could register for.
 	///
+	/// `QSystemTrayIcon` provides one `messageClicked` signal and no message
+	/// identity. This sink therefore submits at most its first payload, retains
+	/// that exact target immutably, consumes at most the first click, and never
+	/// rearms during its lifetime.
+	///
 	/// That sentence is worded around the architecture scan rather than in
 	/// spite of it: the scan refuses the obvious three-letter word anywhere in
 	/// this adapter's GitHub projection surface, and it is right to, because a
@@ -40,6 +45,14 @@ namespace bpr::qt {
 	{
 	public:
 		explicit system_tray_notification_sink(QObject* aParent = nullptr);
+		/// \brief Uses one caller-owned tray surface.
+		///
+		/// \details The caller must keep the tray alive longer than this sink. This
+		/// constructor supports deterministic platform-contract verification without
+		/// claiming that an operating system displayed a banner.
+		explicit system_tray_notification_sink(
+			QSystemTrayIcon& aTray,
+			QObject*         aParent = nullptr);
 		~system_tray_notification_sink() override;
 
 		system_tray_notification_sink(const system_tray_notification_sink&) = delete;
@@ -53,13 +66,15 @@ namespace bpr::qt {
 			-> application::notification_permission override;
 		[[nodiscard]] auto request_permission()
 			-> application::notification_permission override;
-		void deliver(const application::delivered_notification& aPayload) override;
+		[[nodiscard]] auto deliver(
+			const application::delivered_notification& aPayload)
+			-> application::notification_submission_result override;
 
 		/// \brief Installs what an activation reports the chosen review to.
 		void set_activation_sink(application::notification_activation_sink aSink);
 
 		[[nodiscard]] auto tray_icon() const noexcept -> QSystemTrayIcon*;
-		[[nodiscard]] auto delivered() const noexcept -> std::size_t;
+		[[nodiscard]] auto submitted() const noexcept -> std::size_t;
 
 	private:
 		struct implementation;

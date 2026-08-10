@@ -10,14 +10,36 @@
 namespace bpr::qt {
 	struct system_tray_notification_sink::implementation
 	{
-		QSystemTrayIcon*                          Tray = nullptr;
-		application::notification_activation_sink Activations;
-		/// The target of the payload most recently delivered. Retained so an
-		/// activation can say which review the reviewer chose, and for no other
-		/// reason: nothing reads it except `activate`.
-		std::optional<application::queue_notification_target> LastTarget;
-		std::size_t                                           Delivered = 0U;
+		QSystemTrayIcon*                                      Tray = nullptr;
+		application::notification_activation_sink             Activations;
+		std::optional<application::queue_notification_target> FirstTarget;
+		std::size_t                                           Submitted          = 0U;
+		bool                                                  ActivationConsumed = false;
 	};
+
+	namespace {
+		void connect_activation(
+			system_tray_notification_sink& aSink,
+			QSystemTrayIcon&               aTray,
+			auto&                          aImplementation)
+		{
+			QObject::connect(
+				&aTray,
+				&QSystemTrayIcon::messageClicked,
+				&aSink,
+				[&aImplementation] {
+					if (!aImplementation.FirstTarget.has_value()
+						|| aImplementation.ActivationConsumed) {
+						return;
+					}
+					aImplementation.ActivationConsumed = true;
+					if (aImplementation.Activations) {
+						aImplementation.Activations(
+							*aImplementation.FirstTarget);
+					}
+				});
+		}
+	} // namespace
 
 	system_tray_notification_sink::system_tray_notification_sink(
 		QObject* const aParent)
@@ -31,18 +53,18 @@ namespace bpr::qt {
 		Implementation->Tray->setObjectName(
 			QStringLiteral("reviewQueueNotificationTray"));
 		Implementation->Tray->setToolTip(QStringLiteral("BetterPullReview"));
-		QObject::connect(
-			Implementation->Tray,
-			&QSystemTrayIcon::messageClicked,
-			this,
-			[this] {
-				if (
-					Implementation->Activations
-					&& Implementation->LastTarget.has_value()) {
-					Implementation->Activations(*Implementation->LastTarget);
-				}
-			});
+		connect_activation(*this, *Implementation->Tray, *Implementation);
 		Implementation->Tray->show();
+	}
+
+	system_tray_notification_sink::system_tray_notification_sink(
+		QSystemTrayIcon& aTray,
+		QObject* const   aParent)
+		: QObject{ aParent }
+		, Implementation{ std::make_unique<implementation>() }
+	{
+		Implementation->Tray = &aTray;
+		connect_activation(*this, aTray, *Implementation);
 	}
 
 	system_tray_notification_sink::~system_tray_notification_sink() = default;
@@ -69,20 +91,25 @@ namespace bpr::qt {
 		return permission();
 	}
 
-	void system_tray_notification_sink::deliver(
+	auto system_tray_notification_sink::deliver(
 		const application::delivered_notification& aPayload)
+		-> application::notification_submission_result
 	{
-		if (Implementation->Tray == nullptr) {
-			return;
+		if (Implementation->FirstTarget.has_value()) {
+			return application::notification_submission_result::
+				suppressed_unattributable_activation;
 		}
-		Implementation->LastTarget = aPayload.Target;
-		++Implementation->Delivered;
+		Implementation->FirstTarget = aPayload.Target;
+		++Implementation->Submitted;
 		// Title and body only. The payload's other field is where an
 		// activation goes, not something to show.
-		Implementation->Tray->showMessage(
-			QString::fromStdString(aPayload.Title),
-			QString::fromStdString(aPayload.Body),
-			QSystemTrayIcon::Information);
+		if (Implementation->Tray != nullptr) {
+			Implementation->Tray->showMessage(
+				QString::fromStdString(aPayload.Title),
+				QString::fromStdString(aPayload.Body),
+				QSystemTrayIcon::Information);
+		}
+		return application::notification_submission_result::submitted;
 	}
 
 	void system_tray_notification_sink::set_activation_sink(
@@ -97,8 +124,8 @@ namespace bpr::qt {
 		return Implementation->Tray;
 	}
 
-	auto system_tray_notification_sink::delivered() const noexcept -> std::size_t
+	auto system_tray_notification_sink::submitted() const noexcept -> std::size_t
 	{
-		return Implementation->Delivered;
+		return Implementation->Submitted;
 	}
 } // namespace bpr::qt

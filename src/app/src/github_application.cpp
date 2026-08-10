@@ -260,6 +260,88 @@ namespace bpr::app {
 			std::optional<application::queue_refresh_completion> Retained;
 		};
 
+		struct queue_notification_transition
+		{
+			application::queue_session_id Session;
+			core::pull_request_ref        Ref;
+			core::attention_bucket        Bucket
+				= core::attention_bucket::quiet;
+
+			auto operator<=>(const queue_notification_transition&) const = default;
+		};
+
+		struct queue_activity_baseline
+		{
+			application::queue_session_id Session;
+			core::pull_request_ref        Ref;
+			core::git_commit_oid          Head;
+		};
+
+		struct queue_activity_fact
+		{
+			application::queue_session_id    Session;
+			core::pull_request_ref           Ref;
+			core::queue_activity_observation Activity;
+		};
+
+#if defined(BPR_BUILD_TESTING)
+		class fixture_notification_sink final
+			: public application::notification_sink_port
+		{
+		public:
+			[[nodiscard]] auto permission()
+				-> application::notification_permission override
+			{
+				return application::notification_permission::granted;
+			}
+
+			[[nodiscard]] auto request_permission()
+				-> application::notification_permission override
+			{
+				return application::notification_permission::granted;
+			}
+
+			[[nodiscard]] auto deliver(
+				const application::delivered_notification& aPayload)
+				-> application::notification_submission_result override
+			{
+				if (Payload.has_value()) {
+					return application::notification_submission_result::
+						suppressed_unattributable_activation;
+				}
+				Payload = aPayload;
+				return application::notification_submission_result::submitted;
+			}
+
+			void set_activation_sink(
+				application::notification_activation_sink aSink)
+			{
+				Activation = std::move(aSink);
+			}
+
+			[[nodiscard]] auto activate() -> bool
+			{
+				if (!Payload.has_value() || ActivationConsumed || !Activation) {
+					return false;
+				}
+				ActivationConsumed = true;
+				Activation(Payload->Target);
+				return true;
+			}
+
+			[[nodiscard]] auto submitted_payload() const
+				-> std::optional<application::delivered_notification>
+			{
+				return Payload;
+			}
+
+		private:
+			application::notification_activation_sink          Activation;
+			std::optional<application::delivered_notification> Payload;
+			bool                                               ActivationConsumed = false;
+		};
+#endif
+
 		[[nodiscard]] auto preserves_selected_diff(
 			const core::epoch_state&                          aState,
 			const application::accepted_pull_request_handoff& aHandoff) noexcept
@@ -1335,7 +1417,8 @@ namespace bpr::app {
 		: public application::github_epoch_handoff_port,
 		  public application::epoch_projection_port,
 		  public application::workbench_selected_diff_projection_port,
-		  public application::receipt_projection_port
+		  public application::receipt_projection_port,
+		  public application::queue_landing_projection_port
 	{
 	public:
 		explicit implementation(
@@ -1353,6 +1436,12 @@ namespace bpr::app {
 					= aFixtureOptions.DisableWorkbenchSelectionWire;
 				DisableReviewLedgerGestureWire
 					= aFixtureOptions.DisableReviewLedgerGestureWire;
+				UseGrantedNotificationSink
+					= aFixtureOptions.UseGrantedNotificationSink;
+				DisableNotificationRequestWire
+					= aFixtureOptions.DisableNotificationRequestWire;
+				DisableNotificationSelectionWire
+					= aFixtureOptions.DisableNotificationSelectionWire;
 				const auto host = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
@@ -1596,7 +1685,7 @@ namespace bpr::app {
 				*QueueRefresh,
 				QueueEffects,
 				DecisionLane,
-				*Window,
+				*this,
 				application::queue_session_id{ });
 			Window->set_queue_rule_dispatch(
 				[this](application::queue_rule_intent aIntent) {
@@ -1701,28 +1790,55 @@ namespace bpr::app {
 			// it back, so merely launching still leaves a fresh store fresh.
 			WorkbenchHost->restore();
 
-			// The queue notification surface. Composed here so the delivery
-			// path exists in the product rather than only in its suite; what
-			// still does not exist is a composed review queue to produce
-			// requests, which RFC-BPR-0010's own composition owns. Every
-			// delivery in this build therefore comes from the fixture probe.
-			NotificationSink = std::make_unique<qt::system_tray_notification_sink>(
-				Window.get());
+			// Queue projections arrive at this composition first. It forwards the
+			// accepted value unchanged to the real window, then asks this notifier
+			// only for newly warranting session/ref/bucket transitions.
+			auto* systemNotificationSink
+				= static_cast<qt::system_tray_notification_sink*>(nullptr);
+#if defined(BPR_BUILD_TESTING)
+			if (UseGrantedNotificationSink) {
+				auto sink               = std::make_unique<fixture_notification_sink>();
+				FixtureNotificationSink = sink.get();
+				NotificationSink        = std::move(sink);
+			}
+#endif
+			if (NotificationSink == nullptr) {
+				auto sink = std::make_unique<qt::system_tray_notification_sink>(
+					Window.get());
+				systemNotificationSink = sink.get();
+				NotificationSink       = std::move(sink);
+			}
 			Notifications = std::make_unique<application::review_queue_notifier>(
 				*NotificationSink,
 				[this](application::queue_notification_target aTarget) {
-					// The notifier selects nothing; this is where a chosen
-					// review would be opened. RFC-BPR-0010's queue surface
-					// owns that, so the target is recorded and the separation
-					// is kept rather than short-circuited.
-					ActivatedNotification = std::move(aTarget);
-				});
-			NotificationSink->set_activation_sink(
-				[this](application::queue_notification_target aTarget) {
-					if (Notifications) {
-						Notifications->activate(aTarget);
+					if (Closing || Window == nullptr) {
+						return;
+					}
+#if defined(BPR_BUILD_TESTING)
+					if (DisableNotificationSelectionWire) {
+						return;
+					}
+#endif
+					if (Window->select_queue_item(aTarget.Ref)) {
+						++NotificationSelections;
+					} else {
+						++NotificationSelectionFailures;
 					}
 				});
+			const auto activation = [this](
+										application::queue_notification_target aTarget) {
+				if (Notifications) {
+					Notifications->activate(aTarget);
+				}
+			};
+			if (systemNotificationSink != nullptr) {
+				systemNotificationSink->set_activation_sink(activation);
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (FixtureNotificationSink != nullptr) {
+				FixtureNotificationSink->set_activation_sink(activation);
+			}
+#endif
 
 			// Composed before the appearance host, which needs a live
 			// classification port. The blob source reads through the epoch
@@ -2388,6 +2504,61 @@ namespace bpr::app {
 			}
 		}
 
+		void publish(
+			const application::queue_landing_projection& aProjection) override
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+
+			// Presentation receives the exact accepted projection before any
+			// notification can activate back into it.
+			Window->publish(aProjection);
+
+			auto active = std::vector<queue_notification_transition>{ };
+			active.reserve(aProjection.Items.size());
+			for (const auto& item : aProjection.Items) {
+				const auto trustedActivity = QueueActivity.has_value()
+					&& QueueActivity->Session == aProjection.Session
+					&& QueueActivity->Ref == item.Ref
+					&& item.Bucket
+						== core::bucket_for(
+							item.Membership, QueueActivity->Activity);
+				if (!trustedActivity
+					|| !application::warrants_notification(item.Bucket)) {
+					continue;
+				}
+				const auto transition = queue_notification_transition{
+					.Session = aProjection.Session,
+					.Ref     = item.Ref,
+					.Bucket  = item.Bucket,
+				};
+				active.push_back(transition);
+				if (std::ranges::binary_search(
+						ActiveQueueNotifications, transition)) {
+					continue;
+				}
+#if defined(BPR_BUILD_TESTING)
+				if (DisableNotificationRequestWire) {
+					continue;
+				}
+#endif
+				const auto unseen  = QueueActivity->Activity.UnseenComments;
+				const auto request = application::notification_for(item, unseen);
+				if (!request.has_value()) {
+					continue;
+				}
+				++NotificationRequestsAttempted;
+				if (Notifications != nullptr) {
+					static_cast<void>(Notifications->deliver(*request));
+				}
+			}
+			std::ranges::sort(active);
+			const auto unique = std::ranges::unique(active);
+			active.erase(unique.begin(), unique.end());
+			ActiveQueueNotifications = std::move(active);
+		}
+
 		void fail(
 			const application::receipt_failure_publication& aFailure) override
 		{
@@ -2416,15 +2587,37 @@ namespace bpr::app {
 						.Account    = observation.Ref.Account,
 						.Generation = aHandoff.IdentityGeneration.value(),
 					};
+					auto       activity     = core::queue_activity_observation{ };
+					const auto sameBaseline = QueueActivityBaseline.has_value()
+						&& QueueActivityBaseline->Session == session
+						&& QueueActivityBaseline->Ref == observation.Ref;
+					if (sameBaseline) {
+						activity.ReviewedByMe
+							= aHandoff.CurrentViewerReview.has_value();
+						activity.HeadMovedSinceMyReview
+							= activity.ReviewedByMe
+							&& QueueActivityBaseline->Head != aHandoff.Head
+							&& aHandoff.CurrentViewerReview->Commit != aHandoff.Head;
+					} else {
+						QueueActivityBaseline = queue_activity_baseline{
+							.Session = session,
+							.Ref     = observation.Ref,
+							.Head    = aHandoff.Head,
+						};
+						ActiveQueueNotifications.clear();
+					}
+					QueueActivity = queue_activity_fact{
+						.Session  = session,
+						.Ref      = observation.Ref,
+						.Activity = activity,
+					};
 					QueueHost->adopt(session);
 					QueueRefresh->retain(
 						std::move(session),
 						observation);
 					QueueHost->refresh(
 						observation.Ref,
-						core::queue_activity_observation{
-							.ObservedActivity = true,
-						});
+						activity);
 				}
 				load_defects();
 #if defined(BPR_BUILD_TESTING)
@@ -2452,6 +2645,9 @@ namespace bpr::app {
 			if (QueueRefresh != nullptr) {
 				QueueRefresh->clear();
 			}
+			QueueActivity.reset();
+			QueueActivityBaseline.reset();
+			ActiveQueueNotifications.clear();
 			const auto retiresLedger = matches_review_ledger(aInvalidation);
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
 				authority.has_value() && WorkbenchHost != nullptr) {
@@ -3275,6 +3471,9 @@ namespace bpr::app {
 		std::unique_ptr<application::queue_enrollment_store_port>       QueueStore;
 		std::unique_ptr<composition_queue_refresh>                      QueueRefresh;
 		std::unique_ptr<application::review_queue_application_host>     QueueHost;
+		std::optional<queue_activity_baseline>                          QueueActivityBaseline;
+		std::optional<queue_activity_fact>                              QueueActivity;
+		std::vector<queue_notification_transition>                      ActiveQueueNotifications;
 		std::unique_ptr<application::github_application_host>           Host;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		bool                                                            Closing                       = false;
@@ -3290,10 +3489,18 @@ namespace bpr::app {
 		// Times the presentation profile refused typography the host accepted.
 		// Both validate with the same core function, so this must stay zero;
 		// it exists so that if it ever does not, something says so.
-		std::size_t                                           AppearanceDivergences = 0U;
-		std::unique_ptr<qt::system_tray_notification_sink>    NotificationSink;
-		std::unique_ptr<application::review_queue_notifier>   Notifications;
-		std::optional<application::queue_notification_target> ActivatedNotification;
+		std::size_t                                          AppearanceDivergences = 0U;
+		std::unique_ptr<application::notification_sink_port> NotificationSink;
+		std::unique_ptr<application::review_queue_notifier>  Notifications;
+		std::size_t                                          NotificationRequestsAttempted = 0U;
+		std::size_t                                          NotificationSelections        = 0U;
+		std::size_t                                          NotificationSelectionFailures = 0U;
+#if defined(BPR_BUILD_TESTING)
+		fixture_notification_sink* FixtureNotificationSink          = nullptr;
+		bool                       UseGrantedNotificationSink       = false;
+		bool                       DisableNotificationRequestWire   = false;
+		bool                       DisableNotificationSelectionWire = false;
+#endif
 	};
 
 	github_application::github_application(github_application_config aConfig)
@@ -3388,6 +3595,20 @@ namespace bpr::app {
 			.NotificationPermission         = Implementation->NotificationSink != nullptr
 				? Implementation->NotificationSink->permission()
 				: application::notification_permission::refused,
+			.NotificationRequestsAttempted  = Implementation->NotificationRequestsAttempted,
+			.NotificationRequestsSubmitted  = Implementation->Notifications != nullptr
+				? Implementation->Notifications->statistics().Submitted
+				: 0U,
+			.NotificationRequestsSuppressedUnattributable
+			= Implementation->Notifications != nullptr
+				? Implementation->Notifications->statistics()
+					  .SuppressedUnattributableActivation
+				: 0U,
+			.NotificationActivations       = Implementation->Notifications != nullptr
+				? Implementation->Notifications->statistics().Activations
+				: 0U,
+			.NotificationSelections        = Implementation->NotificationSelections,
+			.NotificationSelectionFailures = Implementation->NotificationSelectionFailures,
 		};
 	}
 
@@ -3418,6 +3639,41 @@ namespace bpr::app {
 		return aApplication.Implementation->Fixture != nullptr
 			? aApplication.Implementation->Fixture->review_mutation_evidence()
 			: detail::review_mutation_fixture_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::queue_notification_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::queue_notification_fixture_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return { };
+		}
+		const auto statistics = implementation->Notifications != nullptr
+			? implementation->Notifications->statistics()
+			: application::notification_delivery_statistics{ };
+		return {
+			.RequestsAttempted = implementation->NotificationRequestsAttempted,
+			.Submitted         = statistics.Submitted,
+			.SuppressedUnattributableActivation
+			= statistics.SuppressedUnattributableActivation,
+			.Activations       = statistics.Activations,
+			.Selections        = implementation->NotificationSelections,
+			.SelectionFailures = implementation->NotificationSelectionFailures,
+			.LastSubmitted     = implementation->FixtureNotificationSink != nullptr
+				? implementation->FixtureNotificationSink->submitted_payload()
+				: std::nullopt,
+		};
+	}
+
+	auto detail::github_application_fixture_access::
+		activate_platform_notification(
+			github_application& aApplication) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr
+			&& implementation->FixtureNotificationSink != nullptr
+			&& implementation->FixtureNotificationSink->activate();
 	}
 
 	auto detail::github_application_fixture_access::maintenance_evidence(

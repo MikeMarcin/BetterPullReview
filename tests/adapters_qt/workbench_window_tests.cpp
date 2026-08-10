@@ -3012,6 +3012,76 @@ namespace {
 		}
 	}
 
+	void test_notification_activation_selects_only_an_exact_visible_queue_row()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::queue_preferences_intent>{ };
+		window.set_queue_preferences_dispatch(
+			[&intents](application::queue_preferences_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			});
+		const auto visible = core::queue_item{
+			.Ref = core::pull_request_ref{
+				.Host = "github.com", .Account = "reviewer", .Repository = "octo/app", .Number = 7 },
+			.Membership = core::queue_membership{ .Role = core::github_role::requested_reviewer },
+			.Bucket     = core::attention_bucket::initial_review_requested,
+		};
+		const auto hidden = core::queue_item{
+			.Ref = core::pull_request_ref{
+				.Host = "ghe.example", .Account = "other", .Repository = "octo/app", .Number = 7 },
+			.Membership = core::queue_membership{ .Role = core::github_role::participant },
+			.Bucket     = core::attention_bucket::new_comments_or_author_replies,
+		};
+		window.publish({
+			.Status = application::queue_landing_status::ready,
+			.Items  = { visible, hidden },
+		});
+		window.queue_role_filter()->setCurrentIndex(
+			window.queue_role_filter()->findData(
+				static_cast<int>(core::github_role::requested_reviewer)));
+		const auto preferences = window.queue_filter_model()->preferences();
+		const auto intentCount = intents.size();
+
+		window.show();
+		QApplication::processEvents();
+		expect(
+			window.select_queue_item(visible.Ref),
+			"a notification activation selects an exact visible queue identity");
+		const auto selected = window.queue_filter_model()->item_at(
+			window.queue_view()->currentIndex());
+		expect(
+			selected.has_value() && selected->Ref == visible.Ref
+				&& QApplication::focusWidget() == window.queue_view(),
+			"activation focuses the real proxy row without confusing equal repository and number fields");
+		expect(
+			window.queue_filter_model()->preferences() == preferences
+				&& intents.size() == intentCount,
+			"visible activation does not mutate queue preferences");
+
+		expect(
+			!window.select_queue_item(hidden.Ref)
+				&& window.queue_status_label()->text().contains(
+					QStringLiteral("hidden")),
+			"a filtered target fails visibly instead of clearing the filter");
+		expect(
+			window.queue_filter_model()->preferences() == preferences
+				&& intents.size() == intentCount,
+			"hidden activation preserves every preference and emits no preference intent");
+
+		const auto absent = core::pull_request_ref{
+			.Host = "github.com", .Account = "reviewer", .Repository = "octo/app", .Number = 99
+		};
+		expect(
+			!window.select_queue_item(absent)
+				&& window.queue_status_label()->text().contains(
+					QStringLiteral("no longer")),
+			"an absent target fails visibly without inventing provider navigation");
+		expect(
+			window.queue_filter_model()->preferences() == preferences
+				&& intents.size() == intentCount,
+			"absent activation also leaves preferences untouched");
+	}
+
 	void test_large_queue_filters_through_the_composed_window()
 	{
 		qt::workbench_window window;
@@ -3112,6 +3182,7 @@ auto main(int argc, char** argv) -> int
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();
 	test_queue_filter_controls_are_accessible_incremental_and_focus_stable();
+	test_notification_activation_selects_only_an_exact_visible_queue_row();
 	test_large_queue_filters_through_the_composed_window();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";

@@ -2,9 +2,9 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: **observer-rule enrollment, the landing workflow, and durable queue
-filter/sort preferences are composed; notification delivery and activation
-remain open.**
+Status: **observer-rule enrollment, the landing workflow, durable queue
+filter/sort preferences, notification requests, and activation selection are
+composed.**
 BPR-0159 through BPR-0170 delivered the deterministic queue,
 refresh, enrollment, model, notification request, and durable store components.
 Done BPR-0239 adds the RFC-allocated filters and explicit alternate sorts above
@@ -14,8 +14,11 @@ The public application now supplies user-configured local observer rules,
 persists the exact rule and enrollment reason, and incrementally projects the
 result through the shipped landing model. It deliberately does not infer a
 GitHub role from review or comment history: the accepted snapshot does not
-carry the provider's explicit assignment authority. Notification `deliver()`
-and activation consumption remain BPR-0223's work.
+carry the provider's explicit assignment authority. BPR-0223 now retains an
+exact first accepted head baseline, forwards accepted queue projections to the
+real workbench before requesting a newly warranting metadata-only notification,
+and routes only the process-lifetime sink's attributable first target back
+through the notifier to exact visible-row selection.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -100,7 +103,7 @@ A row is claimed only when its card lands with direct evidence.
 | The queue updates incrementally | Qt | Replace a queue projection with one differing in a few items | Exact insert, remove, move, and data signals by stable identity, and no routine reset | Verified. BPR-0163's `review_landing_model` matches rows by `pull_request_ref`, so an item that becomes urgent moves and keeps its persistent index rather than being replaced. Re-applying an unchanged queue emits nothing at all. A positional diff — which RFC-BPR-0007's model uses for a different job — would have reported a reorder as a run of changes on rows that did not change |
 | Filters and sorting remain deterministic and explainable | Composed Qt landing surface | Filter by role, observer reason, bucket, repository, and quiet/current state; switch directly between each supported sort and reopen the application | Stable identities survive without reset, the default retains core priority, alternate sorting is explicit and total, empty states explain active filters, and only preferences survive restart | Verified. BPR-0239 places a `QSortFilterProxyModel` above the unchanged core order, covers every filter plus a 2,048-row bounded update, directly switches between repository and PR-number orders whose answers disagree, and drives all controls through the shipped window into SQLite schema v3 and a separate-process reopen with zero provider mutation |
 | Notifications carry no content | Host | Request a notification for a review with comments and a matched path rule | The request type has no field a body, a title, or a path could occupy | Verified. BPR-0164 reads the whole notification and requires it to be exactly identity, the bucket's fixed sentence, and a count — not merely free of a list of bad words. Leaking the matched rule's path takes three deliberate edits, and the test catches it |
-| A notification links to the right review | Host | Resolve the target of a requested notification | The link resolves to the host, account, repository, and pull request the item names | Verified for the target. BPR-0164's target is a local reference rather than a URL: a `https://` address would open a browser, and a link the operating system can hand to any handler is one another application can claim. That following it from a delivered banner selects that review is BPR-0168 |
+| A notification links to the right review | Composed queue, notifier, and landing proxy | Enroll the existing two-head GitHub.com fixture through the real rule gesture, observe head one as quiet, use the real Refresh action for head two, inspect the submitted target at a granted identityless fake platform sink, activate it through the sink callback, and cut each wire independently on that same refresh | The exact `github.com/octo-reviewer/octo-org/review-repository#17` row moves from quiet to changed-since-my-review and is selected and focused; later submissions are suppressed because Qt supplies no per-message activation identity; hidden or absent identities fail visibly without changing preferences or opening provider navigation | Verified. BPR-0223's four-process contract proves an honest accepted-head transition, exact metadata-only payload, one attributable submission and activation, no delivery from restore alone, zero provider mutation, plus independent projection-to-notifier and notifier-to-selection cuts. The application and Qt sink contracts prove A submitted, B suppressed, exact A activation, duplicate-click no-op, and no rearm. The Qt window suite distinguishes equal repository/number rows by complete identity and proves hidden/absent failure leaves preferences unchanged |
 | Closure and permission loss are honest | Host | Close, reopen, transfer, and lose permission to an enrolled pull request | Each produces an explicit queue state rather than a silent disappearance | Verified. BPR-0162 keeps forbidden and gone distinct — one is a permission a reviewer may be able to ask for, the other a pull request that is not there — retains a departed item with its reason while dropping it from the queue, and restores the same record on reopening. Only a withdrawal moves an item out, so an outage does not empty the queue |
 
 ## Deferred gates
@@ -146,15 +149,16 @@ rather than of a review.
 
 ## Remaining public work
 
-Native notification delivery and activation selection remain BPR-0223's
-composition slice. BPR-0239 closes the filter/sort presentation gap without
-claiming that notification path.
+BPR-0223 closes the unattended notification request and activation-selection
+composition path. BPR-0168 still requires an attended target-native verdict
+that the operating system displayed the banner after permission was granted;
+the deterministic harness does not claim that platform fact.
 
 ## Documentation ledger
 
 | Topic | Document | State |
 |---|---|---|
-| Role semantics, observer grammar and precedence, enrollment retention and departure, the refresh schedule and its limits, notification privacy, offline behaviour, ordering, and queue explanations | [Review Queue](../architecture/review-queue.md) | Written. Every number and behaviour checked against the source rather than from memory, and the three gaps named in the document itself |
+| Role semantics, observer grammar and precedence, enrollment retention and departure, the refresh schedule and its limits, notification privacy, offline behaviour, ordering, and queue explanations | [Review Queue](../architecture/review-queue.md) | Updated. The composed request/dedup/activation path is documented, and the remaining attended/live gates stay named without overclaiming |
 | Local private review progress | [Review Ledger](../architecture/review-ledger.md) | No impact. The queue reads what the ledger records; it adds no receipt and changes no acceptance |
 | Shared review round trip | [Review Round Trip](../architecture/review-round-trip.md) | No impact. The queue issues no mutation; enrollment is local and the correlator holds no provider |
 
@@ -173,3 +177,4 @@ claiming that notification path.
 | BPR-0167 | Closeout preparation |
 | BPR-0231 | Public observer-rule enrollment, durable matched reason, restart, and removal |
 | BPR-0239 | Durable queue filters and explicit sorting through the composed Qt path |
+| BPR-0223 | Composed notification requests, active-transition deduplication, and exact activation selection |

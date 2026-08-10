@@ -37,12 +37,17 @@ namespace bpr::application {
 		auto operator<=>(const delivered_notification&) const = default;
 	};
 
+	/// \brief Reports whether an identityless platform can safely attribute activation.
+	enum class notification_submission_result : std::uint8_t {
+		submitted,
+		suppressed_unattributable_activation,
+	};
+
 	/// \brief The platform's notification surface.
 	///
 	/// \details Deliberately narrow. An implementation can report what the
-	/// reviewer has allowed, ask once, and show one payload — and can do
-	/// nothing else, because there is nothing else to do with a notification
-	/// that does not also risk putting repository content in a system database.
+	/// reviewer has allowed, ask once, and either submit one payload or report
+	/// that activation could not be attributed safely.
 	class notification_sink_port
 	{
 	public:
@@ -54,22 +59,25 @@ namespace bpr::application {
 		/// \details Called only from `not_determined`. An implementation that
 		/// re-asks from `refused` would be overriding an answer already given.
 		[[nodiscard]] virtual auto request_permission()
-			-> notification_permission                               = 0;
-		virtual void deliver(const delivered_notification& aPayload) = 0;
+			-> notification_permission = 0;
+		[[nodiscard]] virtual auto deliver(
+			const delivered_notification& aPayload)
+			-> notification_submission_result = 0;
 	};
 
 	/// \brief Receives the review a reviewer chose from a notification.
 	using notification_activation_sink
 		= std::function<void(queue_notification_target)>;
 
-	/// \brief Records directly observable delivery activity.
+	/// \brief Records directly observable submission activity.
 	struct notification_delivery_statistics
 	{
-		std::size_t Delivered           = 0U;
-		std::size_t SuppressedByBucket  = 0U;
-		std::size_t SuppressedByRefusal = 0U;
-		std::size_t PermissionRequests  = 0U;
-		std::size_t Activations         = 0U;
+		std::size_t Submitted                          = 0U;
+		std::size_t SuppressedByBucket                 = 0U;
+		std::size_t SuppressedByRefusal                = 0U;
+		std::size_t SuppressedUnattributableActivation = 0U;
+		std::size_t PermissionRequests                 = 0U;
+		std::size_t Activations                        = 0U;
 
 		auto operator<=>(const notification_delivery_statistics&) const = default;
 	};
@@ -99,7 +107,7 @@ namespace bpr::application {
 		/// \returns Whether the platform was asked to show anything.
 		auto deliver(const queue_notification_request& aRequest) -> bool;
 
-		/// \brief Reports that the reviewer chose a delivered notification.
+		/// \brief Reports that the reviewer chose a submitted notification.
 		void activate(const queue_notification_target& aTarget);
 
 		[[nodiscard]] auto statistics() const noexcept

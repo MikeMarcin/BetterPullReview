@@ -258,6 +258,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_filter_model() const noexcept
 			-> review_landing_filter_model*;
 		[[nodiscard]] auto queue_view() const noexcept -> QListView*;
+		/// \brief Selects and focuses one exact visible local-queue identity.
+		///
+		/// \details A hidden or absent identity reports a visible local failure and
+		/// leaves queue preferences and provider navigation untouched.
+		[[nodiscard]] auto select_queue_item(
+			const core::pull_request_ref& aRef) -> bool;
 		[[nodiscard]] auto queue_role_filter() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_observer_filter() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_bucket_filter() const noexcept -> QComboBox*;

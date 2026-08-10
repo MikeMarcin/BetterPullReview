@@ -1,0 +1,81 @@
+#include "bpr/qt/system_tray_notification_sink.hpp"
+
+#include <QApplication>
+#include <QSystemTrayIcon>
+
+#include <cstdlib>
+#include <iostream>
+#include <optional>
+#include <string_view>
+
+namespace {
+	using namespace bpr;
+
+	void expect(const bool aCondition, const std::string_view aMessage)
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	[[nodiscard]] auto payload(const std::int64_t aNumber)
+		-> application::delivered_notification
+	{
+		return {
+			.Title  = "octo-org/review-repository #" + std::to_string(aNumber),
+			.Body   = "The code moved after you reviewed it.",
+			.Target = {
+				.Ref = {
+					.Host       = "github.com",
+					.Account    = "octo-reviewer",
+					.Repository = "octo-org/review-repository",
+					.Number     = aNumber,
+				},
+			},
+		};
+	}
+} // namespace
+
+auto main(int argc, char** argv) -> int
+{
+	QApplication application{ argc, argv };
+	auto         tray = QSystemTrayIcon{ };
+	auto         sink = bpr::qt::system_tray_notification_sink{ tray };
+	auto         activated
+		= std::optional<bpr::application::queue_notification_target>{ };
+	auto activationCount = std::size_t{ 0U };
+	sink.set_activation_sink(
+		[&activated, &activationCount](
+			bpr::application::queue_notification_target aTarget) {
+			activated = std::move(aTarget);
+			++activationCount;
+		});
+	const auto payloadA = payload(17);
+	const auto payloadB = payload(18);
+
+	expect(
+		sink.deliver(payloadA)
+			== bpr::application::notification_submission_result::submitted,
+		"A is submitted");
+	expect(
+		sink.deliver(payloadB)
+			== bpr::application::notification_submission_result::
+				suppressed_unattributable_activation,
+		"B is suppressed before showMessage can replace A's identity");
+	tray.messageClicked();
+	expect(
+		activated == std::optional{ payloadA.Target } && activationCount == 1U,
+		"the click routes exact immutable A");
+	tray.messageClicked();
+	expect(activationCount == 1U, "a duplicate or delayed click is a no-op");
+	expect(
+		sink.deliver(payloadB)
+			== bpr::application::notification_submission_result::
+				suppressed_unattributable_activation,
+		"the sink never rearms after activation");
+	expect(sink.submitted() == 1U, "only A reached the platform submission call");
+
+	std::cout << "system-tray-notification-sink-tests:pass\n";
+	return EXIT_SUCCESS;
+}

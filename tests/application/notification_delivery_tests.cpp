@@ -47,9 +47,12 @@ namespace {
 			return Current;
 		}
 
-		void deliver(const application::delivered_notification& aPayload) override
+		[[nodiscard]] auto deliver(
+			const application::delivered_notification& aPayload)
+			-> application::notification_submission_result override
 		{
 			Payloads.push_back(aPayload);
+			return application::notification_submission_result::submitted;
 		}
 
 		application::notification_permission Current;
@@ -131,7 +134,7 @@ namespace {
 			"notifications would otherwise have been delivered");
 		expect(
 			notifier.statistics().SuppressedByRefusal == 5U
-				&& notifier.statistics().Delivered == 0U,
+				&& notifier.statistics().Submitted == 0U,
 			"the refusals are counted as suppressions rather than as failures");
 	}
 
@@ -199,6 +202,85 @@ namespace {
 			notifier.statistics().Activations == 1U,
 			"the activation is counted");
 	}
+
+	/// \brief An identityless platform never lets a later banner steal activation.
+	void test_identityless_delivery_is_fail_closed_for_the_sink_lifetime()
+	{
+		class identityless_platform final
+			: public application::notification_sink_port
+		{
+		public:
+			[[nodiscard]] auto permission()
+				-> application::notification_permission override
+			{
+				return application::notification_permission::granted;
+			}
+
+			[[nodiscard]] auto request_permission()
+				-> application::notification_permission override
+			{
+				return application::notification_permission::granted;
+			}
+
+			[[nodiscard]] auto deliver(
+				const application::delivered_notification& aPayload)
+				-> application::notification_submission_result override
+			{
+				if (First.has_value()) {
+					return application::notification_submission_result::
+						suppressed_unattributable_activation;
+				}
+				First = aPayload;
+				return application::notification_submission_result::submitted;
+			}
+
+			[[nodiscard]] auto click() -> bool
+			{
+				if (!First.has_value() || Consumed || !Activation) {
+					return false;
+				}
+				Consumed = true;
+				Activation(First->Target);
+				return true;
+			}
+
+			std::optional<application::delivered_notification> First;
+			application::notification_activation_sink          Activation;
+			bool                                               Consumed = false;
+		};
+
+		auto platform = identityless_platform{ };
+		auto chosen   = std::vector<application::queue_notification_target>{ };
+		auto notifier = application::review_queue_notifier{
+			platform,
+			[&chosen](application::queue_notification_target aTarget) {
+				chosen.push_back(std::move(aTarget));
+			}
+		};
+		platform.Activation = [&notifier](
+								  application::queue_notification_target aTarget) {
+			notifier.activate(aTarget);
+		};
+		const auto requestA = loud_request(1U);
+		auto       requestB = loud_request(2U);
+		requestB.Ref.Number = 337;
+
+		expect(notifier.deliver(requestA), "A is submitted");
+		expect(!notifier.deliver(requestB), "B is suppressed before display");
+		expect(platform.click(), "the first platform click is consumed");
+		expect(
+			chosen == std::vector{ application::notification_target(requestA) },
+			"the click routes exact immutable A rather than suppressed B");
+		expect(!platform.click(), "a duplicate or delayed click is a no-op");
+		expect(
+			!notifier.deliver(requestB),
+			"delivery remains suppressed after activation and never rearms");
+		expect(
+			notifier.statistics().Submitted == 1U
+				&& notifier.statistics().SuppressedUnattributableActivation == 2U
+				&& notifier.statistics().Activations == 1U,
+			"only the attributable submission and activation are counted");
+	}
 } // namespace
 
 auto main() -> int
@@ -208,6 +290,7 @@ auto main() -> int
 	test_permission_is_asked_once();
 	test_a_quiet_bucket_is_not_delivered();
 	test_activation_reports_the_target();
+	test_identityless_delivery_is_fail_closed_for_the_sink_lifetime();
 	std::cout << "notification-delivery-tests:pass\n";
 	return EXIT_SUCCESS;
 }

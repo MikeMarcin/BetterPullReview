@@ -2077,6 +2077,37 @@ namespace bpr::qt {
 		return QueueView;
 	}
 
+	auto workbench_window::select_queue_item(
+		const core::pull_request_ref& aRef) -> bool
+	{
+		for (auto row = 0; row < QueueFilterModel->rowCount(); ++row) {
+			const auto index = QueueFilterModel->index(row, 0);
+			const auto item  = QueueFilterModel->item_at(index);
+			if (item.has_value() && item->Ref == aRef) {
+				QueueView->setCurrentIndex(index);
+				QueueView->scrollTo(index, QAbstractItemView::PositionAtCenter);
+				QueueView->setFocus(Qt::OtherFocusReason);
+				update_queue_status(QueueProjection);
+				return true;
+			}
+		}
+
+		const auto present = [this, &aRef] {
+			for (auto row = 0; row < QueueLanding->rowCount(); ++row) {
+				const auto item = QueueLanding->item_at(QueueLanding->index(row, 0));
+				if (item.has_value() && item->Ref == aRef) {
+					return true;
+				}
+			}
+			return false;
+		}();
+		QueueStatus->setText(
+			present
+				? tr("The notified review is hidden by the active queue filters.")
+				: tr("The notified review is no longer in the local review queue."));
+		return false;
+	}
+
 	auto workbench_window::queue_role_filter() const noexcept -> QComboBox*
 	{
 		return QueueRoleFilter;
