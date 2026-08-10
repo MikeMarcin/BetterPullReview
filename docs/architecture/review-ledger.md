@@ -1,10 +1,11 @@
 # Review Ledger
 
 The review ledger holds one reviewer's private progress: which file material
-has been read, which has been accepted, which conversations have been seen, and
-which files are excluded. It is private state. It is never a GitHub approval,
-it is never synchronised between machines, and it never hides GitHub state
-behind a local opinion.
+has been read, which has been accepted, which conversations have been seen,
+which files are excluded, private notes, the last reviewed head, and local
+defect classification and anchor history. It is private state. It is never a
+GitHub approval, it is never synchronised between machines, and it never hides
+GitHub state behind a local opinion.
 
 Shared review state — comments, threads, replies, and reviews — is
 [Review Round Trip](review-round-trip.md)'s. The two share no table and no
@@ -23,7 +24,7 @@ reviewer's progress would also discard the derived git cache. A test asserts
 the independence directly and fails if the two are ever pointed at one path.
 
 `application_id` is `0x42505244` (`BPRD`) and the current `user_version` is
-**2**.
+**3**.
 
 ## Ownership
 
@@ -53,6 +54,18 @@ a model" is true by construction rather than by convention.
 - **Delta** — `application::receipt_projection`, or
   `receipt_failure_publication` carrying exactly one of a core rejection or a
   store failure.
+- **Private records** — `application::local_note_record`, an optional exact
+  file/comparison attachment, one `core::git_commit_oid` last-reviewed head,
+  and `application::durable_defect_record` binding a local defect history to
+  its file and ordinary GitHub conversation identity.
+- **Private observation** — `application::private_ledger_observation`, bounded
+  to 4,096 notes and 4,096 defects and ordered by stable record identity.
+
+Private writes and deletes are narrow store operations on those values. The
+application host validates them before the port, and the SQLite adapter repeats
+the validation at the authority boundary. Invalid records have their own typed
+`invalid_record` outcome, and a full bounded scope reports `quota_exceeded`;
+neither is folded into storage unavailability or a write conflict.
 
 ## Authority and ordering
 
@@ -86,14 +99,39 @@ pointer.
 ## Schema
 
 Version 1 introduced `ledger_meta`, `review_scope`, and `file_receipt`. Version
-2 added `conversation_receipt`.
+2 added `conversation_receipt`. Version 3 adds `local_note`,
+`last_reviewed_head`, and `local_defect`.
 
 Every table is `STRICT`, so a value of the wrong type is refused rather than
 coerced. The two 256-bit digest columns — `file_receipt.file_identity` and
 `file_receipt.material_id` — additionally carry `length(...) = 32` checks, so a
 truncated digest fails at the row that caused it instead of becoming a puzzle
 read back later. Comment and conversation identities are integers and need no
-such check.
+such check. Opening version 3 compares every non-internal `sqlite_schema`
+object with the canonical table definition. A same-name table with changed
+columns, checks, foreign keys, uniqueness, or without `STRICT` is a schema
+mismatch rather than a partially understood ledger.
+
+`local_note` has either no attachment or both a 256-bit file identity and a
+256-bit comparison identity. The note identifier is unique within the review
+scope, and text bytes are refused when empty or beyond 16 KiB. Notes store the
+reviewer's own private text; they never store a GitHub comment or source body.
+
+`last_reviewed_head` holds exactly one algorithm-tagged, padded Git object ID
+per review scope. Replacing it changes no receipt, note, or defect row, so
+changed-since-review can compare the current accepted head with the exact prior
+head without retargeting any other state.
+
+`local_defect` binds one defect ID to one file identity and one ordinary review
+conversation. It stores severity, category, lifecycle, anchor availability,
+and both the current and original RFC-BPR-0004 source-line identity. Current
+policy requires those anchors to be equal, and both columns remain immutable
+after insertion: the second copy is retained audit history, not a
+substitute-location channel. Reusing a defect ID may update only severity,
+category, lifecycle, and anchor availability. Any offered change to its file,
+conversation, current anchor, or original anchor is a typed conflict and leaves
+the row unchanged. `(scope, conversation)` is unique, so a thread cannot
+silently acquire two competing local classifications.
 
 ### Identity scoping
 
@@ -102,8 +140,10 @@ every other row references it with `ON DELETE CASCADE`. All four fields are
 required: a pull request number is unique only within a repository, a
 repository name only within an account, and an account only within a host.
 Reusing pull request 7 on a second host must not surface the first host's
-receipts, and a test resolves that number across four identities differing in
-one field each.
+receipts or private records, and tests resolve that number across identities
+differing in one field each. Material identity remains inside file receipts and
+note attachments; last-reviewed state retains the exact commit; defects retain
+the file, comparison, source side/line, and conversation identities.
 
 ### What the ledger refuses to store
 
@@ -130,15 +170,21 @@ passed with the forward-only guard deleted, because validation rejected the
 version afterwards and produced the same failure. The test now reopens the
 refused file and asserts its recorded schema format is untouched.
 
+A nonzero prior version is also migrated only when `application_id` already
+names the review ledger. A version-1 or version-2 file stamped for another
+application is refused before the migration transaction begins; its database
+bytes, version, metadata row, schema, and receipts remain exact.
+
 The whole advance runs in one transaction, so a database is never left between
 two versions; a partially migrated ledger would be indistinguishable from a
 corrupt one.
 
 The current version is deliberately not 1. A migration mechanism whose only
 version is the initial one has never migrated anything and would first be
-exercised on a user's database, so the 1-to-2 step is tested against a database
-really written by the older schema, and a row written under version 1 is
-asserted to survive.
+exercised on a user's database. A real version-1 database traverses both
+migrations, and an exact version-2 database traverses the 2-to-3 step. File and
+conversation receipt rows written under the prior versions are asserted to
+survive before any new private record is accepted.
 
 ## Receipt semantics
 
@@ -204,12 +250,14 @@ own explanation text would be deciding policy while looking like presentation.
 ## Crash recovery
 
 Committed state survives abrupt termination and incomplete transactions are
-discarded. This is proven by killing a real process: a forked child opens the
-ledger, begins a transaction, writes, and announces readiness only once the row
-is inside the open transaction, then the parent sends `SIGKILL` and asserts the
-child died from the signal rather than exiting gracefully. The receipt
-committed beforehand returns byte for byte; the one inside the abandoned
-transaction is absent.
+discarded. This is proven by killing real processes: a forked child opens the
+ledger, begins a transaction, writes, and announces readiness only once the
+rows are inside the open transaction, then the parent sends `SIGKILL` and
+asserts the child died from the signal rather than exiting gracefully. The
+receipt committed beforehand returns byte for byte; the one inside the
+abandoned transaction is absent. A second kill repeats the contract for a
+note, reviewed head, and defect in one transaction: all three committed values
+survive and all three abandoned replacements disappear together.
 
 That test is POSIX-only and compiles out on Windows, where `fork` does not
 exist. The Windows equivalent is unwritten rather than silently passing.
@@ -235,11 +283,14 @@ never uploaded, never synchronised, and never turned into a GitHub action.
 Local acceptance is not an approval; a reviewer who accepts a file here has
 told themselves something, not GitHub.
 
-The ledger records identities and progress, not content: file and material
-digests, comment identities and edit versions, and the flags above. It does not
-record file paths, source text, comment text, or anything about who wrote what.
-A person reading the database learns which opaque material a reviewer marked
-read, not what that material said.
+Apart from the reviewer's explicitly created private-note text, the ledger
+records identities and progress rather than content: file and material
+digests, comment identities and edit versions, defect classification and
+semantic anchors, and the flags above. It does not record file paths, source
+text, GitHub comment text, credentials, or anything about who wrote what. A
+person reading the database can see the private notes and which opaque material
+a reviewer marked read, but not the source or shared discussion those
+identities refer to.
 
 Removing it is a file deletion and needs no application feature to be
 trustworthy.

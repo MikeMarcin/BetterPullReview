@@ -24,6 +24,7 @@
 #include <expected>
 #include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -158,6 +159,182 @@ namespace {
 		};
 	}
 
+	[[nodiscard]] auto note(
+		const std::uint64_t    aId,
+		const std::uint8_t     aSeed,
+		const std::string_view aText) -> application::local_note_record
+	{
+		return application::local_note_record{
+			.Id         = application::local_note_id{ aId },
+			.Attachment = application::local_note_attachment{
+				.File       = opaque<core::file_identity>(aSeed),
+				.Comparison = opaque<core::file_comparison_digest>(
+					static_cast<std::uint8_t>(aSeed + 1U)),
+			},
+			.Note = { .Text = std::string{ aText } },
+		};
+	}
+
+	[[nodiscard]] auto head(
+		const char        aDigit,
+		const std::size_t aLength = 40U) -> core::git_commit_oid
+	{
+		const auto text   = std::string(aLength, aDigit);
+		const auto parsed = core::parse_git_commit_oid(text);
+		expect(parsed.has_value(), "the test head is canonical");
+		return *parsed;
+	}
+
+	[[nodiscard]] auto defect(
+		const std::uint64_t      aId,
+		const std::uint64_t      aConversation,
+		const std::uint8_t       aSeed,
+		const core::defect_state aState
+		= core::defect_state::open)
+		-> application::durable_defect_record
+	{
+		const auto anchor = core::source_line_ref{
+			.Comparison = opaque<core::file_comparison_digest>(
+				static_cast<std::uint8_t>(aSeed + 1U)),
+			.Side = core::diff_side::right,
+			.Line = static_cast<std::uint32_t>(aId),
+		};
+		return application::durable_defect_record{
+			.File         = opaque<core::file_identity>(aSeed),
+			.Conversation = core::review_conversation_id{ aConversation },
+			.History      = {
+				.Defect = {
+					.Id       = core::defect_id{ aId },
+					.Anchor   = anchor,
+					.Severity = core::defect_severity::major,
+					.Category = core::defect_category::maintainability,
+					.State    = aState,
+				},
+				.OriginalAnchor = anchor,
+				.Availability   = core::defect_anchor_availability::available,
+			},
+		};
+	}
+
+	template <typename Identity>
+	[[nodiscard]] auto hex_identity(const Identity& aIdentity) -> std::string
+	{
+		constexpr std::string_view digits = "0123456789ABCDEF";
+		auto                       output = std::string{ };
+		output.reserve(aIdentity.bytes().size() * 2U);
+		for (const auto byte : aIdentity.bytes()) {
+			output.push_back(digits[byte >> 4U]);
+			output.push_back(digits[byte & 0x0FU]);
+		}
+		return output;
+	}
+
+	[[nodiscard]] auto read_binary(const std::filesystem::path& aPath)
+		-> std::string
+	{
+		auto input = std::ifstream{ aPath, std::ios::binary };
+		expect(input.good(), "ledger bytes are readable for preservation evidence");
+		return {
+			std::istreambuf_iterator<char>{ input },
+			std::istreambuf_iterator<char>{ },
+		};
+	}
+
+	void create_prior_version_fixture(
+		const std::filesystem::path& aPath,
+		const std::int32_t           aApplicationId,
+		const core::file_receipt&    aReceipt,
+		const std::int64_t           aSchemaVersion)
+	{
+		expect(
+			aReceipt.File.valid() && aReceipt.Material.valid()
+				&& !(aReceipt.Accepted && aReceipt.Excluded),
+			"the prior-version fixture uses valid identities and legal receipt state");
+		expect(
+			aSchemaVersion == 1 || aSchemaVersion == 2,
+			"the fixture represents a supported prior schema");
+
+		::sqlite3* raw  = nullptr;
+		const auto code = ::sqlite3_open_v2(
+			aPath.string().c_str(),
+			&raw,
+			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+			nullptr);
+		expect(code == SQLITE_OK && raw != nullptr, "the version-one fixture opens");
+		expect(configure_connection(raw).has_value(), "the fixture is configured");
+
+		for (const auto& sql : {
+				 std::string{
+					 "CREATE TABLE ledger_meta("
+					 "singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+					 "schema_format INTEGER NOT NULL) STRICT" },
+				 std::string{
+					 "CREATE TABLE review_scope("
+					 "scope_id INTEGER PRIMARY KEY,"
+					 "host TEXT NOT NULL, account TEXT NOT NULL,"
+					 "repository TEXT NOT NULL, pull_request INTEGER NOT NULL,"
+					 "UNIQUE(host, account, repository, pull_request)) STRICT" },
+				 std::string{
+					 "CREATE TABLE file_receipt("
+					 "scope_id INTEGER NOT NULL "
+					 "REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
+					 "file_identity BLOB NOT NULL CHECK(length(file_identity) = 32),"
+					 "material_id BLOB NOT NULL CHECK(length(material_id) = 32),"
+					 "read_state INTEGER NOT NULL CHECK(read_state BETWEEN 0 AND 2),"
+					 "accepted INTEGER NOT NULL CHECK(accepted IN (0, 1)),"
+					 "excluded INTEGER NOT NULL CHECK(excluded IN (0, 1)),"
+					 "PRIMARY KEY(scope_id, file_identity)) STRICT" },
+				 "PRAGMA application_id = " + std::to_string(aApplicationId),
+				 "INSERT INTO ledger_meta(singleton, schema_format) VALUES(1, "
+					 + std::to_string(aSchemaVersion) + ")",
+				 std::string{
+					 "INSERT INTO review_scope"
+					 "(host, account, repository, pull_request) "
+					 "VALUES('github.com', 'octo', 'app', 7)" },
+				 "INSERT INTO file_receipt(scope_id, file_identity, material_id, "
+				 "read_state, accepted, excluded) VALUES(1, X'"
+					 + hex_identity(aReceipt.File) + "', X'"
+					 + hex_identity(aReceipt.Material) + "', "
+					 + std::to_string(static_cast<std::uint8_t>(aReceipt.Read)) + ", "
+					 + std::to_string(aReceipt.Accepted ? 1 : 0) + ", "
+					 + std::to_string(aReceipt.Excluded ? 1 : 0) + ")",
+			 }) {
+			expect(
+				execute(raw, sql, { }).has_value(),
+				"the prior-version fixture is built");
+		}
+		if (aSchemaVersion == 2) {
+			for (const auto& sql : {
+					 std::string{
+						 "CREATE TABLE conversation_receipt("
+						 "scope_id INTEGER NOT NULL "
+						 "REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
+						 "conversation INTEGER NOT NULL,"
+						 "seen_comment INTEGER NOT NULL,"
+						 "seen_edit INTEGER NOT NULL,"
+						 "accepted_comment INTEGER NOT NULL,"
+						 "accepted_edit INTEGER NOT NULL,"
+						 "PRIMARY KEY(scope_id, conversation)) STRICT" },
+					 std::string{
+						 "INSERT INTO conversation_receipt(scope_id, conversation, "
+						 "seen_comment, seen_edit, accepted_comment, accepted_edit) "
+						 "VALUES(1, 5, 6, 7, 8, 9)" },
+				 }) {
+				expect(
+					execute(raw, sql, { }).has_value(),
+					"the version-two fixture is built");
+			}
+		}
+		expect(
+			execute(
+				raw,
+				"PRAGMA user_version = " + std::to_string(aSchemaVersion),
+				{ })
+				.has_value(),
+			"the prior-version fixture is stamped");
+		expect(::sqlite3_close(raw) == SQLITE_OK, "the prior-version fixture closes");
+	}
+
 	// The prohibition is checked against the schema the build creates, not
 	// against the insert statements someone remembered to read. A presentation
 	// coordinate added later fails here even if nothing ever writes to it.
@@ -212,6 +389,15 @@ namespace {
 					return aColumn == "file_receipt.material_id";
 				}),
 			"the enumeration reached the receipt table rather than nothing");
+		for (const auto required : {
+				 std::string_view{ "local_note.comparison_id" },
+				 std::string_view{ "last_reviewed_head.head_oid" },
+				 std::string_view{ "local_defect.original_comparison" },
+			 }) {
+			expect(
+				std::ranges::find(*columns, required) != columns->end(),
+				"the schema exposes every version-three private authority");
+		}
 	}
 
 	void test_receipts_do_not_leak_across_identity()
@@ -247,53 +433,14 @@ namespace {
 	void test_a_version_one_database_migrates_forward()
 	{
 		const scratch_directory directory;
-		const auto              path = directory.file("l.db");
-
-		{
-			::sqlite3* raw  = nullptr;
-			const auto code = ::sqlite3_open_v2(
-				path.string().c_str(),
-				&raw,
-				SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
-			expect(code == SQLITE_OK && raw != nullptr, "the fixture opens");
-			expect(configure_connection(raw).has_value(), "the fixture is configured");
-
-			for (const auto sql : std::array{
-					 std::string_view{
-						 "CREATE TABLE ledger_meta("
-						 "singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
-						 "schema_format INTEGER NOT NULL) STRICT" },
-					 std::string_view{
-						 "CREATE TABLE review_scope("
-						 "scope_id INTEGER PRIMARY KEY,"
-						 "host TEXT NOT NULL, account TEXT NOT NULL,"
-						 "repository TEXT NOT NULL, pull_request INTEGER NOT NULL,"
-						 "UNIQUE(host, account, repository, pull_request)) STRICT" },
-					 std::string_view{
-						 "CREATE TABLE file_receipt("
-						 "scope_id INTEGER NOT NULL "
-						 "REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
-						 "file_identity BLOB NOT NULL CHECK(length(file_identity) = 32),"
-						 "material_id BLOB NOT NULL CHECK(length(material_id) = 32),"
-						 "read_state INTEGER NOT NULL CHECK(read_state BETWEEN 0 AND 2),"
-						 "accepted INTEGER NOT NULL CHECK(accepted IN (0, 1)),"
-						 "excluded INTEGER NOT NULL CHECK(excluded IN (0, 1)),"
-						 "PRIMARY KEY(scope_id, file_identity)) STRICT" },
-					 std::string_view{ "PRAGMA application_id = 1112560196" },
-					 std::string_view{
-						 "INSERT INTO ledger_meta(singleton, schema_format) VALUES(1, 1)" },
-					 std::string_view{
-						 "INSERT INTO review_scope"
-						 "(host, account, repository, pull_request) "
-						 "VALUES('github.com', 'octo', 'app', 7)" },
-					 std::string_view{ "PRAGMA user_version = 1" },
-				 }) {
-				expect(
-					execute(raw, sql, { }).has_value(),
-					"the version one fixture is built");
-			}
-			(void)::sqlite3_close(raw);
-		}
+		const auto              path    = directory.file("l.db");
+		const auto              receipt = core::file_receipt{
+			.File     = opaque<core::file_identity>(29U),
+			.Material = opaque<core::file_material_id>(30U),
+			.Read     = core::file_read_state::read,
+			.Accepted = true,
+		};
+		create_prior_version_fixture(path, 1112560196, receipt, 1);
 
 		auto opened = review_ledger_database::open(path, { });
 		expect(opened_ok(opened), "a version one database opens and migrates");
@@ -313,9 +460,198 @@ namespace {
 					}),
 			"the migration added the table version two introduced");
 
-		// The row written under version one survives the migration.
+		// The complete receipt written under version one survives both migrations.
 		const auto carried = opened->scope_id(scope_of("github.com", "octo", "app", 7));
 		expect(carried && *carried == 1, "the pre-migration row is still there");
+		const auto stored = opened->load_receipt(*carried, receipt.File);
+		expect(
+			stored && stored->has_value() && **stored == receipt,
+			"the complete version-one file receipt survives one-to-two-to-three");
+	}
+
+	void test_a_wrong_application_prior_version_is_refused_without_mutation()
+	{
+		constexpr std::int32_t  wrongApplicationId = 0x12345678;
+		const scratch_directory directory;
+		for (const auto schemaVersion : { 1, 2 }) {
+			const auto path = directory.file(
+				"v" + std::to_string(schemaVersion) + ".db");
+			const auto receipt = core::file_receipt{
+				.File = opaque<core::file_identity>(
+					static_cast<std::uint8_t>(32 + schemaVersion)),
+				.Material = opaque<core::file_material_id>(
+					static_cast<std::uint8_t>(34 + schemaVersion)),
+				.Read     = core::file_read_state::seen,
+				.Excluded = true,
+			};
+			create_prior_version_fixture(
+				path, wrongApplicationId, receipt, schemaVersion);
+
+			::sqlite3* beforeDatabase = nullptr;
+			expect(
+				::sqlite3_open_v2(
+					path.string().c_str(),
+					&beforeDatabase,
+					SQLITE_OPEN_READONLY,
+					nullptr)
+						== SQLITE_OK
+					&& beforeDatabase != nullptr,
+				"the wrong-application prior version is readable before refusal");
+			const auto schemaBefore = scalar_text(
+				beforeDatabase,
+				"SELECT group_concat(type || char(31) || name || char(31) || sql, "
+				"char(30)) FROM (SELECT type, name, sql FROM sqlite_schema "
+				"WHERE name NOT LIKE 'sqlite_%' ORDER BY name)");
+			const auto receiptBefore = scalar_text(
+				beforeDatabase,
+				"SELECT hex(file_identity) || ':' || hex(material_id) || ':' || "
+				"read_state || ':' || accepted || ':' || excluded "
+				"FROM file_receipt WHERE scope_id = 1");
+			const auto conversationBefore = schemaVersion == 2
+				? scalar_text(
+					  beforeDatabase,
+					  "SELECT conversation || ':' || seen_comment || ':' || seen_edit "
+					  "|| ':' || accepted_comment || ':' || accepted_edit "
+					  "FROM conversation_receipt WHERE scope_id = 1")
+				: std::expected<std::string, catalog_database_failure>{ std::string{ } };
+			const auto applicationBefore
+				= scalar_integer(beforeDatabase, "PRAGMA application_id");
+			const auto versionBefore
+				= scalar_integer(beforeDatabase, "PRAGMA user_version");
+			const auto formatBefore = scalar_integer(
+				beforeDatabase,
+				"SELECT schema_format FROM ledger_meta WHERE singleton = 1");
+			expect(
+				::sqlite3_close(beforeDatabase) == SQLITE_OK,
+				"the prior-version baseline closes");
+			expect(
+				schemaBefore && receiptBefore && applicationBefore && versionBefore
+					&& formatBefore
+					&& (schemaVersion == 1 || conversationBefore),
+				"the complete prior-version baseline is captured");
+			const auto bytesBefore = read_binary(path);
+
+			const auto refused = review_ledger_database::open(path, { });
+			expect(
+				!refused
+					&& refused.error()
+						== catalog_database_failure::schema_mismatch,
+				"each wrong-application prior version is refused");
+			expect(
+				read_binary(path) == bytesBefore,
+				"wrong-application refusal preserves each prior-version file byte");
+
+			::sqlite3* afterDatabase = nullptr;
+			expect(
+				::sqlite3_open_v2(
+					path.string().c_str(),
+					&afterDatabase,
+					SQLITE_OPEN_READONLY,
+					nullptr)
+						== SQLITE_OK
+					&& afterDatabase != nullptr,
+				"the refused prior-version database remains readable");
+			const auto schemaAfter = scalar_text(
+				afterDatabase,
+				"SELECT group_concat(type || char(31) || name || char(31) || sql, "
+				"char(30)) FROM (SELECT type, name, sql FROM sqlite_schema "
+				"WHERE name NOT LIKE 'sqlite_%' ORDER BY name)");
+			const auto receiptAfter = scalar_text(
+				afterDatabase,
+				"SELECT hex(file_identity) || ':' || hex(material_id) || ':' || "
+				"read_state || ':' || accepted || ':' || excluded "
+				"FROM file_receipt WHERE scope_id = 1");
+			const auto conversationAfter = schemaVersion == 2
+				? scalar_text(
+					  afterDatabase,
+					  "SELECT conversation || ':' || seen_comment || ':' || seen_edit "
+					  "|| ':' || accepted_comment || ':' || accepted_edit "
+					  "FROM conversation_receipt WHERE scope_id = 1")
+				: std::expected<std::string, catalog_database_failure>{ std::string{ } };
+			const auto applicationAfter
+				= scalar_integer(afterDatabase, "PRAGMA application_id");
+			const auto versionAfter
+				= scalar_integer(afterDatabase, "PRAGMA user_version");
+			const auto formatAfter = scalar_integer(
+				afterDatabase,
+				"SELECT schema_format FROM ledger_meta WHERE singleton = 1");
+			expect(
+				::sqlite3_close(afterDatabase) == SQLITE_OK,
+				"the refused prior version closes");
+			expect(
+				applicationAfter == applicationBefore && versionAfter == versionBefore
+					&& formatAfter == formatBefore,
+				"wrong-application refusal preserves each prior-version metadata fact");
+			expect(
+				schemaAfter == schemaBefore,
+				"wrong-application refusal preserves each prior-version schema");
+			expect(
+				receiptAfter == receiptBefore
+					&& conversationAfter == conversationBefore,
+				"wrong-application refusal preserves every prior-version receipt");
+		}
+	}
+
+	void test_a_version_two_database_migrates_without_dropping_receipts()
+	{
+		const scratch_directory directory;
+		const auto              path    = directory.file("l.db");
+		const auto              receipt = core::file_receipt{
+			.File     = opaque<core::file_identity>(31U),
+			.Material = opaque<core::file_material_id>(32U),
+			.Read     = core::file_read_state::read,
+			.Accepted = true,
+		};
+		std::int64_t scope = 0;
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the current fixture opens");
+			const auto id = opened->scope_id(
+				scope_of("github.com", "octo", "app", 7));
+			expect(id.has_value(), "the fixture scope is created");
+			scope = *id;
+			expect(
+				opened->store_receipt(scope, receipt).has_value(),
+				"the version-two file receipt is seeded");
+			for (const auto& sql : {
+					 std::string{
+						 "INSERT INTO conversation_receipt(scope_id, conversation, "
+						 "seen_comment, seen_edit, accepted_comment, accepted_edit) "
+						 "VALUES("
+						 + std::to_string(scope) + ", 5, 6, 7, 8, 9)" },
+					 std::string{ "DROP TABLE local_note" },
+					 std::string{ "DROP TABLE last_reviewed_head" },
+					 std::string{ "DROP TABLE local_defect" },
+					 std::string{ "UPDATE ledger_meta SET schema_format = 2" },
+					 std::string{ "PRAGMA user_version = 2" },
+				 }) {
+				expect(
+					execute(opened->handle(), sql, { }).has_value(),
+					"the exact version-two fixture is assembled");
+			}
+		}
+
+		auto migrated = review_ledger_database::open(path, { });
+		expect(opened_ok(migrated), "the version-two ledger migrates to three");
+		const auto stored = migrated->load_receipt(scope, receipt.File);
+		expect(
+			stored.has_value() && stored->has_value() && **stored == receipt,
+			"the file receipt survives the two-to-three migration");
+		const auto conversations = scalar_integer(
+			migrated->handle(),
+			"SELECT COUNT(*) FROM conversation_receipt WHERE conversation = 5 "
+			"AND seen_comment = 6 AND seen_edit = 7 AND accepted_comment = 8 "
+			"AND accepted_edit = 9");
+		expect(
+			conversations && *conversations == 1,
+			"the conversation receipt survives the two-to-three migration");
+		const auto columns = review_ledger_columns(migrated->handle());
+		expect(
+			columns
+				&& std::ranges::find(
+					   *columns, std::string{ "local_defect.lifecycle" })
+					!= columns->end(),
+			"the migration adds the version-three private tables");
 	}
 
 	void test_a_newer_database_fails_closed()
@@ -363,6 +699,157 @@ namespace {
 		expect(
 			stamped && *stamped == 99,
 			"a refused open leaves the newer version stamp exactly as it was");
+	}
+
+	void test_a_stamped_current_database_missing_a_required_table_fails_closed()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("l.db");
+
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the complete current ledger opens");
+			expect(
+				execute(opened->handle(), "DROP TABLE local_defect", { }).has_value(),
+				"the corruption fixture removes one required table without restamping");
+		}
+
+		const auto reopened = review_ledger_database::open(path, { });
+		expect(
+			!reopened
+				&& reopened.error() == catalog_database_failure::schema_mismatch,
+			"a stamped current ledger missing a required table is refused at open");
+	}
+
+	void test_a_stamped_current_database_with_a_malformed_column_fails_closed()
+	{
+		constexpr std::string_view noteTextColumn = "note_text TEXT NOT NULL";
+		const scratch_directory    directory;
+		const auto                 path = directory.file("l.db");
+
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the canonical current ledger opens");
+			auto definition = scalar_text(
+				opened->handle(),
+				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
+				"AND name = 'local_note'");
+			expect(definition.has_value(), "the canonical note DDL is readable");
+			const auto noteText = definition->find(noteTextColumn);
+			expect(
+				noteText != std::string::npos,
+				"the fixture found the exact note-text column");
+			definition->insert(noteText, "injected INTEGER,");
+			expect(
+				execute(opened->handle(), "DROP TABLE local_note", { }).has_value()
+					&& execute(opened->handle(), *definition, { }).has_value(),
+				"the malformed fixture recreates the same table name with an extra column");
+		}
+
+		const auto reopened = review_ledger_database::open(path, { });
+		expect(
+			!reopened
+				&& reopened.error() == catalog_database_failure::schema_mismatch,
+			"a same-name table with a noncanonical column is refused at open");
+	}
+
+	void test_a_stamped_current_database_missing_the_defect_unique_fails_closed()
+	{
+		constexpr std::string_view uniqueClause
+			= ",UNIQUE(scope_id, conversation)";
+		const scratch_directory directory;
+		const auto              path = directory.file("l.db");
+
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the canonical defect schema opens");
+			auto definition = scalar_text(
+				opened->handle(),
+				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
+				"AND name = 'local_defect'");
+			expect(definition.has_value(), "the canonical defect DDL is readable");
+			const auto unique = definition->find(uniqueClause);
+			expect(
+				unique != std::string::npos,
+				"the fixture found the exact conversation uniqueness clause");
+			definition->erase(unique, uniqueClause.size());
+			expect(
+				execute(opened->handle(), "DROP TABLE local_defect", { }).has_value()
+					&& execute(opened->handle(), *definition, { }).has_value(),
+				"the fixture recreates the same columns and name without UNIQUE");
+		}
+
+		const auto reopened = review_ledger_database::open(path, { });
+		expect(
+			!reopened
+				&& reopened.error() == catalog_database_failure::schema_mismatch,
+			"a same-name defect table missing UNIQUE is refused at open");
+	}
+
+	void test_a_stamped_current_database_without_strict_mode_fails_closed()
+	{
+		constexpr std::string_view strictSuffix = " STRICT";
+		const scratch_directory    directory;
+		const auto                 path = directory.file("l.db");
+
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the canonical strict schema opens");
+			auto definition = scalar_text(
+				opened->handle(),
+				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
+				"AND name = 'local_note'");
+			expect(definition.has_value(), "the canonical strict DDL is readable");
+			const auto strict = definition->rfind(strictSuffix);
+			expect(
+				strict != std::string::npos
+					&& strict + strictSuffix.size() == definition->size(),
+				"the fixture found the exact strict-table suffix");
+			definition->erase(strict, strictSuffix.size());
+			expect(
+				execute(opened->handle(), "DROP TABLE local_note", { }).has_value()
+					&& execute(opened->handle(), *definition, { }).has_value(),
+				"the fixture recreates the same table name without strict mode");
+		}
+
+		const auto reopened = review_ledger_database::open(path, { });
+		expect(
+			!reopened
+				&& reopened.error() == catalog_database_failure::schema_mismatch,
+			"a same-name non-strict table is refused at open");
+	}
+
+	void test_a_stamped_current_database_with_an_altered_check_fails_closed()
+	{
+		constexpr std::string_view canonicalLimit = "BETWEEN 1 AND 16384";
+		constexpr std::string_view alteredLimit   = "BETWEEN 1 AND 16383";
+		const scratch_directory    directory;
+		const auto                 path = directory.file("l.db");
+
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the canonical checked schema opens");
+			auto definition = scalar_text(
+				opened->handle(),
+				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
+				"AND name = 'local_note'");
+			expect(definition.has_value(), "the canonical checked DDL is readable");
+			const auto limit = definition->find(canonicalLimit);
+			expect(
+				limit != std::string::npos,
+				"the fixture found the exact note-size check constraint");
+			definition->replace(limit, canonicalLimit.size(), alteredLimit);
+			expect(
+				execute(opened->handle(), "DROP TABLE local_note", { }).has_value()
+					&& execute(opened->handle(), *definition, { }).has_value(),
+				"the fixture recreates the same table name with one altered check");
+		}
+
+		const auto reopened = review_ledger_database::open(path, { });
+		expect(
+			!reopened
+				&& reopened.error() == catalog_database_failure::schema_mismatch,
+			"a same-name table with an altered check is refused at open");
 	}
 
 	void test_reopening_is_idempotent()
@@ -485,6 +972,232 @@ namespace {
 			present.has_value() && present->has_value() && **present == receipt,
 			"the receipt is still readable in the scope that wrote it");
 	}
+
+	void test_private_records_survive_restart_isolate_and_delete()
+	{
+		const scratch_directory directory;
+		const auto              path        = directory.file("l.db");
+		const auto              otherScopes = std::array{
+			scope_of("ghe.example.com", "octo", "app", 7),
+			scope_of("github.com", "other", "app", 7),
+			scope_of("github.com", "octo", "other", 7),
+			scope_of("github.com", "octo", "app", 8),
+		};
+		auto reviewNote = note(2U, 90U, "Review-level reminder");
+		reviewNote.Attachment.reset();
+		const auto fileNote    = note(1U, 91U, "Exact comparison reminder");
+		const auto firstDefect = defect(
+			1U, 101U, 92U, core::defect_state::needs_verification);
+		const auto secondDefect = defect(
+			2U, 102U, 94U, core::defect_state::verified);
+		const auto firstHead  = head('1');
+		const auto secondHead = head('2', 64U);
+		const auto expected   = application::private_ledger_observation{
+			.Notes            = { fileNote, reviewNote },
+			.LastReviewedHead = firstHead,
+			.Defects          = { firstDefect, secondDefect },
+		};
+
+		std::int64_t                here = 0;
+		std::array<std::int64_t, 4> isolatedScopes{ };
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the private ledger opens");
+			const auto first = opened->scope_id(
+				scope_of("github.com", "octo", "app", 7));
+			expect(first.has_value(), "the private authority scope resolves");
+			here = *first;
+			for (auto index = std::size_t{ 0 }; index < otherScopes.size(); ++index) {
+				const auto isolated = opened->scope_id(otherScopes[index]);
+				expect(isolated.has_value(), "each isolated private scope resolves");
+				isolatedScopes[index] = *isolated;
+			}
+			// Reverse insertion order. The observation must still be stable by ID.
+			expect(
+				opened->store_note(here, reviewNote).has_value()
+					&& opened->store_note(here, fileNote).has_value()
+					&& opened->store_last_reviewed_head(here, firstHead).has_value()
+					&& opened->store_defect(here, secondDefect).has_value()
+					&& opened->store_defect(here, firstDefect).has_value(),
+				"every private record commits under the first scope");
+			for (const auto isolatedScope : isolatedScopes) {
+				const auto isolated = opened->load_private(isolatedScope);
+				expect(
+					isolated
+						&& *isolated == application::private_ledger_observation{ },
+					"changing any review-scope identity field reveals no private state");
+			}
+		}
+
+		auto reopened = review_ledger_database::open(path, { });
+		expect(opened_ok(reopened), "the private ledger reopens");
+		const auto restored = reopened->load_private(here);
+		expect(
+			restored && *restored == expected,
+			"notes, head, defect metadata, thread linkage, and original anchors "
+			"survive restart in deterministic order");
+
+		expect(
+			reopened->store_last_reviewed_head(here, secondHead).has_value(),
+			"a changed review head replaces the prior exact head");
+		const auto changed = reopened->load_private(here);
+		expect(
+			changed && changed->LastReviewedHead == secondHead
+				&& changed->Notes == expected.Notes
+				&& changed->Defects == expected.Defects,
+			"changing the reviewed head does not disturb notes or defects");
+
+		auto conflicting = defect(3U, 101U, 96U);
+		expect(
+			!reopened->store_defect(here, conflicting),
+			"one shared conversation cannot silently acquire a second local defect");
+		const auto afterConflict = reopened->load_private(here);
+		expect(
+			afterConflict && afterConflict->Defects == expected.Defects,
+			"the refused thread collision leaves the original defect history intact");
+
+		expect(
+			reopened->erase_note(here, fileNote.Id).has_value()
+				&& reopened->erase_note(here, reviewNote.Id).has_value()
+				&& reopened->erase_last_reviewed_head(here).has_value()
+				&& reopened->erase_defect(
+							   here, firstDefect.History.Defect.Id)
+					   .has_value()
+				&& reopened->erase_defect(
+							   here, secondDefect.History.Defect.Id)
+					   .has_value(),
+			"every private record type deletes explicitly");
+		const auto empty = reopened->load_private(here);
+		expect(
+			empty && *empty == application::private_ledger_observation{ },
+			"deletion leaves a clean private observation without touching scope");
+	}
+
+	void test_private_record_bounds_and_anchor_honesty_are_enforced()
+	{
+		const scratch_directory directory;
+		directory.make_private();
+		auto state = open_state_directory(directory.path());
+		expect(state.has_value(), "the bounded state directory opens");
+		auto opened = review_ledger_database::open(
+			state->path() / "review-ledger.sqlite3", { });
+		expect(opened_ok(opened), "the bounded ledger opens");
+		const auto scope = opened->scope_id(
+			scope_of("github.com", "octo", "app", 7));
+		expect(scope.has_value(), "the bounded scope resolves");
+
+		auto emptyNote = note(1U, 110U, "x");
+		emptyNote.Note.Text.clear();
+		auto substitute = defect(1U, 120U, 112U);
+		substitute.History.Defect.Anchor.Line += 1U;
+		expect(
+			!opened->store_note(*scope, emptyNote)
+				&& !opened->store_last_reviewed_head(
+					*scope, core::git_commit_oid{ })
+				&& !opened->store_defect(*scope, substitute),
+			"invalid text, head, and substitute anchor are refused whole");
+
+		const auto maximumNote = note(
+			2U,
+			113U,
+			std::string(core::maximum_note_bytes, 'x'));
+		const auto oversizedNote = note(
+			3U,
+			114U,
+			std::string(core::maximum_note_bytes + 1U, 'x'));
+		expect(
+			opened->store_note(*scope, maximumNote).has_value(),
+			"an exact 16,384-byte private note is accepted");
+		const auto oversized = opened->store_note(*scope, oversizedNote);
+		expect(
+			!oversized
+				&& oversized.error()
+					== catalog_database_failure::integrity_failure,
+			"an exact 16,385-byte private note is refused");
+		expect(
+			opened->erase_note(*scope, maximumNote.Id).has_value(),
+			"the boundary note is removed before filling the exact scope cap");
+
+		expect(
+			execute(
+				opened->handle(),
+				"WITH RECURSIVE ids(value) AS (SELECT 1 UNION ALL SELECT "
+				"value + 1 FROM ids WHERE value < 4096) INSERT INTO local_note"
+				"(scope_id, note_id, note_text) SELECT "
+					+ std::to_string(*scope) + ", value, 'bounded' FROM ids",
+				{ })
+				.has_value(),
+			"the note-cap fixture fills one exact scope in one transaction");
+		const auto boundedNotes = opened->load_private(*scope);
+		expect(
+			boundedNotes
+				&& boundedNotes->Notes.size()
+					== application::maximum_private_notes
+				&& boundedNotes->Notes.front().Id
+					== application::local_note_id{ 1U }
+				&& boundedNotes->Notes.back().Id
+					== application::local_note_id{ 4'096U },
+			"exactly 4,096 notes load in stable identity order");
+		const auto extra = opened->store_note(
+			*scope, note(4'097U, 114U, "one too many"));
+		expect(
+			!extra && extra.error() == catalog_database_failure::quota_exceeded,
+			"the store refuses a note beyond the declared observation cap");
+		auto port = bpr::adapters::sqlite::make_review_ledger_store({
+			.StorageRoot = directory.path(),
+			.Host        = "github.com",
+			.Account     = "octo",
+			.Repository  = "app",
+			.PullRequest = 7,
+		});
+		expect(port.has_value(), "the bounded application port opens");
+		const auto portExtra = (*port)->store_note(
+			note(4'097U, 115U, "still one too many"));
+		if (!portExtra) {
+			std::cerr << "  bounded port refusal: "
+					  << application::name(portExtra.error()) << '\n';
+		}
+		expect(
+			!portExtra
+				&& portExtra.error()
+					== application::ledger_store_failure::quota_exceeded,
+			"the application port preserves the typed quota refusal");
+
+		expect(
+			execute(
+				opened->handle(),
+				"WITH RECURSIVE ids(value) AS (SELECT 1 UNION ALL SELECT "
+				"value + 1 FROM ids WHERE value < 4096), records(value, file, "
+				"anchor) AS MATERIALIZED (SELECT value, randomblob(32), "
+				"randomblob(32) FROM ids) INSERT INTO local_defect(scope_id, "
+				"defect_id, file_identity, conversation, anchor_comparison, "
+				"anchor_side, anchor_line, original_comparison, original_side, "
+				"original_line, severity, category, lifecycle, availability) "
+				"SELECT "
+					+ std::to_string(*scope)
+					+ ", value, file, value, anchor, 0, value, anchor, 0, value, "
+					  "1, 3, 0, 0 FROM records",
+				{ })
+				.has_value(),
+			"the defect-cap fixture fills one exact scope in one transaction");
+		const auto boundedRecords = opened->load_private(*scope);
+		expect(
+			boundedRecords
+				&& boundedRecords->Defects.size()
+					== application::maximum_private_defects
+				&& boundedRecords->Defects.front().History.Defect.Id
+					== core::defect_id{ 1U }
+				&& boundedRecords->Defects.back().History.Defect.Id
+					== core::defect_id{ 4'096U },
+			"exactly 4,096 defects load in stable identity order");
+		const auto extraDefect = opened->store_defect(
+			*scope, defect(4'097U, 5'097U, 116U));
+		expect(
+			!extraDefect
+				&& extraDefect.error()
+					== catalog_database_failure::quota_exceeded,
+			"the store refuses a defect beyond the declared observation cap");
+	}
 #if !defined(_WIN32)
 	/// \brief Opens the ledger, leaves a write uncommitted, and waits to die.
 	///
@@ -595,6 +1308,91 @@ namespace {
 			discarded.has_value() && !discarded->has_value(),
 			"the write left inside the open transaction is discarded");
 	}
+
+	[[noreturn]] void hold_uncommitted_private_records(
+		const std::filesystem::path& aPath,
+		const std::filesystem::path& aMarker)
+	{
+		auto opened = review_ledger_database::open(aPath, { });
+		if (!opened) {
+			::_exit(2);
+		}
+		const auto scope = opened->scope_id(
+			scope_of("github.com", "octo", "app", 7));
+		if (!scope || !execute(opened->handle(), "BEGIN IMMEDIATE", { })) {
+			::_exit(3);
+		}
+		if (!opened->store_note(*scope, note(2U, 132U, "abandoned"))
+			|| !opened->store_last_reviewed_head(*scope, head('2'))
+			|| !opened->store_defect(*scope, defect(2U, 202U, 134U))) {
+			::_exit(4);
+		}
+		{
+			std::ofstream marker{ aMarker };
+			marker << "ready";
+		}
+		while (true) {
+			::pause();
+		}
+	}
+
+	void test_a_killed_private_write_preserves_only_committed_records()
+	{
+		const scratch_directory directory;
+		const auto              path      = directory.file("l.db");
+		const auto              marker    = directory.file("private-ready");
+		const auto              committed = application::private_ledger_observation{
+			.Notes            = { note(1U, 130U, "committed") },
+			.LastReviewedHead = head('1'),
+			.Defects          = { defect(1U, 201U, 131U) },
+		};
+		std::int64_t scope = 0;
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the private crash fixture opens");
+			const auto id = opened->scope_id(
+				scope_of("github.com", "octo", "app", 7));
+			expect(id.has_value(), "the private crash scope resolves");
+			scope = *id;
+			expect(
+				opened->store_note(scope, committed.Notes.front()).has_value()
+					&& opened
+						   ->store_last_reviewed_head(
+							   scope, *committed.LastReviewedHead)
+						   .has_value()
+					&& opened->store_defect(scope, committed.Defects.front())
+						   .has_value(),
+				"all committed private records reach WAL before the crash");
+		}
+
+		const auto child = ::fork();
+		expect(child >= 0, "the private crash child starts");
+		if (child == 0) {
+			hold_uncommitted_private_records(path, marker);
+		}
+		auto waited = 0;
+		while (!std::filesystem::exists(marker) && waited < 200) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 25 });
+			++waited;
+		}
+		expect(
+			std::filesystem::exists(marker),
+			"the child reached all three uncommitted private writes");
+		expect(::kill(child, SIGKILL) == 0, "the private child is killed outright");
+		auto status = 0;
+		expect(::waitpid(child, &status, 0) == child, "the private child is reaped");
+		expect(
+			WIFSIGNALED(status) != 0 && WTERMSIG(status) == SIGKILL,
+			"the private child dies from SIGKILL rather than cleanup");
+
+		auto recovered = review_ledger_database::open(path, { });
+		expect(opened_ok(recovered), "the private ledger recovers after SIGKILL");
+		const auto restored = recovered->load_private(scope);
+		expect(
+			restored && *restored == committed,
+			"committed note, head, and defect survive while every abandoned "
+			"private write is discarded");
+	}
 #endif
 
 	// Deleting the ledger must lose only private review state. The epoch
@@ -656,6 +1454,115 @@ namespace {
 		expect(
 			kept.has_value() && kept->has_value() && **kept == receipt,
 			"deleting the ledger changed nothing in the store beside it");
+	}
+
+	void test_the_application_store_round_trips_private_records_by_scope()
+	{
+		const scratch_directory directory;
+		directory.make_private();
+		const auto configuration = bpr::adapters::sqlite::review_ledger_configuration{
+			.StorageRoot = directory.path(),
+			.Host        = "github.com",
+			.Account     = "octo",
+			.Repository  = "app",
+			.PullRequest = 7,
+		};
+		const auto storedNote                 = note(9U, 140U, "port round trip");
+		const auto storedHead                 = head('3');
+		const auto storedDefect               = defect(9U, 209U, 142U);
+		auto       updatedDefect              = storedDefect;
+		updatedDefect.History.Defect.Severity = core::defect_severity::critical;
+		updatedDefect.History.Defect.Category = core::defect_category::security;
+		updatedDefect.History.Defect.State    = core::defect_state::verified;
+		updatedDefect.History.Availability
+			= core::defect_anchor_availability::thread_deleted;
+		{
+			auto store = bpr::adapters::sqlite::make_review_ledger_store(
+				configuration);
+			expect(store.has_value(), "the application-owned store opens");
+			expect(
+				(*store)->store_note(storedNote).has_value()
+					&& (*store)->store_last_reviewed_head(storedHead).has_value()
+					&& (*store)->store_defect(storedDefect).has_value(),
+				"the application port commits every private record type");
+
+			expect(
+				(*store)->store_defect(updatedDefect).has_value()
+					&& (*store)->store_defect(updatedDefect).has_value(),
+				"classification, lifecycle, and availability remain mutable");
+
+			auto changedFile       = updatedDefect;
+			changedFile.File       = opaque<core::file_identity>(150U);
+			const auto refusedFile = (*store)->store_defect(changedFile);
+			expect(
+				!refusedFile
+					&& refusedFile.error()
+						== application::ledger_store_failure::conflict,
+				"changing only a defect file returns a typed conflict");
+			const auto preservedAfterFile = (*store)->load_private();
+			expect(
+				preservedAfterFile
+					&& preservedAfterFile->Defects == std::vector{ updatedDefect },
+				"a refused file rewrite preserves the exact stored defect row");
+
+			auto changedConversation         = updatedDefect;
+			changedConversation.Conversation = core::review_conversation_id{ 210U };
+			const auto refusedConversation
+				= (*store)->store_defect(changedConversation);
+			expect(
+				!refusedConversation
+					&& refusedConversation.error()
+						== application::ledger_store_failure::conflict,
+				"changing only a defect conversation returns a typed conflict");
+			const auto preservedAfterConversation = (*store)->load_private();
+			expect(
+				preservedAfterConversation
+					&& preservedAfterConversation->Defects
+						== std::vector{ updatedDefect },
+				"a refused conversation rewrite preserves the exact stored defect row");
+
+			auto       changedAnchor = updatedDefect;
+			const auto equalNewAnchor
+				= defect(9U, 209U, 150U).History.OriginalAnchor;
+			changedAnchor.History.Defect.Anchor  = equalNewAnchor;
+			changedAnchor.History.OriginalAnchor = equalNewAnchor;
+			const auto refusedAnchor             = (*store)->store_defect(changedAnchor);
+			expect(
+				!refusedAnchor
+					&& refusedAnchor.error()
+						== application::ledger_store_failure::conflict,
+				"changing only equal current and original anchors returns a typed conflict");
+			const auto preservedAfterAnchor = (*store)->load_private();
+			expect(
+				preservedAfterAnchor
+					&& preservedAfterAnchor->Defects
+						== std::vector{ updatedDefect },
+				"a refused equal-anchor rewrite preserves the exact stored defect row");
+		}
+		{
+			auto reopened = bpr::adapters::sqlite::make_review_ledger_store(
+				configuration);
+			expect(reopened.has_value(), "the application-owned store restarts");
+			const auto restored = (*reopened)->load_private();
+			expect(
+				restored
+					&& *restored
+						== application::private_ledger_observation{
+							.Notes            = { storedNote },
+							.LastReviewedHead = storedHead,
+							.Defects          = { updatedDefect },
+						},
+				"a second port instance restores exact private state");
+		}
+		auto otherConfiguration = configuration;
+		otherConfiguration.Host = "ghe.example.com";
+		auto other              = bpr::adapters::sqlite::make_review_ledger_store(
+			otherConfiguration);
+		expect(other.has_value(), "the second host scope opens");
+		const auto isolated = (*other)->load_private();
+		expect(
+			isolated && *isolated == application::private_ledger_observation{ },
+			"the application port cannot see another host's private records");
 	}
 
 #if !defined(_WIN32)
@@ -825,14 +1732,25 @@ auto main() -> int
 	test_the_schema_stores_no_presentation_coordinate();
 	test_receipts_do_not_leak_across_identity();
 	test_a_version_one_database_migrates_forward();
+	test_a_wrong_application_prior_version_is_refused_without_mutation();
+	test_a_version_two_database_migrates_without_dropping_receipts();
 	test_a_newer_database_fails_closed();
+	test_a_stamped_current_database_missing_a_required_table_fails_closed();
+	test_a_stamped_current_database_with_a_malformed_column_fails_closed();
+	test_a_stamped_current_database_missing_the_defect_unique_fails_closed();
+	test_a_stamped_current_database_without_strict_mode_fails_closed();
+	test_a_stamped_current_database_with_an_altered_check_fails_closed();
 	test_reopening_is_idempotent();
 	test_every_receipt_state_survives_a_restart();
 	test_a_receipt_does_not_cross_scopes();
+	test_private_records_survive_restart_isolate_and_delete();
+	test_private_record_bounds_and_anchor_honesty_are_enforced();
 #if !defined(_WIN32)
 	test_a_killed_write_discards_only_the_uncommitted_work();
+	test_a_killed_private_write_preserves_only_committed_records();
 #endif
 	test_deleting_the_ledger_leaves_the_neighbouring_store_intact();
+	test_the_application_store_round_trips_private_records_by_scope();
 #if !defined(_WIN32)
 	test_the_ledger_composing_first_hardens_the_state_directory();
 	test_a_symlinked_state_directory_is_refused_by_either_store();

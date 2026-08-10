@@ -19,6 +19,10 @@ namespace bpr::application {
 		std::uint64_t StoreFailures       = 0U;
 		std::uint64_t Publications        = 0U;
 		std::uint64_t FailurePublications = 0U;
+		std::uint64_t PrivateWrites       = 0U;
+		std::uint64_t PrivateDeletes      = 0U;
+		std::uint64_t PrivateLoads        = 0U;
+		std::uint64_t PrivateFailures     = 0U;
 
 		auto operator<=>(const review_ledger_host_statistics&) const = default;
 	};
@@ -51,6 +55,35 @@ namespace bpr::application {
 		/// store, so a rejection here means nothing was written.
 		auto submit(const core::file_receipt_command& aCommand)
 			-> core::file_receipt_outcome;
+
+		/// \brief Persists one validated local note.
+		[[nodiscard]] auto persist(const local_note_record& aNote)
+			-> std::expected<void, ledger_store_failure>;
+
+		/// \brief Deletes one local note identity.
+		[[nodiscard]] auto erase(local_note_id aNote)
+			-> std::expected<void, ledger_store_failure>;
+
+		/// \brief Persists the exact head last reviewed by this reviewer.
+		[[nodiscard]] auto persist_last_reviewed_head(
+			const core::git_commit_oid& aHead)
+			-> std::expected<void, ledger_store_failure>;
+
+		/// \brief Clears the last-reviewed head.
+		[[nodiscard]] auto erase_last_reviewed_head()
+			-> std::expected<void, ledger_store_failure>;
+
+		/// \brief Persists one validated local defect and its retained history.
+		[[nodiscard]] auto persist(const durable_defect_record& aDefect)
+			-> std::expected<void, ledger_store_failure>;
+
+		/// \brief Deletes one local defect identity.
+		[[nodiscard]] auto erase(core::defect_id aDefect)
+			-> std::expected<void, ledger_store_failure>;
+
+		/// \brief Loads one bounded deterministic private-state observation.
+		[[nodiscard]] auto private_observation()
+			-> std::expected<private_ledger_observation, ledger_store_failure>;
 
 		[[nodiscard]] auto retained() const noexcept -> const core::file_receipt&;
 		[[nodiscard]] auto statistics() const noexcept

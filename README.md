@@ -28,11 +28,11 @@ non-rendering intermediate sink, and accepted pull-request state is not offered
 to that host. A selected diff can currently be requested only by a
 tests-enabled fixture helper, not by a user-selected file. BPR-0226 and
 BPR-0227 own those missing public wires. RFC-BPR-0006 through RFC-BPR-0011 have
-substantial tested component implementations, but their remaining work is not
-limited to composition: theme customization/import, durable notes/heads/defect
-metadata, queue filters/sorting, and complete agent context/process lifecycle
-are also absent. BPR-0228 through BPR-0240 track the exact component,
-resilience, and public-composition slices.
+substantial tested component implementations. Durable notes, reviewed heads,
+and defect metadata now have bounded versioned persistence, while their public
+composition remains open; theme customization/import, queue filters/sorting,
+and complete agent context/process lifecycle also remain component or
+reachability work. BPR-0228 through BPR-0240 track the exact remaining slices.
 
 GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the

@@ -1,5 +1,6 @@
 #include "bpr/application/review_ledger_application_host.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -64,6 +65,100 @@ namespace {
 			return Committed;
 		}
 
+		auto store_note(const application::local_note_record& aNote)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			const auto found = std::ranges::find(
+				Private.Notes, aNote.Id, &application::local_note_record::Id);
+			if (found == Private.Notes.end()) {
+				Private.Notes.push_back(aNote);
+			} else {
+				*found = aNote;
+			}
+			return { };
+		}
+
+		auto erase_note(const application::local_note_id aNote)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			std::erase_if(
+				Private.Notes,
+				[aNote](const application::local_note_record& aRecord) {
+					return aRecord.Id == aNote;
+				});
+			return { };
+		}
+
+		auto store_last_reviewed_head(const core::git_commit_oid& aHead)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			Private.LastReviewedHead = aHead;
+			return { };
+		}
+
+		auto erase_last_reviewed_head()
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			Private.LastReviewedHead.reset();
+			return { };
+		}
+
+		auto store_defect(const application::durable_defect_record& aDefect)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			const auto found = std::ranges::find(
+				Private.Defects,
+				aDefect.History.Defect.Id,
+				[](const application::durable_defect_record& aRecord) {
+					return aRecord.History.Defect.Id;
+				});
+			if (found == Private.Defects.end()) {
+				Private.Defects.push_back(aDefect);
+			} else {
+				*found = aDefect;
+			}
+			return { };
+		}
+
+		auto erase_defect(const core::defect_id aDefect)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			std::erase_if(
+				Private.Defects,
+				[aDefect](const application::durable_defect_record& aRecord) {
+					return aRecord.History.Defect.Id == aDefect;
+				});
+			return { };
+		}
+
+		auto load_private() -> std::expected<
+			application::private_ledger_observation,
+			application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			return Private;
+		}
+
 		void fail_next(const application::ledger_store_failure aFailure)
 		{
 			NextFailure = aFailure;
@@ -71,8 +166,17 @@ namespace {
 
 		std::vector<application::receipt_persistence_request> Requests;
 		std::optional<core::file_receipt>                     Committed;
+		application::private_ledger_observation               Private;
 
 	private:
+		[[nodiscard]] auto take_failure()
+			-> std::optional<application::ledger_store_failure>
+		{
+			const auto failure = NextFailure;
+			NextFailure.reset();
+			return failure;
+		}
+
 		event_log*                                       Log = nullptr;
 		std::optional<application::ledger_store_failure> NextFailure;
 	};
@@ -120,6 +224,50 @@ namespace {
 			.File     = aReceipt.File,
 			.Material = aReceipt.Material,
 			.Kind     = aKind,
+		};
+	}
+
+	[[nodiscard]] auto private_note() -> application::local_note_record
+	{
+		return application::local_note_record{
+			.Id         = application::local_note_id{ 7U },
+			.Attachment = application::local_note_attachment{
+				.File       = opaque<core::file_identity>(11U),
+				.Comparison = opaque<core::file_comparison_digest>(12U),
+			},
+			.Note = { .Text = "Re-check the ownership boundary." },
+		};
+	}
+
+	[[nodiscard]] auto reviewed_head() -> core::git_commit_oid
+	{
+		const auto parsed = core::parse_git_commit_oid(
+			"1111111111111111111111111111111111111111");
+		return *parsed;
+	}
+
+	[[nodiscard]] auto private_defect()
+		-> application::durable_defect_record
+	{
+		const auto anchor = core::source_line_ref{
+			.Comparison = opaque<core::file_comparison_digest>(21U),
+			.Side       = core::diff_side::right,
+			.Line       = 42U,
+		};
+		return application::durable_defect_record{
+			.File         = opaque<core::file_identity>(20U),
+			.Conversation = core::review_conversation_id{ 30U },
+			.History      = {
+				.Defect = {
+					.Id       = core::defect_id{ 31U },
+					.Anchor   = anchor,
+					.Severity = core::defect_severity::major,
+					.Category = core::defect_category::security,
+					.State    = core::defect_state::needs_verification,
+				},
+				.OriginalAnchor = anchor,
+				.Availability   = core::defect_anchor_availability::outdated,
+			},
 		};
 	}
 
@@ -296,6 +444,107 @@ namespace {
 			statistics.FailurePublications == 2U,
 			"both the refusal and the store failure were published");
 	}
+
+	void test_private_records_are_validated_before_the_store()
+	{
+		auto log        = event_log{ };
+		auto store      = recording_store{ log };
+		auto projection = recording_projection{ log };
+		auto host       = application::review_ledger_application_host{ store, projection };
+
+		auto note = private_note();
+		note.Note.Text.clear();
+		const auto badNote = host.persist(note);
+		const auto badHead = host.persist_last_reviewed_head(core::git_commit_oid{ });
+		auto       defect  = private_defect();
+		defect.History.Defect.Anchor.Line += 1U;
+		const auto badDefect = host.persist(defect);
+		const auto badErase  = host.erase(application::local_note_id{ });
+
+		expect(
+			!badNote
+				&& badNote.error()
+					== application::ledger_store_failure::invalid_record
+				&& !badHead
+				&& badHead.error()
+					== application::ledger_store_failure::invalid_record
+				&& !badDefect
+				&& badDefect.error()
+					== application::ledger_store_failure::invalid_record
+				&& !badErase
+				&& badErase.error()
+					== application::ledger_store_failure::invalid_record,
+			"invalid private records are refused with one exact reason");
+		expect(
+			store.Private == application::private_ledger_observation{ },
+			"no invalid record reaches the durable port");
+		expect(
+			host.statistics().PrivateWrites == 0U
+				&& host.statistics().PrivateDeletes == 0U
+				&& host.statistics().PrivateFailures == 4U,
+			"validation failures are counted without false writes or deletes");
+	}
+
+	void test_private_records_round_trip_and_delete_through_the_host()
+	{
+		auto       log        = event_log{ };
+		auto       store      = recording_store{ log };
+		auto       projection = recording_projection{ log };
+		auto       host       = application::review_ledger_application_host{ store, projection };
+		const auto note       = private_note();
+		const auto head       = reviewed_head();
+		const auto defect     = private_defect();
+
+		expect(host.persist(note).has_value(), "the note commits");
+		expect(
+			host.persist_last_reviewed_head(head).has_value(),
+			"the reviewed head commits");
+		expect(host.persist(defect).has_value(), "the defect commits");
+
+		const auto observed = host.private_observation();
+		expect(
+			observed.has_value()
+				&& *observed
+					== application::private_ledger_observation{
+						.Notes            = { note },
+						.LastReviewedHead = head,
+						.Defects          = { defect },
+					},
+			"the host returns exactly the records the durable port accepted");
+
+		store.fail_next(application::ledger_store_failure::conflict);
+		auto changed       = note;
+		changed.Note.Text  = "This update must not be adopted.";
+		const auto refused = host.persist(changed);
+		expect(
+			!refused
+				&& refused.error() == application::ledger_store_failure::conflict,
+			"a private store failure remains typed");
+		expect(
+			store.Private.Notes == std::vector{ note },
+			"a failed private write leaves the durable observation unchanged");
+
+		expect(host.erase(note.Id).has_value(), "the note deletes");
+		expect(
+			host.erase_last_reviewed_head().has_value(),
+			"the reviewed head deletes");
+		expect(
+			host.erase(defect.History.Defect.Id).has_value(),
+			"the defect deletes");
+		const auto empty = host.private_observation();
+		expect(
+			empty.has_value()
+				&& *empty == application::private_ledger_observation{ },
+			"deletion returns the exact scope to an empty private observation");
+
+		const auto statistics = host.statistics();
+		expect(
+			statistics.PrivateWrites == 4U
+				&& statistics.PrivateDeletes == 3U
+				&& statistics.PrivateLoads == 2U
+				&& statistics.PrivateFailures == 1U,
+			"private statistics distinguish writes, deletes, loads, and failures");
+	}
 } // namespace
 
 auto main() -> int
@@ -305,6 +554,8 @@ auto main() -> int
 	test_a_failed_commit_changes_nothing();
 	test_an_unchanged_command_is_not_a_write();
 	test_statistics_account_for_every_command();
+	test_private_records_are_validated_before_the_store();
+	test_private_records_round_trip_and_delete_through_the_host();
 
 	std::cout << "review-ledger-host-tests:pass\n";
 	return EXIT_SUCCESS;

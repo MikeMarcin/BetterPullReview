@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <span>
 #include <string>
 #include <utility>
@@ -11,6 +12,48 @@
 namespace bpr::adapters::sqlite::detail {
 	namespace {
 		constexpr std::int32_t LedgerApplicationId = 0x42505244;
+
+		template <typename Bytes>
+		[[nodiscard]] auto bind_blob(
+			::sqlite3_stmt* aStatement,
+			const int       aPosition,
+			const Bytes&    aBytes) noexcept -> int
+		{
+			return ::sqlite3_bind_blob(
+				aStatement,
+				aPosition,
+				aBytes.data(),
+				static_cast<int>(aBytes.size()),
+				SQLITE_TRANSIENT);
+		}
+
+		[[nodiscard]] auto read_digest(
+			::sqlite3_stmt* aStatement,
+			const int       aColumn) noexcept
+			-> std::optional<std::array<std::uint8_t, 32>>
+		{
+			if (::sqlite3_column_type(aStatement, aColumn) != SQLITE_BLOB
+				|| ::sqlite3_column_bytes(aStatement, aColumn) != 32) {
+				return std::nullopt;
+			}
+			const auto* source = static_cast<const std::uint8_t*>(
+				::sqlite3_column_blob(aStatement, aColumn));
+			if (source == nullptr) {
+				return std::nullopt;
+			}
+			auto bytes = std::array<std::uint8_t, 32>{ };
+			std::copy_n(source, bytes.size(), bytes.begin());
+			return bytes;
+		}
+
+		[[nodiscard]] constexpr auto durable_integer(
+			const std::uint64_t aValue) noexcept -> bool
+		{
+			return aValue > 0U
+				&& aValue
+				<= static_cast<std::uint64_t>(
+					   std::numeric_limits<std::int64_t>::max());
+		}
 
 		/// \brief The statements that build schema version 1.
 		///
@@ -61,6 +104,79 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" },
 		};
 
+		/// \brief The statements that carry schema version 2 to version 3.
+		///
+		/// \details Notes carry either no attachment or an exact file/comparison
+		/// pair. Heads retain the algorithm beside the padded digest. Defects keep
+		/// both semantic anchors even though current policy requires them equal, so
+		/// losing shared context never erases the original complaint.
+		constexpr std::array SchemaVersion2To3{
+			std::string_view{
+				"CREATE TABLE local_note("
+				"scope_id INTEGER NOT NULL "
+				"REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
+				"note_id INTEGER NOT NULL CHECK(note_id > 0),"
+				"file_identity BLOB,"
+				"comparison_id BLOB,"
+				"note_text TEXT NOT NULL "
+				"CHECK(length(CAST(note_text AS BLOB)) BETWEEN 1 AND 16384),"
+				"CHECK((file_identity IS NULL AND comparison_id IS NULL) OR "
+				"(length(file_identity) = 32 AND length(comparison_id) = 32)),"
+				"PRIMARY KEY(scope_id, note_id)"
+				") STRICT" },
+			std::string_view{
+				"CREATE TABLE last_reviewed_head("
+				"scope_id INTEGER PRIMARY KEY "
+				"REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
+				"oid_algorithm INTEGER NOT NULL CHECK(oid_algorithm BETWEEN 1 AND 2),"
+				"head_oid BLOB NOT NULL CHECK(length(head_oid) = 32)"
+				") STRICT" },
+			std::string_view{
+				"CREATE TABLE local_defect("
+				"scope_id INTEGER NOT NULL "
+				"REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
+				"defect_id INTEGER NOT NULL CHECK(defect_id > 0),"
+				"file_identity BLOB NOT NULL CHECK(length(file_identity) = 32),"
+				"conversation INTEGER NOT NULL CHECK(conversation > 0),"
+				"anchor_comparison BLOB NOT NULL CHECK(length(anchor_comparison) = 32),"
+				"anchor_side INTEGER NOT NULL CHECK(anchor_side BETWEEN 0 AND 1),"
+				"anchor_line INTEGER NOT NULL CHECK(anchor_line BETWEEN 0 AND 4294967295),"
+				"original_comparison BLOB NOT NULL CHECK(length(original_comparison) = 32),"
+				"original_side INTEGER NOT NULL CHECK(original_side BETWEEN 0 AND 1),"
+				"original_line INTEGER NOT NULL CHECK(original_line BETWEEN 0 AND 4294967295),"
+				"severity INTEGER NOT NULL CHECK(severity BETWEEN 0 AND 3),"
+				"category INTEGER NOT NULL CHECK(category BETWEEN 0 AND 6),"
+				"lifecycle INTEGER NOT NULL CHECK(lifecycle BETWEEN 0 AND 6),"
+				"availability INTEGER NOT NULL CHECK(availability BETWEEN 0 AND 2),"
+				"CHECK(anchor_comparison = original_comparison AND "
+				"anchor_side = original_side AND anchor_line = original_line),"
+				"PRIMARY KEY(scope_id, defect_id),"
+				"UNIQUE(scope_id, conversation)"
+				") STRICT" },
+		};
+
+		struct schema_table
+		{
+			std::string_view Name;
+			std::string_view Sql;
+		};
+
+		/// \brief The complete canonical version-three ledger schema.
+		///
+		/// \details Kept in name order so validation can compare the live
+		/// `sqlite_schema` stream without allocating or sorting. Canonical SQL
+		/// comparison makes columns, constraints, foreign keys, and `STRICT`
+		/// table mode compatibility facts rather than trusting table names.
+		constexpr std::array SchemaVersion3Tables{
+			schema_table{ "conversation_receipt", SchemaVersion1To2[0] },
+			schema_table{ "file_receipt", SchemaVersion1[2] },
+			schema_table{ "last_reviewed_head", SchemaVersion2To3[1] },
+			schema_table{ "ledger_meta", SchemaVersion1[0] },
+			schema_table{ "local_defect", SchemaVersion2To3[2] },
+			schema_table{ "local_note", SchemaVersion2To3[0] },
+			schema_table{ "review_scope", SchemaVersion1[1] },
+		};
+
 		[[nodiscard]] auto run_all(
 			::sqlite3*                              aDatabase,
 			const std::span<const std::string_view> aStatements,
@@ -98,14 +214,21 @@ namespace bpr::adapters::sqlite::detail {
 			if (!current) {
 				return std::unexpected(current.error());
 			}
-			if (*current == review_ledger_schema_version) {
-				return { };
-			}
 			// Forward only. A newer database is refused rather than opened,
 			// because this build cannot know what the newer version added and
 			// would silently drop it on the next write.
 			if (*current > review_ledger_schema_version) {
 				return std::unexpected(failure::schema_mismatch);
+			}
+			if (*current != 0) {
+				const auto application
+					= scalar_integer(aDatabase, "PRAGMA application_id");
+				if (!application || *application != LedgerApplicationId) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+			}
+			if (*current == review_ledger_schema_version) {
+				return { };
 			}
 
 			if (auto begin = execute(aDatabase, "BEGIN IMMEDIATE", aStop); !begin) {
@@ -154,6 +277,15 @@ namespace bpr::adapters::sqlite::detail {
 				}
 				version = 2;
 			}
+			if (version == 2) {
+				if (auto migrated
+					= run_all(aDatabase, SchemaVersion2To3, aStop);
+					!migrated) {
+					rollback();
+					return migrated;
+				}
+				version = 3;
+			}
 
 			if (auto recorded = execute(
 					aDatabase,
@@ -192,6 +324,53 @@ namespace bpr::adapters::sqlite::detail {
 			if (!meta || ::sqlite3_step(meta->Value) != SQLITE_ROW
 				|| ::sqlite3_column_int64(meta->Value, 0)
 					!= review_ledger_schema_version) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+
+			auto objects = prepare(
+				aDatabase,
+				"SELECT type, name, sql FROM sqlite_schema "
+				"WHERE name NOT LIKE 'sqlite_%' ORDER BY name");
+			if (!objects) {
+				return std::unexpected(objects.error());
+			}
+			std::size_t index = 0;
+			while (true) {
+				const auto row = ::sqlite3_step(objects->Value);
+				if (row == SQLITE_DONE) {
+					break;
+				}
+				if (row != SQLITE_ROW || index >= SchemaVersion3Tables.size()) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				const auto text = [&objects](const int aColumn)
+					-> std::optional<std::string_view> {
+					if (::sqlite3_column_type(objects->Value, aColumn) != SQLITE_TEXT) {
+						return std::nullopt;
+					}
+					const auto* value = reinterpret_cast<const char*>(
+						::sqlite3_column_text(objects->Value, aColumn));
+					const auto bytes = ::sqlite3_column_bytes(objects->Value, aColumn);
+					if (value == nullptr || bytes < 0) {
+						return std::nullopt;
+					}
+					return std::string_view{
+						value,
+						static_cast<std::size_t>(bytes),
+					};
+				};
+				const auto type = text(0);
+				const auto name = text(1);
+				const auto sql  = text(2);
+				if (!type || !name || !sql || *type != "table"
+					|| *name != SchemaVersion3Tables[index].Name
+					|| canonical_sql(*sql)
+						!= canonical_sql(SchemaVersion3Tables[index].Sql)) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				++index;
+			}
+			if (index != SchemaVersion3Tables.size()) {
 				return std::unexpected(failure::schema_mismatch);
 			}
 			return { };
@@ -351,20 +530,8 @@ namespace bpr::adapters::sqlite::detail {
 		const auto& file     = aReceipt.File.bytes();
 		const auto& material = aReceipt.Material.bytes();
 		if (::sqlite3_bind_int64(upsert->Value, 1, aScope) != SQLITE_OK
-			|| ::sqlite3_bind_blob(
-				   upsert->Value,
-				   2,
-				   file.data(),
-				   static_cast<int>(file.size()),
-				   SQLITE_TRANSIENT)
-				!= SQLITE_OK
-			|| ::sqlite3_bind_blob(
-				   upsert->Value,
-				   3,
-				   material.data(),
-				   static_cast<int>(material.size()),
-				   SQLITE_TRANSIENT)
-				!= SQLITE_OK
+			|| bind_blob(upsert->Value, 2, file) != SQLITE_OK
+			|| bind_blob(upsert->Value, 3, material) != SQLITE_OK
 			|| ::sqlite3_bind_int64(
 				   upsert->Value, 4, static_cast<std::int64_t>(aReceipt.Read))
 				!= SQLITE_OK
@@ -395,13 +562,7 @@ namespace bpr::adapters::sqlite::detail {
 
 		const auto& file = aFile.bytes();
 		if (::sqlite3_bind_int64(select->Value, 1, aScope) != SQLITE_OK
-			|| ::sqlite3_bind_blob(
-				   select->Value,
-				   2,
-				   file.data(),
-				   static_cast<int>(file.size()),
-				   SQLITE_TRANSIENT)
-				!= SQLITE_OK) {
+			|| bind_blob(select->Value, 2, file) != SQLITE_OK) {
 			return std::unexpected(failure::unavailable);
 		}
 
@@ -412,15 +573,10 @@ namespace bpr::adapters::sqlite::detail {
 		if (row != SQLITE_ROW) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}
-		if (::sqlite3_column_type(select->Value, 0) != SQLITE_BLOB
-			|| ::sqlite3_column_bytes(select->Value, 0) != 32) {
+		const auto material = read_digest(select->Value, 0);
+		if (!material) {
 			return std::unexpected(failure::integrity_failure);
 		}
-
-		auto        material = std::array<std::uint8_t, 32>{ };
-		const auto* bytes
-			= static_cast<const std::uint8_t*>(::sqlite3_column_blob(select->Value, 0));
-		std::copy_n(bytes, material.size(), material.begin());
 
 		const auto read = ::sqlite3_column_int64(select->Value, 1);
 		if (read < 0 || read > 2) {
@@ -429,11 +585,460 @@ namespace bpr::adapters::sqlite::detail {
 
 		return std::optional{ core::file_receipt{
 			.File     = aFile,
-			.Material = core::file_material_id{ material },
+			.Material = core::file_material_id{ *material },
 			.Read     = static_cast<core::file_read_state>(read),
 			.Accepted = ::sqlite3_column_int64(select->Value, 2) != 0,
 			.Excluded = ::sqlite3_column_int64(select->Value, 3) != 0,
 		} };
+	}
+
+	auto review_ledger_database::store_note(
+		const std::int64_t                    aScope,
+		const application::local_note_record& aNote)
+		-> std::expected<void, failure>
+	{
+		if (!application::valid(aNote)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto upsert = prepare(
+			Handle,
+			"INSERT INTO local_note(scope_id, note_id, file_identity, "
+			"comparison_id, note_text) "
+			"SELECT ?1, ?2, ?3, ?4, ?5 WHERE "
+			"EXISTS(SELECT 1 FROM local_note WHERE scope_id = ?1 AND note_id = ?2) "
+			"OR (SELECT COUNT(*) FROM local_note WHERE scope_id = ?1) < ?6 "
+			"ON CONFLICT(scope_id, note_id) DO UPDATE SET "
+			"file_identity = excluded.file_identity, "
+			"comparison_id = excluded.comparison_id, "
+			"note_text = excluded.note_text");
+		if (!upsert) {
+			return std::unexpected(upsert.error());
+		}
+		if (::sqlite3_bind_int64(upsert->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value,
+				   2,
+				   static_cast<std::int64_t>(aNote.Id.value()))
+				!= SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (aNote.Attachment) {
+			const auto& file       = aNote.Attachment->File.bytes();
+			const auto& comparison = aNote.Attachment->Comparison.bytes();
+			if (bind_blob(upsert->Value, 3, file) != SQLITE_OK
+				|| bind_blob(upsert->Value, 4, comparison) != SQLITE_OK) {
+				return std::unexpected(failure::unavailable);
+			}
+		} else if (::sqlite3_bind_null(upsert->Value, 3) != SQLITE_OK
+				   || ::sqlite3_bind_null(upsert->Value, 4) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_bind_text(
+				upsert->Value,
+				5,
+				aNote.Note.Text.data(),
+				static_cast<int>(aNote.Note.Text.size()),
+				SQLITE_TRANSIENT)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value,
+				   6,
+				   static_cast<std::int64_t>(application::maximum_private_notes))
+				!= SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		if (::sqlite3_changes(Handle) == 0) {
+			return std::unexpected(failure::quota_exceeded);
+		}
+		return { };
+	}
+
+	auto review_ledger_database::erase_note(
+		const std::int64_t               aScope,
+		const application::local_note_id aNote) -> std::expected<void, failure>
+	{
+		if (!durable_integer(aNote.value())) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto erase = prepare(
+			Handle,
+			"DELETE FROM local_note WHERE scope_id = ?1 AND note_id = ?2");
+		if (!erase) {
+			return std::unexpected(erase.error());
+		}
+		if (::sqlite3_bind_int64(erase->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   erase->Value,
+				   2,
+				   static_cast<std::int64_t>(aNote.value()))
+				!= SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(erase->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return { };
+	}
+
+	auto review_ledger_database::store_last_reviewed_head(
+		const std::int64_t          aScope,
+		const core::git_commit_oid& aHead) -> std::expected<void, failure>
+	{
+		if (!aHead.valid()) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto upsert = prepare(
+			Handle,
+			"INSERT INTO last_reviewed_head(scope_id, oid_algorithm, head_oid) "
+			"VALUES(?1, ?2, ?3) ON CONFLICT(scope_id) DO UPDATE SET "
+			"oid_algorithm = excluded.oid_algorithm, head_oid = excluded.head_oid");
+		if (!upsert) {
+			return std::unexpected(upsert.error());
+		}
+		const auto& oid = aHead.bytes();
+		if (::sqlite3_bind_int64(upsert->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value,
+				   2,
+				   static_cast<std::int64_t>(aHead.algorithm()))
+				!= SQLITE_OK
+			|| bind_blob(upsert->Value, 3, oid) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return { };
+	}
+
+	auto review_ledger_database::erase_last_reviewed_head(
+		const std::int64_t aScope) -> std::expected<void, failure>
+	{
+		auto erase = prepare(
+			Handle,
+			"DELETE FROM last_reviewed_head WHERE scope_id = ?1");
+		if (!erase) {
+			return std::unexpected(erase.error());
+		}
+		if (::sqlite3_bind_int64(erase->Value, 1, aScope) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(erase->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return { };
+	}
+
+	auto review_ledger_database::store_defect(
+		const std::int64_t                        aScope,
+		const application::durable_defect_record& aDefect)
+		-> std::expected<defect_store_outcome, failure>
+	{
+		if (!application::valid(aDefect)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto upsert = prepare(
+			Handle,
+			"INSERT INTO local_defect(scope_id, defect_id, file_identity, "
+			"conversation, anchor_comparison, anchor_side, anchor_line, "
+			"original_comparison, original_side, original_line, severity, "
+			"category, lifecycle, availability) "
+			"SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, "
+			"?13, ?14 WHERE EXISTS(SELECT 1 FROM local_defect WHERE "
+			"scope_id = ?1 AND defect_id = ?2) OR (SELECT COUNT(*) FROM "
+			"local_defect WHERE scope_id = ?1) < ?15 "
+			"ON CONFLICT(scope_id, defect_id) DO UPDATE SET "
+			"severity = excluded.severity, category = excluded.category, "
+			"lifecycle = excluded.lifecycle, availability = excluded.availability "
+			"WHERE local_defect.file_identity = excluded.file_identity "
+			"AND local_defect.conversation = excluded.conversation "
+			"AND local_defect.anchor_comparison = excluded.anchor_comparison "
+			"AND local_defect.anchor_side = excluded.anchor_side "
+			"AND local_defect.anchor_line = excluded.anchor_line "
+			"AND local_defect.original_comparison = excluded.original_comparison "
+			"AND local_defect.original_side = excluded.original_side "
+			"AND local_defect.original_line = excluded.original_line");
+		if (!upsert) {
+			return std::unexpected(upsert.error());
+		}
+		const auto& history  = aDefect.History;
+		const auto& defect   = history.Defect;
+		const auto& file     = aDefect.File.bytes();
+		const auto& anchor   = defect.Anchor.Comparison.bytes();
+		const auto& original = history.OriginalAnchor.Comparison.bytes();
+		if (::sqlite3_bind_int64(upsert->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value,
+				   2,
+				   static_cast<std::int64_t>(defect.Id.value()))
+				!= SQLITE_OK
+			|| bind_blob(upsert->Value, 3, file) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value,
+				   4,
+				   static_cast<std::int64_t>(aDefect.Conversation.value()))
+				!= SQLITE_OK
+			|| bind_blob(upsert->Value, 5, anchor) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value, 6, static_cast<std::int64_t>(defect.Anchor.Side))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(upsert->Value, 7, defect.Anchor.Line)
+				!= SQLITE_OK
+			|| bind_blob(upsert->Value, 8, original) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value,
+				   9,
+				   static_cast<std::int64_t>(history.OriginalAnchor.Side))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value, 10, history.OriginalAnchor.Line)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value, 11, static_cast<std::int64_t>(defect.Severity))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value, 12, static_cast<std::int64_t>(defect.Category))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value, 13, static_cast<std::int64_t>(defect.State))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value,
+				   14,
+				   static_cast<std::int64_t>(history.Availability))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   upsert->Value,
+				   15,
+				   static_cast<std::int64_t>(application::maximum_private_defects))
+				!= SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		if (::sqlite3_changes(Handle) == 0) {
+			auto existing = prepare(
+				Handle,
+				"SELECT 1 FROM local_defect WHERE scope_id = ?1 AND defect_id = ?2");
+			if (!existing) {
+				return std::unexpected(existing.error());
+			}
+			if (::sqlite3_bind_int64(existing->Value, 1, aScope) != SQLITE_OK
+				|| ::sqlite3_bind_int64(
+					   existing->Value,
+					   2,
+					   static_cast<std::int64_t>(defect.Id.value()))
+					!= SQLITE_OK) {
+				return std::unexpected(failure::unavailable);
+			}
+			const auto row = ::sqlite3_step(existing->Value);
+			if (row == SQLITE_ROW) {
+				return defect_store_outcome::identity_conflict;
+			}
+			if (row != SQLITE_DONE) {
+				return std::unexpected(catalog_sql_failure(Handle));
+			}
+			return std::unexpected(failure::quota_exceeded);
+		}
+		return defect_store_outcome::stored;
+	}
+
+	auto review_ledger_database::erase_defect(
+		const std::int64_t    aScope,
+		const core::defect_id aDefect) -> std::expected<void, failure>
+	{
+		if (!durable_integer(aDefect.value())) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto erase = prepare(
+			Handle,
+			"DELETE FROM local_defect WHERE scope_id = ?1 AND defect_id = ?2");
+		if (!erase) {
+			return std::unexpected(erase.error());
+		}
+		if (::sqlite3_bind_int64(erase->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   erase->Value,
+				   2,
+				   static_cast<std::int64_t>(aDefect.value()))
+				!= SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(erase->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return { };
+	}
+
+	auto review_ledger_database::load_private(const std::int64_t aScope)
+		-> std::expected<application::private_ledger_observation, failure>
+	{
+		auto result = application::private_ledger_observation{ };
+
+		auto notes = prepare(
+			Handle,
+			"SELECT note_id, file_identity, comparison_id, note_text FROM "
+			"local_note WHERE scope_id = ?1 ORDER BY note_id LIMIT ?2");
+		if (!notes
+			|| ::sqlite3_bind_int64(notes->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   notes->Value,
+				   2,
+				   static_cast<std::int64_t>(application::maximum_private_notes) + 1)
+				!= SQLITE_OK) {
+			return std::unexpected(
+				notes ? failure::unavailable : notes.error());
+		}
+		auto row = SQLITE_ROW;
+		while ((row = ::sqlite3_step(notes->Value)) == SQLITE_ROW) {
+			if (result.Notes.size() == application::maximum_private_notes) {
+				return std::unexpected(failure::quota_exceeded);
+			}
+			const auto  id             = ::sqlite3_column_int64(notes->Value, 0);
+			const auto  fileType       = ::sqlite3_column_type(notes->Value, 1);
+			const auto  comparisonType = ::sqlite3_column_type(notes->Value, 2);
+			const auto  textBytes      = ::sqlite3_column_bytes(notes->Value, 3);
+			const auto* text           = ::sqlite3_column_text(notes->Value, 3);
+			if (id <= 0 || text == nullptr || textBytes <= 0
+				|| static_cast<std::size_t>(textBytes) > core::maximum_note_bytes
+				|| ((fileType == SQLITE_NULL) != (comparisonType == SQLITE_NULL))) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			auto note = application::local_note_record{
+				.Id   = application::local_note_id{ static_cast<std::uint64_t>(id) },
+				.Note = { .Text = std::string{
+							  reinterpret_cast<const char*>(text),
+							  static_cast<std::size_t>(textBytes) } },
+			};
+			if (fileType != SQLITE_NULL) {
+				const auto file       = read_digest(notes->Value, 1);
+				const auto comparison = read_digest(notes->Value, 2);
+				if (!file || !comparison) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				note.Attachment = application::local_note_attachment{
+					.File       = core::file_identity{ *file },
+					.Comparison = core::file_comparison_digest{ *comparison },
+				};
+			}
+			if (!application::valid(note)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			result.Notes.push_back(std::move(note));
+		}
+		if (row != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+
+		auto head = prepare(
+			Handle,
+			"SELECT oid_algorithm, head_oid FROM last_reviewed_head "
+			"WHERE scope_id = ?1");
+		if (!head || ::sqlite3_bind_int64(head->Value, 1, aScope) != SQLITE_OK) {
+			return std::unexpected(head ? failure::unavailable : head.error());
+		}
+		row = ::sqlite3_step(head->Value);
+		if (row == SQLITE_ROW) {
+			const auto algorithm = ::sqlite3_column_int64(head->Value, 0);
+			const auto oid       = read_digest(head->Value, 1);
+			if (!oid || algorithm < 1 || algorithm > 2) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			auto parsed = core::git_commit_oid{
+				static_cast<core::git_hash_algorithm>(algorithm),
+				*oid,
+			};
+			if (!parsed.valid()) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			result.LastReviewedHead = parsed;
+		} else if (row != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+
+		auto defects = prepare(
+			Handle,
+			"SELECT defect_id, file_identity, conversation, anchor_comparison, "
+			"anchor_side, anchor_line, original_comparison, original_side, "
+			"original_line, severity, category, lifecycle, availability FROM "
+			"local_defect WHERE scope_id = ?1 ORDER BY defect_id LIMIT ?2");
+		if (!defects
+			|| ::sqlite3_bind_int64(defects->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   defects->Value,
+				   2,
+				   static_cast<std::int64_t>(application::maximum_private_defects) + 1)
+				!= SQLITE_OK) {
+			return std::unexpected(
+				defects ? failure::unavailable : defects.error());
+		}
+		while ((row = ::sqlite3_step(defects->Value)) == SQLITE_ROW) {
+			if (result.Defects.size() == application::maximum_private_defects) {
+				return std::unexpected(failure::quota_exceeded);
+			}
+			const auto     id           = ::sqlite3_column_int64(defects->Value, 0);
+			const auto     file         = read_digest(defects->Value, 1);
+			const auto     conversation = ::sqlite3_column_int64(defects->Value, 2);
+			const auto     anchor       = read_digest(defects->Value, 3);
+			const auto     side         = ::sqlite3_column_int64(defects->Value, 4);
+			const auto     line         = ::sqlite3_column_int64(defects->Value, 5);
+			const auto     original     = read_digest(defects->Value, 6);
+			const auto     originalSide = ::sqlite3_column_int64(defects->Value, 7);
+			const auto     originalLine = ::sqlite3_column_int64(defects->Value, 8);
+			const auto     severity     = ::sqlite3_column_int64(defects->Value, 9);
+			const auto     category     = ::sqlite3_column_int64(defects->Value, 10);
+			const auto     lifecycle    = ::sqlite3_column_int64(defects->Value, 11);
+			const auto     availability = ::sqlite3_column_int64(defects->Value, 12);
+			constexpr auto maxLine      = static_cast<std::int64_t>(
+				std::numeric_limits<std::uint32_t>::max());
+			if (id <= 0 || conversation <= 0 || !file || !anchor || !original
+				|| side < 0 || side > 1 || line < 0 || line > maxLine
+				|| originalSide < 0 || originalSide > 1
+				|| originalLine < 0 || originalLine > maxLine
+				|| severity < 0 || severity > 3 || category < 0 || category > 6
+				|| lifecycle < 0 || lifecycle > 6
+				|| availability < 0 || availability > 2) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			const auto source = core::source_line_ref{
+				.Comparison = core::file_comparison_digest{ *anchor },
+				.Side       = static_cast<core::diff_side>(side),
+				.Line       = static_cast<std::uint32_t>(line),
+			};
+			const auto originalSource = core::source_line_ref{
+				.Comparison = core::file_comparison_digest{ *original },
+				.Side       = static_cast<core::diff_side>(originalSide),
+				.Line       = static_cast<std::uint32_t>(originalLine),
+			};
+			auto record = application::durable_defect_record{
+				.File         = core::file_identity{ *file },
+				.Conversation = core::review_conversation_id{
+					static_cast<std::uint64_t>(conversation) },
+				.History = {
+					.Defect = {
+						.Id       = core::defect_id{ static_cast<std::uint64_t>(id) },
+						.Anchor   = source,
+						.Severity = static_cast<core::defect_severity>(severity),
+						.Category = static_cast<core::defect_category>(category),
+						.State    = static_cast<core::defect_state>(lifecycle),
+					},
+					.OriginalAnchor = originalSource,
+					.Availability   = static_cast<core::defect_anchor_availability>(availability),
+				},
+			};
+			if (!application::valid(record)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			result.Defects.push_back(std::move(record));
+		}
+		if (row != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return result;
 	}
 
 	auto review_ledger_columns(::sqlite3* aDatabase)

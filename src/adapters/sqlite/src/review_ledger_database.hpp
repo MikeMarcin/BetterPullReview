@@ -3,7 +3,7 @@
 
 #include "sqlite_connection.hpp"
 
-#include "bpr/core/review_ledger.hpp"
+#include "bpr/application/review_ledger_port.hpp"
 
 #include <cstdint>
 #include <expected>
@@ -22,7 +22,13 @@ namespace bpr::adapters::sqlite::detail {
 	/// added conversation receipts. The value is deliberately not "1": a
 	/// migration mechanism whose only version is the initial one has never
 	/// migrated anything, and would be first exercised by a user's database.
-	inline constexpr std::int64_t review_ledger_schema_version = 2;
+	inline constexpr std::int64_t review_ledger_schema_version = 3;
+
+	/// \brief Classifies a valid defect write at the SQLite authority boundary.
+	enum class defect_store_outcome : std::uint8_t {
+		stored,
+		identity_conflict,
+	};
 
 	/// \brief Identifies the review a row belongs to.
 	///
@@ -88,6 +94,34 @@ namespace bpr::adapters::sqlite::detail {
 			std::int64_t               aScope,
 			const core::file_identity& aFile)
 			-> std::expected<std::optional<core::file_receipt>, failure>;
+
+		[[nodiscard]] auto store_note(
+			std::int64_t                          aScope,
+			const application::local_note_record& aNote)
+			-> std::expected<void, failure>;
+
+		[[nodiscard]] auto erase_note(
+			std::int64_t               aScope,
+			application::local_note_id aNote) -> std::expected<void, failure>;
+
+		[[nodiscard]] auto store_last_reviewed_head(
+			std::int64_t                aScope,
+			const core::git_commit_oid& aHead) -> std::expected<void, failure>;
+
+		[[nodiscard]] auto erase_last_reviewed_head(std::int64_t aScope)
+			-> std::expected<void, failure>;
+
+		[[nodiscard]] auto store_defect(
+			std::int64_t                              aScope,
+			const application::durable_defect_record& aDefect)
+			-> std::expected<defect_store_outcome, failure>;
+
+		[[nodiscard]] auto erase_defect(
+			std::int64_t    aScope,
+			core::defect_id aDefect) -> std::expected<void, failure>;
+
+		[[nodiscard]] auto load_private(std::int64_t aScope)
+			-> std::expected<application::private_ledger_observation, failure>;
 
 	private:
 		explicit review_ledger_database(::sqlite3* aHandle) noexcept;

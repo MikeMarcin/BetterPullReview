@@ -3,12 +3,21 @@
 #include "review_ledger_database.hpp"
 #include "state_directory.hpp"
 
+#include <limits>
 #include <system_error>
 #include <utility>
 
 namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr std::string_view LedgerName = "review-ledger.sqlite3";
+
+		[[nodiscard]] constexpr auto durable_integer(const std::uint64_t aValue) noexcept -> bool
+		{
+			return aValue > 0U
+				&& aValue
+				<= static_cast<std::uint64_t>(
+					   std::numeric_limits<std::int64_t>::max());
+		}
 
 		[[nodiscard]] auto translate(const detail::catalog_database_failure aFailure) noexcept -> application::ledger_store_failure
 		{
@@ -19,7 +28,7 @@ namespace bpr::adapters::sqlite {
 			case detail::catalog_database_failure::cancelled:
 				return application::ledger_store_failure::cancelled;
 			case detail::catalog_database_failure::quota_exceeded:
-				return application::ledger_store_failure::conflict;
+				return application::ledger_store_failure::quota_exceeded;
 			case detail::catalog_database_failure::invalid_path:
 			case detail::catalog_database_failure::invalid_permissions:
 			case detail::catalog_database_failure::unavailable:
@@ -76,6 +85,102 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(translate(loaded.error()));
 				}
 				return *loaded;
+			}
+
+			auto store_note(const application::local_note_record& aNote)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (!application::valid(aNote)) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto stored = Database.store_note(Scope, aNote);
+				if (!stored) {
+					return std::unexpected(translate(stored.error()));
+				}
+				return { };
+			}
+
+			auto erase_note(const application::local_note_id aNote)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (!durable_integer(aNote.value())) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto erased = Database.erase_note(Scope, aNote);
+				if (!erased) {
+					return std::unexpected(translate(erased.error()));
+				}
+				return { };
+			}
+
+			auto store_last_reviewed_head(const core::git_commit_oid& aHead)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (!aHead.valid()) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto stored = Database.store_last_reviewed_head(Scope, aHead);
+				if (!stored) {
+					return std::unexpected(translate(stored.error()));
+				}
+				return { };
+			}
+
+			auto erase_last_reviewed_head()
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				auto erased = Database.erase_last_reviewed_head(Scope);
+				if (!erased) {
+					return std::unexpected(translate(erased.error()));
+				}
+				return { };
+			}
+
+			auto store_defect(
+				const application::durable_defect_record& aDefect)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (!application::valid(aDefect)) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto stored = Database.store_defect(Scope, aDefect);
+				if (!stored) {
+					return std::unexpected(translate(stored.error()));
+				}
+				if (*stored == detail::defect_store_outcome::identity_conflict) {
+					return std::unexpected(
+						application::ledger_store_failure::conflict);
+				}
+				return { };
+			}
+
+			auto erase_defect(const core::defect_id aDefect)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (!durable_integer(aDefect.value())) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto erased = Database.erase_defect(Scope, aDefect);
+				if (!erased) {
+					return std::unexpected(translate(erased.error()));
+				}
+				return { };
+			}
+
+			auto load_private() -> std::expected<
+				application::private_ledger_observation,
+				application::ledger_store_failure> override
+			{
+				auto loaded = Database.load_private(Scope);
+				if (!loaded) {
+					return std::unexpected(translate(loaded.error()));
+				}
+				return std::move(*loaded);
 			}
 
 		private:
