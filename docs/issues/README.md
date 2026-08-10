@@ -482,11 +482,11 @@ also depend transitively on more than one group.
 | Group | Cards | What is actually missing |
 |---|---|---|
 | Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
-| A designated live GitHub repository | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Owner-authenticated sessions against a safe target |
+| A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta |
 | Product composition | Backlog BPR-0232; done BPR-0223 and BPR-0226 through BPR-0231 | Connect agent capabilities to public gestures and projections; notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, and observer-rule queue are done |
-| Missing component and resilience scope | Ready BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 | Enforce durable live-test isolation and complete the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
-| Recorded selected-diff proof | Backlog BPR-0233, awaiting user and gating BPR-0214, BPR-0210, and BPR-0100 | The real selected-file course now binds UIforETW commits/blobs, named replacement pairs, semantic roles, four-profile pixels, and a cut-wire negative. The remaining gate is the digest-bound attended verdict |
+| Missing component and resilience scope | In-progress BPR-0235 and BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
+| Recorded selected-diff proof | Backlog BPR-0233 plus ready BPR-0246, gating BPR-0214, BPR-0210, and BPR-0100 | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. The v001 attended batch was rejected because the full window starves the code panes/gutter and does not show the changed spans; BPR-0246 owns focused layout, exact-span/connector evidence, and v002 |
 | Closeout rigor and terminal cards | Done BPR-0234; backlog BPR-0241 through BPR-0245 | Replay each now-anchored executable checklist and retain a live terminal card for each Proposed RFC |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |
 

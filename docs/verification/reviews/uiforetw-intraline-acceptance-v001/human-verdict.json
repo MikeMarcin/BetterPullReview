@@ -1,0 +1,24 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/7be85b53158def375f406b1a",
+  "review_gate": "uiforetw_intraline_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis",
+      "subject_digest": "sha256:bb9f43c5e33d287af91b8a2fd019cbec0e2e0d40fbd93e835bbab2ab98cdfcc4"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis@sha256:bb9f43c5e33d287af91b8a2fd019cbec0e2e0d40fbd93e835bbab2ab98cdfcc4": "No, the diff window is way too narrow to even see the diff'd lines and also that change swoosh in the gutter seems way off pointing from nothing to nothing. "
+  },
+  "downstream_claims": {
+    "bpr_0210_closed": false,
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

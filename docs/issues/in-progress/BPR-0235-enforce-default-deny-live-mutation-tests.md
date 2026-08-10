@@ -74,9 +74,16 @@ and public application tests also pass under the new prefix.
   target-native Linux.
 - Replace Windows' current pre-launch refusal with a validated whole-suite
   boundary and run the same descendant/application matrix target-native.
-- Create and owner-designate one `MikeMarcin/BPR-Test` pull request; the
-  designated repository itself is already bound to database ID `1328277631`
-  and node ID `R_kgDOTyvofw`, but the read-only 2026-08-10 inventory found no
-  pull request. Register exactly one live lane only after its runner verifies
-  the repository and PR identities before child creation; every mismatch must
-  remain a no-launch result.
+- Register exactly one live lane whose runner verifies the repository and pull
+  request identities before child creation; every mismatch must remain a
+  no-launch result. The product owner authorized and designated disposable
+  `MikeMarcin/BPR-Test#1` on 2026-08-10: pull-request database ID `4246446933`,
+  node ID `PR_kwDOTyvof879G6NV`, head OID
+  `17990ba0c2fb50338141f35c0717f0f99639c7ba`, base-repository ID `1328277631`,
+  and open state. Repository database ID `1328277631` and node ID
+  `R_kgDOTyvofw` remain part of the same pre-launch match. Identity designation
+  is complete; live-runner implementation and target-native evidence are not.
+
+Per the product owner's 2026-08-10 scheduling decision, target-native Linux and
+Windows execution is deferred until the end of the remaining portable work.
+This changes order only and does not weaken either terminal criterion.

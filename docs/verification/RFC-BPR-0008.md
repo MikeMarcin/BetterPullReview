@@ -15,7 +15,8 @@ entire configured macOS CTest graph behind a process boundary and includes
 generic network, script descendant, exact fixture endpoint, unrelated local
 endpoint, and production-app counterexamples.
 Linux code awaits native replay, Windows remains fail-closed before every test
-command, and no immutable pull-request identity exists for the single live lane.
+command, and the newly designated pull-request identity is not yet connected
+to a single pre-launch-validated live lane.
 
 RFC-BPR-0008 stays `Proposed`. No card here makes a closure claim. The safe
 repository is designated, but the live criteria still require session-scoped
@@ -70,7 +71,7 @@ A row is claimed only when its card lands with direct evidence.
 | The mutation path cannot bypass the host | Qt plus trace | Drive every publish and resolve action | Every action produces a core proposal, then a host coordination, then a result event; no widget holds a provider | Verified through the shipped fixture path. BPR-0139's editor is given dispatch callbacks and no provider. BPR-0229 drives real text and Publish actions through core proposal, exact-target coordinator, provider result, server refresh, and typed Qt projection; its source guard rejects direct coordinator/provider calls from the probe |
 | Capability fallback is explicit | Host | Offer a provider without native resolve or viewed-state | The degradation is reported in typed form rather than silently skipped | Verified through the fixture product path. BPR-0137 defines the typed capability absence, and BPR-0229 projects the fixture provider's unsupported resolve/viewed capabilities into the shipped editor rather than pretending success |
 | Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Verified for the request. BPR-0137 asserts the submitted request carries the acting identity and the coordinator's own designated target, so no caller can name a destination. Whether GitHub attributes the review to that account is BPR-0144 |
-| No automated test mutates an undesignated target | Whole suite | Structural `live_mutation_isolation` plus the default-deny network/process lane | Every CTest executable, script, helper subprocess, and production-app launch is network-denied unless it belongs to one explicit designated-target lane | **Verified on the configured macOS graph; cross-platform/live exception still open.** Every configured command carries the exact sandbox-runner prefix, label, isolated Python startup, and pre-boundary environment scrubs; the manifest rejects injection overrides. Direct HTTPS-port access, a Python descendant, and the shipped native-HTTPS application course receive process-boundary denial. The runner grants only selected free ports plus a fresh private Unix-socket directory; exact IPv4, IPv6, and Unix fixtures pass, while separately held unrelated loopback and Unix listeners are denied and receive no connections. The structural guard still inspects provider construction and all non-production binaries, with a non-skipping Windows inspector fallback. The Linux namespace launcher has no target-native record, Windows intentionally launches no tests, and no live lane exists without an immutable PR identity. BPR-0235 remains open. |
+| No automated test mutates an undesignated target | Whole suite | Structural `live_mutation_isolation` plus the default-deny network/process lane | Every CTest executable, script, helper subprocess, and production-app launch is network-denied unless it belongs to one explicit designated-target lane | **Verified on the configured macOS graph; cross-platform/live exception still open.** Every configured command carries the exact sandbox-runner prefix, label, isolated Python startup, and pre-boundary environment scrubs; the manifest rejects injection overrides. Direct HTTPS-port access, a Python descendant, and the shipped native-HTTPS application course receive process-boundary denial. The runner grants only selected free ports plus a fresh private Unix-socket directory; exact IPv4, IPv6, and Unix fixtures pass, while separately held unrelated loopback and Unix listeners are denied and receive no connections. The structural guard still inspects provider construction and all non-production binaries, with a non-skipping Windows inspector fallback. The Linux namespace launcher has no target-native record and Windows intentionally launches no tests. Disposable `MikeMarcin/BPR-Test#1` is now bound to repository ID `1328277631`, pull-request ID `4246446933`, node ID `PR_kwDOTyvof879G6NV`, base-repository ID `1328277631`, open state, and head `17990ba0c2fb50338141f35c0717f0f99639c7ba`; the single live lane and its no-launch mismatch matrix do not yet exist. BPR-0235 remains open. |
 
 ## Deferred gates
 
@@ -84,12 +85,15 @@ exactly what is missing.
 | BPR-0144 | Reviews appear under the authenticated user's identity with ordinary semantics | A real account and token; the fixture proves the identity is carried, not that GitHub honours it |
 
 The product owner designated `MikeMarcin/BPR-Test` before any run. Session
-authority, an immutable pull-request identity, and the required human/mixed-
-client actions remain unavailable. The repository is now additionally bound to
-GitHub database ID `1328277631` and node ID `R_kgDOTyvofw`; a read-only
-2026-08-10 inventory found zero pull requests, so those repository facts cannot
-be mistaken for PR authorization. BPR-0235's macOS default-deny boundary does
-not authorize a live provider or substitute for its Linux/Windows evidence.
+authority and the required human/mixed-client actions remain unexercised. The
+repository is bound to GitHub database ID `1328277631` and node ID
+`R_kgDOTyvofw`. On 2026-08-10 the product owner also authorized and designated
+disposable PR `#1`, database ID `4246446933`, node ID
+`PR_kwDOTyvof879G6NV`, base-repository ID `1328277631`, open state, and head
+`17990ba0c2fb50338141f35c0717f0f99639c7ba`, before any BetterPullReview live
+child or review mutation ran. BPR-0235's macOS default-deny boundary does not
+authorize a live provider, implement the exact-target exception, or substitute
+for its deferred Linux/Windows evidence.
 
 ## Card allocation
 

@@ -158,11 +158,23 @@ target to be named in documentation *before* the first live run, not after.
 The live-lane identity check must match both the canonical owner/name and these
 immutable identifiers.
 
-A read-only GitHub API inventory on 2026-08-10 found no pull request in the
-designated repository. That observation authorizes no mutation and supplies no
-pull-request identity. A pull request must be created and explicitly designated
-before the live lane can be registered; its number, immutable pull-request ID,
-head OID, base-repository ID, and open state must all match before child launch.
+On 2026-08-10 the product owner authorized creation of the disposable live-test
+pull request and designated the resulting identity before any BetterPullReview
+live child or review mutation ran. The only designated pull request is
+**`MikeMarcin/BPR-Test#1`**, GitHub database ID **`4246446933`**, node ID
+**`PR_kwDOTyvof879G6NV`**, head OID
+**`17990ba0c2fb50338141f35c0717f0f99639c7ba`**, and base-repository ID
+**`1328277631`**. Its recorded state is open, its base is `main` at
+`e2a44aa8fef704de7373463222b1872e796918c6`, and its head branch is
+`codex/disposable-live-review-20260810`. The branch contains only an expressly
+disposable text fixture and no production or private content.
+
+Those values are the immutable allowlist input, not evidence that the live lane
+has been implemented. Before creating a child, the lane must re-read and match
+the canonical owner/name, repository database and node IDs, pull-request number,
+pull-request database and node IDs, base-repository ID, open state, and current
+head OID. Any mismatch, closed PR, or moved head is a no-launch result. The head
+must be revalidated immediately before any write as well.
 
 Until BPR-0142 lands, "no automated test can mutate an undesignated live
 repository" holds for a structural reason — `review_mutation_port` has test
@@ -272,14 +284,14 @@ believing they had resolved something.
 
 ## What is not proven here
 
-Three acceptance criteria cannot be met without an immutable designated pull
-request within the documented repository, a write-scoped token, and in two
-cases a person. The repository is designated, but no immutable PR identity or
-session authority is available today.
+Three acceptance criteria still require the live product path, session-scoped
+write authority, and in two cases a person. The repository and disposable PR
+identity are now designated; that designation is an allowlist input, not a
+completed live or attended run.
 
 | Card | What it needs |
 |---|---|
-| BPR-0142 | A designated safe repository, a write-scoped token, and a human to confirm the comment is readable, replyable, and unmarked in the GitHub web UI |
+| BPR-0142 | The exact-target live provider and lane, a write-scoped token, and a human to confirm the comment on designated PR `#1` is readable, replyable, and unmarked in the GitHub web UI |
 | BPR-0143 | The same repository plus a second client, to confirm GitHub produces the external shapes the reconciliation handles |
 | BPR-0144 | A real account whose login is known in advance, so the observed review author can be compared to it rather than merely being non-empty |
 

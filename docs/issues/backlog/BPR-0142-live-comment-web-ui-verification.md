@@ -24,10 +24,10 @@ it carries no marker and behaves like an ordinary comment.
 
 ## Exactly what is missing
 
-1. **An immutable pull-request identity inside the designated repository.**
-   `MikeMarcin/BPR-Test` is designated below with immutable repository IDs, but
-   a read-only inventory on 2026-08-10 found no pull request to designate. A PR
-   must be created and owner-designated before any live child may launch.
+1. **The live provider and its exact-target lane.** The product owner has now
+   designated disposable `MikeMarcin/BPR-Test#1` with immutable repository,
+   pull-request, base-repository, and head identities. No live child may launch
+   until BPR-0235 implements and verifies the exact pre-launch check.
 2. **A write-scoped token for that repository, supplied by the product owner.**
    It is never committed, never logged, and never placed in a fixture.
 3. **A human at the keyboard** to open the pull request, read the comment,
@@ -70,8 +70,16 @@ must be asserted rather than arranged.
 `docs/architecture/review-round-trip.md` under "The live provider contract",
 with GitHub database ID `1328277631` and node ID `R_kgDOTyvofw`. This discharges
 repository designation and this card's last completion criterion: the
-repository is documented before the run, not after. It does not designate a
-pull request; the repository currently has none.
+repository is documented before the run, not after.
+
+On 2026-08-10 the product owner then authorized creation of the disposable
+pull request and designated the result before any BetterPullReview live child
+or review mutation ran. The only designated PR is `MikeMarcin/BPR-Test#1`,
+database ID `4246446933`, node ID `PR_kwDOTyvof879G6NV`, head OID
+`17990ba0c2fb50338141f35c0717f0f99639c7ba`, base-repository ID `1328277631`,
+and open state. Creating the fixture PR is not the RFC's comment mutation and
+does not itself satisfy any live-provider, web-UI, identity, or mixed-client
+criterion.
 
 The token is minted at session time with `gh auth token` and pasted into the
 application's Qt-owned credential input. It is never committed, logged, echoed,
@@ -83,8 +91,8 @@ or fixtured, and never typed into a shell that records history.
 guard before a live implementation existed. It does not satisfy this card's
 whole-process requirement by itself. [[BPR-0235]] separately owns the CTest
 launcher boundary and remains in progress until Linux and Windows are proved
-target-native and one immutable pull-request identity can authorize the only
-live exception.
+target-native and the only live exception enforces the now-designated
+pull-request identity before child creation.
 
 Building the structural half before the live provider existed was the point: it is the only moment
 the guard could be shown to fail on a tree whose answer was already known, and
