@@ -1,7 +1,7 @@
 ---
 id: BPR-0220
 title: An appearance change rebuilds comparison geometry twice
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0006
 depends_on: []
 ---
@@ -161,3 +161,17 @@ markers remain complete on the configuration-refusal path.
 The foreground Light → Dark run is still required before choosing a product
 fix or changing either exact `== 1U` expectation. This instrumentation answers
 the card's measurement question; it does not predetermine the result.
+
+## Awaiting the owner foreground run
+
+The implementation and focused independent review are complete. The remaining
+evidence cannot be collected offscreen or inferred from process exit status:
+the application must be frontmost during the native Light → Dark transition,
+and the complete output must contain
+`NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_OK` plus the ordered cause line.
+
+Run only the digest-bound procedure in
+[`appearance-scheme-foreground-v002`](../../verification/reviews/appearance-scheme-foreground-v002/operator-packet.md).
+This card is parked in `backlog/` until that log is returned. No product fix and
+no change to either exact `== 1U` expectation is authorized before the causes
+are measured.
