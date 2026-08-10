@@ -1,7 +1,7 @@
 ---
 id: BPR-0231
 title: Compose an honest queue-enrollment input and landing surface
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0010
 depends_on: [BPR-0228]
 ---
