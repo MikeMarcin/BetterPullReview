@@ -271,9 +271,15 @@ namespace {
 						  RecoveryAbortRequests;
 		std::vector<bool> RecoveryAbortStopRequested;
 		std::vector<application::git_operation_recovery_request>
-																 RecoveryCompletionRequests;
-		std::vector<application::git_cache_open_request>         CacheOpenRequests;
-		std::vector<application::git_cache_blob_request>         BlobRequests;
+																RecoveryCompletionRequests;
+		std::vector<application::git_cache_open_request>        CacheOpenRequests;
+		std::vector<application::git_cache_blob_request>        BlobRequests;
+		std::vector<application::git_cache_tree_entry_request>  TreeEntryRequests;
+		std::deque<std::optional<core::git_blob_oid>>           TreeEntryResults;
+		std::vector<application::git_cache_rename_pair_request> RenamePairRequests;
+		std::deque<application::git_cache_result<
+			application::git_rename_pair_observation>>
+																 RenamePairResults;
 		std::vector<application::exact_anchor_lookup_request>    ExactAnchorRequests;
 		std::vector<application::git_ref_prune_authorization>    PruneRequests;
 		std::vector<application::git_cache_delete_authorization> DeleteRequests;
@@ -299,6 +305,7 @@ namespace {
 		std::function<void()>                               AfterCommitAuthorized;
 		std::function<void()>                               AfterRefCommitInProgress;
 		std::function<void(std::stop_token)>                DuringBlobMaterialization;
+		std::function<void(std::stop_token)>                DuringTreeEntryLookup;
 		std::vector<std::uint64_t>                          AuthorityRevocations;
 		std::vector<application::epoch_presentation_update> Updates;
 		std::size_t                                         CacheMutationCalls          = 0U;
@@ -1376,6 +1383,49 @@ namespace {
 			return std::vector<std::uint8_t>{ 'b', 'l', 'o', 'b', '\n' };
 		}
 
+		[[nodiscard]] auto find_blob_at_path(
+			const application::git_cache_tree_entry_request& aRequest,
+			const std::stop_token                            aStop)
+			-> application::git_cache_result<
+				std::optional<core::git_blob_oid>> override
+		{
+			State.Calls.emplace_back("cache.find-blob-at-path");
+			State.TreeEntryRequests.push_back(aRequest);
+			if (State.DuringTreeEntryLookup) {
+				State.DuringTreeEntryLookup(aStop);
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (!State.TreeEntryResults.empty()) {
+				auto result = std::move(State.TreeEntryResults.front());
+				State.TreeEntryResults.pop_front();
+				return result;
+			}
+			return std::optional{ oid<core::git_blob_oid>(
+				static_cast<std::uint8_t>(
+					aRequest.Commit.bytes().front() + 1U)) };
+		}
+
+		[[nodiscard]] auto find_rename_pairs(
+			const application::git_cache_rename_pair_request& aRequest,
+			const std::stop_token                             aStop)
+			-> application::git_cache_result<
+				application::git_rename_pair_observation> override
+		{
+			State.Calls.emplace_back("cache.find-rename-pairs");
+			State.RenamePairRequests.push_back(aRequest);
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (!State.RenamePairResults.empty()) {
+				auto result = std::move(State.RenamePairResults.front());
+				State.RenamePairResults.pop_front();
+				return result;
+			}
+			return application::git_rename_pair_observation{ };
+		}
+
 		[[nodiscard]] auto prune_retained(
 			const application::git_ref_prune_authorization& aAuthorization,
 			const std::stop_token) -> application::git_cache_result<void> override
@@ -2016,6 +2066,60 @@ namespace {
 			.Side         = core::diff_side::left,
 			.Blob         = blob,
 			.MaximumBytes = 1'024U,
+		};
+	}
+
+	[[nodiscard]] auto workbench_authority_for(const core::epoch_state& aState)
+		-> application::workbench_pull_request_authority
+	{
+		expect(
+			aState.Authority.has_value() && aState.AcceptedRevision.has_value(),
+			"ready comparison supplies workbench authority facts");
+		const auto& authority = *aState.Authority;
+		const auto& source    = aState.AcceptedRevision->Source;
+		return {
+			.ApplicationSession    = aState.ApplicationSession,
+			.Profile               = authority.Profile,
+			.ProfileRevision       = authority.ProfileRevision,
+			.Host                  = authority.Host,
+			.HostAuthority         = authority.HostAuthority,
+			.Account               = authority.Account,
+			.Viewer                = authority.Viewer,
+			.Repository            = authority.Repository,
+			.PullRequest           = authority.PullRequest,
+			.Number                = authority.Number,
+			.Snapshot              = source.Snapshot,
+			.IdentityGeneration    = source.IdentityGeneration,
+			.PullRequestGeneration = source.PullRequestGeneration,
+		};
+	}
+
+	[[nodiscard]] auto selected_diff_request_for(
+		fixture&               aValue,
+		const core::request_id aRequest = core::request_id{ 801U })
+		-> application::workbench_selected_diff_request
+	{
+		const auto authority = workbench_authority_for(aValue.Host->state());
+		const auto context   = aValue.Host->context(authority);
+		const auto file      = core::file_identity_of("file.cpp");
+		expect(
+			context.has_value() && file.valid(),
+			"ready comparison supplies selected-diff context");
+		return {
+			.Context = {
+				.Request    = aRequest,
+				.Session    = aValue.Host->state().ApplicationSession,
+				.Generation = core::request_generation{ 1U },
+			},
+			.WorkbenchAuthority = authority,
+			.Diff               = *context,
+			.File               = {
+				.File             = file,
+				.PresentationPath = "file.cpp",
+				.CurrentPath      = "file.cpp",
+				.Change           = application::workbench_file_change_kind::modified,
+				.ContentKind      = application::workbench_file_content_kind::text,
+			},
 		};
 	}
 
@@ -3781,6 +3885,341 @@ namespace {
 			"shutdown closes blob ingress without enqueuing cache work");
 	}
 
+	[[nodiscard]] auto resolve_selected_diff(
+		fixture&                                            aValue,
+		const application::workbench_selected_diff_request& aRequest,
+		const std::stop_token                               aStop = { })
+		-> application::workbench_selected_diff_observation
+	{
+		auto observation
+			= std::optional<application::workbench_selected_diff_observation>{ };
+		auto worker = std::jthread{ [&] {
+			observation = aValue.Host->resolve(aRequest, aStop);
+		} };
+		aValue.Effects.wait_for_pending();
+		aValue.Effects.run_next();
+		worker.join();
+		expect(observation.has_value(), "selected diff returns one terminal");
+		return std::move(*observation);
+	}
+
+	void select_reverse_comparison(fixture& aValue)
+	{
+		const auto pair    = *aValue.Host->state().AcceptedComparison;
+		const auto catalog = *aValue.Host->state().Catalog;
+		aValue.Host->dispatch(core::select_comparison_anchors_intent{
+			.Left                    = pair.Right.Identity,
+			.Right                   = pair.Left.Identity,
+			.ExpectedCatalogRevision = catalog.Revision,
+		});
+		run_effect_completion(aValue);
+		expect(
+			aValue.Host->state().AcceptedComparison.has_value()
+				&& aValue.Host->state().AcceptedComparison->Left == pair.Right
+				&& aValue.Host->state().AcceptedComparison->Right == pair.Left,
+			"the public explicit-anchor intent accepts the reverse pair");
+	}
+
+	void selected_diff_resolution_reuses_and_revalidates_the_epoch_cache_actor()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto request     = selected_diff_request_for(value);
+		const auto observation = resolve_selected_diff(value, request);
+		expect(
+			observation.Status
+					== application::workbench_selected_diff_status::available
+				&& observation.LeftBlob
+					== std::optional{ oid<core::git_blob_oid>(11U) }
+				&& observation.RightBlob
+					== std::optional{ oid<core::git_blob_oid>(21U) }
+				&& value.State.TreeEntryRequests
+					== std::vector{
+						application::git_cache_tree_entry_request{
+							.Commit = request.Diff.Comparison.Left.Commit,
+							.Path   = "file.cpp",
+						},
+						application::git_cache_tree_entry_request{
+							.Commit = request.Diff.Comparison.Right.Commit,
+							.Path   = "file.cpp",
+						},
+					}
+				&& value.State.CacheOpenRequests.size() == 1U && value.State.MaximumActiveCacheSessions == 1U && value.State.ActiveCacheSessions == 1U,
+			"selected path lookup serializes through the retained exact cache session");
+
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back();
+		auto missing            = request;
+		missing.Context.Request = core::request_id{ 802U };
+		expect(
+			resolve_selected_diff(value, missing).Status
+				== application::workbench_selected_diff_status::both_missing,
+			"two required absent sides remain a distinct typed terminal");
+
+		auto cancelledSource = std::stop_source{ };
+		static_cast<void>(cancelledSource.request_stop());
+		auto cancelled            = request;
+		cancelled.Context.Request = core::request_id{ 803U };
+		expect(
+			resolve_selected_diff(value, cancelled, cancelledSource.get_token()).Status
+				== application::workbench_selected_diff_status::cancelled,
+			"caller cancellation remains typed through queued actor work");
+
+		auto mismatched                        = request;
+		mismatched.Context.Request             = core::request_id{ 804U };
+		mismatched.WorkbenchAuthority.Snapshot = core::provider_snapshot_id{ 2U };
+		expect(
+			value.Host->resolve(mismatched, { }).Status
+					== application::workbench_selected_diff_status::stale
+				&& value.State.TreeEntryRequests.size() == 4U,
+			"snapshot mismatch is stale before cache admission");
+
+		value.Host->invalidate(matching_invalidation());
+		expect(
+			value.Host->resolve(request, { }).Status
+					== application::workbench_selected_diff_status::stale
+				&& value.State.CacheOpenRequests.size() == 1U,
+			"matching invalidation revokes selected-diff publication authority");
+	}
+
+	void selected_diff_resolves_each_endpoint_without_provider_direction()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		auto request         = selected_diff_request_for(value);
+		request.File.Change  = application::workbench_file_change_kind::added;
+		const auto leftBlob  = oid<core::git_blob_oid>(0x61U);
+		const auto rightBlob = oid<core::git_blob_oid>(0x71U);
+		value.State.TreeEntryResults.emplace_back(leftBlob);
+		value.State.TreeEntryResults.emplace_back(rightBlob);
+		const auto both = resolve_selected_diff(value, request);
+		expect(
+			both.Status == application::workbench_selected_diff_status::available
+				&& both.LeftBlob == std::optional{ leftBlob }
+				&& both.RightBlob == std::optional{ rightBlob },
+			"a provider-added file that was modified between selected commits resolves both blobs");
+
+		select_reverse_comparison(value);
+		auto reverseAdd        = selected_diff_request_for(value, core::request_id{ 811U });
+		reverseAdd.File.Change = application::workbench_file_change_kind::added;
+		value.State.TreeEntryResults.emplace_back(rightBlob);
+		value.State.TreeEntryResults.emplace_back();
+		const auto added = resolve_selected_diff(value, reverseAdd);
+		expect(
+			added.Status == application::workbench_selected_diff_status::available
+				&& added.LeftBlob == std::optional{ rightBlob }
+				&& !added.RightBlob.has_value(),
+			"a reverse add resolves the selected left endpoint and preserves right absence");
+
+		auto reverseDelete            = reverseAdd;
+		reverseDelete.Context.Request = core::request_id{ 812U };
+		reverseDelete.File.Change     = application::workbench_file_change_kind::removed;
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back(leftBlob);
+		const auto removed = resolve_selected_diff(value, reverseDelete);
+		expect(
+			removed.Status == application::workbench_selected_diff_status::available
+				&& !removed.LeftBlob.has_value()
+				&& removed.RightBlob == std::optional{ leftBlob },
+			"a reverse delete preserves selected left absence and resolves the right endpoint");
+
+		auto copied                 = reverseAdd;
+		copied.Context.Request      = core::request_id{ 813U };
+		copied.File.Change          = application::workbench_file_change_kind::copied;
+		copied.File.PreviousPath    = "source-file.cpp";
+		const auto copyLookupOffset = value.State.TreeEntryRequests.size();
+		value.State.TreeEntryResults.emplace_back(rightBlob);
+		value.State.TreeEntryResults.emplace_back();
+		const auto copiedResult = resolve_selected_diff(value, copied);
+		expect(
+			copiedResult.Status == application::workbench_selected_diff_status::available
+				&& copiedResult.LeftBlob == std::optional{ rightBlob }
+				&& !copiedResult.RightBlob.has_value()
+				&& value.State.TreeEntryRequests.size() == copyLookupOffset + 2U
+				&& value.State.TreeEntryRequests[copyLookupOffset].Path == "file.cpp"
+				&& value.State.TreeEntryRequests[copyLookupOffset + 1U].Path
+					== "file.cpp",
+			"a copied file resolves only its current path and preserves endpoint absence");
+		expect(
+			std::ranges::all_of(
+				value.State.TreeEntryRequests,
+				[](const application::git_cache_tree_entry_request& aLookup) {
+					return aLookup.Path == "file.cpp";
+				}),
+			"add and delete facts never substitute a provider base-to-head path");
+	}
+
+	void selected_diff_rename_resolution_is_directional_and_ambiguous_closed()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		auto request              = selected_diff_request_for(value);
+		request.File.Change       = application::workbench_file_change_kind::renamed;
+		request.File.PreviousPath = "old-file.cpp";
+		const auto oldBlob        = oid<core::git_blob_oid>(0x62U);
+		const auto newBlob        = oid<core::git_blob_oid>(0x72U);
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back(oldBlob);
+		value.State.TreeEntryResults.emplace_back(newBlob);
+		value.State.TreeEntryResults.emplace_back();
+		const auto forward = resolve_selected_diff(value, request);
+		expect(
+			forward.Status == application::workbench_selected_diff_status::available
+				&& forward.LeftBlob == std::optional{ oldBlob }
+				&& forward.RightBlob == std::optional{ newBlob },
+			"a forward rename resolves the exact previous and current endpoint candidates");
+
+		select_reverse_comparison(value);
+		auto reverse = selected_diff_request_for(value, core::request_id{ 821U });
+		reverse.File = request.File;
+		value.State.TreeEntryResults.emplace_back(newBlob);
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back(oldBlob);
+		const auto reversed = resolve_selected_diff(value, reverse);
+		expect(
+			reversed.Status == application::workbench_selected_diff_status::available
+				&& reversed.LeftBlob == std::optional{ newBlob }
+				&& reversed.RightBlob == std::optional{ oldBlob },
+			"a reverse rename independently resolves each selected endpoint");
+
+		auto ambiguous            = reverse;
+		ambiguous.Context.Request = core::request_id{ 822U };
+		value.State.TreeEntryResults.emplace_back(newBlob);
+		value.State.TreeEntryResults.emplace_back(oldBlob);
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back(oldBlob);
+		const auto refused = resolve_selected_diff(value, ambiguous);
+		expect(
+			refused.Status
+					== application::workbench_selected_diff_status::ambiguous_left
+				&& !refused.LeftBlob.has_value() && !refused.RightBlob.has_value(),
+			"two rename candidates at one endpoint fail closed without guessing");
+	}
+
+	void selected_diff_multi_hop_rename_uses_the_exact_selected_pair()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		auto request                  = selected_diff_request_for(value);
+		request.File.PresentationPath = "c.cpp";
+		request.File.CurrentPath      = "c.cpp";
+		request.File.PreviousPath     = "a.cpp";
+		request.File.Change           = application::workbench_file_change_kind::renamed;
+		const auto intermediateBlob   = oid<core::git_blob_oid>(0x63U);
+		const auto currentBlob        = oid<core::git_blob_oid>(0x73U);
+
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back(currentBlob);
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back(intermediateBlob);
+		value.State.TreeEntryResults.emplace_back(currentBlob);
+		auto forwardPairs        = application::git_rename_pair_observation{ };
+		forwardPairs.Records[0U] = {
+			.LeftPath  = "b.cpp",
+			.RightPath = "c.cpp",
+		};
+		forwardPairs.Count = 1U;
+		value.State.RenamePairResults.emplace_back(forwardPairs);
+		const auto forward = resolve_selected_diff(value, request);
+		expect(
+			forward.Status == application::workbench_selected_diff_status::available
+				&& forward.LeftBlob == std::optional{ intermediateBlob }
+				&& forward.RightBlob == std::optional{ currentBlob }
+				&& value.State.RenamePairRequests.size() == 1U
+				&& value.State.RenamePairRequests.back()
+					== application::git_cache_rename_pair_request{
+						.Left         = request.Diff.Comparison.Left.Commit,
+						.Right        = request.Diff.Comparison.Right.Commit,
+						.CurrentPath  = "c.cpp",
+						.PreviousPath = "a.cpp",
+					},
+			"H1 b.cpp to H2 c.cpp resolves through the retained selected-pair query");
+		expect(
+			value.State.TreeEntryRequests[value.State.TreeEntryRequests.size() - 2U].Path
+					== "b.cpp"
+				&& value.State.TreeEntryRequests.back().Path == "c.cpp",
+			"the selected-pair record is re-resolved to exact blobs before publication");
+
+		select_reverse_comparison(value);
+		auto reverse            = selected_diff_request_for(value, core::request_id{ 831U });
+		reverse.File            = request.File;
+		const auto reverseLeft  = reverse.Diff.Comparison.Left.Commit;
+		const auto reverseRight = reverse.Diff.Comparison.Right.Commit;
+		value.State.TreeEntryResults.emplace_back(currentBlob);
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back(currentBlob);
+		value.State.TreeEntryResults.emplace_back(intermediateBlob);
+		auto reversePairs        = application::git_rename_pair_observation{ };
+		reversePairs.Records[0U] = {
+			.LeftPath  = "c.cpp",
+			.RightPath = "b.cpp",
+		};
+		reversePairs.Count = 1U;
+		value.State.RenamePairResults.emplace_back(reversePairs);
+		const auto reversed = resolve_selected_diff(value, reverse);
+		expect(
+			reversed.Status == application::workbench_selected_diff_status::available
+				&& reversed.LeftBlob == std::optional{ currentBlob }
+				&& reversed.RightBlob == std::optional{ intermediateBlob }
+				&& value.State.RenamePairRequests.back().Left == reverseLeft
+				&& value.State.RenamePairRequests.back().Right == reverseRight,
+			"H2 c.cpp to H1 b.cpp resolves with the exact reversed commit order");
+
+		auto multiple            = reverse;
+		multiple.Context.Request = core::request_id{ 832U };
+		for (auto index = 0U; index < 4U; ++index) {
+			value.State.TreeEntryResults.emplace_back();
+		}
+		auto multiplePairs        = application::git_rename_pair_observation{ };
+		multiplePairs.Records[0U] = {
+			.LeftPath  = "c.cpp",
+			.RightPath = "b.cpp",
+		};
+		multiplePairs.Records[1U] = {
+			.LeftPath  = "c.cpp",
+			.RightPath = "other.cpp",
+		};
+		multiplePairs.Count = 2U;
+		value.State.RenamePairResults.emplace_back(multiplePairs);
+		expect(
+			resolve_selected_diff(value, multiple).Status
+				== application::workbench_selected_diff_status::ambiguous_both,
+			"multiple causally bound rename records fail closed as typed ambiguity");
+
+		auto unbound            = reverse;
+		unbound.Context.Request = core::request_id{ 833U };
+		for (auto index = 0U; index < 4U; ++index) {
+			value.State.TreeEntryResults.emplace_back();
+		}
+		auto unboundPairs        = application::git_rename_pair_observation{ };
+		unboundPairs.Records[0U] = {
+			.LeftPath  = "x.cpp",
+			.RightPath = "y.cpp",
+		};
+		unboundPairs.Count = 1U;
+		value.State.RenamePairResults.emplace_back(unboundPairs);
+		expect(
+			resolve_selected_diff(value, unbound).Status
+				== application::workbench_selected_diff_status::ambiguous_both,
+			"a rename record unbound to accepted lineage cannot invent an intermediate path");
+
+		auto malformed            = reverse;
+		malformed.Context.Request = core::request_id{ 834U };
+		for (auto index = 0U; index < 4U; ++index) {
+			value.State.TreeEntryResults.emplace_back();
+		}
+		value.State.RenamePairResults.emplace_back(std::unexpected{
+			application::git_cache_failure::process_failure });
+		expect(
+			resolve_selected_diff(value, malformed).Status
+				== application::workbench_selected_diff_status::failure,
+			"malformed selected-pair Git output remains a typed resolution failure");
+	}
+
 	void invalidated_authority_cannot_materialize_retained_cache()
 	{
 		fixture value;
@@ -4973,6 +5412,10 @@ int main()
 	stale_prepare_and_comparison_terminals_are_inert();
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
+	selected_diff_resolution_reuses_and_revalidates_the_epoch_cache_actor();
+	selected_diff_resolves_each_endpoint_without_provider_direction();
+	selected_diff_rename_resolution_is_directional_and_ambiguous_closed();
+	selected_diff_multi_hop_rename_uses_the_exact_selected_pair();
 	invalidated_authority_cannot_materialize_retained_cache();
 	invalidated_inflight_blob_cannot_publish_bytes();
 	cancellation_before_ponr_aborts_without_publication();

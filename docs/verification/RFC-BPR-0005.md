@@ -2,25 +2,25 @@
 
 RFC base: `55d365f16847d2ffc2c8fab83a5ce62eb695e2a0`
 
-Status: **workbench host publicly connected; selected-file diff still
-fixture-only.** Since BPR-0191, `qt::workbench_window` is the window the shipped
+Status: **workbench host and selected-file diff publicly connected.** Since
+BPR-0191, `qt::workbench_window` is the window the shipped
 application opens. BPR-0226 now routes its primary intents and drawer widths to
 the workbench host, publishes host projections and failures to the real window,
 observes exact accepted pull-request authority, clears invalidated authority,
-and retains a session/default settings path when SQLite cannot open. Selected
-diffs are still requested only through a tests-enabled fixture helper;
-BPR-0227 owns that remaining gap.
+and retains a session/default settings path when SQLite cannot open. BPR-0227
+now resolves a real file-row gesture through the retained epoch cache actor and
+publishes the exact comparison through the production diff host.
 
 Rows below remain direct evidence for their named component, public composition,
-or fixture-driven surface. They prove the shipped workbench-host path, but not
-a user-selected file diff. RFC-BPR-0005 stays `Proposed`; BPR-0101 also waits
+or fixture-driven surface. They now prove the shipped user-selected file-diff
+path. RFC-BPR-0005 stays `Proposed`; BPR-0101 also waits
 for the ordered closure chain and the attended BPR-0100 gate.
 
 ## Why this RFC can be implemented now
 
 RFC-BPR-0002, RFC-BPR-0003, and RFC-BPR-0004 remain incomplete and
-`Proposed`. Their live cards include target-native Windows work and
-RFC-BPR-0004's missing user-selected diff path. Done BPR-0088 records the
+`Proposed`. Their live cards include target-native Windows and attended work.
+Done BPR-0088 records the
 product owner's direction to advance the implementation frontier despite that
 open work. Closure order is unchanged: this RFC cannot become `Auto-Verified`
 before RFC-BPR-0004 does.
@@ -64,8 +64,8 @@ choice.
 This section preserves the pre-BPR-0191 investigation that led to replacing
 `github_window`. It is not the current product state. At final HEAD the binary
 contains `workbench_application_host`, `workbench_window`, and
-`workbench_drawer`, contains no `github_window`, and still lacks only the
-selected-file diff wire named in the status correction above.
+`workbench_drawer`, contains no `github_window`, and includes the selected-file
+diff wire named in the status correction above.
 
 The application showed `github_window` and did not contain `workbench_window`.
 **BPR-0191 reversed both.** The shipped binary now contains 591
@@ -98,7 +98,7 @@ and BPR-0191 performed that replacement.
 The later final-state defect was different: the shell was on screen, but its
 workbench callbacks were empty, its accepted review was not observed, and host
 projections terminated in a non-rendering sink. BPR-0226 resolved those wires;
-BPR-0227 retains the distinct selected-file diff path.
+BPR-0227 resolved the distinct selected-file diff path.
 
 At the historical measurement point neither of this RFC's two ports had an
 adapter. The later adapters and host remain valid component work; final-HEAD
@@ -132,8 +132,8 @@ names a fourth region, **Composition root**, whose selected responsibility is
 "wiring the workbench into the real application" and whose planned evidence is
 "selected public-path evidence through the real executable." BPR-0226 now
 delivers that region and the claim-matrix row below records its exact real-window
-surface. BPR-0227 remains separate because selecting a file and requesting its
-diff requires material identities that the workbench-host wire does not own.
+surface. BPR-0227 completes that composition by resolving the selected file's
+material identities through the already-retained cache actor.
 
 ## Claim matrix
 
@@ -149,8 +149,8 @@ Every row's `Direct surface` now names the harness it was proven against.
 | Renderer is virtualized | Instrumented `qt_workbench_window` harness | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified of the composed window. 60/6,000/60,000 lines produce **218/218/218** window widgets, 29/29/29 surface, 5/5/5 pane, at all three scales. Restated by BPR-0191: the earlier 68/68/68 was measured before the shell composed the session chrome, pull-request metadata, description and appearance surface, which is why the window figure rose. The surface and pane figures did not move, which is the substantive claim — the comparison surface itself builds no widget per line |
 | Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Verified. Toggles and navigation emit core intents only; enablement and disabled reasons come from projections; drawer contents use insert/remove/data-change rather than reset |
 | Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Verified. Exact untruncated OIDs, four distinguishable textual states, declared focus order, unique accessible names and key sequences |
-| Shipped workbench host is connected | Real `application_workbench_composition_contract` executable | Accept the recorded pull request, invoke primary and drawer actions, invalidate exact and mismatched identities, and force SQLite-open and observation failures | Exact bounded authority reaches the host; commands, cursor, widths, failures, and invalidation project to the real window; mismatches preserve state; unavailable SQLite retains a session/default host | Verified by BPR-0226. Ten causal markers pass through the shipped executable; the change callback marker is fixture-driven and does not claim BPR-0227's selected-file path |
-| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100. BPR-0186 added the attended fixture launch and an owner successfully inspected it; BPR-0187 added the recorded pull request. Final acceptance still waits for BPR-0227's real selected-diff path and BPR-0233's meaningful recorded comparison evidence |
+| Shipped workbench host and selected diff are connected | Real `application_workbench_composition_contract` executable | Accept the recorded pull request, select the real file row, navigate, invalidate exact and mismatched identities, and force SQLite-open and observation failures | Exact bounded authority reaches the host; each selected endpoint resolves on the retained cache session; complete repository/PR/anchor/blob/file/options/algorithm/generation identity reaches the diff host; mismatches preserve state | Verified by BPR-0226 and BPR-0227. Independent file-gesture, selected-request, and exact-comparison markers pass; runtime fixture-helper calls remain zero; a test-only cut of the real Qt-to-host selection wire deterministically fails the public trace while that helper still exists |
+| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100. BPR-0186 added the attended fixture launch and an owner successfully inspected it; BPR-0187 added the recorded pull request. Final acceptance still waits for BPR-0233's meaningful recorded comparison evidence |
 
 ## Deferred gates
 
@@ -163,8 +163,8 @@ The 2026-08-06 sitting initially could not proceed because no fixture launch
 could remain open for a person. BPR-0186 added `--attended-launch`, and the
 owner subsequently used it successfully; BPR-0187 supplied the recorded pull
 request. The remaining attended gate is about the final selected comparison,
-not launchability. BPR-0227 and BPR-0233 must make that state real and
-meaningful before BPR-0100 is regenerated.
+not launchability. BPR-0227 made the selected state real; BPR-0233 must add its
+meaningful recorded comparison evidence before BPR-0100 is regenerated.
 
 No RFC-BPR-0005 requirement needs target-native Windows execution, a GitHub
 mutation, a credential, or a network service. Non-goals exclude full GitHub
@@ -175,9 +175,9 @@ mutations, so no safe test target is required.
 | Scope | Required documents | Disposition |
 |---|---|---|
 | Core navigation and command policy | Domain and state model | Updated. System architecture records the compact core state, the bounded cursor, and why a nonresident selection has no ordinal to step from |
-| Host projection and persistence | System architecture | Updated. Host ownership of the ordered set, changed-domain-only publication, per-domain staleness, and limit-rather-than-truncate are recorded |
+| Host projection, selected resolution, and persistence | System architecture | Updated. Host ownership of the ordered set, independent endpoint lookup, bounded selected-pair recovery for multi-hop renames, reverse-pair and ambiguity rules, comparison replay, authority-refresh clearing, complete selected authority, changed-domain-only publication, and limit-rather-than-truncate are recorded |
 | Workbench layout, drawers, focus, accessibility, error states | Workbench specification and appearance/accessibility documents | Updated. Command map with shortcuts, the ambiguous-shortcut rationale, compact overflow, drawer ownership split, declared focus order, and the accessible-name uniqueness rule |
-| Composed comparison surface | Diff pipeline and rendering, link-map and alignment-space documents | No-impact. The comparison surface is composed unchanged; RFC-BPR-0004's own documents remain correct and no second mapping or authority was introduced |
+| Composed comparison surface | Diff pipeline and rendering | Updated. Exact tree lookup feeds the existing comparison surface; no second cache session, mapping, or presentation authority was introduced |
 | Tests and fixtures | Fixture catalog and build/test guide | Updated. The three new suites, the manual-executor terminal algebra, and the virtualization figures with their assert-counts-not-timing rule |
 
 ## Closeout blockers

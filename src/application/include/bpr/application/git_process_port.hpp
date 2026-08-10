@@ -15,6 +15,9 @@
 namespace bpr::application {
 	inline constexpr std::uint64_t maximum_git_pack_input_bytes           = 4ULL * 1024ULL * 1024ULL * 1024ULL;
 	inline constexpr std::uint64_t maximum_git_blob_materialization_bytes = 16ULL * 1024ULL * 1024ULL;
+	inline constexpr std::size_t   maximum_git_tree_entry_path_bytes      = 4U * 1024U;
+	inline constexpr std::size_t   maximum_git_rename_pair_records        = 4U;
+	inline constexpr std::size_t   maximum_git_rename_scan_records        = 256U;
 	inline constexpr std::size_t   maximum_git_ref_transaction_updates    = 4U;
 	enum class git_hash_algorithm : std::uint8_t {
 		sha1,
@@ -191,6 +194,46 @@ namespace bpr::application {
 		std::uint64_t         MaximumBytes = 0U;
 	};
 
+	/// \brief Describes one exact repository tree-entry lookup.
+	struct git_tree_entry_request
+	{
+		std::filesystem::path Repository;
+		git_commit_id         Commit;
+		std::filesystem::path Path;
+
+		auto operator<=>(const git_tree_entry_request&) const = default;
+	};
+
+	/// \brief Describes one exact selected-commit rename query.
+	struct git_rename_pair_request
+	{
+		std::filesystem::path                Repository;
+		git_commit_id                        Left;
+		git_commit_id                        Right;
+		std::filesystem::path                CurrentPath;
+		std::optional<std::filesystem::path> PreviousPath;
+
+		auto operator<=>(const git_rename_pair_request&) const = default;
+	};
+
+	/// \brief Describes one exact rename record reported by installed Git.
+	struct git_rename_pair
+	{
+		std::filesystem::path LeftPath;
+		std::filesystem::path RightPath;
+
+		auto operator<=>(const git_rename_pair&) const = default;
+	};
+
+	/// \brief Retains a bounded set of selected-commit rename records.
+	struct git_rename_pair_observation
+	{
+		std::array<git_rename_pair, maximum_git_rename_pair_records> Records;
+		std::size_t                                                  Count = 0U;
+
+		auto operator<=>(const git_rename_pair_observation&) const = default;
+	};
+
 	/// \brief Describes the git ancestry request record.
 	struct git_ancestry_request
 	{
@@ -319,6 +362,14 @@ namespace bpr::application {
 			const git_blob_request&        aRequest,
 			git_blob_materialization_sink& aSink,
 			std::stop_token                aStop) -> git_process_result<void> = 0;
+		[[nodiscard]] virtual auto find_blob_at_path(
+			const git_tree_entry_request& aRequest,
+			std::stop_token               aStop)
+			-> git_process_result<std::optional<git_blob_id>> = 0;
+		[[nodiscard]] virtual auto find_rename_pairs(
+			const git_rename_pair_request& aRequest,
+			std::stop_token                aStop)
+			-> git_process_result<git_rename_pair_observation> = 0;
 		[[nodiscard]] virtual auto is_ancestor(
 			const git_ancestry_request& aRequest,
 			std::stop_token             aStop) -> git_process_result<git_ancestry> = 0;

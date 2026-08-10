@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <deque>
 #include <expected>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <span>
@@ -22,6 +23,7 @@ namespace bpr::application {
 			observation,
 			settings_load,
 			settings_store,
+			selected_diff,
 		};
 
 		struct staged_observation
@@ -39,6 +41,11 @@ namespace bpr::application {
 		{
 			workbench_request_context       Context;
 			workbench_settings_result<void> Result;
+		};
+
+		struct staged_selected_diff
+		{
+			workbench_selected_diff_observation Observation;
 		};
 
 		struct deferred_workbench_restore
@@ -60,6 +67,10 @@ namespace bpr::application {
 			core::workbench_interaction_intent Intent;
 		};
 
+		struct deferred_workbench_selected_diff_refresh
+		{
+		};
+
 		struct deferred_workbench_resize
 		{
 			core::workbench_drawer Drawer = core::workbench_drawer::files;
@@ -77,13 +88,15 @@ namespace bpr::application {
 		using deferred_workbench_ingress = std::variant<deferred_workbench_restore,
 														deferred_workbench_observe,
 														deferred_workbench_invalidate,
+														deferred_workbench_selected_diff_refresh,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
 														deferred_workbench_cancel,
 														deferred_workbench_shutdown,
 														staged_observation,
 														staged_settings_load,
-														staged_settings_store>;
+														staged_settings_store,
+														staged_selected_diff>;
 
 		[[nodiscard]] auto validated_limits(const workbench_host_limits aLimits)
 			-> workbench_host_limits
@@ -179,7 +192,35 @@ namespace bpr::application {
 				? workbench_host_failure::observation_limit
 				: workbench_host_failure::observation_unavailable;
 		}
+
 	} // namespace
+
+	auto valid(const workbench_file_observation_entry& aEntry) noexcept -> bool
+	{
+		try {
+			const auto validPath = [](const std::filesystem::path& aPath) {
+				const auto text = aPath.generic_u8string();
+				return !text.empty()
+					&& text.size() <= core::maximum_identified_path_bytes
+					&& text.find(u8'\0') == decltype(text)::npos;
+			};
+			const auto renamedOrCopied
+				= aEntry.Change == workbench_file_change_kind::renamed
+				|| aEntry.Change == workbench_file_change_kind::copied;
+			return aEntry.File.valid() && !aEntry.PresentationPath.empty()
+				&& aEntry.PresentationPath.size() <= core::maximum_identified_path_bytes
+				&& aEntry.PresentationPath.find('\0') == std::string::npos
+				&& validPath(aEntry.CurrentPath)
+				&& (!aEntry.PreviousPath || validPath(*aEntry.PreviousPath))
+				&& aEntry.PreviousPath.has_value() == renamedOrCopied
+				&& aEntry.Change != workbench_file_change_kind::uninitialized
+				&& (aEntry.ContentKind == workbench_file_content_kind::unknown
+					|| aEntry.ContentKind == workbench_file_content_kind::text
+					|| aEntry.ContentKind == workbench_file_content_kind::binary);
+		} catch (...) {
+			return false;
+		}
+	}
 
 	struct workbench_application_host::implementation
 	{
@@ -196,20 +237,24 @@ namespace bpr::application {
 			std::stop_source             Stop;
 		};
 
-		implementation(core::workbench_interaction_state  aInitialState,
-					   workbench_observation_port&        aObservations,
-					   workbench_settings_port&           aSettings,
-					   effect_executor&                   aEffects,
-					   decision_executor&                 aDecisionLane,
-					   workbench_projection_port&         aProjections,
-					   const core::application_session_id aSession,
-					   const workbench_host_limits        aLimits)
+		implementation(core::workbench_interaction_state        aInitialState,
+					   workbench_observation_port&              aObservations,
+					   workbench_settings_port&                 aSettings,
+					   effect_executor&                         aEffects,
+					   decision_executor&                       aDecisionLane,
+					   workbench_projection_port&               aProjections,
+					   const core::application_session_id       aSession,
+					   const workbench_host_limits              aLimits,
+					   workbench_selected_diff_port*            aSelectedDiffs,
+					   workbench_selected_diff_projection_port* aSelectedDiffProjections)
 			: State{ aInitialState }
 			, Observations{ aObservations }
 			, Settings{ aSettings }
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
 			, Projections{ aProjections }
+			, SelectedDiffs{ aSelectedDiffs }
+			, SelectedDiffProjections{ aSelectedDiffProjections }
 			, Session{ aSession }
 			, Limits{ validated_limits(aLimits) }
 			, Gate{ std::make_shared<completion_gate>() }
@@ -256,6 +301,10 @@ namespace bpr::application {
 						observe_now(aTyped.Authority);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_invalidate>) {
 						invalidate_now(aTyped.Authority);
+					} else if constexpr (std::is_same_v<
+											 ingress_type,
+											 deferred_workbench_selected_diff_refresh>) {
+						refresh_selected_diff_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_intent>) {
 						apply_now(aTyped.Intent);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_resize>) {
@@ -268,8 +317,10 @@ namespace bpr::application {
 						finish_observation(std::move(aTyped.Observation));
 					} else if constexpr (std::is_same_v<ingress_type, staged_settings_load>) {
 						finish_settings_load(aTyped.Context, std::move(aTyped.Result));
-					} else {
+					} else if constexpr (std::is_same_v<ingress_type, staged_settings_store>) {
 						finish_settings_store(aTyped.Context, aTyped.Result);
+					} else {
+						finish_selected_diff(std::move(aTyped.Observation));
 					}
 				},
 				std::move(aIngress));
@@ -478,6 +529,93 @@ namespace bpr::application {
 			}
 		}
 
+		[[nodiscard]] auto selected_file() const noexcept
+			-> const workbench_file_observation_entry*
+		{
+			if (!Selected.has_value()) {
+				return nullptr;
+			}
+			const auto found = std::ranges::find(
+				Files, *Selected, &workbench_file_observation_entry::File);
+			return found == Files.end() ? nullptr : &*found;
+		}
+
+		void submit_selected_diff()
+		{
+			if (SelectedDiffs == nullptr || SelectedDiffProjections == nullptr
+				|| !Authority.has_value() || selected_file() == nullptr) {
+				return;
+			}
+			retire(workbench_request_domain::selected_diff,
+				   workbench_terminal_rejection::superseded);
+			auto context = std::optional<workbench_selected_diff_context>{ };
+			try {
+				context = SelectedDiffs->context(*Authority);
+			} catch (...) {
+				publish_failure(local_context(), workbench_host_failure::host_failure);
+				return;
+			}
+			if (!context.has_value()) {
+				publish_failure(
+					local_context(), workbench_host_failure::selected_file_stale);
+				return;
+			}
+			auto* const record = reserve(workbench_request_domain::selected_diff);
+			if (record == nullptr) {
+				publish_failure(local_context(), workbench_host_failure::host_failure);
+				return;
+			}
+			const auto request = workbench_selected_diff_request{
+				.Context            = record->Context,
+				.WorkbenchAuthority = *Authority,
+				.Diff               = *context,
+				.File               = *selected_file(),
+			};
+			deliver_projection(
+				[this, &request] { SelectedDiffProjections->begin(request); });
+			const auto  stop     = record->Stop.get_token();
+			const auto  gate     = std::weak_ptr<completion_gate>{ Gate };
+			auto* const resolver = SelectedDiffs;
+			auto* const lane     = &DecisionLane;
+			try {
+				Effects.post([gate, lane, resolver, request, stop] {
+					auto staged = staged_selected_diff{
+						.Observation = perform_selected_diff(*resolver, request, stop),
+					};
+					lane->post([gate, staged = std::move(staged)]() mutable {
+						deliver_terminal(gate, std::move(staged));
+					});
+				});
+			} catch (...) {
+				abandon(request.Context.Request);
+				auto failure   = workbench_selected_diff_observation{ .Request = request };
+				failure.Status = workbench_selected_diff_status::failure;
+				deliver_projection(
+					[this, &failure] { SelectedDiffProjections->fail(failure); });
+			}
+		}
+
+		[[nodiscard]] static auto perform_selected_diff(
+			workbench_selected_diff_port&          aPort,
+			const workbench_selected_diff_request& aRequest,
+			std::stop_token                        aStop)
+			-> workbench_selected_diff_observation
+		{
+			auto refusal = workbench_selected_diff_observation{
+				.Request = aRequest,
+				.Status  = workbench_selected_diff_status::cancelled,
+			};
+			if (aStop.stop_requested()) {
+				return refusal;
+			}
+			try {
+				return aPort.resolve(aRequest, std::move(aStop));
+			} catch (...) {
+				refusal.Status = workbench_selected_diff_status::failure;
+				return refusal;
+			}
+		}
+
 		[[nodiscard]] static auto perform_observation(
 			workbench_observation_port&          aPort,
 			const workbench_observation_request& aRequest,
@@ -622,11 +760,30 @@ namespace bpr::application {
 				publish_failure(local_context(), workbench_host_failure::host_failure);
 				return;
 			}
+			const auto hadAuthorityBoundState = !Files.empty() || Selected.has_value()
+				|| State.Navigation.has_value();
 			retire(workbench_request_domain::observation,
+				   workbench_terminal_rejection::superseded);
+			retire(workbench_request_domain::selected_diff,
 				   workbench_terminal_rejection::superseded);
 			Generation = core::request_generation{ Generation.value() + 1U };
 			Authority  = aAuthority;
+			Actionable.clear();
+			Files.clear();
+			Selected.reset();
+			const auto output = core::observe_workbench_navigation(State, std::nullopt);
+			LastReason        = output.Reason;
+			if (hadAuthorityBoundState) {
+				publish_changes(local_context());
+			}
 			submit_observation(aAuthority);
+		}
+
+		void refresh_selected_diff_now()
+		{
+			if (!Closing) {
+				submit_selected_diff();
+			}
 		}
 
 		void invalidate_now(const workbench_pull_request_authority& aAuthority)
@@ -636,9 +793,12 @@ namespace bpr::application {
 			}
 			retire(workbench_request_domain::observation,
 				   workbench_terminal_rejection::superseded);
+			retire(workbench_request_domain::selected_diff,
+				   workbench_terminal_rejection::superseded);
 			Generation = core::request_generation{ Generation.value() + 1U };
 			Authority.reset();
 			Actionable.clear();
+			Files.clear();
 			Selected.reset();
 			const auto output = core::observe_workbench_navigation(State, std::nullopt);
 			LastReason        = output.Reason;
@@ -659,6 +819,9 @@ namespace bpr::application {
 				submit_settings_store();
 			}
 			publish_changes(local_context());
+			if (output.Decision.has_value()) {
+				submit_selected_diff();
+			}
 		}
 
 		void execute_decision(const core::workbench_navigation_decision& aDecision)
@@ -740,10 +903,92 @@ namespace bpr::application {
 								workbench_host_failure::observation_limit);
 				return;
 			}
-			Actionable = std::move(aObservation.Actionable);
+			Files = std::move(aObservation.Actionable);
+			Actionable.clear();
+			Actionable.reserve(Files.size());
+			std::ranges::transform(
+				Files, std::back_inserter(Actionable),
+				&workbench_file_observation_entry::File);
 			observe_cursor();
 			apply_restored_drawers();
 			publish_changes(aObservation.Context);
+		}
+
+		void finish_selected_diff(workbench_selected_diff_observation aObservation)
+		{
+			const auto rejection = claim(
+				aObservation.Request.Context,
+				workbench_request_domain::selected_diff);
+			if (rejection != workbench_terminal_rejection::none) {
+				refuse(rejection);
+				return;
+			}
+			if (SelectedDiffs == nullptr || SelectedDiffProjections == nullptr) {
+				return;
+			}
+			const auto exactCurrent = [&]() {
+				if (!Authority.has_value()
+					|| aObservation.Request.WorkbenchAuthority != *Authority
+					|| aObservation.Request.Context.Generation != Generation
+					|| !Selected.has_value()
+					|| aObservation.Request.File.File != *Selected
+					|| selected_file() == nullptr
+					|| *selected_file() != aObservation.Request.File) {
+					return false;
+				}
+				try {
+					return SelectedDiffs->context(*Authority)
+						== std::optional{ aObservation.Request.Diff };
+				} catch (...) {
+					return false;
+				}
+			};
+			if (!exactCurrent()) {
+				aObservation.Status = workbench_selected_diff_status::stale;
+				deliver_projection([this, &aObservation] {
+					SelectedDiffProjections->fail(aObservation);
+				});
+				return;
+			}
+			if (aObservation.Status != workbench_selected_diff_status::available) {
+				deliver_projection([this, &aObservation] {
+					SelectedDiffProjections->fail(aObservation);
+				});
+				return;
+			}
+			if (!aObservation.LeftBlob && !aObservation.RightBlob) {
+				aObservation.Status = workbench_selected_diff_status::failure;
+				deliver_projection([this, &aObservation] {
+					SelectedDiffProjections->fail(aObservation);
+				});
+				return;
+			}
+			const auto& diff        = aObservation.Request.Diff;
+			auto        publication = workbench_selected_diff_publication{
+				.Request = aObservation.Request,
+				.Key     = core::file_comparison_key{
+					.Authority   = diff.Authority,
+					.Repository  = diff.Authority.Repository,
+					.PullRequest = diff.Authority.PullRequest,
+					.LeftAnchor  = diff.Comparison.Left.Identity,
+					.RightAnchor = diff.Comparison.Right.Identity,
+					.LeftBlob    = aObservation.LeftBlob,
+					.RightBlob   = aObservation.RightBlob,
+					.File        = aObservation.Request.File.File,
+					.Options     = diff.OptionsDigest,
+					.Algorithm   = diff.Algorithm,
+				},
+			};
+			if (!core::valid(publication.Key)) {
+				aObservation.Status = workbench_selected_diff_status::failure;
+				deliver_projection([this, &aObservation] {
+					SelectedDiffProjections->fail(aObservation);
+				});
+				return;
+			}
+			deliver_projection([this, &publication] {
+				SelectedDiffProjections->publish(publication);
+			});
 		}
 
 		[[nodiscard]] auto exact_observation(
@@ -752,8 +997,8 @@ namespace bpr::application {
 			return Authority.has_value() && aObservation.Authority == *Authority
 				&& std::ranges::all_of(
 					   aObservation.Actionable,
-					   [](const core::workbench_file_id& aFile) {
-						   return aFile.valid();
+					   [](const workbench_file_observation_entry& aFile) {
+						   return valid(aFile);
 					   });
 		}
 
@@ -862,6 +1107,20 @@ namespace bpr::application {
 			if (PublishedLayout != layout) {
 				projection.Layout = layout;
 			}
+			auto files = std::vector<workbench_file_projection>{ };
+			files.reserve(Files.size());
+			std::ranges::transform(
+				Files,
+				std::back_inserter(files),
+				[](const workbench_file_observation_entry& aFile) {
+					return workbench_file_projection{
+						.File = aFile.File,
+						.Path = aFile.PresentationPath,
+					};
+				});
+			if (PublishedFiles != files) {
+				projection.Files = files;
+			}
 			if (empty(projection)) {
 				return;
 			}
@@ -869,6 +1128,7 @@ namespace bpr::application {
 			PublishedDrawers   = drawers;
 			PublishedCommands  = commands;
 			PublishedLayout    = layout;
+			PublishedFiles     = std::move(files);
 			deliver_projection(
 				[this, &projection] { Projections.publish(projection); });
 		}
@@ -897,17 +1157,20 @@ namespace bpr::application {
 			}
 		}
 
-		core::workbench_interaction_state State;
-		workbench_observation_port&       Observations;
-		workbench_settings_port&          Settings;
-		effect_executor&                  Effects;
-		decision_executor&                DecisionLane;
-		workbench_projection_port&        Projections;
-		core::application_session_id      Session;
-		workbench_host_limits             Limits;
-		std::shared_ptr<completion_gate>  Gate;
+		core::workbench_interaction_state        State;
+		workbench_observation_port&              Observations;
+		workbench_settings_port&                 Settings;
+		effect_executor&                         Effects;
+		decision_executor&                       DecisionLane;
+		workbench_projection_port&               Projections;
+		workbench_selected_diff_port*            SelectedDiffs;
+		workbench_selected_diff_projection_port* SelectedDiffProjections;
+		core::application_session_id             Session;
+		workbench_host_limits                    Limits;
+		std::shared_ptr<completion_gate>         Gate;
 
 		std::vector<core::workbench_file_id>            Actionable;
+		std::vector<workbench_file_observation_entry>   Files;
 		std::optional<core::workbench_file_id>          Selected;
 		std::optional<workbench_pull_request_authority> Authority;
 		workbench_layout_settings                       Layout;
@@ -917,10 +1180,11 @@ namespace bpr::application {
 		std::uint64_t                          NextRequest = 1U;
 		core::request_generation               Generation{ 1U };
 
-		std::optional<core::workbench_selection_delta> PublishedSelection;
-		std::optional<core::workbench_drawer_delta>    PublishedDrawers;
-		std::optional<core::workbench_command_delta>   PublishedCommands;
-		std::optional<workbench_layout_delta>          PublishedLayout;
+		std::optional<core::workbench_selection_delta>        PublishedSelection;
+		std::optional<core::workbench_drawer_delta>           PublishedDrawers;
+		std::optional<core::workbench_command_delta>          PublishedCommands;
+		std::optional<workbench_layout_delta>                 PublishedLayout;
+		std::optional<std::vector<workbench_file_projection>> PublishedFiles;
 
 		std::size_t                  RejectedTerminals        = 0U;
 		std::size_t                  PersistedLayouts         = 0U;
@@ -934,14 +1198,16 @@ namespace bpr::application {
 	};
 
 	workbench_application_host::workbench_application_host(
-		core::workbench_interaction_state  aInitialState,
-		workbench_observation_port&        aObservations,
-		workbench_settings_port&           aSettings,
-		effect_executor&                   aEffects,
-		decision_executor&                 aDecisionLane,
-		workbench_projection_port&         aProjections,
-		const core::application_session_id aSession,
-		const workbench_host_limits        aLimits)
+		core::workbench_interaction_state        aInitialState,
+		workbench_observation_port&              aObservations,
+		workbench_settings_port&                 aSettings,
+		effect_executor&                         aEffects,
+		decision_executor&                       aDecisionLane,
+		workbench_projection_port&               aProjections,
+		const core::application_session_id       aSession,
+		const workbench_host_limits              aLimits,
+		workbench_selected_diff_port*            aSelectedDiffs,
+		workbench_selected_diff_projection_port* aSelectedDiffProjections)
 		: Implementation{ std::make_unique<implementation>(aInitialState,
 														   aObservations,
 														   aSettings,
@@ -949,7 +1215,9 @@ namespace bpr::application {
 														   aDecisionLane,
 														   aProjections,
 														   aSession,
-														   aLimits) }
+														   aLimits,
+														   aSelectedDiffs,
+														   aSelectedDiffProjections) }
 	{
 	}
 
@@ -971,6 +1239,11 @@ namespace bpr::application {
 	void workbench_application_host::invalidate(workbench_pull_request_authority aAuthority)
 	{
 		Implementation->enqueue(deferred_workbench_invalidate{ std::move(aAuthority) });
+	}
+
+	void workbench_application_host::refresh_selected_diff()
+	{
+		Implementation->enqueue(deferred_workbench_selected_diff_refresh{ });
 	}
 
 	void workbench_application_host::apply(core::workbench_interaction_intent aIntent)

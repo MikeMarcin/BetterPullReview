@@ -6,11 +6,13 @@
 #include <cstdint>
 #include <cstdlib>
 #include <expected>
+#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -54,6 +56,16 @@ namespace {
 		return Identity{ bytes };
 	}
 
+	template <typename Oid>
+	[[nodiscard]] constexpr auto oid(const std::uint8_t aSeed) -> Oid
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		for (std::size_t index = 0U; index < 20U; ++index) {
+			bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+		}
+		return Oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
 	[[nodiscard]] auto authority(const std::uint32_t aNumber = 17U)
 		-> application::workbench_pull_request_authority
 	{
@@ -94,11 +106,23 @@ namespace {
 			if (Throw) {
 				throw std::runtime_error{ "observation failure" };
 			}
+			auto files = std::vector<application::workbench_file_observation_entry>{ };
+			files.reserve(Files.size());
+			for (const auto& file : Files) {
+				const auto path = "file-" + std::to_string(file.bytes().front()) + ".cpp";
+				files.push_back({
+					.File             = file,
+					.PresentationPath = path,
+					.CurrentPath      = std::filesystem::path{ path },
+					.Change           = application::workbench_file_change_kind::modified,
+					.ContentKind      = application::workbench_file_content_kind::text,
+				});
+			}
 			auto observation = application::workbench_file_observation{
 				.Context    = aRequest.Context,
 				.Authority  = aRequest.Authority,
 				.Status     = Status,
-				.Actionable = Files,
+				.Actionable = std::move(files),
 			};
 			if (MismatchAuthority) {
 				observation.Authority.Number = core::pull_request_number{ 999U };
@@ -176,16 +200,139 @@ namespace {
 	public:
 		void publish(const application::workbench_projection& aProjection) override
 		{
+			Events.emplace_back("publish");
 			Published.push_back(aProjection);
 		}
 
 		void fail(const application::workbench_failure_publication& aFailure) override
 		{
+			Events.emplace_back("fail");
 			Failed.push_back(aFailure);
 		}
 
 		std::vector<application::workbench_projection>          Published;
 		std::vector<application::workbench_failure_publication> Failed;
+		std::vector<std::string_view>                           Events;
+	};
+
+	[[nodiscard]] auto selected_diff_context()
+		-> application::workbench_selected_diff_context
+	{
+		const auto workbench = authority();
+		const auto owner     = core::pull_request_authority{
+			.Profile         = workbench.Profile,
+			.ProfileRevision = workbench.ProfileRevision,
+			.Host            = workbench.Host,
+			.HostAuthority   = workbench.HostAuthority,
+			.Account         = workbench.Account,
+			.Viewer          = workbench.Viewer,
+			.Repository      = workbench.Repository,
+			.Cache           = opaque<core::repository_cache_scope_id>(14U),
+			.PullRequest     = workbench.PullRequest,
+			.Number          = workbench.Number,
+			.Scope           = opaque<core::pull_request_authority_scope_id>(15U),
+		};
+		const auto incarnation = opaque<core::epoch_catalog_incarnation_id>(16U);
+		const auto options     = core::normalize_diff_options(core::diff_options{ });
+		expect(options.has_value(), "default diff options normalize");
+		const auto digest = core::options_digest(*options);
+		expect(digest.has_value(), "default diff options have a digest");
+		return {
+			.ApplicationSession = workbench.ApplicationSession,
+			.Authority          = owner,
+			.Comparison         = {
+				.Left = {
+					.Identity = {
+						.Authority   = owner.Scope,
+						.Incarnation = incarnation,
+						.Kind        = core::comparison_anchor_kind::epoch_base,
+						.Epoch       = core::epoch_ordinal{ 1 },
+					},
+					.Commit       = oid<core::git_commit_oid>(20U),
+					.Availability = core::anchor_availability::available,
+				},
+				.Right = {
+					.Identity = {
+						.Authority   = owner.Scope,
+						.Incarnation = incarnation,
+						.Kind        = core::comparison_anchor_kind::epoch_head,
+						.Epoch       = core::epoch_ordinal{ 1 },
+					},
+					.Commit       = oid<core::git_commit_oid>(30U),
+					.Availability = core::anchor_availability::available,
+				},
+			},
+			.ComparisonRevision = core::comparison_revision{ 1 },
+			.Options            = *options,
+			.OptionsDigest      = *digest,
+			.Algorithm          = core::supported_diff_algorithm_revision,
+		};
+	}
+
+	class fake_selected_diffs final : public application::workbench_selected_diff_port
+	{
+	public:
+		[[nodiscard]] auto context(
+			const application::workbench_pull_request_authority& aAuthority) const
+			-> std::optional<application::workbench_selected_diff_context> override
+		{
+			return aAuthority == authority() ? Context : std::nullopt;
+		}
+
+		[[nodiscard]] auto resolve(
+			const application::workbench_selected_diff_request& aRequest,
+			const std::stop_token                               aStop)
+			-> application::workbench_selected_diff_observation override
+		{
+			Requests.push_back(aRequest);
+			StopObserved.push_back(aStop.stop_requested());
+			auto result = application::workbench_selected_diff_observation{
+				.Request = aRequest,
+				.Status  = aStop.stop_requested()
+					? application::workbench_selected_diff_status::cancelled
+					: Status,
+			};
+			if (result.Status
+				== application::workbench_selected_diff_status::available) {
+				result.LeftBlob  = oid<core::git_blob_oid>(40U);
+				result.RightBlob = oid<core::git_blob_oid>(50U);
+			}
+			return result;
+		}
+
+		std::optional<application::workbench_selected_diff_context> Context
+			= selected_diff_context();
+		application::workbench_selected_diff_status Status
+			= application::workbench_selected_diff_status::available;
+		std::vector<application::workbench_selected_diff_request> Requests;
+		std::vector<bool>                                         StopObserved;
+	};
+
+	class recording_selected_diff_projections final
+		: public application::workbench_selected_diff_projection_port
+	{
+	public:
+		void begin(
+			const application::workbench_selected_diff_request& aRequest) override
+		{
+			Begun.push_back(aRequest);
+		}
+
+		void publish(
+			const application::workbench_selected_diff_publication& aPublication) override
+		{
+			Published.push_back(aPublication);
+		}
+
+		void fail(
+			const application::workbench_selected_diff_observation& aFailure) override
+		{
+			Failed.push_back(aFailure);
+		}
+
+		std::vector<application::workbench_selected_diff_request>     Begun;
+		std::vector<application::workbench_selected_diff_publication> Published;
+		std::vector<application::workbench_selected_diff_observation> Failed;
 	};
 
 	/// \brief Provides a decision lane that can withhold, reorder, and replay.
@@ -270,6 +417,29 @@ namespace {
 		application::manual_executor            Effects;
 		replaying_lane                          Lane;
 		application::workbench_application_host Host;
+	};
+
+	struct selected_harness
+	{
+		fake_observations                       Observations;
+		fake_settings                           Settings;
+		fake_selected_diffs                     SelectedDiffs;
+		recording_projections                   Projections;
+		recording_selected_diff_projections     SelectedProjections;
+		application::manual_executor            Effects;
+		replaying_lane                          Lane;
+		application::workbench_application_host Host{
+			{ },
+			Observations,
+			Settings,
+			Effects,
+			Lane,
+			Projections,
+			core::application_session_id{ 7U },
+			{ },
+			&SelectedDiffs,
+			&SelectedProjections,
+		};
 	};
 
 	void test_invalid_limits_are_rejected()
@@ -375,6 +545,148 @@ namespace {
 		expect(harnessed.Host.last_reason()
 				   == core::workbench_reason_code::at_last_file,
 			   "the host reports the core rejection without re-deciding it");
+	}
+
+	void test_selected_diff_lifecycle_is_exactly_once_and_typed()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U), file(2U) };
+		value.Host.observe(authority());
+		value.Effects.drain();
+		value.Lane.drain();
+
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(2U) });
+		expect(
+			value.SelectedProjections.Begun.size() == 2U
+				&& value.Effects.pending() == 2U,
+			"a replacement selection supersedes one in-flight lookup and begins another");
+		value.Effects.drain();
+		expect(value.Lane.pending() == 2U, "both immutable terminals reach the lane");
+		value.Lane.run(0U);
+		value.Lane.run_twice(0U);
+		expect(
+			value.SelectedDiffs.StopObserved == std::vector{ false }
+				&& value.SelectedDiffs.Requests.size() == 1U
+				&& value.SelectedProjections.Published.size() == 1U
+				&& value.SelectedProjections.Published.front().Key.File == file(2U)
+				&& value.SelectedProjections.Failed.empty()
+				&& value.Host.outstanding_requests() == 0U,
+			"superseded and replayed terminals cannot duplicate or replace publication");
+
+		value.SelectedDiffs.Status
+			= application::workbench_selected_diff_status::missing_left;
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(
+			value.SelectedProjections.Failed.size() == 1U
+				&& value.SelectedProjections.Failed.front().Status
+					== application::workbench_selected_diff_status::missing_left,
+			"a typed missing side reaches selected-diff presentation unchanged");
+
+		value.SelectedDiffs.Status
+			= application::workbench_selected_diff_status::available;
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(2U) });
+		value.Host.cancel();
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(
+			value.SelectedDiffs.Requests.size() == 2U,
+			"cancellation withholds the selected effect before it reaches the port");
+		expect(
+			value.SelectedProjections.Published.size() == 1U
+				&& value.SelectedProjections.Failed.size() == 1U,
+			"cancelled selected effect publishes no terminal");
+		expect(
+			value.Host.outstanding_requests() == 0U,
+			"cancelled selected effect retires its request");
+	}
+
+	void test_selected_diff_replays_after_context_arrives_and_changes()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U) };
+		value.SelectedDiffs.Context.reset();
+		value.Host.observe(authority());
+		value.Effects.drain();
+		value.Lane.drain();
+
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		expect(value.Host.selected() == file(1U),
+			   "selection remains retained while comparison context is unavailable");
+		expect(value.SelectedProjections.Begun.empty()
+				   && value.SelectedDiffs.Requests.empty(),
+			   "an unavailable comparison starts no selected Git effect");
+		expect(value.Projections.Events.size() >= 2U
+				   && value.Projections.Events[value.Projections.Events.size() - 2U]
+					   == "publish"
+				   && value.Projections.Events.back() == "fail"
+				   && value.Projections.Failed.back().Failure
+					   == application::workbench_host_failure::selected_file_stale,
+			   "the accepted selection is published before its typed stale failure");
+
+		value.SelectedDiffs.Context = selected_diff_context();
+		value.Host.refresh_selected_diff();
+		expect(value.SelectedProjections.Begun.size() == 1U,
+			   "an available epoch context rearms the retained selection");
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(value.SelectedProjections.Published.size() == 1U,
+			   "the rearmed selection publishes through the selected-diff path");
+
+		auto changed                    = selected_diff_context();
+		changed.ComparisonRevision      = core::comparison_revision{ 2U };
+		changed.Comparison.Right.Commit = oid<core::git_commit_oid>(31U);
+		value.SelectedDiffs.Context     = changed;
+		value.Host.refresh_selected_diff();
+		expect(value.SelectedProjections.Begun.size() == 2U
+				   && value.SelectedDiffs.Requests.size() == 1U,
+			   "a changed accepted comparison starts one replacement request");
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(value.SelectedDiffs.Requests.size() == 2U
+				   && value.SelectedDiffs.Requests.back().Diff == changed
+				   && value.SelectedProjections.Published.size() == 2U,
+			   "the replay uses the exact changed comparison context");
+	}
+
+	void test_failed_authority_refresh_clears_rows_and_old_selection()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U) };
+		value.Host.observe(authority(17U));
+		value.Effects.drain();
+		value.Lane.drain();
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.Effects.drain();
+		value.Lane.drain();
+		const auto selectedRequests = value.SelectedDiffs.Requests.size();
+
+		value.Observations.Status = application::workbench_observation_status::unavailable;
+		value.Observations.Files  = { file(2U) };
+		value.Host.observe(authority(18U));
+		expect(value.Host.actionable().empty()
+				   && !value.Host.selected().has_value()
+				   && !value.Host.state().Navigation.has_value(),
+			   "a new authority retires old rows, selection, and cursor synchronously");
+		expect(value.Projections.Published.back().Files.has_value()
+				   && value.Projections.Published.back().Files->empty()
+				   && value.Projections.Published.back().Selection.has_value()
+				   && !value.Projections.Published.back().Selection->Cursor.has_value(),
+			   "the retired authority publishes an empty row and selection projection");
+
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		expect(value.SelectedDiffs.Requests.size() == selectedRequests
+				   && !value.Host.selected().has_value(),
+			   "an old row identity cannot start resolution in the new generation");
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(value.Projections.Failed.back().Failure
+					   == application::workbench_host_failure::observation_unavailable
+				   && value.Host.actionable().empty()
+				   && !value.Host.selected().has_value(),
+			   "a failed replacement observation cannot restore prior authority facts");
 	}
 
 	void test_exact_invalidation_clears_authority_bound_selection()
@@ -544,9 +856,15 @@ namespace {
 		harnessed.Host.observe(authority());
 		harnessed.settle();
 
-		expect(harnessed.Projections.Published.size() == published,
+		expect(harnessed.Projections.Published.size() == published + 1U,
 			   aLabel,
-			   "a forged terminal identity publishes nothing");
+			   "the replacement authority publishes one clear before its terminal");
+		expect(harnessed.Projections.Published.back().Files.has_value()
+				   && harnessed.Projections.Published.back().Files->empty()
+				   && harnessed.Projections.Published.back().Selection.has_value()
+				   && !harnessed.Projections.Published.back().Selection->Cursor.has_value(),
+			   aLabel,
+			   "the clear removes every selectable fact from the prior generation");
 		expect(harnessed.Projections.Failed.empty(),
 			   aLabel,
 			   "a forged terminal identity reports no failure either");
@@ -557,14 +875,12 @@ namespace {
 				   == application::workbench_terminal_rejection::inexact_terminal,
 			   aLabel,
 			   "the refusal names the inexact terminal");
-		expect(harnessed.Host.actionable().size() == 2U
-				   && harnessed.Host.actionable().front() == file(1U),
+		expect(harnessed.Host.actionable().empty(),
 			   aLabel,
-			   "the retained order is unchanged");
-		expect(harnessed.Host.state().Navigation.has_value()
-				   && harnessed.Host.state().Navigation->ActionableCount == 2U,
+			   "the prior generation order remains retired");
+		expect(!harnessed.Host.state().Navigation.has_value(),
 			   aLabel,
-			   "the retained cursor is unchanged");
+			   "the prior generation cursor remains retired");
 		expect(harnessed.Host.outstanding_requests() == 0U,
 			   aLabel,
 			   "the forged terminal was accounted exactly once");
@@ -772,6 +1088,9 @@ auto main() -> int
 	test_invalid_limits_are_rejected();
 	test_first_observation_publishes_bounded_cursor_facts();
 	test_navigation_resolves_through_the_host_order();
+	test_selected_diff_lifecycle_is_exactly_once_and_typed();
+	test_selected_diff_replays_after_context_arrives_and_changes();
+	test_failed_authority_refresh_clears_rows_and_old_selection();
 	test_exact_invalidation_clears_authority_bound_selection();
 	test_drawer_gesture_publishes_and_persists();
 	test_resize_clamps_and_persists_the_width();

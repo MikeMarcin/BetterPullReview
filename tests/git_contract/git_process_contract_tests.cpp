@@ -825,6 +825,13 @@ namespace {
 			}
 			return 0;
 		}
+		if (aArguments.contains("diff-tree")) {
+			const auto output = read_text(fake_isolation_root() / "rename-output");
+			std::cout.write(
+				output.data(),
+				static_cast<std::streamsize>(output.size()));
+			return 0;
+		}
 		return 9;
 	}
 
@@ -964,6 +971,13 @@ namespace {
 		application::git_commit_id Head;
 	};
 
+	struct rename_chain_fixture
+	{
+		application::git_commit_id Base;
+		application::git_commit_id HeadOne;
+		application::git_commit_id HeadTwo;
+	};
+
 	[[nodiscard]] auto make_connectivity_fixture(
 		const std::filesystem::path&          aRepository,
 		const application::git_hash_algorithm aAlgorithm)
@@ -980,7 +994,9 @@ namespace {
 		const auto rootTree = run_fixture_git(
 			aRepository,
 			{ "mktree" },
-			"040000 tree " + nestedTree + "\tdirectory\n");
+			"040000 tree " + nestedTree + "\tdirectory\n"
+				+ "100755 blob " + blob + "\texecutable.sh\n"
+				+ "120000 blob " + blob + "\tlink\n");
 		const auto base = run_fixture_git(
 			aRepository,
 			{ "commit-tree", rootTree },
@@ -1000,6 +1016,40 @@ namespace {
 			.MissingParent = missingParent,
 			.Base          = object<application::git_commit_id>(base, aAlgorithm),
 			.Head          = object<application::git_commit_id>(head, aAlgorithm),
+		};
+	}
+
+	[[nodiscard]] auto make_rename_chain_fixture(
+		const std::filesystem::path&          aRepository,
+		const application::git_hash_algorithm aAlgorithm)
+		-> rename_chain_fixture
+	{
+		const auto blob = run_fixture_git(
+			aRepository,
+			{ "hash-object", "-w", "--stdin" },
+			"rename chain\n");
+		const auto tree = [&](const std::string_view aPath) {
+			return run_fixture_git(
+				aRepository,
+				{ "mktree" },
+				"100644 blob " + blob + "\t" + std::string{ aPath } + "\n");
+		};
+		const auto base = run_fixture_git(
+			aRepository,
+			{ "commit-tree", tree("a.cpp") },
+			"base\n");
+		const auto headOne = run_fixture_git(
+			aRepository,
+			{ "commit-tree", tree("b.cpp"), "-p", base },
+			"head one\n");
+		const auto headTwo = run_fixture_git(
+			aRepository,
+			{ "commit-tree", tree("c.cpp"), "-p", headOne },
+			"head two\n");
+		return {
+			.Base    = object<application::git_commit_id>(base, aAlgorithm),
+			.HeadOne = object<application::git_commit_id>(headOne, aAlgorithm),
+			.HeadTwo = object<application::git_commit_id>(headTwo, aAlgorithm),
 		};
 	}
 
@@ -1422,6 +1472,142 @@ namespace {
 				};
 			const auto fixtureBlob = object<application::git_blob_id>(
 				fixture.Blob, aAlgorithm);
+			const auto nestedBlob = adapter->find_blob_at_path(
+				{
+					.Repository = repository,
+					.Commit     = fixture.Base,
+					.Path       = "directory/file.txt",
+				},
+				{ });
+			expect(
+				nestedBlob.has_value() && *nestedBlob == std::optional{ fixtureBlob },
+				"exact nested path resolves its blob identity");
+			const auto executableBlob = adapter->find_blob_at_path(
+				{
+					.Repository = repository,
+					.Commit     = fixture.Base,
+					.Path       = "executable.sh",
+				},
+				{ });
+			const auto symlinkBlob = adapter->find_blob_at_path(
+				{
+					.Repository = repository,
+					.Commit     = fixture.Base,
+					.Path       = "link",
+				},
+				{ });
+			expect(
+				executableBlob.has_value()
+					&& *executableBlob == std::optional{ fixtureBlob }
+					&& symlinkBlob.has_value()
+					&& *symlinkBlob == std::optional{ fixtureBlob },
+				"regular executable and symlink modes retain blob semantics");
+			const auto absentBlob = adapter->find_blob_at_path(
+				{
+					.Repository = repository,
+					.Commit     = fixture.Base,
+					.Path       = "absent.txt",
+				},
+				{ });
+			expect(
+				absentBlob.has_value() && !absentBlob->has_value(),
+				"absent exact path remains a typed empty result");
+			const auto treeEntry = adapter->find_blob_at_path(
+				{
+					.Repository = repository,
+					.Commit     = fixture.Base,
+					.Path       = "directory",
+				},
+				{ });
+			expect(
+				!treeEntry.has_value()
+					&& treeEntry.error()
+						== application::git_process_failure::malformed_output,
+				"tree entry is refused instead of being mistaken for a blob");
+			const auto parentPath = adapter->find_blob_at_path(
+				{
+					.Repository = repository,
+					.Commit     = fixture.Base,
+					.Path       = "../file.txt",
+				},
+				{ });
+			expect(
+				!parentPath.has_value()
+					&& parentPath.error()
+						== application::git_process_failure::invalid_request,
+				"non-normal repository path is refused before Git");
+			auto cancelledSource = std::stop_source{ };
+			static_cast<void>(cancelledSource.request_stop());
+			const auto cancelled = adapter->find_blob_at_path(
+				{
+					.Repository = repository,
+					.Commit     = fixture.Base,
+					.Path       = "directory/file.txt",
+				},
+				cancelledSource.get_token());
+			expect(
+				!cancelled.has_value()
+					&& cancelled.error()
+						== application::git_process_failure::cancelled,
+				"pre-cancelled lookup never reaches Git");
+
+			const auto chain   = make_rename_chain_fixture(repository, aAlgorithm);
+			const auto forward = adapter->find_rename_pairs(
+				{
+					.Repository   = repository,
+					.Left         = chain.HeadOne,
+					.Right        = chain.HeadTwo,
+					.CurrentPath  = "c.cpp",
+					.PreviousPath = "a.cpp",
+				},
+				{ });
+			expect(
+				forward.has_value() && forward->Count == 1U
+					&& forward->Records[0U]
+						== application::git_rename_pair{
+							.LeftPath  = "b.cpp",
+							.RightPath = "c.cpp",
+						},
+				"three-commit a-to-b-to-c chain resolves the selected H1-to-H2 rename");
+			const auto reverse = adapter->find_rename_pairs(
+				{
+					.Repository   = repository,
+					.Left         = chain.HeadTwo,
+					.Right        = chain.HeadOne,
+					.CurrentPath  = "c.cpp",
+					.PreviousPath = "a.cpp",
+				},
+				{ });
+			expect(
+				reverse.has_value() && reverse->Count == 1U
+					&& reverse->Records[0U]
+						== application::git_rename_pair{
+							.LeftPath  = "c.cpp",
+							.RightPath = "b.cpp",
+						},
+				"the same selected rename reverses with the selected commit order");
+			const auto unchangedBefore = adapter->find_rename_pairs(
+				{
+					.Repository   = repository,
+					.Left         = chain.Base,
+					.Right        = chain.Base,
+					.CurrentPath  = "c.cpp",
+					.PreviousPath = "a.cpp",
+				},
+				{ });
+			const auto unchangedAfter = adapter->find_rename_pairs(
+				{
+					.Repository   = repository,
+					.Left         = chain.HeadTwo,
+					.Right        = chain.HeadTwo,
+					.CurrentPath  = "c.cpp",
+					.PreviousPath = "a.cpp",
+				},
+				{ });
+			expect(
+				unchangedBefore.has_value() && unchangedBefore->Count == 0U
+					&& unchangedAfter.has_value() && unchangedAfter->Count == 0U,
+				"unchanged selected endpoints produce no invented rename record");
 			const auto emptyBlob = object<application::git_blob_id>(
 				run_fixture_git(
 					repository,
@@ -1610,7 +1796,10 @@ namespace {
 					repository,
 					{ "mktree" },
 					"040000 tree " + fixture.NestedTree
-						+ "\tdirectory\n")
+						+ "\tdirectory\n"
+						+ "100755 blob " + fixture.Blob
+						+ "\texecutable.sh\n"
+						+ "120000 blob " + fixture.Blob + "\tlink\n")
 					== fixture.RootTree,
 				"restore exact commit tree fixture");
 			expect(
@@ -1643,6 +1832,148 @@ namespace {
 				&& mismatched.error()
 					== application::git_process_failure::invalid_request,
 			"mixed-algorithm connectivity request fails before Git");
+	}
+
+	auto run_rename_parser_contract() -> void
+	{
+		temporary_root root{ "git-rename-parser" };
+		const auto     fakeGitPath = make_fake_git_executable(root.Path);
+		auto           adapter     = make_adapter(fakeGitPath, root.Path);
+		const auto     repository  = repository_path(root.Path, '7');
+		initialize_repository(
+			*adapter,
+			repository,
+			application::git_hash_algorithm::sha1);
+		const auto commit = object<application::git_commit_id>(
+			sha1_commit_hex,
+			application::git_hash_algorithm::sha1);
+		const auto request = application::git_rename_pair_request{
+			.Repository   = repository,
+			.Left         = commit,
+			.Right        = commit,
+			.CurrentPath  = "c.cpp",
+			.PreviousPath = "a.cpp",
+		};
+		const auto record = [](const std::string_view aStatus,
+							   const std::string_view aLeft,
+							   const std::string_view aRight) {
+			auto result = std::string{ aStatus };
+			result.push_back('\0');
+			result.append(aLeft);
+			result.push_back('\0');
+			result.append(aRight);
+			result.push_back('\0');
+			return result;
+		};
+		const auto output = root.Path / "rename-output";
+
+		write_text(output, record("R100", "b.cpp", "c.cpp"));
+		const auto parsed = adapter->find_rename_pairs(request, { });
+		require(
+			parsed.has_value() && parsed->Count == 1U
+				&& parsed->Records[0U]
+					== application::git_rename_pair{
+						.LeftPath  = "b.cpp",
+						.RightPath = "c.cpp",
+					},
+			"strict rename parser preserves one causally bound NUL record");
+
+		write_text(
+			output,
+			record("R100", "b.cpp", "c.cpp")
+				+ record("R075", "a.cpp", "d.cpp"));
+		const auto multiple = adapter->find_rename_pairs(request, { });
+		require(
+			multiple.has_value() && multiple->Count == 2U,
+			"strict parser retains bounded multiple records for host ambiguity refusal");
+
+		auto malformed = record("R100", "b.cpp", "c.cpp");
+		malformed.pop_back();
+		write_text(output, malformed);
+		require(
+			adapter->find_rename_pairs(request, { }).error()
+				== application::git_process_failure::malformed_output,
+			"rename parser rejects a truncated NUL record");
+		write_text(output, record("R049", "a.cpp", "b.cpp"));
+		require(
+			adapter->find_rename_pairs(request, { }).error()
+				== application::git_process_failure::malformed_output,
+			"rename parser rejects a score outside the fixed threshold");
+		write_text(output, record("R100", "x.cpp", "y.cpp"));
+		const auto unbound = adapter->find_rename_pairs(request, { });
+		require(
+			unbound.has_value() && unbound->Count == 0U,
+			"rename parser filters a record unbound to accepted row candidates");
+
+		auto unrelated = std::string{ };
+		for (auto index = std::size_t{ 0U };
+			 index <= application::maximum_git_rename_pair_records;
+			 ++index) {
+			unrelated += record(
+				"R100",
+				"unrelated-left-" + std::to_string(index) + ".cpp",
+				"unrelated-right-" + std::to_string(index) + ".cpp");
+		}
+		write_text(output, unrelated + record("R100", "b.cpp", "c.cpp"));
+		const auto filtered = adapter->find_rename_pairs(request, { });
+		require(
+			filtered.has_value() && filtered->Count == 1U
+				&& filtered->Records[0U]
+					== application::git_rename_pair{
+						.LeftPath  = "b.cpp",
+						.RightPath = "c.cpp",
+					},
+			"raw scan filters unrelated renames before applying the retained bound");
+
+		auto overBound = std::string{ };
+		for (auto index = std::size_t{ 0U };
+			 index <= application::maximum_git_rename_pair_records;
+			 ++index) {
+			overBound += record("R100", "a.cpp", "c.cpp");
+		}
+		write_text(output, overBound);
+		require(
+			adapter->find_rename_pairs(request, { }).error()
+				== application::git_process_failure::standard_output_limit,
+			"rename parser refuses more than the fixed retained record bound");
+
+		auto overScanBound = std::string{ };
+		for (auto index = std::size_t{ 0U };
+			 index <= application::maximum_git_rename_scan_records;
+			 ++index) {
+			overScanBound += record(
+				"R100",
+				"scan-left-" + std::to_string(index) + ".cpp",
+				"scan-right-" + std::to_string(index) + ".cpp");
+		}
+		write_text(output, overScanBound);
+		require(
+			adapter->find_rename_pairs(request, { }).error()
+				== application::git_process_failure::standard_output_limit,
+			"rename parser refuses more than the fixed raw scan bound");
+
+		auto cancelled = std::stop_source{ };
+		static_cast<void>(cancelled.request_stop());
+		require(
+			adapter->find_rename_pairs(request, cancelled.get_token()).error()
+				== application::git_process_failure::cancelled,
+			"pre-cancelled rename discovery never enters Git");
+		auto invalidPath        = request;
+		invalidPath.CurrentPath = "../c.cpp";
+		require(
+			adapter->find_rename_pairs(invalidPath, { }).error()
+				== application::git_process_failure::invalid_request,
+			"rename discovery refuses non-normal accepted paths before Git");
+
+		const auto log = read_text(root.Path / "invocations.log");
+		require(
+			log.find("arg=diff-tree\n") != std::string::npos
+				&& log.find("arg=-z\n") != std::string::npos
+				&& log.find("arg=--name-status\n") != std::string::npos
+				&& log.find("arg=--diff-filter=R\n") != std::string::npos
+				&& log.find("arg=--find-renames=50%\n") != std::string::npos
+				&& log.find("arg=--follow\n") == std::string::npos,
+			"rename discovery uses the fixed local-only command and never follows history");
 	}
 
 	auto run_real_hostile_canary_contract() -> void
@@ -2766,6 +3097,7 @@ auto main(int argc, char** argv) -> int
 
 	run_real_git_contract();
 	run_connectivity_contract();
+	run_rename_parser_contract();
 	run_real_hostile_canary_contract();
 	run_hostile_process_contract();
 	run_capability_probe_cleanup_contract();

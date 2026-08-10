@@ -2363,15 +2363,83 @@ namespace {
 			{
 				primaryGitDir,
 				"ls-tree",
+				"-z",
 				"-r",
 				QString::fromUtf8(sha1_commit_hex.data()),
 			});
+		const auto treePathSeparator = treeListing.Output.indexOf('\t');
 		require(
 			treeListing.Output.startsWith("100644 blob ")
-				&& treeListing.Output.size() > 53,
+				&& treePathSeparator > 0
+				&& treeListing.Output.endsWith('\0')
+				&& treeListing.Output.indexOf('\0')
+					== treeListing.Output.size() - 1,
 			"imported fixture exposes one typed blob identity");
-		const auto blobText     = treeListing.Output.mid(12, 40).toStdString();
-		const auto blob         = core::parse_git_blob_oid(blobText);
+		const auto blobText = treeListing.Output.mid(12, 40).toStdString();
+		const auto blob     = core::parse_git_blob_oid(blobText);
+		require(blob.has_value(), "parse imported fixture blob identity");
+		const auto treePath = treeListing.Output
+								  .mid(
+									  treePathSeparator + 1,
+									  treeListing.Output.size() - treePathSeparator - 2)
+								  .toStdString();
+		require(!treePath.empty(), "parse imported fixture tree path");
+		const auto resolvedBlob = (*primary)->find_blob_at_path(
+			{
+				.Commit = *commit,
+				.Path   = treePath,
+			},
+			{ });
+		const auto absentBlob = (*primary)->find_blob_at_path(
+			{
+				.Commit = *commit,
+				.Path   = treePath + ".bpr-absent",
+			},
+			{ });
+		const auto unchangedRenames = (*primary)->find_rename_pairs(
+			{
+				.Left         = *commit,
+				.Right        = *commit,
+				.CurrentPath  = treePath,
+				.PreviousPath = treePath + ".previous",
+			},
+			{ });
+		require(
+			resolvedBlob.has_value() && resolvedBlob->has_value(),
+			"retained cache session resolves an exact tree path");
+		require(
+			**resolvedBlob == *blob,
+			"retained cache session returns the exact tree blob");
+		require(
+			absentBlob.has_value() && !absentBlob->has_value(),
+			"retained cache session reports an absent tree path");
+		require(
+			unchangedRenames.has_value() && unchangedRenames->Count == 0U,
+			"retained cache session forwards an exact unchanged rename query");
+		const auto invalidPath = (*primary)->find_blob_at_path(
+			{
+				.Commit = *commit,
+				.Path   = "../file.txt",
+			},
+			{ });
+		require(
+			!invalidPath.has_value()
+				&& invalidPath.error()
+					== application::git_cache_failure::invalid_request,
+			"retained cache refuses non-normal repository paths");
+		auto lookupCancelledSource = std::stop_source{ };
+		static_cast<void>(lookupCancelledSource.request_stop());
+		const auto cancelledLookup = (*primary)->find_blob_at_path(
+			{
+				.Commit = *commit,
+				.Path   = treePath,
+			},
+			lookupCancelledSource.get_token());
+		require(
+			!cancelledLookup.has_value()
+				&& cancelledLookup.error()
+					== application::git_cache_failure::cancelled,
+			"pre-cancelled retained-cache lookup never reaches Git");
 		const auto expectedBlob = run_fixture_git(
 			executable,
 			root.Path,
@@ -2381,7 +2449,6 @@ namespace {
 				"blob",
 				QString::fromStdString(blobText),
 			});
-		require(blob.has_value(), "parse imported fixture blob identity");
 		const auto materializedBlob = (*primary)->materialize_blob(
 			{
 				.Blob         = *blob,

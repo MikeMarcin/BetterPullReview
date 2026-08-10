@@ -129,6 +129,15 @@ namespace {
 		};
 	}
 
+	[[nodiscard]] constexpr auto workbench_file(const std::uint8_t aSeed)
+		-> core::workbench_file_id
+	{
+		auto bytes    = std::array<std::uint8_t, 32U>{ };
+		bytes.front() = aSeed;
+		bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0x5AU);
+		return core::workbench_file_id{ bytes };
+	}
+
 	[[nodiscard]] auto drawer_states(
 		const core::workbench_drawer_state aFiles,
 		const core::workbench_drawer_state aConversations)
@@ -920,6 +929,61 @@ namespace {
 			   "one a caller could mistake for its content");
 		expect(window.files_drawer()->contents() == contents,
 			   "the files drawer is untouched by that: a file list is a list");
+	}
+
+	void test_file_rows_emit_only_semantic_user_selection()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(std::move(aIntent));
+			},
+			{ },
+			{ }
+		};
+		const auto first  = workbench_file(1U);
+		const auto second = workbench_file(2U);
+		auto       rows   = application::workbench_projection{ };
+		rows.Files        = std::vector<application::workbench_file_projection>{
+			{ .File = first, .Path = "first.cpp" },
+			{ .File = second, .Path = "second.cpp" },
+		};
+		window.publish(rows);
+		expect(
+			log.Workbench.empty()
+				&& window.files_drawer()->contents()->file_at(
+					   window.files_drawer()->contents()->index(1, 0))
+					== std::optional{ second },
+			"projection inserts retain opaque file identity without emitting intent");
+
+		auto* const view = window.files_drawer()->contents_view();
+		view->setCurrentIndex(view->model()->index(1, 0));
+		expect(
+			log.Workbench.size() == 1U
+				&& std::get<core::select_workbench_file_intent>(log.Workbench.back()).File
+					== second,
+			"list selection emits the retained semantic identity without parsing text");
+
+		auto reordered  = application::workbench_projection{ };
+		reordered.Files = std::vector<application::workbench_file_projection>{
+			{ .File = second, .Path = "renamed-second.cpp" },
+			{ .File = first, .Path = "first.cpp" },
+		};
+		reordered.Selection = core::workbench_selection_delta{
+			.Cursor = core::workbench_navigation_cursor{
+				.File              = first,
+				.Ordinal           = 2U,
+				.ActionableCount   = 2U,
+				.PreviousAvailable = true,
+				.NextAvailable     = false,
+			},
+		};
+		window.publish(reordered);
+		expect(
+			log.Workbench.size() == 1U
+				&& view->currentIndex()
+					== window.files_drawer()->contents()->index_for_file(first),
+			"incremental reorder and host-selected row emit no false user selection");
 	}
 
 	void test_the_conversations_drawer_hosts_the_threaded_conversation()
@@ -2599,6 +2663,7 @@ auto main(int argc, char** argv) -> int
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_drawer_resize_emits_the_host_layout_path();
 	test_drawer_contents_use_incremental_model_signals();
+	test_file_rows_emit_only_semantic_user_selection();
 	test_the_conversations_drawer_hosts_the_threaded_conversation();
 	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
 	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();

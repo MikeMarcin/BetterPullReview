@@ -1077,6 +1077,15 @@ namespace bpr::adapters::git {
 			return core::git_tree_oid{ algorithm, aTree.Digest };
 		}
 
+		[[nodiscard]] auto core_blob(
+			const application::git_blob_id& aBlob) -> core::git_blob_oid
+		{
+			const auto algorithm = aBlob.Algorithm == application::git_hash_algorithm::sha1
+				? core::git_hash_algorithm::sha1
+				: core::git_hash_algorithm::sha256;
+			return core::git_blob_oid{ algorithm, aBlob.Digest };
+		}
+
 		[[nodiscard]] auto staging_ref(
 			const core::epoch_operation_id&             aOperation,
 			const application::git_private_ref_endpoint aEndpoint)
@@ -4211,6 +4220,119 @@ namespace bpr::adapters::git {
 					return std::unexpected{ application::git_cache_failure::object_mismatch };
 				}
 				return std::move(collector.Bytes);
+			}
+
+			[[nodiscard]] auto find_blob_at_path(
+				const application::git_cache_tree_entry_request& aRequest,
+				const std::stop_token                            aStop)
+				-> application::git_cache_result<
+					std::optional<core::git_blob_oid>> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				const auto expected = process_commit(aRequest.Commit);
+				const auto path     = aRequest.Path.generic_u8string();
+				if (!expected.has_value()
+					|| aRequest.Commit.algorithm() != State->Request.ObjectFormat
+					|| path.empty() || aRequest.Path.is_absolute()
+					|| path.size() > application::maximum_git_tree_entry_path_bytes
+					|| path.find(u8'\0') != decltype(path)::npos
+					|| std::ranges::any_of(
+						aRequest.Path,
+						[](const auto& aComponent) {
+							return aComponent == "." || aComponent == "..";
+						})) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				const auto inventory = State->validated_inventory(aStop, false);
+				if (!inventory.has_value()) {
+					return std::unexpected{ inventory.error() };
+				}
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{ application::git_cache_failure::invalid_repository };
+				}
+				const auto found = State->Process->find_blob_at_path(
+					application::git_tree_entry_request{
+						.Repository = State->Repository,
+						.Commit     = *expected,
+						.Path       = aRequest.Path,
+					},
+					aStop);
+				if (!State->active_boundary_still_owned()) {
+					if (!found.has_value()
+						&& found.error() == application::git_process_failure::reap_failure) {
+						static_cast<void>(State->process_failure(found.error()));
+					}
+					return std::unexpected{ application::git_cache_failure::repair_required };
+				}
+				if (!found.has_value()) {
+					return std::unexpected{ State->process_failure(found.error()) };
+				}
+				return found->has_value()
+					? std::optional{ core_blob(**found) }
+					: std::optional<core::git_blob_oid>{ };
+			}
+
+			[[nodiscard]] auto find_rename_pairs(
+				const application::git_cache_rename_pair_request& aRequest,
+				const std::stop_token                             aStop)
+				-> application::git_cache_result<
+					application::git_rename_pair_observation> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				const auto left      = process_commit(aRequest.Left);
+				const auto right     = process_commit(aRequest.Right);
+				const auto validPath = [](const std::filesystem::path& aPath) {
+					const auto path = aPath.generic_u8string();
+					return !path.empty() && !aPath.is_absolute()
+						&& path.size() <= application::maximum_git_tree_entry_path_bytes
+						&& path.find(u8'\0') == decltype(path)::npos
+						&& std::ranges::none_of(
+							aPath,
+							[](const auto& aComponent) {
+								return aComponent == "." || aComponent == "..";
+							});
+				};
+				if (!left.has_value() || !right.has_value()
+					|| aRequest.Left.algorithm() != State->Request.ObjectFormat
+					|| aRequest.Right.algorithm() != State->Request.ObjectFormat
+					|| !validPath(aRequest.CurrentPath)
+					|| (aRequest.PreviousPath.has_value()
+						&& !validPath(*aRequest.PreviousPath))) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				const auto inventory = State->validated_inventory(aStop, false);
+				if (!inventory.has_value()) {
+					return std::unexpected{ inventory.error() };
+				}
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{ application::git_cache_failure::invalid_repository };
+				}
+				const auto found = State->Process->find_rename_pairs(
+					application::git_rename_pair_request{
+						.Repository   = State->Repository,
+						.Left         = *left,
+						.Right        = *right,
+						.CurrentPath  = aRequest.CurrentPath,
+						.PreviousPath = aRequest.PreviousPath,
+					},
+					aStop);
+				if (!State->active_boundary_still_owned()) {
+					if (!found.has_value()
+						&& found.error() == application::git_process_failure::reap_failure) {
+						static_cast<void>(State->process_failure(found.error()));
+					}
+					return std::unexpected{ application::git_cache_failure::repair_required };
+				}
+				if (!found.has_value()) {
+					return std::unexpected{ State->process_failure(found.error()) };
+				}
+				return *found;
 			}
 
 			[[nodiscard]] auto prune_retained(

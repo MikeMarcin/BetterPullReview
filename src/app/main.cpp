@@ -2297,6 +2297,15 @@ namespace {
 				<< (evidence.ProjectionDelivery
 						? "WORKBENCH_PROJECTION_WIRE_OK\n"
 						: "WORKBENCH_PROJECTION_WIRE_FAILED\n")
+				<< (evidence.FileGesture
+						? "WORKBENCH_FILE_GESTURE_OK\n"
+						: "WORKBENCH_FILE_GESTURE_FAILED\n")
+				<< (evidence.SelectedDiffRequest
+						? "WORKBENCH_SELECTED_DIFF_REQUEST_OK\n"
+						: "WORKBENCH_SELECTED_DIFF_REQUEST_FAILED\n")
+				<< (evidence.ExactComparison
+						? "WORKBENCH_EXACT_COMPARISON_OK\n"
+						: "WORKBENCH_EXACT_COMPARISON_FAILED\n")
 				<< (evidence.ChangeDispatch
 						? "WORKBENCH_CHANGE_WIRE_OK\n"
 						: "WORKBENCH_CHANGE_WIRE_FAILED\n")
@@ -2315,6 +2324,9 @@ namespace {
 				<< (evidence.FailureDelivery
 						? "WORKBENCH_FAILURE_WIRE_OK\n"
 						: "WORKBENCH_FAILURE_WIRE_FAILED\n")
+				<< (evidence.FixtureDiffHelperUnused
+						? "WORKBENCH_FIXTURE_DIFF_HELPER_UNUSED_OK\n"
+						: "WORKBENCH_FIXTURE_DIFF_HELPER_UNUSED_FAILED\n")
 				<< (aRun.WorkbenchCompositionPassed
 						? "WORKBENCH_COMPOSITION_TRACE_OK\n"
 						: "WORKBENCH_COMPOSITION_TRACE_FAILED\n");
@@ -3714,6 +3726,10 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--diff-workbench-shutdown-probe");
 		const auto workbenchCompositionProbe = has_argument(
 			argc, argv, "--workbench-composition-probe");
+		const auto workbenchCompositionCutSelectionWire = has_argument(
+			argc, argv, "--workbench-composition-cut-selection-wire");
+		fixtureOptions.DisableWorkbenchSelectionWire
+			= workbenchCompositionCutSelectionWire;
 		const auto appearanceGestureProbe = has_argument(
 			argc, argv, "--appearance-gesture-probe");
 		const auto appearanceThemeCustomizationPath = argument_value(
@@ -3818,19 +3834,21 @@ auto main(int argc, char** argv) -> int
 				<< "DIFF_WORKBENCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
-		if (workbenchCompositionProbe
-			&& (!selectedFixture.has_value()
-				|| *selectedFixture
-					!= bpr::app::detail::
-						github_public_path_fixture::github_com
-				|| !epochFixtureRoot.has_value()
-				|| fixtureOptions.EpochPhase
-					!= bpr::app::detail::github_epoch_fixture_phase::single
-				|| diffWorkbenchProbe || diffWorkbenchShutdownProbe
-				|| nativeAppearanceProbe || appearanceGestureProbe
-				|| appearanceThemeCustomizationPath.has_value()
-				|| epochMaintenanceProbe.has_value()
-				|| automatedStallProbe)) {
+		if ((workbenchCompositionProbe
+			 && (!selectedFixture.has_value()
+				 || *selectedFixture
+					 != bpr::app::detail::
+						 github_public_path_fixture::github_com
+				 || !epochFixtureRoot.has_value()
+				 || fixtureOptions.EpochPhase
+					 != bpr::app::detail::github_epoch_fixture_phase::single
+				 || diffWorkbenchProbe || diffWorkbenchShutdownProbe
+				 || nativeAppearanceProbe || appearanceGestureProbe
+				 || appearanceThemeCustomizationPath.has_value()
+				 || epochMaintenanceProbe.has_value()
+				 || automatedStallProbe))
+			|| (workbenchCompositionCutSelectionWire
+				&& !workbenchCompositionProbe)) {
 			QTextStream{ stdout }
 				<< "WORKBENCH_COMPOSITION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;

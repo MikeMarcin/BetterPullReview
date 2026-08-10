@@ -8,7 +8,7 @@
           "totalCount": 1,
           "nodes": [
             {
-              "path": "src/core/review_snapshot.cpp",
+              "path": "review.cpp",
               "viewerViewedState": "VIEWED"
             }
           ],
@@ -27,7 +27,7 @@
               "viewerCanResolve": true,
               "viewerCanUnresolve": false,
               "subjectType": "LINE",
-              "path": "src/core/review_snapshot.cpp",
+              "path": "review.cpp",
               "line": 42,
               "originalLine": 42,
               "comments": {
@@ -36,7 +36,7 @@
                   {
                     "id": "PRRC_fixture_1",
                     "bodyText": "Please preserve snapshot identity across refreshes.",
-                    "path": "src/core/review_snapshot.cpp",
+                    "path": "review.cpp",
                     "line": 42,
                     "originalLine": 42,
                     "outdated": false,

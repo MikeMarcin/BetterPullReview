@@ -1085,6 +1085,40 @@ namespace bpr::adapters::git {
 				std::span{ aObject.Digest }.first(byteCount));
 		}
 
+		[[nodiscard]] auto valid_tree_entry_path(
+			const std::filesystem::path& aPath) noexcept -> bool
+		{
+			const auto text = aPath.generic_u8string();
+			return !text.empty() && !aPath.is_absolute()
+				&& text.size() <= application::maximum_git_tree_entry_path_bytes
+				&& text.front() != u8'/'
+				&& text.find(u8'\0') == decltype(text)::npos
+				&& std::ranges::none_of(
+					aPath,
+					[](const auto& aComponent) {
+						return aComponent == "." || aComponent == "..";
+					});
+		}
+
+		[[nodiscard]] auto tree_entry_path_text(
+			const std::filesystem::path& aPath) -> std::string
+		{
+			const auto text = aPath.generic_u8string();
+			return {
+				reinterpret_cast<const char*>(text.data()),
+				text.size()
+			};
+		}
+
+		[[nodiscard]] auto tree_entry_path(
+			const std::string_view aText) -> std::filesystem::path
+		{
+			const auto* const begin = reinterpret_cast<const char8_t*>(aText.data());
+			return std::filesystem::path{
+				std::u8string{ begin, begin + aText.size() }
+			};
+		}
+
 		[[nodiscard]] auto validate_installed_pack(
 			const std::filesystem::path& aRepository,
 			const git_pack_id&           aPack,
@@ -2616,6 +2650,182 @@ namespace bpr::adapters::git {
 					aRequest.Blob,
 					std::as_bytes(std::span{ content->StandardOutput }));
 				return { };
+			}
+
+			[[nodiscard]] auto find_blob_at_path(
+				const application::git_tree_entry_request& aRequest,
+				const std::stop_token                      aStop)
+				-> git_process_result<std::optional<application::git_blob_id>> override
+			{
+				if (!application::valid(aRequest.Commit)
+					|| !valid_tree_entry_path(aRequest.Path)) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+				if (!valid_repository(aRequest.Repository, aRequest.Commit.Algorithm)) {
+					return std::unexpected{ git_process_failure::invalid_repository };
+				}
+
+				const auto requestedPath = tree_entry_path_text(aRequest.Path);
+				auto       arguments     = common_git_arguments(aRequest.Repository, HooksRoot);
+				append_arguments(
+					arguments,
+					"ls-tree",
+					"-z",
+					"--full-tree",
+					object_text(aRequest.Commit),
+					"--",
+					":(literal)" + requestedPath);
+				const auto listed = submit(
+					process_request{
+						.Arguments = std::move(arguments),
+						.StandardOutputLimit
+						= application::maximum_git_tree_entry_path_bytes + 128U,
+					},
+					aStop);
+				if (!listed.has_value()) {
+					return std::unexpected{ listed.error() };
+				}
+				if (listed->StandardOutput.empty()) {
+					return std::optional<application::git_blob_id>{ };
+				}
+				const auto output = std::string_view{ listed->StandardOutput };
+				if (output.back() != '\0'
+					|| output.find('\0') != output.size() - 1U) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				const auto record = output.substr(0U, output.size() - 1U);
+				const auto tab    = record.find('\t');
+				if (tab == std::string_view::npos
+					|| record.substr(tab + 1U) != requestedPath) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				const auto header     = record.substr(0U, tab);
+				const auto firstSpace = header.find(' ');
+				const auto lastSpace  = header.rfind(' ');
+				if (firstSpace == std::string_view::npos || firstSpace == lastSpace
+					|| (header.substr(0U, firstSpace) != "100644"
+						&& header.substr(0U, firstSpace) != "100755"
+						&& header.substr(0U, firstSpace) != "120000")
+					|| header.substr(firstSpace + 1U, lastSpace - firstSpace - 1U)
+						!= "blob") {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				const auto blob = parse_object<application::git_blob_id>(
+					header.substr(lastSpace + 1U),
+					aRequest.Commit.Algorithm);
+				if (!blob.has_value()) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				return blob;
+			}
+
+			[[nodiscard]] auto find_rename_pairs(
+				const application::git_rename_pair_request& aRequest,
+				const std::stop_token                       aStop)
+				-> git_process_result<application::git_rename_pair_observation> override
+			{
+				const auto algorithm = aRequest.Left.Algorithm;
+				if (!application::valid(aRequest.Left)
+					|| !application::valid(aRequest.Right)
+					|| aRequest.Right.Algorithm != algorithm
+					|| !valid_tree_entry_path(aRequest.CurrentPath)
+					|| (aRequest.PreviousPath.has_value()
+						&& !valid_tree_entry_path(*aRequest.PreviousPath))) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+				if (!valid_repository(aRequest.Repository, algorithm)) {
+					return std::unexpected{ git_process_failure::invalid_repository };
+				}
+
+				const auto currentPath  = tree_entry_path_text(aRequest.CurrentPath);
+				const auto previousPath = aRequest.PreviousPath.has_value()
+					? std::optional{ tree_entry_path_text(*aRequest.PreviousPath) }
+					: std::nullopt;
+				auto       arguments    = common_git_arguments(aRequest.Repository, HooksRoot);
+				append_arguments(
+					arguments,
+					"diff-tree",
+					"-r",
+					"-z",
+					"--no-commit-id",
+					"--name-status",
+					"--diff-filter=R",
+					"--find-renames=50%",
+					object_text(aRequest.Left),
+					object_text(aRequest.Right));
+				constexpr auto recordLimit
+					= application::maximum_git_tree_entry_path_bytes * 2U + 8U;
+				const auto renamed = submit(
+					process_request{
+						.Arguments = std::move(arguments),
+						.StandardOutputLimit
+						= application::maximum_git_rename_scan_records * recordLimit,
+					},
+					aStop);
+				if (!renamed.has_value()) {
+					return std::unexpected{ renamed.error() };
+				}
+
+				auto       observation = application::git_rename_pair_observation{ };
+				const auto output      = std::string_view{ renamed->StandardOutput };
+				auto       offset      = std::size_t{ 0U };
+				auto       scanned     = std::size_t{ 0U };
+				const auto field       = [&]() -> std::optional<std::string_view> {
+					const auto end = output.find('\0', offset);
+					if (end == std::string_view::npos) {
+						return std::nullopt;
+					}
+					const auto result = output.substr(offset, end - offset);
+					offset            = end + 1U;
+					return result;
+				};
+				while (offset < output.size()) {
+					const auto status = field();
+					const auto left   = field();
+					const auto right  = field();
+					if (!status.has_value() || !left.has_value() || !right.has_value()) {
+						return std::unexpected{ git_process_failure::malformed_output };
+					}
+					++scanned;
+					if (scanned > application::maximum_git_rename_scan_records) {
+						return std::unexpected{ git_process_failure::standard_output_limit };
+					}
+					if (status->size() != 4U || status->front() != 'R' || left->empty()
+						|| right->empty() || *left == *right) {
+						return std::unexpected{ git_process_failure::malformed_output };
+					}
+					const auto score = status->substr(1U);
+					if (!std::ranges::all_of(score, [](const char aValue) {
+							return aValue >= '0' && aValue <= '9';
+						})
+						|| score < "050" || score > "100") {
+						return std::unexpected{ git_process_failure::malformed_output };
+					}
+					const auto leftPath  = tree_entry_path(*left);
+					const auto rightPath = tree_entry_path(*right);
+					const auto bound     = *left == currentPath || *right == currentPath
+						|| (previousPath.has_value()
+							&& (*left == *previousPath || *right == *previousPath));
+					if (!valid_tree_entry_path(leftPath)
+						|| !valid_tree_entry_path(rightPath)) {
+						return std::unexpected{ git_process_failure::malformed_output };
+					}
+					if (!bound) {
+						continue;
+					}
+					if (observation.Count
+						>= application::maximum_git_rename_pair_records) {
+						return std::unexpected{ git_process_failure::standard_output_limit };
+					}
+					observation.Records[observation.Count++] = {
+						.LeftPath  = leftPath,
+						.RightPath = rightPath,
+					};
+				}
+				if (offset != output.size()) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				return observation;
 			}
 
 			[[nodiscard]] auto is_ancestor(

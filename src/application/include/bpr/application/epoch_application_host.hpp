@@ -8,6 +8,7 @@
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/epoch_transition.hpp"
 
 #include <cstddef>
@@ -17,7 +18,8 @@ namespace bpr::application {
 	/// \brief Provides the epoch application host contract.
 	class epoch_application_host final
 		: public github_epoch_handoff_port,
-		  public diff_blob_port
+		  public diff_blob_port,
+		  public workbench_selected_diff_port
 	{
 	public:
 		// Semantic ingress and state/quiescence inspection are confined to the
@@ -61,6 +63,13 @@ namespace bpr::application {
 		[[nodiscard]] auto materialize(
 			const diff_blob_request& aRequest,
 			std::stop_token          aStop) -> diff_blob_observation override;
+		[[nodiscard]] auto context(
+			const workbench_pull_request_authority& aAuthority) const
+			-> std::optional<workbench_selected_diff_context> override;
+		[[nodiscard]] auto resolve(
+			const workbench_selected_diff_request& aRequest,
+			std::stop_token                        aStop)
+			-> workbench_selected_diff_observation override;
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::epoch_state&;

@@ -14,6 +14,7 @@
 #include <QAction>
 #include <QComboBox>
 #include <QFontMetrics>
+#include <QItemSelectionModel>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -138,6 +139,21 @@ namespace bpr::qt {
 					"retains.");
 			case application::workbench_host_failure::settings_unavailable:
 				return QStringLiteral("The saved workbench layout is unavailable.");
+			case application::workbench_host_failure::selected_file_binary:
+				return QStringLiteral("The selected file is binary.");
+			case application::workbench_host_failure::selected_file_missing_left:
+				return QStringLiteral("The selected file is missing from the left revision.");
+			case application::workbench_host_failure::selected_file_missing_right:
+				return QStringLiteral("The selected file is missing from the right revision.");
+			case application::workbench_host_failure::selected_file_missing_both:
+				return QStringLiteral("The selected file is absent from both revisions.");
+			case application::workbench_host_failure::selected_file_ambiguous:
+				return QStringLiteral(
+					"The selected rename matches both paths in one revision.");
+			case application::workbench_host_failure::selected_file_cancelled:
+				return QStringLiteral("Loading the selected file was cancelled.");
+			case application::workbench_host_failure::selected_file_stale:
+				return QStringLiteral("The selected file changed before it could be loaded.");
 			case application::workbench_host_failure::host_failure:
 				return QStringLiteral("The workbench could not be updated.");
 			}
@@ -448,6 +464,13 @@ namespace bpr::qt {
 					observe_drawer_width(aDrawer, aWidth);
 				});
 		}
+		connect(
+			Drawers[0].Panel->contents_view()->selectionModel(),
+			&QItemSelectionModel::currentChanged,
+			this,
+			[this](const QModelIndex& aCurrent) {
+				dispatch_file_selection(aCurrent);
+			});
 	}
 
 	void workbench_window::build_github_header()
@@ -625,8 +648,12 @@ namespace bpr::qt {
 			HasCommands = true;
 			++Statistics.CommandUpdates;
 		}
+		if (aProjection.Files) {
+			apply_file_rows(*aProjection.Files);
+		}
 		if (aProjection.Selection) {
 			Cursor = aProjection.Selection->Cursor;
+			apply_file_selection();
 		}
 		if (aProjection.Drawers) {
 			DrawerStates = *aProjection.Drawers;
@@ -644,6 +671,60 @@ namespace bpr::qt {
 		update_action_state();
 		update_status_text();
 		announce_update();
+	}
+
+	void workbench_window::apply_file_rows(
+		const std::vector<application::workbench_file_projection>& aFiles)
+	{
+		auto rows = std::vector<workbench_drawer_row>{ };
+		rows.reserve(aFiles.size());
+		for (const auto& file : aFiles) {
+			auto identity = QString{ };
+			identity.reserve(
+				static_cast<qsizetype>(file.File.bytes().size()) * qsizetype{ 2 });
+			for (const auto byte : file.File.bytes()) {
+				identity.append(QString::number(byte, 16).rightJustified(2, QLatin1Char{ '0' }));
+			}
+			const auto path = QString::fromUtf8(file.Path.data(), static_cast<qsizetype>(file.Path.size()));
+			rows.push_back(workbench_drawer_row{
+				.Identity = std::move(identity),
+				.Title    = path,
+				.Detail   = path,
+				.File     = file.File,
+			});
+		}
+		ApplyingFileSelection = true;
+		Drawers[0].Panel->contents()->apply(rows);
+		ApplyingFileSelection = false;
+		++Statistics.FileRowUpdates;
+		apply_file_selection();
+	}
+
+	void workbench_window::apply_file_selection()
+	{
+		if (Drawers[0].Panel->contents() == nullptr
+			|| Drawers[0].Panel->contents_view() == nullptr) {
+			return;
+		}
+		const auto index      = Cursor && Cursor->File
+			? Drawers[0].Panel->contents()->index_for_file(*Cursor->File)
+			: QModelIndex{ };
+		ApplyingFileSelection = true;
+		Drawers[0].Panel->contents_view()->setCurrentIndex(index);
+		ApplyingFileSelection = false;
+	}
+
+	void workbench_window::dispatch_file_selection(const QModelIndex& aIndex)
+	{
+		if (ApplyingFileSelection || !Dispatch || Drawers[0].Panel->contents() == nullptr) {
+			return;
+		}
+		const auto file = Drawers[0].Panel->contents()->file_at(aIndex);
+		if (!file.has_value()) {
+			return;
+		}
+		++Statistics.FileSelections;
+		Dispatch(core::select_workbench_file_intent{ .File = *file });
 	}
 
 	void workbench_window::publish(

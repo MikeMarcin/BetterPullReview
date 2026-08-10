@@ -297,7 +297,7 @@ namespace {
 			},
 			.Files = {
 				{
-					.Path         = "src/core/review_snapshot.cpp",
+					.Path         = "review.cpp",
 					.PreviousPath = std::nullopt,
 					.Change       = application::github_file_change::modified,
 					.Additions    = 12,
@@ -336,7 +336,7 @@ namespace {
 				{
 					.Thread                    = application::github_thread_id{ "PRRT_fixture_1" },
 					.Subject                   = application::github_review_thread_subject::line,
-					.Path                      = "src/core/review_snapshot.cpp",
+					.Path                      = "review.cpp",
 					.Line                      = 42,
 					.Resolved                  = false,
 					.Outdated                  = false,
@@ -352,7 +352,7 @@ namespace {
 							},
 							.Body     = "Please preserve snapshot identity "
 										"across refreshes.",
-							.Path     = "src/core/review_snapshot.cpp",
+							.Path     = "review.cpp",
 							.Line     = 42,
 							.Outdated = false,
 							.Deleted  = false,
@@ -1100,7 +1100,7 @@ namespace {
 			responses[6].Response.Body,
 			"\"bodyText\": \"Please preserve snapshot identity across "
 			"refreshes.\",\n"
-			"                    \"path\": \"src/core/review_snapshot.cpp\"",
+			"                    \"path\": \"review.cpp\"",
 			"\"bodyText\": \"Please preserve snapshot identity across "
 			"refreshes.\",\n"
 			"                    \"path\": \"src/core/other.cpp\"");
@@ -1112,7 +1112,7 @@ namespace {
 		responses = recording.Responses;
 		replace_once(
 			responses[6].Response.Body,
-			"\"path\": \"src/core/review_snapshot.cpp\",\n"
+			"\"path\": \"review.cpp\",\n"
 			"              \"viewerViewedState\": \"VIEWED\"",
 			"\"path\": \"src/core/other.cpp\",\n"
 			"              \"viewerViewedState\": \"VIEWED\"");

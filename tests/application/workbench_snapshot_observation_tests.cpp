@@ -70,8 +70,10 @@ namespace {
 	[[nodiscard]] auto file(const std::string_view aPath)
 		-> application::github_file_record
 	{
-		auto record = application::github_file_record{ };
-		record.Path = std::string{ aPath };
+		auto record        = application::github_file_record{ };
+		record.Path        = std::string{ aPath };
+		record.Change      = application::github_file_change::modified;
+		record.ContentKind = application::github_file_content_kind::text;
 		return record;
 	}
 
@@ -126,7 +128,7 @@ namespace {
 			// Compared against the core's own derivation rather than a value
 			// restated here, so the adapter cannot drift from the single
 			// function RFC-BPR-0007's receipts are keyed by.
-			expect(answered.Actionable[index]
+			expect(answered.Actionable[index].File
 					   == core::file_identity_of(paths[index]),
 				   "each entry is the core's identity for its path");
 		}
@@ -148,8 +150,8 @@ namespace {
 		// make navigation revisit it.
 		expect(answered.Actionable.size() == 2U,
 			   "a snapshot repeating a path yields one entry for it");
-		expect(answered.Actionable[0] == core::file_identity_of("a.cpp")
-				   && answered.Actionable[1] == core::file_identity_of("b.cpp"),
+		expect(answered.Actionable[0].File == core::file_identity_of("a.cpp")
+				   && answered.Actionable[1].File == core::file_identity_of("b.cpp"),
 			   "and the first occurrence keeps its position");
 	}
 

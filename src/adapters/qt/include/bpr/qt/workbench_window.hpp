@@ -62,6 +62,8 @@ namespace bpr::qt {
 		std::uint64_t ToolbarModeChanges = 0U;
 		std::uint64_t Announcements      = 0U;
 		std::uint64_t DrawerUpdates      = 0U;
+		std::uint64_t FileRowUpdates     = 0U;
+		std::uint64_t FileSelections     = 0U;
 		std::uint64_t LayoutUpdates      = 0U;
 		std::uint64_t EpochUpdates       = 0U;
 		std::uint64_t FocusOrderUpdates  = 0U;
@@ -331,6 +333,10 @@ namespace bpr::qt {
 			core::workbench_drawer_state aState);
 		void update_status_text();
 		void announce_update();
+		void apply_file_rows(
+			const std::vector<application::workbench_file_projection>& aFiles);
+		void apply_file_selection();
+		void dispatch_file_selection(const QModelIndex& aIndex);
 
 		[[nodiscard]] auto command(core::workbench_command_id aId) const
 			-> std::optional<core::workbench_command_projection>;
@@ -376,10 +382,11 @@ namespace bpr::qt {
 		std::optional<application::workbench_layout_delta> LayoutWidths;
 		std::optional<core::workbench_navigation_cursor>   Cursor;
 		std::optional<application::workbench_host_failure> Failure;
-		workbench_toolbar_mode                             Mode              = workbench_toolbar_mode::expanded;
-		bool                                               HasCommands       = false;
-		bool                                               ToolbarConfigured = false;
-		bool                                               ApplyingLayout    = false;
+		workbench_toolbar_mode                             Mode                  = workbench_toolbar_mode::expanded;
+		bool                                               HasCommands           = false;
+		bool                                               ToolbarConfigured     = false;
+		bool                                               ApplyingLayout        = false;
+		bool                                               ApplyingFileSelection = false;
 		// Set by the first published review-history update. Before one arrives
 		// the shell has no review-history state to state, and quoting the
 		// control's idle wording would report activity that never happened.

@@ -192,6 +192,33 @@ lifetime-exclusive session. It does not open or switch a session for diff
 work. A stale same-repository PR request consequently fails without disturbing
 the live epoch/cache authority.
 
+The public workbench supplies no blob guesses. Its bounded file rows retain an
+opaque semantic file identity plus provider-free current path, optional
+previous path, and change kind. Selection asks the epoch host to resolve the
+current path independently at both exact selected commits through the retained
+cache actor. A rename checks both exact path candidates at each endpoint and
+refuses an endpoint where both exist; a copy still resolves only the current
+path. If a rename candidate does not bind uniquely, the same retained session
+runs one bounded NUL-delimited selected-pair rename query. The raw scan and the
+retained candidate set have separate fixed caps, so unrelated renames do not
+consume the smaller causal-candidate budget. Exactly one retained record must
+match the accepted current/previous lineage and every already-bound endpoint;
+this recovers intermediate names such as `a -> b -> c` without following
+history or guessing. Multiple, malformed, or unbound candidate records fail
+closed. Installed Git uses one literal, NUL-delimited `ls-tree` lookup, accepts
+only regular, executable, or symlink blob entries, and returns absence as a
+typed optional. One absent selected endpoint remains a valid diff input. Only
+after the workbench authority, comparison, file facts, generation, normalized
+options, digest, and algorithm still match does the host form
+`file_comparison_key` and send it through the existing diff host.
+
+The workbench replays its retained semantic selection after an accepted epoch
+comparison becomes available or changes, so an early selection and a reverse
+pair need no second Qt gesture. A changed workbench authority/generation first
+retires selected work and publishes empty rows and cursor state; a failed
+replacement observation cannot leave an old row selectable under new
+authority.
+
 The cache session validates its exact repository ownership before and after
 calling installed Git. Installed Git first checks object identity, type, and
 declared size with `cat-file --batch-check`; only a valid blob within the 16 MiB

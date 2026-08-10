@@ -124,6 +124,64 @@ namespace bpr::application {
 			};
 		}
 
+		[[nodiscard]] auto actor_key(
+			const workbench_selected_diff_request& aRequest) noexcept
+			-> std::optional<cache_actor_key>
+		{
+			const auto algorithm = aRequest.Diff.Comparison.Left.Commit.algorithm();
+			if (!application::valid(aRequest.WorkbenchAuthority)
+				|| !application::valid(aRequest.File)
+				|| aRequest.Context.Request.value() == 0U
+				|| aRequest.Context.Session.value() == 0U
+				|| aRequest.Context.Generation.value() == 0U
+				|| !core::valid(aRequest.Diff.Authority)
+				|| !core::valid(aRequest.Diff.Comparison.Left)
+				|| !core::valid(aRequest.Diff.Comparison.Right)
+				|| !core::valid(aRequest.Diff.ComparisonRevision)
+				|| aRequest.Diff.ApplicationSession != aRequest.Context.Session
+				|| aRequest.WorkbenchAuthority.ApplicationSession
+					!= aRequest.Diff.ApplicationSession
+				|| aRequest.WorkbenchAuthority.Profile
+					!= aRequest.Diff.Authority.Profile
+				|| aRequest.WorkbenchAuthority.ProfileRevision
+					!= aRequest.Diff.Authority.ProfileRevision
+				|| aRequest.WorkbenchAuthority.Host != aRequest.Diff.Authority.Host
+				|| aRequest.WorkbenchAuthority.HostAuthority
+					!= aRequest.Diff.Authority.HostAuthority
+				|| aRequest.WorkbenchAuthority.Account
+					!= aRequest.Diff.Authority.Account
+				|| aRequest.WorkbenchAuthority.Viewer
+					!= aRequest.Diff.Authority.Viewer
+				|| aRequest.WorkbenchAuthority.Repository
+					!= aRequest.Diff.Authority.Repository
+				|| aRequest.WorkbenchAuthority.PullRequest
+					!= aRequest.Diff.Authority.PullRequest
+				|| aRequest.WorkbenchAuthority.Number
+					!= aRequest.Diff.Authority.Number
+				|| aRequest.Diff.Comparison.Right.Commit.algorithm() != algorithm
+				|| core::normalize_diff_options(aRequest.Diff.Options)
+					!= std::optional{ aRequest.Diff.Options }
+				|| core::options_digest(aRequest.Diff.Options)
+					!= std::optional{ aRequest.Diff.OptionsDigest }
+				|| aRequest.Diff.Algorithm
+					!= core::supported_diff_algorithm_revision
+				|| (algorithm != core::git_hash_algorithm::sha1
+					&& algorithm != core::git_hash_algorithm::sha256)) {
+				return std::nullopt;
+			}
+			const auto& authority = aRequest.Diff.Authority;
+			return cache_actor_key{
+				.ApplicationSession = aRequest.Diff.ApplicationSession,
+				.Profile            = authority.Profile,
+				.ProfileRevision    = authority.ProfileRevision,
+				.Host               = authority.Host,
+				.HostAuthority      = authority.HostAuthority,
+				.Account            = authority.Account,
+				.Repository         = authority.Repository,
+				.ObjectFormat       = algorithm,
+			};
+		}
+
 		template <typename Identity>
 		[[nodiscard]] auto mint_identity(epoch_entropy_port& aEntropy)
 			-> std::optional<Identity>
@@ -638,19 +696,28 @@ namespace bpr::application {
 			auto operator<=>(const blob_authority&) const = default;
 		};
 
+		struct selected_diff_authority final
+		{
+			workbench_pull_request_authority Workbench;
+			workbench_selected_diff_context  Diff;
+
+			auto operator<=>(const selected_diff_authority&) const = default;
+		};
+
 		// One cache-scoped storage actor is retained across revision and pull
 		// request context replacement. Its FIFO serializes catalog/cache effects
 		// that share the lifetime-exclusive cache session, while each context
 		// remains independently discardable.
 		struct authority_effect_actor final
 		{
-			std::mutex                         QueueMutex;
-			std::deque<std::function<void()>>  Queue;
-			bool                               Scheduled = false;
-			std::unique_ptr<git_cache_session> Cache;
-			std::mutex                         BlobAuthorityMutex;
-			std::optional<blob_authority>      BlobAuthority;
-			std::uint64_t                      BlobAuthorityGeneration = 0U;
+			std::mutex                             QueueMutex;
+			std::deque<std::function<void()>>      Queue;
+			bool                                   Scheduled = false;
+			std::unique_ptr<git_cache_session>     Cache;
+			std::mutex                             BlobAuthorityMutex;
+			std::optional<blob_authority>          BlobAuthority;
+			std::optional<selected_diff_authority> SelectedDiffAuthority;
+			std::uint64_t                          BlobAuthorityGeneration = 0U;
 		};
 
 		struct blob_waiter final
@@ -658,6 +725,13 @@ namespace bpr::application {
 			std::mutex                           Mutex;
 			std::condition_variable              Completed;
 			std::optional<diff_blob_observation> Result;
+		};
+
+		struct selected_diff_waiter final
+		{
+			std::mutex                                         Mutex;
+			std::condition_variable                            Completed;
+			std::optional<workbench_selected_diff_observation> Result;
 		};
 
 		struct authority_context final
@@ -814,6 +888,16 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] static auto blob_authority_for(
+			const workbench_selected_diff_request& aRequest) noexcept
+			-> blob_authority
+		{
+			return {
+				.ApplicationSession = aRequest.Diff.ApplicationSession,
+				.Authority          = aRequest.Diff.Authority,
+			};
+		}
+
+		[[nodiscard]] static auto blob_authority_for(
 			const diff_blob_request& aRequest) noexcept -> blob_authority
 		{
 			return {
@@ -829,6 +913,19 @@ namespace bpr::application {
 			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
 			++aActor->BlobAuthorityGeneration;
 			aActor->BlobAuthority = aAuthority;
+			aActor->SelectedDiffAuthority.reset();
+		}
+
+		static void authorize_selected_diff(
+			const std::shared_ptr<authority_effect_actor>& aActor,
+			const selected_diff_authority&                 aAuthority) noexcept
+		{
+			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+			if (aActor->SelectedDiffAuthority == std::optional{ aAuthority }) {
+				return;
+			}
+			++aActor->BlobAuthorityGeneration;
+			aActor->SelectedDiffAuthority = aAuthority;
 		}
 
 		static void revoke_blob_authority(
@@ -838,8 +935,25 @@ namespace bpr::application {
 			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
 			if (aActor->BlobAuthority == std::optional{ aAuthority }) {
 				aActor->BlobAuthority.reset();
+				aActor->SelectedDiffAuthority.reset();
 				++aActor->BlobAuthorityGeneration;
 			}
+		}
+
+		[[nodiscard]] static auto selected_diff_authorization_generation(
+			const std::shared_ptr<authority_effect_actor>& aActor,
+			const workbench_selected_diff_request&         aRequest) noexcept
+			-> std::optional<std::uint64_t>
+		{
+			const auto expected = selected_diff_authority{
+				.Workbench = aRequest.WorkbenchAuthority,
+				.Diff      = aRequest.Diff,
+			};
+			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+			if (aActor->SelectedDiffAuthority != std::optional{ expected }) {
+				return std::nullopt;
+			}
+			return aActor->BlobAuthorityGeneration;
 		}
 
 		[[nodiscard]] static auto blob_authorization_generation(
@@ -2710,6 +2824,383 @@ namespace bpr::application {
 			auto actor = std::make_shared<authority_effect_actor>();
 			CacheActors.emplace_back(key, actor);
 			return actor;
+		}
+
+		[[nodiscard]] auto selected_diff_context(
+			const workbench_pull_request_authority& aAuthority) const
+			-> std::optional<workbench_selected_diff_context>
+		{
+			if (!application::valid(aAuthority)
+				|| !State.Authority.has_value()
+				|| !State.AcceptedRevision.has_value()
+				|| !State.AcceptedComparison.has_value()
+				|| !core::valid(State.AcceptedComparisonRevision)) {
+				return std::nullopt;
+			}
+			const auto& authority = *State.Authority;
+			const auto& revision  = *State.AcceptedRevision;
+			if (aAuthority.ApplicationSession != State.ApplicationSession
+				|| aAuthority.Profile != authority.Profile
+				|| aAuthority.ProfileRevision != authority.ProfileRevision
+				|| aAuthority.Host != authority.Host
+				|| aAuthority.HostAuthority != authority.HostAuthority
+				|| aAuthority.Account != authority.Account
+				|| aAuthority.Viewer != authority.Viewer
+				|| aAuthority.Repository != authority.Repository
+				|| aAuthority.PullRequest != authority.PullRequest
+				|| aAuthority.Number != authority.Number
+				|| aAuthority.Snapshot != revision.Source.Snapshot
+				|| aAuthority.IdentityGeneration
+					!= revision.Source.IdentityGeneration
+				|| aAuthority.PullRequestGeneration
+					!= revision.Source.PullRequestGeneration) {
+				return std::nullopt;
+			}
+			const auto options = core::normalize_diff_options(core::diff_options{ });
+			if (!options.has_value()) {
+				return std::nullopt;
+			}
+			const auto digest = core::options_digest(*options);
+			if (!digest.has_value()) {
+				return std::nullopt;
+			}
+			auto context = workbench_selected_diff_context{
+				.ApplicationSession = State.ApplicationSession,
+				.Authority          = authority,
+				.Comparison         = *State.AcceptedComparison,
+				.ComparisonRevision = State.AcceptedComparisonRevision,
+				.Options            = *options,
+				.OptionsDigest      = *digest,
+				.Algorithm          = core::supported_diff_algorithm_revision,
+			};
+			if (!Active || Active->Authority != authority
+				|| Active->Revision != revision) {
+				return std::nullopt;
+			}
+			authorize_selected_diff(
+				Active->Actor,
+				selected_diff_authority{
+					.Workbench = aAuthority,
+					.Diff      = context,
+				});
+			return context;
+		}
+
+		[[nodiscard]] auto resolve_selected_diff(
+			const workbench_selected_diff_request& aRequest,
+			const std::stop_token                  aStop)
+			-> workbench_selected_diff_observation
+		{
+			auto result = workbench_selected_diff_observation{
+				.Request = aRequest,
+				.Status  = workbench_selected_diff_status::failure,
+			};
+			if (aRequest.File.ContentKind == workbench_file_content_kind::binary) {
+				result.Status = workbench_selected_diff_status::binary;
+				return result;
+			}
+			if (!begin_blob_call()) {
+				return result;
+			}
+			struct selected_call_guard final
+			{
+				implementation& Host;
+
+				~selected_call_guard()
+				{
+					Host.finish_blob_call();
+				}
+			} call{ *this };
+			const auto key = actor_key(aRequest);
+			if (!key.has_value()) {
+				return result;
+			}
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(
+					CacheActors, *key, &decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			if (!actor) {
+				return result;
+			}
+			const auto authorizationGeneration
+				= selected_diff_authorization_generation(actor, aRequest);
+			if (!authorizationGeneration.has_value()) {
+				result.Status = workbench_selected_diff_status::stale;
+				return result;
+			}
+			auto waiter = std::shared_ptr<selected_diff_waiter>{ };
+			try {
+				waiter = std::make_shared<selected_diff_waiter>();
+			} catch (...) {
+				return result;
+			}
+			auto admitted = admit_job(
+				std::nullopt,
+				std::nullopt,
+				std::nullopt,
+				std::nullopt,
+				false);
+			if (!admitted.has_value()) {
+				return result;
+			}
+			auto       control  = std::move(*admitted);
+			const auto expected = git_cache_open_request{
+				.ApplicationSession = aRequest.Diff.ApplicationSession,
+				.Authority          = aRequest.Diff.Authority,
+				.ObjectFormat       = aRequest.Diff.Comparison.Left.Commit.algorithm(),
+			};
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 authorizationGeneration = *authorizationGeneration,
+					 expected,
+					 aRequest,
+					 aStop,
+					 waiter,
+					 control] {
+						auto observation = workbench_selected_diff_observation{
+							.Request = aRequest,
+							.Status  = workbench_selected_diff_status::failure,
+						};
+						auto publicationAuthorityLock = std::unique_lock<std::mutex>{ };
+						try {
+							auto forwardCallerStop = std::stop_callback{
+								aStop,
+								[control] {
+									static_cast<void>(control->Stop.request_stop());
+								}
+							};
+							const auto workStop = control->Stop.get_token();
+							if (workStop.stop_requested()
+								|| BlobIngressClosing.load(std::memory_order_acquire)) {
+								observation.Status = workbench_selected_diff_status::cancelled;
+							} else if (selected_diff_authorization_generation(actor, aRequest)
+									   != authorizationGeneration) {
+								observation.Status = workbench_selected_diff_status::stale;
+							} else if (actor->Cache != nullptr
+									   && actor->Cache->request() == expected) {
+								const auto lookup = [&](const std::filesystem::path& aPath,
+														const core::git_commit_oid   aCommit)
+									-> git_cache_result<std::optional<core::git_blob_oid>> {
+									return actor->Cache->find_blob_at_path(
+										git_cache_tree_entry_request{
+											.Commit = aCommit,
+											.Path   = aPath,
+										},
+										workStop);
+								};
+								struct endpoint_resolution final
+								{
+									std::optional<core::git_blob_oid>    Blob;
+									std::optional<std::filesystem::path> Path;
+									bool                                 Ambiguous = false;
+								};
+								const auto resolveEndpoint = [&](const core::git_commit_oid aCommit)
+									-> git_cache_result<endpoint_resolution> {
+									const auto current = lookup(aRequest.File.CurrentPath, aCommit);
+									if (!current.has_value()) {
+										return std::unexpected{ current.error() };
+									}
+									if (aRequest.File.Change
+										!= workbench_file_change_kind::renamed) {
+										return endpoint_resolution{
+											.Blob = *current,
+											.Path = current->has_value()
+												? std::optional{ aRequest.File.CurrentPath }
+												: std::nullopt,
+										};
+									}
+									const auto previous = lookup(*aRequest.File.PreviousPath, aCommit);
+									if (!previous.has_value()) {
+										return std::unexpected{ previous.error() };
+									}
+									if (current->has_value() && previous->has_value()) {
+										return endpoint_resolution{ .Ambiguous = true };
+									}
+									return endpoint_resolution{
+										.Blob = current->has_value() ? *current : *previous,
+										.Path = current->has_value()
+											? std::optional{ aRequest.File.CurrentPath }
+											: previous->has_value()
+											? aRequest.File.PreviousPath
+											: std::nullopt,
+									};
+								};
+								auto left = resolveEndpoint(
+									aRequest.Diff.Comparison.Left.Commit);
+								auto right          = left.has_value()
+									? resolveEndpoint(
+										  aRequest.Diff.Comparison.Right.Commit)
+									: git_cache_result<endpoint_resolution>{
+										  std::unexpected{ left.error() }
+									  };
+								auto endpointsReady = left.has_value() && right.has_value();
+								if (!endpointsReady) {
+									const auto failure = !left.has_value()
+										? left.error()
+										: right.error();
+									observation.Status = failure == git_cache_failure::cancelled
+										? workbench_selected_diff_status::cancelled
+										: workbench_selected_diff_status::failure;
+								}
+								if (endpointsReady
+									&& aRequest.File.Change
+										== workbench_file_change_kind::renamed) {
+									const auto leftNeedsPair
+										= left->Ambiguous || !left->Blob.has_value();
+									const auto rightNeedsPair
+										= right->Ambiguous || !right->Blob.has_value();
+									if (leftNeedsPair || rightNeedsPair) {
+										const auto pairs = actor->Cache->find_rename_pairs(
+											git_cache_rename_pair_request{
+												.Left         = aRequest.Diff.Comparison.Left.Commit,
+												.Right        = aRequest.Diff.Comparison.Right.Commit,
+												.CurrentPath  = aRequest.File.CurrentPath,
+												.PreviousPath = aRequest.File.PreviousPath,
+											},
+											workStop);
+										if (!pairs.has_value()) {
+											observation.Status
+												= pairs.error() == git_cache_failure::cancelled
+												? workbench_selected_diff_status::cancelled
+												: workbench_selected_diff_status::failure;
+											endpointsReady = false;
+										} else {
+											auto boundPair = std::optional<git_rename_pair>{ };
+											for (auto index = std::size_t{ 0U };
+												 index < pairs->Count;
+												 ++index) {
+												const auto& pair     = pairs->Records[index];
+												const auto  accepted = [&](const std::filesystem::path& aPath) {
+													return aPath == aRequest.File.CurrentPath
+														|| (aRequest.File.PreviousPath.has_value()
+															&& aPath == *aRequest.File.PreviousPath);
+												};
+												if ((!left->Path.has_value()
+													 || pair.LeftPath == *left->Path)
+													&& (!right->Path.has_value()
+														|| pair.RightPath == *right->Path)
+													&& (accepted(pair.LeftPath)
+														|| accepted(pair.RightPath))) {
+													if (boundPair.has_value()) {
+														boundPair.reset();
+														break;
+													}
+													boundPair = pair;
+												}
+											}
+											if (!boundPair.has_value()) {
+												observation.Status = leftNeedsPair && rightNeedsPair
+													? workbench_selected_diff_status::ambiguous_both
+													: leftNeedsPair
+													? workbench_selected_diff_status::ambiguous_left
+													: workbench_selected_diff_status::ambiguous_right;
+												endpointsReady     = false;
+											} else {
+												const auto exactLeft = lookup(
+													boundPair->LeftPath,
+													aRequest.Diff.Comparison.Left.Commit);
+												const auto exactRight = exactLeft.has_value()
+													? lookup(
+														  boundPair->RightPath,
+														  aRequest.Diff.Comparison.Right.Commit)
+													: git_cache_result<std::optional<core::git_blob_oid>>{
+														  std::unexpected{ exactLeft.error() }
+													  };
+												if (!exactLeft.has_value() || !exactRight.has_value()) {
+													const auto failure = !exactLeft.has_value()
+														? exactLeft.error()
+														: exactRight.error();
+													observation.Status
+														= failure == git_cache_failure::cancelled
+														? workbench_selected_diff_status::cancelled
+														: workbench_selected_diff_status::failure;
+													endpointsReady = false;
+												} else if (!exactLeft->has_value()
+														   || !exactRight->has_value()
+														   || (left->Blob.has_value()
+															   && left->Blob != *exactLeft)
+														   || (right->Blob.has_value()
+															   && right->Blob != *exactRight)) {
+													observation.Status
+														= workbench_selected_diff_status::failure;
+													endpointsReady = false;
+												} else {
+													left = endpoint_resolution{
+														.Blob = *exactLeft,
+														.Path = boundPair->LeftPath,
+													};
+													right = endpoint_resolution{
+														.Blob = *exactRight,
+														.Path = boundPair->RightPath,
+													};
+												}
+											}
+										}
+									}
+								}
+								if (endpointsReady && !left->Blob.has_value()
+									&& !right->Blob.has_value()) {
+									observation.Status = workbench_selected_diff_status::both_missing;
+									endpointsReady     = false;
+								}
+								if (endpointsReady) {
+									publicationAuthorityLock = std::unique_lock{
+										actor->BlobAuthorityMutex
+									};
+									if (workStop.stop_requested()
+										|| BlobIngressClosing.load(std::memory_order_acquire)) {
+										observation.Status = workbench_selected_diff_status::cancelled;
+									} else if (actor->SelectedDiffAuthority
+												   != std::optional{ selected_diff_authority{
+													   .Workbench = aRequest.WorkbenchAuthority,
+													   .Diff      = aRequest.Diff,
+												   } }
+											   || actor->BlobAuthorityGeneration
+												   != authorizationGeneration) {
+										observation.Status = workbench_selected_diff_status::stale;
+									} else {
+										observation.Status    = workbench_selected_diff_status::available;
+										observation.LeftBlob  = std::move(left->Blob);
+										observation.RightBlob = std::move(right->Blob);
+									}
+								}
+							}
+						} catch (...) {
+							observation.Status = workbench_selected_diff_status::failure;
+						}
+						auto waiterLock     = std::unique_lock{ waiter->Mutex };
+						waiter->Result      = std::move(observation);
+						const auto reserved = retire_actor_job(control);
+						struct actor_exit_reservation final
+						{
+							implementation& Host;
+							bool            Reserved;
+
+							~actor_exit_reservation()
+							{
+								Host.release_actor_job_reservation(Reserved);
+							}
+						} actorExit{ *this, reserved };
+						waiterLock.unlock();
+						waiter->Completed.notify_all();
+					});
+			} catch (...) {
+				finish_job(control);
+				return result;
+			}
+			std::unique_lock lock{ waiter->Mutex };
+			waiter->Completed.wait(lock, [&waiter] {
+				return waiter->Result.has_value();
+			});
+			return std::move(*waiter->Result);
 		}
 
 		[[nodiscard]] auto materialize(
@@ -5316,6 +5807,21 @@ namespace bpr::application {
 		const std::stop_token    aStop) -> diff_blob_observation
 	{
 		return Implementation->materialize(aRequest, aStop);
+	}
+
+	auto epoch_application_host::context(
+		const workbench_pull_request_authority& aAuthority) const
+		-> std::optional<workbench_selected_diff_context>
+	{
+		return Implementation->selected_diff_context(aAuthority);
+	}
+
+	auto epoch_application_host::resolve(
+		const workbench_selected_diff_request& aRequest,
+		const std::stop_token                  aStop)
+		-> workbench_selected_diff_observation
+	{
+		return Implementation->resolve_selected_diff(aRequest, aStop);
 	}
 
 	void epoch_application_host::shutdown()

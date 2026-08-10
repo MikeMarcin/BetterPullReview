@@ -3,6 +3,8 @@
 #include "bpr/core/diff_model.hpp"
 
 #include <algorithm>
+#include <filesystem>
+#include <iterator>
 #include <utility>
 
 namespace bpr::application {
@@ -24,6 +26,63 @@ namespace bpr::application {
 				.Status     = aStatus,
 				.Actionable = { },
 			};
+		}
+
+		[[nodiscard]] auto repository_path(const std::string& aPath)
+			-> std::filesystem::path
+		{
+			auto utf8 = std::u8string{ };
+			utf8.reserve(aPath.size());
+			std::ranges::transform(
+				aPath, std::back_inserter(utf8),
+				[](const char aByte) { return static_cast<char8_t>(aByte); });
+			return std::filesystem::path{ utf8 };
+		}
+
+		[[nodiscard]] auto observed_file(
+			const github_file_record&     aRecord,
+			const core::workbench_file_id aIdentity)
+			-> std::optional<workbench_file_observation_entry>
+		{
+			const auto change = [&aRecord] {
+				switch (aRecord.Change) {
+				case github_file_change::added:
+					return workbench_file_change_kind::added;
+				case github_file_change::modified:
+					return workbench_file_change_kind::modified;
+				case github_file_change::removed:
+					return workbench_file_change_kind::removed;
+				case github_file_change::renamed:
+					return workbench_file_change_kind::renamed;
+				case github_file_change::copied:
+					return workbench_file_change_kind::copied;
+				case github_file_change::type_changed:
+					return workbench_file_change_kind::type_changed;
+				case github_file_change::unchanged:
+					return workbench_file_change_kind::unchanged;
+				case github_file_change::uninitialized:
+					return workbench_file_change_kind::uninitialized;
+				}
+				return workbench_file_change_kind::uninitialized;
+			}();
+			if (change == workbench_file_change_kind::uninitialized) {
+				return std::nullopt;
+			}
+			auto entry = workbench_file_observation_entry{
+				.File             = aIdentity,
+				.PresentationPath = aRecord.Path,
+				.CurrentPath      = repository_path(aRecord.Path),
+				.PreviousPath     = aRecord.PreviousPath.has_value()
+					? std::optional{ repository_path(*aRecord.PreviousPath) }
+					: std::nullopt,
+				.Change           = change,
+				.ContentKind      = aRecord.ContentKind == github_file_content_kind::binary
+					? workbench_file_content_kind::binary
+					: aRecord.ContentKind == github_file_content_kind::text
+					? workbench_file_content_kind::text
+					: workbench_file_content_kind::unknown,
+			};
+			return valid(entry) ? std::optional{ std::move(entry) } : std::nullopt;
 		}
 	} // namespace
 
@@ -81,11 +140,16 @@ namespace bpr::application {
 			// The port owns uniqueness within the order; the host resolves the
 			// first matching entry. A snapshot repeating a path would otherwise
 			// put one file in the order twice and make navigation revisit it.
-			if (std::ranges::find(result.Actionable, identity)
+			if (std::ranges::find(result.Actionable, identity,
+								  &workbench_file_observation_entry::File)
 				!= result.Actionable.end()) {
 				continue;
 			}
-			result.Actionable.push_back(identity);
+			const auto file = observed_file(record, identity);
+			if (!file.has_value()) {
+				return answer(aRequest, workbench_observation_status::unavailable);
+			}
+			result.Actionable.push_back(std::move(*file));
 		}
 
 		// Presentation order is the snapshot's own order, unfiltered.

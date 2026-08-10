@@ -47,6 +47,7 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QLineEdit>
+#include <QListView>
 #include <QPalette>
 #include <QPushButton>
 #include <QSpinBox>
@@ -1087,7 +1088,9 @@ namespace bpr::app {
 	};
 
 	class github_application::implementation final
-		: public application::github_epoch_handoff_port
+		: public application::github_epoch_handoff_port,
+		  public application::epoch_projection_port,
+		  public application::workbench_selected_diff_projection_port
 	{
 	public:
 		explicit implementation(
@@ -1101,6 +1104,8 @@ namespace bpr::app {
 		{
 #if defined(BPR_BUILD_TESTING)
 			if (aFixture.has_value()) {
+				DisableWorkbenchSelectionWire
+					= aFixtureOptions.DisableWorkbenchSelectionWire;
 				const auto host = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
@@ -1309,6 +1314,13 @@ namespace bpr::app {
 			// reviewer saw the RFC-BPR-0002 window instead.
 			Window = std::make_unique<qt::workbench_window>(
 				[this](core::workbench_interaction_intent aIntent) {
+#if defined(BPR_BUILD_TESTING)
+					if (DisableWorkbenchSelectionWire
+						&& std::holds_alternative<
+							core::select_workbench_file_intent>(aIntent)) {
+						return;
+					}
+#endif
 					dispatch_workbench_intent(std::move(aIntent));
 				},
 				[this](core::navigate_diff_change_intent aIntent) {
@@ -1331,7 +1343,7 @@ namespace bpr::app {
 				*EpochClock,
 				EpochEffects,
 				DecisionLane,
-				*Window->epoch_selectors());
+				*this);
 			Window->epoch_selectors()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
 			DiffHost = std::make_unique<application::diff_application_host>(
@@ -1382,7 +1394,10 @@ namespace bpr::app {
 				WorkbenchEffects,
 				DecisionLane,
 				*Window,
-				core::application_session_id{ 1U });
+				core::application_session_id{ 1U },
+				application::workbench_host_limits{ },
+				EpochHost.get(),
+				this);
 			// Reads the current durable or session layout. Restoring never writes
 			// it back, so merely launching still leaves a fresh store fresh.
 			WorkbenchHost->restore();
@@ -1695,6 +1710,24 @@ namespace bpr::app {
 			EpochHost->dispatch(std::move(aIntent));
 		}
 
+		void publish(
+			const application::epoch_presentation_update& aUpdate) override
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			Window->publish(aUpdate);
+			const auto* comparison = aUpdate.Transition.has_value()
+					&& aUpdate.Transition->Comparison.has_value()
+				? &*aUpdate.Transition->Comparison
+				: nullptr;
+			if (WorkbenchHost != nullptr && comparison != nullptr
+				&& comparison->Pair.has_value()
+				&& comparison->AvailableForDiff) {
+				WorkbenchHost->refresh_selected_diff();
+			}
+		}
+
 		void clear_diff_selection()
 		{
 			if (DiffHost != nullptr) {
@@ -1710,6 +1743,81 @@ namespace bpr::app {
 			if (Window != nullptr) {
 				Window->comparison_surface()->clear();
 			}
+		}
+
+		void begin(
+			const application::workbench_selected_diff_request& aRequest) override
+		{
+			if (Closing || EpochHost == nullptr
+				|| EpochHost->context(aRequest.WorkbenchAuthority)
+					!= std::optional{ aRequest.Diff }) {
+				return;
+			}
+			clear_diff_selection();
+#if defined(BPR_BUILD_TESTING)
+			++SelectedDiffBegins;
+#endif
+		}
+
+		void publish(
+			const application::workbench_selected_diff_publication& aPublication) override
+		{
+			if (Closing || EpochHost == nullptr || WorkbenchHost == nullptr
+				|| WorkbenchHost->generation()
+					!= aPublication.Request.Context.Generation
+				|| WorkbenchHost->selected()
+					!= std::optional{ aPublication.Request.File.File }
+				|| EpochHost->context(aPublication.Request.WorkbenchAuthority)
+					!= std::optional{ aPublication.Request.Diff }) {
+				return;
+			}
+			request_diff(
+				aPublication.Key,
+				aPublication.Request.Diff.Options,
+				aPublication.Request.File.PresentationPath);
+#if defined(BPR_BUILD_TESTING)
+			++SelectedDiffPublications;
+			LastSelectedDiff = aPublication;
+#endif
+		}
+
+		void fail(
+			const application::workbench_selected_diff_observation& aFailure) override
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto failure = [&aFailure] {
+				switch (aFailure.Status) {
+				case application::workbench_selected_diff_status::binary:
+					return application::workbench_host_failure::selected_file_binary;
+				case application::workbench_selected_diff_status::missing_left:
+					return application::workbench_host_failure::selected_file_missing_left;
+				case application::workbench_selected_diff_status::missing_right:
+					return application::workbench_host_failure::selected_file_missing_right;
+				case application::workbench_selected_diff_status::both_missing:
+					return application::workbench_host_failure::selected_file_missing_both;
+				case application::workbench_selected_diff_status::ambiguous_left:
+				case application::workbench_selected_diff_status::ambiguous_right:
+				case application::workbench_selected_diff_status::ambiguous_both:
+					return application::workbench_host_failure::selected_file_ambiguous;
+				case application::workbench_selected_diff_status::cancelled:
+					return application::workbench_host_failure::selected_file_cancelled;
+				case application::workbench_selected_diff_status::stale:
+					return application::workbench_host_failure::selected_file_stale;
+				case application::workbench_selected_diff_status::available:
+				case application::workbench_selected_diff_status::failure:
+					return application::workbench_host_failure::host_failure;
+				}
+				return application::workbench_host_failure::host_failure;
+			}();
+			Window->fail(application::workbench_failure_publication{
+				.Context = aFailure.Request.Context,
+				.Failure = failure,
+			});
+#if defined(BPR_BUILD_TESTING)
+			++SelectedDiffFailures;
+#endif
 		}
 
 		template <typename Predicate>
@@ -2174,18 +2282,28 @@ namespace bpr::app {
 			std::optional<core::semantic_selection>       Selection;
 			qt::workbench_window_statistics               WindowStatistics;
 			core::request_generation                      Generation;
-			std::size_t                                   IntentDispatches  = 0U;
-			std::size_t                                   ChangeDispatches  = 0U;
-			std::size_t                                   WidthDispatches   = 0U;
-			std::size_t                                   Invalidations     = 0U;
-			std::size_t                                   PersistedLayouts  = 0U;
-			std::uint32_t                                 InitialFilesWidth = 0U;
+			std::size_t                                   IntentDispatches         = 0U;
+			std::size_t                                   ChangeDispatches         = 0U;
+			std::size_t                                   SelectedDiffBegins       = 0U;
+			std::size_t                                   SelectedDiffPublications = 0U;
+			std::size_t                                   SelectedDiffFailures     = 0U;
+			std::size_t                                   WidthDispatches          = 0U;
+			std::size_t                                   Invalidations            = 0U;
+			std::size_t                                   PersistedLayouts         = 0U;
+			std::uint32_t                                 InitialFilesWidth        = 0U;
 		};
 		std::optional<workbench_composition_probe_state> WorkbenchCompositionProbe;
 		std::size_t                                      WorkbenchIntentDispatches = 0U;
 		std::size_t                                      WorkbenchChangeDispatches = 0U;
 		std::size_t                                      WorkbenchWidthDispatches  = 0U;
 		std::size_t                                      WorkbenchInvalidations    = 0U;
+		std::size_t                                      SelectedDiffBegins        = 0U;
+		std::size_t                                      SelectedDiffPublications  = 0U;
+		std::size_t                                      SelectedDiffFailures      = 0U;
+		std::optional<application::workbench_selected_diff_publication>
+					LastSelectedDiff;
+		std::size_t FixtureDiffHelperInvocations  = 0U;
+		bool        DisableWorkbenchSelectionWire = false;
 #endif
 		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
 		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
@@ -3284,7 +3402,9 @@ namespace bpr::app {
 		if (!implementation->WorkbenchCompositionProbe.has_value()) {
 			implementation->WorkbenchCompositionProbe.emplace();
 		}
-		auto&       probe      = *implementation->WorkbenchCompositionProbe;
+		auto& probe = *implementation->WorkbenchCompositionProbe;
+		probe.Evidence.FixtureDiffHelperUnused
+			= implementation->FixtureDiffHelperInvocations == 0U;
 		auto* const host       = implementation->WorkbenchHost.get();
 		auto* const window     = implementation->Window.get();
 		auto* const comparison = window->comparison_surface();
@@ -3353,14 +3473,21 @@ namespace bpr::app {
 			if (!probe.Evidence.ExactAuthority
 				|| !probe.Evidence.BoundedObservation
 				|| !probe.Evidence.SessionSettingsFallback
-				|| window->next_file_action() == nullptr
-				|| !window->next_file_action()->isEnabled()) {
+				|| window->files_drawer() == nullptr
+				|| window->files_drawer()->contents() == nullptr
+				|| window->files_drawer()->contents_view() == nullptr
+				|| window->files_drawer()->contents()->rowCount() != 1) {
 				return fail();
 			}
 
-			probe.IntentDispatches = implementation->WorkbenchIntentDispatches;
-			probe.WindowStatistics = window->statistics();
-			window->next_file_action()->trigger();
+			probe.IntentDispatches   = implementation->WorkbenchIntentDispatches;
+			probe.WindowStatistics   = window->statistics();
+			probe.SelectedDiffBegins = implementation->SelectedDiffBegins;
+			probe.SelectedDiffPublications
+				= implementation->SelectedDiffPublications;
+			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
+			auto* const view           = window->files_drawer()->contents_view();
+			view->setCurrentIndex(view->model()->index(0, 0));
 			probe.Phase = state_type::phase::awaiting_file_projection;
 			return result::pending;
 		}
@@ -3369,20 +3496,27 @@ namespace bpr::app {
 			const auto statistics = window->statistics();
 			if (implementation->WorkbenchIntentDispatches
 				== probe.IntentDispatches) {
+				if (statistics.FileSelections
+					== probe.WindowStatistics.FileSelections + 1U) {
+					probe.Evidence.FileGesture = true;
+					return fail();
+				}
 				return result::pending;
 			}
 			probe.Evidence.IntentDispatch
 				= implementation->WorkbenchIntentDispatches
 				== probe.IntentDispatches + 1U;
+			probe.Evidence.FileGesture
+				= statistics.FileSelections
+				== probe.WindowStatistics.FileSelections + 1U;
 			probe.Evidence.ProjectionDelivery
 				= host->selected() == std::optional{ probe.ExpectedFiles.front() }
 				&& statistics.Publications > probe.WindowStatistics.Publications
 				&& statistics.CommandUpdates
 					> probe.WindowStatistics.CommandUpdates
 				&& !window->next_file_action()->isEnabled();
-			if (!probe.Evidence.IntentDispatch
-				|| !probe.Evidence.ProjectionDelivery
-				|| !request_fixture_diff(aApplication)) {
+			if (!probe.Evidence.IntentDispatch || !probe.Evidence.FileGesture
+				|| !probe.Evidence.ProjectionDelivery) {
 				return fail();
 			}
 			probe.Phase = state_type::phase::awaiting_diff;
@@ -3390,9 +3524,54 @@ namespace bpr::app {
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_diff) {
+			if (implementation->SelectedDiffFailures
+				!= probe.SelectedDiffFailures) {
+				return fail();
+			}
 			if (comparison == nullptr || comparison->current_result() == nullptr
-				|| !comparison->selection().has_value()) {
+				|| !comparison->selection().has_value()
+				|| implementation->SelectedDiffPublications
+					== probe.SelectedDiffPublications
+				|| !implementation->LastSelectedDiff.has_value()) {
 				return result::pending;
+			}
+			const auto& publication = *implementation->LastSelectedDiff;
+			const auto& request     = publication.Request;
+			const auto& key         = publication.Key;
+			const auto& epoch       = implementation->EpochHost->state();
+			const auto  fixture     = implementation->Fixture->evidence();
+			const auto  leftBlob    = core::parse_git_blob_oid(fixture.BaseBlobOid);
+			const auto  rightBlob   = core::parse_git_blob_oid(fixture.HeadOneBlobOid);
+			probe.Evidence.SelectedDiffRequest
+				= implementation->SelectedDiffBegins
+					== probe.SelectedDiffBegins + 1U
+				&& implementation->SelectedDiffPublications
+					== probe.SelectedDiffPublications + 1U
+				&& request.WorkbenchAuthority == probe.Authority
+				&& request.Context.Generation == host->generation()
+				&& request.File.File == probe.ExpectedFiles.front()
+				&& request.File.PresentationPath == "review.cpp"
+				&& request.File.CurrentPath == std::filesystem::path{ "review.cpp" }
+				&& !request.File.PreviousPath.has_value()
+				&& request.File.Change
+					== application::workbench_file_change_kind::modified;
+			probe.Evidence.ExactComparison
+				= epoch.Authority.has_value()
+				&& epoch.AcceptedComparison.has_value()
+				&& leftBlob.has_value() && rightBlob.has_value()
+				&& key.Authority == *epoch.Authority
+				&& key.Repository == epoch.Authority->Repository
+				&& key.PullRequest == epoch.Authority->PullRequest
+				&& key.LeftAnchor == epoch.AcceptedComparison->Left.Identity
+				&& key.RightAnchor == epoch.AcceptedComparison->Right.Identity
+				&& key.LeftBlob == leftBlob
+				&& key.RightBlob == rightBlob
+				&& key.File == probe.ExpectedFiles.front()
+				&& key.Options == request.Diff.OptionsDigest
+				&& key.Algorithm == core::supported_diff_algorithm_revision;
+			if (!probe.Evidence.SelectedDiffRequest
+				|| !probe.Evidence.ExactComparison) {
+				return fail();
 			}
 			auto* action = window->next_change_action();
 			if (comparison->next_change_button() == nullptr
@@ -3409,10 +3588,6 @@ namespace bpr::app {
 
 			probe.Selection        = comparison->selection();
 			probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
-			// BPR-0227 owns the missing selected-file-to-change-cursor bridge. The
-			// fixture has prepared the real comparison above; enabling only this
-			// already-present QAction lets this card prove its callback reaches the
-			// shipped comparison without pretending that bridge exists.
 			action->setEnabled(true);
 			action->trigger();
 			probe.Phase = state_type::phase::awaiting_change_projection;
@@ -3527,6 +3702,8 @@ namespace bpr::app {
 			}
 			probe.Evidence.FailureDelivery
 				= statistics.Failures == probe.WindowStatistics.Failures + 1U;
+			probe.Evidence.FixtureDiffHelperUnused
+				= implementation->FixtureDiffHelperInvocations == 0U;
 			if (!probe.Evidence.FailureDelivery) {
 				return fail();
 			}
@@ -3536,12 +3713,16 @@ namespace bpr::app {
 				probe.Evidence.BoundedObservation,
 				probe.Evidence.IntentDispatch,
 				probe.Evidence.ProjectionDelivery,
+				probe.Evidence.FileGesture,
+				probe.Evidence.SelectedDiffRequest,
+				probe.Evidence.ExactComparison,
 				probe.Evidence.ChangeDispatch,
 				probe.Evidence.DrawerWidthDispatch,
 				probe.Evidence.SessionSettingsFallback,
 				probe.Evidence.MismatchPreserved,
 				probe.Evidence.InvalidationSuperseded,
 				probe.Evidence.FailureDelivery,
+				probe.Evidence.FixtureDiffHelperUnused,
 			};
 			if (!std::ranges::all_of(all, std::identity{ })) {
 				return fail();
@@ -3613,6 +3794,9 @@ namespace bpr::app {
 		const bool          aUseSecondHead) -> bool
 	{
 		auto* const implementation = aApplication.Implementation.get();
+		if (implementation != nullptr) {
+			++implementation->FixtureDiffHelperInvocations;
+		}
 		if (
 			implementation == nullptr || implementation->Fixture == nullptr
 			|| implementation->EpochHost == nullptr

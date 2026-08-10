@@ -7,8 +7,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <optional>
 #include <stop_token>
+#include <string>
 #include <vector>
 
 namespace bpr::application {
@@ -43,6 +45,41 @@ namespace bpr::application {
 			&& aLimits.DrawerWidth >= minimum_workbench_drawer_width
 			&& aLimits.DrawerWidth <= maximum_workbench_drawer_width;
 	}
+
+	enum class workbench_file_content_kind : std::uint8_t {
+		unknown,
+		text,
+		binary,
+	};
+
+	/// \brief Retains the provider-free change fact attached to one file row.
+	enum class workbench_file_change_kind : std::uint8_t {
+		uninitialized,
+		added,
+		modified,
+		removed,
+		renamed,
+		copied,
+		type_changed,
+		unchanged,
+	};
+
+	/// \brief Retains one bounded provider-free workbench file observation.
+	struct workbench_file_observation_entry
+	{
+		core::workbench_file_id              File;
+		std::string                          PresentationPath;
+		std::filesystem::path                CurrentPath;
+		std::optional<std::filesystem::path> PreviousPath;
+		workbench_file_change_kind           Change      = workbench_file_change_kind::uninitialized;
+		workbench_file_content_kind          ContentKind = workbench_file_content_kind::unknown;
+
+		auto operator<=>(const workbench_file_observation_entry&) const = default;
+	};
+
+	/// \brief Checks whether one bounded file observation is exact and usable.
+	[[nodiscard]] auto valid(
+		const workbench_file_observation_entry& aEntry) noexcept -> bool;
 
 	/// \brief Describes the workbench request context record.
 	///
@@ -136,12 +173,99 @@ namespace bpr::application {
 	/// uniqueness within `Actionable`; the host resolves the first matching entry.
 	struct workbench_file_observation
 	{
-		workbench_request_context            Context;
-		workbench_pull_request_authority     Authority;
-		workbench_observation_status         Status = workbench_observation_status::unavailable;
-		std::vector<core::workbench_file_id> Actionable;
+		workbench_request_context                     Context;
+		workbench_pull_request_authority              Authority;
+		workbench_observation_status                  Status = workbench_observation_status::unavailable;
+		std::vector<workbench_file_observation_entry> Actionable;
 
 		auto operator<=>(const workbench_file_observation&) const = default;
+	};
+
+	/// \brief Describes the exact accepted comparison used for file resolution.
+	struct workbench_selected_diff_context
+	{
+		core::application_session_id  ApplicationSession;
+		core::pull_request_authority  Authority;
+		core::comparison_pair         Comparison;
+		core::comparison_revision     ComparisonRevision;
+		core::diff_options            Options;
+		core::diff_options_digest     OptionsDigest;
+		core::diff_algorithm_revision Algorithm;
+
+		auto operator<=>(const workbench_selected_diff_context&) const = default;
+	};
+
+	/// \brief Describes one exact selected-file tree lookup request.
+	struct workbench_selected_diff_request
+	{
+		workbench_request_context        Context;
+		workbench_pull_request_authority WorkbenchAuthority;
+		workbench_selected_diff_context  Diff;
+		workbench_file_observation_entry File;
+
+		auto operator<=>(const workbench_selected_diff_request&) const = default;
+	};
+
+	enum class workbench_selected_diff_status : std::uint8_t {
+		available,
+		binary,
+		missing_left,
+		missing_right,
+		both_missing,
+		ambiguous_left,
+		ambiguous_right,
+		ambiguous_both,
+		cancelled,
+		stale,
+		failure,
+	};
+
+	/// \brief Describes one exact selected-file tree lookup terminal.
+	struct workbench_selected_diff_observation
+	{
+		workbench_selected_diff_request   Request;
+		workbench_selected_diff_status    Status = workbench_selected_diff_status::failure;
+		std::optional<core::git_blob_oid> LeftBlob;
+		std::optional<core::git_blob_oid> RightBlob;
+
+		auto operator<=>(const workbench_selected_diff_observation&) const = default;
+	};
+
+	/// \brief Resolves selected files through the retained epoch cache actor.
+	class workbench_selected_diff_port
+	{
+	public:
+		virtual ~workbench_selected_diff_port() = default;
+
+		[[nodiscard]] virtual auto context(
+			const workbench_pull_request_authority& aAuthority) const
+			-> std::optional<workbench_selected_diff_context> = 0;
+		[[nodiscard]] virtual auto resolve(
+			const workbench_selected_diff_request& aRequest,
+			std::stop_token                        aStop)
+			-> workbench_selected_diff_observation = 0;
+	};
+
+	/// \brief Describes an exact resolved file-comparison request.
+	struct workbench_selected_diff_publication
+	{
+		workbench_selected_diff_request Request;
+		core::file_comparison_key       Key;
+
+		auto operator<=>(const workbench_selected_diff_publication&) const = default;
+	};
+
+	/// \brief Presents selected-file resolution without performing its effects.
+	class workbench_selected_diff_projection_port
+	{
+	public:
+		virtual ~workbench_selected_diff_projection_port() = default;
+
+		virtual void begin(const workbench_selected_diff_request& aRequest) = 0;
+		virtual void publish(
+			const workbench_selected_diff_publication& aPublication) = 0;
+		virtual void fail(
+			const workbench_selected_diff_observation& aFailure) = 0;
 	};
 
 	/// \brief Provides the workbench observation port contract.
@@ -222,6 +346,15 @@ namespace bpr::application {
 		auto operator<=>(const workbench_layout_delta&) const = default;
 	};
 
+	/// \brief Describes one file-drawer row by opaque semantic identity.
+	struct workbench_file_projection
+	{
+		core::workbench_file_id File;
+		std::string             Path;
+
+		auto operator<=>(const workbench_file_projection&) const = default;
+	};
+
 	/// \brief Describes the workbench projection record.
 	///
 	/// \details Every domain is engaged only when its published meaning changed,
@@ -229,11 +362,12 @@ namespace bpr::application {
 	/// workbench. The host publishes nothing when no domain changed.
 	struct workbench_projection
 	{
-		workbench_request_context                      Context;
-		std::optional<core::workbench_selection_delta> Selection;
-		std::optional<core::workbench_drawer_delta>    Drawers;
-		std::optional<core::workbench_command_delta>   Commands;
-		std::optional<workbench_layout_delta>          Layout;
+		workbench_request_context                             Context;
+		std::optional<core::workbench_selection_delta>        Selection;
+		std::optional<core::workbench_drawer_delta>           Drawers;
+		std::optional<core::workbench_command_delta>          Commands;
+		std::optional<workbench_layout_delta>                 Layout;
+		std::optional<std::vector<workbench_file_projection>> Files;
 
 		auto operator<=>(const workbench_projection&) const = default;
 	};
@@ -245,13 +379,21 @@ namespace bpr::application {
 		return !aProjection.Selection.has_value()
 			&& !aProjection.Drawers.has_value()
 			&& !aProjection.Commands.has_value()
-			&& !aProjection.Layout.has_value();
+			&& !aProjection.Layout.has_value()
+			&& !aProjection.Files.has_value();
 	}
 
 	enum class workbench_host_failure : std::uint8_t {
 		observation_unavailable,
 		observation_limit,
 		settings_unavailable,
+		selected_file_binary,
+		selected_file_missing_left,
+		selected_file_missing_right,
+		selected_file_missing_both,
+		selected_file_ambiguous,
+		selected_file_cancelled,
+		selected_file_stale,
 		host_failure,
 	};
 

@@ -27,14 +27,16 @@ namespace bpr::application {
 	{
 	public:
 		workbench_application_host(
-			core::workbench_interaction_state aInitialState,
-			workbench_observation_port&       aObservations,
-			workbench_settings_port&          aSettings,
-			effect_executor&                  aEffects,
-			decision_executor&                aDecisionLane,
-			workbench_projection_port&        aProjections,
-			core::application_session_id      aSession,
-			workbench_host_limits             aLimits = { });
+			core::workbench_interaction_state        aInitialState,
+			workbench_observation_port&              aObservations,
+			workbench_settings_port&                 aSettings,
+			effect_executor&                         aEffects,
+			decision_executor&                       aDecisionLane,
+			workbench_projection_port&               aProjections,
+			core::application_session_id             aSession,
+			workbench_host_limits                    aLimits                  = { },
+			workbench_selected_diff_port*            aSelectedDiffs           = nullptr,
+			workbench_selected_diff_projection_port* aSelectedDiffProjections = nullptr);
 		~workbench_application_host();
 
 		workbench_application_host(const workbench_application_host&) = delete;
@@ -52,6 +54,9 @@ namespace bpr::application {
 		void observe(workbench_pull_request_authority aAuthority);
 		// Retires one exact authority and clears every authority-bound cursor fact.
 		void invalidate(workbench_pull_request_authority aAuthority);
+		// Replays the retained semantic selection after an accepted comparison
+		// becomes available or changes.
+		void refresh_selected_diff();
 		void apply(core::workbench_interaction_intent aIntent);
 		// Host-owned drawer width, clamped to the configured bound and persisted.
 		void resize(core::workbench_drawer aDrawer, std::uint32_t aWidth);

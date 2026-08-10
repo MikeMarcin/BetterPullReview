@@ -25,10 +25,14 @@ The final-state review in BPR-0225 narrowed the workbench claim. BPR-0226 now
 connects the shipped RFC-BPR-0005 shell's primary intents and drawer widths to
 the workbench host, publishes host state to the real window, observes exact
 accepted pull-request authority, clears it by identity, and retains a
-session/default settings host when SQLite cannot open. A selected diff can
-still be requested only by a tests-enabled fixture helper, not by a
-user-selected file; BPR-0227 owns that remaining public wire. RFC-BPR-0006
-through RFC-BPR-0011 have
+session/default settings host when SQLite cannot open. BPR-0227 now carries a
+real file-drawer selection through the semantic workbench intent, resolves its
+exact current/previous repository paths independently at each selected commit
+on the epoch host's retained cache session, and publishes the
+identity-complete comparison through the existing diff host. Accepted epoch
+comparison changes replay the retained file selection, while an authority
+refresh clears the old rows before replacement work begins.
+RFC-BPR-0006 through RFC-BPR-0011 have
 substantial tested component implementations. Durable notes, reviewed heads,
 and defect metadata now have bounded versioned persistence, while their public
 composition remains open; theme customization/import, queue filters/sorting,
@@ -63,16 +67,15 @@ work. The shipped window is `workbench_window`, not the deleted
 `github_window`; it presents the compact pull-request shell, request states,
 retained accepted content, read-only conversations, and connected epoch
 controls. The natural-layout selected-file comparison, workbench navigation,
-drawers, and detail components are directly exercised in harnesses, but a
-reviewer cannot currently reach them because the shell-to-host wires described
-above are absent. Appearance profiles and syntax components remain composed
+drawers, and detail components are reachable through the shipped shell and a
+real gesture-driven executable contract. Appearance profiles and syntax
+components remain composed
 when their durable settings store cannot open. The window then starts from
 System defaults, labels appearance changes as session-only, and keeps syntax
 classification and profile switching available; a restart under the same
 failure returns to those defaults. Done BPR-0237 adds semantic-role preview,
 cancel, persistence, restart restoration, and bounded safe theme import against
-the fixture-selected comparison. BPR-0227 still owns the production
-user-selected diff path, and BPR-0233 owns its recorded selected-diff pixels.
+the selected comparison. BPR-0233 owns its recorded selected-diff pixels.
 
 ## Architecture
 

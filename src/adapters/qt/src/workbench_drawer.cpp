@@ -139,6 +139,26 @@ namespace bpr::qt {
 		return Rows[static_cast<std::size_t>(aIndex.row())].Identity;
 	}
 
+	auto workbench_drawer_model::file_at(const QModelIndex& aIndex) const
+		-> std::optional<core::workbench_file_id>
+	{
+		if (!aIndex.isValid() || aIndex.row() < 0
+			|| static_cast<std::size_t>(aIndex.row()) >= Rows.size()) {
+			return std::nullopt;
+		}
+		return Rows[static_cast<std::size_t>(aIndex.row())].File;
+	}
+
+	auto workbench_drawer_model::index_for_file(
+		const core::workbench_file_id& aFile) const -> QModelIndex
+	{
+		const auto found = std::ranges::find(
+			Rows, std::optional{ aFile }, &workbench_drawer_row::File);
+		return found == Rows.end()
+			? QModelIndex{ }
+			: index(static_cast<int>(std::distance(Rows.begin(), found)), 0);
+	}
+
 	auto workbench_drawer_model::statistics() const noexcept
 		-> workbench_drawer_model_statistics
 	{

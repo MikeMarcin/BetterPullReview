@@ -357,8 +357,9 @@ add_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/workbench-composition-contract"
-        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+		"-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/workbench-composition-contract"
+		"-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+		"-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_workbench_composition_contract.cmake"
 )

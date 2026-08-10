@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_CACHE_PORT_HPP
 
 #include "bpr/application/git_pack_stream.hpp"
+#include "bpr/application/git_process_port.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/epoch_transition.hpp"
 
@@ -10,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <span>
@@ -91,6 +93,26 @@ namespace bpr::application {
 		std::uint64_t      MaximumBytes = 0U;
 
 		auto operator<=>(const git_cache_blob_request&) const = default;
+	};
+
+	/// \brief Describes one exact path lookup under an owned cache session.
+	struct git_cache_tree_entry_request
+	{
+		core::git_commit_oid  Commit;
+		std::filesystem::path Path;
+
+		auto operator<=>(const git_cache_tree_entry_request&) const = default;
+	};
+
+	/// \brief Describes one selected-commit rename query under an owned cache.
+	struct git_cache_rename_pair_request
+	{
+		core::git_commit_oid                 Left;
+		core::git_commit_oid                 Right;
+		std::filesystem::path                CurrentPath;
+		std::optional<std::filesystem::path> PreviousPath;
+
+		auto operator<=>(const git_cache_rename_pair_request&) const = default;
 	};
 
 	/// \brief Describes the git pack inventory entry record.
@@ -629,6 +651,18 @@ namespace bpr::application {
 			const git_cache_blob_request& aRequest,
 			std::stop_token               aStop)
 			-> git_cache_result<std::vector<std::uint8_t>> = 0;
+
+		/// \brief Resolves one exact commit-relative path without opening a session.
+		[[nodiscard]] virtual auto find_blob_at_path(
+			const git_cache_tree_entry_request& aRequest,
+			std::stop_token                     aStop)
+			-> git_cache_result<std::optional<core::git_blob_oid>> = 0;
+
+		/// \brief Finds bounded rename records without opening another session.
+		[[nodiscard]] virtual auto find_rename_pairs(
+			const git_cache_rename_pair_request& aRequest,
+			std::stop_token                      aStop)
+			-> git_cache_result<git_rename_pair_observation> = 0;
 
 		[[nodiscard]] virtual auto prune_retained(
 			const git_ref_prune_authorization& aAuthorization,

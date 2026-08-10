@@ -374,6 +374,35 @@ the cache adapter revalidates the owned repository boundary after the process
 returns. The 16 MiB diff-computation materialization ceiling is therefore
 preserved across the full composition.
 
+Selected-file resolution uses the same retained actor before blob
+materialization. A bounded workbench observation keeps an opaque semantic file
+identity, presentation path, provider-free current/previous repository paths,
+and change kind. The core still receives only cursor and order facts. On
+selection, the workbench host obtains the epoch host's exact accepted
+authority, anchors, comparison revision, normalized options/digest, and
+algorithm, then queues `commit + path -> optional blob OID` lookups on the
+already-open cache session. Normal, add, remove, and copy facts query the
+current path independently at both selected endpoints. Rename facts query the
+current and previous candidates per endpoint. An unbound or ambiguous endpoint
+may use one bounded `diff-tree` rename record for the exact selected commit
+pair, but only when one record matches accepted lineage and every endpoint
+already resolved by the cheap lookup. The fixed raw scan bound is larger than
+the fixed retained-candidate bound, and unrelated records are filtered before
+the latter applies. Reverse pairs use reversed commits; multiple, malformed,
+and unbound candidate records fail closed without history traversal.
+The actor revalidates that complete selected authority before and after Git
+work; one absent endpoint is legal, while two absent endpoints and non-blob
+tree entries fail closed. Qt retains the opaque file identity in its list model
+and emits a semantic selection without parsing row text or running Git on the
+presentation lane.
+
+Composition forwards every accepted epoch projection unchanged to Qt, then
+replays the retained workbench selection only after an available comparison is
+accepted. A new workbench authority/generation retires selected work, clears
+the host rows/selection/core cursor, and publishes that clear before starting
+replacement observation. Thus unavailable or malformed replacement data cannot
+leave prior-authority rows selectable.
+
 Composition shutdown closes diff ingress first and epoch blob ingress next.
 The Qt projection remains alive until the diff host, epoch host, GitHub host,
 and cache actors are quiescent; the diff effect lane drains before the epoch

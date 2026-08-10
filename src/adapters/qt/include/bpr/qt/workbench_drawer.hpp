@@ -27,9 +27,10 @@ namespace bpr::qt {
 	/// removal, and data change is decided by comparing it.
 	struct workbench_drawer_row
 	{
-		QString Identity;
-		QString Title;
-		QString Detail;
+		QString                                Identity;
+		QString                                Title;
+		QString                                Detail;
+		std::optional<core::workbench_file_id> File;
 
 		// QString orders only through a locale-aware comparison, so this record
 		// offers equality alone; reconciliation never needs an order.
@@ -81,6 +82,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto index_for_identity(const QString& aIdentity) const
 			-> QModelIndex;
 		[[nodiscard]] auto identity_at(const QModelIndex& aIndex) const -> QString;
+		[[nodiscard]] auto file_at(const QModelIndex& aIndex) const
+			-> std::optional<core::workbench_file_id>;
+		[[nodiscard]] auto index_for_file(const core::workbench_file_id& aFile) const
+			-> QModelIndex;
 		[[nodiscard]] auto statistics() const noexcept
 			-> workbench_drawer_model_statistics;
 

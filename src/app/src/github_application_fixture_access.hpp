@@ -45,7 +45,8 @@ namespace bpr::app::detail {
 	struct github_public_path_fixture_options
 	{
 		std::optional<std::filesystem::path> ApplicationDataRoot;
-		github_epoch_fixture_phase           EpochPhase = github_epoch_fixture_phase::single;
+		github_epoch_fixture_phase           EpochPhase                    = github_epoch_fixture_phase::single;
+		bool                                 DisableWorkbenchSelectionWire = false;
 	};
 
 	struct github_public_path_fixture_evidence
@@ -112,12 +113,16 @@ namespace bpr::app::detail {
 		bool BoundedObservation      = false;
 		bool IntentDispatch          = false;
 		bool ProjectionDelivery      = false;
+		bool FileGesture             = false;
+		bool SelectedDiffRequest     = false;
+		bool ExactComparison         = false;
 		bool ChangeDispatch          = false;
 		bool DrawerWidthDispatch     = false;
 		bool SessionSettingsFallback = false;
 		bool MismatchPreserved       = false;
 		bool InvalidationSuperseded  = false;
 		bool FailureDelivery         = false;
+		bool FixtureDiffHelperUnused = false;
 
 		auto operator<=>(const workbench_composition_probe_evidence&) const
 			= default;
@@ -202,10 +207,10 @@ namespace bpr::app::detail {
 			-> appearance_theme_customization_probe_result;
 		/// \brief Drives the real window through the composed workbench host.
 		///
-		/// \details The selected-diff setup remains the existing fixture-only
-		/// seam, so this does not claim BPR-0227's user-selected-file path. The
-		/// file action, change action, drawer observation, host projections, and
-		/// invalidation/failure presentation all traverse the shipped window.
+		/// \details File selection traverses the shipped drawer model, semantic
+		/// workbench intent, retained epoch cache actor, and real diff host. The
+		/// change action, drawer observation, projections, invalidation, and failure
+		/// presentation traverse the same shipped window.
 		[[nodiscard]] static auto exercise_workbench_composition(
 			github_application& aApplication)
 			-> workbench_composition_probe_result;
