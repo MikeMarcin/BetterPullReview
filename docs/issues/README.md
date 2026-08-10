@@ -447,14 +447,16 @@ pretending to complete them inside the review:
   round trip, and done BPR-0230 composes the durable multi-defect workflow.
   Done BPR-0231 composes honest local observer-rule enrollment and the
   incremental landing model. Done BPR-0223 composes honest notification
-  requests and exact local activation selection. Backlog BPR-0232 owns explicit
-  agent invocation; its component tests remain evidence for the components,
+  requests and exact local activation selection. In-progress BPR-0247 owns the
+  portable explicit-agent invocation and real pinned workspace; backlog
+  BPR-0232 remains the umbrella that also requires BPR-0240's deferred native
+  lifecycle proof. Component tests alone remain evidence for the components,
   not product reachability.
 - BPR-0233 owns the recorded UIforETW selected-diff and intraline-pixel path.
   BPR-0187 serves the recording, but the current registered public test only
   opens the pull request and saves a window grab; it does not request or assert
   the diff.
-- Ready BPR-0235 replaces a structural live-mutation inventory with
+- In-progress BPR-0235 replaces a structural live-mutation inventory with
   process-boundary default network denial before BPR-0142 can use a live
   provider. Done BPR-0236 supplies the promised appearance fallback when its
   durable store cannot open.
@@ -484,7 +486,7 @@ also depend transitively on more than one group.
 | Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta |
-| Product composition | Backlog BPR-0232; done BPR-0223 and BPR-0226 through BPR-0231 | Connect agent capabilities to public gestures and projections; notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, and observer-rule queue are done |
+| Product composition | In-progress BPR-0247 and backlog BPR-0232; done BPR-0223 and BPR-0226 through BPR-0231 | Connect agent capabilities to public gestures and projections; notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, and observer-rule queue are done. BPR-0247 owns portable agent composition; BPR-0232 additionally waits for deferred native lifecycle proof |
 | Missing component and resilience scope | In-progress BPR-0235 and BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
 | Recorded selected-diff proof | Backlog BPR-0233 plus done BPR-0246, gating BPR-0214, BPR-0210, and BPR-0100 | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. The v001 attended batch was rejected. Done BPR-0246 supplies the mechanically green 1280 × 1000 focused layout with shipped drawer/detail controls, exact-span/connector evidence, and immutable digest-bound v002; its attended verdict remains |
 | Closeout rigor and terminal cards | Done BPR-0234; backlog BPR-0241 through BPR-0245 | Replay each now-anchored executable checklist and retain a live terminal card for each Proposed RFC |
