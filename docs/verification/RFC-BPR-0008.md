@@ -73,6 +73,36 @@ A row is claimed only when its card lands with direct evidence.
 | Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Verified for the request. BPR-0137 asserts the submitted request carries the acting identity and the coordinator's own designated target, so no caller can name a destination. Whether GitHub attributes the review to that account is BPR-0144 |
 | No automated test mutates an undesignated target | Whole suite | Structural `live_mutation_isolation` plus the default-deny network/process lane | Every CTest executable, script, helper subprocess, and production-app launch is network-denied unless it belongs to one explicit designated-target lane | **Verified on the configured macOS graph; cross-platform/live exception still open.** Every configured command carries the exact sandbox-runner prefix, label, isolated Python startup, and pre-boundary environment scrubs; the manifest rejects injection overrides. Direct HTTPS-port access, a Python descendant, and the shipped native-HTTPS application course receive process-boundary denial. The runner grants only selected free ports plus a fresh private Unix-socket directory; exact IPv4, IPv6, and Unix fixtures pass, while separately held unrelated loopback and Unix listeners are denied and receive no connections. The structural guard still inspects provider construction and all non-production binaries, with a non-skipping Windows inspector fallback. The Linux namespace launcher has no target-native record and Windows intentionally launches no tests. Disposable `MikeMarcin/BPR-Test#1` is now bound to repository ID `1328277631`, pull-request ID `4246446933`, node ID `PR_kwDOTyvof879G6NV`, base-repository ID `1328277631`, open state, and head `17990ba0c2fb50338141f35c0717f0f99639c7ba`; the single live lane and its no-launch mismatch matrix do not yet exist. BPR-0235 remains open. |
 
+## Standing composed-host linkage audit
+
+BPR-0248 records the fixture/production boundary in the binary verifier. The
+shared inventory requires the exact demangled
+`bpr::application::review_mutation_coordinator` constructor in both binaries,
+because the shared component definition may be linked without being
+constructed. The development-fixture profile additionally requires the exact
+test-only
+`bpr::app::detail::github_public_path_fixture_components::review_mutation_provider`
+boundary and `bpr::application::reconcile`; the production profile forbids
+both fixture-only symbols. Both profiles forbid the exact
+`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
+lands.
+
+Those results prove only what each binary links. In particular, the shared
+coordinator constructor is not evidence that production constructs a mutation
+authority. The real fixture editor, core proposal, coordinator, server refresh,
+and Qt projection trace remains the construction and runtime evidence for
+BPR-0229. The production absence of the fixture provider boundary is not
+evidence of a live provider; the same audit requires that provider to remain
+absent. Missing binaries, unsupported tool chains, nonzero tools, failed
+demanglers, and malformed or zero-defined symbol tables fail closed. Only
+parsed defined records count; `U`/`UND` references and anchors embedded in
+surrounding template text do not. Windows declaration prefixes are accepted
+only through the first allowlisted calling convention outside balanced
+template, parameter, and array delimiters; nested conventions do not select the
+anchor boundary and unbalanced declarations fail closed. Absolute, common,
+debug, and unknown symbol kinds or sections do not count. CTest treats the
+verifier's exit status as authoritative.
+
 ## Deferred gates
 
 Three acceptance criteria cannot be satisfied on this host, and each names

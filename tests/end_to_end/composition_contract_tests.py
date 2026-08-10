@@ -324,6 +324,27 @@ class CompositionContractTests(unittest.TestCase):
             )
 
             executable = find_better_pull_review_executable(build_directory)
+            composed_hosts = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPOSITORY_ROOT / "scripts/verify_composed_hosts.py"),
+                    "--profile",
+                    "production",
+                    str(executable),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                composed_hosts.returncode,
+                0,
+                composed_hosts.stdout + composed_hosts.stderr,
+            )
+            self.assertIn(
+                "COMPOSED_HOSTS_OK: profile=production",
+                composed_hosts.stdout,
+            )
             binary = executable.read_bytes()
             forbidden_bytes = list(RELEASE_BINARY_FORBIDDEN_BYTES)
             forbidden_bytes.extend(

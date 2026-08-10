@@ -108,6 +108,31 @@ A row is claimed only when its card lands with direct evidence.
 | A disposable workspace is pinned | Host and concrete Git cache | `application_agent_workspace`, `git_process_contract`, `application_agent_invocation_composition_contract`, `application_agent_invocation_cleanup_retry_contract` | The workspace matches the session's head, stays outside cache, carries no cache topology, and cleanup cannot retarget | **Verified on the composed POSIX fixture path** (BPR-0176, BPR-0247). The pin is `Binding.HeadOid`, never the checkout's. Concrete materialization uses an owner-private destination outside the retained cache, exact-head pack transfer, detached checkout, and validation of HEAD plus absent origin, alternates, hooks, and linked worktrees. Cleanup carries the original opaque directory identity. The hostile Git contract replaces the deterministic path with a same-marker substitute and proves cleanup preserves both; restoring the original identity then permits exact removal. Parent-root cleanup separately carries its original identity, removes only that exact empty directory non-recursively, and retains substituted or nonempty roots. The public canary proves ordinary terminal cleanup removes both workspace and parent. Its cleanup-retry course refuses a live substitution, retains the exact capability and non-quiescent state, then proves composed shutdown de-duplicates an effects-actor retry after terminal completion and removes the restored workspace plus parent without deleting the substitute. |
 | Existing-checkout mode is explicit | Host plus Qt | `application_agent_workspace`, `qt_agent_launch_panel` | The choice is deliberate and the dirty-worktree risk is shown | **Verified** (BPR-0176, BPR-0177). A profile cannot opt itself in: the mode is refused without a choice made for this invocation, carried on the intent rather than read from a setting. `checkout_cleanliness` keeps `unknown` distinct from `clean`, so a host that could not determine the state cannot report the reassuring answer. The toggle's tooltip states the risk; whether that wording is sufficient is a presentation question no attended review has yet judged. |
 
+## Standing composed-host linkage audit
+
+BPR-0248 requires the exact demangled
+`bpr::application::agent_invocation_host` constructor in both the
+development-fixture and production binaries. This is linkage evidence only;
+the construction cut, gesture cut, real child, cancellation, staleness, and
+cleanup courses remain the evidence that the shipped panel constructs and
+invokes that host.
+
+The shared linkage inventory additionally includes the review-mutation
+coordinator definition without claiming construction. The development-fixture
+profile requires the exact test-only GitHub public-path fixture provider
+boundary and `bpr::application::reconcile`; production forbids both fixture
+symbols. Both profiles forbid the exact
+`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
+lands. A missing binary, missing supported demangling chain, nonzero inspector,
+failed demangler, or malformed or zero-defined table is a hard failure. Only
+parsed defined records count; `U`/`UND` references and anchors embedded in
+surrounding template text do not. Windows declaration prefixes are accepted
+only through the first allowlisted calling convention outside balanced
+template, parameter, and array delimiters; nested conventions do not select the
+anchor boundary and unbalanced declarations fail closed. Absolute, common,
+debug, and unknown symbol kinds or sections do not count. CTest treats the
+verifier's exit status as authoritative.
+
 ## Cards
 
 | Card | Slice |

@@ -304,9 +304,46 @@ transport/vault fixtures below exercise those implementations directly.
 Run the focused composition group with:
 
 ```sh
+python3 -m unittest tests/scripts/verify_composed_hosts_tests.py
 ctest --test-dir build/dev --output-on-failure \
-  -R '^application_(public_path(_ghes_cli_unavailable)?|worker_executor|composition_contract|github_public_path_(github_com|ghes_3_18))$'
+  -R '^(composed_host_verifier_contract|composed_application_hosts|application_(public_path(_ghes_cli_unavailable)?|worker_executor|composition_contract|github_public_path_(github_com|ghes_3_18)))$'
 ```
+
+`composed_application_hosts` inspects the real test-enabled executable with the
+`development-fixture` profile. It requires exact demangled constructor or
+decision anchors for the GitHub, epoch, diff, workbench, appearance, syntax,
+review-ledger, defect-correlation, queue, notification, portable-agent, and Qt
+window paths, plus the shared review-mutation coordinator definition. That
+profile additionally requires the exact test-only GitHub public-path fixture
+provider boundary and reconciliation decision. The `production` profile
+requires the shared anchors, forbids those two fixture-only symbols, and is run
+against the fresh tests-disabled Release executable by
+`application_composition_contract`. Both profiles forbid the exact live review
+mutation provider until its own composition card lands.
+
+The inspector fails closed for a missing binary, missing tool chain, nonzero
+tool, failed demangler, malformed inspector output, or table with zero defined
+symbols. It selects demangling-capable `llvm-nm`, platform `nm` plus `c++filt`
+or `llvm-cxxfilt`, then `objdump -t -C` as the portable fallback. The audit
+parses only defined symbol records, discards `U`/`UND` records, and requires a
+function's qualified name to begin the normalized symbol name; an undefined
+reference or a name embedded in template text cannot satisfy an anchor.
+Windows declarations may discard only documented access/member prefixes and
+the declaration prefix through the first allowlisted calling-convention token
+at top-level balanced-delimiter depth. Conventions inside return-function
+parentheses or template arguments do not select the anchor boundary, and
+unbalanced declarations fail closed. Exact angle-bearing C++ operator spellings,
+including `operator->` and `operator->*`, are treated as operator tokens rather
+than delimiters; arbitrary unmatched angle brackets still fail. The verifier
+never searches arbitrary return or template text. Explicit symbol-kind and
+section allowlists prevent absolute, common, debug, undefined, and unknown
+records from counting as implementations. Forbidden provider types cover their
+exact methods and ABI type metadata. Raw `dumpbin` or
+`llvm-readobj` output is not accepted as a demangled symbol table. CTest uses
+the verifier's process exit status as the verdict; no pass-output regular
+expression can override a failing exit. These checks prove linkage only. The
+executable contracts remain the separate evidence that a linked host is
+constructed and that a real gesture reaches it at runtime.
 
 Run the durable public epoch path with:
 
@@ -332,7 +369,10 @@ the Release compile commands, build graph, symbols, and raw executable bytes
 contain no fixture translation unit, macro, epoch fixture argument/marker,
 label, path, or evidence string. It also requires production to compose only
 `native_github_wire_transport_factory` and rejects CLI process-runner factory
-symbols in the application. The tests-disabled `--self-test` enumerates every
+symbols in the application. Its production-profile composed-host audit also
+requires every shared exact demangled anchor while rejecting the fixture
+provider boundary, fixture reconciliation decision, and live mutation
+provider. The tests-disabled `--self-test` enumerates every
 visible CLI profile and requires `CLI_UNAVAILABLE_OK` plus the exact
 `CLI_UNAVAILABLE_COUNT`; provider
 counter tests prove the CLI viewer rejection makes zero transport-factory,

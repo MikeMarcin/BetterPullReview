@@ -76,6 +76,31 @@ reading `Planned` have none yet, and a partially claimed row says which half.
 | Notes, exclusions, last-reviewed heads, and defect metadata persist | Host persistence, migration, and composition | `ctest --preset dev -R '^(application_review_ledger_host\|sqlite_review_ledger_storage\|application_review_ledger_composition_contract)$' --output-on-failure` | Every record survives clean/crash restart and cannot leak across host, account, repository, PR, epoch, or file/conversation identity | Verified. BPR-0238 supplies schema-v3 isolation, bounds, migration, conflict, and SIGKILL evidence. BPR-0228 persists note/head/defect records through the one composed host and reloads them in a second real process. Public defect mutation remains BPR-0230 |
 | The ledger persists no presentation coordinate | Schema scan | Inspect every column of the created schema | No Qt index, row number, ribbon path, y-coordinate, or scroll position is stored | Verified. BPR-0124 enumerates every column of the created schema and matches each against a forbidden substring set, and names a column it did inspect so an empty schema cannot pass |
 
+## Standing composed-host linkage audit
+
+BPR-0248 requires the exact demangled
+`bpr::application::review_ledger_application_host` constructor in both the
+development-fixture and production binaries. This is linkage evidence only;
+the receipt actions, persistence completion, restart, and projection assertions
+in `application_review_ledger_composition_contract` remain the construction
+and runtime evidence.
+
+The shared linkage inventory also includes the review-mutation coordinator
+definition without claiming construction. The development-fixture profile
+requires the exact test-only GitHub public-path fixture provider boundary and
+`bpr::application::reconcile`; production forbids both fixture symbols. Both
+profiles forbid the exact
+`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
+lands. Missing binaries, missing supported demangling tools, nonzero tools,
+failed demanglers, and malformed or zero-defined symbol tables all fail closed.
+Only parsed defined records count; `U`/`UND` references and anchors embedded in
+surrounding template text do not. Windows declaration prefixes are accepted
+only through the first allowlisted calling convention outside balanced
+template, parameter, and array delimiters; nested conventions do not select the
+anchor boundary and unbalanced declarations fail closed. Absolute, common,
+debug, and unknown symbol kinds or sections do not count. CTest treats the
+verifier's exit status as authoritative.
+
 ## Deferred gates
 
 RFC-BPR-0007's own text names no owner-attended requirement, no Windows-native

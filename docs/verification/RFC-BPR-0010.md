@@ -106,6 +106,32 @@ A row is claimed only when its card lands with direct evidence.
 | A notification links to the right review | Composed queue, notifier, and landing proxy | Enroll the existing two-head GitHub.com fixture through the real rule gesture, observe head one as quiet, use the real Refresh action for head two, inspect the submitted target at a granted identityless fake platform sink, activate it through the sink callback, and cut each wire independently on that same refresh | The exact `github.com/octo-reviewer/octo-org/review-repository#17` row moves from quiet to changed-since-my-review and is selected and focused; later submissions are suppressed because Qt supplies no per-message activation identity; hidden or absent identities fail visibly without changing preferences or opening provider navigation | Verified. BPR-0223's four-process contract proves an honest accepted-head transition, exact metadata-only payload, one attributable submission and activation, no delivery from restore alone, zero provider mutation, plus independent projection-to-notifier and notifier-to-selection cuts. The application and Qt sink contracts prove A submitted, B suppressed, exact A activation, duplicate-click no-op, and no rearm. The Qt window suite distinguishes equal repository/number rows by complete identity and proves hidden/absent failure leaves preferences unchanged |
 | Closure and permission loss are honest | Host | Close, reopen, transfer, and lose permission to an enrolled pull request | Each produces an explicit queue state rather than a silent disappearance | Verified. BPR-0162 keeps forbidden and gone distinct — one is a permission a reviewer may be able to ask for, the other a pull request that is not there — retains a departed item with its reason while dropping it from the queue, and restores the same record on reopening. Only a withdrawal moves an item out, so an outage does not empty the queue |
 
+## Standing composed-host linkage audit
+
+BPR-0248 requires exact demangled constructors for
+`bpr::application::review_queue_application_host` and
+`bpr::application::review_queue_notifier` in both the development-fixture and
+production binaries. This proves that the implementations are linked, not that
+they are constructed or invoked. `application_queue_composition_contract` and
+the notification activation contract remain the runtime evidence for rule
+enrollment, refresh, request submission, and exact-row activation.
+
+The shared linkage inventory additionally includes the review-mutation
+coordinator definition without claiming construction. The development-fixture
+profile requires the exact test-only GitHub public-path fixture provider
+boundary and `bpr::application::reconcile`; production forbids both fixture
+symbols. Both profiles forbid the exact
+`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
+lands. The verifier cannot skip a missing binary or supported inspector, and
+nonzero tools, failed demanglers, or malformed or zero-defined tables fail
+closed. Only parsed defined records count; `U`/`UND` references and anchors
+embedded in surrounding template text do not. Windows declaration prefixes
+are accepted only through the first allowlisted calling convention outside
+balanced template, parameter, and array delimiters; nested conventions do not
+select the anchor boundary and unbalanced declarations fail closed. Absolute,
+common, debug, and unknown symbol kinds or sections do not count. CTest treats
+the verifier's exit status as authoritative.
+
 ## Deferred gates
 
 | Card | Gate | What is missing |

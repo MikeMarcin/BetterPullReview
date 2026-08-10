@@ -196,19 +196,37 @@ set_tests_properties(
         TIMEOUT 15
 )
 
-bpr_add_network_isolated_test(
-    NAME application_composition_contract
-    COMMAND
-        Python3::Interpreter
-        "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"
-        --cmake
-        "${CMAKE_COMMAND}"
+set(bpr_application_composition_contract_command
+    Python3::Interpreter
+    "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"
+    --cmake
+    "${CMAKE_COMMAND}"
+)
+if(bpr_test_qt_root)
+    list(
+        APPEND
+        bpr_application_composition_contract_command
         --qt-root
         "${bpr_test_qt_root}"
+    )
+endif()
+if(bpr_test_qt_dir)
+    list(
+        APPEND
+        bpr_application_composition_contract_command
         --qt-dir
         "${bpr_test_qt_dir}"
-        --cpm-source-cache
-        "${CPM_SOURCE_CACHE}"
+    )
+endif()
+list(
+    APPEND
+    bpr_application_composition_contract_command
+    --cpm-source-cache
+    "${CPM_SOURCE_CACHE}"
+)
+bpr_add_network_isolated_test(
+    NAME application_composition_contract
+    COMMAND ${bpr_application_composition_contract_command}
 )
 # No PASS_REGULAR_EXPRESSION. This is a `unittest` suite and its exit code is
 # already the verdict; setting the property makes CTest ignore that exit code
@@ -879,12 +897,13 @@ bpr_add_network_isolated_test(
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_composed_hosts.py"
+        --profile
+        development-fixture
         $<TARGET_FILE:app_better_pull_review>
 )
 set_tests_properties(
     composed_application_hosts
     PROPERTIES
-        PASS_REGULAR_EXPRESSION "COMPOSED_HOSTS_OK"
         TIMEOUT 30
 )
 

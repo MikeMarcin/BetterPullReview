@@ -108,6 +108,18 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME composed_host_verifier_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_composed_hosts_tests.py"
+)
+set_tests_properties(
+    composed_host_verifier_contract
+    PROPERTIES
+        TIMEOUT 60
+)
+
+bpr_add_network_isolated_test(
     NAME platform_configuration_contract
     COMMAND
         Python3::Interpreter

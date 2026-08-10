@@ -80,6 +80,34 @@ risk is taken, and keeps a build regression from blocking unrelated slices.
 
 ## Composition
 
+BPR-0248 makes the standing linkage check profile-aware. Both the real
+test-enabled executable and a fresh tests-disabled Release executable must
+contain the exact demangled constructors for
+`bpr::application::appearance_application_host` and
+`bpr::adapters::syntax::packaged_syntax_classifier`; incidental substrings no
+longer count. The shared linkage inventory also includes the review-mutation
+coordinator definition; its presence is not construction evidence. The
+development-fixture profile additionally requires the exact test-only GitHub
+public-path fixture provider boundary and `bpr::application::reconcile`, while
+the production profile forbids both fixture symbols. Both profiles forbid the
+exact
+`bpr::adapters::github::live_review_mutation_provider` type until its own card
+lands.
+
+That audit proves linkage only. The appearance gesture, syntax-pane, fallback,
+and selected-diff executable contracts below remain the evidence that the
+linked host and classifier are constructed and reached at runtime. A missing
+binary, unavailable supported inspector, nonzero tool, failed demangler, or
+malformed or zero-defined symbol table is a failure rather than a skipped
+result. Only parsed defined records count: `U`/`UND` references and qualified
+names embedded in surrounding template text cannot satisfy an anchor. The
+Windows declaration prefixes are accepted only through the first allowlisted
+calling convention outside balanced template, parameter, and array delimiters;
+nested conventions do not select the anchor boundary and unbalanced
+declarations fail closed. Absolute, common, debug, and unknown symbol kinds or
+sections do not count. The verifier's exit status, not a pass-output regular
+expression, is the CTest verdict.
+
 BPR-0180 asked the linker what the shipped binary contains. Against the `dev`
 build:
 

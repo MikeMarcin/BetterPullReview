@@ -65,6 +65,31 @@ A row is claimed only when its card lands with direct evidence.
 | Counts and navigation agree | Shipped Qt workbench | Run `qt_workbench_window_scale_100` and `application_defect_composition_contract` | The exact queue count and previous/next selection follow stable projected defect identities across restart | Verified. The window sorts the bounded histories by stable defect ID and retains selection by ID. Component and two-process traces both require two defects, `1/2`/`2/2` navigation, different selected identities, and exact reopen state |
 | The published prose stands alone | Documentation plus fixture | Read a published defect without local metadata | Severity and category enrich the local UI only; the comment is comprehensible without them | Structurally verified. Neither `review_publication_proposal` nor `review_mutation_request` has a field for severity or category, so no publication path can carry them — the absence is the guarantee. Whether the remaining prose is *sufficient* for a GitHub-only reader is a judgement no fixture settles, and is BPR-0153 |
 
+## Standing composed-host linkage audit
+
+BPR-0248 requires the exact demangled
+`bpr::application::correlate` decision anchor in both the
+development-fixture and production binaries. This proves linkage only;
+`application_defect_composition_contract` remains the evidence that the real
+selected-thread path invokes correlation and reaches explicit verification
+through the shipped workbench.
+
+The shared linkage inventory separately includes the review-mutation
+coordinator definition without claiming construction. The development-fixture
+profile requires the exact test-only GitHub public-path fixture provider
+boundary and `bpr::application::reconcile`; production forbids both fixture
+symbols. Both profiles forbid the exact
+`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
+lands. Inspector absence, nonzero or empty output, and demangling failure are
+hard failures, as are malformed or zero-defined symbol tables. Only parsed
+defined records count; `U`/`UND` references and anchors embedded in surrounding
+template text do not. Windows declaration prefixes are accepted only through
+the first allowlisted calling convention outside balanced template, parameter,
+and array delimiters; nested conventions do not select the anchor boundary and
+unbalanced declarations fail closed. Absolute, common, debug, and unknown
+symbol kinds or sections do not count. CTest treats the verifier's exit status
+as authoritative.
+
 ## Deferred gates
 
 | Card | Gate | What is missing |
