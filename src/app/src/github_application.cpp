@@ -52,6 +52,7 @@
 #include "bpr/qt/system_tray_notification_sink.hpp"
 
 #include <QApplication>
+#include <QByteArray>
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -60,6 +61,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -67,11 +69,16 @@
 #include <QListView>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QPoint>
 #include <QPushButton>
+#include <QRect>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QStyleHints>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextFormat>
 #include <QTextStream>
 #include <QTimer>
@@ -81,6 +88,7 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <cmath>
 #include <cstddef>
 #include <deque>
 #include <filesystem>
@@ -3368,6 +3376,7 @@ namespace bpr::app {
 				awaiting_observation,
 				awaiting_resource_diff,
 				awaiting_rc_diff,
+				awaiting_focused_layout,
 				passed,
 				failed,
 			};
@@ -5054,8 +5063,12 @@ namespace bpr::app {
 
 		struct intraline_pair_location
 		{
-			std::uint32_t Left  = 0U;
-			std::uint32_t Right = 0U;
+			std::uint32_t                        Left  = 0U;
+			std::uint32_t                        Right = 0U;
+			core::byte_span                      LeftSpan;
+			core::byte_span                      RightSpan;
+			core::alignment_segment_id           Segment;
+			std::optional<core::change_group_id> Group;
 		};
 
 		[[nodiscard]] auto find_intraline_pair(
@@ -5080,20 +5093,135 @@ namespace bpr::app {
 				if (pair == aResult.Alignment.Pairs.end()) {
 					continue;
 				}
-				const auto left  = decoded_line(*aResult.LeftDocument, pair->LeftLine);
-				const auto right = decoded_line(*aResult.RightDocument, pair->RightLine);
-				if (left.find(aLeftFragment) != std::string_view::npos
-					&& right.find(aRightFragment) != std::string_view::npos) {
+				const auto left           = decoded_line(*aResult.LeftDocument, pair->LeftLine);
+				const auto right          = decoded_line(*aResult.RightDocument, pair->RightLine);
+				const auto leftAt         = left.find(aLeftFragment);
+				const auto rightAt        = right.find(aRightFragment);
+				const auto insideFragment = [](const core::byte_span aSpan,
+											   const std::size_t     aBegin,
+											   const std::size_t     aExtent) {
+					return aBegin != std::string_view::npos
+						&& aSpan.Begin >= aBegin
+						&& aSpan.End <= aBegin + aExtent;
+				};
+				if (insideFragment(edit.Left, leftAt, aLeftFragment.size())
+					&& insideFragment(
+						edit.Right, rightAt, aRightFragment.size())) {
+					const auto segment = std::ranges::find_if(
+						aResult.Alignment.Segments,
+						[&pair](const core::alignment_segment& aSegment) {
+							return aSegment.Id == pair->Segment;
+						});
+					if (segment == aResult.Alignment.Segments.end()) {
+						continue;
+					}
 					return intraline_pair_location{
-						.Left  = pair->LeftLine,
-						.Right = pair->RightLine,
+						.Left      = pair->LeftLine,
+						.Right     = pair->RightLine,
+						.LeftSpan  = edit.Left,
+						.RightSpan = edit.Right,
+						.Segment   = pair->Segment,
+						.Group     = segment->Group,
 					};
 				}
 			}
 			return std::nullopt;
 		}
 
-		[[nodiscard]] auto center_intraline_pair(
+		[[nodiscard]] auto character_offset(
+			const std::span<const std::uint8_t> aBytes,
+			const std::uint64_t                 aOffset) -> int
+		{
+			const auto bounded = std::min<std::size_t>(
+				static_cast<std::size_t>(aOffset), aBytes.size());
+			return static_cast<int>(
+				QString::fromUtf8(
+					reinterpret_cast<const char*>(aBytes.data()),
+					static_cast<qsizetype>(bounded))
+					.size());
+		}
+
+		[[nodiscard]] auto intraline_selection_rect(
+			QPlainTextEdit&                    aPane,
+			const core::decoded_text_document& aDocument,
+			const std::uint32_t                aLine,
+			const core::byte_span              aSpan) -> std::optional<QRect>
+		{
+			if (aLine >= aDocument.Lines.size() || aSpan.empty()) {
+				return std::nullopt;
+			}
+			const auto& decoded = aDocument.Lines[aLine];
+			if (decoded.Content.End < decoded.Content.Begin
+				|| decoded.Content.End > aDocument.Bytes.size()) {
+				return std::nullopt;
+			}
+			const auto bytes = std::span<const std::uint8_t>{
+				aDocument.Bytes.data() + decoded.Content.Begin,
+				static_cast<std::size_t>(decoded.Content.End - decoded.Content.Begin)
+			};
+			const auto from  = character_offset(bytes, aSpan.Begin);
+			const auto to    = character_offset(bytes, aSpan.End);
+			const auto block = aPane.document()->findBlockByNumber(
+				static_cast<int>(aLine));
+			if (!block.isValid() || from >= to) {
+				return std::nullopt;
+			}
+			auto start = QTextCursor{ block };
+			start.setPosition(block.position() + from);
+			auto finish = QTextCursor{ block };
+			finish.setPosition(block.position() + to);
+			return aPane.cursorRect(start).united(aPane.cursorRect(finish));
+		}
+
+		[[nodiscard]] auto reveal_intraline_pairs(
+			qt::diff_workbench&             aWorkbench,
+			const core::computed_file_diff& aResult,
+			const intraline_pair_location&  aFirst,
+			const intraline_pair_location&  aSecond) -> bool;
+
+		[[nodiscard]] auto navigate_to_group(
+			qt::diff_workbench&             aWorkbench,
+			const core::computed_file_diff& aResult,
+			const core::change_group_id&    aTarget) -> bool
+		{
+			const auto target = std::ranges::find(
+				aResult.Alignment.Groups, aTarget, &core::change_group::Id);
+			if (target == aResult.Alignment.Groups.end()) {
+				return false;
+			}
+			const auto targetIndex = static_cast<std::size_t>(
+				std::distance(aResult.Alignment.Groups.begin(), target));
+			for (auto attempt = std::size_t{ 0U };
+				 attempt <= aResult.Alignment.Groups.size(); ++attempt) {
+				const auto selection = aWorkbench.selection();
+				if (selection.has_value() && selection->Group == aTarget) {
+					return true;
+				}
+				const auto  current      = selection.has_value()
+						&& selection->Group.has_value()
+					? std::ranges::find(
+						  aResult.Alignment.Groups,
+						  *selection->Group,
+						  &core::change_group::Id)
+					: aResult.Alignment.Groups.end();
+				const auto  currentIndex = current != aResult.Alignment.Groups.end()
+					? std::optional<std::size_t>{ static_cast<std::size_t>(
+						  std::distance(aResult.Alignment.Groups.begin(), current)) }
+					: std::nullopt;
+				auto* const action       = !currentIndex.has_value()
+						|| *currentIndex < targetIndex
+					? aWorkbench.next_change_button()
+					: aWorkbench.previous_change_button();
+				if (action == nullptr || !action->isEnabled()) {
+					return false;
+				}
+				action->click();
+				QApplication::processEvents();
+			}
+			return false;
+		}
+
+		[[nodiscard]] auto reveal_intraline_pair(
 			qt::diff_workbench&             aWorkbench,
 			const core::computed_file_diff& aResult,
 			const std::string_view          aLeftFragment,
@@ -5104,18 +5232,94 @@ namespace bpr::app {
 			if (!location.has_value()) {
 				return false;
 			}
-			const auto center = [](QPlainTextEdit& aPane, const std::uint32_t aLine) {
-				const auto block = aPane.document()->findBlockByNumber(
-					static_cast<int>(aLine));
-				if (!block.isValid()) {
+			return location->Group.has_value()
+				&& navigate_to_group(aWorkbench, aResult, *location->Group)
+				&& reveal_intraline_pairs(
+					   aWorkbench, aResult, *location, *location);
+		}
+
+		[[nodiscard]] auto reveal_intraline_pairs(
+			qt::diff_workbench&             aWorkbench,
+			const core::computed_file_diff& aResult,
+			const intraline_pair_location&  aFirst,
+			const intraline_pair_location&  aSecond) -> bool
+		{
+			const auto reveal = [](
+									QPlainTextEdit&                    aPane,
+									const core::decoded_text_document& aDocument,
+									const std::uint32_t                aFirstLine,
+									const core::byte_span              aFirstSpan,
+									const std::uint32_t                aSecondLine,
+									const core::byte_span              aSecondSpan) {
+				const auto first = intraline_selection_rect(
+					aPane, aDocument, aFirstLine, aFirstSpan);
+				const auto second = intraline_selection_rect(
+					aPane, aDocument, aSecondLine, aSecondSpan);
+				if (!first.has_value() || !second.has_value()) {
 					return false;
 				}
-				aPane.setTextCursor(QTextCursor{ block });
-				aPane.centerCursor();
+				auto* const horizontal   = aPane.horizontalScrollBar();
+				const auto  documentLeft = std::min(first->left(), second->left())
+					+ horizontal->value();
+				const auto documentRight = std::max(first->right(), second->right())
+					+ horizontal->value();
+				const auto target = std::clamp(
+					((documentLeft + documentRight) / 2)
+						- (aPane.viewport()->width() / 2),
+					horizontal->minimum(),
+					horizontal->maximum());
+				horizontal->setValue(target);
 				return true;
 			};
-			return center(*aWorkbench.left_pane(), location->Left)
-				&& center(*aWorkbench.right_pane(), location->Right);
+			if (aSecond.Left < aFirst.Left || aSecond.Right < aFirst.Right
+				|| !reveal(
+					*aWorkbench.left_pane(),
+					*aResult.LeftDocument,
+					aFirst.Left,
+					aFirst.LeftSpan,
+					aSecond.Left,
+					aSecond.LeftSpan)
+				|| !reveal(
+					*aWorkbench.right_pane(),
+					*aResult.RightDocument,
+					aFirst.Right,
+					aFirst.RightSpan,
+					aSecond.Right,
+					aSecond.RightSpan)) {
+				return false;
+			}
+			QApplication::processEvents();
+			const auto visible = [](
+									 QPlainTextEdit&                    aPane,
+									 const core::decoded_text_document& aDocument,
+									 const std::uint32_t                aLine,
+									 const core::byte_span              aSpan) {
+				const auto rect = intraline_selection_rect(
+					aPane, aDocument, aLine, aSpan);
+				return rect.has_value() && !rect->isEmpty()
+					&& QRect{ QPoint{ 0, 0 }, aPane.viewport()->size() }.contains(
+						*rect, true);
+			};
+			return visible(
+					   *aWorkbench.left_pane(),
+					   *aResult.LeftDocument,
+					   aFirst.Left,
+					   aFirst.LeftSpan)
+				&& visible(
+					   *aWorkbench.left_pane(),
+					   *aResult.LeftDocument,
+					   aSecond.Left,
+					   aSecond.LeftSpan)
+				&& visible(
+					   *aWorkbench.right_pane(),
+					   *aResult.RightDocument,
+					   aFirst.Right,
+					   aFirst.RightSpan)
+				&& visible(
+					   *aWorkbench.right_pane(),
+					   *aResult.RightDocument,
+					   aSecond.Right,
+					   aSecond.RightSpan);
 		}
 
 		[[nodiscard]] auto role_paint_count(
@@ -5147,6 +5351,218 @@ namespace bpr::app {
 					   aProfile.color(
 						   core::appearance_role::diff_intraline_added_background))
 				>= aMinimum;
+		}
+
+		struct intraline_render_observation
+		{
+			intraline_pair_location Pair;
+			QRect                   LeftRect;
+			QRect                   RightRect;
+			std::size_t             LeftRolePixels  = 0U;
+			std::size_t             RightRolePixels = 0U;
+		};
+
+		[[nodiscard]] auto role_pixel_count(
+			QPlainTextEdit& aPane,
+			const QRect&    aRect,
+			const QColor&   aExpected) -> std::size_t
+		{
+			const auto image = aPane.viewport()->grab(aRect).toImage().convertToFormat(
+				QImage::Format_ARGB32);
+			if (image.isNull() || !aExpected.isValid()) {
+				return 0U;
+			}
+			const auto expected = aExpected.rgba();
+			auto       count    = std::size_t{ 0U };
+			for (auto y = 0; y < image.height(); ++y) {
+				for (auto x = 0; x < image.width(); ++x) {
+					if (image.pixel(x, y) == expected) {
+						++count;
+					}
+				}
+			}
+			return count;
+		}
+
+		[[nodiscard]] auto exact_role_selection_present(
+			const QPlainTextEdit&              aPane,
+			const core::decoded_text_document& aDocument,
+			const std::uint32_t                aLine,
+			const core::byte_span              aSpan,
+			const QColor&                      aExpected) -> bool
+		{
+			if (aLine >= aDocument.Lines.size()) {
+				return false;
+			}
+			const auto& decoded = aDocument.Lines[aLine];
+			if (decoded.Content.End < decoded.Content.Begin
+				|| decoded.Content.End > aDocument.Bytes.size()) {
+				return false;
+			}
+			const auto bytes = std::span<const std::uint8_t>{
+				aDocument.Bytes.data() + decoded.Content.Begin,
+				static_cast<std::size_t>(decoded.Content.End - decoded.Content.Begin)
+			};
+			const auto block = aPane.document()->findBlockByNumber(
+				static_cast<int>(aLine));
+			if (!block.isValid()) {
+				return false;
+			}
+			const auto from = block.position() + character_offset(bytes, aSpan.Begin);
+			const auto to   = block.position() + character_offset(bytes, aSpan.End);
+			return std::ranges::any_of(
+				aPane.extraSelections(),
+				[&aExpected, from, to](const QTextEdit::ExtraSelection& aSelection) {
+					return !aSelection.format.boolProperty(
+							   QTextFormat::FullWidthSelection)
+						&& aSelection.format.background().color() == aExpected
+						&& aSelection.cursor.selectionStart() == from
+						&& aSelection.cursor.selectionEnd() == to;
+				});
+		}
+
+		[[nodiscard]] auto observe_intraline_render(
+			qt::diff_workbench&             aWorkbench,
+			const core::computed_file_diff& aResult,
+			const qt::appearance_profile&   aProfile,
+			const std::string_view          aLeftFragment,
+			const std::string_view          aRightFragment)
+			-> std::optional<intraline_render_observation>
+		{
+			const auto pair = find_intraline_pair(
+				aResult, aLeftFragment, aRightFragment);
+			if (!pair.has_value()) {
+				return std::nullopt;
+			}
+			auto* const left     = aWorkbench.left_pane();
+			auto* const right    = aWorkbench.right_pane();
+			const auto  leftRect = intraline_selection_rect(
+				*left, *aResult.LeftDocument, pair->Left, pair->LeftSpan);
+			const auto rightRect = intraline_selection_rect(
+				*right, *aResult.RightDocument, pair->Right, pair->RightSpan);
+			if (!leftRect.has_value() || !rightRect.has_value()
+				|| leftRect->isEmpty() || rightRect->isEmpty()
+				|| !QRect{ QPoint{ 0, 0 }, left->viewport()->size() }.contains(
+					*leftRect, true)
+				|| !QRect{ QPoint{ 0, 0 }, right->viewport()->size() }.contains(
+					*rightRect, true)) {
+				return std::nullopt;
+			}
+			const auto removed = aProfile.color(
+				core::appearance_role::diff_intraline_removed_background);
+			const auto added = aProfile.color(
+				core::appearance_role::diff_intraline_added_background);
+			if (!exact_role_selection_present(
+					*left,
+					*aResult.LeftDocument,
+					pair->Left,
+					pair->LeftSpan,
+					removed)
+				|| !exact_role_selection_present(
+					*right,
+					*aResult.RightDocument,
+					pair->Right,
+					pair->RightSpan,
+					added)) {
+				return std::nullopt;
+			}
+			return intraline_render_observation{
+				.Pair            = *pair,
+				.LeftRect        = *leftRect,
+				.RightRect       = *rightRect,
+				.LeftRolePixels  = role_pixel_count(*left, *leftRect, removed),
+				.RightRolePixels = role_pixel_count(*right, *rightRect, added),
+			};
+		}
+
+		struct connector_render_observation
+		{
+			QRectF  Bounds;
+			QPointF Start;
+			QPointF End;
+			bool    LeftEndpoint  = false;
+			bool    RightEndpoint = false;
+			bool    LeftOverlap   = false;
+			bool    RightOverlap  = false;
+		};
+
+		[[nodiscard]] auto observe_connector_render(
+			qt::diff_workbench&                 aWorkbench,
+			const intraline_render_observation& aTarget)
+			-> std::optional<connector_render_observation>
+		{
+			auto* const map   = aWorkbench.link_map();
+			const auto  found = std::ranges::find_if(
+				map->visible_links(),
+				[&aTarget](const qt::visible_diff_link& aLink) {
+					return aLink.Identity.Segment == aTarget.Pair.Segment;
+				});
+			if (found == map->visible_links().end()) {
+				return std::nullopt;
+			}
+			const auto mapTop   = map->mapToGlobal(QPoint{ 0, 0 }).y();
+			const auto relative = [mapTop](
+									  QPlainTextEdit& aPane,
+									  const QRect&    aRect) {
+				const auto top = aPane.viewport()->mapToGlobal(aRect.topLeft()).y()
+					- mapTop;
+				return std::pair{ static_cast<qreal>(top),
+								  static_cast<qreal>(top + aRect.height()) };
+			};
+			const auto [leftTop, leftBottom] = relative(
+				*aWorkbench.left_pane(), aTarget.LeftRect);
+			const auto [rightTop, rightBottom] = relative(
+				*aWorkbench.right_pane(), aTarget.RightRect);
+			const auto overlaps = [](const qreal aFirstTop,
+									 const qreal aFirstBottom,
+									 const qreal aSecondTop,
+									 const qreal aSecondBottom) {
+				return std::max(aFirstTop, aSecondTop)
+					<= std::min(aFirstBottom, aSecondBottom);
+			};
+			const auto startElement = found->Path.elementAt(0);
+			const auto endElement   = found->Path.elementAt(3);
+			const auto start        = QPointF{ startElement.x, startElement.y };
+			const auto end          = QPointF{ endElement.x, endElement.y };
+			return connector_render_observation{
+				.Bounds        = found->Path.boundingRect(),
+				.Start         = start,
+				.End           = end,
+				.LeftEndpoint  = std::abs(start.x()) <= 0.5,
+				.RightEndpoint = std::abs(end.x() - map->width()) <= 0.5,
+				.LeftOverlap   = overlaps(
+					found->LeftTop, found->LeftBottom, leftTop, leftBottom),
+				.RightOverlap = overlaps(
+					found->RightTop, found->RightBottom, rightTop, rightBottom),
+			};
+		}
+
+		[[nodiscard]] auto rectangle_json(const QRect& aRect) -> QJsonObject
+		{
+			return {
+				{ QStringLiteral("x"), aRect.x() },
+				{ QStringLiteral("y"), aRect.y() },
+				{ QStringLiteral("width"), aRect.width() },
+				{ QStringLiteral("height"), aRect.height() },
+			};
+		}
+
+		[[nodiscard]] auto rectangle_json(const QRectF& aRect) -> QJsonObject
+		{
+			return {
+				{ QStringLiteral("x"), aRect.x() },
+				{ QStringLiteral("y"), aRect.y() },
+				{ QStringLiteral("width"), aRect.width() },
+				{ QStringLiteral("height"), aRect.height() },
+			};
+		}
+
+		[[nodiscard]] auto point_json(const QPointF& aPoint) -> QJsonObject
+		{
+			return {
+				{ QStringLiteral("x"), aPoint.x() },
+				{ QStringLiteral("y"), aPoint.y() },
+			};
 		}
 
 		[[nodiscard]] auto drawer_row(
@@ -5308,7 +5724,7 @@ namespace bpr::app {
 			}
 			if (implementation->SelectedDiffPublications
 				== probe.SelectedDiffPublications) {
-				if (++probe.Waits > 32U && probe.Evidence.ResourceGesture) {
+				if (++probe.Waits > 512U && probe.Evidence.ResourceGesture) {
 					return fail();
 				}
 				return result::pending;
@@ -5350,7 +5766,7 @@ namespace bpr::app {
 				|| !probe.Evidence.ResourcePublication
 				|| !probe.Evidence.ResourceExactBlobs
 				|| !probe.Evidence.ResourceIntralinePair
-				|| !center_intraline_pair(
+				|| !reveal_intraline_pair(
 					*workbench,
 					computed,
 					"_APS_NEXT_RESOURCE_VALUE        136",
@@ -5388,7 +5804,7 @@ namespace bpr::app {
 			}
 			if (implementation->SelectedDiffPublications
 				== probe.SelectedDiffPublications) {
-				if (++probe.Waits > 32U && probe.Evidence.RcGesture) {
+				if (++probe.Waits > 512U && probe.Evidence.RcGesture) {
 					return fail();
 				}
 				return result::pending;
@@ -5417,19 +5833,33 @@ namespace bpr::app {
 				}
 				return result::pending;
 			}
-			probe.Evidence.RcExactBlobs = true;
-			probe.Waits                 = 0U;
-			const auto& computed        = *workbench->current_result();
-			const auto  pairOne         = find_intraline_pair(
+			if (!probe.Evidence.RcExactBlobs) {
+				probe.Evidence.RcExactBlobs = true;
+				probe.Waits                 = 0U;
+			}
+			const auto& computed = *workbench->current_result();
+			const auto  pairOne  = find_intraline_pair(
 				computed, "WS_TABSTOP,464,28,67,10", "WS_TABSTOP,464,24,67,10");
 			const auto pairTwo = find_intraline_pair(
 				computed, "WS_TABSTOP,464,42,98,10", "WS_TABSTOP,464,36,98,10");
 			probe.Evidence.RcIntralinePairs
 				= pairOne.has_value() && pairTwo.has_value();
+			if (!probe.Evidence.RcIntralinePairs || !pairOne->Group.has_value()) {
+				return fail();
+			}
+			if (!workbench->selection().has_value()
+				|| workbench->selection()->Group != pairOne->Group) {
+				if (probe.Waits++ > computed.Alignment.Groups.size()) {
+					return fail();
+				}
+				workbench->next_change_button()->click();
+				return result::pending;
+			}
+			probe.Waits = 0U;
 			if (!probe.Evidence.RcGesture || !probe.Evidence.RcPublication
 				|| !probe.Evidence.RcExactBlobs
 				|| !probe.Evidence.RcIntralinePairs
-				|| !center_intraline_pair(
+				|| !reveal_intraline_pair(
 					*workbench,
 					computed,
 					"WS_TABSTOP,464,28,67,10",
@@ -5446,7 +5876,7 @@ namespace bpr::app {
 			}
 			probe.Evidence.FixtureDiffHelperUnused
 				= implementation->FixtureDiffHelperInvocations == 0U;
-			const auto all = std::array{
+			const auto semantic = std::array{
 				probe.Evidence.ExactCommitPair,
 				probe.Evidence.ResourceGesture,
 				probe.Evidence.ResourceExactBlobs,
@@ -5460,10 +5890,51 @@ namespace bpr::app {
 				probe.Evidence.RcPublication,
 				probe.Evidence.FixtureDiffHelperUnused,
 			};
-			if (!std::ranges::all_of(all, std::identity{ })) {
+			if (!std::ranges::all_of(semantic, std::identity{ })) {
 				return fail();
 			}
-			probe.Phase = state_type::phase::passed;
+			auto* const files = window->files_drawer_toggle_action();
+			auto* const conversations
+				= window->conversations_drawer_toggle_action();
+			auto* const details = window->review_details_toggle_action();
+			if (files == nullptr || conversations == nullptr || details == nullptr
+				|| !files->isEnabled() || !conversations->isEnabled()) {
+				return fail();
+			}
+			if (files->isChecked()) {
+				files->trigger();
+			}
+			if (conversations->isChecked()) {
+				conversations->trigger();
+			}
+			if (details->isChecked()) {
+				details->trigger();
+			}
+			probe.Waits = 0U;
+			probe.Phase = state_type::phase::awaiting_focused_layout;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_focused_layout) {
+			auto* const header = window->findChild<QScrollArea*>(
+				QStringLiteral("workbenchReviewHeaderScroll"));
+			auto* const detail  = workbench->detail_pane();
+			const auto  focused = !window->files_drawer()->isVisible()
+				&& !window->conversations_drawer()->isVisible()
+				&& !window->files_drawer_toggle_action()->isChecked()
+				&& !window->conversations_drawer_toggle_action()->isChecked()
+				&& !window->review_details_toggle_action()->isChecked()
+				&& header != nullptr && !header->isVisible()
+				&& !window->epoch_selectors()->isVisible()
+				&& detail != nullptr && !detail->isVisible();
+			if (!focused) {
+				if (++probe.Waits > 64U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			probe.Evidence.FocusedReviewLayout = true;
+			probe.Phase                        = state_type::phase::passed;
 			return result::passed;
 		}
 
@@ -5499,26 +5970,163 @@ namespace bpr::app {
 			|| aDirectory.empty()) {
 			return false;
 		}
-		auto* const window    = implementation->Window.get();
-		auto* const workbench = window->comparison_surface();
+		auto* const       window     = implementation->Window.get();
+		auto* const       workbench  = window->comparison_surface();
+		const auto* const result     = workbench != nullptr
+			? workbench->current_result().get()
+			: nullptr;
+		const auto        firstPair  = result != nullptr
+			? find_intraline_pair(
+				  *result,
+				  "WS_TABSTOP,464,28,67,10",
+				  "WS_TABSTOP,464,24,67,10")
+			: std::optional<intraline_pair_location>{ };
+		const auto        secondPair = result != nullptr
+			? find_intraline_pair(
+				  *result,
+				  "WS_TABSTOP,464,42,98,10",
+				  "WS_TABSTOP,464,36,98,10")
+			: std::optional<intraline_pair_location>{ };
 		if (workbench == nullptr || workbench->current_result() == nullptr
+			|| !firstPair.has_value() || !secondPair.has_value()
+			|| !firstPair->Group.has_value() || !secondPair->Group.has_value()
 			|| !selected_diff_matches(
 				*implementation,
 				uiforetw_rc_path,
 				uiforetw_rc_base_blob,
-				uiforetw_rc_head_blob)
-			|| !center_intraline_pair(
-				*workbench,
-				*workbench->current_result(),
-				"WS_TABSTOP,464,28,67,10",
-				"WS_TABSTOP,464,24,67,10")) {
+				uiforetw_rc_head_blob)) {
 			return false;
 		}
-		for (auto tick = 0; tick < 4; ++tick) {
-			QApplication::processEvents();
+		const auto drain = [] {
+			for (auto tick = 0; tick < 4; ++tick) {
+				QApplication::processEvents();
+			}
+		};
+		const auto selected = [workbench](const intraline_pair_location& aPair) {
+			return aPair.Group.has_value()
+				&& workbench->selection().has_value()
+				&& workbench->selection()->Segment == aPair.Segment
+				&& workbench->selection()->Group == aPair.Group
+				&& workbench->link_map()->selected()
+				== qt::diff_link_map_identity{
+					   .Segment = aPair.Segment,
+					   .Group   = aPair.Group,
+				   };
+		};
+		const auto observeTarget = [workbench, result, implementation](
+									   const std::string_view aLeft,
+									   const std::string_view aRight) {
+			return observe_intraline_render(
+				*workbench,
+				*result,
+				*implementation->AppearanceProfile,
+				aLeft,
+				aRight);
+		};
+		const auto connectorValid = [](const connector_render_observation& aValue) {
+			return aValue.LeftEndpoint && aValue.RightEndpoint
+				&& aValue.LeftOverlap && aValue.RightOverlap;
+		};
+
+		if (!navigate_to_group(*workbench, *result, *firstPair->Group)
+			|| !reveal_intraline_pairs(
+				*workbench, *result, *firstPair, *secondPair)) {
+			return false;
 		}
+		drain();
+		const auto firstSelected = observeTarget(
+			"WS_TABSTOP,464,28,67,10", "WS_TABSTOP,464,24,67,10");
+		const auto firstSelectedConnector = firstSelected.has_value()
+			? observe_connector_render(*workbench, *firstSelected)
+			: std::optional<connector_render_observation>{ };
+		if (!firstSelected.has_value() || !selected(*firstPair)
+			|| firstSelected->LeftRolePixels == 0U
+			|| firstSelected->RightRolePixels == 0U
+			|| !firstSelectedConnector.has_value()
+			|| !connectorValid(*firstSelectedConnector)) {
+			QTextStream{ stderr } << "UIFORETW_CAPTURE_FIRST_TARGET_FAILED\n";
+			return false;
+		}
+
+		if (!navigate_to_group(*workbench, *result, *secondPair->Group)
+			|| !reveal_intraline_pairs(
+				*workbench, *result, *firstPair, *secondPair)) {
+			return false;
+		}
+		drain();
+		const auto secondSelected = observeTarget(
+			"WS_TABSTOP,464,42,98,10", "WS_TABSTOP,464,36,98,10");
+		const auto secondSelectedConnector = secondSelected.has_value()
+			? observe_connector_render(*workbench, *secondSelected)
+			: std::optional<connector_render_observation>{ };
+		if (!secondSelected.has_value() || !selected(*secondPair)
+			|| secondSelected->LeftRolePixels == 0U
+			|| secondSelected->RightRolePixels == 0U
+			|| !secondSelectedConnector.has_value()
+			|| !connectorValid(*secondSelectedConnector)) {
+			QTextStream{ stderr } << "UIFORETW_CAPTURE_SECOND_TARGET_FAILED\n";
+			return false;
+		}
+
+		if (!navigate_to_group(*workbench, *result, *firstPair->Group)
+			|| !reveal_intraline_pairs(
+				*workbench, *result, *firstPair, *secondPair)) {
+			return false;
+		}
+		drain();
+		const auto first = observeTarget(
+			"WS_TABSTOP,464,28,67,10", "WS_TABSTOP,464,24,67,10");
+		const auto second = observeTarget(
+			"WS_TABSTOP,464,42,98,10", "WS_TABSTOP,464,36,98,10");
+		const auto firstConnector  = first.has_value()
+			? observe_connector_render(*workbench, *first)
+			: std::optional<connector_render_observation>{ };
+		const auto secondConnector = second.has_value()
+			? observe_connector_render(*workbench, *second)
+			: std::optional<connector_render_observation>{ };
 		if (!intraline_roles_visible(
-				*workbench, *implementation->AppearanceProfile, 2U)) {
+				*workbench, *implementation->AppearanceProfile, 2U)
+			|| !first.has_value() || !second.has_value()
+			|| first->LeftRolePixels == 0U || first->RightRolePixels == 0U
+			|| second->LeftRolePixels == 0U || second->RightRolePixels == 0U
+			|| !firstConnector.has_value() || !secondConnector.has_value()
+			|| !connectorValid(*firstConnector)
+			|| !connectorValid(*secondConnector) || !selected(*firstPair)) {
+			QTextStream{ stderr } << "UIFORETW_CAPTURE_FINAL_TARGET_FAILED\n";
+			return false;
+		}
+
+		auto* const header = window->findChild<QScrollArea*>(
+			QStringLiteral("workbenchReviewHeaderScroll"));
+		auto* const detail            = workbench->detail_pane();
+		auto* const comparisonSurface = workbench->comparison_splitter();
+		auto* const linkMap           = workbench->link_map();
+		if (header == nullptr || header->isVisible()
+			|| window->epoch_selectors()->isVisible()
+			|| detail == nullptr || detail->isVisible()
+			|| window->files_drawer()->isVisible()
+			|| window->conversations_drawer()->isVisible()
+			|| comparisonSurface == nullptr || linkMap == nullptr) {
+			return false;
+		}
+		const auto inWindow = [window](const QWidget& aWidget) {
+			return QRect{
+				aWidget.mapTo(window, QPoint{ 0, 0 }),
+				aWidget.size(),
+			};
+		};
+		const auto comparisonRect = inWindow(*comparisonSurface);
+		const auto leftPaneRect   = inWindow(*workbench->left_pane()->viewport());
+		const auto rightPaneRect  = inWindow(*workbench->right_pane()->viewport());
+		const auto gutterRect     = inWindow(*linkMap);
+		const auto widthRatio     = (1'000 * comparisonRect.width())
+			/ std::max(1, window->width());
+		const auto heightRatio = (1'000 * comparisonRect.height())
+			/ std::max(1, window->height());
+		if (widthRatio < 750 || heightRatio < 850) {
+			QTextStream{ stderr }
+				<< "UIFORETW_CAPTURE_LAYOUT_FAILED:" << widthRatio << ':'
+				<< heightRatio << '\n';
 			return false;
 		}
 
@@ -5529,7 +6137,7 @@ namespace bpr::app {
 		}
 		const auto directory  = QDir{ path };
 		const auto full       = window->grab();
-		const auto comparison = workbench->grab();
+		const auto comparison = comparisonSurface->grab();
 		if (full.isNull() || comparison.isNull()
 			|| !full.save(directory.filePath(QStringLiteral("full-window.png")), "PNG")
 			|| !comparison.save(
@@ -5548,8 +6156,63 @@ namespace bpr::app {
 			return QString::fromUtf8(
 				text.data(), static_cast<qsizetype>(text.size()));
 		};
+		const auto identityText = []<typename Identity>(const Identity& aIdentity) {
+			const auto& bytes = aIdentity.bytes();
+			return QString::fromLatin1(
+				QByteArray{
+					reinterpret_cast<const char*>(bytes.data()),
+					static_cast<qsizetype>(bytes.size()) }
+					.toHex());
+		};
+		const auto connectorJson = [](const connector_render_observation& aValue) {
+			return QJsonObject{
+				{ QStringLiteral("bounds"), rectangle_json(aValue.Bounds) },
+				{ QStringLiteral("start"), point_json(aValue.Start) },
+				{ QStringLiteral("end"), point_json(aValue.End) },
+				{ QStringLiteral("left_endpoint_at_pane_edge"), aValue.LeftEndpoint },
+				{ QStringLiteral("right_endpoint_at_pane_edge"), aValue.RightEndpoint },
+				{ QStringLiteral("left_target_row_overlap"), aValue.LeftOverlap },
+				{ QStringLiteral("right_target_row_overlap"), aValue.RightOverlap },
+			};
+		};
+		const auto firstGroup = std::ranges::find(
+			result->Alignment.Groups, *firstPair->Group, &core::change_group::Id);
+		const auto secondGroup = std::ranges::find(
+			result->Alignment.Groups, *secondPair->Group, &core::change_group::Id);
+		if (firstGroup == result->Alignment.Groups.end()
+			|| secondGroup == result->Alignment.Groups.end()) {
+			return false;
+		}
+		const auto targetJson = [&identityText, &connectorJson](
+									const intraline_render_observation& aTarget,
+									const intraline_render_observation& aSelectedTarget,
+									const connector_render_observation& aConnector,
+									const qint64                        aChangeIndex) {
+			return QJsonObject{
+				{ QStringLiteral("segment"), identityText(aTarget.Pair.Segment) },
+				{ QStringLiteral("group"),
+				  aTarget.Pair.Group.has_value()
+					  ? identityText(*aTarget.Pair.Group)
+					  : QString{ } },
+				{ QStringLiteral("left_line"), static_cast<qint64>(aTarget.Pair.Left) },
+				{ QStringLiteral("right_line"), static_cast<qint64>(aTarget.Pair.Right) },
+				{ QStringLiteral("left_rect_in_pane"), rectangle_json(aTarget.LeftRect) },
+				{ QStringLiteral("right_rect_in_pane"), rectangle_json(aTarget.RightRect) },
+				{ QStringLiteral("left_role_pixels"), static_cast<qint64>(aTarget.LeftRolePixels) },
+				{ QStringLiteral("right_role_pixels"), static_cast<qint64>(aTarget.RightRolePixels) },
+				{ QStringLiteral("selected_observed"), true },
+				{ QStringLiteral("selected_left_role_pixels"), static_cast<qint64>(aSelectedTarget.LeftRolePixels) },
+				{ QStringLiteral("selected_right_role_pixels"), static_cast<qint64>(aSelectedTarget.RightRolePixels) },
+				{ QStringLiteral("change_index"), aChangeIndex },
+				{ QStringLiteral("connector"), connectorJson(aConnector) },
+			};
+		};
+		const auto firstChangeIndex = static_cast<qint64>(
+			std::distance(result->Alignment.Groups.begin(), firstGroup));
+		const auto secondChangeIndex = static_cast<qint64>(
+			std::distance(result->Alignment.Groups.begin(), secondGroup));
 		auto facts = QJsonObject{
-			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v1") },
+			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v2") },
 			{ QStringLiteral("appearance"), appearance_mode_name(aMode) },
 			{ QStringLiteral("qt_platform"), QGuiApplication::platformName() },
 			{ QStringLiteral("qt_version"), QString::fromLatin1(qVersion()) },
@@ -5559,6 +6222,8 @@ namespace bpr::app {
 			{ QStringLiteral("logical_height"), window->height() },
 			{ QStringLiteral("pixel_width"), full.width() },
 			{ QStringLiteral("pixel_height"), full.height() },
+			{ QStringLiteral("comparison_pixel_width"), comparison.width() },
+			{ QStringLiteral("comparison_pixel_height"), comparison.height() },
 			{ QStringLiteral("selected_path"), QString::fromUtf8(uiforetw_rc_path.data(), static_cast<qsizetype>(uiforetw_rc_path.size())) },
 			{ QStringLiteral("base_commit"), QString::fromUtf8(uiforetw_base_oid.data(), static_cast<qsizetype>(uiforetw_base_oid.size())) },
 			{ QStringLiteral("head_commit"), QString::fromUtf8(uiforetw_head_oid.data(), static_cast<qsizetype>(uiforetw_head_oid.size())) },
@@ -5568,6 +6233,28 @@ namespace bpr::app {
 			{ QStringLiteral("added_role"), added.name(QColor::HexArgb) },
 			{ QStringLiteral("intraline_edit_count"), static_cast<qint64>(workbench->current_result()->Intraline.size()) },
 			{ QStringLiteral("fixture_diff_helper_invocations"), static_cast<qint64>(implementation->FixtureDiffHelperInvocations) },
+			{ QStringLiteral("files_drawer_visible"), false },
+			{ QStringLiteral("conversations_drawer_visible"), false },
+			{ QStringLiteral("review_details_visible"), false },
+			{ QStringLiteral("epoch_controls_visible"), false },
+			{ QStringLiteral("selected_change_detail_visible"), false },
+			{ QStringLiteral("full_window_rect"), rectangle_json(window->rect()) },
+			{ QStringLiteral("comparison_rect_in_window"), rectangle_json(comparisonRect) },
+			{ QStringLiteral("left_pane_rect_in_window"), rectangle_json(leftPaneRect) },
+			{ QStringLiteral("right_pane_rect_in_window"), rectangle_json(rightPaneRect) },
+			{ QStringLiteral("gutter_rect_in_window"), rectangle_json(gutterRect) },
+			{ QStringLiteral("files_drawer_rect_in_splitter"), rectangle_json(window->files_drawer()->geometry()) },
+			{ QStringLiteral("conversations_drawer_rect_in_splitter"), rectangle_json(window->conversations_drawer()->geometry()) },
+			{ QStringLiteral("review_details_rect_in_window"), rectangle_json(inWindow(*header)) },
+			{ QStringLiteral("comparison_width_ratio_permille"), widthRatio },
+			{ QStringLiteral("comparison_height_ratio_permille"), heightRatio },
+			{ QStringLiteral("left_horizontal_offset"), workbench->left_pane()->horizontalScrollBar()->value() },
+			{ QStringLiteral("right_horizontal_offset"), workbench->right_pane()->horizontalScrollBar()->value() },
+			{ QStringLiteral("selected_change_index"), firstChangeIndex },
+			{ QStringLiteral("selected_segment"), identityText(first->Pair.Segment) },
+			{ QStringLiteral("selected_group"), identityText(*first->Pair.Group) },
+			{ QStringLiteral("replacement_28_to_24"), targetJson(*first, *firstSelected, *firstConnector, firstChangeIndex) },
+			{ QStringLiteral("replacement_42_to_36"), targetJson(*second, *secondSelected, *secondConnector, secondChangeIndex) },
 		};
 		auto file = QFile{ directory.filePath(QStringLiteral("capture-facts.json")) };
 		if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {

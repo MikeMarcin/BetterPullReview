@@ -260,6 +260,7 @@ namespace bpr::app::detail {
 		bool RcIntralinePairs        = false;
 		bool RcRolePaint             = false;
 		bool RcPublication           = false;
+		bool FocusedReviewLayout     = false;
 		bool FixtureDiffHelperUnused = false;
 
 		auto operator<=>(const uiforetw_selected_diff_probe_evidence&) const

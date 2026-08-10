@@ -54,13 +54,24 @@ and is bound as
 owner rejected its only subject on 2026-08-10: the diff region is too narrow to
 show the changed lines, the gutter ribbon appears to connect nothing, and the
 full-window layout gives far too much space to upper information and the open
-Files drawer instead of the two code panes and gutter.
+Files drawer instead of the two code panes and gutter. The follow-up clarified
+that every non-diff surface—not only the drawer—must have a strict space budget
+in the focused review state; a real review would normally collapse the Files
+drawer.
 
 The exact verdict and validator record are
 `docs/verification/reviews/uiforetw-intraline-acceptance-v001/human-verdict.json`
 and `verdict-validation.json`. [[BPR-0246]] owns the focused-review layout,
 exact-span/connector visibility proof, and a new immutable v002 batch. This card
 remains in Backlog and enables no downstream closure claim.
+
+BPR-0246's focused implementation is now mechanically green: it preserves the
+1280 × 1000 full-window viewport, collapses both drawers and all secondary
+review details through shipped reopenable actions, reveals both named
+replacement spans, and binds their exact pixels and connector geometry. The
+new v002 attended package is the remaining dependency; no acceptance is
+carried forward from v001. Both replacement groups are selected in turn, and
+the selected-row wash no longer hides the exact intraline role in the raster.
 
 ## Verification
 

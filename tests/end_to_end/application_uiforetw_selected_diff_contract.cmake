@@ -96,6 +96,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         UIFORETW_RC_BLOBS_OK
         UIFORETW_RC_INTRALINE_OK
         UIFORETW_RC_ROLE_OK
+        UIFORETW_FOCUSED_REVIEW_LAYOUT_OK
         UIFORETW_FIXTURE_DIFF_HELPER_UNUSED_OK
         UIFORETW_SELECTED_DIFF_TRACE_OK
         UIFORETW_SELECTED_DIFF_EVIDENCE_OK
@@ -119,6 +120,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         "\"base_blob\": \"b995e189fb58da146945e1fb22380cdf4a7f4e47\""
         "\"head_blob\": \"6335c1b2e14cd5e63142ce1dfc283fcf538fb134\""
         "\"fixture_diff_helper_invocations\": 0"
+        "\"schema\": \"bpr.uiforetw_intraline_capture.v2\""
         "\"selected_path\": \"UIforETW/UIforETW.rc\""
     )
         string(FIND "${capture_facts}" "${fact}" found)
@@ -128,6 +130,310 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
             )
         endif()
     endforeach()
+
+    foreach(hidden IN ITEMS
+        files_drawer_visible
+        conversations_drawer_visible
+        review_details_visible
+        epoch_controls_visible
+        selected_change_detail_visible
+    )
+        string(JSON hidden_value GET "${capture_facts}" "${hidden}")
+        if(hidden_value)
+            message(FATAL_ERROR
+                "UIforETW ${profile} focused review left ${hidden} true"
+            )
+        endif()
+    endforeach()
+
+    foreach(dimension IN ITEMS logical_width pixel_width)
+        string(JSON value GET "${capture_facts}" "${dimension}")
+        if(NOT value EQUAL 1280)
+            message(FATAL_ERROR
+                "UIforETW ${profile} changed ${dimension}: ${value}"
+            )
+        endif()
+    endforeach()
+    foreach(dimension IN ITEMS logical_height pixel_height)
+        string(JSON value GET "${capture_facts}" "${dimension}")
+        if(NOT value EQUAL 1000)
+            message(FATAL_ERROR
+                "UIforETW ${profile} changed ${dimension}: ${value}"
+            )
+        endif()
+    endforeach()
+
+    foreach(rect IN ITEMS
+        full_window_rect
+        comparison_rect_in_window
+        left_pane_rect_in_window
+        right_pane_rect_in_window
+        gutter_rect_in_window
+        files_drawer_rect_in_splitter
+        conversations_drawer_rect_in_splitter
+        review_details_rect_in_window
+    )
+        foreach(component IN ITEMS x y width height)
+            string(JSON "${rect}_${component}" GET
+                "${capture_facts}" "${rect}" "${component}")
+        endforeach()
+        if(${rect}_width LESS 1 OR ${rect}_height LESS 1)
+            message(FATAL_ERROR
+                "UIforETW ${profile} ${rect} is empty"
+            )
+        endif()
+    endforeach()
+    if(NOT full_window_rect_x EQUAL 0
+            OR NOT full_window_rect_y EQUAL 0
+            OR NOT full_window_rect_width EQUAL 1280
+            OR NOT full_window_rect_height EQUAL 1000)
+        message(FATAL_ERROR
+            "UIforETW ${profile} full-window rectangle is not exact"
+        )
+    endif()
+    math(EXPR review_details_right
+        "${review_details_rect_in_window_x} + ${review_details_rect_in_window_width}")
+    math(EXPR review_details_bottom
+        "${review_details_rect_in_window_y} + ${review_details_rect_in_window_height}")
+    if(NOT files_drawer_rect_in_splitter_x EQUAL 0
+            OR files_drawer_rect_in_splitter_y LESS 0
+            OR conversations_drawer_rect_in_splitter_x LESS 1280
+            OR conversations_drawer_rect_in_splitter_y LESS 0
+            OR review_details_rect_in_window_x LESS 0
+            OR review_details_rect_in_window_y LESS 0
+            OR review_details_right GREATER 1280
+            OR review_details_bottom GREATER 1000)
+        message(FATAL_ERROR
+            "UIforETW ${profile} hidden drawer/detail rectangles are internally inconsistent"
+        )
+    endif()
+
+    string(JSON removed_role GET "${capture_facts}" removed_role)
+    string(JSON added_role GET "${capture_facts}" added_role)
+    string(LENGTH "${removed_role}" removed_role_length)
+    string(LENGTH "${added_role}" added_role_length)
+    if(NOT removed_role_length EQUAL 9
+            OR NOT added_role_length EQUAL 9
+            OR removed_role STREQUAL added_role)
+        message(FATAL_ERROR
+            "UIforETW ${profile} semantic role colors are missing or aliased"
+        )
+    endif()
+
+    string(JSON width_ratio GET
+        "${capture_facts}" comparison_width_ratio_permille)
+    string(JSON height_ratio GET
+        "${capture_facts}" comparison_height_ratio_permille)
+    string(JSON comparison_width GET
+        "${capture_facts}" comparison_rect_in_window width)
+    string(JSON comparison_height GET
+        "${capture_facts}" comparison_rect_in_window height)
+    string(JSON crop_width GET "${capture_facts}" comparison_pixel_width)
+    string(JSON crop_height GET "${capture_facts}" comparison_pixel_height)
+    math(EXPR computed_width_ratio
+        "(${comparison_width} * 1000) / 1280")
+    math(EXPR computed_height_ratio
+        "(${comparison_height} * 1000) / 1000")
+    if(NOT width_ratio EQUAL computed_width_ratio
+            OR NOT height_ratio EQUAL computed_height_ratio
+            OR computed_width_ratio LESS 750
+            OR computed_height_ratio LESS 850
+            OR comparison_width LESS 960
+            OR comparison_height LESS 850
+            OR NOT crop_width EQUAL comparison_width
+            OR NOT crop_height EQUAL comparison_height)
+        message(FATAL_ERROR
+            "UIforETW ${profile} is not a native pane-dominant focused review: "
+            "ratio=${width_ratio}x${height_ratio} "
+            "computed=${computed_width_ratio}x${computed_height_ratio} "
+            "comparison=${comparison_width}x${comparison_height} "
+            "crop=${crop_width}x${crop_height}"
+        )
+    endif()
+    math(EXPR comparison_right
+        "${comparison_rect_in_window_x} + ${comparison_rect_in_window_width}")
+    math(EXPR comparison_bottom
+        "${comparison_rect_in_window_y} + ${comparison_rect_in_window_height}")
+    math(EXPR left_right
+        "${left_pane_rect_in_window_x} + ${left_pane_rect_in_window_width}")
+    math(EXPR left_bottom
+        "${left_pane_rect_in_window_y} + ${left_pane_rect_in_window_height}")
+    math(EXPR gutter_right
+        "${gutter_rect_in_window_x} + ${gutter_rect_in_window_width}")
+    math(EXPR gutter_bottom
+        "${gutter_rect_in_window_y} + ${gutter_rect_in_window_height}")
+    math(EXPR right_right
+        "${right_pane_rect_in_window_x} + ${right_pane_rect_in_window_width}")
+    math(EXPR right_bottom
+        "${right_pane_rect_in_window_y} + ${right_pane_rect_in_window_height}")
+    if(comparison_rect_in_window_x LESS 0
+            OR comparison_rect_in_window_y LESS 0
+            OR comparison_right GREATER 1280
+            OR comparison_bottom GREATER 1000
+            OR left_pane_rect_in_window_x LESS comparison_rect_in_window_x
+            OR left_right GREATER gutter_rect_in_window_x
+            OR gutter_right GREATER right_pane_rect_in_window_x
+            OR right_right GREATER comparison_right
+            OR left_pane_rect_in_window_y LESS comparison_rect_in_window_y
+            OR right_pane_rect_in_window_y LESS comparison_rect_in_window_y
+            OR gutter_rect_in_window_y LESS comparison_rect_in_window_y
+            OR left_bottom GREATER comparison_bottom
+            OR right_bottom GREATER comparison_bottom
+            OR gutter_bottom GREATER comparison_bottom)
+        message(FATAL_ERROR
+            "UIforETW ${profile} pane/gutter rectangles escape or overlap their comparison"
+        )
+    endif()
+
+    string(JSON left_offset GET "${capture_facts}" left_horizontal_offset)
+    string(JSON right_offset GET "${capture_facts}" right_horizontal_offset)
+    string(JSON selected_change GET "${capture_facts}" selected_change_index)
+    if(left_offset LESS 1 OR right_offset LESS 1 OR NOT selected_change EQUAL 1)
+        message(FATAL_ERROR
+            "UIforETW ${profile} did not reveal and select the exact replacement: "
+            "offsets=${left_offset}/${right_offset} change=${selected_change}"
+        )
+    endif()
+
+    string(JSON selected_segment GET "${capture_facts}" selected_segment)
+    string(JSON selected_group GET "${capture_facts}" selected_group)
+    string(LENGTH "${selected_segment}" selected_segment_length)
+    string(LENGTH "${selected_group}" selected_group_length)
+    if(NOT selected_segment_length EQUAL 64 OR NOT selected_group_length EQUAL 64)
+        message(FATAL_ERROR
+            "UIforETW ${profile} selected identities are not exact digests"
+        )
+    endif()
+
+    foreach(target IN ITEMS replacement_28_to_24 replacement_42_to_36)
+        string(JSON target_segment GET "${capture_facts}" "${target}" segment)
+        string(JSON target_group GET "${capture_facts}" "${target}" group)
+        string(JSON target_selected GET
+            "${capture_facts}" "${target}" selected_observed)
+        string(JSON target_change GET
+            "${capture_facts}" "${target}" change_index)
+        string(LENGTH "${target_segment}" target_segment_length)
+        string(LENGTH "${target_group}" target_group_length)
+        if(NOT target_selected
+                OR NOT target_segment_length EQUAL 64
+                OR NOT target_group_length EQUAL 64)
+            message(FATAL_ERROR
+                "UIforETW ${profile} ${target} was not selected with exact identity"
+            )
+        endif()
+        foreach(side IN ITEMS left right)
+            string(JSON target_width GET
+                "${capture_facts}" "${target}" "${side}_rect_in_pane" width)
+            string(JSON target_height GET
+                "${capture_facts}" "${target}" "${side}_rect_in_pane" height)
+            string(JSON target_x GET
+                "${capture_facts}" "${target}" "${side}_rect_in_pane" x)
+            string(JSON target_y GET
+                "${capture_facts}" "${target}" "${side}_rect_in_pane" y)
+            string(JSON role_pixels GET
+                "${capture_facts}" "${target}" "${side}_role_pixels")
+            string(JSON selected_role_pixels GET
+                "${capture_facts}" "${target}" "selected_${side}_role_pixels")
+            math(EXPR target_right "${target_x} + ${target_width}")
+            math(EXPR target_bottom "${target_y} + ${target_height}")
+            if(side STREQUAL "left")
+                set(pane_width "${left_pane_rect_in_window_width}")
+                set(pane_height "${left_pane_rect_in_window_height}")
+            else()
+                set(pane_width "${right_pane_rect_in_window_width}")
+                set(pane_height "${right_pane_rect_in_window_height}")
+            endif()
+            if(target_width LESS 1
+                    OR target_height LESS 1
+                    OR target_x LESS 0
+                    OR target_y LESS 0
+                    OR target_right GREATER pane_width
+                    OR target_bottom GREATER pane_height
+                    OR role_pixels LESS 1
+                    OR selected_role_pixels LESS 1)
+                message(FATAL_ERROR
+                    "UIforETW ${profile} ${target} ${side} is not visibly painted: "
+                    "rect=${target_x},${target_y},${target_width}x${target_height} "
+                    "pixels=${role_pixels}/${selected_role_pixels}"
+                )
+            endif()
+        endforeach()
+        foreach(component IN ITEMS x y width height)
+            string(JSON connector_bounds_${component} GET
+                "${capture_facts}" "${target}" connector bounds "${component}")
+        endforeach()
+        foreach(point IN ITEMS start end)
+            foreach(component IN ITEMS x y)
+                string(JSON connector_${point}_${component} GET
+                    "${capture_facts}" "${target}" connector "${point}" "${component}")
+            endforeach()
+        endforeach()
+        math(EXPR connector_bounds_right
+            "${connector_bounds_x} + ${connector_bounds_width}")
+        math(EXPR connector_bounds_bottom
+            "${connector_bounds_y} + ${connector_bounds_height}")
+        if(connector_bounds_width LESS 1
+                OR connector_bounds_height LESS 1
+                OR connector_bounds_x LESS 0
+                OR connector_bounds_y LESS 0
+                OR connector_bounds_right GREATER gutter_rect_in_window_width
+                OR connector_bounds_bottom GREATER gutter_rect_in_window_height
+                OR NOT connector_start_x EQUAL 0
+                OR NOT connector_end_x EQUAL gutter_rect_in_window_width
+                OR connector_start_y LESS connector_bounds_y
+                OR connector_start_y GREATER connector_bounds_bottom
+                OR connector_end_y LESS connector_bounds_y
+                OR connector_end_y GREATER connector_bounds_bottom)
+            message(FATAL_ERROR
+                "UIforETW ${profile} ${target} connector coordinates are incomplete or ungrounded"
+            )
+        endif()
+        foreach(fact IN ITEMS
+            left_endpoint_at_pane_edge
+            right_endpoint_at_pane_edge
+            left_target_row_overlap
+            right_target_row_overlap
+        )
+            string(JSON connector_fact GET
+                "${capture_facts}" "${target}" connector "${fact}")
+            if(NOT connector_fact)
+                message(FATAL_ERROR
+                    "UIforETW ${profile} ${target} connector omitted ${fact}"
+                )
+            endif()
+        endforeach()
+    endforeach()
+    string(JSON first_group GET
+        "${capture_facts}" replacement_28_to_24 group)
+    string(JSON first_segment GET
+        "${capture_facts}" replacement_28_to_24 segment)
+    string(JSON first_change GET
+        "${capture_facts}" replacement_28_to_24 change_index)
+    string(JSON first_left_line GET
+        "${capture_facts}" replacement_28_to_24 left_line)
+    string(JSON first_right_line GET
+        "${capture_facts}" replacement_28_to_24 right_line)
+    string(JSON second_group GET
+        "${capture_facts}" replacement_42_to_36 group)
+    string(JSON second_change GET
+        "${capture_facts}" replacement_42_to_36 change_index)
+    string(JSON second_left_line GET
+        "${capture_facts}" replacement_42_to_36 left_line)
+    string(JSON second_right_line GET
+        "${capture_facts}" replacement_42_to_36 right_line)
+    if(NOT selected_group STREQUAL first_group
+            OR NOT selected_segment STREQUAL first_segment
+            OR first_group STREQUAL second_group
+            OR NOT first_change EQUAL 1
+            OR NOT second_change EQUAL 2
+            OR NOT first_left_line EQUAL 108
+            OR NOT first_right_line EQUAL 109
+            OR NOT second_left_line EQUAL 110
+            OR NOT second_right_line EQUAL 111)
+        message(FATAL_ERROR
+            "UIforETW ${profile} target selection identities or rows drifted"
+        )
+    endif()
 endforeach()
 
 set(cut_root "${BPR_ROOT}/cut-selection-wire")

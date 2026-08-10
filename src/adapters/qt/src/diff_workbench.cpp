@@ -542,6 +542,7 @@ namespace bpr::qt {
 		Detail->setReadOnly(true);
 		Detail->setLineWrapMode(QPlainTextEdit::NoWrap);
 		Detail->setPlainText(QStringLiteral("No change selected"));
+		Detail->setMaximumHeight(96);
 		Vertical->addWidget(top);
 		Vertical->addWidget(Detail);
 		Vertical->setStretchFactor(0, 4);
@@ -1250,11 +1251,12 @@ namespace bpr::qt {
 	/// \brief Paints the diff the core decided, in one pass per pane.
 	///
 	/// \details Order is the whole design. Qt layers extra selections in the
-	/// order they are given, so the line band goes down first, the intraline
-	/// emphasis over it, and the selection last. A reviewer therefore sees
+	/// order they are given, so the line band goes down first, the translucent
+	/// selection wash over it, and the opaque intraline emphasis last. A reviewer therefore sees
 	/// "this line changed", "this is the part that changed", and "this is where
-	/// I am" as three readable levels rather than one winning and two
-	/// vanishing.
+	/// I am" as three readable levels. Intraline must be last: otherwise the
+	/// selected-row wash replaces the exact changed-character color in the
+	/// raster even though the corresponding ExtraSelection still exists.
 	///
 	/// Nothing here decides what changed. Every span comes from
 	/// `core::diff_semantics`, and a second opinion about which lines differ is
@@ -1335,8 +1337,6 @@ namespace bpr::qt {
 						++Statistics.MovedBandsPainted;
 					}
 				}
-
-				append_intraline_emphasis(selections, aPane, aSide, paintable);
 			}
 
 			if (CurrentResult && Interaction.Selection.has_value()) {
@@ -1345,6 +1345,10 @@ namespace bpr::qt {
 					append_selection_band(
 						selections, aPane, *lines, paintable);
 				}
+			}
+
+			if (CurrentResult && Colors.Supplied) {
+				append_intraline_emphasis(selections, aPane, aSide, paintable);
 			}
 
 			aPane.setExtraSelections(selections);

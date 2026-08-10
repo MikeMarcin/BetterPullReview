@@ -23,6 +23,7 @@
 #include <QPersistentModelIndex>
 #include <QPlainTextEdit>
 #include <QPoint>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QStringList>
@@ -830,6 +831,53 @@ namespace {
 
 		expect(log.Width.empty(),
 			   "applying a published layout reports no width back to the host");
+		window.hide();
+	}
+
+	void test_review_details_return_height_to_the_comparison()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 1'000);
+		window.show();
+		QApplication::processEvents();
+
+		auto* const action = window.review_details_toggle_action();
+		auto* const header = window.findChild<QScrollArea*>(
+			QStringLiteral("workbenchReviewHeaderScroll"));
+		auto* const comparison = window.comparison_surface();
+		auto* const epochs     = window.epoch_selectors();
+		auto* const detail     = window.detail_pane();
+		auto* const button     = qobject_cast<QToolButton*>(
+			window.drawer_toolbar()->widgetForAction(action));
+		expect(action != nullptr && action->isCheckable() && action->isChecked()
+				   && !action->shortcut().isEmpty()
+				   && window.drawer_toolbar()->actions().contains(action)
+				   && button != nullptr && button->focusPolicy() == Qt::StrongFocus
+				   && button->accessibleName() == QStringLiteral("Review details toggle")
+				   && !button->accessibleDescription().isEmpty()
+				   && window.focus_order().contains(button),
+			   "review details have a visible, checkable, keyboard-accessible action");
+		expect(header != nullptr && header->isVisible() && comparison != nullptr
+				   && epochs != nullptr && epochs->isVisible()
+				   && detail != nullptr && detail->isVisible(),
+			   "review details begin visible above the composed comparison");
+		const auto expandedHeight = comparison->height();
+
+		action->trigger();
+		QApplication::processEvents();
+		expect(!action->isChecked() && !header->isVisible() && !epochs->isVisible()
+				   && !detail->isVisible(),
+			   "the focused-review gesture hides only the secondary detail region");
+		expect(comparison->height() > expandedHeight,
+			   "hiding review details returns their height to the comparison");
+		expect(action->toolTip().contains(QStringLiteral("Show session")),
+			   "the retained action explains how to reopen every hidden detail");
+
+		action->trigger();
+		QApplication::processEvents();
+		expect(action->isChecked() && header->isVisible() && epochs->isVisible()
+				   && detail->isVisible(),
+			   "the same shipped action restores the review details");
 		window.hide();
 	}
 
@@ -3166,6 +3214,7 @@ auto main(int argc, char** argv) -> int
 	test_shell_accessibility_status_and_scale();
 	test_drawer_toggles_follow_core_command_projections();
 	test_collapsing_a_drawer_returns_space_to_the_centre();
+	test_review_details_return_height_to_the_comparison();
 	test_drawer_resize_emits_the_host_layout_path();
 	test_drawer_contents_use_incremental_model_signals();
 	test_file_rows_emit_only_semantic_user_selection();

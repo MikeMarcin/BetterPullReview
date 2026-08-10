@@ -309,6 +309,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
+		/// \brief Shows or hides secondary review metadata around the comparison.
+		///
+		/// \details The action stays visible while the metadata is hidden, so a
+		/// focused reviewer can return the vertical space to the code panes without
+		/// losing access to session, queue, pull-request, epoch, appearance, or
+		/// selected-change details.
+		[[nodiscard]] auto review_details_toggle_action() const noexcept -> QAction*;
 
 		/// \brief Presents the composed independent left and right epoch selectors.
 		///
@@ -453,16 +460,17 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*       PrimaryToolbar    = nullptr;
-		QToolBar*       DrawerToolbar     = nullptr;
-		QAction*        SeparatorAction   = nullptr;
-		QAction*        OverflowAction    = nullptr;
-		QToolButton*    OverflowButton    = nullptr;
-		QMenu*          OverflowMenu      = nullptr;
-		QLabel*         StatusLabel       = nullptr;
-		QSplitter*      CentralSplitter   = nullptr;
-		QWidget*        CentreSurface     = nullptr;
-		diff_workbench* ComparisonSurface = nullptr;
+		QToolBar*       PrimaryToolbar      = nullptr;
+		QToolBar*       DrawerToolbar       = nullptr;
+		QAction*        SeparatorAction     = nullptr;
+		QAction*        OverflowAction      = nullptr;
+		QAction*        ReviewDetailsAction = nullptr;
+		QToolButton*    OverflowButton      = nullptr;
+		QMenu*          OverflowMenu        = nullptr;
+		QLabel*         StatusLabel         = nullptr;
+		QSplitter*      CentralSplitter     = nullptr;
+		QWidget*        CentreSurface       = nullptr;
+		diff_workbench* ComparisonSurface   = nullptr;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 

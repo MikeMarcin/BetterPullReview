@@ -423,6 +423,13 @@ Adjacent segments may be visually aggregated when:
 
 A move relation may be represented by matching glyphs or a temporary overlay outside the ordinary monotonic ribbon set. Ordinary scroll ribbons remain uncrossed.
 
+Pane backgrounds have a deliberate compositing order: whole-line diff band,
+translucent selected-row wash, then opaque intraline span. Metadata may still
+contain all three selections when the order is wrong, so the public capture
+counts pixels equal to the exact semantic-role colour inside each bound span.
+A generic “different from the pane base” count is not evidence of intraline
+paint; text glyphs and the selection wash satisfy that weaker predicate.
+
 ## 9. Incremental updates
 
 A new accepted diff result invalidates semantic-derived Qt projection. Routine changes should be narrower:
@@ -479,4 +486,10 @@ Architecture tests should fail if:
 - a mapping API returns a neighboring exact line for an insertion;
 - ordinary move ribbons cross;
 - painting visits all `S` segments for a viewport containing `V << S` changes;
-- stale completion changes the active comparison.
+- stale completion changes the active comparison;
+- a focused-review capture crops away visible chrome instead of hiding it
+  through shipped controls, or the two panes and center map cease to dominate
+  the retained full-window viewport;
+- either named UIforETW replacement span is outside its pane, has no exact-role
+  pixels, or its selected ribbon fails to terminate at both pane edges while
+  vertically overlapping the corresponding visible rows.

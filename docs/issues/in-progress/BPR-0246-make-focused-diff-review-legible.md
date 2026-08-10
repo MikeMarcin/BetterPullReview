@@ -20,7 +20,10 @@ The product owner's exact v001 verdict is preserved in
 and its digest-bound validation record is adjacent. Additional review feedback
 requires the full-window focused-review state—not merely a crop—to devote much
 more of the window to the two code panes and gutter, with the Files drawer
-collapsed as a real reviewer would collapse it.
+collapsed as a real reviewer would collapse it. The clarification is broader
+than that drawer: every surface other than the two code panes and their gutter
+is on a strict space budget in the review state, especially the upper
+pull-request information.
 
 ## Required final state
 
@@ -33,8 +36,10 @@ collapsed as a real reviewer would collapse it.
   tests-only product bypass.
 - At the retained 1280 × 1000 logical/pixel evidence viewport, make the combined
   code panes and gutter the dominant full-window region: at least 75% of client
-  width and 60% of client height. Compact the upper pull-request/epoch/status
+  width and 85% of client height. Compact the upper pull-request/epoch/status
   presentation enough to meet that bound without discarding its information.
+  The focused state must not reserve large persistent regions for any non-diff
+  surface.
 - Navigate to each named replacement rather than an insertion boundary. Reveal
   its exact removed and added intraline rectangles horizontally; each rectangle
   must be nonempty, wholly within its pane viewport, and contain nonzero rendered
@@ -58,3 +63,25 @@ ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-o
 ctest --preset dev -R '^(qt_diff_link_map_scale_100|qt_diff_workbench_scale_100)$' --output-on-failure
 python3 scripts/verify_documentation.py --root .
 ```
+
+## Implemented state
+
+Focused review now uses only shipped controls. The public course selects the
+recorded `.rc` file through the Files drawer, navigates to the exact replacement
+group, then collapses both drawers and toggles Review details off. That retained
+toolbar action hides and restores the secondary review header, epoch/history
+controls, and selected-change detail without clearing their state. The native
+comparison splitter—not a hand-cropped substitute—is captured after both named
+intraline spans are revealed.
+
+The v2 capture facts bind the full window, comparison, pane, gutter, hidden
+surfaces, horizontal offsets, exact span rectangles and role-pixel counts,
+selected segment/group, and connector endpoints/row overlap. The registered
+contract rejects a missing or internally inconsistent fact and retains the real
+Qt selection-wire negative. It navigates to both named replacement groups and
+records exact-role pixels while each is selected. The selected-row wash is
+painted below the opaque intraline role, and the pixel counter matches that role
+colour rather than merely counting non-base pixels. All four explicit
+appearance profiles produce the same focused geometry. The immutable attended
+v002 batch remains to be generated from the committed implementation; its
+verdict is not inferred here.

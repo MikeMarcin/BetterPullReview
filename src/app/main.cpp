@@ -2414,6 +2414,9 @@ namespace {
 						: "UIFORETW_RC_INTRALINE_FAILED\n")
 				<< (evidence.RcRolePaint ? "UIFORETW_RC_ROLE_OK\n"
 										 : "UIFORETW_RC_ROLE_FAILED\n")
+				<< (evidence.FocusedReviewLayout
+						? "UIFORETW_FOCUSED_REVIEW_LAYOUT_OK\n"
+						: "UIFORETW_FOCUSED_REVIEW_LAYOUT_FAILED\n")
 				<< (evidence.FixtureDiffHelperUnused
 						? "UIFORETW_FIXTURE_DIFF_HELPER_UNUSED_OK\n"
 						: "UIFORETW_FIXTURE_DIFF_HELPER_UNUSED_FAILED\n")

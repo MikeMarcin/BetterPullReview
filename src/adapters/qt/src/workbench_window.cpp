@@ -376,11 +376,11 @@ namespace bpr::qt {
 		// them beside primary navigation would let them push navigation past the
 		// width compact_width_threshold() promises it fits in.
 		addToolBarBreak(Qt::TopToolBarArea);
-		DrawerToolbar = addToolBar(QStringLiteral("Review drawers"));
+		DrawerToolbar = addToolBar(QStringLiteral("Review layout"));
 		DrawerToolbar->setObjectName(QStringLiteral("workbenchDrawerToolbar"));
-		DrawerToolbar->setAccessibleName(QStringLiteral("Review drawers"));
+		DrawerToolbar->setAccessibleName(QStringLiteral("Review layout"));
 		DrawerToolbar->setAccessibleDescription(QStringLiteral(
-			"Show or hide the file and conversation drawers"));
+			"Show or hide the file drawer, conversation drawer, and secondary review details"));
 		DrawerToolbar->setMovable(false);
 		DrawerToolbar->setFloatable(false);
 		DrawerToolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -438,6 +438,48 @@ namespace bpr::qt {
 					this,
 					[this, index] { dispatch_drawer_toggle(index); });
 		}
+
+		ReviewDetailsAction = new QAction{ QStringLiteral("Review &details"), this };
+		ReviewDetailsAction->setObjectName(
+			QStringLiteral("toggleWorkbenchReviewDetailsAction"));
+		ReviewDetailsAction->setCheckable(true);
+		ReviewDetailsAction->setChecked(true);
+		ReviewDetailsAction->setShortcut(
+			QKeySequence{ QStringLiteral("Alt+Shift+3") });
+		ReviewDetailsAction->setShortcutContext(Qt::WindowShortcut);
+		ReviewDetailsAction->setToolTip(QStringLiteral(
+			"Hide secondary review details and give their height to the comparison."));
+		ReviewDetailsAction->setStatusTip(ReviewDetailsAction->toolTip());
+		addAction(ReviewDetailsAction);
+		DrawerToolbar->addAction(ReviewDetailsAction);
+		connect(
+			ReviewDetailsAction,
+			&QAction::toggled,
+			this,
+			[this](const bool aVisible) {
+				if (HeaderScroll != nullptr) {
+					HeaderScroll->setVisible(aVisible);
+				}
+				if (EpochSelectors != nullptr) {
+					EpochSelectors->setVisible(aVisible);
+				}
+				if (ComparisonSurface != nullptr
+					&& ComparisonSurface->detail_pane() != nullptr) {
+					ComparisonSurface->detail_pane()->setVisible(aVisible);
+				}
+				const auto description = aVisible
+					? QStringLiteral(
+						  "Hide secondary review details and give their height to the comparison.")
+					: QStringLiteral(
+						  "Show session, queue, pull-request, epoch, appearance, and selected-change details.");
+				ReviewDetailsAction->setToolTip(description);
+				ReviewDetailsAction->setStatusTip(description);
+				if (auto* const button = qobject_cast<QToolButton*>(
+						DrawerToolbar->widgetForAction(ReviewDetailsAction));
+					button != nullptr) {
+					button->setAccessibleDescription(description);
+				}
+			});
 
 		DrawerToolbar->addSeparator();
 		const auto receiptAction = [this](
@@ -2179,6 +2221,11 @@ namespace bpr::qt {
 		return Drawers[1].Toggle;
 	}
 
+	auto workbench_window::review_details_toggle_action() const noexcept -> QAction*
+	{
+		return ReviewDetailsAction;
+	}
+
 	auto workbench_window::epoch_selectors() const noexcept
 		-> epoch_comparison_control*
 	{
@@ -2209,6 +2256,8 @@ namespace bpr::qt {
 			append(qobject_cast<QToolButton*>(
 				DrawerToolbar->widgetForAction(entry.Toggle)));
 		}
+		append(qobject_cast<QToolButton*>(
+			DrawerToolbar->widgetForAction(ReviewDetailsAction)));
 		for (auto* const action : ReceiptActions) {
 			append(qobject_cast<QToolButton*>(
 				DrawerToolbar->widgetForAction(action)));
@@ -2486,6 +2535,13 @@ namespace bpr::qt {
 			}
 			button->setAccessibleName(entry.Accessible);
 			button->setAccessibleDescription(entry.Collapse);
+			button->setFocusPolicy(Qt::StrongFocus);
+		}
+		if (auto* const button = qobject_cast<QToolButton*>(
+				DrawerToolbar->widgetForAction(ReviewDetailsAction));
+			button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Review details toggle"));
+			button->setAccessibleDescription(ReviewDetailsAction->toolTip());
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
 		for (auto* const action : ReceiptActions) {

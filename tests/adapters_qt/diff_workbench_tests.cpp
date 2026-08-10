@@ -774,13 +774,16 @@ namespace {
 		const auto verticalSizes           = vertical->sizes();
 		const auto verticalTotal           = std::accumulate(
 			verticalSizes.begin(), verticalSizes.end(), 0);
-		const auto smallerTop = std::max(140, verticalTotal / 3);
-		vertical->setSizes({ smallerTop, verticalTotal - smallerTop });
+		const auto largerTop = std::min(
+			verticalTotal - 48, verticalSizes.front() + 32);
+		expect(largerTop > verticalSizes.front(),
+			   "the compact detail pane retains room for a divider gesture");
+		vertical->setSizes({ largerTop, verticalTotal - largerTop });
 		process_events();
 		expect(
 			workbench.size() == outerSizeBeforeDivider
 				&& workbench.left_pane()->viewport()->height()
-					< viewportBeforeDivider
+					> viewportBeforeDivider
 				&& workbench.statistics().GeometryRebuilds
 					== statisticsBeforeDivider.GeometryRebuilds + 1U
 				&& workbench.statistics().GeometryRebuildHistorySize
@@ -1657,6 +1660,8 @@ namespace {
 
 		const auto emphasis
 			= profile.color(core::appearance_role::diff_intraline_added_background);
+		auto wash = workbench.right_pane()->palette().color(QPalette::Highlight);
+		wash.setAlpha(core::selection_wash_alpha);
 		auto compared = 0U;
 		for (const auto& edit : diff.Intraline) {
 			const auto pair = std::ranges::find_if(
@@ -1704,6 +1709,31 @@ namespace {
 					&& painted->second == expectedLength,
 				"the painted character range is the range the core computed, "
 				"converted from bytes rather than assumed equal to them");
+			const auto& selections    = workbench.right_pane()->extraSelections();
+			const auto  washSelection = std::ranges::find_if(
+				selections,
+				[&wash, &pair](const QTextEdit::ExtraSelection& aSelection) {
+					return aSelection.format.boolProperty(
+							   QTextFormat::FullWidthSelection)
+						&& aSelection.cursor.blockNumber()
+						== static_cast<int>(pair->RightLine)
+						&& aSelection.format.background().color() == wash;
+				});
+			const auto emphasisSelection = std::ranges::find_if(
+				selections,
+				[&emphasis, &pair](const QTextEdit::ExtraSelection& aSelection) {
+					return !aSelection.format.boolProperty(
+							   QTextFormat::FullWidthSelection)
+						&& aSelection.cursor.blockNumber()
+						== static_cast<int>(pair->RightLine)
+						&& aSelection.format.background().color() == emphasis;
+				});
+			expect(
+				washSelection != selections.end()
+					&& emphasisSelection != selections.end()
+					&& std::distance(selections.begin(), washSelection)
+						< std::distance(selections.begin(), emphasisSelection),
+				"the opaque intraline role is painted after the selected-row wash");
 			++compared;
 		}
 		expect(compared > 0U, "at least one intraline edit was compared");

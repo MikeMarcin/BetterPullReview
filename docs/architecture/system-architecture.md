@@ -585,6 +585,19 @@ visible ribbon selection and painting scale with visible or near-visible
 changed segments. Capacity-growth and visited-record counters make that hot
 path directly falsifiable in the composed Qt fixture.
 
+Focused review is a Qt-local presentation choice, not durable review state.
+The shipped Files and Conversations actions retain their host-decided drawer
+semantics. A separate always-visible, keyboard-addressable Review details
+action hides or restores the secondary session/queue/pull-request header,
+epoch/history controls, and selected-change detail together. Hiding them does
+not clear their values or semantic selection; it returns their vertical extent
+to the two source panes and center map. At the 1280 × 1000 evidence viewport,
+the selected-diff contract requires the native comparison splitter to occupy
+at least 75% of the client width and 85% of its height while every hidden
+surface remains reopenable through the shipped toolbar. That height floor
+reflects the product-owner requirement that all secondary upper and lower
+detail chrome collapse together.
+
 ## RFC-BPR-0003 dedicated epoch vertical slice
 
 RFC-BPR-0003 is implemented as a dedicated epoch core and application host.
