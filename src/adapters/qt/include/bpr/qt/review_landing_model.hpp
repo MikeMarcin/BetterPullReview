@@ -1,9 +1,11 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_LANDING_MODEL_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_LANDING_MODEL_HPP
 
+#include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
 #include <QAbstractListModel>
+#include <QSortFilterProxyModel>
 
 #include <optional>
 #include <span>
@@ -71,6 +73,40 @@ namespace bpr::qt {
 			-> std::optional<std::size_t>;
 
 		std::vector<core::queue_item> Items;
+	};
+
+	/// \brief Filters and explicitly reorders the decided landing queue.
+	///
+	/// \details The source model remains in the core's exact priority order.
+	/// The default proxy order follows it without a comparison; alternate sorts
+	/// run only when the reviewer selects one. Qt's proxy mapping retains stable
+	/// source identity and emits incremental filter/layout signals rather than a
+	/// routine model reset.
+	class review_landing_filter_model final : public QSortFilterProxyModel
+	{
+	public:
+		explicit review_landing_filter_model(
+			review_landing_model& aSource, QObject* aParent = nullptr);
+
+		void apply(
+			const application::queue_presentation_preferences& aPreferences);
+		[[nodiscard]] auto preferences() const noexcept
+			-> const application::queue_presentation_preferences&;
+		[[nodiscard]] auto item_at(const QModelIndex& aIndex) const
+			-> std::optional<core::queue_item>;
+		[[nodiscard]] auto has_active_filters() const noexcept -> bool;
+
+	protected:
+		[[nodiscard]] auto filterAcceptsRow(
+			int aSourceRow, const QModelIndex& aSourceParent) const
+			-> bool override;
+		[[nodiscard]] auto lessThan(
+			const QModelIndex& aLeft, const QModelIndex& aRight) const
+			-> bool override;
+
+	private:
+		review_landing_model&                       Source;
+		application::queue_presentation_preferences Preferences;
 	};
 } // namespace bpr::qt
 

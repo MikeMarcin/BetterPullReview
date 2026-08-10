@@ -815,15 +815,130 @@ namespace bpr::qt {
 		QueueStatus->setWordWrap(true);
 		layout->addWidget(QueueStatus);
 
-		QueueLanding = new review_landing_model{ surface };
-		QueueView    = new QListView{ surface };
+		QueueLanding     = new review_landing_model{ surface };
+		QueueFilterModel = new review_landing_filter_model{ *QueueLanding, surface };
+		QueueView        = new QListView{ surface };
 		QueueView->setObjectName(QStringLiteral("reviewQueueItems"));
 		QueueView->setAccessibleName(QStringLiteral("Review queue"));
 		QueueView->setAccessibleDescription(QStringLiteral(
 			"Pull requests enrolled by a GitHub role or a local observer rule"));
-		QueueView->setModel(QueueLanding);
+		QueueView->setModel(QueueFilterModel);
 		QueueView->setMaximumHeight(84);
 		layout->addWidget(QueueView);
+
+		auto* const primaryFilters = new QHBoxLayout{ };
+		QueueRoleFilter            = new QComboBox{ surface };
+		QueueRoleFilter->setObjectName(QStringLiteral("queueRoleFilter"));
+		QueueRoleFilter->setAccessibleName(QStringLiteral("Queue role filter"));
+		QueueRoleFilter->setAccessibleDescription(QStringLiteral(
+			"Show any GitHub role or one exact RFC review role"));
+		QueueRoleFilter->addItem(tr("Role: any"), -1);
+		for (const auto role : { core::github_role::none,
+								 core::github_role::participant,
+								 core::github_role::reviewer,
+								 core::github_role::requested_reviewer,
+								 core::github_role::author }) {
+			QueueRoleFilter->addItem(
+				tr("Role: %1").arg(QString::fromUtf8(core::name(role).data())),
+				static_cast<int>(role));
+		}
+		primaryFilters->addWidget(QueueRoleFilter);
+
+		QueueObserverFilter = new QComboBox{ surface };
+		QueueObserverFilter->setObjectName(QStringLiteral("queueObserverFilter"));
+		QueueObserverFilter->setAccessibleName(
+			QStringLiteral("Queue observer reason filter"));
+		QueueObserverFilter->setAccessibleDescription(QStringLiteral(
+			"Show any observer reason or the exact rule kind that enrolled it"));
+		QueueObserverFilter->addItem(tr("Observer: any reason"), -1);
+		for (const auto kind : { core::observer_rule_kind::repository,
+								 core::observer_rule_kind::author,
+								 core::observer_rule_kind::path }) {
+			QueueObserverFilter->addItem(
+				tr("Observer: %1 rule")
+					.arg(QString::fromUtf8(core::name(kind).data())),
+				static_cast<int>(kind));
+		}
+		primaryFilters->addWidget(QueueObserverFilter);
+
+		QueueBucketFilter = new QComboBox{ surface };
+		QueueBucketFilter->setObjectName(QStringLiteral("queueBucketFilter"));
+		QueueBucketFilter->setAccessibleName(
+			QStringLiteral("Queue attention bucket filter"));
+		QueueBucketFilter->setAccessibleDescription(QStringLiteral(
+			"Show any attention bucket or one exact core-decided reason"));
+		QueueBucketFilter->addItem(tr("Bucket: any"), -1);
+		for (const auto bucket : { core::attention_bucket::initial_review_requested,
+								   core::attention_bucket::changed_since_my_review,
+								   core::attention_bucket::new_comments_or_author_replies,
+								   core::attention_bucket::fixes_awaiting_verification,
+								   core::attention_bucket::authored_awaiting_reviewer_action,
+								   core::attention_bucket::observed_with_new_activity,
+								   core::attention_bucket::quiet }) {
+			QueueBucketFilter->addItem(
+				tr("Bucket: %1").arg(QString::fromUtf8(core::name(bucket).data())),
+				static_cast<int>(bucket));
+		}
+		primaryFilters->addWidget(QueueBucketFilter);
+		layout->addLayout(primaryFilters);
+
+		auto* const secondaryFilters = new QHBoxLayout{ };
+		QueueRepositoryFilter        = new QComboBox{ surface };
+		QueueRepositoryFilter->setObjectName(
+			QStringLiteral("queueRepositoryFilter"));
+		QueueRepositoryFilter->setAccessibleName(
+			QStringLiteral("Queue repository filter"));
+		QueueRepositoryFilter->setAccessibleDescription(QStringLiteral(
+			"Show every repository or one exact repository in this queue"));
+		QueueRepositoryFilter->addItem(tr("Repository: any"), QString{ });
+		secondaryFilters->addWidget(QueueRepositoryFilter);
+
+		QueueQuietFilter = new QComboBox{ surface };
+		QueueQuietFilter->setObjectName(QStringLiteral("queueQuietFilter"));
+		QueueQuietFilter->setAccessibleName(
+			QStringLiteral("Queue quiet or current filter"));
+		QueueQuietFilter->setAccessibleDescription(QStringLiteral(
+			"Show every review, only attention, or only quiet and current reviews"));
+		QueueQuietFilter->addItem(
+			tr("State: any"),
+			static_cast<int>(application::queue_quiet_filter::all));
+		QueueQuietFilter->addItem(
+			tr("State: needs attention"),
+			static_cast<int>(application::queue_quiet_filter::attention));
+		QueueQuietFilter->addItem(
+			tr("State: quiet/current"),
+			static_cast<int>(application::queue_quiet_filter::quiet));
+		secondaryFilters->addWidget(QueueQuietFilter);
+
+		QueueSort = new QComboBox{ surface };
+		QueueSort->setObjectName(QStringLiteral("queueSortSelector"));
+		QueueSort->setAccessibleName(QStringLiteral("Queue sort order"));
+		QueueSort->setAccessibleDescription(QStringLiteral(
+			"Core priority is the default; alternate orders apply only when selected"));
+		QueueSort->addItem(
+			tr("Sort: core priority"),
+			static_cast<int>(application::queue_sort_order::core_priority));
+		QueueSort->addItem(
+			tr("Sort: repository, then PR"),
+			static_cast<int>(application::queue_sort_order::repository));
+		QueueSort->addItem(
+			tr("Sort: PR number, then identity"),
+			static_cast<int>(application::queue_sort_order::pull_request_number));
+		secondaryFilters->addWidget(QueueSort);
+		layout->addLayout(secondaryFilters);
+
+		for (auto* const selector : { QueueRoleFilter,
+									  QueueObserverFilter,
+									  QueueBucketFilter,
+									  QueueRepositoryFilter,
+									  QueueQuietFilter,
+									  QueueSort }) {
+			connect(
+				selector,
+				qOverload<int>(&QComboBox::currentIndexChanged),
+				this,
+				[this] { dispatch_queue_preferences(); });
+		}
 
 		auto* const controls = new QHBoxLayout{ };
 		QueueRuleSelector    = new QComboBox{ surface };
@@ -896,6 +1011,162 @@ namespace bpr::qt {
 		update_queue_rule_actions();
 	}
 
+	void workbench_window::set_queue_preferences_dispatch(
+		workbench_queue_preferences_dispatch aDispatch)
+	{
+		QueuePreferencesDispatch = std::move(aDispatch);
+		const auto enabled       = QueueReady
+			&& static_cast<bool>(QueuePreferencesDispatch);
+		for (auto* const selector : { QueueRoleFilter,
+									  QueueObserverFilter,
+									  QueueBucketFilter,
+									  QueueRepositoryFilter,
+									  QueueQuietFilter,
+									  QueueSort }) {
+			selector->setEnabled(enabled);
+		}
+	}
+
+	void workbench_window::dispatch_queue_preferences()
+	{
+		if (ApplyingQueuePreferences || !QueueReady
+			|| !QueuePreferencesDispatch) {
+			return;
+		}
+		const auto optionalRole = [this]() -> std::optional<core::github_role> {
+			const auto value = QueueRoleFilter->currentData().toInt();
+			return value < 0
+				? std::nullopt
+				: std::optional{ static_cast<core::github_role>(value) };
+		};
+		const auto optionalObserver = [this]()
+			-> std::optional<core::observer_rule_kind> {
+			const auto value = QueueObserverFilter->currentData().toInt();
+			return value < 0
+				? std::nullopt
+				: std::optional{ static_cast<core::observer_rule_kind>(value) };
+		};
+		const auto optionalBucket = [this]()
+			-> std::optional<core::attention_bucket> {
+			const auto value = QueueBucketFilter->currentData().toInt();
+			return value < 0
+				? std::nullopt
+				: std::optional{ static_cast<core::attention_bucket>(value) };
+		};
+		auto preferences = application::queue_presentation_preferences{
+			.Role           = optionalRole(),
+			.ObserverReason = optionalObserver(),
+			.Bucket         = optionalBucket(),
+			.Repository     = QueueRepositoryFilter->currentData().toString().toStdString(),
+			.Quiet          = static_cast<application::queue_quiet_filter>(
+				QueueQuietFilter->currentData().toInt()),
+			.Sort = static_cast<application::queue_sort_order>(
+				QueueSort->currentData().toInt()),
+		};
+		if (!application::valid(preferences)) {
+			return;
+		}
+		QueueFilterModel->apply(preferences);
+		QueueProjection.Preferences = preferences;
+		update_queue_status(QueueProjection);
+		QueuePreferencesDispatch(application::queue_preferences_intent{
+			.Preferences = std::move(preferences),
+		});
+	}
+
+	void workbench_window::apply_queue_preferences(
+		const application::queue_presentation_preferences& aPreferences)
+	{
+		ApplyingQueuePreferences = true;
+		const auto select        = [](QComboBox* const aSelector, const int aValue) {
+			const auto index = aSelector->findData(aValue);
+			aSelector->setCurrentIndex(index >= 0 ? index : 0);
+		};
+		select(
+			QueueRoleFilter,
+			aPreferences.Role.has_value()
+				? static_cast<int>(*aPreferences.Role)
+				: -1);
+		select(
+			QueueObserverFilter,
+			aPreferences.ObserverReason.has_value()
+				? static_cast<int>(*aPreferences.ObserverReason)
+				: -1);
+		select(
+			QueueBucketFilter,
+			aPreferences.Bucket.has_value()
+				? static_cast<int>(*aPreferences.Bucket)
+				: -1);
+		const auto repository      = QString::fromStdString(aPreferences.Repository);
+		const auto repositoryIndex = QueueRepositoryFilter->findData(repository);
+		QueueRepositoryFilter->setCurrentIndex(
+			repositoryIndex >= 0 ? repositoryIndex : 0);
+		select(QueueQuietFilter, static_cast<int>(aPreferences.Quiet));
+		select(QueueSort, static_cast<int>(aPreferences.Sort));
+		QueueFilterModel->apply(aPreferences);
+		ApplyingQueuePreferences = false;
+	}
+
+	void workbench_window::rebuild_queue_repositories(
+		const std::span<const core::queue_item> aItems,
+		const std::string&                      aSelectedRepository)
+	{
+		auto repositories = std::vector<std::string>{ };
+		repositories.reserve(aItems.size());
+		for (const auto& item : aItems) {
+			repositories.push_back(item.Ref.Repository);
+		}
+		std::ranges::sort(repositories);
+		const auto unique = std::ranges::unique(repositories);
+		repositories.erase(unique.begin(), unique.end());
+		if (!aSelectedRepository.empty()
+			&& !std::ranges::contains(repositories, aSelectedRepository)) {
+			repositories.push_back(aSelectedRepository);
+			std::ranges::sort(repositories);
+		}
+		ApplyingQueuePreferences = true;
+		QueueRepositoryFilter->clear();
+		QueueRepositoryFilter->addItem(tr("Repository: any"), QString{ });
+		for (const auto& repository : repositories) {
+			const auto text = QString::fromStdString(repository);
+			QueueRepositoryFilter->addItem(
+				tr("Repository: %1").arg(text), text);
+		}
+		ApplyingQueuePreferences = false;
+	}
+
+	void workbench_window::update_queue_status(
+		const application::queue_landing_projection& aProjection)
+	{
+		switch (aProjection.Status) {
+		case application::queue_landing_status::restoring:
+			QueueStatus->setText(tr("Restoring local observer rules and queue preferences…"));
+			break;
+		case application::queue_landing_status::unavailable:
+			QueueStatus->setText(tr("Local observer rules and queue preferences are unavailable."));
+			break;
+		case application::queue_landing_status::ready:
+			if (aProjection.Items.empty()) {
+				QueueStatus->setText(tr(
+					"Review queue is empty. Local rules never change GitHub assignments."));
+			} else if (QueueFilterModel->rowCount() == 0
+					   && QueueFilterModel->has_active_filters()) {
+				QueueStatus->setText(tr(
+										 "No reviews match the active queue filters. %1 review(s) remain in the queue.")
+										 .arg(aProjection.Items.size()));
+			} else {
+				QueueStatus->setText(
+					tr("%1 of %2 review(s) shown. %3")
+						.arg(QueueFilterModel->rowCount())
+						.arg(aProjection.Items.size())
+						.arg(aProjection.Online
+								 ? tr("Refresh is online.")
+								 : tr("Refresh is offline.")));
+			}
+			break;
+		}
+	}
+
 	void workbench_window::dispatch_queue_rule(
 		const application::queue_rule_action aAction)
 	{
@@ -951,15 +1222,46 @@ namespace bpr::qt {
 	void workbench_window::publish(
 		const application::queue_landing_projection& aProjection)
 	{
+		auto selectedReview = std::optional<core::pull_request_ref>{ };
+		if (QueueView->currentIndex().isValid()) {
+			if (const auto item = QueueFilterModel->item_at(QueueView->currentIndex());
+				item.has_value()) {
+				selectedReview = item->Ref;
+			}
+		}
 		auto       selectedRule  = std::optional<core::observer_rule>{ };
 		const auto selectedIndex = QueueRuleSelector->currentIndex();
 		if (selectedIndex >= 0
 			&& static_cast<std::size_t>(selectedIndex) < QueueRules.size()) {
 			selectedRule = QueueRules[static_cast<std::size_t>(selectedIndex)];
 		}
-		QueueReady = aProjection.Status == application::queue_landing_status::ready;
-		QueueRules = aProjection.Rules;
+		QueueReady                = aProjection.Status == application::queue_landing_status::ready;
+		const auto filtersEnabled = QueueReady
+			&& static_cast<bool>(QueuePreferencesDispatch);
+		for (auto* const selector : { QueueRoleFilter,
+									  QueueObserverFilter,
+									  QueueBucketFilter,
+									  QueueRepositoryFilter,
+									  QueueQuietFilter,
+									  QueueSort }) {
+			selector->setEnabled(filtersEnabled);
+		}
+		QueueProjection = aProjection;
+		QueueRules      = aProjection.Rules;
 		QueueLanding->apply(aProjection.Items);
+		rebuild_queue_repositories(
+			aProjection.Items, aProjection.Preferences.Repository);
+		apply_queue_preferences(aProjection.Preferences);
+		if (selectedReview.has_value()) {
+			for (auto row = 0; row < QueueFilterModel->rowCount(); ++row) {
+				const auto index = QueueFilterModel->index(row, 0);
+				const auto item  = QueueFilterModel->item_at(index);
+				if (item.has_value() && item->Ref == *selectedReview) {
+					QueueView->setCurrentIndex(index);
+					break;
+				}
+			}
+		}
 		QueueRuleSelector->clear();
 		auto restoredIndex = -1;
 		for (std::size_t index = 0U; index < QueueRules.size(); ++index) {
@@ -976,24 +1278,7 @@ namespace bpr::qt {
 		if (restoredIndex >= 0) {
 			QueueRuleSelector->setCurrentIndex(restoredIndex);
 		}
-		switch (aProjection.Status) {
-		case application::queue_landing_status::restoring:
-			QueueStatus->setText(tr("Restoring local observer rules…"));
-			break;
-		case application::queue_landing_status::unavailable:
-			QueueStatus->setText(tr("Local observer rules are unavailable."));
-			break;
-		case application::queue_landing_status::ready:
-			QueueStatus->setText(
-				aProjection.Items.empty()
-					? tr("Review queue is empty. Local rules never change GitHub assignments.")
-					: tr("%1 review(s) in the local queue. %2")
-						  .arg(aProjection.Items.size())
-						  .arg(aProjection.Online
-								   ? tr("Refresh is online.")
-								   : tr("Refresh is offline.")));
-			break;
-		}
+		update_queue_status(aProjection);
 		++Statistics.QueueUpdates;
 		update_queue_rule_actions();
 		apply_focus_order();
@@ -1781,9 +2066,45 @@ namespace bpr::qt {
 		return QueueLanding;
 	}
 
+	auto workbench_window::queue_filter_model() const noexcept
+		-> review_landing_filter_model*
+	{
+		return QueueFilterModel;
+	}
+
 	auto workbench_window::queue_view() const noexcept -> QListView*
 	{
 		return QueueView;
+	}
+
+	auto workbench_window::queue_role_filter() const noexcept -> QComboBox*
+	{
+		return QueueRoleFilter;
+	}
+
+	auto workbench_window::queue_observer_filter() const noexcept -> QComboBox*
+	{
+		return QueueObserverFilter;
+	}
+
+	auto workbench_window::queue_bucket_filter() const noexcept -> QComboBox*
+	{
+		return QueueBucketFilter;
+	}
+
+	auto workbench_window::queue_repository_filter() const noexcept -> QComboBox*
+	{
+		return QueueRepositoryFilter;
+	}
+
+	auto workbench_window::queue_quiet_filter() const noexcept -> QComboBox*
+	{
+		return QueueQuietFilter;
+	}
+
+	auto workbench_window::queue_sort_selector() const noexcept -> QComboBox*
+	{
+		return QueueSort;
 	}
 
 	auto workbench_window::queue_rule_kind_selector() const noexcept -> QComboBox*
@@ -1874,6 +2195,12 @@ namespace bpr::qt {
 			append(SessionPanel->refresh_button());
 		}
 		append(QueueView);
+		append(QueueRoleFilter);
+		append(QueueObserverFilter);
+		append(QueueBucketFilter);
+		append(QueueRepositoryFilter);
+		append(QueueQuietFilter);
+		append(QueueSort);
 		append(QueueRuleSelector);
 		append(QueueRuleKind);
 		append(QueueRulePattern);

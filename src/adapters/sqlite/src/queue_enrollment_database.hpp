@@ -18,10 +18,10 @@ struct sqlite3;
 namespace bpr::adapters::sqlite::detail {
 	/// \brief The schema version this build writes and validates.
 	///
-	/// \details Version two adds the durable observer-rule authority. Version one
-	/// retained only the exact rule copied into an enrollment reason, which was
-	/// enough to explain a row but could not restore or delete the user's rule.
-	inline constexpr std::int64_t queue_enrollment_schema_version = 2;
+	/// \details Version two adds the durable observer-rule authority. Version
+	/// three adds only reviewer-selected landing preferences; derived filtered
+	/// membership remains absent from that table.
+	inline constexpr std::int64_t queue_enrollment_schema_version = 3;
 
 	/// \brief Owns the durable queue enrollment database.
 	///
@@ -75,6 +75,11 @@ namespace bpr::adapters::sqlite::detail {
 			-> std::expected<void, failure>;
 		[[nodiscard]] auto load_rules()
 			-> std::expected<std::vector<core::observer_rule>, failure>;
+		[[nodiscard]] auto store_preferences(
+			const application::queue_presentation_preferences& aPreferences)
+			-> std::expected<void, failure>;
+		[[nodiscard]] auto load_preferences()
+			-> std::expected<application::queue_presentation_preferences, failure>;
 
 	private:
 		explicit queue_enrollment_database(::sqlite3* aHandle) noexcept;

@@ -25,6 +25,8 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <span>
+#include <string>
 #include <vector>
 
 class QAction;
@@ -64,6 +66,7 @@ namespace bpr::qt {
 	using workbench_defect_dispatch                = std::function<void(core::defect_command)>;
 	using workbench_defect_classification_dispatch = std::function<void(std::string)>;
 	using workbench_queue_rule_dispatch            = std::function<void(application::queue_rule_intent)>;
+	using workbench_queue_preferences_dispatch     = std::function<void(application::queue_preferences_intent)>;
 
 	enum class workbench_toolbar_mode : std::uint8_t {
 		expanded,
@@ -198,6 +201,8 @@ namespace bpr::qt {
 		void set_defect_classification_dispatch(
 			workbench_defect_classification_dispatch aClassificationDispatch);
 		void set_queue_rule_dispatch(workbench_queue_rule_dispatch aDispatch);
+		void set_queue_preferences_dispatch(
+			workbench_queue_preferences_dispatch aDispatch);
 		/// \brief Adopts the complete bounded local defect queue.
 		void present_defects(std::vector<core::defect_history> aDefects);
 		void clear_defects();
@@ -250,7 +255,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto shown_defect_index() const noexcept -> std::optional<std::size_t>;
 		[[nodiscard]] auto defect_count() const noexcept -> std::size_t;
 		[[nodiscard]] auto queue_landing() const noexcept -> review_landing_model*;
+		[[nodiscard]] auto queue_filter_model() const noexcept
+			-> review_landing_filter_model*;
 		[[nodiscard]] auto queue_view() const noexcept -> QListView*;
+		[[nodiscard]] auto queue_role_filter() const noexcept -> QComboBox*;
+		[[nodiscard]] auto queue_observer_filter() const noexcept -> QComboBox*;
+		[[nodiscard]] auto queue_bucket_filter() const noexcept -> QComboBox*;
+		[[nodiscard]] auto queue_repository_filter() const noexcept -> QComboBox*;
+		[[nodiscard]] auto queue_quiet_filter() const noexcept -> QComboBox*;
+		[[nodiscard]] auto queue_sort_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_rule_kind_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_rule_pattern_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto queue_rule_exclusion() const noexcept -> QCheckBox*;
@@ -411,6 +424,14 @@ namespace bpr::qt {
 		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
+		void dispatch_queue_preferences();
+		void apply_queue_preferences(
+			const application::queue_presentation_preferences& aPreferences);
+		void rebuild_queue_repositories(
+			std::span<const core::queue_item> aItems,
+			const std::string&                aSelectedRepository);
+		void update_queue_status(
+			const application::queue_landing_projection& aProjection);
 
 		[[nodiscard]] auto command(core::workbench_command_id aId) const
 			-> std::optional<core::workbench_command_projection>;
@@ -424,6 +445,7 @@ namespace bpr::qt {
 		workbench_defect_dispatch                DefectDispatch;
 		workbench_defect_classification_dispatch DefectClassificationDispatch;
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
+		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
 		QToolBar*       PrimaryToolbar    = nullptr;
 		QToolBar*       DrawerToolbar     = nullptr;
@@ -450,16 +472,24 @@ namespace bpr::qt {
 		QAction*                                                   NextDefect        = nullptr;
 		std::vector<core::defect_history>                          Defects;
 		std::optional<std::size_t>                                 ShownDefectIndex;
-		review_landing_model*                                      QueueLanding       = nullptr;
-		QListView*                                                 QueueView          = nullptr;
-		QComboBox*                                                 QueueRuleSelector  = nullptr;
-		QComboBox*                                                 QueueRuleKind      = nullptr;
-		QLineEdit*                                                 QueueRulePattern   = nullptr;
-		QCheckBox*                                                 QueueRuleExcluding = nullptr;
-		QAction*                                                   AddQueueRule       = nullptr;
-		QAction*                                                   RemoveQueueRule    = nullptr;
-		QLabel*                                                    QueueStatus        = nullptr;
+		review_landing_model*                                      QueueLanding          = nullptr;
+		review_landing_filter_model*                               QueueFilterModel      = nullptr;
+		QListView*                                                 QueueView             = nullptr;
+		QComboBox*                                                 QueueRoleFilter       = nullptr;
+		QComboBox*                                                 QueueObserverFilter   = nullptr;
+		QComboBox*                                                 QueueBucketFilter     = nullptr;
+		QComboBox*                                                 QueueRepositoryFilter = nullptr;
+		QComboBox*                                                 QueueQuietFilter      = nullptr;
+		QComboBox*                                                 QueueSort             = nullptr;
+		QComboBox*                                                 QueueRuleSelector     = nullptr;
+		QComboBox*                                                 QueueRuleKind         = nullptr;
+		QLineEdit*                                                 QueueRulePattern      = nullptr;
+		QCheckBox*                                                 QueueRuleExcluding    = nullptr;
+		QAction*                                                   AddQueueRule          = nullptr;
+		QAction*                                                   RemoveQueueRule       = nullptr;
+		QLabel*                                                    QueueStatus           = nullptr;
 		std::vector<core::observer_rule>                           QueueRules;
+		application::queue_landing_projection                      QueueProjection;
 		QScrollArea*                                               HeaderScroll         = nullptr;
 		github_session_panel*                                      SessionPanel         = nullptr;
 		github_pull_request_panel*                                 PullRequestPanel     = nullptr;
@@ -474,7 +504,8 @@ namespace bpr::qt {
 		QAction*                                                   ShowReviewThreadsAction = nullptr;
 		std::vector<application::github_profile_option>            GithubProfiles;
 		application::github_intent_dispatch                        GithubDispatch;
-		bool                                                       HasGithubPullRequest = false;
+		bool                                                       HasGithubPullRequest     = false;
+		bool                                                       ApplyingQueuePreferences = false;
 		core::workbench_command_delta                              Commands;
 		core::workbench_drawer_delta                               DrawerStates;
 		std::optional<application::workbench_layout_delta>         LayoutWidths;

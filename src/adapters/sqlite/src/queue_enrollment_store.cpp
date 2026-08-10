@@ -49,16 +49,39 @@ namespace bpr::adapters::sqlite {
 				}
 				auto rules       = Database->load_rules();
 				auto enrollments = Database->load_all();
+				auto preferences = Database->load_preferences();
 				if (!rules) {
 					return std::unexpected(translate(rules.error()));
 				}
 				if (!enrollments) {
 					return std::unexpected(translate(enrollments.error()));
 				}
+				if (!preferences) {
+					return std::unexpected(translate(preferences.error()));
+				}
 				return application::durable_queue_state{
 					.Rules       = std::move(*rules),
 					.Enrollments = std::move(*enrollments),
+					.Preferences = std::move(*preferences),
 				};
+			}
+
+			auto store_preferences(
+				const application::queue_presentation_preferences& aPreferences,
+				std::stop_token                                    aStop)
+				-> std::expected<void, application::queue_store_failure> override
+			{
+				if (!application::valid(aPreferences)) {
+					return std::unexpected(
+						application::queue_store_failure::integrity_failure);
+				}
+				if (auto ready = ensure_open(aStop); !ready) {
+					return ready;
+				}
+				auto stored = Database->store_preferences(aPreferences);
+				return stored
+					? std::expected<void, application::queue_store_failure>{ }
+					: std::unexpected(translate(stored.error()));
 			}
 
 			auto apply_rule_change(

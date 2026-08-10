@@ -137,6 +137,18 @@ namespace {
 			return { };
 		}
 
+		[[nodiscard]] auto store_preferences(
+			const application::queue_presentation_preferences& aPreferences,
+			std::stop_token) -> std::expected<void, application::queue_store_failure> override
+		{
+			if (FailEnrollmentStore) {
+				return std::unexpected(
+					application::queue_store_failure::unavailable);
+			}
+			State.Preferences = aPreferences;
+			return { };
+		}
+
 		application::durable_queue_state State;
 		std::size_t                      Loads               = 0U;
 		bool                             FailEnrollmentStore = false;
@@ -655,6 +667,63 @@ namespace {
 			queue.front().Bucket == core::attention_bucket::quiet,
 			"and asks for nothing until something has been read about it");
 	}
+
+	void test_presentation_preferences_are_durable_before_projection()
+	{
+		auto store       = memory_queue_store{ };
+		auto refresh     = observed_refresh{ };
+		auto effects     = application::manual_executor{ };
+		auto decisions   = application::manual_executor{ };
+		auto projections = landing_log{ };
+		auto host        = application::review_queue_application_host{
+			store, refresh, effects, decisions, projections, { }
+		};
+		host.restore();
+		run_one(effects, decisions);
+		const auto preferences = application::queue_presentation_preferences{
+			.Role           = core::github_role::requested_reviewer,
+			.ObserverReason = core::observer_rule_kind::path,
+			.Bucket         = core::attention_bucket::initial_review_requested,
+			.Repository     = "octo/app",
+			.Quiet          = application::queue_quiet_filter::attention,
+			.Sort           = application::queue_sort_order::repository,
+		};
+		host.apply(application::queue_preferences_intent{
+			.Preferences = preferences,
+		});
+		expect(
+			store.State.Preferences
+				== application::queue_presentation_preferences{ },
+			"the decision lane performs no preference write");
+		expect(
+			projections.Published.back().Preferences
+				== application::queue_presentation_preferences{ },
+			"an uncommitted preference is not projected as durable");
+		run_one(effects, decisions);
+		expect(
+			store.State.Preferences == preferences
+				&& projections.Published.back().Preferences == preferences,
+			"the accepted preference is stored and projected together");
+		host.shutdown();
+
+		auto restartEffects     = application::manual_executor{ };
+		auto restartDecisions   = application::manual_executor{ };
+		auto restartProjections = landing_log{ };
+		auto restarted          = application::review_queue_application_host{
+			store,
+			refresh,
+			restartEffects,
+			restartDecisions,
+			restartProjections,
+			{ }
+		};
+		restarted.restore();
+		run_one(restartEffects, restartDecisions);
+		expect(
+			restartProjections.Published.back().Preferences == preferences,
+			"a separate host lifetime restores the exact private preferences");
+		restarted.shutdown();
+	}
 } // namespace
 
 auto main() -> int
@@ -673,6 +742,7 @@ auto main() -> int
 	test_refresh_identity_and_cancellation_are_authoritative();
 	test_failed_rule_reconciliation_rolls_back_before_unavailable_projection();
 	test_rule_reconciliation_never_suppresses_a_github_role();
+	test_presentation_preferences_are_durable_before_projection();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;

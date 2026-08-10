@@ -144,11 +144,55 @@ namespace bpr::application {
 		invalid_rule,
 	};
 
+	/// \brief Selects which quiet/current rows the Qt landing surface presents.
+	enum class queue_quiet_filter : std::uint8_t {
+		all,
+		attention,
+		quiet,
+	};
+
+	/// \brief Names the explicit presentation order selected by the reviewer.
+	///
+	/// \details `core_priority` preserves the functional core's exact order.
+	/// The other values are presentation-only alternatives and never rewrite
+	/// queue membership or attention policy.
+	enum class queue_sort_order : std::uint8_t {
+		core_priority,
+		repository,
+		pull_request_number,
+	};
+
+	/// \brief The private reviewer preferences applied above the decided queue.
+	struct queue_presentation_preferences
+	{
+		std::optional<core::github_role>        Role;
+		std::optional<core::observer_rule_kind> ObserverReason;
+		std::optional<core::attention_bucket>   Bucket;
+		std::string                             Repository;
+		queue_quiet_filter                      Quiet = queue_quiet_filter::all;
+		queue_sort_order                        Sort  = queue_sort_order::core_priority;
+
+		auto operator<=>(const queue_presentation_preferences&) const = default;
+	};
+
+	/// \brief Checks the bounded serialized preference vocabulary.
+	[[nodiscard]] auto valid(
+		const queue_presentation_preferences& aPreferences) noexcept -> bool;
+
+	/// \brief One filter or sorting gesture translated by Qt.
+	struct queue_preferences_intent
+	{
+		queue_presentation_preferences Preferences;
+
+		auto operator<=>(const queue_preferences_intent&) const = default;
+	};
+
 	/// \brief The complete bounded private queue state restored at launch.
 	struct durable_queue_state
 	{
 		std::vector<core::observer_rule> Rules;
 		std::vector<enrollment_record>   Enrollments;
+		queue_presentation_preferences   Preferences;
 	};
 
 	enum class queue_rule_action : std::uint8_t {
@@ -182,6 +226,10 @@ namespace bpr::application {
 			const enrollment_record& aRecord,
 			std::stop_token          aStop)
 			-> std::expected<void, queue_store_failure> = 0;
+		[[nodiscard]] virtual auto store_preferences(
+			const queue_presentation_preferences& aPreferences,
+			std::stop_token                       aStop)
+			-> std::expected<void, queue_store_failure> = 0;
 	};
 
 	/// \brief Performs one queue refresh away from the serialized decision lane.
@@ -207,6 +255,7 @@ namespace bpr::application {
 		queue_landing_status             Status = queue_landing_status::restoring;
 		std::vector<core::observer_rule> Rules;
 		std::vector<core::queue_item>    Items;
+		queue_presentation_preferences   Preferences;
 		queue_session_id                 Session;
 		bool                             Online         = true;
 		std::uint32_t                    BackoffSeconds = 0U;
@@ -224,6 +273,7 @@ namespace bpr::application {
 	struct review_queue_host_statistics
 	{
 		std::uint64_t RuleIntents          = 0U;
+		std::uint64_t PreferenceIntents    = 0U;
 		std::uint64_t PersistenceRequests  = 0U;
 		std::uint64_t RefreshRequests      = 0U;
 		std::uint64_t ConditionalRequests  = 0U;
@@ -258,6 +308,7 @@ namespace bpr::application {
 
 		void restore();
 		void apply(queue_rule_intent aIntent);
+		void apply(queue_preferences_intent aIntent);
 		void adopt(queue_session_id aSession);
 		void refresh(
 			const core::pull_request_ref&    aRef,

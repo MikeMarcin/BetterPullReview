@@ -49,6 +49,19 @@ namespace {
 		(void)shutdown(aApplication);
 		return EXIT_FAILURE;
 	}
+
+	[[nodiscard]] auto fixture_preferences()
+		-> application::queue_presentation_preferences
+	{
+		return {
+			.Role           = core::github_role::none,
+			.ObserverReason = core::observer_rule_kind::repository,
+			.Bucket         = core::attention_bucket::observed_with_new_activity,
+			.Repository     = "google/UIforETW",
+			.Quiet          = application::queue_quiet_filter::attention,
+			.Sort           = application::queue_sort_order::pull_request_number,
+		};
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -111,17 +124,55 @@ auto main(int argc, char** argv) -> int
 			|| item->Membership.Rule != rule) {
 			return fail(*application, "exact-reason");
 		}
+		const auto updates = window.statistics().QueueUpdates;
+		if (item->Bucket
+			!= core::attention_bucket::observed_with_new_activity) {
+			return fail(*application, "exact-attention-bucket");
+		}
+		const auto preferences = fixture_preferences();
+		window.queue_role_filter()->setCurrentIndex(
+			window.queue_role_filter()->findData(
+				static_cast<int>(core::github_role::none)));
+		window.queue_observer_filter()->setCurrentIndex(
+			window.queue_observer_filter()->findData(
+				static_cast<int>(core::observer_rule_kind::repository)));
+		window.queue_bucket_filter()->setCurrentIndex(
+			window.queue_bucket_filter()->findData(
+				static_cast<int>(
+					core::attention_bucket::observed_with_new_activity)));
+		window.queue_repository_filter()->setCurrentIndex(
+			window.queue_repository_filter()->findData(
+				QStringLiteral("google/UIforETW")));
+		window.queue_quiet_filter()->setCurrentIndex(
+			window.queue_quiet_filter()->findData(
+				static_cast<int>(application::queue_quiet_filter::attention)));
+		window.queue_sort_selector()->setCurrentIndex(
+			window.queue_sort_selector()->findData(
+				static_cast<int>(application::queue_sort_order::pull_request_number)));
+		if (!wait_until([&window, &preferences, updates] {
+				return window.statistics().QueueUpdates > updates
+					&& window.queue_filter_model()->preferences() == preferences
+					&& window.queue_filter_model()->rowCount() == 1;
+			})) {
+			return fail(*application, "preference-gesture-persist");
+		}
 	} else {
 		if (!wait_until([&window] {
 				return window.remove_queue_rule_action()->isEnabled()
-					&& window.queue_landing()->rowCount() == 1;
+					&& window.queue_landing()->rowCount() == 1
+					&& window.queue_filter_model()->rowCount() == 1;
 			})) {
 			return fail(*application, "restore-match");
+		}
+		const auto preferences = fixture_preferences();
+		if (window.queue_filter_model()->preferences() != preferences) {
+			return fail(*application, "restore-preferences");
 		}
 		window.remove_queue_rule_action()->trigger();
 		if (!wait_until([&window] {
 				return !window.remove_queue_rule_action()->isEnabled()
-					&& window.queue_landing()->rowCount() == 0;
+					&& window.queue_landing()->rowCount() == 0
+					&& window.queue_filter_model()->rowCount() == 0;
 			})) {
 			return fail(*application, "remove-empty");
 		}

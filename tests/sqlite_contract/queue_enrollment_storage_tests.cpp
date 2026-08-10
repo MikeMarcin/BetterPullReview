@@ -339,7 +339,7 @@ namespace {
 		(void)::sqlite3_close_v2(raw);
 	}
 
-	void test_a_legal_version_one_database_migrates_to_version_two()
+	void test_a_legal_version_one_database_migrates_to_current()
 	{
 		const scratch_directory directory;
 		const auto              path = directory.file("version-one.db");
@@ -385,10 +385,50 @@ namespace {
 			"migration does not promote a copied enrollment reason into rule authority");
 	}
 
+	void test_a_legal_version_two_database_migrates_without_rewriting_queue_state()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("version-two.db");
+		const auto              rule = core::observer_rule{
+			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
+		};
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store), "the current queue fixture opens");
+			expect(store->store_rule(rule).has_value(), "the exact rule is stored");
+			expect(
+				store
+					->store(application::enrollment_record{
+						.Ref = ref(7), .Membership = watching("src/parser") })
+					.has_value(),
+				"the exact enrollment is stored");
+		}
+		execute_raw_sql(
+			path,
+			"DROP TABLE presentation_preferences;"
+			"UPDATE enrollment_meta SET schema_format = 2 WHERE singleton = 1;"
+			"PRAGMA user_version = 2;");
+
+		auto migrated = queue_enrollment_database::open(path, { });
+		expect(opened_ok(migrated), "a canonical version-two queue migrates");
+		const auto rules       = migrated->load_rules();
+		const auto enrollments = migrated->load_all();
+		const auto preferences = migrated->load_preferences();
+		expect(
+			rules.has_value() && *rules == std::vector{ rule }
+				&& enrollments.has_value() && enrollments->size() == 1U
+				&& enrollments->front().Ref == ref(7),
+			"migration preserves rule authority and derived enrollment separately");
+		expect(
+			preferences
+				== application::queue_presentation_preferences{ },
+			"a version-two queue gains only default reviewer preferences");
+	}
+
 	void test_stamped_current_schema_is_validated_canonically()
 	{
 		const scratch_directory directory;
-		constexpr auto          tampering = std::array<std::string_view, 4>{
+		constexpr auto          tampering = std::array<std::string_view, 6>{
 			"ALTER TABLE enrollment_meta ADD COLUMN unexpected INTEGER NOT NULL DEFAULT 0",
 			"ALTER TABLE enrollment ADD COLUMN unexpected INTEGER",
 			"DROP TABLE observer_rule",
@@ -398,6 +438,8 @@ namespace {
 			"rule_pattern TEXT NOT NULL,"
 			"rule_excluding INTEGER NOT NULL CHECK(rule_excluding IN (0, 1)),"
 			"PRIMARY KEY(rule_kind, rule_pattern, rule_excluding)) STRICT",
+			"ALTER TABLE presentation_preferences ADD COLUMN unexpected INTEGER",
+			"DROP TABLE presentation_preferences",
 		};
 
 		for (std::size_t index = 0; index < tampering.size(); ++index) {
@@ -415,6 +457,43 @@ namespace {
 						== catalog_database_failure::schema_mismatch,
 				"a stamped current file with an altered or missing canonical table is refused");
 		}
+	}
+
+	void test_presentation_preferences_round_trip_without_a_derived_filter_result()
+	{
+		const scratch_directory directory;
+		const auto              path        = directory.file("preferences.db");
+		const auto              preferences = application::queue_presentation_preferences{
+			.Role           = core::github_role::author,
+			.ObserverReason = core::observer_rule_kind::path,
+			.Bucket         = core::attention_bucket::new_comments_or_author_replies,
+			.Repository     = "octo/app",
+			.Quiet          = application::queue_quiet_filter::attention,
+			.Sort           = application::queue_sort_order::pull_request_number,
+		};
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store), "the preference store opens");
+			expect(
+				store->store_preferences(preferences).has_value(),
+				"the exact reviewer preference is stored");
+		}
+		auto reopened = queue_enrollment_database::open(path, { });
+		expect(opened_ok(reopened), "the preference store reopens");
+		expect(
+			reopened->load_preferences() == preferences,
+			"every filter and explicit alternate sort survives restart");
+		expect(
+			scalar_integer(reopened->handle(), "SELECT count(*) FROM enrollment")
+				== 0,
+			"persisting presentation preferences writes no derived queue membership");
+		execute_raw_sql(
+			path,
+			"UPDATE presentation_preferences "
+			"SET repository_filter = char(0) || 'octo/app' WHERE singleton = 1");
+		expect(
+			!reopened->load_preferences().has_value(),
+			"an embedded NUL cannot silently widen the persisted repository filter");
 	}
 
 	// The store holds no source and no comment body. Checked against the
@@ -653,8 +732,10 @@ auto main() -> int
 #endif
 	test_a_newer_database_fails_closed();
 	test_a_foreign_version_one_database_is_not_migrated();
-	test_a_legal_version_one_database_migrates_to_version_two();
+	test_a_legal_version_one_database_migrates_to_current();
+	test_a_legal_version_two_database_migrates_without_rewriting_queue_state();
 	test_stamped_current_schema_is_validated_canonically();
+	test_presentation_preferences_round_trip_without_a_derived_filter_result();
 	test_the_schema_holds_no_repository_content();
 	test_deleting_the_queue_leaves_the_ledger_intact();
 	test_storing_the_same_item_twice_replaces_rather_than_duplicates();

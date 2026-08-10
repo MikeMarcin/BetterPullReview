@@ -86,6 +86,7 @@ namespace {
 		std::size_t Removed  = 0U;
 		std::size_t Moved    = 0U;
 		std::size_t Changed  = 0U;
+		std::size_t Layout   = 0U;
 		std::size_t Reset    = 0U;
 	};
 
@@ -119,6 +120,13 @@ namespace {
 						 &QAbstractItemModel::modelAboutToBeReset,
 						 &aModel,
 						 [&aLog] { ++aLog.Reset; });
+		QObject::connect(
+			&aModel,
+			&QAbstractItemModel::layoutChanged,
+			&aModel,
+			[&aLog](
+				const QList<QPersistentModelIndex>&,
+				QAbstractItemModel::LayoutChangeHint) { ++aLog.Layout; });
 	}
 
 	[[nodiscard]] auto drawer_row(
@@ -2923,6 +2931,159 @@ namespace {
 			} },
 			"Remove still targets the rule the reviewer selected");
 	}
+
+	void test_queue_filter_controls_are_accessible_incremental_and_focus_stable()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::queue_preferences_intent>{ };
+		window.set_queue_preferences_dispatch(
+			[&intents](application::queue_preferences_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			});
+		auto urgent = core::queue_item{
+			.Ref = core::pull_request_ref{
+				.Host = "github.com", .Account = "reviewer", .Repository = "z/repo", .Number = 9 },
+			.Membership = core::queue_membership{ .Role = core::github_role::requested_reviewer },
+			.Bucket     = core::attention_bucket::initial_review_requested,
+		};
+		auto quiet = core::queue_item{
+			.Ref = core::pull_request_ref{
+				.Host = "github.com", .Account = "reviewer", .Repository = "a/repo", .Number = 2 },
+			.Membership = core::queue_membership{ .MatchedRule = true, .Rule = core::observer_rule{ .Kind = core::observer_rule_kind::path, .Pattern = "src" } },
+			.Bucket     = core::attention_bucket::quiet,
+		};
+		window.publish({
+			.Status = application::queue_landing_status::ready,
+			.Items  = { urgent, quiet },
+		});
+		window.queue_view()->setCurrentIndex(
+			window.queue_filter_model()->index(0, 0));
+		window.queue_role_filter()->setFocus();
+		const auto focused = QApplication::focusWidget();
+		window.queue_role_filter()->setCurrentIndex(
+			window.queue_role_filter()->findData(
+				static_cast<int>(core::github_role::requested_reviewer)));
+		expect(
+			intents.size() == 1U
+				&& intents.back().Preferences.Role
+					== core::github_role::requested_reviewer,
+			"the real role control emits one typed reviewer-preference intent");
+		expect(
+			window.queue_filter_model()->rowCount() == 1,
+			"the presentation filter changes without mutating the source queue");
+
+		window.queue_bucket_filter()->setCurrentIndex(
+			window.queue_bucket_filter()->findData(
+				static_cast<int>(core::attention_bucket::quiet)));
+		expect(
+			window.queue_filter_model()->rowCount() == 0
+				&& window.queue_status_label()->text().contains(
+					QStringLiteral("No reviews match")),
+			"an empty filtered result explains active filters instead of claiming the queue is empty");
+
+		window.publish({
+			.Status      = application::queue_landing_status::ready,
+			.Items       = { urgent, quiet },
+			.Preferences = application::queue_presentation_preferences{
+				.Sort = application::queue_sort_order::repository },
+		});
+		expect(
+			window.queue_filter_model()->item_at(
+										   window.queue_filter_model()->index(0, 0))
+					->Ref
+				== quiet.Ref,
+			"an accepted explicit alternate sort is visible while source order stays core-owned");
+		expect(
+			QApplication::focusWidget() == focused,
+			"an accepted filter/sort projection retains the focused control");
+
+		const auto focusOrder = window.focus_order();
+		for (auto* const selector : { window.queue_role_filter(),
+									  window.queue_observer_filter(),
+									  window.queue_bucket_filter(),
+									  window.queue_repository_filter(),
+									  window.queue_quiet_filter(),
+									  window.queue_sort_selector() }) {
+			expect(
+				!selector->accessibleName().isEmpty()
+					&& !selector->accessibleDescription().isEmpty()
+					&& focusOrder.contains(selector),
+				"every queue preference control is named, explained, and in the declared focus order");
+		}
+	}
+
+	void test_large_queue_filters_through_the_composed_window()
+	{
+		qt::workbench_window window;
+		window.set_queue_preferences_dispatch(
+			[](application::queue_preferences_intent) { });
+		auto items = std::vector<core::queue_item>{ };
+		items.reserve(2'048U);
+		for (auto number = std::int64_t{ 1 }; number <= 2'048; ++number) {
+			items.push_back(core::queue_item{
+				.Ref = core::pull_request_ref{
+					.Host       = "github.com",
+					.Account    = "reviewer",
+					.Repository = number % 4 == 0 ? "z/repo" : "a/repo",
+					.Number     = number,
+				},
+				.Membership = core::queue_membership{
+					.Role = number % 2 == 0 ? core::github_role::requested_reviewer : core::github_role::participant,
+				},
+				.Bucket = core::attention_bucket::quiet,
+			});
+		}
+		items = core::ordered_queue(items);
+		window.publish({
+			.Status = application::queue_landing_status::ready,
+			.Items  = items,
+		});
+		for (auto row = 0; row < window.queue_filter_model()->rowCount(); ++row) {
+			const auto index = window.queue_filter_model()->index(row, 0);
+			const auto item  = window.queue_filter_model()->item_at(index);
+			if (item.has_value() && item->Ref.Number == 1'000) {
+				window.queue_view()->setCurrentIndex(index);
+				break;
+			}
+		}
+		expect(
+			window.queue_view()->currentIndex().isValid(),
+			"the large queue selects one stable pull-request identity");
+		window.show();
+		QApplication::processEvents();
+		window.queue_role_filter()->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+		expect(
+			QApplication::focusWidget() == window.queue_role_filter(),
+			"the real large-queue control accepts focus before its gesture");
+		const auto focused   = QApplication::focusWidget();
+		auto       signalLog = model_signal_log{ };
+		observe_model_signals(*window.queue_filter_model(), signalLog);
+
+		window.queue_role_filter()->setCurrentIndex(
+			window.queue_role_filter()->findData(
+				static_cast<int>(core::github_role::requested_reviewer)));
+		window.queue_sort_selector()->setCurrentIndex(
+			window.queue_sort_selector()->findData(
+				static_cast<int>(application::queue_sort_order::pull_request_number)));
+
+		const auto selected = window.queue_filter_model()->item_at(
+			window.queue_view()->currentIndex());
+		expect(
+			window.queue_landing()->rowCount() == 2'048
+				&& window.queue_filter_model()->rowCount() == 1'024,
+			"the composed non-contiguous filter keeps the exact matching half");
+		expect(
+			selected.has_value() && selected->Ref.Number == 1'000,
+			"the selected pull request survives the large filter and alternate sort");
+		expect(
+			QApplication::focusWidget() == focused,
+			"the focused control survives the large filter and alternate sort");
+		expect(
+			signalLog.Reset == 0 && signalLog.Removed <= 1'024
+				&& signalLog.Layout <= 2,
+			"the composed large update is linear and incremental without a reset");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2950,6 +3111,8 @@ auto main(int argc, char** argv) -> int
 	test_defect_queue_navigation_and_semantic_dispatch();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();
+	test_queue_filter_controls_are_accessible_incremental_and_focus_stable();
+	test_large_queue_filters_through_the_composed_window();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;

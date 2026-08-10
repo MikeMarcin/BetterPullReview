@@ -249,14 +249,32 @@ asked.
 
 The model has no mutating entry point beyond `apply` and `clear`.
 
+`qt::review_landing_filter_model` is a presentation layer above that ordered
+source. Its default disables proxy sorting and therefore preserves the core's
+exact priority order. The reviewer may explicitly select repository or pull
+request number order; both include the complete pull-request identity as a
+deterministic tie-break. Direct switches between alternate sorts force the
+comparator to run again rather than relying on an unchanged Qt sort column.
+
+Role, retained observer-rule kind, core-decided attention bucket, repository
+owner/name, and quiet/current filters compose without changing the source
+queue. Repository filtering deliberately groups the same owner/name across
+host and account authorities; the item identity remains complete, but this
+presentation preference answers “show this repository name” rather than
+selecting an authentication authority. Empty filtered results say that rows
+remain in the queue. Controls are named, described, and included in focus order.
+
+The application host stores only the bounded preference vocabulary after the
+effect succeeds, then publishes the durable choice. SQLite schema version three
+adds one singleton preference row; it stores no derived membership. The
+two-process public contract changes every filter and the alternate sort through
+the real Qt controls, reopens the same store, and observes the exact preference
+with zero provider mutations.
+
 ## What is not proven here
 
 | Card | What it needs |
 |---|---|
 | BPR-0168 | A person to grant Notification Center permission once and to see the banner. The harness proves the request's content and destination; it cannot prove the operating system showed it |
 | BPR-0169 | A designated repository and token. That the correlator cannot issue a request is structural and settled here; that GitHub's own reviewer state is also unchanged needs a server to answer |
-| BPR-0239 | Filters and sorting over the composed landing model, with stable identity and explicit alternate order |
 | BPR-0223 | Notification delivery requests and activation selection from a real composed queue item |
-
-Filters and sorting presentation are not built. The model presents what the
-core ordered, and a filter is a view concern that would sit above it.

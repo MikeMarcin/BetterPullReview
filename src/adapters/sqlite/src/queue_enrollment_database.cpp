@@ -57,6 +57,19 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" },
 		};
 
+		constexpr std::array SchemaVersion3{
+			std::string_view{
+				"CREATE TABLE presentation_preferences("
+				"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+				"role_filter INTEGER NOT NULL CHECK(role_filter BETWEEN -1 AND 4),"
+				"observer_filter INTEGER NOT NULL CHECK(observer_filter BETWEEN -1 AND 2),"
+				"bucket_filter INTEGER NOT NULL CHECK(bucket_filter BETWEEN -1 AND 6),"
+				"repository_filter TEXT NOT NULL,"
+				"quiet_filter INTEGER NOT NULL CHECK(quiet_filter BETWEEN 0 AND 2),"
+				"sort_order INTEGER NOT NULL CHECK(sort_order BETWEEN 0 AND 2)"
+				") STRICT" },
+		};
+
 		struct schema_table
 		{
 			std::string_view Name;
@@ -72,6 +85,13 @@ namespace bpr::adapters::sqlite::detail {
 			schema_table{ "enrollment", SchemaVersion1[1] },
 			schema_table{ "enrollment_meta", SchemaVersion1[0] },
 			schema_table{ "observer_rule", SchemaVersion2[0] },
+		};
+
+		constexpr std::array SchemaVersion3Tables{
+			schema_table{ "enrollment", SchemaVersion1[1] },
+			schema_table{ "enrollment_meta", SchemaVersion1[0] },
+			schema_table{ "observer_rule", SchemaVersion2[0] },
+			schema_table{ "presentation_preferences", SchemaVersion3[0] },
 		};
 
 		[[nodiscard]] auto run_all(
@@ -132,8 +152,7 @@ namespace bpr::adapters::sqlite::detail {
 				aDatabase,
 				"SELECT schema_format FROM enrollment_meta WHERE singleton = 1");
 			if (!application || *application != QueueApplicationId || !version
-				|| *version != queue_enrollment_schema_version || !format
-				|| *format != queue_enrollment_schema_version) {
+				|| *version != 2 || !format || *format != 2) {
 				return std::unexpected(failure::schema_mismatch);
 			}
 
@@ -187,6 +206,70 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
+		[[nodiscard]] auto validate_version_three(::sqlite3* aDatabase)
+			-> std::expected<void, failure>
+		{
+			const auto application
+				= scalar_integer(aDatabase, "PRAGMA application_id");
+			const auto version = scalar_integer(aDatabase, "PRAGMA user_version");
+			const auto format  = scalar_integer(
+				aDatabase,
+				"SELECT schema_format FROM enrollment_meta WHERE singleton = 1");
+			if (!application || *application != QueueApplicationId || !version
+				|| *version != queue_enrollment_schema_version || !format
+				|| *format != queue_enrollment_schema_version) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+
+			auto objects = prepare(
+				aDatabase,
+				"SELECT type, name, sql FROM sqlite_schema "
+				"WHERE name NOT LIKE 'sqlite_%' ORDER BY name");
+			if (!objects) {
+				return std::unexpected(objects.error());
+			}
+			std::size_t index = 0U;
+			for (;;) {
+				const auto row = ::sqlite3_step(objects->Value);
+				if (row == SQLITE_DONE) {
+					break;
+				}
+				if (row != SQLITE_ROW || index >= SchemaVersion3Tables.size()) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				const auto text = [&objects](const int aColumn)
+					-> std::optional<std::string_view> {
+					if (::sqlite3_column_type(objects->Value, aColumn) != SQLITE_TEXT) {
+						return std::nullopt;
+					}
+					const auto* value = reinterpret_cast<const char*>(
+						::sqlite3_column_text(objects->Value, aColumn));
+					const auto bytes
+						= ::sqlite3_column_bytes(objects->Value, aColumn);
+					if (value == nullptr || bytes < 0) {
+						return std::nullopt;
+					}
+					return std::string_view{
+						value,
+						static_cast<std::size_t>(bytes),
+					};
+				};
+				const auto type = text(0);
+				const auto name = text(1);
+				const auto sql  = text(2);
+				if (!type || !name || !sql || *type != "table"
+					|| *name != SchemaVersion3Tables[index].Name
+					|| canonical_sql(*sql)
+						!= canonical_sql(SchemaVersion3Tables[index].Sql)) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				++index;
+			}
+			return index == SchemaVersion3Tables.size()
+				? std::expected<void, failure>{ }
+				: std::unexpected(failure::schema_mismatch);
+		}
+
 		[[nodiscard]] auto preflight_existing_database(::sqlite3* aDatabase)
 			-> std::expected<void, failure>
 		{
@@ -205,8 +288,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (*version == 1) {
 				return validate_version_one(aDatabase);
 			}
-			if (*version == queue_enrollment_schema_version) {
+			if (*version == 2) {
 				return validate_version_two(aDatabase);
+			}
+			if (*version == queue_enrollment_schema_version) {
+				return validate_version_three(aDatabase);
 			}
 			return std::unexpected(failure::schema_mismatch);
 		}
@@ -268,10 +354,19 @@ namespace bpr::adapters::sqlite::detail {
 					return meta;
 				}
 			}
-			if (auto migrated = run_all(aDatabase, SchemaVersion2, aStop);
-				!migrated) {
-				rollback();
-				return migrated;
+			if (*current < 2) {
+				if (auto migrated = run_all(aDatabase, SchemaVersion2, aStop);
+					!migrated) {
+					rollback();
+					return migrated;
+				}
+			}
+			if (*current < 3) {
+				if (auto migrated = run_all(aDatabase, SchemaVersion3, aStop);
+					!migrated) {
+					rollback();
+					return migrated;
+				}
 			}
 			if (auto meta = execute(
 					aDatabase,
@@ -299,7 +394,7 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto validate(::sqlite3* aDatabase)
 			-> std::expected<void, failure>
 		{
-			return validate_version_two(aDatabase);
+			return validate_version_three(aDatabase);
 		}
 
 		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
@@ -309,7 +404,13 @@ namespace bpr::adapters::sqlite::detail {
 			if (bytes == nullptr) {
 				return { };
 			}
-			return std::string{ reinterpret_cast<const char*>(bytes) };
+			const auto size = ::sqlite3_column_bytes(aStatement, aColumn);
+			return size > 0
+				? std::string{
+					  reinterpret_cast<const char*>(bytes),
+					  static_cast<std::size_t>(size)
+				  }
+				: std::string{ };
 		}
 	} // namespace
 
@@ -642,6 +743,128 @@ namespace bpr::adapters::sqlite::detail {
 			rules.push_back(std::move(rule));
 		}
 		return rules;
+	}
+
+	auto queue_enrollment_database::store_preferences(
+		const application::queue_presentation_preferences& aPreferences)
+		-> std::expected<void, failure>
+	{
+		if (!application::valid(aPreferences)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto statement = prepare(
+			Handle,
+			"INSERT INTO presentation_preferences("
+			"singleton, role_filter, observer_filter, bucket_filter,"
+			"repository_filter, quiet_filter, sort_order) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6) "
+			"ON CONFLICT(singleton) DO UPDATE SET "
+			"role_filter = excluded.role_filter,"
+			"observer_filter = excluded.observer_filter,"
+			"bucket_filter = excluded.bucket_filter,"
+			"repository_filter = excluded.repository_filter,"
+			"quiet_filter = excluded.quiet_filter,"
+			"sort_order = excluded.sort_order");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		const auto optionalValue = [](const auto& aValue) -> std::int64_t {
+			return aValue.has_value()
+				? static_cast<std::int64_t>(*aValue)
+				: -1;
+		};
+		if (::sqlite3_bind_int64(
+				statement->Value, 1, optionalValue(aPreferences.Role))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   2,
+				   optionalValue(aPreferences.ObserverReason))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value, 3, optionalValue(aPreferences.Bucket))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_text(
+				   statement->Value,
+				   4,
+				   aPreferences.Repository.c_str(),
+				   -1,
+				   SQLITE_TRANSIENT)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   5,
+				   static_cast<std::int64_t>(aPreferences.Quiet))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   6,
+				   static_cast<std::int64_t>(aPreferences.Sort))
+				!= SQLITE_OK
+			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
+			return std::unexpected(failure::unavailable);
+		}
+		return { };
+	}
+
+	auto queue_enrollment_database::load_preferences()
+		-> std::expected<application::queue_presentation_preferences, failure>
+	{
+		auto statement = prepare(
+			Handle,
+			"SELECT role_filter, observer_filter, bucket_filter,"
+			"repository_filter, quiet_filter, sort_order "
+			"FROM presentation_preferences WHERE singleton = 1");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		const auto stepped = ::sqlite3_step(statement->Value);
+		if (stepped == SQLITE_DONE) {
+			return application::queue_presentation_preferences{ };
+		}
+		if (stepped != SQLITE_ROW) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		const auto optionalRole = [](const std::int64_t aValue)
+			-> std::optional<core::github_role> {
+			return aValue < 0
+				? std::nullopt
+				: std::optional{
+					  static_cast<core::github_role>(aValue)
+				  };
+		};
+		const auto optionalObserver = [](const std::int64_t aValue)
+			-> std::optional<core::observer_rule_kind> {
+			return aValue < 0
+				? std::nullopt
+				: std::optional{
+					  static_cast<core::observer_rule_kind>(aValue)
+				  };
+		};
+		const auto optionalBucket = [](const std::int64_t aValue)
+			-> std::optional<core::attention_bucket> {
+			return aValue < 0
+				? std::nullopt
+				: std::optional{
+					  static_cast<core::attention_bucket>(aValue)
+				  };
+		};
+		auto preferences = application::queue_presentation_preferences{
+			.Role           = optionalRole(::sqlite3_column_int64(statement->Value, 0)),
+			.ObserverReason = optionalObserver(
+				::sqlite3_column_int64(statement->Value, 1)),
+			.Bucket = optionalBucket(
+				::sqlite3_column_int64(statement->Value, 2)),
+			.Repository = text_of(statement->Value, 3),
+			.Quiet      = static_cast<application::queue_quiet_filter>(
+				::sqlite3_column_int64(statement->Value, 4)),
+			.Sort = static_cast<application::queue_sort_order>(
+				::sqlite3_column_int64(statement->Value, 5)),
+		};
+		if (!application::valid(preferences)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		return preferences;
 	}
 
 	auto queue_enrollment_columns(::sqlite3* const aDatabase)

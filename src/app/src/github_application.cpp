@@ -1604,6 +1604,12 @@ namespace bpr::app {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
+			Window->set_queue_preferences_dispatch(
+				[this](application::queue_preferences_intent aIntent) {
+					if (!Closing && QueueHost != nullptr) {
+						QueueHost->apply(std::move(aIntent));
+					}
+				});
 			QueueHost->restore();
 
 			EpochHost = std::make_unique<application::epoch_application_host>(

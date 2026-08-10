@@ -8,6 +8,22 @@
 #include <utility>
 
 namespace bpr::application {
+	auto valid(const queue_presentation_preferences& aPreferences) noexcept -> bool
+	{
+		const auto roleValid = !aPreferences.Role.has_value()
+			|| *aPreferences.Role <= core::github_role::author;
+		const auto observerValid = !aPreferences.ObserverReason.has_value()
+			|| *aPreferences.ObserverReason <= core::observer_rule_kind::path;
+		const auto bucketValid = !aPreferences.Bucket.has_value()
+			|| *aPreferences.Bucket <= core::attention_bucket::quiet;
+		return roleValid && observerValid && bucketValid
+			&& aPreferences.Repository.size()
+			<= core::maximum_observer_rule_pattern_bytes
+			&& aPreferences.Repository.find('\0') == std::string::npos
+			&& aPreferences.Quiet <= queue_quiet_filter::quiet
+			&& aPreferences.Sort <= queue_sort_order::pull_request_number;
+	}
+
 	auto name(const enrollment_departure aDeparture) noexcept -> std::string_view
 	{
 		switch (aDeparture) {
@@ -169,6 +185,7 @@ namespace bpr::application {
 		enum class request_kind : std::uint8_t {
 			load,
 			rule_change,
+			preferences,
 			refresh,
 			store_enrollment,
 		};
@@ -315,6 +332,7 @@ namespace bpr::application {
 				.Status         = Status,
 				.Rules          = Rules,
 				.Items          = Enrollments.project(observation),
+				.Preferences    = Preferences,
 				.Session        = Scheduler.session(),
 				.Online         = Scheduler.online(),
 				.BackoffSeconds = Scheduler.backoff_seconds(),
@@ -361,7 +379,8 @@ namespace bpr::application {
 				report_unavailable();
 				return;
 			}
-			Rules = std::move(aResult->Rules);
+			Rules       = std::move(aResult->Rules);
+			Preferences = std::move(aResult->Preferences);
 			for (const auto& record : aResult->Enrollments) {
 				Enrollments.enroll(record.Ref, record.Membership);
 				if (!record.present()) {
@@ -371,6 +390,77 @@ namespace bpr::application {
 			Status = queue_landing_status::ready;
 			publish();
 			reconcile_last();
+		}
+
+		void apply(queue_preferences_intent aIntent)
+		{
+			++Statistics.PreferenceIntents;
+			if (Closing || !Restored || !valid(aIntent.Preferences)) {
+				return;
+			}
+			if (PreferenceMutationPending) {
+				QueuedPreferences = std::move(aIntent.Preferences);
+				return;
+			}
+			if (aIntent.Preferences == Preferences) {
+				return;
+			}
+			++Statistics.PersistenceRequests;
+			auto&      request        = begin(request_kind::preferences);
+			const auto id             = request.Id;
+			const auto stop           = request.Stop.get_token();
+			const auto gate           = std::weak_ptr<completion_gate>{ Gate };
+			PreferenceMutationPending = true;
+			try {
+				Effects.post([this,
+							  gate,
+							  id,
+							  stop,
+							  preferences = std::move(aIntent.Preferences)]() mutable {
+					auto result = Store.store_preferences(preferences, stop);
+					DecisionLane.post(
+						[gate,
+						 id,
+						 preferences = std::move(preferences),
+						 result      = std::move(result)]() mutable {
+							if (auto* const host = locked_host(gate); host != nullptr) {
+								host->finish_preferences(
+									id,
+									std::move(preferences),
+									std::move(result));
+							}
+						});
+				});
+			} catch (...) {
+				PreferenceMutationPending = false;
+				(void)retire(id, request_kind::preferences);
+				report_unavailable();
+			}
+		}
+
+		void finish_preferences(
+			const std::uint64_t                             aId,
+			queue_presentation_preferences                  aPreferences,
+			const std::expected<void, queue_store_failure>& aResult)
+		{
+			if (!retire(aId, request_kind::preferences) || Closing) {
+				return;
+			}
+			PreferenceMutationPending = false;
+			if (!aResult) {
+				QueuedPreferences.reset();
+				report_unavailable();
+				return;
+			}
+			Preferences = std::move(aPreferences);
+			Status      = queue_landing_status::ready;
+			publish();
+			if (QueuedPreferences.has_value()) {
+				auto queued = std::exchange(QueuedPreferences, std::nullopt);
+				apply(queue_preferences_intent{
+					.Preferences = std::move(*queued),
+				});
+			}
 		}
 
 		void apply(queue_rule_intent aIntent)
@@ -705,14 +795,16 @@ namespace bpr::application {
 			}
 		}
 
-		queue_enrollment_store_port&     Store;
-		queue_refresh_effect_port&       Refresh;
-		effect_executor&                 Effects;
-		decision_executor&               DecisionLane;
-		queue_landing_projection_port&   Projection;
-		queue_refresh_scheduler          Scheduler;
-		queue_enrollment_register        Enrollments;
-		std::vector<core::observer_rule> Rules;
+		queue_enrollment_store_port&                  Store;
+		queue_refresh_effect_port&                    Refresh;
+		effect_executor&                              Effects;
+		decision_executor&                            DecisionLane;
+		queue_landing_projection_port&                Projection;
+		queue_refresh_scheduler                       Scheduler;
+		queue_enrollment_register                     Enrollments;
+		std::vector<core::observer_rule>              Rules;
+		queue_presentation_preferences                Preferences;
+		std::optional<queue_presentation_preferences> QueuedPreferences;
 		std::vector<std::pair<core::pull_request_ref,
 							  core::queue_activity_observation>>
 													  Activity;
@@ -723,10 +815,11 @@ namespace bpr::application {
 		queue_landing_status                          Status = queue_landing_status::restoring;
 		review_queue_host_statistics                  Statistics;
 		std::shared_ptr<completion_gate>              Gate;
-		std::uint64_t                                 NextRequest         = 1U;
-		bool                                          Restored            = false;
-		bool                                          Closing             = false;
-		bool                                          RuleMutationPending = false;
+		std::uint64_t                                 NextRequest               = 1U;
+		bool                                          Restored                  = false;
+		bool                                          Closing                   = false;
+		bool                                          RuleMutationPending       = false;
+		bool                                          PreferenceMutationPending = false;
 	};
 
 	review_queue_application_host::review_queue_application_host(
@@ -754,6 +847,11 @@ namespace bpr::application {
 	}
 
 	void review_queue_application_host::apply(queue_rule_intent aIntent)
+	{
+		Implementation->apply(std::move(aIntent));
+	}
+
+	void review_queue_application_host::apply(queue_preferences_intent aIntent)
 	{
 		Implementation->apply(std::move(aIntent));
 	}

@@ -1,6 +1,7 @@
 #include "bpr/qt/review_landing_model.hpp"
 
 #include <algorithm>
+#include <tuple>
 
 namespace bpr::qt {
 	namespace {
@@ -173,5 +174,138 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		return Items[row];
+	}
+
+	review_landing_filter_model::review_landing_filter_model(
+		review_landing_model& aSource, QObject* const aParent)
+		: QSortFilterProxyModel{ aParent }
+		, Source{ aSource }
+	{
+		setDynamicSortFilter(true);
+		setSourceModel(&Source);
+		sort(-1);
+	}
+
+	void review_landing_filter_model::apply(
+		const application::queue_presentation_preferences& aPreferences)
+	{
+		if (!application::valid(aPreferences) || aPreferences == Preferences) {
+			return;
+		}
+		const auto sortChanged = aPreferences.Sort != Preferences.Sort;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
+		beginFilterChange();
+		Preferences = aPreferences;
+		endFilterChange(Direction::Rows);
+#else
+		Preferences = aPreferences;
+		invalidateFilter();
+#endif
+		if (sortChanged) {
+			// Qt returns early when the requested column and order are unchanged,
+			// even though our explicit sort vocabulary changed the comparator.
+			// Disabling the proxy sort first makes that transition observable on
+			// every supported Qt version.
+			sort(-1);
+			if (Preferences.Sort
+				!= application::queue_sort_order::core_priority) {
+				sort(0, Qt::AscendingOrder);
+			}
+		}
+	}
+
+	auto review_landing_filter_model::preferences() const noexcept
+		-> const application::queue_presentation_preferences&
+	{
+		return Preferences;
+	}
+
+	auto review_landing_filter_model::item_at(const QModelIndex& aIndex) const
+		-> std::optional<core::queue_item>
+	{
+		return Source.item_at(mapToSource(aIndex));
+	}
+
+	auto review_landing_filter_model::has_active_filters() const noexcept -> bool
+	{
+		return Preferences.Role.has_value()
+			|| Preferences.ObserverReason.has_value()
+			|| Preferences.Bucket.has_value()
+			|| !Preferences.Repository.empty()
+			|| Preferences.Quiet != application::queue_quiet_filter::all;
+	}
+
+	auto review_landing_filter_model::filterAcceptsRow(
+		const int aSourceRow, const QModelIndex& aSourceParent) const -> bool
+	{
+		const auto item = Source.item_at(Source.index(aSourceRow, 0, aSourceParent));
+		if (!item) {
+			return false;
+		}
+		if (Preferences.Role.has_value()
+			&& item->Membership.Role != *Preferences.Role) {
+			return false;
+		}
+		if (Preferences.ObserverReason.has_value()
+			&& (!item->Membership.MatchedRule
+				|| item->Membership.Rule.Kind != *Preferences.ObserverReason)) {
+			return false;
+		}
+		if (Preferences.Bucket.has_value()
+			&& item->Bucket != *Preferences.Bucket) {
+			return false;
+		}
+		if (!Preferences.Repository.empty()
+			&& item->Ref.Repository != Preferences.Repository) {
+			return false;
+		}
+		if (Preferences.Quiet == application::queue_quiet_filter::attention
+			&& item->Bucket == core::attention_bucket::quiet) {
+			return false;
+		}
+		if (Preferences.Quiet == application::queue_quiet_filter::quiet
+			&& item->Bucket != core::attention_bucket::quiet) {
+			return false;
+		}
+		return true;
+	}
+
+	auto review_landing_filter_model::lessThan(
+		const QModelIndex& aLeft, const QModelIndex& aRight) const -> bool
+	{
+		const auto left  = Source.item_at(aLeft);
+		const auto right = Source.item_at(aRight);
+		if (!left || !right) {
+			return aLeft.row() < aRight.row();
+		}
+		const auto& leftRef  = left->Ref;
+		const auto& rightRef = right->Ref;
+		switch (Preferences.Sort) {
+		case application::queue_sort_order::repository:
+			return std::tie(
+					   leftRef.Repository,
+					   leftRef.Number,
+					   leftRef.Host,
+					   leftRef.Account)
+				< std::tie(
+					   rightRef.Repository,
+					   rightRef.Number,
+					   rightRef.Host,
+					   rightRef.Account);
+		case application::queue_sort_order::pull_request_number:
+			return std::tie(
+					   leftRef.Number,
+					   leftRef.Repository,
+					   leftRef.Host,
+					   leftRef.Account)
+				< std::tie(
+					   rightRef.Number,
+					   rightRef.Repository,
+					   rightRef.Host,
+					   rightRef.Account);
+		case application::queue_sort_order::core_priority:
+			return aLeft.row() < aRight.row();
+		}
+		return aLeft.row() < aRight.row();
 	}
 } // namespace bpr::qt

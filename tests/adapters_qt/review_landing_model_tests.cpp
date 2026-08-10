@@ -332,6 +332,164 @@ namespace {
 			recorder.Removals == 1,
 			"clearing an empty model says nothing further");
 	}
+
+	void test_filters_and_explicit_sorts_preserve_stable_identity()
+	{
+		auto source    = qt::review_landing_model{ };
+		auto proxy     = qt::review_landing_filter_model{ source };
+		auto requested = item(
+			9,
+			core::attention_bucket::initial_review_requested,
+			core::queue_membership{
+				.Role        = core::github_role::requested_reviewer,
+				.MatchedRule = true,
+				.Rule        = core::observer_rule{
+					.Kind    = core::observer_rule_kind::repository,
+					.Pattern = "z/repo" } });
+		requested.Ref.Repository = "z/repo";
+		auto authored            = item(
+			5,
+			core::attention_bucket::new_comments_or_author_replies,
+			core::queue_membership{
+				.Role        = core::github_role::author,
+				.MatchedRule = true,
+				.Rule        = core::observer_rule{
+					.Kind    = core::observer_rule_kind::path,
+					.Pattern = "src" } });
+		authored.Ref.Repository = "a/repo";
+		auto participant        = item(
+			2,
+			core::attention_bucket::fixes_awaiting_verification,
+			core::queue_membership{ .Role = core::github_role::participant });
+		participant.Ref.Repository = "a/repo";
+		auto observed              = item(
+			7,
+			core::attention_bucket::quiet,
+			core::queue_membership{
+				.MatchedRule = true,
+				.Rule        = core::observer_rule{
+					.Kind    = core::observer_rule_kind::author,
+					.Pattern = "octocat" } });
+		observed.Ref.Repository = "b/repo";
+		source.apply(std::array{ requested, authored, participant, observed });
+
+		expect(
+			proxy.item_at(proxy.index(0, 0))->Ref.Number == 9
+				&& proxy.item_at(proxy.index(1, 0))->Ref.Number == 5
+				&& proxy.item_at(proxy.index(2, 0))->Ref.Number == 2
+				&& proxy.item_at(proxy.index(3, 0))->Ref.Number == 7,
+			"the default proxy preserves the core's exact priority order");
+		auto                  selected = QPersistentModelIndex{ proxy.index(1, 0) };
+		const signal_recorder recorder{ proxy };
+
+		proxy.apply(application::queue_presentation_preferences{
+			.Repository = "a/repo",
+			.Sort       = application::queue_sort_order::repository,
+		});
+		expect(
+			proxy.rowCount() == 2
+				&& proxy.item_at(proxy.index(0, 0))->Ref.Number == 2
+				&& proxy.item_at(proxy.index(1, 0))->Ref.Number == 5,
+			"repository filtering and its explicit alternate sort are deterministic");
+		expect(
+			selected.isValid()
+				&& proxy.item_at(selected)->Ref == authored.Ref,
+			"the selected pull-request identity survives filter and sort changes");
+		expect(recorder.Resets == 0, "filtering and sorting never reset the model");
+
+		proxy.apply(application::queue_presentation_preferences{
+			.Role = core::github_role::author,
+		});
+		expect(
+			proxy.rowCount() == 1
+				&& proxy.item_at(proxy.index(0, 0))->Ref == authored.Ref,
+			"the exact RFC role filter is applied");
+		proxy.apply(application::queue_presentation_preferences{
+			.ObserverReason = core::observer_rule_kind::author,
+		});
+		expect(
+			proxy.rowCount() == 1
+				&& proxy.item_at(proxy.index(0, 0))->Ref == observed.Ref,
+			"the exact retained observer reason is applied");
+		proxy.apply(application::queue_presentation_preferences{
+			.Bucket = core::attention_bucket::fixes_awaiting_verification,
+		});
+		expect(
+			proxy.rowCount() == 1
+				&& proxy.item_at(proxy.index(0, 0))->Ref == participant.Ref,
+			"the exact core-decided attention bucket is applied");
+		proxy.apply(application::queue_presentation_preferences{
+			.Quiet = application::queue_quiet_filter::quiet,
+		});
+		expect(
+			proxy.rowCount() == 1
+				&& proxy.item_at(proxy.index(0, 0))->Ref == observed.Ref,
+			"quiet/current is explicit rather than inferred from a sort");
+		proxy.apply(application::queue_presentation_preferences{
+			.Quiet = application::queue_quiet_filter::attention,
+			.Sort  = application::queue_sort_order::pull_request_number,
+		});
+		expect(
+			proxy.rowCount() == 3
+				&& proxy.item_at(proxy.index(0, 0))->Ref.Number == 2
+				&& proxy.item_at(proxy.index(2, 0))->Ref.Number == 9,
+			"the other explicit alternate sort keeps a total identity tie-break");
+	}
+
+	void test_a_large_queue_filter_emits_one_bounded_change()
+	{
+		auto source = qt::review_landing_model{ };
+		auto proxy  = qt::review_landing_filter_model{ source };
+		auto queue  = std::vector<core::queue_item>{ };
+		queue.reserve(2'048U);
+		for (auto number = std::int64_t{ 1 }; number <= 2'048; ++number) {
+			queue.push_back(item(
+				number,
+				number <= 1'024
+					? core::attention_bucket::initial_review_requested
+					: core::attention_bucket::quiet));
+		}
+		source.apply(queue);
+		const signal_recorder recorder{ proxy };
+		proxy.apply(application::queue_presentation_preferences{
+			.Quiet = application::queue_quiet_filter::attention,
+		});
+		expect(
+			proxy.rowCount() == 1'024,
+			"the large queue retains the exact matching half");
+		expect(
+			recorder.Resets == 0 && recorder.Removals == 1,
+			"one contiguous large-queue change is one bounded removal, not a reset");
+	}
+
+	void test_switching_directly_between_alternate_sorts_reorders()
+	{
+		auto source           = qt::review_landing_model{ };
+		auto proxy            = qt::review_landing_filter_model{ source };
+		auto first            = item(9, core::attention_bucket::quiet);
+		first.Ref.Repository  = "a/repo";
+		auto second           = item(1, core::attention_bucket::quiet);
+		second.Ref.Repository = "z/repo";
+		source.apply(std::array{ first, second });
+		const signal_recorder recorder{ proxy };
+
+		proxy.apply(application::queue_presentation_preferences{
+			.Sort = application::queue_sort_order::repository,
+		});
+		expect(
+			proxy.item_at(proxy.index(0, 0))->Ref.Number == 9
+				&& proxy.item_at(proxy.index(1, 0))->Ref.Number == 1,
+			"the repository alternate sort follows repository identity");
+
+		proxy.apply(application::queue_presentation_preferences{
+			.Sort = application::queue_sort_order::pull_request_number,
+		});
+		expect(
+			proxy.item_at(proxy.index(0, 0))->Ref.Number == 1
+				&& proxy.item_at(proxy.index(1, 0))->Ref.Number == 9,
+			"a direct alternate-sort switch re-evaluates the comparator");
+		expect(recorder.Resets == 0, "alternate-sort switching never resets the model");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -346,6 +504,9 @@ auto main(int argc, char** argv) -> int
 	test_every_bucket_reads_without_colour();
 	test_the_model_cannot_be_edited();
 	test_clearing_removes_rather_than_resets();
+	test_filters_and_explicit_sorts_preserve_stable_identity();
+	test_a_large_queue_filter_emits_one_bounded_change();
+	test_switching_directly_between_alternate_sorts_reorders();
 
 	std::cout << "review-landing-model-tests:pass\n";
 	return EXIT_SUCCESS;

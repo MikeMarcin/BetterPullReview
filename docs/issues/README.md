@@ -393,7 +393,7 @@ present it as one selection.
 RFC-BPR-0007 through RFC-BPR-0011 have substantial component implementations
 on available targets, but BPR-0225 found both missing required component scope
 and absent public product paths. Done BPR-0238 supplies durable
-notes/heads/defect metadata; ready BPR-0239 and in-progress BPR-0240 own queue
+notes/heads/defect metadata; done BPR-0239 and in-progress BPR-0240 own queue
 filters/sorting and complete agent context/process lifecycle. Done BPR-0228
 through BPR-0231 and backlog BPR-0232 own the corresponding composition; the
 review ledger, round trip, durable defect workflow, and honest observer-rule
@@ -456,7 +456,7 @@ pretending to complete them inside the review:
   process-boundary default network denial before BPR-0142 can use a live
   provider. Done BPR-0236 supplies the promised appearance fallback when its
   durable store cannot open.
-- In-progress BPR-0240, done BPR-0237 and BPR-0238, and ready BPR-0239 own
+- In-progress BPR-0240 and done BPR-0237, BPR-0238, and BPR-0239 own
   required component scope missed by the first review pass: theme
   customization/import, durable ledger state, queue filtering/sorting, and
   exact agent context/process lifecycle.
@@ -483,7 +483,7 @@ also depend transitively on more than one group.
 | A designated live GitHub repository | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Owner-authenticated sessions against a safe target |
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta |
 | Product composition | Backlog BPR-0232 and ready BPR-0223; done BPR-0226 through BPR-0231 | Connect notification and agent capabilities to public gestures and projections; the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, and observer-rule queue are done |
-| Missing component and resilience scope | Ready BPR-0235 and BPR-0239; in-progress BPR-0240; done BPR-0237 and BPR-0238 | Enforce durable live-test isolation and complete required queue-filter and agent contracts; theme customization, durable ledger state, and BPR-0236's appearance-storage fallback are done |
+| Missing component and resilience scope | Ready BPR-0235; in-progress BPR-0240; done BPR-0237 through BPR-0239 | Enforce durable live-test isolation and complete the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
 | Recorded selected-diff proof | BPR-0233, gating BPR-0214, BPR-0210, and BPR-0100 | BPR-0187 already serves UIforETW; the remaining work is to select its diff and prove semantic ranges and rendered intraline-role pixels |
 | Closeout rigor and terminal cards | Done BPR-0234; backlog BPR-0241 through BPR-0245 | Replay each now-anchored executable checklist and retain a live terminal card for each Proposed RFC |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |
