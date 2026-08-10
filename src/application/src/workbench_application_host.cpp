@@ -47,7 +47,12 @@ namespace bpr::application {
 
 		struct deferred_workbench_observe
 		{
-			core::pull_request_authority Authority;
+			workbench_pull_request_authority Authority;
+		};
+
+		struct deferred_workbench_invalidate
+		{
+			workbench_pull_request_authority Authority;
 		};
 
 		struct deferred_workbench_intent
@@ -71,6 +76,7 @@ namespace bpr::application {
 
 		using deferred_workbench_ingress = std::variant<deferred_workbench_restore,
 														deferred_workbench_observe,
+														deferred_workbench_invalidate,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
 														deferred_workbench_cancel,
@@ -248,6 +254,8 @@ namespace bpr::application {
 						restore_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_observe>) {
 						observe_now(aTyped.Authority);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_invalidate>) {
+						invalidate_now(aTyped.Authority);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_intent>) {
 						apply_now(aTyped.Intent);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_resize>) {
@@ -439,7 +447,7 @@ namespace bpr::application {
 			}
 		}
 
-		void submit_observation(const core::pull_request_authority& aAuthority)
+		void submit_observation(const workbench_pull_request_authority& aAuthority)
 		{
 			auto* const record = reserve(workbench_request_domain::observation);
 			if (record == nullptr) {
@@ -605,9 +613,13 @@ namespace bpr::application {
 			submit_settings_load();
 		}
 
-		void observe_now(const core::pull_request_authority& aAuthority)
+		void observe_now(const workbench_pull_request_authority& aAuthority)
 		{
 			if (Closing) {
+				return;
+			}
+			if (!valid(aAuthority)) {
+				publish_failure(local_context(), workbench_host_failure::host_failure);
 				return;
 			}
 			retire(workbench_request_domain::observation,
@@ -615,6 +627,22 @@ namespace bpr::application {
 			Generation = core::request_generation{ Generation.value() + 1U };
 			Authority  = aAuthority;
 			submit_observation(aAuthority);
+		}
+
+		void invalidate_now(const workbench_pull_request_authority& aAuthority)
+		{
+			if (Closing || !Authority.has_value() || *Authority != aAuthority) {
+				return;
+			}
+			retire(workbench_request_domain::observation,
+				   workbench_terminal_rejection::superseded);
+			Generation = core::request_generation{ Generation.value() + 1U };
+			Authority.reset();
+			Actionable.clear();
+			Selected.reset();
+			const auto output = core::observe_workbench_navigation(State, std::nullopt);
+			LastReason        = output.Reason;
+			publish_changes(local_context());
 		}
 
 		void apply_now(const core::workbench_interaction_intent& aIntent)
@@ -879,10 +907,10 @@ namespace bpr::application {
 		workbench_host_limits             Limits;
 		std::shared_ptr<completion_gate>  Gate;
 
-		std::vector<core::workbench_file_id>        Actionable;
-		std::optional<core::workbench_file_id>      Selected;
-		std::optional<core::pull_request_authority> Authority;
-		workbench_layout_settings                   Layout;
+		std::vector<core::workbench_file_id>            Actionable;
+		std::optional<core::workbench_file_id>          Selected;
+		std::optional<workbench_pull_request_authority> Authority;
+		workbench_layout_settings                       Layout;
 
 		std::vector<outstanding_request>       Outstanding;
 		std::deque<deferred_workbench_ingress> DeferredIngress;
@@ -935,9 +963,14 @@ namespace bpr::application {
 		Implementation->enqueue(deferred_workbench_restore{ });
 	}
 
-	void workbench_application_host::observe(core::pull_request_authority aAuthority)
+	void workbench_application_host::observe(workbench_pull_request_authority aAuthority)
 	{
 		Implementation->enqueue(deferred_workbench_observe{ std::move(aAuthority) });
+	}
+
+	void workbench_application_host::invalidate(workbench_pull_request_authority aAuthority)
+	{
+		Implementation->enqueue(deferred_workbench_invalidate{ std::move(aAuthority) });
 	}
 
 	void workbench_application_host::apply(core::workbench_interaction_intent aIntent)

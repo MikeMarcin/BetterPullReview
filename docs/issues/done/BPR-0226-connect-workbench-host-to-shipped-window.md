@@ -1,7 +1,7 @@
 ---
 id: BPR-0226
 title: Connect the workbench host to the shipped window and accepted review
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: []
 ---

@@ -32,26 +32,28 @@ namespace {
 	}
 
 	[[nodiscard]] auto authority(const std::uint32_t aNumber = 17U)
-		-> core::pull_request_authority
+		-> application::workbench_pull_request_authority
 	{
-		return core::pull_request_authority{
-			.Profile         = core::host_profile_id{ 10U },
-			.ProfileRevision = core::github_profile_revision{ 20U },
-			.Host            = core::git_host_id{ 30U },
-			.HostAuthority   = opaque<core::host_authority_fingerprint>(13U),
-			.Account         = core::github_account_id{ 40U },
-			.Viewer          = core::github_viewer_actor_id{ 50U },
-			.Repository      = core::repository_id{ 101U },
-			.Cache           = opaque<core::repository_cache_scope_id>(14U),
-			.PullRequest     = core::pull_request_id{ 202U },
-			.Number          = core::pull_request_number{ aNumber },
-			.Scope           = opaque<core::pull_request_authority_scope_id>(11U),
+		return application::workbench_pull_request_authority{
+			.ApplicationSession    = core::application_session_id{ 3U },
+			.Profile               = core::host_profile_id{ 10U },
+			.ProfileRevision       = core::github_profile_revision{ 20U },
+			.Host                  = core::git_host_id{ 30U },
+			.HostAuthority         = opaque<core::host_authority_fingerprint>(13U),
+			.Account               = core::github_account_id{ 40U },
+			.Viewer                = core::github_viewer_actor_id{ 50U },
+			.Repository            = core::repository_id{ 101U },
+			.PullRequest           = core::pull_request_id{ 202U },
+			.Number                = core::pull_request_number{ aNumber },
+			.Snapshot              = core::provider_snapshot_id{ 60U },
+			.IdentityGeneration    = core::github_identity_generation{ 70U },
+			.PullRequestGeneration = core::request_generation{ 80U },
 		};
 	}
 
 	[[nodiscard]] auto request(
-		const core::pull_request_authority& aAuthority,
-		const std::size_t                   aMaximum = 64U)
+		const application::workbench_pull_request_authority& aAuthority,
+		const std::size_t                                    aMaximum = 64U)
 		-> application::workbench_observation_request
 	{
 		return application::workbench_observation_request{
@@ -76,7 +78,7 @@ namespace {
 	[[nodiscard]] auto supplying(std::vector<application::github_file_record> aFiles)
 		-> application::snapshot_workbench_observation::file_supplier
 	{
-		return [files = std::move(aFiles)](const core::pull_request_authority&) {
+		return [files = std::move(aFiles)](const application::workbench_pull_request_authority&) {
 			return std::optional{ files };
 		};
 	}
@@ -184,7 +186,7 @@ namespace {
 	auto test_an_absent_snapshot_differs_from_an_empty_review() -> void
 	{
 		auto absent = application::snapshot_workbench_observation{
-			[](const core::pull_request_authority&) {
+			[](const application::workbench_pull_request_authority&) {
 				return std::optional<
 					std::vector<application::github_file_record>>{ };
 			}

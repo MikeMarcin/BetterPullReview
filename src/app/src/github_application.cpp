@@ -54,6 +54,7 @@
 #include <QStyleHints>
 #include <QTextStream>
 #include <QTimer>
+#include <QToolButton>
 
 #include <algorithm>
 #include <array>
@@ -157,6 +158,27 @@ namespace bpr::app {
 				&& revision.Head == aHandoff.Head
 				&& revision.CurrentViewerReview == aHandoff.CurrentViewerReview
 				&& revision.Base.algorithm() == aHandoff.ObjectFormat;
+		}
+
+		[[nodiscard]] auto workbench_authority(
+			const application::accepted_pull_request_handoff& aHandoff) noexcept
+			-> application::workbench_pull_request_authority
+		{
+			return {
+				.ApplicationSession    = aHandoff.ApplicationSession,
+				.Profile               = aHandoff.Profile,
+				.ProfileRevision       = aHandoff.ProfileRevision,
+				.Host                  = aHandoff.Host,
+				.HostAuthority         = aHandoff.HostAuthority,
+				.Account               = aHandoff.Account,
+				.Viewer                = aHandoff.Viewer,
+				.Repository            = aHandoff.Repository,
+				.PullRequest           = aHandoff.PullRequest,
+				.Number                = aHandoff.Number,
+				.Snapshot              = aHandoff.Snapshot,
+				.IdentityGeneration    = aHandoff.IdentityGeneration,
+				.PullRequestGeneration = aHandoff.PullRequestGeneration,
+			};
 		}
 
 #if defined(BPR_BUILD_TESTING)
@@ -499,6 +521,50 @@ namespace bpr::app {
 						: application::appearance_settings_failure::unavailable,
 				} };
 			}
+		};
+
+		/// \brief Keeps the workbench usable when its durable layout cannot open.
+		///
+		/// \details Unlike appearance persistence evidence, the workbench host's
+		/// completed-store counter is not a durable-write marker. A successful
+		/// store here therefore means exactly what the fallback promises: later
+		/// workbench gestures in this process observe the session's last layout,
+		/// while a restart begins from the composed defaults again.
+		class session_workbench_settings final
+			: public application::workbench_settings_port
+		{
+		public:
+			[[nodiscard]] auto load(const std::stop_token aStop)
+				-> application::workbench_settings_result<
+					application::workbench_layout_settings> override
+			{
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::workbench_settings_error{
+						.Failure = application::workbench_settings_failure::cancelled,
+					} };
+				}
+				const auto lock = std::scoped_lock{ Mutex };
+				return Settings;
+			}
+
+			[[nodiscard]] auto store(
+				const application::workbench_layout_settings& aSettings,
+				const std::stop_token                         aStop)
+				-> application::workbench_settings_result<void> override
+			{
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::workbench_settings_error{
+						.Failure = application::workbench_settings_failure::cancelled,
+					} };
+				}
+				const auto lock = std::scoped_lock{ Mutex };
+				Settings        = aSettings;
+				return { };
+			}
+
+		private:
+			std::mutex                             Mutex;
+			application::workbench_layout_settings Settings;
 		};
 
 		[[nodiscard]] auto unavailable_theme_document()
@@ -891,51 +957,133 @@ namespace bpr::app {
 		std::size_t           Failed    = 0U;
 	};
 
-	/// \brief Holds the workbench projections until a surface consumes them.
+	/// \brief Retains the exact accepted review observed by the workbench host.
 	///
-	/// \details BPR-0190 composes the workbench host; BPR-0191 makes the shell
-	/// the application's window. Between the two, the host is real - it
-	/// restores a durable layout, runs its effects, and quiesces on shutdown -
-	/// but nothing renders what it publishes, because `github_window` does not
-	/// implement `workbench_projection_port` and `workbench_window` is not the
-	/// application's window yet.
-	///
-	/// This sink exists so that intermediate state is stated rather than
-	/// disguised. It retains the last projection and counts what it received,
-	/// which is what the composition test asserts against. It is deliberately
-	/// not a second presentation authority: it renders nothing and decides
-	/// nothing, and BPR-0191 replaces it with the shell.
-	class composition_workbench_projections final
-		: public application::workbench_projection_port
+	/// \details The GitHub host owns the accepted snapshot, but the workbench
+	/// observation runs on its own effect lane. Copying the already bounded file
+	/// list here gives that worker immutable facts without reading mutable host
+	/// state across lanes. The complete pull-request authority is compared on
+	/// every read; a request for any other identity receives no files.
+	class composition_workbench_review final
 	{
 	public:
-		void publish(const application::workbench_projection& aProjection) override
+		void adopt(
+			const application::accepted_pull_request_handoff&               aHandoff,
+			const std::optional<application::github_pull_request_snapshot>& aSnapshot) noexcept
 		{
-			Last = aProjection;
-			++Published;
+			auto files     = std::vector<application::github_file_record>{ };
+			auto available = false;
+			try {
+				if (aSnapshot.has_value()
+					&& aSnapshot->Profile == aHandoff.Profile
+					&& aSnapshot->Host == aHandoff.Host
+					&& aSnapshot->Account == aHandoff.Account
+					&& aSnapshot->Snapshot == aHandoff.Snapshot
+					&& aSnapshot->Repository.Repository == aHandoff.Repository
+					&& aSnapshot->PullRequest.PullRequest == aHandoff.PullRequest
+					&& aSnapshot->PullRequest.Number == aHandoff.Number) {
+					files     = aSnapshot->Files;
+					available = true;
+				}
+			} catch (...) {
+				available = false;
+				files.clear();
+			}
+
+			const auto lock = std::scoped_lock{ Mutex };
+			Review          = accepted_review{
+				.Authority = workbench_authority(aHandoff),
+				.Files     = std::move(files),
+				.Available = available,
+				.Active    = true,
+			};
 		}
 
-		void fail(const application::workbench_failure_publication& aFailure) override
+		[[nodiscard]] auto files(
+			const application::workbench_pull_request_authority& aAuthority) const
+			-> std::optional<std::vector<application::github_file_record>>
 		{
-			LastFailure = aFailure;
-			++Failed;
+			const auto lock = std::scoped_lock{ Mutex };
+			if (!Review.has_value() || Review->Authority != aAuthority
+				|| !Review->Available || !Review->Active) {
+				return std::nullopt;
+			}
+			return Review->Files;
 		}
 
-		[[nodiscard]] auto published() const noexcept -> std::size_t
+		/// \brief Tombstones one exact authority and returns it for host invalidation.
+		[[nodiscard]] auto invalidate(
+			const application::pull_request_authority_invalidation& aInvalidation) noexcept
+			-> std::optional<application::workbench_pull_request_authority>
 		{
-			return Published;
+			const auto lock = std::scoped_lock{ Mutex };
+			if (!matches(aInvalidation)) {
+				return std::nullopt;
+			}
+			Review->Files.clear();
+			Review->Available = false;
+			Review->Active    = false;
+			return Review->Authority;
 		}
 
-		[[nodiscard]] auto failed() const noexcept -> std::size_t
+#if defined(BPR_BUILD_TESTING)
+		[[nodiscard]] auto active() const noexcept -> bool
 		{
-			return Failed;
+			const auto lock = std::scoped_lock{ Mutex };
+			return Review.has_value() && Review->Active;
 		}
+
+		[[nodiscard]] auto exact(
+			const application::accepted_pull_request_handoff& aHandoff) const noexcept
+			-> bool
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			return Review.has_value() && Review->Active
+				&& Review->Authority == workbench_authority(aHandoff)
+				&& Review->Available;
+		}
+		void make_unavailable(
+			const application::workbench_pull_request_authority& aAuthority) noexcept
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			if (Review.has_value() && Review->Authority == aAuthority) {
+				Review->Available = false;
+				Review->Files.clear();
+			}
+		}
+#endif
 
 	private:
-		std::optional<application::workbench_projection>          Last;
-		std::optional<application::workbench_failure_publication> LastFailure;
-		std::size_t                                               Published = 0U;
-		std::size_t                                               Failed    = 0U;
+		struct accepted_review
+		{
+			application::workbench_pull_request_authority Authority;
+			std::vector<application::github_file_record>  Files;
+			bool                                          Available = false;
+			bool                                          Active    = false;
+		};
+
+		[[nodiscard]] auto matches(
+			const application::pull_request_authority_invalidation& aInvalidation) const noexcept
+			-> bool
+		{
+			if (!Review.has_value()) {
+				return false;
+			}
+			const auto& authority = Review->Authority;
+			return authority.ApplicationSession == aInvalidation.ApplicationSession
+				&& authority.IdentityGeneration == aInvalidation.IdentityGeneration
+				&& authority.Profile == aInvalidation.Profile
+				&& authority.ProfileRevision == aInvalidation.ProfileRevision
+				&& authority.Host == aInvalidation.Host
+				&& authority.HostAuthority == aInvalidation.HostAuthority
+				&& authority.Account == aInvalidation.Account
+				&& authority.Viewer == aInvalidation.Viewer
+				&& authority.Repository == aInvalidation.Repository
+				&& authority.PullRequest == aInvalidation.PullRequest;
+		}
+
+		mutable std::mutex             Mutex;
+		std::optional<accepted_review> Review;
 	};
 
 	class github_application::implementation final
@@ -1129,7 +1277,11 @@ namespace bpr::app {
 				.StorageRoot = applicationDataRoot,
 			});
 			if (layout) {
-				WorkbenchSettings = std::move(*layout);
+				WorkbenchSettings             = std::move(*layout);
+				WorkbenchPersistenceAvailable = true;
+			} else {
+				WorkbenchSettings
+					= std::make_unique<session_workbench_settings>();
 			}
 
 			// A fourth database, kept apart for the same reason as the rest.
@@ -1156,9 +1308,16 @@ namespace bpr::app {
 			// line changed, the shell existed only in its own tests and every
 			// reviewer saw the RFC-BPR-0002 window instead.
 			Window = std::make_unique<qt::workbench_window>(
-				qt::workbench_intent_dispatch{ },
-				qt::workbench_change_dispatch{ },
-				qt::workbench_drawer_width_dispatch{ },
+				[this](core::workbench_interaction_intent aIntent) {
+					dispatch_workbench_intent(std::move(aIntent));
+				},
+				[this](core::navigate_diff_change_intent aIntent) {
+					dispatch_workbench_change(aIntent);
+				},
+				[this](const core::workbench_drawer aDrawer,
+					   const std::uint32_t          aWidth) {
+					dispatch_workbench_width(aDrawer, aWidth);
+				},
 				ProfileOptions,
 				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); });
 
@@ -1190,16 +1349,10 @@ namespace bpr::app {
 			// the reviewer opens pull requests.
 			WorkbenchObservations = std::make_unique<
 				application::snapshot_workbench_observation>(
-				[this](const core::pull_request_authority&)
+				[this](const application::workbench_pull_request_authority& aAuthority)
 					-> std::optional<
 						std::vector<application::github_file_record>> {
-					const auto& snapshot = Host->accepted_snapshot();
-					if (!snapshot) {
-						// Not held is not the same as no files. The port keeps
-						// that distinction and so must this.
-						return std::nullopt;
-					}
-					return snapshot->Files;
+					return WorkbenchReview.files(aAuthority);
 				});
 
 			Host = std::make_unique<application::github_application_host>(
@@ -1216,25 +1369,23 @@ namespace bpr::app {
 					delete_retained_on_shutdown,
 				this);
 
-			// Composed last, because its observation supplier reads `Host`.
-			// Only when a durable layout store exists: the host requires a
-			// settings port, and a reviewer whose layout cannot be stored is
-			// better served by the composed defaults than by no workbench.
-			if (WorkbenchSettings) {
-				WorkbenchHost = std::make_unique<
-					application::workbench_application_host>(
-					core::workbench_interaction_state{ },
-					*WorkbenchObservations,
-					*WorkbenchSettings,
-					WorkbenchEffects,
-					DecisionLane,
-					WorkbenchProjections,
-					core::application_session_id{ 1U });
-				// Reads the durable layout. The host's own contract is that
-				// restoring never writes it back, so a launch that only looks
-				// leaves a fresh installation looking fresh.
-				WorkbenchHost->restore();
-			}
+			// Composed last, because its observation supplier receives accepted
+			// snapshots from `Host`. The settings port is always present: either
+			// the durable adapter opened or composition supplied session defaults.
+			// The real window is the projection port, so success and failure both
+			// terminate at the shipped surface rather than at an intermediate sink.
+			WorkbenchHost = std::make_unique<
+				application::workbench_application_host>(
+				core::workbench_interaction_state{ },
+				*WorkbenchObservations,
+				*WorkbenchSettings,
+				WorkbenchEffects,
+				DecisionLane,
+				*Window,
+				core::application_session_id{ 1U });
+			// Reads the current durable or session layout. Restoring never writes
+			// it back, so merely launching still leaves a fresh store fresh.
+			WorkbenchHost->restore();
 
 			// The queue notification surface. Composed here so the delivery
 			// path exists in the product rather than only in its suite; what
@@ -1369,14 +1520,67 @@ namespace bpr::app {
 			return *OwnedVault;
 		}
 
+		void dispatch_workbench_intent(
+			core::workbench_interaction_intent aIntent)
+		{
+			if (Closing || WorkbenchHost == nullptr) {
+				return;
+			}
+#if defined(BPR_BUILD_TESTING)
+			++WorkbenchIntentDispatches;
+#endif
+			WorkbenchHost->apply(std::move(aIntent));
+		}
+
+		void dispatch_workbench_change(
+			const core::navigate_diff_change_intent aIntent)
+		{
+			if (Closing || Window == nullptr
+				|| Window->comparison_surface() == nullptr) {
+				return;
+			}
+#if defined(BPR_BUILD_TESTING)
+			++WorkbenchChangeDispatches;
+#endif
+			auto* const button = aIntent.Direction
+					== core::change_navigation_direction::previous
+				? Window->comparison_surface()->previous_change_button()
+				: Window->comparison_surface()->next_change_button();
+			if (button != nullptr) {
+				button->click();
+			}
+		}
+
+		void dispatch_workbench_width(
+			const core::workbench_drawer aDrawer,
+			const std::uint32_t          aWidth)
+		{
+			if (Closing || WorkbenchHost == nullptr) {
+				return;
+			}
+#if defined(BPR_BUILD_TESTING)
+			++WorkbenchWidthDispatches;
+#endif
+			WorkbenchHost->resize(aDrawer, aWidth);
+		}
+
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			if (!Closing && EpochHost != nullptr) {
+				const auto authority = workbench_authority(aHandoff);
+				WorkbenchReview.adopt(
+					aHandoff,
+					Host != nullptr
+						? Host->accepted_snapshot()
+						: std::optional<application::github_pull_request_snapshot>{ });
 #if defined(BPR_BUILD_TESTING)
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
 #endif
 				if (!preserves_selected_diff(EpochHost->state(), aHandoff)) {
 					clear_diff_selection();
+				}
+				if (WorkbenchHost != nullptr) {
+					WorkbenchHost->observe(authority);
 				}
 				EpochHost->accept(std::move(aHandoff));
 			}
@@ -1387,6 +1591,13 @@ namespace bpr::app {
 		{
 			if (Closing || EpochHost == nullptr) {
 				return;
+			}
+			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
+				authority.has_value() && WorkbenchHost != nullptr) {
+#if defined(BPR_BUILD_TESTING)
+				++WorkbenchInvalidations;
+#endif
+				WorkbenchHost->invalidate(*authority);
 			}
 			invalidate_diff_if([&aInvalidation](const auto& aAuthority) {
 				return aAuthority.Profile == aInvalidation.Profile
@@ -1942,6 +2153,39 @@ namespace bpr::app {
 			std::size_t                                     PersistedSettings         = 0U;
 		};
 		std::optional<appearance_theme_probe_state> AppearanceThemeProbe;
+		struct workbench_composition_probe_state
+		{
+			enum class phase {
+				awaiting_observation,
+				awaiting_file_projection,
+				awaiting_diff,
+				awaiting_change_projection,
+				awaiting_width_store,
+				awaiting_invalidation,
+				awaiting_failure,
+				passed,
+				failed,
+			};
+
+			phase                                         Phase = phase::awaiting_observation;
+			detail::workbench_composition_probe_evidence  Evidence;
+			application::workbench_pull_request_authority Authority;
+			std::vector<core::workbench_file_id>          ExpectedFiles;
+			std::optional<core::semantic_selection>       Selection;
+			qt::workbench_window_statistics               WindowStatistics;
+			core::request_generation                      Generation;
+			std::size_t                                   IntentDispatches  = 0U;
+			std::size_t                                   ChangeDispatches  = 0U;
+			std::size_t                                   WidthDispatches   = 0U;
+			std::size_t                                   Invalidations     = 0U;
+			std::size_t                                   PersistedLayouts  = 0U;
+			std::uint32_t                                 InitialFilesWidth = 0U;
+		};
+		std::optional<workbench_composition_probe_state> WorkbenchCompositionProbe;
+		std::size_t                                      WorkbenchIntentDispatches = 0U;
+		std::size_t                                      WorkbenchChangeDispatches = 0U;
+		std::size_t                                      WorkbenchWidthDispatches  = 0U;
+		std::size_t                                      WorkbenchInvalidations    = 0U;
 #endif
 		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
 		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
@@ -1953,6 +2197,7 @@ namespace bpr::app {
 		std::unique_ptr<application::epoch_catalog_port>             EpochCatalogs;
 		std::unique_ptr<application::review_ledger_store_port>       ReviewLedger;
 		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
+		composition_workbench_review                                 WorkbenchReview;
 		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
 		std::unique_ptr<application::appearance_settings_port>       AppearanceSettings;
 		bounded_theme_document_reader                                ThemeDocuments;
@@ -1967,6 +2212,7 @@ namespace bpr::app {
 		std::string                                                    AppliedSelectionColor;
 		std::string                                                    AppliedBaseColor;
 		bool                                                           AppliedFromProfile             = false;
+		bool                                                           WorkbenchPersistenceAvailable  = false;
 		bool                                                           AppearancePersistenceAvailable = false;
 		std::unique_ptr<application::epoch_entropy_port>               EpochEntropy;
 		std::unique_ptr<application::epoch_clock_port>                 EpochClock;
@@ -1974,7 +2220,6 @@ namespace bpr::app {
 		worker_executor                                                DiffEffects;
 		worker_executor                                                WorkbenchEffects;
 		worker_executor                                                AppearanceEffects;
-		composition_workbench_projections                              WorkbenchProjections;
 		std::unique_ptr<application::epoch_application_host>           EpochHost;
 		std::unique_ptr<application::diff_application_host>            DiffHost;
 		std::unique_ptr<application::workbench_application_host>       WorkbenchHost;
@@ -2383,6 +2628,25 @@ namespace bpr::app {
 				.Material = core::file_material_id{ material },
 				.Read     = core::file_read_state::read,
 				.Accepted = true,
+			};
+		}
+
+		[[nodiscard]] auto workbench_probe_invalidation(
+			const application::accepted_pull_request_handoff& aHandoff,
+			const core::pull_request_id                       aPullRequest)
+			-> application::pull_request_authority_invalidation
+		{
+			return {
+				.ApplicationSession = aHandoff.ApplicationSession,
+				.Profile            = aHandoff.Profile,
+				.ProfileRevision    = aHandoff.ProfileRevision,
+				.Host               = aHandoff.Host,
+				.HostAuthority      = aHandoff.HostAuthority,
+				.Account            = aHandoff.Account,
+				.Viewer             = aHandoff.Viewer,
+				.Repository         = aHandoff.Repository,
+				.PullRequest        = aPullRequest,
+				.IdentityGeneration = aHandoff.IdentityGeneration,
 			};
 		}
 	} // namespace
@@ -2999,6 +3263,305 @@ namespace bpr::app {
 			appearance_theme_probe_state::phase::passed;
 		reportStage("equal-stored-commit-acknowledged");
 		return result::passed;
+	}
+
+	auto detail::github_application_fixture_access::exercise_workbench_composition(
+		github_application& aApplication)
+		-> detail::workbench_composition_probe_result
+	{
+		using result     = detail::workbench_composition_probe_result;
+		using state_type = github_application::implementation::
+			workbench_composition_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Fixture == nullptr
+			|| implementation->Window == nullptr
+			|| implementation->Host == nullptr
+			|| implementation->WorkbenchHost == nullptr
+			|| !implementation->LastAcceptedHandoff.has_value()) {
+			return result::failed;
+		}
+
+		if (!implementation->WorkbenchCompositionProbe.has_value()) {
+			implementation->WorkbenchCompositionProbe.emplace();
+		}
+		auto&       probe      = *implementation->WorkbenchCompositionProbe;
+		auto* const host       = implementation->WorkbenchHost.get();
+		auto* const window     = implementation->Window.get();
+		auto* const comparison = window->comparison_surface();
+		const auto  fail       = [&probe] {
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_observation) {
+			const auto& handoff  = *implementation->LastAcceptedHandoff;
+			const auto& snapshot = implementation->Host->accepted_snapshot();
+			if (!snapshot.has_value() || host->outstanding_requests() != 0U
+				|| !host->state().Navigation.has_value()) {
+				return result::pending;
+			}
+
+			probe.Authority = workbench_authority(handoff);
+			probe.ExpectedFiles.clear();
+			for (const auto& file : snapshot->Files) {
+				const auto identity = core::file_identity_of(file.Path);
+				if (!identity.valid()) {
+					return fail();
+				}
+				if (std::ranges::find(probe.ExpectedFiles, identity)
+					== probe.ExpectedFiles.end()) {
+					probe.ExpectedFiles.push_back(identity);
+				}
+			}
+
+			probe.Evidence.ExactAuthority
+				= application::valid(probe.Authority)
+				&& implementation->WorkbenchReview.exact(handoff)
+				&& probe.Authority.ApplicationSession
+					== handoff.ApplicationSession
+				&& probe.Authority.Profile == handoff.Profile
+				&& probe.Authority.ProfileRevision == handoff.ProfileRevision
+				&& probe.Authority.Host == handoff.Host
+				&& probe.Authority.HostAuthority == handoff.HostAuthority
+				&& probe.Authority.Account == handoff.Account
+				&& probe.Authority.Viewer == handoff.Viewer
+				&& probe.Authority.Repository == handoff.Repository
+				&& probe.Authority.PullRequest == handoff.PullRequest
+				&& probe.Authority.Number == handoff.Number
+				&& probe.Authority.Snapshot == handoff.Snapshot
+				&& probe.Authority.IdentityGeneration
+					== handoff.IdentityGeneration
+				&& probe.Authority.PullRequestGeneration
+					== handoff.PullRequestGeneration;
+			probe.Evidence.BoundedObservation
+				= !probe.ExpectedFiles.empty()
+				&& probe.ExpectedFiles.size()
+					<= application::workbench_host_limits{ }.ActionableFiles
+				&& std::ranges::equal(host->actionable(), probe.ExpectedFiles)
+				&& host->state().Navigation.has_value();
+			probe.Evidence.SessionSettingsFallback
+				= !implementation->WorkbenchPersistenceAvailable
+				&& implementation->WorkbenchSettings != nullptr
+				&& host->layout() == application::workbench_layout_settings{ };
+			if (!probe.Evidence.ExactAuthority
+				|| !probe.Evidence.BoundedObservation
+				|| !probe.Evidence.SessionSettingsFallback
+				|| window->next_file_action() == nullptr
+				|| !window->next_file_action()->isEnabled()) {
+				return fail();
+			}
+
+			probe.IntentDispatches = implementation->WorkbenchIntentDispatches;
+			probe.WindowStatistics = window->statistics();
+			window->next_file_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_file_projection;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_file_projection) {
+			const auto statistics = window->statistics();
+			if (implementation->WorkbenchIntentDispatches
+				== probe.IntentDispatches) {
+				return result::pending;
+			}
+			probe.Evidence.IntentDispatch
+				= implementation->WorkbenchIntentDispatches
+				== probe.IntentDispatches + 1U;
+			probe.Evidence.ProjectionDelivery
+				= host->selected() == std::optional{ probe.ExpectedFiles.front() }
+				&& statistics.Publications > probe.WindowStatistics.Publications
+				&& statistics.CommandUpdates
+					> probe.WindowStatistics.CommandUpdates
+				&& !window->next_file_action()->isEnabled();
+			if (!probe.Evidence.IntentDispatch
+				|| !probe.Evidence.ProjectionDelivery
+				|| !request_fixture_diff(aApplication)) {
+				return fail();
+			}
+			probe.Phase = state_type::phase::awaiting_diff;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_diff) {
+			if (comparison == nullptr || comparison->current_result() == nullptr
+				|| !comparison->selection().has_value()) {
+				return result::pending;
+			}
+			auto* action = window->next_change_action();
+			if (comparison->next_change_button() == nullptr
+				|| !comparison->next_change_button()->isEnabled()) {
+				action = window->previous_change_action();
+				if (comparison->previous_change_button() == nullptr
+					|| !comparison->previous_change_button()->isEnabled()) {
+					return fail();
+				}
+			}
+			if (action == nullptr) {
+				return fail();
+			}
+
+			probe.Selection        = comparison->selection();
+			probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
+			// BPR-0227 owns the missing selected-file-to-change-cursor bridge. The
+			// fixture has prepared the real comparison above; enabling only this
+			// already-present QAction lets this card prove its callback reaches the
+			// shipped comparison without pretending that bridge exists.
+			action->setEnabled(true);
+			action->trigger();
+			probe.Phase = state_type::phase::awaiting_change_projection;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_change_projection) {
+			window->previous_change_action()->setEnabled(false);
+			window->next_change_action()->setEnabled(false);
+			if (implementation->WorkbenchChangeDispatches
+				== probe.ChangeDispatches) {
+				return result::pending;
+			}
+			probe.Evidence.ChangeDispatch
+				= implementation->WorkbenchChangeDispatches
+					== probe.ChangeDispatches + 1U
+				&& comparison != nullptr
+				&& comparison->selection() != probe.Selection;
+			if (!probe.Evidence.ChangeDispatch || window->files_drawer() == nullptr) {
+				return fail();
+			}
+
+			probe.WidthDispatches   = implementation->WorkbenchWidthDispatches;
+			probe.PersistedLayouts  = host->persisted_layouts();
+			probe.InitialFilesWidth = host->layout().FilesWidth;
+			probe.WindowStatistics  = window->statistics();
+			const auto target       = static_cast<int>(std::min<std::uint32_t>(
+				probe.InitialFilesWidth + 41U,
+				application::maximum_workbench_drawer_width));
+			window->files_drawer()->resize(
+				target, std::max(1, window->files_drawer()->height()));
+			probe.Phase = state_type::phase::awaiting_width_store;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_width_store) {
+			const auto statistics = window->statistics();
+			if (implementation->WorkbenchWidthDispatches
+					== probe.WidthDispatches
+				|| host->persisted_layouts() == probe.PersistedLayouts) {
+				return result::pending;
+			}
+			probe.Evidence.DrawerWidthDispatch
+				= implementation->WorkbenchWidthDispatches
+					== probe.WidthDispatches + 1U
+				&& host->layout().FilesWidth != probe.InitialFilesWidth
+				&& host->persisted_layouts() == probe.PersistedLayouts + 1U
+				&& statistics.LayoutUpdates
+					> probe.WindowStatistics.LayoutUpdates;
+			if (!probe.Evidence.DrawerWidthDispatch) {
+				return fail();
+			}
+
+			const auto& handoff  = *implementation->LastAcceptedHandoff;
+			auto        mismatch = workbench_probe_invalidation(
+				handoff,
+				core::pull_request_id{ handoff.PullRequest.value() + 1U });
+			const auto selected      = host->selected();
+			const auto generation    = host->generation();
+			const auto invalidations = implementation->WorkbenchInvalidations;
+			implementation->invalidate(std::move(mismatch));
+			probe.Evidence.MismatchPreserved
+				= implementation->WorkbenchInvalidations == invalidations
+				&& implementation->WorkbenchReview.active()
+				&& host->selected() == selected
+				&& host->generation() == generation;
+			if (!probe.Evidence.MismatchPreserved) {
+				return fail();
+			}
+
+			probe.Generation       = generation;
+			probe.Invalidations    = invalidations;
+			probe.WindowStatistics = statistics;
+			implementation->invalidate(
+				workbench_probe_invalidation(handoff, handoff.PullRequest));
+			probe.Phase = state_type::phase::awaiting_invalidation;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_invalidation) {
+			const auto statistics = window->statistics();
+			if (host->generation() == probe.Generation
+				|| host->outstanding_requests() != 0U) {
+				return result::pending;
+			}
+			probe.Evidence.InvalidationSuperseded
+				= implementation->WorkbenchInvalidations
+					== probe.Invalidations + 1U
+				&& !implementation->WorkbenchReview.active()
+				&& host->actionable().empty()
+				&& !host->selected().has_value()
+				&& !host->state().Navigation.has_value()
+				&& statistics.Publications > probe.WindowStatistics.Publications
+				&& !window->previous_file_action()->isEnabled()
+				&& !window->next_file_action()->isEnabled();
+			if (!probe.Evidence.InvalidationSuperseded) {
+				return fail();
+			}
+
+			probe.WindowStatistics = statistics;
+			implementation->WorkbenchReview.make_unavailable(probe.Authority);
+			host->observe(probe.Authority);
+			probe.Phase = state_type::phase::awaiting_failure;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_failure) {
+			const auto statistics = window->statistics();
+			if (statistics.Failures == probe.WindowStatistics.Failures
+				|| host->outstanding_requests() != 0U) {
+				return result::pending;
+			}
+			probe.Evidence.FailureDelivery
+				= statistics.Failures == probe.WindowStatistics.Failures + 1U;
+			if (!probe.Evidence.FailureDelivery) {
+				return fail();
+			}
+
+			const auto all = std::array{
+				probe.Evidence.ExactAuthority,
+				probe.Evidence.BoundedObservation,
+				probe.Evidence.IntentDispatch,
+				probe.Evidence.ProjectionDelivery,
+				probe.Evidence.ChangeDispatch,
+				probe.Evidence.DrawerWidthDispatch,
+				probe.Evidence.SessionSettingsFallback,
+				probe.Evidence.MismatchPreserved,
+				probe.Evidence.InvalidationSuperseded,
+				probe.Evidence.FailureDelivery,
+			};
+			if (!std::ranges::all_of(all, std::identity{ })) {
+				return fail();
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+
+		return fail();
+	}
+
+	auto detail::github_application_fixture_access::workbench_composition_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::workbench_composition_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr
+				&& implementation->WorkbenchCompositionProbe.has_value()
+			? implementation->WorkbenchCompositionProbe->Evidence
+			: detail::workbench_composition_probe_evidence{ };
 	}
 
 	auto detail::github_application_fixture_access::select_appearance_mode(

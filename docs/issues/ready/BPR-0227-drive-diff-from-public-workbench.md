@@ -1,7 +1,7 @@
 ---
 id: BPR-0227
 title: Drive selected-file diff requests from the public workbench
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0005
 depends_on: [BPR-0226]
 ---

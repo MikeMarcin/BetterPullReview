@@ -21,13 +21,14 @@ presentation. Pull-request metadata, conversations, and accepted revision
 history can traverse the real `QAction` -> provider -> core acceptance ->
 rendered-window path.
 
-The final-state review in BPR-0225 narrows the workbench claim. The shipped
-window is RFC-BPR-0005's shell and its epoch controls are connected, but its
-workbench callbacks are empty, its workbench host publishes into a
-non-rendering intermediate sink, and accepted pull-request state is not offered
-to that host. A selected diff can currently be requested only by a
-tests-enabled fixture helper, not by a user-selected file. BPR-0226 and
-BPR-0227 own those missing public wires. RFC-BPR-0006 through RFC-BPR-0011 have
+The final-state review in BPR-0225 narrowed the workbench claim. BPR-0226 now
+connects the shipped RFC-BPR-0005 shell's primary intents and drawer widths to
+the workbench host, publishes host state to the real window, observes exact
+accepted pull-request authority, clears it by identity, and retains a
+session/default settings host when SQLite cannot open. A selected diff can
+still be requested only by a tests-enabled fixture helper, not by a
+user-selected file; BPR-0227 owns that remaining public wire. RFC-BPR-0006
+through RFC-BPR-0011 have
 substantial tested component implementations. Durable notes, reviewed heads,
 and defect metadata now have bounded versioned persistence, while their public
 composition remains open; theme customization/import, queue filters/sorting,

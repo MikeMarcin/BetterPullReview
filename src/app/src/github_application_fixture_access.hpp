@@ -7,6 +7,7 @@
 
 #include "bpr/app/github_application.hpp"
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -98,6 +99,30 @@ namespace bpr::app::detail {
 		failed,
 	};
 
+	enum class workbench_composition_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	/// \brief Records independently falsifiable workbench-composition wires.
+	struct workbench_composition_probe_evidence
+	{
+		bool ExactAuthority          = false;
+		bool BoundedObservation      = false;
+		bool IntentDispatch          = false;
+		bool ProjectionDelivery      = false;
+		bool ChangeDispatch          = false;
+		bool DrawerWidthDispatch     = false;
+		bool SessionSettingsFallback = false;
+		bool MismatchPreserved       = false;
+		bool InvalidationSuperseded  = false;
+		bool FailureDelivery         = false;
+
+		auto operator<=>(const workbench_composition_probe_evidence&) const
+			= default;
+	};
+
 	class github_application_fixture_access final
 	{
 	public:
@@ -175,6 +200,18 @@ namespace bpr::app::detail {
 			github_application& aApplication,
 			std::string_view    aThemePath)
 			-> appearance_theme_customization_probe_result;
+		/// \brief Drives the real window through the composed workbench host.
+		///
+		/// \details The selected-diff setup remains the existing fixture-only
+		/// seam, so this does not claim BPR-0227's user-selected-file path. The
+		/// file action, change action, drawer observation, host projections, and
+		/// invalidation/failure presentation all traverse the shipped window.
+		[[nodiscard]] static auto exercise_workbench_composition(
+			github_application& aApplication)
+			-> workbench_composition_probe_result;
+		[[nodiscard]] static auto workbench_composition_evidence(
+			const github_application& aApplication) noexcept
+			-> workbench_composition_probe_evidence;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

@@ -49,7 +49,9 @@ namespace bpr::application {
 		// writes the layout back.
 		void restore();
 		// Supersedes any outstanding observation and advances the incarnation.
-		void observe(core::pull_request_authority aAuthority);
+		void observe(workbench_pull_request_authority aAuthority);
+		// Retires one exact authority and clears every authority-bound cursor fact.
+		void invalidate(workbench_pull_request_authority aAuthority);
 		void apply(core::workbench_interaction_intent aIntent);
 		// Host-owned drawer width, clamped to the configured bound and persisted.
 		void resize(core::workbench_drawer aDrawer, std::uint32_t aWidth);

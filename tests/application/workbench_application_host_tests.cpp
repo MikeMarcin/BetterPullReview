@@ -45,14 +45,32 @@ namespace {
 		return core::workbench_file_id{ bytes };
 	}
 
+	template <typename Identity>
+	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
+	{
+		std::array<std::uint8_t, 32U> bytes{ };
+		bytes[0]  = aSeed;
+		bytes[31] = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
+		return Identity{ bytes };
+	}
+
 	[[nodiscard]] auto authority(const std::uint32_t aNumber = 17U)
-		-> core::pull_request_authority
+		-> application::workbench_pull_request_authority
 	{
 		return {
-			.Profile     = core::host_profile_id{ 10U },
-			.Repository  = core::repository_id{ 101U },
-			.PullRequest = core::pull_request_id{ 202U },
-			.Number      = core::pull_request_number{ aNumber },
+			.ApplicationSession    = core::application_session_id{ 3U },
+			.Profile               = core::host_profile_id{ 10U },
+			.ProfileRevision       = core::github_profile_revision{ 20U },
+			.Host                  = core::git_host_id{ 30U },
+			.HostAuthority         = opaque<core::host_authority_fingerprint>(13U),
+			.Account               = core::github_account_id{ 40U },
+			.Viewer                = core::github_viewer_actor_id{ 50U },
+			.Repository            = core::repository_id{ 101U },
+			.PullRequest           = core::pull_request_id{ 202U },
+			.Number                = core::pull_request_number{ aNumber },
+			.Snapshot              = core::provider_snapshot_id{ 60U },
+			.IdentityGeneration    = core::github_identity_generation{ 70U },
+			.PullRequestGeneration = core::request_generation{ 80U },
 		};
 	}
 
@@ -357,6 +375,45 @@ namespace {
 		expect(harnessed.Host.last_reason()
 				   == core::workbench_reason_code::at_last_file,
 			   "the host reports the core rejection without re-deciding it");
+	}
+
+	void test_exact_invalidation_clears_authority_bound_selection()
+	{
+		auto harnessed               = harness{ };
+		harnessed.Observations.Files = { file(1U) };
+		harnessed.Host.observe(authority(17U));
+		harnessed.settle();
+		harnessed.Host.apply(
+			core::select_workbench_file_intent{ .File = file(1U) });
+		expect(harnessed.Host.selected() == file(1U),
+			   "the first authority retains its selected path identity");
+
+		const auto generation = harnessed.Host.generation();
+		const auto published  = harnessed.Projections.Published.size();
+		harnessed.Host.invalidate(authority(18U));
+		expect(harnessed.Host.generation() == generation
+				   && harnessed.Host.selected() == file(1U)
+				   && harnessed.Projections.Published.size() == published,
+			   "a mismatched authority cannot invalidate the active workbench");
+
+		harnessed.Host.invalidate(authority(17U));
+		expect(harnessed.Host.generation().value() == generation.value() + 1U,
+			   "exact invalidation advances the workbench incarnation");
+		expect(harnessed.Host.actionable().empty()
+				   && !harnessed.Host.selected().has_value()
+				   && !harnessed.Host.state().Navigation.has_value(),
+			   "exact invalidation clears the order, selection, and core cursor");
+		expect(harnessed.Projections.Published.back().Selection.has_value()
+				   && !harnessed.Projections.Published.back().Selection->Cursor.has_value(),
+			   "exact invalidation projects an inactive workbench");
+
+		harnessed.Host.observe(authority(18U));
+		harnessed.settle();
+		expect(!harnessed.Host.selected().has_value()
+				   && harnessed.Host.state().Navigation.has_value()
+				   && !harnessed.Host.state().Navigation->File.has_value()
+				   && harnessed.Host.state().Navigation->ActionableCount == 1U,
+			   "a later authority cannot inherit the invalidated path selection");
 	}
 
 	void test_drawer_gesture_publishes_and_persists()
@@ -715,6 +772,7 @@ auto main() -> int
 	test_invalid_limits_are_rejected();
 	test_first_observation_publishes_bounded_cursor_facts();
 	test_navigation_resolves_through_the_host_order();
+	test_exact_invalidation_clears_authority_bound_selection();
 	test_drawer_gesture_publishes_and_persists();
 	test_resize_clamps_and_persists_the_width();
 	test_superseded_terminal_cannot_publish();

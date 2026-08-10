@@ -2,17 +2,18 @@
 
 RFC base: `55d365f16847d2ffc2c8fab83a5ce62eb695e2a0`
 
-Status: **shell displayed; workbench behavior not publicly connected.** Since
-BPR-0191, `qt::workbench_window` is the window the shipped application opens,
-and the component suites directly exercise its layout and actions. BPR-0225
-found that the application gives it empty workbench callbacks, publishes the
-workbench host into a non-rendering intermediate sink, never offers an accepted
-pull request to that host, and requests selected diffs only through a
-tests-enabled fixture helper. BPR-0226 and BPR-0227 own those gaps.
+Status: **workbench host publicly connected; selected-file diff still
+fixture-only.** Since BPR-0191, `qt::workbench_window` is the window the shipped
+application opens. BPR-0226 now routes its primary intents and drawer widths to
+the workbench host, publishes host projections and failures to the real window,
+observes exact accepted pull-request authority, clears invalidated authority,
+and retains a session/default settings path when SQLite cannot open. Selected
+diffs are still requested only through a tests-enabled fixture helper;
+BPR-0227 owns that remaining gap.
 
-Rows below remain direct evidence for their named component or fixture-driven
-surface. They are not evidence that a user can currently drive the workbench
-host or select a file diff. RFC-BPR-0005 stays `Proposed`; BPR-0101 also waits
+Rows below remain direct evidence for their named component, public composition,
+or fixture-driven surface. They prove the shipped workbench-host path, but not
+a user-selected file diff. RFC-BPR-0005 stays `Proposed`; BPR-0101 also waits
 for the ordered closure chain and the attended BPR-0100 gate.
 
 ## Why this RFC can be implemented now
@@ -63,8 +64,8 @@ choice.
 This section preserves the pre-BPR-0191 investigation that led to replacing
 `github_window`. It is not the current product state. At final HEAD the binary
 contains `workbench_application_host`, `workbench_window`, and
-`workbench_drawer`, contains no `github_window`, and still lacks the public
-wires named in the status correction above.
+`workbench_drawer`, contains no `github_window`, and still lacks only the
+selected-file diff wire named in the status correction above.
 
 The application showed `github_window` and did not contain `workbench_window`.
 **BPR-0191 reversed both.** The shipped binary now contains 591
@@ -94,9 +95,10 @@ screen. The application then showed `github_window`, which grew the RFC-0003
 and RFC-0004 surfaces directly. BPR-0188 decided the shell would replace it,
 and BPR-0191 performed that replacement.
 
-The final-state defect is different: the shell is now on screen, but its
-workbench callbacks are empty, its accepted review is not observed, and host
-projections terminate in a non-rendering sink. BPR-0226 owns those wires.
+The later final-state defect was different: the shell was on screen, but its
+workbench callbacks were empty, its accepted review was not observed, and host
+projections terminated in a non-rendering sink. BPR-0226 resolved those wires;
+BPR-0227 retains the distinct selected-file diff path.
 
 At the historical measurement point neither of this RFC's two ports had an
 adapter. The later adapters and host remain valid component work; final-HEAD
@@ -128,11 +130,10 @@ fake has no bytes on disk to disagree with it.
 The architecture allocation above is worth re-reading with this in mind. It
 names a fourth region, **Composition root**, whose selected responsibility is
 "wiring the workbench into the real application" and whose planned evidence is
-"selected public-path evidence through the real executable." That region was
-allocated at planning time and never delivered, and no row of the claim matrix
-covers it — the matrix has rows for the core, the host, and the adapter, and
-none for the composition root. The plan named the gap before the work started;
-the verification table simply had no line for it.
+"selected public-path evidence through the real executable." BPR-0226 now
+delivers that region and the claim-matrix row below records its exact real-window
+surface. BPR-0227 remains separate because selecting a file and requesting its
+diff requires material identities that the workbench-host wire does not own.
 
 ## Claim matrix
 
@@ -148,7 +149,8 @@ Every row's `Direct surface` now names the harness it was proven against.
 | Renderer is virtualized | Instrumented `qt_workbench_window` harness | Load a very large file and inspect widget count at 1.0x, 1.25x, and 2.0x | Widget count stays bounded by visible UI structure as file length grows by orders of magnitude, not merely that rendering completed | Verified of the composed window. 60/6,000/60,000 lines produce **218/218/218** window widgets, 29/29/29 surface, 5/5/5 pane, at all three scales. Restated by BPR-0191: the earlier 68/68/68 was measured before the shell composed the session chrome, pull-request metadata, description and appearance surface, which is why the window figure rose. The surface and pane figures did not move, which is the substantive claim — the comparison surface itself builds no widget per line |
 | Qt is a presentation adapter | Qt adapter harness | Drive every primary action and bounded state change | Actions produce semantic intents, `QAction` state follows command projections, and bounded changes use incremental signals rather than full resets | Verified. Toggles and navigation emit core intents only; enablement and disabled reasons come from projections; drawer contents use insert/remove/data-change rather than reset |
 | Navigation and state are correct | UI automation | Exercise navigation, selection synchronisation, focus order, loading, failure, cancellation, and restart | Selection follows the filtered actionable order and every state is explicit in text as well as enabled state | Verified. Exact untruncated OIDs, four distinguishable textual states, declared focus order, unique accessible names and key sequences |
-| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100. BPR-0186 added the attended fixture launch and an owner successfully inspected it; BPR-0187 added the recorded pull request. Final acceptance still waits for BPR-0226/BPR-0227's real workbench/diff path and BPR-0233's meaningful recorded comparison evidence |
+| Shipped workbench host is connected | Real `application_workbench_composition_contract` executable | Accept the recorded pull request, invoke primary and drawer actions, invalidate exact and mismatched identities, and force SQLite-open and observation failures | Exact bounded authority reaches the host; commands, cursor, widths, failures, and invalidation project to the real window; mismatches preserve state; unavailable SQLite retains a session/default host | Verified by BPR-0226. Ten causal markers pass through the shipped executable; the change callback marker is fixture-driven and does not claim BPR-0227's selected-file path |
+| Presentation is natively acceptable | Real macOS composition | Owner-attended inspection of the assembled workbench | Readable contrast and correct native control rendering at supported sizes and scales | Deferred, BPR-0100. BPR-0186 added the attended fixture launch and an owner successfully inspected it; BPR-0187 added the recorded pull request. Final acceptance still waits for BPR-0227's real selected-diff path and BPR-0233's meaningful recorded comparison evidence |
 
 ## Deferred gates
 
@@ -161,8 +163,8 @@ The 2026-08-06 sitting initially could not proceed because no fixture launch
 could remain open for a person. BPR-0186 added `--attended-launch`, and the
 owner subsequently used it successfully; BPR-0187 supplied the recorded pull
 request. The remaining attended gate is about the final selected comparison,
-not launchability. BPR-0226, BPR-0227, and BPR-0233 must make that state real
-and meaningful before BPR-0100 is regenerated.
+not launchability. BPR-0227 and BPR-0233 must make that state real and
+meaningful before BPR-0100 is regenerated.
 
 No RFC-BPR-0005 requirement needs target-native Windows execution, a GitHub
 mutation, a credential, or a network service. Non-goals exclude full GitHub

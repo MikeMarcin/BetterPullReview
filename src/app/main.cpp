@@ -481,7 +481,12 @@ namespace {
 			native_appearance_evidence_paths EvidencePaths;
 		};
 
-		bool Fixture           = false;
+		bool Fixture                     = false;
+		bool WorkbenchCompositionProbe   = false;
+		bool WorkbenchCompositionStarted = false;
+		bool WorkbenchCompositionPassed  = false;
+		bpr::app::detail::workbench_composition_probe_evidence
+			 WorkbenchCompositionEvidence;
 		bool DiffProbe         = false;
 		bool DiffShutdownProbe = false;
 		// A stage that never becomes ready. Every real readiness condition in
@@ -2277,6 +2282,43 @@ namespace {
 			stream << (passed ? "DIFF_WORKBENCH_SHUTDOWN_OK\n"
 							  : "DIFF_WORKBENCH_SHUTDOWN_FAILED\n");
 		}
+		if (aRun.WorkbenchCompositionProbe) {
+			const auto& evidence = aRun.WorkbenchCompositionEvidence;
+			stream
+				<< (evidence.ExactAuthority
+						? "WORKBENCH_AUTHORITY_WIRE_OK\n"
+						: "WORKBENCH_AUTHORITY_WIRE_FAILED\n")
+				<< (evidence.BoundedObservation
+						? "WORKBENCH_BOUNDED_OBSERVATION_OK\n"
+						: "WORKBENCH_BOUNDED_OBSERVATION_FAILED\n")
+				<< (evidence.IntentDispatch
+						? "WORKBENCH_INTENT_WIRE_OK\n"
+						: "WORKBENCH_INTENT_WIRE_FAILED\n")
+				<< (evidence.ProjectionDelivery
+						? "WORKBENCH_PROJECTION_WIRE_OK\n"
+						: "WORKBENCH_PROJECTION_WIRE_FAILED\n")
+				<< (evidence.ChangeDispatch
+						? "WORKBENCH_CHANGE_WIRE_OK\n"
+						: "WORKBENCH_CHANGE_WIRE_FAILED\n")
+				<< (evidence.DrawerWidthDispatch
+						? "WORKBENCH_DRAWER_WIDTH_WIRE_OK\n"
+						: "WORKBENCH_DRAWER_WIDTH_WIRE_FAILED\n")
+				<< (evidence.SessionSettingsFallback
+						? "WORKBENCH_SESSION_FALLBACK_OK\n"
+						: "WORKBENCH_SESSION_FALLBACK_FAILED\n")
+				<< (evidence.MismatchPreserved
+						? "WORKBENCH_IDENTITY_MISMATCH_OK\n"
+						: "WORKBENCH_IDENTITY_MISMATCH_FAILED\n")
+				<< (evidence.InvalidationSuperseded
+						? "WORKBENCH_INVALIDATION_WIRE_OK\n"
+						: "WORKBENCH_INVALIDATION_WIRE_FAILED\n")
+				<< (evidence.FailureDelivery
+						? "WORKBENCH_FAILURE_WIRE_OK\n"
+						: "WORKBENCH_FAILURE_WIRE_FAILED\n")
+				<< (aRun.WorkbenchCompositionPassed
+						? "WORKBENCH_COMPOSITION_TRACE_OK\n"
+						: "WORKBENCH_COMPOSITION_TRACE_FAILED\n");
+		}
 #endif
 		if (aRun.RenderPath.has_value()) {
 			stream << (renderSaved ? "RENDER_OK\n" : "RENDER_FAILED\n");
@@ -2490,6 +2532,31 @@ namespace {
 		transition_to_shutdown(aApplication, aRun);
 	}
 
+#if defined(BPR_BUILD_TESTING)
+	void advance_workbench_composition_probe(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		const auto outcome = bpr::app::detail::github_application_fixture_access::
+			exercise_workbench_composition(aApplication);
+		aRun.WorkbenchCompositionEvidence = bpr::app::detail::
+			github_application_fixture_access::workbench_composition_evidence(
+				aApplication);
+		if (outcome
+			== bpr::app::detail::workbench_composition_probe_result::pending) {
+			return;
+		}
+		aRun.WorkbenchCompositionPassed = outcome
+			== bpr::app::detail::workbench_composition_probe_result::passed;
+		aRun.PresentationPassed = aRun.WorkbenchCompositionPassed;
+		if (aRun.WorkbenchCompositionPassed) {
+			transition_to_shutdown(aApplication, aRun);
+		} else {
+			fail_automated_run(aApplication, aRun);
+		}
+	}
+#endif
+
 	void capture_automated_timeout_evidence(
 		bpr::app::github_application& aApplication,
 		automated_run&                aRun)
@@ -2683,6 +2750,11 @@ namespace {
 				if (aRun->StallProbe) {
 					break;
 				}
+				if (aRun->WorkbenchCompositionProbe
+					&& aRun->WorkbenchCompositionStarted) {
+					advance_workbench_composition_probe(aApplication, *aRun);
+					break;
+				}
 				if (aRun->MaintenanceProbe
 					== automated_run::epoch_maintenance_probe::verify_deleted) {
 					if (begin_epoch_maintenance_probe(aApplication, *aRun)) {
@@ -2745,6 +2817,9 @@ namespace {
 							advance_fixture_stage(
 								*aRun, automated_run::stage::epoch_whole_pr);
 						}
+					} else if (aRun->WorkbenchCompositionProbe) {
+						aRun->WorkbenchCompositionStarted = true;
+						advance_workbench_composition_probe(aApplication, *aRun);
 					} else if (aRun->Appearance.Enabled) {
 						aRun->Appearance.ExpectedEpochLeftOid  = QString::fromStdString(evidence.BaseOid);
 						aRun->Appearance.ExpectedEpochRightOid = QString::fromStdString(evidence.HeadOneOid);
@@ -3637,6 +3712,8 @@ auto main(int argc, char** argv) -> int
 		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
 		const auto diffWorkbenchShutdownProbe = has_argument(
 			argc, argv, "--diff-workbench-shutdown-probe");
+		const auto workbenchCompositionProbe = has_argument(
+			argc, argv, "--workbench-composition-probe");
 		const auto appearanceGestureProbe = has_argument(
 			argc, argv, "--appearance-gesture-probe");
 		const auto appearanceThemeCustomizationPath = argument_value(
@@ -3719,6 +3796,7 @@ auto main(int argc, char** argv) -> int
 		if (attendedLaunch
 			&& (selfTest || renderPath.has_value() || fixtureName.empty()
 				|| diffWorkbenchProbe || diffWorkbenchShutdownProbe
+				|| workbenchCompositionProbe
 				|| appearanceGestureProbe
 				|| appearanceThemeCustomizationPath.has_value()
 				|| automatedStallProbe
@@ -3738,6 +3816,23 @@ auto main(int argc, char** argv) -> int
 						!= bpr::app::detail::github_epoch_fixture_phase::single))) {
 			QTextStream{ stdout }
 				<< "DIFF_WORKBENCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (workbenchCompositionProbe
+			&& (!selectedFixture.has_value()
+				|| *selectedFixture
+					!= bpr::app::detail::
+						github_public_path_fixture::github_com
+				|| !epochFixtureRoot.has_value()
+				|| fixtureOptions.EpochPhase
+					!= bpr::app::detail::github_epoch_fixture_phase::single
+				|| diffWorkbenchProbe || diffWorkbenchShutdownProbe
+				|| nativeAppearanceProbe || appearanceGestureProbe
+				|| appearanceThemeCustomizationPath.has_value()
+				|| epochMaintenanceProbe.has_value()
+				|| automatedStallProbe)) {
+			QTextStream{ stdout }
+				<< "WORKBENCH_COMPOSITION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
 		if (
@@ -3822,18 +3917,19 @@ auto main(int argc, char** argv) -> int
 							.EnterpriseHostname = std::move(enterpriseHostname),
 						},
 #if defined(BPR_BUILD_TESTING)
-						.Fixture                = !fixtureName.empty(),
-						.AppearanceGestureProbe = appearanceGestureProbe,
-						.DiffProbe              = diffWorkbenchProbe,
-						.ThemeCustomizationPath = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,
-						.DiffShutdownProbe      = diffWorkbenchShutdownProbe,
-						.StallProbe             = automatedStallProbe,
-						.FixtureName            = std::move(fixtureName),
-						.ExpectedActiveHostText = std::move(expectedActiveHostText),
-						.Expectations           = std::move(fixtureExpectations),
-						.EpochPhase             = fixtureOptions.EpochPhase,
-						.MaintenanceProbe       = selectedMaintenanceProbe,
-						.Appearance             = automated_run::native_appearance_probe_state{
+						.Fixture                   = !fixtureName.empty(),
+						.WorkbenchCompositionProbe = workbenchCompositionProbe,
+						.AppearanceGestureProbe    = appearanceGestureProbe,
+						.DiffProbe                 = diffWorkbenchProbe,
+						.ThemeCustomizationPath    = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,
+						.DiffShutdownProbe         = diffWorkbenchShutdownProbe,
+						.StallProbe                = automatedStallProbe,
+						.FixtureName               = std::move(fixtureName),
+						.ExpectedActiveHostText    = std::move(expectedActiveHostText),
+						.Expectations              = std::move(fixtureExpectations),
+						.EpochPhase                = fixtureOptions.EpochPhase,
+						.MaintenanceProbe          = selectedMaintenanceProbe,
+						.Appearance                = automated_run::native_appearance_probe_state{
 							.Enabled       = nativeAppearanceProbe,
 							.EvidencePaths = nativeAppearancePaths.value_or(native_appearance_evidence_paths{ }),
 						},

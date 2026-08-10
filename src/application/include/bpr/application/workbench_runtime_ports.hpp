@@ -63,6 +63,49 @@ namespace bpr::application {
 		auto operator<=>(const workbench_request_context&) const = default;
 	};
 
+	/// \brief Names one accepted GitHub pull-request observation exactly.
+	///
+	/// \details Workbench files come from the accepted provider snapshot, not
+	/// from the local Git cache. This authority therefore carries the complete
+	/// provider/session identity and deliberately has no cache or epoch-catalog
+	/// scope. Using `core::pull_request_authority` here would require inventing
+	/// those local identities before the epoch host has opened either resource.
+	struct workbench_pull_request_authority
+	{
+		core::application_session_id     ApplicationSession;
+		core::host_profile_id            Profile;
+		core::github_profile_revision    ProfileRevision;
+		core::git_host_id                Host;
+		core::host_authority_fingerprint HostAuthority;
+		core::github_account_id          Account;
+		core::github_viewer_actor_id     Viewer;
+		core::repository_id              Repository;
+		core::pull_request_id            PullRequest;
+		core::pull_request_number        Number;
+		core::provider_snapshot_id       Snapshot;
+		core::github_identity_generation IdentityGeneration;
+		core::request_generation         PullRequestGeneration;
+
+		auto operator<=>(const workbench_pull_request_authority&) const = default;
+	};
+
+	/// \brief Checks whether the workbench authority is complete and usable.
+	[[nodiscard]] constexpr auto valid(
+		const workbench_pull_request_authority& aAuthority) noexcept -> bool
+	{
+		return aAuthority.ApplicationSession.value() != 0U
+			&& aAuthority.Profile.value() != 0U
+			&& aAuthority.ProfileRevision.value() != 0U
+			&& aAuthority.Host.value() != 0U && aAuthority.HostAuthority.valid()
+			&& aAuthority.Account.value() != 0U
+			&& aAuthority.Viewer.value() != 0U
+			&& aAuthority.Repository.value() != 0U
+			&& aAuthority.PullRequest.value() != 0U && aAuthority.Number.valid()
+			&& aAuthority.Snapshot.value() != 0U
+			&& aAuthority.IdentityGeneration.value() != 0U
+			&& aAuthority.PullRequestGeneration.value() != 0U;
+	}
+
 	/// \brief Describes the workbench observation request record.
 	///
 	/// \details `MaximumFiles` is the bound the host will accept. A port that
@@ -70,9 +113,9 @@ namespace bpr::application {
 	/// because a truncated order would give the core false neighbour facts.
 	struct workbench_observation_request
 	{
-		workbench_request_context    Context;
-		core::pull_request_authority Authority;
-		std::size_t                  MaximumFiles = 0U;
+		workbench_request_context        Context;
+		workbench_pull_request_authority Authority;
+		std::size_t                      MaximumFiles = 0U;
 
 		auto operator<=>(const workbench_observation_request&) const = default;
 	};
@@ -94,7 +137,7 @@ namespace bpr::application {
 	struct workbench_file_observation
 	{
 		workbench_request_context            Context;
-		core::pull_request_authority         Authority;
+		workbench_pull_request_authority     Authority;
 		workbench_observation_status         Status = workbench_observation_status::unavailable;
 		std::vector<core::workbench_file_id> Actionable;
 

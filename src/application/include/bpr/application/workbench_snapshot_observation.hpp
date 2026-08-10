@@ -31,7 +31,7 @@ namespace bpr::application {
 		/// make "not loaded yet" indistinguishable from "nothing to review".
 		using file_supplier = std::function<
 			std::optional<std::vector<github_file_record>>(
-				const core::pull_request_authority&)>;
+				const workbench_pull_request_authority&)>;
 
 		explicit snapshot_workbench_observation(file_supplier aFiles);
 
