@@ -1,0 +1,175 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/198d1045d20ff4752b7dc747",
+  "downstream_claims": {
+    "bpr_0210_closed": false,
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "These are replacement deterministic captures from commit d2ff0c119b1b8651c6326e482b984512403dbe0d using the real recorded google/UIforETW#74 Files-drawer selection path. The course selects the file first, then uses shipped reopenable actions to collapse Files, Conversations, and secondary review details. The retained 1280 x 1000 full-window viewport gives the native comparison 1262 x 890 pixels (98.5% of width and 89% of height). All runs use Qt 6.11.1 offscreen QFusionStyle at device pixel ratio 1. Judge only whether this focused full-window state makes the two exact replacement groups and their grounded gutter connectors reviewable. Native operating-system appearance integration, BPR-0220 geometry-rebuild attribution, BPR-0210 remediation, RFC closeout, and release readiness are outside this batch. The rejected v001 verdict is not carried forward.",
+  "review_gate": "uiforetw_intraline_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "The full-window review state is code-first: the Files and Conversations drawers and large secondary review details are collapsed, and the two code panes plus gutter dominate the window",
+        "Both removed coordinate replacements have a narrow intraline-removed mark aligned with the changed digits and distinct from the whole-line removed band",
+        "Both added coordinate replacements have a narrow intraline-added mark aligned with the changed digits and distinct from the whole-line added band",
+        "The gutter connector visibly reaches both pane edges and overlaps the corresponding changed rows instead of appearing to point from nothing to nothing",
+        "The code-first allocation, exact marks, and grounded connectors remain reviewable in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "audit_verdict": {
+        "note": "The registered product contract passed four exact-profile captures and a fifth run with the real Qt selection wire cut. It independently validates the 1280 x 1000 full window, 1262 x 890 comparison, hidden drawer/detail state, both selected replacement groups, exact role-colour pixels, and pane-edge/row-overlapping connector geometry. Independent critical rereview returned CLEAR with no blocking or high-risk findings.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The selected UIforETW.rc comparison contains two near-identical replacement pairs: 464,28 becomes 464,24 and 464,42 becomes 464,36. The earlier batch was rejected because non-diff chrome and the open Files drawer squeezed the code, clipped the changed coordinates, and made the gutter ribbon appear ungrounded. In this replacement, the drawers and large upper/detail regions are collapsed through shipped controls, both changed coordinate groups are selected in turn, and the final full-window state returns to the first group. Review the same exact blobs in Light, Dark, High-contrast Light, and High-contrast Dark.",
+      "detail_sections": [
+        {
+          "heading": "Bound identity and deterministic proof",
+          "items": [
+            {
+              "definition": "d2ff0c119b1b8651c6326e482b984512403dbe0d",
+              "term": "Producing commit"
+            },
+            {
+              "definition": "UIforETW/UIforETW.rc",
+              "term": "Selected file"
+            },
+            {
+              "definition": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc -> e40058be7d5fe319342dffb567ce30e42bc6f4de",
+              "term": "Generated comparison"
+            },
+            {
+              "definition": "b995e189fb58da146945e1fb22380cdf4a7f4e47 -> 6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+              "term": "Exact blobs"
+            },
+            {
+              "definition": "Full window 1280 x 1000; native comparison 1262 x 890; Files, Conversations, review header/history, and selected-change detail hidden through shipped reopenable controls",
+              "term": "Focused allocation"
+            },
+            {
+              "definition": "Light profile: 28->24 is 49 removed / 68 added pixels; 42->36 is 133 removed / 112 added pixels",
+              "term": "Exact selected-role pixels"
+            },
+            {
+              "definition": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure — pass, 70.85 seconds",
+              "term": "Verification"
+            },
+            {
+              "definition": "Debug/dev, macOS arm64, Qt 6.11.1, offscreen QFusionStyle, DPR 1",
+              "term": "Capture environment"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Is the focused recorded diff legible enough for a real review?",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/01-capture-manifest.json",
+          "sha256": "sha256:435a49bd17165a8df4c8de85cfb6efe040a786e0b0879f6fea4c132c6f1cde8a"
+        },
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/02-light-capture-facts.json",
+          "sha256": "sha256:98da563eac9ffcb66a0d30edca32db9ccc9024582be684e38ec6ba6b9e0438f2"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/03-dark-capture-facts.json",
+          "sha256": "sha256:8f4ce11bb85af214523a0e0b51b7d1735cb32f37db4ee50ca7ddd0ddc2e55f9d"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/04-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:061381ef630c904145682777dd233ea800a5617f1f1797333e4447d11f4b42f7"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-recorded-intraline-emphasis/identity/05-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:43bee0d489898f1d2fa0c925e55195d0e4a3e525b6104f046b1d119064aa3062"
+        }
+      ],
+      "known_concerns": [
+        "The captures are offscreen QFusionStyle evidence, not a claim about native macOS, Windows, or Linux styling.",
+        "Compact navigation, review-layout, diff-status, and application-status controls remain visible so the collapsed surfaces can be reopened and the comparison can be navigated.",
+        "The deterministic course proves exact commits, blobs, both group selections, exact semantic-role pixels, connector geometry, focused-layout ratios, and a cut-wire negative. This decision is only the human visual judgement of the resulting pixels."
+      ],
+      "media_groups": [
+        {
+          "group_id": "state-captures",
+          "items": [
+            {
+              "label": "Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/01-light-full-window.png",
+              "sha256": "sha256:4f3ed464aae38c70094b5cb486012cc0178c2ab04044e18864a09608d0ab4502"
+            },
+            {
+              "label": "Light — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/02-light-comparison-crop.png",
+              "sha256": "sha256:cd81595d66152d8def279a0d25ff319c2f4f9d85bf0a3b95b4691970c4dd2a29"
+            },
+            {
+              "label": "Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/03-dark-full-window.png",
+              "sha256": "sha256:cce12a72f9059343be4766dfaf186e801d3de175e403af9096ba4d4ab4eb4f6e"
+            },
+            {
+              "label": "Dark — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/04-dark-comparison-crop.png",
+              "sha256": "sha256:7e549e587b6929e31c6a1d8c53994a75ee618f047744741201a3488f1d8ba38c"
+            },
+            {
+              "label": "High-contrast Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/05-high-contrast-light-full-window.png",
+              "sha256": "sha256:8566befc07dd7d54c3105b381a561b2dffee348af37c9658c28ba30a57c23d69"
+            },
+            {
+              "label": "High-contrast Light — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/06-high-contrast-light-comparison-crop.png",
+              "sha256": "sha256:02c0da68b40a5e4f3d4367976d94f6e6da1a563583ebb651b2b571161b6cc4fd"
+            },
+            {
+              "label": "High-contrast Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/07-high-contrast-dark-full-window.png",
+              "sha256": "sha256:99671f77347707b5ace8d95ac28e252b11d3e0d964326a401560f778a0a511eb"
+            },
+            {
+              "label": "High-contrast Dark — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-recorded-intraline-emphasis/state-captures/08-high-contrast-dark-comparison-crop.png",
+              "sha256": "sha256:350cd958b6c1908eb42377f37e926c1505fea29e003a50ac09ad6ac4e3d92745"
+            }
+          ],
+          "layout": "grid",
+          "note": "Each profile has the complete 1280 x 1000 application view followed by the native 1262 x 890 comparison crop. Click an image for native resolution. The final state shows the first replacement; the bound facts record exact-role pixels and grounded connectors while each of the two groups is selected.",
+          "required": true,
+          "title": "Focused full-window review across all four profiles"
+        }
+      ],
+      "subject_digest": "sha256:3c3d1808289c5c8d368f2ab3fad63da22f055e42bf343ed8f998125c8476c453",
+      "subject_id": "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis",
+      "subject_key": "recorded-intraline-emphasis"
+    }
+  ],
+  "title": "Focused recorded UIforETW diff"
+}

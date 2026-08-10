@@ -1,0 +1,171 @@
+{
+    "added_role": "#ff17462b",
+    "appearance": "dark",
+    "base_blob": "b995e189fb58da146945e1fb22380cdf4a7f4e47",
+    "base_commit": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+    "comparison_height_ratio_permille": 890,
+    "comparison_pixel_height": 890,
+    "comparison_pixel_width": 1262,
+    "comparison_rect_in_window": {
+        "height": 890,
+        "width": 1262,
+        "x": 0,
+        "y": 88
+    },
+    "comparison_width_ratio_permille": 985,
+    "conversations_drawer_rect_in_splitter": {
+        "height": 918,
+        "width": 64,
+        "x": 1280,
+        "y": 0
+    },
+    "conversations_drawer_visible": false,
+    "device_pixel_ratio": 1,
+    "epoch_controls_visible": false,
+    "files_drawer_rect_in_splitter": {
+        "height": 918,
+        "width": 64,
+        "x": 0,
+        "y": 0
+    },
+    "files_drawer_visible": false,
+    "fixture_diff_helper_invocations": 0,
+    "full_window_rect": {
+        "height": 1000,
+        "width": 1280,
+        "x": 0,
+        "y": 0
+    },
+    "gutter_rect_in_window": {
+        "height": 890,
+        "width": 56,
+        "x": 603,
+        "y": 88
+    },
+    "head_blob": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+    "head_commit": "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "intraline_edit_count": 5,
+    "left_horizontal_offset": 230,
+    "left_pane_rect_in_window": {
+        "height": 870,
+        "width": 601,
+        "x": 1,
+        "y": 89
+    },
+    "logical_height": 1000,
+    "logical_width": 1280,
+    "pixel_height": 1000,
+    "pixel_width": 1280,
+    "qt_platform": "offscreen",
+    "qt_version": "6.11.1",
+    "removed_role": "#ff522829",
+    "replacement_28_to_24": {
+        "change_index": 1,
+        "connector": {
+            "bounds": {
+                "height": 15,
+                "width": 56,
+                "x": 0,
+                "y": 360
+            },
+            "end": {
+                "x": 56,
+                "y": 360
+            },
+            "left_endpoint_at_pane_edge": true,
+            "left_target_row_overlap": true,
+            "right_endpoint_at_pane_edge": true,
+            "right_target_row_overlap": true,
+            "start": {
+                "x": 0,
+                "y": 360
+            }
+        },
+        "group": "9f619edff4feac01da3b8ed4829fb6c341c5d9bab00da4c4040e9f1cacf8a9b3",
+        "left_line": 108,
+        "left_rect_in_pane": {
+            "height": 15,
+            "width": 9,
+            "x": 446,
+            "y": 360
+        },
+        "left_role_pixels": 49,
+        "right_line": 109,
+        "right_rect_in_pane": {
+            "height": 15,
+            "width": 8,
+            "x": 446,
+            "y": 360
+        },
+        "right_role_pixels": 68,
+        "segment": "860b95b145143d6c2f175e91c208614107fb6f1ddd3908cdb1526947e130a7d3",
+        "selected_left_role_pixels": 49,
+        "selected_observed": true,
+        "selected_right_role_pixels": 68
+    },
+    "replacement_42_to_36": {
+        "change_index": 2,
+        "connector": {
+            "bounds": {
+                "height": 15,
+                "width": 56,
+                "x": 0,
+                "y": 390
+            },
+            "end": {
+                "x": 56,
+                "y": 390
+            },
+            "left_endpoint_at_pane_edge": true,
+            "left_target_row_overlap": true,
+            "right_endpoint_at_pane_edge": true,
+            "right_target_row_overlap": true,
+            "start": {
+                "x": 0,
+                "y": 390
+            }
+        },
+        "group": "80be3c9ac0b330017c53873fa1522be923a1c633eadfcb2ff1b825592a3dc8e7",
+        "left_line": 110,
+        "left_rect_in_pane": {
+            "height": 15,
+            "width": 16,
+            "x": 147,
+            "y": 390
+        },
+        "left_role_pixels": 133,
+        "right_line": 111,
+        "right_rect_in_pane": {
+            "height": 15,
+            "width": 16,
+            "x": 147,
+            "y": 390
+        },
+        "right_role_pixels": 112,
+        "segment": "f4004a5f1553418b255a63848f522511f00a6c4c5cdbf4062ea6ebf977dfedce",
+        "selected_left_role_pixels": 133,
+        "selected_observed": true,
+        "selected_right_role_pixels": 112
+    },
+    "review_details_rect_in_window": {
+        "height": 220,
+        "width": 1280,
+        "x": 0,
+        "y": 60
+    },
+    "review_details_visible": false,
+    "right_horizontal_offset": 230,
+    "right_pane_rect_in_window": {
+        "height": 870,
+        "width": 601,
+        "x": 660,
+        "y": 89
+    },
+    "schema": "bpr.uiforetw_intraline_capture.v2",
+    "selected_change_detail_visible": false,
+    "selected_change_index": 1,
+    "selected_group": "9f619edff4feac01da3b8ed4829fb6c341c5d9bab00da4c4040e9f1cacf8a9b3",
+    "selected_path": "UIforETW/UIforETW.rc",
+    "selected_segment": "860b95b145143d6c2f175e91c208614107fb6f1ddd3908cdb1526947e130a7d3",
+    "style": "QFusionStyle"
+}

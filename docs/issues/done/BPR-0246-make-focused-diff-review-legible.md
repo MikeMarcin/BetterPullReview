@@ -1,7 +1,7 @@
 ---
 id: BPR-0246
 title: Make focused diff review legible and regenerate UIforETW evidence
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0227]
 ---
@@ -83,5 +83,14 @@ records exact-role pixels while each is selected. The selected-row wash is
 painted below the opaque intraline role, and the pixel counter matches that role
 colour rather than merely counting non-base pixels. All four explicit
 appearance profiles produce the same focused geometry. The immutable attended
-v002 batch remains to be generated from the committed implementation; its
-verdict is not inferred here.
+v002 batch is generated from committed implementation `d2ff0c1` at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v002/offline-package/index.html`.
+It is digest-bound as
+`bpr:/attended-review/betterpullreview/198d1045d20ff4752b7dc747`. Its verdict is
+not inferred here; BPR-0233 remains open for that attended decision.
+
+Independent critical review first found incomplete pixel/fact causality and a
+false-green layout-ratio check. After two correction rounds it returned CLEAR
+with no blocking or high-risk findings. The committed four-profile course then
+passed in 70.85 seconds, with the comparison occupying 1262 × 890 pixels of the
+retained 1280 × 1000 full window.

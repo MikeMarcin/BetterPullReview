@@ -69,9 +69,13 @@ BPR-0246's focused implementation is now mechanically green: it preserves the
 1280 × 1000 full-window viewport, collapses both drawers and all secondary
 review details through shipped reopenable actions, reveals both named
 replacement spans, and binds their exact pixels and connector geometry. The
-new v002 attended package is the remaining dependency; no acceptance is
-carried forward from v001. Both replacement groups are selected in turn, and
-the selected-row wash no longer hides the exact intraline role in the raster.
+new v002 attended package is ready at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v002/offline-package/index.html`
+and is digest-bound as
+`bpr:/attended-review/betterpullreview/198d1045d20ff4752b7dc747`; its attended
+verdict is the remaining dependency. No acceptance is carried forward from
+v001. Both replacement groups are selected in turn, and the selected-row wash
+no longer hides the exact intraline role in the raster.
 
 ## Verification
 
