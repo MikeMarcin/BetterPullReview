@@ -125,6 +125,44 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] auto actor_key(
+			const agent_workspace_materialization_request& aRequest) noexcept
+			-> std::optional<cache_actor_key>
+		{
+			if (!application::valid(aRequest)) {
+				return std::nullopt;
+			}
+			return cache_actor_key{
+				.ApplicationSession = aRequest.ApplicationSession,
+				.Profile            = aRequest.Authority.Profile,
+				.ProfileRevision    = aRequest.Authority.ProfileRevision,
+				.Host               = aRequest.Authority.Host,
+				.HostAuthority      = aRequest.Authority.HostAuthority,
+				.Account            = aRequest.Authority.Account,
+				.Repository         = aRequest.Authority.Repository,
+				.ObjectFormat       = aRequest.Session.Binding.HeadOid.algorithm(),
+			};
+		}
+
+		[[nodiscard]] auto actor_key(
+			const owned_agent_workspace& aWorkspace) noexcept
+			-> std::optional<cache_actor_key>
+		{
+			if (!application::valid(aWorkspace)) {
+				return std::nullopt;
+			}
+			return cache_actor_key{
+				.ApplicationSession = aWorkspace.ApplicationSession,
+				.Profile            = aWorkspace.Authority.Profile,
+				.ProfileRevision    = aWorkspace.Authority.ProfileRevision,
+				.Host               = aWorkspace.Authority.Host,
+				.HostAuthority      = aWorkspace.Authority.HostAuthority,
+				.Account            = aWorkspace.Authority.Account,
+				.Repository         = aWorkspace.Authority.Repository,
+				.ObjectFormat       = aWorkspace.Workspace.PinnedHead->algorithm(),
+			};
+		}
+
+		[[nodiscard]] auto actor_key(
 			const workbench_selected_diff_request& aRequest) noexcept
 			-> std::optional<cache_actor_key>
 		{
@@ -734,6 +772,22 @@ namespace bpr::application {
 			std::optional<workbench_selected_diff_observation> Result;
 		};
 
+		struct workspace_waiter final
+		{
+			std::mutex              Mutex;
+			std::condition_variable Completed;
+			std::optional<
+				std::expected<owned_agent_workspace, agent_workspace_failure>>
+				Result;
+		};
+
+		struct workspace_cleanup_waiter final
+		{
+			std::mutex                                                  Mutex;
+			std::condition_variable                                     Completed;
+			std::optional<std::expected<void, agent_workspace_failure>> Result;
+		};
+
 		struct authority_context final
 		{
 			authority_context(
@@ -903,6 +957,16 @@ namespace bpr::application {
 			return {
 				.ApplicationSession = aRequest.Context.ApplicationSession,
 				.Authority          = aRequest.Context.Key.Authority,
+			};
+		}
+
+		[[nodiscard]] static auto blob_authority_for(
+			const agent_workspace_materialization_request& aRequest) noexcept
+			-> blob_authority
+		{
+			return {
+				.ApplicationSession = aRequest.ApplicationSession,
+				.Authority          = aRequest.Authority,
 			};
 		}
 
@@ -1359,7 +1423,7 @@ namespace bpr::application {
 		{
 			try {
 				std::scoped_lock lock{ JobsMutex };
-				if (!aUseTerminalReservation
+				if (!aUseTerminalReservation && !aMandatoryCleanup
 					&& BlobIngressClosing.load(std::memory_order_acquire)) {
 					return std::unexpected{ core::epoch_failure::unavailable };
 				}
@@ -1534,8 +1598,8 @@ namespace bpr::application {
 
 		void cancel_all_jobs() noexcept
 		{
-			cancel_jobs([](const job_control&) {
-				return true;
+			cancel_jobs([](const job_control& aJob) {
+				return !aJob.MandatoryCleanup;
 			});
 		}
 
@@ -1606,6 +1670,13 @@ namespace bpr::application {
 			if (BlobIngressClosing.load(std::memory_order_acquire)) {
 				return false;
 			}
+			++InFlightBlobCalls;
+			return true;
+		}
+
+		[[nodiscard]] auto begin_cleanup_call() noexcept -> bool
+		{
+			std::scoped_lock lock{ JobsMutex };
 			++InFlightBlobCalls;
 			return true;
 		}
@@ -3371,6 +3442,291 @@ namespace bpr::application {
 				return result;
 			}
 
+			std::unique_lock lock{ waiter->Mutex };
+			waiter->Completed.wait(lock, [&waiter] {
+				return waiter->Result.has_value();
+			});
+			return std::move(*waiter->Result);
+		}
+
+		[[nodiscard]] auto materialize_agent_workspace(
+			const agent_workspace_materialization_request& aRequest,
+			const std::stop_token                          aStop)
+			-> std::expected<owned_agent_workspace, agent_workspace_failure>
+		{
+			if (!begin_blob_call()) {
+				return std::unexpected{ agent_workspace_failure::cancelled };
+			}
+			struct workspace_call_guard final
+			{
+				implementation& Host;
+
+				~workspace_call_guard()
+				{
+					Host.finish_blob_call();
+				}
+			} call{ *this };
+			const auto key = actor_key(aRequest);
+			if (!key.has_value()) {
+				return std::unexpected{ agent_workspace_failure::invalid_request };
+			}
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(
+					CacheActors,
+					*key,
+					&decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			if (!actor) {
+				return std::unexpected{ agent_workspace_failure::unavailable };
+			}
+			const auto authorization           = blob_authority_for(aRequest);
+			const auto authorizationGeneration = blob_authorization_generation(
+				actor,
+				authorization);
+			if (!authorizationGeneration.has_value()) {
+				return std::unexpected{ agent_workspace_failure::stale };
+			}
+			auto waiter = std::shared_ptr<workspace_waiter>{ };
+			try {
+				waiter = std::make_shared<workspace_waiter>();
+			} catch (...) {
+				return std::unexpected{ agent_workspace_failure::unavailable };
+			}
+			auto admitted = admit_job(
+				std::nullopt,
+				std::nullopt,
+				std::nullopt,
+				std::nullopt,
+				false);
+			if (!admitted.has_value()) {
+				return std::unexpected{ agent_workspace_failure::unavailable };
+			}
+			auto       control  = std::move(*admitted);
+			const auto expected = git_cache_open_request{
+				.ApplicationSession = aRequest.ApplicationSession,
+				.Authority          = aRequest.Authority,
+				.ObjectFormat       = aRequest.Session.Binding.HeadOid.algorithm(),
+			};
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 authorization,
+					 authorizationGeneration = *authorizationGeneration,
+					 expected,
+					 aRequest,
+					 aStop,
+					 waiter,
+					 control] {
+						auto result = std::expected<
+							owned_agent_workspace,
+							agent_workspace_failure>{
+							std::unexpected{ agent_workspace_failure::unavailable }
+						};
+						try {
+							auto forwardCallerStop = std::stop_callback{
+								aStop,
+								[control] {
+									static_cast<void>(control->Stop.request_stop());
+								}
+							};
+							const auto workStop = control->Stop.get_token();
+							if (
+								workStop.stop_requested()
+								|| BlobIngressClosing.load(std::memory_order_acquire)) {
+								result = std::unexpected{
+									agent_workspace_failure::cancelled
+								};
+							} else if (
+								blob_authorization_generation(actor, authorization)
+								!= authorizationGeneration) {
+								result = std::unexpected{ agent_workspace_failure::stale };
+							} else if (
+								actor->Cache != nullptr
+								&& actor->Cache->request() == expected) {
+								auto materialized = actor->Cache->materialize_agent_workspace(
+									aRequest,
+									workStop);
+								if (materialized.has_value()) {
+									std::scoped_lock authorityLock{
+										actor->BlobAuthorityMutex
+									};
+									if (
+										workStop.stop_requested()
+										|| actor->BlobAuthority
+											!= std::optional{ authorization }
+										|| actor->BlobAuthorityGeneration
+											!= authorizationGeneration) {
+										static_cast<void>(
+											actor->Cache->cleanup_agent_workspace(
+												*materialized,
+												{ }));
+										result = std::unexpected{
+											workStop.stop_requested()
+												? agent_workspace_failure::cancelled
+												: agent_workspace_failure::stale
+										};
+									} else {
+										result = std::move(*materialized);
+									}
+								} else if (
+									materialized.error()
+									== git_cache_failure::cancelled) {
+									result = std::unexpected{
+										agent_workspace_failure::cancelled
+									};
+								} else if (
+									materialized.error()
+									== git_cache_failure::invalid_authority) {
+									result = std::unexpected{ agent_workspace_failure::stale };
+								}
+							}
+						} catch (...) {
+							result = std::unexpected{ agent_workspace_failure::unavailable };
+						}
+						auto waiterLock     = std::unique_lock{ waiter->Mutex };
+						waiter->Result      = std::move(result);
+						const auto reserved = retire_actor_job(control);
+						struct actor_exit_reservation final
+						{
+							implementation& Host;
+							bool            Reserved;
+
+							~actor_exit_reservation()
+							{
+								Host.release_actor_job_reservation(Reserved);
+							}
+						} actorExit{ *this, reserved };
+						waiterLock.unlock();
+						waiter->Completed.notify_all();
+					});
+			} catch (...) {
+				finish_job(control);
+				return std::unexpected{ agent_workspace_failure::unavailable };
+			}
+			std::unique_lock lock{ waiter->Mutex };
+			waiter->Completed.wait(lock, [&waiter] {
+				return waiter->Result.has_value();
+			});
+			return std::move(*waiter->Result);
+		}
+
+		[[nodiscard]] auto cleanup_agent_workspace(
+			const owned_agent_workspace& aWorkspace,
+			const std::stop_token        aStop)
+			-> std::expected<void, agent_workspace_failure>
+		{
+			static_cast<void>(begin_cleanup_call());
+			struct cleanup_call_guard final
+			{
+				implementation& Host;
+
+				~cleanup_call_guard()
+				{
+					Host.finish_blob_call();
+				}
+			} call{ *this };
+			const auto key = actor_key(aWorkspace);
+			if (!key.has_value()) {
+				return std::unexpected{ agent_workspace_failure::invalid_request };
+			}
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(
+					CacheActors,
+					*key,
+					&decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			if (!actor) {
+				return std::unexpected{ agent_workspace_failure::cleanup_failed };
+			}
+			auto waiter = std::shared_ptr<workspace_cleanup_waiter>{ };
+			try {
+				waiter = std::make_shared<workspace_cleanup_waiter>();
+			} catch (...) {
+				return std::unexpected{ agent_workspace_failure::cleanup_failed };
+			}
+			auto admitted = admit_job(
+				std::nullopt,
+				std::nullopt,
+				std::nullopt,
+				std::nullopt,
+				false,
+				true);
+			if (!admitted.has_value()) {
+				return std::unexpected{ agent_workspace_failure::cleanup_failed };
+			}
+			auto       control  = std::move(*admitted);
+			const auto expected = git_cache_open_request{
+				.ApplicationSession = aWorkspace.ApplicationSession,
+				.Authority          = aWorkspace.Authority,
+				.ObjectFormat       = aWorkspace.Workspace.PinnedHead->algorithm(),
+			};
+			try {
+				enqueue_actor_work(
+					actor,
+					[this, actor, expected, aWorkspace, aStop, waiter, control] {
+						auto result = std::expected<void, agent_workspace_failure>{ };
+						try {
+							auto forwardCallerStop = std::stop_callback{
+								aStop,
+								[control] {
+									static_cast<void>(control->Stop.request_stop());
+								}
+							};
+							if (
+								actor->Cache == nullptr
+								|| actor->Cache->request() != expected) {
+								result = std::unexpected{
+									agent_workspace_failure::cleanup_failed
+								};
+							} else {
+								const auto cleaned = actor->Cache->cleanup_agent_workspace(
+									aWorkspace,
+									control->Stop.get_token());
+								if (!cleaned.has_value()) {
+									result = std::unexpected{
+										cleaned.error() == git_cache_failure::cancelled
+											? agent_workspace_failure::cancelled
+											: agent_workspace_failure::cleanup_failed
+									};
+								}
+							}
+						} catch (...) {
+							result = std::unexpected{
+								agent_workspace_failure::cleanup_failed
+							};
+						}
+						auto waiterLock     = std::unique_lock{ waiter->Mutex };
+						waiter->Result      = std::move(result);
+						const auto reserved = retire_actor_job(control);
+						struct actor_exit_reservation final
+						{
+							implementation& Host;
+							bool            Reserved;
+
+							~actor_exit_reservation()
+							{
+								Host.release_actor_job_reservation(Reserved);
+							}
+						} actorExit{ *this, reserved };
+						waiterLock.unlock();
+						waiter->Completed.notify_all();
+					});
+			} catch (...) {
+				finish_job(control);
+				return std::unexpected{ agent_workspace_failure::cleanup_failed };
+			}
 			std::unique_lock lock{ waiter->Mutex };
 			waiter->Completed.wait(lock, [&waiter] {
 				return waiter->Result.has_value();
@@ -5807,6 +6163,22 @@ namespace bpr::application {
 		const std::stop_token    aStop) -> diff_blob_observation
 	{
 		return Implementation->materialize(aRequest, aStop);
+	}
+
+	auto epoch_application_host::materialize_agent_workspace(
+		const agent_workspace_materialization_request& aRequest,
+		const std::stop_token                          aStop)
+		-> std::expected<owned_agent_workspace, agent_workspace_failure>
+	{
+		return Implementation->materialize_agent_workspace(aRequest, aStop);
+	}
+
+	auto epoch_application_host::cleanup_agent_workspace(
+		const owned_agent_workspace& aWorkspace,
+		const std::stop_token        aStop)
+		-> std::expected<void, agent_workspace_failure>
+	{
+		return Implementation->cleanup_agent_workspace(aWorkspace, aStop);
 	}
 
 	auto epoch_application_host::context(

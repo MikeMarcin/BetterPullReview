@@ -135,6 +135,64 @@ namespace bpr::core {
 		}
 	} // namespace
 
+	auto built_in_agent_profiles() -> std::vector<agent_profile>
+	{
+		return {
+			{
+				.Id                 = codex_app_server_profile_id,
+				.DisplayName        = "Codex App Server",
+				.Executable         = "codex",
+				.Protocol           = agent_protocol::codex_app_server,
+				.Workspace          = agent_workspace_policy::disposable_review_workspace,
+				.AllowedEnvironment = { "HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP" },
+			},
+			{
+				.Id                 = codex_jsonl_profile_id,
+				.DisplayName        = "Codex JSONL",
+				.Executable         = "codex",
+				.Protocol           = agent_protocol::codex_jsonl_exec,
+				.Workspace          = agent_workspace_policy::disposable_review_workspace,
+				.AllowedEnvironment = { "HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP" },
+			},
+			{
+				.Id                 = claude_stream_json_profile_id,
+				.DisplayName        = "Approved Claude stream JSON",
+				.Executable         = "claude",
+				.Protocol           = agent_protocol::claude_stream_json,
+				.Workspace          = agent_workspace_policy::disposable_review_workspace,
+				.AllowedEnvironment = { "HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP" },
+			},
+			{
+				.Id                 = external_terminal_profile_id,
+				.DisplayName        = "External terminal harness",
+				.Executable         = "bpr-agent-terminal",
+				.Protocol           = agent_protocol::external_terminal,
+				.Workspace          = agent_workspace_policy::disposable_review_workspace,
+				.AllowedEnvironment = { "HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP" },
+			},
+		};
+	}
+
+	auto built_in_agent_policy(
+		const git_host_id              aHost,
+		const built_in_agent_host_kind aKind) -> agent_host_policy
+	{
+		auto policy = agent_host_policy{ .Host = aHost };
+		if (aKind == built_in_agent_host_kind::github_com) {
+			const auto profiles = built_in_agent_profiles();
+			policy.Allowed.reserve(profiles.size());
+			for (const auto& profile : profiles) {
+				policy.Allowed.push_back(profile.Id);
+			}
+		} else {
+			policy.Allowed = {
+				claude_stream_json_profile_id,
+				external_terminal_profile_id,
+			};
+		}
+		return policy;
+	}
+
 	auto stable_name(const agent_protocol aProtocol) noexcept -> std::string_view
 	{
 		switch (aProtocol) {

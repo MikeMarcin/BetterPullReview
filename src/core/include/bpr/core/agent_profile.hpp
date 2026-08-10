@@ -106,6 +106,36 @@ namespace bpr::core {
 		auto operator<=>(const agent_profile&) const = default;
 	};
 
+	/// \brief Stable identities of the immutable built-in agent profiles.
+	inline constexpr agent_profile_id codex_app_server_profile_id{ 1U };
+	inline constexpr agent_profile_id codex_jsonl_profile_id{ 2U };
+	inline constexpr agent_profile_id claude_stream_json_profile_id{ 3U };
+	inline constexpr agent_profile_id external_terminal_profile_id{ 4U };
+
+	/// \brief Returns the immutable profiles shipped with BetterPullReview.
+	///
+	/// \details Reading this registry performs no filesystem lookup, executable
+	/// discovery, environment read, or process launch. Executable availability is
+	/// deliberately learned only after an explicit permitted invocation reaches
+	/// the process adapter.
+	[[nodiscard]] auto built_in_agent_profiles() -> std::vector<agent_profile>;
+	struct agent_host_policy;
+
+	/// \brief The two built-in Git-host policy classes.
+	enum class built_in_agent_host_kind : std::uint8_t {
+		github_com,
+		explicit_ghes,
+	};
+
+	/// \brief Builds the deterministic policy for one configured Git host.
+	///
+	/// \details GitHub.com permits every built-in profile. Explicit GHES permits
+	/// only the approved corporate Claude and external-terminal alternatives;
+	/// Codex remains forbidden even when a caller names it directly.
+	[[nodiscard]] auto built_in_agent_policy(
+		git_host_id              aHost,
+		built_in_agent_host_kind aKind) -> agent_host_policy;
+
 	/// \brief Checks whether the supplied profile satisfies its contract.
 	[[nodiscard]] auto valid(const agent_profile& aProfile) noexcept -> bool;
 

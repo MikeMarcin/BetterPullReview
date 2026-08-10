@@ -44,9 +44,11 @@ idempotently, server comments are re-read, and capability absence is explicit.
 No live mutation provider is composed. Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
-separate Publish action is still the only shared path. Complete agent
-context/process lifecycle still has target-native reachability work tracked by
-BPR-0240.
+separate Publish action is still the only shared path. The shipped workbench now
+offers explicit built-in agent profiles and carries one reviewer gesture through
+core host policy, exact accepted context, an isolated exact-head workspace, the
+real process adapter, and visible terminal projection. Windows launch remains
+fail-closed pending target-native containment evidence.
 The shipped landing surface now accepts local repository, author, and path
 observer rules, persists the exact matched reason, restores it across a restart,
 and removes the projected item when its only local rule is deleted. Explicit

@@ -1550,6 +1550,31 @@ compared identity alone would pass every other case and fail only this one.
 
 ## Troubleshooting and safe verification
 
+### Agent invocation composition
+
+The bounded no-network agent route can be checked without an installed agent
+or provider credential:
+
+```sh
+cmake --build build/dev --target \
+  test_better_pull_review_agent_invocation_host_tests \
+  test_better_pull_review_qt_agent_launch_canary_tests \
+  test_better_pull_review_agent_invocation_composition_public_path
+ctest --test-dir build/dev --output-on-failure -R \
+  '^(application_agent_invocation_host|qt_agent_launch_canary|application_agent_invocation_(composition|construction_cut|gesture_cut|cancellation|staleness)_contract)$'
+```
+
+The positive public contract selects a real fixture diff, materializes the
+exact accepted head outside the retained cache, launches only the sanitized
+external canary, and waits for terminal projection plus cleanup. The two cut
+contracts must remain green: they prove that neither omitted host construction
+nor a disconnected reviewer gesture can be hidden by direct fixture launch.
+The cancellation course stops a live descendant; the staleness course moves
+the accepted head while the child is live. Both require a distinct terminal,
+empty stale output, exact cleanup, and host quiescence.
+These tests do not run installed Codex or Claude and make no Windows launch
+success claim.
+
 ### GitHub and native credentials
 
 - A GitHub CLI profile is visible but unavailable by design in milestone one.

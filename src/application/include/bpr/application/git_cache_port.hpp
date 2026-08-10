@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_CACHE_PORT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_CACHE_PORT_HPP
 
+#include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/git_pack_stream.hpp"
 #include "bpr/application/git_process_port.hpp"
 #include "bpr/core/epoch_model.hpp"
@@ -643,6 +644,27 @@ namespace bpr::application {
 			core::git_commit_oid aCommit,
 			std::stop_token      aStop)
 			-> git_cache_result<git_cache_commit_inspection> = 0;
+
+		/// \brief Copies one exact accepted head into an isolated owned workspace.
+		[[nodiscard]] virtual auto materialize_agent_workspace(
+			const agent_workspace_materialization_request& aRequest,
+			std::stop_token                                aStop)
+			-> git_cache_result<owned_agent_workspace>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_cache_failure::invalid_request };
+		}
+
+		/// \brief Removes only the exact workspace this session materialized.
+		[[nodiscard]] virtual auto cleanup_agent_workspace(
+			const owned_agent_workspace& aWorkspace,
+			std::stop_token              aStop) -> git_cache_result<void>
+		{
+			static_cast<void>(aWorkspace);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_cache_failure::invalid_request };
+		}
 
 		// Materializes through this lifetime-exclusive session so callers never
 		// open a competing cache writer. The process adapter rejects oversize

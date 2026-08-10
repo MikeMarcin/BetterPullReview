@@ -17,7 +17,9 @@ namespace bpr::adapters::agent {
 	/// process group, not only the immediate child. Windows launch is refused
 	/// before process start until pre-start descendant containment has
 	/// target-native proof.
-	class agent_process_launcher final : public QObject
+	class agent_process_launcher final
+		: public QObject,
+		  public application::agent_process_port
 	{
 	public:
 		explicit agent_process_launcher(QObject* aParent = nullptr);
@@ -36,14 +38,15 @@ namespace bpr::adapters::agent {
 		[[nodiscard]] auto run(
 			const application::agent_launch_request& aRequest,
 			int                                      aTimeoutMilliseconds,
-			const application::agent_output_sink&    aSink = { })
-			-> application::agent_run_result;
+			const application::agent_output_sink&    aSink = { },
+			std::stop_token                          aStop = { })
+			-> application::agent_run_result override;
 
 		/// \brief Requests cancellation without cross-thread toolkit access.
 		///
 		/// \details The run loop observes the atomic request and performs all
 		/// toolkit and process-tree operations on its owning thread.
-		void cancel() noexcept;
+		void cancel() noexcept override;
 
 	private:
 		struct implementation;

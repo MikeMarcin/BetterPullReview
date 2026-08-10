@@ -106,6 +106,7 @@ namespace bpr::core {
 	/// source. Empty selections therefore stay empty by construction.
 	struct agent_supplement_request
 	{
+		application_session_id                     ApplicationSession;
 		agent_session                              Session;
 		std::string                                PullRequestUrl;
 		std::optional<git_commit_oid>              PreviousUpload;
@@ -129,6 +130,7 @@ namespace bpr::core {
 	{
 		std::uint32_t SchemaVersion
 			= agent_supplement_schema_version;
+		application_session_id                     ApplicationSession;
 		agent_session                              Session;
 		std::string                                PullRequestUrl;
 		std::optional<git_commit_oid>              PreviousUpload;

@@ -229,6 +229,65 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
+bpr_add_executable(
+    test_better_pull_review_agent_invocation_composition_public_path
+    agent_invocation_composition_public_path.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_invocation_composition_public_path
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_agent_invocation_composition_public_path
+    PRIVATE
+        BPR_BUILD_TESTING=1
+)
+add_dependencies(
+    test_better_pull_review_agent_invocation_composition_public_path
+    test_better_pull_review_agent_canary
+)
+bpr_enable_hardening(
+    test_better_pull_review_agent_invocation_composition_public_path
+)
+bpr_enable_warnings(
+    test_better_pull_review_agent_invocation_composition_public_path
+)
+
+foreach(
+    course
+    IN ITEMS
+        positive
+        construction-cut
+        gesture-cut
+        cancellation
+        staleness
+        cleanup-retry
+)
+    if(course STREQUAL "positive")
+        set(test_name application_agent_invocation_composition_contract)
+        set(pass_marker "agent-invocation-composition:pass")
+    else()
+        string(REPLACE "-" "_" course_name "${course}")
+        set(test_name "application_agent_invocation_${course_name}_contract")
+        set(pass_marker "agent-invocation-${course}:pass")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME "${test_name}"
+        COMMAND
+            test_better_pull_review_agent_invocation_composition_public_path
+            "${course}"
+            $<TARGET_FILE:test_better_pull_review_agent_canary>
+    )
+    set_tests_properties(
+        "${test_name}"
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
+            PASS_REGULAR_EXPRESSION "${pass_marker}"
+            TIMEOUT 90
+    )
+endforeach()
+
 bpr_add_network_isolated_test(
     NAME application_queue_composition_contract
     COMMAND

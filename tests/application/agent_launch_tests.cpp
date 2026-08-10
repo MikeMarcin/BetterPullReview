@@ -81,10 +81,11 @@ namespace {
 			.Line       = 17U,
 		};
 		return {
-			.Session        = session(),
-			.PullRequestUrl = "https://github.example/octo/app/pull/30",
-			.PreviousUpload = commit(3U),
-			.Files          = {
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Session            = session(),
+			.PullRequestUrl     = "https://github.example/octo/app/pull/30",
+			.PreviousUpload     = commit(3U),
+			.Files              = {
 				{
 					.Path    = "src/retry.cpp",
 					.Receipt = {

@@ -1,7 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_LAUNCH_PANEL_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_LAUNCH_PANEL_HPP
 
-#include "bpr/core/agent_profile.hpp"
+#include "bpr/application/agent_invocation_host.hpp"
 
 #include <QString>
 #include <QWidget>
@@ -9,12 +9,15 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <span>
 #include <variant>
 #include <vector>
 
 class QAction;
 class QComboBox;
 class QLabel;
+class QPlainTextEdit;
+class QToolButton;
 
 namespace bpr::qt {
 	/// \brief Asks for one agent invocation, now.
@@ -65,7 +68,9 @@ namespace bpr::qt {
 	/// The provider and the scope are shown **before** the start action is
 	/// available, not reported after the fact. A reviewer who cannot see which
 	/// tool is about to read their repository has not been asked.
-	class agent_launch_panel final : public QWidget
+	class agent_launch_panel final
+		: public QWidget,
+		  public application::agent_invocation_projection_port
 	{
 	public:
 		explicit agent_launch_panel(
@@ -80,7 +85,21 @@ namespace bpr::qt {
 		/// permitted. This widget runs no policy of its own: a profile absent
 		/// here is absent because the host refused it, and one present cannot
 		/// be refused again by presentation.
-		void offer_profiles(const std::vector<core::agent_profile>& aProfiles);
+		void offer_profiles(std::span<const core::agent_profile> aProfiles);
+
+		void offer(std::span<const core::agent_profile> aProfiles) override;
+		void refuse(std::string_view aReason) override;
+		void admit(
+			const application::agent_invocation_projection_identity& aIdentity) override;
+		void start(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::prepared_workspace&                   aWorkspace) override;
+		void stream(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_stream_event&                   aEvent) override;
+		void finish(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_run_result&                     aResult) override;
 
 		/// \brief States what is about to be read, before anything starts.
 		void disclose_scope(const QString& aScope);
@@ -93,6 +112,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto cancel_action() const noexcept -> QAction*;
 		[[nodiscard]] auto existing_checkout_action() const noexcept -> QAction*;
 		[[nodiscard]] auto disclosure_text() const -> QString;
+		[[nodiscard]] auto status_text() const -> QString;
+		[[nodiscard]] auto output_text() const -> QString;
+		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto selected_profile() const
 			-> std::optional<core::agent_profile_id>;
 		[[nodiscard]] auto statistics() const noexcept
@@ -107,8 +129,15 @@ namespace bpr::qt {
 		QAction*              CancelAction           = nullptr;
 		QAction*              ExistingCheckoutAction = nullptr;
 		QLabel*               Disclosure             = nullptr;
+		QLabel*               Status                 = nullptr;
+		QPlainTextEdit*       Output                 = nullptr;
+		QToolButton*          StartButton            = nullptr;
+		QToolButton*          CancelButton           = nullptr;
+		QToolButton*          ExistingCheckoutButton = nullptr;
 		bool                  Running                = false;
 		bool                  Disclosed              = false;
+		std::optional<application::agent_invocation_projection_identity>
+			ActiveInvocation;
 
 		agent_launch_panel_statistics Statistics;
 	};

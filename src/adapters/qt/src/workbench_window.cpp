@@ -615,6 +615,9 @@ namespace bpr::qt {
 		conversationLayout->setContentsMargins(0, 0, 0, 0);
 		conversationLayout->addWidget(ConversationPanel, 1);
 		conversationLayout->addWidget(ReviewEditor);
+		AgentPanel = new agent_launch_panel{ { }, conversationContents };
+		AgentPanel->setMaximumHeight(300);
+		conversationLayout->addWidget(AgentPanel);
 		auto* const defectNavigation = new QHBoxLayout{ };
 		auto* const classifyButton   = new QToolButton{ conversationContents };
 		classifyButton->setDefaultAction(ClassifyDefect);
@@ -1512,6 +1515,11 @@ namespace bpr::qt {
 		DefectDispatch = std::move(aDefectDispatch);
 	}
 
+	void workbench_window::set_agent_dispatch(agent_intent_dispatch aAgentDispatch)
+	{
+		AgentPanel->set_dispatch(std::move(aAgentDispatch));
+	}
+
 	void workbench_window::set_defect_classification_dispatch(
 		workbench_defect_classification_dispatch aClassificationDispatch)
 	{
@@ -2060,6 +2068,11 @@ namespace bpr::qt {
 		-> github_conversation_panel*
 	{
 		return ConversationPanel;
+	}
+
+	auto workbench_window::agent_panel() const noexcept -> agent_launch_panel*
+	{
+		return AgentPanel;
 	}
 
 	auto workbench_window::review_editor() const noexcept -> review_draft_editor*

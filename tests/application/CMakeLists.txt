@@ -397,6 +397,28 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_agent_invocation_host_tests
+    agent_invocation_host_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_agent_invocation_host_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_agent_invocation_host_tests)
+bpr_enable_warnings(test_better_pull_review_agent_invocation_host_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_agent_invocation_host
+    COMMAND test_better_pull_review_agent_invocation_host_tests
+)
+set_tests_properties(
+    application_agent_invocation_host
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "agent-invocation-host-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_notification_delivery_tests
     notification_delivery_tests.cpp
 )

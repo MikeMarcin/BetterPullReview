@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_PROCESS_PORT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_PROCESS_PORT_HPP
 
+#include "bpr/application/agent_workspace.hpp"
+
 #include <array>
 #include <compare>
 #include <cstddef>
@@ -186,6 +188,15 @@ namespace bpr::application {
 		git_commit_id         Commit;
 	};
 
+	/// \brief Materializes one exact commit from an owned bare cache repository.
+	struct git_agent_workspace_request
+	{
+		std::filesystem::path                   Repository;
+		agent_workspace_materialization_request Materialization;
+
+		auto operator<=>(const git_agent_workspace_request&) const = default;
+	};
+
 	/// \brief Describes one exact, bounded blob materialization request.
 	struct git_blob_request
 	{
@@ -358,6 +369,13 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto inspect_commit(
 			const git_commit_request& aRequest,
 			std::stop_token           aStop) -> git_process_result<git_commit_inspection> = 0;
+		[[nodiscard]] virtual auto materialize_agent_workspace(
+			const git_agent_workspace_request& aRequest,
+			std::stop_token                    aStop)
+			-> git_process_result<owned_agent_workspace> = 0;
+		[[nodiscard]] virtual auto cleanup_agent_workspace(
+			const owned_agent_workspace& aWorkspace,
+			std::stop_token              aStop) -> git_process_result<void> = 0;
 		[[nodiscard]] virtual auto materialize_blob(
 			const git_blob_request&        aRequest,
 			git_blob_materialization_sink& aSink,

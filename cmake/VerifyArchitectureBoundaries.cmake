@@ -5,6 +5,7 @@ endif()
 set(github_adapter_cmake "${BPR_ROOT}/src/adapters/github/CMakeLists.txt")
 set(git_adapter_cmake "${BPR_ROOT}/src/adapters/git/CMakeLists.txt")
 set(adapters_cmake "${BPR_ROOT}/src/adapters/CMakeLists.txt")
+set(core_cmake "${BPR_ROOT}/src/core/CMakeLists.txt")
 set(dependencies_cmake "${BPR_ROOT}/cmake/BprDependencies.cmake")
 set(
     github_process_runner_relative
@@ -53,6 +54,12 @@ set(
 set(
     git_process_runner_relative
     "src/adapters/git/src/installed_git_process.cpp"
+)
+# Core names the safe environment vocabulary in immutable agent profiles. It
+# decides which names may cross; it still owns no environment or process API.
+set(
+    agent_profile_policy_relative
+    "src/core/src/agent_profile.cpp"
 )
 # The third designated process owner, added by BPR-0175. RFC-BPR-0011 launches
 # separately installed agent tools, which is a process this product starts and
@@ -968,6 +975,11 @@ file(
     "${BPR_ROOT}/src/*.mm"
 )
 
+set(core_cmake_contents "")
+if(EXISTS "${core_cmake}")
+    file(READ "${core_cmake}" core_cmake_contents)
+endif()
+
 function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
     set(allowed_relative_files "${allowed_relative_file}" ${ARGN})
     set(allowed_files "")
@@ -1014,6 +1026,9 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         elseif(current_allowed_relative MATCHES "^src/adapters/agent/")
             set(effect_owner_cmake "${agent_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_agent")
+        elseif(current_allowed_relative MATCHES "^src/core/")
+            set(effect_owner_cmake "${core_cmake_contents}")
+            set(effect_owner_target "better_pull_review_core")
         else()
             set(effect_owner_cmake "${github_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_github")
@@ -1096,6 +1111,11 @@ get_filename_component(
 get_filename_component(
     git_process_runner_file
     "${BPR_ROOT}/${git_process_runner_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    agent_profile_policy_file
+    "${BPR_ROOT}/${agent_profile_policy_relative}"
     ABSOLUTE
 )
 get_filename_component(
@@ -2042,6 +2062,7 @@ set(
     "NO_COLOR=1"
     "CLICOLOR=0"
     "\"HOME\""
+    "\"PATH\""
     "\"XDG_RUNTIME_DIR\""
     "\"DBUS_SESSION_BUS_ADDRESS\""
     "\"USERPROFILE\""
@@ -3129,8 +3150,15 @@ foreach(
     if(
         cli_construction_pattern STREQUAL "\"HOME\""
         OR cli_construction_pattern STREQUAL "\"PATH\""
-        OR cli_construction_pattern STREQUAL "\"SystemRoot\""
     )
+        verify_effect_owner(
+            "${cli_construction_pattern}"
+            "process environment construction"
+            "${github_cli_transport_relative}"
+            "${git_process_runner_relative}"
+            "${agent_profile_policy_relative}"
+        )
+    elseif(cli_construction_pattern STREQUAL "\"SystemRoot\"")
         verify_effect_owner(
             "${cli_construction_pattern}"
             "process environment construction"
@@ -3182,16 +3210,21 @@ foreach(source_file IN LISTS source_files)
     get_filename_component(normalized_source_file "${source_file}" ABSOLUTE)
     file(READ "${source_file}" contents)
     if(
-        contents MATCHES "\"(PATH|SystemRoot)\""
+        contents MATCHES "\"(HOME|PATH|SystemRoot)\""
         AND NOT normalized_source_file STREQUAL github_cli_transport_file
         AND NOT normalized_source_file STREQUAL github_process_runner_file
         AND NOT normalized_source_file STREQUAL git_process_runner_file
+        AND NOT (
+            normalized_source_file STREQUAL agent_profile_policy_file
+            AND contents MATCHES "\"(HOME|PATH)\""
+            AND NOT contents MATCHES "\"SystemRoot\""
+        )
     )
         file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source_file}")
         message(
             FATAL_ERROR
             "GitHub CLI invocation/environment construction ownership "
-            "violation in ${relative_file}; PATH and SystemRoot are owned by "
+            "violation in ${relative_file}; HOME, PATH, and SystemRoot are owned by "
             "${github_cli_transport_relative}, with validation only in "
             "${github_process_runner_relative}, or by the isolated installed-"
             "Git runner ${git_process_runner_relative}"

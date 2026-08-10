@@ -538,6 +538,15 @@ syntax adapter; its resolved package set remains SQLite alone.
 | AI | provider-host policy, context-scope decisions, staleness, finding promotion | process/session/workspace management and protocols | explicit invocation, approvals, chat/findings presentation |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
 
+The shipped agent route preserves this allocation. Qt exposes provider,
+disclosure, working-copy choice, start/cancel, stream, and terminal state, but
+owns no process. The application host reruns core policy before effects, adapts
+only accepted authority/private observations, and serializes lifecycle and
+cleanup. The retained cache actor materializes an owner-private exact-head
+workspace outside its cache; the agent adapter receives that directory only
+after materialization. App composition is the only region that knows the real
+panel, host, cache, launcher, and built-in executable profiles together.
+
 The shipped review-mutation composition preserves this allocation. Qt emits
 semantic draft commands and presents typed outcomes. The core decides whether
 the draft may publish. The application coordinator fixes the destination,

@@ -1,0 +1,846 @@
+#include "bpr/application/agent_invocation_host.hpp"
+
+#include <algorithm>
+#include <condition_variable>
+#include <map>
+#include <mutex>
+#include <ranges>
+#include <stop_token>
+#include <thread>
+#include <utility>
+
+namespace bpr::application {
+	namespace {
+		[[nodiscard]] auto binding_matches_authority(
+			const core::agent_revision_binding& aBinding,
+			const core::pull_request_authority& aAuthority) noexcept -> bool
+		{
+			return aBinding.Host == aAuthority.Host
+				&& aBinding.Repository == aAuthority.Repository
+				&& aBinding.PullRequest == aAuthority.PullRequest;
+		}
+
+		[[nodiscard]] auto workspace_outcome(
+			const agent_workspace_failure aFailure) noexcept -> agent_run_outcome
+		{
+			switch (aFailure) {
+			case agent_workspace_failure::cancelled:
+				return agent_run_outcome::cancelled;
+			case agent_workspace_failure::stale:
+				return agent_run_outcome::stale_result;
+			case agent_workspace_failure::invalid_request:
+			case agent_workspace_failure::unavailable:
+			case agent_workspace_failure::cleanup_failed:
+				return agent_run_outcome::failed_to_start;
+			}
+			return agent_run_outcome::failed_to_start;
+		}
+	} // namespace
+
+	struct agent_invocation_host::implementation final
+		: std::enable_shared_from_this<implementation>
+	{
+		struct invocation final
+		{
+			invocation(
+				agent_invocation_projection_identity aIdentity,
+				std::shared_ptr<std::stop_source>    aStop)
+				: Identity{ std::move(aIdentity) }
+				, Stop{ std::move(aStop) }
+			{
+			}
+
+			agent_invocation_projection_identity Identity;
+			std::shared_ptr<std::stop_source>    Stop;
+			std::mutex                           WorkspaceMutex;
+			std::optional<owned_agent_workspace> OwnedWorkspace;
+			std::atomic_bool                     Superseded       = false;
+			std::atomic_bool                     TerminalComplete = false;
+			std::atomic_bool                     CleanupScheduled = false;
+			std::atomic_bool                     Retired          = false;
+		};
+
+		implementation(
+			std::vector<core::agent_profile>     aProfiles,
+			std::vector<core::agent_host_policy> aPolicies,
+			std::filesystem::path                aWorkspaceParent,
+			agent_workspace_port&                aWorkspaces,
+			agent_process_port&                  aProcesses,
+			environment_reader                   aEnvironment,
+			effect_executor&                     aEffects,
+			decision_executor&                   aDecisionLane,
+			agent_invocation_projection_port&    aProjection)
+			: Profiles{ std::move(aProfiles) }
+			, Policies{ std::move(aPolicies) }
+			, WorkspaceParent{ std::move(aWorkspaceParent) }
+			, Workspaces{ aWorkspaces }
+			, Processes{ aProcesses }
+			, Environment{ std::move(aEnvironment) }
+			, Effects{ aEffects }
+			, DecisionLane{ aDecisionLane }
+			, Projection{ aProjection }
+		{
+		}
+
+		[[nodiscard]] auto enter_callback() -> bool
+		{
+			std::scoped_lock lock{ GateMutex };
+			if (Destroying) {
+				return false;
+			}
+			++CallbacksInFlight;
+			++CallbacksByThread[std::this_thread::get_id()];
+			return true;
+		}
+
+		void leave_callback()
+		{
+			auto       lock   = std::unique_lock{ GateMutex };
+			const auto thread = CallbacksByThread.find(std::this_thread::get_id());
+			if (thread != CallbacksByThread.end() && --thread->second == 0U) {
+				CallbacksByThread.erase(thread);
+			}
+			--CallbacksInFlight;
+			if (Destroying || CallbacksInFlight == 0U) {
+				lock.unlock();
+				GateChanged.notify_all();
+			}
+		}
+
+		struct callback_guard final
+		{
+			std::shared_ptr<implementation> Owner;
+
+			~callback_guard()
+			{
+				Owner->leave_callback();
+			}
+		};
+
+		void project_offer(
+			const std::span<const core::agent_profile> aProfiles) noexcept
+		{
+			try {
+				Projection.offer(aProfiles);
+			} catch (...) {
+			}
+		}
+
+		void project_refuse(const std::string_view aReason) noexcept
+		{
+			try {
+				Projection.refuse(aReason);
+			} catch (...) {
+			}
+		}
+
+		void project_admit(
+			const agent_invocation_projection_identity& aIdentity) noexcept
+		{
+			try {
+				Projection.admit(aIdentity);
+			} catch (...) {
+			}
+		}
+
+		void project_start(
+			const agent_invocation_projection_identity& aIdentity,
+			const prepared_workspace&                   aWorkspace) noexcept
+		{
+			try {
+				Projection.start(aIdentity, aWorkspace);
+			} catch (...) {
+			}
+		}
+
+		void project_stream(
+			const agent_invocation_projection_identity& aIdentity,
+			const agent_stream_event&                   aEvent) noexcept
+		{
+			try {
+				Projection.stream(aIdentity, aEvent);
+			} catch (...) {
+			}
+		}
+
+		void project_finish(
+			const agent_invocation_projection_identity& aIdentity,
+			const agent_run_result&                     aResult) noexcept
+		{
+			try {
+				Projection.finish(aIdentity, aResult);
+			} catch (...) {
+			}
+		}
+
+		void publish_offerings()
+		{
+			auto authority = std::optional<core::pull_request_authority>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				authority = Authority;
+			}
+			auto offered = std::vector<core::agent_profile>{ };
+			if (authority.has_value()) {
+				const auto policy = core::policy_for_host(Policies, authority->Host);
+				for (const auto& profile : Profiles) {
+					if (core::decide_agent_invocation(profile, policy).Permitted) {
+						offered.push_back(profile);
+					}
+				}
+			}
+			project_offer(offered);
+		}
+
+		void observe(
+			const core::application_session_id aApplicationSession,
+			core::pull_request_authority       aAuthority,
+			core::agent_revision_binding       aBinding)
+		{
+			auto changed = false;
+			{
+				std::scoped_lock lock{ StateMutex };
+				changed = !ApplicationSession.has_value()
+					|| *ApplicationSession != aApplicationSession
+					|| Authority != std::optional{ aAuthority }
+					|| Binding != std::optional{ aBinding };
+				ApplicationSession = aApplicationSession;
+				Authority          = std::move(aAuthority);
+				Binding            = std::move(aBinding);
+			}
+			if (changed) {
+				supersede();
+			}
+			publish_offerings();
+		}
+
+		void clear()
+		{
+			{
+				std::scoped_lock lock{ StateMutex };
+				ApplicationSession.reset();
+				Authority.reset();
+				Binding.reset();
+			}
+			supersede();
+			publish_offerings();
+		}
+
+		[[nodiscard]] auto current_matches(
+			const std::shared_ptr<invocation>& aInvocation) const -> bool
+		{
+			std::scoped_lock lock{ StateMutex };
+			return ActiveInvocation == aInvocation
+				&& ApplicationSession
+				== std::optional{ aInvocation->Identity.ApplicationSession }
+			&& Authority == std::optional{ aInvocation->Identity.Authority }
+			&& Binding == std::optional{ aInvocation->Identity.Session.Binding };
+		}
+
+		[[nodiscard]] auto still_active(
+			const std::shared_ptr<invocation>& aInvocation) const -> bool
+		{
+			std::scoped_lock lock{ StateMutex };
+			return ActiveInvocation == aInvocation;
+		}
+
+		void dispatch(agent_invocation_request aRequest)
+		{
+			if (Closing.load(std::memory_order_acquire)) {
+				project_refuse("agent host is closing");
+				return;
+			}
+			const auto profile = std::ranges::find(
+				Profiles,
+				aRequest.Profile,
+				&core::agent_profile::Id);
+			if (profile == Profiles.end()) {
+				project_refuse("profile_unknown");
+				return;
+			}
+			const auto policy = core::policy_for_host(Policies, aRequest.Authority.Host);
+			++CoreDecisions;
+			const auto verdict = core::decide_agent_invocation(*profile, policy);
+			if (!verdict.Permitted) {
+				project_refuse(core::stable_name(verdict.Refusal));
+				return;
+			}
+			const auto supplement = build_agent_context_supplement(aRequest.Context);
+			if (!supplement.has_value()) {
+				project_refuse("invalid_agent_context");
+				return;
+			}
+
+			auto job = std::shared_ptr<invocation>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				if (
+					!ApplicationSession.has_value() || !Authority.has_value()
+					|| !Binding.has_value() || ActiveInvocation
+					|| aRequest.ApplicationSession != *ApplicationSession
+					|| aRequest.Context.ApplicationSession
+						!= aRequest.ApplicationSession
+					|| aRequest.Authority != *Authority
+					|| aRequest.Context.Session.Profile != profile->Id
+					|| aRequest.Context.Session.Binding != *Binding
+					|| !binding_matches_authority(*Binding, *Authority)) {
+					project_refuse(
+						ActiveInvocation ? "agent_invocation_already_running"
+										 : "stale_or_mismatched_agent_context");
+					return;
+				}
+				job = std::make_shared<invocation>(
+					agent_invocation_projection_identity{
+						.ApplicationSession   = aRequest.ApplicationSession,
+						.Authority            = aRequest.Authority,
+						.Session              = aRequest.Context.Session,
+						.InvocationGeneration = ++InvocationGeneration,
+					},
+					std::make_shared<std::stop_source>());
+				ActiveInvocation = job;
+				ActiveJobs.store(1U, std::memory_order_release);
+			}
+
+			const auto existing = aRequest.ExistingCheckoutChosen
+				? prepare_agent_workspace(
+					  *profile,
+					  aRequest.Context.Session,
+					  aRequest.ExistingCheckout,
+					  true,
+					  { })
+				: workspace_preparation{ };
+			post_admission(
+				std::move(aRequest),
+				*profile,
+				*supplement,
+				existing,
+				job);
+		}
+
+		void post_admission(
+			agent_invocation_request           aRequest,
+			core::agent_profile                aProfile,
+			core::agent_context_supplement     aSupplement,
+			workspace_preparation              aExisting,
+			const std::shared_ptr<invocation>& aInvocation)
+		{
+			const auto weak = weak_from_this();
+			try {
+				DecisionLane.post(
+					[weak,
+					 request    = std::move(aRequest),
+					 profile    = std::move(aProfile),
+					 supplement = std::move(aSupplement),
+					 existing   = std::move(aExisting),
+					 aInvocation]() mutable {
+						auto self = weak.lock();
+						if (!self || !self->enter_callback()) {
+							return;
+						}
+						auto guard = callback_guard{ self };
+						if (!self->still_active(aInvocation)) {
+							return;
+						}
+						self->project_admit(aInvocation->Identity);
+						{
+							std::scoped_lock lock{ self->GateMutex };
+							if (self->Destroying) {
+								return;
+							}
+						}
+						if (
+							request.ExistingCheckoutChosen
+							&& !existing.Workspace.has_value()) {
+							self->complete(
+								{ .Session = aInvocation->Identity.Session.Id,
+								  .Outcome = agent_run_outcome::failed_to_start },
+								aInvocation);
+							return;
+						}
+						try {
+							self->Effects.post(
+								[weak,
+								 request    = std::move(request),
+								 profile    = std::move(profile),
+								 supplement = std::move(supplement),
+								 existing   = std::move(existing),
+								 aInvocation]() mutable {
+									auto effectOwner = weak.lock();
+									if (!effectOwner || !effectOwner->enter_callback()) {
+										return;
+									}
+									auto effectGuard = callback_guard{ effectOwner };
+									effectOwner->run(
+										std::move(request),
+										std::move(profile),
+										std::move(supplement),
+										std::move(existing),
+										aInvocation);
+								});
+						} catch (...) {
+							self->complete(
+								{ .Session = aInvocation->Identity.Session.Id,
+								  .Outcome = agent_run_outcome::failed_to_start },
+								aInvocation);
+						}
+					});
+			} catch (...) {
+				retire(aInvocation);
+			}
+		}
+
+		void track_workspace(
+			const std::shared_ptr<invocation>& aInvocation,
+			owned_agent_workspace              aWorkspace)
+		{
+			std::scoped_lock lock{ aInvocation->WorkspaceMutex };
+			aInvocation->OwnedWorkspace = std::move(aWorkspace);
+		}
+
+		[[nodiscard]] auto cleanup_workspace(
+			const std::shared_ptr<invocation>& aInvocation) -> bool
+		{
+			auto workspace = std::optional<owned_agent_workspace>{ };
+			{
+				std::scoped_lock lock{ aInvocation->WorkspaceMutex };
+				workspace = aInvocation->OwnedWorkspace;
+			}
+			if (!workspace.has_value()) {
+				return true;
+			}
+			const auto cleaned = Workspaces.cleanup_agent_workspace(*workspace, { });
+			if (!cleaned.has_value()) {
+				++WorkspaceCleanupFailures;
+				return false;
+			}
+			{
+				std::scoped_lock lock{ aInvocation->WorkspaceMutex };
+				if (aInvocation->OwnedWorkspace == workspace) {
+					aInvocation->OwnedWorkspace.reset();
+				}
+			}
+			++WorkspaceCleanups;
+			return true;
+		}
+
+		void run(
+			agent_invocation_request           aRequest,
+			core::agent_profile                aProfile,
+			core::agent_context_supplement     aSupplement,
+			workspace_preparation              aExisting,
+			const std::shared_ptr<invocation>& aInvocation)
+		{
+			auto workspace = std::optional<prepared_workspace>{ };
+			if (aInvocation->Stop->stop_requested()) {
+				complete(
+					{ .Session = aInvocation->Identity.Session.Id,
+					  .Outcome = agent_run_outcome::cancelled },
+					aInvocation);
+				return;
+			}
+			if (aRequest.ExistingCheckoutChosen) {
+				workspace = std::move(aExisting.Workspace);
+			} else {
+				++WorkspaceStarts;
+				auto materialized = Workspaces.materialize_agent_workspace(
+					agent_workspace_materialization_request{
+						.ApplicationSession = aRequest.ApplicationSession,
+						.Authority          = aRequest.Authority,
+						.Session            = aRequest.Context.Session,
+						.ParentDirectory    = WorkspaceParent,
+					},
+					aInvocation->Stop->get_token());
+				if (!materialized.has_value()) {
+					complete(
+						{ .Session = aInvocation->Identity.Session.Id,
+						  .Outcome = workspace_outcome(materialized.error()) },
+						aInvocation);
+					return;
+				}
+				workspace = materialized->Workspace;
+				track_workspace(aInvocation, std::move(*materialized));
+			}
+
+			if (aInvocation->Stop->stop_requested()) {
+				complete(
+					{ .Session = aInvocation->Identity.Session.Id,
+					  .Outcome = agent_run_outcome::cancelled },
+					aInvocation);
+				return;
+			}
+			auto launch = build_agent_launch(aProfile, aSupplement, Environment);
+			if (!launch.has_value() || !workspace.has_value()) {
+				complete(
+					{ .Session = aInvocation->Identity.Session.Id,
+					  .Outcome = agent_run_outcome::failed_to_start },
+					aInvocation);
+				return;
+			}
+			launch->WorkingDirectory = workspace->Path;
+			if (aInvocation->Stop->stop_requested()) {
+				complete(
+					{ .Session = aInvocation->Identity.Session.Id,
+					  .Outcome = agent_run_outcome::cancelled },
+					aInvocation);
+				return;
+			}
+			post_start(aInvocation, *workspace);
+			++ProcessStarts;
+			const auto weak   = weak_from_this();
+			auto       result = Processes.run(
+				*launch,
+				120'000,
+				[weak, aInvocation](const agent_stream_event& aEvent) {
+					if (auto self = weak.lock()) {
+						self->post_stream(aInvocation, aEvent);
+					}
+				},
+				aInvocation->Stop->get_token());
+			complete(std::move(result), aInvocation);
+		}
+
+		void post_start(
+			const std::shared_ptr<invocation>& aInvocation,
+			prepared_workspace                 aWorkspace)
+		{
+			const auto weak = weak_from_this();
+			try {
+				DecisionLane.post(
+					[weak, aInvocation, workspace = std::move(aWorkspace)] {
+						auto self = weak.lock();
+						if (!self || !self->enter_callback()) {
+							return;
+						}
+						auto guard = callback_guard{ self };
+						if (self->current_matches(aInvocation)) {
+							self->project_start(aInvocation->Identity, workspace);
+						}
+					});
+			} catch (...) {
+			}
+		}
+
+		void post_stream(
+			const std::shared_ptr<invocation>& aInvocation,
+			agent_stream_event                 aEvent)
+		{
+			const auto weak = weak_from_this();
+			try {
+				DecisionLane.post(
+					[weak, aInvocation, event = std::move(aEvent)] {
+						auto self = weak.lock();
+						if (!self || !self->enter_callback()) {
+							return;
+						}
+						auto guard = callback_guard{ self };
+						if (
+							self->current_matches(aInvocation)
+							&& event.Session == aInvocation->Identity.Session.Id) {
+							self->project_stream(aInvocation->Identity, event);
+						}
+					});
+			} catch (...) {
+			}
+		}
+
+		void complete(
+			agent_run_result                   aResult,
+			const std::shared_ptr<invocation>& aInvocation)
+		{
+			const auto weak = weak_from_this();
+			try {
+				DecisionLane.post(
+					[weak, aInvocation, result = std::move(aResult)]() mutable {
+						auto self = weak.lock();
+						if (!self || !self->enter_callback()) {
+							return;
+						}
+						auto guard = callback_guard{ self };
+						if (!self->still_active(aInvocation)) {
+							return;
+						}
+						auto observed = std::optional<core::agent_revision_binding>{ };
+						{
+							std::scoped_lock lock{ self->StateMutex };
+							if (
+								self->ApplicationSession
+									== std::optional{ aInvocation->Identity.ApplicationSession }
+								&& self->Authority
+									== std::optional{ aInvocation->Identity.Authority }) {
+								observed = self->Binding;
+							}
+						}
+						auto final = aInvocation->Superseded.load(std::memory_order_acquire)
+							? agent_run_result{
+								  .Session = aInvocation->Identity.Session.Id,
+								  .Outcome = agent_run_outcome::stale_result,
+							  }
+							: observed.has_value() ? finalize_agent_run(std::move(result), aInvocation->Identity.Session, *observed)
+												   : agent_run_result{
+														 .Session = aInvocation->Identity.Session.Id,
+														 .Outcome = agent_run_outcome::stale_result,
+													 };
+						self->project_finish(aInvocation->Identity, final);
+						aInvocation->TerminalComplete.store(
+							true, std::memory_order_release);
+						{
+							std::scoped_lock lock{ self->GateMutex };
+							if (self->Destroying) {
+								return;
+							}
+						}
+						self->post_cleanup(aInvocation);
+					});
+			} catch (...) {
+				aInvocation->TerminalComplete.store(true, std::memory_order_release);
+				if (cleanup_workspace(aInvocation)) {
+					retire(aInvocation);
+				}
+			}
+		}
+
+		void post_cleanup(const std::shared_ptr<invocation>& aInvocation)
+		{
+			if (!aInvocation->TerminalComplete.load(std::memory_order_acquire)) {
+				return;
+			}
+			auto expected = false;
+			if (!aInvocation->CleanupScheduled.compare_exchange_strong(
+					expected, true, std::memory_order_acq_rel)) {
+				return;
+			}
+			const auto weak = weak_from_this();
+			try {
+				Effects.post([weak, aInvocation] {
+					auto self = weak.lock();
+					if (!self || !self->enter_callback()) {
+						return;
+					}
+					auto guard   = callback_guard{ self };
+					auto cleaned = false;
+					try {
+						cleaned = self->cleanup_workspace(aInvocation);
+					} catch (...) {
+						++self->WorkspaceCleanupFailures;
+					}
+					if (cleaned) {
+						self->retire(aInvocation);
+					} else {
+						aInvocation->CleanupScheduled.store(
+							false, std::memory_order_release);
+					}
+				});
+			} catch (...) {
+				aInvocation->CleanupScheduled.store(false, std::memory_order_release);
+			}
+		}
+
+		void retry_cleanup()
+		{
+			auto active = std::shared_ptr<invocation>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				active = ActiveInvocation;
+			}
+			if (active) {
+				post_cleanup(active);
+			}
+		}
+
+		void retire(const std::shared_ptr<invocation>& aInvocation)
+		{
+			if (aInvocation->Retired.exchange(true, std::memory_order_acq_rel)) {
+				return;
+			}
+			{
+				std::scoped_lock lock{ StateMutex };
+				if (ActiveInvocation == aInvocation) {
+					ActiveInvocation.reset();
+				}
+			}
+			ActiveJobs.store(0U, std::memory_order_release);
+		}
+
+		void cancel()
+		{
+			auto active = std::shared_ptr<invocation>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				active = ActiveInvocation;
+			}
+			if (!active) {
+				return;
+			}
+			static_cast<void>(active->Stop->request_stop());
+			Processes.cancel();
+		}
+
+		void supersede()
+		{
+			auto active = std::shared_ptr<invocation>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				active = ActiveInvocation;
+			}
+			if (!active) {
+				return;
+			}
+			active->Superseded.store(true, std::memory_order_release);
+			static_cast<void>(active->Stop->request_stop());
+			Processes.cancel();
+		}
+
+		void destroy()
+		{
+			Closing.store(true, std::memory_order_release);
+			cancel();
+			{
+				auto lock          = std::unique_lock{ GateMutex };
+				Destroying         = true;
+				const auto current = CallbacksByThread.find(
+					std::this_thread::get_id());
+				const auto currentDepth = current == CallbacksByThread.end()
+					? 0U
+					: current->second;
+				GateChanged.wait(lock, [this, currentDepth] {
+					return CallbacksInFlight <= currentDepth;
+				});
+			}
+			auto active = std::shared_ptr<invocation>{ };
+			{
+				std::scoped_lock lock{ StateMutex };
+				active = ActiveInvocation;
+			}
+			if (active) {
+				if (cleanup_workspace(active)) {
+					retire(active);
+				}
+			}
+		}
+
+		std::vector<core::agent_profile>     Profiles;
+		std::vector<core::agent_host_policy> Policies;
+		std::filesystem::path                WorkspaceParent;
+		agent_workspace_port&                Workspaces;
+		agent_process_port&                  Processes;
+		environment_reader                   Environment;
+		effect_executor&                     Effects;
+		decision_executor&                   DecisionLane;
+		agent_invocation_projection_port&    Projection;
+
+		mutable std::mutex                          StateMutex;
+		std::optional<core::application_session_id> ApplicationSession;
+		std::optional<core::pull_request_authority> Authority;
+		std::optional<core::agent_revision_binding> Binding;
+		std::shared_ptr<invocation>                 ActiveInvocation;
+		std::uint64_t                               InvocationGeneration = 0U;
+
+		std::atomic_bool                       Closing    = false;
+		std::atomic_size_t                     ActiveJobs = 0U;
+		std::mutex                             GateMutex;
+		std::condition_variable                GateChanged;
+		std::size_t                            CallbacksInFlight = 0U;
+		std::map<std::thread::id, std::size_t> CallbacksByThread;
+		bool                                   Destroying = false;
+
+		std::atomic_uint64_t CoreDecisions            = 0U;
+		std::atomic_uint64_t WorkspaceStarts          = 0U;
+		std::atomic_uint64_t ProcessStarts            = 0U;
+		std::atomic_uint64_t WorkspaceCleanups        = 0U;
+		std::atomic_uint64_t WorkspaceCleanupFailures = 0U;
+	};
+
+	agent_invocation_host::agent_invocation_host(
+		std::vector<core::agent_profile>     aProfiles,
+		std::vector<core::agent_host_policy> aPolicies,
+		std::filesystem::path                aWorkspaceParent,
+		agent_workspace_port&                aWorkspaces,
+		agent_process_port&                  aProcesses,
+		environment_reader                   aEnvironment,
+		effect_executor&                     aEffects,
+		decision_executor&                   aDecisionLane,
+		agent_invocation_projection_port&    aProjection)
+		: Implementation{ std::make_shared<implementation>(
+			  std::move(aProfiles),
+			  std::move(aPolicies),
+			  std::move(aWorkspaceParent),
+			  aWorkspaces,
+			  aProcesses,
+			  std::move(aEnvironment),
+			  aEffects,
+			  aDecisionLane,
+			  aProjection) }
+	{
+	}
+
+	agent_invocation_host::~agent_invocation_host()
+	{
+		if (Implementation) {
+			Implementation->destroy();
+			Implementation.reset();
+		}
+	}
+
+	void agent_invocation_host::observe(
+		const core::application_session_id aApplicationSession,
+		core::pull_request_authority       aAuthority,
+		core::agent_revision_binding       aBinding)
+	{
+		const auto implementation = Implementation;
+		implementation->observe(
+			aApplicationSession,
+			std::move(aAuthority),
+			std::move(aBinding));
+	}
+
+	void agent_invocation_host::clear()
+	{
+		const auto implementation = Implementation;
+		implementation->clear();
+	}
+
+	void agent_invocation_host::dispatch(agent_invocation_request aRequest)
+	{
+		const auto implementation = Implementation;
+		implementation->dispatch(std::move(aRequest));
+	}
+
+	void agent_invocation_host::cancel()
+	{
+		const auto implementation = Implementation;
+		implementation->cancel();
+	}
+
+	void agent_invocation_host::shutdown()
+	{
+		const auto implementation = Implementation;
+		implementation->Closing.store(true, std::memory_order_release);
+		implementation->cancel();
+	}
+
+	void agent_invocation_host::retry_cleanup()
+	{
+		const auto implementation = Implementation;
+		implementation->retry_cleanup();
+	}
+
+	auto agent_invocation_host::is_quiescent() const noexcept -> bool
+	{
+		const auto implementation = Implementation;
+		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U;
+	}
+
+	auto agent_invocation_host::statistics() const noexcept
+		-> agent_invocation_host_statistics
+	{
+		const auto implementation = Implementation;
+		return {
+			.CoreDecisions     = implementation->CoreDecisions.load(),
+			.WorkspaceStarts   = implementation->WorkspaceStarts.load(),
+			.ProcessStarts     = implementation->ProcessStarts.load(),
+			.WorkspaceCleanups = implementation->WorkspaceCleanups.load(),
+			.WorkspaceCleanupFailures
+			= implementation->WorkspaceCleanupFailures.load(),
+		};
+	}
+} // namespace bpr::application

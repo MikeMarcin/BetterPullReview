@@ -94,11 +94,12 @@ namespace {
 		const auto segment = identity<core::alignment_segment_id>(6U);
 		const auto group   = identity<core::change_group_id>(7U);
 		const auto built   = core::build_agent_supplement({
-			.Session          = session(),
-			.PullRequestUrl   = "https://github.example/octo/app/pull/30",
-			.PreviousUpload   = commit(3U),
-			.LastReviewedHead = commit(4U),
-			.Files            = {
+			.ApplicationSession = core::application_session_id{ 11U },
+			.Session            = session(),
+			.PullRequestUrl     = "https://github.example/octo/app/pull/30",
+			.PreviousUpload     = commit(3U),
+			.LastReviewedHead   = commit(4U),
+			.Files              = {
 				{
 					.File               = identity<core::file_identity>(3U),
 					.Material           = identity<core::file_material_id>(4U),
@@ -173,7 +174,7 @@ namespace {
 	[[nodiscard]] auto request(const core::agent_protocol aProtocol)
 		-> application::agent_launch_request
 	{
-		const auto built = application::build_agent_launch(
+		auto built = application::build_agent_launch(
 			canary_profile(aProtocol),
 			supplement(),
 			[](const std::string& aName) -> std::optional<std::string> {
@@ -184,6 +185,7 @@ namespace {
 					: std::nullopt;
 			});
 		expect(built.has_value(), "the matching canary request builds");
+		built->WorkingDirectory = std::filesystem::current_path().string();
 		return *built;
 	}
 
@@ -362,6 +364,16 @@ namespace {
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
 		auto launcher = adapters::agent::agent_process_launcher{ };
 
+		auto unmaterialized = request(core::agent_protocol::external_terminal);
+		unmaterialized.WorkingDirectory.clear();
+		const auto refusedDirectory = launcher.run(unmaterialized, 2'000);
+		expect(
+			refusedDirectory.Outcome
+					== application::agent_run_outcome::failed_to_start
+				&& !refusedDirectory.StandardError.empty()
+				&& refusedDirectory.Events.empty(),
+			"the launcher refuses before start when no materialized working directory was accepted");
+
 		auto failedStart       = request(core::agent_protocol::external_terminal);
 		failedStart.Executable = "/definitely/not/a/betterpullreview-agent";
 		const auto failed      = launcher.run(failedStart, 2'000);
@@ -451,6 +463,17 @@ namespace {
 
 		auto cancelled = request(core::agent_protocol::codex_app_server);
 		cancelled.Arguments.emplace_back("--wait-forever");
+		auto preCancelled = std::stop_source{ };
+		static_cast<void>(preCancelled.request_stop());
+		const auto preCancelledResult = launcher.run(
+			cancelled,
+			10'000,
+			{ },
+			preCancelled.get_token());
+		expect(
+			preCancelledResult.Outcome
+				== application::agent_run_outcome::cancelled,
+			"an invocation-specific cancellation cannot be reset before process start");
 		auto cancelThread = std::jthread{ [&launcher] {
 			std::this_thread::sleep_for(std::chrono::milliseconds{ 150 });
 			launcher.cancel();

@@ -59,8 +59,9 @@ namespace {
 	[[nodiscard]] auto minimal_request() -> core::agent_supplement_request
 	{
 		return {
-			.Session        = session(),
-			.PullRequestUrl = "https://github.example/octo/app/pull/30",
+			.ApplicationSession = core::application_session_id{ 11U },
+			.Session            = session(),
+			.PullRequestUrl     = "https://github.example/octo/app/pull/30",
 		};
 	}
 
@@ -141,9 +142,10 @@ namespace {
 		const auto built = core::build_agent_supplement(minimal_request());
 		expect(built.has_value(), "a valid minimal request builds");
 		const auto expected = core::agent_context_supplement{
-			.SchemaVersion  = core::agent_supplement_schema_version,
-			.Session        = session(),
-			.PullRequestUrl = "https://github.example/octo/app/pull/30",
+			.SchemaVersion      = core::agent_supplement_schema_version,
+			.ApplicationSession = core::application_session_id{ 11U },
+			.Session            = session(),
+			.PullRequestUrl     = "https://github.example/octo/app/pull/30",
 		};
 		expect(
 			*built == expected,
@@ -219,6 +221,7 @@ namespace {
 		using supplement     = core::agent_context_supplement;
 		const auto whole     = supplement{ };
 		const auto& [version,
+					 applicationSession,
 					 run,
 					 url,
 					 previous,
@@ -229,6 +232,9 @@ namespace {
 					 notes,
 					 drafts] = whole;
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
+		static_assert(std::is_same_v<
+					  decltype(applicationSession),
+					  const core::application_session_id>);
 		static_assert(std::is_same_v<decltype(run), const core::agent_session>);
 		static_assert(std::is_same_v<
 					  decltype(selection),
@@ -238,7 +244,8 @@ namespace {
 		static_assert(std::is_same_v<
 					  decltype(drafts), const std::vector<core::supplement_draft>>);
 		expect(
-			version == core::agent_supplement_schema_version && run.Id.value() == 0U
+			version == core::agent_supplement_schema_version
+				&& applicationSession.value() == 0U && run.Id.value() == 0U
 				&& url.empty() && !previous && !lastReviewed && files.empty()
 				&& defects.empty() && !selection && notes.empty() && drafts.empty(),
 			"the complete type contains only domain identity, bounded source/prose, "

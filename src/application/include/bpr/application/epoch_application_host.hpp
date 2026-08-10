@@ -19,7 +19,8 @@ namespace bpr::application {
 	class epoch_application_host final
 		: public github_epoch_handoff_port,
 		  public diff_blob_port,
-		  public workbench_selected_diff_port
+		  public workbench_selected_diff_port,
+		  public agent_workspace_port
 	{
 	public:
 		// Semantic ingress and state/quiescence inspection are confined to the
@@ -63,6 +64,14 @@ namespace bpr::application {
 		[[nodiscard]] auto materialize(
 			const diff_blob_request& aRequest,
 			std::stop_token          aStop) -> diff_blob_observation override;
+		[[nodiscard]] auto materialize_agent_workspace(
+			const agent_workspace_materialization_request& aRequest,
+			std::stop_token                                aStop)
+			-> std::expected<owned_agent_workspace, agent_workspace_failure> override;
+		[[nodiscard]] auto cleanup_agent_workspace(
+			const owned_agent_workspace& aWorkspace,
+			std::stop_token              aStop)
+			-> std::expected<void, agent_workspace_failure> override;
 		[[nodiscard]] auto context(
 			const workbench_pull_request_authority& aAuthority) const
 			-> std::optional<workbench_selected_diff_context> override;

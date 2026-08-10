@@ -15,6 +15,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace bpr::app::detail {
 	enum class github_public_path_fixture {
@@ -52,6 +53,9 @@ namespace bpr::app::detail {
 		bool                                 UseGrantedNotificationSink       = false;
 		bool                                 DisableNotificationRequestWire   = false;
 		bool                                 DisableNotificationSelectionWire = false;
+		bool                                 DisableAgentHostComposition      = false;
+		bool                                 DisableAgentGestureWire          = false;
+		std::optional<std::filesystem::path> ExternalAgentExecutable;
 	};
 
 	struct queue_notification_fixture_evidence
@@ -200,6 +204,33 @@ namespace bpr::app::detail {
 
 		auto operator<=>(const review_round_trip_composition_probe_evidence&) const
 			= default;
+	};
+
+	struct agent_invocation_composition_evidence
+	{
+		bool                                          HostComposed = false;
+		bool                                          Quiescent    = false;
+		application::agent_invocation_host_statistics Statistics;
+		std::filesystem::path                         WorkspaceRoot;
+
+		auto operator<=>(const agent_invocation_composition_evidence&) const
+			= default;
+	};
+
+	/// \brief Raw accepted authorities used to falsify the emitted agent context.
+	struct agent_invocation_context_evidence
+	{
+		core::application_session_id                       ApplicationSession;
+		core::pull_request_authority                       Authority;
+		core::agent_session_id                             NextSession;
+		core::agent_revision_binding                       Binding;
+		std::string                                        PullRequestUrl;
+		std::optional<core::git_commit_oid>                PreviousUpload;
+		std::vector<application::agent_file_context_input> Files;
+		application::private_ledger_observation            Private;
+		std::optional<core::supplement_semantic_context>   Selection;
+
+		auto operator<=>(const agent_invocation_context_evidence&) const = default;
 	};
 
 	/// \brief Records the independently observable receipt-composition path.
@@ -408,6 +439,17 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto defect_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> defect_composition_probe_evidence;
+		[[nodiscard]] static auto agent_invocation_evidence(
+			const github_application& aApplication) noexcept
+			-> agent_invocation_composition_evidence;
+		/// \brief Seeds unselected private prose and a last-reviewed head.
+		[[nodiscard]] static auto seed_agent_private_context_canary(
+			github_application& aApplication,
+			std::string_view    aUnselectedNote) -> bool;
+		/// \brief Reads raw accepted context independently of agent serialization.
+		[[nodiscard]] static auto agent_invocation_context(
+			github_application& aApplication)
+			-> std::optional<agent_invocation_context_evidence>;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

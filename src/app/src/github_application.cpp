@@ -24,13 +24,16 @@
 	#include "native_https_transport.hpp"
 #endif
 
+#include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
+#include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/appearance_application_host.hpp"
 #include "bpr/application/defect_correlation.hpp"
 #include "bpr/application/diff_application_host.hpp"
@@ -77,6 +80,7 @@
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QStyleHints>
+#include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextFormat>
@@ -1448,6 +1452,20 @@ namespace bpr::app {
 #endif
 		)
 		{
+			if (aConfig.ExistingCheckout.has_value()) {
+				std::error_code checkoutError;
+				const auto      canonical = std::filesystem::canonical(
+					*aConfig.ExistingCheckout,
+					checkoutError);
+				if (!checkoutError && canonical.is_absolute()
+					&& std::filesystem::is_directory(canonical, checkoutError)
+					&& !checkoutError) {
+					ExistingCheckout = application::checkout_observation{
+						.Path        = canonical.string(),
+						.Cleanliness = application::checkout_cleanliness::unknown,
+					};
+				}
+			}
 #if defined(BPR_BUILD_TESTING)
 			if (aFixture.has_value()) {
 				DisableWorkbenchSelectionWire
@@ -1460,6 +1478,12 @@ namespace bpr::app {
 					= aFixtureOptions.DisableNotificationRequestWire;
 				DisableNotificationSelectionWire
 					= aFixtureOptions.DisableNotificationSelectionWire;
+				DisableAgentHostComposition
+					= aFixtureOptions.DisableAgentHostComposition;
+				DisableAgentGestureWire
+					= aFixtureOptions.DisableAgentGestureWire;
+				ExternalAgentExecutable
+					= aFixtureOptions.ExternalAgentExecutable;
 				const auto host = fixture_host(*aFixture);
 				append_profile(
 					Profiles,
@@ -1730,6 +1754,91 @@ namespace bpr::app {
 				EpochEffects,
 				DecisionLane,
 				*this);
+
+			AgentWorkspaceRoot = std::make_unique<QTemporaryDir>(
+				QDir::tempPath() + QStringLiteral("/betterpullreview-agent-XXXXXX"));
+			if (!AgentWorkspaceRoot->isValid()) {
+				throw std::runtime_error{ "Agent workspace root is unavailable" };
+			}
+			// Exact installed-Git cleanup must be the only recursive authority.
+			// A generic temporary-directory sweep could delete a same-path
+			// substitute after exact cleanup correctly refused it.
+			AgentWorkspaceRoot->setAutoRemove(false);
+			const auto agentWorkspacePath = std::filesystem::canonical(
+				AgentWorkspaceRoot->path().toStdString());
+			AgentWorkspaceParent
+				= adapters::git::capture_installed_agent_workspace_parent(
+					agentWorkspacePath);
+			if (!AgentWorkspaceParent.has_value()) {
+				throw std::runtime_error{
+					"Agent workspace root identity is unavailable"
+				};
+			}
+			const auto cachePath = std::filesystem::canonical(ApplicationDataRoot);
+			const auto within    = [](const std::filesystem::path& aPath,
+									  const std::filesystem::path& aPrefix) {
+				auto path   = aPath.begin();
+				auto prefix = aPrefix.begin();
+				for (; prefix != aPrefix.end(); ++prefix, ++path) {
+					if (path == aPath.end() || *path != *prefix) {
+						return false;
+					}
+				}
+				return true;
+			};
+			if (within(agentWorkspacePath, cachePath)
+				|| within(cachePath, agentWorkspacePath)) {
+				throw std::runtime_error{ "Agent workspace root crosses Git cache" };
+			}
+			auto agentProfiles = core::built_in_agent_profiles();
+#if defined(BPR_BUILD_TESTING)
+			if (ExternalAgentExecutable.has_value()) {
+				const auto external = std::ranges::find(
+					agentProfiles,
+					core::external_terminal_profile_id,
+					&core::agent_profile::Id);
+				if (external != agentProfiles.end()) {
+					external->Executable = ExternalAgentExecutable->string();
+				}
+			}
+#endif
+			AgentProcess = std::make_unique<adapters::agent::agent_process_launcher>();
+#if defined(BPR_BUILD_TESTING)
+			if (!DisableAgentHostComposition)
+#endif
+			{
+				AgentHost = std::make_unique<application::agent_invocation_host>(
+					std::move(agentProfiles),
+					std::vector<core::agent_host_policy>{
+						core::built_in_agent_policy(
+							core::git_host_id{ 1U },
+							core::built_in_agent_host_kind::github_com),
+						core::built_in_agent_policy(
+							core::git_host_id{ 2U },
+							core::built_in_agent_host_kind::explicit_ghes),
+					},
+					agentWorkspacePath,
+					*EpochHost,
+					*AgentProcess,
+					[](const std::string& aName) -> std::optional<std::string> {
+						if (!qEnvironmentVariableIsSet(aName.c_str())) {
+							return std::nullopt;
+						}
+						return qEnvironmentVariable(aName.c_str()).toStdString();
+					},
+					AgentEffects,
+					DecisionLane,
+					*Window->agent_panel());
+			}
+			Window->set_agent_dispatch(
+				[this](qt::agent_intent aIntent) {
+#if defined(BPR_BUILD_TESTING)
+					if (DisableAgentGestureWire) {
+						return;
+					}
+#endif
+					dispatch_agent_intent(std::move(aIntent));
+				});
 			Window->epoch_selectors()->set_dispatch(
 				[this](application::epoch_intent aIntent) { dispatch_epoch_intent(std::move(aIntent)); });
 			DiffProjections = std::make_unique<composition_diff_projection>(
@@ -2588,6 +2697,14 @@ namespace bpr::app {
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			if (!Closing && EpochHost != nullptr) {
+				AgentReview = agent_review_facts{
+					.Host        = aHandoff.Host,
+					.Repository  = aHandoff.Repository,
+					.PullRequest = aHandoff.PullRequest,
+					.Number      = aHandoff.Number,
+					.Hostname    = std::string{ aHandoff.Hostname.value() },
+					.Locator     = aHandoff.Locator,
+				};
 				const auto authority = workbench_authority(aHandoff);
 				const auto snapshot  = Host != nullptr
 					? Host->accepted_snapshot()
@@ -2656,6 +2773,10 @@ namespace bpr::app {
 		{
 			if (Closing || EpochHost == nullptr) {
 				return;
+			}
+			AgentReview.reset();
+			if (AgentHost != nullptr) {
+				AgentHost->clear();
 			}
 			if (QueueHost != nullptr) {
 				QueueHost->cancel();
@@ -2776,6 +2897,138 @@ namespace bpr::app {
 			EpochHost->dispatch(std::move(aIntent));
 		}
 
+		void refresh_agent_authority()
+		{
+			if (AgentHost == nullptr || EpochHost == nullptr || Window == nullptr) {
+				return;
+			}
+			const auto& state = EpochHost->state();
+			if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
+				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()) {
+				AgentHost->clear();
+				return;
+			}
+			const auto& authority  = *state.Authority;
+			const auto& revision   = *state.AcceptedRevision;
+			const auto& comparison = *state.AcceptedComparison;
+			if (authority.Host != AgentReview->Host
+				|| authority.Repository != AgentReview->Repository
+				|| authority.PullRequest != AgentReview->PullRequest) {
+				AgentHost->clear();
+				return;
+			}
+			AgentHost->observe(
+				state.ApplicationSession,
+				authority,
+				core::agent_revision_binding{
+					.Host        = authority.Host,
+					.Repository  = authority.Repository,
+					.PullRequest = authority.PullRequest,
+					.BaseOid     = revision.Base,
+					.HeadOid     = revision.Head,
+					.LeftEpoch   = comparison.Left.Identity.Epoch,
+					.RightEpoch  = comparison.Right.Identity.Epoch,
+				});
+			Window->agent_panel()->disclose_scope(
+				QStringLiteral(
+					"The selected agent receives the exact accepted PR/diff identities, "
+					"durable defects, and current semantic selection. This surface includes "
+					"no private note or draft. It runs in a disposable exact-head workspace "
+					"outside the Git cache.%1")
+					.arg(ExistingCheckout.has_value()
+							 ? QStringLiteral(
+								   " Choose the working-copy option only for this invocation; its state is disclosed as unknown.")
+							 : QString{ }));
+		}
+
+		void dispatch_agent_intent(qt::agent_intent aIntent)
+		{
+			if (Closing || AgentHost == nullptr || EpochHost == nullptr
+				|| Window == nullptr) {
+				return;
+			}
+			if (std::holds_alternative<qt::cancel_agent_intent>(aIntent)) {
+				AgentHost->cancel();
+				return;
+			}
+			const auto  start = std::get<qt::start_agent_intent>(aIntent);
+			const auto& state = EpochHost->state();
+			if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
+				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()
+				|| NextAgentSession == 0U) {
+				Window->agent_panel()->refuse("no exact accepted review context");
+				return;
+			}
+			const auto& authority          = *state.Authority;
+			const auto& revision           = *state.AcceptedRevision;
+			const auto& comparison         = *state.AcceptedComparison;
+			auto        privateObservation = application::private_ledger_observation{ };
+			if (ReviewLedgerHost != nullptr) {
+				auto observed = ReviewLedgerHost->private_observation();
+				if (!observed.has_value()) {
+					Window->agent_panel()->refuse("private review context is unavailable");
+					return;
+				}
+				privateObservation = std::move(*observed);
+			}
+			const auto session = core::agent_session{
+				.Id      = core::agent_session_id{ NextAgentSession++ },
+				.Profile = start.Profile,
+				.Binding = {
+					.Host        = authority.Host,
+					.Repository  = authority.Repository,
+					.PullRequest = authority.PullRequest,
+					.BaseOid     = revision.Base,
+					.HeadOid     = revision.Head,
+					.LeftEpoch   = comparison.Left.Identity.Epoch,
+					.RightEpoch  = comparison.Right.Identity.Epoch,
+				},
+			};
+			auto observation = application::agent_context_observation{
+				.ApplicationSession = state.ApplicationSession,
+				.Session            = session,
+				.PullRequestUrl     = "https://" + AgentReview->Hostname + "/"
+					+ AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name
+					+ "/pull/" + std::to_string(AgentReview->Number.value()),
+				.Private = std::move(privateObservation),
+			};
+			if (SelectedDiffPublication.has_value()) {
+				const auto& selected = *SelectedDiffPublication;
+				const auto  lock     = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (ReviewLedgerReceipt.has_value()
+					&& ReviewLedgerReceipt->File == selected.Request.File.File) {
+					observation.Files.push_back(application::agent_file_context_input{
+						.Path               = selected.Request.File.PresentationPath,
+						.Receipt            = *ReviewLedgerReceipt,
+						.ChangedSinceReview = observation.Private.LastReviewedHead.has_value()
+							&& *observation.Private.LastReviewedHead != revision.Head,
+					});
+				}
+				const auto* const workbench = Window->comparison_surface();
+				if (workbench->selection().has_value()
+					&& workbench->current_result() != nullptr
+					&& workbench->current_result()->Alignment.Key == selected.Key
+					&& workbench->selection()->Comparison
+						== workbench->current_result()->Alignment.Digest) {
+					observation.Selection = core::supplement_semantic_context{
+						.File       = selected.Request.File.File,
+						.Selection  = *workbench->selection(),
+						.Confidence = core::supplement_mapping_confidence::exact,
+						.Segments   = workbench->current_result()->Alignment.Segments,
+						.Groups     = workbench->current_result()->Alignment.Groups,
+					};
+				}
+			}
+			AgentHost->dispatch(application::agent_invocation_request{
+				.ApplicationSession     = state.ApplicationSession,
+				.Authority              = authority,
+				.Profile                = start.Profile,
+				.Context                = std::move(observation),
+				.ExistingCheckoutChosen = start.ExistingCheckoutChosen,
+				.ExistingCheckout       = ExistingCheckout,
+			});
+		}
+
 		void publish(
 			const application::epoch_presentation_update& aUpdate) override
 		{
@@ -2783,6 +3036,7 @@ namespace bpr::app {
 				return;
 			}
 			Window->publish(aUpdate);
+			refresh_agent_authority();
 			const auto* comparison = aUpdate.Transition.has_value()
 					&& aUpdate.Transition->Comparison.has_value()
 				? &*aUpdate.Transition->Comparison
@@ -3226,6 +3480,21 @@ namespace bpr::app {
 				return;
 			}
 			Closing = true;
+			if (AgentHost) {
+				AgentHost->shutdown();
+			}
+			if (!AgentHost || AgentHost->is_quiescent()) {
+				begin_other_shutdown();
+			}
+			schedule_shutdown_poll();
+		}
+
+		void begin_other_shutdown()
+		{
+			if (OtherShutdownBegun) {
+				return;
+			}
+			OtherShutdownBegun = true;
 			// Every composed host must be told, or the shutdown poll waits on a
 			// host that was never asked to stop and the application never
 			// exits. Adding a host to the composition without adding it here is
@@ -3243,7 +3512,6 @@ namespace bpr::app {
 			DiffHost->shutdown();
 			EpochHost->shutdown();
 			Host->shutdown();
-			schedule_shutdown_poll();
 		}
 
 		void schedule_shutdown_poll()
@@ -3266,6 +3534,18 @@ namespace bpr::app {
 			if (!Closing || ShutdownComplete) {
 				return;
 			}
+			if (AgentHost && !AgentHost->is_quiescent()) {
+				AgentHost->retry_cleanup();
+				schedule_shutdown_poll();
+				return;
+			}
+			if (!AgentWorkspaceCleanupAttempted) {
+				AgentWorkspaceCleanupAttempted = true;
+				AgentWorkspaceCleanupFailed    = !AgentWorkspaceParent.has_value()
+					|| !adapters::git::remove_installed_agent_workspace_parent(
+						*AgentWorkspaceParent);
+			}
+			begin_other_shutdown();
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
 				|| !Host->is_quiescent()
@@ -3279,6 +3559,7 @@ namespace bpr::app {
 			ShutdownCleanupFailed         = Host->shutdown_cleanup_failed();
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
 			AppearanceEffects.close_and_drain();
+			AgentEffects.close_and_drain();
 			QueueEffects.close_and_drain();
 			WorkbenchEffects.close_and_drain();
 			DiffEffects.close_and_drain();
@@ -3448,12 +3729,15 @@ namespace bpr::app {
 		std::size_t                                   SelectedDiffPublications  = 0U;
 		std::size_t                                   SelectedDiffFailures      = 0U;
 		std::optional<application::workbench_selected_diff_publication>
-					LastSelectedDiff;
-		std::size_t FixtureDiffHelperInvocations   = 0U;
-		bool        DisableWorkbenchSelectionWire  = false;
-		bool        DisableReviewLedgerGestureWire = false;
-		bool        ReviewLedgerWasPresentOnEntry  = false;
-		bool        ReviewLedgerRoundTripPassed    = false;
+											 LastSelectedDiff;
+		std::size_t                          FixtureDiffHelperInvocations   = 0U;
+		bool                                 DisableWorkbenchSelectionWire  = false;
+		bool                                 DisableReviewLedgerGestureWire = false;
+		bool                                 DisableAgentHostComposition    = false;
+		bool                                 DisableAgentGestureWire        = false;
+		std::optional<std::filesystem::path> ExternalAgentExecutable;
+		bool                                 ReviewLedgerWasPresentOnEntry = false;
+		bool                                 ReviewLedgerRoundTripPassed   = false;
 #endif
 		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
 		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
@@ -3484,24 +3768,30 @@ namespace bpr::app {
 		// Built once and shared. The catalog is immutable after construction
 		// and the classifier holds no theme, palette, or font, so neither has
 		// to be rebuilt when appearance changes.
-		std::unique_ptr<adapters::syntax::packaged_definition_catalog>  SyntaxDefinitions;
-		std::unique_ptr<composition_blob_source>                        SyntaxBlobs;
-		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>   SyntaxClassification;
-		composition_appearance_projections                              AppearanceProjections;
-		std::unique_ptr<qt::appearance_profile>                         AppearanceProfile;
-		std::string                                                     AppliedSelectionColor;
-		std::string                                                     AppliedBaseColor;
-		bool                                                            AppliedFromProfile             = false;
-		bool                                                            WorkbenchPersistenceAvailable  = false;
-		bool                                                            AppearancePersistenceAvailable = false;
-		std::unique_ptr<application::epoch_entropy_port>                EpochEntropy;
-		std::unique_ptr<application::epoch_clock_port>                  EpochClock;
-		worker_executor                                                 EpochEffects;
-		worker_executor                                                 DiffEffects;
-		worker_executor                                                 WorkbenchEffects;
-		worker_executor                                                 AppearanceEffects;
-		worker_executor                                                 QueueEffects;
-		std::unique_ptr<application::epoch_application_host>            EpochHost;
+		std::unique_ptr<adapters::syntax::packaged_definition_catalog> SyntaxDefinitions;
+		std::unique_ptr<composition_blob_source>                       SyntaxBlobs;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>  SyntaxClassification;
+		composition_appearance_projections                             AppearanceProjections;
+		std::unique_ptr<qt::appearance_profile>                        AppearanceProfile;
+		std::string                                                    AppliedSelectionColor;
+		std::string                                                    AppliedBaseColor;
+		bool                                                           AppliedFromProfile             = false;
+		bool                                                           WorkbenchPersistenceAvailable  = false;
+		bool                                                           AppearancePersistenceAvailable = false;
+		std::unique_ptr<application::epoch_entropy_port>               EpochEntropy;
+		std::unique_ptr<application::epoch_clock_port>                 EpochClock;
+		worker_executor                                                EpochEffects;
+		worker_executor                                                DiffEffects;
+		worker_executor                                                AgentEffects;
+		worker_executor                                                WorkbenchEffects;
+		worker_executor                                                AppearanceEffects;
+		worker_executor                                                QueueEffects;
+		std::unique_ptr<application::epoch_application_host>           EpochHost;
+		std::unique_ptr<QTemporaryDir>                                 AgentWorkspaceRoot;
+		std::optional<adapters::git::installed_agent_workspace_parent>
+																		AgentWorkspaceParent;
+		std::unique_ptr<adapters::agent::agent_process_launcher>        AgentProcess;
+		std::unique_ptr<application::agent_invocation_host>             AgentHost;
 		std::unique_ptr<composition_diff_projection>                    DiffProjections;
 		std::unique_ptr<application::diff_application_host>             DiffHost;
 		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
@@ -3514,12 +3804,27 @@ namespace bpr::app {
 		std::vector<queue_notification_transition>                      ActiveQueueNotifications;
 		std::unique_ptr<application::github_application_host>           Host;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
-		bool                                                            Closing                       = false;
-		bool                                                            ShutdownPollScheduled         = false;
-		bool                                                            ShutdownComplete              = false;
-		bool                                                            ShutdownCleanupFailed         = false;
-		bool                                                            NativePlatformVaultSelected   = false;
-		bool                                                            EpochProjectionDeliveryFailed = false;
+		struct agent_review_facts
+		{
+			core::git_host_id         Host;
+			core::repository_id       Repository;
+			core::pull_request_id     PullRequest;
+			core::pull_request_number Number;
+			std::string               Hostname;
+			core::repository_locator  Locator;
+		};
+		std::optional<agent_review_facts>                AgentReview;
+		std::optional<application::checkout_observation> ExistingCheckout;
+		std::uint64_t                                    NextAgentSession               = 1U;
+		bool                                             Closing                        = false;
+		bool                                             OtherShutdownBegun             = false;
+		bool                                             ShutdownPollScheduled          = false;
+		bool                                             ShutdownComplete               = false;
+		bool                                             ShutdownCleanupFailed          = false;
+		bool                                             AgentWorkspaceCleanupAttempted = false;
+		bool                                             AgentWorkspaceCleanupFailed    = false;
+		bool                                             NativePlatformVaultSelected    = false;
+		bool                                             EpochProjectionDeliveryFailed  = false;
 		// Classifications the panes actually took. Counted because "the
 		// classifier is linked" and "a pane received its answer" are different
 		// claims, and only the second one shows a reviewer anything.
@@ -3588,6 +3893,7 @@ namespace bpr::app {
 			.Closing                        = Implementation->Closing,
 			.ShutdownComplete               = Implementation->ShutdownComplete,
 			.ShutdownCleanupFailed          = Implementation->ShutdownCleanupFailed,
+			.AgentWorkspaceCleanupFailed    = Implementation->AgentWorkspaceCleanupFailed,
 			.NativePlatformVaultSelected    = Implementation->NativePlatformVaultSelected,
 			.EpochProjectionDeliveryFailed  = Implementation->EpochProjectionDeliveryFailed,
 			.ObservedScheme                 = Implementation->AppearanceProfile
@@ -3603,6 +3909,7 @@ namespace bpr::app {
 			.EpochStatus                    = Implementation->EpochHost->state().Status,
 			.WorkbenchHostComposed          = Implementation->WorkbenchHost != nullptr,
 			.AppearanceHostComposed         = Implementation->AppearanceHost != nullptr,
+			.AgentHostComposed              = Implementation->AgentHost != nullptr,
 			.AppearancePersistenceAvailable = Implementation->AppearancePersistenceAvailable,
 			.AppearanceDurableWrites        = Implementation->AppearanceHost != nullptr
 				? Implementation->AppearanceHost->persisted_settings()
@@ -7227,6 +7534,128 @@ namespace bpr::app {
 		}
 		implementation->accept(std::move(handoff));
 		return true;
+	}
+
+	auto detail::github_application_fixture_access::seed_agent_private_context_canary(
+		github_application&    aApplication,
+		const std::string_view aUnselectedNote) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->ReviewLedgerHost == nullptr
+			|| implementation->EpochHost == nullptr || aUnselectedNote.empty()) {
+			return false;
+		}
+		const auto& state = implementation->EpochHost->state();
+		if (!state.AcceptedRevision.has_value()) {
+			return false;
+		}
+		const auto note = application::local_note_record{
+			.Id   = application::local_note_id{ 247U },
+			.Note = { .Text = std::string{ aUnselectedNote } },
+		};
+		return implementation->ReviewLedgerHost->persist(note).has_value()
+			&& implementation->ReviewLedgerHost
+				   ->persist_last_reviewed_head(state.AcceptedRevision->Head)
+				   .has_value();
+	}
+
+	auto detail::github_application_fixture_access::agent_invocation_context(
+		github_application& aApplication)
+		-> std::optional<detail::agent_invocation_context_evidence>
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (
+			implementation == nullptr || implementation->EpochHost == nullptr
+			|| implementation->ReviewLedgerHost == nullptr
+			|| implementation->Window == nullptr
+			|| !implementation->AgentReview.has_value()
+			|| !implementation->SelectedDiffPublication.has_value()
+			|| implementation->NextAgentSession == 0U) {
+			return std::nullopt;
+		}
+		const auto& state    = implementation->EpochHost->state();
+		const auto& selected = *implementation->SelectedDiffPublication;
+		if (
+			!state.Authority.has_value() || !state.AcceptedRevision.has_value()
+			|| !state.AcceptedComparison.has_value()) {
+			return std::nullopt;
+		}
+		auto receipt = std::optional<core::file_receipt>{ };
+		{
+			const auto lock = std::scoped_lock{
+				implementation->ReviewLedgerStateMutex
+			};
+			receipt = implementation->ReviewLedgerReceipt;
+		}
+		const auto privateState
+			= implementation->ReviewLedgerHost->private_observation();
+		auto* const workbench = implementation->Window->comparison_surface();
+		if (
+			!receipt.has_value() || !privateState.has_value()
+			|| receipt->File != selected.Request.File.File || workbench == nullptr
+			|| !workbench->selection().has_value()
+			|| workbench->current_result() == nullptr
+			|| workbench->current_result()->Alignment.Key != selected.Key
+			|| workbench->selection()->Comparison
+				!= workbench->current_result()->Alignment.Digest) {
+			return std::nullopt;
+		}
+		const auto& authority  = *state.Authority;
+		const auto& revision   = *state.AcceptedRevision;
+		const auto& comparison = *state.AcceptedComparison;
+		return detail::agent_invocation_context_evidence{
+			.ApplicationSession = state.ApplicationSession,
+			.Authority          = authority,
+			.NextSession        = core::agent_session_id{ implementation->NextAgentSession },
+			.Binding            = {
+				.Host        = authority.Host,
+				.Repository  = authority.Repository,
+				.PullRequest = authority.PullRequest,
+				.BaseOid     = revision.Base,
+				.HeadOid     = revision.Head,
+				.LeftEpoch   = comparison.Left.Identity.Epoch,
+				.RightEpoch  = comparison.Right.Identity.Epoch,
+			},
+			.PullRequestUrl = "https://" + implementation->AgentReview->Hostname + "/" + implementation->AgentReview->Locator.Owner + "/" + implementation->AgentReview->Locator.Name + "/pull/" + std::to_string(implementation->AgentReview->Number.value()),
+			.Files          = {
+				application::agent_file_context_input{
+					.Path               = selected.Request.File.PresentationPath,
+					.Receipt            = *receipt,
+					.ChangedSinceReview = privateState->LastReviewedHead.has_value() && *privateState->LastReviewedHead != revision.Head,
+				},
+			},
+			.Private   = *privateState,
+			.Selection = core::supplement_semantic_context{
+				.File       = selected.Request.File.File,
+				.Selection  = *workbench->selection(),
+				.Confidence = core::supplement_mapping_confidence::exact,
+				.Segments   = workbench->current_result()->Alignment.Segments,
+				.Groups     = workbench->current_result()->Alignment.Groups,
+			},
+		};
+	}
+
+	auto detail::github_application_fixture_access::agent_invocation_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::agent_invocation_composition_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return { };
+		}
+		return {
+			.HostComposed = implementation->AgentHost != nullptr,
+			.Quiescent    = implementation->AgentHost == nullptr
+				|| implementation->AgentHost->is_quiescent(),
+			.Statistics    = implementation->AgentHost != nullptr
+				? implementation->AgentHost->statistics()
+				: application::agent_invocation_host_statistics{ },
+			.WorkspaceRoot = implementation->AgentWorkspaceRoot != nullptr
+				? std::filesystem::path{
+					  implementation->AgentWorkspaceRoot->path().toStdString() }
+				: std::filesystem::path{ },
+		};
 	}
 #endif
 }

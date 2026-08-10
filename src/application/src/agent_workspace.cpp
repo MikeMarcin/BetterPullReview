@@ -1,6 +1,19 @@
 #include "bpr/application/agent_workspace.hpp"
 
+#include "bpr/core/epoch_transition.hpp"
+
 namespace bpr::application {
+	namespace {
+		[[nodiscard]] auto binding_matches_authority(
+			const core::agent_revision_binding& aBinding,
+			const core::pull_request_authority& aAuthority) noexcept -> bool
+		{
+			return aBinding.Host == aAuthority.Host
+				&& aBinding.Repository == aAuthority.Repository
+				&& aBinding.PullRequest == aAuthority.PullRequest;
+		}
+	} // namespace
+
 	auto stable_name(const checkout_cleanliness aCleanliness) noexcept
 		-> std::string_view
 	{
@@ -37,7 +50,8 @@ namespace bpr::application {
 		const std::string&                         aDisposableRoot)
 		-> workspace_preparation
 	{
-		if (aProfile.Workspace == core::agent_workspace_policy::existing_checkout) {
+		if (aExistingCheckoutChosen
+			|| aProfile.Workspace == core::agent_workspace_policy::existing_checkout) {
 			// A profile cannot opt itself into the reviewer's uncommitted work.
 			// The policy says the mode is available; the choice says it is
 			// wanted now. Without the second, this is refused.
@@ -74,5 +88,36 @@ namespace bpr::application {
 				.Cleanliness = checkout_cleanliness::clean,
 			},
 		};
+	}
+
+	auto valid(const agent_workspace_materialization_request& aRequest) noexcept
+		-> bool
+	{
+		return aRequest.ApplicationSession.value() != 0U
+			&& core::valid(aRequest.Authority)
+			&& aRequest.Session.Id.value() != 0U
+			&& aRequest.Session.Profile.value() != 0U
+			&& binding_matches_authority(
+				   aRequest.Session.Binding, aRequest.Authority)
+			&& aRequest.Session.Binding.HeadOid.valid()
+			&& aRequest.Session.Binding.HeadOid.algorithm()
+			== aRequest.Session.Binding.BaseOid.algorithm()
+			&& aRequest.ParentDirectory.is_absolute()
+			&& !aRequest.ParentDirectory.empty();
+	}
+
+	auto valid(const owned_agent_workspace& aWorkspace) noexcept -> bool
+	{
+		return aWorkspace.Workspace.Policy
+			== core::agent_workspace_policy::disposable_review_workspace
+			&& aWorkspace.Workspace.PinnedHead.has_value()
+			&& aWorkspace.Workspace.PinnedHead->valid()
+			&& !aWorkspace.Workspace.Path.empty()
+			&& aWorkspace.ApplicationSession.value() != 0U
+			&& core::valid(aWorkspace.Authority)
+			&& aWorkspace.Session.value() != 0U
+			&& aWorkspace.ParentDirectory.is_absolute()
+			&& !aWorkspace.OwnershipMarker.empty()
+			&& valid(aWorkspace.DirectoryIdentity);
 	}
 } // namespace bpr::application

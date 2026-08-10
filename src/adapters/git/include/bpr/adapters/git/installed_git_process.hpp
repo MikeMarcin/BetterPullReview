@@ -10,6 +10,27 @@
 #include <stop_token>
 
 namespace bpr::adapters::git {
+	/// \brief Exact owner capability for the disposable agent-workspace root.
+	struct installed_agent_workspace_parent
+	{
+		std::filesystem::path                           Path;
+		application::agent_workspace_directory_identity DirectoryIdentity;
+
+		auto operator<=>(const installed_agent_workspace_parent&) const = default;
+	};
+
+	/// \brief Captures an owner-private workspace root before children exist.
+	[[nodiscard]] auto capture_installed_agent_workspace_parent(
+		const std::filesystem::path& aPath) noexcept
+		-> std::optional<installed_agent_workspace_parent>;
+
+	/// \brief Removes only the captured, still-empty workspace root.
+	///
+	/// A false result retains the capability, including a quarantine path when
+	/// an exact directory moved but could not be removed, for explicit recovery.
+	[[nodiscard]] auto remove_installed_agent_workspace_parent(
+		installed_agent_workspace_parent& aParent) noexcept -> bool;
+
 	/// \brief Describes the installed git process configuration record.
 	struct installed_git_process_configuration
 	{

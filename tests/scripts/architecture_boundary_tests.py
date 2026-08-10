@@ -1195,6 +1195,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             files = {
                 "CMakeLists.txt": "",
                 "cmake/BprDependencies.cmake": DEPENDENCIES_TARGET,
+                "src/core/CMakeLists.txt":
+                    "add_library(better_pull_review_core "
+                    "src/agent_profile.cpp)\n",
                 "src/application/CMakeLists.txt": "",
                 "src/adapters/CMakeLists.txt": adapter_root,
                 "src/adapters/github/CMakeLists.txt": github_target,
@@ -1298,6 +1301,34 @@ class ArchitectureBoundaryTests(unittest.TestCase):
     def test_designated_installed_git_process_runner_is_allowed(self) -> None:
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_core_agent_profile_owns_only_agent_environment_policy_names(
+        self,
+    ) -> None:
+        policy = (
+            'constexpr const char* agent_environment_policy[] = '
+            '{"HOME", "PATH"};\n'
+        )
+        result = self.run_check({"src/core/src/agent_profile.cpp": policy})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        for neighboring_source in (
+            "src/core/src/other.cpp",
+            "src/application/src/agent_profile.cpp",
+        ):
+            with self.subTest(neighboring_source=neighboring_source):
+                self.assert_failure(
+                    "process environment construction ownership violation",
+                    {neighboring_source: policy},
+                )
+
+        self.assert_failure(
+            "Core/application/Qt effect-boundary violation",
+            {
+                "src/core/src/agent_profile.cpp":
+                    policy + "QProcess* process;\n"
+            },
+        )
 
     def test_git_qprocess_environment_is_rejected_in_a_second_file(
         self,

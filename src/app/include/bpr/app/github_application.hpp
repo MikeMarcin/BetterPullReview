@@ -20,6 +20,7 @@ namespace bpr::app {
 		std::optional<std::string>           EnterpriseHostname  = std::nullopt;
 		std::optional<std::filesystem::path> ApplicationDataRoot = std::nullopt;
 		std::optional<std::filesystem::path> GitExecutable       = std::nullopt;
+		std::optional<std::filesystem::path> ExistingCheckout    = std::nullopt;
 	};
 
 	/// \brief Describes the github application status record.
@@ -28,6 +29,7 @@ namespace bpr::app {
 		bool Closing                       = false;
 		bool ShutdownComplete              = false;
 		bool ShutdownCleanupFailed         = false;
+		bool AgentWorkspaceCleanupFailed   = false;
 		bool NativePlatformVaultSelected   = false;
 		bool EpochProjectionDeliveryFailed = false;
 		bool EpochHandoffDeliveryFailed    = false;
@@ -37,6 +39,7 @@ namespace bpr::app {
 		// constructor ever runs. This is the runtime half of that evidence.
 		bool WorkbenchHostComposed  = false;
 		bool AppearanceHostComposed = false;
+		bool AgentHostComposed      = false;
 		/// Whether the appearance host is backed by its durable settings store.
 		/// False means appearance remains available for this session, but changes
 		/// cannot survive a restart.

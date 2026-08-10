@@ -3,10 +3,15 @@
 
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_session.hpp"
+#include "bpr/core/epoch_model.hpp"
 
+#include <array>
 #include <compare>
 #include <cstdint>
+#include <expected>
+#include <filesystem>
 #include <optional>
+#include <stop_token>
 #include <string>
 #include <string_view>
 
@@ -75,6 +80,80 @@ namespace bpr::application {
 		auto operator<=>(const workspace_preparation&) const = default;
 	};
 
+	/// \brief One exact request to materialize a disposable agent workspace.
+	struct agent_workspace_materialization_request
+	{
+		core::application_session_id ApplicationSession;
+		core::pull_request_authority Authority;
+		core::agent_session          Session;
+		std::filesystem::path        ParentDirectory;
+
+		auto operator<=>(const agent_workspace_materialization_request&) const
+			= default;
+	};
+
+	/// \brief Opaque exact directory identity captured at materialization time.
+	///
+	/// \details The Git adapter owns the platform interpretation. Application
+	/// code carries this bounded capability unchanged so cleanup can require the
+	/// original directory rather than trusting whatever later occupies its path.
+	struct agent_workspace_directory_identity
+	{
+		std::array<std::uint64_t, 4U> Opaque{ };
+
+		auto operator<=>(const agent_workspace_directory_identity&) const = default;
+	};
+
+	/// \brief An exact workspace owned by one accepted invocation.
+	///
+	/// \details `OwnershipMarker` is created inside the private destination and
+	/// must still match before cleanup. A missing or altered marker leaks one
+	/// bounded workspace rather than authorizing deletion of an ambiguous path.
+	struct owned_agent_workspace
+	{
+		prepared_workspace                 Workspace;
+		core::application_session_id       ApplicationSession;
+		core::pull_request_authority       Authority;
+		core::agent_session_id             Session;
+		std::filesystem::path              ParentDirectory;
+		std::string                        OwnershipMarker;
+		agent_workspace_directory_identity DirectoryIdentity;
+
+		auto operator<=>(const owned_agent_workspace&) const = default;
+	};
+
+	[[nodiscard]] constexpr auto valid(
+		const agent_workspace_directory_identity& aIdentity) noexcept -> bool
+	{
+		return aIdentity.Opaque[0] != 0U
+			&& (aIdentity.Opaque[1] != 0U || aIdentity.Opaque[2] != 0U
+				|| aIdentity.Opaque[3] != 0U);
+	}
+
+	enum class agent_workspace_failure : std::uint8_t {
+		invalid_request,
+		unavailable,
+		cancelled,
+		stale,
+		cleanup_failed,
+	};
+
+	/// \brief Materializes and cleans workspaces on the retained cache actor.
+	class agent_workspace_port
+	{
+	public:
+		virtual ~agent_workspace_port() = default;
+
+		[[nodiscard]] virtual auto materialize_agent_workspace(
+			const agent_workspace_materialization_request& aRequest,
+			std::stop_token                                aStop)
+			-> std::expected<owned_agent_workspace, agent_workspace_failure> = 0;
+		[[nodiscard]] virtual auto cleanup_agent_workspace(
+			const owned_agent_workspace& aWorkspace,
+			std::stop_token              aStop)
+			-> std::expected<void, agent_workspace_failure> = 0;
+	};
+
 	/// \brief Prepares the workspace one invocation runs in.
 	///
 	/// \details `aExistingCheckoutChosen` is the reviewer's explicit choice for
@@ -83,16 +162,26 @@ namespace bpr::application {
 	/// dangerous mode cannot be reached by configuration alone, only by
 	/// someone deciding it now.
 	///
-	/// A disposable workspace pins the session's head. It is materialised from
-	/// an immutable revision, so nothing the reviewer does to the active
-	/// worktree afterwards can change what the agent sees — that is why the
-	/// pin is the session's `HeadOid` and never the checkout's.
+	/// Selecting the existing checkout for this invocation overrides a profile's
+	/// safe disposable default; without that per-run choice, a profile may not
+	/// silently enter the checkout. A disposable workspace pins the session's
+	/// head. It is materialised from an immutable revision, so nothing the
+	/// reviewer does to the active worktree afterwards can change what the agent
+	/// sees — that is why the pin is the session's `HeadOid` and never the
+	/// checkout's.
 	[[nodiscard]] auto prepare_agent_workspace(
 		const core::agent_profile&                 aProfile,
 		const core::agent_session&                 aSession,
 		const std::optional<checkout_observation>& aCheckout,
 		bool                                       aExistingCheckoutChosen,
 		const std::string&                         aDisposableRoot) -> workspace_preparation;
+
+	/// \brief Validates the complete exact materialization identity.
+	[[nodiscard]] auto valid(
+		const agent_workspace_materialization_request& aRequest) noexcept -> bool;
+	/// \brief Validates one cleanup authority without touching the filesystem.
+	[[nodiscard]] auto valid(const owned_agent_workspace& aWorkspace) noexcept
+		-> bool;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_WORKSPACE_HPP

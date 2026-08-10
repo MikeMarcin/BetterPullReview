@@ -167,7 +167,8 @@ namespace bpr::core {
 		-> std::optional<agent_context_supplement>
 	{
 		if (
-			!valid_session(aRequest.Session) || aRequest.PullRequestUrl.empty()
+			aRequest.ApplicationSession.value() == 0U
+			|| !valid_session(aRequest.Session) || aRequest.PullRequestUrl.empty()
 			|| aRequest.PullRequestUrl.size() > maximum_pull_request_url_bytes
 			|| aRequest.Files.size() > maximum_supplement_paths
 			|| aRequest.Defects.size() > maximum_supplement_defects
@@ -195,16 +196,17 @@ namespace bpr::core {
 		}
 
 		return agent_context_supplement{
-			.SchemaVersion    = agent_supplement_schema_version,
-			.Session          = aRequest.Session,
-			.PullRequestUrl   = aRequest.PullRequestUrl,
-			.PreviousUpload   = aRequest.PreviousUpload,
-			.LastReviewedHead = aRequest.LastReviewedHead,
-			.Files            = aRequest.Files,
-			.Defects          = aRequest.Defects,
-			.Selection        = aRequest.Selection,
-			.Notes            = aRequest.SelectedNotes,
-			.Drafts           = aRequest.SelectedDrafts,
+			.SchemaVersion      = agent_supplement_schema_version,
+			.ApplicationSession = aRequest.ApplicationSession,
+			.Session            = aRequest.Session,
+			.PullRequestUrl     = aRequest.PullRequestUrl,
+			.PreviousUpload     = aRequest.PreviousUpload,
+			.LastReviewedHead   = aRequest.LastReviewedHead,
+			.Files              = aRequest.Files,
+			.Defects            = aRequest.Defects,
+			.Selection          = aRequest.Selection,
+			.Notes              = aRequest.SelectedNotes,
+			.Drafts             = aRequest.SelectedDrafts,
 		};
 	}
 } // namespace bpr::core

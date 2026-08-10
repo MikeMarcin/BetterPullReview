@@ -927,12 +927,13 @@ namespace bpr::application {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
 		auto request = core::agent_supplement_request{
-			.Session          = aObservation.Session,
-			.PullRequestUrl   = aObservation.PullRequestUrl,
-			.PreviousUpload   = aObservation.PreviousUpload,
-			.LastReviewedHead = aObservation.Private.LastReviewedHead,
-			.Selection        = aObservation.Selection,
-			.SelectedDrafts   = aObservation.IncludedDrafts,
+			.ApplicationSession = aObservation.ApplicationSession,
+			.Session            = aObservation.Session,
+			.PullRequestUrl     = aObservation.PullRequestUrl,
+			.PreviousUpload     = aObservation.PreviousUpload,
+			.LastReviewedHead   = aObservation.Private.LastReviewedHead,
+			.Selection          = aObservation.Selection,
+			.SelectedDrafts     = aObservation.IncludedDrafts,
 		};
 		request.Files.reserve(aObservation.Files.size());
 		for (const auto& input : aObservation.Files) {
@@ -1023,6 +1024,10 @@ namespace bpr::application {
 	{
 		auto result = std::string{ };
 		append_number(result, "schema", aSupplement.SchemaVersion);
+		append_number(
+			result,
+			"application_session",
+			aSupplement.ApplicationSession.value());
 		append_number(result, "session", aSupplement.Session.Id.value());
 		append_number(result, "profile", aSupplement.Session.Profile.value());
 		append_number(

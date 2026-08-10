@@ -6,6 +6,7 @@
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -198,6 +199,7 @@ namespace bpr::qt {
 		void set_review_draft_dispatch(
 			workbench_review_draft_dispatch aDraftDispatch);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
+		void set_agent_dispatch(agent_intent_dispatch aAgentDispatch);
 		void set_defect_classification_dispatch(
 			workbench_defect_classification_dispatch aClassificationDispatch);
 		void set_queue_rule_dispatch(workbench_queue_rule_dispatch aDispatch);
@@ -246,6 +248,7 @@ namespace bpr::qt {
 		/// own. This is what it shows instead.
 		[[nodiscard]] auto conversation_panel() const noexcept
 			-> github_conversation_panel*;
+		[[nodiscard]] auto agent_panel() const noexcept -> agent_launch_panel*;
 		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
 		[[nodiscard]] auto defect_card() const noexcept -> defect_card_view*;
 		[[nodiscard]] auto classify_defect_action() const noexcept -> QAction*;
@@ -478,6 +481,7 @@ namespace bpr::qt {
 		std::array<QAction*, 4>                                    ReceiptActions{ };
 		std::array<drawer_entry, 2>                                Drawers{ };
 		github_conversation_panel*                                 ConversationPanel = nullptr;
+		agent_launch_panel*                                        AgentPanel        = nullptr;
 		review_draft_editor*                                       ReviewEditor      = nullptr;
 		defect_card_view*                                          DefectCard        = nullptr;
 		QLabel*                                                    DefectCountLabel  = nullptr;

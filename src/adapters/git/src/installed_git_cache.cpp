@@ -4158,6 +4158,92 @@ namespace bpr::adapters::git {
 				};
 			}
 
+			[[nodiscard]] auto materialize_agent_workspace(
+				const application::agent_workspace_materialization_request& aRequest,
+				const std::stop_token                                       aStop)
+				-> application::git_cache_result<
+					application::owned_agent_workspace> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				if (
+					!application::valid(aRequest)
+					|| aRequest.ApplicationSession
+						!= State->Request.ApplicationSession
+					|| aRequest.Authority != State->Request.Authority
+					|| aRequest.Session.Binding.HeadOid.algorithm()
+						!= State->Request.ObjectFormat) {
+					return std::unexpected{
+						application::git_cache_failure::invalid_authority
+					};
+				}
+				const auto inventory = State->validated_inventory(aStop, false);
+				if (!inventory.has_value()) {
+					return std::unexpected{ inventory.error() };
+				}
+				const auto materialized = State->Process->materialize_agent_workspace(
+					application::git_agent_workspace_request{
+						.Repository      = State->Repository,
+						.Materialization = aRequest,
+					},
+					aStop);
+				if (!State->active_boundary_still_owned()) {
+					if (materialized.has_value()) {
+						static_cast<void>(State->Process->cleanup_agent_workspace(
+							*materialized,
+							{ }));
+					}
+					return std::unexpected{
+						application::git_cache_failure::repair_required
+					};
+				}
+				if (!materialized.has_value()) {
+					return std::unexpected{
+						State->process_failure(materialized.error())
+					};
+				}
+				return *materialized;
+			}
+
+			[[nodiscard]] auto cleanup_agent_workspace(
+				const application::owned_agent_workspace& aWorkspace,
+				const std::stop_token                     aStop)
+				-> application::git_cache_result<void> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				if (
+					!application::valid(aWorkspace)
+					|| aWorkspace.ApplicationSession
+						!= State->Request.ApplicationSession
+					|| aWorkspace.Authority != State->Request.Authority
+					|| aWorkspace.Workspace.PinnedHead->algorithm()
+						!= State->Request.ObjectFormat
+					|| !State->validated_inventory(aStop, false).has_value()) {
+					return std::unexpected{
+						application::git_cache_failure::invalid_authority
+					};
+				}
+				const auto cleaned = State->Process->cleanup_agent_workspace(
+					aWorkspace,
+					aStop);
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{
+						application::git_cache_failure::repair_required
+					};
+				}
+				if (!cleaned.has_value()) {
+					return std::unexpected{
+						State->process_failure(cleaned.error())
+					};
+				}
+				return { };
+			}
+
 			[[nodiscard]] auto materialize_blob(
 				const application::git_cache_blob_request& aRequest,
 				const std::stop_token                      aStop)

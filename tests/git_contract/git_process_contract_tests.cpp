@@ -34,6 +34,7 @@
 
 namespace {
 	namespace application = bpr::application;
+	namespace core        = bpr::core;
 	namespace git_adapter = bpr::adapters::git;
 
 	inline constexpr std::string_view sha1_commit_hex = "826bb464b84352d60b3d7c56481a599a838d998d";
@@ -462,6 +463,31 @@ namespace {
 		application::git_pull_request_scope_identity result{ };
 		result.Bytes.fill(aValue);
 		return result;
+	}
+
+	template <typename Identity>
+	[[nodiscard]] auto core_identity(const std::uint8_t aValue) -> Identity
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		bytes.fill(aValue);
+		return Identity{ bytes };
+	}
+
+	[[nodiscard]] auto workspace_authority() -> core::pull_request_authority
+	{
+		return {
+			.Profile         = core::host_profile_id{ 1U },
+			.ProfileRevision = core::github_profile_revision{ 1U },
+			.Host            = core::git_host_id{ 1U },
+			.HostAuthority   = core_identity<core::host_authority_fingerprint>(1U),
+			.Account         = core::github_account_id{ 1U },
+			.Viewer          = core::github_viewer_actor_id{ 1U },
+			.Repository      = core::repository_id{ 1U },
+			.Cache           = core_identity<core::repository_cache_scope_id>(2U),
+			.PullRequest     = core::pull_request_id{ 1U },
+			.Number          = core::pull_request_number{ 1U },
+			.Scope           = core_identity<core::pull_request_authority_scope_id>(3U),
+		};
 	}
 
 	[[nodiscard]] constexpr auto nibble(
@@ -1170,6 +1196,69 @@ namespace {
 		require(
 			ancestry == application::git_ancestry::ancestor,
 			"fixed ancestry query");
+
+		{
+			temporary_root workspaceParent{ "git-agent-workspace" };
+			const auto     head = core::git_commit_oid{
+				core::git_hash_algorithm::sha1,
+				commit.Digest,
+			};
+			const auto authority    = workspace_authority();
+			const auto materialized = adapter->materialize_agent_workspace(
+				{
+					.Repository      = repository,
+					.Materialization = {
+						.ApplicationSession = core::application_session_id{ 1U },
+						.Authority          = authority,
+						.Session            = {
+							.Id      = core::agent_session_id{ 1U },
+							.Profile = core::external_terminal_profile_id,
+							.Binding = {
+								.Host        = authority.Host,
+								.Repository  = authority.Repository,
+								.PullRequest = authority.PullRequest,
+								.BaseOid     = head,
+								.HeadOid     = head,
+								.LeftEpoch   = core::epoch_ordinal{ 1U },
+								.RightEpoch  = core::epoch_ordinal{ 1U },
+							},
+						},
+						.ParentDirectory = workspaceParent.Path,
+					},
+				},
+				{ });
+			require(materialized.has_value(), "materialize exact agent workspace");
+			const auto destination = std::filesystem::path{
+				materialized->Workspace.Path
+			};
+			const auto displaced   = workspaceParent.Path / "displaced-original";
+			const auto replacement = workspaceParent.Path / "replacement-substitute";
+			std::filesystem::rename(destination, displaced);
+			std::filesystem::create_directories(destination / ".git");
+			for (const auto& directory : { destination, destination / ".git" }) {
+				std::filesystem::permissions(
+					directory,
+					std::filesystem::perms::owner_all,
+					std::filesystem::perm_options::replace);
+			}
+			write_text(
+				destination / ".git" / "bpr-owned-workspace",
+				materialized->OwnershipMarker);
+			const auto rejected = adapter->cleanup_agent_workspace(*materialized, { });
+			require(
+				!rejected.has_value()
+					&& std::filesystem::is_directory(destination)
+					&& std::filesystem::is_directory(displaced),
+				"same-path substitute is preserved and original identity is not reauthorized");
+
+			std::filesystem::rename(destination, replacement);
+			std::filesystem::rename(displaced, destination);
+			const auto cleaned = adapter->cleanup_agent_workspace(*materialized, { });
+			require(
+				cleaned.has_value() && !std::filesystem::exists(destination)
+					&& std::filesystem::is_directory(replacement),
+				"restored exact original cleans normally without deleting substitute");
+		}
 
 		const auto hookMarker = root.Path / "hook-ran";
 		std::filesystem::create_directories(repository / "hooks");
@@ -3077,6 +3166,58 @@ namespace {
 			"policy hook is never launched and topology remains untouched");
 #endif
 	}
+
+	auto run_agent_workspace_parent_cleanup_contract() -> void
+	{
+		temporary_root root{ "git-agent-parent-cleanup" };
+		const auto     makeParent = [&root](const std::string_view aName) {
+			auto path = root.Path / aName;
+			std::filesystem::create_directory(path);
+			std::filesystem::permissions(
+				path,
+				std::filesystem::perms::owner_all,
+				std::filesystem::perm_options::replace);
+			return std::filesystem::canonical(path);
+		};
+
+		auto exactPath = makeParent("exact-empty");
+		auto exact     = git_adapter::capture_installed_agent_workspace_parent(
+			exactPath);
+		require(
+			exact.has_value()
+				&& git_adapter::remove_installed_agent_workspace_parent(*exact)
+				&& !std::filesystem::exists(exactPath),
+			"exact empty agent parent is removed non-recursively");
+
+		auto substitutedPath = makeParent("substituted");
+		auto substituted     = git_adapter::capture_installed_agent_workspace_parent(
+			substitutedPath);
+		require(substituted.has_value(), "capture substituted parent identity");
+		const auto displaced = root.Path / "substituted-original";
+		std::filesystem::rename(substitutedPath, displaced);
+		std::filesystem::create_directory(substitutedPath);
+		std::filesystem::permissions(
+			substitutedPath,
+			std::filesystem::perms::owner_all,
+			std::filesystem::perm_options::replace);
+		write_text(substitutedPath / "substitute-canary", "preserve");
+		require(
+			!git_adapter::remove_installed_agent_workspace_parent(*substituted)
+				&& read_text(substitutedPath / "substitute-canary") == "preserve"
+				&& std::filesystem::is_directory(displaced),
+			"same-path substitute and displaced original are retained");
+
+		auto nonemptyPath = makeParent("nonempty");
+		auto nonempty     = git_adapter::capture_installed_agent_workspace_parent(
+			nonemptyPath);
+		require(nonempty.has_value(), "capture nonempty parent identity");
+		write_text(nonemptyPath / "owned-canary", "preserve");
+		require(
+			!git_adapter::remove_installed_agent_workspace_parent(*nonempty)
+				&& read_text(nonemptyPath / "owned-canary") == "preserve"
+				&& nonempty->Path == nonemptyPath,
+			"nonempty exact parent is retained with its recovery capability");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -3104,6 +3245,7 @@ auto main(int argc, char** argv) -> int
 	run_factory_cancellation_contract();
 	run_input_validation_contract();
 	run_isolation_symlink_contract();
+	run_agent_workspace_parent_cleanup_contract();
 	std::cout << "Git process contract passed\n";
 	return 0;
 }

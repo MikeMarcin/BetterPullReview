@@ -1153,6 +1153,31 @@ cessation; no credential or repository-private fixture content is present.
 On Windows the same target instead proves fail-closed refusal before process
 start. It does not claim Windows process or descendant-containment execution.
 
+`application_agent_invocation_composition_contract` uses that canary as a test
+replacement for the immutable external-terminal executable while traversing
+the production profile/policy, visible workbench panel, application host,
+retained-cache actor, concrete Git materializer, process launcher, and terminal
+projection. The child reports its working directory and Git topology; the
+contract requires the exact fixture head, absent origin/alternates/hooks/
+worktrees, no planted GitHub token, and removal of only the owned workspace
+and its exact empty parent root after terminal delivery. The Git contract
+replaces the parent root and makes it nonempty in separate courses; both are
+retained rather than swept recursively. Construction- and gesture-cut
+companions require zero core/workspace/process calls, preventing a fixture-only
+bypass from satisfying the positive marker. Cancellation and staleness
+companions hold the real child open, then respectively stop its descendant tree
+or move the accepted head; both require empty stale output, distinct typed
+terminal state, exact cleanup, and quiescence. The positive course also
+compares every admitted version-two identity and requires zero note/draft
+counts and no coordinate vocabulary.
+
+The cleanup-retry companion replaces the running child's workspace path before
+terminal cleanup. The first identity-bound removal refuses the substitute and
+keeps the host non-quiescent. After restoring the original directory identity,
+composed shutdown requests the actor-confined retry, removes the exact workspace
+and empty parent root, reaches its bounded terminal state, and leaves the
+substitute untouched until explicit fixture teardown.
+
 ## Architecture and concurrency harnesses
 
 - Core-only build environment with Qt, SQLite, GitHub, Git, AI, and platform provider packages unavailable

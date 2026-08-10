@@ -14,6 +14,14 @@ Codex and the approved Claude/Bedrock harness are separate trusted applications.
 
 A profile declares executable, protocol, supported capabilities, workspace policy, environment allowlist, host policy, and persistence behavior.
 
+The shipped immutable registry contains Codex App Server and Codex JSONL
+(`codex`), approved Claude stream JSON (`claude`), and the external terminal
+harness (`bpr-agent-terminal`). Merely showing the panel performs no executable
+discovery. A missing executable becomes `failed_to_start` only after an explicit
+start gesture. GitHub.com permits all four profiles; an explicit GHES host
+refuses Codex before workspace or launcher effects and offers only the approved
+corporate alternatives.
+
 Initial protocols:
 
 ```text
@@ -34,6 +42,17 @@ Git hosts map to allowed or required agent profiles. A corporate GHES profile ca
 - Existing checkout: deliberate user selection for repository-wide context.
 - Disposable review workspace: default for bounded AI review, pinned to the exact review head and isolated from the active worktree.
 
+The disposable destination is owner-private and outside the retained cache.
+The cache actor initializes a new repository, transfers the exact requested head
+through Git pack plumbing, checks it out detached, and validates that no
+remote, alternate, hook, or linked-worktree topology crossed. It creates no
+cache ref and no hardlink. Cleanup requires the marker and the opaque directory
+identity captured at creation; a same-path, same-marker substitute is not
+authorized. Cleanup runs only after terminal delivery, and cancellation,
+staleness, and orderly shutdown use the same bounded path. The child working
+directory is assigned only after materialization. Existing-checkout mode
+remains a per-invocation choice and discloses dirty or unknown state.
+
 ## Context supplement
 
 The agent retrieves PR data through its own GitHub tools. BetterPullReview's
@@ -51,6 +70,12 @@ not represent:
 - the selected file and comparison, semantic line/group selection, mapping
   confidence, permitted segments/groups, and optional selected source text;
 - only private notes named by the invocation and drafts supplied explicitly.
+
+The portable BPR-0247 panel has no note/draft selector and therefore supplies
+neither. It states that limit before launch and the public canary requires both
+encoded counts to be zero. BPR-0232 owns the reviewer selection control; adding
+one may populate the existing explicit inputs but may not introduce implicit
+ledger/editor inclusion.
 
 Counts and optional-presence fields are explicit, so absence is not rewritten
 as an empty string or collection. Core construction refuses invalid identities,
@@ -112,6 +137,20 @@ teardown targets the descendant tree and not only the immediate process.
 post-start assignment leaves a descendant-escape race. The adapter therefore
 refuses Windows launch before `QProcess::start`. Windows support remains blocked
 until a suspended-create, assign-before-resume path has target-native proof.
+
+The application composition follows one public route: the workbench panel emits
+an intent; `agent_invocation_host` reruns core legality, builds context from the
+currently accepted epoch authority and private observations, materializes the
+workspace through the retained cache actor, starts the adapter, serializes
+stream/terminal projection, and then cleans the owned workspace. Workspace and
+parent-root cleanup each require their originally captured directory identity;
+the parent is removed non-recursively only when that exact directory is empty.
+If terminal cleanup refuses a changed workspace identity, the host retains the
+original capability and shutdown polling may request one de-duplicated retry
+on the effects actor after terminal completion; polling never performs Git or
+filesystem work itself.
+Construction- and gesture-cut contracts prove the public canary cannot be
+satisfied by a fixture-only launch helper.
 
 ## Session semantics
 
@@ -260,6 +299,11 @@ so rather than pick the reassuring answer.
 | Dirty state is reported, unknown stays unknown | `application_agent_workspace` |
 | The launch surface only emits intents | `qt_agent_launch_panel` |
 | Scope is disclosed before launch is possible | `qt_agent_launch_panel` |
+| GHES policy refuses before effects | `application_agent_invocation_host` |
+| Stale/cancelled composed runs leak no child or owned workspace | `application_agent_invocation_host`, `application_agent_invocation_cancellation_contract`, `application_agent_invocation_staleness_contract` |
+| A same-path, same-marker substitute cannot retarget cleanup | `git_process_contract` |
+| The shipped gesture reaches exact-head Git, launcher, terminal, and cleanup | `application_agent_invocation_composition_contract` |
+| Direct construction or gesture bypass cannot satisfy the public canary | `application_agent_invocation_construction_cut_contract`, `application_agent_invocation_gesture_cut_contract` |
 | Process ownership is enumerated | `architecture_boundaries` |
 
 ### What is not claimed
@@ -268,7 +312,8 @@ BetterPullReview records what supplemental context it sent. It **cannot** claim
 to audit every item the full agent independently accessed — the agent has its
 own GitHub access and its own tools, which is the point of the arrangement.
 
-Nothing composes the launch surface yet: the panel is built and tested and no
-window shows it. The process contract is exercised against the hostile local
-canary, not an installed agent tool. A smoke test against an installed Codex or
-Claude remains optional extra validation rather than a gate.
+The process and shipped composition contracts use the hostile local canary, not
+an installed agent tool or live provider. A smoke test against an installed
+Codex or Claude remains optional extra validation rather than a gate. Windows
+still refuses before child start; no Windows process-lifecycle success or
+descendant-containment claim is made.

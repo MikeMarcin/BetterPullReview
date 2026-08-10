@@ -11,6 +11,7 @@
 #include <expected>
 #include <functional>
 #include <optional>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -34,6 +35,7 @@ namespace bpr::application {
 	/// also appear in `IncludedNotes`; drafts are explicit input values.
 	struct agent_context_observation
 	{
+		core::application_session_id                     ApplicationSession;
 		core::agent_session                              Session;
 		std::string                                      PullRequestUrl;
 		std::optional<core::git_commit_oid>              PreviousUpload;
@@ -64,6 +66,8 @@ namespace bpr::application {
 		core::agent_session_id   Session;
 		std::string              Executable;
 		std::vector<std::string> Arguments;
+		/// Explicit accepted workspace; the launcher never inherits host cwd.
+		std::string WorkingDirectory;
 		/// Materialised from the profile's environment-name allowlist.
 		std::vector<std::pair<std::string, std::string>> Environment;
 		/// Initial protocol input; complete context for non-App-Server modes.
@@ -195,6 +199,20 @@ namespace bpr::application {
 	};
 
 	using agent_output_sink = std::function<void(const agent_stream_event&)>;
+
+	/// \brief Process effect boundary used by the agent application host.
+	class agent_process_port
+	{
+	public:
+		virtual ~agent_process_port() = default;
+
+		[[nodiscard]] virtual auto run(
+			const agent_launch_request& aRequest,
+			int                         aTimeoutMilliseconds,
+			const agent_output_sink&    aSink = { },
+			std::stop_token             aStop = { }) -> agent_run_result = 0;
+		virtual void cancel() noexcept                                   = 0;
+	};
 
 	/// \brief Applies the core's immutable session decision to a process result.
 	[[nodiscard]] auto finalize_agent_run(

@@ -247,6 +247,56 @@ namespace {
 			!core::valid(duplicate),
 			"case-insensitive aliases cannot select one parent value twice");
 	}
+
+	void test_built_in_profiles_are_safe_immutable_data()
+	{
+		const auto profiles = core::built_in_agent_profiles();
+		expect(profiles.size() == 4U, "all four shipped protocols have profiles");
+		expect(
+			profiles[0].Id == core::codex_app_server_profile_id
+				&& profiles[0].Protocol == core::agent_protocol::codex_app_server
+				&& profiles[1].Id == core::codex_jsonl_profile_id
+				&& profiles[1].Protocol == core::agent_protocol::codex_jsonl_exec
+				&& profiles[2].Id == core::claude_stream_json_profile_id
+				&& profiles[2].Protocol == core::agent_protocol::claude_stream_json
+				&& profiles[3].Id == core::external_terminal_profile_id
+				&& profiles[3].Protocol == core::agent_protocol::external_terminal,
+			"the stable IDs select the documented protocol rather than a label");
+		for (const auto& candidate : profiles) {
+			expect(core::valid(candidate), "every shipped profile is valid");
+			expect(
+				candidate.Workspace
+					== core::agent_workspace_policy::disposable_review_workspace,
+				"every shipped profile defaults to the pinned disposable workspace");
+			for (const auto& name : candidate.AllowedEnvironment) {
+				expect(
+					core::permitted_agent_environment_name(name),
+					"a shipped profile names only a safe explicit environment input");
+			}
+		}
+	}
+
+	void test_built_in_host_policy_refuses_codex_on_explicit_ghes()
+	{
+		const auto profiles = core::built_in_agent_profiles();
+		const auto github   = core::built_in_agent_policy(
+			core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com);
+		const auto ghes = core::built_in_agent_policy(
+			core::git_host_id{ 2U }, core::built_in_agent_host_kind::explicit_ghes);
+
+		for (const auto& candidate : profiles) {
+			expect(
+				core::decide_agent_invocation(candidate, github).Permitted,
+				"GitHub.com offers every shipped profile");
+			const auto verdict = core::decide_agent_invocation(candidate, ghes);
+			const auto corporateAlternative
+				= candidate.Id == core::claude_stream_json_profile_id
+				|| candidate.Id == core::external_terminal_profile_id;
+			expect(
+				verdict.Permitted == corporateAlternative,
+				"explicit GHES permits only corporate Claude and external alternatives");
+		}
+	}
 } // namespace
 
 auto main() -> int
@@ -257,6 +307,8 @@ auto main() -> int
 	test_no_type_can_carry_a_credential();
 	test_a_malformed_profile_is_refused();
 	test_secret_bearing_environment_names_are_structurally_refused();
+	test_built_in_profiles_are_safe_immutable_data();
+	test_built_in_host_policy_refuses_codex_on_explicit_ghes();
 	std::cout << "agent-profile-tests:pass\n";
 	return EXIT_SUCCESS;
 }

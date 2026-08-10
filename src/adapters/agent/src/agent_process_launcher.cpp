@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
+#include <filesystem>
 #include <string_view>
 
 #if defined(Q_OS_UNIX)
@@ -21,15 +22,19 @@
 namespace bpr::adapters::agent {
 	struct agent_process_launcher::implementation
 	{
-		QProcess         Process;
-		std::atomic_bool CancelRequested = false;
-		std::atomic_bool Running         = false;
-#if defined(Q_OS_UNIX)
-		qint64 ProcessGroup = 0;
-#endif
+		std::atomic_uint64_t CancellationGeneration = 0U;
+		std::atomic_bool     Running                = false;
 	};
 
 	namespace {
+		struct process_state
+		{
+			QProcess Process{ nullptr };
+#if defined(Q_OS_UNIX)
+			qint64 ProcessGroup = 0;
+#endif
+		};
+
 		[[nodiscard]] auto wait_slice(
 			const QElapsedTimer& aElapsed, const int aTimeoutMilliseconds) -> int
 		{
@@ -63,14 +68,16 @@ namespace bpr::adapters::agent {
 
 	agent_process_launcher::~agent_process_launcher()
 	{
-		Implementation->CancelRequested = true;
-		end_process_tree(*Implementation);
+		Implementation->CancellationGeneration.fetch_add(
+			1U,
+			std::memory_order_acq_rel);
 	}
 
 	auto agent_process_launcher::run(
 		const application::agent_launch_request& aRequest,
 		const int                                aTimeoutMilliseconds,
-		const application::agent_output_sink&    aSink)
+		const application::agent_output_sink&    aSink,
+		const std::stop_token                    aStop)
 		-> application::agent_run_result
 	{
 		auto result = application::agent_run_result{
@@ -85,8 +92,19 @@ namespace bpr::adapters::agent {
 			  "containment has target-native proof";
 		return result;
 #else
-		auto& state = *Implementation;
-		if (state.Running.exchange(true)) {
+		auto&      control                = *Implementation;
+		const auto cancellationGeneration = control.CancellationGeneration.load(
+			std::memory_order_acquire);
+		const auto cancelled = [&] {
+			return aStop.stop_requested()
+				|| control.CancellationGeneration.load(std::memory_order_acquire)
+				!= cancellationGeneration;
+		};
+		if (cancelled()) {
+			result.Outcome = application::agent_run_outcome::cancelled;
+			return result;
+		}
+		if (control.Running.exchange(true)) {
 			result.Outcome = application::agent_run_outcome::failed_to_start;
 			return result;
 		}
@@ -97,8 +115,22 @@ namespace bpr::adapters::agent {
 			{
 				Running = false;
 			}
-		} guard{ state.Running };
-		state.CancelRequested = false;
+		} guard{ control.Running };
+		auto            state = process_state{ };
+		std::error_code workingDirectoryError;
+		const auto      workingDirectory = std::filesystem::path{
+			aRequest.WorkingDirectory
+		};
+		if (
+			workingDirectory.empty() || !workingDirectory.is_absolute()
+			|| !std::filesystem::is_directory(
+				workingDirectory,
+				workingDirectoryError)
+			|| workingDirectoryError) {
+			result.Outcome       = application::agent_run_outcome::failed_to_start;
+			result.StandardError = "agent working directory is not an accepted directory";
+			return result;
+		}
 
 		auto environment = QProcessEnvironment{ };
 		for (const auto& [name, value] : aRequest.Environment) {
@@ -106,6 +138,8 @@ namespace bpr::adapters::agent {
 				QString::fromStdString(name), QString::fromStdString(value));
 		}
 		state.Process.setProcessEnvironment(environment);
+		state.Process.setWorkingDirectory(
+			QString::fromStdString(aRequest.WorkingDirectory));
 		state.Process.setProcessChannelMode(QProcess::SeparateChannels);
 	#if defined(Q_OS_UNIX)
 		auto* const process = &state.Process;
@@ -124,7 +158,7 @@ namespace bpr::adapters::agent {
 		elapsed.start();
 		state.Process.start(QString::fromStdString(aRequest.Executable), arguments);
 		while (state.Process.state() == QProcess::Starting) {
-			if (state.CancelRequested) {
+			if (cancelled()) {
 				end_process_tree(state);
 				result.Outcome = application::agent_run_outcome::cancelled;
 				return result;
@@ -255,7 +289,7 @@ namespace bpr::adapters::agent {
 				result.ProtocolFailure = protocolFailure;
 				return result;
 			}
-			if (state.CancelRequested) {
+			if (cancelled()) {
 				end_process_tree(state);
 				result.Events.clear();
 				result.Outcome = application::agent_run_outcome::cancelled;
@@ -314,6 +348,8 @@ namespace bpr::adapters::agent {
 
 	void agent_process_launcher::cancel() noexcept
 	{
-		Implementation->CancelRequested = true;
+		Implementation->CancellationGeneration.fetch_add(
+			1U,
+			std::memory_order_acq_rel);
 	}
 } // namespace bpr::adapters::agent

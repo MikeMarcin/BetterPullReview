@@ -404,6 +404,38 @@ namespace bpr::adapters::git {
 			auto operator<=>(const exact_artifact_identity&) const = default;
 		};
 
+		[[nodiscard]] constexpr auto workspace_directory_identity(
+			const exact_artifact_identity& aIdentity) noexcept
+			-> application::agent_workspace_directory_identity
+		{
+			return {
+				.Opaque = {
+					static_cast<std::uint64_t>(aIdentity.Kind) + 1U,
+					aIdentity.Volume,
+					aIdentity.ObjectHigh,
+					aIdentity.ObjectLow,
+				},
+			};
+		}
+
+		[[nodiscard]] constexpr auto exact_directory_identity(
+			const application::agent_workspace_directory_identity& aIdentity) noexcept
+			-> std::optional<exact_artifact_identity>
+		{
+			if (
+				!application::valid(aIdentity)
+				|| aIdentity.Opaque[0]
+					!= static_cast<std::uint64_t>(exact_artifact_kind::directory) + 1U) {
+				return std::nullopt;
+			}
+			return exact_artifact_identity{
+				.Kind       = exact_artifact_kind::directory,
+				.Volume     = aIdentity.Opaque[1],
+				.ObjectHigh = aIdentity.Opaque[2],
+				.ObjectLow  = aIdentity.Opaque[3],
+			};
+		}
+
 #if defined(Q_OS_UNIX)
 		[[nodiscard]] auto exact_identity(
 			const struct stat&        aInformation,
@@ -2155,6 +2187,72 @@ namespace bpr::adapters::git {
 			};
 		}
 
+		[[nodiscard]] auto workspace_git_arguments(
+			const std::filesystem::path& aWorkspace,
+			const std::filesystem::path& aHooks) -> std::vector<std::string>
+		{
+			return {
+				"-c",
+				"core.fsync=all",
+				"-c",
+				"core.fsyncMethod=fsync",
+				"-c",
+				"core.hooksPath=" + path_text(aHooks),
+				"-c",
+				"core.fsmonitor=false",
+				"-c",
+				"credential.helper=",
+				"-c",
+				"credential.interactive=never",
+				"-c",
+				"protocol.allow=never",
+				"-c",
+				"protocol.file.allow=never",
+				"-c",
+				"protocol.http.allow=never",
+				"-c",
+				"protocol.https.allow=never",
+				"-c",
+				"protocol.ssh.allow=never",
+				"-c",
+				"protocol.git.allow=never",
+				"-c",
+				"protocol.ext.allow=never",
+				"-c",
+				"submodule.recurse=false",
+				"-c",
+				"diff.external=",
+				"-c",
+				"filter.lfs.required=false",
+				"-c",
+				"filter.lfs.smudge=",
+				"-c",
+				"filter.lfs.clean=",
+				"-c",
+				"gc.auto=0",
+				"-c",
+				"maintenance.auto=false",
+				"--no-pager",
+				"--no-replace-objects",
+				"-C",
+				path_text(aWorkspace),
+			};
+		}
+
+		[[nodiscard]] auto path_begins_with(
+			const std::filesystem::path& aPath,
+			const std::filesystem::path& aPrefix) noexcept -> bool
+		{
+			auto path   = aPath.begin();
+			auto prefix = aPrefix.begin();
+			for (; prefix != aPrefix.end(); ++prefix, ++path) {
+				if (path == aPath.end() || *path != *prefix) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		template <typename... Arguments>
 		auto append_arguments(
 			std::vector<std::string>& aTarget,
@@ -2570,6 +2668,303 @@ namespace bpr::adapters::git {
 				return application::git_commit_inspection{
 					.Tree = *parsed
 				};
+			}
+
+			[[nodiscard]] auto materialize_agent_workspace(
+				const application::git_agent_workspace_request& aRequest,
+				const std::stop_token                           aStop)
+				-> git_process_result<application::owned_agent_workspace> override
+			{
+				auto boundary = process_boundary_lock{ IsolationRoot, aStop };
+				if (!boundary.valid()) {
+					return std::unexpected{
+						aStop.stop_requested()
+							? git_process_failure::cancelled
+							: git_process_failure::invalid_configuration
+					};
+				}
+				const auto& materialization = aRequest.Materialization;
+				const auto& head            = materialization.Session.Binding.HeadOid;
+				const auto  algorithm       = head.algorithm() == core::git_hash_algorithm::sha1
+					? git_hash_algorithm::sha1
+					: git_hash_algorithm::sha256;
+				const auto  isolation       = canonical_existing(IsolationRoot);
+				const auto  parent          = canonical_existing(materialization.ParentDirectory);
+				if (
+					!application::valid(materialization)
+					|| (head.algorithm() != core::git_hash_algorithm::sha1
+						&& head.algorithm() != core::git_hash_algorithm::sha256)
+					|| !valid_repository(aRequest.Repository, algorithm)
+					|| !isolation.has_value() || !parent.has_value()
+					|| !private_directory(*parent)
+					|| path_begins_with(*parent, *isolation)
+					|| path_begins_with(*isolation, *parent)) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+
+				const auto headText = std::string{ core::canonical_hex(head).view() };
+				const auto name     = "bpr-agent-"
+					+ std::to_string(materialization.ApplicationSession.value()) + "-"
+					+ std::to_string(materialization.Session.Id.value()) + "-"
+					+ headText.substr(0U, 16U);
+				const auto      destination = (*parent / name).lexically_normal();
+				std::error_code presenceError;
+				const auto      destinationStatus = std::filesystem::symlink_status(
+					destination,
+					presenceError);
+				if (
+					destination.parent_path() != *parent
+					|| (presenceError
+						&& presenceError
+							!= std::make_error_code(std::errc::no_such_file_or_directory))
+					|| (!presenceError
+						&& destinationStatus.type()
+							!= std::filesystem::file_type::not_found)) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+
+				if (!make_private_directory(destination)) {
+					return std::unexpected{ git_process_failure::invalid_repository };
+				}
+				const auto identity = exact_identity(
+					destination,
+					exact_artifact_kind::directory);
+				if (!identity.has_value()) {
+					return std::unexpected{ git_process_failure::invalid_repository };
+				}
+				auto       ownedPath = destination;
+				const auto cleanup   = [&]() noexcept {
+					return quarantine_and_remove_exact(
+						ownedPath,
+						*identity,
+						true);
+				};
+				const auto fail = [&](const git_process_failure aFailure)
+					-> git_process_result<application::owned_agent_workspace> {
+					static_cast<void>(cleanup());
+					return std::unexpected{ aFailure };
+				};
+
+				auto initArguments = std::vector<std::string>{
+					"-c",
+					"core.fsync=all",
+					"-c",
+					"core.fsyncMethod=fsync",
+					"-c",
+					"core.hooksPath=" + path_text(HooksRoot),
+					"-c",
+					"credential.helper=",
+					"-c",
+					"credential.interactive=never",
+					"-c",
+					"submodule.recurse=false",
+					"-c",
+					"filter.lfs.required=false",
+					"-c",
+					"filter.lfs.smudge=",
+					"-c",
+					"filter.lfs.clean=",
+					"init",
+					"--quiet",
+					"--template=" + path_text(TemplatesRoot),
+				};
+				if (algorithm == git_hash_algorithm::sha256) {
+					initArguments.emplace_back("--object-format=sha256");
+				}
+				append_arguments(initArguments, "--", path_text(destination));
+				const auto initialized = submit(
+					process_request{
+						.Arguments = std::move(initArguments),
+						.Timeout   = pack_process_timeout,
+					},
+					aStop);
+				if (!initialized.has_value()) {
+					return fail(initialized.error());
+				}
+
+				auto arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+				append_arguments(
+					arguments,
+					"pack-objects",
+					"--revs",
+					"--delta-base-offset",
+					"--non-empty",
+					"--",
+					path_text(destination / ".git" / "objects" / "pack" / "pack"));
+				const auto packed = submit(
+					process_request{
+						.Arguments = std::move(arguments),
+						.Input     = memory_input{ headText + "\n" },
+						.Timeout   = pack_process_timeout,
+					},
+					aStop);
+				const auto packHashBytes = algorithm == git_hash_algorithm::sha1 ? 40U : 64U;
+				if (
+					!packed.has_value()
+					|| packed->StandardOutput.size() != packHashBytes + 1U
+					|| packed->StandardOutput.back() != '\n'
+					|| !valid_fixed_hex(
+						std::string_view{ packed->StandardOutput }.substr(0U, packHashBytes),
+						packHashBytes)) {
+					return fail(
+						packed.has_value()
+							? git_process_failure::malformed_output
+							: packed.error());
+				}
+
+				arguments = workspace_git_arguments(destination, HooksRoot);
+				append_arguments(arguments, "read-tree", "--reset", headText);
+				const auto indexed = submit(
+					process_request{
+						.Arguments = std::move(arguments),
+						.Timeout   = pack_process_timeout,
+					},
+					aStop);
+				if (!indexed.has_value()) {
+					return fail(indexed.error());
+				}
+				arguments = workspace_git_arguments(destination, HooksRoot);
+				append_arguments(arguments, "checkout-index", "--all", "--force");
+				const auto materialized = submit(
+					process_request{
+						.Arguments = std::move(arguments),
+						.Timeout   = pack_process_timeout,
+					},
+					aStop);
+				if (!materialized.has_value()) {
+					return fail(materialized.error());
+				}
+				if (!write_private_file(destination / ".git" / "HEAD", headText + "\n")) {
+					return fail(git_process_failure::invalid_repository);
+				}
+
+				std::error_code hooksError;
+				static_cast<void>(std::filesystem::remove_all(
+					destination / ".git" / "hooks",
+					hooksError));
+				if (hooksError) {
+					return fail(git_process_failure::invalid_repository);
+				}
+
+				arguments = workspace_git_arguments(destination, HooksRoot);
+				append_arguments(arguments, "rev-parse", "--verify", "HEAD^{commit}");
+				const auto verifiedHead = submit(
+					process_request{ .Arguments = std::move(arguments) },
+					aStop);
+				if (
+					!verifiedHead.has_value()
+					|| verifiedHead->StandardOutput != headText + "\n") {
+					return fail(
+						verifiedHead.has_value()
+							? git_process_failure::malformed_output
+							: verifiedHead.error());
+				}
+
+				arguments = workspace_git_arguments(destination, HooksRoot);
+				append_arguments(arguments, "config", "--local", "--get-regexp", "^remote\\.");
+				const auto remotes = submit(
+					process_request{
+						.Arguments    = std::move(arguments),
+						.AllowExitOne = true,
+					},
+					aStop);
+				if (
+					!remotes.has_value() || remotes->ExitCode != 1
+					|| !remotes->StandardOutput.empty()) {
+					return fail(
+						remotes.has_value()
+							? git_process_failure::invalid_repository
+							: remotes.error());
+				}
+
+				std::error_code topologyError;
+				const auto      unsafeTopology = std::filesystem::exists(
+													 destination / ".git" / "objects" / "info" / "alternates",
+													 topologyError)
+					|| topologyError
+					|| std::filesystem::exists(
+												destination / ".git" / "objects" / "info" / "http-alternates",
+												topologyError)
+					|| topologyError
+					|| std::filesystem::exists(
+												destination / ".git" / "worktrees",
+												topologyError)
+					|| topologyError
+					|| std::filesystem::exists(
+												destination / ".git" / "hooks",
+												topologyError)
+					|| topologyError;
+				if (
+					unsafeTopology || !private_directory(destination / ".git")
+					|| !read_exact_file(destination / ".git" / "HEAD", headText + "\n")) {
+					return fail(git_process_failure::invalid_repository);
+				}
+
+				const auto marker = "bpr-agent-workspace-v1:"
+					+ std::to_string(materialization.ApplicationSession.value()) + ":"
+					+ std::to_string(materialization.Session.Id.value()) + ":" + headText
+					+ "\n";
+				if (!write_private_file(destination / ".git" / "bpr-owned-workspace", marker)) {
+					return fail(git_process_failure::invalid_repository);
+				}
+				return application::owned_agent_workspace{
+					.Workspace = application::prepared_workspace{
+						.Policy      = core::agent_workspace_policy::disposable_review_workspace,
+						.PinnedHead  = head,
+						.Path        = path_text(destination),
+						.Cleanliness = application::checkout_cleanliness::clean,
+					},
+					.ApplicationSession = materialization.ApplicationSession,
+					.Authority          = materialization.Authority,
+					.Session            = materialization.Session.Id,
+					.ParentDirectory    = *parent,
+					.OwnershipMarker    = marker,
+					.DirectoryIdentity  = workspace_directory_identity(*identity),
+				};
+			}
+
+			[[nodiscard]] auto cleanup_agent_workspace(
+				const application::owned_agent_workspace& aWorkspace,
+				const std::stop_token                     aStop)
+				-> git_process_result<void> override
+			{
+				if (aStop.stop_requested()) {
+					return std::unexpected{ git_process_failure::cancelled };
+				}
+				auto boundary = process_boundary_lock{ IsolationRoot, aStop };
+				if (!boundary.valid()) {
+					return std::unexpected{
+						aStop.stop_requested()
+							? git_process_failure::cancelled
+							: git_process_failure::invalid_configuration
+					};
+				}
+				const auto isolation   = canonical_existing(IsolationRoot);
+				const auto parent      = canonical_existing(aWorkspace.ParentDirectory);
+				const auto destination = resolve_canonical_existing(
+					std::filesystem::path{ aWorkspace.Workspace.Path });
+				if (
+					!application::valid(aWorkspace) || !isolation.has_value()
+					|| !parent.has_value() || !destination.has_value()
+					|| !private_directory(*parent) || !private_directory(*destination)
+					|| destination->parent_path() != *parent
+					|| path_begins_with(*parent, *isolation)
+					|| path_begins_with(*isolation, *parent)
+					|| !read_exact_file(
+						*destination / ".git" / "bpr-owned-workspace",
+						aWorkspace.OwnershipMarker)) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+				const auto identity = exact_directory_identity(
+					aWorkspace.DirectoryIdentity);
+				if (!identity.has_value()) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+				auto ownedPath = *destination;
+				if (!quarantine_and_remove_exact(ownedPath, *identity, true)) {
+					return std::unexpected{ git_process_failure::invalid_repository };
+				}
+				return { };
 			}
 
 			[[nodiscard]] auto materialize_blob(
@@ -4564,6 +4959,48 @@ namespace bpr::adapters::git {
 				.ExecPath          = std::move(aExecPath),
 				.WindowsSystemRoot = aWindowsSystemRoot,
 			};
+		}
+	}
+
+	auto capture_installed_agent_workspace_parent(
+		const std::filesystem::path& aPath) noexcept
+		-> std::optional<installed_agent_workspace_parent>
+	{
+		try {
+			const auto path = canonical_existing(aPath);
+			if (!path.has_value() || !private_directory(*path)) {
+				return std::nullopt;
+			}
+			const auto identity = exact_identity(
+				*path,
+				exact_artifact_kind::directory);
+			if (!identity.has_value()) {
+				return std::nullopt;
+			}
+			return installed_agent_workspace_parent{
+				.Path              = *path,
+				.DirectoryIdentity = workspace_directory_identity(*identity),
+			};
+		} catch (...) {
+			return std::nullopt;
+		}
+	}
+
+	auto remove_installed_agent_workspace_parent(
+		installed_agent_workspace_parent& aParent) noexcept -> bool
+	{
+		try {
+			const auto identity = exact_directory_identity(
+				aParent.DirectoryIdentity);
+			if (
+				!identity.has_value() || !empty_private_directory(aParent.Path)
+				|| exact_identity(aParent.Path, exact_artifact_kind::directory)
+					!= identity) {
+				return false;
+			}
+			return quarantine_and_remove_exact(aParent.Path, *identity, false);
+		} catch (...) {
+			return false;
 		}
 	}
 

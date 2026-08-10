@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -98,6 +99,19 @@ namespace {
 				output += character;
 				break;
 			}
+		}
+		return output;
+	}
+
+	[[nodiscard]] auto lower_hex(const std::string_view aValue) -> std::string
+	{
+		constexpr std::string_view digits = "0123456789abcdef";
+		auto                       output = std::string{ };
+		output.reserve(aValue.size() * 2U);
+		for (const auto character : aValue) {
+			const auto byte = static_cast<unsigned char>(character);
+			output.push_back(digits[byte >> 4U]);
+			output.push_back(digits[byte & 0x0FU]);
 		}
 		return output;
 	}
@@ -295,6 +309,16 @@ namespace {
 		return child > 0;
 #endif
 	}
+
+	[[nodiscard]] auto executable_mode(
+		char** const aArguments, const std::string_view aMode) -> bool
+	{
+		return std::filesystem::path{ aArguments[0] }
+				   .filename()
+				   .string()
+				   .find(aMode)
+			!= std::string::npos;
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -330,8 +354,21 @@ auto main(int argc, char** argv) -> int
 			std::cerr.flush();
 		}
 	}
-	if (has_argument(argc, argv, "--spawn-descendant")) {
-		const auto marker = argument_after(argc, argv, "--spawn-descendant");
+	if (has_argument(argc, argv, "--spawn-descendant")
+		|| executable_mode(argv, "descendant-wait")) {
+		auto marker = argument_after(argc, argv, "--spawn-descendant");
+		if (marker.empty()) {
+			marker = (std::filesystem::temp_directory_path()
+					  / ("bpr-agent-descendant-" + std::to_string(
+#if defined(_WIN32)
+							 ::_getpid()
+#else
+							 ::getpid()
+#endif
+								 )))
+						 .string();
+			emit(protocol, "descendant-marker\t" + marker);
+		}
 		if (marker.empty() || !spawn_descendant(argv[0], marker)) {
 			return 31;
 		}
@@ -345,7 +382,37 @@ auto main(int argc, char** argv) -> int
 		 ++entry) {
 		emit(protocol, "env\t" + std::string{ *entry });
 	}
+	const auto cwd = std::filesystem::current_path();
+	emit(protocol, "cwd\t" + cwd.string());
+	const auto readFile = [](const std::filesystem::path& aPath) {
+		auto input = std::ifstream{ aPath, std::ios::binary };
+		return std::string{
+			std::istreambuf_iterator<char>{ input },
+			std::istreambuf_iterator<char>{ }
+		};
+	};
+	const auto head   = readFile(cwd / ".git" / "HEAD");
+	const auto config = readFile(cwd / ".git" / "config");
+	emit(protocol, "head\t" + head);
+	emit(
+		protocol,
+		"origin\t"
+			+ std::string{ config.find("remote \"origin\"") == std::string::npos
+							   ? "absent"
+							   : "present" });
+	for (const auto& [name, path] : {
+			 std::pair{ "alternates", cwd / ".git" / "objects" / "info" / "alternates" },
+			 std::pair{ "http-alternates", cwd / ".git" / "objects" / "info" / "http-alternates" },
+			 std::pair{ "hooks", cwd / ".git" / "hooks" },
+			 std::pair{ "worktrees", cwd / ".git" / "worktrees" },
+		 }) {
+		emit(
+			protocol,
+			std::string{ name } + "\t"
+				+ (std::filesystem::exists(path) ? "present" : "absent"));
+	}
 	emit(protocol, "stdin\t" + input);
+	emit(protocol, "stdin-hex\t" + lower_hex(input));
 	const auto identity = std::getenv("BPR_CANARY_AGENT_IDENTITY");
 	emit(
 		protocol,
@@ -358,7 +425,13 @@ auto main(int argc, char** argv) -> int
 		? std::string_view{ "interrupted" }
 		: std::string_view{ "completed" };
 	finish_output(protocol, terminalStatus);
-	if (has_argument(argc, argv, "--wait-forever")) {
+	if (executable_mode(argv, "cleanup-retry-wait")) {
+		const auto release = cwd / ".bpr-cleanup-retry-release";
+		while (!std::filesystem::exists(release)) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+		}
+	} else if (has_argument(argc, argv, "--wait-forever")
+			   || executable_mode(argv, "wait")) {
 		while (true) {
 			std::this_thread::sleep_for(std::chrono::hours{ 1 });
 		}
