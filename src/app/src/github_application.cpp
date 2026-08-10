@@ -24,6 +24,7 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
@@ -37,6 +38,7 @@
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
+#include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
@@ -171,6 +173,92 @@ namespace bpr::app {
 				QFileInfo{ QStandardPaths::findExecutable(QStringLiteral("git")) }
 					.canonicalFilePath());
 		}
+
+		[[nodiscard]] auto queue_observation_for(
+			const application::accepted_pull_request_handoff& aHandoff,
+			const application::github_pull_request_snapshot&  aSnapshot)
+			-> core::pull_request_observation
+		{
+			auto paths = std::vector<std::string>{ };
+			paths.reserve(aSnapshot.Files.size());
+			std::ranges::transform(
+				aSnapshot.Files,
+				std::back_inserter(paths),
+				[](const application::github_file_record& aFile) {
+					return aFile.Path;
+				});
+			return {
+				.Ref = {
+					.Host       = std::string{ aHandoff.Hostname.value() },
+					.Account    = aSnapshot.Viewer.Login,
+					.Repository = aSnapshot.Repository.Owner + "/"
+						+ aSnapshot.Repository.Name,
+					.Number = aSnapshot.PullRequest.Number.value(),
+				},
+				.Author = aSnapshot.PullRequest.Author.has_value() ? aSnapshot.PullRequest.Author->Login : std::string{ },
+				// The accepted snapshot does not carry GitHub's explicit queue-role
+				// authority. Review and comment history are evidence of activity, not
+				// a substitute for an assignment supplied by the provider.
+				.Role         = core::github_role::none,
+				.ChangedPaths = std::move(paths),
+			};
+		}
+
+		class composition_queue_refresh final
+			: public application::queue_refresh_effect_port
+		{
+		public:
+			void retain(
+				application::queue_session_id     aSession,
+				core::pull_request_observation    aObservation,
+				application::queue_refresh_status aStatus
+				= application::queue_refresh_status::changed)
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				Retained        = application::queue_refresh_completion{
+					.Session     = std::move(aSession),
+					.Ref         = aObservation.Ref,
+					.Status      = aStatus,
+					.Observation = std::move(aObservation),
+				};
+			}
+
+			void clear()
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				Retained.reset();
+			}
+
+			auto refresh(
+				const application::queue_refresh_request& aRequest,
+				std::stop_token                           aStop) -> application::queue_refresh_completion override
+			{
+				if (aStop.stop_requested()) {
+					return {
+						.Session = aRequest.Session,
+						.Ref     = aRequest.Ref,
+						.Status  = application::queue_refresh_status::cancelled,
+					};
+				}
+				const auto lock = std::scoped_lock{ Mutex };
+				if (!Retained.has_value() || Retained->Session != aRequest.Session
+					|| Retained->Ref != aRequest.Ref) {
+					return {
+						.Session = aRequest.Session,
+						.Ref     = aRequest.Ref,
+						.Status  = application::queue_refresh_status::cancelled,
+					};
+				}
+				// This port replays an already accepted snapshot; it does not own a
+				// provider ETag. A head OID is not a substitute because review and
+				// comment activity can change while the head stays fixed.
+				return *Retained;
+			}
+
+		private:
+			std::mutex                                           Mutex;
+			std::optional<application::queue_refresh_completion> Retained;
+		};
 
 		[[nodiscard]] auto preserves_selected_diff(
 			const core::epoch_state&                          aState,
@@ -1499,6 +1587,25 @@ namespace bpr::app {
 					classify_defect(std::move(aConversation));
 				});
 
+			QueueStore   = adapters::sqlite::make_queue_enrollment_store({
+				.StorageRoot = applicationDataRoot,
+			});
+			QueueRefresh = std::make_unique<composition_queue_refresh>();
+			QueueHost    = std::make_unique<application::review_queue_application_host>(
+				*QueueStore,
+				*QueueRefresh,
+				QueueEffects,
+				DecisionLane,
+				*Window,
+				application::queue_session_id{ });
+			Window->set_queue_rule_dispatch(
+				[this](application::queue_rule_intent aIntent) {
+					if (!Closing && QueueHost != nullptr) {
+						QueueHost->apply(std::move(aIntent));
+					}
+				});
+			QueueHost->restore();
+
 			EpochHost = std::make_unique<application::epoch_application_host>(
 				core::epoch_state{
 					.ApplicationSession = core::application_session_id{ 1U },
@@ -2287,13 +2394,32 @@ namespace bpr::app {
 		{
 			if (!Closing && EpochHost != nullptr) {
 				const auto authority = workbench_authority(aHandoff);
+				const auto snapshot  = Host != nullptr
+					? Host->accepted_snapshot()
+					: std::optional<application::github_pull_request_snapshot>{ };
 				compose_review_ledger(aHandoff);
 				compose_review_mutation(aHandoff);
 				WorkbenchReview.adopt(
 					aHandoff,
-					Host != nullptr
-						? Host->accepted_snapshot()
-						: std::optional<application::github_pull_request_snapshot>{ });
+					snapshot);
+				if (snapshot.has_value() && QueueHost != nullptr
+					&& QueueRefresh != nullptr) {
+					auto observation = queue_observation_for(aHandoff, *snapshot);
+					auto session     = application::queue_session_id{
+						.Host       = observation.Ref.Host,
+						.Account    = observation.Ref.Account,
+						.Generation = aHandoff.IdentityGeneration.value(),
+					};
+					QueueHost->adopt(session);
+					QueueRefresh->retain(
+						std::move(session),
+						observation);
+					QueueHost->refresh(
+						observation.Ref,
+						core::queue_activity_observation{
+							.ObservedActivity = true,
+						});
+				}
 				load_defects();
 #if defined(BPR_BUILD_TESTING)
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
@@ -2313,6 +2439,12 @@ namespace bpr::app {
 		{
 			if (Closing || EpochHost == nullptr) {
 				return;
+			}
+			if (QueueHost != nullptr) {
+				QueueHost->cancel();
+			}
+			if (QueueRefresh != nullptr) {
+				QueueRefresh->clear();
 			}
 			const auto retiresLedger = matches_review_ledger(aInvalidation);
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
@@ -2882,6 +3014,9 @@ namespace bpr::app {
 			if (WorkbenchHost) {
 				WorkbenchHost->shutdown();
 			}
+			if (QueueHost) {
+				QueueHost->shutdown();
+			}
 			if (AppearanceHost) {
 				AppearanceHost->shutdown();
 			}
@@ -2915,6 +3050,7 @@ namespace bpr::app {
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
 				|| !Host->is_quiescent()
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
+				|| (QueueHost && !QueueHost->is_quiescent())
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())) {
 				schedule_shutdown_poll();
 				return;
@@ -2923,6 +3059,7 @@ namespace bpr::app {
 			ShutdownCleanupFailed         = Host->shutdown_cleanup_failed();
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
 			AppearanceEffects.close_and_drain();
+			QueueEffects.close_and_drain();
 			WorkbenchEffects.close_and_drain();
 			DiffEffects.close_and_drain();
 			EpochEffects.close_and_drain();
@@ -3123,11 +3260,15 @@ namespace bpr::app {
 		worker_executor                                                 DiffEffects;
 		worker_executor                                                 WorkbenchEffects;
 		worker_executor                                                 AppearanceEffects;
+		worker_executor                                                 QueueEffects;
 		std::unique_ptr<application::epoch_application_host>            EpochHost;
 		std::unique_ptr<composition_diff_projection>                    DiffProjections;
 		std::unique_ptr<application::diff_application_host>             DiffHost;
 		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
 		std::unique_ptr<application::appearance_application_host>       AppearanceHost;
+		std::unique_ptr<application::queue_enrollment_store_port>       QueueStore;
+		std::unique_ptr<composition_queue_refresh>                      QueueRefresh;
+		std::unique_ptr<application::review_queue_application_host>     QueueHost;
 		std::unique_ptr<application::github_application_host>           Host;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		bool                                                            Closing                       = false;
@@ -3262,6 +3403,15 @@ namespace bpr::app {
 		return aApplication.Implementation->Fixture != nullptr
 			? aApplication.Implementation->Fixture->evidence()
 			: detail::github_public_path_fixture_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::review_mutation_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::review_mutation_fixture_evidence
+	{
+		return aApplication.Implementation->Fixture != nullptr
+			? aApplication.Implementation->Fixture->review_mutation_evidence()
+			: detail::review_mutation_fixture_evidence{ };
 	}
 
 	auto detail::github_application_fixture_access::maintenance_evidence(

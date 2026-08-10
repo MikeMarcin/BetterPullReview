@@ -3,6 +3,7 @@
 
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
+#include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -11,6 +12,7 @@
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QList>
@@ -26,8 +28,12 @@
 #include <vector>
 
 class QAction;
+class QCheckBox;
+class QComboBox;
 class QEvent;
 class QLabel;
+class QLineEdit;
+class QListView;
 class QMenu;
 class QPlainTextEdit;
 class QResizeEvent;
@@ -36,6 +42,7 @@ class QSplitter;
 class QStackedWidget;
 class QToolBar;
 class QToolButton;
+class QVBoxLayout;
 
 namespace bpr::qt {
 	class diff_workbench;
@@ -56,6 +63,7 @@ namespace bpr::qt {
 	using workbench_review_draft_dispatch          = std::function<void(core::review_draft_command)>;
 	using workbench_defect_dispatch                = std::function<void(core::defect_command)>;
 	using workbench_defect_classification_dispatch = std::function<void(std::string)>;
+	using workbench_queue_rule_dispatch            = std::function<void(application::queue_rule_intent)>;
 
 	enum class workbench_toolbar_mode : std::uint8_t {
 		expanded,
@@ -83,6 +91,8 @@ namespace bpr::qt {
 		std::uint64_t DefectIntents         = 0U;
 		std::uint64_t DefectClassifications = 0U;
 		std::uint64_t DefectNavigation      = 0U;
+		std::uint64_t QueueUpdates          = 0U;
+		std::uint64_t QueueRuleIntents      = 0U;
 		/// \brief Full GitHub presentation resets, which must stay at zero.
 		///
 		/// \details Carried over from `github_window` because the render probes
@@ -130,7 +140,8 @@ namespace bpr::qt {
 		: public QMainWindow,
 		  public application::workbench_projection_port,
 		  public application::epoch_projection_port,
-		  public application::github_projection_port
+		  public application::github_projection_port,
+		  public application::queue_landing_projection_port
 	{
 	public:
 		explicit workbench_window(
@@ -165,6 +176,8 @@ namespace bpr::qt {
 		/// panels bought.
 		void publish(
 			const application::github_presentation_update& aUpdate) override;
+		void publish(
+			const application::queue_landing_projection& aProjection) override;
 		void fail(
 			const application::workbench_failure_publication& aFailure) override;
 		/// \brief Adopts the selected file's core-decided private receipt actions.
@@ -184,6 +197,7 @@ namespace bpr::qt {
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
 		void set_defect_classification_dispatch(
 			workbench_defect_classification_dispatch aClassificationDispatch);
+		void set_queue_rule_dispatch(workbench_queue_rule_dispatch aDispatch);
 		/// \brief Adopts the complete bounded local defect queue.
 		void present_defects(std::vector<core::defect_history> aDefects);
 		void clear_defects();
@@ -235,6 +249,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto defect_count_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto shown_defect_index() const noexcept -> std::optional<std::size_t>;
 		[[nodiscard]] auto defect_count() const noexcept -> std::size_t;
+		[[nodiscard]] auto queue_landing() const noexcept -> review_landing_model*;
+		[[nodiscard]] auto queue_view() const noexcept -> QListView*;
+		[[nodiscard]] auto queue_rule_kind_selector() const noexcept -> QComboBox*;
+		[[nodiscard]] auto queue_rule_pattern_editor() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto queue_rule_exclusion() const noexcept -> QCheckBox*;
+		[[nodiscard]] auto add_queue_rule_action() const noexcept -> QAction*;
+		[[nodiscard]] auto remove_queue_rule_action() const noexcept -> QAction*;
+		[[nodiscard]] auto queue_status_label() const noexcept -> QLabel*;
 
 		[[nodiscard]] auto session_panel() const noexcept -> github_session_panel*;
 		[[nodiscard]] auto pull_request_panel() const noexcept
@@ -386,6 +408,9 @@ namespace bpr::qt {
 		void classify_selected_conversation();
 		void navigate_defect(int aDirection);
 		void update_defect_surface();
+		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
+		void dispatch_queue_rule(application::queue_rule_action aAction);
+		void update_queue_rule_actions();
 
 		[[nodiscard]] auto command(core::workbench_command_id aId) const
 			-> std::optional<core::workbench_command_projection>;
@@ -398,6 +423,7 @@ namespace bpr::qt {
 		workbench_review_draft_dispatch          ReviewDraftDispatch;
 		workbench_defect_dispatch                DefectDispatch;
 		workbench_defect_classification_dispatch DefectClassificationDispatch;
+		workbench_queue_rule_dispatch            QueueRuleDispatch;
 
 		QToolBar*       PrimaryToolbar    = nullptr;
 		QToolBar*       DrawerToolbar     = nullptr;
@@ -424,6 +450,16 @@ namespace bpr::qt {
 		QAction*                                                   NextDefect        = nullptr;
 		std::vector<core::defect_history>                          Defects;
 		std::optional<std::size_t>                                 ShownDefectIndex;
+		review_landing_model*                                      QueueLanding       = nullptr;
+		QListView*                                                 QueueView          = nullptr;
+		QComboBox*                                                 QueueRuleSelector  = nullptr;
+		QComboBox*                                                 QueueRuleKind      = nullptr;
+		QLineEdit*                                                 QueueRulePattern   = nullptr;
+		QCheckBox*                                                 QueueRuleExcluding = nullptr;
+		QAction*                                                   AddQueueRule       = nullptr;
+		QAction*                                                   RemoveQueueRule    = nullptr;
+		QLabel*                                                    QueueStatus        = nullptr;
+		std::vector<core::observer_rule>                           QueueRules;
 		QScrollArea*                                               HeaderScroll         = nullptr;
 		github_session_panel*                                      SessionPanel         = nullptr;
 		github_pull_request_panel*                                 PullRequestPanel     = nullptr;
@@ -452,6 +488,7 @@ namespace bpr::qt {
 		bool                                                       ToolbarConfigured     = false;
 		bool                                                       ApplyingLayout        = false;
 		bool                                                       ApplyingFileSelection = false;
+		bool                                                       QueueReady            = false;
 		// Set by the first published review-history update. Before one arrives
 		// the shell has no review-history state to state, and quoting the
 		// control's idle wording would report activity that never happened.

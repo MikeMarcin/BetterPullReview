@@ -149,6 +149,29 @@ bpr_add_executable(
     test_better_pull_review_worker_executor_tests
     worker_executor_tests.cpp
 )
+
+bpr_add_executable(
+    test_better_pull_review_queue_composition_public_path
+    queue_composition_public_path.cpp
+)
+target_link_libraries(
+    test_better_pull_review_queue_composition_public_path
+    PRIVATE
+        BetterPullReview::Composition
+)
+target_compile_definitions(
+    test_better_pull_review_queue_composition_public_path
+    PRIVATE
+        BPR_BUILD_TESTING=1
+)
+target_compile_features(
+    test_better_pull_review_queue_composition_public_path
+    PRIVATE
+        cxx_std_23
+)
+bpr_enable_hardening(test_better_pull_review_queue_composition_public_path)
+bpr_enable_warnings(test_better_pull_review_queue_composition_public_path)
+
 target_link_libraries(
     test_better_pull_review_worker_executor_tests
     PRIVATE
@@ -205,6 +228,29 @@ if(UNIX AND NOT APPLE)
         "QT_STYLE_OVERRIDE=Windows"
     )
 endif()
+
+add_test(
+    NAME application_queue_composition_contract
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:test_better_pull_review_queue_composition_public_path>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/queue-composition-contract"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_queue_composition_contract.cmake"
+)
+set_tests_properties(
+    application_queue_composition_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "QUEUE_COMPOSITION_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_queue_composition_contract
+    TIMEOUT 75
+    BUDGET_MS 25000
+    RUNS 2
+    RESERVE_MS 4000
+)
 
 bpr_add_executable(
     test_better_pull_review_github_application_liveness_tests

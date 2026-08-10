@@ -234,6 +234,9 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto evidence(
 			const github_application& aApplication) noexcept
 			-> github_public_path_fixture_evidence;
+		[[nodiscard]] static auto review_mutation_evidence(
+			const github_application& aApplication) noexcept
+			-> review_mutation_fixture_evidence;
 		[[nodiscard]] static auto maintenance_evidence(
 			const github_application& aApplication,
 			core::review_epoch_id     aTarget) noexcept

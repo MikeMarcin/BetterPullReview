@@ -1,9 +1,15 @@
+#include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
+#include <ranges>
+#include <stop_token>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -67,6 +73,373 @@ namespace {
 			.Ref     = aRef,
 			.Status  = aStatus,
 		};
+	}
+
+	class memory_queue_store final
+		: public application::queue_enrollment_store_port
+	{
+	public:
+		[[nodiscard]] auto load(std::stop_token) -> std::expected<
+			application::durable_queue_state,
+			application::queue_store_failure> override
+		{
+			++Loads;
+			return State;
+		}
+
+		[[nodiscard]] auto apply_rule_change(
+			const application::queue_rule_intent&                 aIntent,
+			const std::span<const application::enrollment_record> aEnrollments,
+			std::stop_token) -> std::expected<void, application::queue_store_failure> override
+		{
+			auto next = State;
+			if (aIntent.Action == application::queue_rule_action::add) {
+				next.Rules.push_back(aIntent.Rule);
+			} else {
+				std::erase(next.Rules, aIntent.Rule);
+			}
+			if (FailEnrollmentStore && !aEnrollments.empty()) {
+				return std::unexpected(
+					application::queue_store_failure::unavailable);
+			}
+			for (const auto& enrollment : aEnrollments) {
+				const auto found = std::ranges::find(
+					next.Enrollments,
+					enrollment.Ref,
+					&application::enrollment_record::Ref);
+				if (found == next.Enrollments.end()) {
+					next.Enrollments.push_back(enrollment);
+				} else {
+					*found = enrollment;
+				}
+			}
+			State = std::move(next);
+			return { };
+		}
+
+		[[nodiscard]] auto store_enrollment(
+			const application::enrollment_record& aRecord,
+			std::stop_token) -> std::expected<void, application::queue_store_failure> override
+		{
+			if (FailEnrollmentStore) {
+				return std::unexpected(
+					application::queue_store_failure::unavailable);
+			}
+			const auto found = std::ranges::find(
+				State.Enrollments,
+				aRecord.Ref,
+				&application::enrollment_record::Ref);
+			if (found == State.Enrollments.end()) {
+				State.Enrollments.push_back(aRecord);
+			} else {
+				*found = aRecord;
+			}
+			return { };
+		}
+
+		application::durable_queue_state State;
+		std::size_t                      Loads               = 0U;
+		bool                             FailEnrollmentStore = false;
+	};
+
+	class observed_refresh final : public application::queue_refresh_effect_port
+	{
+	public:
+		[[nodiscard]] auto refresh(
+			const application::queue_refresh_request& aRequest,
+			std::stop_token                           aStop) -> application::queue_refresh_completion override
+		{
+			Requests.push_back(aRequest);
+			if (aStop.stop_requested() && !IgnoreStop) {
+				return {
+					.Session = aRequest.Session,
+					.Ref     = aRequest.Ref,
+					.Status  = application::queue_refresh_status::cancelled,
+				};
+			}
+			if (ReturnUnchanged) {
+				return {
+					.Session   = aRequest.Session,
+					.Ref       = aRequest.Ref,
+					.Status    = application::queue_refresh_status::unchanged,
+					.Validator = aRequest.Validator,
+				};
+			}
+			auto completion = application::queue_refresh_completion{
+				.Session     = aRequest.Session,
+				.Ref         = WrongRef ? ref(99) : aRequest.Ref,
+				.Status      = application::queue_refresh_status::changed,
+				.Validator   = "etag-1",
+				.Observation = Observation,
+			};
+			if (WrongRef && completion.Observation.has_value()) {
+				completion.Observation->Ref = completion.Ref;
+			}
+			return completion;
+		}
+
+		core::pull_request_observation                  Observation;
+		std::vector<application::queue_refresh_request> Requests;
+		bool                                            ReturnUnchanged = false;
+		bool                                            IgnoreStop      = false;
+		bool                                            WrongRef        = false;
+	};
+
+	class landing_log final : public application::queue_landing_projection_port
+	{
+	public:
+		void publish(
+			const application::queue_landing_projection& aProjection) override
+		{
+			Published.push_back(aProjection);
+		}
+
+		std::vector<application::queue_landing_projection> Published;
+	};
+
+	void run_one(application::manual_executor& aEffects,
+				 application::manual_executor& aLane)
+	{
+		expect(aEffects.pending() == 1U, "one effect is pending");
+		aEffects.run_next();
+		expect(aLane.pending() == 1U, "one typed completion is pending");
+		aLane.run_next();
+	}
+
+	void test_composed_host_persists_matches_and_removal()
+	{
+		auto       store       = memory_queue_store{ };
+		auto       refresh     = observed_refresh{ };
+		auto       effects     = application::manual_executor{ };
+		auto       decisions   = application::manual_executor{ };
+		auto       projections = landing_log{ };
+		const auto session     = application::queue_session_id{
+			.Host = "github.com", .Account = "reviewer", .Generation = 4U
+		};
+		const auto rule = core::observer_rule{
+			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
+		};
+		refresh.Observation = core::pull_request_observation{
+			.Ref = ref(7), .Author = "octocat", .ChangedPaths = { "src/parser.cpp" }
+		};
+
+		auto host = application::review_queue_application_host{
+			store, refresh, effects, decisions, projections, session
+		};
+		host.restore();
+		expect(store.Loads == 0U, "restore does not access the store on the caller lane");
+		run_one(effects, decisions);
+		expect(store.Loads == 1U && host.rules().empty(), "restore adopts durable state");
+
+		host.apply({ .Action = application::queue_rule_action::add, .Rule = rule });
+		host.apply({ .Action = application::queue_rule_action::add, .Rule = rule });
+		expect(store.State.Rules.empty(), "the rule is not stored on the caller lane");
+		expect(effects.pending() == 1U,
+			   "an identical add cannot overtake the first durable mutation");
+		run_one(effects, decisions);
+		expect(store.State.Rules == std::vector{ rule }, "the exact rule is durable");
+		expect(host.rules().size() == 1U, "the in-memory rule is not duplicated");
+
+		host.refresh(ref(7));
+		run_one(effects, decisions);
+		expect(
+			projections.Published.back().Items.empty(),
+			"a match is not published before persistence");
+		run_one(effects, decisions);
+		expect(host.queue().size() == 1U, "the persisted match reaches the queue");
+		expect(
+			store.State.Enrollments.front().Membership.Rule == rule,
+			"the durable enrollment keeps its exact matched reason");
+
+		refresh.ReturnUnchanged = true;
+		host.refresh(ref(7));
+		run_one(effects, decisions);
+		expect(
+			refresh.Requests.back().Validator == std::optional<std::string>{ "etag-1" },
+			"the next refresh carries the accepted ETag");
+
+		refresh.ReturnUnchanged = false;
+		host.apply({ .Action = application::queue_rule_action::remove, .Rule = rule });
+		expect(effects.pending() == 1U,
+			   "one transaction owns rule removal and enrollment reconciliation");
+		run_one(effects, decisions);
+		expect(host.queue().empty(), "cutting the only match empties the projection");
+		expect(
+			store.State.Enrollments.front().Departed
+				== application::enrollment_departure::removed_by_reviewer,
+			"the durable row explains why it left");
+		host.shutdown();
+	}
+
+	void test_rule_removal_reconciles_every_matching_enrollment_before_publish()
+	{
+		auto       store       = memory_queue_store{ };
+		auto       refresh     = observed_refresh{ };
+		auto       effects     = application::manual_executor{ };
+		auto       decisions   = application::manual_executor{ };
+		auto       projections = landing_log{ };
+		const auto rule        = core::observer_rule{
+			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
+		};
+		auto host = application::review_queue_application_host{
+			store,
+			refresh,
+			effects,
+			decisions,
+			projections,
+			{ .Host = "github.com", .Account = "reviewer", .Generation = 4U }
+		};
+		host.restore();
+		run_one(effects, decisions);
+		host.apply({ .Action = application::queue_rule_action::add, .Rule = rule });
+		run_one(effects, decisions);
+
+		for (const auto number : { 7, 8 }) {
+			refresh.Observation = core::pull_request_observation{
+				.Ref = ref(number), .Author = "octocat", .ChangedPaths = { "src/parser.cpp" }
+			};
+			host.refresh(ref(number));
+			run_one(effects, decisions);
+			run_one(effects, decisions);
+		}
+		expect(host.queue().size() == 2U, "one rule enrolls two observed pull requests");
+
+		host.apply({ .Action = application::queue_rule_action::remove, .Rule = rule });
+		expect(
+			projections.Published.back().Items.size() == 2U,
+			"rule removal is not published before every changed row is durable");
+		expect(effects.pending() == 1U,
+			   "one atomic effect owns both changed enrollment rows");
+		run_one(effects, decisions);
+		expect(host.queue().empty(), "removing the shared rule empties both items");
+		expect(
+			std::ranges::all_of(
+				store.State.Enrollments,
+				[](const application::enrollment_record& aRecord) {
+					return aRecord.Departed
+						== application::enrollment_departure::removed_by_reviewer;
+				}),
+			"both durable rows retain the exact local-removal reason");
+		host.shutdown();
+	}
+
+	void test_refresh_identity_and_cancellation_are_authoritative()
+	{
+		auto store       = memory_queue_store{ };
+		auto refresh     = observed_refresh{ };
+		auto effects     = application::manual_executor{ };
+		auto decisions   = application::manual_executor{ };
+		auto projections = landing_log{ };
+		auto host        = application::review_queue_application_host{
+			store,
+			refresh,
+			effects,
+			decisions,
+			projections,
+			{ .Host = "github.com", .Account = "reviewer", .Generation = 4U }
+		};
+		host.restore();
+		run_one(effects, decisions);
+		const auto rule = core::observer_rule{
+			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
+		};
+		host.apply({ .Action = application::queue_rule_action::add, .Rule = rule });
+		run_one(effects, decisions);
+		refresh.Observation = core::pull_request_observation{ .Ref = ref(7) };
+
+		refresh.WrongRef = true;
+		host.refresh(ref(7));
+		run_one(effects, decisions);
+		expect(host.queue().empty(), "a wrong-reference completion changes no queue item");
+		expect(host.statistics().StaleCompletions == 1U,
+			   "the wrong-reference completion is reported stale");
+
+		refresh.WrongRef   = false;
+		refresh.IgnoreStop = true;
+		host.refresh(ref(7));
+		host.cancel();
+		run_one(effects, decisions);
+		expect(host.queue().empty(), "a cancelled completion changes no queue item");
+		expect(host.statistics().CancelledCompletions == 1U,
+			   "cancellation remains authoritative when the effect ignores its token");
+		host.shutdown();
+	}
+
+	void test_failed_rule_reconciliation_rolls_back_before_unavailable_projection()
+	{
+		auto       store       = memory_queue_store{ };
+		auto       refresh     = observed_refresh{ };
+		auto       effects     = application::manual_executor{ };
+		auto       decisions   = application::manual_executor{ };
+		auto       projections = landing_log{ };
+		const auto rule        = core::observer_rule{
+			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
+		};
+		auto host = application::review_queue_application_host{
+			store,
+			refresh,
+			effects,
+			decisions,
+			projections,
+			{ .Host = "github.com", .Account = "reviewer", .Generation = 4U }
+		};
+		host.restore();
+		run_one(effects, decisions);
+		host.apply({ .Action = application::queue_rule_action::add, .Rule = rule });
+		run_one(effects, decisions);
+		refresh.Observation = core::pull_request_observation{ .Ref = ref(7) };
+		host.refresh(ref(7));
+		run_one(effects, decisions);
+		run_one(effects, decisions);
+		expect(host.queue().size() == 1U, "the baseline enrollment is visible");
+
+		store.FailEnrollmentStore = true;
+		host.apply({ .Action = application::queue_rule_action::remove, .Rule = rule });
+		run_one(effects, decisions);
+		expect(
+			projections.Published.back().Status
+					== application::queue_landing_status::unavailable
+				&& projections.Published.back().Rules == std::vector{ rule }
+				&& projections.Published.back().Items.size() == 1U,
+			"a failed enrollment write rolls back before the unavailable projection");
+		host.shutdown();
+
+		auto restartEffects     = application::manual_executor{ };
+		auto restartDecisions   = application::manual_executor{ };
+		auto restartProjections = landing_log{ };
+		auto restarted          = application::review_queue_application_host{
+			store,
+			refresh,
+			restartEffects,
+			restartDecisions,
+			restartProjections,
+			{ .Host = "github.com", .Account = "reviewer", .Generation = 5U }
+		};
+		restarted.restore();
+		run_one(restartEffects, restartDecisions);
+		expect(
+			restarted.rules().size() == 1U && restarted.rules().front() == rule
+				&& restarted.queue().size() == 1U,
+			"reopen sees the same durable rule and enrollment after atomic failure");
+		restarted.shutdown();
+	}
+
+	void test_rule_reconciliation_never_suppresses_a_github_role()
+	{
+		auto records = application::queue_enrollment_register{ };
+		records.enroll(ref(7), core::queue_membership{
+								   .Role        = core::github_role::requested_reviewer,
+								   .MatchedRule = true,
+								   .Rule        = path_rule("src/parser"),
+							   });
+		records.reconcile_rule_change(
+			ref(7), core::queue_membership{ .Role = core::github_role::requested_reviewer });
+		const auto record = records.record_for(ref(7));
+		expect(record.has_value() && record->present(),
+			   "removing a local reason keeps the assigned review present");
+		expect(record->Membership.Role == core::github_role::requested_reviewer
+				   && !record->Membership.MatchedRule,
+			   "the GitHub role remains while the deleted local reason is cleared");
 	}
 
 	// The reason a reviewer is watching does not stop being true when the path
@@ -295,6 +668,11 @@ auto main() -> int
 	test_every_departure_names_and_explains_itself();
 	test_the_projection_is_ordered_by_attention();
 	test_an_unobserved_item_is_quiet();
+	test_composed_host_persists_matches_and_removal();
+	test_rule_removal_reconciles_every_matching_enrollment_before_publish();
+	test_refresh_identity_and_cancellation_are_authoritative();
+	test_failed_rule_reconciliation_rolls_back_before_unavailable_projection();
+	test_rule_reconciliation_never_suppresses_a_github_role();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;

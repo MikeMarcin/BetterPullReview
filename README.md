@@ -46,7 +46,10 @@ classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
 separate Publish action is still the only shared path. Queue filters/sorting,
 notifications, and complete agent context/process lifecycle still have
-component or reachability work tracked by BPR-0231 through BPR-0240.
+component or reachability work tracked by BPR-0239, BPR-0223, and BPR-0240.
+The shipped landing surface now accepts local repository, author, and path
+observer rules, persists the exact matched reason, restores it across a restart,
+and removes the projected item when its only local rule is deleted.
 
 GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the
@@ -71,7 +74,7 @@ and Escape action are Cancel, leave durable tombstones, and state that GitHub
 and developer worktrees are not modified. Users must not edit the private Git
 repository or SQLite catalog by hand.
 
-Defect correlation and the broader private-ledger queue workflow remain later
+Queue filtering/sorting and native notification activation remain later
 public-composition work. The shipped window is `workbench_window`, not the deleted
 `github_window`; it presents the compact pull-request shell, request states,
 retained accepted content, read-only conversations, and connected epoch

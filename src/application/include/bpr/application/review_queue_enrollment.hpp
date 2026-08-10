@@ -1,14 +1,19 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_QUEUE_ENROLLMENT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_QUEUE_ENROLLMENT_HPP
 
+#include "bpr/application/port.hpp"
 #include "bpr/application/review_queue_refresh.hpp"
 #include "bpr/core/review_queue.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
 #include <compare>
 #include <cstdint>
+#include <expected>
+#include <memory>
 #include <optional>
 #include <span>
+#include <stop_token>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -83,6 +88,16 @@ namespace bpr::application {
 			const core::pull_request_ref& aRef,
 			const core::queue_membership& aMembership);
 
+		/// \brief Replaces only the rule-derived reason after a local rule edit.
+		///
+		/// \details Provider refreshes use `enroll`, which preserves the rule
+		/// that originally matched. A reviewer editing that exact local rule is
+		/// different: the rule reason must be recomputed while any GitHub role
+		/// remains authoritative.
+		void reconcile_rule_change(
+			const core::pull_request_ref& aRef,
+			const core::queue_membership& aMembership);
+
 		/// \brief Records that an item left, and why.
 		void depart(
 			const core::pull_request_ref& aRef,
@@ -119,6 +134,147 @@ namespace bpr::application {
 			-> enrollment_record*;
 
 		std::vector<enrollment_record> Records;
+	};
+
+	/// \brief Names one durable queue-store failure without exposing SQLite.
+	enum class queue_store_failure : std::uint8_t {
+		unavailable,
+		integrity_failure,
+		cancelled,
+		invalid_rule,
+	};
+
+	/// \brief The complete bounded private queue state restored at launch.
+	struct durable_queue_state
+	{
+		std::vector<core::observer_rule> Rules;
+		std::vector<enrollment_record>   Enrollments;
+	};
+
+	enum class queue_rule_action : std::uint8_t {
+		add,
+		remove,
+	};
+
+	/// \brief One local-rule gesture translated by Qt.
+	struct queue_rule_intent
+	{
+		queue_rule_action   Action = queue_rule_action::add;
+		core::observer_rule Rule;
+
+		auto operator<=>(const queue_rule_intent&) const = default;
+	};
+
+	/// \brief Persists observer rules and their exact enrollment reasons.
+	class queue_enrollment_store_port
+	{
+	public:
+		virtual ~queue_enrollment_store_port() = default;
+
+		[[nodiscard]] virtual auto load(std::stop_token aStop)
+			-> std::expected<durable_queue_state, queue_store_failure> = 0;
+		[[nodiscard]] virtual auto apply_rule_change(
+			const queue_rule_intent&           aIntent,
+			std::span<const enrollment_record> aEnrollments,
+			std::stop_token                    aStop)
+			-> std::expected<void, queue_store_failure> = 0;
+		[[nodiscard]] virtual auto store_enrollment(
+			const enrollment_record& aRecord,
+			std::stop_token          aStop)
+			-> std::expected<void, queue_store_failure> = 0;
+	};
+
+	/// \brief Performs one queue refresh away from the serialized decision lane.
+	class queue_refresh_effect_port
+	{
+	public:
+		virtual ~queue_refresh_effect_port() = default;
+
+		[[nodiscard]] virtual auto refresh(
+			const queue_refresh_request& aRequest,
+			std::stop_token              aStop) -> queue_refresh_completion = 0;
+	};
+
+	enum class queue_landing_status : std::uint8_t {
+		restoring,
+		ready,
+		unavailable,
+	};
+
+	/// \brief One accepted queue projection for the shipped landing surface.
+	struct queue_landing_projection
+	{
+		queue_landing_status             Status = queue_landing_status::restoring;
+		std::vector<core::observer_rule> Rules;
+		std::vector<core::queue_item>    Items;
+		queue_session_id                 Session;
+		bool                             Online         = true;
+		std::uint32_t                    BackoffSeconds = 0U;
+
+		auto operator<=>(const queue_landing_projection&) const = default;
+	};
+
+	class queue_landing_projection_port
+	{
+	public:
+		virtual ~queue_landing_projection_port()                          = default;
+		virtual void publish(const queue_landing_projection& aProjection) = 0;
+	};
+
+	struct review_queue_host_statistics
+	{
+		std::uint64_t RuleIntents          = 0U;
+		std::uint64_t PersistenceRequests  = 0U;
+		std::uint64_t RefreshRequests      = 0U;
+		std::uint64_t ConditionalRequests  = 0U;
+		std::uint64_t AppliedRefreshes     = 0U;
+		std::uint64_t StaleCompletions     = 0U;
+		std::uint64_t CancelledCompletions = 0U;
+		std::uint64_t Publications         = 0U;
+		std::uint64_t Failures             = 0U;
+
+		auto operator<=>(const review_queue_host_statistics&) const = default;
+	};
+
+	/// \brief Composes durable local rules, refresh effects, and queue projection.
+	class review_queue_application_host final
+	{
+	public:
+		review_queue_application_host(
+			queue_enrollment_store_port&   aStore,
+			queue_refresh_effect_port&     aRefresh,
+			effect_executor&               aEffects,
+			decision_executor&             aDecisionLane,
+			queue_landing_projection_port& aProjection,
+			queue_session_id               aSession);
+		~review_queue_application_host();
+
+		review_queue_application_host(const review_queue_application_host&) = delete;
+		auto operator=(const review_queue_application_host&)
+			-> review_queue_application_host&                          = delete;
+		review_queue_application_host(review_queue_application_host&&) = delete;
+		auto operator=(review_queue_application_host&&)
+			-> review_queue_application_host& = delete;
+
+		void restore();
+		void apply(queue_rule_intent aIntent);
+		void adopt(queue_session_id aSession);
+		void refresh(
+			const core::pull_request_ref&    aRef,
+			core::queue_activity_observation aActivity = { });
+		void cancel();
+		void shutdown();
+
+		[[nodiscard]] auto rules() const noexcept
+			-> std::span<const core::observer_rule>;
+		[[nodiscard]] auto queue() const -> std::vector<core::queue_item>;
+		[[nodiscard]] auto statistics() const noexcept
+			-> review_queue_host_statistics;
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+
+	private:
+		struct implementation;
+		std::unique_ptr<implementation> Implementation;
 	};
 } // namespace bpr::application
 

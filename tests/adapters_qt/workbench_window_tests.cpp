@@ -10,6 +10,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QKeySequence>
@@ -2833,6 +2834,95 @@ namespace {
 				== core::defect_state::needs_verification,
 			"the window does not verify before a new accepted projection");
 	}
+
+	void test_queue_rule_gestures_wait_for_the_accepted_projection()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::queue_rule_intent>{ };
+		window.set_queue_rule_dispatch(
+			[&intents](application::queue_rule_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			});
+		window.publish({ .Status = application::queue_landing_status::ready });
+		window.queue_rule_kind_selector()->setCurrentIndex(2);
+		window.queue_rule_pattern_editor()->setText(QStringLiteral("src/parser"));
+		window.queue_rule_exclusion()->setChecked(true);
+		window.add_queue_rule_action()->trigger();
+		const auto rule = core::observer_rule{
+			.Kind      = core::observer_rule_kind::path,
+			.Pattern   = "src/parser",
+			.Excluding = true,
+		};
+		expect(
+			intents == std::vector{ application::queue_rule_intent{ .Action = application::queue_rule_action::add, .Rule = rule } },
+			"the real add action emits one exact semantic local-rule intent");
+		expect(window.queue_rule_kind_selector()->count() == 3
+				   && window.queue_landing()->rowCount() == 0,
+			   "Qt performs no store or enrollment effect before projection");
+
+		const auto membership = core::queue_membership{
+			.MatchedRule = true,
+			.Rule        = core::observer_rule{
+				.Kind = core::observer_rule_kind::path, .Pattern = "src/parser" }
+		};
+		window.publish({
+			.Status = application::queue_landing_status::ready,
+			.Rules  = { rule },
+			.Items  = { core::queue_item{
+				.Ref = core::pull_request_ref{
+					.Host = "github.com", .Account = "reviewer", .Repository = "octo/app", .Number = 7 },
+				.Membership = membership,
+				.Bucket     = core::attention_bucket::quiet,
+			} },
+		});
+		expect(window.queue_landing()->rowCount() == 1,
+			   "an accepted projection inserts the matched review");
+		window.remove_queue_rule_action()->trigger();
+		expect(intents.size() == 2U
+				   && intents.back() == application::queue_rule_intent{ .Action = application::queue_rule_action::remove, .Rule = rule },
+			   "the real remove action emits the exact selected persisted rule");
+		expect(window.queue_landing()->rowCount() == 1,
+			   "the row remains until the host accepts removal");
+		window.publish({ .Status = application::queue_landing_status::ready });
+		expect(window.queue_landing()->rowCount() == 0,
+			   "the accepted cut-match projection removes the row");
+	}
+
+	void test_queue_rule_selection_survives_unrelated_projection()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::queue_rule_intent>{ };
+		window.set_queue_rule_dispatch(
+			[&intents](application::queue_rule_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			});
+		const auto first = core::observer_rule{
+			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
+		};
+		const auto second = core::observer_rule{
+			.Kind = core::observer_rule_kind::author, .Pattern = "octocat"
+		};
+		const auto projection = application::queue_landing_projection{
+			.Status = application::queue_landing_status::ready,
+			.Rules  = { first, second },
+		};
+		window.publish(projection);
+		auto* const selector = window.findChild<QComboBox*>(
+			QStringLiteral("observerRuleSelector"));
+		expect(selector != nullptr && selector->count() == 2,
+			   "two exact saved rules are visible");
+		selector->setCurrentIndex(1);
+		window.publish(projection);
+		expect(selector->currentIndex() == 1,
+			   "an unrelated projection preserves the exact selected rule");
+		window.remove_queue_rule_action()->trigger();
+		expect(
+			intents == std::vector{ application::queue_rule_intent{
+				.Action = application::queue_rule_action::remove,
+				.Rule   = second,
+			} },
+			"Remove still targets the rule the reviewer selected");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2858,6 +2948,8 @@ auto main(int argc, char** argv) -> int
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();
 	test_defect_queue_navigation_and_semantic_dispatch();
+	test_queue_rule_gestures_wait_for_the_accepted_projection();
+	test_queue_rule_selection_survives_unrelated_projection();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;

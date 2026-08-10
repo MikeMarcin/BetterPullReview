@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <span>
 #include <stop_token>
 #include <string>
 #include <vector>
@@ -17,16 +18,10 @@ struct sqlite3;
 namespace bpr::adapters::sqlite::detail {
 	/// \brief The schema version this build writes and validates.
 	///
-	/// \details One, and honestly so. The review ledger starts at two because
-	/// it genuinely has two versions, and its comment is right that a migration
-	/// mechanism whose only version is the initial one has never migrated
-	/// anything. Inventing a second version here to satisfy that observation
-	/// would be theatre: a migration that does nothing exercises nothing.
-	///
-	/// What *is* exercised is the refusal. A database stamped with a newer
-	/// version fails closed rather than being opened and partially understood,
-	/// and that is tested directly.
-	inline constexpr std::int64_t queue_enrollment_schema_version = 1;
+	/// \details Version two adds the durable observer-rule authority. Version one
+	/// retained only the exact rule copied into an enrollment reason, which was
+	/// enough to explain a row but could not restore or delete the user's rule.
+	inline constexpr std::int64_t queue_enrollment_schema_version = 2;
 
 	/// \brief Owns the durable queue enrollment database.
 	///
@@ -68,6 +63,18 @@ namespace bpr::adapters::sqlite::detail {
 		/// closed review indistinguishable from one that was never enrolled.
 		[[nodiscard]] auto load_all()
 			-> std::expected<std::vector<application::enrollment_record>, failure>;
+
+		[[nodiscard]] auto store_rule(const core::observer_rule& aRule)
+			-> std::expected<void, failure>;
+		[[nodiscard]] auto erase_rule(const core::observer_rule& aRule)
+			-> std::expected<void, failure>;
+		[[nodiscard]] auto apply_rule_change(
+			const application::queue_rule_intent&           aIntent,
+			std::span<const application::enrollment_record> aEnrollments,
+			std::stop_token                                 aStop)
+			-> std::expected<void, failure>;
+		[[nodiscard]] auto load_rules()
+			-> std::expected<std::vector<core::observer_rule>, failure>;
 
 	private:
 		explicit queue_enrollment_database(::sqlite3* aHandle) noexcept;

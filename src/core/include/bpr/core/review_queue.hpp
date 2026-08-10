@@ -4,6 +4,7 @@
 #include "bpr/core/model.hpp"
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
@@ -11,6 +12,7 @@
 #include <vector>
 
 namespace bpr::core {
+	inline constexpr std::size_t maximum_observer_rule_pattern_bytes = 4U * 1024U;
 	/// \brief Names how a reviewer stands to one pull request on GitHub.
 	///
 	/// \details These four come from GitHub and nowhere else. A reviewer is
@@ -66,6 +68,9 @@ namespace bpr::core {
 
 		auto operator<=>(const observer_rule&) const = default;
 	};
+
+	/// \brief Checks whether one local observer rule is bounded and meaningful.
+	[[nodiscard]] auto valid(const observer_rule& aRule) noexcept -> bool;
 
 	/// \brief Names one pull request under one account on one host.
 	///

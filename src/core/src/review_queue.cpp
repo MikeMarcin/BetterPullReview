@@ -57,6 +57,16 @@ namespace bpr::core {
 		return "repository";
 	}
 
+	auto valid(const observer_rule& aRule) noexcept -> bool
+	{
+		const auto validKind = aRule.Kind == observer_rule_kind::repository
+			|| aRule.Kind == observer_rule_kind::author
+			|| aRule.Kind == observer_rule_kind::path;
+		return validKind && !aRule.Pattern.empty()
+			&& aRule.Pattern.size() <= maximum_observer_rule_pattern_bytes
+			&& aRule.Pattern.find('\0') == std::string::npos;
+	}
+
 	namespace {
 		// Internal. `enrollment_for` is the whole of the public policy; a
 		// caller asking "did this one rule match" would be asking a question

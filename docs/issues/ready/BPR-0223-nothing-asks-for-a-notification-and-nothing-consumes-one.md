@@ -1,7 +1,7 @@
 ---
 id: BPR-0223
 title: Nothing asks for a notification and nothing consumes an activation
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0010
 depends_on: [BPR-0231]
 ---

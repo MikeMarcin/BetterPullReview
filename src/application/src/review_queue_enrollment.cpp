@@ -1,6 +1,11 @@
 #include "bpr/application/review_queue_enrollment.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <cstddef>
+#include <memory>
+#include <stop_token>
+#include <utility>
 
 namespace bpr::application {
 	auto name(const enrollment_departure aDeparture) noexcept -> std::string_view
@@ -72,6 +77,22 @@ namespace bpr::application {
 		});
 	}
 
+	void queue_enrollment_register::reconcile_rule_change(
+		const core::pull_request_ref& aRef,
+		const core::queue_membership& aMembership)
+	{
+		if (auto* const existing = find(aRef); existing != nullptr) {
+			existing->Membership = aMembership;
+			existing->Departed   = aMembership.enrolled()
+				? enrollment_departure::none
+				: enrollment_departure::removed_by_reviewer;
+			return;
+		}
+		if (aMembership.enrolled()) {
+			enroll(aRef, aMembership);
+		}
+	}
+
 	void queue_enrollment_register::depart(
 		const core::pull_request_ref& aRef,
 		const enrollment_departure    aDeparture)
@@ -141,5 +162,645 @@ namespace bpr::application {
 			});
 		}
 		return core::ordered_queue(items);
+	}
+
+	struct review_queue_application_host::implementation
+	{
+		enum class request_kind : std::uint8_t {
+			load,
+			rule_change,
+			refresh,
+			store_enrollment,
+		};
+
+		struct completion_gate
+		{
+			std::atomic<implementation*> Host = nullptr;
+		};
+
+		struct outstanding_request
+		{
+			std::uint64_t                         Id   = 0U;
+			request_kind                          Kind = request_kind::load;
+			queue_session_id                      Session;
+			std::optional<core::pull_request_ref> Ref;
+			std::stop_source                      Stop;
+			bool                                  Cancelled = false;
+		};
+
+		implementation(
+			queue_enrollment_store_port&   aStore,
+			queue_refresh_effect_port&     aRefresh,
+			effect_executor&               aEffects,
+			decision_executor&             aDecisionLane,
+			queue_landing_projection_port& aProjection,
+			queue_session_id               aSession)
+			: Store{ aStore }
+			, Refresh{ aRefresh }
+			, Effects{ aEffects }
+			, DecisionLane{ aDecisionLane }
+			, Projection{ aProjection }
+			, Scheduler{ std::move(aSession) }
+			, Gate{ std::make_shared<completion_gate>() }
+		{
+			Gate->Host.store(this, std::memory_order_release);
+		}
+
+		~implementation()
+		{
+			Gate->Host.store(nullptr, std::memory_order_release);
+		}
+
+		[[nodiscard]] static auto locked_host(
+			const std::weak_ptr<completion_gate>& aGate) noexcept
+			-> implementation*
+		{
+			const auto gate = aGate.lock();
+			return gate
+				? gate->Host.load(std::memory_order_acquire)
+				: nullptr;
+		}
+
+		[[nodiscard]] auto begin(
+			const request_kind                    aKind,
+			queue_session_id                      aSession = { },
+			std::optional<core::pull_request_ref> aRef     = std::nullopt)
+			-> outstanding_request&
+		{
+			Outstanding.push_back(outstanding_request{
+				.Id      = NextRequest++,
+				.Kind    = aKind,
+				.Session = std::move(aSession),
+				.Ref     = std::move(aRef),
+			});
+			return Outstanding.back();
+		}
+
+		[[nodiscard]] auto claim_refresh(
+			const std::uint64_t             aId,
+			const queue_refresh_completion& aCompletion) -> bool
+		{
+			const auto found = std::ranges::find_if(
+				Outstanding,
+				[aId](const outstanding_request& aRequest) {
+					return aRequest.Id == aId
+						&& aRequest.Kind == request_kind::refresh;
+				});
+			if (found == Outstanding.end()) {
+				++Statistics.StaleCompletions;
+				return false;
+			}
+			const auto cancelled = found->Cancelled;
+			const auto matches   = found->Session == aCompletion.Session
+				&& found->Ref == std::optional{ aCompletion.Ref };
+			Outstanding.erase(found);
+			if (cancelled) {
+				++Statistics.CancelledCompletions;
+				return false;
+			}
+			if (!matches) {
+				++Statistics.StaleCompletions;
+				return false;
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto retire(
+			const std::uint64_t aId,
+			const request_kind  aKind) -> bool
+		{
+			const auto found = std::ranges::find_if(
+				Outstanding,
+				[aId, aKind](const outstanding_request& aRequest) {
+					return aRequest.Id == aId && aRequest.Kind == aKind;
+				});
+			if (found == Outstanding.end()) {
+				++Statistics.StaleCompletions;
+				return false;
+			}
+			Outstanding.erase(found);
+			return true;
+		}
+
+		void report_unavailable()
+		{
+			++Statistics.Failures;
+			Status = queue_landing_status::unavailable;
+			publish();
+		}
+
+		[[nodiscard]] auto activities() const
+			-> std::vector<core::queue_activity_observation>
+		{
+			auto result = std::vector<core::queue_activity_observation>{ };
+			result.reserve(Enrollments.records().size());
+			for (const auto& record : Enrollments.records()) {
+				const auto found = std::ranges::find(
+					Activity,
+					record.Ref,
+					&std::pair<core::pull_request_ref,
+							   core::queue_activity_observation>::first);
+				result.push_back(
+					found == Activity.end()
+						? core::queue_activity_observation{ }
+						: found->second);
+			}
+			return result;
+		}
+
+		void publish()
+		{
+			const auto observation = activities();
+			Projection.publish(queue_landing_projection{
+				.Status         = Status,
+				.Rules          = Rules,
+				.Items          = Enrollments.project(observation),
+				.Session        = Scheduler.session(),
+				.Online         = Scheduler.online(),
+				.BackoffSeconds = Scheduler.backoff_seconds(),
+			});
+			++Statistics.Publications;
+		}
+
+		void restore()
+		{
+			if (Closing || Restored) {
+				return;
+			}
+			Status = queue_landing_status::restoring;
+			publish();
+			auto&      request = begin(request_kind::load);
+			const auto id      = request.Id;
+			const auto stop    = request.Stop.get_token();
+			const auto gate    = std::weak_ptr<completion_gate>{ Gate };
+			try {
+				Effects.post([this, gate, id, stop] {
+					auto result = Store.load(stop);
+					DecisionLane.post(
+						[gate, id, result = std::move(result)]() mutable {
+							if (auto* const host = locked_host(gate); host != nullptr) {
+								host->finish_load(id, std::move(result));
+							}
+						});
+				});
+			} catch (...) {
+				(void)retire(id, request_kind::load);
+				report_unavailable();
+			}
+		}
+
+		void finish_load(
+			const std::uint64_t                                     aId,
+			std::expected<durable_queue_state, queue_store_failure> aResult)
+		{
+			if (!retire(aId, request_kind::load) || Closing) {
+				return;
+			}
+			Restored = true;
+			if (!aResult) {
+				report_unavailable();
+				return;
+			}
+			Rules = std::move(aResult->Rules);
+			for (const auto& record : aResult->Enrollments) {
+				Enrollments.enroll(record.Ref, record.Membership);
+				if (!record.present()) {
+					Enrollments.depart(record.Ref, record.Departed);
+				}
+			}
+			Status = queue_landing_status::ready;
+			publish();
+			reconcile_last();
+		}
+
+		void apply(queue_rule_intent aIntent)
+		{
+			++Statistics.RuleIntents;
+			if (Closing || !Restored || !core::valid(aIntent.Rule)) {
+				++Statistics.Failures;
+				return;
+			}
+			if (RuleMutationPending) {
+				return;
+			}
+			const auto exists = std::ranges::find(Rules, aIntent.Rule) != Rules.end();
+			if ((aIntent.Action == queue_rule_action::add && exists)
+				|| (aIntent.Action == queue_rule_action::remove && !exists)) {
+				return;
+			}
+			auto nextRules       = Rules;
+			auto nextEnrollments = Enrollments;
+			if (aIntent.Action == queue_rule_action::add) {
+				nextRules.push_back(aIntent.Rule);
+			} else {
+				std::erase(nextRules, aIntent.Rule);
+				for (const auto& record : Enrollments.records()) {
+					if (record.Membership.MatchedRule
+						&& record.Membership.Rule == aIntent.Rule) {
+						nextEnrollments.reconcile_rule_change(
+							record.Ref,
+							core::queue_membership{ .Role = record.Membership.Role });
+					}
+				}
+			}
+			if (LastObservation.has_value()) {
+				nextEnrollments.reconcile_rule_change(
+					LastObservation->Ref,
+					core::enrollment_for(*LastObservation, nextRules));
+			}
+			auto changed = std::vector<enrollment_record>{ };
+			for (const auto& record : nextEnrollments.records()) {
+				const auto prior = Enrollments.record_for(record.Ref);
+				if (!prior.has_value() || *prior != record) {
+					changed.push_back(record);
+				}
+			}
+			++Statistics.PersistenceRequests;
+			auto&      request  = begin(request_kind::rule_change);
+			const auto id       = request.Id;
+			const auto stop     = request.Stop.get_token();
+			const auto gate     = std::weak_ptr<completion_gate>{ Gate };
+			RuleMutationPending = true;
+			try {
+				Effects.post([this,
+							  gate,
+							  id,
+							  stop,
+							  intent          = std::move(aIntent),
+							  changed         = std::move(changed),
+							  nextRules       = std::move(nextRules),
+							  nextEnrollments = std::move(nextEnrollments)]() mutable {
+					auto result = Store.apply_rule_change(intent, changed, stop);
+					DecisionLane.post(
+						[gate,
+						 id,
+						 nextRules       = std::move(nextRules),
+						 nextEnrollments = std::move(nextEnrollments),
+						 result          = std::move(result)]() mutable {
+							if (auto* const host = locked_host(gate); host != nullptr) {
+								host->finish_rule(
+									id,
+									std::move(nextRules),
+									std::move(nextEnrollments),
+									std::move(result));
+							}
+						});
+				});
+			} catch (...) {
+				RuleMutationPending = false;
+				(void)retire(id, request_kind::rule_change);
+				report_unavailable();
+			}
+		}
+
+		void finish_rule(
+			const std::uint64_t                             aId,
+			std::vector<core::observer_rule>                aRules,
+			queue_enrollment_register                       aEnrollments,
+			const std::expected<void, queue_store_failure>& aResult)
+		{
+			if (!retire(aId, request_kind::rule_change) || Closing) {
+				return;
+			}
+			RuleMutationPending = false;
+			if (!aResult) {
+				report_unavailable();
+				return;
+			}
+			Rules       = std::move(aRules);
+			Enrollments = std::move(aEnrollments);
+			Status      = queue_landing_status::ready;
+			publish();
+			if (!LastObservation.has_value()) {
+				refresh_last();
+			}
+		}
+
+		void reconcile_last()
+		{
+			if (LastObservation.has_value()) {
+				auto       prior      = Enrollments;
+				const auto membership = core::enrollment_for(*LastObservation, Rules);
+				Enrollments.reconcile_rule_change(
+					LastObservation->Ref, membership);
+				persist_record(LastObservation->Ref, std::move(prior));
+			} else {
+				refresh_last();
+			}
+		}
+
+		void adopt(queue_session_id aSession)
+		{
+			if (Closing || aSession == Scheduler.session()) {
+				return;
+			}
+			cancel_refreshes();
+			Scheduler.adopt(std::move(aSession));
+			publish();
+		}
+
+		void refresh(
+			const core::pull_request_ref&    aRef,
+			core::queue_activity_observation aActivity)
+		{
+			LastRef      = aRef;
+			LastActivity = aActivity;
+			if (Closing || !Restored) {
+				if (Restored) {
+					publish();
+				}
+				return;
+			}
+
+			auto providerRequest = Scheduler.request_for(aRef);
+			++Statistics.RefreshRequests;
+			if (providerRequest.Validator.has_value()) {
+				++Statistics.ConditionalRequests;
+			}
+			auto& request = begin(
+				request_kind::refresh,
+				providerRequest.Session,
+				providerRequest.Ref);
+			const auto id   = request.Id;
+			const auto stop = request.Stop.get_token();
+			const auto gate = std::weak_ptr<completion_gate>{ Gate };
+			try {
+				Effects.post(
+					[this,
+					 gate,
+					 id,
+					 stop,
+					 activity = aActivity,
+					 request  = std::move(providerRequest)]() mutable {
+						auto completion = Refresh.refresh(request, stop);
+						DecisionLane.post(
+							[gate,
+							 id,
+							 activity,
+							 completion = std::move(completion)]() mutable {
+								if (auto* const host = locked_host(gate); host != nullptr) {
+									host->finish_refresh(
+										id, activity, std::move(completion));
+								}
+							});
+					});
+			} catch (...) {
+				(void)retire(id, request_kind::refresh);
+				report_unavailable();
+			}
+		}
+
+		void refresh_last()
+		{
+			if (LastRef.has_value()) {
+				refresh(*LastRef, LastActivity);
+			}
+		}
+
+		void remember_activity(
+			const core::pull_request_ref&           aRef,
+			const core::queue_activity_observation& aObservation)
+		{
+			const auto found = std::ranges::find(
+				Activity,
+				aRef,
+				&std::pair<core::pull_request_ref,
+						   core::queue_activity_observation>::first);
+			if (found == Activity.end()) {
+				Activity.emplace_back(aRef, aObservation);
+			} else {
+				found->second = aObservation;
+			}
+		}
+
+		void finish_refresh(
+			const std::uint64_t              aId,
+			core::queue_activity_observation aActivity,
+			queue_refresh_completion         aCompletion)
+		{
+			if (!claim_refresh(aId, aCompletion)) {
+				if (!Closing) {
+					publish();
+				}
+				return;
+			}
+			if (Closing) {
+				return;
+			}
+			const auto disposition = Scheduler.apply(aCompletion);
+			if (disposition == refresh_disposition::stale_session) {
+				++Statistics.StaleCompletions;
+				publish();
+				return;
+			}
+			if (aCompletion.Status == queue_refresh_status::cancelled) {
+				++Statistics.CancelledCompletions;
+				publish();
+				return;
+			}
+			if (disposition == refresh_disposition::withdrawn) {
+				auto prior = Enrollments;
+				Enrollments.observe(aCompletion, disposition);
+				persist_record(aCompletion.Ref, std::move(prior));
+				return;
+			}
+			if (disposition != refresh_disposition::applied
+				|| !aCompletion.Observation.has_value()) {
+				publish();
+				return;
+			}
+
+			++Statistics.AppliedRefreshes;
+			LastObservation = *aCompletion.Observation;
+			remember_activity(aCompletion.Ref, aActivity);
+			const auto membership = core::enrollment_for(
+				*aCompletion.Observation, Rules);
+			if (membership.enrolled()) {
+				auto prior = Enrollments;
+				Enrollments.enroll(aCompletion.Ref, membership);
+				persist_record(aCompletion.Ref, std::move(prior));
+				return;
+			}
+			const auto existing = Enrollments.record_for(aCompletion.Ref);
+			if (existing.has_value() && existing->Membership.Role == core::github_role::none) {
+				auto prior = Enrollments;
+				Enrollments.depart(
+					aCompletion.Ref,
+					enrollment_departure::removed_by_reviewer);
+				persist_record(aCompletion.Ref, std::move(prior));
+				return;
+			}
+			publish();
+		}
+
+		void persist_record(
+			const core::pull_request_ref& aRef,
+			queue_enrollment_register     aPrior)
+		{
+			const auto record = Enrollments.record_for(aRef);
+			if (!record.has_value()) {
+				publish();
+				return;
+			}
+			++Statistics.PersistenceRequests;
+			auto&      request  = begin(request_kind::store_enrollment);
+			const auto id       = request.Id;
+			const auto stop     = request.Stop.get_token();
+			const auto gate     = std::weak_ptr<completion_gate>{ Gate };
+			const auto rollback = std::make_shared<queue_enrollment_register>(
+				std::move(aPrior));
+			try {
+				Effects.post([this, gate, id, stop, record = *record, rollback] {
+					auto result = Store.store_enrollment(record, stop);
+					DecisionLane.post(
+						[gate, id, rollback, result = std::move(result)]() mutable {
+							if (auto* const host = locked_host(gate); host != nullptr) {
+								host->finish_store_enrollment(
+									id, rollback, std::move(result));
+							}
+						});
+				});
+			} catch (...) {
+				(void)retire(id, request_kind::store_enrollment);
+				Enrollments = *rollback;
+				report_unavailable();
+			}
+		}
+
+		void finish_store_enrollment(
+			const std::uint64_t                               aId,
+			const std::shared_ptr<queue_enrollment_register>& aRollback,
+			const std::expected<void, queue_store_failure>&   aResult)
+		{
+			if (!retire(aId, request_kind::store_enrollment) || Closing) {
+				return;
+			}
+			if (!aResult) {
+				Enrollments = *aRollback;
+				report_unavailable();
+				return;
+			}
+			Status = queue_landing_status::ready;
+			publish();
+		}
+
+		void cancel_refreshes()
+		{
+			for (auto& request : Outstanding) {
+				if (request.Kind == request_kind::refresh) {
+					request.Cancelled = true;
+					request.Stop.request_stop();
+				}
+			}
+		}
+
+		void shutdown()
+		{
+			if (Closing) {
+				return;
+			}
+			Closing = true;
+			for (auto& request : Outstanding) {
+				request.Stop.request_stop();
+			}
+		}
+
+		queue_enrollment_store_port&     Store;
+		queue_refresh_effect_port&       Refresh;
+		effect_executor&                 Effects;
+		decision_executor&               DecisionLane;
+		queue_landing_projection_port&   Projection;
+		queue_refresh_scheduler          Scheduler;
+		queue_enrollment_register        Enrollments;
+		std::vector<core::observer_rule> Rules;
+		std::vector<std::pair<core::pull_request_ref,
+							  core::queue_activity_observation>>
+													  Activity;
+		std::vector<outstanding_request>              Outstanding;
+		std::optional<core::pull_request_ref>         LastRef;
+		std::optional<core::pull_request_observation> LastObservation;
+		core::queue_activity_observation              LastActivity;
+		queue_landing_status                          Status = queue_landing_status::restoring;
+		review_queue_host_statistics                  Statistics;
+		std::shared_ptr<completion_gate>              Gate;
+		std::uint64_t                                 NextRequest         = 1U;
+		bool                                          Restored            = false;
+		bool                                          Closing             = false;
+		bool                                          RuleMutationPending = false;
+	};
+
+	review_queue_application_host::review_queue_application_host(
+		queue_enrollment_store_port&   aStore,
+		queue_refresh_effect_port&     aRefresh,
+		effect_executor&               aEffects,
+		decision_executor&             aDecisionLane,
+		queue_landing_projection_port& aProjection,
+		queue_session_id               aSession)
+		: Implementation{ std::make_unique<implementation>(
+			  aStore,
+			  aRefresh,
+			  aEffects,
+			  aDecisionLane,
+			  aProjection,
+			  std::move(aSession)) }
+	{
+	}
+
+	review_queue_application_host::~review_queue_application_host() = default;
+
+	void review_queue_application_host::restore()
+	{
+		Implementation->restore();
+	}
+
+	void review_queue_application_host::apply(queue_rule_intent aIntent)
+	{
+		Implementation->apply(std::move(aIntent));
+	}
+
+	void review_queue_application_host::adopt(queue_session_id aSession)
+	{
+		Implementation->adopt(std::move(aSession));
+	}
+
+	void review_queue_application_host::refresh(
+		const core::pull_request_ref&    aRef,
+		core::queue_activity_observation aActivity)
+	{
+		Implementation->refresh(aRef, aActivity);
+	}
+
+	void review_queue_application_host::cancel()
+	{
+		Implementation->cancel_refreshes();
+	}
+
+	void review_queue_application_host::shutdown()
+	{
+		Implementation->shutdown();
+	}
+
+	auto review_queue_application_host::rules() const noexcept
+		-> std::span<const core::observer_rule>
+	{
+		return Implementation->Rules;
+	}
+
+	auto review_queue_application_host::queue() const
+		-> std::vector<core::queue_item>
+	{
+		const auto observation = Implementation->activities();
+		return Implementation->Enrollments.project(observation);
+	}
+
+	auto review_queue_application_host::statistics() const noexcept
+		-> review_queue_host_statistics
+	{
+		return Implementation->Statistics;
+	}
+
+	auto review_queue_application_host::is_quiescent() const noexcept -> bool
+	{
+		return Implementation->Outstanding.empty();
 	}
 } // namespace bpr::application

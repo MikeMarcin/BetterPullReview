@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 
 #include <array>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -45,6 +46,34 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" },
 		};
 
+		constexpr std::array SchemaVersion2{
+			std::string_view{
+				"CREATE TABLE observer_rule("
+				"ordinal INTEGER PRIMARY KEY CHECK(ordinal > 0),"
+				"rule_kind INTEGER NOT NULL CHECK(rule_kind BETWEEN 0 AND 2),"
+				"rule_pattern TEXT NOT NULL,"
+				"rule_excluding INTEGER NOT NULL CHECK(rule_excluding IN (0, 1)),"
+				"UNIQUE(rule_kind, rule_pattern, rule_excluding)"
+				") STRICT" },
+		};
+
+		struct schema_table
+		{
+			std::string_view Name;
+			std::string_view Sql;
+		};
+
+		/// \brief The complete canonical version-two queue schema.
+		///
+		/// \details The rule ordinal is durable precedence, not an implementation
+		/// accident. Exact canonical validation also refuses a current-version
+		/// file whose columns, constraints, table kind, or object set changed.
+		constexpr std::array SchemaVersion2Tables{
+			schema_table{ "enrollment", SchemaVersion1[1] },
+			schema_table{ "enrollment_meta", SchemaVersion1[0] },
+			schema_table{ "observer_rule", SchemaVersion2[0] },
+		};
+
 		[[nodiscard]] auto run_all(
 			::sqlite3*                              aDatabase,
 			const std::span<const std::string_view> aStatements,
@@ -68,6 +97,120 @@ namespace bpr::adapters::sqlite::detail {
 			return execute(aDatabase, sql, aStop);
 		}
 
+		[[nodiscard]] auto validate_version_one(::sqlite3* aDatabase)
+			-> std::expected<void, failure>
+		{
+			const auto application
+				= scalar_integer(aDatabase, "PRAGMA application_id");
+			const auto format = scalar_integer(
+				aDatabase,
+				"SELECT schema_format FROM enrollment_meta WHERE singleton = 1");
+			const auto metaSchema = scalar_text(
+				aDatabase,
+				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
+				"AND name = 'enrollment_meta'");
+			const auto enrollmentSchema = scalar_text(
+				aDatabase,
+				"SELECT sql FROM sqlite_schema WHERE type = 'table' "
+				"AND name = 'enrollment'");
+			if (!application || *application != QueueApplicationId || !format
+				|| *format != 1 || !metaSchema || !enrollmentSchema
+				|| *metaSchema != SchemaVersion1[0]
+				|| *enrollmentSchema != SchemaVersion1[1]) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto validate_version_two(::sqlite3* aDatabase)
+			-> std::expected<void, failure>
+		{
+			const auto application
+				= scalar_integer(aDatabase, "PRAGMA application_id");
+			const auto version = scalar_integer(aDatabase, "PRAGMA user_version");
+			const auto format  = scalar_integer(
+				aDatabase,
+				"SELECT schema_format FROM enrollment_meta WHERE singleton = 1");
+			if (!application || *application != QueueApplicationId || !version
+				|| *version != queue_enrollment_schema_version || !format
+				|| *format != queue_enrollment_schema_version) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+
+			auto objects = prepare(
+				aDatabase,
+				"SELECT type, name, sql FROM sqlite_schema "
+				"WHERE name NOT LIKE 'sqlite_%' ORDER BY name");
+			if (!objects) {
+				return std::unexpected(objects.error());
+			}
+			std::size_t index = 0;
+			for (;;) {
+				const auto row = ::sqlite3_step(objects->Value);
+				if (row == SQLITE_DONE) {
+					break;
+				}
+				if (row != SQLITE_ROW || index >= SchemaVersion2Tables.size()) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				const auto text = [&objects](const int aColumn)
+					-> std::optional<std::string_view> {
+					if (::sqlite3_column_type(objects->Value, aColumn) != SQLITE_TEXT) {
+						return std::nullopt;
+					}
+					const auto* value = reinterpret_cast<const char*>(
+						::sqlite3_column_text(objects->Value, aColumn));
+					const auto bytes
+						= ::sqlite3_column_bytes(objects->Value, aColumn);
+					if (value == nullptr || bytes < 0) {
+						return std::nullopt;
+					}
+					return std::string_view{
+						value,
+						static_cast<std::size_t>(bytes),
+					};
+				};
+				const auto type = text(0);
+				const auto name = text(1);
+				const auto sql  = text(2);
+				if (!type || !name || !sql || *type != "table"
+					|| *name != SchemaVersion2Tables[index].Name
+					|| canonical_sql(*sql)
+						!= canonical_sql(SchemaVersion2Tables[index].Sql)) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				++index;
+			}
+			if (index != SchemaVersion2Tables.size()) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto preflight_existing_database(::sqlite3* aDatabase)
+			-> std::expected<void, failure>
+		{
+			const auto version = scalar_integer(aDatabase, "PRAGMA user_version");
+			if (!version) {
+				return std::unexpected(version.error());
+			}
+			if (*version == 0) {
+				return { };
+			}
+			const auto application
+				= scalar_integer(aDatabase, "PRAGMA application_id");
+			if (!application || *application != QueueApplicationId) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			if (*version == 1) {
+				return validate_version_one(aDatabase);
+			}
+			if (*version == queue_enrollment_schema_version) {
+				return validate_version_two(aDatabase);
+			}
+			return std::unexpected(failure::schema_mismatch);
+		}
+
 		/// \brief Creates the schema inside one transaction.
 		[[nodiscard]] auto establish_schema(
 			::sqlite3* aDatabase, std::stop_token aStop)
@@ -86,6 +229,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (*current > queue_enrollment_schema_version) {
 				return std::unexpected(failure::schema_mismatch);
 			}
+			if (*current == 1) {
+				if (auto prior = validate_version_one(aDatabase); !prior) {
+					return prior;
+				}
+			}
 
 			if (auto begin = execute(aDatabase, "BEGIN IMMEDIATE", aStop); !begin) {
 				return begin;
@@ -95,27 +243,41 @@ namespace bpr::adapters::sqlite::detail {
 					aDatabase, "ROLLBACK", nullptr, nullptr, nullptr);
 			};
 
-			if (auto created = run_all(aDatabase, SchemaVersion1, aStop);
-				!created) {
-				rollback();
-				return created;
+			if (*current == 0) {
+				if (auto created = run_all(aDatabase, SchemaVersion1, aStop);
+					!created) {
+					rollback();
+					return created;
+				}
+				if (auto app = execute(
+						aDatabase,
+						"PRAGMA application_id = "
+							+ std::to_string(QueueApplicationId),
+						aStop);
+					!app) {
+					rollback();
+					return app;
+				}
+				if (auto meta = execute(
+						aDatabase,
+						"INSERT INTO enrollment_meta(singleton, schema_format) "
+						"VALUES(1, 1)",
+						aStop);
+					!meta) {
+					rollback();
+					return meta;
+				}
 			}
-			// Derived from the constant rather than written out, so the stamp
-			// and the validation cannot disagree.
-			if (auto app = execute(
-					aDatabase,
-					"PRAGMA application_id = "
-						+ std::to_string(QueueApplicationId),
-					aStop);
-				!app) {
+			if (auto migrated = run_all(aDatabase, SchemaVersion2, aStop);
+				!migrated) {
 				rollback();
-				return app;
+				return migrated;
 			}
 			if (auto meta = execute(
 					aDatabase,
-					"INSERT INTO enrollment_meta(singleton, schema_format) "
-					"VALUES(1, "
-						+ std::to_string(queue_enrollment_schema_version) + ")",
+					"UPDATE enrollment_meta SET schema_format = "
+						+ std::to_string(queue_enrollment_schema_version)
+						+ " WHERE singleton = 1",
 					aStop);
 				!meta) {
 				rollback();
@@ -137,23 +299,7 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto validate(::sqlite3* aDatabase)
 			-> std::expected<void, failure>
 		{
-			const auto application
-				= scalar_integer(aDatabase, "PRAGMA application_id");
-			const auto version = scalar_integer(aDatabase, "PRAGMA user_version");
-			if (!application || *application != QueueApplicationId || !version
-				|| *version != queue_enrollment_schema_version) {
-				return std::unexpected(failure::schema_mismatch);
-			}
-
-			auto meta = prepare(
-				aDatabase,
-				"SELECT schema_format FROM enrollment_meta WHERE singleton = 1");
-			if (!meta || ::sqlite3_step(meta->Value) != SQLITE_ROW
-				|| ::sqlite3_column_int64(meta->Value, 0)
-					!= queue_enrollment_schema_version) {
-				return std::unexpected(failure::schema_mismatch);
-			}
-			return { };
+			return validate_version_two(aDatabase);
 		}
 
 		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
@@ -223,6 +369,9 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(catalog_failure_from_sqlite_result(code));
 		}
 
+		if (auto preflight = preflight_existing_database(database); !preflight) {
+			return std::unexpected(preflight.error());
+		}
 		if (auto configured = configure_connection(database); !configured) {
 			return std::unexpected(configured.error());
 		}
@@ -351,6 +500,148 @@ namespace bpr::adapters::sqlite::detail {
 			});
 		}
 		return records;
+	}
+
+	auto queue_enrollment_database::store_rule(
+		const core::observer_rule& aRule) -> std::expected<void, failure>
+	{
+		if (!core::valid(aRule)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto statement = prepare(
+			Handle,
+			"INSERT INTO observer_rule(ordinal, rule_kind, rule_pattern, rule_excluding) "
+			"VALUES((SELECT COALESCE(MAX(ordinal), 0) + 1 FROM observer_rule), "
+			"?1, ?2, ?3) "
+			"ON CONFLICT(rule_kind, rule_pattern, rule_excluding) DO NOTHING");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		if (::sqlite3_bind_int64(
+				statement->Value,
+				1,
+				static_cast<std::int64_t>(aRule.Kind))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_text(
+				   statement->Value,
+				   2,
+				   aRule.Pattern.c_str(),
+				   -1,
+				   SQLITE_TRANSIENT)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value, 3, aRule.Excluding ? 1 : 0)
+				!= SQLITE_OK
+			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
+			return std::unexpected(failure::unavailable);
+		}
+		return { };
+	}
+
+	auto queue_enrollment_database::erase_rule(
+		const core::observer_rule& aRule) -> std::expected<void, failure>
+	{
+		if (!core::valid(aRule)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto statement = prepare(
+			Handle,
+			"DELETE FROM observer_rule WHERE rule_kind = ?1 "
+			"AND rule_pattern = ?2 AND rule_excluding = ?3");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		if (::sqlite3_bind_int64(
+				statement->Value,
+				1,
+				static_cast<std::int64_t>(aRule.Kind))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_text(
+				   statement->Value,
+				   2,
+				   aRule.Pattern.c_str(),
+				   -1,
+				   SQLITE_TRANSIENT)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value, 3, aRule.Excluding ? 1 : 0)
+				!= SQLITE_OK
+			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
+			return std::unexpected(failure::unavailable);
+		}
+		return { };
+	}
+
+	auto queue_enrollment_database::apply_rule_change(
+		const application::queue_rule_intent&                 aIntent,
+		const std::span<const application::enrollment_record> aEnrollments,
+		std::stop_token                                       aStop)
+		-> std::expected<void, failure>
+	{
+		if (!core::valid(aIntent.Rule)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		if (auto begun = execute(Handle, "BEGIN IMMEDIATE", aStop); !begun) {
+			return begun;
+		}
+		const auto rollback = [this]() noexcept {
+			(void)::sqlite3_exec(Handle, "ROLLBACK", nullptr, nullptr, nullptr);
+		};
+		const auto changed = aIntent.Action == application::queue_rule_action::add
+			? store_rule(aIntent.Rule)
+			: erase_rule(aIntent.Rule);
+		if (!changed) {
+			rollback();
+			return changed;
+		}
+		for (const auto& enrollment : aEnrollments) {
+			if (aStop.stop_requested()) {
+				rollback();
+				return std::unexpected(failure::cancelled);
+			}
+			if (auto stored = store(enrollment); !stored) {
+				rollback();
+				return stored;
+			}
+		}
+		if (auto committed = execute(Handle, "COMMIT", aStop); !committed) {
+			rollback();
+			return committed;
+		}
+		return { };
+	}
+
+	auto queue_enrollment_database::load_rules()
+		-> std::expected<std::vector<core::observer_rule>, failure>
+	{
+		auto statement = prepare(
+			Handle,
+			"SELECT rule_kind, rule_pattern, rule_excluding FROM observer_rule "
+			"ORDER BY ordinal");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		auto rules = std::vector<core::observer_rule>{ };
+		for (;;) {
+			const auto stepped = ::sqlite3_step(statement->Value);
+			if (stepped == SQLITE_DONE) {
+				break;
+			}
+			if (stepped != SQLITE_ROW) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			auto rule = core::observer_rule{
+				.Kind = static_cast<core::observer_rule_kind>(
+					::sqlite3_column_int64(statement->Value, 0)),
+				.Pattern   = text_of(statement->Value, 1),
+				.Excluding = ::sqlite3_column_int64(statement->Value, 2) != 0,
+			};
+			if (!core::valid(rule)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			rules.push_back(std::move(rule));
+		}
+		return rules;
 	}
 
 	auto queue_enrollment_columns(::sqlite3* const aDatabase)

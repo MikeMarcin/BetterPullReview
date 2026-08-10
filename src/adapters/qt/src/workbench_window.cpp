@@ -12,6 +12,7 @@
 #include <QAbstractItemView>
 #include <QAccessible>
 #include <QAction>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QFontMetrics>
 #include <QHBoxLayout>
@@ -687,6 +688,7 @@ namespace bpr::qt {
 		auto* const column = new QVBoxLayout{ header };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->addWidget(SessionPanel);
+		build_queue_landing(header, *column);
 
 		// The empty state is not decoration. Without it a reviewer with no pull
 		// request open sees a comparison of nothing and no indication of what to
@@ -793,6 +795,207 @@ namespace bpr::qt {
 			QStringLiteral("Focus the review-thread conversations"));
 		PullRequestPanel->refresh_native_appearance();
 		update_github_presentation_state();
+		apply_focus_order();
+	}
+
+	void workbench_window::build_queue_landing(
+		QWidget* const aParent, QVBoxLayout& aLayout)
+	{
+		auto* const surface = new QWidget{ aParent };
+		surface->setObjectName(QStringLiteral("reviewQueueLanding"));
+		surface->setAccessibleName(QStringLiteral("Local review queue"));
+		surface->setAccessibleDescription(QStringLiteral(
+			"Local observer rules and the pull requests they enrolled; rules never change GitHub assignments."));
+		auto* const layout = new QVBoxLayout{ surface };
+		layout->setContentsMargins(0, 0, 0, 0);
+
+		QueueStatus = new QLabel{ QStringLiteral("Restoring local observer rules…"), surface };
+		QueueStatus->setObjectName(QStringLiteral("reviewQueueStatus"));
+		QueueStatus->setAccessibleName(QStringLiteral("Review queue status"));
+		QueueStatus->setWordWrap(true);
+		layout->addWidget(QueueStatus);
+
+		QueueLanding = new review_landing_model{ surface };
+		QueueView    = new QListView{ surface };
+		QueueView->setObjectName(QStringLiteral("reviewQueueItems"));
+		QueueView->setAccessibleName(QStringLiteral("Review queue"));
+		QueueView->setAccessibleDescription(QStringLiteral(
+			"Pull requests enrolled by a GitHub role or a local observer rule"));
+		QueueView->setModel(QueueLanding);
+		QueueView->setMaximumHeight(84);
+		layout->addWidget(QueueView);
+
+		auto* const controls = new QHBoxLayout{ };
+		QueueRuleSelector    = new QComboBox{ surface };
+		QueueRuleSelector->setObjectName(QStringLiteral("observerRuleSelector"));
+		QueueRuleSelector->setAccessibleName(QStringLiteral("Saved observer rules"));
+		QueueRuleSelector->setAccessibleDescription(QStringLiteral(
+			"Select an exact local rule to remove"));
+		controls->addWidget(QueueRuleSelector);
+		QueueRuleKind = new QComboBox{ surface };
+		QueueRuleKind->setObjectName(QStringLiteral("observerRuleKind"));
+		QueueRuleKind->setAccessibleName(QStringLiteral("Observer rule kind"));
+		QueueRuleKind->setAccessibleDescription(QStringLiteral(
+			"Choose repository, author, or changed path"));
+		for (const auto kind : { core::observer_rule_kind::repository,
+								 core::observer_rule_kind::author,
+								 core::observer_rule_kind::path }) {
+			QueueRuleKind->addItem(
+				QString::fromUtf8(core::name(kind).data()),
+				static_cast<int>(kind));
+		}
+		controls->addWidget(QueueRuleKind);
+		QueueRulePattern = new QLineEdit{ surface };
+		QueueRulePattern->setObjectName(QStringLiteral("observerRulePattern"));
+		QueueRulePattern->setAccessibleName(QStringLiteral("Observer rule pattern"));
+		QueueRulePattern->setAccessibleDescription(QStringLiteral(
+			"Repository owner/name, author login, or path prefix"));
+		QueueRulePattern->setPlaceholderText(QStringLiteral("owner/name, login, or path"));
+		QueueRulePattern->setMaxLength(
+			static_cast<int>(core::maximum_observer_rule_pattern_bytes));
+		controls->addWidget(QueueRulePattern, 1);
+		QueueRuleExcluding = new QCheckBox{ tr("Exclude"), surface };
+		QueueRuleExcluding->setObjectName(QStringLiteral("observerRuleExcluding"));
+		QueueRuleExcluding->setAccessibleName(QStringLiteral("Exclude matching rule"));
+		QueueRuleExcluding->setAccessibleDescription(QStringLiteral(
+			"Exclude a matching local observation; GitHub roles remain visible"));
+		controls->addWidget(QueueRuleExcluding);
+
+		AddQueueRule = new QAction{ tr("Add local rule"), this };
+		AddQueueRule->setObjectName(QStringLiteral("addObserverRule"));
+		RemoveQueueRule = new QAction{ tr("Remove selected rule"), this };
+		RemoveQueueRule->setObjectName(QStringLiteral("removeObserverRule"));
+		for (auto* const action : { AddQueueRule, RemoveQueueRule }) {
+			addAction(action);
+			auto* const button = new QToolButton{ surface };
+			button->setDefaultAction(action);
+			controls->addWidget(button);
+		}
+		connect(AddQueueRule, &QAction::triggered, this, [this] {
+			dispatch_queue_rule(application::queue_rule_action::add);
+		});
+		connect(RemoveQueueRule, &QAction::triggered, this, [this] {
+			dispatch_queue_rule(application::queue_rule_action::remove);
+		});
+		connect(QueueRulePattern, &QLineEdit::textChanged, this, [this] {
+			update_queue_rule_actions();
+		});
+		connect(QueueRuleSelector,
+				qOverload<int>(&QComboBox::currentIndexChanged),
+				this,
+				[this] { update_queue_rule_actions(); });
+		layout->addLayout(controls);
+		aLayout.addWidget(surface);
+		update_queue_rule_actions();
+	}
+
+	void workbench_window::set_queue_rule_dispatch(
+		workbench_queue_rule_dispatch aDispatch)
+	{
+		QueueRuleDispatch = std::move(aDispatch);
+		update_queue_rule_actions();
+	}
+
+	void workbench_window::dispatch_queue_rule(
+		const application::queue_rule_action aAction)
+	{
+		if (!QueueRuleDispatch || !QueueReady) {
+			return;
+		}
+		auto rule = core::observer_rule{ };
+		if (aAction == application::queue_rule_action::add) {
+			rule = {
+				.Kind = static_cast<core::observer_rule_kind>(
+					QueueRuleKind->currentData().toInt()),
+				.Pattern   = QueueRulePattern->text().trimmed().toStdString(),
+				.Excluding = QueueRuleExcluding->isChecked(),
+			};
+		} else {
+			const auto index = QueueRuleSelector->currentIndex();
+			if (index < 0 || static_cast<std::size_t>(index) >= QueueRules.size()) {
+				return;
+			}
+			rule = QueueRules[static_cast<std::size_t>(index)];
+		}
+		if (!core::valid(rule)) {
+			return;
+		}
+		++Statistics.QueueRuleIntents;
+		QueueRuleDispatch(application::queue_rule_intent{
+			.Action = aAction,
+			.Rule   = std::move(rule),
+		});
+	}
+
+	void workbench_window::update_queue_rule_actions()
+	{
+		if (AddQueueRule == nullptr || RemoveQueueRule == nullptr) {
+			return;
+		}
+		const auto pattern = QueueRulePattern != nullptr
+			? QueueRulePattern->text().trimmed().toStdString()
+			: std::string{ };
+		AddQueueRule->setEnabled(
+			QueueReady && static_cast<bool>(QueueRuleDispatch)
+			&& core::valid(core::observer_rule{ .Pattern = pattern }));
+		RemoveQueueRule->setEnabled(
+			QueueReady && static_cast<bool>(QueueRuleDispatch)
+			&& QueueRuleSelector != nullptr
+			&& QueueRuleSelector->currentIndex() >= 0);
+		AddQueueRule->setToolTip(QStringLiteral(
+			"Persist a local observer rule; this never changes GitHub."));
+		RemoveQueueRule->setToolTip(QStringLiteral(
+			"Delete the selected local observer rule."));
+	}
+
+	void workbench_window::publish(
+		const application::queue_landing_projection& aProjection)
+	{
+		auto       selectedRule  = std::optional<core::observer_rule>{ };
+		const auto selectedIndex = QueueRuleSelector->currentIndex();
+		if (selectedIndex >= 0
+			&& static_cast<std::size_t>(selectedIndex) < QueueRules.size()) {
+			selectedRule = QueueRules[static_cast<std::size_t>(selectedIndex)];
+		}
+		QueueReady = aProjection.Status == application::queue_landing_status::ready;
+		QueueRules = aProjection.Rules;
+		QueueLanding->apply(aProjection.Items);
+		QueueRuleSelector->clear();
+		auto restoredIndex = -1;
+		for (std::size_t index = 0U; index < QueueRules.size(); ++index) {
+			const auto& rule = QueueRules[index];
+			QueueRuleSelector->addItem(
+				QStringLiteral("%1 %2%3")
+					.arg(QString::fromUtf8(core::name(rule.Kind).data()))
+					.arg(rule.Excluding ? QStringLiteral("not ") : QString{ })
+					.arg(QString::fromStdString(rule.Pattern)));
+			if (selectedRule == std::optional{ rule }) {
+				restoredIndex = static_cast<int>(index);
+			}
+		}
+		if (restoredIndex >= 0) {
+			QueueRuleSelector->setCurrentIndex(restoredIndex);
+		}
+		switch (aProjection.Status) {
+		case application::queue_landing_status::restoring:
+			QueueStatus->setText(tr("Restoring local observer rules…"));
+			break;
+		case application::queue_landing_status::unavailable:
+			QueueStatus->setText(tr("Local observer rules are unavailable."));
+			break;
+		case application::queue_landing_status::ready:
+			QueueStatus->setText(
+				aProjection.Items.empty()
+					? tr("Review queue is empty. Local rules never change GitHub assignments.")
+					: tr("%1 review(s) in the local queue. %2")
+						  .arg(aProjection.Items.size())
+						  .arg(aProjection.Online
+								   ? tr("Refresh is online.")
+								   : tr("Refresh is offline.")));
+			break;
+		}
+		++Statistics.QueueUpdates;
+		update_queue_rule_actions();
 		apply_focus_order();
 	}
 
@@ -1573,6 +1776,46 @@ namespace bpr::qt {
 		return Defects.size();
 	}
 
+	auto workbench_window::queue_landing() const noexcept -> review_landing_model*
+	{
+		return QueueLanding;
+	}
+
+	auto workbench_window::queue_view() const noexcept -> QListView*
+	{
+		return QueueView;
+	}
+
+	auto workbench_window::queue_rule_kind_selector() const noexcept -> QComboBox*
+	{
+		return QueueRuleKind;
+	}
+
+	auto workbench_window::queue_rule_pattern_editor() const noexcept -> QLineEdit*
+	{
+		return QueueRulePattern;
+	}
+
+	auto workbench_window::queue_rule_exclusion() const noexcept -> QCheckBox*
+	{
+		return QueueRuleExcluding;
+	}
+
+	auto workbench_window::add_queue_rule_action() const noexcept -> QAction*
+	{
+		return AddQueueRule;
+	}
+
+	auto workbench_window::remove_queue_rule_action() const noexcept -> QAction*
+	{
+		return RemoveQueueRule;
+	}
+
+	auto workbench_window::queue_status_label() const noexcept -> QLabel*
+	{
+		return QueueStatus;
+	}
+
 	auto workbench_window::files_drawer_toggle_action() const noexcept -> QAction*
 	{
 		return Drawers[0].Toggle;
@@ -1630,6 +1873,11 @@ namespace bpr::qt {
 			append(SessionPanel->open_button());
 			append(SessionPanel->refresh_button());
 		}
+		append(QueueView);
+		append(QueueRuleSelector);
+		append(QueueRuleKind);
+		append(QueueRulePattern);
+		append(QueueRuleExcluding);
 		if (PullRequestPanel != nullptr) {
 			append(PullRequestPanel->technical_details_button());
 			append(PullRequestPanel->body_editor());

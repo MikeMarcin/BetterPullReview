@@ -2,16 +2,18 @@
 
 RFC base: `29516d7aae0b61b79571f836c92533459882f5d2`
 
-Status: **queue components are partial; public workflow is unreachable.**
+Status: **observer-rule enrollment and the landing workflow are composed;
+filters, notification delivery, and activation remain open.**
 BPR-0159 through BPR-0170 delivered the deterministic queue,
 refresh, enrollment, model, notification request, and durable store components.
 The RFC-allocated filters and sorting presentation were not built; BPR-0239
 owns them.
-The public application constructs only the notification adapter. It supplies
-neither an observed GitHub role nor a user-configured observer rule, constructs
-no queue item or landing model, never calls `deliver()`, and never consumes the
-recorded activation. BPR-0231 supplies an honest enrollment/landing input;
-BPR-0223 then owns delivery and activation.
+The public application now supplies user-configured local observer rules,
+persists the exact rule and enrollment reason, and incrementally projects the
+result through the shipped landing model. It deliberately does not infer a
+GitHub role from review or comment history: the accepted snapshot does not
+carry the provider's explicit assignment authority. Notification `deliver()`
+and activation consumption remain BPR-0223's work.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -87,8 +89,8 @@ A row is claimed only when its card lands with direct evidence.
 | Claim | Direct surface | Command or interaction | What will prove it | Result |
 |---|---|---|---|---|
 | Role classification matches GitHub | Core plus fixture | Classify author, reviewer, requested reviewer, participant, and observer from sanitized fixtures | Each role derived from the observation alone, with no provider reachable from the core | Verified. BPR-0159 carries every role through unchanged, keeps `requested_reviewer` distinct from `reviewer`, and gives each a distinct name |
-| Observer rules enroll locally | Core | Match repository, author, and path rules, including exclusions for generated and vendor paths | Enrollment is a pure function; there is no request path to suppress | Verified. BPR-0159's `enrollment_for` takes no provider and `queue_membership` has no field a request could occupy. Path rules stop at a component boundary, and exclusions beat other rules but never a GitHub role — hiding an assigned review is a way to miss work nobody would think to look for |
-| Every item explains itself | Core | Read the bucket and the observer reason for each enrolled item | The reason is carried by the item rather than recomputed by the presentation | Verified. BPR-0160's `queue_item` carries the membership and the bucket, and `ordered_queue` derives neither. Every bucket has a distinct name and a distinct sentence saying what is being asked, because a label alone leaves the reviewer to guess |
+| Observer rules enroll locally | Core plus composed Qt/host/store path | Match repository, author, and path rules, including exclusions for generated and vendor paths; add and remove a repository rule through the shipped window | Enrollment is a pure function; the public gesture persists locally and has no provider mutation path | Verified. BPR-0159's `enrollment_for` takes no provider and `queue_membership` has no field a request could occupy. BPR-0231's two-process `application_queue_composition_contract` adds the rule through the Qt action, persists it, restores its match, and removes it to an empty projection; provider-mutation counters remain zero |
+| Every item explains itself | Core plus composed landing model | Read the bucket and exact observer reason after a public rule gesture and restart | The reason is carried by the item and store rather than recomputed by presentation | Verified. BPR-0160's `queue_item` carries the membership and bucket. BPR-0231 persists the exact matching rule and the incremental Qt model presents that retained reason after a separate-process reopen |
 | Decisions are clock and network independent | Core under `core-only` | Replay one observation set twice | Identical buckets and ordering, with no clock read and no timer scheduled | Verified. BPR-0160 orders by bucket then identity, so 64 items supplied ascending, descending, and rotated give one queue. The observation carries no timestamp: "new since I last looked" is a comparison against what the ledger records, not against a wall clock |
 | Refresh respects the host's limits | Host with manual executor | Drive simulated primary and secondary rate limits, ETags, offline state, and cancellation | Bounded backoff, conditional requests reused, and no work issued while offline | Verified. BPR-0161 doubles backoff to a 900-second cap, prefers the provider's own `Retry-After`, reuses validators so an unchanged pull request costs a conditional request, reports offline explicitly, and treats cancellation as neither a failure nor a reason to back off |
 | A completion cannot cross sessions | Host | Deliver a stale completion after an account, repository, or pull-request switch | The completion is refused by identity rather than by ordering luck | Verified. BPR-0161 checks identity before reading anything else, so a stale answer changes no validator, no backoff, and no online state. A session is host, account, and generation: an account switch reusing the generation is still refused |
@@ -132,7 +134,9 @@ The RFC-BPR-0010 suites specifically:
 | `application_review_queue_refresh` | `dev` |
 | `application_review_queue_enrollment` | `dev` |
 | `application_review_queue_notification` | `dev` |
+| `sqlite_queue_enrollment_storage` | `dev` |
 | `qt_review_landing_model` | `dev` |
+| `application_queue_composition_contract` | `dev` |
 
 Both core suites run under `core-only`, which links neither Qt nor SQLite, so
 "the core reads no clock and reaches no provider" is a property of the build

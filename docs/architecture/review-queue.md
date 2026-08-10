@@ -45,6 +45,15 @@ a redaction step is a place a silent mistake can live.
 The core reads no clock and schedules no timer. Its suites run under the
 `core-only` preset, which links neither Qt nor SQLite.
 
+The shipped composition owns one serialized queue host and a private SQLite
+store. The Qt rule controls emit semantic add/remove intents; store and refresh
+work run on the effect lane; only typed terminals update the retained rules,
+enrollments, and incremental landing projection. A separate-process contract
+adds a repository rule, observes its exact match, reopens the same store, and
+deletes the rule to an empty queue. The snapshot currently supplies no GitHub
+role authority, so composition uses local observer rules rather than inferring
+assignments from review or comment history.
+
 ## Typed vocabulary
 
 - **Observation** — `core::pull_request_observation` (who, where, which paths)
@@ -246,7 +255,8 @@ The model has no mutating entry point beyond `apply` and `clear`.
 |---|---|
 | BPR-0168 | A person to grant Notification Center permission once and to see the banner. The harness proves the request's content and destination; it cannot prove the operating system showed it |
 | BPR-0169 | A designated repository and token. That the correlator cannot issue a request is structural and settled here; that GitHub's own reviewer state is also unchanged needs a server to answer |
-| BPR-0170 | A durable store. Enrollment is retained for the life of the process and no longer; a queue rebuilt on every launch would re-derive membership from whatever the paths look like then, which is the recomputation this design exists to avoid |
+| BPR-0239 | Filters and sorting over the composed landing model, with stable identity and explicit alternate order |
+| BPR-0223 | Notification delivery requests and activation selection from a real composed queue item |
 
 Filters and sorting presentation are not built. The model presents what the
 core ordered, and a filter is a view concern that would sit above it.

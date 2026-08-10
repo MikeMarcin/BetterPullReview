@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -94,6 +95,36 @@ namespace {
 	[[nodiscard]] auto opened_ok(const auto& aResult) -> bool
 	{
 		return aResult.has_value();
+	}
+
+	[[nodiscard]] auto read_binary(const std::filesystem::path& aPath)
+		-> std::string
+	{
+		auto input = std::ifstream{ aPath, std::ios::binary };
+		expect(input.good(), "queue database bytes are readable");
+		return {
+			std::istreambuf_iterator<char>{ input },
+			std::istreambuf_iterator<char>{ },
+		};
+	}
+
+	auto execute_raw_sql(
+		const std::filesystem::path& aPath, const std::string_view aSql) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(
+			::sqlite3_open_v2(
+				aPath.string().c_str(),
+				&raw,
+				SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_EXRESCODE,
+				nullptr)
+				== SQLITE_OK,
+			"the raw queue fixture opens");
+		const auto sql = std::string{ aSql };
+		expect(
+			::sqlite3_exec(raw, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK,
+			"the raw queue fixture statements run");
+		expect(::sqlite3_close_v2(raw) == SQLITE_OK, "the raw queue fixture closes");
 	}
 
 #if !defined(_WIN32)
@@ -238,6 +269,154 @@ namespace {
 		expect(version == 99, "and is untouched by the refusal");
 	}
 
+	void test_a_foreign_version_one_database_is_not_migrated()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("foreign.db");
+		::sqlite3*              raw  = nullptr;
+		expect(
+			::sqlite3_open_v2(
+				path.string().c_str(),
+				&raw,
+				SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_EXRESCODE,
+				nullptr)
+				== SQLITE_OK,
+			"the foreign fixture opens");
+		const auto schema = "CREATE TABLE enrollment_meta(singleton INTEGER PRIMARY KEY "
+							"CHECK(singleton = 1),schema_format INTEGER NOT NULL) STRICT;"
+							"CREATE TABLE enrollment(host TEXT NOT NULL,account TEXT NOT NULL,"
+							"repository TEXT NOT NULL,pull_request INTEGER NOT NULL,role INTEGER "
+							"NOT NULL CHECK(role BETWEEN 0 AND 4),matched_rule INTEGER NOT NULL "
+							"CHECK(matched_rule IN (0, 1)),rule_kind INTEGER NOT NULL CHECK(rule_kind "
+							"BETWEEN 0 AND 2),rule_pattern TEXT NOT NULL,rule_excluding INTEGER NOT "
+							"NULL CHECK(rule_excluding IN (0, 1)),departed INTEGER NOT NULL "
+							"CHECK(departed BETWEEN 0 AND 4),PRIMARY KEY(host, account, repository, "
+							"pull_request)) STRICT;"
+							"INSERT INTO enrollment_meta VALUES(1, 1);"
+							"INSERT INTO enrollment VALUES('foreign.example','account','owner/repo',"
+							"7,0,1,0,'sentinel',0,0);"
+							"PRAGMA application_id = 305419896;"
+							"PRAGMA user_version = 1;";
+		expect(
+			::sqlite3_exec(raw, schema, nullptr, nullptr, nullptr) == SQLITE_OK,
+			"the foreign v1 schema and sentinel are created");
+		expect(::sqlite3_close_v2(raw) == SQLITE_OK, "the fixture closes");
+		const auto before = read_binary(path);
+
+		const auto refused = queue_enrollment_database::open(path, { });
+		expect(!refused && refused.error() == catalog_database_failure::schema_mismatch,
+			   "a foreign v1 database is refused before migration");
+		expect(read_binary(path) == before,
+			   "refusal preserves every byte of the foreign database");
+
+		raw = nullptr;
+		expect(
+			::sqlite3_open_v2(
+				path.string().c_str(), &raw, SQLITE_OPEN_READONLY, nullptr)
+				== SQLITE_OK,
+			"the refused fixture remains readable");
+		::sqlite3_stmt* statement = nullptr;
+		expect(
+			::sqlite3_prepare_v2(
+				raw,
+				"SELECT (SELECT count(*) FROM sqlite_schema WHERE name = "
+				"'observer_rule'), schema_format, (SELECT rule_pattern FROM "
+				"enrollment LIMIT 1) FROM enrollment_meta",
+				-1,
+				&statement,
+				nullptr)
+					== SQLITE_OK
+				&& ::sqlite3_step(statement) == SQLITE_ROW,
+			"the exact refused metadata remains queryable");
+		expect(
+			::sqlite3_column_int64(statement, 0) == 0
+				&& ::sqlite3_column_int64(statement, 1) == 1
+				&& std::string_view{ reinterpret_cast<const char*>(
+					   ::sqlite3_column_text(statement, 2)) }
+					== "sentinel",
+			"no rule table, metadata stamp, or sentinel row was changed");
+		(void)::sqlite3_finalize(statement);
+		(void)::sqlite3_close_v2(raw);
+	}
+
+	void test_a_legal_version_one_database_migrates_to_version_two()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("version-one.db");
+		execute_raw_sql(
+			path,
+			"CREATE TABLE enrollment_meta(singleton INTEGER PRIMARY KEY "
+			"CHECK(singleton = 1),schema_format INTEGER NOT NULL) STRICT;"
+			"CREATE TABLE enrollment(host TEXT NOT NULL,account TEXT NOT NULL,"
+			"repository TEXT NOT NULL,pull_request INTEGER NOT NULL,role INTEGER "
+			"NOT NULL CHECK(role BETWEEN 0 AND 4),matched_rule INTEGER NOT NULL "
+			"CHECK(matched_rule IN (0, 1)),rule_kind INTEGER NOT NULL CHECK(rule_kind "
+			"BETWEEN 0 AND 2),rule_pattern TEXT NOT NULL,rule_excluding INTEGER NOT "
+			"NULL CHECK(rule_excluding IN (0, 1)),departed INTEGER NOT NULL "
+			"CHECK(departed BETWEEN 0 AND 4),PRIMARY KEY(host, account, repository, "
+			"pull_request)) STRICT;"
+			"INSERT INTO enrollment_meta VALUES(1, 1);"
+			"INSERT INTO enrollment VALUES('github.com','reviewer','octo/app',"
+			"7,0,1,2,'src/parser',0,0);"
+			"PRAGMA application_id = 1112560209;"
+			"PRAGMA user_version = 1;");
+
+		auto migrated = queue_enrollment_database::open(path, { });
+		expect(opened_ok(migrated), "a canonical version-one queue migrates");
+		expect(
+			scalar_integer(migrated->handle(), "PRAGMA user_version")
+				== queue_enrollment_schema_version,
+			"the migrated file carries the current SQLite version stamp");
+		expect(
+			scalar_integer(
+				migrated->handle(),
+				"SELECT schema_format FROM enrollment_meta WHERE singleton = 1")
+				== queue_enrollment_schema_version,
+			"the migrated metadata row carries the current schema format");
+		const auto records = migrated->load_all();
+		expect(
+			records.has_value() && records->size() == 1U
+				&& records->front().Ref == ref(7)
+				&& records->front().Membership.Rule.Pattern == "src/parser",
+			"migration preserves the exact version-one enrollment and reason");
+		const auto rules = migrated->load_rules();
+		expect(
+			rules.has_value() && rules->empty(),
+			"migration does not promote a copied enrollment reason into rule authority");
+	}
+
+	void test_stamped_current_schema_is_validated_canonically()
+	{
+		const scratch_directory directory;
+		constexpr auto          tampering = std::array<std::string_view, 4>{
+			"ALTER TABLE enrollment_meta ADD COLUMN unexpected INTEGER NOT NULL DEFAULT 0",
+			"ALTER TABLE enrollment ADD COLUMN unexpected INTEGER",
+			"DROP TABLE observer_rule",
+			"DROP TABLE observer_rule;"
+			"CREATE TABLE observer_rule("
+			"rule_kind INTEGER NOT NULL CHECK(rule_kind BETWEEN 0 AND 2),"
+			"rule_pattern TEXT NOT NULL,"
+			"rule_excluding INTEGER NOT NULL CHECK(rule_excluding IN (0, 1)),"
+			"PRIMARY KEY(rule_kind, rule_pattern, rule_excluding)) STRICT",
+		};
+
+		for (std::size_t index = 0; index < tampering.size(); ++index) {
+			const auto path
+				= directory.file("altered-" + std::to_string(index) + ".db");
+			{
+				auto store = queue_enrollment_database::open(path, { });
+				expect(opened_ok(store), "a canonical current queue is created");
+			}
+			execute_raw_sql(path, tampering[index]);
+			const auto refused = queue_enrollment_database::open(path, { });
+			expect(
+				!refused
+					&& refused.error()
+						== catalog_database_failure::schema_mismatch,
+				"a stamped current file with an altered or missing canonical table is refused");
+		}
+	}
+
 	// The store holds no source and no comment body. Checked against the
 	// schema the build actually creates rather than the insert statements
 	// somebody remembered to read.
@@ -369,6 +548,102 @@ namespace {
 				== application::enrollment_departure::closed,
 			"carrying the later state");
 	}
+
+	void test_reverse_sorted_overlapping_rule_precedence_survives_reopen()
+	{
+		const scratch_directory directory;
+		const auto              path     = directory.file("queue.db");
+		const auto              specific = core::observer_rule{
+			.Kind    = core::observer_rule_kind::path,
+			.Pattern = "src/parser/generated*",
+		};
+		const auto broad = core::observer_rule{
+			.Kind    = core::observer_rule_kind::path,
+			.Pattern = "src/parser*",
+		};
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store), "the store opens");
+			expect(
+				store->store_rule(specific).has_value(),
+				"the lexically later specific rule is stored first");
+			expect(
+				store->store_rule(broad).has_value(),
+				"the overlapping broad rule is stored second");
+			expect(
+				store->store_rule(specific).has_value(),
+				"storing the same rule is idempotent and keeps its precedence");
+		}
+
+		auto reopened = queue_enrollment_database::open(path, { });
+		expect(opened_ok(reopened), "the durable rule list reopens");
+		const auto rules = reopened->load_rules();
+		expect(rules.has_value() && rules->size() == 2U, "two exact rules reopen");
+		expect(
+			*rules == std::vector{ specific, broad },
+			"the reverse-sorted user precedence survives restart rather than becoming lexical order");
+		const auto membership = core::enrollment_for(
+			core::pull_request_observation{
+				.Ref          = ref(7),
+				.ChangedPaths = { "src/parser/generated/output.cpp" },
+			},
+			*rules);
+		expect(
+			membership.MatchedRule && membership.Rule == specific,
+			"the restored first overlapping rule remains the exact recorded reason");
+		expect(
+			reopened->erase_rule(specific).has_value(),
+			"one exact rule is erased");
+		const auto remaining = reopened->load_rules();
+		expect(remaining.has_value() && *remaining == std::vector{ broad },
+			   "erasing one rule preserves the other");
+	}
+
+	void test_rule_and_enrollment_reconciliation_is_atomic_at_every_row()
+	{
+		const auto rule = core::observer_rule{
+			.Kind = core::observer_rule_kind::path, .Pattern = "src/parser"
+		};
+		const auto intent = application::queue_rule_intent{
+			.Action = application::queue_rule_action::add,
+			.Rule   = rule,
+		};
+		const auto records = std::array{
+			application::enrollment_record{ .Ref = ref(7), .Membership = watching("src/parser") },
+			application::enrollment_record{ .Ref = ref(8), .Membership = watching("src/parser") },
+			application::enrollment_record{ .Ref = ref(9), .Membership = watching("src/parser") },
+		};
+		for (const auto failedNumber : { 7, 8, 9 }) {
+			const scratch_directory directory;
+			const auto              path = directory.file("queue.db");
+			{
+				auto store = queue_enrollment_database::open(path, { });
+				expect(opened_ok(store), "the atomic rule store opens");
+				const auto trigger
+					= "CREATE TEMP TRIGGER fail_enrollment BEFORE INSERT ON main.enrollment "
+					  "WHEN NEW.pull_request = "
+					+ std::to_string(failedNumber)
+					+ " BEGIN SELECT RAISE(ABORT, 'forced'); END";
+				expect(
+					::sqlite3_exec(
+						store->handle(), trigger.c_str(), nullptr, nullptr, nullptr)
+						== SQLITE_OK,
+					"the selected reconciliation row is fault injected");
+				expect(
+					!store->apply_rule_change(intent, records, { }).has_value(),
+					"the atomic rule mutation reports the injected row failure");
+			}
+
+			auto reopened = queue_enrollment_database::open(path, { });
+			expect(opened_ok(reopened), "the failed atomic store reopens");
+			const auto rules       = reopened->load_rules();
+			const auto enrollments = reopened->load_all();
+			expect(
+				rules.has_value() && rules->empty() && enrollments.has_value()
+					&& enrollments->empty(),
+				"first, middle, and final row failures roll back the rule and every enrollment");
+		}
+	}
 } // namespace
 
 auto main() -> int
@@ -377,9 +652,14 @@ auto main() -> int
 	test_enrollment_survives_a_separate_process();
 #endif
 	test_a_newer_database_fails_closed();
+	test_a_foreign_version_one_database_is_not_migrated();
+	test_a_legal_version_one_database_migrates_to_version_two();
+	test_stamped_current_schema_is_validated_canonically();
 	test_the_schema_holds_no_repository_content();
 	test_deleting_the_queue_leaves_the_ledger_intact();
 	test_storing_the_same_item_twice_replaces_rather_than_duplicates();
+	test_reverse_sorted_overlapping_rule_precedence_survives_reopen();
+	test_rule_and_enrollment_reconciliation_is_atomic_at_every_row();
 
 	std::cout << "queue-enrollment-storage-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -1,7 +1,7 @@
 ---
 id: BPR-0239
 title: Build review-queue filters and sorting presentation
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0010
 depends_on: [BPR-0231]
 ---
