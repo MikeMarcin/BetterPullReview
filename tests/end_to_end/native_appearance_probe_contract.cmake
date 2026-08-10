@@ -204,19 +204,187 @@ execute_process(
 if(offscreen_result EQUAL 0)
     message(FATAL_ERROR "offscreen probe was accepted")
 endif()
+foreach(
+    expected_marker
+    "NATIVE_APPEARANCE_SELECTED_DIFF_READY"
+    "NATIVE_APPEARANCE_SELECTED_DIFF_REASON:none"
+    "NATIVE_APPEARANCE_SELECTED_DIFF_BINDING:111111"
+    "NATIVE_APPEARANCE_SELECTION_WIRE_OK"
+    "NATIVE_APPEARANCE_FIXTURE_DIFF_HELPER_UNUSED_OK"
+    "NATIVE_APPEARANCE_PRECONDITION_REFUSED:platform_not_cocoa:none"
+)
+    if(NOT offscreen_output MATCHES "(^|[\r\n])${expected_marker}([\r\n]|$)")
+        message(
+            FATAL_ERROR
+            "offscreen real-selection course missed ${expected_marker}: "
+            "stdout=${offscreen_output} stderr=${offscreen_error}"
+        )
+    endif()
+endforeach()
+
+set(
+    appearance_verdict_markers
+    "APPEARANCE_SYSTEM_FOLLOWS_"
+    "APPEARANCE_EXPLICIT_IGNORES_"
+    "APPEARANCE_VARIANTS:"
+    "NATIVE_APPEARANCE_TRANSITION:"
+    "NATIVE_APPEARANCE_GLOBAL_TRANSITION:"
+    "NATIVE_APPEARANCE_ACTIVE_FOCUS_"
+    "NATIVE_APPEARANCE_SIGNAL_"
+    "NATIVE_APPEARANCE_STATE_"
+    "NATIVE_APPEARANCE_PIXELS_DIFFER_"
+    "NATIVE_APPEARANCE_DIFF_PALETTE_BEFORE:"
+    "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:"
+    "NATIVE_APPEARANCE_DIFF_SELECTION_"
+    "NATIVE_APPEARANCE_CHANGED_RENDER_"
+)
+foreach(forbidden_marker IN LISTS appearance_verdict_markers)
+    if(offscreen_output MATCHES "${forbidden_marker}")
+        message(
+            FATAL_ERROR
+            "offscreen precondition refusal emitted appearance verdict "
+            "${forbidden_marker}: stdout=${offscreen_output}"
+        )
+    endif()
+endforeach()
+if(EXISTS "${BPR_BEFORE_RENDER}" OR EXISTS "${BPR_AFTER_RENDER}")
+    message(FATAL_ERROR "rejected offscreen probe produced evidence")
+endif()
+
+execute_process(
+    COMMAND
+        "${CMAKE_COMMAND}"
+        -E
+        env
+        "QT_QPA_PLATFORM=offscreen"
+        "${BPR_APPLICATION}"
+        --github-fixture
+        github-com
+        --native-appearance-probe
+        --render-evidence
+        "${BPR_BEFORE_RENDER}"
+        --changed-render-evidence
+        "${BPR_AFTER_RENDER}"
+        --automated-run-budget-ms
+        1
+    RESULT_VARIABLE startup_budget_result
+    OUTPUT_VARIABLE startup_budget_output
+    ERROR_VARIABLE startup_budget_error
+    TIMEOUT 15
+)
+if(startup_budget_result EQUAL 0)
+    message(FATAL_ERROR "startup-budget native course was accepted")
+endif()
+foreach(
+    expected_marker
+    "NATIVE_APPEARANCE_SELECTED_DIFF_PENDING"
+    "NATIVE_APPEARANCE_SELECTED_DIFF_REASON:awaiting_workbench_observation"
+    "NATIVE_APPEARANCE_SELECTED_DIFF_BINDING:000000"
+    "NATIVE_APPEARANCE_SELECTION_WIRE_FAILED"
+    "NATIVE_APPEARANCE_FIXTURE_DIFF_HELPER_UNUSED_OK"
+    "NATIVE_APPEARANCE_PRECONDITION_REFUSED:selected_diff_budget_exhausted:awaiting_workbench_observation"
+)
+    if(
+        NOT startup_budget_output
+            MATCHES "(^|[\r\n])${expected_marker}([\r\n]|$)"
+    )
+        message(
+            FATAL_ERROR
+            "startup-budget course missed ${expected_marker}: "
+            "stdout=${startup_budget_output} stderr=${startup_budget_error}"
+        )
+    endif()
+endforeach()
 if(
-    NOT offscreen_output MATCHES
-        "NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED[\r\n]+NATIVE_APPEARANCE_SIGNAL_FAILED[\r\n]+NATIVE_APPEARANCE_STATE_FAILED[\r\n]+NATIVE_APPEARANCE_PIXELS_DIFFER_FAILED[\r\n]+NATIVE_APPEARANCE_DIFF_PALETTE_BEFORE:[^\r\n]+[\r\n]+NATIVE_APPEARANCE_DIFF_PALETTE_AFTER:[^\r\n]+[\r\n]+NATIVE_APPEARANCE_DIFF_FONT_BEFORE:[^\r\n]+[\r\n]+NATIVE_APPEARANCE_DIFF_FONT_AFTER:[^\r\n]+[\r\n]+NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:0[\r\n]+NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_CAUSES:0[\r\n]+NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_FAILED[\r\n]+NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_FAILED[\r\n]+NATIVE_APPEARANCE_DIFF_FONT_INHERITED_FAILED[\r\n]+NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_FAILED[\r\n]+NATIVE_APPEARANCE_DIFF_SELECTION_FAILED[\r\n]+NATIVE_APPEARANCE_CHANGED_RENDER_FAILED"
+    NOT startup_budget_output
+        MATCHES "PUBLIC_PATH_VERDICT:presentation=0 shutdown_complete=1 cleanup_failed=0"
+    OR NOT startup_budget_output
+        MATCHES "PUBLIC_PATH_BUDGET:expired=1 budget_ms=1"
 )
     message(
         FATAL_ERROR
-        "offscreen probe failure was not complete: "
-        "stdout=${offscreen_output} "
-        "stderr=${offscreen_error}"
+        "startup-budget course did not shut down within its own bound: "
+        "stdout=${startup_budget_output} stderr=${startup_budget_error}"
     )
 endif()
+if(
+    startup_budget_output MATCHES
+        "NATIVE_APPEARANCE_SELECTED_DIFF_REASON:composition_unavailable"
+    OR startup_budget_output MATCHES
+        "NATIVE_APPEARANCE_FIXTURE_DIFF_HELPER_UNUSED_FAILED"
+    OR startup_budget_output MATCHES "(^|[\r\n])RENDER_(OK|FAILED)([\r\n]|$)"
+)
+    message(
+        FATAL_ERROR
+        "startup-budget course fabricated evidence: stdout=${startup_budget_output}"
+    )
+endif()
+foreach(forbidden_marker IN LISTS appearance_verdict_markers)
+    if(startup_budget_output MATCHES "${forbidden_marker}")
+        message(
+            FATAL_ERROR
+            "startup-budget refusal emitted appearance verdict "
+            "${forbidden_marker}: stdout=${startup_budget_output}"
+        )
+    endif()
+endforeach()
 if(EXISTS "${BPR_BEFORE_RENDER}" OR EXISTS "${BPR_AFTER_RENDER}")
-    message(FATAL_ERROR "rejected offscreen probe produced evidence")
+    message(FATAL_ERROR "startup-budget native course produced evidence")
+endif()
+
+execute_process(
+    COMMAND
+        "${CMAKE_COMMAND}"
+        -E
+        env
+        "QT_QPA_PLATFORM=offscreen"
+        "${BPR_APPLICATION}"
+        --github-fixture
+        github-com
+        --native-appearance-probe
+        --native-appearance-cut-selection-wire
+        --render-evidence
+        "${BPR_BEFORE_RENDER}"
+        --changed-render-evidence
+        "${BPR_AFTER_RENDER}"
+        --automated-run-budget-ms
+        "${BPR_RUN_BUDGET_MS}"
+    RESULT_VARIABLE cut_result
+    OUTPUT_VARIABLE cut_output
+    ERROR_VARIABLE cut_error
+    TIMEOUT ${bpr_probe_timeout}
+)
+if(cut_result EQUAL 0)
+    message(FATAL_ERROR "cut native selection wire was accepted")
+endif()
+foreach(
+    expected_marker
+    "NATIVE_APPEARANCE_SELECTED_DIFF_REFUSED"
+    "NATIVE_APPEARANCE_SELECTED_DIFF_REASON:selection_wire_unavailable"
+    "NATIVE_APPEARANCE_SELECTED_DIFF_BINDING:111110"
+    "NATIVE_APPEARANCE_SELECTION_WIRE_FAILED"
+    "NATIVE_APPEARANCE_FIXTURE_DIFF_HELPER_UNUSED_OK"
+    "NATIVE_APPEARANCE_PRECONDITION_REFUSED:selected_diff_refused:selection_wire_unavailable"
+)
+    if(NOT cut_output MATCHES "(^|[\r\n])${expected_marker}([\r\n]|$)")
+        message(
+            FATAL_ERROR
+            "cut native selection course missed ${expected_marker}: "
+            "stdout=${cut_output} stderr=${cut_error}"
+        )
+    endif()
+endforeach()
+foreach(forbidden_marker IN LISTS appearance_verdict_markers)
+    if(cut_output MATCHES "${forbidden_marker}")
+        message(
+            FATAL_ERROR
+            "cut selection refusal emitted appearance verdict "
+            "${forbidden_marker}: stdout=${cut_output}"
+        )
+    endif()
+endforeach()
+if(EXISTS "${BPR_BEFORE_RENDER}" OR EXISTS "${BPR_AFTER_RENDER}")
+    message(FATAL_ERROR "cut native selection wire produced evidence")
 endif()
 
 message("NATIVE_APPEARANCE_PROBE_CONTRACT_OK")

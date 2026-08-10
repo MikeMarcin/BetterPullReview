@@ -377,15 +377,16 @@ set_tests_properties(
     PROPERTIES
         PASS_REGULAR_EXPRESSION "NATIVE_APPEARANCE_PROBE_CONTRACT_OK"
 )
-# One budgeted run — the offscreen probe. The reserve covers the eight
-# configuration-failure invocations before it, each of which starts Qt and then
-# exits during argument parsing without ever scheduling a run.
+# Two full-budget runs — the offscreen real-selection course and its cut wire.
+# The reserve covers the 1 ms startup-budget course plus the eight
+# configuration-failure invocations; each starts Qt but does not consume a full
+# automated-run budget.
 bpr_bound_automated_run(
     application_native_appearance_probe_contract
-    TIMEOUT 60
+    TIMEOUT 100
     BUDGET_MS ${bpr_native_appearance_budget_ms}
-    RUNS 1
-    RESERVE_MS 10000
+    RUNS 2
+    RESERVE_MS 12000
 )
 
 bpr_add_network_isolated_test(

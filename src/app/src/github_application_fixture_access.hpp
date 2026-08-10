@@ -145,6 +145,29 @@ namespace bpr::app::detail {
 		failed,
 	};
 
+	enum class native_appearance_selected_diff_probe_result {
+		pending,
+		ready,
+		refused,
+	};
+
+	/// \brief Names the exact condition currently blocking the native course.
+	enum class native_appearance_selected_diff_reason {
+		none,
+		awaiting_workbench_observation,
+		awaiting_selection_projection,
+		awaiting_selected_diff_publication,
+		awaiting_diff_presentation,
+		composition_unavailable,
+		fixture_authority_mismatch,
+		fixture_material_mismatch,
+		file_projection_mismatch,
+		selection_wire_unavailable,
+		selected_diff_failed,
+		selected_diff_mismatch,
+		fixture_diff_helper_invoked,
+	};
+
 	enum class review_ledger_composition_probe {
 		seed,
 		reopen,
@@ -298,6 +321,26 @@ namespace bpr::app::detail {
 			= default;
 	};
 
+	/// \brief Records the exact selected material required by native appearance.
+	struct native_appearance_selected_diff_probe_evidence
+	{
+		native_appearance_selected_diff_reason Reason
+			= native_appearance_selected_diff_reason::awaiting_workbench_observation;
+		bool ExactAuthority          = false;
+		bool ExactRevisions          = false;
+		bool SelectionGesture        = false;
+		bool SelectionIntent         = false;
+		bool ExactFile               = false;
+		bool ExactBlobs              = false;
+		bool ExactOptions            = false;
+		bool PresentationReady       = false;
+		bool FixtureDiffHelperUnused = false;
+
+		auto operator<=>(
+			const native_appearance_selected_diff_probe_evidence&) const
+			= default;
+	};
+
 	class github_application_fixture_access final
 	{
 	public:
@@ -414,6 +457,18 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto uiforetw_selected_diff_evidence(
 			const github_application& aApplication) noexcept
 			-> uiforetw_selected_diff_probe_evidence;
+		/// \brief Awaits the native course's exact file-row selected diff.
+		///
+		/// \details Repeated calls drive the shipped drawer selection through the
+		/// semantic workbench host, retained epoch actor, and diff composition. A
+		/// pending result is normal while those effects progress; a refusal names
+		/// the exact failed precondition.
+		[[nodiscard]] static auto exercise_native_appearance_selected_diff(
+			github_application& aApplication)
+			-> native_appearance_selected_diff_probe_result;
+		[[nodiscard]] static auto native_appearance_selected_diff_evidence(
+			const github_application& aApplication) noexcept
+			-> native_appearance_selected_diff_probe_evidence;
 		/// \brief Persists criterion-specific pixels after the semantic course passed.
 		[[nodiscard]] static auto capture_uiforetw_selected_diff_evidence(
 			github_application&   aApplication,

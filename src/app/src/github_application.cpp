@@ -3671,6 +3671,28 @@ namespace bpr::app {
 		};
 		std::optional<uiforetw_selected_diff_probe_state>
 			UIforEtwSelectedDiffProbe;
+		struct native_appearance_selected_diff_probe_state
+		{
+			enum class phase {
+				awaiting_observation,
+				awaiting_selection_projection,
+				awaiting_diff,
+				ready,
+				refused,
+			};
+
+			phase                                                  Phase = phase::awaiting_observation;
+			detail::native_appearance_selected_diff_probe_evidence Evidence;
+			application::workbench_pull_request_authority          Authority;
+			core::workbench_file_id                                File;
+			qt::workbench_window_statistics                        WindowStatistics;
+			std::size_t                                            IntentDispatches         = 0U;
+			std::size_t                                            SelectedDiffBegins       = 0U;
+			std::size_t                                            SelectedDiffPublications = 0U;
+			std::size_t                                            SelectedDiffFailures     = 0U;
+		};
+		std::optional<native_appearance_selected_diff_probe_state>
+			NativeAppearanceSelectedDiffProbe;
 		struct review_ledger_composition_probe_state
 		{
 			enum class phase {
@@ -5953,6 +5975,268 @@ namespace bpr::app {
 			return QStringLiteral("unknown");
 		}
 	} // namespace
+
+	auto detail::github_application_fixture_access::
+		exercise_native_appearance_selected_diff(
+			github_application& aApplication)
+			-> detail::native_appearance_selected_diff_probe_result
+	{
+		using result     = detail::native_appearance_selected_diff_probe_result;
+		using reason     = detail::native_appearance_selected_diff_reason;
+		using state_type = github_application::implementation::
+			native_appearance_selected_diff_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::refused;
+		}
+		if (!implementation->NativeAppearanceSelectedDiffProbe.has_value()) {
+			implementation->NativeAppearanceSelectedDiffProbe.emplace();
+		}
+		auto&      probe   = *implementation->NativeAppearanceSelectedDiffProbe;
+		const auto pending = [&probe](const reason aReason) {
+			probe.Evidence.Reason = aReason;
+			return result::pending;
+		};
+		const auto refuse = [&probe](const reason aReason) {
+			probe.Evidence.Reason = aReason;
+			probe.Phase           = state_type::phase::refused;
+			return result::refused;
+		};
+
+		probe.Evidence.FixtureDiffHelperUnused
+			= implementation->FixtureDiffHelperInvocations == 0U;
+		if (!probe.Evidence.FixtureDiffHelperUnused) {
+			return refuse(reason::fixture_diff_helper_invoked);
+		}
+		if (probe.Phase == state_type::phase::refused) {
+			return result::refused;
+		}
+		if (probe.Phase == state_type::phase::ready) {
+			return result::ready;
+		}
+		if (implementation->Fixture == nullptr
+			|| implementation->Window == nullptr
+			|| implementation->Host == nullptr
+			|| implementation->EpochHost == nullptr
+			|| implementation->WorkbenchHost == nullptr
+			|| !implementation->LastAcceptedHandoff.has_value()) {
+			return refuse(reason::composition_unavailable);
+		}
+
+		auto* const host      = implementation->WorkbenchHost.get();
+		auto* const window    = implementation->Window.get();
+		auto* const workbench = window->comparison_surface();
+		auto* const filesView = window->files_drawer() != nullptr
+			? window->files_drawer()->contents_view()
+			: nullptr;
+		const auto& fixture   = implementation->Fixture->evidence();
+
+		if (probe.Phase == state_type::phase::awaiting_observation) {
+			const auto& snapshot = implementation->Host->accepted_snapshot();
+			if (!snapshot.has_value() || host->outstanding_requests() != 0U
+				|| !host->state().Navigation.has_value()) {
+				return pending(reason::awaiting_workbench_observation);
+			}
+			if (snapshot->Files.size() != 1U
+				|| snapshot->Files.front().Path != "review.cpp"
+				|| filesView == nullptr || filesView->model() == nullptr
+				|| filesView->model()->rowCount() != 1) {
+				return refuse(reason::file_projection_mismatch);
+			}
+
+			const auto& handoff     = *implementation->LastAcceptedHandoff;
+			const auto& epoch       = implementation->EpochHost->state();
+			probe.Authority         = workbench_authority(handoff);
+			probe.File              = core::file_identity_of("review.cpp");
+			const auto context      = implementation->EpochHost->context(probe.Authority);
+			const auto expectedBase = core::parse_git_commit_oid(fixture.BaseOid);
+			const auto expectedHead = core::parse_git_commit_oid(fixture.HeadOneOid);
+			const auto expectedLeftBlob
+				= core::parse_git_blob_oid(fixture.BaseBlobOid);
+			const auto expectedRightBlob
+				= core::parse_git_blob_oid(fixture.HeadOneBlobOid);
+			const auto expectedOptions = core::diff_options{ };
+			const auto expectedDigest  = core::options_digest(expectedOptions);
+
+			probe.Evidence.ExactAuthority
+				= application::valid(probe.Authority)
+				&& implementation->WorkbenchReview.exact(handoff)
+				&& context.has_value() && epoch.Authority.has_value()
+				&& context->ApplicationSession == handoff.ApplicationSession
+				&& context->Authority == *epoch.Authority
+				&& probe.Authority == workbench_authority(handoff);
+			probe.Evidence.ExactRevisions
+				= expectedBase.has_value() && expectedHead.has_value()
+				&& epoch.AcceptedRevision.has_value()
+				&& epoch.AcceptedComparison.has_value()
+				&& epoch.AcceptedRevision->Base == *expectedBase
+				&& epoch.AcceptedRevision->Head == *expectedHead
+				&& epoch.AcceptedComparison->Left.Commit == *expectedBase
+				&& epoch.AcceptedComparison->Right.Commit == *expectedHead
+				&& context.has_value()
+				&& context->Comparison == *epoch.AcceptedComparison;
+			const auto actionable    = host->actionable();
+			probe.Evidence.ExactFile = probe.File.valid()
+				&& actionable.size() == 1U && actionable.front() == probe.File;
+			probe.Evidence.ExactBlobs
+				= expectedLeftBlob.has_value() && expectedRightBlob.has_value();
+			probe.Evidence.ExactOptions
+				= context.has_value() && expectedDigest.has_value()
+				&& context->Options == expectedOptions
+				&& context->OptionsDigest == expectedDigest
+				&& context->Algorithm
+					== core::supported_diff_algorithm_revision;
+			if (!probe.Evidence.ExactAuthority) {
+				return refuse(reason::fixture_authority_mismatch);
+			}
+			if (!probe.Evidence.ExactRevisions || !probe.Evidence.ExactBlobs
+				|| !probe.Evidence.ExactOptions) {
+				return refuse(reason::fixture_material_mismatch);
+			}
+			if (!probe.Evidence.ExactFile) {
+				return refuse(reason::file_projection_mismatch);
+			}
+
+			probe.IntentDispatches   = implementation->WorkbenchIntentDispatches;
+			probe.WindowStatistics   = window->statistics();
+			probe.SelectedDiffBegins = implementation->SelectedDiffBegins;
+			probe.SelectedDiffPublications
+				= implementation->SelectedDiffPublications;
+			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
+			filesView->setCurrentIndex(filesView->model()->index(0, 0));
+			probe.Phase = state_type::phase::awaiting_selection_projection;
+			return pending(reason::awaiting_selection_projection);
+		}
+
+		if (probe.Phase
+			== state_type::phase::awaiting_selection_projection) {
+			const auto statistics = window->statistics();
+			if (implementation->SelectedDiffFailures
+				!= probe.SelectedDiffFailures) {
+				return refuse(reason::selected_diff_failed);
+			}
+			if (implementation->WorkbenchIntentDispatches
+				== probe.IntentDispatches) {
+				if (statistics.FileSelections
+					== probe.WindowStatistics.FileSelections + 1U) {
+					probe.Evidence.SelectionGesture = true;
+					return refuse(reason::selection_wire_unavailable);
+				}
+				return pending(reason::awaiting_selection_projection);
+			}
+			probe.Evidence.SelectionGesture
+				= statistics.FileSelections
+				== probe.WindowStatistics.FileSelections + 1U;
+			probe.Evidence.SelectionIntent
+				= implementation->WorkbenchIntentDispatches
+					== probe.IntentDispatches + 1U
+				&& host->selected() == std::optional{ probe.File };
+			if (!probe.Evidence.SelectionGesture
+				|| !probe.Evidence.SelectionIntent) {
+				return refuse(reason::file_projection_mismatch);
+			}
+			probe.Phase = state_type::phase::awaiting_diff;
+			return pending(reason::awaiting_selected_diff_publication);
+		}
+
+		if (implementation->SelectedDiffFailures != probe.SelectedDiffFailures) {
+			return refuse(reason::selected_diff_failed);
+		}
+		if (implementation->SelectedDiffPublications
+			== probe.SelectedDiffPublications) {
+			return pending(reason::awaiting_selected_diff_publication);
+		}
+		if (implementation->SelectedDiffBegins != probe.SelectedDiffBegins + 1U
+			|| implementation->SelectedDiffPublications
+				!= probe.SelectedDiffPublications + 1U
+			|| !implementation->LastSelectedDiff.has_value()) {
+			return refuse(reason::selected_diff_mismatch);
+		}
+
+		const auto& publication = *implementation->LastSelectedDiff;
+		const auto& request     = publication.Request;
+		const auto& key         = publication.Key;
+		const auto& epoch       = implementation->EpochHost->state();
+		const auto  expectedLeftBlob
+			= core::parse_git_blob_oid(fixture.BaseBlobOid);
+		const auto expectedRightBlob
+			= core::parse_git_blob_oid(fixture.HeadOneBlobOid);
+		const auto expectedDigest = core::options_digest(core::diff_options{ });
+		probe.Evidence.ExactAuthority
+			= probe.Evidence.ExactAuthority
+			&& request.WorkbenchAuthority == probe.Authority
+			&& epoch.Authority.has_value() && key.Authority == *epoch.Authority
+			&& key.Repository == epoch.Authority->Repository
+			&& key.PullRequest == epoch.Authority->PullRequest;
+		probe.Evidence.ExactRevisions
+			= probe.Evidence.ExactRevisions
+			&& epoch.AcceptedComparison.has_value()
+			&& key.LeftAnchor == epoch.AcceptedComparison->Left.Identity
+			&& key.RightAnchor == epoch.AcceptedComparison->Right.Identity;
+		probe.Evidence.ExactFile = probe.Evidence.ExactFile
+			&& request.Context.Generation == host->generation()
+			&& request.File.File == probe.File
+			&& request.File.PresentationPath == "review.cpp"
+			&& request.File.CurrentPath == std::filesystem::path{ "review.cpp" }
+			&& !request.File.PreviousPath.has_value()
+			&& request.File.Change
+				== application::workbench_file_change_kind::modified
+			&& key.File == probe.File;
+		probe.Evidence.ExactBlobs = probe.Evidence.ExactBlobs
+			&& expectedLeftBlob.has_value() && expectedRightBlob.has_value()
+			&& key.LeftBlob == *expectedLeftBlob
+			&& key.RightBlob == *expectedRightBlob;
+		probe.Evidence.ExactOptions = probe.Evidence.ExactOptions
+			&& expectedDigest.has_value()
+			&& request.Diff.Options == core::diff_options{ }
+			&& request.Diff.OptionsDigest == *expectedDigest
+			&& key.Options == *expectedDigest
+			&& key.Algorithm == core::supported_diff_algorithm_revision;
+		if (!probe.Evidence.ExactAuthority || !probe.Evidence.ExactRevisions
+			|| !probe.Evidence.ExactFile || !probe.Evidence.ExactBlobs
+			|| !probe.Evidence.ExactOptions) {
+			return refuse(reason::selected_diff_mismatch);
+		}
+		if (workbench == nullptr || workbench->current_result() == nullptr
+			|| !workbench->selection().has_value()) {
+			return pending(reason::awaiting_diff_presentation);
+		}
+		probe.Evidence.PresentationReady
+			= workbench->current_result()->Alignment.Key == key
+			&& workbench->selection()->Comparison
+				== workbench->current_result()->Alignment.Digest
+			&& workbench->status_text().startsWith(QStringLiteral("Diff ready"));
+		if (!probe.Evidence.PresentationReady) {
+			return refuse(reason::selected_diff_mismatch);
+		}
+
+		probe.Evidence.Reason = reason::none;
+		probe.Phase           = state_type::phase::ready;
+		return result::ready;
+	}
+
+	auto detail::github_application_fixture_access::
+		native_appearance_selected_diff_evidence(
+			const github_application& aApplication) noexcept
+		-> detail::native_appearance_selected_diff_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return detail::native_appearance_selected_diff_probe_evidence{
+				.Reason = detail::native_appearance_selected_diff_reason::
+					composition_unavailable,
+			};
+		}
+		if (implementation->NativeAppearanceSelectedDiffProbe.has_value()) {
+			return implementation->NativeAppearanceSelectedDiffProbe->Evidence;
+		}
+		return detail::native_appearance_selected_diff_probe_evidence{
+			.Reason = detail::native_appearance_selected_diff_reason::
+				awaiting_workbench_observation,
+			.FixtureDiffHelperUnused
+			= implementation->FixtureDiffHelperInvocations == 0U,
+		};
+	}
 
 	auto detail::github_application_fixture_access::exercise_uiforetw_selected_diff(
 		github_application& aApplication)

@@ -28,6 +28,23 @@ unexplained two-rebuild result. BPR-0220 now records the coalesced measured-axis
 mask and exact Qt trigger mask for every successful rebuild; the foreground
 Light → Dark run that supplies those records remains attended.
 
+BPR-0249 repairs the course leading to that attended checkpoint. The native
+probe now selects the synthetic `review.cpp` row through BPR-0227's shipped
+Files-drawer wire, awaits host progress within the existing 30-second run
+budget, and refuses causally unless the selected publication and rendered
+selection bind the exact fixture authority, base/head revisions, file, blobs,
+default options/digest, and algorithm. The real-executable contract requires
+the positive course to report `NATIVE_APPEARANCE_SELECTED_DIFF_BINDING:111111`
+and zero direct fixture-helper invocations; cutting the real selection wire
+must instead report `selection_wire_unavailable`. A platform, focus, selection,
+or budget refusal before the Light baseline emits one typed precondition marker
+and no appearance verdict markers. The 1 ms startup-budget executable branch
+also fixes the pre-initialization boundary: it reports pending
+`awaiting_workbench_observation`, derives helper-unused from the live counter,
+shuts down normally, and writes no render. This does not supply the
+still-required frontmost Light → Dark verdict or decide BPR-0220's geometry
+result.
+
 Read the Composition and Deferred gates sections before the claim matrix. A
 `Verified` row proves only the direct surface it names.
 

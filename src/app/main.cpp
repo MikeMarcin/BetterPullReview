@@ -364,6 +364,29 @@ namespace {
 	}
 #endif
 
+#if defined(BPR_BUILD_TESTING)
+	enum class native_appearance_precondition_refusal {
+		none,
+		selected_diff_refused,
+		selected_diff_budget_exhausted,
+		owner_focus_required,
+		style_hints_unavailable,
+		platform_not_cocoa,
+		native_style_unavailable,
+		startup_scheme_not_light,
+		global_scheme_not_light,
+		light_palette_unavailable,
+		fixture_thread_unavailable,
+		epoch_pair_mismatch,
+		evidence_paths_unavailable,
+		selected_diff_presentation_lost,
+		comparison_not_visible,
+		light_context_refused,
+		initial_render_refused,
+		automated_budget_exhausted,
+	};
+#endif
+
 	struct automated_run
 	{
 		enum class stage {
@@ -434,6 +457,7 @@ namespace {
 		struct native_appearance_probe_state
 		{
 			bool                                         Enabled                      = false;
+			bool                                         StageEntered                 = false;
 			bool                                         WaitingForOwnerFocusReported = false;
 			bool                                         SignalObserved               = false;
 			bool                                         StatePassed                  = false;
@@ -482,9 +506,16 @@ namespace {
 			std::size_t   InitialDiffGeometryHistorySize     = 0U;
 			bool          InitialDiffGeometryHistoryOverflow = false;
 			std::array<bpr::qt::diff_geometry_rebuild_cause, 8U>
-											 DiffGeometryRebuildCauses{ };
-			std::size_t                      DiffGeometryRebuildCauseCount   = 0U;
-			bool                             DiffGeometryAttributionComplete = false;
+						DiffGeometryRebuildCauses{ };
+			std::size_t DiffGeometryRebuildCauseCount   = 0U;
+			bool        DiffGeometryAttributionComplete = false;
+			bpr::app::detail::native_appearance_selected_diff_probe_result
+				SelectedDiffResult = bpr::app::detail::
+					native_appearance_selected_diff_probe_result::pending;
+			bpr::app::detail::native_appearance_selected_diff_probe_evidence
+												   SelectedDiffEvidence;
+			native_appearance_precondition_refusal PreconditionRefusal
+				= native_appearance_precondition_refusal::none;
 			native_appearance_evidence_paths EvidencePaths;
 		};
 
@@ -581,6 +612,104 @@ namespace {
 			return "Dark";
 		}
 		return "Unknown";
+	}
+
+	[[nodiscard]] auto native_selected_diff_reason_name(
+		const bpr::app::detail::native_appearance_selected_diff_reason aReason) noexcept -> const char*
+	{
+		using reason
+			= bpr::app::detail::native_appearance_selected_diff_reason;
+		switch (aReason) {
+		case reason::none:
+			return "none";
+		case reason::awaiting_workbench_observation:
+			return "awaiting_workbench_observation";
+		case reason::awaiting_selection_projection:
+			return "awaiting_selection_projection";
+		case reason::awaiting_selected_diff_publication:
+			return "awaiting_selected_diff_publication";
+		case reason::awaiting_diff_presentation:
+			return "awaiting_diff_presentation";
+		case reason::composition_unavailable:
+			return "composition_unavailable";
+		case reason::fixture_authority_mismatch:
+			return "fixture_authority_mismatch";
+		case reason::fixture_material_mismatch:
+			return "fixture_material_mismatch";
+		case reason::file_projection_mismatch:
+			return "file_projection_mismatch";
+		case reason::selection_wire_unavailable:
+			return "selection_wire_unavailable";
+		case reason::selected_diff_failed:
+			return "selected_diff_failed";
+		case reason::selected_diff_mismatch:
+			return "selected_diff_mismatch";
+		case reason::fixture_diff_helper_invoked:
+			return "fixture_diff_helper_invoked";
+		}
+		return "unknown";
+	}
+
+	[[nodiscard]] auto native_selected_diff_result_marker(
+		const bpr::app::detail::native_appearance_selected_diff_probe_result
+			aResult) noexcept -> const char*
+	{
+		using result = bpr::app::detail::
+			native_appearance_selected_diff_probe_result;
+		switch (aResult) {
+		case result::pending:
+			return "NATIVE_APPEARANCE_SELECTED_DIFF_PENDING\n";
+		case result::ready:
+			return "NATIVE_APPEARANCE_SELECTED_DIFF_READY\n";
+		case result::refused:
+			return "NATIVE_APPEARANCE_SELECTED_DIFF_REFUSED\n";
+		}
+		return "NATIVE_APPEARANCE_SELECTED_DIFF_REFUSED\n";
+	}
+
+	[[nodiscard]] auto native_appearance_precondition_name(
+		const native_appearance_precondition_refusal aRefusal) noexcept
+		-> const char*
+	{
+		switch (aRefusal) {
+		case native_appearance_precondition_refusal::none:
+			return "none";
+		case native_appearance_precondition_refusal::selected_diff_refused:
+			return "selected_diff_refused";
+		case native_appearance_precondition_refusal::selected_diff_budget_exhausted:
+			return "selected_diff_budget_exhausted";
+		case native_appearance_precondition_refusal::owner_focus_required:
+			return "owner_focus_required";
+		case native_appearance_precondition_refusal::style_hints_unavailable:
+			return "style_hints_unavailable";
+		case native_appearance_precondition_refusal::platform_not_cocoa:
+			return "platform_not_cocoa";
+		case native_appearance_precondition_refusal::native_style_unavailable:
+			return "native_style_unavailable";
+		case native_appearance_precondition_refusal::startup_scheme_not_light:
+			return "startup_scheme_not_light";
+		case native_appearance_precondition_refusal::global_scheme_not_light:
+			return "global_scheme_not_light";
+		case native_appearance_precondition_refusal::light_palette_unavailable:
+			return "light_palette_unavailable";
+		case native_appearance_precondition_refusal::fixture_thread_unavailable:
+			return "fixture_thread_unavailable";
+		case native_appearance_precondition_refusal::epoch_pair_mismatch:
+			return "epoch_pair_mismatch";
+		case native_appearance_precondition_refusal::evidence_paths_unavailable:
+			return "evidence_paths_unavailable";
+		case native_appearance_precondition_refusal::selected_diff_presentation_lost:
+			return "selected_diff_presentation_lost";
+		case native_appearance_precondition_refusal::comparison_not_visible:
+			return "comparison_not_visible";
+		case native_appearance_precondition_refusal::light_context_refused:
+			return "light_context_refused";
+		case native_appearance_precondition_refusal::initial_render_refused:
+			return "initial_render_refused";
+		case native_appearance_precondition_refusal::automated_budget_exhausted:
+			return "automated_budget_exhausted";
+		}
+		return "unknown";
 	}
 
 	/// \brief Reports which half of the light-state context held.
@@ -866,7 +995,8 @@ namespace {
 
 	[[nodiscard]] auto prepare_native_appearance_probe(
 		bpr::qt::workbench_window& aWindow,
-		automated_run&             aRun) -> bool
+		automated_run&             aRun)
+		-> native_appearance_precondition_refusal
 	{
 		aRun.RenderSaved       = false;
 		auto* const hints      = QGuiApplication::styleHints();
@@ -895,52 +1025,47 @@ namespace {
 				> initialText
 			&& aRun.Appearance.InitialPalette.color(QPalette::Base).lightness()
 				> initialText;
-		if (
-			hints == nullptr || aRun.Appearance.InitialPlatformName != "cocoa"
-			|| aRun.Appearance.InitialStyleClass != "QMacStyle"
-			|| hints->colorScheme() != Qt::ColorScheme::Light
-			|| aRun.Appearance.InitialGlobalColorScheme
-				!= Qt::ColorScheme::Light
-			|| !lightPalette || !thread.isValid()
-			|| !leftEpoch.isValid() || !rightEpoch.isValid()
+		if (hints == nullptr) {
+			return native_appearance_precondition_refusal::style_hints_unavailable;
+		}
+		if (aRun.Appearance.InitialPlatformName != "cocoa") {
+			return native_appearance_precondition_refusal::platform_not_cocoa;
+		}
+		if (aRun.Appearance.InitialStyleClass != "QMacStyle") {
+			return native_appearance_precondition_refusal::native_style_unavailable;
+		}
+		if (hints->colorScheme() != Qt::ColorScheme::Light) {
+			return native_appearance_precondition_refusal::startup_scheme_not_light;
+		}
+		if (aRun.Appearance.InitialGlobalColorScheme != Qt::ColorScheme::Light) {
+			return native_appearance_precondition_refusal::global_scheme_not_light;
+		}
+		if (!lightPalette) {
+			return native_appearance_precondition_refusal::light_palette_unavailable;
+		}
+		if (!thread.isValid()) {
+			return native_appearance_precondition_refusal::fixture_thread_unavailable;
+		}
+		if (!leftEpoch.isValid() || !rightEpoch.isValid()
 			|| aRun.Appearance.ExpectedEpochLeftOid.isEmpty()
 			|| aRun.Appearance.ExpectedEpochRightOid.isEmpty()
 			|| control->left_oid_editor()->text()
 				!= aRun.Appearance.ExpectedEpochLeftOid
 			|| control->right_oid_editor()->text()
 				!= aRun.Appearance.ExpectedEpochRightOid
-			|| !control->whole_pr_action()->isChecked()
-			|| workbench == nullptr || workbench->current_result() == nullptr
-			|| !workbench->selection().has_value()
-			|| !aRun.RenderPath.has_value()
+			|| !control->whole_pr_action()->isChecked()) {
+			return native_appearance_precondition_refusal::epoch_pair_mismatch;
+		}
+		if (workbench == nullptr || workbench->current_result() == nullptr
+			|| !workbench->selection().has_value()) {
+			return native_appearance_precondition_refusal::
+				selected_diff_presentation_lost;
+		}
+		if (!aRun.RenderPath.has_value()
 			|| aRun.Appearance.EvidencePaths.Initial.isEmpty()
 			|| aRun.Appearance.EvidencePaths.Changed.isEmpty()) {
-			QTextStream{ stdout }
-				<< "NATIVE_APPEARANCE_PRECONDITION:"
-				<< (hints != nullptr) << ':'
-				<< (aRun.Appearance.InitialPlatformName == "cocoa") << ':'
-				<< (aRun.Appearance.InitialStyleClass == "QMacStyle") << ':'
-				<< (hints != nullptr
-					&& hints->colorScheme() == Qt::ColorScheme::Light)
-				<< ':'
-				<< (aRun.Appearance.InitialGlobalColorScheme
-					== Qt::ColorScheme::Light)
-				<< ':'
-				<< lightPalette << ':' << thread.isValid() << ':'
-				<< leftEpoch.isValid() << ':' << rightEpoch.isValid() << ':'
-				<< (!aRun.Appearance.ExpectedEpochLeftOid.isEmpty()) << ':'
-				<< (!aRun.Appearance.ExpectedEpochRightOid.isEmpty()) << ':'
-				<< (control->left_oid_editor()->text()
-					== aRun.Appearance.ExpectedEpochLeftOid)
-				<< ':'
-				<< (control->right_oid_editor()->text()
-					== aRun.Appearance.ExpectedEpochRightOid)
-				<< ':'
-				<< control->whole_pr_action()->isChecked() << ':'
-				<< aRun.RenderPath.has_value() << ':'
-				<< (!aRun.Appearance.EvidencePaths.Initial.isEmpty()) << ':'
-				<< (!aRun.Appearance.EvidencePaths.Changed.isEmpty()) << '\n';
-			return false;
+			return native_appearance_precondition_refusal::
+				evidence_paths_unavailable;
 		}
 
 		aRun.Appearance.Thread                        = QPersistentModelIndex{ thread };
@@ -970,9 +1095,7 @@ namespace {
 		workbench->left_pane()->setFocus(Qt::OtherFocusReason);
 		settle_automated_events();
 		if (!comparison_is_wholly_visible(aWindow, *workbench)) {
-			QTextStream{ stdout }
-				<< "NATIVE_APPEARANCE_COMPARISON_VISIBLE_FAILED\n";
-			return false;
+			return native_appearance_precondition_refusal::comparison_not_visible;
 		}
 		const auto geometryStatistics = workbench->statistics();
 		aRun.Appearance.InitialDiffGeometryRebuilds
@@ -1017,14 +1140,14 @@ namespace {
 						? focus->objectName()
 						: QStringLiteral("none"))
 				<< ':' << static_cast<int>(view->focusPolicy()) << '\n';
-			return false;
+			return native_appearance_precondition_refusal::light_context_refused;
 		}
 
 		auto initialRender = capture_normalized_render(aWindow);
 		if (
 			initialRender.isNull()
 			|| !native_appearance_light_state_passed(aWindow, aRun)) {
-			return false;
+			return native_appearance_precondition_refusal::initial_render_refused;
 		}
 		aRun.Appearance.InitialRender = std::move(initialRender);
 
@@ -1036,7 +1159,7 @@ namespace {
 					  aRun.Appearance.InitialGlobalColorScheme)
 			   << '\n';
 		stream.flush();
-		return true;
+		return native_appearance_precondition_refusal::none;
 	}
 
 	template <typename Identity>
@@ -2476,7 +2599,12 @@ namespace {
 				   << evidence.VisibleProjection << '\n';
 		}
 #endif
-		if (aRun.RenderPath.has_value()) {
+		auto reportRender = aRun.RenderPath.has_value();
+#if defined(BPR_BUILD_TESTING)
+		reportRender = reportRender
+			&& (!aRun.Appearance.Enabled || aRun.Appearance.StageEntered);
+#endif
+		if (reportRender) {
 			stream << (renderSaved ? "RENDER_OK\n" : "RENDER_FAILED\n");
 		}
 #if defined(BPR_BUILD_TESTING)
@@ -2488,6 +2616,7 @@ namespace {
 		// matched the `REVIEW_LEDGER_OK` literal a few lines below.
 		if (aRun.Fixture && !aRun.WorkbenchCompositionProbe
 			&& !aRun.UIforEtwSelectedDiffProbe
+			&& !aRun.Appearance.Enabled
 			&& !aRun.ReviewRoundTripCompositionProbe
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
@@ -2587,100 +2716,125 @@ namespace {
 			   << '\n';
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Appearance.Enabled) {
-			stream << (aRun.Appearance.ProfileFollowsPassed
-						   ? "APPEARANCE_SYSTEM_FOLLOWS_OK\n"
-						   : "APPEARANCE_SYSTEM_FOLLOWS_FAILED\n")
-				   << (aRun.Appearance.ExplicitIgnoresPassed
-						   ? "APPEARANCE_EXPLICIT_IGNORES_OK\n"
-						   : "APPEARANCE_EXPLICIT_IGNORES_FAILED\n")
-				   << "APPEARANCE_VARIANTS:"
-				   << aRun.Appearance.VariantBeforeChange << ':'
-				   << aRun.Appearance.VariantAfterChange << ':'
-				   << aRun.Appearance.VariantUnderExplicit << ':'
-				   << aRun.Appearance.VariantBackOnSystem << '\n';
-			stream << "NATIVE_APPEARANCE_TRANSITION:"
-				   << color_scheme_name(
-						  aRun.Appearance.InitialColorScheme)
-				   << "->"
-				   << color_scheme_name(
-						  aRun.Appearance.ObservedColorScheme)
-				   << '\n'
-				   << "NATIVE_APPEARANCE_GLOBAL_TRANSITION:"
-				   << color_scheme_name(
-						  aRun.Appearance.InitialGlobalColorScheme)
-				   << "->"
-				   << color_scheme_name(
-						  aRun.Appearance.ObservedGlobalColorScheme)
-				   << '\n'
-				   << "NATIVE_APPEARANCE_PLATFORM:"
-				   << aRun.Appearance.InitialPlatformName << '\n'
-				   << "NATIVE_APPEARANCE_STYLE:"
-				   << aRun.Appearance.InitialStyleClass << '\n'
-				   << (aRun.Appearance.InitialWindowActive
-							   && aRun.Appearance.InitialFocus != nullptr
-							   && aRun.Appearance.StatePassed
-						   ? "NATIVE_APPEARANCE_ACTIVE_FOCUS_OK\n"
-						   : "NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED\n")
-				   << (aRun.Appearance.SignalObserved
-						   ? "NATIVE_APPEARANCE_SIGNAL_OK\n"
-						   : "NATIVE_APPEARANCE_SIGNAL_FAILED\n")
-				   << (aRun.Appearance.StatePassed
-						   ? "NATIVE_APPEARANCE_STATE_OK\n"
-						   : "NATIVE_APPEARANCE_STATE_FAILED\n")
-				   << (aRun.Appearance.PixelsDiffer
-						   ? "NATIVE_APPEARANCE_PIXELS_DIFFER_OK\n"
-						   : "NATIVE_APPEARANCE_PIXELS_DIFFER_FAILED\n")
-				   << "NATIVE_APPEARANCE_DIFF_PALETTE_BEFORE:"
-				   << native_palette_fingerprint(
-						  aRun.Appearance.InitialDiffPalette)
-				   << '\n'
-				   << "NATIVE_APPEARANCE_DIFF_PALETTE_AFTER:"
-				   << native_palette_fingerprint(
-						  aRun.Appearance.ObservedDiffPalette)
-				   << '\n'
-				   << "NATIVE_APPEARANCE_DIFF_FONT_BEFORE:"
-				   << aRun.Appearance.InitialDiffFont.toString() << '\n'
-				   << "NATIVE_APPEARANCE_DIFF_FONT_AFTER:"
-				   << aRun.Appearance.ObservedDiffFont.toString() << '\n'
-				   << "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:"
-				   << aRun.Appearance.DiffGeometryRebuildDelta << '\n';
-			stream << "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_CAUSES:"
-				   << static_cast<unsigned long long>(
-						  aRun.Appearance.DiffGeometryRebuildCauseCount);
-			for (
-				auto index = std::size_t{ 0U };
-				index < aRun.Appearance.DiffGeometryRebuildCauseCount;
-				++index) {
-				const auto& cause
-					= aRun.Appearance.DiffGeometryRebuildCauses[index];
-				stream << ':'
-					   << static_cast<std::uint32_t>(cause.Changes) << '/'
-					   << static_cast<std::uint32_t>(cause.Triggers);
+			const auto& selected = aRun.Appearance.SelectedDiffEvidence;
+			stream << native_selected_diff_result_marker(
+				aRun.Appearance.SelectedDiffResult)
+				   << "NATIVE_APPEARANCE_SELECTED_DIFF_REASON:"
+				   << native_selected_diff_reason_name(selected.Reason) << '\n'
+				   << "NATIVE_APPEARANCE_SELECTED_DIFF_BINDING:"
+				   << selected.ExactAuthority << selected.ExactRevisions
+				   << selected.ExactFile << selected.ExactBlobs
+				   << selected.ExactOptions << selected.PresentationReady << '\n'
+				   << (selected.SelectionGesture && selected.SelectionIntent
+						   ? "NATIVE_APPEARANCE_SELECTION_WIRE_OK\n"
+						   : "NATIVE_APPEARANCE_SELECTION_WIRE_FAILED\n")
+				   << (selected.FixtureDiffHelperUnused
+						   ? "NATIVE_APPEARANCE_FIXTURE_DIFF_HELPER_UNUSED_OK\n"
+						   : "NATIVE_APPEARANCE_FIXTURE_DIFF_HELPER_UNUSED_FAILED\n");
+			if (aRun.Appearance.PreconditionRefusal
+				!= native_appearance_precondition_refusal::none) {
+				stream << "NATIVE_APPEARANCE_PRECONDITION_REFUSED:"
+					   << native_appearance_precondition_name(
+							  aRun.Appearance.PreconditionRefusal)
+					   << ':' << native_selected_diff_reason_name(selected.Reason)
+					   << '\n';
 			}
-			stream << '\n'
-				   << (aRun.Appearance.DiffGeometryAttributionComplete
-						   ? "NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_OK\n"
-						   : "NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_FAILED\n")
-				   << (aRun.Appearance.InitialDiffPalette
-								   != aRun.Appearance.ObservedDiffPalette
-							   && aRun.Appearance.StatePassed
-						   ? "NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_OK\n"
-						   : "NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_FAILED\n")
-				   << (aRun.Appearance.InitialDiffFont
-								   == aRun.Appearance.ObservedDiffFont
-							   && aRun.Appearance.StatePassed
-						   ? "NATIVE_APPEARANCE_DIFF_FONT_INHERITED_OK\n"
-						   : "NATIVE_APPEARANCE_DIFF_FONT_INHERITED_FAILED\n")
-				   << (aRun.Appearance.DiffGeometryRebuildDelta == 1U
-							   && aRun.Appearance.StatePassed
-						   ? "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_OK\n"
-						   : "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_FAILED\n")
-				   << (aRun.Appearance.StatePassed
-						   ? "NATIVE_APPEARANCE_DIFF_SELECTION_OK\n"
-						   : "NATIVE_APPEARANCE_DIFF_SELECTION_FAILED\n")
-				   << (renderSaved
-						   ? "NATIVE_APPEARANCE_CHANGED_RENDER_OK\n"
-						   : "NATIVE_APPEARANCE_CHANGED_RENDER_FAILED\n");
+			if (aRun.Appearance.StageEntered) {
+				stream << (aRun.Appearance.ProfileFollowsPassed
+							   ? "APPEARANCE_SYSTEM_FOLLOWS_OK\n"
+							   : "APPEARANCE_SYSTEM_FOLLOWS_FAILED\n")
+					   << (aRun.Appearance.ExplicitIgnoresPassed
+							   ? "APPEARANCE_EXPLICIT_IGNORES_OK\n"
+							   : "APPEARANCE_EXPLICIT_IGNORES_FAILED\n")
+					   << "APPEARANCE_VARIANTS:"
+					   << aRun.Appearance.VariantBeforeChange << ':'
+					   << aRun.Appearance.VariantAfterChange << ':'
+					   << aRun.Appearance.VariantUnderExplicit << ':'
+					   << aRun.Appearance.VariantBackOnSystem << '\n';
+				stream << "NATIVE_APPEARANCE_TRANSITION:"
+					   << color_scheme_name(
+							  aRun.Appearance.InitialColorScheme)
+					   << "->"
+					   << color_scheme_name(
+							  aRun.Appearance.ObservedColorScheme)
+					   << '\n'
+					   << "NATIVE_APPEARANCE_GLOBAL_TRANSITION:"
+					   << color_scheme_name(
+							  aRun.Appearance.InitialGlobalColorScheme)
+					   << "->"
+					   << color_scheme_name(
+							  aRun.Appearance.ObservedGlobalColorScheme)
+					   << '\n'
+					   << "NATIVE_APPEARANCE_PLATFORM:"
+					   << aRun.Appearance.InitialPlatformName << '\n'
+					   << "NATIVE_APPEARANCE_STYLE:"
+					   << aRun.Appearance.InitialStyleClass << '\n'
+					   << (aRun.Appearance.InitialWindowActive
+								   && aRun.Appearance.InitialFocus != nullptr
+								   && aRun.Appearance.StatePassed
+							   ? "NATIVE_APPEARANCE_ACTIVE_FOCUS_OK\n"
+							   : "NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED\n")
+					   << (aRun.Appearance.SignalObserved
+							   ? "NATIVE_APPEARANCE_SIGNAL_OK\n"
+							   : "NATIVE_APPEARANCE_SIGNAL_FAILED\n")
+					   << (aRun.Appearance.StatePassed
+							   ? "NATIVE_APPEARANCE_STATE_OK\n"
+							   : "NATIVE_APPEARANCE_STATE_FAILED\n")
+					   << (aRun.Appearance.PixelsDiffer
+							   ? "NATIVE_APPEARANCE_PIXELS_DIFFER_OK\n"
+							   : "NATIVE_APPEARANCE_PIXELS_DIFFER_FAILED\n")
+					   << "NATIVE_APPEARANCE_DIFF_PALETTE_BEFORE:"
+					   << native_palette_fingerprint(
+							  aRun.Appearance.InitialDiffPalette)
+					   << '\n'
+					   << "NATIVE_APPEARANCE_DIFF_PALETTE_AFTER:"
+					   << native_palette_fingerprint(
+							  aRun.Appearance.ObservedDiffPalette)
+					   << '\n'
+					   << "NATIVE_APPEARANCE_DIFF_FONT_BEFORE:"
+					   << aRun.Appearance.InitialDiffFont.toString() << '\n'
+					   << "NATIVE_APPEARANCE_DIFF_FONT_AFTER:"
+					   << aRun.Appearance.ObservedDiffFont.toString() << '\n'
+					   << "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:"
+					   << aRun.Appearance.DiffGeometryRebuildDelta << '\n';
+				stream << "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_CAUSES:"
+					   << static_cast<unsigned long long>(
+							  aRun.Appearance.DiffGeometryRebuildCauseCount);
+				for (
+					auto index = std::size_t{ 0U };
+					index < aRun.Appearance.DiffGeometryRebuildCauseCount;
+					++index) {
+					const auto& cause
+						= aRun.Appearance.DiffGeometryRebuildCauses[index];
+					stream << ':'
+						   << static_cast<std::uint32_t>(cause.Changes) << '/'
+						   << static_cast<std::uint32_t>(cause.Triggers);
+				}
+				stream << '\n'
+					   << (aRun.Appearance.DiffGeometryAttributionComplete
+							   ? "NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_OK\n"
+							   : "NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_FAILED\n")
+					   << (aRun.Appearance.InitialDiffPalette
+									   != aRun.Appearance.ObservedDiffPalette
+								   && aRun.Appearance.StatePassed
+							   ? "NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_OK\n"
+							   : "NATIVE_APPEARANCE_DIFF_PALETTE_INHERITED_FAILED\n")
+					   << (aRun.Appearance.InitialDiffFont
+									   == aRun.Appearance.ObservedDiffFont
+								   && aRun.Appearance.StatePassed
+							   ? "NATIVE_APPEARANCE_DIFF_FONT_INHERITED_OK\n"
+							   : "NATIVE_APPEARANCE_DIFF_FONT_INHERITED_FAILED\n")
+					   << (aRun.Appearance.DiffGeometryRebuildDelta == 1U
+								   && aRun.Appearance.StatePassed
+							   ? "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_OK\n"
+							   : "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_FAILED\n")
+					   << (aRun.Appearance.StatePassed
+							   ? "NATIVE_APPEARANCE_DIFF_SELECTION_OK\n"
+							   : "NATIVE_APPEARANCE_DIFF_SELECTION_FAILED\n")
+					   << (renderSaved
+							   ? "NATIVE_APPEARANCE_CHANGED_RENDER_OK\n"
+							   : "NATIVE_APPEARANCE_CHANGED_RENDER_FAILED\n");
+			}
 		}
 #endif
 		QCoreApplication::exit(passed ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -2785,6 +2939,23 @@ namespace {
 		aRun.LastEpochHistoryEnabled = window.epoch_selectors()->load_history_action()->isEnabled();
 		aRun.LastEpochCoreStatus     = static_cast<int>(aApplication.status().EpochStatus);
 #if defined(BPR_BUILD_TESTING)
+		if (aRun.Appearance.Enabled && !aRun.Appearance.StageEntered) {
+			aRun.Appearance.SelectedDiffEvidence = bpr::app::detail::
+				github_application_fixture_access::
+					native_appearance_selected_diff_evidence(aApplication);
+			if (aRun.Appearance.SelectedDiffResult
+				== bpr::app::detail::
+					native_appearance_selected_diff_probe_result::pending) {
+				aRun.Appearance.PreconditionRefusal
+					= native_appearance_precondition_refusal::
+						selected_diff_budget_exhausted;
+			} else if (aRun.Appearance.PreconditionRefusal
+					   == native_appearance_precondition_refusal::none) {
+				aRun.Appearance.PreconditionRefusal
+					= native_appearance_precondition_refusal::
+						automated_budget_exhausted;
+			}
+		}
 		if (!aRun.Appearance.Enabled)
 #endif
 		{
@@ -3100,6 +3271,7 @@ namespace {
 					}
 					if (!aRun->WorkbenchCompositionProbe
 						&& !aRun->UIforEtwSelectedDiffProbe
+						&& !aRun->Appearance.Enabled
 						&& !aRun->LedgerRoundTripped) {
 						aRun->LedgerRoundTripped = bpr::app::detail::
 							github_application_fixture_access::
@@ -3149,22 +3321,33 @@ namespace {
 					} else if (aRun->Appearance.Enabled) {
 						aRun->Appearance.ExpectedEpochLeftOid  = QString::fromStdString(evidence.BaseOid);
 						aRun->Appearance.ExpectedEpochRightOid = QString::fromStdString(evidence.HeadOneOid);
-						if (!aRun->DiffRequested) {
-							aRun->DiffRequested = bpr::app::detail::
-								github_application_fixture_access::request_fixture_diff(
-									aApplication);
-							if (!aRun->DiffRequested) {
-								fail_automated_run(aApplication, *aRun);
-							}
+						aRun->Appearance.SelectedDiffResult
+							= bpr::app::detail::github_application_fixture_access::
+								exercise_native_appearance_selected_diff(aApplication);
+						aRun->Appearance.SelectedDiffEvidence
+							= bpr::app::detail::github_application_fixture_access::
+								native_appearance_selected_diff_evidence(aApplication);
+						if (aRun->Appearance.SelectedDiffResult
+							== bpr::app::detail::
+								native_appearance_selected_diff_probe_result::pending) {
 							break;
 						}
-						if (window.comparison_surface()->current_result() == nullptr) {
+						if (aRun->Appearance.SelectedDiffResult
+							== bpr::app::detail::
+								native_appearance_selected_diff_probe_result::refused) {
+							aRun->Appearance.PreconditionRefusal
+								= native_appearance_precondition_refusal::
+									selected_diff_refused;
+							fail_automated_run(aApplication, *aRun);
 							break;
 						}
 						const auto waitingForOwnerFocus = QGuiApplication::platformName() == "cocoa"
 							&& (!window.isActiveWindow()
 								|| QApplication::focusWidget() == nullptr);
 						if (waitingForOwnerFocus) {
+							aRun->Appearance.PreconditionRefusal
+								= native_appearance_precondition_refusal::
+									owner_focus_required;
 							if (!aRun->Appearance.WaitingForOwnerFocusReported) {
 								QTextStream stream{ stdout };
 								stream
@@ -3174,7 +3357,11 @@ namespace {
 							}
 							break;
 						}
-						if (prepare_native_appearance_probe(window, *aRun)) {
+						aRun->Appearance.PreconditionRefusal
+							= prepare_native_appearance_probe(window, *aRun);
+						if (aRun->Appearance.PreconditionRefusal
+							== native_appearance_precondition_refusal::none) {
+							aRun->Appearance.StageEntered = true;
 							// Read here rather than inside the preparation,
 							// which sees the window and not the application.
 							// This is the variant the composed profile
@@ -4068,7 +4255,9 @@ auto main(int argc, char** argv) -> int
 #if defined(BPR_BUILD_TESTING)
 		const auto automatedStallProbe = has_argument(
 			argc, argv, "--automated-stall-probe");
-		const auto nativeAppearanceProbe      = has_argument(argc, argv, "--native-appearance-probe");
+		const auto nativeAppearanceProbe            = has_argument(argc, argv, "--native-appearance-probe");
+		const auto nativeAppearanceCutSelectionWire = has_argument(
+			argc, argv, "--native-appearance-cut-selection-wire");
 		const auto attendedLaunch             = has_argument(argc, argv, "--attended-launch");
 		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
 		const auto diffWorkbenchShutdownProbe = has_argument(
@@ -4085,7 +4274,8 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--uiforetw-selected-diff-cut-selection-wire");
 		fixtureOptions.DisableWorkbenchSelectionWire
 			= workbenchCompositionCutSelectionWire
-			|| uiforetwSelectedDiffCutSelectionWire;
+			|| uiforetwSelectedDiffCutSelectionWire
+			|| nativeAppearanceCutSelectionWire;
 		const auto reviewLedgerCompositionProbeName = argument_value(
 			argc, argv, "--review-ledger-composition-probe");
 		auto reviewLedgerCompositionProbe = std::optional<
@@ -4183,6 +4373,11 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 		if (!nativeAppearanceProbe && changedRenderPath.has_value()) {
+			QTextStream{ stdout }
+				<< "NATIVE_APPEARANCE_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (nativeAppearanceCutSelectionWire && !nativeAppearanceProbe) {
 			QTextStream{ stdout }
 				<< "NATIVE_APPEARANCE_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;

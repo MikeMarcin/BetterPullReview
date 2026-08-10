@@ -1303,24 +1303,39 @@ evidence only.
 The test-enabled real-application fixture includes the fail-closed native
 appearance probe used by that gate. It reports readiness only after a
 system-Light Cocoa/QMacStyle startup has loaded the public GitHub.com fixture,
-selected and collapsed a stable conversation, focused the conversation view,
-and retained an in-memory initial render. Qt's color-scheme signal alone is not
-accepted because an application-local override can emit it. On macOS the probe
-also reads the current-user global appearance domain through a read-only,
-test-only CoreFoundation seam and requires an independent Light-to-Dark global
-transition. Only after the Dark palette has settled with the same platform,
-style, selection, focus, collapse state, and model identity does it retain the
-second render. The captures must have the same geometry and device-pixel ratio
-but different pixels. The probe then creates two fresh non-aliased PNGs from
-those exact captures and reloads both before reporting success; failed probes
-leave no render artifacts. The probe observes appearance and never changes the
-operating-system setting. The owner-authorized wrapper performed the external
-system change, required every marker, and restored the original Dark setting.
-The global preference key is evidence plumbing, not production appearance
-logic. Incomplete arguments, a non-GitHub.com fixture, aliased or existing
-paths, offscreen execution, the wrong startup scheme, a missing signal or
-global transition, identical pixels, or state drift discard the claim and
-fail.
+selected `review.cpp` through the shipped Files-row gesture and semantic
+workbench host, and received the resulting selected-diff publication through
+the retained epoch/cache actor and real diff host. Before focus can begin, that
+publication must bind the exact accepted GitHub authority, fixture base/head
+commits, file identity, both blobs, normalized default options and digest, and
+the rendered semantic selection. Pending host work remains pending within the
+existing automated-run budget. A bounded refusal names the exact pending or
+failed precondition, and a course that never captures the Light baseline emits
+no appearance verdict markers. Budget expiry before the course state exists is
+reported as pending startup observation, with helper use derived from the live
+invocation counter rather than fabricated from absent probe state. A cut of the
+real selection wire must fail even though the fixture-only direct-diff helper
+remains compiled; the positive course requires that helper's invocation count
+to stay zero.
+
+After that selected diff is exact, the probe selects and collapses a stable
+conversation, focuses the comparison, and retains an in-memory initial render.
+Qt's color-scheme signal alone is not accepted because an application-local
+override can emit it. On macOS the probe also reads the current-user global
+appearance domain through a read-only, test-only CoreFoundation seam and
+requires an independent Light-to-Dark global transition. Only after the Dark
+palette has settled with the same platform, style, selection, focus, collapse
+state, and model identity does it retain the second render. The captures must
+have the same geometry and device-pixel ratio but different pixels. The probe
+then creates two fresh non-aliased PNGs from those exact captures and reloads
+both before reporting success; failed probes leave no render artifacts. The
+probe observes appearance and never changes the operating-system setting. The
+owner-authorized wrapper performed the external system change, required every
+marker, and restored the original Dark setting. The global preference key is
+evidence plumbing, not production appearance logic. Incomplete arguments, a
+non-GitHub.com fixture, aliased or existing paths, offscreen execution, the
+wrong startup scheme, a missing signal or global transition, identical pixels,
+or state drift discard the claim and fail.
 User-selectable System, Light, and Dark profiles remain RFC-BPR-0006 work.
 
 ## Composition and lifecycle

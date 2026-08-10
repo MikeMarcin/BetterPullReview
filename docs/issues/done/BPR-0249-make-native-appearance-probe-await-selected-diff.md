@@ -1,7 +1,7 @@
 ---
 id: BPR-0249
 title: Make the native appearance probe await the selected diff
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0227]
 ---
@@ -57,3 +57,30 @@ git diff --check
   verdict from an offscreen run.
 - Do not regenerate the attended packet until the final executable bytes for
   the remaining portable work are settled.
+
+## Implemented state
+
+The native appearance course now selects `review.cpp` through the shipped Files
+view and workbench intent wire. It waits for the real selected-diff publication
+and binds the exact fixture authority, base/head revisions, file identity,
+blob OIDs, default options digest, algorithm revision, and rendered semantic
+selection before the owner-focus checkpoint. The fixture-only diff helper is
+counted and must remain unused.
+
+Pending startup remains pending within the run budget. Refusals name their
+cause, and a course that never enters the appearance stage emits no appearance
+verdict or render markers. A one-millisecond regression proves early budget
+expiry reports `awaiting_workbench_observation`, derives helper use from the
+real counter, shuts down normally, and produces no evidence files. The real
+selection-wire cut refuses while the positive course reaches the exact bound
+comparison.
+
+The focused matrix passed 3/3: native appearance, workbench composition, and
+UIforETW selected diff. Formatting, changed-file clang-tidy, documentation, and
+`git diff --check` pass. Independent critical review reproduced one false
+early-timeout cause, drove the one-millisecond correction, and returned CLEAR
+with no remaining blocking or high-risk finding.
+
+The frontmost Light-to-Dark run and BPR-0220 geometry verdict remain open. The
+attended packet must be regenerated only after the remaining portable changes
+settle, so its executable digest is final for that run.

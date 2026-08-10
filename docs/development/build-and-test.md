@@ -914,15 +914,30 @@ original desktop setting for that manual native gate. Never force a palette or
 QSS merely to make the evidence pass.
 
 Under Cocoa the probe refuses to collect initial evidence while the real
-window is inactive or has no focus widget. It prints
+window is inactive or has no focus widget. Before reaching that checkpoint it
+selects `review.cpp` through the shipped Files row and awaits the exact
+authority/revision/file/blob/options-bound selected diff within the same
+30-second run budget. A still-progressing host turn remains pending. A hard
+failure or exhausted bound reports
+`NATIVE_APPEARANCE_PRECONDITION_REFUSED:<typed-cause>:<selected-diff-cause>`;
+neither case emits appearance verdict markers because no Light baseline was
+captured. The registered executable contract also cuts the real selection wire
+and requires that failure while the direct fixture diff helper's invocation
+count remains zero. Its 1 ms startup-budget branch expires before the selection
+course is initialized and must therefore report the truthful pending reason
+`awaiting_workbench_observation`, helper-unused success, bounded shutdown, and
+no render or appearance verdict.
+
+Once the selected diff is ready, the Cocoa probe prints
 `NATIVE_APPEARANCE_WAITING_FOR_OWNER_FOCUS` once and waits. The desktop owner
 must click the BetterPullReview window to activate it and give a widget focus;
 the probe never calls an activation API, synthesizes input, or relaxes a
-post-focus assertion, so an unattended run reaches
-`NATIVE_APPEARANCE_ACTIVE_FOCUS_FAILED`, writes no PNG, and is a clean
-unverified attempt rather than evidence. Non-Cocoa probes enter the
-fail-closed check immediately. The readiness loop below therefore does not
-progress until the owner has focused the window.
+post-focus assertion. An unattended run eventually reports
+`NATIVE_APPEARANCE_PRECONDITION_REFUSED:owner_focus_required:none`, writes no
+PNG, and emits no focus, signal, state, pixel, geometry, or changed-render
+verdict. Non-Cocoa probes report `platform_not_cocoa` after proving the exact
+selected-diff course. The readiness loop below therefore does not progress
+until the owner has focused the window.
 
 Only run the live Light-to-Dark gate after the desktop owner explicitly
 authorizes changing the global appearance. The test-build-only probe reads the
@@ -1022,6 +1037,11 @@ for bpr_marker in \
   'PUBLIC_PATH_OK' \
   'GITHUB_FIXTURE_OK:github.com' \
   'RENDER_OK' \
+  'NATIVE_APPEARANCE_SELECTED_DIFF_READY' \
+  'NATIVE_APPEARANCE_SELECTED_DIFF_REASON:none' \
+  'NATIVE_APPEARANCE_SELECTED_DIFF_BINDING:111111' \
+  'NATIVE_APPEARANCE_SELECTION_WIRE_OK' \
+  'NATIVE_APPEARANCE_FIXTURE_DIFF_HELPER_UNUSED_OK' \
   'NATIVE_APPEARANCE_READY:Light' \
   'NATIVE_APPEARANCE_GLOBAL_READY:Light' \
   'NATIVE_APPEARANCE_TRANSITION:Light->Dark' \
