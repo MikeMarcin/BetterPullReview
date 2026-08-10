@@ -1,7 +1,7 @@
 ---
 id: BPR-0220
 title: An appearance change rebuilds comparison geometry twice
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: []
 ---
