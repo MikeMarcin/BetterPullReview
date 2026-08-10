@@ -1,7 +1,7 @@
 ---
 id: BPR-0246
 title: Make focused diff review legible and regenerate UIforETW evidence
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0227]
 ---
