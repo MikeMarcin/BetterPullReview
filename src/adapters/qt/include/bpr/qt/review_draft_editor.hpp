@@ -1,9 +1,12 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_DRAFT_EDITOR_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_DRAFT_EDITOR_HPP
 
+#include "bpr/application/review_mutation_port.hpp"
+#include "bpr/application/review_synchronization.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
+#include <QString>
 #include <QWidget>
 
 #include <cstdint>
@@ -18,9 +21,10 @@ namespace bpr::qt {
 	/// \brief Records directly observable editor activity.
 	struct review_draft_editor_statistics
 	{
-		std::uint64_t DraftIntents   = 0U;
-		std::uint64_t ReceiptIntents = 0U;
-		std::uint64_t Presentations  = 0U;
+		std::uint64_t DraftIntents    = 0U;
+		std::uint64_t ReceiptIntents  = 0U;
+		std::uint64_t Presentations   = 0U;
+		std::uint64_t MutationUpdates = 0U;
 
 		auto operator<=>(const review_draft_editor_statistics&) const = default;
 	};
@@ -54,6 +58,14 @@ namespace bpr::qt {
 
 		/// \brief Adopts one accepted receipt projection.
 		void present(const core::file_receipt& aReceipt);
+		/// \brief Presents the provider's exact supported degradation.
+		void present(application::review_provider_capabilities aCapabilities);
+		/// \brief Presents one typed mutation refusal.
+		void present(application::review_mutation_failure aFailure);
+		/// \brief Presents an accepted provider receipt after server reconciliation.
+		void present(
+			const application::review_mutation_receipt& aReceipt,
+			const application::reconciliation_result&   aReconciliation);
 
 		/// \brief Describes the target a publication would be sent to.
 		///
@@ -65,6 +77,8 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto body_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto target_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto mutation_status_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto mutation_status_text() const -> QString;
 		[[nodiscard]] auto publish_action() const noexcept -> QAction*;
 		[[nodiscard]] auto discard_action() const noexcept -> QAction*;
 		[[nodiscard]] auto mark_read_action() const noexcept -> QAction*;
@@ -86,17 +100,19 @@ namespace bpr::qt {
 		draft_dispatch   DraftDispatch;
 		receipt_dispatch ReceiptDispatch;
 
-		QPlainTextEdit* Body        = nullptr;
-		QLabel*         TargetLabel = nullptr;
-		QAction*        Publish     = nullptr;
-		QAction*        Discard     = nullptr;
-		QAction*        MarkRead    = nullptr;
-		QAction*        Accept      = nullptr;
-		QAction*        Exclude     = nullptr;
+		QPlainTextEdit* Body           = nullptr;
+		QLabel*         TargetLabel    = nullptr;
+		QLabel*         MutationStatus = nullptr;
+		QAction*        Publish        = nullptr;
+		QAction*        Discard        = nullptr;
+		QAction*        MarkRead       = nullptr;
+		QAction*        Accept         = nullptr;
+		QAction*        Exclude        = nullptr;
 
 		std::optional<core::review_comment_draft> ShownDraft;
 		std::optional<core::file_receipt>         ShownReceipt;
 		review_draft_editor_statistics            Statistics;
+		bool                                      ApplyingPresentation = false;
 	};
 } // namespace bpr::qt
 

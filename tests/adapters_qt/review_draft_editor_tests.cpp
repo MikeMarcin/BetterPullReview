@@ -113,6 +113,27 @@ namespace {
 		delete editor;
 	}
 
+	void test_typing_emits_a_semantic_edit_and_waits_for_projection()
+	{
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		editor->present(a_draft("before"));
+
+		editor->body_editor()->setPlainText(QStringLiteral("after"));
+		expect(log.Drafts.size() == 1U
+				   && log.Drafts.front().Kind
+					   == core::review_draft_command_kind::edit
+				   && log.Drafts.front().Body == "after",
+			   "typing emits one semantic edit carrying the current body");
+		expect(editor->shown_draft()->Body == "before",
+			   "typing does not mutate the accepted draft projection");
+
+		editor->present(a_draft("after"));
+		expect(editor->shown_draft()->Body == "after" && log.Drafts.size() == 1U,
+			   "the accepted edit projection updates without emitting another intent");
+		delete editor;
+	}
+
 	void test_receipt_actions_emit_intents_and_change_nothing()
 	{
 		auto  log    = intent_log{ };
@@ -264,6 +285,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 
 	test_publishing_emits_an_intent_and_changes_nothing();
+	test_typing_emits_a_semantic_edit_and_waits_for_projection();
 	test_receipt_actions_emit_intents_and_change_nothing();
 	test_enablement_follows_the_projection_not_the_keystrokes();
 	test_the_publication_target_is_shown_before_publishing();

@@ -37,9 +37,13 @@ implementations. The shipped workbench now composes its review-ledger host on
 the exact accepted host/account/repository/pull-request authority: selected-file
 receipt actions persist before projection, exact material receipts inform
 actionability, and notes, reviewed heads, and defect records share that host.
-Theme customization/import is also composed. Queue filters/sorting, review
-mutation, notifications, and complete agent context/process lifecycle still
-have component or reachability work tracked by BPR-0229 through BPR-0240.
+Theme customization/import is also composed. The shipped draft editor now
+reaches the core review policy and fixture-only mutation coordinator through a
+real Publish action; stale targets are refused, lost results are retried
+idempotently, server comments are re-read, and capability absence is explicit.
+No live mutation provider is composed. Queue filters/sorting, notifications,
+defect cards, and complete agent context/process lifecycle still have component
+or reachability work tracked by BPR-0230 through BPR-0240.
 
 GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the
@@ -64,7 +68,7 @@ and Escape action are Cancel, leave durable tombstones, and state that GitHub
 and developer worktrees are not modified. Users must not edit the private Git
 repository or SQLite catalog by hand.
 
-Review mutation and the broader private-ledger queue workflow remain later
+Defect correlation and the broader private-ledger queue workflow remain later
 public-composition work. The shipped window is `workbench_window`, not the deleted
 `github_window`; it presents the compact pull-request shell, request states,
 retained accepted content, read-only conversations, and connected epoch

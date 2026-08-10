@@ -9,6 +9,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QList>
@@ -50,7 +51,8 @@ namespace bpr::qt {
 	using workbench_change_dispatch = std::function<void(core::navigate_diff_change_intent)>;
 
 	/// \brief Carries one already-decided receipt command out of presentation.
-	using workbench_receipt_dispatch = std::function<void(core::file_receipt_command)>;
+	using workbench_receipt_dispatch      = std::function<void(core::file_receipt_command)>;
+	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
 
 	enum class workbench_toolbar_mode : std::uint8_t {
 		expanded,
@@ -170,6 +172,8 @@ namespace bpr::qt {
 		void set_change_dispatch(workbench_change_dispatch aChangeDispatch);
 		void set_width_dispatch(workbench_drawer_width_dispatch aWidthDispatch);
 		void set_receipt_dispatch(workbench_receipt_dispatch aReceiptDispatch);
+		void set_review_draft_dispatch(
+			workbench_review_draft_dispatch aDraftDispatch);
 
 		[[nodiscard]] auto primary_toolbar() const noexcept -> QToolBar*;
 		[[nodiscard]] auto previous_file_action() const noexcept -> QAction*;
@@ -210,6 +214,7 @@ namespace bpr::qt {
 		/// own. This is what it shows instead.
 		[[nodiscard]] auto conversation_panel() const noexcept
 			-> github_conversation_panel*;
+		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
 
 		[[nodiscard]] auto session_panel() const noexcept -> github_session_panel*;
 		[[nodiscard]] auto pull_request_panel() const noexcept
@@ -367,6 +372,7 @@ namespace bpr::qt {
 		workbench_change_dispatch       ChangeDispatch;
 		workbench_drawer_width_dispatch WidthDispatch;
 		workbench_receipt_dispatch      ReceiptDispatch;
+		workbench_review_draft_dispatch ReviewDraftDispatch;
 
 		QToolBar*       PrimaryToolbar    = nullptr;
 		QToolBar*       DrawerToolbar     = nullptr;
@@ -385,6 +391,7 @@ namespace bpr::qt {
 		std::array<QAction*, 4>                                    ReceiptActions{ };
 		std::array<drawer_entry, 2>                                Drawers{ };
 		github_conversation_panel*                                 ConversationPanel    = nullptr;
+		review_draft_editor*                                       ReviewEditor         = nullptr;
 		QScrollArea*                                               HeaderScroll         = nullptr;
 		github_session_panel*                                      SessionPanel         = nullptr;
 		github_pull_request_panel*                                 PullRequestPanel     = nullptr;

@@ -48,6 +48,18 @@ namespace bpr::app::detail {
 		github_epoch_fixture_phase           EpochPhase                     = github_epoch_fixture_phase::single;
 		bool                                 DisableWorkbenchSelectionWire  = false;
 		bool                                 DisableReviewLedgerGestureWire = false;
+		bool                                 LoseFirstReviewMutationResult  = false;
+	};
+
+	struct review_mutation_fixture_evidence
+	{
+		std::size_t TargetObservations = 0U;
+		std::size_t Submissions        = 0U;
+		std::size_t StoredComments     = 0U;
+		bool        LostResult         = false;
+		bool        DuplicateReturned  = false;
+
+		auto operator<=>(const review_mutation_fixture_evidence&) const = default;
 	};
 
 	struct github_public_path_fixture_evidence
@@ -117,6 +129,28 @@ namespace bpr::app::detail {
 		pending,
 		passed,
 		failed,
+	};
+
+	enum class review_round_trip_composition_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct review_round_trip_composition_probe_evidence
+	{
+		bool ExactDesignatedTarget = false;
+		bool EditorComposed        = false;
+		bool SemanticEdit          = false;
+		bool StaleHeadRefused      = false;
+		bool LostResultRefreshed   = false;
+		bool RetryIdempotent       = false;
+		bool CapabilityFallback    = false;
+		bool ServerAuthority       = false;
+		bool TypedQtProjection     = false;
+
+		auto operator<=>(const review_round_trip_composition_probe_evidence&) const
+			= default;
 	};
 
 	/// \brief Records the independently observable receipt-composition path.
@@ -260,6 +294,12 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto review_ledger_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> review_ledger_composition_probe_evidence;
+		[[nodiscard]] static auto exercise_review_round_trip_composition(
+			github_application& aApplication)
+			-> review_round_trip_composition_probe_result;
+		[[nodiscard]] static auto review_round_trip_composition_evidence(
+			const github_application& aApplication) noexcept
+			-> review_round_trip_composition_probe_evidence;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

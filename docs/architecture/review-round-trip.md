@@ -30,6 +30,14 @@ The Qt editor is constructed with dispatch callbacks and nothing else. There is
 no provider to hold, so a widget calling a mutation endpoint is not something
 to guard against — it is something the type cannot express.
 
+The shipped `workbench_window` composes that editor. Its text and Publish
+actions enter the core transition path, and accepted proposals reach the
+application coordinator. The automated product path constructs a provider only
+inside the test-build fixture and fixes the coordinator to the exact accepted
+handoff target and account identity. After every mutation outcome the
+application re-reads the fixture's server-comment projection; Qt never treats
+the submitted request as server truth.
+
 ## Typed vocabulary
 
 - **Command** — `core::review_draft_command`: edit, discard, begin publish,
@@ -131,10 +139,12 @@ mutate. Naming it here rather than in a card is deliberate: BPR-0142 requires
 the target to be named in documentation *before* the first live run, not after.
 
 Until BPR-0142 lands, "no automated test can mutate an undesignated live
-repository" holds for a structural reason — `review_mutation_port` has exactly
-one implementation, a fake inside a test, and nothing constructs a coordinator
-in production. That argument dies the moment a live implementation exists. The
-`live_mutation_isolation` gate replaces it with one that survives:
+repository" holds for a structural reason — `review_mutation_port` has test
+implementations only, and the shipped composition constructs its coordinator
+only in the test-build fixture path. The fixture provider has no transport,
+endpoint, credential, or production build path. That argument dies the moment
+a live implementation exists. The `live_mutation_isolation` gate replaces it
+with one that survives:
 
 | | Fixed by contract |
 |---|---|
@@ -230,9 +240,10 @@ believing they had resolved something.
 
 ## What is not proven here
 
-Three acceptance criteria cannot be met without a designated repository, a
-write-scoped token, and in two cases a person. **Nothing in this repository
-designates such a target today.**
+Three acceptance criteria cannot be met without an immutable designated pull
+request within the documented repository, a write-scoped token, and in two
+cases a person. The repository is designated, but no immutable PR identity or
+session authority is available today.
 
 | Card | What it needs |
 |---|---|

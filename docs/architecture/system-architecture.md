@@ -538,6 +538,14 @@ syntax adapter; its resolved package set remains SQLite alone.
 | AI | provider-host policy, context-scope decisions, staleness, finding promotion | process/session/workspace management and protocols | explicit invocation, approvals, chat/findings presentation |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
 
+The shipped review-mutation composition preserves this allocation. Qt emits
+semantic draft commands and presents typed outcomes. The core decides whether
+the draft may publish. The application coordinator fixes the destination,
+revalidates target and head, derives the idempotency key, and refreshes server
+comments before presentation. Automated product evidence installs only a
+fixture provider under the test build; production composition has no live
+mutation provider or credential-bearing mutation path.
+
 For RFC-BPR-0004, interaction state in the core includes the active semantic
 change and selected source line, boundary, or mapping target. Host caches may
 retain immutable file-diff values and indexes only under exact blob, option,

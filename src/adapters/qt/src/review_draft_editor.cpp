@@ -46,11 +46,23 @@ namespace bpr::qt {
 			QStringLiteral("Publication target"));
 		TargetLabel->setWordWrap(true);
 		layout->addWidget(TargetLabel);
+		MutationStatus = new QLabel{ this };
+		MutationStatus->setObjectName(QStringLiteral("reviewMutationStatus"));
+		MutationStatus->setAccessibleName(QStringLiteral("Review publication status"));
+		MutationStatus->setWordWrap(true);
+		layout->addWidget(MutationStatus);
 
 		Body = new QPlainTextEdit{ this };
 		Body->setObjectName(QStringLiteral("reviewDraftBody"));
 		Body->setAccessibleName(QStringLiteral("Review comment body"));
+		Body->setAccessibleDescription(QStringLiteral(
+			"Edit the selected semantic source-line review comment."));
 		layout->addWidget(Body);
+		connect(Body, &QPlainTextEdit::textChanged, this, [this] {
+			if (!ApplyingPresentation) {
+				emit_draft(core::review_draft_command_kind::edit);
+			}
+		});
 
 		Publish  = make_action(this, tr("Publish"), QStringLiteral("reviewPublish"));
 		Discard  = make_action(this, tr("Discard"), QStringLiteral("reviewDiscard"));
@@ -85,6 +97,16 @@ namespace bpr::qt {
 	auto review_draft_editor::target_label() const noexcept -> QLabel*
 	{
 		return TargetLabel;
+	}
+
+	auto review_draft_editor::mutation_status_label() const noexcept -> QLabel*
+	{
+		return MutationStatus;
+	}
+
+	auto review_draft_editor::mutation_status_text() const -> QString
+	{
+		return MutationStatus->text();
 	}
 
 	auto review_draft_editor::publish_action() const noexcept -> QAction*
@@ -168,9 +190,71 @@ namespace bpr::qt {
 		++Statistics.Presentations;
 		ShownDraft = aDraft;
 		if (Body->toPlainText().toStdString() != aDraft.Body) {
+			ApplyingPresentation = true;
 			Body->setPlainText(QString::fromStdString(aDraft.Body));
+			ApplyingPresentation = false;
 		}
 		refresh_enablement();
+	}
+
+	void review_draft_editor::present(
+		const application::review_provider_capabilities aCapabilities)
+	{
+		++Statistics.MutationUpdates;
+		if (aCapabilities.ResolvesThreads && aCapabilities.RecordsViewedState) {
+			MutationStatus->setText(QStringLiteral("Review publication is ready."));
+			return;
+		}
+		MutationStatus->setText(QStringLiteral(
+			"Publication is available; native thread resolution and viewed-state "
+			"recording are unavailable."));
+	}
+
+	void review_draft_editor::present(
+		const application::review_mutation_failure aFailure)
+	{
+		++Statistics.MutationUpdates;
+		switch (aFailure) {
+		case application::review_mutation_failure::unavailable:
+			MutationStatus->setText(QStringLiteral(
+				"Publication result is unavailable; retry is safe."));
+			break;
+		case application::review_mutation_failure::refused_by_server:
+			MutationStatus->setText(QStringLiteral("The server refused publication."));
+			break;
+		case application::review_mutation_failure::undesignated_target:
+			MutationStatus->setText(QStringLiteral(
+				"Publication was refused because the pull request changed."));
+			break;
+		case application::review_mutation_failure::target_moved:
+			MutationStatus->setText(QStringLiteral(
+				"Publication target can no longer be named."));
+			break;
+		case application::review_mutation_failure::stale_head:
+			MutationStatus->setText(QStringLiteral(
+				"Publication was refused because the pull request head moved."));
+			break;
+		case application::review_mutation_failure::unsupported:
+			MutationStatus->setText(QStringLiteral(
+				"This provider does not support publication."));
+			break;
+		case application::review_mutation_failure::cancelled:
+			MutationStatus->setText(QStringLiteral("Publication was cancelled."));
+			break;
+		}
+	}
+
+	void review_draft_editor::present(
+		const application::review_mutation_receipt& aReceipt,
+		const application::reconciliation_result&   aReconciliation)
+	{
+		++Statistics.MutationUpdates;
+		MutationStatus->setText(QStringLiteral("Published %1%2; refreshed %3 comment(s).")
+									.arg(QString::fromStdString(aReceipt.ServerCommentId))
+									.arg(aReceipt.Duplicate
+											 ? QStringLiteral(" by safe retry")
+											 : QString{ })
+									.arg(aReconciliation.Projection.size()));
 	}
 
 	void review_draft_editor::present(const core::file_receipt& aReceipt)

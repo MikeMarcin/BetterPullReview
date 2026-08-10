@@ -524,8 +524,28 @@ namespace bpr::qt {
 		// the tree instead of its own list model. The files drawer is unchanged:
 		// a file list is a list.
 		ConversationPanel = new github_conversation_panel{ Drawers[1].Panel };
+		ReviewEditor      = new review_draft_editor{
+			[this](core::review_draft_command aCommand) {
+				if (ReviewDraftDispatch) {
+					ReviewDraftDispatch(std::move(aCommand));
+				}
+			},
+			[this](core::file_receipt_command aCommand) {
+				if (ReceiptDispatch) {
+					ReceiptDispatch(aCommand);
+				}
+			},
+			Drawers[1].Panel,
+		};
+		ReviewEditor->setObjectName(QStringLiteral("workbenchReviewDraftEditor"));
+		ReviewEditor->setMaximumHeight(220);
+		auto* const conversationContents = new QWidget{ Drawers[1].Panel };
+		auto* const conversationLayout   = new QVBoxLayout{ conversationContents };
+		conversationLayout->setContentsMargins(0, 0, 0, 0);
+		conversationLayout->addWidget(ConversationPanel, 1);
+		conversationLayout->addWidget(ReviewEditor);
 		Drawers[1].Panel->set_content_widget(
-			ConversationPanel, ConversationPanel->view());
+			conversationContents, ConversationPanel->view());
 		CentralSplitter->addWidget(Drawers[0].Panel);
 		CentralSplitter->addWidget(CentreSurface);
 		CentralSplitter->addWidget(Drawers[1].Panel);
@@ -835,6 +855,9 @@ namespace bpr::qt {
 		const application::file_receipt_action_projection& aProjection)
 	{
 		Receipt = aProjection;
+		if (ReviewEditor != nullptr) {
+			ReviewEditor->present(aProjection.Receipt);
+		}
 		ReceiptFailure.reset();
 		LedgerUnavailable = false;
 		++Statistics.ReceiptUpdates;
@@ -887,6 +910,12 @@ namespace bpr::qt {
 		workbench_receipt_dispatch aReceiptDispatch)
 	{
 		ReceiptDispatch = std::move(aReceiptDispatch);
+	}
+
+	void workbench_window::set_review_draft_dispatch(
+		workbench_review_draft_dispatch aDraftDispatch)
+	{
+		ReviewDraftDispatch = std::move(aDraftDispatch);
 	}
 
 	auto workbench_window::primary_toolbar() const noexcept -> QToolBar*
@@ -1325,6 +1354,11 @@ namespace bpr::qt {
 		return ConversationPanel;
 	}
 
+	auto workbench_window::review_editor() const noexcept -> review_draft_editor*
+	{
+		return ReviewEditor;
+	}
+
 	auto workbench_window::files_drawer_toggle_action() const noexcept -> QAction*
 	{
 		return Drawers[0].Toggle;
@@ -1399,6 +1433,9 @@ namespace bpr::qt {
 		// here.
 		append(ComparisonSurface->detail_pane());
 		append(Drawers[1].Panel->focus_stop());
+		if (ReviewEditor != nullptr) {
+			append(ReviewEditor->body_editor());
+		}
 		append(StatusLabel);
 		return order;
 	}

@@ -2,12 +2,13 @@
 
 RFC base: `7ea6c9ab7b0878706ca3df83390ad3a2e5b7e91a`
 
-Status: **round-trip components exist; product composition and durable
-isolation are incomplete.** BPR-0135 through
+Status: **the fixture-safe product round trip is composed; durable live-test
+isolation and attended/live acceptance remain incomplete.** BPR-0135 through
 BPR-0139 delivered the draft policy, target revalidation, mutation coordinator,
 synchronization, and Qt editor against fixture/component surfaces. BPR-0225
 found no construction or invocation of those surfaces in the public
-application. BPR-0229 owns the missing gesture-to-coordinator-to-refresh path.
+application. BPR-0229 now connects the shipped editor gesture through core,
+the exact-target fixture coordinator, server refresh, and Qt projection.
 The BPR-0221 structural guard accurately describes today's no-live-provider
 tree, but does not deny generic network, script, subprocess, or production-app
 test paths once a provider lands. BPR-0235 owns the standing default-deny gate.
@@ -62,8 +63,8 @@ A row is claimed only when its card lands with direct evidence.
 | The wrong target is impossible | Host coordinator | Alter host, repository, pull request, and head between prepare and execute | Each substitution is refused, and refusal is proven for a change made *after* the prepare check | Verified. BPR-0137 observes the target twice; the fake reports the designated target first and another repository second, and the statistics show two observations with zero submissions, so the second check is proven to have run |
 | Retries do not duplicate | Host coordinator | Replay a mutation whose result was lost | The second attempt is recognised rather than creating a second comment | Verified. BPR-0137 derives the key from the draft, target, anchor, disposition, and body; the retry returns the original comment identifier and the provider holds one comment, and four cases assert the key changes when body, anchor, or head does |
 | External changes round-trip | Host synchronization | Apply an externally created, edited, and deleted comment to the projection | Each is reflected after refresh, and a local assumption never overwrites an unknown external change | Verified against the fake. BPR-0138 round-trips created, edited, deleted, resolved, and reopened; an edit updates rather than duplicating; and an unpublished local edit colliding with a server change keeps the server's text and reports a conflict rather than resolving it. That GitHub produces these shapes is BPR-0143 |
-| The mutation path cannot bypass the host | Qt plus trace | Drive every publish and resolve action | Every action produces a core proposal, then a host coordination, then a result event; no widget holds a provider | Verified. BPR-0139's editor is given two dispatch callbacks and nothing else, so there is no provider to hold; every action emits a command and leaves the editor unchanged until an accepted projection arrives, and enablement is derived from that projection rather than from what was typed |
-| Capability fallback is explicit | Host | Offer a provider without native resolve or viewed-state | The degradation is reported in typed form rather than silently skipped | Verified. BPR-0137 reports a provider that resolves no threads and records no viewed state rather than skipping the operation, which would leave a reviewer believing they had resolved something |
+| The mutation path cannot bypass the host | Qt plus trace | Drive every publish and resolve action | Every action produces a core proposal, then a host coordination, then a result event; no widget holds a provider | Verified through the shipped fixture path. BPR-0139's editor is given dispatch callbacks and no provider. BPR-0229 drives real text and Publish actions through core proposal, exact-target coordinator, provider result, server refresh, and typed Qt projection; its source guard rejects direct coordinator/provider calls from the probe |
+| Capability fallback is explicit | Host | Offer a provider without native resolve or viewed-state | The degradation is reported in typed form rather than silently skipped | Verified through the fixture product path. BPR-0137 defines the typed capability absence, and BPR-0229 projects the fixture provider's unsupported resolve/viewed capabilities into the shipped editor rather than pretending success |
 | Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Verified for the request. BPR-0137 asserts the submitted request carries the acting identity and the coordinator's own designated target, so no caller can name a destination. Whether GitHub attributes the review to that account is BPR-0144 |
 | No automated test mutates an undesignated target | Whole suite | Structural `live_mutation_isolation` today; default-deny network/process lane before any live provider | Every CTest executable, script, helper subprocess, and production-app launch is network-denied unless it belongs to one explicit designated-target lane | **Conditional only.** BPR-0221's three positive-control clauses catch selected port implementations, symbols, and factory calls and correctly pass while no live provider exists. They do not cover generic HTTPS/`gh`, Python, arbitrary subprocesses, or production `app_` binaries excluded from the manifest. BPR-0235 must add process-boundary default denial before BPR-0142 can use a live provider |
 
@@ -94,6 +95,7 @@ BPR-0235 must establish default-deny isolation before a live provider runs.
 | BPR-0139 | Qt draft editors, publish confirmation, and the no-bypass proof |
 | BPR-0140 | Documentation: mapping, drafts, publish, identity, stale head, retries, capability fallback, safe-test policy, mixed-client contract |
 | BPR-0141 | Simplification and closeout preparation |
+| BPR-0229 | Shipped editor-to-core-to-fixture-coordinator-to-server-refresh composition and non-bypass executable trace |
 
 ## Documentation ledger
 

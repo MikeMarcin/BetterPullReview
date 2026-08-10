@@ -12,9 +12,12 @@
 
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/review_mutation_port.hpp"
+#include "bpr/application/review_synchronization.hpp"
 
 #include <filesystem>
 #include <memory>
+#include <vector>
 
 namespace bpr::app::detail {
 	class github_public_path_fixture_components final
@@ -51,6 +54,14 @@ namespace bpr::app::detail {
 			-> const std::filesystem::path&;
 		[[nodiscard]] auto git_executable() const
 			-> const std::filesystem::path&;
+		void               prepare_review_mutation(core::review_mutation_target aTarget);
+		void               report_review_mutation_target(core::review_mutation_target aTarget);
+		[[nodiscard]] auto review_mutation_provider() noexcept
+			-> application::review_mutation_port&;
+		[[nodiscard]] auto review_comments() const
+			-> std::vector<application::review_comment_projection>;
+		[[nodiscard]] auto review_mutation_evidence() const noexcept
+			-> review_mutation_fixture_evidence;
 
 	private:
 		class implementation;

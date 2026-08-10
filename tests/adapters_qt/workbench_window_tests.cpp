@@ -1002,10 +1002,12 @@ namespace {
 
 		auto* const panel = window.conversation_panel();
 		expect(panel != nullptr, "the shell composes the conversation");
-		expect(panel != nullptr
-				   && panel->parentWidget() == window.conversations_drawer(),
+		expect(panel != nullptr && window.review_editor() != nullptr
+				   && window.conversations_drawer()->isAncestorOf(panel)
+				   && window.conversations_drawer()->isAncestorOf(
+					   window.review_editor()),
 			   "and it lives inside the conversations drawer rather than beside "
-			   "it");
+			   "it, together with the draft editor");
 
 		// The drawer keeps every behaviour that makes it a drawer. Swapping what
 		// it shows must not have cost it collapse, which is core-owned state.

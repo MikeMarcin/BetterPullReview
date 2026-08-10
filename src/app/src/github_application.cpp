@@ -34,6 +34,8 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
+#include "bpr/application/review_mutation_coordinator.hpp"
+#include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -47,9 +49,11 @@
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QPalette>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -1443,6 +1447,10 @@ namespace bpr::app {
 #endif
 					dispatch_receipt(std::move(aCommand));
 				});
+			Window->set_review_draft_dispatch(
+				[this](core::review_draft_command aCommand) {
+					dispatch_review_draft(std::move(aCommand));
+				});
 
 			EpochHost = std::make_unique<application::epoch_application_host>(
 				core::epoch_state{
@@ -1718,6 +1726,131 @@ namespace bpr::app {
 			static_cast<void>(ReviewLedgerHost->submit(aCommand));
 		}
 
+		[[nodiscard]] static auto review_mutation_target(
+			const application::accepted_pull_request_handoff& aHandoff)
+			-> core::review_mutation_target
+		{
+			return {
+				.Host         = aHandoff.Host,
+				.Repository   = aHandoff.Repository,
+				.PullRequest  = aHandoff.PullRequest,
+				.ExpectedHead = aHandoff.Head,
+			};
+		}
+
+		void compose_review_mutation(
+			const application::accepted_pull_request_handoff& aHandoff)
+		{
+			ReviewMutationCoordinator.reset();
+			ReviewDraft.reset();
+			ReviewProjection.clear();
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture == nullptr || Window == nullptr
+				|| Window->review_editor() == nullptr) {
+				return;
+			}
+			const auto target = review_mutation_target(aHandoff);
+			Fixture->prepare_review_mutation(target);
+			ReviewMutationCoordinator = std::make_unique<
+				application::review_mutation_coordinator>(
+				Fixture->review_mutation_provider(), target, aHandoff.Account);
+			auto* const editor = Window->review_editor();
+			editor->describe_target(QStringLiteral("%1/%2#%3 at %4 as account %5")
+										.arg(QString::fromStdString(aHandoff.Locator.Owner))
+										.arg(QString::fromStdString(aHandoff.Locator.Name))
+										.arg(aHandoff.Number.value())
+										.arg(QString::fromUtf8(
+											core::canonical_hex(aHandoff.Head).view()))
+										.arg(aHandoff.Account.value()));
+			editor->present(ReviewMutationCoordinator->capabilities());
+#else
+			static_cast<void>(aHandoff);
+#endif
+		}
+
+		void refresh_review_projection()
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture == nullptr) {
+				return;
+			}
+			const auto observed  = Fixture->review_comments();
+			ReviewReconciliation = application::reconcile(
+				ReviewProjection, observed, { });
+			ReviewProjection = ReviewReconciliation.Projection;
+#endif
+		}
+
+		void dispatch_review_draft(core::review_draft_command aCommand)
+		{
+			if (Closing || !ReviewDraft.has_value()
+				|| ReviewMutationCoordinator == nullptr || Window == nullptr
+				|| Window->review_editor() == nullptr) {
+				return;
+			}
+			const auto outcome = core::apply(*ReviewDraft, aCommand);
+			if (outcome.Rejection != core::review_draft_rejection::none) {
+				return;
+			}
+			ReviewDraft        = outcome.Draft;
+			auto* const editor = Window->review_editor();
+			editor->present(*ReviewDraft);
+			if (aCommand.Kind != core::review_draft_command_kind::begin_publish) {
+				return;
+			}
+			const auto proposal = core::propose_publication(
+				*ReviewDraft, core::review_disposition::comment);
+			if (!proposal.has_value()) {
+				return;
+			}
+			const auto publication = ReviewMutationCoordinator->publish(*proposal, false);
+			refresh_review_projection();
+			if (!publication.has_value()) {
+				ReviewDraft = core::apply(
+								  *ReviewDraft,
+								  core::review_draft_command{
+									  .Id   = ReviewDraft->Id,
+									  .Kind = core::review_draft_command_kind::fail_publish,
+								  })
+								  .Draft;
+				editor->present(*ReviewDraft);
+				editor->present(publication.error());
+				return;
+			}
+			ReviewDraft = core::apply(
+							  *ReviewDraft,
+							  core::review_draft_command{
+								  .Id   = ReviewDraft->Id,
+								  .Kind = core::review_draft_command_kind::complete_publish,
+							  })
+							  .Draft;
+			editor->present(*ReviewDraft);
+			editor->present(*publication, ReviewReconciliation);
+		}
+
+		void present_review_draft(const core::file_comparison_digest aComparison)
+		{
+			if (ReviewMutationCoordinator == nullptr || Window == nullptr
+				|| Window->review_editor() == nullptr || !aComparison.valid()) {
+				return;
+			}
+			if (ReviewDraft.has_value()
+				&& ReviewDraft->Anchor.Comparison == aComparison
+				&& (ReviewDraft->State == core::review_draft_state::drafting
+					|| ReviewDraft->State == core::review_draft_state::publishing)) {
+				return;
+			}
+			ReviewDraft = core::review_comment_draft{
+				.Id     = core::review_draft_id{ NextReviewDraft++ },
+				.Anchor = {
+					.Comparison = aComparison,
+					.Side       = core::diff_side::right,
+					.Line       = 1U,
+				},
+			};
+			Window->review_editor()->present(*ReviewDraft);
+		}
+
 		void retire_review_ledger()
 		{
 			ReviewLedgerHost.reset();
@@ -1824,6 +1957,7 @@ namespace bpr::app {
 					.File     = SelectedDiffPublication->Request.File.File,
 					.Material = material,
 				}));
+			present_review_draft(material);
 		}
 
 		void publish(const application::receipt_projection& aProjection) override
@@ -1868,6 +2002,7 @@ namespace bpr::app {
 			if (!Closing && EpochHost != nullptr) {
 				const auto authority = workbench_authority(aHandoff);
 				compose_review_ledger(aHandoff);
+				compose_review_mutation(aHandoff);
 				WorkbenchReview.adopt(
 					aHandoff,
 					Host != nullptr
@@ -1912,6 +2047,9 @@ namespace bpr::app {
 			});
 			if (retiresLedger) {
 				retire_review_ledger();
+				ReviewMutationCoordinator.reset();
+				ReviewDraft.reset();
+				ReviewProjection.clear();
 			}
 			EpochHost->invalidate(std::move(aInvalidation));
 		}
@@ -2609,7 +2747,15 @@ namespace bpr::app {
 			core::file_material_id                           ReopenedMaterial;
 		};
 		std::optional<review_ledger_composition_probe_state>
-					ReviewLedgerCompositionProbe;
+			ReviewLedgerCompositionProbe;
+		struct review_round_trip_composition_probe_state
+		{
+			detail::review_round_trip_composition_probe_evidence Evidence;
+			bool                                                 Complete = false;
+			bool                                                 Failed   = false;
+		};
+		std::optional<review_round_trip_composition_probe_state>
+					ReviewRoundTripCompositionProbe;
 		std::size_t WorkbenchIntentDispatches = 0U;
 		std::size_t WorkbenchChangeDispatches = 0U;
 		std::size_t WorkbenchWidthDispatches  = 0U;
@@ -2640,6 +2786,11 @@ namespace bpr::app {
 		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
 		std::optional<core::file_receipt>                            ReviewLedgerReceipt;
 		bool                                                         ReviewLedgerAvailable = false;
+		std::unique_ptr<application::review_mutation_coordinator>    ReviewMutationCoordinator;
+		std::optional<core::review_comment_draft>                    ReviewDraft;
+		std::vector<application::review_comment_projection>          ReviewProjection;
+		application::reconciliation_result                           ReviewReconciliation;
+		std::uint64_t                                                NextReviewDraft = 1U;
 		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
 		composition_workbench_review                                 WorkbenchReview;
 		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
@@ -4399,6 +4550,159 @@ namespace bpr::app {
 				&& implementation->ReviewLedgerCompositionProbe.has_value()
 			? implementation->ReviewLedgerCompositionProbe->Evidence
 			: detail::review_ledger_composition_probe_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::exercise_review_round_trip_composition(
+		github_application& aApplication)
+		-> detail::review_round_trip_composition_probe_result
+	{
+		using result               = detail::review_round_trip_composition_probe_result;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->ReviewRoundTripCompositionProbe.has_value()) {
+			implementation->ReviewRoundTripCompositionProbe.emplace();
+		}
+		auto& probe = *implementation->ReviewRoundTripCompositionProbe;
+		if (probe.Failed) {
+			return result::failed;
+		}
+		if (probe.Complete) {
+			return result::passed;
+		}
+		if (implementation->Fixture != nullptr && implementation->Window != nullptr
+			&& implementation->WorkbenchHost != nullptr
+			&& implementation->ReviewMutationCoordinator != nullptr
+			&& !implementation->ReviewDraft.has_value()
+			&& implementation->WorkbenchHost->outstanding_requests() == 0U) {
+			auto* const view = implementation->Window->files_drawer()->contents_view();
+			if (view != nullptr && view->model() != nullptr
+				&& view->model()->rowCount() > 0
+				&& !view->currentIndex().isValid()) {
+				view->setCurrentIndex(view->model()->index(0, 0));
+			}
+			return result::pending;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr
+			|| implementation->ReviewMutationCoordinator == nullptr
+			|| !implementation->ReviewDraft.has_value()
+			|| !implementation->LastAcceptedHandoff.has_value()
+			|| !implementation->LastSelectedDiff.has_value()
+			|| implementation->Window->review_editor() == nullptr) {
+			return result::pending;
+		}
+		const auto fail = [&probe] {
+			probe.Failed = true;
+			return result::failed;
+		};
+		auto* const editor     = implementation->Window->review_editor();
+		const auto  designated = github_application::implementation::review_mutation_target(
+			*implementation->LastAcceptedHandoff);
+		probe.Evidence.ExactDesignatedTarget
+			= implementation->ReviewMutationCoordinator->designated() == designated;
+		probe.Evidence.EditorComposed = editor->shown_draft().has_value()
+			&& editor->shown_draft()->Anchor.Comparison
+				== core::comparison_digest(
+					implementation->LastSelectedDiff->Key)
+			&& editor->target_label()->text().contains(
+				QString::number(implementation->LastAcceptedHandoff->Number.value()));
+		probe.Evidence.CapabilityFallback
+			= !implementation->ReviewMutationCoordinator->capabilities().ResolvesThreads
+			&& !implementation->ReviewMutationCoordinator->capabilities()
+					.RecordsViewedState
+			&& editor->mutation_status_text().contains(
+				QStringLiteral("unavailable"));
+		if (!probe.Evidence.ExactDesignatedTarget
+			|| !probe.Evidence.EditorComposed
+			|| !probe.Evidence.CapabilityFallback) {
+			return fail();
+		}
+
+		const auto draftIntents = editor->statistics().DraftIntents;
+		editor->body_editor()->setPlainText(
+			QStringLiteral("BPR-0229 fixture publication."));
+		probe.Evidence.SemanticEdit
+			= editor->statistics().DraftIntents == draftIntents + 1U
+			&& implementation->ReviewDraft->Body
+				== "BPR-0229 fixture publication.";
+		if (!probe.Evidence.SemanticEdit) {
+			return fail();
+		}
+
+		auto       moved      = designated;
+		const auto secondHead = core::parse_git_commit_oid(
+			implementation->Fixture->evidence().HeadTwoOid);
+		if (!secondHead.has_value() || *secondHead == designated.ExpectedHead) {
+			return fail();
+		}
+		moved.ExpectedHead = *secondHead;
+		implementation->Fixture->report_review_mutation_target(moved);
+		editor->publish_action()->trigger();
+		probe.Evidence.StaleHeadRefused
+			= implementation->ReviewDraft->State
+				== core::review_draft_state::drafting
+			&& implementation->ReviewMutationCoordinator->statistics().Submissions == 0U
+			&& implementation->ReviewMutationCoordinator->statistics()
+					.RefusedBeforeSubmit
+				== 1U
+			&& editor->mutation_status_text().contains(QStringLiteral("head moved"));
+		if (!probe.Evidence.StaleHeadRefused) {
+			return fail();
+		}
+
+		implementation->Fixture->report_review_mutation_target(designated);
+		editor->publish_action()->trigger();
+		const auto lost                    = implementation->Fixture->review_mutation_evidence();
+		probe.Evidence.LostResultRefreshed = lost.LostResult
+			&& lost.StoredComments == 1U
+			&& implementation->ReviewProjection
+				== implementation->Fixture->review_comments()
+			&& implementation->ReviewDraft->State
+				== core::review_draft_state::drafting
+			&& editor->mutation_status_text().contains(
+				QStringLiteral("retry is safe"));
+		if (!probe.Evidence.LostResultRefreshed) {
+			return fail();
+		}
+
+		editor->publish_action()->trigger();
+		const auto provider = implementation->Fixture->review_mutation_evidence();
+		const auto statistics
+			= implementation->ReviewMutationCoordinator->statistics();
+		probe.Evidence.RetryIdempotent = provider.Submissions == 2U
+			&& provider.StoredComments == 1U && provider.DuplicateReturned
+			&& statistics.Submissions == 2U && statistics.Duplicates == 1U
+			&& implementation->ReviewDraft->State
+				== core::review_draft_state::published;
+		probe.Evidence.ServerAuthority
+			= implementation->ReviewProjection
+				== implementation->Fixture->review_comments()
+			&& implementation->ReviewProjection.size() == 1U
+			&& implementation->ReviewProjection.front().Body
+				== "BPR-0229 fixture publication.";
+		probe.Evidence.TypedQtProjection
+			= editor->shown_draft() == implementation->ReviewDraft
+			&& editor->mutation_status_text().contains(
+				QStringLiteral("safe retry"))
+			&& editor->statistics().MutationUpdates >= 4U;
+		if (!probe.Evidence.RetryIdempotent || !probe.Evidence.ServerAuthority
+			|| !probe.Evidence.TypedQtProjection) {
+			return fail();
+		}
+		probe.Complete = true;
+		return result::passed;
+	}
+
+	auto detail::github_application_fixture_access::review_round_trip_composition_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::review_round_trip_composition_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr
+				&& implementation->ReviewRoundTripCompositionProbe.has_value()
+			? implementation->ReviewRoundTripCompositionProbe->Evidence
+			: detail::review_round_trip_composition_probe_evidence{ };
 	}
 
 	auto detail::github_application_fixture_access::select_appearance_mode(

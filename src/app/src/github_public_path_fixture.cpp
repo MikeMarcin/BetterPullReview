@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -1127,6 +1128,106 @@ namespace bpr::app::detail {
 			}
 			return std::move(*material);
 		}
+
+		class fixture_review_mutation_provider final
+			: public application::review_mutation_port
+		{
+		public:
+			explicit fixture_review_mutation_provider(const bool aLoseFirst) noexcept
+				: LoseFirst{ aLoseFirst }
+			{
+			}
+
+			void prepare(core::review_mutation_target aTarget)
+			{
+				Designated = std::move(aTarget);
+				Reported   = Designated;
+			}
+
+			void report(core::review_mutation_target aTarget)
+			{
+				Reported = std::move(aTarget);
+			}
+
+			auto observe_target() -> std::expected<
+				core::review_mutation_target,
+				application::review_mutation_failure> override
+			{
+				++Evidence.TargetObservations;
+				return Reported;
+			}
+
+			auto submit(const application::review_mutation_request& aRequest)
+				-> std::expected<
+					application::review_mutation_receipt,
+					application::review_mutation_failure> override
+			{
+				++Evidence.Submissions;
+				if (aRequest.Target != Designated) {
+					return std::unexpected{
+						application::review_mutation_failure::undesignated_target
+					};
+				}
+				const auto known = Identifiers.find(aRequest.IdempotencyKey);
+				if (known != Identifiers.end()) {
+					Evidence.DuplicateReturned = true;
+					return application::review_mutation_receipt{
+						.ServerCommentId = known->second,
+						.Duplicate       = true,
+					};
+				}
+				auto identifier = "fixture-comment-"
+					+ std::to_string(Identifiers.size() + 1U);
+				Identifiers.emplace(aRequest.IdempotencyKey, identifier);
+				Comments.push_back(application::review_comment_projection{
+					.ServerId    = identifier,
+					.Body        = aRequest.Proposal.Body,
+					.EditVersion = 1U,
+					.Resolved    = false,
+				});
+				Evidence.StoredComments = Comments.size();
+				if (LoseFirst) {
+					LoseFirst           = false;
+					Evidence.LostResult = true;
+					return std::unexpected{
+						application::review_mutation_failure::unavailable
+					};
+				}
+				return application::review_mutation_receipt{
+					.ServerCommentId = std::move(identifier),
+					.Duplicate       = false,
+				};
+			}
+
+			[[nodiscard]] auto capabilities() const
+				-> application::review_provider_capabilities override
+			{
+				return {
+					.ResolvesThreads    = false,
+					.RecordsViewedState = false,
+				};
+			}
+
+			[[nodiscard]] auto comments() const
+				-> std::vector<application::review_comment_projection>
+			{
+				return Comments;
+			}
+
+			[[nodiscard]] auto evidence() const noexcept
+				-> review_mutation_fixture_evidence
+			{
+				return Evidence;
+			}
+
+		private:
+			core::review_mutation_target                        Designated;
+			core::review_mutation_target                        Reported;
+			std::map<std::string, std::string>                  Identifiers;
+			std::vector<application::review_comment_projection> Comments;
+			review_mutation_fixture_evidence                    Evidence;
+			bool                                                LoseFirst = false;
+		};
 	}
 
 	auto github_public_path_fixture_serves_second_head(
@@ -1162,6 +1263,8 @@ namespace bpr::app::detail {
 			VaultState = std::make_shared<fixture_vault_state>();
 			Vault      = std::make_unique<fixture_credential_vault>(
 				aVaultEffects, VaultState);
+			Mutation = std::make_unique<fixture_review_mutation_provider>(
+				aOptions.LoseFirstReviewMutationResult);
 
 			if (aOptions.ApplicationDataRoot) {
 				ApplicationDataRoot = aOptions.ApplicationDataRoot->lexically_normal();
@@ -1207,14 +1310,15 @@ namespace bpr::app::detail {
 			}
 		}
 
-		std::shared_ptr<fixture_recording_state>   Recording;
-		std::shared_ptr<deterministic_git_fixture> Git;
-		std::shared_ptr<fixture_transport_factory> Factory;
-		std::shared_ptr<fixture_vault_state>       VaultState;
-		std::unique_ptr<fixture_credential_vault>  Vault;
-		std::unique_ptr<QTemporaryDir>             ApplicationData;
-		std::filesystem::path                      ApplicationDataRoot;
-		std::filesystem::path                      GitExecutable;
+		std::shared_ptr<fixture_recording_state>          Recording;
+		std::shared_ptr<deterministic_git_fixture>        Git;
+		std::shared_ptr<fixture_transport_factory>        Factory;
+		std::shared_ptr<fixture_vault_state>              VaultState;
+		std::unique_ptr<fixture_credential_vault>         Vault;
+		std::unique_ptr<fixture_review_mutation_provider> Mutation;
+		std::unique_ptr<QTemporaryDir>                    ApplicationData;
+		std::filesystem::path                             ApplicationDataRoot;
+		std::filesystem::path                             GitExecutable;
 	};
 
 	github_public_path_fixture_components::
@@ -1307,5 +1411,35 @@ namespace bpr::app::detail {
 		-> const std::filesystem::path&
 	{
 		return Implementation->GitExecutable;
+	}
+
+	void github_public_path_fixture_components::prepare_review_mutation(
+		core::review_mutation_target aTarget)
+	{
+		Implementation->Mutation->prepare(std::move(aTarget));
+	}
+
+	void github_public_path_fixture_components::report_review_mutation_target(
+		core::review_mutation_target aTarget)
+	{
+		Implementation->Mutation->report(std::move(aTarget));
+	}
+
+	auto github_public_path_fixture_components::review_mutation_provider() noexcept
+		-> application::review_mutation_port&
+	{
+		return *Implementation->Mutation;
+	}
+
+	auto github_public_path_fixture_components::review_comments() const
+		-> std::vector<application::review_comment_projection>
+	{
+		return Implementation->Mutation->comments();
+	}
+
+	auto github_public_path_fixture_components::review_mutation_evidence() const
+		noexcept -> review_mutation_fixture_evidence
+	{
+		return Implementation->Mutation->evidence();
 	}
 }

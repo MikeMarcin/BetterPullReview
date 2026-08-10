@@ -1,7 +1,7 @@
 ---
 id: BPR-0230
 title: Compose defect correlation and defect cards into the shipped workbench
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0009
 depends_on: [BPR-0229, BPR-0238]
 ---

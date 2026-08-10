@@ -46,6 +46,9 @@ import sys
 PORT_IMPLEMENTATION_ALLOWLIST = frozenset(
     {
         "tests/application/review_mutation_tests.cpp",
+        # Test-build-only provider owned by the recorded public-path fixture.
+        # It has no transport, endpoint, credential, or production build path.
+        "src/app/src/github_public_path_fixture.cpp",
         "src/adapters/github/src/live_review_mutation_provider.hpp",
         "src/adapters/github/src/live_review_mutation_provider.cpp",
     }
