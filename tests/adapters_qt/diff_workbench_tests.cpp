@@ -423,6 +423,10 @@ namespace {
 		workbench.resize(1'260, 820);
 		workbench.show();
 		process_events();
+		expect(
+			workbench.statistics().GeometryRebuilds == 0U
+				&& workbench.statistics().GeometryRebuildHistorySize == 0U,
+			"empty-workbench show and resize events do not create attributed geometry work");
 		if (const auto* expectedScale = std::getenv("BPR_EXPECTED_QT_SCALE")) {
 			expect(
 				close(
@@ -448,6 +452,19 @@ namespace {
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		});
 		process_events();
+		const auto  statisticsAfterFirstPublish = workbench.statistics();
+		const auto& firstGeometryCause
+			= statisticsAfterFirstPublish.GeometryRebuildHistory[0U];
+		expect(
+			statisticsAfterFirstPublish.GeometryRebuilds > 0U
+				&& statisticsAfterFirstPublish.GeometryRebuildHistorySize
+					== statisticsAfterFirstPublish.GeometryRebuilds
+				&& (firstGeometryCause.Changes & qt::measured_geometry_change::screen)
+					== qt::measured_geometry_change::none
+				&& (firstGeometryCause.Triggers
+					& qt::diff_geometry_rebuild_trigger::show_event)
+					== qt::diff_geometry_rebuild_trigger::none,
+			"pre-result show and resize events cannot contaminate the first accepted diff attribution");
 		expect(workbench.current_result() != nullptr, "accepted immutable result reaches workbench");
 		expect(
 			announcement_count(
@@ -751,11 +768,11 @@ namespace {
 		auto* const vertical = workbench.findChild<QSplitter*>(
 			QStringLiteral("diffWorkbenchVerticalSplitter"));
 		expect(vertical != nullptr, "selected composition exposes its vertical splitter");
-		const auto outerSizeBeforeDivider = workbench.size();
-		const auto viewportBeforeDivider  = workbench.left_pane()->viewport()->height();
-		const auto rebuildsBeforeDivider  = workbench.statistics().GeometryRebuilds;
-		const auto verticalSizes          = vertical->sizes();
-		const auto verticalTotal          = std::accumulate(
+		const auto outerSizeBeforeDivider  = workbench.size();
+		const auto viewportBeforeDivider   = workbench.left_pane()->viewport()->height();
+		const auto statisticsBeforeDivider = workbench.statistics();
+		const auto verticalSizes           = vertical->sizes();
+		const auto verticalTotal           = std::accumulate(
 			verticalSizes.begin(), verticalSizes.end(), 0);
 		const auto smallerTop = std::max(140, verticalTotal / 3);
 		vertical->setSizes({ smallerTop, verticalTotal - smallerTop });
@@ -765,9 +782,16 @@ namespace {
 				&& workbench.left_pane()->viewport()->height()
 					< viewportBeforeDivider
 				&& workbench.statistics().GeometryRebuilds
-					== rebuildsBeforeDivider + 1U
+					== statisticsBeforeDivider.GeometryRebuilds + 1U
+				&& workbench.statistics().GeometryRebuildHistorySize
+					== statisticsBeforeDivider.GeometryRebuildHistorySize + 1U
+				&& (workbench.statistics()
+						.GeometryRebuildHistory[workbench.statistics().GeometryRebuildHistorySize - 1U]
+						.Triggers
+					& qt::diff_geometry_rebuild_trigger::pane_viewport_resize)
+					!= qt::diff_geometry_rebuild_trigger::none
 				&& workbench.selection() == selectionBeforeMetrics,
-			"detail-divider resize coalesces one viewport-axis rebuild without changing selection");
+			"detail-divider resize coalesces one attributed viewport-axis rebuild without changing selection");
 		send_key(*workbench.right_pane(), Qt::Key_End);
 		process_events();
 		expect(
@@ -785,12 +809,11 @@ namespace {
 				&& workbench.selection() == selectionBeforeMetrics,
 			"DPI invalidation rebuilds measured geometry without replacing semantic selection");
 
-		const auto initialRender   = workbench.grab().toImage();
-		const auto originalPalette = QApplication::palette();
-		const auto originalFont    = workbench.font();
-		const auto rebuildsBeforePalette
-			= workbench.statistics().GeometryRebuilds;
-		auto changedPalette = originalPalette;
+		const auto initialRender           = workbench.grab().toImage();
+		const auto originalPalette         = QApplication::palette();
+		const auto originalFont            = workbench.font();
+		const auto statisticsBeforePalette = workbench.statistics();
+		auto       changedPalette          = originalPalette;
 		changedPalette.setColor(QPalette::Window, QColor{ 31, 35, 41 });
 		changedPalette.setColor(QPalette::Base, QColor{ 22, 25, 30 });
 		changedPalette.setColor(QPalette::Text, QColor{ 236, 239, 244 });
@@ -802,20 +825,34 @@ namespace {
 			workbench.selection() == selectionBeforeMetrics
 				&& workbench.font() == originalFont
 				&& workbench.statistics().GeometryRebuilds
-					== rebuildsBeforePalette
+					== statisticsBeforePalette.GeometryRebuilds
+				&& workbench.statistics().GeometryRebuildHistorySize
+					== statisticsBeforePalette.GeometryRebuildHistorySize
 				&& initialRender != changedRender,
 			"inherited palette transition changes pixels without rebuilding geometry "
 			"or replacing font and selection");
 		QApplication::setPalette(originalPalette);
 		process_events();
-		const auto rebuildsBeforeStyle = workbench.statistics().GeometryRebuilds;
-		auto       styleChange         = QEvent{ QEvent::StyleChange };
+		const auto statisticsBeforeStyle = workbench.statistics();
+		auto       styleChange           = QEvent{ QEvent::StyleChange };
 		QCoreApplication::sendEvent(&workbench, &styleChange);
 		process_events();
+		const auto  statisticsAfterStyle = workbench.statistics();
+		const auto& styleCause           = statisticsAfterStyle.GeometryRebuildHistory[statisticsAfterStyle.GeometryRebuildHistorySize - 1U];
 		expect(
-			workbench.statistics().GeometryRebuilds > rebuildsBeforeStyle
+			statisticsAfterStyle.GeometryRebuilds
+					== statisticsBeforeStyle.GeometryRebuilds + 1U
+				&& statisticsAfterStyle.GeometryRebuildHistorySize
+					== statisticsBeforeStyle.GeometryRebuildHistorySize + 1U
+				&& !statisticsAfterStyle.GeometryRebuildHistoryOverflow
+				&& (styleCause.Changes
+					& qt::measured_geometry_change::viewport_or_divider)
+					!= qt::measured_geometry_change::none
+				&& (styleCause.Triggers
+					& qt::diff_geometry_rebuild_trigger::style_event)
+					!= qt::diff_geometry_rebuild_trigger::none
 				&& workbench.selection() == selectionBeforeMetrics,
-			"style invalidation rebuilds measured geometry while preserving semantic selection");
+			"style invalidation records its exact rebuild cause while preserving semantic selection");
 
 		const auto second        = computed(leftText, rightText + "option-tail\n", options, 1U);
 		const auto secondContext = context(second, 2U, 2U);

@@ -48,6 +48,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <chrono>
 #include <cmath>
@@ -468,16 +469,22 @@ namespace {
 			// above. Those prove the toolkit follows the operating system;
 			// these prove *this product's* appearance model does, and that an
 			// explicit mode does not.
-			bool                             ProfileFollowsPassed  = false;
-			bool                             ExplicitIgnoresPassed = false;
-			int                              VariantBeforeChange   = -1;
-			int                              VariantAfterChange    = -1;
-			int                              VariantUnderExplicit  = -1;
-			int                              VariantBackOnSystem   = -1;
-			QFont                            InitialDiffFont;
-			QFont                            ObservedDiffFont;
-			std::uint64_t                    InitialDiffGeometryRebuilds = 0U;
-			std::uint64_t                    DiffGeometryRebuildDelta    = 0U;
+			bool          ProfileFollowsPassed  = false;
+			bool          ExplicitIgnoresPassed = false;
+			int           VariantBeforeChange   = -1;
+			int           VariantAfterChange    = -1;
+			int           VariantUnderExplicit  = -1;
+			int           VariantBackOnSystem   = -1;
+			QFont         InitialDiffFont;
+			QFont         ObservedDiffFont;
+			std::uint64_t InitialDiffGeometryRebuilds        = 0U;
+			std::uint64_t DiffGeometryRebuildDelta           = 0U;
+			std::size_t   InitialDiffGeometryHistorySize     = 0U;
+			bool          InitialDiffGeometryHistoryOverflow = false;
+			std::array<bpr::qt::diff_geometry_rebuild_cause, 8U>
+											 DiffGeometryRebuildCauses{ };
+			std::size_t                      DiffGeometryRebuildCauseCount   = 0U;
+			bool                             DiffGeometryAttributionComplete = false;
 			native_appearance_evidence_paths EvidencePaths;
 		};
 
@@ -967,8 +974,13 @@ namespace {
 				<< "NATIVE_APPEARANCE_COMPARISON_VISIBLE_FAILED\n";
 			return false;
 		}
+		const auto geometryStatistics = workbench->statistics();
 		aRun.Appearance.InitialDiffGeometryRebuilds
-			= workbench->statistics().GeometryRebuilds;
+			= geometryStatistics.GeometryRebuilds;
+		aRun.Appearance.InitialDiffGeometryHistorySize
+			= geometryStatistics.GeometryRebuildHistorySize;
+		aRun.Appearance.InitialDiffGeometryHistoryOverflow
+			= geometryStatistics.GeometryRebuildHistoryOverflow;
 		aRun.Appearance.InitialWindowActive = aWindow.isActiveWindow();
 		aRun.Appearance.InitialFocus        = QApplication::focusWidget();
 		if (!native_appearance_light_state_passed(aWindow, aRun)) {
@@ -2628,7 +2640,24 @@ namespace {
 				   << "NATIVE_APPEARANCE_DIFF_FONT_AFTER:"
 				   << aRun.Appearance.ObservedDiffFont.toString() << '\n'
 				   << "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_DELTA:"
-				   << aRun.Appearance.DiffGeometryRebuildDelta << '\n'
+				   << aRun.Appearance.DiffGeometryRebuildDelta << '\n';
+			stream << "NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_CAUSES:"
+				   << static_cast<unsigned long long>(
+						  aRun.Appearance.DiffGeometryRebuildCauseCount);
+			for (
+				auto index = std::size_t{ 0U };
+				index < aRun.Appearance.DiffGeometryRebuildCauseCount;
+				++index) {
+				const auto& cause
+					= aRun.Appearance.DiffGeometryRebuildCauses[index];
+				stream << ':'
+					   << static_cast<std::uint32_t>(cause.Changes) << '/'
+					   << static_cast<std::uint32_t>(cause.Triggers);
+			}
+			stream << '\n'
+				   << (aRun.Appearance.DiffGeometryAttributionComplete
+						   ? "NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_OK\n"
+						   : "NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_FAILED\n")
 				   << (aRun.Appearance.InitialDiffPalette
 								   != aRun.Appearance.ObservedDiffPalette
 							   && aRun.Appearance.StatePassed
@@ -3694,14 +3723,41 @@ namespace {
 						= appearanceWorkbench->palette();
 					aRun->Appearance.ObservedDiffFont
 						= appearanceWorkbench->font();
+					const auto finalGeometryStatistics
+						= appearanceWorkbench->statistics();
 					const auto finalGeometryRebuilds
-						= appearanceWorkbench->statistics().GeometryRebuilds;
+						= finalGeometryStatistics.GeometryRebuilds;
 					aRun->Appearance.DiffGeometryRebuildDelta
 						= finalGeometryRebuilds
 							>= aRun->Appearance.InitialDiffGeometryRebuilds
 						? finalGeometryRebuilds
 							- aRun->Appearance.InitialDiffGeometryRebuilds
 						: 0U;
+					const auto historyStart
+						= aRun->Appearance.InitialDiffGeometryHistorySize;
+					const auto historyEnd
+						= finalGeometryStatistics.GeometryRebuildHistorySize;
+					const auto historyCount                        = historyEnd >= historyStart
+						? historyEnd - historyStart
+						: 0U;
+					aRun->Appearance.DiffGeometryRebuildCauseCount = std::min(
+						historyCount,
+						aRun->Appearance.DiffGeometryRebuildCauses.size());
+					for (
+						auto index = std::size_t{ 0U };
+						index < aRun->Appearance.DiffGeometryRebuildCauseCount;
+						++index) {
+						aRun->Appearance.DiffGeometryRebuildCauses[index]
+							= finalGeometryStatistics.GeometryRebuildHistory[historyStart + index];
+					}
+					aRun->Appearance.DiffGeometryAttributionComplete
+						= !aRun->Appearance.InitialDiffGeometryHistoryOverflow
+						&& !finalGeometryStatistics.GeometryRebuildHistoryOverflow
+						&& historyEnd >= historyStart
+						&& historyCount
+							== aRun->Appearance.DiffGeometryRebuildDelta
+						&& historyCount
+							<= aRun->Appearance.DiffGeometryRebuildCauses.size();
 					const auto stateBeforeRender = native_appearance_dark_state_passed(window, *aRun);
 					const auto changedRender     = stateBeforeRender
 						? capture_normalized_render(window)

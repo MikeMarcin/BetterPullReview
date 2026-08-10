@@ -674,7 +674,9 @@ namespace bpr::qt {
 		update_detail();
 		update_selection_paint();
 		update_action_state();
-		schedule_geometry_rebuild(measured_geometry_change::accepted_diff);
+		schedule_geometry_rebuild(
+			measured_geometry_change::accepted_diff,
+			diff_geometry_rebuild_trigger::accepted_diff);
 	}
 
 	void diff_workbench::fail(
@@ -832,7 +834,9 @@ namespace bpr::qt {
 		switch (aEvent->type()) {
 		case QEvent::FontChange:
 		case QEvent::ApplicationFontChange:
-			schedule_geometry_rebuild(measured_geometry_change::font);
+			schedule_geometry_rebuild(
+				measured_geometry_change::font,
+				diff_geometry_rebuild_trigger::font_event);
 			break;
 		case QEvent::PaletteChange:
 		case QEvent::ApplicationPaletteChange:
@@ -840,12 +844,24 @@ namespace bpr::qt {
 			break;
 		case QEvent::StyleChange:
 			update_selection_paint();
-			schedule_geometry_rebuild(measured_geometry_change::viewport_or_divider);
+			schedule_geometry_rebuild(
+				measured_geometry_change::viewport_or_divider,
+				diff_geometry_rebuild_trigger::style_event);
 			break;
 		case QEvent::Show:
+			schedule_geometry_rebuild(
+				measured_geometry_change::screen,
+				diff_geometry_rebuild_trigger::show_event);
+			break;
 		case QEvent::DevicePixelRatioChange:
+			schedule_geometry_rebuild(
+				measured_geometry_change::device_pixel_ratio,
+				diff_geometry_rebuild_trigger::device_pixel_ratio_event);
+			break;
 		case QEvent::ScreenChangeInternal:
-			schedule_geometry_rebuild(measured_geometry_change::screen);
+			schedule_geometry_rebuild(
+				measured_geometry_change::screen,
+				diff_geometry_rebuild_trigger::screen_change_event);
 			break;
 		default:
 			if (aEvent->type() == code_typography_event::registered_type()) {
@@ -875,7 +891,9 @@ namespace bpr::qt {
 			return;
 		}
 
-		schedule_geometry_rebuild(measured_geometry_change::tab_width);
+		schedule_geometry_rebuild(
+			measured_geometry_change::tab_width,
+			diff_geometry_rebuild_trigger::tab_width);
 	}
 
 	auto diff_workbench::eventFilter(QObject* const aWatched, QEvent* const aEvent)
@@ -885,7 +903,8 @@ namespace bpr::qt {
 			|| aWatched == Right->viewport();
 		if (sourceViewport && aEvent->type() == QEvent::Resize) {
 			schedule_geometry_rebuild(
-				measured_geometry_change::viewport_or_divider);
+				measured_geometry_change::viewport_or_divider,
+				diff_geometry_rebuild_trigger::pane_viewport_resize);
 		}
 		if (
 			CurrentResult && aEvent->type() == QEvent::MouseButtonPress
@@ -914,16 +933,22 @@ namespace bpr::qt {
 		// anything the axis knows about.
 		declare_link_map_band();
 		schedule_geometry_rebuild(
-			measured_geometry_change::viewport_or_divider);
+			measured_geometry_change::viewport_or_divider,
+			diff_geometry_rebuild_trigger::workbench_resize);
 	}
 
 	void diff_workbench::schedule_geometry_rebuild(
-		const measured_geometry_change aChange)
+		const measured_geometry_change      aChange,
+		const diff_geometry_rebuild_trigger aTrigger)
 	{
+		if (!CurrentResult) {
+			return;
+		}
 		if (aChange != measured_geometry_change::none) {
 			AxisCache.invalidate(aChange);
 		}
-		if (GeometryScheduled || !CurrentResult) {
+		PendingGeometryTriggers = PendingGeometryTriggers | aTrigger;
+		if (GeometryScheduled) {
 			return;
 		}
 		GeometryScheduled = true;
@@ -939,8 +964,12 @@ namespace bpr::qt {
 	void diff_workbench::rebuild_geometry()
 	{
 		if (!CurrentResult) {
+			PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
 			return;
 		}
+		const auto changes      = AxisCache.pending_changes();
+		const auto triggers     = PendingGeometryTriggers;
+		PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
 		Statistics.PaneMeasurements += 2U;
 		const auto left = measure_plain_text_pane(
 			*Left, CurrentResult->Alignment.LeftLineCount);
@@ -963,6 +992,15 @@ namespace bpr::qt {
 		LinkMap->set_geometry(axis, CurrentResult->Alignment.Moves);
 		Controller->set_axis(axis);
 		++Statistics.GeometryRebuilds;
+		if (Statistics.GeometryRebuildHistorySize
+			< Statistics.GeometryRebuildHistory.size()) {
+			Statistics.GeometryRebuildHistory[Statistics.GeometryRebuildHistorySize++] = {
+				.Changes  = changes,
+				.Triggers = triggers,
+			};
+		} else {
+			Statistics.GeometryRebuildHistoryOverflow = true;
+		}
 		synchronize_geometry_selection(revealSelection);
 	}
 
@@ -1634,6 +1672,7 @@ namespace bpr::qt {
 		set_line_selection(*Left, std::nullopt);
 		set_line_selection(*Right, std::nullopt);
 		AxisCache.invalidate(measured_geometry_change::file_or_epoch);
+		PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
 		update_status(std::move(aStatus));
 		update_action_state();
 	}

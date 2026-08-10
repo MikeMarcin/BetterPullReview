@@ -30,6 +30,52 @@ class QSplitter;
 class QToolButton;
 
 namespace bpr::qt {
+	/// \brief Identifies the Qt-facing source that requested a geometry rebuild.
+	enum class diff_geometry_rebuild_trigger : std::uint32_t {
+		none                     = 0U,
+		accepted_diff            = 1U << 0U,
+		font_event               = 1U << 1U,
+		style_event              = 1U << 2U,
+		show_event               = 1U << 3U,
+		device_pixel_ratio_event = 1U << 4U,
+		screen_change_event      = 1U << 5U,
+		tab_width                = 1U << 6U,
+		pane_viewport_resize     = 1U << 7U,
+		workbench_resize         = 1U << 8U,
+	};
+
+	[[nodiscard]] constexpr auto operator|(
+		const diff_geometry_rebuild_trigger aLeft,
+		const diff_geometry_rebuild_trigger aRight) noexcept
+		-> diff_geometry_rebuild_trigger
+	{
+		return static_cast<diff_geometry_rebuild_trigger>(
+			static_cast<std::uint32_t>(aLeft)
+			| static_cast<std::uint32_t>(aRight));
+	}
+
+	[[nodiscard]] constexpr auto operator&(
+		const diff_geometry_rebuild_trigger aLeft,
+		const diff_geometry_rebuild_trigger aRight) noexcept
+		-> diff_geometry_rebuild_trigger
+	{
+		return static_cast<diff_geometry_rebuild_trigger>(
+			static_cast<std::uint32_t>(aLeft)
+			& static_cast<std::uint32_t>(aRight));
+	}
+
+	/// \brief One successful rebuild's coalesced semantic and Qt causes.
+	struct diff_geometry_rebuild_cause
+	{
+		measured_geometry_change      Changes = measured_geometry_change::none;
+		diff_geometry_rebuild_trigger Triggers
+			= diff_geometry_rebuild_trigger::none;
+
+		auto operator<=>(const diff_geometry_rebuild_cause&) const = default;
+	};
+
+	inline constexpr std::size_t diff_geometry_rebuild_history_capacity = 32U;
+
 	/// \brief Records directly observable composed-workbench activity.
 	struct diff_workbench_statistics
 	{
@@ -60,6 +106,12 @@ namespace bpr::qt {
 		std::uint64_t GroupBoundariesPainted   = 0U;
 		std::uint64_t MovedBandsPainted        = 0U;
 		std::size_t   SemanticIndexEntries     = 0U;
+		std::array<
+			diff_geometry_rebuild_cause,
+			diff_geometry_rebuild_history_capacity>
+					GeometryRebuildHistory{ };
+		std::size_t GeometryRebuildHistorySize     = 0U;
+		bool        GeometryRebuildHistoryOverflow = false;
 
 		auto operator<=>(const diff_workbench_statistics&) const = default;
 	};
@@ -188,7 +240,9 @@ namespace bpr::qt {
 			core::line_span                   aPaintable);
 		/// \brief Tells the link map where the pane viewports actually are.
 		void declare_link_map_band();
-		void schedule_geometry_rebuild(measured_geometry_change aChange);
+		void schedule_geometry_rebuild(
+			measured_geometry_change      aChange,
+			diff_geometry_rebuild_trigger aTrigger);
 		void rebuild_geometry();
 		void apply_frame(const comparison_scroll_frame& aFrame);
 		void select_line(core::diff_side aSide, std::uint32_t aLine);
@@ -233,9 +287,11 @@ namespace bpr::qt {
 		QString                                         LastAnnouncement;
 		/// The last published tab stop. Absent until the first publication, so
 		/// adopting the initial typography is not mistaken for a change.
-		std::optional<qreal> AppliedTabStopDistance;
-		bool                 GeometryScheduled = false;
-		bool                 ApplyingFrame     = false;
+		std::optional<qreal>          AppliedTabStopDistance;
+		diff_geometry_rebuild_trigger PendingGeometryTriggers
+			= diff_geometry_rebuild_trigger::none;
+		bool GeometryScheduled = false;
+		bool ApplyingFrame     = false;
 	};
 } // namespace bpr::qt
 

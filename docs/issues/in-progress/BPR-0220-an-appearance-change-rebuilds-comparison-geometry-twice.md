@@ -120,9 +120,44 @@ Both are testable in one run, and it is a run somebody is about to do anyway.
 **Fold this into [[BPR-0114]]'s foreground run.** The owner's probe is the only
 configuration that reaches the code path, and it already reports the delta. Re-
 instrumenting `schedule_geometry_rebuild` for that run — recording the cause
-mask per rebuild — answers this card from the same sitting. This card stays in
-`ready/` rather than moving to `done/`: the product question is not answered,
-only narrowed from "why twice" to "which of two named candidates".
+mask per rebuild — answers this card from the same sitting. This card remains
+open rather than moving to `done/`: the product question is not answered, only
+narrowed from "why twice" to "which of two named candidates".
 
 The `== 1U` expectation at `main.cpp:728-729` and `:2339` is unchanged, and must
 stay unchanged until that measurement exists.
+
+## Attribution implemented, foreground measurement pending
+
+The native probe now retains a bounded record for every successful comparison
+geometry rebuild. Each record carries both the coalesced measured-axis change
+mask and the exact Qt-facing trigger mask, so two
+`viewport_or_divider` rebuilds no longer look identical when one came from a
+style event and the other from a resulting pane resize.
+
+`NATIVE_APPEARANCE_DIFF_GEOMETRY_REBUILD_CAUSES` reports records as
+`change-mask/trigger-mask` in rebuild order. Trigger bits are:
+
+| bit | trigger |
+|---:|---|
+| 1 | accepted diff |
+| 2 | font event |
+| 4 | style event |
+| 8 | show event |
+| 16 | device-pixel-ratio event |
+| 32 | screen-change event |
+| 64 | tab-width adoption |
+| 128 | pane viewport resize |
+| 256 | workbench resize |
+
+`NATIVE_APPEARANCE_DIFF_GEOMETRY_ATTRIBUTION_OK` requires an untruncated,
+one-record-per-counter-increment slice since the native probe's settled Light
+baseline. The history is fixed at 32 records and fails the attribution marker
+closed on overflow. The focused Qt contract proves palette changes add no
+record, divider resizes include the pane-resize trigger, and style invalidation
+includes the style trigger. The offscreen native contract proves the new
+markers remain complete on the configuration-refusal path.
+
+The foreground Light → Dark run is still required before choosing a product
+fix or changing either exact `== 1U` expectation. This instrumentation answers
+the card's measurement question; it does not predetermine the result.

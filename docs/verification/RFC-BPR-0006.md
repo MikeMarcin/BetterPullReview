@@ -20,7 +20,9 @@ selection path, and BPR-0233 now exercises recorded UIforETW file rows through
 that path with exact commits, blobs, semantic intraline ranges, role paint,
 four-profile captures, and a cut-wire negative. Its attended verdict remains
 open. BPR-0114 and BPR-0220 retain the frontmost native appearance run and its
-unexplained two-rebuild result.
+unexplained two-rebuild result. BPR-0220 now records the coalesced measured-axis
+mask and exact Qt trigger mask for every successful rebuild; the foreground
+Light → Dark run that supplies those records remains attended.
 
 Read the Composition and Deferred gates sections before the claim matrix. A
 `Verified` row proves only the direct surface it names.
