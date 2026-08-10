@@ -2,6 +2,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
 #include <QLabel>
 
 #include <array>
@@ -241,6 +242,45 @@ namespace {
 
 		delete card;
 	}
+
+	void test_history_and_reclassification_remain_projection_only()
+	{
+		auto       intents = log{ };
+		auto*      card    = card_for(intents);
+		auto       record  = defect(core::defect_state::open);
+		const auto history = core::defect_history{
+			.Defect         = record,
+			.OriginalAnchor = record.Anchor,
+			.Availability   = core::defect_anchor_availability::outdated,
+		};
+		card->present(history);
+
+		expect(
+			card->context_label()->text().contains(QStringLiteral("unavailable"))
+				&& card->context_label()->text().contains(
+					QStringLiteral("original semantic anchor")),
+			"lost shared context remains visible with the original anchor retained");
+		card->severity_selector()->setCurrentIndex(
+			card->severity_selector()->findData(
+				static_cast<int>(core::defect_severity::critical)));
+		card->category_selector()->setCurrentIndex(
+			card->category_selector()->findData(
+				static_cast<int>(core::defect_category::security)));
+		const auto before = card->shown_defect();
+		card->reclassify_action()->trigger();
+
+		expect(
+			intents.size() == 1U
+				&& intents.front().Kind == core::defect_command_kind::reclassify
+				&& intents.front().Severity == core::defect_severity::critical
+				&& intents.front().Category == core::defect_category::security,
+			"local selectors emit one exact semantic reclassification command");
+		expect(
+			card->shown_defect() == before,
+			"reclassification waits for an accepted host projection");
+
+		delete card;
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -254,6 +294,7 @@ auto main(int argc, char** argv) -> int
 	test_every_state_reads_without_colour();
 	test_the_classification_is_labelled_local();
 	test_actions_are_distinctly_named();
+	test_history_and_reclassification_remain_projection_only();
 
 	std::cout << "defect-card-tests:pass\n";
 	return EXIT_SUCCESS;

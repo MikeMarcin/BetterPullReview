@@ -30,10 +30,10 @@ namespace bpr::application {
 	} // namespace
 
 	auto correlate(
-		const std::span<const core::defect_record>          aDefects,
-		const std::span<const defect_thread_link>           aLinks,
-		const std::span<const defect_thread_observation>    aThreads,
-		const std::span<const core::file_comparison_digest> aChangedAnchors)
+		const std::span<const core::defect_record>       aDefects,
+		const std::span<const defect_thread_link>        aLinks,
+		const std::span<const defect_thread_observation> aThreads,
+		const std::span<const core::source_line_ref>     aChangedAnchors)
 		-> defect_correlation_result
 	{
 		auto threadFor = std::unordered_map<std::uint64_t, std::string>{ };
@@ -55,9 +55,7 @@ namespace bpr::application {
 
 			// Code moving beneath a defect is the weakest of the three: nobody
 			// said anything, something merely changed nearby.
-			const auto moved = std::ranges::find(
-								   aChangedAnchors,
-								   defect.Anchor.Comparison)
+			const auto moved = std::ranges::find(aChangedAnchors, defect.Anchor)
 				!= aChangedAnchors.end();
 			if (moved) {
 				raise(

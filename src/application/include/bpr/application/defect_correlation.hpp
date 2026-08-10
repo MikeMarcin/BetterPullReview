@@ -54,15 +54,16 @@ namespace bpr::application {
 	/// which is the property the whole RFC turns on and which the tests assert
 	/// exhaustively rather than by example.
 	///
-	/// \param aChangedAnchors Comparison digests whose material moved in the
-	/// advanced epoch. A defect anchored to one of them has had code change
-	/// beneath it — a suggestion that it may have been addressed, and nothing
-	/// more.
+	/// \param aChangedAnchors Exact semantic source lines whose material moved.
+	/// A defect anchored to one of them has had code change beneath it — a
+	/// suggestion that it may have been addressed, and nothing more. A shared
+	/// comparison digest alone is deliberately insufficient because two defects
+	/// on different lines must not inherit one another's evidence.
 	[[nodiscard]] auto correlate(
-		std::span<const core::defect_record>          aDefects,
-		std::span<const defect_thread_link>           aLinks,
-		std::span<const defect_thread_observation>    aThreads,
-		std::span<const core::file_comparison_digest> aChangedAnchors)
+		std::span<const core::defect_record>       aDefects,
+		std::span<const defect_thread_link>        aLinks,
+		std::span<const defect_thread_observation> aThreads,
+		std::span<const core::source_line_ref>     aChangedAnchors)
 		-> defect_correlation_result;
 } // namespace bpr::application
 

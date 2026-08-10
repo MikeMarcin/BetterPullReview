@@ -164,6 +164,45 @@ Actions are named for what they do to *this* defect — "Verify this fix",
 "Reopen this defect" — because a `QAction` carries no accessible name of its
 own and assistive technology reads its text.
 
+## Shipped composition
+
+The workbench now composes this policy over the accepted pull-request snapshot.
+Selecting an ordinary review-thread row and choosing **Classify selected
+conversation as defect** binds the exact thread identity, selected file, and
+comparison digest to a private `durable_defect_record`. The application rejects
+file-level threads rather than inventing a line. It derives two independent
+positive 63-bit values from SHA-256 of the canonical thread identity, persists
+both in the existing conversation/defect identity columns, and requires both
+on every correlation. This collision-resistant full identity prevents a
+single lossy integer from rebinding a durable defect after its original thread
+disappears.
+
+Author replies and provider-reported outdated state enter the pure correlator
+as evidence. Outdated state names the defect's exact semantic source-line
+anchor; sharing a comparison digest is insufficient. Merely browsing another
+retained epoch produces no evidence. An accepted correlation is persisted
+before the card moves, and no evidence path has a `verified` outcome. Verify,
+reopen, withdraw, accept-as-is, and local reclassification leave the visible
+card as semantic commands; the core decides them and the host persists an
+accepted change before re-projecting it.
+
+The conversations drawer owns a stable-ID ordered defect queue with an exact
+position/count label and previous/next actions. Lost shared context remains
+visible on the card while the immutable original semantic anchor stays in the
+ledger. Restart loads the same two-level authority—ordinary GitHub thread as
+shared state, private classification/history as local state—with no repair or
+write when the durable rows are already current.
+
+The registered `application_defect_composition_contract` runs against both the
+GitHub.com and GHES 3.18 profiles. It drives the shipped file row, line-thread
+and file-thread conversation rows, epoch selectors, defect actions, and the
+separate review Publish action. Its seed/reopen trace proves that file-level
+classification is refused, retained-epoch browsing does not create evidence,
+local classification causes zero fixture mutations, and the durable
+multi-defect projection returns unchanged after restart. RFC-BPR-0008's
+separate round-trip contract remains the authority for the eventual shared
+publication.
+
 ## What is not proven here
 
 RFC-BPR-0009 requires that a collaborator who has never used BetterPullReview

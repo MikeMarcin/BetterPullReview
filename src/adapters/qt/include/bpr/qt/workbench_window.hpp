@@ -6,6 +6,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -51,8 +52,10 @@ namespace bpr::qt {
 	using workbench_change_dispatch = std::function<void(core::navigate_diff_change_intent)>;
 
 	/// \brief Carries one already-decided receipt command out of presentation.
-	using workbench_receipt_dispatch      = std::function<void(core::file_receipt_command)>;
-	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
+	using workbench_receipt_dispatch               = std::function<void(core::file_receipt_command)>;
+	using workbench_review_draft_dispatch          = std::function<void(core::review_draft_command)>;
+	using workbench_defect_dispatch                = std::function<void(core::defect_command)>;
+	using workbench_defect_classification_dispatch = std::function<void(std::string)>;
 
 	enum class workbench_toolbar_mode : std::uint8_t {
 		expanded,
@@ -62,20 +65,24 @@ namespace bpr::qt {
 	/// \brief Records directly observable workbench-window presentation activity.
 	struct workbench_window_statistics
 	{
-		std::uint64_t Publications       = 0U;
-		std::uint64_t Failures           = 0U;
-		std::uint64_t CommandUpdates     = 0U;
-		std::uint64_t ToolbarModeChanges = 0U;
-		std::uint64_t Announcements      = 0U;
-		std::uint64_t DrawerUpdates      = 0U;
-		std::uint64_t FileRowUpdates     = 0U;
-		std::uint64_t FileSelections     = 0U;
-		std::uint64_t LayoutUpdates      = 0U;
-		std::uint64_t EpochUpdates       = 0U;
-		std::uint64_t FocusOrderUpdates  = 0U;
-		std::uint64_t ReceiptUpdates     = 0U;
-		std::uint64_t ReceiptFailures    = 0U;
-		std::uint64_t ReceiptGestures    = 0U;
+		std::uint64_t Publications          = 0U;
+		std::uint64_t Failures              = 0U;
+		std::uint64_t CommandUpdates        = 0U;
+		std::uint64_t ToolbarModeChanges    = 0U;
+		std::uint64_t Announcements         = 0U;
+		std::uint64_t DrawerUpdates         = 0U;
+		std::uint64_t FileRowUpdates        = 0U;
+		std::uint64_t FileSelections        = 0U;
+		std::uint64_t LayoutUpdates         = 0U;
+		std::uint64_t EpochUpdates          = 0U;
+		std::uint64_t FocusOrderUpdates     = 0U;
+		std::uint64_t ReceiptUpdates        = 0U;
+		std::uint64_t ReceiptFailures       = 0U;
+		std::uint64_t ReceiptGestures       = 0U;
+		std::uint64_t DefectUpdates         = 0U;
+		std::uint64_t DefectIntents         = 0U;
+		std::uint64_t DefectClassifications = 0U;
+		std::uint64_t DefectNavigation      = 0U;
 		/// \brief Full GitHub presentation resets, which must stay at zero.
 		///
 		/// \details Carried over from `github_window` because the render probes
@@ -174,6 +181,12 @@ namespace bpr::qt {
 		void set_receipt_dispatch(workbench_receipt_dispatch aReceiptDispatch);
 		void set_review_draft_dispatch(
 			workbench_review_draft_dispatch aDraftDispatch);
+		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
+		void set_defect_classification_dispatch(
+			workbench_defect_classification_dispatch aClassificationDispatch);
+		/// \brief Adopts the complete bounded local defect queue.
+		void present_defects(std::vector<core::defect_history> aDefects);
+		void clear_defects();
 
 		[[nodiscard]] auto primary_toolbar() const noexcept -> QToolBar*;
 		[[nodiscard]] auto previous_file_action() const noexcept -> QAction*;
@@ -215,6 +228,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_panel() const noexcept
 			-> github_conversation_panel*;
 		[[nodiscard]] auto review_editor() const noexcept -> review_draft_editor*;
+		[[nodiscard]] auto defect_card() const noexcept -> defect_card_view*;
+		[[nodiscard]] auto classify_defect_action() const noexcept -> QAction*;
+		[[nodiscard]] auto previous_defect_action() const noexcept -> QAction*;
+		[[nodiscard]] auto next_defect_action() const noexcept -> QAction*;
+		[[nodiscard]] auto defect_count_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto shown_defect_index() const noexcept -> std::optional<std::size_t>;
+		[[nodiscard]] auto defect_count() const noexcept -> std::size_t;
 
 		[[nodiscard]] auto session_panel() const noexcept -> github_session_panel*;
 		[[nodiscard]] auto pull_request_panel() const noexcept
@@ -363,16 +383,21 @@ namespace bpr::qt {
 		void dispatch_file_selection(const QModelIndex& aIndex);
 		void dispatch_receipt(std::size_t aIndex);
 		void update_receipt_actions();
+		void classify_selected_conversation();
+		void navigate_defect(int aDirection);
+		void update_defect_surface();
 
 		[[nodiscard]] auto command(core::workbench_command_id aId) const
 			-> std::optional<core::workbench_command_projection>;
 		[[nodiscard]] auto central_sizes() const -> QList<int>;
 
-		workbench_intent_dispatch       Dispatch;
-		workbench_change_dispatch       ChangeDispatch;
-		workbench_drawer_width_dispatch WidthDispatch;
-		workbench_receipt_dispatch      ReceiptDispatch;
-		workbench_review_draft_dispatch ReviewDraftDispatch;
+		workbench_intent_dispatch                Dispatch;
+		workbench_change_dispatch                ChangeDispatch;
+		workbench_drawer_width_dispatch          WidthDispatch;
+		workbench_receipt_dispatch               ReceiptDispatch;
+		workbench_review_draft_dispatch          ReviewDraftDispatch;
+		workbench_defect_dispatch                DefectDispatch;
+		workbench_defect_classification_dispatch DefectClassificationDispatch;
 
 		QToolBar*       PrimaryToolbar    = nullptr;
 		QToolBar*       DrawerToolbar     = nullptr;
@@ -390,8 +415,15 @@ namespace bpr::qt {
 		std::array<navigation_entry, 4>                            Navigation{ };
 		std::array<QAction*, 4>                                    ReceiptActions{ };
 		std::array<drawer_entry, 2>                                Drawers{ };
-		github_conversation_panel*                                 ConversationPanel    = nullptr;
-		review_draft_editor*                                       ReviewEditor         = nullptr;
+		github_conversation_panel*                                 ConversationPanel = nullptr;
+		review_draft_editor*                                       ReviewEditor      = nullptr;
+		defect_card_view*                                          DefectCard        = nullptr;
+		QLabel*                                                    DefectCountLabel  = nullptr;
+		QAction*                                                   ClassifyDefect    = nullptr;
+		QAction*                                                   PreviousDefect    = nullptr;
+		QAction*                                                   NextDefect        = nullptr;
+		std::vector<core::defect_history>                          Defects;
+		std::optional<std::size_t>                                 ShownDefectIndex;
 		QScrollArea*                                               HeaderScroll         = nullptr;
 		github_session_panel*                                      SessionPanel         = nullptr;
 		github_pull_request_panel*                                 PullRequestPanel     = nullptr;

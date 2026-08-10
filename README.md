@@ -41,9 +41,12 @@ Theme customization/import is also composed. The shipped draft editor now
 reaches the core review policy and fixture-only mutation coordinator through a
 real Publish action; stale targets are refused, lost results are retried
 idempotently, server comments are re-read, and capability absence is explicit.
-No live mutation provider is composed. Queue filters/sorting, notifications,
-defect cards, and complete agent context/process lifecycle still have component
-or reachability work tracked by BPR-0230 through BPR-0240.
+No live mutation provider is composed. Ordinary review threads can now be
+classified into private durable defect cards: evidence remains distinct from
+explicit verification, the stable multi-defect queue survives restart, and a
+separate Publish action is still the only shared path. Queue filters/sorting,
+notifications, and complete agent context/process lifecycle still have
+component or reachability work tracked by BPR-0231 through BPR-0240.
 
 GitHub CLI choices remain visible but deliberately unavailable: their trust
 contract is outside milestone-one product scope, so selecting one returns the

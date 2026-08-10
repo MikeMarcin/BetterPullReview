@@ -10,6 +10,7 @@
 #include <optional>
 
 class QAction;
+class QComboBox;
 class QLabel;
 
 namespace bpr::qt {
@@ -52,9 +53,15 @@ namespace bpr::qt {
 
 		/// \brief Adopts one accepted defect projection.
 		void present(const core::defect_record& aDefect);
+		/// \brief Adopts one defect together with retained anchor availability.
+		void present(const core::defect_history& aHistory);
 
 		[[nodiscard]] auto state_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto classification_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto context_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto severity_selector() const noexcept -> QComboBox*;
+		[[nodiscard]] auto category_selector() const noexcept -> QComboBox*;
+		[[nodiscard]] auto reclassify_action() const noexcept -> QAction*;
 		[[nodiscard]] auto verify_action() const noexcept -> QAction*;
 		[[nodiscard]] auto reopen_action() const noexcept -> QAction*;
 		[[nodiscard]] auto withdraw_action() const noexcept -> QAction*;
@@ -66,19 +73,25 @@ namespace bpr::qt {
 
 	private:
 		void emit_command(core::defect_command_kind aKind);
+		void emit_reclassification();
 		void refresh();
 
 		dispatch Dispatch;
 
-		QLabel*  StateLabel          = nullptr;
-		QLabel*  ClassificationLabel = nullptr;
-		QAction* Verify              = nullptr;
-		QAction* Reopen              = nullptr;
-		QAction* Withdraw            = nullptr;
-		QAction* AcceptAsIs          = nullptr;
+		QLabel*    StateLabel          = nullptr;
+		QLabel*    ClassificationLabel = nullptr;
+		QLabel*    ContextLabel        = nullptr;
+		QComboBox* Severity            = nullptr;
+		QComboBox* Category            = nullptr;
+		QAction*   Reclassify          = nullptr;
+		QAction*   Verify              = nullptr;
+		QAction*   Reopen              = nullptr;
+		QAction*   Withdraw            = nullptr;
+		QAction*   AcceptAsIs          = nullptr;
 
-		std::optional<core::defect_record> ShownDefect;
-		defect_card_statistics             Statistics;
+		std::optional<core::defect_record>  ShownDefect;
+		std::optional<core::defect_history> ShownHistory;
+		defect_card_statistics              Statistics;
 	};
 } // namespace bpr::qt
 

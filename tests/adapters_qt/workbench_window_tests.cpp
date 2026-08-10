@@ -3,6 +3,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
+#include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAbstractItemModel>
@@ -12,6 +13,7 @@
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QKeySequence>
+#include <QLabel>
 #include <QLineEdit>
 #include <QList>
 #include <QListView>
@@ -146,6 +148,35 @@ namespace {
 		bytes.front() = aSeed;
 		bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
 		return core::file_material_id{ bytes };
+	}
+
+	[[nodiscard]] constexpr auto comparison_digest(const std::uint8_t aSeed)
+		-> core::file_comparison_digest
+	{
+		auto bytes    = std::array<std::uint8_t, 32U>{ };
+		bytes.front() = aSeed;
+		bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0x3CU);
+		return core::file_comparison_digest{ bytes };
+	}
+
+	[[nodiscard]] constexpr auto defect_history(
+		const std::uint64_t                    aId,
+		const core::defect_anchor_availability aAvailability) -> core::defect_history
+	{
+		const auto anchor = core::source_line_ref{
+			.Comparison = comparison_digest(static_cast<std::uint8_t>(aId)),
+			.Side       = core::diff_side::right,
+			.Line       = static_cast<std::uint32_t>(aId + 10U),
+		};
+		return {
+			.Defect = core::defect_record{
+				.Id     = core::defect_id{ aId },
+				.Anchor = anchor,
+				.State  = core::defect_state::needs_verification,
+			},
+			.OriginalAnchor = anchor,
+			.Availability   = aAvailability,
+		};
 	}
 
 	[[nodiscard]] auto drawer_states(
@@ -2722,6 +2753,86 @@ namespace {
 			   "its width");
 		restarted.hide();
 	}
+
+	void test_defect_queue_navigation_and_semantic_dispatch()
+	{
+		qt::workbench_window window;
+		auto                 commands        = std::vector<core::defect_command>{ };
+		auto                 classifications = std::vector<std::string>{ };
+		window.set_defect_dispatch(
+			[&commands](core::defect_command aCommand) {
+				commands.push_back(std::move(aCommand));
+			});
+		window.set_defect_classification_dispatch(
+			[&classifications](std::string aIdentity) {
+				classifications.push_back(std::move(aIdentity));
+			});
+		window.conversation_model()->apply({
+			application::github_conversation_projection{
+				.Id   = "review-thread:thread-2",
+				.Kind = application::github_conversation_kind::review_thread,
+				.Path = "review.cpp",
+				.Line = 22U,
+			},
+			application::github_conversation_projection{
+				.Id   = "review-thread:file-thread",
+				.Kind = application::github_conversation_kind::review_thread,
+				.Path = "review.cpp",
+			},
+			application::github_conversation_projection{
+				.Id   = "issue-comment:comment-1",
+				.Kind = application::github_conversation_kind::issue_comment,
+			},
+		});
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id(
+				"review-thread:thread-2"));
+		window.classify_defect_action()->trigger();
+		expect(
+			classifications
+				== std::vector<std::string>{ "review-thread:thread-2" },
+			"classification emits the exact selected conversation identity");
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id(
+				"review-thread:file-thread"));
+		expect(!window.classify_defect_action()->isEnabled(),
+			   "a file-level thread cannot fabricate a source-line defect anchor");
+		window.classify_defect_action()->trigger();
+		window.conversation_view()->setCurrentIndex(
+			window.conversation_model()->index_for_id(
+				"issue-comment:comment-1"));
+		expect(!window.classify_defect_action()->isEnabled(),
+			   "a non-thread conversation cannot enter local defect classification");
+		window.classify_defect_action()->trigger();
+		expect(classifications.size() == 1U,
+			   "unsupported conversation kinds emit no classification intent");
+
+		window.present_defects({
+			defect_history(2U, core::defect_anchor_availability::outdated),
+			defect_history(1U, core::defect_anchor_availability::available),
+		});
+		expect(
+			window.defect_count() == 2U
+				&& window.defect_count_label()->text().contains(QStringLiteral("1/2"))
+				&& window.defect_card()->shown_defect()->Id == core::defect_id{ 1U },
+			"the queue is stable-ID ordered and exposes an exact count");
+		window.next_defect_action()->trigger();
+		expect(
+			window.defect_card()->shown_defect()->Id == core::defect_id{ 2U }
+				&& window.defect_card()->context_label()->text().contains(
+					QStringLiteral("unavailable")),
+			"navigation reaches the next retained history without losing context status");
+		window.defect_card()->verify_action()->trigger();
+		expect(
+			commands.size() == 1U
+				&& commands.front().Id == core::defect_id{ 2U }
+				&& commands.front().Kind == core::defect_command_kind::verify,
+			"the visible card forwards one explicit lifecycle intent");
+		expect(
+			window.defect_card()->shown_defect()->State
+				== core::defect_state::needs_verification,
+			"the window does not verify before a new accepted projection");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2746,6 +2857,7 @@ auto main(int argc, char** argv) -> int
 	test_focus_order_is_declared_named_and_walkable();
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();
+	test_defect_queue_navigation_and_semantic_dispatch();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;

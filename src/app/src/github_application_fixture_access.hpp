@@ -137,6 +137,33 @@ namespace bpr::app::detail {
 		failed,
 	};
 
+	enum class defect_composition_probe {
+		seed,
+		reopen,
+	};
+
+	enum class defect_composition_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct defect_composition_probe_evidence
+	{
+		bool ExactThreads          = false;
+		bool LocalClassification   = false;
+		bool CorrelatedEvidence    = false;
+		bool ExplicitVerification  = false;
+		bool DurableHistory        = false;
+		bool MultiDefectNavigation = false;
+		bool SharedActionSeparate  = false;
+		bool RestartRestored       = false;
+		bool ZeroReopenWrites      = false;
+		bool VisibleProjection     = false;
+
+		auto operator<=>(const defect_composition_probe_evidence&) const = default;
+	};
+
 	struct review_round_trip_composition_probe_evidence
 	{
 		bool ExactDesignatedTarget = false;
@@ -300,6 +327,12 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto review_round_trip_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> review_round_trip_composition_probe_evidence;
+		[[nodiscard]] static auto exercise_defect_composition(
+			github_application&      aApplication,
+			defect_composition_probe aCourse) -> defect_composition_probe_result;
+		[[nodiscard]] static auto defect_composition_evidence(
+			const github_application& aApplication) noexcept
+			-> defect_composition_probe_evidence;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

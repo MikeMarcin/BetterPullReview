@@ -357,7 +357,7 @@ namespace {
 			.Number                   = 17,
 			.ExpectedTitle            = "Keep review snapshots deterministic",
 			.ExpectedAccountText      = "Octo Reviewer (@octo-reviewer)",
-			.ExpectedConversationRows = 3,
+			.ExpectedConversationRows = 5,
 			.ExpectedThreadId         = "review-thread:PRRT_fixture_1",
 		};
 	}
@@ -495,7 +495,13 @@ namespace {
 		bool ReviewRoundTripCompositionProbe  = false;
 		bool ReviewRoundTripCompositionPassed = false;
 		bpr::app::detail::review_round_trip_composition_probe_evidence
-			 ReviewRoundTripCompositionEvidence;
+			ReviewRoundTripCompositionEvidence;
+		std::optional<bpr::app::detail::defect_composition_probe>
+			 DefectCompositionProbe;
+		bool DefectCompositionStarted = false;
+		bool DefectCompositionPassed  = false;
+		bpr::app::detail::defect_composition_probe_evidence
+			 DefectCompositionEvidence;
 		bool DiffProbe         = false;
 		bool DiffShutdownProbe = false;
 		// A stage that never becomes ready. Every real readiness condition in
@@ -2043,6 +2049,15 @@ namespace {
 					&& fixtureEvidence.CredentialRetrieved
 					&& fixtureEvidence.CredentialDeleted
 					&& !fixtureEvidence.SecretRetained
+				: aRun.DefectCompositionProbe.has_value()
+				? aRun.DefectCompositionPassed
+					&& fixtureEvidence.CapabilityProbeConsumed
+					&& fixtureEvidence.BootstrapTransportSelected
+					&& fixtureEvidence.AccountTransportSelected
+					&& fixtureEvidence.CredentialStored
+					&& fixtureEvidence.CredentialRetrieved
+					&& fixtureEvidence.CredentialDeleted
+					&& !fixtureEvidence.SecretRetained
 				: fixtureEvidence.RecordingConsumed
 					&& fixtureEvidence.CapabilityProbeConsumed
 					&& fixtureEvidence.BootstrapTransportSelected
@@ -2386,6 +2401,21 @@ namespace {
 				   << evidence.CapabilityFallback << evidence.ServerAuthority
 				   << evidence.TypedQtProjection << '\n';
 		}
+		if (aRun.DefectCompositionProbe.has_value()) {
+			const auto  name     = *aRun.DefectCompositionProbe
+					== bpr::app::detail::defect_composition_probe::seed
+				? QStringLiteral("SEED")
+				: QStringLiteral("REOPEN");
+			const auto& evidence = aRun.DefectCompositionEvidence;
+			stream << "DEFECT_COMPOSITION_" << name
+				   << (aRun.DefectCompositionPassed ? "_OK\n" : "_FAILED\n")
+				   << "DEFECT_COMPOSITION_EVIDENCE:" << evidence.ExactThreads
+				   << evidence.LocalClassification << evidence.CorrelatedEvidence
+				   << evidence.ExplicitVerification << evidence.DurableHistory
+				   << evidence.MultiDefectNavigation << evidence.SharedActionSeparate
+				   << evidence.RestartRestored << evidence.ZeroReopenWrites
+				   << evidence.VisibleProjection << '\n';
+		}
 #endif
 		if (aRun.RenderPath.has_value()) {
 			stream << (renderSaved ? "RENDER_OK\n" : "RENDER_FAILED\n");
@@ -2398,7 +2428,8 @@ namespace {
 		// reported Passed throughout because its `PASS_REGULAR_EXPRESSION "OK"`
 		// matched the `REVIEW_LEDGER_OK` literal a few lines below.
 		if (aRun.Fixture && !aRun.WorkbenchCompositionProbe
-			&& !aRun.ReviewRoundTripCompositionProbe) {
+			&& !aRun.ReviewRoundTripCompositionProbe
+			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
 			// public-path expectation matches its markers contiguously, so a
 			// line in the middle breaks a contract that has nothing to do with
@@ -2814,6 +2845,29 @@ namespace {
 					advance_workbench_composition_probe(aApplication, *aRun);
 					break;
 				}
+				if (aRun->DefectCompositionProbe.has_value()
+					&& aRun->DefectCompositionStarted
+					&& !aRun->DefectCompositionPassed) {
+					const auto result = bpr::app::detail::
+						github_application_fixture_access::exercise_defect_composition(
+							aApplication, *aRun->DefectCompositionProbe);
+					if (result
+						== bpr::app::detail::defect_composition_probe_result::pending) {
+						break;
+					}
+					aRun->DefectCompositionEvidence = bpr::app::detail::
+						github_application_fixture_access::defect_composition_evidence(
+							aApplication);
+					aRun->DefectCompositionPassed = result
+						== bpr::app::detail::defect_composition_probe_result::passed;
+					if (!aRun->DefectCompositionPassed) {
+						fail_automated_run(aApplication, *aRun);
+						break;
+					}
+					aRun->PresentationPassed = true;
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 				if (aRun->MaintenanceProbe
 					== automated_run::epoch_maintenance_probe::verify_deleted) {
 					if (begin_epoch_maintenance_probe(aApplication, *aRun)) {
@@ -2897,6 +2951,29 @@ namespace {
 						aRun->ReviewRoundTripCompositionPassed
 							= result == bpr::app::detail::review_round_trip_composition_probe_result::passed;
 						if (!aRun->ReviewRoundTripCompositionPassed) {
+							fail_automated_run(aApplication, *aRun);
+							break;
+						}
+						aRun->PresentationPassed = true;
+						transition_to_shutdown(aApplication, *aRun);
+						break;
+					}
+					if (aRun->DefectCompositionProbe.has_value()
+						&& !aRun->DefectCompositionPassed) {
+						aRun->DefectCompositionStarted = true;
+						const auto result              = bpr::app::detail::
+							github_application_fixture_access::exercise_defect_composition(
+								aApplication, *aRun->DefectCompositionProbe);
+						if (result
+							== bpr::app::detail::defect_composition_probe_result::pending) {
+							break;
+						}
+						aRun->DefectCompositionEvidence = bpr::app::detail::
+							github_application_fixture_access::defect_composition_evidence(
+								aApplication);
+						aRun->DefectCompositionPassed = result
+							== bpr::app::detail::defect_composition_probe_result::passed;
+						if (!aRun->DefectCompositionPassed) {
 							fail_automated_run(aApplication, *aRun);
 							break;
 						}
@@ -3859,6 +3936,18 @@ auto main(int argc, char** argv) -> int
 		}
 		const auto reviewRoundTripCompositionProbe = has_argument(
 			argc, argv, "--review-round-trip-composition-probe");
+		const auto defectCompositionProbeName = argument_value(
+			argc, argv, "--defect-composition-probe");
+		auto defectCompositionProbe
+			= std::optional<bpr::app::detail::defect_composition_probe>{ };
+		if (defectCompositionProbeName == "seed") {
+			defectCompositionProbe = bpr::app::detail::defect_composition_probe::seed;
+		} else if (defectCompositionProbeName == "reopen") {
+			defectCompositionProbe = bpr::app::detail::defect_composition_probe::reopen;
+		} else if (defectCompositionProbeName.has_value()) {
+			QTextStream{ stdout } << "DEFECT_COMPOSITION_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
 		fixtureOptions.LoseFirstReviewMutationResult
 			= reviewRoundTripCompositionProbe;
 		const auto appearanceGestureProbe = has_argument(
@@ -3947,6 +4036,7 @@ auto main(int argc, char** argv) -> int
 				|| appearanceGestureProbe
 				|| appearanceThemeCustomizationPath.has_value()
 				|| reviewRoundTripCompositionProbe
+				|| defectCompositionProbe.has_value()
 				|| automatedStallProbe
 				|| epochMaintenanceProbe || nativeAppearanceProbe
 				|| diffEvidenceDirectory.has_value())) {
@@ -3978,7 +4068,7 @@ auto main(int argc, char** argv) -> int
 				 || nativeAppearanceProbe || appearanceGestureProbe
 				 || appearanceThemeCustomizationPath.has_value()
 				 || epochMaintenanceProbe.has_value()
-				 || automatedStallProbe))
+				 || automatedStallProbe || defectCompositionProbe.has_value()))
 			|| (workbenchCompositionCutSelectionWire
 				&& !workbenchCompositionProbe)) {
 			QTextStream{ stdout }
@@ -4004,7 +4094,8 @@ auto main(int argc, char** argv) -> int
 				|| diffWorkbenchShutdownProbe || nativeAppearanceProbe
 				|| appearanceGestureProbe
 				|| appearanceThemeCustomizationPath.has_value()
-				|| epochMaintenanceProbe.has_value() || automatedStallProbe)) {
+				|| epochMaintenanceProbe.has_value() || automatedStallProbe
+				|| defectCompositionProbe.has_value())) {
 			QTextStream{ stdout }
 				<< "REVIEW_LEDGER_COMPOSITION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
@@ -4021,9 +4112,32 @@ auto main(int argc, char** argv) -> int
 				|| diffWorkbenchShutdownProbe || nativeAppearanceProbe
 				|| appearanceGestureProbe
 				|| appearanceThemeCustomizationPath.has_value()
-				|| epochMaintenanceProbe.has_value() || automatedStallProbe)) {
+				|| epochMaintenanceProbe.has_value() || automatedStallProbe
+				|| defectCompositionProbe.has_value())) {
 			QTextStream{ stdout }
 				<< "REVIEW_ROUND_TRIP_COMPOSITION_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (defectCompositionProbe.has_value()
+			&& (!selectedFixture.has_value()
+				|| (*selectedFixture
+						!= bpr::app::detail::github_public_path_fixture::github_com
+					&& *selectedFixture
+						!= bpr::app::detail::github_public_path_fixture::ghes_3_18)
+				|| !epochFixtureRoot.has_value()
+				|| (*defectCompositionProbe
+							== bpr::app::detail::defect_composition_probe::seed
+						? fixtureOptions.EpochPhase
+							!= bpr::app::detail::github_epoch_fixture_phase::seed
+						: fixtureOptions.EpochPhase
+							!= bpr::app::detail::github_epoch_fixture_phase::reuse)
+				|| reviewLedgerCompositionProbe.has_value()
+				|| reviewRoundTripCompositionProbe || workbenchCompositionProbe
+				|| diffWorkbenchProbe || diffWorkbenchShutdownProbe
+				|| nativeAppearanceProbe || appearanceGestureProbe
+				|| appearanceThemeCustomizationPath.has_value()
+				|| epochMaintenanceProbe.has_value() || automatedStallProbe)) {
+			QTextStream{ stdout } << "DEFECT_COMPOSITION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
 		if (
@@ -4112,6 +4226,7 @@ auto main(int argc, char** argv) -> int
 						.WorkbenchCompositionProbe       = workbenchCompositionProbe,
 						.ReviewLedgerCompositionProbe    = reviewLedgerCompositionProbe,
 						.ReviewRoundTripCompositionProbe = reviewRoundTripCompositionProbe,
+						.DefectCompositionProbe          = defectCompositionProbe,
 						.AppearanceGestureProbe          = appearanceGestureProbe,
 						.DiffProbe                       = diffWorkbenchProbe,
 						.ThemeCustomizationPath          = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,

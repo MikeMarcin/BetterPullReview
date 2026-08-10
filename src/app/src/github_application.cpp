@@ -2,6 +2,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
+#include "bpr/qt/github_conversation_model.hpp"
 
 #include "bpr/app/worker_executor.hpp"
 
@@ -27,6 +28,7 @@
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/appearance_application_host.hpp"
+#include "bpr/application/defect_correlation.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
@@ -38,6 +40,7 @@
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
+#include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
@@ -61,6 +64,7 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
+#include <QTreeView>
 
 #include <algorithm>
 #include <array>
@@ -69,6 +73,7 @@
 #include <deque>
 #include <filesystem>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -110,6 +115,40 @@ namespace bpr::app {
 #else
 			return std::filesystem::path{ aValue.toStdString() };
 #endif
+		}
+
+		struct local_defect_identity
+		{
+			std::uint64_t Conversation = 0U;
+			std::uint64_t Defect       = 0U;
+
+			auto operator<=>(const local_defect_identity&) const = default;
+		};
+
+		[[nodiscard]] auto durable_identity_half(
+			const std::array<std::uint8_t, 32>& aDigest,
+			const std::size_t                   aOffset) noexcept -> std::uint64_t
+		{
+			auto result = std::uint64_t{ 0U };
+			for (auto index = std::size_t{ 0U }; index < 8U; ++index) {
+				result = (result << 8U) | aDigest[aOffset + index];
+			}
+			result &= std::uint64_t{ 0x7fff'ffff'ffff'ffffULL };
+			return result == 0U ? 1U : result;
+		}
+
+		[[nodiscard]] auto defect_identity(
+			const std::string_view aIdentity) noexcept -> local_defect_identity
+		{
+			const auto bytes = std::span{
+				reinterpret_cast<const std::uint8_t*>(aIdentity.data()),
+				aIdentity.size(),
+			};
+			const auto digest = core::sha256(bytes);
+			return {
+				.Conversation = durable_identity_half(digest, 0U),
+				.Defect       = durable_identity_half(digest, 8U),
+			};
 		}
 
 		[[nodiscard]] auto native_application_data_root(
@@ -1451,6 +1490,14 @@ namespace bpr::app {
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(std::move(aCommand));
 				});
+			Window->set_defect_dispatch(
+				[this](core::defect_command aCommand) {
+					dispatch_defect(std::move(aCommand));
+				});
+			Window->set_defect_classification_dispatch(
+				[this](std::string aConversation) {
+					classify_defect(std::move(aConversation));
+				});
 
 			EpochHost = std::make_unique<application::epoch_application_host>(
 				core::epoch_state{
@@ -1726,6 +1773,243 @@ namespace bpr::app {
 			static_cast<void>(ReviewLedgerHost->submit(aCommand));
 		}
 
+		[[nodiscard]] static auto thread_identity(
+			const application::github_review_thread_record& aThread) -> std::string
+		{
+			return "review-thread:" + std::string{ aThread.Thread.value() };
+		}
+
+		[[nodiscard]] auto accepted_thread(const std::string_view aIdentity) const
+			-> const application::github_review_thread_record*
+		{
+			if (Host == nullptr || !Host->accepted_snapshot().has_value()) {
+				return nullptr;
+			}
+			const auto&                                     threads = Host->accepted_snapshot()->ReviewThreads;
+			const application::github_review_thread_record* result  = nullptr;
+			for (const auto& thread : threads) {
+				const auto identity = thread_identity(thread);
+				if (identity != aIdentity) {
+					continue;
+				}
+				if (result != nullptr) {
+					return nullptr;
+				}
+				result = &thread;
+			}
+			return result;
+		}
+
+		void present_defects()
+		{
+			if (Window == nullptr) {
+				return;
+			}
+			auto histories = std::vector<core::defect_history>{ };
+			histories.reserve(DurableDefects.size());
+			for (const auto& defect : DurableDefects) {
+				histories.push_back(defect.History);
+			}
+			Window->present_defects(std::move(histories));
+		}
+
+		void correlate_defects(
+			const std::span<const core::source_line_ref> aChangedAnchors = { })
+		{
+			if (ReviewLedgerHost == nullptr || Host == nullptr
+				|| !Host->accepted_snapshot().has_value()) {
+				return;
+			}
+			const auto& snapshot = *Host->accepted_snapshot();
+			auto        records  = std::vector<core::defect_record>{ };
+			auto        links    = std::vector<application::defect_thread_link>{ };
+			auto        observations
+				= std::vector<application::defect_thread_observation>{ };
+			records.reserve(DurableDefects.size());
+			links.reserve(DurableDefects.size());
+			observations.reserve(DurableDefects.size());
+			auto changedAnchors = std::vector<core::source_line_ref>{
+				aChangedAnchors.begin(), aChangedAnchors.end()
+			};
+			for (auto& durable : DurableDefects) {
+				const application::github_review_thread_record* found     = nullptr;
+				bool                                            collision = false;
+				for (const auto& thread : snapshot.ReviewThreads) {
+					const auto identity = defect_identity(thread_identity(thread));
+					if (identity.Conversation != durable.Conversation.value()
+						|| identity.Defect != durable.History.Defect.Id.value()) {
+						continue;
+					}
+					if (found != nullptr) {
+						collision = true;
+						break;
+					}
+					found = &thread;
+				}
+				if (collision) {
+					records.push_back(durable.History.Defect);
+					continue;
+				}
+				if (found == nullptr) {
+					const auto history = core::lose_anchor(
+						durable.History,
+						core::defect_anchor_availability::thread_deleted);
+					if (history != durable.History) {
+						auto changed    = durable;
+						changed.History = history;
+						if (ReviewLedgerHost->persist(changed)) {
+							durable = std::move(changed);
+						}
+					}
+					records.push_back(durable.History.Defect);
+					continue;
+				}
+				const auto identity = thread_identity(*found);
+				links.push_back(application::defect_thread_link{
+					.Defect = durable.History.Defect.Id, .ThreadId = identity });
+				const auto author        = snapshot.PullRequest.Author.has_value()
+					? snapshot.PullRequest.Author->Login
+					: std::string{ };
+				const auto authorReplied = found->Comments.size() > 1U
+					&& std::ranges::any_of(
+											   std::next(found->Comments.begin()),
+											   found->Comments.end(),
+											   [&author](const application::github_review_comment_record& aComment) {
+												   return !author.empty() && aComment.Author.has_value()
+													   && aComment.Author->Login == author;
+											   });
+				observations.push_back(application::defect_thread_observation{
+					.ThreadId           = identity,
+					.Resolved           = found->Resolved,
+					.AuthorRepliedSince = authorReplied,
+				});
+				const auto availability = found->Outdated
+					? core::defect_anchor_availability::outdated
+					: core::defect_anchor_availability::available;
+				if (found->Outdated) {
+					changedAnchors.push_back(durable.History.Defect.Anchor);
+				}
+				if (availability != durable.History.Availability) {
+					auto changed                 = durable;
+					changed.History.Availability = availability;
+					if (ReviewLedgerHost->persist(changed)) {
+						durable = std::move(changed);
+					}
+				}
+				records.push_back(durable.History.Defect);
+			}
+			const auto correlated
+				= application::correlate(records, links, observations, changedAnchors);
+			for (const auto& record : correlated.Defects) {
+				const auto found = std::ranges::find(
+					DurableDefects,
+					record.Id,
+					[](const application::durable_defect_record& aDefect) {
+						return aDefect.History.Defect.Id;
+					});
+				if (found == DurableDefects.end()
+					|| found->History.Defect == record) {
+					continue;
+				}
+				auto changed           = *found;
+				changed.History.Defect = record;
+				if (ReviewLedgerHost->persist(changed)) {
+					*found = std::move(changed);
+				}
+			}
+			present_defects();
+		}
+
+		void load_defects()
+		{
+			DurableDefects.clear();
+			if (ReviewLedgerHost == nullptr) {
+				if (Window != nullptr) {
+					Window->clear_defects();
+				}
+				return;
+			}
+			if (auto privateState = ReviewLedgerHost->private_observation();
+				privateState.has_value()) {
+				DurableDefects = std::move(privateState->Defects);
+			}
+			correlate_defects();
+			present_defects();
+		}
+
+		void classify_defect(std::string aConversation)
+		{
+			if (Closing || ReviewLedgerHost == nullptr
+				|| !SelectedDiffPublication.has_value()) {
+				return;
+			}
+			const auto* const thread = accepted_thread(aConversation);
+			if (thread == nullptr
+				|| thread->Subject
+					!= application::github_review_thread_subject::line
+				|| !thread->Line.has_value() || thread->Path.empty()
+				|| core::file_identity_of(thread->Path)
+					!= SelectedDiffPublication->Request.File.File) {
+				return;
+			}
+			const auto identity = defect_identity(aConversation);
+			if (std::ranges::any_of(
+					DurableDefects,
+					[identity](const application::durable_defect_record& aDefect) {
+						return aDefect.Conversation.value() == identity.Conversation
+							&& aDefect.History.Defect.Id.value() == identity.Defect;
+					})) {
+				return;
+			}
+			const auto anchor = core::source_line_ref{
+				.Comparison = core::comparison_digest(SelectedDiffPublication->Key),
+				.Side       = core::diff_side::right,
+				.Line       = *thread->Line,
+			};
+			auto durable = application::durable_defect_record{
+				.File         = SelectedDiffPublication->Request.File.File,
+				.Conversation = core::review_conversation_id{ identity.Conversation },
+				.History      = core::defect_history{
+					.Defect = core::defect_record{
+						.Id = core::defect_id{ identity.Defect }, .Anchor = anchor },
+					.OriginalAnchor = anchor,
+				},
+			};
+			if (!ReviewLedgerHost->persist(durable)) {
+				return;
+			}
+			DurableDefects.push_back(std::move(durable));
+			correlate_defects();
+		}
+
+		void dispatch_defect(core::defect_command aCommand)
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			const auto found = std::ranges::find(
+				DurableDefects,
+				aCommand.Id,
+				[](const application::durable_defect_record& aDefect) {
+					return aDefect.History.Defect.Id;
+				});
+			if (found == DurableDefects.end()) {
+				return;
+			}
+			const auto outcome = core::apply(found->History.Defect, aCommand);
+			if (outcome.Rejection != core::defect_rejection::none
+				|| !outcome.Changed) {
+				return;
+			}
+			auto changed           = *found;
+			changed.History.Defect = outcome.Defect;
+			if (!ReviewLedgerHost->persist(changed)) {
+				return;
+			}
+			*found = std::move(changed);
+			present_defects();
+		}
+
 		[[nodiscard]] static auto review_mutation_target(
 			const application::accepted_pull_request_handoff& aHandoff)
 			-> core::review_mutation_target
@@ -1853,6 +2137,7 @@ namespace bpr::app {
 
 		void retire_review_ledger()
 		{
+			DurableDefects.clear();
 			ReviewLedgerHost.reset();
 			ReviewLedger.reset();
 			{
@@ -1863,6 +2148,7 @@ namespace bpr::app {
 			}
 			if (Window != nullptr) {
 				Window->clear_review_ledger();
+				Window->clear_defects();
 			}
 		}
 
@@ -2008,6 +2294,7 @@ namespace bpr::app {
 					Host != nullptr
 						? Host->accepted_snapshot()
 						: std::optional<application::github_pull_request_snapshot>{ });
+				load_defects();
 #if defined(BPR_BUILD_TESTING)
 				LastAcceptedHandoff = clone_without_smart_git(aHandoff);
 #endif
@@ -2755,14 +3042,34 @@ namespace bpr::app {
 			bool                                                 Failed   = false;
 		};
 		std::optional<review_round_trip_composition_probe_state>
-					ReviewRoundTripCompositionProbe;
-		std::size_t WorkbenchIntentDispatches = 0U;
-		std::size_t WorkbenchChangeDispatches = 0U;
-		std::size_t WorkbenchWidthDispatches  = 0U;
-		std::size_t WorkbenchInvalidations    = 0U;
-		std::size_t SelectedDiffBegins        = 0U;
-		std::size_t SelectedDiffPublications  = 0U;
-		std::size_t SelectedDiffFailures      = 0U;
+			ReviewRoundTripCompositionProbe;
+		struct defect_composition_probe_state
+		{
+			enum class phase {
+				awaiting_ready,
+				awaiting_diff,
+				awaiting_reverse_right,
+				awaiting_epoch_change,
+				awaiting_shared_ready,
+				passed,
+				failed,
+			};
+			detail::defect_composition_probe_evidence Evidence;
+			detail::defect_composition_probe          Course
+				= detail::defect_composition_probe::seed;
+			phase                        Phase = phase::awaiting_ready;
+			core::file_comparison_digest BeforeComparison;
+			int                          ReverseLeftRow  = -1;
+			int                          ReverseRightRow = -1;
+		};
+		std::optional<defect_composition_probe_state> DefectCompositionProbe;
+		std::size_t                                   WorkbenchIntentDispatches = 0U;
+		std::size_t                                   WorkbenchChangeDispatches = 0U;
+		std::size_t                                   WorkbenchWidthDispatches  = 0U;
+		std::size_t                                   WorkbenchInvalidations    = 0U;
+		std::size_t                                   SelectedDiffBegins        = 0U;
+		std::size_t                                   SelectedDiffPublications  = 0U;
+		std::size_t                                   SelectedDiffFailures      = 0U;
 		std::optional<application::workbench_selected_diff_publication>
 					LastSelectedDiff;
 		std::size_t FixtureDiffHelperInvocations   = 0U;
@@ -2786,6 +3093,7 @@ namespace bpr::app {
 		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
 		std::optional<core::file_receipt>                            ReviewLedgerReceipt;
 		bool                                                         ReviewLedgerAvailable = false;
+		std::vector<application::durable_defect_record>              DurableDefects;
 		std::unique_ptr<application::review_mutation_coordinator>    ReviewMutationCoordinator;
 		std::optional<core::review_comment_draft>                    ReviewDraft;
 		std::vector<application::review_comment_projection>          ReviewProjection;
@@ -4703,6 +5011,299 @@ namespace bpr::app {
 				&& implementation->ReviewRoundTripCompositionProbe.has_value()
 			? implementation->ReviewRoundTripCompositionProbe->Evidence
 			: detail::review_round_trip_composition_probe_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::exercise_defect_composition(
+		github_application&                    aApplication,
+		const detail::defect_composition_probe aCourse)
+		-> detail::defect_composition_probe_result
+	{
+		using result               = detail::defect_composition_probe_result;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->DefectCompositionProbe.has_value()) {
+			implementation->DefectCompositionProbe.emplace();
+			implementation->DefectCompositionProbe->Course = aCourse;
+		}
+		auto& probe = *implementation->DefectCompositionProbe;
+		if (probe.Phase
+			== github_application::implementation::defect_composition_probe_state::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase
+			== github_application::implementation::defect_composition_probe_state::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr
+			|| implementation->Host == nullptr
+			|| implementation->ReviewLedgerHost == nullptr
+			|| implementation->ReviewMutationCoordinator == nullptr
+			|| implementation->Window->defect_card() == nullptr) {
+			return result::pending;
+		}
+		const auto fail = [&probe] {
+			probe.Phase = github_application::implementation::defect_composition_probe_state::phase::failed;
+			return result::failed;
+		};
+		auto* const window               = implementation->Window.get();
+		const auto  firstIdentity        = std::string{ "review-thread:PRRT_fixture_1" };
+		const auto  secondIdentity       = std::string{ "review-thread:PRRT_fixture_2" };
+		const auto  fileIdentity         = std::string{ "review-thread:PRRT_fixture_file" };
+		const auto  firstDefectIdentity  = defect_identity(firstIdentity);
+		const auto  secondDefectIdentity = defect_identity(secondIdentity);
+		const auto  findDefect           = [implementation](const local_defect_identity aIdentity)
+			-> const application::durable_defect_record* {
+			const auto found = std::ranges::find_if(
+				implementation->DurableDefects,
+				[aIdentity](const application::durable_defect_record& aDefect) {
+					return aDefect.Conversation.value() == aIdentity.Conversation
+						&& aDefect.History.Defect.Id.value() == aIdentity.Defect;
+				});
+			return found == implementation->DurableDefects.end() ? nullptr : &*found;
+		};
+
+		if (aCourse == detail::defect_composition_probe::reopen) {
+			const auto* const first  = findDefect(firstDefectIdentity);
+			const auto* const second = findDefect(secondDefectIdentity);
+			if (first == nullptr || second == nullptr) {
+				return result::pending;
+			}
+			probe.Evidence.ExactThreads = implementation->accepted_thread(firstIdentity)
+				&& implementation->accepted_thread(secondIdentity);
+			probe.Evidence.LocalClassification
+				= first->History.Defect.Severity == core::defect_severity::critical
+				&& first->History.Defect.Category == core::defect_category::security;
+			probe.Evidence.CorrelatedEvidence
+				= second->History.Defect.State == core::defect_state::verified
+				&& second->History.Availability
+					== core::defect_anchor_availability::outdated;
+			probe.Evidence.ExplicitVerification
+				= first->History.Defect.State == core::defect_state::open
+				&& second->History.Defect.State == core::defect_state::verified;
+			probe.Evidence.DurableHistory
+				= second->History.Availability
+					== core::defect_anchor_availability::outdated
+				&& second->History.Defect.Anchor == second->History.OriginalAnchor;
+			const auto before = window->defect_card()->shown_defect();
+			if (window->next_defect_action()->isEnabled()) {
+				window->next_defect_action()->trigger();
+			} else if (window->previous_defect_action()->isEnabled()) {
+				window->previous_defect_action()->trigger();
+			}
+			probe.Evidence.MultiDefectNavigation = window->defect_count() == 2U
+				&& before.has_value()
+				&& window->defect_card()->shown_defect().has_value()
+				&& window->defect_card()->shown_defect()->Id != before->Id;
+			probe.Evidence.SharedActionSeparate
+				= implementation->Fixture->review_mutation_evidence().Submissions == 0U;
+			const auto statistics            = implementation->ReviewLedgerHost->statistics();
+			probe.Evidence.RestartRestored   = statistics.PrivateLoads >= 1U;
+			probe.Evidence.ZeroReopenWrites  = statistics.PrivateWrites == 0U;
+			probe.Evidence.VisibleProjection = window->defect_count_label()->text().contains(
+				QStringLiteral("/2"));
+			if (probe.Evidence != detail::defect_composition_probe_evidence{ .ExactThreads = true, .LocalClassification = true, .CorrelatedEvidence = true, .ExplicitVerification = true, .DurableHistory = true, .MultiDefectNavigation = true, .SharedActionSeparate = true, .RestartRestored = true, .ZeroReopenWrites = true, .VisibleProjection = true }) {
+				return fail();
+			}
+			probe.Phase = github_application::implementation::defect_composition_probe_state::phase::passed;
+			return result::passed;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::defect_composition_probe_state::phase::awaiting_shared_ready) {
+			auto* const editor = window->review_editor();
+			if (editor == nullptr || !editor->shown_draft().has_value()) {
+				return result::pending;
+			}
+			probe.Evidence.SharedActionSeparate
+				= implementation->Fixture->review_mutation_evidence().Submissions == 0U;
+			if (!probe.Evidence.SharedActionSeparate) {
+				return fail();
+			}
+			probe.Evidence.RestartRestored  = false;
+			probe.Evidence.ZeroReopenWrites = false;
+			probe.Phase                     = github_application::implementation::
+				defect_composition_probe_state::phase::passed;
+			editor->body_editor()->setPlainText(
+				QStringLiteral("Explicit shared follow-up after local classification."));
+			editor->publish_action()->trigger();
+			return result::passed;
+		}
+
+		auto* const model       = window->conversation_model();
+		auto* const view        = window->conversation_view();
+		const auto  firstIndex  = model->index_for_id(firstIdentity);
+		const auto  secondIndex = model->index_for_id(secondIdentity);
+		const auto  fileIndex   = model->index_for_id(fileIdentity);
+		if (!firstIndex.isValid() || !secondIndex.isValid() || !fileIndex.isValid()) {
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::defect_composition_probe_state::phase::awaiting_ready) {
+			if (!implementation->DurableDefects.empty()) {
+				return fail();
+			}
+			auto* const files = window->files_drawer()->contents_view();
+			if (implementation->WorkbenchHost == nullptr
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U
+				|| implementation->WorkbenchHost->actionable().empty()
+				|| files == nullptr || files->model() == nullptr
+				|| files->model()->rowCount() == 0) {
+				return result::pending;
+			}
+			files->setCurrentIndex(files->model()->index(0, 0));
+			probe.Phase = github_application::implementation::
+				defect_composition_probe_state::phase::awaiting_diff;
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::defect_composition_probe_state::phase::awaiting_diff) {
+			if (!implementation->SelectedDiffPublication.has_value()) {
+				return result::pending;
+			}
+			view->setCurrentIndex(firstIndex);
+			if (!window->classify_defect_action()->isEnabled()) {
+				return fail();
+			}
+			window->classify_defect_action()->trigger();
+			view->setCurrentIndex(secondIndex);
+			window->classify_defect_action()->trigger();
+			view->setCurrentIndex(fileIndex);
+			if (window->classify_defect_action()->isEnabled()) {
+				return fail();
+			}
+			window->classify_defect_action()->trigger();
+			const auto* const first     = findDefect(firstDefectIdentity);
+			const auto* const second    = findDefect(secondDefectIdentity);
+			probe.Evidence.ExactThreads = first != nullptr && second != nullptr;
+			probe.Evidence.LocalClassification
+				= implementation->Fixture->review_mutation_evidence().Submissions == 0U;
+			probe.Evidence.CorrelatedEvidence = first != nullptr && second != nullptr
+				&& first->History.Defect.State == core::defect_state::open
+				&& second->History.Defect.State
+					== core::defect_state::needs_verification;
+			probe.Evidence.DurableHistory = second != nullptr
+				&& second->History.Availability
+					== core::defect_anchor_availability::outdated
+				&& second->History.Defect.Anchor == second->History.OriginalAnchor;
+			probe.Evidence.VisibleProjection = window->defect_count() == 2U
+				&& window->defect_count_label()->text().contains(QStringLiteral("/2"));
+			if (!probe.Evidence.ExactThreads || !probe.Evidence.LocalClassification
+				|| !probe.Evidence.CorrelatedEvidence
+				|| !probe.Evidence.DurableHistory
+				|| !probe.Evidence.VisibleProjection) {
+				return fail();
+			}
+			probe.BeforeComparison = core::comparison_digest(
+				implementation->SelectedDiffPublication->Key);
+			auto* const control  = window->epoch_selectors();
+			const auto  leftRow  = control->left_selector()->currentIndex();
+			const auto  rightRow = control->right_selector()->currentIndex();
+			if (leftRow < 0 || rightRow < 0 || leftRow == rightRow) {
+				return fail();
+			}
+			probe.ReverseLeftRow  = rightRow;
+			probe.ReverseRightRow = leftRow;
+			control->left_selector()->setCurrentIndex(rightRow);
+			probe.Phase = github_application::implementation::
+				defect_composition_probe_state::phase::awaiting_reverse_right;
+			return result::pending;
+		}
+
+		if (probe.Phase
+			== github_application::implementation::defect_composition_probe_state::phase::awaiting_reverse_right) {
+			auto* const control = window->epoch_selectors();
+			if (control->left_selector()->currentIndex() != probe.ReverseLeftRow) {
+				control->left_selector()->setCurrentIndex(probe.ReverseLeftRow);
+				return result::pending;
+			}
+			control->right_selector()->setCurrentIndex(probe.ReverseRightRow);
+			probe.Phase = github_application::implementation::
+				defect_composition_probe_state::phase::awaiting_epoch_change;
+			return result::pending;
+		}
+
+		if (!implementation->SelectedDiffPublication.has_value()
+			|| core::comparison_digest(implementation->SelectedDiffPublication->Key)
+				== probe.BeforeComparison) {
+			return result::pending;
+		}
+		const auto* first  = findDefect(firstDefectIdentity);
+		const auto* second = findDefect(secondDefectIdentity);
+		if (first == nullptr || second == nullptr
+			|| first->History.Defect.State
+				!= core::defect_state::open
+			|| second->History.Defect.State
+				!= core::defect_state::needs_verification) {
+			return fail();
+		}
+		while (window->defect_card()->shown_defect().has_value()
+			   && window->defect_card()->shown_defect()->Id != second->History.Defect.Id) {
+			if (window->previous_defect_action()->isEnabled()) {
+				window->previous_defect_action()->trigger();
+			} else if (window->next_defect_action()->isEnabled()) {
+				window->next_defect_action()->trigger();
+			} else {
+				return fail();
+			}
+		}
+		window->defect_card()->verify_action()->trigger();
+		first                               = findDefect(firstDefectIdentity);
+		second                              = findDefect(secondDefectIdentity);
+		probe.Evidence.ExplicitVerification = first != nullptr && second != nullptr
+			&& first->History.Defect.State == core::defect_state::open
+			&& second->History.Defect.State == core::defect_state::verified;
+		if (!probe.Evidence.ExplicitVerification) {
+			return fail();
+		}
+		while (window->defect_card()->shown_defect().has_value()
+			   && window->defect_card()->shown_defect()->Id != first->History.Defect.Id) {
+			if (window->previous_defect_action()->isEnabled()) {
+				window->previous_defect_action()->trigger();
+			} else if (window->next_defect_action()->isEnabled()) {
+				window->next_defect_action()->trigger();
+			} else {
+				return fail();
+			}
+		}
+		auto* const card = window->defect_card();
+		card->severity_selector()->setCurrentIndex(
+			card->severity_selector()->findData(
+				static_cast<int>(core::defect_severity::critical)));
+		card->category_selector()->setCurrentIndex(
+			card->category_selector()->findData(
+				static_cast<int>(core::defect_category::security)));
+		card->reclassify_action()->trigger();
+		first                         = findDefect(firstDefectIdentity);
+		probe.Evidence.DurableHistory = probe.Evidence.DurableHistory
+			&& first != nullptr
+			&& first->History.Defect.Severity == core::defect_severity::critical
+			&& first->History.Defect.Category == core::defect_category::security;
+		const auto before = card->shown_defect()->Id;
+		if (window->next_defect_action()->isEnabled()) {
+			window->next_defect_action()->trigger();
+		} else {
+			window->previous_defect_action()->trigger();
+		}
+		probe.Evidence.MultiDefectNavigation
+			= card->shown_defect().has_value() && card->shown_defect()->Id != before;
+		probe.Phase = github_application::implementation::
+			defect_composition_probe_state::phase::awaiting_shared_ready;
+		return result::pending;
+	}
+
+	auto detail::github_application_fixture_access::defect_composition_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::defect_composition_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr
+				&& implementation->DefectCompositionProbe.has_value()
+			? implementation->DefectCompositionProbe->Evidence
+			: detail::defect_composition_probe_evidence{ };
 	}
 
 	auto detail::github_application_fixture_access::select_appearance_mode(

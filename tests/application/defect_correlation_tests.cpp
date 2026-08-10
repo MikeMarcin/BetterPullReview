@@ -57,7 +57,7 @@ namespace {
 	void test_code_moving_beneath_a_defect_asks_for_a_look()
 	{
 		const auto defects = std::array{ defect(1U, 10U, state::open) };
-		const auto changed = std::array{ opaque<core::file_comparison_digest>(10U) };
+		const auto changed = std::array{ defects.front().Anchor };
 
 		const auto result = application::correlate(defects, { }, { }, changed);
 
@@ -74,7 +74,9 @@ namespace {
 	void test_an_untouched_anchor_raises_nothing()
 	{
 		const auto defects = std::array{ defect(1U, 10U, state::open) };
-		const auto changed = std::array{ opaque<core::file_comparison_digest>(99U) };
+		auto       other   = defects.front().Anchor;
+		other.Line += 1U;
+		const auto changed = std::array{ other };
 
 		const auto result = application::correlate(defects, { }, { }, changed);
 
@@ -114,15 +116,13 @@ namespace {
 	// inherited from the core's assertion of it.
 	void test_no_correlation_ever_verifies()
 	{
-		const auto anchor = opaque<core::file_comparison_digest>(10U);
-
 		for (const auto starting :
 			 { state::open, state::fix_claimed, state::needs_verification,
 			   state::reopened, state::verified, state::withdrawn,
 			   state::accepted_as_is }) {
 			const auto defects = std::array{ defect(1U, 10U, starting) };
 			const auto links   = std::array{ link(1U, "thread-a") };
-			const auto changed = std::array{ anchor };
+			const auto changed = std::array{ defects.front().Anchor };
 
 			// Everything at once: code moved, the author replied, and someone
 			// resolved the thread. If any combination could verify, this is it.
@@ -153,7 +153,7 @@ namespace {
 			 { state::verified, state::withdrawn, state::accepted_as_is }) {
 			const auto defects = std::array{ defect(1U, 10U, decided) };
 			const auto links   = std::array{ link(1U, "thread-a") };
-			const auto changed = std::array{ opaque<core::file_comparison_digest>(10U) };
+			const auto changed = std::array{ defects.front().Anchor };
 			const auto threads = std::array{ application::defect_thread_observation{
 				.ThreadId = "thread-a", .Resolved = true, .AuthorRepliedSince = true } };
 
@@ -208,7 +208,7 @@ namespace {
 	void test_repeated_correlation_settles()
 	{
 		const auto defects = std::array{ defect(1U, 10U, state::open) };
-		const auto changed = std::array{ opaque<core::file_comparison_digest>(10U) };
+		const auto changed = std::array{ defects.front().Anchor };
 
 		const auto first = application::correlate(defects, { }, { }, changed);
 		const auto again

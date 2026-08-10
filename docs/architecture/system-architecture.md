@@ -189,7 +189,7 @@ Do not fragment a feature into unnecessary targets before the ownership boundary
 | State category | BetterPullReview authority | Examples |
 |---|---|---|
 | Shared collaborative state | GitHub, accessed through host/provider sessions | PR commits, comments, replies, reviews, thread resolution, checks |
-| Private durable review state | Host-owned SQLite ledger | receipts, acceptance, observer rules, local defect classification, AI drafts |
+| Private durable review state | Host-owned SQLite ledger | receipts, acceptance, observer rules, local defect classification/lifecycle/anchor history, AI drafts |
 | Interaction state | Functional core | active PR/file/change, epoch selection, navigation context, command state, pending semantic operation |
 | Bounded observations | Host, borrowed by core | current GitHub snapshot, selected file material, permissions, capability facts, visible queue records |
 | Staged provider results | Application host, pending a core acceptance decision | immutable normalized snapshots keyed by complete request context |

@@ -14,6 +14,7 @@
 #include <QAction>
 #include <QComboBox>
 #include <QFontMetrics>
+#include <QHBoxLayout>
 #include <QItemSelectionModel>
 #include <QKeySequence>
 #include <QLabel>
@@ -539,11 +540,62 @@ namespace bpr::qt {
 		};
 		ReviewEditor->setObjectName(QStringLiteral("workbenchReviewDraftEditor"));
 		ReviewEditor->setMaximumHeight(220);
+		DefectCard = new defect_card_view{
+			[this](core::defect_command aCommand) {
+				++Statistics.DefectIntents;
+				if (DefectDispatch) {
+					DefectDispatch(std::move(aCommand));
+				}
+			},
+			Drawers[1].Panel,
+		};
+		DefectCard->setObjectName(QStringLiteral("workbenchDefectCard"));
+		ClassifyDefect = new QAction{
+			tr("Classify selected conversation as defect"), this
+		};
+		ClassifyDefect->setObjectName(QStringLiteral("classifySelectedDefect"));
+		PreviousDefect = new QAction{ tr("Previous defect"), this };
+		PreviousDefect->setObjectName(QStringLiteral("previousDefect"));
+		NextDefect = new QAction{ tr("Next defect"), this };
+		NextDefect->setObjectName(QStringLiteral("nextDefect"));
+		connect(ClassifyDefect, &QAction::triggered, this, [this] {
+			classify_selected_conversation();
+		});
+		connect(PreviousDefect, &QAction::triggered, this, [this] {
+			navigate_defect(-1);
+		});
+		connect(NextDefect, &QAction::triggered, this, [this] {
+			navigate_defect(1);
+		});
 		auto* const conversationContents = new QWidget{ Drawers[1].Panel };
 		auto* const conversationLayout   = new QVBoxLayout{ conversationContents };
 		conversationLayout->setContentsMargins(0, 0, 0, 0);
 		conversationLayout->addWidget(ConversationPanel, 1);
 		conversationLayout->addWidget(ReviewEditor);
+		auto* const defectNavigation = new QHBoxLayout{ };
+		auto* const classifyButton   = new QToolButton{ conversationContents };
+		classifyButton->setDefaultAction(ClassifyDefect);
+		defectNavigation->addWidget(classifyButton);
+		DefectCountLabel = new QLabel{ QStringLiteral("Defects 0/0"), conversationContents };
+		DefectCountLabel->setObjectName(QStringLiteral("defectCount"));
+		DefectCountLabel->setAccessibleName(QStringLiteral("Defect queue position"));
+		defectNavigation->addWidget(DefectCountLabel, 1);
+		for (auto* const action : { PreviousDefect, NextDefect }) {
+			auto* const button = new QToolButton{ conversationContents };
+			button->setDefaultAction(action);
+			defectNavigation->addWidget(button);
+		}
+		conversationLayout->addLayout(defectNavigation);
+		conversationLayout->addWidget(DefectCard);
+		auto* const defectActions = new QHBoxLayout{ };
+		for (auto* const action : { DefectCard->verify_action(),
+									DefectCard->reopen_action(), DefectCard->withdraw_action(),
+									DefectCard->accept_as_is_action(), DefectCard->reclassify_action() }) {
+			auto* const button = new QToolButton{ conversationContents };
+			button->setDefaultAction(action);
+			defectActions->addWidget(button);
+		}
+		conversationLayout->addLayout(defectActions);
 		Drawers[1].Panel->set_content_widget(
 			conversationContents, ConversationPanel->view());
 		CentralSplitter->addWidget(Drawers[0].Panel);
@@ -569,6 +621,12 @@ namespace bpr::qt {
 			[this](const QModelIndex& aCurrent) {
 				dispatch_file_selection(aCurrent);
 			});
+		connect(
+			ConversationPanel->view()->selectionModel(),
+			&QItemSelectionModel::currentChanged,
+			this,
+			[this](const QModelIndex&) { update_defect_surface(); });
+		update_defect_surface();
 	}
 
 	void workbench_window::build_github_header()
@@ -916,6 +974,126 @@ namespace bpr::qt {
 		workbench_review_draft_dispatch aDraftDispatch)
 	{
 		ReviewDraftDispatch = std::move(aDraftDispatch);
+	}
+
+	void workbench_window::set_defect_dispatch(
+		workbench_defect_dispatch aDefectDispatch)
+	{
+		DefectDispatch = std::move(aDefectDispatch);
+	}
+
+	void workbench_window::set_defect_classification_dispatch(
+		workbench_defect_classification_dispatch aClassificationDispatch)
+	{
+		DefectClassificationDispatch = std::move(aClassificationDispatch);
+		update_defect_surface();
+	}
+
+	void workbench_window::present_defects(
+		std::vector<core::defect_history> aDefects)
+	{
+		std::ranges::sort(aDefects, { }, [](const core::defect_history& aDefect) {
+			return aDefect.Defect.Id.value();
+		});
+		auto retained = std::optional<core::defect_id>{ };
+		if (ShownDefectIndex.has_value() && *ShownDefectIndex < Defects.size()) {
+			retained = Defects[*ShownDefectIndex].Defect.Id;
+		}
+		Defects = std::move(aDefects);
+		ShownDefectIndex.reset();
+		if (retained.has_value()) {
+			const auto found = std::ranges::find(
+				Defects, *retained, [](const core::defect_history& aHistory) {
+					return aHistory.Defect.Id;
+				});
+			if (found != Defects.end()) {
+				ShownDefectIndex = static_cast<std::size_t>(
+					std::distance(Defects.begin(), found));
+			}
+		}
+		if (!ShownDefectIndex.has_value() && !Defects.empty()) {
+			ShownDefectIndex = 0U;
+		}
+		++Statistics.DefectUpdates;
+		update_defect_surface();
+	}
+
+	void workbench_window::clear_defects()
+	{
+		Defects.clear();
+		ShownDefectIndex.reset();
+		++Statistics.DefectUpdates;
+		update_defect_surface();
+	}
+
+	void workbench_window::classify_selected_conversation()
+	{
+		if (!DefectClassificationDispatch || ConversationPanel == nullptr
+			|| ConversationPanel->view() == nullptr
+			|| ConversationPanel->model() == nullptr) {
+			return;
+		}
+		const auto current = ConversationPanel->view()->currentIndex();
+		if (current.data(github_conversation_model::kind_role).toInt()
+				!= static_cast<int>(
+					application::github_conversation_kind::review_thread)
+			|| !current.data(github_conversation_model::line_role).isValid()) {
+			return;
+		}
+		const auto identity = ConversationPanel->model()->id_for_index(current);
+		if (identity.empty()) {
+			return;
+		}
+		++Statistics.DefectClassifications;
+		DefectClassificationDispatch(identity);
+	}
+
+	void workbench_window::navigate_defect(const int aDirection)
+	{
+		if (!ShownDefectIndex.has_value() || Defects.empty()) {
+			return;
+		}
+		const auto current = static_cast<std::ptrdiff_t>(*ShownDefectIndex);
+		const auto next    = current + aDirection;
+		if (next < 0 || next >= static_cast<std::ptrdiff_t>(Defects.size())) {
+			return;
+		}
+		ShownDefectIndex = static_cast<std::size_t>(next);
+		++Statistics.DefectNavigation;
+		update_defect_surface();
+	}
+
+	void workbench_window::update_defect_surface()
+	{
+		const auto current     = ConversationPanel != nullptr
+				&& ConversationPanel->view() != nullptr
+			? ConversationPanel->view()->currentIndex()
+			: QModelIndex{ };
+		const auto canClassify = current.isValid()
+			&& current.data(github_conversation_model::kind_role).toInt()
+				== static_cast<int>(
+					application::github_conversation_kind::review_thread)
+			&& current.data(github_conversation_model::line_role).isValid();
+		ClassifyDefect->setEnabled(
+			canClassify && static_cast<bool>(DefectClassificationDispatch));
+		const auto validIndex = ShownDefectIndex.has_value()
+			&& *ShownDefectIndex < Defects.size();
+		PreviousDefect->setEnabled(validIndex && *ShownDefectIndex > 0U);
+		NextDefect->setEnabled(
+			validIndex && *ShownDefectIndex + 1U < Defects.size());
+		DefectCountLabel->setText(
+			validIndex
+				? tr("Defects %1/%2")
+					  .arg(*ShownDefectIndex + 1U)
+					  .arg(Defects.size())
+				: tr("Defects 0/0"));
+		if (validIndex) {
+			DefectCard->present(Defects[*ShownDefectIndex]);
+		} else {
+			DefectCard->setVisible(false);
+			return;
+		}
+		DefectCard->setVisible(true);
 	}
 
 	auto workbench_window::primary_toolbar() const noexcept -> QToolBar*
@@ -1359,6 +1537,42 @@ namespace bpr::qt {
 		return ReviewEditor;
 	}
 
+	auto workbench_window::defect_card() const noexcept -> defect_card_view*
+	{
+		return DefectCard;
+	}
+
+	auto workbench_window::classify_defect_action() const noexcept -> QAction*
+	{
+		return ClassifyDefect;
+	}
+
+	auto workbench_window::previous_defect_action() const noexcept -> QAction*
+	{
+		return PreviousDefect;
+	}
+
+	auto workbench_window::next_defect_action() const noexcept -> QAction*
+	{
+		return NextDefect;
+	}
+
+	auto workbench_window::defect_count_label() const noexcept -> QLabel*
+	{
+		return DefectCountLabel;
+	}
+
+	auto workbench_window::shown_defect_index() const noexcept
+		-> std::optional<std::size_t>
+	{
+		return ShownDefectIndex;
+	}
+
+	auto workbench_window::defect_count() const noexcept -> std::size_t
+	{
+		return Defects.size();
+	}
+
 	auto workbench_window::files_drawer_toggle_action() const noexcept -> QAction*
 	{
 		return Drawers[0].Toggle;
@@ -1435,6 +1649,10 @@ namespace bpr::qt {
 		append(Drawers[1].Panel->focus_stop());
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
+		}
+		if (DefectCard != nullptr) {
+			append(DefectCard->severity_selector());
+			append(DefectCard->category_selector());
 		}
 		append(StatusLabel);
 		return order;
