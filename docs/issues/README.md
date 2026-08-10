@@ -438,7 +438,7 @@ pretending to complete them inside the review:
 
 - Done BPR-0226 connects the workbench host to the shipped window and accepted
   pull request, including exact invalidation and session-only layout fallback.
-- Ready BPR-0227 owns the user-selected diff path. At intake the only caller of
+- In-progress BPR-0227 owns the user-selected diff path. At intake the only caller of
   the composition's diff request is a tests-only fixture-access helper.
 - BPR-0228 through BPR-0232 own the missing shipped composition for the review
   ledger/actionability, review round trip, defects, honest queue enrollment,
@@ -468,7 +468,7 @@ path remains absent.
 ### Open right now
 
 With BPR-0226, BPR-0234, BPR-0236, BPR-0237, and BPR-0238 done, thirty-three
-cards remain in `backlog/`, three in `ready/`, and one in `in-progress/`. The groups below
+cards remain in `backlog/`, two in `ready/`, and two in `in-progress/`. The groups below
 describe the actual remaining authority or product surface; closure cards may
 also depend transitively on more than one group.
 
@@ -477,7 +477,7 @@ also depend transitively on more than one group.
 | Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
 | A designated live GitHub repository | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Owner-authenticated sessions against a safe target |
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta |
-| Product composition | Ready BPR-0227; backlog BPR-0228 through BPR-0232 and BPR-0223; done BPR-0226 | Connect the implemented diff, ledger, review, defect, queue, notification, and agent capabilities to public gestures and projections; the workbench host connection is done |
+| Product composition | In-progress BPR-0227; backlog BPR-0228 through BPR-0232 and BPR-0223; done BPR-0226 | Connect the implemented diff, ledger, review, defect, queue, notification, and agent capabilities to public gestures and projections; the workbench host connection is done |
 | Missing component and resilience scope | Ready BPR-0235; in-progress BPR-0240; backlog BPR-0239; done BPR-0237 and BPR-0238 | Enforce durable live-test isolation and complete required queue and agent contracts; theme customization, durable ledger state, and BPR-0236's appearance-storage fallback are done |
 | Recorded selected-diff proof | BPR-0233, gating BPR-0214, BPR-0210, and BPR-0100 | BPR-0187 already serves UIforETW; the remaining work is to select its diff and prove semantic ranges and rendered intraline-role pixels |
 | Closeout rigor and terminal cards | Done BPR-0234; backlog BPR-0241 through BPR-0245 | Replay each now-anchored executable checklist and retain a live terminal card for each Proposed RFC |
