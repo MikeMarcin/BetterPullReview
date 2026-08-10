@@ -3,7 +3,7 @@ id: BPR-0220
 title: An appearance change rebuilds comparison geometry twice
 status: Backlog
 rfc: RFC-BPR-0006
-depends_on: []
+depends_on: [BPR-0249]
 ---
 
 # An appearance change rebuilds comparison geometry twice
