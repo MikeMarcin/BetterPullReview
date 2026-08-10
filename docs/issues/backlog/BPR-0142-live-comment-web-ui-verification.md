@@ -24,9 +24,10 @@ it carries no marker and behaves like an ordinary comment.
 
 ## Exactly what is missing
 
-1. **A designated safe repository.** Nothing in `docs/` designates one. It must
-   be a repository whose pull requests may be mutated by automated runs without
-   consequence, named in documentation so no other target is ever reachable.
+1. **An immutable pull-request identity inside the designated repository.**
+   `MikeMarcin/BPR-Test` is designated below with immutable repository IDs, but
+   a read-only inventory on 2026-08-10 found no pull request to designate. A PR
+   must be created and owner-designated before any live child may launch.
 2. **A write-scoped token for that repository, supplied by the product owner.**
    It is never committed, never logged, and never placed in a fixture.
 3. **A human at the keyboard** to open the pull request, read the comment,
@@ -67,9 +68,10 @@ must be asserted rather than arranged.
 
 `https://github.com/MikeMarcin/BPR-Test`. It is named in
 `docs/architecture/review-round-trip.md` under "The live provider contract",
-which discharges the first of the three missing things above **and** this
-card's last completion criterion: the repository is documented before the run,
-not after.
+with GitHub database ID `1328277631` and node ID `R_kgDOTyvofw`. This discharges
+repository designation and this card's last completion criterion: the
+repository is documented before the run, not after. It does not designate a
+pull request; the repository currently has none.
 
 The token is minted at session time with `gh auth token` and pasted into the
 application's Qt-owned credential input. It is never committed, logged, echoed,

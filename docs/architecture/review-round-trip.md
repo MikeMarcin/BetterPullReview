@@ -150,10 +150,19 @@ any deadline.
 
 ## The live provider contract
 
-The designated repository is **`MikeMarcin/BPR-Test`**, named by the product
-owner on 2026-08-08. It is the only repository any BetterPullReview run may
-mutate. Naming it here rather than in a card is deliberate: BPR-0142 requires
-the target to be named in documentation *before* the first live run, not after.
+The designated repository is **`MikeMarcin/BPR-Test`**, GitHub database ID
+**`1328277631`** and node ID **`R_kgDOTyvofw`**, named by the product owner on
+2026-08-08. It is the only repository any BetterPullReview run may mutate.
+Naming it here rather than in a card is deliberate: BPR-0142 requires the
+target to be named in documentation *before* the first live run, not after.
+The live-lane identity check must match both the canonical owner/name and these
+immutable identifiers.
+
+A read-only GitHub API inventory on 2026-08-10 found no pull request in the
+designated repository. That observation authorizes no mutation and supplies no
+pull-request identity. A pull request must be created and explicitly designated
+before the live lane can be registered; its number, immutable pull-request ID,
+head OID, base-repository ID, and open state must all match before child launch.
 
 Until BPR-0142 lands, "no automated test can mutate an undesignated live
 repository" holds for a structural reason — `review_mutation_port` has test

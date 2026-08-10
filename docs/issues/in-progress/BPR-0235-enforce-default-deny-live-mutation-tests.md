@@ -74,6 +74,9 @@ and public application tests also pass under the new prefix.
   target-native Linux.
 - Replace Windows' current pre-launch refusal with a validated whole-suite
   boundary and run the same descendant/application matrix target-native.
-- Designate an immutable `MikeMarcin/BPR-Test` pull-request identity. Register
-  exactly one live lane only after its runner verifies that identity before
-  child creation; every mismatch must remain a no-launch result.
+- Create and owner-designate one `MikeMarcin/BPR-Test` pull request; the
+  designated repository itself is already bound to database ID `1328277631`
+  and node ID `R_kgDOTyvofw`, but the read-only 2026-08-10 inventory found no
+  pull request. Register exactly one live lane only after its runner verifies
+  the repository and PR identities before child creation; every mismatch must
+  remain a no-launch result.

@@ -85,7 +85,10 @@ exactly what is missing.
 
 The product owner designated `MikeMarcin/BPR-Test` before any run. Session
 authority, an immutable pull-request identity, and the required human/mixed-
-client actions remain unavailable. BPR-0235's macOS default-deny boundary does
+client actions remain unavailable. The repository is now additionally bound to
+GitHub database ID `1328277631` and node ID `R_kgDOTyvofw`; a read-only
+2026-08-10 inventory found zero pull requests, so those repository facts cannot
+be mistaken for PR authorization. BPR-0235's macOS default-deny boundary does
 not authorize a live provider or substitute for its Linux/Windows evidence.
 
 ## Card allocation
