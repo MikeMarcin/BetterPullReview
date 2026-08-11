@@ -1,0 +1,80 @@
+{
+  "schema": "bpr.uiforetw_intraline_capture_manifest.v3",
+  "implementation_commit": "2124cbfe4fa4e4f54e9b62c430dea16c44119592",
+  "implementation_files": [
+    "src/application/include/bpr/application/workbench_application_host.hpp",
+    "src/application/src/workbench_application_host.cpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "tests/application/workbench_application_host_tests.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp",
+    "tests/adapters_qt/appearance_profile_tests.cpp",
+    "tests/end_to_end/agent_invocation_composition_public_path.cpp",
+    "tests/end_to_end/application_uiforetw_selected_diff_contract.cmake"
+  ],
+  "implementation_files_sha256": "45f5c6da4c6c6c23c675565df6b94113ec07a54c55e28eef4bdbc403127f6616",
+  "implementation_digest_command": "shasum -a 256 <implementation_files in listed order> | shasum -a 256",
+  "build_preset": "dev",
+  "configuration": "Debug",
+  "platform": "macOS arm64",
+  "qt_version": "6.11.1",
+  "qt_platform": "offscreen",
+  "qt_style": "QFusionStyle",
+  "device_pixel_ratio": 1,
+  "logical_dimensions": [1280, 1000],
+  "navigation_row_dimensions": [1280, 39],
+  "focused_comparison_dimensions": [1262, 918],
+  "focused_comparison_ratio_permille": [985, 918],
+  "verification_command": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure",
+  "verification_result": "pass: 1/1 in 79.28 seconds; four profile captures plus cut-selection-wire negative",
+  "verified_course": [
+    "Files-drawer selection",
+    "Next file",
+    "Previous file",
+    "Next change",
+    "Previous change",
+    "Files drawer toggle",
+    "Conversations drawer toggle"
+  ],
+  "fixture": {
+    "identity": "google/UIforETW#74",
+    "selected_path": "UIforETW/UIforETW.rc",
+    "base_commit": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+    "head_commit": "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "base_blob": "b995e189fb58da146945e1fb22380cdf4a7f4e47",
+    "head_blob": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+    "recording_sha256": "d46b4521e12851821bf5eb64648664f84924a8f4781ab22fa416017fa29e9aaa",
+    "objects_pack_sha256": "f6016a7f75699daf66c65fbaa2427415687e95177227dea41cd6b01443563c50"
+  },
+  "captures": [
+    {
+      "profile": "light",
+      "full_window_sha256": "dde23ef7bf8fa46805445a0d4e5111a41527da8fb6a05aad03f6f1d750ed7e92",
+      "intraline_comparison_sha256": "f773240adeba2a8a2a46e4f4f5f1f7953752f3affe3c990c403ff25168ad38ac",
+      "facts_sha256": "8474d9d150313620c3c5812c923f33912a680f8f25d589796acc5bc298bc5066"
+    },
+    {
+      "profile": "dark",
+      "full_window_sha256": "e46e6d606d170aeb27582256bc1943d737f4e6ff9c40983fcec9c97bc91cc8dc",
+      "intraline_comparison_sha256": "246f2bc92eb01e271316c8ca7ce245dfffaa5d75223b216cc231a2309518eaa7",
+      "facts_sha256": "b7501a746bcc7fc4fb71add0b146562f8a0b1c5097d8c8594f0f1e4e092b0b14"
+    },
+    {
+      "profile": "high-contrast-light",
+      "full_window_sha256": "b05c06a7261c13fb5546550f62e867c1305fa688a4dc1c179556bb925058725e",
+      "intraline_comparison_sha256": "f1d9dcc235e5988c1b402559a6108d6e42e8d093ce186dd0e248696cf961a518",
+      "facts_sha256": "04e0379cc51f435a6681e359195626a4ac1903cd791d7e6e1ef69828274d279d"
+    },
+    {
+      "profile": "high-contrast-dark",
+      "full_window_sha256": "48e4f1f640b2e902dae565c4ab7d1a53e5ae5676809e69e2b7b78ba3bff02955",
+      "intraline_comparison_sha256": "9ee1f0d0a72aa1d239ee5ce63bc5938c611e85acd854df49c9fb0415ad92cda4",
+      "facts_sha256": "32d6f2fa1ac8d65185662f38758058af695280a6f2dabb11bc330a9a032b0b1f"
+    }
+  ]
+}

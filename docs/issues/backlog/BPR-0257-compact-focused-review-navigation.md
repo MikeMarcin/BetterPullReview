@@ -1,7 +1,7 @@
 ---
 id: BPR-0257
 title: Compact focused-review navigation into one icon row
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0006
 depends_on: [BPR-0246]
 ---
@@ -81,9 +81,11 @@ The focused host, Qt, composed-application, and recorded UIforETW checks are
 green. The real course exercises all four navigation actions and both drawer
 toggles, captures all four appearance profiles, and preserves exact blobs,
 intraline role pixels, grounded connectors, and the cut-selection-wire
-negative. A new immutable v003 package will be generated from the committed
-implementation before attended review.
+negative. Immutable v003 binds implementation commit `2124cbf`, ordered-source
+digest `sha256:45f5c6da4c6c6c23c675565df6b94113ec07a54c55e28eef4bdbc403127f6616`,
+and batch `bpr:/attended-review/betterpullreview/99b3c1cc6701ce6ab64d7ecb`.
 
-No v001 or v002 decision is carried forward, and this card remains In Progress
-until the new exact exported verdict is validated and recorded by the
-integrator.
+No v001 or v002 decision is carried forward. The implementation has no
+remaining automated work, so this card is parked in Backlog awaiting the exact
+v003 exported verdict; only the integrator may validate that verdict and move
+the card onward.

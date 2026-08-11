@@ -1,0 +1,177 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/99b3c1cc6701ce6ab64d7ecb",
+  "downstream_claims": {
+    "bpr_0257_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "These are new deterministic captures from implementation commit 2124cbfe4fa4e4f54e9b62c430dea16c44119592 plus the exact BPR-0257 implementation source digest recorded in the capture manifest. The real recorded google/UIforETW#74 course selected files through the shipped model, exercised Previous/Next file and Previous/Next change through the shipped icon actions, collapsed both drawers through their shipped actions, and retained the exact recorded diff, role pixels, and grounded connectors. All runs use Qt 6.11.1 offscreen QFusionStyle at device pixel ratio 1. Judge only the visible compact-row placement and the resulting focused-review allocation. Native operating-system icon styling, RFC closeout, issue closure, and release readiness are outside this batch. No v001 or v002 verdict carries forward.",
+  "review_gate": "compact_focused_review_navigation",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "One compact row spans the focused review surface, with Files at the far left and Conversations at the far right",
+        "Previous file, Next file, Previous change, and Next change appear as compact icon-only controls in that semantic order without a second persistent text toolbar",
+        "The compact row remains visually coherent and recognizable in Light, Dark, High-contrast Light, and High-contrast Dark",
+        "With drawers and secondary details collapsed, the exact two-pane comparison and grounded gutter connectors visibly dominate the 1280 x 1000 window",
+        "The exact 28-to-24 and 42-to-36 intraline replacements remain visibly reviewable in every profile"
+      ],
+      "audit_verdict": {
+        "note": "The registered product contract passed four exact-profile captures plus the real Qt selection-wire cut negative. It validates exact compact-row order and edge placement, icon-only standard-style presenters, accessibility metadata, unique names, all four public navigation routes, projection-driven availability, both drawer toggles, exact recorded diff identities, focused allocation, semantic-role pixels, and grounded connector geometry.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "The full-window captures show one compact navigation row above the selected UIforETW.rc comparison. Files is the far-left control; Previous file, Next file, Previous change, and Next change follow in semantic order; compact review controls remain bounded beside them; a flexible spacer separates those controls from the far-right Conversations toggle. The drawers and secondary details are collapsed in the captured state, while every retained surface remains reopenable. Review the exact same selected diff in Light, Dark, High-contrast Light, and High-contrast Dark.",
+      "detail_sections": [
+        {
+          "heading": "Bound identity and deterministic proof",
+          "items": [
+            {
+              "definition": "implementation commit 2124cbfe4fa4e4f54e9b62c430dea16c44119592; ordered BPR-0257 implementation-files digest sha256:45f5c6da4c6c6c23c675565df6b94113ec07a54c55e28eef4bdbc403127f6616",
+              "term": "Producing source"
+            },
+            {
+              "definition": "UIforETW/UIforETW.rc",
+              "term": "Selected file"
+            },
+            {
+              "definition": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc -> e40058be7d5fe319342dffb567ce30e42bc6f4de",
+              "term": "Generated comparison"
+            },
+            {
+              "definition": "b995e189fb58da146945e1fb22380cdf4a7f4e47 -> 6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+              "term": "Exact blobs"
+            },
+            {
+              "definition": "Full window 1280 x 1000; one 1280 x 39 navigation row; native comparison 1262 x 918; Files, Conversations, review header/history, and selected-change detail hidden through shipped reopenable controls",
+              "term": "Compact allocation"
+            },
+            {
+              "definition": "Files-drawer selection; Next file to Support.cpp; Previous file to Resource.h; Files-drawer selection to UIforETW.rc; Next change; Previous change; Files toggle; Conversations toggle",
+              "term": "Action course"
+            },
+            {
+              "definition": "Light profile: 28->24 is 49 removed / 68 added pixels; 42->36 is 133 removed / 112 added pixels",
+              "term": "Exact selected-role pixels"
+            },
+            {
+              "definition": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure — pass, 79.28 seconds",
+              "term": "Verification"
+            },
+            {
+              "definition": "Debug/dev, macOS arm64, Qt 6.11.1, offscreen QFusionStyle, DPR 1",
+              "term": "Capture environment"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Does the compact icon row support a focused real review?",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/001-compact-focused-review-navigation/identity/01-capture-manifest.json",
+          "sha256": "sha256:92d2243770b4235f34877710445ad337ba49dc1fc26863714a5ce5be4ee94acc"
+        },
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-compact-focused-review-navigation/identity/02-light-capture-facts.json",
+          "sha256": "sha256:8474d9d150313620c3c5812c923f33912a680f8f25d589796acc5bc298bc5066"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-compact-focused-review-navigation/identity/03-dark-capture-facts.json",
+          "sha256": "sha256:b7501a746bcc7fc4fb71add0b146562f8a0b1c5097d8c8594f0f1e4e092b0b14"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-compact-focused-review-navigation/identity/04-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:04e0379cc51f435a6681e359195626a4ac1903cd791d7e6e1ef69828274d279d"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-compact-focused-review-navigation/identity/05-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:32d6f2fa1ac8d65185662f38758058af695280a6f2dabb11bc330a9a032b0b1f"
+        }
+      ],
+      "known_concerns": [
+        "The captures use offscreen QFusionStyle; this batch does not judge the native platform-specific artwork selected for the same QStyle standard-icon roles.",
+        "Tooltips, accessible names and descriptions, shortcuts, focus behavior, unique names, projection-driven enabled state, exact action routing, and drawer reopenability are mechanically asserted and digest-bound in the capture facts; they are not all visible in a static screenshot.",
+        "The deterministic course proves exact commits, blobs, four toolbar routes, both drawer toggles, both selected replacement groups, semantic-role pixels, connector geometry, focused-layout ratios, and a cut-wire negative. This decision is only the human visual judgment of the resulting row and review allocation."
+      ],
+      "media_groups": [
+        {
+          "group_id": "state-captures",
+          "items": [
+            {
+              "label": "Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-compact-focused-review-navigation/state-captures/01-light-full-window.png",
+              "sha256": "sha256:dde23ef7bf8fa46805445a0d4e5111a41527da8fb6a05aad03f6f1d750ed7e92"
+            },
+            {
+              "label": "Light — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-compact-focused-review-navigation/state-captures/02-light-comparison-crop.png",
+              "sha256": "sha256:f773240adeba2a8a2a46e4f4f5f1f7953752f3affe3c990c403ff25168ad38ac"
+            },
+            {
+              "label": "Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-compact-focused-review-navigation/state-captures/03-dark-full-window.png",
+              "sha256": "sha256:e46e6d606d170aeb27582256bc1943d737f4e6ff9c40983fcec9c97bc91cc8dc"
+            },
+            {
+              "label": "Dark — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-compact-focused-review-navigation/state-captures/04-dark-comparison-crop.png",
+              "sha256": "sha256:246f2bc92eb01e271316c8ca7ce245dfffaa5d75223b216cc231a2309518eaa7"
+            },
+            {
+              "label": "High-contrast Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-compact-focused-review-navigation/state-captures/05-high-contrast-light-full-window.png",
+              "sha256": "sha256:b05c06a7261c13fb5546550f62e867c1305fa688a4dc1c179556bb925058725e"
+            },
+            {
+              "label": "High-contrast Light — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-compact-focused-review-navigation/state-captures/06-high-contrast-light-comparison-crop.png",
+              "sha256": "sha256:f1d9dcc235e5988c1b402559a6108d6e42e8d093ce186dd0e248696cf961a518"
+            },
+            {
+              "label": "High-contrast Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-compact-focused-review-navigation/state-captures/07-high-contrast-dark-full-window.png",
+              "sha256": "sha256:48e4f1f640b2e902dae565c4ab7d1a53e5ae5676809e69e2b7b78ba3bff02955"
+            },
+            {
+              "label": "High-contrast Dark — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-compact-focused-review-navigation/state-captures/08-high-contrast-dark-comparison-crop.png",
+              "sha256": "sha256:9ee1f0d0a72aa1d239ee5ce63bc5938c611e85acd854df49c9fb0415ad92cda4"
+            }
+          ],
+          "layout": "grid",
+          "note": "Each profile has the complete 1280 x 1000 application view followed by the native 1262 x 918 comparison crop. Click an image for native resolution. The final state shows the first exact replacement; the bound facts record both groups while selected.",
+          "required": true,
+          "title": "Compact focused review across all four profiles"
+        }
+      ],
+      "subject_digest": "sha256:b0cd007b4752685ea05645b493695c182710f40c6eae545996a5192c5ae34b57",
+      "subject_id": "criterion:/betterpullreview/bpr-0257/compact-focused-review-navigation",
+      "subject_key": "compact-focused-review-navigation"
+    }
+  ],
+  "title": "Compact focused-review navigation"
+}
