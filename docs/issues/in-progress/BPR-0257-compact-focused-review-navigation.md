@@ -59,3 +59,31 @@ The attended package must bind the four full-window profiles and comparison
 crops after the deterministic row-placement, action-routing, accessibility,
 enabled-state, navigation, selected-diff, role-pixel, and connector assertions
 have all passed.
+
+## Implementation checkpoint
+
+The product now presents one persistent icon-only row in the required order:
+Files, Previous file, Next file, Previous change, Next change, bounded Review
+details/private-progress controls, a flexible spacer, and Conversations. The
+row uses live `QStyle` standard icons and refreshes them on style/theme change.
+Every drawer/navigation action retains its tooltip, accessible name and
+description, focus stop, shortcut, and core-projected enabled state.
+
+The comparison surface no longer carries duplicate Previous/Next buttons. Its
+narrow `navigate_change(direction, policy)` bridge uses the existing semantic
+index and the exact projected stop-versus-wrap policy, while the application
+host admits bounded change-cursor facts only from the exact accepted
+selected-diff request. File actions still traverse the retained Files model
+through the semantic workbench-host path. Review receipts remain the same
+actions inside one keyboard-accessible private-progress popup.
+
+The focused host, Qt, composed-application, and recorded UIforETW checks are
+green. The real course exercises all four navigation actions and both drawer
+toggles, captures all four appearance profiles, and preserves exact blobs,
+intraline role pixels, grounded connectors, and the cut-selection-wire
+negative. A new immutable v003 package will be generated from the committed
+implementation before attended review.
+
+No v001 or v002 decision is carried forward, and this card remains In Progress
+until the new exact exported verdict is validated and recorded by the
+integrator.

@@ -439,6 +439,14 @@ namespace {
 
 	struct selected_harness
 	{
+		void settle()
+		{
+			while (Effects.pending() != 0U || Lane.pending() != 0U) {
+				Effects.drain();
+				Lane.drain();
+			}
+		}
+
 		fake_observations                       Observations;
 		fake_settings                           Settings;
 		fake_selected_diffs                     SelectedDiffs;
@@ -459,6 +467,132 @@ namespace {
 			&SelectedProjections,
 		};
 	};
+
+	void test_change_navigation_observation_is_exact_and_bounded()
+	{
+		auto value               = selected_harness{ };
+		value.Observations.Files = { file(1U) };
+		value.Host.observe(authority());
+		value.settle();
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.settle();
+		expect(value.SelectedProjections.Published.size() == 1U,
+			   "one selected diff is accepted before change observations");
+
+		const auto request   = value.SelectedProjections.Published.back().Request;
+		const auto published = value.Projections.Published.size();
+		value.Host.observe_change_navigation(request, std::nullopt);
+		expect(value.Projections.Published.size() == published,
+			   "an unchanged absent change cursor publishes nothing");
+
+		const auto observe = [&value, &request](
+								 const std::uint32_t aOrdinal,
+								 const bool          aPrevious,
+								 const bool          aNext) {
+			value.Host.observe_change_navigation(
+				request,
+				core::workbench_change_cursor{
+					.Group = opaque<core::change_group_id>(
+						static_cast<std::uint8_t>(aOrdinal)),
+					.Ordinal           = aOrdinal,
+					.ChangeCount       = 3U,
+					.PreviousAvailable = aPrevious,
+					.NextAvailable     = aNext,
+				});
+			const auto& projection = value.Projections.Published.back();
+			expect(projection.Commands.has_value()
+					   && !projection.Selection.has_value()
+					   && !projection.Drawers.has_value()
+					   && !projection.Layout.has_value()
+					   && !projection.Files.has_value(),
+				   "a change cursor publishes only changed command legality");
+			const auto& previousCommand
+				= projection.Commands->Commands[command_index(
+					core::workbench_command_id::previous_change)];
+			const auto& nextCommand = projection.Commands->Commands[command_index(
+				core::workbench_command_id::next_change)];
+			expect(previousCommand.Enabled == aPrevious
+					   && nextCommand.Enabled == aNext,
+				   "the core projects the exact observed change neighbours");
+		};
+
+		observe(1U, false, true);
+		observe(2U, true, true);
+		observe(3U, true, false);
+		const auto atLastPublished = value.Projections.Published.size();
+		value.Host.observe_change_navigation(
+			request,
+			core::workbench_change_cursor{
+				.Group             = opaque<core::change_group_id>(3U),
+				.Ordinal           = 3U,
+				.ChangeCount       = 3U,
+				.PreviousAvailable = true,
+				.NextAvailable     = false,
+			});
+		expect(value.Projections.Published.size() == atLastPublished,
+			   "an identical bounded cursor is not overpublished");
+
+		value.Host.observe_change_navigation(request, std::nullopt);
+		expect(!value.Host.state().Change.has_value(),
+			   "an exact absent observation closes change navigation");
+		const auto closedPublished = value.Projections.Published.size();
+
+		auto staleGeneration               = request;
+		staleGeneration.Context.Generation = core::request_generation{
+			request.Context.Generation.value() + 1U
+		};
+		value.Host.observe_change_navigation(
+			staleGeneration,
+			core::workbench_change_cursor{
+				.Group             = opaque<core::change_group_id>(1U),
+				.Ordinal           = 1U,
+				.ChangeCount       = 3U,
+				.PreviousAvailable = false,
+				.NextAvailable     = true,
+			});
+		auto foreignAuthority                        = request;
+		foreignAuthority.WorkbenchAuthority.Snapshot = core::provider_snapshot_id{
+			request.WorkbenchAuthority.Snapshot.value() + 1U
+		};
+		value.Host.observe_change_navigation(
+			foreignAuthority,
+			core::workbench_change_cursor{
+				.Group             = opaque<core::change_group_id>(1U),
+				.Ordinal           = 1U,
+				.ChangeCount       = 3U,
+				.PreviousAvailable = false,
+				.NextAvailable     = true,
+			});
+		expect(value.Projections.Published.size() == closedPublished
+				   && !value.Host.state().Change.has_value(),
+			   "stale generation and foreign authority observations are ignored");
+
+		value.Host.observe_change_navigation(
+			request,
+			core::workbench_change_cursor{
+				.Group             = opaque<core::change_group_id>(1U),
+				.Ordinal           = 1U,
+				.ChangeCount       = 3U,
+				.PreviousAvailable = false,
+				.NextAvailable     = true,
+			});
+		value.Host.refresh_selected_diff();
+		expect(!value.Host.state().Change.has_value(),
+			   "superseding selected-diff work clears the old change cursor");
+		const auto supersededPublished = value.Projections.Published.size();
+		value.Host.observe_change_navigation(
+			request,
+			core::workbench_change_cursor{
+				.Group             = opaque<core::change_group_id>(2U),
+				.Ordinal           = 2U,
+				.ChangeCount       = 3U,
+				.PreviousAvailable = true,
+				.NextAvailable     = true,
+			});
+		expect(value.Projections.Published.size() == supersededPublished
+				   && !value.Host.state().Change.has_value(),
+			   "a superseded selected-diff request cannot restore cursor facts");
+	}
 
 	void test_invalid_limits_are_rejected()
 	{
@@ -1166,6 +1300,7 @@ auto main() -> int
 {
 	test_invalid_limits_are_rejected();
 	test_first_observation_publishes_bounded_cursor_facts();
+	test_change_navigation_observation_is_exact_and_bounded();
 	test_navigation_resolves_through_the_host_order();
 	test_selected_diff_lifecycle_is_exactly_once_and_typed();
 	test_selected_diff_replays_after_context_arrives_and_changes();

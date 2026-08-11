@@ -39,7 +39,6 @@ class QLineEdit;
 class QListView;
 class QMenu;
 class QPlainTextEdit;
-class QResizeEvent;
 class QScrollArea;
 class QSplitter;
 class QStackedWidget;
@@ -69,18 +68,12 @@ namespace bpr::qt {
 	using workbench_queue_rule_dispatch            = std::function<void(application::queue_rule_intent)>;
 	using workbench_queue_preferences_dispatch     = std::function<void(application::queue_preferences_intent)>;
 
-	enum class workbench_toolbar_mode : std::uint8_t {
-		expanded,
-		compact,
-	};
-
 	/// \brief Records directly observable workbench-window presentation activity.
 	struct workbench_window_statistics
 	{
 		std::uint64_t Publications          = 0U;
 		std::uint64_t Failures              = 0U;
 		std::uint64_t CommandUpdates        = 0U;
-		std::uint64_t ToolbarModeChanges    = 0U;
 		std::uint64_t Announcements         = 0U;
 		std::uint64_t DrawerUpdates         = 0U;
 		std::uint64_t FileRowUpdates        = 0U;
@@ -109,7 +102,7 @@ namespace bpr::qt {
 		auto operator<=>(const workbench_window_statistics&) const = default;
 	};
 
-	/// \brief Presents the native workbench shell and its primary review toolbar.
+	/// \brief Presents the native workbench shell and its focused review row.
 	///
 	/// \details The window is an event and action adapter, never a controller. Each
 	/// toolbar action translates one gesture into a semantic intent and every
@@ -122,11 +115,12 @@ namespace bpr::qt {
 	/// stop-versus-wrap policy travels back out with the gesture it offered. The
 	/// window holds no second carrier for any command's legality.
 	///
-	/// Primary navigation stays top-level while the window is at least
-	/// compact_width_threshold() wide. Below that it moves into an explicit compact
-	/// overflow control. The actions stay associated with the window in both modes,
-	/// so their window shortcuts remain live and the overflow itself is focusable
-	/// and mnemonic-addressable; navigation never silently disappears.
+	/// One compact icon-only row presents the Files drawer at the far left, then
+	/// previous/next file and previous/next change, bounded secondary review
+	/// controls, a flexible spacer, and the Conversations drawer at the far right.
+	/// All six primary actions stay top-level at every supported width. Their text
+	/// remains available through stable tooltips, accessibility, and shortcuts,
+	/// never as persistent toolbar width.
 	///
 	/// The central surface is a splitter holding the two review drawers and the
 	/// centre. Collapsed and expanded arrive in the core's drawer delta and drawer
@@ -218,24 +212,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto read_action() const noexcept -> QAction*;
 		[[nodiscard]] auto accept_action() const noexcept -> QAction*;
 		[[nodiscard]] auto exclude_action() const noexcept -> QAction*;
-		[[nodiscard]] auto navigation_overflow_button() const noexcept
+		/// \brief Opens the bounded secondary private-progress action menu.
+		[[nodiscard]] auto review_controls_button() const noexcept
 			-> QToolButton*;
-		[[nodiscard]] auto navigation_overflow_menu() const noexcept -> QMenu*;
-		[[nodiscard]] auto toolbar_mode() const noexcept -> workbench_toolbar_mode;
-
-		/// \brief Computes the narrowest width that still fits top-level navigation.
-		///
-		/// \details Derived from the current style and font only, never from the
-		/// current toolbar mode, so entering the compact overflow cannot change the
-		/// answer that put the toolbar there.
-		[[nodiscard]] auto compact_width_threshold() const -> int;
-
-		/// \brief Presents the drawer toggles outside the primary toolbar.
-		///
-		/// \details The drawer toggles stay top-level at every supported width, so
-		/// they must never compete with primary navigation for toolbar width and
-		/// must not enter compact_width_threshold().
-		[[nodiscard]] auto drawer_toolbar() const noexcept -> QToolBar*;
+		[[nodiscard]] auto review_controls_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto files_drawer() const noexcept
 			-> workbench_drawer_panel*;
 		[[nodiscard]] auto conversations_drawer() const noexcept
@@ -333,8 +313,8 @@ namespace bpr::qt {
 		/// \brief Reports the window's declared deterministic focus order.
 		///
 		/// \details The order is rebuilt from live widgets, so it names exactly
-		/// the interactive stops the shell currently offers: primary navigation
-		/// or its compact overflow, the drawer toggles, the file drawer, the two
+		/// the interactive stops the shell currently offers: the compact icon row,
+		/// the file drawer, the two
 		/// epoch selectors with their exact OIDs, the composed comparison
 		/// surface, the conversation drawer, and the status line. The composed
 		/// surface contributes one stop, because ordering inside it stays
@@ -363,16 +343,13 @@ namespace bpr::qt {
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
-		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
 		/// \brief Binds one primary action to its presentation wording.
 		///
-		/// \details `Name` is the visible toolbar label and the width the compact
-		/// threshold reserves for it. `Accessible` is the assistive-technology
-		/// name, which must stay unique inside the assembled window: the composed
-		/// comparison surface offers its own in-surface change buttons, so the
-		/// toolbar cannot answer to the same name.
+		/// \details `Name` is retained action wording for native menus and platform
+		/// affordances; the persistent toolbar presenter is always icon-only.
+		/// `Accessible` stays unique inside the assembled window.
 		struct navigation_entry
 		{
 			QAction* Action = nullptr;
@@ -397,7 +374,6 @@ namespace bpr::qt {
 		};
 
 		void build_primary_toolbar();
-		void build_drawer_toolbar();
 		void build_central_surface();
 		void build_github_header();
 		void apply_github_transition(
@@ -418,8 +394,8 @@ namespace bpr::qt {
 			core::workbench_drawer aDrawer,
 			std::uint32_t          aWidth);
 		void apply_drawer_layout();
-		void apply_layout_mode();
 		void configure_tool_buttons();
+		void refresh_toolbar_icons();
 		void apply_focus_order();
 		void update_action_state();
 		void update_drawer_action(
@@ -463,17 +439,15 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*       PrimaryToolbar      = nullptr;
-		QToolBar*       DrawerToolbar       = nullptr;
-		QAction*        SeparatorAction     = nullptr;
-		QAction*        OverflowAction      = nullptr;
-		QAction*        ReviewDetailsAction = nullptr;
-		QToolButton*    OverflowButton      = nullptr;
-		QMenu*          OverflowMenu        = nullptr;
-		QLabel*         StatusLabel         = nullptr;
-		QSplitter*      CentralSplitter     = nullptr;
-		QWidget*        CentreSurface       = nullptr;
-		diff_workbench* ComparisonSurface   = nullptr;
+		QToolBar*       PrimaryToolbar       = nullptr;
+		QAction*        ReviewDetailsAction  = nullptr;
+		QToolButton*    ReviewControlsButton = nullptr;
+		QMenu*          ReviewControlsMenu   = nullptr;
+		QWidget*        ToolbarSpacer        = nullptr;
+		QLabel*         StatusLabel          = nullptr;
+		QSplitter*      CentralSplitter      = nullptr;
+		QWidget*        CentreSurface        = nullptr;
+		diff_workbench* ComparisonSurface    = nullptr;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 
@@ -532,9 +506,7 @@ namespace bpr::qt {
 		std::optional<application::file_receipt_action_projection> Receipt;
 		std::optional<application::receipt_failure_publication>    ReceiptFailure;
 		bool                                                       LedgerUnavailable     = false;
-		workbench_toolbar_mode                                     Mode                  = workbench_toolbar_mode::expanded;
 		bool                                                       HasCommands           = false;
-		bool                                                       ToolbarConfigured     = false;
 		bool                                                       ApplyingLayout        = false;
 		bool                                                       ApplyingFileSelection = false;
 		bool                                                       QueueReady            = false;

@@ -14,7 +14,7 @@
 
 ```text
 ┌ Header: product, PR, status counters, account/host ┐
-├ Primary toolbar: Previous File | Next File | Previous Change | Next Change | view controls ┤
+├ Files | Previous File | Next File | Previous Change | Next Change | review controls | spacer | Conversations ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
 │ filters and review map       │ independent left/right epoch pickers  │ threads, defects, AI tabs   │
 │                              │ natural-layout panes + DiffLinkMap      │                              │
@@ -23,7 +23,7 @@
 └──────────────────────────────┴────────────────────────────────────────┴──────────────────────────────┘
 ```
 
-The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface.
+The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
 
 ## GitHub host and pull-request presentation
 
@@ -83,7 +83,14 @@ installation defaulting to System.
 
 ## Primary actions
 
-Previous/next file and previous/next change are always visible in the top toolbar. They operate on the current filtered/actionable set and expose keyboard shortcuts. Disabled states explain why navigation is unavailable.
+Previous/next file and previous/next change are always visible in one compact
+top row. Files is the far-left action, then Previous file, Next file, Previous
+change, and Next change appear in that semantic order. Bounded review-details
+and private-progress controls follow, a flexible spacer absorbs remaining
+width, and Conversations is the far-right action. The six drawer/navigation
+presenters are icon-only, but each retains a stable visible tooltip, accessible
+name and description, strong-focus stop, and keyboard shortcut. No text toolbar
+appears at a narrower width.
 
 `Next actionable` remains available as a secondary command and uses the local actionability projection.
 
@@ -94,6 +101,15 @@ reasons come from the core's command projections; a widget never decides
 navigation legality locally, and a disabled action carries its exact reason in
 both tooltip and status tip.
 
+File navigation resolves through the retained accepted Files order and the
+existing workbench host selection path. The application supplies the core only
+the bounded cursor facts of the exact accepted diff and semantic selection;
+the core projects change-command legality. A toolbar change gesture then calls
+the comparison surface's narrow `navigate_change(direction, policy)` bridge,
+which uses its existing semantic index and the exact projected stop-versus-wrap
+policy. The comparison surface has no second Previous/Next presenter, and Qt
+never invents enabled state.
+
 | Command | Shortcut |
 |---|---|
 | Previous file | `Alt+Up` |
@@ -102,6 +118,8 @@ both tooltip and status tip.
 | Next review change | `Alt+PgDown` |
 | Toggle files drawer | `Alt+Shift+1` |
 | Toggle conversations drawer | `Alt+Shift+2` |
+| Toggle review details | `Alt+Shift+3` |
+| Open private review progress | `Alt+Shift+4` |
 
 The drawer toggles use `Alt+Shift` rather than plain `Alt+1`/`Alt+2` because
 the composed epoch control already holds `Alt+1` through `Alt+3` with
@@ -110,14 +128,12 @@ focus, and Qt resolves an ambiguous shortcut by triggering neither, so the
 plain-`Alt` form produced two silently dead toggles. No key sequence may be
 duplicated anywhere in the assembled window.
 
-Below a derived width threshold the primary actions move into an explicit,
-focusable compact overflow menu rather than disappearing. They remain
-associated with the window throughout, so every shortcut keeps working in
-either mode. The threshold derives only from font metrics, style metrics,
-label widths, and a reserved central width, so it cannot change as a
-consequence of entering compact mode and cannot oscillate. The window minimum
-stays below the threshold so the compact path is reachable at a supported
-size.
+The row contains one presenter for each semantic action at every supported
+width. Review details is a compact disclosure. Seen, Reviewed, Accepted, and
+Excluded remain the same receipt `QAction` instances and appear in one
+keyboard-operable private-progress popup; the popup adds no duplicate policy,
+shortcut, or persistent text width. Closing the popup leaves the actions owned
+by the window, so their projected state and receipt semantics remain intact.
 
 ## Epoch selection
 
@@ -219,7 +235,8 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
 
 The live GitHub window now composes this selected-file comparison surface with
 the production natural-layout panes, link map, shared controller/scrollbar,
-semantic previous/next selection, source-line highlight, and lower detail.
+semantic previous/next selection reached through the single top-row presenter,
+source-line highlight, and lower detail.
 Loading, failure, file/epoch/options replacement, authority invalidation, and
 whole-cache deletion clear stale geometry by exact request context. Font,
 style, palette, screen, DPI, viewport, and divider changes remeasure Qt-local
@@ -266,7 +283,7 @@ Filters include New, Unresolved, Defects, Needs Verification, Pending Drafts, Ou
 
 ## Command placement
 
-Review submission actions remain visible in a persistent action region but do not displace file/change navigation. Destructive or shared mutations require clear target and state presentation.
+Review submission actions remain visible in a persistent action region but do not displace file/change navigation. Private receipt progress stays available through the compact keyboard-operable popup beside Review details. Destructive or shared mutations require clear target and state presentation.
 
 ## Empty, loading, and failure states
 

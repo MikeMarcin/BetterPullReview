@@ -120,7 +120,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         "\"base_blob\": \"b995e189fb58da146945e1fb22380cdf4a7f4e47\""
         "\"head_blob\": \"6335c1b2e14cd5e63142ce1dfc283fcf538fb134\""
         "\"fixture_diff_helper_invocations\": 0"
-        "\"schema\": \"bpr.uiforetw_intraline_capture.v2\""
+        "\"schema\": \"bpr.uiforetw_intraline_capture.v3\""
         "\"selected_path\": \"UIforETW/UIforETW.rc\""
     )
         string(FIND "${capture_facts}" "${fact}" found)
@@ -130,6 +130,27 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
             )
         endif()
     endforeach()
+
+	foreach(interaction IN ITEMS
+		previous_file_navigation_exercised
+		next_file_navigation_exercised
+		previous_change_navigation_exercised
+		next_change_navigation_exercised
+		files_drawer_toggle_exercised
+		conversations_drawer_toggle_exercised
+		navigation_row_exact_order
+		navigation_actions_icon_only
+		navigation_actions_have_native_icons
+		navigation_actions_accessible
+		navigation_accessible_names_unique
+	)
+		string(JSON interaction_value GET "${capture_facts}" "${interaction}")
+		if(NOT interaction_value)
+			message(FATAL_ERROR
+				"UIforETW ${profile} compact navigation omitted ${interaction}"
+			)
+		endif()
+	endforeach()
 
     foreach(hidden IN ITEMS
         files_drawer_visible
@@ -165,6 +186,15 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 
     foreach(rect IN ITEMS
         full_window_rect
+        navigation_row_rect_in_window
+        files_toggle_rect_in_row
+        previous_file_rect_in_row
+        next_file_rect_in_row
+        previous_change_rect_in_row
+        next_change_rect_in_row
+        review_details_rect_in_row
+        private_progress_rect_in_row
+        conversations_toggle_rect_in_row
         comparison_rect_in_window
         left_pane_rect_in_window
         right_pane_rect_in_window
@@ -191,6 +221,49 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
             "UIforETW ${profile} full-window rectangle is not exact"
         )
     endif()
+	if(NOT navigation_row_rect_in_window_x EQUAL 0
+			OR NOT navigation_row_rect_in_window_width EQUAL 1280
+			OR navigation_row_rect_in_window_y LESS 0
+			OR navigation_row_rect_in_window_height LESS 1)
+		message(FATAL_ERROR
+			"UIforETW ${profile} compact navigation row does not span the window"
+		)
+	endif()
+	math(EXPR files_toggle_right
+		"${files_toggle_rect_in_row_x} + ${files_toggle_rect_in_row_width}")
+	math(EXPR previous_file_right
+		"${previous_file_rect_in_row_x} + ${previous_file_rect_in_row_width}")
+	math(EXPR next_file_right
+		"${next_file_rect_in_row_x} + ${next_file_rect_in_row_width}")
+	math(EXPR previous_change_right
+		"${previous_change_rect_in_row_x} + ${previous_change_rect_in_row_width}")
+	math(EXPR next_change_right
+		"${next_change_rect_in_row_x} + ${next_change_rect_in_row_width}")
+	math(EXPR review_details_right_in_row
+		"${review_details_rect_in_row_x} + ${review_details_rect_in_row_width}")
+	math(EXPR private_progress_right
+		"${private_progress_rect_in_row_x} + ${private_progress_rect_in_row_width}")
+	math(EXPR conversations_toggle_right
+		"${conversations_toggle_rect_in_row_x} + ${conversations_toggle_rect_in_row_width}")
+	math(EXPR left_edge_gap "${files_toggle_rect_in_row_x}")
+	math(EXPR right_edge_gap
+		"${navigation_row_rect_in_window_width} - ${conversations_toggle_right}")
+	math(EXPR flexible_spacer_width
+		"${conversations_toggle_rect_in_row_x} - ${private_progress_right}")
+	if(left_edge_gap GREATER 12
+			OR right_edge_gap GREATER 12
+			OR files_toggle_right GREATER previous_file_rect_in_row_x
+			OR previous_file_right GREATER next_file_rect_in_row_x
+			OR next_file_right GREATER previous_change_rect_in_row_x
+			OR previous_change_right GREATER next_change_rect_in_row_x
+			OR next_change_right GREATER review_details_rect_in_row_x
+			OR review_details_right_in_row GREATER private_progress_rect_in_row_x
+			OR private_progress_right GREATER conversations_toggle_rect_in_row_x
+			OR flexible_spacer_width LESS 100)
+		message(FATAL_ERROR
+			"UIforETW ${profile} compact navigation order/edges/spacer drifted"
+		)
+	endif()
     math(EXPR review_details_right
         "${review_details_rect_in_window_x} + ${review_details_rect_in_window_width}")
     math(EXPR review_details_bottom

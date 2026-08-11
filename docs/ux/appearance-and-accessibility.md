@@ -13,6 +13,12 @@ font. Derived title and status fonts, standard icons, delegate geometry, and
 layout are refreshed when Qt reports application palette, font, style, or
 theme changes.
 
+The focused-workbench navigation row uses only standard `QStyle` icons. Files,
+Previous/Next file, Previous/Next change, Review details, private review
+progress, and Conversations all reacquire their icons from the live style on a
+style or theme change. No QSS or custom image asset fixes those icons to one
+palette or platform.
+
 The conversation delegate uses the live style option for colors and fonts,
 lets the native style paint selection and focus, and wraps remote literal
 text without elision. Color is not used as the only state signal.
@@ -288,10 +294,13 @@ Package audited definitions and themes as resources. Disable filesystem discover
 
 ### Workbench focus order and accessible naming (RFC-BPR-0005)
 
-The workbench shell declares its focus order explicitly and re-applies it
-whenever the toolbar changes between expanded and compact mode. The order is
-anchored to a control that is never rebuilt, so a toolbar rebuild cannot make
-it drift.
+The workbench shell declares its focus order explicitly. Its compact row begins
+with Files, Previous file, Next file, Previous change, Next change, Review
+details, private review progress, and Conversations. The row is persistent and
+is not rebuilt or replaced by a second toolbar at a narrower width, so its
+keyboard identity cannot drift across a responsive-mode transition. The
+private-progress button opens the same receipt actions in a keyboard-operable
+popup and safely returns to the persistent row when the popup closes.
 
 The declared order never reorders a stop that belongs to a composed region. The
 epoch control and the comparison surface keep their own internal focus order,
@@ -304,10 +313,12 @@ window.** This is enforced by a test rather than by convention, because the
 rule was broken four separate times before it was enforced: a retired
 placeholder duplicated the composed detail pane, the toolbar's change buttons
 duplicated the comparison surface's own in-surface buttons, the drawer toggles
-duplicated the drawer panels' list views, and the overflow menu duplicated the
-button that opens it. Each case left two focusable widgets answering to one
-identity, which assistive technology cannot disambiguate. Visible labels may
-repeat; accessible names may not.
+duplicated the drawer panels' list views, and a former navigation overflow menu
+duplicated its opener. The duplicate in-surface change buttons and navigation
+overflow are removed, and the compact row is the single presenter. Each former
+case left two focusable widgets answering to one identity, which assistive
+technology cannot disambiguate. Visible labels may repeat; accessible names
+may not.
 
 The same scan forbids duplicate key sequences, for the related reason that Qt
 resolves an ambiguous shortcut by triggering neither binding, so a collision

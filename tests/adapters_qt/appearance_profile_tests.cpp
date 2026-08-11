@@ -1275,7 +1275,9 @@ namespace {
 		profile.apply_code_font_to(workbench);
 		process_events();
 
-		workbench.next_change_button()->click();
+		expect(workbench.navigate_change(core::change_navigation_direction::next,
+										 core::change_navigation_policy::stop),
+			   "the semantic navigation bridge selects a retained change");
 		process_events();
 		auto* const controller = workbench.scroll_controller();
 		expect(
@@ -1404,7 +1406,9 @@ namespace {
 		profile.apply_code_font_to(workbench);
 		process_events();
 
-		workbench.next_change_button()->click();
+		expect(workbench.navigate_change(core::change_navigation_direction::next,
+										 core::change_navigation_policy::stop),
+			   "the semantic navigation bridge selects a retained change");
 		process_events();
 		auto* const controller = workbench.scroll_controller();
 		expect(

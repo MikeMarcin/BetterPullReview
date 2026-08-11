@@ -5,7 +5,6 @@
 #include <QApplication>
 #include <QEvent>
 #include <QFontMetricsF>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -21,7 +20,6 @@
 #include <QTextCursor>
 #include <QTextLayout>
 #include <QTimer>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -476,25 +474,13 @@ namespace bpr::qt {
 		auto* const root = new QVBoxLayout{ this };
 		root->setContentsMargins(0, 0, 0, 0);
 		root->setSpacing(6);
-		auto* const toolbar = new QHBoxLayout;
-		PreviousChange      = new QToolButton{ this };
-		PreviousChange->setText(QStringLiteral("Previous change"));
-		PreviousChange->setAccessibleName(QStringLiteral("Previous change"));
-		PreviousChange->setToolTip(QStringLiteral("Select the previous semantic change"));
-		PreviousChange->setFocusPolicy(Qt::StrongFocus);
-		NextChange = new QToolButton{ this };
-		NextChange->setText(QStringLiteral("Next change"));
-		NextChange->setAccessibleName(QStringLiteral("Next change"));
-		NextChange->setToolTip(QStringLiteral("Select the next semantic change"));
-		NextChange->setFocusPolicy(Qt::StrongFocus);
 		Status = new QLabel{ QStringLiteral("Select a file comparison"), this };
 		Status->setObjectName(QStringLiteral("diffWorkbenchStatus"));
 		Status->setAccessibleName(QStringLiteral("Comparison status"));
+		Status->setAccessibleDescription(QStringLiteral(
+			"Loading, failure, and semantic change count for the selected comparison"));
 		Status->setTextInteractionFlags(Qt::TextSelectableByKeyboard | Qt::TextSelectableByMouse);
-		toolbar->addWidget(PreviousChange);
-		toolbar->addWidget(NextChange);
-		toolbar->addWidget(Status, 1);
-		root->addLayout(toolbar);
+		root->addWidget(Status);
 
 		Vertical = new QSplitter{ Qt::Vertical, this };
 		Vertical->setObjectName(QStringLiteral("diffWorkbenchVerticalSplitter"));
@@ -581,19 +567,10 @@ namespace bpr::qt {
 				select_link(aIdentity, true);
 			});
 
-		connect(PreviousChange, &QToolButton::clicked, this, [this] {
-			navigate(core::change_navigation_direction::previous);
-		});
-		connect(NextChange, &QToolButton::clicked, this, [this] {
-			navigate(core::change_navigation_direction::next);
-		});
-		QWidget::setTabOrder(PreviousChange, NextChange);
-		QWidget::setTabOrder(NextChange, Left);
 		QWidget::setTabOrder(Left, LinkMap);
 		QWidget::setTabOrder(LinkMap, Right);
 		QWidget::setTabOrder(Right, SharedScroll);
 		QWidget::setTabOrder(SharedScroll, Detail);
-		update_action_state();
 	}
 
 	diff_workbench::~diff_workbench() = default;
@@ -675,7 +652,6 @@ namespace bpr::qt {
 				.arg(aPublication.CacheHit ? QStringLiteral(" (cached)") : QString{ }));
 		update_detail();
 		update_selection_paint();
-		update_action_state();
 		schedule_geometry_rebuild(
 			measured_geometry_change::accepted_diff,
 			diff_geometry_rebuild_trigger::accepted_diff);
@@ -743,16 +719,6 @@ namespace bpr::qt {
 	auto diff_workbench::detail_pane() const noexcept -> QPlainTextEdit*
 	{
 		return Detail;
-	}
-
-	auto diff_workbench::previous_change_button() const noexcept -> QToolButton*
-	{
-		return PreviousChange;
-	}
-
-	auto diff_workbench::next_change_button() const noexcept -> QToolButton*
-	{
-		return NextChange;
 	}
 
 	auto diff_workbench::shared_scrollbar() const noexcept -> QScrollBar*
@@ -1113,11 +1079,13 @@ namespace bpr::qt {
 		}
 	}
 
-	void diff_workbench::navigate(
-		const core::change_navigation_direction aDirection)
+	auto diff_workbench::navigate_change(
+		const core::change_navigation_direction aDirection,
+		const core::change_navigation_policy    aPolicy)
+		-> bool
 	{
 		if (!CurrentResult || !SemanticIndex.has_value()) {
-			return;
+			return false;
 		}
 		++Statistics.SemanticQueries;
 		const auto changed = core::transition(
@@ -1125,13 +1093,14 @@ namespace bpr::qt {
 			*SemanticIndex,
 			core::navigate_diff_change_intent{
 				.Direction = aDirection,
-				.Policy    = core::change_navigation_policy::stop,
+				.Policy    = aPolicy,
 			});
 		if (changed) {
 			++Statistics.SelectionChanges;
 			apply_interaction(true, changed);
 			emit_selection();
 		}
+		return changed;
 	}
 
 	void diff_workbench::synchronize_geometry_selection(const bool aReveal)
@@ -1163,7 +1132,6 @@ namespace bpr::qt {
 		synchronize_geometry_selection(aReveal);
 		update_detail();
 		update_selection_paint();
-		update_action_state();
 		if (aAnnounceSelection) {
 			announce_accessible_status(
 				Status->text() + QStringLiteral(". ")
@@ -1628,26 +1596,6 @@ namespace bpr::qt {
 		}
 	}
 
-	void diff_workbench::update_action_state()
-	{
-		if (!CurrentResult || !SemanticIndex.has_value()
-			|| CurrentResult->Alignment.Groups.empty()) {
-			PreviousChange->setEnabled(false);
-			NextChange->setEnabled(false);
-			return;
-		}
-		auto index = std::optional<std::size_t>{ };
-		if (
-			Interaction.Selection.has_value()
-			&& Interaction.Selection->Group.has_value()) {
-			index = SemanticIndex->group_index(*Interaction.Selection->Group);
-		}
-		PreviousChange->setEnabled(index.has_value() && *index != 0U);
-		NextChange->setEnabled(
-			!index.has_value()
-			|| *index + 1U < CurrentResult->Alignment.Groups.size());
-	}
-
 	void diff_workbench::announce_accessible_status(QString aText)
 	{
 		if (aText.isEmpty() || aText == LastAnnouncement) {
@@ -1705,7 +1653,6 @@ namespace bpr::qt {
 		AxisCache.invalidate(measured_geometry_change::file_or_epoch);
 		PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
 		update_status(std::move(aStatus));
-		update_action_state();
 		if (hadSelection) {
 			emit_selection();
 		}
