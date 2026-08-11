@@ -10,6 +10,39 @@ import unittest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 VERIFY_SCRIPT = REPOSITORY_ROOT / "cmake" / "VerifyArchitectureBoundaries.cmake"
+DESIGNATED_LIVE_TEST_NETWORK_RUNNER = (
+    REPOSITORY_ROOT
+    / "tests"
+    / "network_isolation"
+    / "designated_live_mutation_runner.cpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_TEST_CANARY = (
+    REPOSITORY_ROOT
+    / "tests"
+    / "network_isolation"
+    / "designated_live_mutation_canary.cpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_TEST_CANARY_HEADER = (
+    REPOSITORY_ROOT
+    / "tests"
+    / "network_isolation"
+    / "designated_live_mutation_canary.hpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_TEST_CHILD = (
+    REPOSITORY_ROOT
+    / "tests"
+    / "network_isolation"
+    / "designated_live_mutation_child.cpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_TEST_CHILD_HEADER = (
+    REPOSITORY_ROOT
+    / "tests"
+    / "network_isolation"
+    / "designated_live_mutation_child.hpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_TEST_CMAKE = (
+    REPOSITORY_ROOT / "tests" / "CMakeLists.txt"
+).read_text(encoding="utf-8")
 
 ADAPTER_ROOT = """\
 add_subdirectory(github)
@@ -1837,6 +1870,208 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     "QNetworkAccessManager* manager;\n"
             },
         )
+
+    def test_test_network_effect_is_owned_only_by_designated_live_parent(
+        self,
+    ) -> None:
+        result = self.run_check(
+            {
+                "tests/network_isolation/"
+                "designated_live_mutation_runner.cpp":
+                    DESIGNATED_LIVE_TEST_NETWORK_RUNNER,
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        self.assert_failure(
+            "Test-only network effect ownership violation",
+            {
+                "tests/network_isolation/"
+                "designated_live_mutation_runner.cpp":
+                    DESIGNATED_LIVE_TEST_NETWORK_RUNNER,
+                "tests/network_isolation/arbitrary_reader.cpp":
+                    "QNetworkAccessManager* network;\n",
+            },
+        )
+
+    def test_designated_live_parent_rejects_alternate_authority(self) -> None:
+        for hostile in (
+            'const char* other = "https://example.invalid";\n',
+            'const char* header = "Authorization";\n',
+            'auto value = qEnvironmentVariable("BPR_TARGET");\n',
+            "manager.get(other_request);\n",
+            "manager.post(other_request, body);\n",
+        ):
+            with self.subTest(hostile=hostile.strip()):
+                expected = (
+                    "exactly one GET call"
+                    if "manager.get" in hostile
+                    else "forbidden alternate network"
+                )
+                self.assert_failure(
+                    expected,
+                    {
+                        "tests/network_isolation/"
+                        "designated_live_mutation_runner.cpp":
+                            DESIGNATED_LIVE_TEST_NETWORK_RUNNER + hostile,
+                    },
+                )
+
+    def test_designated_live_canary_rejects_host_authority(self) -> None:
+        exact_sources = {
+            "tests/network_isolation/designated_live_mutation_canary.cpp":
+                DESIGNATED_LIVE_TEST_CANARY,
+            "tests/network_isolation/designated_live_mutation_canary.hpp":
+                DESIGNATED_LIVE_TEST_CANARY_HEADER,
+            "tests/network_isolation/designated_live_mutation_child.cpp":
+                DESIGNATED_LIVE_TEST_CHILD,
+            "tests/network_isolation/designated_live_mutation_child.hpp":
+                DESIGNATED_LIVE_TEST_CHILD_HEADER,
+            "tests/CMakeLists.txt": DESIGNATED_LIVE_TEST_CMAKE,
+        }
+        result = self.run_check(exact_sources)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        for hostile in (
+            "std::system(command);\n",
+            "popen(command, mode);\n",
+            "QProcess process;\n",
+            "fork();\n",
+            "execve(path, argv, envp);\n",
+            "posix_spawn(pid, path, actions, attr, argv, envp);\n",
+            "socket(domain, type, protocol);\n",
+            "curl_easy_init();\n",
+            "write(fd, body, size);\n",
+            'const char* url = "ht" "tps" "://example.invalid";\n',
+        ):
+            with self.subTest(hostile=hostile.strip()):
+                mutated = dict(exact_sources)
+                mutated[
+                    "tests/network_isolation/"
+                    "designated_live_mutation_canary.cpp"
+                ] = DESIGNATED_LIVE_TEST_CANARY + hostile
+                self.assert_failure(
+                    "Designated live canary",
+                    mutated,
+                )
+
+    def test_designated_live_canary_headers_are_transitively_locked(self) -> None:
+        exact_sources = {
+            "tests/network_isolation/designated_live_mutation_canary.cpp":
+                DESIGNATED_LIVE_TEST_CANARY,
+            "tests/network_isolation/designated_live_mutation_canary.hpp":
+                DESIGNATED_LIVE_TEST_CANARY_HEADER,
+            "tests/network_isolation/designated_live_mutation_child.cpp":
+                DESIGNATED_LIVE_TEST_CHILD,
+            "tests/network_isolation/designated_live_mutation_child.hpp":
+                DESIGNATED_LIVE_TEST_CHILD_HEADER,
+            "tests/CMakeLists.txt": DESIGNATED_LIVE_TEST_CMAKE,
+        }
+        hostile_headers = (
+            "inline int hostile_initializer = [] { return 1; }();\n",
+            "inline int hostile_system = system(command);\n",
+            "inline QNetworkAccessManager hostile_network;\n",
+            "inline std::vector<int> hostile_allocation;\n",
+        )
+        for header in (
+            "designated_live_mutation_canary.hpp",
+            "designated_live_mutation_child.hpp",
+        ):
+            for hostile in hostile_headers:
+                with self.subTest(header=header, hostile=hostile.strip()):
+                    mutated = dict(exact_sources)
+                    path = f"tests/network_isolation/{header}"
+                    mutated[path] = exact_sources[path] + hostile
+                    expected = (
+                        "Test-only network"
+                        if "QNetworkAccessManager" in hostile
+                        else "Designated live canary"
+                    )
+                    self.assert_failure(expected, mutated)
+
+    def test_designated_live_fork_child_is_exact_and_single_authority(self) -> None:
+        exact_sources = {
+            "tests/network_isolation/"
+            "designated_live_mutation_canary.cpp":
+                DESIGNATED_LIVE_TEST_CANARY,
+            "tests/network_isolation/"
+            "designated_live_mutation_canary.hpp":
+                DESIGNATED_LIVE_TEST_CANARY_HEADER,
+            "tests/network_isolation/"
+            "designated_live_mutation_child.cpp":
+                DESIGNATED_LIVE_TEST_CHILD,
+            "tests/network_isolation/"
+            "designated_live_mutation_child.hpp":
+                DESIGNATED_LIVE_TEST_CHILD_HEADER,
+            "tests/CMakeLists.txt": DESIGNATED_LIVE_TEST_CMAKE,
+        }
+        result = self.run_check(exact_sources)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        for hostile in (
+            "QProcess process;\n",
+            "std::string allocated;\n",
+            "malloc(64);\n",
+            "system(command);\n",
+            "execve(path, argv, envp);\n",
+            "posix_spawn(pid, path, actions, attr, argv, envp);\n",
+            "fork();\n",
+            'const char* url = "ht" "tps" "://example.invalid";\n',
+        ):
+            with self.subTest(hostile=hostile.strip()):
+                mutated = dict(exact_sources)
+                mutated[
+                    "tests/network_isolation/"
+                    "designated_live_mutation_child.cpp"
+                ] = DESIGNATED_LIVE_TEST_CHILD + hostile
+                self.assert_failure("Designated live", mutated)
+
+    def test_designated_live_runner_target_composition_is_exact(self) -> None:
+        exact_sources = {
+            "tests/network_isolation/designated_live_mutation_canary.cpp":
+                DESIGNATED_LIVE_TEST_CANARY,
+            "tests/network_isolation/designated_live_mutation_canary.hpp":
+                DESIGNATED_LIVE_TEST_CANARY_HEADER,
+            "tests/network_isolation/designated_live_mutation_child.cpp":
+                DESIGNATED_LIVE_TEST_CHILD,
+            "tests/network_isolation/designated_live_mutation_child.hpp":
+                DESIGNATED_LIVE_TEST_CHILD_HEADER,
+            "tests/CMakeLists.txt": DESIGNATED_LIVE_TEST_CMAKE,
+        }
+        mutations = (
+            DESIGNATED_LIVE_TEST_CMAKE.replace(
+                '        "${PROJECT_SOURCE_DIR}/tests/network_isolation/'
+                'designated_live_mutation_runner.cpp"\n',
+                '        "${PROJECT_SOURCE_DIR}/tests/network_isolation/'
+                'designated_live_mutation_runner.cpp"\n'
+                '        "${PROJECT_SOURCE_DIR}/tests/network_isolation/'
+                'hostile.cpp"\n',
+                1,
+            ),
+            DESIGNATED_LIVE_TEST_CMAKE
+            + "\ntarget_sources("
+            "tool_better_pull_review_designated_live_mutation_runner "
+            "PRIVATE hostile.cpp)\n",
+            DESIGNATED_LIVE_TEST_CMAKE.replace(
+                "            Qt6::Network\n",
+                "            Qt6::Network\n            Hostile::Library\n",
+                1,
+            ),
+            DESIGNATED_LIVE_TEST_CMAKE.replace(
+                "            BPR_DESIGNATED_LIVE_CANARY_NO_MAIN=1\n",
+                "            BPR_DESIGNATED_LIVE_CANARY_NO_MAIN=1\n"
+                "            HOSTILE_DEFINITION=1\n",
+                1,
+            ),
+        )
+        for mutated_cmake in mutations:
+            with self.subTest(mutation=mutated_cmake[-120:]):
+                mutated = dict(exact_sources)
+                mutated["tests/CMakeLists.txt"] = mutated_cmake
+                self.assert_failure(
+                    "Designated live runner target",
+                    mutated,
+                )
 
     def test_all_qt_network_and_tls_types_are_owned_by_native_https(self) -> None:
         for effect in ("QNetworkReply", "QSslCertificate"):

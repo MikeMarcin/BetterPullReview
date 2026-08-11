@@ -1,3 +1,133 @@
+bpr_add_executable(
+    test_better_pull_review_designated_live_mutation_gate_tests
+    "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_gate.cpp"
+    "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_gate_tests.cpp"
+)
+target_compile_features(
+    test_better_pull_review_designated_live_mutation_gate_tests
+    PRIVATE
+        cxx_std_23
+)
+target_link_libraries(
+    test_better_pull_review_designated_live_mutation_gate_tests
+    PRIVATE
+        Threads::Threads
+)
+bpr_enable_hardening(test_better_pull_review_designated_live_mutation_gate_tests)
+bpr_enable_warnings(test_better_pull_review_designated_live_mutation_gate_tests)
+bpr_add_network_isolated_test(
+    NAME designated_live_mutation_gate
+    COMMAND test_better_pull_review_designated_live_mutation_gate_tests
+)
+
+set(bpr_designated_live_canary_surface_material "")
+foreach(
+    bpr_designated_live_canary_surface_file
+    IN ITEMS
+        designated_live_mutation_canary.cpp
+        designated_live_mutation_canary.hpp
+        designated_live_mutation_child.cpp
+        designated_live_mutation_child.hpp
+)
+    set(
+        bpr_designated_live_canary_surface_path
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/${bpr_designated_live_canary_surface_file}"
+    )
+    set_property(
+        DIRECTORY
+        APPEND
+        PROPERTY CMAKE_CONFIGURE_DEPENDS
+            "${bpr_designated_live_canary_surface_path}"
+    )
+    file(
+        SHA256
+        "${bpr_designated_live_canary_surface_path}"
+        bpr_designated_live_canary_surface_file_sha256
+    )
+    string(
+        APPEND
+        bpr_designated_live_canary_surface_material
+        "${bpr_designated_live_canary_surface_file}=${bpr_designated_live_canary_surface_file_sha256}\n"
+    )
+endforeach()
+string(
+    SHA256
+    BPR_DESIGNATED_LIVE_CANARY_SURFACE_SHA256
+    "${bpr_designated_live_canary_surface_material}"
+)
+
+if(BPR_BUILD_QT)
+    bpr_add_executable(
+        tool_better_pull_review_designated_live_mutation_runner
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_canary.cpp"
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_child.cpp"
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_gate.cpp"
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_runner.cpp"
+    )
+    target_compile_features(
+        tool_better_pull_review_designated_live_mutation_runner
+        PRIVATE
+            cxx_std_23
+    )
+    target_link_libraries(
+        tool_better_pull_review_designated_live_mutation_runner
+        PRIVATE
+            Qt6::Core
+            Qt6::Network
+    )
+    bpr_enable_hardening(tool_better_pull_review_designated_live_mutation_runner)
+    bpr_enable_warnings(tool_better_pull_review_designated_live_mutation_runner)
+
+    bpr_add_executable(
+        test_better_pull_review_designated_live_mutation_canary
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_canary.cpp"
+    )
+    target_compile_features(
+        test_better_pull_review_designated_live_mutation_canary
+        PRIVATE
+            cxx_std_23
+    )
+    bpr_enable_hardening(test_better_pull_review_designated_live_mutation_canary)
+    bpr_enable_warnings(test_better_pull_review_designated_live_mutation_canary)
+    target_compile_definitions(
+        tool_better_pull_review_designated_live_mutation_runner
+        PRIVATE
+            BPR_DESIGNATED_LIVE_CANARY_NO_MAIN=1
+            BPR_DESIGNATED_LIVE_CANARY_SURFACE_SHA256="${BPR_DESIGNATED_LIVE_CANARY_SURFACE_SHA256}"
+    )
+
+    bpr_add_executable(
+        test_better_pull_review_designated_live_mutation_runner_digest_mismatch
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_canary.cpp"
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_child.cpp"
+        "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_runner_tests.cpp"
+    )
+    target_compile_features(
+        test_better_pull_review_designated_live_mutation_runner_digest_mismatch
+        PRIVATE
+            cxx_std_23
+    )
+    target_compile_definitions(
+        test_better_pull_review_designated_live_mutation_runner_digest_mismatch
+        PRIVATE
+            BPR_DESIGNATED_LIVE_CANARY_NO_MAIN=1
+            BPR_DESIGNATED_LIVE_CANARY_SURFACE_SHA256="${BPR_DESIGNATED_LIVE_CANARY_SURFACE_SHA256}"
+    )
+    target_link_libraries(
+        test_better_pull_review_designated_live_mutation_runner_digest_mismatch
+        PRIVATE
+            Threads::Threads
+    )
+    bpr_enable_hardening(test_better_pull_review_designated_live_mutation_runner_digest_mismatch)
+    bpr_enable_warnings(test_better_pull_review_designated_live_mutation_runner_digest_mismatch)
+    bpr_add_network_isolated_test(
+        NAME designated_live_mutation_runner_digest_mismatch
+        COMMAND test_better_pull_review_designated_live_mutation_runner_digest_mismatch
+    )
+endif()
+
+bpr_add_designated_live_mutation_test()
+
 bpr_add_network_isolated_test(
     NAME core_dependency_boundary
     COMMAND
@@ -166,6 +296,8 @@ set(bpr_network_isolation_verifier_command
     "${CMAKE_CTEST_COMMAND}"
     --cmake
     "${CMAKE_COMMAND}"
+    --python
+    "$<TARGET_FILE:Python3::Interpreter>"
     --backend
     "${BPR_AUTOMATED_TEST_ISOLATION_BACKEND}"
 )
@@ -175,8 +307,6 @@ if(APPLE)
         bpr_network_isolation_verifier_command
         --profile
         "${BPR_MACOS_TEST_SANDBOX_PROFILE}"
-        --python
-        "$<TARGET_FILE:Python3::Interpreter>"
         --macos-runner
         "${BPR_MACOS_TEST_SANDBOX_RUNNER}"
     )
@@ -188,6 +318,16 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         "$<TARGET_FILE:tool_better_pull_review_network_sandbox>"
     )
 endif()
+if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
+    list(
+        APPEND
+        bpr_network_isolation_verifier_command
+        --live-runner
+        "$<TARGET_FILE:tool_better_pull_review_designated_live_mutation_runner>"
+        --live-approval
+        "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+    )
+endif()
 bpr_add_network_isolated_test(
     NAME test_network_isolation_manifest
     COMMAND ${bpr_network_isolation_verifier_command}
@@ -195,7 +335,6 @@ bpr_add_network_isolated_test(
 set_tests_properties(
     test_network_isolation_manifest
     PROPERTIES
-        PASS_REGULAR_EXPRESSION "TEST_NETWORK_ISOLATION_OK"
         TIMEOUT 60
 )
 
@@ -236,34 +375,29 @@ bpr_add_network_isolated_test(
 set_tests_properties(
     test_network_isolation_external
     PROPERTIES
-        PASS_REGULAR_EXPRESSION "NETWORK_ISOLATION_EXTERNAL_DENIED"
         TIMEOUT 15
 )
 set_tests_properties(
     test_network_isolation_loopback
     PROPERTIES
-        PASS_REGULAR_EXPRESSION "NETWORK_ISOLATION_LOOPBACK_OK"
         TIMEOUT 15
 )
 if(APPLE)
     set_tests_properties(
         test_network_isolation_unrelated
         PROPERTIES
-            PASS_REGULAR_EXPRESSION "NETWORK_ISOLATION_UNRELATED_DENIED"
             TIMEOUT 15
     )
 endif()
 set_tests_properties(
     test_network_isolation_child
     PROPERTIES
-        PASS_REGULAR_EXPRESSION "NETWORK_ISOLATION_CHILD_DENIED"
         TIMEOUT 15
 )
 set_tests_properties(
     test_network_isolation_application
     PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        PASS_REGULAR_EXPRESSION "APPLICATION_NETWORK_ISOLATION_DENIED"
         TIMEOUT 15
 )
 
@@ -347,7 +481,6 @@ bpr_add_network_isolated_test(
 set_tests_properties(
     live_mutation_isolation
     PROPERTIES
-        PASS_REGULAR_EXPRESSION "LIVE_MUTATION_ISOLATION_OK"
         TIMEOUT 300
 )
 

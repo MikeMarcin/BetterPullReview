@@ -32,7 +32,7 @@ described as complete isolation by itself.
 Implementation proceeds first on the target-native macOS boundary and the
 cross-platform registration contract. This card must remain open until the
 same default-deny property is proved on Linux and Windows and the live lane is
-bound to an immutable designated pull-request identity.
+proved target-native against its immutable designated pull-request identity.
 
 ## Implemented and directly verified on macOS
 
@@ -68,21 +68,84 @@ All nine focused boundary, structural, and application-counterexample tests
 pass on macOS arm64. Representative C++, Python, CMake-script, native-loopback,
 and public application tests also pass under the new prefix.
 
+## Portable designated-live lane implemented
+
+- The default configured manifest has zero `bpr_live_mutation` exceptions. An
+  explicit default-off option requiring an absolute approval path registers
+  exactly `live_review_mutation_designated_target`, with the sole
+  `bpr_live_mutation` label and the fixed native-runner/approval command. Source
+  and configured verifiers reject a second
+  exception or an arbitrary name, prefix, label, target, or command.
+- The test-only native parent has exactly one network authority: an
+  unauthenticated bounded GET to the hard-coded public GitHub REST endpoint for
+  `MikeMarcin/BPR-Test#1`. It disables proxies and redirects, sends no
+  `Authorization` header, accepts no environment-selected target or URL, and
+  matches the complete designated tuple including base SHA and head branch.
+- A bounded versioned approval artifact and its immediate parent directory must
+  be owned by the invoking POSIX user, non-symlink, and private. It carries the
+  exact tuple, combined architecture-locked canary surface SHA-256, and a
+  64-lowercase-hex session nonce. The
+  parent retains both descriptors, descriptor-relatively moves the checked
+  entry into a private claim, compares and unlinks that exact inode, proves the
+  retained file has zero links, and holds the authority through child
+  termination. Concurrent, repeated, substituted, missing, or failed
+  consumption produces no launch, including deterministic substitution between
+  identity check and namespace removal.
+- The child receives only the versioned nonce capability on standard input,
+  with no capability in arguments or environment. The caller cannot select a
+  child or executable path. The exact canary and child source/header surface is
+  independently hashed, combined into the approval identity, and compiled into
+  the runner. After parent-side environment clearing, a private pipe, exact
+  single-thread proof, two equal complete descriptor inventories, and a single
+  fork create the child. Its branch iterates only the preallocated inventory,
+  closes inherited descriptors, and uses fixed byte checks plus
+  async-signal-safe descriptor calls and exit. A hermetic regression retains an
+  inherited descriptor at or above 256, lowers `RLIMIT_NOFILE` to 64, and proves
+  the child still closes it before restoring the parent limit.
+  The parent owns bounded wait, timeout kill, and reap. Hermetic fake-port,
+  fork-protocol, and native-race tests cover
+  every individual tuple mismatch, approval failures, remote failures,
+  malformed and oversized input, concurrent/repeated use, child-start failure,
+  and the exact positive `inspect -> remote -> consume -> child` course.
+
+Direct portable evidence on 2026-08-10 built the gate, native parent, and
+canary; passed `designated_live_mutation_gate`, the isolation verifier unit
+suite, and both default and explicit-opt-in manifest checks. The opt-in
+manifest was inspected only. The live lane itself made no network call and was
+not executed.
+
+Focused unattended commands:
+
+```sh
+cmake --build build/dev --target \
+  test_better_pull_review_designated_live_mutation_gate_tests \
+  tool_better_pull_review_designated_live_mutation_runner \
+  test_better_pull_review_designated_live_mutation_canary \
+  test_better_pull_review_designated_live_mutation_runner_digest_mismatch
+ctest --test-dir build/dev --output-on-failure \
+  -R '^(designated_live_mutation_(gate|runner_digest_mismatch)|test_network_isolation_(structure_contract|manifest)|live_mutation_isolation(_contract)?|architecture_boundaries|architecture_boundary_contract)$'
+python3 tests/scripts/verify_test_network_isolation_tests.py
+python3 scripts/verify_documentation.py --root .
+```
+
+The separate offline opt-in configure used an intentionally nonexistent
+absolute approval path, built only the runner and canary so CTest could resolve
+their exact commands, passed `test_network_isolation_manifest`, and inspected
+`ctest --show-only=json-v1`. It found one exact live exception. The ordinary
+`build/dev` JSON manifest found zero.
+
 ## Still required before terminal status
 
 - Run the checked-in user/network-namespace launcher and its counterexamples on
   target-native Linux.
 - Replace Windows' current pre-launch refusal with a validated whole-suite
   boundary and run the same descendant/application matrix target-native.
-- Register exactly one live lane whose runner verifies the repository and pull
-  request identities before child creation; every mismatch must remain a
-  no-launch result. The product owner authorized and designated disposable
-  `MikeMarcin/BPR-Test#1` on 2026-08-10: pull-request database ID `4246446933`,
-  node ID `PR_kwDOTyvof879G6NV`, head OID
-  `17990ba0c2fb50338141f35c0717f0f99639c7ba`, base-repository ID `1328277631`,
-  and open state. Repository database ID `1328277631` and node ID
-  `R_kgDOTyvofw` remain part of the same pre-launch match. Identity designation
-  is complete; live-runner implementation and target-native evidence are not.
+- Run the default-off designated lane target-native only when the later live
+  provider/write card supplies its separately authorized session authority and
+  attended procedure. This slice deliberately ran no public GET or live lane;
+  its compiled-in harmless canary did run only in the hermetic protocol
+  contract. Native Windows approval ownership and child creation are explicit
+  fail-closed results rather than completed Windows implementation/evidence.
 
 Per the product owner's 2026-08-10 scheduling decision, target-native Linux and
 Windows execution is deferred until the end of the remaining portable work.

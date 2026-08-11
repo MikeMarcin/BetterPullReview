@@ -147,13 +147,86 @@ an ordinary unsandboxed Windows CTest run is not permitted. The structural
 symbol guard now selects `dumpbin`, `llvm-readobj`, or `objdump` on Windows and
 fails when none can inspect the binaries.
 
-No live-test exception is registered. The eventual single live lane remains
-blocked until documentation names an immutable repository and pull-request
-identity and the launcher validates that identity before process creation.
+The default graph registers no live-test exception. Set
+`BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON` only in a separate attended build
+and provide an absolute `BPR_DESIGNATED_LIVE_MUTATION_APPROVAL` path. That
+configuration registers exactly `live_review_mutation_designated_target` with
+the sole `bpr_live_mutation` label. Its trusted test-only native parent has one
+hard-coded unauthenticated GET authority:
+`https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1`. It rejects
+redirects, authentication, arbitrary URLs and targets, and every remote tuple
+mismatch before child creation. It then atomically consumes the exact approved
+inode and sends only `bpr.designated-live-capability/v1` plus the approved
+session nonce to a fixed canary routine compiled into the trusted runner. The
+command has no caller-selected child argument or executable path. GitHub token
+environment variables are scrubbed before the parent starts. The CTest entry
+has an exact 30-second outer timeout. It and the BPR-0235 safety verifiers use
+process exit as their only verdict; pass, fail, skip, inversion, disabled, and
+skip-return overrides are forbidden.
+
+The approval file and its immediate parent directory are owned by the invoking
+user, non-symlink, and have no group or other permissions. The bounded file's
+exact ordered UTF-8 form is:
+
+```text
+bpr.designated-live-approval/v1
+host=github.com
+owner=MikeMarcin
+repository=BPR-Test
+repository_database_id=1328277631
+repository_node_id=R_kgDOTyvofw
+pull_request_number=1
+pull_request_database_id=4246446933
+pull_request_node_id=PR_kwDOTyvof879G6NV
+base_repository_database_id=1328277631
+state=open
+head_sha=17990ba0c2fb50338141f35c0717f0f99639c7ba
+base_sha=e2a44aa8fef704de7373463222b1872e796918c6
+head_branch=codex/disposable-live-review-20260810
+canary_surface_sha256=fb77b7ca2a80bea0c584c23dee5c466de0c8bc26c12dee515cf2dc167a05294c
+session_nonce=<64 lowercase hexadecimal characters>
+```
+
+The parent retains directory and approval descriptors, renames the checked
+entry into a newly created private claim directory, compares the moved object
+to the open snapshot, unlinks that exact entry, and requires the retained file
+descriptor to report zero links. The claim and descriptor remain alive through
+child termination. The approval's `canary_surface_sha256` is one deterministic
+digest over the exact canary and child `.cpp` and `.hpp` hashes, all four of
+which the architecture gate locks independently. That gate also fixes the live
+runner's source list, compile definitions, and Qt links. After the comparison,
+the parent clears its environment, creates one private capability pipe, proves
+that it has exactly one thread, and requires two equal exact open-descriptor
+inventories containing both pipe ends. macOS obtains those facts through
+`PROC_PIDTASKINFO` and `PROC_PIDLISTFDS`; Linux has a fail-closed `/proc` path
+that still requires target-native evidence. The child iterates the preallocated
+inventory, closes every inherited descriptor above standard error, maps only
+the pipe to standard input, performs fixed byte checks through the compiled-in
+routine, and exits; it never opens or executes a filesystem path. The parent
+owns bounded wait, timeout kill, and reap. Native Windows child creation remains
+fail-closed. Do not interpret a canary pass as provider/write evidence, and do
+not execute the live lane as part of ordinary verification. The full
+default-deny Linux and Windows matrices remain required at the deferred
+target-native gate.
+
+Inspect the two manifest modes without running the live lane:
+
+```sh
+ctest --test-dir build/dev --show-only=json-v1
+
+cmake --preset dev -B build/designated-live-structure \
+  -DBPR_DEPENDENCY_OFFLINE=ON \
+  -DBPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON \
+  -DBPR_DESIGNATED_LIVE_MUTATION_APPROVAL=/absolute/path/to/approval
+cmake --build build/designated-live-structure --target \
+  tool_better_pull_review_designated_live_mutation_runner \
+  test_better_pull_review_designated_live_mutation_canary
+ctest --test-dir build/designated-live-structure --show-only=json-v1
+```
 
 ```sh
 ctest --preset dev --output-on-failure \
-  -R '^(test_network_isolation_(structure_contract|manifest|external|loopback|unrelated|child|application)|live_mutation_isolation|live_mutation_isolation_contract)$'
+  -R '^(designated_live_mutation_(gate|runner_digest_mismatch)|test_network_isolation_(structure_contract|manifest|external|loopback|unrelated|child|application)|live_mutation_isolation|live_mutation_isolation_contract)$'
 ```
 
 Run the RFC-BPR-0004 core/host diff seam and its Qt-free architecture checks

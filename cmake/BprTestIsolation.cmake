@@ -8,6 +8,34 @@ set(
     BPR_MACOS_TEST_SANDBOX_RUNNER
     "${PROJECT_SOURCE_DIR}/scripts/run_network_isolated_test.py"
 )
+option(
+    BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST
+    "Register the single pre-launch-validated designated live-mutation CTest lane"
+    OFF
+)
+set(
+    BPR_DESIGNATED_LIVE_MUTATION_APPROVAL
+    ""
+    CACHE FILEPATH
+    "Absolute path to the one-shot designated live-mutation approval artifact"
+)
+if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
+    if(NOT BPR_BUILD_QT)
+        message(
+            FATAL_ERROR
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires BPR_BUILD_QT=ON"
+        )
+    endif()
+    if(
+        NOT BPR_DESIGNATED_LIVE_MUTATION_APPROVAL
+        OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+    )
+        message(
+            FATAL_ERROR
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an absolute BPR_DESIGNATED_LIVE_MUTATION_APPROVAL path"
+        )
+    endif()
+endif()
 
 if(APPLE)
     if(NOT EXISTS "/usr/bin/sandbox-exec")
@@ -197,4 +225,70 @@ function(bpr_add_network_isolated_test)
             PROPERTY LABELS "bpr_unrelated_endpoint_probe"
         )
     endif()
+endfunction()
+
+function(bpr_add_designated_live_mutation_test)
+    if(ARGC GREATER 0)
+        message(
+            FATAL_ERROR
+            "bpr_add_designated_live_mutation_test accepts no caller-selected name, target, or command"
+        )
+    endif()
+    if(NOT BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
+        return()
+    endif()
+    if(
+        NOT TARGET tool_better_pull_review_designated_live_mutation_runner
+        OR NOT TARGET test_better_pull_review_designated_live_mutation_canary
+    )
+        message(
+            FATAL_ERROR
+            "The designated live test requires its exact trusted runner and harmless canary targets"
+        )
+    endif()
+
+    add_test(
+        NAME live_review_mutation_designated_target
+        COMMAND
+            "$<TARGET_FILE:tool_better_pull_review_designated_live_mutation_runner>"
+            --approval
+            "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+    )
+    set_property(
+        TEST live_review_mutation_designated_target
+        PROPERTY LABELS "bpr_live_mutation"
+    )
+    set_property(
+        TEST live_review_mutation_designated_target
+        PROPERTY TIMEOUT 30
+    )
+    set_property(
+        TEST live_review_mutation_designated_target
+        APPEND
+        PROPERTY ENVIRONMENT_MODIFICATION
+            "PYTHONPATH=unset:"
+            "PYTHONHOME=unset:"
+            "PYTHONUSERBASE=unset:"
+            "PYTHONINSPECT=unset:"
+            "PYTHONSTARTUP=unset:"
+            "DYLD_INSERT_LIBRARIES=unset:"
+            "DYLD_LIBRARY_PATH=unset:"
+            "DYLD_FRAMEWORK_PATH=unset:"
+            "DYLD_VERSIONED_LIBRARY_PATH=unset:"
+            "DYLD_VERSIONED_FRAMEWORK_PATH=unset:"
+            "DYLD_FALLBACK_LIBRARY_PATH=unset:"
+            "DYLD_FALLBACK_FRAMEWORK_PATH=unset:"
+            "DYLD_IMAGE_SUFFIX=unset:"
+            "DYLD_ROOT_PATH=unset:"
+            "DYLD_SHARED_REGION=unset:"
+            "LD_PRELOAD=unset:"
+            "LD_LIBRARY_PATH=unset:"
+            "LD_AUDIT=unset:"
+            "LD_DEBUG=unset:"
+            "LD_PROFILE=unset:"
+            "GH_TOKEN=unset:"
+            "GITHUB_TOKEN=unset:"
+            "GH_ENTERPRISE_TOKEN=unset:"
+            "GITHUB_ENTERPRISE_TOKEN=unset:"
+    )
 endfunction()

@@ -12,6 +12,11 @@ import unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from scripts.verify_test_network_isolation import (  # noqa: E402
+    EXIT_VERDICT_TESTS,
+    FORBIDDEN_EXIT_VERDICT_PROPERTIES,
+    LIVE_CREDENTIAL_VARIABLES,
+    LIVE_TEST_LABEL,
+    LIVE_TEST_NAME,
     PRE_BOUNDARY_INJECTION_VARIABLES,
     RAW_REGISTRATION_OWNER,
     configured_failures,
@@ -36,6 +41,37 @@ def scrub_property() -> dict[str, object]:
     }
 
 
+def live_scrub_property() -> dict[str, object]:
+    return {
+        "name": "ENVIRONMENT_MODIFICATION",
+        "value": [
+            f"{name}=unset:"
+            for name in (
+                *PRE_BOUNDARY_INJECTION_VARIABLES,
+                *LIVE_CREDENTIAL_VARIABLES,
+            )
+        ],
+    }
+
+
+def protected_commands() -> dict[str, list[str]]:
+    return {
+        "architecture_boundaries": ["/sandbox", "/cmake", "-P", "/verify.cmake"],
+        "architecture_boundary_contract": ["/sandbox", "/python", "/contract.py"],
+    }
+
+
+def protected_test(name: str, command: list[str]) -> dict[str, object]:
+    return {
+        "name": name,
+        "command": command,
+        "properties": [
+            {"name": "LABELS", "value": ["bpr_network_isolated"]},
+            scrub_property(),
+        ],
+    }
+
+
 class RegistrationInventoryTests(unittest.TestCase):
     def test_exact_owner_and_isolated_registration_are_visible(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -44,20 +80,95 @@ class RegistrationInventoryTests(unittest.TestCase):
             write(
                 root,
                 "tests/CMakeLists.txt",
-                "bpr_add_network_isolated_test(NAME safe COMMAND x)\n",
+                "bpr_add_network_isolated_test(NAME safe COMMAND x)\n"
+                "bpr_add_designated_live_mutation_test()\n",
             )
-            self.assertEqual(registration_inventory(root), ([RAW_REGISTRATION_OWNER], 1))
+            self.assertEqual(
+                registration_inventory(root),
+                ([RAW_REGISTRATION_OWNER], 1, 1, 1),
+            )
 
     def test_rogue_raw_registration_is_visible(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
             write(root, "tests/CMakeLists.txt", "ADD_TEST(NAME bypass COMMAND x)\n")
-            raw, _ = registration_inventory(root)
+            raw, _, _, _ = registration_inventory(root)
             self.assertIn("tests/CMakeLists.txt", raw)
+
+    def test_second_or_argument_selected_live_registration_is_visible(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
+            write(
+                root,
+                "tests/CMakeLists.txt",
+                "bpr_add_designated_live_mutation_test()\n"
+                "bpr_add_designated_live_mutation_test(NAME arbitrary)\n",
+            )
+            _, _, live, exact_live = registration_inventory(root)
+            self.assertEqual((live, exact_live), (2, 1))
 
 
 class ConfiguredManifestTests(unittest.TestCase):
+    def test_required_architecture_name_command_pairs_are_exact(self) -> None:
+        commands = protected_commands()
+        manifest = {
+            "tests": [
+                protected_test(name, command)
+                for name, command in commands.items()
+            ]
+        }
+        self.assertEqual(
+            configured_failures(
+                manifest,
+                ["/sandbox"],
+                required_commands=commands,
+            ),
+            [],
+        )
+
+    def test_renamed_or_absent_architecture_commands_are_rejected(self) -> None:
+        commands = protected_commands()
+        cases = (
+            [
+                protected_test(
+                    "renamed_architecture_boundaries",
+                    commands["architecture_boundaries"],
+                ),
+                protected_test(
+                    "architecture_boundary_contract",
+                    commands["architecture_boundary_contract"],
+                ),
+            ],
+            [
+                protected_test(
+                    "architecture_boundary_contract",
+                    commands["architecture_boundary_contract"],
+                ),
+            ],
+            [
+                protected_test(
+                    "architecture_boundaries",
+                    ["/sandbox", "/other"],
+                ),
+                protected_test(
+                    "architecture_boundary_contract",
+                    commands["architecture_boundary_contract"],
+                ),
+            ],
+        )
+        for tests in cases:
+            with self.subTest(names=[test["name"] for test in tests]):
+                failures = configured_failures(
+                    {"tests": tests},
+                    ["/sandbox"],
+                    required_commands=commands,
+                )
+                self.assertTrue(
+                    any("protected test architecture_boundaries" in value for value in failures)
+                )
+
     def test_missing_prefix_and_label_are_both_failures(self) -> None:
         failures = configured_failures(
             {
@@ -72,6 +183,185 @@ class ConfiguredManifestTests(unittest.TestCase):
             ["/usr/bin/sandbox-exec", "-f", "/profile"],
         )
         self.assertEqual(len(failures), 2)
+
+    def test_disabled_graph_rejects_any_live_exception(self) -> None:
+        failures = configured_failures(
+            {
+                "tests": [
+                    {
+                        "name": LIVE_TEST_NAME,
+                        "command": ["/runner", "--approval", "/approval"],
+                        "properties": [
+                            {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
+                            {"name": "TIMEOUT", "value": 30.0},
+                            live_scrub_property(),
+                        ],
+                    }
+                ]
+            },
+            ["/sandbox"],
+        )
+        self.assertTrue(
+            any("configured while the live lane is disabled" in value for value in failures)
+        )
+
+    def test_exact_single_live_exception_passes(self) -> None:
+        live_command = ["/runner", "--approval", "/approval"]
+        self.assertEqual(
+            configured_failures(
+                {
+                    "tests": [
+                        {
+                            "name": LIVE_TEST_NAME,
+                            "command": live_command,
+                            "properties": [
+                                {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
+                                {"name": "TIMEOUT", "value": 30.0},
+                                live_scrub_property(),
+                            ],
+                        },
+                        {
+                            "name": "safe",
+                            "command": ["/sandbox", "/test"],
+                            "properties": [
+                                {"name": "LABELS", "value": ["bpr_network_isolated"]},
+                                scrub_property(),
+                            ],
+                        },
+                    ]
+                },
+                ["/sandbox"],
+                live_command=live_command,
+            ),
+            [],
+        )
+
+    def test_live_name_prefix_label_and_second_exception_are_exact(self) -> None:
+        live_command = ["/runner", "--approval", "/approval"]
+        hostile = (
+            {
+                "name": "arbitrary_live_name",
+                "command": live_command,
+                "properties": [
+                    {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
+                    {"name": "TIMEOUT", "value": 30.0},
+                    live_scrub_property(),
+                ],
+            },
+            {
+                "name": LIVE_TEST_NAME,
+                "command": ["/other-runner", "--approval", "/approval"],
+                "properties": [
+                    {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
+                    live_scrub_property(),
+                ],
+            },
+            {
+                "name": LIVE_TEST_NAME,
+                "command": live_command,
+                "properties": [
+                    {"name": "LABELS", "value": ["arbitrary_live_label"]},
+                    {"name": "TIMEOUT", "value": 30.0},
+                    live_scrub_property(),
+                ],
+            },
+        )
+        failures = configured_failures(
+            {"tests": list(hostile)},
+            ["/sandbox"],
+            live_command=live_command,
+        )
+        self.assertTrue(any("count is 2" in value for value in failures))
+        self.assertTrue(any("only live_review_mutation_designated_target" in value for value in failures))
+        self.assertTrue(any("exact runner/approval command" in value for value in failures))
+        self.assertTrue(any("labels are" in value for value in failures))
+
+    def test_live_timeout_and_process_exit_verdict_are_fixed(self) -> None:
+        live_command = ["/runner", "--approval", "/approval"]
+        failures = configured_failures(
+            {
+                "tests": [
+                    {
+                        "name": LIVE_TEST_NAME,
+                        "command": live_command,
+                        "properties": [
+                            {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
+                            {"name": "TIMEOUT", "value": 31.0},
+                            {"name": "PASS_REGULAR_EXPRESSION", "value": ["OK"]},
+                            live_scrub_property(),
+                        ],
+                    }
+                ]
+            },
+            ["/sandbox"],
+            live_command=live_command,
+        )
+        self.assertTrue(any("30-second timeout" in value for value in failures))
+        self.assertTrue(any("process exit" in value for value in failures))
+
+    def test_all_verdict_override_properties_are_rejected(self) -> None:
+        live_command = ["/runner", "--approval", "/approval"]
+        for safety_name in sorted(EXIT_VERDICT_TESTS):
+            for property_name in sorted(FORBIDDEN_EXIT_VERDICT_PROPERTIES):
+                is_live = safety_name == LIVE_TEST_NAME
+                command = live_command if is_live else ["/sandbox", "/test"]
+                properties = [
+                    {
+                        "name": "LABELS",
+                        "value": [
+                            LIVE_TEST_LABEL if is_live else "bpr_network_isolated"
+                        ],
+                    },
+                    {"name": property_name, "value": ["OK"]},
+                    live_scrub_property() if is_live else scrub_property(),
+                ]
+                if is_live:
+                    properties.append({"name": "TIMEOUT", "value": 30.0})
+                with self.subTest(
+                    safety_name=safety_name,
+                    property_name=property_name,
+                ):
+                    failures = configured_failures(
+                        {
+                            "tests": [
+                                {
+                                    "name": safety_name,
+                                    "command": command,
+                                    "properties": properties,
+                                }
+                            ]
+                        },
+                        ["/sandbox"],
+                        live_command=live_command if is_live else None,
+                    )
+                    self.assertTrue(
+                        any("process exit" in value for value in failures)
+                    )
+
+    def test_failure_marker_cannot_false_green_a_safety_test(self) -> None:
+        safety_name = "test_network_isolation_manifest"
+        self.assertIn(safety_name, EXIT_VERDICT_TESTS)
+        failing_output = (
+            "TEST_NETWORK_ISOLATION_FAILED:expected TEST_NETWORK_ISOLATION_OK marker"
+        )
+        self.assertIn("TEST_NETWORK_ISOLATION_OK", failing_output)
+        failures = configured_failures(
+            {
+                "tests": [
+                    {
+                        "name": safety_name,
+                        "command": ["/sandbox", "/verifier"],
+                        "properties": [
+                            {"name": "LABELS", "value": ["bpr_network_isolated"]},
+                            {"name": "PASS_REGULAR_EXPRESSION", "value": ["TEST_NETWORK_ISOLATION_OK"]},
+                            scrub_property(),
+                        ],
+                    }
+                ]
+            },
+            ["/sandbox"],
+        )
+        self.assertTrue(any("process exit" in value for value in failures))
 
     def test_pre_boundary_python_injection_is_rejected(self) -> None:
         test = {

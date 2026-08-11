@@ -893,6 +893,365 @@ foreach(qt_file IN LISTS qt_files)
     endforeach()
 endforeach()
 
+# The single test-only public identity reader is deliberately outside the
+# product adapter graph. Keep that narrow allowance visible: no other network
+# isolation test source may acquire Qt/network authority, and this source may
+# issue only its one unauthenticated hard-coded GET.
+set(
+    designated_live_test_network_runner_relative
+    "tests/network_isolation/designated_live_mutation_runner.cpp"
+)
+set(
+    designated_live_test_network_runner
+    "${BPR_ROOT}/${designated_live_test_network_runner_relative}"
+)
+file(
+    GLOB_RECURSE test_network_isolation_cpp_files
+    LIST_DIRECTORIES false
+    "${BPR_ROOT}/tests/network_isolation/*.cc"
+    "${BPR_ROOT}/tests/network_isolation/*.cpp"
+    "${BPR_ROOT}/tests/network_isolation/*.cxx"
+    "${BPR_ROOT}/tests/network_isolation/*.h"
+    "${BPR_ROOT}/tests/network_isolation/*.hpp"
+    "${BPR_ROOT}/tests/network_isolation/*.hxx"
+)
+set(test_network_effect_files "")
+foreach(test_network_isolation_cpp_file IN LISTS test_network_isolation_cpp_files)
+    file(READ "${test_network_isolation_cpp_file}" contents)
+    if(
+        contents
+            MATCHES
+                "(QNetwork[A-Za-z0-9_]*|#[ \t]*include[ \t]*[<\"]QtNetwork|https?://)"
+    )
+        file(
+            RELATIVE_PATH
+            relative_file
+            "${BPR_ROOT}"
+            "${test_network_isolation_cpp_file}"
+        )
+        list(APPEND test_network_effect_files "${relative_file}")
+    endif()
+endforeach()
+if(test_network_effect_files)
+    list(REMOVE_DUPLICATES test_network_effect_files)
+    list(SORT test_network_effect_files)
+    if(
+        NOT test_network_effect_files
+            STREQUAL designated_live_test_network_runner_relative
+    )
+        message(
+            FATAL_ERROR
+            "Test-only network effect ownership violation: "
+            "${test_network_effect_files}; expected only "
+            "${designated_live_test_network_runner_relative}"
+        )
+    endif()
+
+    file(READ "${designated_live_test_network_runner}" designated_live_test_network_runner_contents)
+    foreach(
+        required_surface
+        IN ITEMS
+            "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1"
+            "QNetworkAccessManager"
+            "QNetworkProxy::NoProxy"
+            "QNetworkRequest::ManualRedirectPolicy"
+            "manager.get(request)"
+    )
+        string(
+            FIND
+            "${designated_live_test_network_runner_contents}"
+            "${required_surface}"
+            required_surface_index
+        )
+        if(required_surface_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live test reader lacks required fixed surface: "
+                "${required_surface}"
+            )
+        endif()
+    endforeach()
+    string(
+        REGEX MATCHALL
+        "[.]get[ \t\r\n]*[(]"
+        designated_live_test_get_calls
+        "${designated_live_test_network_runner_contents}"
+    )
+    list(LENGTH designated_live_test_get_calls designated_live_test_get_call_count)
+    if(NOT designated_live_test_get_call_count EQUAL 1)
+        message(
+            FATAL_ERROR
+            "Designated live test reader must contain exactly one GET call"
+        )
+    endif()
+    string(
+        REPLACE
+        "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1"
+        ""
+        designated_live_test_network_runner_without_endpoint
+        "${designated_live_test_network_runner_contents}"
+    )
+    if(
+        designated_live_test_network_runner_without_endpoint
+            MATCHES
+                "(https?://|Authorization|QNetworkProxyFactory|systemProxyForQuery|QNetworkRequest::setUrl|QUrl::fromUserInput|[.](post|put|deleteResource|sendCustomRequest|head|connectToHost)[ \t\r\n]*[(]|QTcpSocket|QUdpSocket|QWebSocket|#[ \t]*include[ \t]*[<\"]curl/|CURL[A-Za-z0-9_]*|qEnvironmentVariable|QProcessEnvironment::systemEnvironment|(^|[^A-Za-z0-9_])(getenv|setenv|putenv)[ \t\r\n]*[(])"
+    )
+        message(
+            FATAL_ERROR
+            "Designated live test reader contains forbidden alternate network, credential, proxy, or environment authority"
+        )
+    endif()
+endif()
+
+# The forked canary is not a general host. Lock every first-party byte that can
+# contribute to its translation units, then bind approval to one deterministic
+# digest over those four independently locked hashes.
+set(
+    designated_live_canary_surface_files
+    designated_live_mutation_canary.cpp
+    designated_live_mutation_canary.hpp
+    designated_live_mutation_child.cpp
+    designated_live_mutation_child.hpp
+)
+set(
+    designated_live_canary_surface_expected_hashes
+    e0de0ae16578b46f208f95c4315b2f0ed9f9301100d4cd6404e6f5a5da720879
+    9eebcf65515bccd48204f1c8feefe7bb62cb15c5613d7c250dbbc2a1e0118eb6
+    2cab794cd751b7ad775942073dfc1ea21cfaf604a213c8965aa1f4be2dfdbf76
+    e7247b22e279b783da025537a642e0bea4dd42cc516e0cef138f758f6bbf2292
+)
+set(
+    designated_live_test_canary
+    "${BPR_ROOT}/tests/network_isolation/designated_live_mutation_canary.cpp"
+)
+if(EXISTS "${designated_live_test_canary}")
+    set(designated_live_canary_surface_material "")
+    list(LENGTH designated_live_canary_surface_files designated_live_surface_file_count)
+    math(EXPR designated_live_surface_last_index "${designated_live_surface_file_count} - 1")
+    foreach(index RANGE 0 ${designated_live_surface_last_index})
+        list(GET designated_live_canary_surface_files ${index} surface_file_name)
+        list(GET designated_live_canary_surface_expected_hashes ${index} expected_surface_hash)
+        set(
+            surface_file
+            "${BPR_ROOT}/tests/network_isolation/${surface_file_name}"
+        )
+        if(NOT EXISTS "${surface_file}")
+            message(
+                FATAL_ERROR
+                "Designated live canary surface is incomplete: ${surface_file_name}"
+            )
+        endif()
+        file(SHA256 "${surface_file}" actual_surface_hash)
+        if(NOT actual_surface_hash STREQUAL expected_surface_hash)
+            message(
+                FATAL_ERROR
+                "Designated live canary surface file is not exact: ${surface_file_name}"
+            )
+        endif()
+        string(
+            APPEND
+            designated_live_canary_surface_material
+            "${surface_file_name}=${actual_surface_hash}\n"
+        )
+    endforeach()
+    string(
+        SHA256
+        designated_live_canary_surface_sha256
+        "${designated_live_canary_surface_material}"
+    )
+    if(
+        NOT designated_live_canary_surface_sha256
+            STREQUAL
+                "fb77b7ca2a80bea0c584c23dee5c466de0c8bc26c12dee515cf2dc167a05294c"
+    )
+        message(FATAL_ERROR "Designated live combined canary surface digest drifted")
+    endif()
+
+    set(
+        designated_live_test_canary_header
+        "${BPR_ROOT}/tests/network_isolation/designated_live_mutation_canary.hpp"
+    )
+    set(
+        designated_live_test_child
+        "${BPR_ROOT}/tests/network_isolation/designated_live_mutation_child.cpp"
+    )
+    set(
+        designated_live_test_child_header
+        "${BPR_ROOT}/tests/network_isolation/designated_live_mutation_child.hpp"
+    )
+    file(READ "${designated_live_test_canary}" designated_live_test_canary_contents)
+    file(READ "${designated_live_test_canary_header}" designated_live_test_canary_header_contents)
+    file(READ "${designated_live_test_child}" designated_live_test_child_contents)
+    file(READ "${designated_live_test_child_header}" designated_live_test_child_header_contents)
+
+    if(
+        designated_live_test_canary_contents
+            MATCHES
+                "(std::system|(^|[^A-Za-z0-9_])(system|popen|fork|exec[a-zA-Z0-9_]*|posix_spawn[a-zA-Z0-9_]*|spawn[a-zA-Z0-9_]*|socket|curl|fopen|open|unlink|remove|rename|link|mkdir)[ \\t\\r\\n]*[(]|QProcess|QNetwork|QTcp|QUdp|QUrl|std::ofstream|https?://)"
+    )
+        message(
+            FATAL_ERROR
+            "Designated live canary contains forbidden process, network, or file-write authority"
+        )
+    endif()
+    foreach(
+        header_contents_variable
+        IN ITEMS
+            designated_live_test_canary_header_contents
+            designated_live_test_child_header_contents
+    )
+        if(
+            "${${header_contents_variable}}"
+                MATCHES
+                    "(QProcess|QNetwork|QTcp|QUdp|QUrl|std::(string[ \\t<*&]|vector|map|function|thread)|(^|[^A-Za-z0-9_])(system|popen|fork|exec[a-zA-Z0-9_]*|posix_spawn[a-zA-Z0-9_]*|spawn[a-zA-Z0-9_]*|socket|curl|fopen|open|malloc|calloc|realloc|free|new)[ \\t\\r\\n]*[(]|https?://|(^|[\\r\\n])[ \\t]*(inline[ \\t]+)?static[^;\\r\\n]*=)"
+        )
+            message(
+                FATAL_ERROR
+                "Designated live canary header contains forbidden static initialization, process, network, or allocation authority"
+            )
+        endif()
+    endforeach()
+
+    string(
+        REGEX MATCHALL
+        "#[ \\t]*include[ \\t]*\"designated_live_mutation_[A-Za-z0-9_]+[.]hpp\""
+        designated_live_child_first_party_includes
+        "${designated_live_test_child_contents}"
+    )
+    list(SORT designated_live_child_first_party_includes)
+    set(
+        designated_live_expected_child_first_party_includes
+        "#include \"designated_live_mutation_canary.hpp\""
+        "#include \"designated_live_mutation_child.hpp\""
+    )
+    list(SORT designated_live_expected_child_first_party_includes)
+    if(
+        NOT designated_live_child_first_party_includes
+            STREQUAL designated_live_expected_child_first_party_includes
+    )
+        message(
+            FATAL_ERROR
+            "Designated live fork child must include only its two locked first-party headers"
+        )
+    endif()
+    foreach(
+        required_child_surface
+        IN ITEMS
+            "PROC_PIDTASKINFO"
+            "PROC_PIDLISTFDS"
+            "/proc/self/task"
+            "/proc/self/fd"
+            "pipe(capabilityPipe)"
+            "stable_descriptor_inventory(capabilityPipe[0], capabilityPipe[1])"
+            "fork()"
+            "dup2(capabilityPipe[0], STDIN_FILENO)"
+            "descriptorData[index]"
+            "fcntl(forbiddenDescriptor, F_GETFD)"
+            "clear_parent_environment()"
+            "run_designated_live_mutation_canary(STDIN_FILENO, STDOUT_FILENO, true)"
+            "waitpid(child, &status, WNOHANG)"
+            "kill(aChild, SIGKILL)"
+    )
+        string(
+            FIND
+            "${designated_live_test_child_contents}"
+            "${required_child_surface}"
+            required_child_surface_index
+        )
+        if(required_child_surface_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live fork child lacks required fixed surface: "
+                "${required_child_surface}"
+            )
+        endif()
+    endforeach()
+    string(
+        REGEX MATCHALL
+        "(^|[^A-Za-z0-9_])fork[ \\t\\r\\n]*[(]"
+        designated_live_test_fork_calls
+        "${designated_live_test_child_contents}"
+    )
+    list(LENGTH designated_live_test_fork_calls designated_live_test_fork_call_count)
+    if(NOT designated_live_test_fork_call_count EQUAL 1)
+        message(FATAL_ERROR "Designated live child must contain exactly one fork")
+    endif()
+    if(
+        designated_live_test_child_contents
+            MATCHES
+                "(QProcess|QNetwork|QTcp|QUdp|QUrl|std::iostream|std::fstream|std::filesystem|std::system|(^|[^A-Za-z0-9_])(system|popen|exec[a-zA-Z0-9_]*|posix_spawn[a-zA-Z0-9_]*|spawn[a-zA-Z0-9_]*|socket|curl|fopen|open|unlink|remove|rename|link|mkdir|malloc|calloc|realloc|free)[ \\t\\r\\n]*[(]|https?://)"
+    )
+        message(
+            FATAL_ERROR
+            "Designated live fork child contains forbidden alternate process, network, allocation, or pathname authority"
+        )
+    endif()
+
+    set(designated_live_test_cmake "${BPR_ROOT}/tests/CMakeLists.txt")
+    if(NOT EXISTS "${designated_live_test_cmake}")
+        message(FATAL_ERROR "Designated live runner target composition is missing")
+    endif()
+    file(READ "${designated_live_test_cmake}" designated_live_test_cmake_contents)
+    string(REPLACE "\n" " " designated_live_test_cmake_normalized "${designated_live_test_cmake_contents}")
+    string(REPLACE "\r" " " designated_live_test_cmake_normalized "${designated_live_test_cmake_normalized}")
+    string(REPLACE "\t" " " designated_live_test_cmake_normalized "${designated_live_test_cmake_normalized}")
+    string(REGEX REPLACE " +" " " designated_live_test_cmake_normalized "${designated_live_test_cmake_normalized}")
+    set(
+        designated_live_expected_runner_sources
+        [=[bpr_add_executable( tool_better_pull_review_designated_live_mutation_runner "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_canary.cpp" "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_child.cpp" "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_gate.cpp" "${PROJECT_SOURCE_DIR}/tests/network_isolation/designated_live_mutation_runner.cpp" )]=]
+    )
+    set(
+        designated_live_expected_runner_features
+        [=[target_compile_features( tool_better_pull_review_designated_live_mutation_runner PRIVATE cxx_std_23 )]=]
+    )
+    set(
+        designated_live_expected_runner_links
+        [=[target_link_libraries( tool_better_pull_review_designated_live_mutation_runner PRIVATE Qt6::Core Qt6::Network )]=]
+    )
+    set(
+        designated_live_expected_runner_definitions
+        [=[target_compile_definitions( tool_better_pull_review_designated_live_mutation_runner PRIVATE BPR_DESIGNATED_LIVE_CANARY_NO_MAIN=1 BPR_DESIGNATED_LIVE_CANARY_SURFACE_SHA256="${BPR_DESIGNATED_LIVE_CANARY_SURFACE_SHA256}" )]=]
+    )
+    foreach(
+        exact_runner_fragment
+        IN ITEMS
+            "${designated_live_expected_runner_sources}"
+            "${designated_live_expected_runner_features}"
+            "${designated_live_expected_runner_links}"
+            "${designated_live_expected_runner_definitions}"
+            "bpr_enable_hardening(tool_better_pull_review_designated_live_mutation_runner)"
+            "bpr_enable_warnings(tool_better_pull_review_designated_live_mutation_runner)"
+            [=[set_property( DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${bpr_designated_live_canary_surface_path}" )]=]
+            [=[string( SHA256 BPR_DESIGNATED_LIVE_CANARY_SURFACE_SHA256 "${bpr_designated_live_canary_surface_material}" )]=]
+    )
+        string(
+            FIND
+            "${designated_live_test_cmake_normalized}"
+            "${exact_runner_fragment}"
+            exact_runner_fragment_index
+        )
+        if(exact_runner_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live runner target composition is not exact: ${exact_runner_fragment}"
+            )
+        endif()
+    endforeach()
+    string(
+        REGEX MATCHALL
+        "tool_better_pull_review_designated_live_mutation_runner"
+        designated_live_runner_target_mentions
+        "${designated_live_test_cmake_contents}"
+    )
+    list(LENGTH designated_live_runner_target_mentions designated_live_runner_target_mention_count)
+    if(NOT designated_live_runner_target_mention_count EQUAL 7)
+        message(
+            FATAL_ERROR
+            "Designated live runner target must have exactly its seven fixed composition/registration uses"
+        )
+    endif()
+endif()
+
 foreach(qt_github_projection_file IN LISTS qt_github_projection_files)
     file(READ "${qt_github_projection_file}" contents)
     string(

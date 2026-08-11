@@ -139,10 +139,41 @@ boundary exists. The boundary therefore includes Python, CMake, arbitrary
 helper descendants, and test-driven production-application launches. The
 structural provider inventory remains defense in depth.
 
-There is currently no network-enabled CTest exception. The eventual one named
-live lane cannot exist until the repository identity below is supplemented by
-an immutable pull-request identity and both are validated before its child is
-created.
+The default configured CTest manifest has no network-enabled exception. An
+explicitly enabled build may register exactly one exception,
+`live_review_mutation_designated_target`, with the sole label
+`bpr_live_mutation`. Its test-only native parent accepts no caller-selected
+host, URL, name, label, or child. It retains owner-private parent-directory and
+approval descriptors, descriptor-relatively moves the checked entry into a
+private claim, compares and unlinks the moved inode, and proves the retained
+descriptor has zero links. Only after
+an unauthenticated bounded GET to the hard-coded public pull endpoint matches
+every immutable field below may it create the fixed child. Redirects,
+credentials, ambient target selection, malformed or oversized JSON, remote
+failure, approval substitution, a closed PR, or a moved head are typed
+no-launch results.
+
+The current child is a harmless canary with no provider, credential, network,
+pathname-execution, or mutation capability. The approval binds one combined
+SHA-256 over the independently architecture-locked canary and fork-owner source
+and header bytes. The architecture gate also fixes the runner's complete source
+list, compile definitions, and Qt link composition. The routine is compiled
+into the trusted runner, so no mutable executable is reopened after binding.
+After approval consumption the parent clears its environment, creates one
+private pipe, proves the process has exactly one thread, and obtains two equal
+exact open-descriptor inventories. macOS uses `PROC_PIDTASKINFO` and
+`PROC_PIDLISTFDS`; the still-unverified Linux implementation uses
+`/proc/self/task` and `/proc/self/fd`. Any query failure, multiple thread,
+inventory drift, or missing pipe descriptor refuses before fork. The child
+iterates only the preallocated inventory, closes every entry above standard
+error, maps only the pipe to standard input, performs fixed byte checks, and
+exits using only async-signal-safe calls. Bounded wait, kill, and reap remain
+parent-owned. The capability contains only the versioned 64-hex nonce and never
+appears in arguments or environment.
+The default graph and all other tests retain the process-level network-denied
+wrapper. This portable registration and macOS/POSIX approval implementation is
+not target-native Linux or Windows evidence and does not authorize BPR-0142 to
+run a write.
 
 Weakening the coordinator's target check to let a test through would remove the
 property the test exists to exercise. It is not an acceptable shortcut under

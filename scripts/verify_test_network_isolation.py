@@ -16,7 +16,43 @@ RAW_REGISTRATION = re.compile(r"\badd_test\s*\(", re.IGNORECASE)
 ISOLATED_REGISTRATION = re.compile(
     r"\bbpr_add_network_isolated_test\s*\(", re.IGNORECASE
 )
+LIVE_REGISTRATION = re.compile(
+    r"\bbpr_add_designated_live_mutation_test\s*\(", re.IGNORECASE
+)
+EXACT_LIVE_REGISTRATION = re.compile(
+    r"\bbpr_add_designated_live_mutation_test\s*\(\s*\)", re.IGNORECASE
+)
 RAW_REGISTRATION_OWNER = "cmake/BprTestIsolation.cmake"
+LIVE_TEST_NAME = "live_review_mutation_designated_target"
+LIVE_TEST_LABEL = "bpr_live_mutation"
+EXIT_VERDICT_TESTS = {
+    LIVE_TEST_NAME,
+    "architecture_boundaries",
+    "architecture_boundary_contract",
+    "designated_live_mutation_gate",
+    "designated_live_mutation_runner_digest_mismatch",
+    "test_network_isolation_structure_contract",
+    "test_network_isolation_manifest",
+    "test_network_isolation_external",
+    "test_network_isolation_loopback",
+    "test_network_isolation_unrelated",
+    "test_network_isolation_child",
+    "test_network_isolation_application",
+    "live_mutation_isolation",
+    "live_mutation_isolation_contract",
+}
+FORBIDDEN_EXIT_VERDICT_PROPERTIES = {
+    "PASS_REGULAR_EXPRESSION",
+    "FAIL_REGULAR_EXPRESSION",
+    "SKIP_REGULAR_EXPRESSION",
+    "WILL_FAIL",
+    "SKIP_RETURN_CODE",
+    "DISABLED",
+}
+REQUIRED_COMMAND_BOUND_TESTS = {
+    "architecture_boundaries",
+    "architecture_boundary_contract",
+}
 MACOS_LOOPBACK_AUTHORITIES = {
     "test_network_isolation_loopback": 1,
     "test_network_isolation_unrelated": 1,
@@ -46,6 +82,12 @@ PRE_BOUNDARY_INJECTION_VARIABLES = (
     "LD_DEBUG",
     "LD_PROFILE",
 )
+LIVE_CREDENTIAL_VARIABLES = (
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_ENTERPRISE_TOKEN",
+    "GITHUB_ENTERPRISE_TOKEN",
+)
 
 
 def cmake_sources(root: pathlib.Path) -> list[pathlib.Path]:
@@ -58,15 +100,19 @@ def cmake_sources(root: pathlib.Path) -> list[pathlib.Path]:
     return sorted(result)
 
 
-def registration_inventory(root: pathlib.Path) -> tuple[list[str], int]:
+def registration_inventory(root: pathlib.Path) -> tuple[list[str], int, int, int]:
     raw: list[str] = []
     isolated = 0
+    live = 0
+    exact_live = 0
     for path in cmake_sources(root):
         text = path.read_text(encoding="utf-8", errors="strict")
         if RAW_REGISTRATION.search(text):
             raw.append(path.relative_to(root).as_posix())
         isolated += len(ISOLATED_REGISTRATION.findall(text))
-    return raw, isolated
+        live += len(LIVE_REGISTRATION.findall(text))
+        exact_live += len(EXACT_LIVE_REGISTRATION.findall(text))
+    return raw, isolated, live, exact_live
 
 
 def property_value(test: dict[str, Any], name: str) -> Any | None:
@@ -74,6 +120,19 @@ def property_value(test: dict[str, Any], name: str) -> Any | None:
         if candidate.get("name") == name:
             return candidate.get("value")
     return None
+
+
+def exit_verdict_failures(test: dict[str, Any], name: str) -> list[str]:
+    present = sorted(
+        candidate.get("name")
+        for candidate in test.get("properties", [])
+        if candidate.get("name") in FORBIDDEN_EXIT_VERDICT_PROPERTIES
+    )
+    return (
+        [f"{name} must use process exit as its only verdict; found {present!r}"]
+        if present
+        else []
+    )
 
 
 def environment_injection_failures(test: dict[str, Any], name: str) -> list[str]:
@@ -96,6 +155,29 @@ def environment_injection_failures(test: dict[str, Any], name: str) -> list[str]
         variable = entry.split("=", 1)[0]
         if variable in dangerous and entry not in expected:
             failures.append(f"{name} modifies pre-boundary variable: {entry}")
+    return failures
+
+
+def live_credential_failures(test: dict[str, Any], name: str) -> list[str]:
+    failures: list[str] = []
+    credentials = set(LIVE_CREDENTIAL_VARIABLES)
+    environment = property_value(test, "ENVIRONMENT")
+    if isinstance(environment, list):
+        for entry in environment:
+            variable = entry.split("=", 1)[0] if isinstance(entry, str) else ""
+            if variable in credentials:
+                failures.append(f"{name} sets ambient credential {variable}")
+
+    modifications = property_value(test, "ENVIRONMENT_MODIFICATION")
+    expected = {f"{variable}=unset:" for variable in LIVE_CREDENTIAL_VARIABLES}
+    actual = set(modifications) if isinstance(modifications, list) else set()
+    missing = sorted(expected - actual)
+    if missing:
+        failures.append(f"{name} lacks ambient credential scrubs: {missing!r}")
+    for entry in actual:
+        variable = entry.split("=", 1)[0]
+        if variable in credentials and entry not in expected:
+            failures.append(f"{name} modifies ambient credential: {entry}")
     return failures
 
 
@@ -138,15 +220,77 @@ def configured_failures(
     manifest: dict[str, Any],
     prefix: list[str],
     macos_runner: bool = False,
+    live_command: list[str] | None = None,
+    required_commands: dict[str, list[str]] | None = None,
 ) -> list[str]:
     failures: list[str] = []
     tests = manifest.get("tests")
     if not isinstance(tests, list) or not tests:
         return ["CTest JSON contains no tests"]
+    live_named = [test for test in tests if test.get("name") == LIVE_TEST_NAME]
+    if live_command is None:
+        if live_named:
+            failures.append(f"{LIVE_TEST_NAME} is configured while the live lane is disabled")
+    elif len(live_named) != 1:
+        failures.append(
+            f"configured live exception count is {len(live_named)}, expected exactly one"
+        )
+
+    if required_commands is not None:
+        if set(required_commands) != REQUIRED_COMMAND_BOUND_TESTS:
+            failures.append(
+                "required command bindings must contain the exact protected pair: "
+                f"{sorted(required_commands)!r}"
+            )
+        for required_name in sorted(REQUIRED_COMMAND_BOUND_TESTS):
+            expected_command = required_commands.get(required_name)
+            named = [test for test in tests if test.get("name") == required_name]
+            if len(named) != 1:
+                failures.append(
+                    f"protected test {required_name} count is {len(named)}, expected one"
+                )
+            elif named[0].get("command") != expected_command:
+                failures.append(
+                    f"protected test {required_name} does not use its exact command: "
+                    f"{named[0].get('command')!r}"
+                )
+            if expected_command is not None:
+                renamed = [
+                    test.get("name", "<unnamed>")
+                    for test in tests
+                    if test.get("name") != required_name
+                    and test.get("command") == expected_command
+                ]
+                if renamed:
+                    failures.append(
+                        f"protected command for {required_name} is registered under "
+                        f"other names: {renamed!r}"
+                    )
+
     for test in tests:
         name = test.get("name", "<unnamed>")
         failures.extend(environment_injection_failures(test, name))
+        if name in EXIT_VERDICT_TESTS:
+            failures.extend(exit_verdict_failures(test, name))
         command = test.get("command")
+        labels = property_value(test, "LABELS")
+        if name == LIVE_TEST_NAME:
+            if live_command is not None and command != live_command:
+                failures.append(
+                    f"{name} does not use the exact runner/approval command: {command!r}"
+                )
+            if not isinstance(labels, list) or set(labels) != {LIVE_TEST_LABEL}:
+                failures.append(
+                    f"{name} labels are {labels!r}, expected only {LIVE_TEST_LABEL}"
+                )
+            if property_value(test, "TIMEOUT") != 30.0:
+                failures.append(f"{name} must retain its exact 30-second timeout")
+            failures.extend(live_credential_failures(test, name))
+            continue
+        if isinstance(labels, list) and LIVE_TEST_LABEL in labels:
+            failures.append(
+                f"{name} uses {LIVE_TEST_LABEL}; only {LIVE_TEST_NAME} may be live"
+            )
         if not isinstance(command, list) or command[: len(prefix)] != prefix:
             failures.append(f"{name} does not start with {prefix!r}: {command!r}")
         elif macos_runner:
@@ -162,7 +306,6 @@ def configured_failures(
                 delimiter = 3 if tail[2:3] == ["--unrelated-endpoint-probe"] else 2
                 if tail[delimiter : delimiter + 1] != ["--"] or len(tail) <= delimiter + 1:
                     failures.append(f"{name} has no runner command delimiter: {tail!r}")
-        labels = property_value(test, "LABELS")
         if not isinstance(labels, list) or "bpr_network_isolated" not in labels:
             failures.append(f"{name} lacks the bpr_network_isolated label")
         if macos_runner and isinstance(command, list) and command[: len(prefix)] == prefix:
@@ -201,9 +344,11 @@ def main() -> int:
     parser.add_argument("--python", type=pathlib.Path)
     parser.add_argument("--macos-runner", type=pathlib.Path)
     parser.add_argument("--linux-launcher", type=pathlib.Path)
+    parser.add_argument("--live-runner", type=pathlib.Path)
+    parser.add_argument("--live-approval", type=pathlib.Path)
     arguments = parser.parse_args()
 
-    raw, isolated = registration_inventory(arguments.root)
+    raw, isolated, live, exact_live = registration_inventory(arguments.root)
     failures: list[str] = []
     if raw != [RAW_REGISTRATION_OWNER]:
         failures.append(
@@ -211,6 +356,11 @@ def main() -> int:
         )
     if isolated < 1:
         failures.append("no isolated test registrations were found")
+    if live != 1 or exact_live != 1:
+        failures.append(
+            "designated live source registration must be exactly one empty fixed call: "
+            f"calls={live}, exact={exact_live}"
+        )
 
     shown = subprocess.run(
         [
@@ -247,11 +397,68 @@ def main() -> int:
         failures.append(str(error))
         prefix = []
     if prefix:
+        live_arguments = (
+            arguments.live_runner,
+            arguments.live_approval,
+        )
+        if any(value is not None for value in live_arguments) and not all(
+            value is not None for value in live_arguments
+        ):
+            failures.append(
+                "live runner and approval arguments must be supplied together"
+            )
+            live_command = None
+        elif all(value is not None for value in live_arguments):
+            live_command = [
+                str(arguments.live_runner.absolute()),
+                "--approval",
+                str(arguments.live_approval.absolute()),
+            ]
+        else:
+            live_command = None
+        if arguments.python is None:
+            failures.append("exact protected command binding requires Python")
+            required_commands = None
+        else:
+            protected_prefix = (
+                [*prefix, "--loopback-port-count", "0", "--"]
+                if arguments.backend == "macos-sandbox-exec"
+                else prefix
+            )
+            required_commands = {
+                "architecture_boundaries": [
+                    *protected_prefix,
+                    str(arguments.cmake.resolve()),
+                    f"-DBPR_ROOT={arguments.root.resolve()}",
+                    "-P",
+                    str(
+                        (
+                            arguments.root
+                            / "cmake"
+                            / "VerifyArchitectureBoundaries.cmake"
+                        ).resolve()
+                    ),
+                ],
+                "architecture_boundary_contract": [
+                    *protected_prefix,
+                    str(arguments.python.absolute()),
+                    str(
+                        (
+                            arguments.root
+                            / "tests"
+                            / "scripts"
+                            / "architecture_boundary_tests.py"
+                        ).resolve()
+                    ),
+                ],
+            }
         failures.extend(
             configured_failures(
                 manifest,
                 prefix,
                 macos_runner=arguments.backend == "macos-sandbox-exec",
+                live_command=live_command,
+                required_commands=required_commands,
             )
         )
 
