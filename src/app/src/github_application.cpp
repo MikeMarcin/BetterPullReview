@@ -7003,22 +7003,48 @@ namespace bpr::app {
 			};
 		}
 
-		[[nodiscard]] auto review_ledger_probe_defect(
-			const core::file_identity          aFile,
-			const core::file_comparison_digest aComparison)
-			-> application::durable_defect_record
+		[[nodiscard]] constexpr auto review_ledger_probe_thread_identity() noexcept
+			-> std::string_view
 		{
+			return "review-thread:PRRT_fixture_1";
+		}
+
+		[[nodiscard]] auto review_ledger_probe_thread_matches_file(
+			const core::file_identity                       aFile,
+			const application::github_review_thread_record& aThread) -> bool
+		{
+			const auto acceptedIdentity
+				= "review-thread:" + std::string{ aThread.Thread.value() };
+			return acceptedIdentity == review_ledger_probe_thread_identity()
+				&& aThread.Subject
+				== application::github_review_thread_subject::line
+				&& aThread.Line.has_value() && *aThread.Line != 0U
+				&& !aThread.Path.empty()
+				&& core::file_identity_of(aThread.Path) == aFile;
+		}
+
+		[[nodiscard]] auto review_ledger_probe_defect(
+			const core::file_identity                       aFile,
+			const core::file_comparison_digest              aComparison,
+			const application::github_review_thread_record& aThread)
+			-> std::optional<application::durable_defect_record>
+		{
+			if (!review_ledger_probe_thread_matches_file(aFile, aThread)) {
+				return std::nullopt;
+			}
+			const auto identity = defect_identity(
+				review_ledger_probe_thread_identity());
 			const auto anchor = core::source_line_ref{
 				.Comparison = aComparison,
 				.Side       = core::diff_side::right,
-				.Line       = 1U,
+				.Line       = *aThread.Line,
 			};
-			return {
+			return application::durable_defect_record{
 				.File         = aFile,
-				.Conversation = core::review_conversation_id{ 228U },
+				.Conversation = core::review_conversation_id{ identity.Conversation },
 				.History      = {
 					.Defect = {
-						.Id       = core::defect_id{ 228U },
+						.Id       = core::defect_id{ identity.Defect },
 						.Anchor   = anchor,
 						.Severity = core::defect_severity::major,
 						.Category = core::defect_category::correctness,
@@ -7028,6 +7054,50 @@ namespace bpr::app {
 					.Availability   = core::defect_anchor_availability::available,
 				},
 			};
+		}
+
+		[[nodiscard]] auto review_ledger_probe_defect_matches_thread(
+			const application::durable_defect_record&       aDefect,
+			const core::file_identity                       aFile,
+			const core::file_comparison_digest              aComparison,
+			const application::github_review_thread_record& aThread) -> bool
+		{
+			if (!review_ledger_probe_thread_matches_file(aFile, aThread)) {
+				return false;
+			}
+			const auto identity = defect_identity(
+				review_ledger_probe_thread_identity());
+			const auto anchor = core::source_line_ref{
+				.Comparison = aComparison,
+				.Side       = core::diff_side::right,
+				.Line       = *aThread.Line,
+			};
+			return aDefect.File == aFile
+				&& aDefect.Conversation.value() == identity.Conversation
+				&& aDefect.History.Defect.Id.value() == identity.Defect
+				&& aDefect.History.Defect.Anchor == anchor
+				&& aDefect.History.OriginalAnchor == anchor;
+		}
+
+		[[nodiscard]] auto review_ledger_probe_defect_match_is_non_vacuous(
+			const core::file_identity                       aFile,
+			const core::file_comparison_digest              aComparison,
+			const application::github_review_thread_record& aThread) -> bool
+		{
+			const auto expected = review_ledger_probe_defect(
+				aFile, aComparison, aThread);
+			if (!expected.has_value()) {
+				return false;
+			}
+			auto       wrongLine = *expected;
+			const auto counterexampleLine
+				= wrongLine.History.Defect.Anchor.Line == 1U ? 2U : 1U;
+			wrongLine.History.Defect.Anchor.Line  = counterexampleLine;
+			wrongLine.History.OriginalAnchor.Line = counterexampleLine;
+			return review_ledger_probe_defect_matches_thread(
+					   *expected, aFile, aComparison, aThread)
+				&& !review_ledger_probe_defect_matches_thread(
+					   wrongLine, aFile, aComparison, aThread);
 		}
 	} // namespace
 
@@ -7158,6 +7228,13 @@ namespace bpr::app {
 				probe.Phase = state_type::phase::passed;
 				return result::passed;
 			}
+			const auto* const defectThread = implementation->accepted_thread(
+				review_ledger_probe_thread_identity());
+			if (defectThread == nullptr
+				|| !review_ledger_probe_thread_matches_file(
+					probe.File, *defectThread)) {
+				return fail();
+			}
 
 			if (aCourse == review_ledger_composition_probe::seed) {
 				const auto before  = ledger->statistics();
@@ -7197,18 +7274,28 @@ namespace bpr::app {
 				const auto note = review_ledger_probe_note(
 					probe.File, probe.Material);
 				const auto defect = review_ledger_probe_defect(
-					probe.File, probe.Material);
+					probe.File, probe.Material, *defectThread);
+				if (!defect.has_value()
+					|| !review_ledger_probe_defect_match_is_non_vacuous(
+						probe.File, probe.Material, *defectThread)) {
+					return fail();
+				}
 				const auto& head = implementation->LastAcceptedHandoff->Head;
 				if (!ledger->persist(note)
 					|| !ledger->persist_last_reviewed_head(head)
-					|| !ledger->persist(defect)) {
+					|| !ledger->persist(*defect)) {
 					return fail();
 				}
 				const auto privateState       = ledger->private_observation();
 				probe.Evidence.PrivateRecords = privateState.has_value()
 					&& privateState->Notes == std::vector{ note }
 					&& privateState->LastReviewedHead == std::optional{ head }
-					&& privateState->Defects == std::vector{ defect };
+					&& privateState->Defects == std::vector{ *defect }
+					&& review_ledger_probe_defect_matches_thread(
+													privateState->Defects.front(),
+													probe.File,
+													probe.Material,
+													*defectThread);
 				probe.Evidence.DurableReceipt               = true;
 				implementation->ReviewLedgerRoundTripPassed = true;
 			} else {
@@ -7230,8 +7317,13 @@ namespace bpr::app {
 					&& privateState->Notes.front().Attachment.has_value()) {
 					const auto storedComparison
 						= privateState->Notes.front().Attachment->Comparison;
+					const auto defect = review_ledger_probe_defect(
+						probe.File, storedComparison, *defectThread);
 					probe.Evidence.PrivateRecords
-						= storedComparison.valid()
+						= defect.has_value()
+						&& review_ledger_probe_defect_match_is_non_vacuous(
+							  probe.File, storedComparison, *defectThread)
+						&& storedComparison.valid()
 						&& storedComparison != probe.Material
 						&& privateState->Notes
 							== std::vector{ review_ledger_probe_note(
@@ -7239,8 +7331,12 @@ namespace bpr::app {
 						&& priorHead.has_value()
 						&& privateState->LastReviewedHead == priorHead
 						&& privateState->Defects
-							== std::vector{ review_ledger_probe_defect(
-								probe.File, storedComparison) }
+							== std::vector{ *defect }
+						&& review_ledger_probe_defect_matches_thread(
+							  privateState->Defects.front(),
+							  probe.File,
+							  storedComparison,
+							  *defectThread)
 						&& ledger->statistics().PrivateWrites == 0U;
 				}
 				implementation->ReviewLedgerRoundTripPassed
