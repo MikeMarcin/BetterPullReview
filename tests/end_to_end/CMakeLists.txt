@@ -409,6 +409,20 @@ set_tests_properties(
 )
 
 bpr_add_network_isolated_test(
+    NAME application_icon
+    COMMAND
+        app_better_pull_review
+        --application-icon-probe
+)
+set_tests_properties(
+    application_icon
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION "APPLICATION_ICON_OK"
+        TIMEOUT 15
+)
+
+bpr_add_network_isolated_test(
     NAME application_native_appearance_probe_contract
     COMMAND
         "${CMAKE_COMMAND}"

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=BetterPullReview
+Comment=Native GitHub pull-request review workbench
+Exec=better_pull_review
+Icon=io.github.MikeMarcin.BetterPullReview
+Terminal=false
+Categories=Development;RevisionControl;
+StartupWMClass=BetterPullReview

@@ -19,9 +19,11 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPixmap>
+#include <QSize>
 #include <QSpinBox>
 #include <QTextStream>
 #include <QTimer>
@@ -109,6 +111,33 @@ namespace {
 	using automated_clock = std::chrono::steady_clock;
 
 	constexpr auto default_automated_run_budget = std::chrono::milliseconds{ 8'000 };
+
+	[[nodiscard]] auto application_icon() -> QIcon
+	{
+		struct icon_resource
+		{
+			const char* Path;
+			int         Size;
+		};
+		constexpr auto resources = std::array{
+			icon_resource{ ":/icons/16x16/better_pull_review.png", 16 },
+			icon_resource{ ":/icons/24x24/better_pull_review.png", 24 },
+			icon_resource{ ":/icons/32x32/better_pull_review.png", 32 },
+			icon_resource{ ":/icons/40x40/better_pull_review.png", 40 },
+			icon_resource{ ":/icons/48x48/better_pull_review.png", 48 },
+			icon_resource{ ":/icons/64x64/better_pull_review.png", 64 },
+			icon_resource{ ":/icons/128x128/better_pull_review.png", 128 },
+			icon_resource{ ":/icons/256x256/better_pull_review.png", 256 },
+			icon_resource{ ":/icons/512x512/better_pull_review.png", 512 },
+		};
+		auto icon = QIcon{ };
+		for (const auto& resource : resources) {
+			icon.addFile(
+				QString::fromLatin1(resource.Path),
+				QSize{ resource.Size, resource.Size });
+		}
+		return icon;
+	}
 
 	auto has_argument(
 		const int              aArgc,
@@ -4358,6 +4387,20 @@ auto main(int argc, char** argv) -> int
 	QCoreApplication::setApplicationVersion(QStringLiteral(BPR_VERSION));
 	QCoreApplication::setOrganizationName(
 		QStringLiteral("BetterPullReview"));
+	QApplication::setWindowIcon(application_icon());
+
+#if defined(BPR_BUILD_TESTING)
+	if (has_argument(argc, argv, "--application-icon-probe")) {
+		const auto icon  = QApplication::windowIcon();
+		const auto valid = !icon.isNull()
+			&& !icon.pixmap(QSize{ 16, 16 }).isNull()
+			&& !icon.pixmap(QSize{ 256, 256 }).isNull()
+			&& !icon.pixmap(QSize{ 512, 512 }).isNull();
+		QTextStream{ stdout }
+			<< (valid ? "APPLICATION_ICON_OK\n" : "APPLICATION_ICON_INVALID\n");
+		return valid ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
+#endif
 
 	try {
 		auto config = bpr::app::github_application_config{

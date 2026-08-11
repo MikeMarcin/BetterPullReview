@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254">
+  <title>BetterPullReview icon</title>
+  <desc>Pure vector reconstruction of the supplied BetterPullReview diff-link icon. No embedded raster imagery.</desc>
+  <defs>
+    <clipPath id="iconClip">
+      <rect x="33" y="57" width="1188" height="1140" rx="137" ry="137"/>
+    </clipPath>
+
+    <!-- Dark navy app field -->
+    <radialGradient id="fieldLeft" cx="6%" cy="7%" r="78%">
+      <stop offset="0" stop-color="#061943"/>
+      <stop offset=".48" stop-color="#02071b"/>
+      <stop offset="1" stop-color="#01020b"/>
+    </radialGradient>
+    <radialGradient id="fieldRight" cx="94%" cy="8%" r="78%">
+      <stop offset="0" stop-color="#25063e"/>
+      <stop offset=".52" stop-color="#07031a" stop-opacity=".82"/>
+      <stop offset="1" stop-color="#00020b" stop-opacity=".15"/>
+    </radialGradient>
+
+    <!-- Central gutter base plus localized vector glow layers approximate the original 2-D neon field. -->
+    <linearGradient id="gutterBase" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12b8ff"/>
+      <stop offset=".32" stop-color="#2478ff"/>
+      <stop offset=".61" stop-color="#8a3dff"/>
+      <stop offset="1" stop-color="#ff08d0"/>
+    </linearGradient>
+    <radialGradient id="gutterCyan" cx="0%" cy="0%" r="88%">
+      <stop offset="0" stop-color="#24efff" stop-opacity="1"/>
+      <stop offset=".44" stop-color="#12b7ff" stop-opacity=".72"/>
+      <stop offset="1" stop-color="#0d9dff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gutterBlue" cx="100%" cy="0%" r="86%">
+      <stop offset="0" stop-color="#6558ff" stop-opacity=".98"/>
+      <stop offset=".5" stop-color="#3475ff" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#2b64ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gutterMagenta" cx="100%" cy="100%" r="92%">
+      <stop offset="0" stop-color="#ff0ac8" stop-opacity="1"/>
+      <stop offset=".55" stop-color="#f10add" stop-opacity=".62"/>
+      <stop offset="1" stop-color="#e20ad2" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Full icon family rim: cyan/blue on left, magenta on right. -->
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2=".84">
+      <stop offset="0" stop-color="#2af2ff"/>
+      <stop offset=".34" stop-color="#258dff"/>
+      <stop offset=".62" stop-color="#7b4dff"/>
+      <stop offset="1" stop-color="#ff21e6"/>
+    </linearGradient>
+
+    <!-- Ribbon edge hue follows vertical position: cyan at top through violet to magenta. -->
+    <linearGradient id="ribbonEdge" x1="0" y1="56" x2="0" y2="1197" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#27efff"/>
+      <stop offset=".36" stop-color="#4b96ff"/>
+      <stop offset=".62" stop-color="#ae4dff"/>
+      <stop offset="1" stop-color="#ff2de7"/>
+    </linearGradient>
+    <linearGradient id="ribbonDark" x1="333" y1="56" x2="921" y2="1197" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#031028"/>
+      <stop offset=".5" stop-color="#05071b"/>
+      <stop offset="1" stop-color="#0a051c"/>
+    </linearGradient>
+
+    <!-- Multi-scale bloom: wide halo + medium bloom + tight neon core. -->
+    <filter id="rimGlow" x="-24%" y="-24%" width="148%" height="148%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="18" result="wide"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="medium"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.2" result="tight"/>
+      <feMerge>
+        <feMergeNode in="wide"/>
+        <feMergeNode in="medium"/>
+        <feMergeNode in="tight"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="ribbonBloom" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10.5"/>
+    </filter>
+    <filter id="ribbonGlow" x="-7%" y="-7%" width="114%" height="114%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="4.8"/>
+    </filter>
+    <filter id="edgeBloom" x="-120%" y="-10%" width="340%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+    <filter id="edgeGlow" x="-80%" y="-9%" width="260%" height="118%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="4.8"/>
+    </filter>
+    <filter id="gutterBloom" x="-12%" y="-8%" width="124%" height="116%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+
+    <style>
+      .ribbon-bloom {
+        fill: none;
+        stroke: url(#ribbonEdge);
+        stroke-width: 12;
+        stroke-linejoin: round;
+        opacity: .30;
+        filter: url(#ribbonBloom);
+      }
+      .ribbon-glow {
+        fill: none;
+        stroke: url(#ribbonEdge);
+        stroke-width: 8.5;
+        stroke-linejoin: round;
+        opacity: .78;
+        filter: url(#ribbonGlow);
+      }
+      .ribbon {
+        fill: url(#ribbonDark);
+        stroke: url(#ribbonEdge);
+        stroke-width: 2.4;
+        stroke-linejoin: round;
+      }
+    </style>
+  </defs>
+
+  <!-- Black outside the icon silhouette. -->
+  <rect width="1254" height="1254" fill="#000"/>
+
+  <g clip-path="url(#iconClip)">
+    <!-- Side fields -->
+    <rect x="33" y="57" width="1188" height="1140" fill="url(#fieldLeft)"/>
+    <rect x="33" y="57" width="1188" height="1140" fill="url(#fieldRight)"/>
+
+    <!-- Central diff-link gutter: exact straight vertical boundaries. -->
+    <!-- Bloom-only duplicates preserve geometry while restoring the luminous raster feel. -->
+    <rect x="333" y="56" width="588" height="1141" fill="url(#gutterBase)" opacity=".38" filter="url(#gutterBloom)"/>
+    <rect x="333" y="56" width="588" height="1141" fill="url(#gutterCyan)" opacity=".34" filter="url(#gutterBloom)"/>
+    <rect x="333" y="56" width="588" height="1141" fill="url(#gutterMagenta)" opacity=".34" filter="url(#gutterBloom)"/>
+    <rect x="333" y="56" width="588" height="1141" fill="url(#gutterBase)"/>
+    <rect x="333" y="56" width="588" height="1141" fill="url(#gutterCyan)"/>
+    <rect x="333" y="56" width="588" height="1141" fill="url(#gutterBlue)"/>
+    <rect x="333" y="56" width="588" height="1141" fill="url(#gutterMagenta)"/>
+
+    <!-- Raster-derived vector contours for the six dark dead-space ribbons. -->
+      <path d="M 915,231 L 877,234 L 824,242 L 799,247 L 748,261 L 710,276 L 680,291 L 604,339 L 568,358 L 546,367 L 517,376 L 477,384 L 435,389 L 383,392 L 343,392 L 343,394 L 338,394 L 338,430 L 339,429 L 342,431 L 362,432 L 395,431 L 439,427 L 485,419 L 534,406 L 565,395 L 597,381 L 702,323 L 731,311 L 765,301 L 798,295 L 818,293 L 870,293 L 915,298 Z" class="ribbon-bloom"/>
+      <path d="M 915,231 L 877,234 L 824,242 L 799,247 L 748,261 L 710,276 L 680,291 L 604,339 L 568,358 L 546,367 L 517,376 L 477,384 L 435,389 L 383,392 L 343,392 L 343,394 L 338,394 L 338,430 L 339,429 L 342,431 L 362,432 L 395,431 L 439,427 L 485,419 L 534,406 L 565,395 L 597,381 L 702,323 L 731,311 L 765,301 L 798,295 L 818,293 L 870,293 L 915,298 Z" class="ribbon-glow"/>
+      <path d="M 915,231 L 877,234 L 824,242 L 799,247 L 748,261 L 710,276 L 680,291 L 604,339 L 568,358 L 546,367 L 517,376 L 477,384 L 435,389 L 383,392 L 343,392 L 343,394 L 338,394 L 338,430 L 339,429 L 342,431 L 362,432 L 395,431 L 439,427 L 485,419 L 534,406 L 565,395 L 597,381 L 702,323 L 731,311 L 765,301 L 798,295 L 818,293 L 870,293 L 915,298 Z" class="ribbon"/>
+      <path d="M 338,516 L 338,599 L 380,599 L 418,603 L 456,611 L 485,620 L 510,630 L 545,648 L 590,677 L 661,728 L 691,746 L 731,766 L 779,784 L 825,796 L 868,803 L 915,807 L 915,671 L 835,672 L 785,667 L 750,660 L 714,649 L 684,637 L 645,617 L 562,568 L 524,550 L 489,537 L 453,527 L 408,519 L 375,516 Z" class="ribbon-bloom"/>
+      <path d="M 338,516 L 338,599 L 380,599 L 418,603 L 456,611 L 485,620 L 510,630 L 545,648 L 590,677 L 661,728 L 691,746 L 731,766 L 779,784 L 825,796 L 868,803 L 915,807 L 915,671 L 835,672 L 785,667 L 750,660 L 714,649 L 684,637 L 645,617 L 562,568 L 524,550 L 489,537 L 453,527 L 408,519 L 375,516 Z" class="ribbon-glow"/>
+      <path d="M 338,516 L 338,599 L 380,599 L 418,603 L 456,611 L 485,620 L 510,630 L 545,648 L 590,677 L 661,728 L 691,746 L 731,766 L 779,784 L 825,796 L 868,803 L 915,807 L 915,671 L 835,672 L 785,667 L 750,660 L 714,649 L 684,637 L 645,617 L 562,568 L 524,550 L 489,537 L 453,527 L 408,519 L 375,516 Z" class="ribbon"/>
+      <path d="M 338,643 L 338,686 L 372,689 L 414,700 L 445,714 L 484,740 L 506,759 L 540,796 L 563,827 L 609,899 L 629,919 L 653,937 L 678,952 L 700,963 L 759,987 L 799,1000 L 852,1014 L 891,1022 L 916,1025 L 915,972 L 852,966 L 818,960 L 781,951 L 750,941 L 726,931 L 699,916 L 682,904 L 650,874 L 632,852 L 583,780 L 552,740 L 521,708 L 491,685 L 456,666 L 420,653 L 375,644 L 342,642 L 339,644 Z" class="ribbon-bloom"/>
+      <path d="M 338,643 L 338,686 L 372,689 L 414,700 L 445,714 L 484,740 L 506,759 L 540,796 L 563,827 L 609,899 L 629,919 L 653,937 L 678,952 L 700,963 L 759,987 L 799,1000 L 852,1014 L 891,1022 L 916,1025 L 915,972 L 852,966 L 818,960 L 781,951 L 750,941 L 726,931 L 699,916 L 682,904 L 650,874 L 632,852 L 583,780 L 552,740 L 521,708 L 491,685 L 456,666 L 420,653 L 375,644 L 342,642 L 339,644 Z" class="ribbon-glow"/>
+      <path d="M 338,643 L 338,686 L 372,689 L 414,700 L 445,714 L 484,740 L 506,759 L 540,796 L 563,827 L 609,899 L 629,919 L 653,937 L 678,952 L 700,963 L 759,987 L 799,1000 L 852,1014 L 891,1022 L 916,1025 L 915,972 L 852,966 L 818,960 L 781,951 L 750,941 L 726,931 L 699,916 L 682,904 L 650,874 L 632,852 L 583,780 L 552,740 L 521,708 L 491,685 L 456,666 L 420,653 L 375,644 L 342,642 L 339,644 Z" class="ribbon"/>
+      <path d="M 338,730 L 338,816 L 378,824 L 402,833 L 424,844 L 460,869 L 485,892 L 515,927 L 541,964 L 599,1063 L 626,1104 L 654,1139 L 683,1167 L 700,1180 L 718,1191 L 776,1191 L 747,1177 L 707,1150 L 688,1134 L 665,1111 L 648,1091 L 633,1071 L 603,1024 L 543,913 L 518,871 L 484,823 L 462,798 L 436,774 L 406,753 L 382,741 L 364,735 Z" class="ribbon-bloom"/>
+      <path d="M 338,730 L 338,816 L 378,824 L 402,833 L 424,844 L 460,869 L 485,892 L 515,927 L 541,964 L 599,1063 L 626,1104 L 654,1139 L 683,1167 L 700,1180 L 718,1191 L 776,1191 L 747,1177 L 707,1150 L 688,1134 L 665,1111 L 648,1091 L 633,1071 L 603,1024 L 543,913 L 518,871 L 484,823 L 462,798 L 436,774 L 406,753 L 382,741 L 364,735 Z" class="ribbon-glow"/>
+      <path d="M 338,730 L 338,816 L 378,824 L 402,833 L 424,844 L 460,869 L 485,892 L 515,927 L 541,964 L 599,1063 L 626,1104 L 654,1139 L 683,1167 L 700,1180 L 718,1191 L 776,1191 L 747,1177 L 707,1150 L 688,1134 L 665,1111 L 648,1091 L 633,1071 L 603,1024 L 543,913 L 518,871 L 484,823 L 462,798 L 436,774 L 406,753 L 382,741 L 364,735 Z" class="ribbon"/>
+      <path d="M 338,859 L 338,902 L 363,908 L 379,914 L 410,931 L 440,955 L 473,992 L 494,1022 L 514,1056 L 546,1122 L 573,1191 L 592,1191 L 567,1129 L 532,1055 L 497,993 L 469,952 L 450,929 L 424,903 L 404,887 L 381,873 L 354,862 Z" class="ribbon-bloom"/>
+      <path d="M 338,859 L 338,902 L 363,908 L 379,914 L 410,931 L 440,955 L 473,992 L 494,1022 L 514,1056 L 546,1122 L 573,1191 L 592,1191 L 567,1129 L 532,1055 L 497,993 L 469,952 L 450,929 L 424,903 L 404,887 L 381,873 L 354,862 Z" class="ribbon-glow"/>
+      <path d="M 338,859 L 338,902 L 363,908 L 379,914 L 410,931 L 440,955 L 473,992 L 494,1022 L 514,1056 L 546,1122 L 573,1191 L 592,1191 L 567,1129 L 532,1055 L 497,993 L 469,952 L 450,929 L 424,903 L 404,887 L 381,873 L 354,862 Z" class="ribbon"/>
+      <path d="M 633,933 L 637,937 L 634,937 L 653,965 L 686,1005 L 714,1033 L 748,1060 L 786,1084 L 837,1108 L 882,1123 L 912,1130 L 916,1129 L 915,1074 L 909,1074 L 881,1068 L 840,1057 L 799,1043 L 771,1031 L 731,1010 L 700,990 L 666,964 Z" class="ribbon-bloom"/>
+      <path d="M 633,933 L 637,937 L 634,937 L 653,965 L 686,1005 L 714,1033 L 748,1060 L 786,1084 L 837,1108 L 882,1123 L 912,1130 L 916,1129 L 915,1074 L 909,1074 L 881,1068 L 840,1057 L 799,1043 L 771,1031 L 731,1010 L 700,990 L 666,964 Z" class="ribbon-glow"/>
+      <path d="M 633,933 L 637,937 L 634,937 L 653,965 L 686,1005 L 714,1033 L 748,1060 L 786,1084 L 837,1108 L 882,1123 L 912,1130 L 916,1129 L 915,1074 L 909,1074 L 881,1068 L 840,1057 L 799,1043 L 771,1031 L 731,1010 L 700,990 L 666,964 Z" class="ribbon"/>
+
+    <!-- Crisp gutter rails with multi-scale neon bloom. -->
+    <line x1="333" y1="56" x2="333" y2="1197" stroke="#27efff" stroke-width="12" opacity=".28" filter="url(#edgeBloom)"/>
+    <line x1="921" y1="56" x2="921" y2="1197" stroke="#ff2de7" stroke-width="12" opacity=".25" filter="url(#edgeBloom)"/>
+    <line x1="333" y1="56" x2="333" y2="1197" stroke="#27efff" stroke-width="8" opacity=".78" filter="url(#edgeGlow)"/>
+    <line x1="921" y1="56" x2="921" y2="1197" stroke="#ff2de7" stroke-width="8" opacity=".72" filter="url(#edgeGlow)"/>
+    <line x1="333" y1="56" x2="333" y2="1197" stroke="url(#ribbonEdge)" stroke-width="2.5"/>
+    <line x1="921" y1="56" x2="921" y2="1197" stroke="url(#ribbonEdge)" stroke-width="2.5"/>
+  </g>
+
+  <!-- Outer neon app rim: multi-scale bloom plus crisp vector stroke. -->
+  <rect x="33" y="57" width="1188" height="1140" rx="137" ry="137"
+        fill="none" stroke="url(#rim)" stroke-width="14" opacity=".24" filter="url(#rimGlow)"/>
+  <rect x="33" y="57" width="1188" height="1140" rx="137" ry="137"
+        fill="none" stroke="url(#rim)" stroke-width="8" opacity=".82" filter="url(#rimGlow)"/>
+  <rect x="35" y="59" width="1184" height="1136" rx="135" ry="135"
+        fill="none" stroke="url(#rim)" stroke-width="4.6"/>
+</svg>

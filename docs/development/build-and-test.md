@@ -5,7 +5,7 @@
 - CMake 4.4.2
 - Ninja
 - A C++23 compiler
-- Qt 6.8 or newer for the Qt adapter and application
+- Qt 6.8 or newer, including CoreTools (`rcc`), for the Qt adapter and application
 - Python 3.10 or newer for structural and runtime verification scripts
 - Git 2.39 or newer for installed-Git contract tests
 - Clang-format and clang-tidy 22.1.8 for coding-standard verification
@@ -20,10 +20,10 @@ The root resolves dependencies before product subdirectories. Qt uses the
 caller-installed CMake package and is never fetched. Python and Git use the
 standard CMake find modules, while Linux libsecret uses `pkg-config`; each is
 discovered only when its selected target graph needs it. The centralized
-provider requires `Qt6::*`, `Python3::Interpreter`, `Git::Git`, and
-`LibSecret::LibSecret` before product targets are declared, so adapters and
-tests never repeat package discovery. Those target names must not be
-predeclared by a parent project: the provider rejects collisions before
+provider requires the Qt libraries plus `Qt6::rcc`, `Python3::Interpreter`,
+`Git::Git`, and `LibSecret::LibSecret` before product targets are declared, so
+adapters and tests never repeat package discovery. Those target names must not
+be predeclared by a parent project: the provider rejects collisions before
 discovery so its target-provenance audit cannot describe an injected target as
 an installed package. Python, Git, Threads, and `PkgConfig` are selected
 explicitly from CMake's built-in module providers regardless of

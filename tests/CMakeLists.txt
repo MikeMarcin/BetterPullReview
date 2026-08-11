@@ -257,6 +257,13 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME application_icon_assets_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/app_icon_assets_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME dependency_modernization_contract
     COMMAND
         Python3::Interpreter

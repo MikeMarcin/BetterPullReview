@@ -349,6 +349,13 @@ CPM source acquisition, and refreshes presets, direct dependency evidence, and
 build documentation without adding an RFC-BPR-0014 package format or release
 claim.
 
+Done BPR-0253 retains the supplied BetterPullReview icon as the unchanged
+canonical SVG, supplies deterministic PNG/ICO/ICNS platform assets, binds the
+fixed PNG family to the running Qt application, embeds the Windows resource,
+and gives tests-disabled macOS builds their bundle icon. The Linux desktop and
+hicolor assets are retained for RFC-BPR-0014; no install, signing, or package
+readiness claim is made.
+
 Done BPR-0085 adopts the rendered project-neutral C++ standard as the
 repository source of truth. It applies canonical formatting, naming, include
 guards, and public API documentation across the first-party source and test

@@ -103,6 +103,7 @@ function(bpr_configure_dependencies)
                 "Qt6 ${component}"
             )
         endforeach()
+        bpr_require_dependency_target_absent(Qt6::rcc "Qt6 CoreTools")
         find_package(
             Qt6
             ${BPR_QT_MINIMUM_VERSION}
@@ -123,6 +124,12 @@ function(bpr_configure_dependencies)
             bpr_require_dependency_target("Qt6::${component}" "Qt6 ${component}")
             list(APPEND records "Qt6|CMAKE_CONFIG|Qt6::${component}")
         endforeach()
+
+        bpr_require_dependency_target(Qt6::rcc "Qt6 CoreTools")
+        list(APPEND records "Qt6CoreTools|CMAKE_CONFIG|Qt6::rcc")
+        # Qt's resource macro runs outside this function. Preserve the package
+        # namespace it uses to address the already-proven Qt6::rcc target.
+        set(QT_CMAKE_EXPORT_NAMESPACE Qt6 PARENT_SCOPE)
 
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             bpr_reject_dependency_redirect(PkgConfig)

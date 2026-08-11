@@ -8,6 +8,22 @@ Packaging must preserve the core/application/adapters/composition dependency
 graph, restrict Qt plugin discovery to trusted installation paths, and must not
 introduce an updater, browser runtime, listener, telemetry, or remote loader.
 
+## Application icon
+
+The unchanged supplied vector is retained as
+[`icons/better_pull_review.svg`](icons/better_pull_review.svg). The application
+embeds fixed PNG sizes so its windows and notification tray use the product
+icon without an SVG runtime plugin. Windows builds compile the tracked ICO
+through a native resource file. Tests-disabled macOS builds are application
+bundles whose `Info.plist` names the tracked ICNS. The Linux SVG, PNG family,
+and desktop entry are ready for the hicolor/application directories owned by
+the future RFC-BPR-0014 package rules.
+
+These assets and bindings are application identity, not a package-readiness
+claim. Signing, deployment of Qt dependencies, Linux installation rules, and
+clean-machine verification remain RFC-BPR-0014 work. Regeneration and asset
+ownership are documented in [`icons/README.md`](icons/README.md).
+
 ## RFC-BPR-0002 dependency record
 
 The effect-backed GitHub adapter adds private Qt Core and Qt Network 6.8+
