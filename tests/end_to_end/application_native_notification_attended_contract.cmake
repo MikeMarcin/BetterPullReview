@@ -1,0 +1,52 @@
+if(NOT DEFINED BPR_APPLICATION OR NOT DEFINED BPR_ROOT OR NOT DEFINED BPR_SOURCE)
+    message(FATAL_ERROR "native notification contract requires application, root, and source")
+endif()
+
+file(READ "${BPR_SOURCE}/src/app/main.cpp" course_source)
+foreach(forbidden IN ITEMS "deliver\\(" "select_queue_item\\(" "Notifications->activate")
+    if(course_source MATCHES "${forbidden}")
+        message(FATAL_ERROR "native notification course bypasses a production wire: ${forbidden}")
+    endif()
+endforeach()
+
+foreach(course IN ITEMS positive request-cut activation-cut)
+    string(REPLACE "-" "_" course_name "${course}")
+    set(course_root "${BPR_ROOT}_${course_name}")
+    file(REMOVE_RECURSE "${course_root}")
+    file(MAKE_DIRECTORY "${course_root}")
+    set(course_arguments)
+    if(course STREQUAL "request-cut")
+        list(APPEND course_arguments "--native-notification-cut-request-wire")
+    elseif(course STREQUAL "activation-cut")
+        list(APPEND course_arguments "--native-notification-cut-activation-wire")
+    endif()
+    execute_process(
+        COMMAND
+            "${BPR_APPLICATION}"
+            --github-fixture github-com
+            --epoch-fixture-root "${course_root}"
+            --epoch-fixture-phase seed
+            --native-notification-probe
+            ${course_arguments}
+            --automated-run-budget-ms 25000
+        RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE error
+        TIMEOUT 25
+    )
+    if(course STREQUAL "positive")
+        set(marker "NATIVE_NOTIFICATION_ATTENDED_CONTRACT_OK")
+    elseif(course STREQUAL "request-cut")
+        set(marker "NATIVE_NOTIFICATION_REQUEST_CUT_OK")
+    else()
+        set(marker "NATIVE_NOTIFICATION_ACTIVATION_CUT_OK")
+    endif()
+    if(NOT result EQUAL 0 OR NOT output MATCHES "${marker}")
+        message(FATAL_ERROR "native notification ${course} failed: ${output}${error}")
+    endif()
+    if(error MATCHES "QSystemTrayIcon::setVisible: No Icon set")
+        message(FATAL_ERROR "native notification ${course} showed a tray without an icon")
+    endif()
+endforeach()
+
+message("NATIVE_NOTIFICATION_ATTENDED_CONTRACT_OK")

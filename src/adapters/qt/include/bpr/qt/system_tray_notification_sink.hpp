@@ -6,11 +6,20 @@
 #include <QObject>
 
 #include <cstddef>
+#include <functional>
 #include <memory>
+#include <optional>
 
+class QString;
 class QSystemTrayIcon;
 
 namespace bpr::qt {
+	/// \brief Replaces only the operating-system display submission.
+	using system_notification_display_boundary = std::function<void(
+		QSystemTrayIcon&,
+		const QString&,
+		const QString&)>;
+
 	/// \brief Shows one queue notification through the desktop's own surface.
 	///
 	/// \details The payload arrives already composed. This class reads
@@ -34,11 +43,12 @@ namespace bpr::qt {
 	/// comment is exactly where the next reader would learn that building one
 	/// here is thinkable.
 	///
-	/// **Permission is read, never assumed.** Where the desktop offers no
-	/// notification surface at all, that reads as `refused`: nothing is
-	/// delivered, nothing is reported as an error, and the reviewer is not
-	/// asked. A tool that degraded to a dialog box would have overridden an
-	/// answer the platform already gave.
+	/// Qt does not expose the reviewer's platform permission. The sink therefore
+	/// begins `not_determined`; `request_permission()` changes that to
+	/// `platform_managed`, authorizes one submission attempt, and leaves any
+	/// prompt, refusal, or banner to the operating system.
+	/// That attempt is not evidence that a banner was displayed. A missing tray
+	/// surface is `refused`, and the sink never degrades to an application dialog.
 	class system_tray_notification_sink final
 		: public QObject,
 		  public application::notification_sink_port
@@ -53,6 +63,14 @@ namespace bpr::qt {
 		explicit system_tray_notification_sink(
 			QSystemTrayIcon& aTray,
 			QObject*         aParent = nullptr);
+		/// \brief Owns a tray while delegating its display submission.
+		///
+		/// \details The product request, retained target, and activation signal
+		/// remain this sink's production path. The supplied boundary is the only
+		/// substitution and must not claim an operating system displayed a banner.
+		explicit system_tray_notification_sink(
+			system_notification_display_boundary aDisplay,
+			QObject*                             aParent = nullptr);
 		~system_tray_notification_sink() override;
 
 		system_tray_notification_sink(const system_tray_notification_sink&) = delete;
@@ -75,6 +93,8 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto tray_icon() const noexcept -> QSystemTrayIcon*;
 		[[nodiscard]] auto submitted() const noexcept -> std::size_t;
+		[[nodiscard]] auto submitted_payload() const
+			-> std::optional<application::delivered_notification>;
 
 	private:
 		struct implementation;

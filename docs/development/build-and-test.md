@@ -99,6 +99,22 @@ Both presets use out-of-source directories under ignored `build/`.
 Both also have schema-12 workflow presets, for example
 `cmake --workflow --preset core-only`.
 
+## Attended native notification course
+
+The deterministic `application_native_notification_attended_contract` replaces
+only the operating-system display boundary. It preserves the real queue rule,
+Refresh, system-tray sink, tray click signal, notifier activation, and exact
+landing-row selection, and runs independent request and activation cuts. It
+does not claim that the operating system displayed a banner.
+
+BPR-0168's operator packet runs the shipped `better_pull_review` executable
+with its native `QSystemTrayIcon::showMessage` boundary. The application first
+reports a
+quiet accepted head, drives the shipped observer-rule and Refresh gestures,
+then stays visible for the owner to grant permission, inspect the exact
+metadata-only banner, and click it. No automation may grant Notification Center
+permission or substitute for the click.
+
 ## Automated-test network boundary
 
 Every registered test uses `bpr_add_network_isolated_test`; raw `add_test` is

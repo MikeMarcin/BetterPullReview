@@ -4,6 +4,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/review_landing_model.hpp"
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
@@ -33,6 +34,7 @@
 	#include <QGuiApplication>
 	#include <QImage>
 	#include <QItemSelectionModel>
+	#include <QListView>
 	#include <QMessageBox>
 	#include <QMouseEvent>
 	#include <QPalette>
@@ -81,6 +83,8 @@ namespace {
 			return QStringLiteral("not-determined");
 		case bpr::application::notification_permission::granted:
 			return QStringLiteral("granted");
+		case bpr::application::notification_permission::platform_managed:
+			return QStringLiteral("platform-managed");
 		case bpr::application::notification_permission::refused:
 			return QStringLiteral("refused");
 		}
@@ -4027,6 +4031,282 @@ namespace {
 		QTimer::singleShot(0, &aApplication.window(), *tick);
 	}
 
+#if defined(BPR_BUILD_TESTING)
+	enum class native_notification_stage {
+		connect,
+		await_connection,
+		await_rule_surface,
+		await_quiet_baseline,
+		await_changed_head,
+		await_submission,
+		await_activation,
+		shutdown,
+	};
+
+	struct native_notification_run
+	{
+		native_notification_stage   Stage = native_notification_stage::connect;
+		std::chrono::milliseconds   Budget{ };
+		automated_clock::time_point Started;
+		bool                        Attended      = false;
+		bool                        RequestCut    = false;
+		bool                        ActivationCut = false;
+		bool                        Failed        = false;
+	};
+
+	[[nodiscard]] auto notification_fixture_ref() -> bpr::core::pull_request_ref
+	{
+		return {
+			.Host       = "github.com",
+			.Account    = "octo-reviewer",
+			.Repository = "octo-org/review-repository",
+			.Number     = 17,
+		};
+	}
+
+	void fail_native_notification_run(
+		bpr::app::github_application& aApplication,
+		native_notification_run&      aRun,
+		const std::string_view        aReason)
+	{
+		QTextStream{ stdout }
+			<< "NATIVE_NOTIFICATION_REFUSED:"
+			<< QString::fromUtf8(aReason.data(), static_cast<qsizetype>(aReason.size()))
+			<< '\n'
+			<< Qt::flush;
+		aRun.Failed = true;
+		aRun.Stage  = native_notification_stage::shutdown;
+		aApplication.begin_shutdown();
+	}
+
+	[[nodiscard]] auto exact_notification_queue_item(
+		bpr::qt::workbench_window&        aWindow,
+		const bpr::core::attention_bucket aBucket) -> bool
+	{
+		if (aWindow.queue_landing()->rowCount() != 1) {
+			return false;
+		}
+		const auto item = aWindow.queue_landing()->item_at(
+			aWindow.queue_landing()->index(0));
+		return item.has_value() && item->Ref == notification_fixture_ref()
+			&& item->Membership.Role == bpr::core::github_role::none
+			&& item->Membership.MatchedRule
+			&& item->Membership.Rule
+			== bpr::core::observer_rule{
+				   .Kind    = bpr::core::observer_rule_kind::repository,
+				   .Pattern = "octo-org/review-repository",
+			   }
+		&& item->Bucket == aBucket;
+	}
+
+	void schedule_native_notification_run(
+		bpr::app::github_application&                  aApplication,
+		const std::shared_ptr<native_notification_run> aRun)
+	{
+		aRun->Started = automated_clock::now();
+		auto tick     = std::make_shared<std::function<void()>>();
+		*tick         = [&aApplication,
+						 aRun,
+						 tick,
+						 alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			if (aRun->Stage != native_notification_stage::shutdown
+				&& automated_clock::now() - aRun->Started >= aRun->Budget) {
+				fail_native_notification_run(
+					aApplication, *aRun, "automated_budget_exhausted");
+			}
+
+			auto& window = aApplication.window();
+			switch (aRun->Stage) {
+			case native_notification_stage::connect:
+				window.github_connect_action()->trigger();
+				aRun->Stage = native_notification_stage::await_connection;
+				break;
+
+			case native_notification_stage::await_connection:
+				if (window.github_status_text() == "GitHub account connected."
+					&& window.github_open_action()->isEnabled()) {
+					window.session_panel()->owner_editor()->setText(
+						QStringLiteral("octo-org"));
+					window.session_panel()->repository_editor()->setText(
+						QStringLiteral("review-repository"));
+					window.session_panel()->pull_request_editor()->setValue(17);
+					window.github_open_action()->trigger();
+					window.queue_rule_kind_selector()->setCurrentIndex(
+						window.queue_rule_kind_selector()->findData(static_cast<int>(
+							bpr::core::observer_rule_kind::repository)));
+					window.queue_rule_pattern_editor()->setText(
+						QStringLiteral("octo-org/review-repository"));
+					aRun->Stage = native_notification_stage::await_rule_surface;
+				}
+				break;
+
+			case native_notification_stage::await_rule_surface:
+				if (window.add_queue_rule_action()->isEnabled()) {
+					window.add_queue_rule_action()->trigger();
+					aRun->Stage = native_notification_stage::await_quiet_baseline;
+				}
+				break;
+
+			case native_notification_stage::await_quiet_baseline: {
+				const auto evidence = bpr::app::detail::
+					github_application_fixture_access::queue_notification_evidence(
+						aApplication);
+				if (!window.remove_queue_rule_action()->isEnabled()
+					|| !exact_notification_queue_item(
+						window, bpr::core::attention_bucket::quiet)) {
+					break;
+				}
+				if (evidence.RequestsAttempted != 0U || evidence.Submitted != 0U
+					|| evidence.DisplaySubmissions != 0U
+					|| evidence.LastSubmitted.has_value()) {
+					fail_native_notification_run(
+						aApplication, *aRun, "quiet_baseline_requested_notification");
+					break;
+				}
+				QTextStream{ stdout }
+					<< "NATIVE_NOTIFICATION_QUIET_BASELINE_OK\n"
+					<< Qt::flush;
+				window.github_refresh_action()->trigger();
+				aRun->Stage = native_notification_stage::await_changed_head;
+				break;
+			}
+
+			case native_notification_stage::await_changed_head:
+				if (!exact_notification_queue_item(
+						window,
+						bpr::core::attention_bucket::changed_since_my_review)) {
+					break;
+				}
+				if (aRun->RequestCut) {
+					const auto evidence = bpr::app::detail::
+						github_application_fixture_access::queue_notification_evidence(
+							aApplication);
+					if (evidence.RequestsAttempted != 0U || evidence.Submitted != 0U
+						|| evidence.DisplaySubmissions != 0U
+						|| evidence.LastSubmitted.has_value()) {
+						fail_native_notification_run(
+							aApplication, *aRun, "request_cut_reached_sink");
+						break;
+					}
+					aRun->Stage = native_notification_stage::shutdown;
+					aApplication.begin_shutdown();
+					break;
+				}
+				aRun->Stage = native_notification_stage::await_submission;
+				break;
+
+			case native_notification_stage::await_submission: {
+				const auto evidence = bpr::app::detail::
+					github_application_fixture_access::queue_notification_evidence(
+						aApplication);
+				const auto expected = bpr::application::delivered_notification{
+					.Title  = "octo-org/review-repository #17",
+					.Body   = "The code moved after you reviewed it.",
+					.Target = bpr::application::queue_notification_target{
+						.Ref = notification_fixture_ref(),
+					},
+				};
+				if (evidence.RequestsAttempted != 1U || evidence.Submitted != 1U
+					|| evidence.LastSubmitted != std::optional{ expected }) {
+					break;
+				}
+				if (!aRun->Attended && evidence.DisplaySubmissions != 1U) {
+					fail_native_notification_run(
+						aApplication, *aRun, "display_boundary_not_reached");
+					break;
+				}
+				QTextStream{ stdout }
+					<< "NATIVE_NOTIFICATION_REQUEST_SUBMITTED_OK\n"
+					<< "NATIVE_NOTIFICATION_PAYLOAD:octo-org/review-repository #17|"
+					<< "The code moved after you reviewed it.\n"
+					<< (aRun->Attended
+							? "NATIVE_NOTIFICATION_AWAITING_PLATFORM_CLICK\n"
+							: "NATIVE_NOTIFICATION_DISPLAY_BOUNDARY_OK\n")
+					<< Qt::flush;
+				if (!aRun->Attended) {
+					const auto activationEmitted = bpr::app::detail::
+						github_application_fixture_access::activate_platform_notification(
+							aApplication);
+					if (!activationEmitted) {
+						fail_native_notification_run(
+							aApplication, *aRun, "platform_activation_not_emitted");
+						break;
+					}
+				}
+				aRun->Stage = native_notification_stage::await_activation;
+				break;
+			}
+
+			case native_notification_stage::await_activation: {
+				const auto evidence = bpr::app::detail::
+					github_application_fixture_access::queue_notification_evidence(
+						aApplication);
+				if (evidence.Activations != 1U) {
+					break;
+				}
+				if (aRun->ActivationCut) {
+					if (evidence.Selections != 0U) {
+						fail_native_notification_run(
+							aApplication, *aRun, "activation_cut_selected_row");
+						break;
+					}
+				} else {
+					const auto selected = window.queue_filter_model()->item_at(
+						window.queue_view()->currentIndex());
+					if (evidence.Selections != 1U || !selected.has_value()
+						|| selected->Ref != notification_fixture_ref()
+						|| QApplication::focusWidget() != window.queue_view()) {
+						break;
+					}
+					QTextStream{ stdout }
+						<< "NATIVE_NOTIFICATION_ACTIVATION_OK\n"
+						<< "NATIVE_NOTIFICATION_EXACT_LANDING_SELECTION_OK\n"
+						<< Qt::flush;
+				}
+				aRun->Stage = native_notification_stage::shutdown;
+				aApplication.begin_shutdown();
+				break;
+			}
+
+			case native_notification_stage::shutdown:
+				if (!aApplication.status().ShutdownComplete) {
+					break;
+				}
+				if (!aRun->Failed
+					&& !aApplication.status().ShutdownCleanupFailed) {
+					QTextStream{ stdout } << "NATIVE_NOTIFICATION_SHUTDOWN_OK\n";
+					if (aRun->RequestCut) {
+						QTextStream{ stdout }
+							<< "NATIVE_NOTIFICATION_REQUEST_CUT_OK\n";
+					} else if (aRun->ActivationCut) {
+						QTextStream{ stdout }
+							<< "NATIVE_NOTIFICATION_ACTIVATION_CUT_OK\n";
+					} else if (aRun->Attended) {
+						QTextStream{ stdout }
+							<< "NATIVE_NOTIFICATION_ATTENDED_RUN_OK\n";
+					} else {
+						QTextStream{ stdout }
+							<< "NATIVE_NOTIFICATION_ATTENDED_CONTRACT_OK\n";
+					}
+				} else if (!aRun->Failed) {
+					QTextStream{ stdout }
+						<< "NATIVE_NOTIFICATION_REFUSED:shutdown_cleanup_failed\n";
+				}
+				QCoreApplication::exit(
+					aRun->Failed || aApplication.status().ShutdownCleanupFailed
+						? EXIT_FAILURE
+						: EXIT_SUCCESS);
+				return;
+			}
+			QTimer::singleShot(10, &window, *tick);
+		};
+		QTimer::singleShot(0, &aApplication.window(), *tick);
+	}
+#endif
+
 	/// \brief Drives an interactive shutdown, and can be disarmed.
 	///
 	/// \details The poll re-arms every 10 ms until shutdown completes, so when
@@ -4258,7 +4538,23 @@ auto main(int argc, char** argv) -> int
 		const auto nativeAppearanceProbe            = has_argument(argc, argv, "--native-appearance-probe");
 		const auto nativeAppearanceCutSelectionWire = has_argument(
 			argc, argv, "--native-appearance-cut-selection-wire");
-		const auto attendedLaunch             = has_argument(argc, argv, "--attended-launch");
+		const auto attendedLaunch          = has_argument(argc, argv, "--attended-launch");
+		const auto nativeNotificationProbe = has_argument(
+			argc, argv, "--native-notification-probe");
+		const auto nativeNotificationAttended = has_argument(
+			argc, argv, "--native-notification-attended");
+		const auto nativeNotificationRequestCut = has_argument(
+			argc, argv, "--native-notification-cut-request-wire");
+		const auto nativeNotificationActivationCut = has_argument(
+			argc, argv, "--native-notification-cut-activation-wire");
+		const auto nativeNotificationCourse
+			= nativeNotificationProbe || nativeNotificationAttended;
+		fixtureOptions.CaptureSystemNotificationDisplay
+			= nativeNotificationProbe && !nativeNotificationRequestCut;
+		fixtureOptions.DisableNotificationRequestWire
+			= nativeNotificationRequestCut;
+		fixtureOptions.DisableNotificationSelectionWire
+			= nativeNotificationActivationCut;
 		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
 		const auto diffWorkbenchShutdownProbe = has_argument(
 			argc, argv, "--diff-workbench-shutdown-probe");
@@ -4407,6 +4703,34 @@ auto main(int argc, char** argv) -> int
 				|| epochMaintenanceProbe || nativeAppearanceProbe
 				|| diffEvidenceDirectory.has_value())) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if ((nativeNotificationProbe && nativeNotificationAttended)
+			|| (nativeNotificationRequestCut
+				&& nativeNotificationActivationCut)
+			|| ((nativeNotificationRequestCut
+				 || nativeNotificationActivationCut)
+				&& !nativeNotificationProbe)
+			|| (nativeNotificationCourse
+				&& (!selectedFixture.has_value()
+					|| *selectedFixture
+						!= bpr::app::detail::
+							github_public_path_fixture::github_com
+					|| fixtureOptions.EpochPhase
+						!= bpr::app::detail::github_epoch_fixture_phase::seed
+					|| attendedLaunch || selfTest || renderPath.has_value()
+					|| nativeAppearanceProbe || diffWorkbenchProbe
+					|| diffWorkbenchShutdownProbe
+					|| workbenchCompositionProbe
+					|| uiforetwSelectedDiffProbe
+					|| appearanceGestureProbe
+					|| appearanceThemeCustomizationPath.has_value()
+					|| reviewRoundTripCompositionProbe
+					|| defectCompositionProbe.has_value()
+					|| automatedStallProbe || epochMaintenanceProbe
+					|| diffEvidenceDirectory.has_value()))) {
+			QTextStream{ stdout }
+				<< "NATIVE_NOTIFICATION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
 
@@ -4585,17 +4909,32 @@ auto main(int argc, char** argv) -> int
 		// not exist there and neither does the fixture it requires, so the
 		// seam leaves no trace for the Release composition contract to find.
 #if defined(BPR_BUILD_TESTING)
-		const auto heldOpenForInspection = attendedLaunch;
+		const auto heldOpenForInspection         = attendedLaunch;
+		const auto scheduleNativeNotificationRun = nativeNotificationCourse;
 #else
-		constexpr auto heldOpenForInspection = false;
+		constexpr auto heldOpenForInspection         = false;
+		constexpr auto scheduleNativeNotificationRun = false;
 #endif
 		const auto scheduleAutomatedRun = !heldOpenForInspection
+			&& !scheduleNativeNotificationRun
 			&& (selfTest || renderPath.has_value()
 #if defined(BPR_BUILD_TESTING)
 				|| !fixtureName.empty()
 #endif
 			);
-		if (scheduleAutomatedRun) {
+#if defined(BPR_BUILD_TESTING)
+		if (scheduleNativeNotificationRun) {
+			schedule_native_notification_run(
+				*application,
+				std::make_shared<native_notification_run>(native_notification_run{
+					.Budget        = automatedRunBudget,
+					.Attended      = nativeNotificationAttended,
+					.RequestCut    = nativeNotificationRequestCut,
+					.ActivationCut = nativeNotificationActivationCut,
+				}));
+		} else
+#endif
+			if (scheduleAutomatedRun) {
 			schedule_automated_run(
 				*application,
 				std::make_shared<automated_run>(

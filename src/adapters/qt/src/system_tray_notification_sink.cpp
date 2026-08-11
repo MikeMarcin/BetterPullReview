@@ -1,7 +1,11 @@
 #include "bpr/qt/system_tray_notification_sink.hpp"
 
+#include <QApplication>
+#include <QColor>
 #include <QIcon>
+#include <QPixmap>
 #include <QString>
+#include <QStyle>
 #include <QSystemTrayIcon>
 
 #include <optional>
@@ -10,14 +14,47 @@
 namespace bpr::qt {
 	struct system_tray_notification_sink::implementation
 	{
-		QSystemTrayIcon*                                      Tray = nullptr;
-		application::notification_activation_sink             Activations;
-		std::optional<application::queue_notification_target> FirstTarget;
-		std::size_t                                           Submitted          = 0U;
-		bool                                                  ActivationConsumed = false;
+		QSystemTrayIcon*                                   Tray = nullptr;
+		system_notification_display_boundary               Display;
+		application::notification_activation_sink          Activations;
+		std::optional<application::delivered_notification> FirstPayload;
+		std::size_t                                        Submitted           = 0U;
+		bool                                               SubmissionRequested = false;
+		bool                                               ActivationConsumed  = false;
 	};
 
 	namespace {
+		[[nodiscard]] auto notification_icon() -> QIcon
+		{
+			auto icon = QApplication::windowIcon();
+			if (icon.isNull() && QApplication::style() != nullptr) {
+				icon = QApplication::style()->standardIcon(QStyle::SP_ComputerIcon);
+			}
+			if (icon.isNull()) {
+				auto fallback = QPixmap{ 16, 16 };
+				fallback.fill(QColor{ 52, 101, 164 });
+				icon.addPixmap(fallback);
+			}
+			return icon;
+		}
+
+		void prepare_tray(QSystemTrayIcon& aTray)
+		{
+			if (aTray.icon().isNull()) {
+				aTray.setIcon(notification_icon());
+			}
+			aTray.setObjectName(QStringLiteral("reviewQueueNotificationTray"));
+			aTray.setToolTip(QStringLiteral("BetterPullReview"));
+		}
+
+		[[nodiscard]] auto native_display_boundary()
+			-> system_notification_display_boundary
+		{
+			return [](QSystemTrayIcon& aTray, const QString& aTitle, const QString& aBody) {
+				aTray.showMessage(aTitle, aBody, QSystemTrayIcon::Information);
+			};
+		}
+
 		void connect_activation(
 			system_tray_notification_sink& aSink,
 			QSystemTrayIcon&               aTray,
@@ -28,14 +65,14 @@ namespace bpr::qt {
 				&QSystemTrayIcon::messageClicked,
 				&aSink,
 				[&aImplementation] {
-					if (!aImplementation.FirstTarget.has_value()
+					if (!aImplementation.FirstPayload.has_value()
 						|| aImplementation.ActivationConsumed) {
 						return;
 					}
 					aImplementation.ActivationConsumed = true;
 					if (aImplementation.Activations) {
 						aImplementation.Activations(
-							*aImplementation.FirstTarget);
+							aImplementation.FirstPayload->Target);
 					}
 				});
 		}
@@ -49,10 +86,9 @@ namespace bpr::qt {
 		if (!QSystemTrayIcon::isSystemTrayAvailable()) {
 			return;
 		}
-		Implementation->Tray = new QSystemTrayIcon{ this };
-		Implementation->Tray->setObjectName(
-			QStringLiteral("reviewQueueNotificationTray"));
-		Implementation->Tray->setToolTip(QStringLiteral("BetterPullReview"));
+		Implementation->Tray    = new QSystemTrayIcon{ this };
+		Implementation->Display = native_display_boundary();
+		prepare_tray(*Implementation->Tray);
 		connect_activation(*this, *Implementation->Tray, *Implementation);
 		Implementation->Tray->show();
 	}
@@ -63,8 +99,22 @@ namespace bpr::qt {
 		: QObject{ aParent }
 		, Implementation{ std::make_unique<implementation>() }
 	{
-		Implementation->Tray = &aTray;
+		Implementation->Tray    = &aTray;
+		Implementation->Display = native_display_boundary();
+		prepare_tray(aTray);
 		connect_activation(*this, aTray, *Implementation);
+	}
+
+	system_tray_notification_sink::system_tray_notification_sink(
+		system_notification_display_boundary aDisplay,
+		QObject* const                       aParent)
+		: QObject{ aParent }
+		, Implementation{ std::make_unique<implementation>() }
+	{
+		Implementation->Tray    = new QSystemTrayIcon{ this };
+		Implementation->Display = std::move(aDisplay);
+		prepare_tray(*Implementation->Tray);
+		connect_activation(*this, *Implementation->Tray, *Implementation);
 	}
 
 	system_tray_notification_sink::~system_tray_notification_sink() = default;
@@ -75,39 +125,43 @@ namespace bpr::qt {
 		// No surface is a refusal rather than a pending question. There is
 		// nobody to ask and nothing to ask for, and reporting
 		// `not_determined` would make the coordinator ask on every delivery.
-		if (Implementation->Tray == nullptr
-			|| !QSystemTrayIcon::supportsMessages()) {
+		if (Implementation->Tray == nullptr || !Implementation->Display) {
 			return application::notification_permission::refused;
 		}
-		return application::notification_permission::granted;
+		return Implementation->SubmissionRequested
+			? application::notification_permission::platform_managed
+			: application::notification_permission::not_determined;
 	}
 
 	auto system_tray_notification_sink::request_permission()
 		-> application::notification_permission
 	{
-		// Never reached from `refused`, and there is no prompt to raise here:
-		// the desktop notification surface either exists for this process or
-		// it does not. Reported rather than asked.
-		return permission();
+		if (Implementation->Tray == nullptr || !Implementation->Display) {
+			return application::notification_permission::refused;
+		}
+		// Qt exposes no owner-permission query. Authorize one submission attempt;
+		// the platform owns any prompt and whether a banner is actually shown.
+		Implementation->SubmissionRequested = true;
+		return application::notification_permission::platform_managed;
 	}
 
 	auto system_tray_notification_sink::deliver(
 		const application::delivered_notification& aPayload)
 		-> application::notification_submission_result
 	{
-		if (Implementation->FirstTarget.has_value()) {
+		if (Implementation->FirstPayload.has_value()) {
 			return application::notification_submission_result::
 				suppressed_unattributable_activation;
 		}
-		Implementation->FirstTarget = aPayload.Target;
+		Implementation->FirstPayload = aPayload;
 		++Implementation->Submitted;
 		// Title and body only. The payload's other field is where an
 		// activation goes, not something to show.
-		if (Implementation->Tray != nullptr) {
-			Implementation->Tray->showMessage(
+		if (Implementation->Tray != nullptr && Implementation->Display) {
+			Implementation->Display(
+				*Implementation->Tray,
 				QString::fromStdString(aPayload.Title),
-				QString::fromStdString(aPayload.Body),
-				QSystemTrayIcon::Information);
+				QString::fromStdString(aPayload.Body));
 		}
 		return application::notification_submission_result::submitted;
 	}
@@ -127,5 +181,11 @@ namespace bpr::qt {
 	auto system_tray_notification_sink::submitted() const noexcept -> std::size_t
 	{
 		return Implementation->Submitted;
+	}
+
+	auto system_tray_notification_sink::submitted_payload() const
+		-> std::optional<application::delivered_notification>
+	{
+		return Implementation->FirstPayload;
 	}
 } // namespace bpr::qt

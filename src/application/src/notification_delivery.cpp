@@ -27,7 +27,8 @@ namespace bpr::application {
 			++Statistics.PermissionRequests;
 			allowed = Sink.request_permission();
 		}
-		if (allowed != notification_permission::granted) {
+		if (allowed != notification_permission::granted
+			&& allowed != notification_permission::platform_managed) {
 			// A refusal is a normal outcome, not an error to retry. Nothing is
 			// delivered, nothing is reported, and the reviewer is not asked
 			// again — the state stays whatever the platform says it is, so a

@@ -1,6 +1,7 @@
 #include "bpr/qt/system_tray_notification_sink.hpp"
 
 #include <QApplication>
+#include <QString>
 #include <QSystemTrayIcon>
 
 #include <cstdlib>
@@ -40,9 +41,41 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	auto         tray = QSystemTrayIcon{ };
-	auto         sink = bpr::qt::system_tray_notification_sink{ tray };
-	auto         activated
+	auto         refused = bpr::qt::system_tray_notification_sink{
+		bpr::qt::system_notification_display_boundary{ }
+	};
+	expect(
+		refused.permission() == bpr::application::notification_permission::refused,
+		"an absent display boundary is an explicit refusal");
+	auto displayedTitle = QString{ };
+	auto displayedBody  = QString{ };
+	auto displays       = std::size_t{ 0U };
+	auto sink           = bpr::qt::system_tray_notification_sink{
+		[&displayedTitle, &displayedBody, &displays](
+			QSystemTrayIcon& aTray,
+			const QString&   aTitle,
+			const QString&   aBody) {
+			expect(!aTray.icon().isNull(), "the tray receives a non-null icon before use");
+			displayedTitle = aTitle;
+			displayedBody  = aBody;
+			++displays;
+		}
+	};
+	auto* const tray = sink.tray_icon();
+	expect(tray != nullptr && !tray->icon().isNull(), "the sink owns a prepared tray");
+	expect(
+		sink.permission()
+			== bpr::application::notification_permission::not_determined,
+		"tray capability is not reported as an owner permission grant");
+	expect(
+		sink.request_permission()
+			== bpr::application::notification_permission::platform_managed,
+		"the first submission attempt leaves prompting to the operating system");
+	expect(
+		sink.permission()
+			== bpr::application::notification_permission::platform_managed,
+		"the unreadable owner permission is never relabelled as granted");
+	auto activated
 		= std::optional<bpr::application::queue_notification_target>{ };
 	auto activationCount = std::size_t{ 0U };
 	sink.set_activation_sink(
@@ -63,11 +96,16 @@ auto main(int argc, char** argv) -> int
 			== bpr::application::notification_submission_result::
 				suppressed_unattributable_activation,
 		"B is suppressed before showMessage can replace A's identity");
-	tray.messageClicked();
+	expect(
+		displays == 1U
+			&& displayedTitle == QString::fromStdString(payloadA.Title)
+			&& displayedBody == QString::fromStdString(payloadA.Body),
+		"the display boundary receives the exact metadata-only title and body once");
+	tray->messageClicked();
 	expect(
 		activated == std::optional{ payloadA.Target } && activationCount == 1U,
 		"the click routes exact immutable A");
-	tray.messageClicked();
+	tray->messageClicked();
 	expect(activationCount == 1U, "a duplicate or delayed click is a no-op");
 	expect(
 		sink.deliver(payloadB)
@@ -75,6 +113,9 @@ auto main(int argc, char** argv) -> int
 				suppressed_unattributable_activation,
 		"the sink never rearms after activation");
 	expect(sink.submitted() == 1U, "only A reached the platform submission call");
+	expect(
+		sink.submitted_payload() == std::optional{ payloadA },
+		"the exact first metadata-only payload remains observable");
 
 	std::cout << "system-tray-notification-sink-tests:pass\n";
 	return EXIT_SUCCESS;

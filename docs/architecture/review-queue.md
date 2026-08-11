@@ -248,10 +248,23 @@ count, or zero when the composed observation has no such count.
 `QSystemTrayIcon` does not identify which displayed message produced its
 `messageClicked` signal. The production sink therefore fails closed for its
 entire process lifetime: it submits at most the first actionable payload,
-retains that exact immutable target, suppresses every later payload without
-calling `showMessage`, and consumes at most the first click. A duplicate or
-delayed click does nothing, and activation never rearms the sink. Submission
-is distinct from proof that the operating system displayed the banner.
+sets a non-null application or Qt fallback icon before exposing the tray, and
+retains that exact payload for the one attributable activation. Qt does not
+report the owner's Notification Center permission; the sink records the
+attempt as `platform_managed`, leaves prompting and display to the operating
+system, and never reads `supportsMessages()` as permission. Every later payload
+is suppressed without
+calling `showMessage`; duplicate or delayed clicks do nothing, and activation
+never rearms the sink.
+
+The shipped application's deterministic native-notification course replaces
+only `showMessage` with a capture boundary. The real system sink still receives
+the composed request,
+the real tray emits `messageClicked`, the notifier receives the retained exact
+target, and the shipped landing proxy selects and focuses the complete
+host/account/repository/pull-request identity. Independent cuts remove the
+request wire and activation-to-selection wire. That course proves composition,
+not that macOS displayed a banner; the latter remains BPR-0168's attended fact.
 
 A submitted native activation returns through `review_queue_notifier::activate` and asks
 the real landing proxy to select the exact visible identity. The queue row is

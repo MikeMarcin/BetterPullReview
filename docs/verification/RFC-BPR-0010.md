@@ -19,6 +19,14 @@ exact first accepted head baseline, forwards accepted queue projections to the
 real workbench before requesting a newly warranting metadata-only notification,
 and routes only the process-lifetime sink's attributable first target back
 through the notifier to exact visible-row selection.
+Done BPR-0251 prepares the production tray with a non-null icon and adds a
+shipped-executable system-sink course whose only substitution is the native
+display boundary. Its tray signal, notifier activation, and exact focused
+landing-row selection remain production code; BPR-0168 still owns the human
+fact that the operating system showed and activated the banner.
+The status vocabulary calls Qt's unreadable owner permission
+`platform_managed`, never `granted`; it permits a submission attempt without
+claiming the owner's answer.
 
 RFC-BPR-0010 stays `Proposed`. No card here makes a closure claim, and closure
 remains ordered behind RFC-BPR-0002.
@@ -103,7 +111,7 @@ A row is claimed only when its card lands with direct evidence.
 | The queue updates incrementally | Qt | Replace a queue projection with one differing in a few items | Exact insert, remove, move, and data signals by stable identity, and no routine reset | Verified. BPR-0163's `review_landing_model` matches rows by `pull_request_ref`, so an item that becomes urgent moves and keeps its persistent index rather than being replaced. Re-applying an unchanged queue emits nothing at all. A positional diff — which RFC-BPR-0007's model uses for a different job — would have reported a reorder as a run of changes on rows that did not change |
 | Filters and sorting remain deterministic and explainable | Composed Qt landing surface | Filter by role, observer reason, bucket, repository, and quiet/current state; switch directly between each supported sort and reopen the application | Stable identities survive without reset, the default retains core priority, alternate sorting is explicit and total, empty states explain active filters, and only preferences survive restart | Verified. BPR-0239 places a `QSortFilterProxyModel` above the unchanged core order, covers every filter plus a 2,048-row bounded update, directly switches between repository and PR-number orders whose answers disagree, and drives all controls through the shipped window into SQLite schema v3 and a separate-process reopen with zero provider mutation |
 | Notifications carry no content | Host | Request a notification for a review with comments and a matched path rule | The request type has no field a body, a title, or a path could occupy | Verified. BPR-0164 reads the whole notification and requires it to be exactly identity, the bucket's fixed sentence, and a count — not merely free of a list of bad words. Leaking the matched rule's path takes three deliberate edits, and the test catches it |
-| A notification links to the right review | Composed queue, notifier, and landing proxy | Enroll the existing two-head GitHub.com fixture through the real rule gesture, observe head one as quiet, use the real Refresh action for head two, inspect the submitted target at a granted identityless fake platform sink, activate it through the sink callback, and cut each wire independently on that same refresh | The exact `github.com/octo-reviewer/octo-org/review-repository#17` row moves from quiet to changed-since-my-review and is selected and focused; later submissions are suppressed because Qt supplies no per-message activation identity; hidden or absent identities fail visibly without changing preferences or opening provider navigation | Verified. BPR-0223's four-process contract proves an honest accepted-head transition, exact metadata-only payload, one attributable submission and activation, no delivery from restore alone, zero provider mutation, plus independent projection-to-notifier and notifier-to-selection cuts. The application and Qt sink contracts prove A submitted, B suppressed, exact A activation, duplicate-click no-op, and no rearm. The Qt window suite distinguishes equal repository/number rows by complete identity and proves hidden/absent failure leaves preferences unchanged |
+| A notification links to the right review | Composed queue, notifier, system sink, and landing proxy | Enroll the existing two-head GitHub.com fixture through the real rule gesture, observe head one as quiet, use the real Refresh action for head two, replace only the operating-system display call, emit the real tray click signal, and cut the request and activation-selection wires independently on that same refresh | The exact `github.com/octo-reviewer/octo-org/review-repository#17` row moves from quiet to changed-since-my-review and is selected and focused; later submissions are suppressed because Qt supplies no per-message activation identity; hidden or absent identities fail visibly without changing preferences or opening provider navigation | Verified through the platform boundary. BPR-0223's four-process contract proves the accepted-head transition, exact metadata-only payload, deduplication, restore silence, zero provider mutation, and fixture-sink cuts. BPR-0251 additionally drives the production system sink with only `showMessage` captured, then reaches exact selection through the real tray signal and repeats both wire cuts. The application and Qt contracts prove A submitted, B suppressed, exact A activation, duplicate-click no-op, no rearm, and a non-null icon before display. Actual operating-system display and click remain BPR-0168's attended verdict. |
 | Closure and permission loss are honest | Host | Close, reopen, transfer, and lose permission to an enrolled pull request | Each produces an explicit queue state rather than a silent disappearance | Verified. BPR-0162 keeps forbidden and gone distinct — one is a permission a reviewer may be able to ask for, the other a pull request that is not there — retains a departed item with its reason while dropping it from the queue, and restores the same record on reopening. Only a withdrawal moves an item out, so an outage does not empty the queue |
 
 ## Standing composed-host linkage audit
@@ -136,7 +144,7 @@ the verifier's exit status as authoritative.
 
 | Card | Gate | What is missing |
 |---|---|---|
-| BPR-0168 | A native notification is delivered and its deep link opens the right local review | A person to grant Notification Center permission once and to see the banner. The harness proves the request's content and destination; it cannot prove the operating system showed it |
+| BPR-0168 | A native notification is delivered and its deep link opens the right local review | BPR-0251's production-sink course and digest-bound packet are ready. A person must grant Notification Center permission if asked, see the exact banner, click it, and confirm the exact focused landing row; the deterministic harness cannot prove those operating-system facts |
 | BPR-0169 | Enrolling by observer rule leaves GitHub's reviewer and subscription state untouched | A designated repository and token, inheriting BPR-0142. That the correlator cannot issue a request is structural and provable here; that the *server* also shows no change is a different claim and needs a server |
 
 ## Closeout replay
@@ -176,9 +184,11 @@ rather than of a review.
 ## Remaining public work
 
 BPR-0223 closes the unattended notification request and activation-selection
-composition path. BPR-0168 still requires an attended target-native verdict
-that the operating system displayed the banner after permission was granted;
-the deterministic harness does not claim that platform fact.
+composition path. BPR-0251 adds the non-null production icon and repeats that
+path through the system sink with only native display captured. BPR-0168 still
+requires an attended target-native verdict that the operating system displayed
+and activated the banner after permission was granted; the deterministic
+harness does not claim that platform fact.
 
 ## Documentation ledger
 

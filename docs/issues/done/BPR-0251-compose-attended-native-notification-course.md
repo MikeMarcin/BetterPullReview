@@ -1,7 +1,7 @@
 ---
 id: BPR-0251
 title: Compose the attended native notification course
-status: In Progress
+status: Done
 rfc: RFC-BPR-0010
 depends_on: [BPR-0164, BPR-0193, BPR-0223]
 ---
@@ -52,6 +52,35 @@ ctest --preset dev --output-on-failure \
 python3 scripts/verify_documentation.py --root .
 git diff --check
 ```
+
+## Completion record
+
+- The production tray receives the application icon, a Qt standard icon, or a
+  bounded fallback pixmap before `show()`. The native Cocoa request-cut course
+  rejects `QSystemTrayIcon::setVisible: No Icon set` from the real fixture
+  launch.
+- Qt's unreadable Notification Center answer is now the explicit
+  `platform_managed` state. It permits a submission attempt without falsely
+  reporting that the owner granted permission; `supportsMessages()` is not
+  consulted.
+- The shipped `better_pull_review` executable drives the real observer-rule and
+  Refresh gestures. Its deterministic positive and activation-cut courses
+  replace only `showMessage`; activation still enters through the real tray
+  signal and selects and focuses the exact complete queue identity. The
+  request-cut course uses the native tray surface and both cuts fail closed.
+- The attended mode uses native display, reports each causal stage, remains
+  alive for five minutes for the actual platform click, and shuts down only
+  after exact focused selection or a typed refusal.
+- The digest-bound [BPR-0168 operator packet](../../verification/reviews/native-notification-delivery-v001/operator-packet.md)
+  names the final executable, command, expected banner, click check, and exact
+  response. BPR-0168 remains open until that statement returns.
+- The exact focused matrix passed 5/5 in 3.19 seconds. Documentation,
+  repository formatting, scoped clang-tidy, and `git diff --check` passed.
+- Delegation twice stopped reporting while editing the tray-only slice. The
+  primary integrator invoked the skill's serial-fallback rule, retained the
+  bounded partial patch, and completed the composition and evidence directly.
+  Independent critical review then blocked the test-executable-only course and
+  the false `granted` permission label; both corrections are included above.
 
 ## Non-goals
 

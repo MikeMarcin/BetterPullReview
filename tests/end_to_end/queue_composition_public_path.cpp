@@ -226,7 +226,8 @@ auto main(int argc, char** argv) -> int
 						   return application->status().NotificationActivations == 1U
 							   && application->status().NotificationSelections == 1U
 							   && selected.has_value()
-							   && selected->Ref == initialRef;
+							   && selected->Ref == initialRef
+							   && QApplication::focusWidget() == window.queue_view();
 					   })) {
 				return fail(*application, "activation-selection");
 			}
@@ -246,9 +247,12 @@ auto main(int argc, char** argv) -> int
 			window.queue_sort_selector()->setCurrentIndex(
 				window.queue_sort_selector()->findData(
 					static_cast<int>(application::queue_sort_order::pull_request_number)));
-			if (!wait_until([&window, &preferences] {
+			if (!wait_until([&application, &window, &preferences] {
 					return window.queue_filter_model()->preferences() == preferences
-						&& window.queue_filter_model()->rowCount() == 1;
+						&& window.queue_filter_model()->rowCount() == 1
+						&& app::detail::github_application_fixture_access::
+							   queue_notification_evidence(*application)
+								   .QueueQuiescent;
 				})) {
 				return fail(*application, "preference-gesture-persist");
 			}

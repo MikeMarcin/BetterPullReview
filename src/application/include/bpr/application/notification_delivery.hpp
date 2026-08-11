@@ -9,14 +9,17 @@
 #include <string>
 
 namespace bpr::application {
-	/// \brief Whether the reviewer has allowed notifications.
+	/// \brief What the adapter knows about notification delivery authority.
 	///
-	/// \details Three states, because a refusal is not the absence of a grant.
-	/// A reviewer who declined has made a choice; a tool that treats that as
-	/// "not yet asked" and asks again has overridden it.
+	/// \details A refusal is not the absence of a grant. A reviewer who declined
+	/// has made a choice; a tool that treats that as "not yet asked" and asks
+	/// again has overridden it. `platform_managed` is distinct from both: the
+	/// adapter may submit, but cannot observe or claim the reviewer's answer.
 	enum class notification_permission : std::uint8_t {
 		not_determined,
 		granted,
+		/// \brief The platform owns permission and exposes no readable answer.
+		platform_managed,
 		refused,
 	};
 

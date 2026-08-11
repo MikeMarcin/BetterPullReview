@@ -347,6 +347,35 @@ bpr_bound_automated_run(
     RESERVE_MS 4000
 )
 
+bpr_add_network_isolated_test(
+    NAME application_native_notification_attended_contract
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/native-notification-attended-contract"
+        "-DBPR_SOURCE=${CMAKE_SOURCE_DIR}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_native_notification_attended_contract.cmake"
+)
+if(APPLE)
+    set_tests_properties(
+        application_native_notification_attended_contract
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=cocoa"
+    )
+else()
+    set_tests_properties(
+        application_native_notification_attended_contract
+        PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    )
+endif()
+bpr_bound_automated_run(
+    application_native_notification_attended_contract
+    TIMEOUT 120
+    BUDGET_MS 25000
+    RUNS 3
+    RESERVE_MS 4000
+)
+
 bpr_add_executable(
     test_better_pull_review_github_application_liveness_tests
     github_application_liveness_tests.cpp

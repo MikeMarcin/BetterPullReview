@@ -80,6 +80,7 @@
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QStyleHints>
+#include <QSystemTrayIcon>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -1490,6 +1491,8 @@ namespace bpr::app {
 					= aFixtureOptions.DisableReviewLedgerGestureWire;
 				UseGrantedNotificationSink
 					= aFixtureOptions.UseGrantedNotificationSink;
+				CaptureSystemNotificationDisplay
+					= aFixtureOptions.CaptureSystemNotificationDisplay;
 				DisableNotificationRequestWire
 					= aFixtureOptions.DisableNotificationRequestWire;
 				DisableNotificationSelectionWire
@@ -1937,8 +1940,6 @@ namespace bpr::app {
 			// Queue projections arrive at this composition first. It forwards the
 			// accepted value unchanged to the real window, then asks this notifier
 			// only for newly warranting session/ref/bucket transitions.
-			auto* systemNotificationSink
-				= static_cast<qt::system_tray_notification_sink*>(nullptr);
 #if defined(BPR_BUILD_TESTING)
 			if (UseGrantedNotificationSink) {
 				auto sink               = std::make_unique<fixture_notification_sink>();
@@ -1947,9 +1948,21 @@ namespace bpr::app {
 			}
 #endif
 			if (NotificationSink == nullptr) {
-				auto sink = std::make_unique<qt::system_tray_notification_sink>(
-					Window.get());
-				systemNotificationSink = sink.get();
+				auto sink = std::unique_ptr<qt::system_tray_notification_sink>{ };
+#if defined(BPR_BUILD_TESTING)
+				if (CaptureSystemNotificationDisplay) {
+					sink = std::make_unique<qt::system_tray_notification_sink>(
+						[this](QSystemTrayIcon&, const QString&, const QString&) {
+							++CapturedNotificationDisplays;
+						},
+						Window.get());
+				}
+#endif
+				if (sink == nullptr) {
+					sink = std::make_unique<qt::system_tray_notification_sink>(
+						Window.get());
+				}
+				SystemNotificationSink = sink.get();
 				NotificationSink       = std::move(sink);
 			}
 			Notifications = std::make_unique<application::review_queue_notifier>(
@@ -1975,8 +1988,8 @@ namespace bpr::app {
 					Notifications->activate(aTarget);
 				}
 			};
-			if (systemNotificationSink != nullptr) {
-				systemNotificationSink->set_activation_sink(activation);
+			if (SystemNotificationSink != nullptr) {
+				SystemNotificationSink->set_activation_sink(activation);
 			}
 #if defined(BPR_BUILD_TESTING)
 			if (FixtureNotificationSink != nullptr) {
@@ -3950,6 +3963,7 @@ namespace bpr::app {
 		// it exists so that if it ever does not, something says so.
 		std::size_t                                          AppearanceDivergences = 0U;
 		std::unique_ptr<application::notification_sink_port> NotificationSink;
+		qt::system_tray_notification_sink*                   SystemNotificationSink = nullptr;
 		std::unique_ptr<application::review_queue_notifier>  Notifications;
 		std::size_t                                          NotificationRequestsAttempted = 0U;
 		std::size_t                                          NotificationSelections        = 0U;
@@ -3957,8 +3971,10 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		fixture_notification_sink* FixtureNotificationSink          = nullptr;
 		bool                       UseGrantedNotificationSink       = false;
+		bool                       CaptureSystemNotificationDisplay = false;
 		bool                       DisableNotificationRequestWire   = false;
 		bool                       DisableNotificationSelectionWire = false;
+		std::size_t                CapturedNotificationDisplays     = 0U;
 #endif
 	};
 
@@ -4169,20 +4185,29 @@ namespace bpr::app {
 		if (implementation == nullptr) {
 			return { };
 		}
-		const auto statistics = implementation->Notifications != nullptr
+		const auto statistics    = implementation->Notifications != nullptr
 			? implementation->Notifications->statistics()
 			: application::notification_delivery_statistics{ };
+		auto       lastSubmitted = std::optional<application::delivered_notification>{ };
+		if (implementation->FixtureNotificationSink != nullptr) {
+			lastSubmitted
+				= implementation->FixtureNotificationSink->submitted_payload();
+		} else if (implementation->SystemNotificationSink != nullptr) {
+			lastSubmitted
+				= implementation->SystemNotificationSink->submitted_payload();
+		}
 		return {
-			.RequestsAttempted = implementation->NotificationRequestsAttempted,
-			.Submitted         = statistics.Submitted,
+			.RequestsAttempted  = implementation->NotificationRequestsAttempted,
+			.Submitted          = statistics.Submitted,
+			.DisplaySubmissions = implementation->CapturedNotificationDisplays,
 			.SuppressedUnattributableActivation
 			= statistics.SuppressedUnattributableActivation,
 			.Activations       = statistics.Activations,
 			.Selections        = implementation->NotificationSelections,
 			.SelectionFailures = implementation->NotificationSelectionFailures,
-			.LastSubmitted     = implementation->FixtureNotificationSink != nullptr
-				? implementation->FixtureNotificationSink->submitted_payload()
-				: std::nullopt,
+			.QueueQuiescent    = implementation->QueueHost != nullptr
+				&& implementation->QueueHost->is_quiescent(),
+			.LastSubmitted = std::move(lastSubmitted),
 		};
 	}
 
@@ -4191,9 +4216,22 @@ namespace bpr::app {
 			github_application& aApplication) -> bool
 	{
 		auto* const implementation = aApplication.Implementation.get();
-		return implementation != nullptr
-			&& implementation->FixtureNotificationSink != nullptr
-			&& implementation->FixtureNotificationSink->activate();
+		if (implementation == nullptr) {
+			return false;
+		}
+		if (implementation->FixtureNotificationSink != nullptr) {
+			return implementation->FixtureNotificationSink->activate();
+		}
+		if (implementation->SystemNotificationSink == nullptr
+			|| implementation->SystemNotificationSink->tray_icon() == nullptr
+			|| implementation->Notifications == nullptr) {
+			return false;
+		}
+		const auto activations
+			= implementation->Notifications->statistics().Activations;
+		implementation->SystemNotificationSink->tray_icon()->messageClicked();
+		return implementation->Notifications->statistics().Activations
+			== activations + 1U;
 	}
 
 	auto detail::github_application_fixture_access::maintenance_evidence(

@@ -156,6 +156,25 @@ namespace {
 			"platform now reports the answer they gave");
 	}
 
+	/// \brief An opaque platform permission permits submission without a false grant.
+	void test_platform_managed_permission_submits_without_claiming_a_grant()
+	{
+		auto platform = fake_platform{
+			application::notification_permission::not_determined
+		};
+		platform.Answer = application::notification_permission::platform_managed;
+		auto notifier   = application::review_queue_notifier{ platform };
+
+		expect(
+			notifier.deliver(loud_request(1U)),
+			"an opaque platform permission permits one submission attempt");
+		expect(
+			platform.Asks == 1U && platform.Payloads.size() == 1U
+				&& platform.Current
+					== application::notification_permission::platform_managed,
+			"the attempt is submitted while the permission remains platform-managed");
+	}
+
 	/// \brief A quiet bucket asks nothing of anyone.
 	void test_a_quiet_bucket_is_not_delivered()
 	{
@@ -288,6 +307,7 @@ auto main() -> int
 	test_the_payload_is_asserted_whole();
 	test_a_refusal_is_a_normal_outcome();
 	test_permission_is_asked_once();
+	test_platform_managed_permission_submits_without_claiming_a_grant();
 	test_a_quiet_bucket_is_not_delivered();
 	test_activation_reports_the_target();
 	test_identityless_delivery_is_fail_closed_for_the_sink_lifetime();
