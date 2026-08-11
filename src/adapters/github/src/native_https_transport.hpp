@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_NATIVE_HTTPS_TRANSPORT_HPP
 
 #include "github_host_profile.hpp"
+#include "github_mutation_contract.hpp"
 #include "github_wire_transport.hpp"
 
 #include "bpr/application/git_smart_transport_port.hpp"
@@ -79,7 +80,9 @@ namespace bpr::adapters::github::detail {
 
 	class native_git_smart_transport;
 
-	class native_https_transport final : public github_wire_transport_port
+	class native_https_transport final
+		: public github_wire_transport_port,
+		  public github_mutation_wire_transport
 	{
 	public:
 		class implementation;
@@ -103,6 +106,11 @@ namespace bpr::adapters::github::detail {
 			const github_capability_probe_wire_request& aRequest,
 			std::stop_token                             aStop)
 			-> github_capability_probe_wire_completion override;
+
+		[[nodiscard]] auto perform_review_mutation(
+			const github_mutation_wire_request& aRequest,
+			std::stop_token                     aStop)
+			-> github_mutation_wire_completion override;
 
 	private:
 		friend class native_git_smart_transport;

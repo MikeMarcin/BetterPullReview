@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -39,6 +40,76 @@ namespace bpr::application {
 		auto operator<=>(const review_provider_capabilities&) const = default;
 	};
 
+	/// \brief Binds one mutation to the complete accepted pull-request identity.
+	///
+	/// \details Provider database and node identities remain opaque application
+	/// values. They accompany the core target so a GitHub adapter can reject a
+	/// renamed, replaced, closed, or otherwise mismatched pull request without
+	/// exposing provider response records inward.
+	struct review_mutation_target_binding
+	{
+		core::review_mutation_target Semantic;
+		core::repository_locator     Repository;
+		core::pull_request_number    Number;
+		std::uint64_t                RepositoryDatabaseId = 0U;
+		std::string                  RepositoryNodeId;
+		std::uint64_t                PullRequestDatabaseId = 0U;
+		std::string                  PullRequestNodeId;
+		std::uint64_t                BaseRepositoryDatabaseId = 0U;
+		bool                         Open                     = false;
+
+		auto operator<=>(const review_mutation_target_binding&) const = default;
+	};
+
+	/// \brief Binds the authenticated application account to GitHub identity.
+	struct review_mutation_acting_identity
+	{
+		core::github_account_id Account;
+		std::uint64_t           DatabaseId = 0U;
+		std::string             NodeId;
+		std::string             Login;
+
+		auto operator<=>(const review_mutation_acting_identity&) const = default;
+	};
+
+	/// \brief Resolves a semantic source line to GitHub review-comment fields.
+	///
+	/// \details `Semantic` must equal the proposal anchor. `Commit` is the
+	/// exact commit whose `Path` and `Side` were accepted by the host. `Semantic.Line`
+	/// remains the core's zero-based line index; provider contracts translate it
+	/// to their wire representation.
+	struct review_mutation_anchor_binding
+	{
+		core::source_line_ref Semantic;
+		std::string           Path;
+		core::git_commit_oid  Commit;
+
+		auto operator<=>(const review_mutation_anchor_binding&) const = default;
+	};
+
+	/// \brief Carries the provider-free authority required by a live request.
+	struct review_mutation_live_binding
+	{
+		review_mutation_target_binding  Target;
+		review_mutation_acting_identity ActingIdentity;
+		review_mutation_anchor_binding  Anchor;
+
+		auto operator<=>(const review_mutation_live_binding&) const = default;
+	};
+
+	/// \brief Checks the complete target binding contract.
+	[[nodiscard]] auto valid(
+		const review_mutation_target_binding& aBinding) noexcept -> bool;
+	/// \brief Checks the complete acting-identity binding contract.
+	[[nodiscard]] auto valid(
+		const review_mutation_acting_identity& aIdentity) noexcept -> bool;
+	/// \brief Checks the source-line binding contract.
+	[[nodiscard]] auto valid(
+		const review_mutation_anchor_binding& aAnchor) noexcept -> bool;
+	/// \brief Checks the complete live binding contract.
+	[[nodiscard]] auto valid(
+		const review_mutation_live_binding& aBinding) noexcept -> bool;
+
 	/// \brief Carries one publication to the provider.
 	///
 	/// \details `IdempotencyKey` is what makes a retry safe. A request whose
@@ -47,10 +118,11 @@ namespace bpr::application {
 	/// to recognise the repeat.
 	struct review_mutation_request
 	{
-		core::review_publication_proposal Proposal;
-		core::review_mutation_target      Target;
-		core::github_account_id           ActingIdentity;
-		std::string                       IdempotencyKey;
+		core::review_publication_proposal           Proposal;
+		core::review_mutation_target                Target;
+		core::github_account_id                     ActingIdentity;
+		std::string                                 IdempotencyKey;
+		std::optional<review_mutation_live_binding> LiveBinding;
 
 		auto operator<=>(const review_mutation_request&) const = default;
 	};

@@ -2,6 +2,7 @@
 
 #include "bpr/core/sha256.hpp"
 
+#include <algorithm>
 #include <array>
 #include <span>
 #include <string>
@@ -10,6 +11,16 @@
 
 namespace bpr::application {
 	namespace {
+		[[nodiscard]] auto bounded_text(
+			const std::string_view aText,
+			const std::size_t      aMaximum) noexcept -> bool
+		{
+			return !aText.empty() && aText.size() <= aMaximum
+				&& std::ranges::all_of(aText, [](const unsigned char aCharacter) {
+					   return aCharacter >= 0x20U && aCharacter != 0x7FU;
+				   });
+		}
+
 		void append(std::string& aText, const std::uint64_t aValue)
 		{
 			aText += std::to_string(aValue);
@@ -24,6 +35,43 @@ namespace bpr::application {
 			aText += '\x1f';
 		}
 	} // namespace
+
+	auto valid(const review_mutation_target_binding& aBinding) noexcept -> bool
+	{
+		return aBinding.Semantic.Host.value() != 0U
+			&& aBinding.Semantic.Repository.value() != 0U
+			&& aBinding.Semantic.PullRequest.value() != 0U
+			&& aBinding.Semantic.ExpectedHead.valid()
+			&& core::valid(aBinding.Repository) && aBinding.Number.valid()
+			&& aBinding.RepositoryDatabaseId != 0U
+			&& bounded_text(aBinding.RepositoryNodeId, 256U)
+			&& aBinding.PullRequestDatabaseId != 0U
+			&& bounded_text(aBinding.PullRequestNodeId, 256U)
+			&& aBinding.BaseRepositoryDatabaseId != 0U && aBinding.Open;
+	}
+
+	auto valid(const review_mutation_acting_identity& aIdentity) noexcept -> bool
+	{
+		return aIdentity.Account.value() != 0U && aIdentity.DatabaseId != 0U
+			&& bounded_text(aIdentity.NodeId, 256U)
+			&& bounded_text(aIdentity.Login, core::maximum_repository_owner_length);
+	}
+
+	auto valid(const review_mutation_anchor_binding& aAnchor) noexcept -> bool
+	{
+		return aAnchor.Semantic.Comparison.valid()
+			&& (aAnchor.Semantic.Side == core::diff_side::left
+				|| aAnchor.Semantic.Side == core::diff_side::right)
+			&& aAnchor.Commit.valid() && bounded_text(aAnchor.Path, 4U * 1024U)
+			&& aAnchor.Path.front() != '/';
+	}
+
+	auto valid(const review_mutation_live_binding& aBinding) noexcept -> bool
+	{
+		return valid(aBinding.Target) && valid(aBinding.ActingIdentity)
+			&& valid(aBinding.Anchor)
+			&& aBinding.Anchor.Commit == aBinding.Target.Semantic.ExpectedHead;
+	}
 
 	auto name(const review_mutation_failure aFailure) noexcept -> std::string_view
 	{
@@ -86,6 +134,18 @@ namespace bpr::application {
 	{
 	}
 
+	review_mutation_coordinator::review_mutation_coordinator(
+		review_mutation_port&           aProvider,
+		review_mutation_target_binding  aDesignated,
+		review_mutation_acting_identity aActingIdentity) noexcept
+		: Provider{ &aProvider }
+		, Designated{ aDesignated.Semantic }
+		, ActingIdentity{ aActingIdentity.Account }
+		, TargetBinding{ std::move(aDesignated) }
+		, ActingIdentityBinding{ std::move(aActingIdentity) }
+	{
+	}
+
 	auto review_mutation_coordinator::designated() const noexcept
 		-> const core::review_mutation_target&
 	{
@@ -136,7 +196,40 @@ namespace bpr::application {
 		const bool                               aAcknowledged)
 		-> std::expected<review_mutation_receipt, review_mutation_failure>
 	{
+		return publish_bound(aProposal, std::nullopt, aAcknowledged);
+	}
+
+	auto review_mutation_coordinator::publish(
+		const core::review_publication_proposal& aProposal,
+		review_mutation_anchor_binding           aAnchor,
+		const bool                               aAcknowledged)
+		-> std::expected<review_mutation_receipt, review_mutation_failure>
+	{
+		return publish_bound(aProposal, std::move(aAnchor), aAcknowledged);
+	}
+
+	auto review_mutation_coordinator::publish_bound(
+		const core::review_publication_proposal&      aProposal,
+		std::optional<review_mutation_anchor_binding> aAnchor,
+		const bool                                    aAcknowledged)
+		-> std::expected<review_mutation_receipt, review_mutation_failure>
+	{
 		++Statistics.Attempts;
+		const auto completeBinding = TargetBinding.has_value()
+			&& ActingIdentityBinding.has_value() && aAnchor.has_value();
+		if (completeBinding
+			&& (!valid(*TargetBinding) || !valid(*ActingIdentityBinding)
+				|| !valid(*aAnchor) || aAnchor->Semantic != aProposal.Anchor
+				|| aAnchor->Commit != TargetBinding->Semantic.ExpectedHead)) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::undesignated_target);
+		}
+		if (!completeBinding
+			&& (TargetBinding.has_value() || ActingIdentityBinding.has_value()
+				|| aAnchor.has_value())) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::undesignated_target);
+		}
 
 		if (auto prepared = confirm_target(aAcknowledged); !prepared) {
 			++Statistics.RefusedBeforeSubmit;
@@ -153,11 +246,21 @@ namespace bpr::application {
 		}
 
 		++Statistics.Submissions;
+		auto liveBinding = std::optional<review_mutation_live_binding>{ };
+		if (completeBinding) {
+			liveBinding = review_mutation_live_binding{
+				.Target         = *TargetBinding,
+				.ActingIdentity = *ActingIdentityBinding,
+				.Anchor         = std::move(*aAnchor),
+			};
+		}
+
 		auto receipt = Provider->submit(review_mutation_request{
 			.Proposal       = aProposal,
 			.Target         = Designated,
 			.ActingIdentity = ActingIdentity,
 			.IdempotencyKey = idempotency_key_for(aProposal, Designated),
+			.LiveBinding    = std::move(liveBinding),
 		});
 		if (!receipt) {
 			return receipt;

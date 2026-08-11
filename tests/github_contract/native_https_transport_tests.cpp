@@ -472,6 +472,48 @@ namespace {
 			configuration);
 		expect(account.has_value(), "account-transport");
 
+		const auto mutationTarget = application::review_mutation_target_binding{
+			.Semantic = {
+				.Host         = pullRequest.Host,
+				.Repository   = core::repository_id{ 204U },
+				.PullRequest  = core::pull_request_id{ 205U },
+				.ExpectedHead = *core::parse_git_commit_oid(
+					"1111111111111111111111111111111111111111"),
+			},
+			.Repository               = pullRequest.Repository,
+			.Number                   = pullRequest.Number,
+			.RepositoryDatabaseId     = 204U,
+			.RepositoryNodeId         = "R_fixture_204",
+			.PullRequestDatabaseId    = 205U,
+			.PullRequestNodeId        = "PR_fixture_205",
+			.BaseRepositoryDatabaseId = 204U,
+			.Open                     = true,
+		};
+		const auto mutationWire = compile_target_observation_request(mutationTarget);
+		expect(mutationWire.has_value(), "mutation-wire-contract");
+		const auto mutationRequest = github_mutation_wire_request{
+			.Context = account_operation_context(*native, pullRequest),
+			.Wire    = *mutationWire,
+		};
+		std::stop_source mutationStopped;
+		expect(mutationStopped.request_stop(), "mutation-pre-cancel-request");
+		const auto mutationCancelled = (*account)->perform_review_mutation(
+			mutationRequest, mutationStopped.get_token());
+		expect(std::holds_alternative<github_mutation_wire_cancelled>(
+				   mutationCancelled),
+			   "mutation-pre-cancelled-without-network");
+
+		auto invalidMutation = mutationRequest;
+		invalidMutation.Wire.Path += "/tampered";
+		const auto invalidMutationCompletion = (*account)->perform_review_mutation(
+			invalidMutation, std::stop_token{ });
+		const auto* invalidMutationError = std::get_if<github_mutation_wire_error>(
+			&invalidMutationCompletion);
+		expect(invalidMutationError != nullptr
+				   && invalidMutationError->Failure
+					   == application::review_mutation_failure::unavailable,
+			   "invalid-mutation-refused-before-network");
+
 		auto accountDrift = repository;
 		auto driftParent  = std::get<core::pull_request_request_context>(
 			accountDrift.Correlation.Parent);

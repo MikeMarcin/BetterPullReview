@@ -123,6 +123,7 @@ namespace bpr::adapters::github::detail {
 			rest_read,
 			graphql_read,
 			capability_probe,
+			review_mutation,
 		};
 
 		struct native_request
@@ -153,6 +154,7 @@ namespace bpr::adapters::github::detail {
 
 		struct hop_success
 		{
+			int                      Status = 0;
 			std::string              Body;
 			std::vector<http_header> Headers;
 			page_completeness        Completeness = page_completeness::unknown;
@@ -400,6 +402,22 @@ namespace bpr::adapters::github::detail {
 				.Query             = { },
 				.Headers           = std::move(headers),
 				.Body              = aRequest.Wire.Body,
+			};
+		}
+
+		[[nodiscard]] auto
+		native_request_from(const github_mutation_wire_request& aRequest)
+			-> native_request
+		{
+			return {
+				.Surface                 = native_request_surface::review_mutation,
+				.RateLimitResource       = application::github_rate_limit_resource::core,
+				.RequireRateLimitHeaders = true,
+				.Method                  = aRequest.Wire.Method,
+				.Path                    = aRequest.Wire.Path,
+				.Query                   = { },
+				.Headers                 = aRequest.Wire.Headers,
+				.Body                    = aRequest.Wire.Body,
 			};
 		}
 
@@ -716,7 +734,8 @@ namespace bpr::adapters::github::detail {
 				|| aRequest.Path.size() > maximum_url_bytes) {
 				return std::nullopt;
 			}
-			if (aRequest.Surface != native_request_surface::rest_read
+			if ((aRequest.Surface == native_request_surface::graphql_read
+				 || aRequest.Surface == native_request_surface::capability_probe)
 				&& aRequest.Path != aProfile.graphql_route()) {
 				return std::nullopt;
 			}
@@ -1862,6 +1881,57 @@ namespace bpr::adapters::github::detail {
 			return capability_error(aCorrelation,
 									application::github_provider_failure::redirect);
 		}
+
+		[[nodiscard]] auto mutation_failure(
+			const application::github_provider_failure aFailure) noexcept
+			-> application::review_mutation_failure
+		{
+			switch (aFailure) {
+			case application::github_provider_failure::authentication:
+			case application::github_provider_failure::permission:
+			case application::github_provider_failure::api_version:
+			case application::github_provider_failure::unsupported_capability:
+				return application::review_mutation_failure::refused_by_server;
+			case application::github_provider_failure::network:
+			case application::github_provider_failure::rate_limit:
+			case application::github_provider_failure::certificate:
+			case application::github_provider_failure::redirect:
+			case application::github_provider_failure::timeout:
+			case application::github_provider_failure::process_startup:
+			case application::github_provider_failure::cli_unavailable:
+			case application::github_provider_failure::vault:
+			case application::github_provider_failure::malformed_response:
+			case application::github_provider_failure::response_limit:
+			case application::github_provider_failure::unavailable:
+				return application::review_mutation_failure::unavailable;
+			}
+			return application::review_mutation_failure::unavailable;
+		}
+
+		[[nodiscard]] auto mutation_completion(hop_result aResult)
+			-> github_mutation_wire_completion
+		{
+			if (auto* success = std::get_if<hop_success>(&aResult)) {
+				return github_mutation_wire_success{
+					.Response = {
+						.Status  = success->Status,
+						.Headers = std::move(success->Headers),
+						.Body    = std::move(success->Body),
+					},
+				};
+			}
+			if (auto* error = std::get_if<application::github_provider_error>(&aResult)) {
+				return github_mutation_wire_error{
+					.Failure = mutation_failure(error->Failure),
+				};
+			}
+			if (std::holds_alternative<hop_cancelled>(aResult)) {
+				return github_mutation_wire_cancelled{ };
+			}
+			return github_mutation_wire_error{
+				.Failure = application::review_mutation_failure::unavailable,
+			};
+		}
 	} // namespace
 
 	class native_git_smart_transport final
@@ -2156,6 +2226,40 @@ namespace bpr::adapters::github::detail {
 			}
 			return capability_completion(
 				aRequest.Correlation,
+				perform_validated(aRequest, std::move(native), aStop));
+		}
+
+		[[nodiscard]] auto perform_review_mutation(
+			const github_mutation_wire_request& aRequest,
+			const std::stop_token               aStop)
+			-> github_mutation_wire_completion
+		{
+			if (aStop.stop_requested()) {
+				return github_mutation_wire_cancelled{ };
+			}
+			native_request native;
+			try {
+				if (!application::valid(aRequest.Context)
+					|| !validate_outbound_review_mutation_request(aRequest.Wire)
+							.has_value()) {
+					return github_mutation_wire_error{
+						.Failure = application::review_mutation_failure::unavailable,
+					};
+				}
+				native                         = native_request_from(aRequest);
+				native.RequireRateLimitHeaders = Profile.server_contract()
+					== application::github_server_contract::github_com_2022_11_28;
+				if (!valid_request_shape(native)) {
+					return github_mutation_wire_error{
+						.Failure = application::review_mutation_failure::unavailable,
+					};
+				}
+			} catch (...) {
+				return github_mutation_wire_error{
+					.Failure = application::review_mutation_failure::unavailable,
+				};
+			}
+			return mutation_completion(
 				perform_validated(aRequest, std::move(native), aStop));
 		}
 
@@ -2649,6 +2753,15 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto credential_matches(
+			const github_mutation_wire_request& aRequest) const noexcept -> bool
+		{
+			const auto* credential = std::get_if<account_credential>(&Credential);
+			return credential != nullptr
+				&& aRequest.Context == credential->Context
+				&& authority_matches_profile(aRequest.Context.Authority, Profile);
+		}
+
+		[[nodiscard]] auto credential_matches(
 			const application::git_smart_request_context& aContext) const noexcept
 			-> bool
 		{
@@ -3093,7 +3206,12 @@ namespace bpr::adapters::github::detail {
 				}
 				return hop_redirect{ .Target = *target };
 			}
-			if (state.Status != 200) {
+			const auto successfulStatus = aOperation->Request.Surface
+						== native_request_surface::review_mutation
+					&& aOperation->Request.Method == http_method::post
+				? 201
+				: 200;
+			if (state.Status != successfulStatus) {
 				return classify_http_status(state);
 			}
 			if (error != QNetworkReply::NoError) {
@@ -3117,6 +3235,7 @@ namespace bpr::adapters::github::detail {
 					application::github_provider_failure::malformed_response);
 			}
 			return hop_success{
+				.Status       = state.Status,
 				.Body         = std::move(state.Body),
 				.Headers      = allowlisted_success_headers(state),
 				.Completeness = *completeness,
@@ -3628,6 +3747,19 @@ namespace bpr::adapters::github::detail {
 									application::github_provider_failure::network);
 		}
 		return Implementation->perform_capability_probe(aRequest, aStop);
+	}
+
+	auto native_https_transport::perform_review_mutation(
+		const github_mutation_wire_request& aRequest,
+		const std::stop_token               aStop)
+		-> github_mutation_wire_completion
+	{
+		if (Implementation == nullptr) {
+			return github_mutation_wire_error{
+				.Failure = application::review_mutation_failure::unavailable,
+			};
+		}
+		return Implementation->perform_review_mutation(aRequest, aStop);
 	}
 
 	auto make_native_https_bootstrap_transport(

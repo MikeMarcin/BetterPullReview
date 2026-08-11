@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <optional>
 
 namespace bpr::application {
 	/// \brief Records directly observable coordinator activity.
@@ -38,12 +39,25 @@ namespace bpr::application {
 			const core::review_mutation_target& aDesignated,
 			core::github_account_id             aActingIdentity) noexcept;
 
+		/// \brief Builds a coordinator with the complete live authority binding.
+		review_mutation_coordinator(
+			review_mutation_port&           aProvider,
+			review_mutation_target_binding  aDesignated,
+			review_mutation_acting_identity aActingIdentity) noexcept;
+
 		/// \brief Publishes one proposal, or explains why it did not.
 		///
 		/// \param aAcknowledged Whether the reviewer explicitly accepted a
 		/// moved head. It can never authorise a different target.
 		[[nodiscard]] auto publish(
 			const core::review_publication_proposal& aProposal,
+			bool                                     aAcknowledged)
+			-> std::expected<review_mutation_receipt, review_mutation_failure>;
+
+		/// \brief Publishes after binding the semantic anchor to exact source data.
+		[[nodiscard]] auto publish(
+			const core::review_publication_proposal& aProposal,
+			review_mutation_anchor_binding           aAnchor,
 			bool                                     aAcknowledged)
 			-> std::expected<review_mutation_receipt, review_mutation_failure>;
 
@@ -56,11 +70,18 @@ namespace bpr::application {
 	private:
 		[[nodiscard]] auto confirm_target(bool aAcknowledged)
 			-> std::expected<void, review_mutation_failure>;
+		[[nodiscard]] auto publish_bound(
+			const core::review_publication_proposal&      aProposal,
+			std::optional<review_mutation_anchor_binding> aAnchor,
+			bool                                          aAcknowledged)
+			-> std::expected<review_mutation_receipt, review_mutation_failure>;
 
-		review_mutation_port*        Provider = nullptr;
-		core::review_mutation_target Designated;
-		core::github_account_id      ActingIdentity;
-		review_mutation_statistics   Statistics;
+		review_mutation_port*                          Provider = nullptr;
+		core::review_mutation_target                   Designated;
+		core::github_account_id                        ActingIdentity;
+		std::optional<review_mutation_target_binding>  TargetBinding;
+		std::optional<review_mutation_acting_identity> ActingIdentityBinding;
+		review_mutation_statistics                     Statistics;
 	};
 
 	/// \brief Derives the idempotency key for one proposal against one target.

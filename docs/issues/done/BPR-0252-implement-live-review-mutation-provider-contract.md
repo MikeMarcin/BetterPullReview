@@ -1,7 +1,7 @@
 ---
 id: BPR-0252
 title: Implement the live review mutation provider contract
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0229]
 ---
@@ -34,7 +34,8 @@ and does not weaken BPR-0235's fixed harmless canary.
   process environment, or acquire credentials directly.
 - Hermetic tests prove exact observe-before-submit and immediate pre-write
   revalidation, request bytes and headers, successful receipt identity,
-  duplicate/idempotency handling, typed server/refusal/cancellation outcomes,
+  duplicate/idempotency handling, typed server/refusal and transport-
+  cancellation mapping outcomes,
   hostile response bounds, and zero transport submissions for every invalid
   request.
 - The existing fixture coordinator/public-path contracts and BPR-0235
@@ -57,3 +58,41 @@ and does not weaken BPR-0235's fixed harmless canary.
 - `architecture_boundaries` and `architecture_boundary_contract`.
 - Documentation validation, scoped format/tidy, and `git diff --check`.
 
+## Implemented unattended state
+
+- The contracted class and factory exist at the load-bearing paths and are
+  linked into `BetterPullReview::AdapterGitHub`, but no application or test
+  constructs the concrete provider.
+- The application request and coordinator carry a complete provider-free live
+  binding while preserving the existing fixture-only API. The live path refuses
+  incomplete, invalid, or semantic-to-source-mismatched bindings before any
+  provider submission.
+- A separate canonical mutation contract owns exact GitHub.com/GHES target and
+  viewer observations plus the ordinary source-line review-comment POST. It
+  performs bounded duplicate-key JSON preflight and exact response identity,
+  anchor, body, and author checks.
+- The production protocol observes the viewer first and the complete target/head
+  last before POST. Its bounded process-local idempotency ledger binds each key
+  to the complete canonical write fingerprint, returns known successes without
+  another request only for the same fingerprint, and conservatively guards
+  indeterminate attempts within the provider instance. Durable reconciliation
+  across restart remains composition work.
+- Native HTTPS remains the only Qt network effect owner. The new operation uses
+  the existing account-bound credential, TLS/proxy/deadline/cancellation, and
+  manual-redirect boundary and exposes only typed secret-free outcomes.
+- Typed transport cancellation is mapped, but the current mutation port exposes
+  no provider stop authority, so provider-driven lifecycle cancellation is not
+  reachable in this slice.
+- Provider tests drive the separately linked production protocol session, not
+  the concrete provider symbol, so the BPR-0235 non-production binary guard
+  remains non-vacuous and green.
+
+No provider composition, credential acquisition, network request, designated
+live-lane execution, or GitHub mutation is part of this card.
+
+Independent critical review initially blocked the slice on zero-based-to-
+one-based line translation, path-insensitive duplicate recognition, and a
+false-green escaped CTest alternation. The correction added explicit semantic
+line translation and bounds, canonical write fingerprints for success and
+indeterminate guards, and a selector that demonstrably selects and passes two
+tests. Final rereview returned CLEAR with no blocking or high-risk findings.

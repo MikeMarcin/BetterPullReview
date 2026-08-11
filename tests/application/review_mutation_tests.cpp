@@ -60,6 +60,46 @@ namespace {
 		};
 	}
 
+	[[nodiscard]] auto live_target()
+		-> application::review_mutation_target_binding
+	{
+		return {
+			.Semantic   = target(0x11U),
+			.Repository = {
+				.Owner = "MikeMarcin",
+				.Name  = "BPR-Test",
+			},
+			.Number                   = core::pull_request_number{ 1U },
+			.RepositoryDatabaseId     = 1'328'277'631U,
+			.RepositoryNodeId         = "R_kgDOTyvofw",
+			.PullRequestDatabaseId    = 4'246'446'933U,
+			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
+			.BaseRepositoryDatabaseId = 1'328'277'631U,
+			.Open                     = true,
+		};
+	}
+
+	[[nodiscard]] auto live_identity()
+		-> application::review_mutation_acting_identity
+	{
+		return {
+			.Account    = core::github_account_id{ 4U },
+			.DatabaseId = 5U,
+			.NodeId     = "MDQ6VXNlcjU=",
+			.Login      = "fixture-reviewer",
+		};
+	}
+
+	[[nodiscard]] auto live_anchor()
+		-> application::review_mutation_anchor_binding
+	{
+		return {
+			.Semantic = proposal().Anchor,
+			.Path     = "fixture/review.txt",
+			.Commit   = target(0x11U).ExpectedHead,
+		};
+	}
+
 	/// A provider that records what it was asked, recognises repeated
 	/// idempotency keys, and can change the target it reports between one
 	/// observation and the next.
@@ -167,6 +207,50 @@ namespace {
 		expect(
 			!provider.Submitted.front().IdempotencyKey.empty(),
 			"the request carries an idempotency key");
+	}
+
+	void test_a_live_publication_carries_and_validates_the_exact_binding()
+	{
+		auto provider    = fake_provider{ target(0x11U) };
+		auto coordinator = application::review_mutation_coordinator{
+			provider,
+			live_target(),
+			live_identity(),
+		};
+
+		const auto receipt = coordinator.publish(proposal(), live_anchor(), false);
+		expect(receipt.has_value() && provider.Submitted.size() == 1U,
+			   "a complete live binding publishes");
+		expect(provider.Submitted.front().LiveBinding.has_value()
+				   && provider.Submitted.front().LiveBinding->Target == live_target()
+				   && provider.Submitted.front().LiveBinding->ActingIdentity == live_identity()
+				   && provider.Submitted.front().LiveBinding->Anchor == live_anchor(),
+			   "the provider receives the exact target actor and source binding");
+
+		auto firstLineProposal        = proposal();
+		firstLineProposal.Anchor.Line = 0U;
+		auto firstLineAnchor          = live_anchor();
+		firstLineAnchor.Semantic      = firstLineProposal.Anchor;
+		const auto firstLineReceipt
+			= coordinator.publish(firstLineProposal, firstLineAnchor, false);
+		expect(firstLineReceipt.has_value() && provider.Submitted.size() == 2U
+				   && provider.Submitted.back().Proposal.Anchor.Line == 0U,
+			   "semantic source line zero remains valid through the coordinator");
+
+		const auto submissions = provider.Submitted.size();
+		auto       wrongAnchor = live_anchor();
+		wrongAnchor.Semantic.Line += 1U;
+		const auto refused = coordinator.publish(proposal(), wrongAnchor, false);
+		expect(!refused.has_value()
+				   && refused.error() == application::review_mutation_failure::undesignated_target
+				   && provider.Submitted.size() == submissions,
+			   "a semantic-to-source anchor mismatch never reaches the provider");
+
+		const auto missing = coordinator.publish(proposal(), false);
+		expect(!missing.has_value()
+				   && missing.error() == application::review_mutation_failure::undesignated_target
+				   && provider.Submitted.size() == submissions,
+			   "a live coordinator refuses publication without exact source binding");
 	}
 
 	// The window this closes: a check performed only at prepare time passes for
@@ -337,6 +421,7 @@ namespace {
 auto main() -> int
 {
 	test_a_matching_target_publishes_under_the_acting_identity();
+	test_a_live_publication_carries_and_validates_the_exact_binding();
 	test_a_target_altered_after_the_prepare_check_is_refused();
 	test_no_acknowledgement_authorises_another_pull_request();
 	test_a_moved_head_needs_an_acknowledgement();

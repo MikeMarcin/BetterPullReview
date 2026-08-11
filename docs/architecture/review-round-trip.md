@@ -207,13 +207,13 @@ pull-request database and node IDs, base-repository ID, open state, and current
 head OID. Any mismatch, closed PR, or moved head is a no-launch result. The head
 must be revalidated immediately before any write as well.
 
-Until BPR-0142 lands, "no automated test can mutate an undesignated live
-repository" holds for a structural reason — `review_mutation_port` has test
-implementations only, and the shipped composition constructs its coordinator
-only in the test-build fixture path. The fixture provider has no transport,
-endpoint, credential, or production build path. That argument dies the moment
-a live implementation exists. The `live_mutation_isolation` gate replaces it
-with one that survives:
+BPR-0252 now provides the first production implementation of
+`review_mutation_port`, so the former structural argument — that only test
+implementations existed — is intentionally gone. The implementation is linked
+into the production GitHub adapter but is not constructed by the application,
+the designated live runner still contains only its fixed harmless canary, and
+no credential or write has been used. The `live_mutation_isolation` gate is now
+the standing proof that survives the implementation:
 
 | | Fixed by contract |
 |---|---|
@@ -258,11 +258,71 @@ The safe-target check itself stays in the composition root, immediately before
 the coordinator is constructed. Not in the coordinator, which cannot know what
 is documented; not in the provider, which must not police itself.
 
+### Portable provider protocol
+
+BPR-0252 adds a provider-free live binding to the application request. It binds
+the core target to the canonical owner/name, repository and pull-request
+database and node identities, pull-request number, base-repository identity,
+open state, expected head, exact acting account database/node/login identity,
+and one semantic source-line anchor resolved to an exact path and commit. The
+coordinator accepts that binding only when the resolved semantic anchor equals
+the core proposal and the commit equals the expected head. The old incomplete
+request form remains solely for the fixture provider; the live provider refuses
+it before any transport operation.
+
+`github_mutation_contract.{hpp,cpp}` is separate from the read-only request
+contract. It compiles only three canonical operations: observe the current
+viewer, observe the exact pull request, and create an ordinary REST pull-request
+review comment with `body`, `commit_id`, `path`, `side`, and `line`. GitHub.com
+and GHES 3.18 use their exact REST roots. The core's zero-based semantic line is
+translated with a checked `+1` to the REST API's one-based `line`, and response
+parsing reverses that translation within the core line type's range. Canonical
+request equality rejects a changed method, path, header, or byte of JSON.
+Responses are bounded and pass a
+duplicate-key and structural preflight before JSON parsing; redirects,
+malformed values, wrong identities, wrong anchors, and a wrong author fail
+closed.
+
+`native_https_transport.cpp` remains the only mutation network-effect owner. It
+adds one narrow mutation operation to the existing account-bound transport,
+reuses its TLS, proxy, deadline, cancellation, credential, response, and manual-
+redirect controls, and accepts `201` only for the comment POST. Neither the
+provider nor its contract constructs a network manager, reads the environment,
+or acquires credentials. Their outcomes contain only typed failure categories,
+never credential material or provider diagnostics. The protocol maps a typed
+transport cancellation, but the current mutation port supplies no stop authority
+to the provider, so provider-driven lifecycle cancellation is not yet reachable.
+
+For a write attempt, the protocol observes the acting viewer first, then
+re-observes the complete pull-request identity and head as the final network
+operation before POST. The provider serializes attempts and retains at most
+1,024 idempotency records. Each record binds the idempotency key to a fingerprint
+of the complete canonical write request, including the resolved path. A known
+success returns the same GitHub comment identity as a duplicate only when that
+fingerprint also matches; a same-key request with another resolved path is
+refused before observation or POST. An attempt whose POST outcome is
+indeterminate is retained as guarded and is never resubmitted by that provider
+instance; avoiding a duplicate takes precedence over an automatic retry. This
+protection is conservative and process-local. Durable restart reconciliation
+remains composition work. The POST response must reproduce the exact path,
+commit, side, line,
+body, and acting identity before its GitHub node ID becomes the receipt.
+
+Hermetic provider tests exercise this production protocol through its
+separately linked session object rather than linking the concrete live-provider
+symbol into a test executable. This is deliberate: the BPR-0235 binary guard
+continues to reject that symbol from every non-production executable while the
+tests still drive the same validation, observation, idempotency, and response
+logic the thin concrete adapter delegates to.
+
 ## Identity
 
-The acting identity travels in the request, and the request carries the
-coordinator's own designated target. Reviews are published under the
-authenticated user with ordinary GitHub semantics and no additional metadata.
+The acting identity travels in the request as the application account plus the
+exact GitHub database ID, node ID, and login observed for the authenticated
+credential authority. The request also carries the coordinator's own complete
+designated target. The live protocol re-observes and compares that viewer before
+every POST. Reviews use ordinary GitHub semantics and add no marker or hidden
+metadata.
 
 That the identity is *carried* is proven against the fixture. Whether GitHub
 attributes the review to that account is GitHub's behaviour and needs a real
@@ -275,10 +335,14 @@ arrived, so retrying is unavoidable and duplicate comments are the risk.
 
 `idempotency_key_for` is a pure function of the draft identity, the target, the
 anchor, the disposition, and the body. Two retries of one publication produce
-the same key and the provider recognises the repeat; two genuinely different
-comments cannot collide, because the draft identity is part of it. A key that
-ignored the body, the anchor, or the head would let different comments share
-one.
+the same key and the provider recognises a known success; two genuinely
+different comments cannot collide, because the draft identity is part of it. A
+key that ignored the body, the anchor, or the head would let different comments
+share one. GitHub exposes no ordinary review-comment idempotency field, and
+BetterPullReview publishes no private marker, so an indeterminate POST is
+guarded against automatic resubmission for the life of the provider instance
+rather than guessed to have failed. Reconciliation across process restart is
+not provided by this uncomposed slice.
 
 ## Synchronization and the mixed-client contract
 
@@ -322,7 +386,7 @@ completed live or attended run.
 
 | Card | What it needs |
 |---|---|
-| BPR-0142 | The exact-target live provider and lane, a write-scoped token, and a human to confirm the comment on designated PR `#1` is readable, replyable, and unmarked in the GitHub web UI |
+| BPR-0142 | Composition of the implemented provider into the exact-target live lane, a write-scoped token, and a human to confirm the comment on designated PR `#1` is readable, replyable, and unmarked in the GitHub web UI |
 | BPR-0143 | The same repository plus a second client, to confirm GitHub produces the external shapes the reconciliation handles |
 | BPR-0144 | A real account whose login is known in advance, so the observed review author can be compared to it rather than merely being non-empty |
 
