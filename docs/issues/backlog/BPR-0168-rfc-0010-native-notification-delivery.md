@@ -3,7 +3,7 @@ id: BPR-0168
 title: Confirm a native notification is delivered and its link opens the review
 status: Backlog
 rfc: RFC-BPR-0010
-depends_on: [BPR-0164, BPR-0193, BPR-0223]
+depends_on: [BPR-0164, BPR-0193, BPR-0223, BPR-0251]
 ---
 
 # Confirm a native notification is delivered and its link opens the review
@@ -123,6 +123,15 @@ is the wiring at each end: something that asks for a delivery, and something
 that consumes an activation.
 
 That is [[BPR-0223]], and this card depends on it.
+
+## Final attended-course repair
+
+BPR-0223 completed the product request and activation wires, but the production
+tray still has no icon and the deterministic public course deliberately uses a
+fixture sink. [[BPR-0251]] owns the non-null production icon, the real
+head-one-to-head-two attended launch course, and this card's digest-bound owner
+packet. This card remains parked until that course is green and the owner sees
+and clicks the actual platform banner.
 
 ### What must not be done instead
 
