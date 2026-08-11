@@ -8,12 +8,14 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QItemSelectionModel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QPlainTextEdit>
 #include <QSpinBox>
 #include <QTemporaryDir>
@@ -390,8 +392,22 @@ namespace {
 					fields, prefix + ".replaced_right", group.ReplacedRightLines);
 			}
 		}
-		put_number(fields, "note.count", 0);
-		put_number(fields, "draft.count", 0);
+		const auto selectedNote = std::ranges::find(
+			aEvidence.Private.Notes,
+			application::local_note_id{ 246U },
+			&application::local_note_record::Id);
+		if (selectedNote == aEvidence.Private.Notes.end()
+			|| !aEvidence.CurrentDraft.has_value()) {
+			return { };
+		}
+		put_number(fields, "note.count", 1);
+		put_optional_identity(fields, "note.0.file", std::optional<core::file_identity>{ });
+		put_number(fields, "note.0.comparison.present", 0);
+		fields.emplace("note.0.text", selectedNote->Note.Text);
+		put_number(fields, "draft.count", 1);
+		put_number(fields, "draft.0.anchor.present", 1);
+		put_source_line(fields, "draft.0.anchor", aEvidence.CurrentDraft->Draft.Anchor);
+		fields.emplace("draft.0.text", aEvidence.CurrentDraft->Draft.Body);
 		return fields;
 	}
 
@@ -399,7 +415,7 @@ namespace {
 		const context_fields& aFields) -> bool
 	{
 		constexpr auto forbidden = std::array{
-			std::string_view{ "BPR_UNSELECTED_NOTE_0247" },
+			std::string_view{ "BPR_UNSELECTED_NOTE_0250" },
 			std::string_view{ "BPR_UNSELECTED_DRAFT_0247" },
 			std::string_view{ "BPR_CREDENTIAL_CANARY_0247" },
 			std::string_view{ "viewport" },
@@ -421,25 +437,35 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
-	if (argc != 3) {
+	if (argc != 3 && argc != 4) {
 		return EXIT_FAILURE;
 	}
 	const auto course = std::string_view{ argv[1] };
-	if (course != "positive" && course != "construction-cut"
+	if (course != "positive" && course != "positive-seed"
+		&& course != "positive-reopen" && course != "construction-cut"
 		&& course != "gesture-cut" && course != "cancellation"
 		&& course != "staleness" && course != "cleanup-retry") {
 		return EXIT_FAILURE;
 	}
+	constexpr std::string_view selectedNote
+		= "BPR_SELECTED_NOTE_0250 verify exact retry exhaustion";
 	constexpr std::string_view unselectedNoteCanary
-		= "BPR_UNSELECTED_NOTE_0247 viewport coordinate qt_index "
-		  "BPR_CREDENTIAL_CANARY_0247";
-	constexpr std::string_view unselectedDraftCanary
-		= "BPR_UNSELECTED_DRAFT_0247 gutter_pixel scroll_coordinate "
-		  "BPR_CREDENTIAL_CANARY_0247";
+		= "BPR_UNSELECTED_NOTE_0250 viewport coordinate qt_index "
+		  "BPR_CREDENTIAL_CANARY_0250";
+	constexpr std::string_view selectedDraft
+		= "BPR_SELECTED_DRAFT_0250 would a bounded retry be safer?";
 	auto expectedContext
 		= std::optional<app::detail::agent_invocation_context_evidence>{ };
 	auto data = QTemporaryDir{ };
 	if (!data.isValid()) {
+		return EXIT_FAILURE;
+	}
+	const auto      dataRoot = argc == 4
+		? std::filesystem::path{ argv[3] }
+		: std::filesystem::path{ data.path().toStdString() };
+	std::error_code dataError;
+	std::filesystem::create_directories(dataRoot, dataError);
+	if (dataError) {
 		return EXIT_FAILURE;
 	}
 	auto externalExecutable = std::filesystem::path{ argv[2] };
@@ -450,7 +476,7 @@ auto main(int argc, char** argv) -> int
 			? "descendant-wait"
 			: course == "staleness" ? "stale-wait"
 									: "cleanup-retry-wait";
-		externalExecutable = std::filesystem::path{ data.path().toStdString() }
+		externalExecutable = dataRoot
 			/ ("better_pull_review_agent_canary-" + std::string{ mode });
 		std::error_code copyError;
 		std::filesystem::copy_file(
@@ -473,7 +499,7 @@ auto main(int argc, char** argv) -> int
 	auto application = app::detail::github_application_fixture_access::make(
 		app::detail::github_public_path_fixture::github_com,
 		{
-			.ApplicationDataRoot         = std::filesystem::path{ data.path().toStdString() },
+			.ApplicationDataRoot         = dataRoot,
 			.EpochPhase                  = app::detail::github_epoch_fixture_phase::single,
 			.DisableAgentHostComposition = course == "construction-cut",
 			.DisableAgentGestureWire     = course == "gesture-cut",
@@ -527,6 +553,35 @@ auto main(int argc, char** argv) -> int
 		})) {
 		return fail(*application, "agent-authority-and-offerings");
 	}
+	if (course == "positive-reopen") {
+		const auto catalog = app::detail::github_application_fixture_access::
+			agent_session_catalog(*application);
+		const auto fixture = app::detail::github_application_fixture_access::evidence(
+			*application);
+		const auto exact = catalog.has_value()
+			&& catalog->Catalog.Latest.has_value()
+			&& catalog->Catalog.Latest->Id == core::agent_session_id{ 1U }
+			&& catalog->Catalog.Latest->Profile
+				== core::external_terminal_profile_id
+			&& catalog->Catalog.Next == core::agent_session_id{ 2U }
+			&& core::canonical_hex(catalog->Catalog.Latest->Binding.BaseOid).view()
+				== fixture.BaseOid
+			&& core::canonical_hex(catalog->Catalog.Latest->Binding.HeadOid).view()
+				== fixture.HeadOneOid
+			&& catalog->Catalog.Latest->Binding.LeftEpoch
+				== core::epoch_ordinal{ 1U }
+			&& catalog->Catalog.Latest->Binding.RightEpoch
+				== core::epoch_ordinal{ 1U }
+			&& catalog->Statistics.SessionAdmissions == 0U
+			&& panel->session_catalog_text().contains("Latest session #1")
+			&& panel->session_catalog_text().contains("current")
+			&& panel->session_catalog_text().contains("next #2");
+		if (!shutdown(*application) || !exact) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-invocation-composition-reopen:pass\n";
+		return EXIT_SUCCESS;
+	}
 	const auto externalIndex = panel->profile_selector()->findData(
 		QVariant::fromValue<qulonglong>(core::external_terminal_profile_id.value()));
 	if (externalIndex < 0) {
@@ -566,7 +621,7 @@ auto main(int argc, char** argv) -> int
 			})) {
 			return fail(*application, "receipt-projection");
 		}
-		if (course == "positive") {
+		if (course == "positive" || course == "positive-seed") {
 			const auto  defectThread      = std::string{ "review-thread:PRRT_fixture_1" };
 			auto* const conversationView  = window.conversation_view();
 			auto* const conversationModel = window.conversation_model();
@@ -591,6 +646,7 @@ auto main(int argc, char** argv) -> int
 			if (!app::detail::github_application_fixture_access::
 					seed_agent_private_context_canary(
 						*application,
+						selectedNote,
 						unselectedNoteCanary)) {
 				return fail(*application, "private-canary-seed");
 			}
@@ -600,17 +656,33 @@ auto main(int argc, char** argv) -> int
 			}
 			editor->body_editor()->setPlainText(
 				QString::fromUtf8(
-					unselectedDraftCanary.data(),
-					static_cast<qsizetype>(unselectedDraftCanary.size())));
+					selectedDraft.data(),
+					static_cast<qsizetype>(selectedDraft.size())));
+			if (!wait_until([panel] {
+					return panel->note_selector()->count() == 2
+						&& panel->draft_selector()->isEnabled();
+				})) {
+				return fail(*application, "private-selection-offerings");
+			}
+			auto selectedNoteFound = false;
+			for (auto row = 0; row < panel->note_selector()->count(); ++row) {
+				auto* const item = panel->note_selector()->item(row);
+				if (item->data(Qt::UserRole).toULongLong() == 246U) {
+					item->setCheckState(Qt::Checked);
+					selectedNoteFound = true;
+				}
+			}
+			panel->draft_selector()->setChecked(true);
 			expectedContext
 				= app::detail::github_application_fixture_access::
 					agent_invocation_context(*application);
 			if (
 				!expectedContext.has_value()
 				|| expectedContext->Files.size() != 1U
-				|| expectedContext->Private.Notes.size() != 1U
-				|| expectedContext->Private.Notes.front().Note.Text
-					!= unselectedNoteCanary
+				|| expectedContext->Private.Notes.size() != 2U
+				|| !selectedNoteFound
+				|| !expectedContext->CurrentDraft.has_value()
+				|| expectedContext->CurrentDraft->Draft.Body != selectedDraft
 				|| !expectedContext->Private.LastReviewedHead.has_value()
 				|| expectedContext->Private.Defects.size() != 1U
 				|| !expectedContext->Selection.has_value()
@@ -883,7 +955,7 @@ auto main(int argc, char** argv) -> int
 		&& cwd.has_value() && !std::filesystem::exists(*cwd)
 		&& !evidence.WorkspaceRoot.empty()
 		&& std::filesystem::exists(evidence.WorkspaceRoot)
-		&& !std::filesystem::path{ *cwd }.string().starts_with(data.path().toStdString())
+		&& !std::filesystem::path{ *cwd }.string().starts_with(dataRoot.string())
 		&& output.find("head\t" + fixture.HeadOneOid) != std::string::npos
 		&& output.find("origin\tabsent") != std::string::npos
 		&& output.find("alternates\tabsent") != std::string::npos
@@ -901,11 +973,14 @@ auto main(int argc, char** argv) -> int
 		&& actualFields->at("selection.present") == "1"
 		&& actualFields->at("selection.mapping_confidence") == "0"
 		&& actualFields->at("selection.source_text.present") == "0"
-		&& actualFields->at("note.count") == "0"
-		&& actualFields->at("draft.count") == "0"
+		&& actualFields->at("note.count") == "1"
+		&& actualFields->at("note.0.text") == selectedNote
+		&& actualFields->at("draft.count") == "1"
+		&& actualFields->at("draft.0.text") == selectedDraft
 		&& !containsForbiddenContext
+		&& decodedInput->find(unselectedNoteCanary) == std::string::npos
 		&& output.find("GITHUB_TOKEN") == std::string::npos
-		&& output.find("BPR_CREDENTIAL_CANARY_0247") == std::string::npos;
+		&& output.find("BPR_CREDENTIAL_CANARY_0250") == std::string::npos;
 	if (!exact) {
 		std::cerr << "agent-exact-context-output:\n"
 				  << output << "\nagent-exact-context-evidence:"
@@ -925,6 +1000,9 @@ auto main(int argc, char** argv) -> int
 	if (!shutdownComplete || !exact || !rootRemoved) {
 		return EXIT_FAILURE;
 	}
-	std::cout << "agent-invocation-composition:pass\n";
+	std::cout
+		<< (course == "positive-seed"
+				? "agent-invocation-composition-seed:pass\n"
+				: "agent-invocation-composition:pass\n");
 	return EXIT_SUCCESS;
 }

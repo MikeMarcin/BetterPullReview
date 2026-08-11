@@ -39,6 +39,16 @@ namespace bpr::application {
 			= default;
 	};
 
+	/// \brief Non-sensitive latest-session presentation for the current review.
+	struct agent_session_catalog_projection
+	{
+		std::optional<core::agent_session>        Latest;
+		std::optional<core::agent_session_status> LatestStatus;
+		std::optional<core::agent_session_id>     Next;
+
+		auto operator<=>(const agent_session_catalog_projection&) const = default;
+	};
+
 	class agent_invocation_projection_port
 	{
 	public:
@@ -57,6 +67,8 @@ namespace bpr::application {
 		virtual void finish(
 			const agent_invocation_projection_identity& aIdentity,
 			const agent_run_result&                     aResult) = 0;
+		virtual void present_session_catalog(
+			const agent_session_catalog_projection& aProjection) = 0;
 	};
 
 	struct agent_invocation_host_statistics
@@ -66,6 +78,8 @@ namespace bpr::application {
 		std::uint64_t ProcessStarts            = 0U;
 		std::uint64_t WorkspaceCleanups        = 0U;
 		std::uint64_t WorkspaceCleanupFailures = 0U;
+		std::uint64_t SessionAdmissions        = 0U;
+		std::uint64_t SessionAdmissionFailures = 0U;
 
 		auto operator<=>(const agent_invocation_host_statistics&) const = default;
 	};
@@ -78,6 +92,7 @@ namespace bpr::application {
 			std::vector<core::agent_profile>     aProfiles,
 			std::vector<core::agent_host_policy> aPolicies,
 			std::filesystem::path                aWorkspaceParent,
+			agent_session_catalog_port&          aSessions,
 			agent_workspace_port&                aWorkspaces,
 			agent_process_port&                  aProcesses,
 			environment_reader                   aEnvironment,

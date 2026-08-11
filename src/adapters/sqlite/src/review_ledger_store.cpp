@@ -183,6 +183,32 @@ namespace bpr::adapters::sqlite {
 				return std::move(*loaded);
 			}
 
+			auto admit_agent_session(
+				const application::agent_session_admission& aAdmission)
+				-> std::expected<core::agent_session, application::ledger_store_failure> override
+			{
+				if (!application::valid(aAdmission)) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto admitted = Database.admit_agent_session(Scope, aAdmission);
+				if (!admitted) {
+					return std::unexpected(translate(admitted.error()));
+				}
+				return *admitted;
+			}
+
+			auto load_agent_session_catalog() -> std::expected<
+				application::agent_session_catalog_state,
+				application::ledger_store_failure> override
+			{
+				auto loaded = Database.load_agent_session_catalog(Scope);
+				if (!loaded) {
+					return std::unexpected(translate(loaded.error()));
+				}
+				return *loaded;
+			}
+
 		private:
 			detail::review_ledger_database Database;
 			std::int64_t                   Scope = 0;

@@ -1617,16 +1617,36 @@ or provider credential:
 
 ```sh
 cmake --build build/dev --target \
+  test_better_pull_review_agent_session_core_tests \
+  test_better_pull_review_review_ledger_host_tests \
+  test_better_pull_review_agent_launch_tests \
   test_better_pull_review_agent_invocation_host_tests \
+  test_better_pull_review_sqlite_review_ledger_tests \
+  test_better_pull_review_qt_agent_launch_panel_tests \
   test_better_pull_review_qt_agent_launch_canary_tests \
   test_better_pull_review_agent_invocation_composition_public_path
 ctest --test-dir build/dev --output-on-failure -R \
-  '^(application_agent_invocation_host|qt_agent_launch_canary|application_agent_invocation_(composition|construction_cut|gesture_cut|cancellation|staleness)_contract)$'
+  '^(core_agent_session|application_agent_launch|application_agent_invocation_host|application_review_ledger_host|sqlite_review_ledger_storage|qt_agent_launch_panel|application_agent_invocation_(composition|construction_cut|gesture_cut|cancellation|staleness|cleanup_retry)_contract)$'
 ```
 
-The positive public contract selects a real fixture diff, materializes the
-exact accepted head outside the retained cache, launches only the sanitized
-external canary, and waits for terminal projection plus cleanup. The two cut
+The positive public contract uses two fresh processes over one data root. The
+first selects one of two private notes plus the exact current draft revision on
+a real fixture diff, then compares the sanitized child's complete decoded stdin
+and proves the hostile unchecked canary is absent. The second launches no child:
+it reopens immutable session #1, observes next ID #2 and current classification,
+and records zero session admissions. The wrapper requires distinct child-produced
+seed and reopen markers, guards both source branches against vacuity, and leaves
+the positive CTest result to the wrapper's exit status rather than a pass regex.
+SQLite component coverage separately proves post-close physical main/WAL/SHM
+equality for reopen/load, bounded retention, restart, exhaustion, canonical
+v3-to-v4 migration, retained-WAL byte-preserving refusal, and simultaneous-open
+allocation. Its BUILD_TESTING-only preflight seams also replace the accepted
+main/WAL/SHM namespace immediately before the original open and substitute or
+make nonempty the private clone at cleanup. The former refuses before SQLite
+touches the replacement; the latter preserves the substitute/unknown child,
+sanitizes retained main/WAL authority, and reports cleanup failure explicitly.
+The first process materializes the exact accepted head outside the retained
+cache and waits for terminal projection plus cleanup. The two cut
 contracts must remain green: they prove that neither omitted host construction
 nor a disconnected reviewer gesture can be hidden by direct fixture launch.
 The cancellation course stops a live descendant; the staleness course moves

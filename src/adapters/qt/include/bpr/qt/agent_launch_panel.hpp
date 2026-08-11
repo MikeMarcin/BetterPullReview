@@ -14,8 +14,10 @@
 #include <vector>
 
 class QAction;
+class QCheckBox;
 class QComboBox;
 class QLabel;
+class QListWidget;
 class QPlainTextEdit;
 class QToolButton;
 
@@ -23,7 +25,9 @@ namespace bpr::qt {
 	/// \brief Asks for one agent invocation, now.
 	struct start_agent_intent
 	{
-		core::agent_profile_id Profile;
+		core::agent_profile_id                         Profile;
+		std::vector<application::local_note_id>        IncludedNotes;
+		std::optional<application::agent_draft_choice> IncludedDraft;
 		/// Whether the reviewer chose their own checkout for this invocation.
 		/// Carried on the intent rather than read from a setting, because
 		/// BPR-0176 refuses that mode without a choice made now.
@@ -86,6 +90,10 @@ namespace bpr::qt {
 		/// here is absent because the host refused it, and one present cannot
 		/// be refused again by presentation.
 		void offer_profiles(std::span<const core::agent_profile> aProfiles);
+		/// \brief Offers only opaque current private-context identities, unchecked.
+		void offer_private_context(
+			std::span<const application::local_note_id>    aNotes,
+			std::optional<application::agent_draft_choice> aDraft);
 
 		void offer(std::span<const core::agent_profile> aProfiles) override;
 		void refuse(std::string_view aReason) override;
@@ -100,6 +108,8 @@ namespace bpr::qt {
 		void finish(
 			const application::agent_invocation_projection_identity& aIdentity,
 			const application::agent_run_result&                     aResult) override;
+		void present_session_catalog(
+			const application::agent_session_catalog_projection& aProjection) override;
 
 		/// \brief States what is about to be read, before anything starts.
 		void disclose_scope(const QString& aScope);
@@ -114,7 +124,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto disclosure_text() const -> QString;
 		[[nodiscard]] auto status_text() const -> QString;
 		[[nodiscard]] auto output_text() const -> QString;
+		[[nodiscard]] auto session_catalog_text() const -> QString;
 		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto note_selector() const noexcept -> QListWidget*;
+		[[nodiscard]] auto draft_selector() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto selected_profile() const
 			-> std::optional<core::agent_profile_id>;
 		[[nodiscard]] auto statistics() const noexcept
@@ -123,19 +136,23 @@ namespace bpr::qt {
 	private:
 		void update_actions();
 
-		agent_intent_dispatch Dispatch;
-		QComboBox*            ProfileSelector        = nullptr;
-		QAction*              StartAction            = nullptr;
-		QAction*              CancelAction           = nullptr;
-		QAction*              ExistingCheckoutAction = nullptr;
-		QLabel*               Disclosure             = nullptr;
-		QLabel*               Status                 = nullptr;
-		QPlainTextEdit*       Output                 = nullptr;
-		QToolButton*          StartButton            = nullptr;
-		QToolButton*          CancelButton           = nullptr;
-		QToolButton*          ExistingCheckoutButton = nullptr;
-		bool                  Running                = false;
-		bool                  Disclosed              = false;
+		agent_intent_dispatch                          Dispatch;
+		QComboBox*                                     ProfileSelector        = nullptr;
+		QAction*                                       StartAction            = nullptr;
+		QAction*                                       CancelAction           = nullptr;
+		QAction*                                       ExistingCheckoutAction = nullptr;
+		QLabel*                                        Disclosure             = nullptr;
+		QListWidget*                                   NoteSelector           = nullptr;
+		QCheckBox*                                     DraftSelector          = nullptr;
+		QLabel*                                        SessionCatalog         = nullptr;
+		QLabel*                                        Status                 = nullptr;
+		QPlainTextEdit*                                Output                 = nullptr;
+		QToolButton*                                   StartButton            = nullptr;
+		QToolButton*                                   CancelButton           = nullptr;
+		QToolButton*                                   ExistingCheckoutButton = nullptr;
+		bool                                           Running                = false;
+		bool                                           Disclosed              = false;
+		std::optional<application::agent_draft_choice> OfferedDraft;
 		std::optional<application::agent_invocation_projection_identity>
 			ActiveInvocation;
 

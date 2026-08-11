@@ -4,6 +4,7 @@
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/review_round_trip.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -28,6 +29,27 @@ namespace bpr::application {
 		auto operator<=>(const agent_file_context_input&) const = default;
 	};
 
+	/// \brief Exact identity and revision of one explicitly selected draft.
+	struct agent_draft_choice
+	{
+		core::review_draft_id Id;
+		std::uint64_t         Revision = 0U;
+
+		auto operator<=>(const agent_draft_choice&) const = default;
+	};
+
+	/// \brief The current unpublished draft observed by the application host.
+	///
+	/// \details Prose remains in the host observation and never enters the Qt
+	/// intent. The choice must match both identity and revision at dispatch.
+	struct agent_draft_observation
+	{
+		agent_draft_choice         Choice;
+		core::review_comment_draft Draft;
+
+		auto operator<=>(const agent_draft_observation&) const = default;
+	};
+
 	/// \brief Bounded observations approved for one agent invocation.
 	///
 	/// \details `Private` is the BPR-0238 value supplied by the caller. This
@@ -36,14 +58,15 @@ namespace bpr::application {
 	struct agent_context_observation
 	{
 		core::application_session_id                     ApplicationSession;
-		core::agent_session                              Session;
+		core::agent_revision_binding                     Binding;
 		std::string                                      PullRequestUrl;
 		std::optional<core::git_commit_oid>              PreviousUpload;
 		std::vector<agent_file_context_input>            Files;
 		private_ledger_observation                       Private;
 		std::optional<core::supplement_semantic_context> Selection;
+		std::optional<agent_draft_observation>           CurrentDraft;
 		std::vector<local_note_id>                       IncludedNotes;
-		std::vector<core::supplement_draft>              IncludedDrafts;
+		std::optional<agent_draft_choice>                IncludedDraft;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};
@@ -52,11 +75,15 @@ namespace bpr::application {
 		invalid_observation,
 		selected_note_missing,
 		duplicate_selected_note,
+		selected_draft_missing,
+		selected_draft_stale,
+		selected_draft_invalid,
 	};
 
 	/// \brief Builds context only from caller-supplied bounded observations.
 	[[nodiscard]] auto build_agent_context_supplement(
-		const agent_context_observation& aObservation)
+		const agent_context_observation& aObservation,
+		const core::agent_session&       aSession)
 		-> std::expected<core::agent_context_supplement, agent_context_failure>;
 
 	/// \brief What one agent process is started with.

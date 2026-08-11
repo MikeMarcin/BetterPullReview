@@ -117,17 +117,26 @@ pointer.
 
 Version 1 introduced `ledger_meta`, `review_scope`, and `file_receipt`. Version
 2 added `conversation_receipt`. Version 3 adds `local_note`,
-`last_reviewed_head`, and `local_defect`.
+`last_reviewed_head`, and `local_defect`. Version 4 adds
+`agent_session_sequence` and `agent_session`.
 
 Every table is `STRICT`, so a value of the wrong type is refused rather than
 coerced. The two 256-bit digest columns — `file_receipt.file_identity` and
 `file_receipt.material_id` — additionally carry `length(...) = 32` checks, so a
 truncated digest fails at the row that caused it instead of becoming a puzzle
 read back later. Comment and conversation identities are integers and need no
-such check. Opening version 3 compares every non-internal `sqlite_schema`
+such check. Opening versions 3 and 4 compares every non-internal `sqlite_schema`
 object with the canonical table definition. A same-name table with changed
 columns, checks, foreign keys, uniqueness, or without `STRICT` is a schema
 mismatch rather than a partially understood ledger.
+
+`agent_session_sequence` is the non-pruned high-water mark for one review
+scope. `agent_session` holds only immutable session/profile, review identity,
+base/head OIDs, and epoch metadata. Admission uses `BEGIN IMMEDIATE`: reserving
+the next ID, inserting its row, advancing the sequence, and pruning beyond the
+newest 128 records commit atomically. The high-water row is never derived from
+the retained maximum, so pruning, restart, and two simultaneously opened stores
+cannot reuse an ID. Signed 64-bit exhaustion is a typed quota refusal.
 
 `local_note` has either no attachment or both a 256-bit file identity and a
 256-bit comparison identity. The note identifier is unique within the review
@@ -188,9 +197,29 @@ version afterwards and produced the same failure. The test now reopens the
 refused file and asserts its recorded schema format is untouched.
 
 A nonzero prior version is also migrated only when `application_id` already
-names the review ledger. A version-1 or version-2 file stamped for another
+names the review ledger. A prior-version file stamped for another
 application is refused before the migration transaction begins; its database
 bytes, version, metadata row, schema, and receipts remain exact.
+
+Existing main, WAL, and SHM files are captured byte for byte before SQLite opens
+the supplied path. The main file and any retained WAL are materialized in an
+owner-private temporary directory; SQLite classifies that isolated clone against
+application ID, user/schema versions, metadata row, and canonical schema. The
+clone owns hard-linked identity and main/WAL authorities. Cleanup truncates the
+sensitive authorities first, deletes only the four known SQLite children plus
+the identity child, verifies the captured directory identity and emptiness, and
+surfaces substitution, an unknown child, or incomplete deletion as a refusal.
+It never recursively deletes a temporary path.
+
+The originals are recaptured once after clone cleanup and again at the bounded
+preflight-to-open application boundary. Both captures must match before the
+original path reaches `sqlite3_open_v2` or connection PRAGMAs. Deterministic
+tests replace all three namespace entries at that boundary with wrong-app,
+future-version, and tampered retained-WAL files; both displaced originals and
+substitutes remain exact. This is a bounded application ordering check, not a
+claim of impossible atomic protection against a hostile filesystem racing after
+the final comparison. The v3-to-v4 course preserves prior records, while every
+incompatible refusal preserves exact main/WAL/SHM existence and bytes.
 
 The whole advance runs in one transaction, so a database is never left between
 two versions; a partially migrated ledger would be indistinguishable from a
@@ -198,10 +227,11 @@ corrupt one.
 
 The current version is deliberately not 1. A migration mechanism whose only
 version is the initial one has never migrated anything and would first be
-exercised on a user's database. A real version-1 database traverses both
-migrations, and an exact version-2 database traverses the 2-to-3 step. File and
-conversation receipt rows written under the prior versions are asserted to
-survive before any new private record is accepted.
+exercised on a user's database. A real version-1 database traverses every
+migration, an exact version-2 database traverses the 2-to-3 and 3-to-4 steps,
+and an exact version-3 database traverses the 3-to-4 step. Prior receipts,
+notes, and reviewed head are asserted to survive before session metadata is
+accepted.
 
 ## Receipt semantics
 
@@ -286,12 +316,11 @@ exist. The Windows equivalent is unwritten rather than silently passing.
 a clean ledger and the epoch catalog beside it is untouched. Both halves are
 tested.
 
-**No backup is taken, and no retention policy runs.** The ledger grows with the
-reviews a reviewer touches and nothing prunes it. This is the current position
-stated plainly rather than a policy: neither has been designed, and neither
-should be inferred from this document. A ledger that quietly discarded a
-reviewer's history on a schedule nobody chose would be worse than one that
-grows.
+**No backup is taken, and no time-based retention policy runs.** Receipts,
+notes, reviewed heads, and defects are not pruned. Only the agent-session
+metadata catalog has its explicit per-review bound of 128 newest rows; its
+separate sequence survives pruning. No other scheduled deletion should be
+inferred from that narrow bound.
 
 ## Privacy
 
@@ -303,8 +332,10 @@ told themselves something, not GitHub.
 Apart from the reviewer's explicitly created private-note text, the ledger
 records identities and progress rather than content: file and material
 digests, comment identities and edit versions, defect classification and
-semantic anchors, and the flags above. It does not record file paths, source
-text, GitHub comment text, credentials, or anything about who wrote what. A
+semantic anchors, agent revision bindings, and the flags above. It does not
+record file paths, source text, GitHub comment text, agent input/output/results,
+argv, environment, workspace paths, credentials, or anything about who wrote
+what. A
 person reading the database can see the private notes and which opaque material
 a reviewer marked read, but not the source or shared discussion those
 identities refer to.

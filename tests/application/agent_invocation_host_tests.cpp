@@ -92,15 +92,49 @@ namespace {
 			.Profile            = aProfile,
 			.Context            = {
 				.ApplicationSession = core::application_session_id{ 1U },
-				.Session            = {
-					.Id      = core::agent_session_id{ 9U },
-					.Profile = aProfile,
-					.Binding = binding(aHost),
-				},
-				.PullRequestUrl = "https://github.example/octo/review/pull/17",
+				.Binding            = binding(aHost),
+				.PullRequestUrl     = "https://github.example/octo/review/pull/17",
 			},
 		};
 	}
+
+	class session_catalog_spy final
+		: public application::agent_session_catalog_port
+	{
+	public:
+		[[nodiscard]] auto admit(
+			const application::agent_session_admission& aAdmission)
+			-> std::expected<core::agent_session, application::ledger_store_failure> override
+		{
+			++AdmissionAttempts;
+			if (AdmissionFailure.has_value()) {
+				return std::unexpected(*AdmissionFailure);
+			}
+			Latest = core::agent_session{
+				.Id      = core::agent_session_id{ Next++ },
+				.Profile = aAdmission.Profile,
+				.Binding = aAdmission.Binding,
+			};
+			return *Latest;
+		}
+
+		[[nodiscard]] auto session_catalog()
+			-> std::expected<
+				application::agent_session_catalog_state,
+				application::ledger_store_failure> override
+		{
+			++Loads;
+			return application::agent_session_catalog_state{
+				.Latest = Latest, .Next = core::agent_session_id{ Next }
+			};
+		}
+
+		std::uint64_t                                    Next              = 41U;
+		std::size_t                                      AdmissionAttempts = 0U;
+		std::size_t                                      Loads             = 0U;
+		std::optional<application::ledger_store_failure> AdmissionFailure;
+		std::optional<core::agent_session>               Latest;
+	};
 
 	class queued_executor final
 		: public application::effect_executor,
@@ -369,6 +403,13 @@ namespace {
 			}
 		}
 
+		void present_session_catalog(
+			const application::agent_session_catalog_projection& aProjection)
+			override
+		{
+			SessionCatalogs.push_back(aProjection);
+		}
+
 		std::vector<core::agent_profile> Offered;
 		std::vector<std::string>         Refusals;
 		std::vector<application::agent_invocation_projection_identity>
@@ -382,13 +423,15 @@ namespace {
 													 FinishIdentities;
 		std::vector<application::agent_stream_event> Streamed;
 		std::vector<application::agent_run_result>   Finished;
-		std::function<void()>                        AfterFinish;
-		bool                                         ThrowOffer  = false;
-		bool                                         ThrowRefuse = false;
-		bool                                         ThrowAdmit  = false;
-		bool                                         ThrowStart  = false;
-		bool                                         ThrowStream = false;
-		bool                                         ThrowFinish = false;
+		std::vector<application::agent_session_catalog_projection>
+							  SessionCatalogs;
+		std::function<void()> AfterFinish;
+		bool                  ThrowOffer  = false;
+		bool                  ThrowRefuse = false;
+		bool                  ThrowAdmit  = false;
+		bool                  ThrowStart  = false;
+		bool                  ThrowStream = false;
+		bool                  ThrowFinish = false;
 	};
 
 	struct harness
@@ -398,6 +441,8 @@ namespace {
 		workspace_spy                      Workspaces;
 		process_spy                        Processes;
 		projection_spy                     Projection;
+		session_catalog_spy                Sessions;
+		std::size_t                        EnvironmentReads = 0U;
 		application::agent_invocation_host Host{
 			core::built_in_agent_profiles(),
 			{
@@ -409,9 +454,11 @@ namespace {
 					core::built_in_agent_host_kind::explicit_ghes),
 			},
 			"/tmp/bpr-agent-owned",
+			Sessions,
 			Workspaces,
 			Processes,
-			[](const std::string& aName) -> std::optional<std::string> {
+			[this](const std::string& aName) -> std::optional<std::string> {
+				++EnvironmentReads;
 				if (aName == "PATH") {
 					return "/usr/bin:/bin";
 				}
@@ -447,8 +494,87 @@ namespace {
 		expect(
 			!test.Projection.Refusals.empty()
 				&& test.Workspaces.Starts == 0U && test.Processes.Starts == 0U
+				&& test.Sessions.AdmissionAttempts == 0U
 				&& test.Host.statistics().CoreDecisions == 1U,
 			"explicit GHES Codex policy is decided by core before any workspace or process effect");
+	}
+
+	void test_context_refusal_precedes_durable_admission()
+	{
+		auto test = harness{ };
+		test.Host.observe(
+			core::application_session_id{ 1U },
+			authority(core::git_host_id{ 1U }),
+			binding(core::git_host_id{ 1U }));
+		auto invalid = request(
+			core::git_host_id{ 1U }, core::external_terminal_profile_id);
+		invalid.Context.IncludedNotes = { application::local_note_id{ 99U } };
+		test.Host.dispatch(std::move(invalid));
+		expect(
+			test.Sessions.AdmissionAttempts == 0U
+				&& test.Workspaces.Starts == 0U && test.Processes.Starts == 0U
+				&& test.EnvironmentReads == 0U
+				&& test.Projection.Refusals.back() == "invalid_agent_context",
+			"exact context refusal performs zero durable writes and zero downstream effects");
+	}
+
+	void test_durable_admission_refusal_precedes_every_downstream_effect()
+	{
+		auto test = harness{ };
+		test.Sessions.AdmissionFailure
+			= application::ledger_store_failure::quota_exceeded;
+		test.Host.observe(
+			core::application_session_id{ 1U },
+			authority(core::git_host_id{ 1U }),
+			binding(core::git_host_id{ 1U }));
+		test.Host.dispatch(request(
+			core::git_host_id{ 1U }, core::external_terminal_profile_id));
+		expect(
+			test.Sessions.AdmissionAttempts == 1U
+				&& test.Workspaces.Starts == 0U && test.Processes.Starts == 0U
+				&& test.EnvironmentReads == 0U
+				&& test.Projection.Refusals.back()
+					== "agent_session_admission_quota_exceeded"
+				&& test.Host.statistics().SessionAdmissionFailures == 1U,
+			"typed durable admission refusal is visible before workspace, environment, executable, or process work");
+	}
+
+	void test_latest_retained_session_uses_every_core_classification_without_retargeting()
+	{
+		auto       test            = harness{ };
+		const auto retainedBinding = binding(core::git_host_id{ 1U });
+		test.Sessions.Latest       = core::agent_session{
+			.Id      = core::agent_session_id{ 40U },
+			.Profile = core::external_terminal_profile_id,
+			.Binding = retainedBinding,
+		};
+		auto observations = std::array{
+			retainedBinding,
+			retainedBinding,
+			retainedBinding,
+			retainedBinding,
+		};
+		observations[1].HeadOid    = commit(9U);
+		observations[2].RightEpoch = core::epoch_ordinal{ 9U };
+		observations[3].Repository = core::repository_id{ 999U };
+		const auto expected        = std::array{
+			core::agent_session_staleness::current,
+			core::agent_session_staleness::head_moved,
+			core::agent_session_staleness::epoch_pair_changed,
+			core::agent_session_staleness::different_review,
+		};
+		for (auto index = std::size_t{ 0U }; index < expected.size(); ++index) {
+			test.Host.observe(
+				core::application_session_id{ 1U },
+				authority(core::git_host_id{ 1U }),
+				observations[index]);
+			const auto& projected = test.Projection.SessionCatalogs.back();
+			expect(
+				projected.LatestStatus.has_value()
+					&& projected.LatestStatus->Staleness == expected[index]
+					&& projected.Latest->Binding == retainedBinding,
+				"catalog presentation classifies current state without changing stored binding");
+		}
 	}
 
 	void test_valid_dispatch_materializes_before_process_and_cleans_after_terminal()
@@ -468,6 +594,13 @@ namespace {
 				&& test.Projection.Finished.front().Outcome
 					== application::agent_run_outcome::success,
 			"one permitted gesture has one materialization, launch, terminal, and cleanup");
+		expect(
+			test.Sessions.AdmissionAttempts == 1U
+				&& test.Workspaces.LastRequest->Session.Id
+					== core::agent_session_id{ 41U }
+				&& test.Processes.LastRequest->Session
+					== core::agent_session_id{ 41U },
+			"the durable allocator identity is reused by every later effect");
 		const auto& launch = *test.Processes.LastRequest;
 		expect(
 			launch.WorkingDirectory == "/tmp/bpr-agent-owned/exact-head"
@@ -505,6 +638,13 @@ namespace {
 				&& test.Projection.Finished.front().Events.empty()
 				&& test.Workspaces.Cleanups == 1U && test.Host.is_quiescent(),
 			"revision movement clears the old answer but does not leak its owned workspace");
+		expect(
+			!test.Projection.SessionCatalogs.empty()
+				&& test.Projection.SessionCatalogs.back().Latest->Id
+					== core::agent_session_id{ 41U }
+				&& test.Projection.SessionCatalogs.back().LatestStatus->Staleness
+					== core::agent_session_staleness::head_moved,
+			"latest retained metadata is presented as stale without retargeting its binding");
 	}
 
 	void test_superseded_dominates_mixed_cancellation_and_head_movement()
@@ -708,6 +848,7 @@ namespace {
 		auto workspaces = workspace_spy{ };
 		auto processes  = process_spy{ };
 		auto projection = projection_spy{ };
+		auto sessions   = session_catalog_spy{ };
 		{
 			auto host = std::make_unique<application::agent_invocation_host>(
 				core::built_in_agent_profiles(),
@@ -717,6 +858,7 @@ namespace {
 						core::built_in_agent_host_kind::github_com),
 				},
 				"/tmp/bpr-agent-owned",
+				sessions,
 				workspaces,
 				processes,
 				[](const std::string&) -> std::optional<std::string> {
@@ -763,6 +905,7 @@ namespace {
 		auto workspaces = workspace_spy{ };
 		auto processes  = blocking_process_spy{ };
 		auto projection = projection_spy{ };
+		auto sessions   = session_catalog_spy{ };
 		auto host       = std::make_unique<application::agent_invocation_host>(
 			core::built_in_agent_profiles(),
 			std::vector{
@@ -771,6 +914,7 @@ namespace {
 					core::built_in_agent_host_kind::github_com),
 			},
 			"/tmp/bpr-agent-owned",
+			sessions,
 			workspaces,
 			processes,
 			[](const std::string&) -> std::optional<std::string> {
@@ -803,6 +947,7 @@ namespace {
 		auto workspaces = workspace_spy{ };
 		auto processes  = process_spy{ };
 		auto projection = projection_spy{ };
+		auto sessions   = session_catalog_spy{ };
 		auto host       = std::make_unique<application::agent_invocation_host>(
 			core::built_in_agent_profiles(),
 			std::vector{
@@ -811,6 +956,7 @@ namespace {
 					core::built_in_agent_host_kind::github_com),
 			},
 			"/tmp/bpr-agent-owned",
+			sessions,
 			workspaces,
 			processes,
 			[](const std::string&) -> std::optional<std::string> {
@@ -845,6 +991,7 @@ namespace {
 		auto workspaces = workspace_spy{ };
 		auto processes  = process_spy{ };
 		auto projection = projection_spy{ };
+		auto sessions   = session_catalog_spy{ };
 		auto host       = std::make_unique<application::agent_invocation_host>(
 			core::built_in_agent_profiles(),
 			std::vector{
@@ -853,6 +1000,7 @@ namespace {
 					core::built_in_agent_host_kind::github_com),
 			},
 			"/tmp/bpr-agent-owned",
+			sessions,
 			workspaces,
 			processes,
 			[](const std::string&) -> std::optional<std::string> {
@@ -897,6 +1045,9 @@ namespace {
 auto main() -> int
 {
 	test_ghes_policy_refuses_codex_before_effects();
+	test_context_refusal_precedes_durable_admission();
+	test_durable_admission_refusal_precedes_every_downstream_effect();
+	test_latest_retained_session_uses_every_core_classification_without_retargeting();
 	test_valid_dispatch_materializes_before_process_and_cleans_after_terminal();
 	test_revision_movement_discards_result_and_still_cleans();
 	test_superseded_dominates_mixed_cancellation_and_head_movement();

@@ -243,17 +243,26 @@ namespace bpr::app::detail {
 	/// \brief Raw accepted authorities used to falsify the emitted agent context.
 	struct agent_invocation_context_evidence
 	{
-		core::application_session_id                       ApplicationSession;
-		core::pull_request_authority                       Authority;
-		core::agent_session_id                             NextSession;
-		core::agent_revision_binding                       Binding;
-		std::string                                        PullRequestUrl;
-		std::optional<core::git_commit_oid>                PreviousUpload;
-		std::vector<application::agent_file_context_input> Files;
-		application::private_ledger_observation            Private;
-		std::optional<core::supplement_semantic_context>   Selection;
+		core::application_session_id                        ApplicationSession;
+		core::pull_request_authority                        Authority;
+		core::agent_session_id                              NextSession;
+		core::agent_revision_binding                        Binding;
+		std::string                                         PullRequestUrl;
+		std::optional<core::git_commit_oid>                 PreviousUpload;
+		std::vector<application::agent_file_context_input>  Files;
+		application::private_ledger_observation             Private;
+		std::optional<core::supplement_semantic_context>    Selection;
+		std::optional<application::agent_draft_observation> CurrentDraft;
 
 		auto operator<=>(const agent_invocation_context_evidence&) const = default;
+	};
+
+	struct agent_session_catalog_evidence
+	{
+		application::agent_session_catalog_state   Catalog;
+		application::review_ledger_host_statistics Statistics;
+
+		auto operator<=>(const agent_session_catalog_evidence&) const = default;
 	};
 
 	/// \brief Records the independently observable receipt-composition path.
@@ -500,11 +509,15 @@ namespace bpr::app::detail {
 		/// \brief Seeds unselected private prose and a last-reviewed head.
 		[[nodiscard]] static auto seed_agent_private_context_canary(
 			github_application& aApplication,
+			std::string_view    aSelectedNote,
 			std::string_view    aUnselectedNote) -> bool;
 		/// \brief Reads raw accepted context independently of agent serialization.
 		[[nodiscard]] static auto agent_invocation_context(
 			github_application& aApplication)
 			-> std::optional<agent_invocation_context_evidence>;
+		[[nodiscard]] static auto agent_session_catalog(
+			github_application& aApplication)
+			-> std::optional<agent_session_catalog_evidence>;
 		/// \brief Commits a receipt through the composed ledger and reads it back.
 		///
 		/// \details The read goes through the same store the application

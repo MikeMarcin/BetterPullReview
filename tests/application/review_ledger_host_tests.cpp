@@ -163,6 +163,38 @@ namespace {
 			return Private;
 		}
 
+		auto admit_agent_session(
+			const application::agent_session_admission& aAdmission)
+			-> std::expected<core::agent_session, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			if (!Catalog.Next.has_value()) {
+				return std::unexpected(
+					application::ledger_store_failure::quota_exceeded);
+			}
+			Admissions.push_back(aAdmission);
+			auto admitted = core::agent_session{
+				.Id      = *Catalog.Next,
+				.Profile = aAdmission.Profile,
+				.Binding = aAdmission.Binding,
+			};
+			Catalog.Latest = admitted;
+			Catalog.Next   = core::agent_session_id{ admitted.Id.value() + 1U };
+			return admitted;
+		}
+
+		auto load_agent_session_catalog() -> std::expected<
+			application::agent_session_catalog_state,
+			application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			return Catalog;
+		}
+
 		void fail_next(const application::ledger_store_failure aFailure)
 		{
 			NextFailure = aFailure;
@@ -171,6 +203,10 @@ namespace {
 		std::vector<application::receipt_persistence_request> Requests;
 		std::optional<core::file_receipt>                     Committed;
 		application::private_ledger_observation               Private;
+		application::agent_session_catalog_state              Catalog{
+			.Next = core::agent_session_id{ 1U },
+		};
+		std::vector<application::agent_session_admission> Admissions;
 
 	private:
 		[[nodiscard]] auto take_failure()
@@ -248,6 +284,23 @@ namespace {
 		const auto parsed = core::parse_git_commit_oid(
 			"1111111111111111111111111111111111111111");
 		return *parsed;
+	}
+
+	[[nodiscard]] auto session_admission()
+		-> application::agent_session_admission
+	{
+		return {
+			.Profile = core::agent_profile_id{ 4U },
+			.Binding = {
+				.Host        = core::git_host_id{ 5U },
+				.Repository  = core::repository_id{ 6U },
+				.PullRequest = core::pull_request_id{ 7U },
+				.BaseOid     = reviewed_head(),
+				.HeadOid     = reviewed_head(),
+				.LeftEpoch   = core::epoch_ordinal{ 8 },
+				.RightEpoch  = core::epoch_ordinal{ 9 },
+			},
+		};
 	}
 
 	[[nodiscard]] auto private_defect()
@@ -619,6 +672,42 @@ namespace {
 			   "the typed load refusal reaches projection after the store terminal");
 	}
 
+	void test_agent_sessions_validate_admit_and_load_through_the_host()
+	{
+		auto log                  = event_log{ };
+		auto store                = recording_store{ log };
+		auto projection           = recording_projection{ log };
+		auto host                 = application::review_ledger_application_host{ store, projection };
+		auto admission            = session_admission();
+		auto invalid              = admission;
+		invalid.Binding.LeftEpoch = core::epoch_ordinal{ };
+
+		const auto refused = host.admit(invalid);
+		expect(
+			!refused
+				&& refused.error()
+					== application::ledger_store_failure::invalid_record
+				&& store.Admissions.empty(),
+			"an invalid session never reaches durable admission");
+
+		const auto admitted = host.admit(admission);
+		const auto catalog  = host.session_catalog();
+		expect(
+			admitted.has_value() && admitted->Id == core::agent_session_id{ 1U }
+				&& admitted->Profile == admission.Profile
+				&& admitted->Binding == admission.Binding,
+			"the host returns the exact immutable session allocated by storage");
+		expect(
+			catalog.has_value() && catalog->Latest == admitted
+				&& catalog->Next == core::agent_session_id{ 2U },
+			"loading returns the latest retained session and monotonic next identity");
+		expect(
+			host.statistics().SessionAdmissions == 1U
+				&& host.statistics().SessionLoads == 1U
+				&& host.statistics().SessionFailures == 1U,
+			"session statistics distinguish admission, load, and pre-store refusal");
+	}
+
 	void test_receipt_action_projection_contains_only_core_legal_changes()
 	{
 		auto receipt       = seeded_receipt();
@@ -650,6 +739,7 @@ auto main() -> int
 	test_private_records_round_trip_and_delete_through_the_host();
 	test_material_observation_loads_carries_and_publishes_in_order();
 	test_material_load_failure_is_typed_and_changes_nothing();
+	test_agent_sessions_validate_admit_and_load_through_the_host();
 	test_receipt_action_projection_contains_only_core_legal_changes();
 
 	std::cout << "review-ledger-host-tests:pass\n";

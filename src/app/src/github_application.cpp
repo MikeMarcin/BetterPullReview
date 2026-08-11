@@ -1390,6 +1390,21 @@ namespace bpr::app {
 			return std::unexpected(Failure);
 		}
 
+		auto admit_agent_session(
+			const application::agent_session_admission&)
+			-> std::expected<core::agent_session, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto load_agent_session_catalog()
+			-> std::expected<
+				application::agent_session_catalog_state,
+				application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
 	private:
 		application::ledger_store_failure Failure
 			= application::ledger_store_failure::unavailable;
@@ -1440,7 +1455,8 @@ namespace bpr::app {
 		  public application::epoch_projection_port,
 		  public application::workbench_selected_diff_projection_port,
 		  public application::receipt_projection_port,
-		  public application::queue_landing_projection_port
+		  public application::queue_landing_projection_port,
+		  public application::agent_session_catalog_port
 	{
 	public:
 		explicit implementation(
@@ -1818,6 +1834,7 @@ namespace bpr::app {
 							core::built_in_agent_host_kind::explicit_ghes),
 					},
 					agentWorkspacePath,
+					*this,
 					*EpochHost,
 					*AgentProcess,
 					[](const std::string& aName) -> std::optional<std::string> {
@@ -2383,6 +2400,8 @@ namespace bpr::app {
 		{
 			ReviewMutationCoordinator.reset();
 			ReviewDraft.reset();
+			ReviewDraftRevision = 0U;
+			refresh_agent_private_context_choices();
 			ReviewProjection.clear();
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr || Window == nullptr
@@ -2432,9 +2451,13 @@ namespace bpr::app {
 			if (outcome.Rejection != core::review_draft_rejection::none) {
 				return;
 			}
-			ReviewDraft        = outcome.Draft;
+			ReviewDraft = outcome.Draft;
+			if (outcome.Changed) {
+				++ReviewDraftRevision;
+			}
 			auto* const editor = Window->review_editor();
 			editor->present(*ReviewDraft);
+			refresh_agent_private_context_choices();
 			if (aCommand.Kind != core::review_draft_command_kind::begin_publish) {
 				return;
 			}
@@ -2453,7 +2476,9 @@ namespace bpr::app {
 									  .Kind = core::review_draft_command_kind::fail_publish,
 								  })
 								  .Draft;
+				++ReviewDraftRevision;
 				editor->present(*ReviewDraft);
+				refresh_agent_private_context_choices();
 				editor->present(publication.error());
 				return;
 			}
@@ -2464,7 +2489,9 @@ namespace bpr::app {
 								  .Kind = core::review_draft_command_kind::complete_publish,
 							  })
 							  .Draft;
+			++ReviewDraftRevision;
 			editor->present(*ReviewDraft);
+			refresh_agent_private_context_choices();
 			editor->present(*publication, ReviewReconciliation);
 		}
 
@@ -2488,7 +2515,9 @@ namespace bpr::app {
 					.Line       = 1U,
 				},
 			};
+			ReviewDraftRevision = 1U;
 			Window->review_editor()->present(*ReviewDraft);
+			refresh_agent_private_context_choices();
 		}
 
 		void retire_review_ledger()
@@ -2505,6 +2534,7 @@ namespace bpr::app {
 			if (Window != nullptr) {
 				Window->clear_review_ledger();
 				Window->clear_defects();
+				Window->agent_panel()->offer_private_context({ }, std::nullopt);
 			}
 		}
 
@@ -2809,6 +2839,7 @@ namespace bpr::app {
 				retire_review_ledger();
 				ReviewMutationCoordinator.reset();
 				ReviewDraft.reset();
+				ReviewDraftRevision = 0U;
 				ReviewProjection.clear();
 			}
 			EpochHost->invalidate(std::move(aInvalidation));
@@ -2897,6 +2928,69 @@ namespace bpr::app {
 			EpochHost->dispatch(std::move(aIntent));
 		}
 
+		[[nodiscard]] auto admit(
+			const application::agent_session_admission& aAdmission)
+			-> std::expected<core::agent_session, application::ledger_store_failure> override
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return std::unexpected(
+					application::ledger_store_failure::unavailable);
+			}
+			return ReviewLedgerHost->admit(aAdmission);
+		}
+
+		[[nodiscard]] auto session_catalog()
+			-> std::expected<
+				application::agent_session_catalog_state,
+				application::ledger_store_failure> override
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return std::unexpected(
+					application::ledger_store_failure::unavailable);
+			}
+			return ReviewLedgerHost->session_catalog();
+		}
+
+		[[nodiscard]] auto current_agent_draft_observation() const
+			-> std::optional<application::agent_draft_observation>
+		{
+			if (!ReviewDraft.has_value() || ReviewDraftRevision == 0U) {
+				return std::nullopt;
+			}
+			return application::agent_draft_observation{
+				.Choice = {
+					.Id = ReviewDraft->Id, .Revision = ReviewDraftRevision },
+				.Draft = *ReviewDraft,
+			};
+		}
+
+		void refresh_agent_private_context_choices()
+		{
+			if (Window == nullptr || Window->agent_panel() == nullptr) {
+				return;
+			}
+			auto notes = std::vector<application::local_note_id>{ };
+			if (ReviewLedgerHost != nullptr) {
+				if (auto observed = ReviewLedgerHost->private_observation();
+					observed.has_value()) {
+					notes.reserve(observed->Notes.size());
+					for (const auto& note : observed->Notes) {
+						notes.push_back(note.Id);
+					}
+				}
+			}
+			auto draft = current_agent_draft_observation();
+			if (draft.has_value()
+				&& draft->Draft.State != core::review_draft_state::drafting) {
+				draft.reset();
+			}
+			Window->agent_panel()->offer_private_context(
+				notes,
+				draft.has_value()
+					? std::optional{ draft->Choice }
+					: std::nullopt);
+		}
+
 		void refresh_agent_authority()
 		{
 			if (AgentHost == nullptr || EpochHost == nullptr || Window == nullptr) {
@@ -2929,11 +3023,12 @@ namespace bpr::app {
 					.LeftEpoch   = comparison.Left.Identity.Epoch,
 					.RightEpoch  = comparison.Right.Identity.Epoch,
 				});
+			refresh_agent_private_context_choices();
 			Window->agent_panel()->disclose_scope(
 				QStringLiteral(
 					"The selected agent receives the exact accepted PR/diff identities, "
-					"durable defects, and current semantic selection. This surface includes "
-					"no private note or draft. It runs in a disposable exact-head workspace "
+					"durable defects, current semantic selection, and only private notes or "
+					"the current draft checked for this invocation. It runs in a disposable exact-head workspace "
 					"outside the Git cache.%1")
 					.arg(ExistingCheckout.has_value()
 							 ? QStringLiteral(
@@ -2955,7 +3050,7 @@ namespace bpr::app {
 			const auto& state = EpochHost->state();
 			if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()
-				|| NextAgentSession == 0U) {
+				|| ReviewLedgerHost == nullptr) {
 				Window->agent_panel()->refuse("no exact accepted review context");
 				return;
 			}
@@ -2971,27 +3066,26 @@ namespace bpr::app {
 				}
 				privateObservation = std::move(*observed);
 			}
-			const auto session = core::agent_session{
-				.Id      = core::agent_session_id{ NextAgentSession++ },
-				.Profile = start.Profile,
-				.Binding = {
-					.Host        = authority.Host,
-					.Repository  = authority.Repository,
-					.PullRequest = authority.PullRequest,
-					.BaseOid     = revision.Base,
-					.HeadOid     = revision.Head,
-					.LeftEpoch   = comparison.Left.Identity.Epoch,
-					.RightEpoch  = comparison.Right.Identity.Epoch,
-				},
+			const auto binding = core::agent_revision_binding{
+				.Host        = authority.Host,
+				.Repository  = authority.Repository,
+				.PullRequest = authority.PullRequest,
+				.BaseOid     = revision.Base,
+				.HeadOid     = revision.Head,
+				.LeftEpoch   = comparison.Left.Identity.Epoch,
+				.RightEpoch  = comparison.Right.Identity.Epoch,
 			};
 			auto observation = application::agent_context_observation{
 				.ApplicationSession = state.ApplicationSession,
-				.Session            = session,
+				.Binding            = binding,
 				.PullRequestUrl     = "https://" + AgentReview->Hostname + "/"
 					+ AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name
 					+ "/pull/" + std::to_string(AgentReview->Number.value()),
-				.Private = std::move(privateObservation),
+				.Private       = std::move(privateObservation),
+				.IncludedNotes = start.IncludedNotes,
+				.IncludedDraft = start.IncludedDraft,
 			};
+			observation.CurrentDraft = current_agent_draft_observation();
 			if (SelectedDiffPublication.has_value()) {
 				const auto& selected = *SelectedDiffPublication;
 				const auto  lock     = std::scoped_lock{ ReviewLedgerStateMutex };
@@ -3779,6 +3873,7 @@ namespace bpr::app {
 		std::vector<application::durable_defect_record>              DurableDefects;
 		std::unique_ptr<application::review_mutation_coordinator>    ReviewMutationCoordinator;
 		std::optional<core::review_comment_draft>                    ReviewDraft;
+		std::uint64_t                                                ReviewDraftRevision = 0U;
 		std::vector<application::review_comment_projection>          ReviewProjection;
 		application::reconciliation_result                           ReviewReconciliation;
 		std::uint64_t                                                NextReviewDraft = 1U;
@@ -3837,7 +3932,6 @@ namespace bpr::app {
 		};
 		std::optional<agent_review_facts>                AgentReview;
 		std::optional<application::checkout_observation> ExistingCheckout;
-		std::uint64_t                                    NextAgentSession               = 1U;
 		bool                                             Closing                        = false;
 		bool                                             OtherShutdownBegun             = false;
 		bool                                             ShutdownPollScheduled          = false;
@@ -7822,26 +7916,38 @@ namespace bpr::app {
 
 	auto detail::github_application_fixture_access::seed_agent_private_context_canary(
 		github_application&    aApplication,
+		const std::string_view aSelectedNote,
 		const std::string_view aUnselectedNote) -> bool
 	{
 		auto* const implementation = aApplication.Implementation.get();
 		if (
 			implementation == nullptr || implementation->ReviewLedgerHost == nullptr
-			|| implementation->EpochHost == nullptr || aUnselectedNote.empty()) {
+			|| implementation->EpochHost == nullptr || aSelectedNote.empty()
+			|| aUnselectedNote.empty()) {
 			return false;
 		}
 		const auto& state = implementation->EpochHost->state();
 		if (!state.AcceptedRevision.has_value()) {
 			return false;
 		}
-		const auto note = application::local_note_record{
+		const auto selected = application::local_note_record{
+			.Id   = application::local_note_id{ 246U },
+			.Note = { .Text = std::string{ aSelectedNote } },
+		};
+		const auto unselected = application::local_note_record{
 			.Id   = application::local_note_id{ 247U },
 			.Note = { .Text = std::string{ aUnselectedNote } },
 		};
-		return implementation->ReviewLedgerHost->persist(note).has_value()
+		const auto persisted
+			= implementation->ReviewLedgerHost->persist(selected).has_value()
+			&& implementation->ReviewLedgerHost->persist(unselected).has_value()
 			&& implementation->ReviewLedgerHost
 				   ->persist_last_reviewed_head(state.AcceptedRevision->Head)
 				   .has_value();
+		if (persisted) {
+			implementation->refresh_agent_private_context_choices();
+		}
+		return persisted;
 	}
 
 	auto detail::github_application_fixture_access::agent_invocation_context(
@@ -7854,8 +7960,7 @@ namespace bpr::app {
 			|| implementation->ReviewLedgerHost == nullptr
 			|| implementation->Window == nullptr
 			|| !implementation->AgentReview.has_value()
-			|| !implementation->SelectedDiffPublication.has_value()
-			|| implementation->NextAgentSession == 0U) {
+			|| !implementation->SelectedDiffPublication.has_value()) {
 			return std::nullopt;
 		}
 		const auto& state    = implementation->EpochHost->state();
@@ -7874,9 +7979,12 @@ namespace bpr::app {
 		}
 		const auto privateState
 			= implementation->ReviewLedgerHost->private_observation();
+		const auto sessionCatalog
+			= implementation->ReviewLedgerHost->session_catalog();
 		auto* const workbench = implementation->Window->comparison_surface();
 		if (
 			!receipt.has_value() || !privateState.has_value()
+			|| !sessionCatalog.has_value() || !sessionCatalog->Next.has_value()
 			|| receipt->File != selected.Request.File.File || workbench == nullptr
 			|| !workbench->selection().has_value()
 			|| workbench->current_result() == nullptr
@@ -7891,7 +7999,7 @@ namespace bpr::app {
 		return detail::agent_invocation_context_evidence{
 			.ApplicationSession = state.ApplicationSession,
 			.Authority          = authority,
-			.NextSession        = core::agent_session_id{ implementation->NextAgentSession },
+			.NextSession        = *sessionCatalog->Next,
 			.Binding            = {
 				.Host        = authority.Host,
 				.Repository  = authority.Repository,
@@ -7917,6 +8025,25 @@ namespace bpr::app {
 				.Segments   = workbench->current_result()->Alignment.Segments,
 				.Groups     = workbench->current_result()->Alignment.Groups,
 			},
+			.CurrentDraft = implementation->current_agent_draft_observation(),
+		};
+	}
+
+	auto detail::github_application_fixture_access::agent_session_catalog(
+		github_application& aApplication)
+		-> std::optional<detail::agent_session_catalog_evidence>
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->ReviewLedgerHost == nullptr) {
+			return std::nullopt;
+		}
+		auto catalog = implementation->ReviewLedgerHost->session_catalog();
+		if (!catalog.has_value()) {
+			return std::nullopt;
+		}
+		return detail::agent_session_catalog_evidence{
+			.Catalog    = std::move(*catalog),
+			.Statistics = implementation->ReviewLedgerHost->statistics(),
 		};
 	}
 

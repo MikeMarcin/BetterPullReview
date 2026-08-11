@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <barrier>
 #include <cstdint>
 #include <cstdlib>
 #include <expected>
@@ -28,6 +29,17 @@
 #include <optional>
 #include <string>
 #include <string_view>
+
+#if defined(BPR_SQLITE_TESTING)
+namespace bpr::adapters::sqlite::detail {
+	using review_ledger_preflight_test_hook
+		= void (*)(const std::filesystem::path&);
+	void set_review_ledger_preflight_boundary_hook_for_testing(
+		review_ledger_preflight_test_hook aHook) noexcept;
+	void set_review_ledger_preflight_cleanup_hook_for_testing(
+		review_ledger_preflight_test_hook aHook) noexcept;
+} // namespace bpr::adapters::sqlite::detail
+#endif
 
 namespace {
 	using namespace bpr;
@@ -175,6 +187,27 @@ namespace {
 		};
 	}
 
+	[[nodiscard]] auto agent_session_admission(const std::uint8_t aSeed = 1U)
+		-> application::agent_session_admission
+	{
+		auto base = std::array<std::uint8_t, 32>{ };
+		auto head = std::array<std::uint8_t, 32>{ };
+		base.fill(aSeed);
+		head.fill(static_cast<std::uint8_t>(aSeed + 1U));
+		return {
+			.Profile = core::agent_profile_id{ static_cast<std::uint64_t>(aSeed) + 10U },
+			.Binding = {
+				.Host        = core::git_host_id{ static_cast<std::uint64_t>(aSeed) + 20U },
+				.Repository  = core::repository_id{ static_cast<std::uint64_t>(aSeed) + 30U },
+				.PullRequest = core::pull_request_id{ static_cast<std::uint64_t>(aSeed) + 40U },
+				.BaseOid     = core::git_commit_oid{ core::git_hash_algorithm::sha256, base },
+				.HeadOid     = core::git_commit_oid{ core::git_hash_algorithm::sha256, head },
+				.LeftEpoch   = core::epoch_ordinal{ static_cast<std::int64_t>(aSeed) + 50 },
+				.RightEpoch  = core::epoch_ordinal{ static_cast<std::int64_t>(aSeed) + 60 },
+			},
+		};
+	}
+
 	[[nodiscard]] auto head(
 		const char        aDigit,
 		const std::size_t aLength = 40U) -> core::git_commit_oid
@@ -238,6 +271,149 @@ namespace {
 			std::istreambuf_iterator<char>{ input },
 			std::istreambuf_iterator<char>{ },
 		};
+	}
+
+	struct file_image
+	{
+		bool        Exists{ false };
+		std::string Bytes;
+
+		auto operator<=>(const file_image&) const = default;
+	};
+
+	[[nodiscard]] auto capture_file(const std::filesystem::path& aPath)
+		-> file_image
+	{
+		auto       error  = std::error_code{ };
+		const auto exists = std::filesystem::exists(aPath, error);
+		expect(!error, "ledger-file existence is inspectable");
+		return {
+			.Exists = exists,
+			.Bytes  = exists ? read_binary(aPath) : std::string{ },
+		};
+	}
+
+	[[nodiscard]] auto capture_ledger_files(const std::filesystem::path& aPath)
+		-> std::array<file_image, 3U>
+	{
+		return {
+			capture_file(aPath),
+			capture_file(aPath.string() + "-wal"),
+			capture_file(aPath.string() + "-shm"),
+		};
+	}
+
+	enum class cleanup_hook_mode : std::uint8_t {
+		substitute,
+		nonempty,
+	};
+
+	struct cleanup_hook_state
+	{
+		cleanup_hook_mode     Mode{ cleanup_hook_mode::substitute };
+		std::filesystem::path Clone;
+		std::filesystem::path Held;
+		std::filesystem::path Sentinel;
+	};
+
+	inline std::optional<cleanup_hook_state> CleanupHookState;
+
+	struct boundary_hook_state
+	{
+		std::filesystem::path Target;
+		std::filesystem::path Original;
+		std::filesystem::path Substitute;
+	};
+
+	inline std::optional<boundary_hook_state> BoundaryHookState;
+
+	void rename_existing(
+		const std::filesystem::path& aSource,
+		const std::filesystem::path& aDestination)
+	{
+		auto error = std::error_code{ };
+		std::filesystem::rename(aSource, aDestination, error);
+		expect(!error, "the exact preflight namespace entry is replaced");
+	}
+
+	void replace_preflight_source(const std::filesystem::path& aPath)
+	{
+		expect(
+			BoundaryHookState.has_value() && aPath == BoundaryHookState->Target,
+			"the preflight boundary hook targets the captured ledger");
+		for (const auto suffix : { "", "-wal", "-shm" }) {
+			rename_existing(
+				BoundaryHookState->Target.string() + suffix,
+				BoundaryHookState->Original.string() + suffix);
+			rename_existing(
+				BoundaryHookState->Substitute.string() + suffix,
+				BoundaryHookState->Target.string() + suffix);
+		}
+	}
+
+	void exercise_cleanup_hook(const std::filesystem::path& aClone)
+	{
+		expect(CleanupHookState.has_value(), "the cleanup hook has exact state");
+		CleanupHookState->Clone = aClone;
+		if (CleanupHookState->Mode == cleanup_hook_mode::substitute) {
+			CleanupHookState->Held = aClone.string() + ".held";
+			auto error             = std::error_code{ };
+			std::filesystem::rename(aClone, CleanupHookState->Held, error);
+			expect(!error, "the exact preflight directory is retained by rename");
+			std::filesystem::create_directory(aClone, error);
+			expect(!error, "a same-path preflight substitute is created");
+			CleanupHookState->Sentinel = aClone / "substitute-sentinel";
+		} else {
+			CleanupHookState->Sentinel = aClone / "foreign-child";
+		}
+		auto sentinel = std::ofstream{ CleanupHookState->Sentinel, std::ios::binary };
+		sentinel << "must-survive";
+		expect(sentinel.good(), "the cleanup refusal sentinel is durable");
+	}
+
+	void copy_file_exactly(
+		const std::filesystem::path& aSource,
+		const std::filesystem::path& aDestination)
+	{
+		auto error = std::error_code{ };
+		std::filesystem::copy_file(
+			aSource,
+			aDestination,
+			std::filesystem::copy_options::overwrite_existing,
+			error);
+		expect(!error, "the retained-WAL fixture file is copied");
+	}
+
+	void create_retained_wal_fixture(
+		const std::filesystem::path& aPath,
+		const std::string_view       aMutation,
+		const bool                   aRetainShm)
+	{
+		const auto source
+			= aPath.parent_path() / (aPath.filename().string() + ".source");
+		auto opened = review_ledger_database::open(source, { });
+		expect(opened_ok(opened), "the retained-WAL source opens");
+		expect(
+			execute(opened->handle(), "PRAGMA wal_autocheckpoint = 0", { })
+					.has_value()
+				&& execute(opened->handle(), aMutation, { }).has_value(),
+			"the incompatible fact is committed only to retained WAL");
+		const auto wal = std::filesystem::path{ source.string() + "-wal" };
+		expect(
+			std::filesystem::exists(wal),
+			"the incompatible fixture retains a WAL sidecar");
+		copy_file_exactly(source, aPath);
+		copy_file_exactly(wal, aPath.string() + "-wal");
+		if (aRetainShm) {
+			const auto shm = std::filesystem::path{ source.string() + "-shm" };
+			expect(
+				std::filesystem::exists(shm),
+				"the retained-WAL source exposes shared memory");
+			copy_file_exactly(shm, aPath.string() + "-shm");
+		}
+		expect(
+			std::filesystem::exists(aPath.string() + "-shm") == aRetainShm,
+			"the copied retained-WAL fixture has the chosen SHM existence");
 	}
 
 	void create_prior_version_fixture(
@@ -393,10 +569,12 @@ namespace {
 				 std::string_view{ "local_note.comparison_id" },
 				 std::string_view{ "last_reviewed_head.head_oid" },
 				 std::string_view{ "local_defect.original_comparison" },
+				 std::string_view{ "agent_session.head_oid" },
+				 std::string_view{ "agent_session_sequence.last_session_id" },
 			 }) {
 			expect(
 				std::ranges::find(*columns, required) != columns->end(),
-				"the schema exposes every version-three private authority");
+				"the schema exposes every current private authority");
 		}
 	}
 
@@ -602,41 +780,15 @@ namespace {
 			.Read     = core::file_read_state::read,
 			.Accepted = true,
 		};
-		std::int64_t scope = 0;
-		{
-			auto opened = review_ledger_database::open(path, { });
-			expect(opened_ok(opened), "the current fixture opens");
-			const auto id = opened->scope_id(
-				scope_of("github.com", "octo", "app", 7));
-			expect(id.has_value(), "the fixture scope is created");
-			scope = *id;
-			expect(
-				opened->store_receipt(scope, receipt).has_value(),
-				"the version-two file receipt is seeded");
-			for (const auto& sql : {
-					 std::string{
-						 "INSERT INTO conversation_receipt(scope_id, conversation, "
-						 "seen_comment, seen_edit, accepted_comment, accepted_edit) "
-						 "VALUES("
-						 + std::to_string(scope) + ", 5, 6, 7, 8, 9)" },
-					 std::string{ "DROP TABLE local_note" },
-					 std::string{ "DROP TABLE last_reviewed_head" },
-					 std::string{ "DROP TABLE local_defect" },
-					 std::string{ "UPDATE ledger_meta SET schema_format = 2" },
-					 std::string{ "PRAGMA user_version = 2" },
-				 }) {
-				expect(
-					execute(opened->handle(), sql, { }).has_value(),
-					"the exact version-two fixture is assembled");
-			}
-		}
+		create_prior_version_fixture(path, 1112560196, receipt, 2);
+		constexpr std::int64_t scope = 1;
 
 		auto migrated = review_ledger_database::open(path, { });
-		expect(opened_ok(migrated), "the version-two ledger migrates to three");
+		expect(opened_ok(migrated), "the version-two ledger migrates to four");
 		const auto stored = migrated->load_receipt(scope, receipt.File);
 		expect(
 			stored.has_value() && stored->has_value() && **stored == receipt,
-			"the file receipt survives the two-to-three migration");
+			"the file receipt survives the two-to-three-to-four migration");
 		const auto conversations = scalar_integer(
 			migrated->handle(),
 			"SELECT COUNT(*) FROM conversation_receipt WHERE conversation = 5 "
@@ -652,6 +804,392 @@ namespace {
 					   *columns, std::string{ "local_defect.lifecycle" })
 					!= columns->end(),
 			"the migration adds the version-three private tables");
+	}
+
+	void test_a_canonical_version_three_database_migrates_without_dropping_private_state()
+	{
+		const scratch_directory directory;
+		const auto              path    = directory.file("l.db");
+		const auto              receipt = core::file_receipt{
+			.File     = opaque<core::file_identity>(41U),
+			.Material = opaque<core::file_material_id>(42U),
+			.Read     = core::file_read_state::seen,
+			.Excluded = true,
+		};
+		const auto storedNote = note(43U, 44U, "version-three note");
+		auto       headBytes  = std::array<std::uint8_t, 32>{ };
+		headBytes.fill(45U);
+		const auto storedHead = core::git_commit_oid{
+			core::git_hash_algorithm::sha256, headBytes
+		};
+		std::int64_t scope = 0;
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the current migration fixture opens");
+			const auto id = opened->scope_id(
+				scope_of("github.com", "octo", "app", 7));
+			expect(id.has_value(), "the version-three migration scope resolves");
+			scope = *id;
+			expect(
+				opened->store_receipt(scope, receipt).has_value()
+					&& opened->store_note(scope, storedNote).has_value()
+					&& opened->store_last_reviewed_head(scope, storedHead).has_value(),
+				"version-three records are seeded before migration");
+			for (const auto sql : {
+					 std::string_view{ "DROP TABLE agent_session" },
+					 std::string_view{ "DROP TABLE agent_session_sequence" },
+					 std::string_view{ "UPDATE ledger_meta SET schema_format = 3" },
+					 std::string_view{ "PRAGMA user_version = 3" },
+				 }) {
+				expect(
+					execute(opened->handle(), sql, { }).has_value(),
+					"the exact canonical version-three fixture is assembled");
+			}
+		}
+
+		auto migrated = review_ledger_database::open(path, { });
+		expect(opened_ok(migrated), "the canonical version-three ledger migrates");
+		const auto restoredReceipt = migrated->load_receipt(scope, receipt.File);
+		const auto restoredPrivate = migrated->load_private(scope);
+		const auto sessions        = migrated->load_agent_session_catalog(scope);
+		expect(
+			restoredReceipt && restoredReceipt->has_value()
+				&& **restoredReceipt == receipt && restoredPrivate
+				&& restoredPrivate->Notes == std::vector{ storedNote }
+				&& restoredPrivate->LastReviewedHead == storedHead,
+			"every prior receipt, note, and reviewed head survives v3-to-v4");
+		expect(
+			sessions && !sessions->Latest.has_value()
+				&& sessions->Next == core::agent_session_id{ 1U },
+			"migration creates an empty session catalog without allocating an id");
+	}
+
+	void test_wrong_application_version_three_is_refused_byte_for_byte()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("l.db");
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the wrong-application fixture opens");
+			for (const auto sql : {
+					 std::string_view{ "DROP TABLE agent_session" },
+					 std::string_view{ "DROP TABLE agent_session_sequence" },
+					 std::string_view{ "UPDATE ledger_meta SET schema_format = 3" },
+					 std::string_view{ "PRAGMA user_version = 3" },
+					 std::string_view{ "PRAGMA application_id = 305419896" },
+				 }) {
+				expect(
+					execute(opened->handle(), sql, { }).has_value(),
+					"the wrong-application canonical-v3 fixture is assembled");
+			}
+		}
+		const auto before  = read_binary(path);
+		const auto refused = review_ledger_database::open(path, { });
+		expect(
+			!refused
+				&& refused.error() == catalog_database_failure::schema_mismatch,
+			"a wrong-application canonical-v3 file is refused");
+		expect(
+			read_binary(path) == before,
+			"wrong-application v3 refusal preserves every database byte");
+	}
+
+	void test_incompatible_retained_wal_is_refused_without_touching_any_file()
+	{
+		struct fixture_case
+		{
+			std::string_view Name;
+			std::string_view Mutation;
+			bool             RetainShm;
+		};
+		constexpr auto fixtures = std::array{
+			fixture_case{
+				"wrong-application", "PRAGMA application_id = 305419896", false },
+			fixture_case{ "future", "PRAGMA user_version = 99", true },
+			fixture_case{ "tampered", "DROP TABLE local_defect", true },
+		};
+
+		const scratch_directory directory;
+		for (const auto& fixture : fixtures) {
+			const auto path = directory.file(std::string{ fixture.Name } + ".db");
+			create_retained_wal_fixture(
+				path, fixture.Mutation, fixture.RetainShm);
+			const auto before  = capture_ledger_files(path);
+			const auto refused = review_ledger_database::open(path, { });
+			expect(
+				!refused
+					&& refused.error()
+						== catalog_database_failure::schema_mismatch,
+				"each incompatible retained-WAL database is refused");
+			expect(
+				capture_ledger_files(path) == before,
+				"refusal preserves main, WAL, and SHM existence and bytes");
+		}
+	}
+
+	void test_preflight_cleanup_preserves_substitutes_and_nonempty_directories()
+	{
+		constexpr std::string_view privateCanary
+			= "BPR_PREFLIGHT_PRIVATE_CLONE_0250";
+		for (const auto mode : {
+				 cleanup_hook_mode::substitute,
+				 cleanup_hook_mode::nonempty,
+			 }) {
+			const scratch_directory directory;
+			const auto              path = directory.file("l.db");
+			{
+				auto opened = review_ledger_database::open(path, { });
+				expect(opened_ok(opened), "the cleanup fixture ledger opens");
+				const auto scope = opened->scope_id(
+					scope_of("github.com", "octo", "app", 7));
+				expect(
+					scope
+						&& opened->store_note(
+							*scope, note(250U, 251U, privateCanary)),
+					"the private cleanup canary is stored");
+			}
+			const auto sourceImage = capture_ledger_files(path);
+			expect(
+				std::ranges::any_of(sourceImage, [privateCanary](const auto& aFile) {
+					return aFile.Bytes.contains(privateCanary);
+				}),
+				"the source fixture physically contains the private clone canary");
+
+			CleanupHookState = cleanup_hook_state{ .Mode = mode };
+			set_review_ledger_preflight_cleanup_hook_for_testing(
+				exercise_cleanup_hook);
+			const auto refused = review_ledger_database::open(path, { });
+			expect(
+				!refused && refused.error() == catalog_database_failure::unavailable,
+				"unsafe or incomplete preflight cleanup is an explicit refusal");
+			expect(
+				std::filesystem::exists(CleanupHookState->Sentinel)
+					&& read_binary(CleanupHookState->Sentinel) == "must-survive",
+				"cleanup preserves the substitute or unknown child exactly");
+
+			const auto retained = mode == cleanup_hook_mode::substitute
+				? CleanupHookState->Held
+				: CleanupHookState->Clone;
+			for (const auto suffix : { "ledger.db", "ledger.db-wal" }) {
+				const auto image = capture_file(retained / suffix);
+				expect(
+					!image.Exists || !image.Bytes.contains(privateCanary),
+					"a failed cleanup leaves no readable private-ledger clone");
+			}
+			CleanupHookState.reset();
+		}
+	}
+
+	void test_preflight_revalidates_the_original_namespace_before_open()
+	{
+		struct fixture_case
+		{
+			std::string_view Name;
+			std::string_view Mutation;
+		};
+		constexpr auto fixtures = std::array{
+			fixture_case{ "wrong-application", "PRAGMA application_id = 305419896" },
+			fixture_case{ "future", "PRAGMA user_version = 99" },
+			fixture_case{ "tampered", "DROP TABLE local_defect" },
+		};
+
+		for (const auto& fixture : fixtures) {
+			const scratch_directory directory;
+			const auto              target     = directory.file("target.db");
+			const auto              original   = directory.file("original.db");
+			const auto              substitute = directory.file("substitute.db");
+			create_retained_wal_fixture(
+				target, "UPDATE ledger_meta SET schema_format = 4", true);
+			create_retained_wal_fixture(substitute, fixture.Mutation, true);
+			const auto originalBefore   = capture_ledger_files(target);
+			const auto substituteBefore = capture_ledger_files(substitute);
+			expect(
+				originalBefore != substituteBefore,
+				"the accepted and incompatible namespace images are distinguishable");
+
+			BoundaryHookState = boundary_hook_state{
+				.Target     = target,
+				.Original   = original,
+				.Substitute = substitute,
+			};
+			set_review_ledger_preflight_boundary_hook_for_testing(
+				replace_preflight_source);
+			const auto refused = review_ledger_database::open(target, { });
+			expect(
+				!refused && refused.error() == catalog_database_failure::unavailable,
+				"namespace replacement refuses before the original-path SQLite open");
+			expect(
+				capture_ledger_files(original) == originalBefore,
+				"the displaced accepted ledger remains exact");
+			expect(
+				capture_ledger_files(target) == substituteBefore,
+				"the wrong-app, future, or tampered substitute remains exact");
+			BoundaryHookState.reset();
+		}
+	}
+
+	void test_agent_session_ids_survive_restart_and_bounded_retention()
+	{
+		const scratch_directory directory;
+		const auto              path      = directory.file("l.db");
+		const auto              admission = agent_session_admission();
+		std::int64_t            scope     = 0;
+		{
+			auto opened = review_ledger_database::open(path, { });
+			expect(opened_ok(opened), "the session catalog opens");
+			const auto id = opened->scope_id(
+				scope_of("github.com", "octo", "app", 7));
+			expect(id.has_value(), "the exact session scope resolves");
+			scope            = *id;
+			const auto empty = opened->load_agent_session_catalog(scope);
+			expect(
+				empty && !empty->Latest.has_value()
+					&& empty->Next == core::agent_session_id{ 1U },
+				"an empty catalog reports id one without a sequence write");
+			for (auto expected = std::uint64_t{ 1U }; expected <= 130U; ++expected) {
+				const auto admitted = opened->admit_agent_session(scope, admission);
+				expect(
+					admitted && admitted->Id == core::agent_session_id{ expected }
+						&& admitted->Profile == admission.Profile
+						&& admitted->Binding == admission.Binding,
+					"each admission receives the exact next immutable identity");
+			}
+			const auto count = scalar_integer(
+				opened->handle(),
+				"SELECT COUNT(*) FROM agent_session WHERE scope_id = "
+					+ std::to_string(scope));
+			const auto oldest = scalar_integer(
+				opened->handle(),
+				"SELECT MIN(session_id) FROM agent_session WHERE scope_id = "
+					+ std::to_string(scope));
+			expect(
+				count && *count == static_cast<std::int64_t>(application::maximum_retained_agent_sessions)
+					&& oldest && *oldest == 3,
+				"retention keeps exactly the newest 128 immutable metadata rows");
+		}
+
+		const auto filesBeforeReopen = capture_ledger_files(path);
+		auto       reopened          = review_ledger_database::open(path, { });
+		expect(opened_ok(reopened), "the bounded session catalog reopens");
+		const auto same = reopened->scope_id(
+			scope_of("github.com", "octo", "app", 7));
+		const auto restored = same
+			? reopened->load_agent_session_catalog(*same)
+			: std::expected<application::agent_session_catalog_state, catalog_database_failure>{
+				  std::unexpected(catalog_database_failure::unavailable)
+			  };
+		expect(
+			same && *same == scope && restored
+				&& restored->Latest.has_value()
+				&& restored->Latest->Id == core::agent_session_id{ 130U }
+				&& restored->Latest->Binding == admission.Binding
+				&& restored->Next == core::agent_session_id{ 131U },
+			"reopen restores the exact latest record and non-reused next id");
+		reopened                  = std::unexpected(catalog_database_failure::unavailable);
+		const auto filesAfterLoad = capture_ledger_files(path);
+		if (filesAfterLoad != filesBeforeReopen) {
+			for (auto index = std::size_t{ 0 }; index != filesAfterLoad.size(); ++index) {
+				std::cerr << "  reopen file " << index << ": before="
+						  << filesBeforeReopen[index].Exists << '/'
+						  << filesBeforeReopen[index].Bytes.size() << " after="
+						  << filesAfterLoad[index].Exists << '/'
+						  << filesAfterLoad[index].Bytes.size() << '\n';
+			}
+		}
+		expect(
+			filesAfterLoad == filesBeforeReopen,
+			"reopening and loading preserve physical main, WAL, and SHM files");
+		reopened = review_ledger_database::open(path, { });
+		expect(opened_ok(reopened), "the catalog reopens for later admissions");
+		const auto next = reopened->admit_agent_session(scope, admission);
+		expect(
+			next && next->Id == core::agent_session_id{ 131U },
+			"the first post-restart admission cannot reuse a pruned identity");
+
+		const auto isolated = reopened->scope_id(
+			scope_of("ghe.example.com", "octo", "app", 7));
+		const auto isolatedCatalog = isolated
+			? reopened->load_agent_session_catalog(*isolated)
+			: std::expected<application::agent_session_catalog_state, catalog_database_failure>{
+				  std::unexpected(catalog_database_failure::unavailable)
+			  };
+		expect(
+			isolated && isolatedCatalog && !isolatedCatalog->Latest.has_value()
+				&& isolatedCatalog->Next == core::agent_session_id{ 1U },
+			"a different exact review scope cannot observe another session sequence");
+
+		expect(
+			execute(
+				reopened->handle(),
+				"UPDATE agent_session_sequence SET last_session_id = 9223372036854775807 "
+				"WHERE scope_id = "
+					+ std::to_string(scope),
+				{ })
+				.has_value(),
+			"the exhaustion fixture advances only the high-water sequence");
+		const auto exhausted = reopened->admit_agent_session(scope, admission);
+		expect(
+			!exhausted
+				&& exhausted.error() == catalog_database_failure::quota_exceeded,
+			"INT64_MAX refuses before inserting or reusing a session id");
+	}
+
+	void test_two_open_stores_allocate_unique_monotonic_session_ids()
+	{
+		const scratch_directory directory;
+		const auto              path      = directory.file("l.db");
+		const auto              admission = agent_session_admission();
+		auto                    first     = review_ledger_database::open(path, { });
+		expect(opened_ok(first), "the first session allocator opens");
+		const auto scope = first->scope_id(
+			scope_of("github.com", "octo", "app", 7));
+		expect(scope.has_value(), "the shared allocation scope resolves");
+
+		auto second = review_ledger_database::open(path, { });
+		expect(opened_ok(second), "a second simultaneous session allocator opens");
+		const auto sameScope = second->scope_id(
+			scope_of("github.com", "octo", "app", 7));
+		expect(
+			sameScope && *sameScope == *scope,
+			"both allocators resolve the same durable review scope");
+
+		auto firstAdmission
+			= std::expected<core::agent_session, catalog_database_failure>{
+				  std::unexpected(catalog_database_failure::unavailable)
+			  };
+		auto secondAdmission
+			= std::expected<core::agent_session, catalog_database_failure>{
+				  std::unexpected(catalog_database_failure::unavailable)
+			  };
+		std::barrier start{ 3 };
+		std::thread  firstThread{ [&] {
+			start.arrive_and_wait();
+			firstAdmission = first->admit_agent_session(*scope, admission);
+		} };
+		std::thread secondThread{ [&] {
+			start.arrive_and_wait();
+			secondAdmission = second->admit_agent_session(*scope, admission);
+		} };
+		start.arrive_and_wait();
+		firstThread.join();
+		secondThread.join();
+
+		expect(
+			firstAdmission && secondAdmission,
+			"both simultaneous admissions commit through the lock path");
+		auto allocated = std::array{
+			firstAdmission->Id.value(), secondAdmission->Id.value()
+		};
+		std::ranges::sort(allocated);
+		expect(
+			allocated == std::array<std::uint64_t, 2U>{ 1U, 2U },
+			"simultaneous allocators receive unique monotonic ids");
+		const auto catalog = first->load_agent_session_catalog(*scope);
+		expect(
+			catalog && catalog->Latest.has_value()
+				&& catalog->Latest->Id == core::agent_session_id{ 2U }
+				&& catalog->Next == core::agent_session_id{ 3U },
+			"the shared sequence advances once per simultaneous admission");
 	}
 
 	void test_a_newer_database_fails_closed()
@@ -746,11 +1284,15 @@ namespace {
 				"the malformed fixture recreates the same table name with an extra column");
 		}
 
-		const auto reopened = review_ledger_database::open(path, { });
+		const auto bytesBefore = read_binary(path);
+		const auto reopened    = review_ledger_database::open(path, { });
 		expect(
 			!reopened
 				&& reopened.error() == catalog_database_failure::schema_mismatch,
 			"a same-name table with a noncanonical column is refused at open");
+		expect(
+			read_binary(path) == bytesBefore,
+			"tampered current-schema refusal preserves every database byte");
 	}
 
 	void test_a_stamped_current_database_missing_the_defect_unique_fails_closed()
@@ -1734,6 +2276,13 @@ auto main() -> int
 	test_a_version_one_database_migrates_forward();
 	test_a_wrong_application_prior_version_is_refused_without_mutation();
 	test_a_version_two_database_migrates_without_dropping_receipts();
+	test_a_canonical_version_three_database_migrates_without_dropping_private_state();
+	test_wrong_application_version_three_is_refused_byte_for_byte();
+	test_incompatible_retained_wal_is_refused_without_touching_any_file();
+	test_preflight_revalidates_the_original_namespace_before_open();
+	test_preflight_cleanup_preserves_substitutes_and_nonempty_directories();
+	test_agent_session_ids_survive_restart_and_bounded_retention();
+	test_two_open_stores_allocate_unique_monotonic_session_ids();
 	test_a_newer_database_fails_closed();
 	test_a_stamped_current_database_missing_a_required_table_fails_closed();
 	test_a_stamped_current_database_with_a_malformed_column_fails_closed();

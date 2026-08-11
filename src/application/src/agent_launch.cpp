@@ -915,25 +915,25 @@ namespace bpr::application {
 	} // namespace
 
 	auto build_agent_context_supplement(
-		const agent_context_observation& aObservation)
+		const agent_context_observation& aObservation,
+		const core::agent_session&       aSession)
 		-> std::expected<core::agent_context_supplement, agent_context_failure>
 	{
 		if (
-			aObservation.Files.size() > core::maximum_supplement_paths
+			!valid(aSession) || aSession.Binding != aObservation.Binding
+			|| aObservation.Files.size() > core::maximum_supplement_paths
 			|| aObservation.Private.Notes.size() > maximum_private_notes
 			|| aObservation.Private.Defects.size() > maximum_private_defects
-			|| aObservation.IncludedNotes.size() > core::maximum_selected_notes
-			|| aObservation.IncludedDrafts.size() > core::maximum_selected_drafts) {
+			|| aObservation.IncludedNotes.size() > core::maximum_selected_notes) {
 			return std::unexpected(agent_context_failure::invalid_observation);
 		}
 		auto request = core::agent_supplement_request{
 			.ApplicationSession = aObservation.ApplicationSession,
-			.Session            = aObservation.Session,
+			.Session            = aSession,
 			.PullRequestUrl     = aObservation.PullRequestUrl,
 			.PreviousUpload     = aObservation.PreviousUpload,
 			.LastReviewedHead   = aObservation.Private.LastReviewedHead,
 			.Selection          = aObservation.Selection,
-			.SelectedDrafts     = aObservation.IncludedDrafts,
 		};
 		request.Files.reserve(aObservation.Files.size());
 		for (const auto& input : aObservation.Files) {
@@ -991,6 +991,28 @@ namespace bpr::application {
 					? std::optional{ found->Attachment->Comparison }
 					: std::nullopt,
 				.Text       = found->Note.Text,
+			});
+		}
+
+		if (aObservation.IncludedDraft.has_value()) {
+			if (!aObservation.CurrentDraft.has_value()) {
+				return std::unexpected(agent_context_failure::selected_draft_missing);
+			}
+			const auto& current = *aObservation.CurrentDraft;
+			if (current.Choice != *aObservation.IncludedDraft) {
+				return std::unexpected(agent_context_failure::selected_draft_stale);
+			}
+			if (
+				current.Choice.Revision == 0U
+				|| current.Choice.Id != current.Draft.Id
+				|| current.Draft.State != core::review_draft_state::drafting
+				|| current.Draft.Body.empty()
+				|| current.Draft.Body.size() > core::maximum_draft_bytes) {
+				return std::unexpected(agent_context_failure::selected_draft_invalid);
+			}
+			request.SelectedDrafts.push_back({
+				.Anchor = current.Draft.Anchor,
+				.Text   = current.Draft.Body,
 			});
 		}
 

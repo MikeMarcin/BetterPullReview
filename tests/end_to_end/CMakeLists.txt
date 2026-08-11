@@ -282,28 +282,46 @@ foreach(
         staleness
         cleanup-retry
 )
-    if(course STREQUAL "positive")
-        set(test_name application_agent_invocation_composition_contract)
-        set(pass_marker "agent-invocation-composition:pass")
-    else()
+	if(course STREQUAL "positive")
+		set(test_name application_agent_invocation_composition_contract)
+	else()
         string(REPLACE "-" "_" course_name "${course}")
         set(test_name "application_agent_invocation_${course_name}_contract")
         set(pass_marker "agent-invocation-${course}:pass")
     endif()
-    bpr_add_network_isolated_test(
-        NAME "${test_name}"
-        COMMAND
-            test_better_pull_review_agent_invocation_composition_public_path
-            "${course}"
-            $<TARGET_FILE:test_better_pull_review_agent_canary>
-    )
+	if(course STREQUAL "positive")
+		bpr_add_network_isolated_test(
+			NAME "${test_name}"
+			COMMAND
+				"${CMAKE_COMMAND}"
+				"-DBPR_APPLICATION=$<TARGET_FILE:test_better_pull_review_agent_invocation_composition_public_path>"
+				"-DBPR_APPLICATION_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/agent_invocation_composition_public_path.cpp"
+				"-DBPR_CANARY=$<TARGET_FILE:test_better_pull_review_agent_canary>"
+				"-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/agent-invocation-composition-contract"
+				-P
+				"${CMAKE_CURRENT_SOURCE_DIR}/application_agent_invocation_composition_contract.cmake"
+		)
+	else()
+		bpr_add_network_isolated_test(
+			NAME "${test_name}"
+			COMMAND
+				test_better_pull_review_agent_invocation_composition_public_path
+				"${course}"
+				$<TARGET_FILE:test_better_pull_review_agent_canary>
+		)
+	endif()
     set_tests_properties(
         "${test_name}"
         PROPERTIES
             ENVIRONMENT "${bpr_public_path_fixture_environment};GITHUB_TOKEN=must-not-cross-agent-boundary"
-            PASS_REGULAR_EXPRESSION "${pass_marker}"
             TIMEOUT 90
     )
+	if(NOT course STREQUAL "positive")
+		set_tests_properties(
+			"${test_name}"
+			PROPERTIES PASS_REGULAR_EXPRESSION "${pass_marker}"
+		)
+	endif()
 endforeach()
 
 bpr_add_network_isolated_test(

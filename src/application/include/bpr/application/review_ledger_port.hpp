@@ -50,8 +50,9 @@ namespace bpr::application {
 	/// allowed to turn a single review into an unbounded allocation. The values
 	/// are deliberately larger than the agent supplement limits: persistence is
 	/// the authority, while a later invocation selects a smaller explicit subset.
-	inline constexpr std::size_t maximum_private_notes   = 4'096U;
-	inline constexpr std::size_t maximum_private_defects = 4'096U;
+	inline constexpr std::size_t maximum_private_notes           = 4'096U;
+	inline constexpr std::size_t maximum_private_defects         = 4'096U;
+	inline constexpr std::size_t maximum_retained_agent_sessions = 128U;
 
 	using local_note_id = core::strong_id<struct local_note_id_tag>;
 
@@ -104,11 +105,54 @@ namespace bpr::application {
 		auto operator<=>(const private_ledger_observation&) const = default;
 	};
 
+	/// \brief The immutable metadata required to admit one agent session.
+	struct agent_session_admission
+	{
+		core::agent_profile_id       Profile;
+		core::agent_revision_binding Binding;
+
+		auto operator<=>(const agent_session_admission&) const = default;
+	};
+
+	/// \brief The latest retained session and the next durable identity.
+	///
+	/// \details `Next` is absent only when the monotonic per-review sequence is
+	/// exhausted. Loading this value never creates or advances that sequence.
+	struct agent_session_catalog_state
+	{
+		std::optional<core::agent_session>    Latest;
+		std::optional<core::agent_session_id> Next;
+
+		auto operator<=>(const agent_session_catalog_state&) const = default;
+	};
+
 	/// \brief Reports whether one note can enter the durable authority.
 	[[nodiscard]] auto valid(const local_note_record& aNote) noexcept -> bool;
 
 	/// \brief Reports whether one defect can enter the durable authority.
 	[[nodiscard]] auto valid(const durable_defect_record& aDefect) noexcept -> bool;
+
+	/// \brief Reports whether one metadata-only session admission is valid.
+	[[nodiscard]] auto valid(const agent_session_admission& aAdmission) noexcept
+		-> bool;
+
+	/// \brief Reports whether one durable metadata-only session is valid.
+	[[nodiscard]] auto valid(const core::agent_session& aSession) noexcept -> bool;
+
+	/// \brief Narrow durable agent-session catalog used by the invocation host.
+	class agent_session_catalog_port
+	{
+	public:
+		virtual ~agent_session_catalog_port() = default;
+
+		/// \brief Allocates and commits one never-reused session identity.
+		[[nodiscard]] virtual auto admit(const agent_session_admission& aAdmission)
+			-> std::expected<core::agent_session, ledger_store_failure> = 0;
+
+		/// \brief Loads the latest retained session and next identity without writing.
+		[[nodiscard]] virtual auto session_catalog()
+			-> std::expected<agent_session_catalog_state, ledger_store_failure> = 0;
+	};
 
 	/// \brief The durable ledger, as the host sees it.
 	///
@@ -164,6 +208,15 @@ namespace bpr::application {
 		/// \brief Loads the bounded private records for this store's exact scope.
 		[[nodiscard]] virtual auto load_private()
 			-> std::expected<private_ledger_observation, ledger_store_failure> = 0;
+
+		/// \brief Atomically allocates and stores immutable agent-session metadata.
+		[[nodiscard]] virtual auto admit_agent_session(
+			const agent_session_admission& aAdmission)
+			-> std::expected<core::agent_session, ledger_store_failure> = 0;
+
+		/// \brief Loads retained session metadata without creating a sequence row.
+		[[nodiscard]] virtual auto load_agent_session_catalog()
+			-> std::expected<agent_session_catalog_state, ledger_store_failure> = 0;
 	};
 
 	/// \brief Reports one accepted receipt to whatever presents it.

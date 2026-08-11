@@ -120,6 +120,26 @@ namespace bpr::application {
 				   core::defect_anchor_availability::thread_deleted);
 	}
 
+	auto valid(const agent_session_admission& aAdmission) noexcept -> bool
+	{
+		const auto& binding = aAdmission.Binding;
+		return durable_integer(aAdmission.Profile.value())
+			&& durable_integer(binding.Host.value())
+			&& durable_integer(binding.Repository.value())
+			&& durable_integer(binding.PullRequest.value())
+			&& binding.BaseOid.valid() && binding.HeadOid.valid()
+			&& core::valid(binding.LeftEpoch) && core::valid(binding.RightEpoch);
+	}
+
+	auto valid(const core::agent_session& aSession) noexcept -> bool
+	{
+		return durable_integer(aSession.Id.value())
+			&& valid(agent_session_admission{
+				.Profile = aSession.Profile,
+				.Binding = aSession.Binding,
+			});
+	}
+
 	review_ledger_application_host::review_ledger_application_host(
 		review_ledger_store_port& aStore,
 		receipt_projection_port&  aProjection) noexcept
@@ -371,6 +391,35 @@ namespace bpr::application {
 		auto loaded = Store->load_private();
 		if (!loaded) {
 			++Statistics.PrivateFailures;
+		}
+		return loaded;
+	}
+
+	auto review_ledger_application_host::admit(
+		const agent_session_admission& aAdmission)
+		-> std::expected<core::agent_session, ledger_store_failure>
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		if (!valid(aAdmission)) {
+			++Statistics.SessionFailures;
+			return std::unexpected(ledger_store_failure::invalid_record);
+		}
+		++Statistics.SessionAdmissions;
+		auto admitted = Store->admit_agent_session(aAdmission);
+		if (!admitted) {
+			++Statistics.SessionFailures;
+		}
+		return admitted;
+	}
+
+	auto review_ledger_application_host::session_catalog()
+		-> std::expected<agent_session_catalog_state, ledger_store_failure>
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		++Statistics.SessionLoads;
+		auto loaded = Store->load_agent_session_catalog();
+		if (!loaded) {
+			++Statistics.SessionFailures;
 		}
 		return loaded;
 	}

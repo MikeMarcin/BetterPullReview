@@ -1477,6 +1477,16 @@ platform-vault compile, link, and runtime dependencies selected by the
 provider. RFC-BPR-0014 owns delivered-package signing and distribution
 certification; it does not defer accurate RFC-BPR-0002 dependency accounting.
 
+The composed agent route consumes only the already accepted provider-free PR
+authority and revision. Its late-bound session-catalog port forwards to the
+review ledger for that exact hostname/account/repository/PR scope. Core policy
+and the reloaded private-context selection are validated before the catalog
+atomically admits a session; only then may Git workspace, environment,
+executable, or process work begin. The catalog persists revision metadata, not
+GitHub credentials, provider objects, private prose, or process results. A
+fresh composition over the same data root can therefore present the retained
+binding and next monotonic ID without reopening a provider authority channel.
+
 ## No-impact and deferred regions
 
 RFC-BPR-0002 has no implementation impact on:

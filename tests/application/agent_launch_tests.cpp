@@ -82,7 +82,7 @@ namespace {
 		};
 		return {
 			.ApplicationSession = core::application_session_id{ 1U },
-			.Session            = session(),
+			.Binding            = session().Binding,
 			.PullRequestUrl     = "https://github.example/octo/app/pull/30",
 			.PreviousUpload     = commit(3U),
 			.Files              = {
@@ -139,17 +139,24 @@ namespace {
 				.Confidence         = core::supplement_mapping_confidence::exact,
 				.SelectedSourceText = std::string{ "return retry();" },
 			},
-			.IncludedNotes  = { application::local_note_id{ 2U } },
-			.IncludedDrafts = {
-				{ .Anchor = anchor, .Text = "Would a bounded retry be safer?" },
+			.CurrentDraft = application::agent_draft_observation{
+				.Choice = { .Id = core::review_draft_id{ 3U }, .Revision = 7U },
+				.Draft  = {
+					.Id     = core::review_draft_id{ 3U },
+					.Anchor = anchor,
+					.Body   = "Would a bounded retry be safer?",
+				},
 			},
+			.IncludedNotes = { application::local_note_id{ 2U } },
+			.IncludedDraft = application::agent_draft_choice{ .Id = core::review_draft_id{ 3U }, .Revision = 7U },
 		};
 	}
 
 	[[nodiscard]] auto built_supplement()
 		-> core::agent_context_supplement
 	{
-		const auto built = application::build_agent_context_supplement(observation());
+		const auto built
+			= application::build_agent_context_supplement(observation(), session());
 		expect(built.has_value(), "the complete context observation builds");
 		return *built;
 	}
@@ -177,7 +184,8 @@ namespace {
 
 	void test_private_ledger_observation_is_an_input_not_an_implicit_store()
 	{
-		const auto built = application::build_agent_context_supplement(observation());
+		const auto built
+			= application::build_agent_context_supplement(observation(), session());
 		expect(built.has_value(), "the bounded supplied observation builds");
 		expect(
 			built->LastReviewedHead == commit(4U) && built->Defects.size() == 1U
@@ -191,7 +199,7 @@ namespace {
 		auto missing          = observation();
 		missing.IncludedNotes = { application::local_note_id{ 99U } };
 		const auto missingResult
-			= application::build_agent_context_supplement(missing);
+			= application::build_agent_context_supplement(missing, session());
 		expect(
 			!missingResult
 				&& missingResult.error()
@@ -201,7 +209,7 @@ namespace {
 		auto duplicate = observation();
 		duplicate.IncludedNotes.emplace_back(2U);
 		const auto duplicateResult
-			= application::build_agent_context_supplement(duplicate);
+			= application::build_agent_context_supplement(duplicate, session());
 		expect(
 			!duplicateResult
 				&& duplicateResult.error()
@@ -212,23 +220,32 @@ namespace {
 		duplicateSource.Private.Notes.push_back(
 			duplicateSource.Private.Notes.back());
 		const auto duplicateSourceResult
-			= application::build_agent_context_supplement(duplicateSource);
+			= application::build_agent_context_supplement(duplicateSource, session());
 		expect(
 			!duplicateSourceResult
 				&& duplicateSourceResult.error()
 					== application::agent_context_failure::invalid_observation,
 			"a supplied private observation with ambiguous note identity is refused");
 
-		auto oversized = observation();
-		oversized.IncludedDrafts.assign(
-			core::maximum_selected_drafts + 1U, { .Text = "draft" });
-		const auto oversizedResult
-			= application::build_agent_context_supplement(oversized);
+		auto stale = observation();
+		++stale.IncludedDraft->Revision;
+		const auto staleResult
+			= application::build_agent_context_supplement(stale, session());
 		expect(
-			!oversizedResult
-				&& oversizedResult.error()
-					== application::agent_context_failure::invalid_observation,
-			"an oversized caller observation is refused before adaptation");
+			!staleResult
+				&& staleResult.error()
+					== application::agent_context_failure::selected_draft_stale,
+			"a draft edited after its choice is refused rather than retargeted");
+
+		auto invalid = observation();
+		invalid.CurrentDraft->Draft.Body.clear();
+		const auto invalidResult
+			= application::build_agent_context_supplement(invalid, session());
+		expect(
+			!invalidResult
+				&& invalidResult.error()
+					== application::agent_context_failure::selected_draft_invalid,
+			"an empty selected draft is refused before session persistence");
 	}
 
 	void test_the_complete_encoding_preserves_presence_and_exact_identity()

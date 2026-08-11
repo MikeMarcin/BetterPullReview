@@ -5,9 +5,12 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
+#include <QListWidget>
 #include <QToolButton>
 
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <ranges>
@@ -74,6 +77,15 @@ namespace {
 				.AllowedEnvironment = { "HOME" },
 			},
 		};
+	}
+
+	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		for (auto index = std::size_t{ 0U }; index < 20U; ++index) {
+			bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+		}
+		return core::git_commit_oid{ core::git_hash_algorithm::sha1, bytes };
 	}
 
 	/// \brief The surface emits an intent and can start nothing itself.
@@ -183,6 +195,102 @@ namespace {
 			std::get<qt::start_agent_intent>(recorded.Intents.back())
 				.ExistingCheckoutChosen,
 			"and carries it as made once the reviewer makes it, for this run");
+	}
+
+	void test_private_context_choices_are_explicit_identity_only_and_reset()
+	{
+		auto recorded = recorder{ };
+		auto panel    = qt::agent_launch_panel{ recorded.sink() };
+		panel.offer_profiles(profiles());
+		panel.disclose_scope(QStringLiteral("scope"));
+		const auto notes = std::array{
+			application::local_note_id{ 7U }, application::local_note_id{ 9U }
+		};
+		const auto draft = application::agent_draft_choice{
+			.Id = core::review_draft_id{ 11U }, .Revision = 3U
+		};
+		panel.offer_private_context(notes, draft);
+
+		expect(
+			panel.note_selector()->count() == 2
+				&& panel.note_selector()->item(0)->checkState() == Qt::Unchecked
+				&& panel.note_selector()->item(1)->checkState() == Qt::Unchecked
+				&& !panel.draft_selector()->isChecked()
+				&& !panel.note_selector()->item(0)->text().contains("prose"),
+			"opaque note identities and the current draft revision are offered unchecked without prose");
+		panel.start_action()->trigger();
+		const auto& unchecked
+			= std::get<qt::start_agent_intent>(recorded.Intents.back());
+		expect(
+			unchecked.IncludedNotes.empty()
+				&& !unchecked.IncludedDraft.has_value(),
+			"an ordinary start includes no private context without explicit checks");
+
+		panel.note_selector()->item(1)->setCheckState(Qt::Checked);
+		panel.draft_selector()->setChecked(true);
+		panel.start_action()->trigger();
+		const auto& selected
+			= std::get<qt::start_agent_intent>(recorded.Intents.back());
+		expect(
+			selected.IncludedNotes
+					== std::vector{ application::local_note_id{ 9U } }
+				&& selected.IncludedDraft == std::optional{ draft },
+			"the launch intent carries only the checked note ID and exact draft identity/revision");
+
+		const auto changedDraft = application::agent_draft_choice{
+			.Id = draft.Id, .Revision = draft.Revision + 1U
+		};
+		panel.offer_private_context(
+			std::span<const application::local_note_id>{ notes }.first(1U),
+			changedDraft);
+		expect(
+			panel.note_selector()->count() == 1
+				&& panel.note_selector()->item(0)->checkState() == Qt::Unchecked
+				&& !panel.draft_selector()->isChecked(),
+			"a removed note or changed draft revision clears every earlier choice");
+	}
+
+	void test_latest_session_metadata_and_staleness_are_visible_without_retargeting()
+	{
+		auto       panel   = qt::agent_launch_panel{ };
+		const auto session = core::agent_session{
+			.Id      = core::agent_session_id{ 7U },
+			.Profile = core::agent_profile_id{ 1U },
+			.Binding = {
+				.Host        = core::git_host_id{ 1U },
+				.Repository  = core::repository_id{ 2U },
+				.PullRequest = core::pull_request_id{ 3U },
+				.BaseOid     = commit(4U),
+				.HeadOid     = commit(5U),
+				.LeftEpoch   = core::epoch_ordinal{ 6U },
+				.RightEpoch  = core::epoch_ordinal{ 7U },
+			},
+		};
+		const auto pinnedHead = QString::fromUtf8(
+			core::canonical_hex(session.Binding.HeadOid).view());
+		for (const auto staleness : {
+				 core::agent_session_staleness::current,
+				 core::agent_session_staleness::head_moved,
+				 core::agent_session_staleness::epoch_pair_changed,
+				 core::agent_session_staleness::different_review,
+			 }) {
+			panel.present_session_catalog(
+				application::agent_session_catalog_projection{
+					.Latest       = session,
+					.LatestStatus = core::agent_session_status{
+						.Staleness = staleness,
+						.Current   = staleness
+							== core::agent_session_staleness::current,
+					},
+					.Next = core::agent_session_id{ 8U },
+				});
+			expect(
+				panel.session_catalog_text().contains(
+					QString::fromUtf8(core::stable_name(staleness)))
+					&& panel.session_catalog_text().contains(pinnedHead)
+					&& panel.session_catalog_text().contains("next #8"),
+				"each core classification is visible against the immutable retained head");
+		}
 	}
 
 	/// \brief Terminal projection is visible and failed output is never retained.
@@ -325,6 +433,8 @@ auto main(int argc, char** argv) -> int
 	test_the_scope_is_shown_before_launch_is_possible();
 	test_cancellation_is_a_distinct_action();
 	test_existing_checkout_is_off_by_default();
+	test_private_context_choices_are_explicit_identity_only_and_reset();
+	test_latest_session_metadata_and_staleness_are_visible_without_retargeting();
 	test_projection_uses_the_shipped_visible_controls();
 	test_prestart_terminals_keep_the_exact_admitted_identity();
 	std::cout << "agent-launch-panel-tests:pass\n";

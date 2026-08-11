@@ -22,7 +22,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// added conversation receipts. The value is deliberately not "1": a
 	/// migration mechanism whose only version is the initial one has never
 	/// migrated anything, and would be first exercised by a user's database.
-	inline constexpr std::int64_t review_ledger_schema_version = 3;
+	inline constexpr std::int64_t review_ledger_schema_version = 4;
 
 	/// \brief Classifies a valid defect write at the SQLite authority boundary.
 	enum class defect_store_outcome : std::uint8_t {
@@ -122,6 +122,14 @@ namespace bpr::adapters::sqlite::detail {
 
 		[[nodiscard]] auto load_private(std::int64_t aScope)
 			-> std::expected<application::private_ledger_observation, failure>;
+
+		[[nodiscard]] auto admit_agent_session(
+			std::int64_t                                aScope,
+			const application::agent_session_admission& aAdmission)
+			-> std::expected<core::agent_session, failure>;
+
+		[[nodiscard]] auto load_agent_session_catalog(std::int64_t aScope)
+			-> std::expected<application::agent_session_catalog_state, failure>;
 
 	private:
 		explicit review_ledger_database(::sqlite3* aHandle) noexcept;

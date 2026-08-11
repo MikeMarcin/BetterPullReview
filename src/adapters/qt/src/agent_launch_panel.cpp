@@ -1,10 +1,13 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 
 #include <QAction>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QPlainTextEdit>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -31,6 +34,16 @@ namespace bpr::qt {
 		Disclosure->setAccessibleName(QStringLiteral("What the agent will read"));
 		Disclosure->setWordWrap(true);
 		Disclosure->setTextFormat(Qt::PlainText);
+		NoteSelector = new QListWidget{ this };
+		NoteSelector->setObjectName(QStringLiteral("agentPrivateNoteSelector"));
+		NoteSelector->setAccessibleName(
+			QStringLiteral("Private notes included with this request"));
+		DraftSelector = new QCheckBox{ this };
+		DraftSelector->setObjectName(QStringLiteral("agentDraftSelector"));
+		DraftSelector->setAccessibleName(
+			QStringLiteral("Include current private draft"));
+		DraftSelector->setText(QStringLiteral("No current draft"));
+		DraftSelector->setEnabled(false);
 
 		StartAction = new QAction{ QStringLiteral("&Ask the agent"), this };
 		StartAction->setObjectName(QStringLiteral("startAgentAction"));
@@ -51,6 +64,8 @@ namespace bpr::qt {
 		auto* const layout = new QVBoxLayout{ this };
 		auto* const form   = new QFormLayout{ };
 		form->addRow(QStringLiteral("Provider"), ProfileSelector);
+		form->addRow(QStringLiteral("Private notes"), NoteSelector);
+		form->addRow(QStringLiteral("Private draft"), DraftSelector);
 		layout->addLayout(form);
 		layout->addWidget(Disclosure);
 
@@ -71,6 +86,12 @@ namespace bpr::qt {
 		actions->addWidget(CancelButton);
 		layout->addLayout(actions);
 
+		SessionCatalog = new QLabel{ QStringLiteral("Agent sessions unavailable"), this };
+		SessionCatalog->setObjectName(QStringLiteral("agentSessionCatalog"));
+		SessionCatalog->setAccessibleName(QStringLiteral("Latest AI agent session"));
+		SessionCatalog->setTextFormat(Qt::PlainText);
+		SessionCatalog->setWordWrap(true);
+		layout->addWidget(SessionCatalog);
 		Status = new QLabel{ QStringLiteral("No agent invocation"), this };
 		Status->setObjectName(QStringLiteral("agentInvocationStatus"));
 		Status->setAccessibleName(QStringLiteral("AI agent status"));
@@ -89,8 +110,19 @@ namespace bpr::qt {
 				return;
 			}
 			++Statistics.StartIntents;
+			auto notes = std::vector<application::local_note_id>{ };
+			for (auto row = 0; row < NoteSelector->count(); ++row) {
+				const auto* const item = NoteSelector->item(row);
+				if (item->checkState() == Qt::Checked) {
+					notes.emplace_back(item->data(Qt::UserRole).toULongLong());
+				}
+			}
 			Dispatch(start_agent_intent{
 				.Profile                = *profile,
+				.IncludedNotes          = std::move(notes),
+				.IncludedDraft          = DraftSelector->isChecked()
+					? OfferedDraft
+					: std::nullopt,
 				.ExistingCheckoutChosen = ExistingCheckoutAction->isChecked(),
 			});
 		});
@@ -131,6 +163,32 @@ namespace bpr::qt {
 		const std::span<const core::agent_profile> aProfiles)
 	{
 		offer_profiles(aProfiles);
+	}
+
+	void agent_launch_panel::offer_private_context(
+		const std::span<const application::local_note_id> aNotes,
+		std::optional<application::agent_draft_choice>    aDraft)
+	{
+		NoteSelector->clear();
+		for (const auto id : aNotes) {
+			auto* const item = new QListWidgetItem{
+				QStringLiteral("Private note #%1").arg(id.value()), NoteSelector
+			};
+			item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(id.value()));
+			item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+			item->setCheckState(Qt::Unchecked);
+		}
+		OfferedDraft = std::move(aDraft);
+		DraftSelector->setChecked(false);
+		if (OfferedDraft.has_value()) {
+			DraftSelector->setText(
+				QStringLiteral("Current draft #%1, revision %2")
+					.arg(OfferedDraft->Id.value())
+					.arg(OfferedDraft->Revision));
+		} else {
+			DraftSelector->setText(QStringLiteral("No current draft"));
+		}
+		update_actions();
 	}
 
 	void agent_launch_panel::refuse(const std::string_view aReason)
@@ -205,6 +263,40 @@ namespace bpr::qt {
 		ActiveInvocation.reset();
 	}
 
+	void agent_launch_panel::present_session_catalog(
+		const application::agent_session_catalog_projection& aProjection)
+	{
+		if (!aProjection.Latest.has_value()) {
+			SessionCatalog->setText(
+				aProjection.Next.has_value()
+					? QStringLiteral("No retained agent session; next session #%1")
+						  .arg(aProjection.Next->value())
+					: QStringLiteral("No retained agent session"));
+			return;
+		}
+		const auto& session = *aProjection.Latest;
+		const auto  base    = core::canonical_hex(session.Binding.BaseOid).view();
+		const auto  head    = core::canonical_hex(session.Binding.HeadOid).view();
+		const auto  state   = aProjection.LatestStatus.has_value()
+			? core::stable_name(aProjection.LatestStatus->Staleness)
+			: std::string_view{ "unclassified" };
+		const auto  next    = aProjection.Next.has_value()
+			? QStringLiteral(" · next #%1").arg(aProjection.Next->value())
+			: QString{ };
+		SessionCatalog->setText(
+			QStringLiteral(
+				"Latest session #%1 · profile #%2 · %3 · base %4 · head %5 · "
+				"epochs %6–%7%8")
+				.arg(session.Id.value())
+				.arg(session.Profile.value())
+				.arg(QString::fromUtf8(state.data(), static_cast<qsizetype>(state.size())))
+				.arg(QString::fromUtf8(base.data(), static_cast<qsizetype>(base.size())))
+				.arg(QString::fromUtf8(head.data(), static_cast<qsizetype>(head.size())))
+				.arg(session.Binding.LeftEpoch.value())
+				.arg(session.Binding.RightEpoch.value())
+				.arg(next));
+	}
+
 	void agent_launch_panel::disclose_scope(const QString& aScope)
 	{
 		Disclosure->setText(aScope);
@@ -254,9 +346,24 @@ namespace bpr::qt {
 		return Output->toPlainText();
 	}
 
+	auto agent_launch_panel::session_catalog_text() const -> QString
+	{
+		return SessionCatalog->text();
+	}
+
 	auto agent_launch_panel::start_button() const noexcept -> QToolButton*
 	{
 		return StartButton;
+	}
+
+	auto agent_launch_panel::note_selector() const noexcept -> QListWidget*
+	{
+		return NoteSelector;
+	}
+
+	auto agent_launch_panel::draft_selector() const noexcept -> QCheckBox*
+	{
+		return DraftSelector;
 	}
 
 	auto agent_launch_panel::selected_profile() const
@@ -290,5 +397,7 @@ namespace bpr::qt {
 		// is running, so stopping is never the same gesture as starting.
 		CancelAction->setEnabled(Running);
 		ExistingCheckoutAction->setEnabled(!Running);
+		NoteSelector->setEnabled(!Running);
+		DraftSelector->setEnabled(!Running && OfferedDraft.has_value());
 	}
 } // namespace bpr::qt

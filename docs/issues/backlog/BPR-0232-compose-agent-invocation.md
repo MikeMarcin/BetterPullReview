@@ -8,20 +8,21 @@ depends_on: [BPR-0226, BPR-0228, BPR-0229, BPR-0230, BPR-0240, BPR-0247, BPR-025
 
 # Compose explicit agent invocation into the shipped workbench
 
-The policy, partial context, process, workspace, and Qt panel components exist.
-The application constructs none of them, so a reviewer cannot invoke an agent.
-BPR-0240 first completes the missing exact-context and process-lifecycle
-semantics; the ledger, draft, and defect dependencies then supply their real
-context authorities.
+The portable policy, exact context, process, workspace, Qt panel, durable
+session catalog, and explicit private-context selectors are composed through
+the shipped workbench. A reviewer gesture now reaches the local canary path
+without provider credentials. This umbrella remains open because BPR-0240 has
+not yet supplied target-native Windows creation and descendant containment.
 
 ## Scheduling and design checkpoint
 
 The product owner deferred target-native Linux and Windows environments until
 the end of the remaining portable work. Commit `8886017` supplies BPR-0240's
-portable version-two context and four-protocol lifecycle; its Windows launch
-claim remains deliberately absent. BPR-0232 may therefore implement and verify
-the available-target composition through BPR-0247 now, but this umbrella card
-remains Backlog and cannot become terminal before both BPR-0240 and BPR-0247 do.
+portable version-two context and four-protocol lifecycle; BPR-0247 composes the
+available-target invocation and exact-head workspace; BPR-0250 adds durable
+sessions plus checked note/current-draft selection. The Windows launch claim
+remains deliberately absent, so this umbrella stays Backlog until BPR-0240's
+native lifecycle proof can be replayed through the composed surface.
 
 The composition must not mistake the existing descriptive workspace record for
 a checkout. The retained cache actor will materialize one exact accepted head

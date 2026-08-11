@@ -29,6 +29,9 @@ namespace bpr::application {
 		std::uint64_t PrivateDeletes       = 0U;
 		std::uint64_t PrivateLoads         = 0U;
 		std::uint64_t PrivateFailures      = 0U;
+		std::uint64_t SessionAdmissions    = 0U;
+		std::uint64_t SessionLoads         = 0U;
+		std::uint64_t SessionFailures      = 0U;
 
 		auto operator<=>(const review_ledger_host_statistics&) const = default;
 	};
@@ -73,7 +76,7 @@ namespace bpr::application {
 	/// projection published before the commit would show a reader a state the
 	/// database does not hold — and would survive exactly until the next
 	/// restart contradicted it.
-	class review_ledger_application_host final
+	class review_ledger_application_host final : public agent_session_catalog_port
 	{
 	public:
 		review_ledger_application_host(
@@ -132,6 +135,14 @@ namespace bpr::application {
 		/// \brief Loads one bounded deterministic private-state observation.
 		[[nodiscard]] auto private_observation()
 			-> std::expected<private_ledger_observation, ledger_store_failure>;
+
+		/// \brief Durably admits one immutable metadata-only agent session.
+		[[nodiscard]] auto admit(const agent_session_admission& aAdmission)
+			-> std::expected<core::agent_session, ledger_store_failure> override;
+
+		/// \brief Loads the latest retained session and next durable identity.
+		[[nodiscard]] auto session_catalog()
+			-> std::expected<agent_session_catalog_state, ledger_store_failure> override;
 
 		[[nodiscard]] auto retained() const noexcept -> core::file_receipt;
 		[[nodiscard]] auto statistics() const noexcept

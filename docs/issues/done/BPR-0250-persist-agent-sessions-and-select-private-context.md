@@ -1,7 +1,7 @@
 ---
 id: BPR-0250
 title: Persist agent sessions and select private context explicitly
-status: In Progress
+status: Done
 rfc: RFC-BPR-0011
 depends_on: [BPR-0229, BPR-0238, BPR-0247]
 ---
@@ -73,3 +73,44 @@ git diff --check
   creation, descendant containment, and target-native proof at the deferred
   native stage.
 - Do not move BPR-0232 or RFC-BPR-0011 to terminal status from this card.
+
+## Implemented state
+
+The review-ledger schema is now version four. It retains at most 128 immutable
+metadata-only agent-session rows per exact review scope while a separate
+non-pruned high-water sequence prevents identity reuse after retention,
+restart, or simultaneous admissions from two open stores. Canonical version
+three migrates without losing receipts, notes, reviewed heads, or defects.
+Existing wrong-application, future, and schema-tampered main/WAL/SHM images are
+validated through an owner-private clone before the source can be opened for
+mutation; stable refusals and current-schema reopen/load preserve the physical
+triplet exactly. Detected namespace movement refuses. Clone cleanup sanitizes
+retained main/WAL authority, deletes only bounded known children, preserves
+substitutes and unknown children, and surfaces incomplete cleanup. Atomic
+protection against a malicious same-user process racing the final pathname use
+is deliberately outside this card's filesystem threat model.
+
+The invocation host now performs core/profile and exact-context validation,
+revalidates checked note IDs plus the chosen current draft identity/revision,
+and atomically admits the durable session before workspace, environment,
+executable, or child-process work. Typed store refusal leaves every downstream
+effect counter at zero. Qt offers bounded note identities and the current draft
+unchecked by default, clears stale choices, and presents the latest immutable
+session as current, head-moved, epoch-pair-changed, or different-review without
+retargeting its binding.
+
+The real two-process selected-diff contract selects note 246 of two plus the
+current draft, compares the child's complete schema-v2 input against
+independently captured facts, and proves the unchecked hostile prose and
+credential canary absent. A fresh process reopens the same data root and proves
+latest session 1, next identity 2, current classification, and zero admission.
+The wrapper requires distinct child-authored seed and reopen markers, guards
+both source branches, and rejects `/usr/bin/true`; CTest relies on exit status.
+
+The literal focused matrix passed 12/12. The final correction boundary passed
+SQLite storage and the public two-process contract 2/2. Scoped formatting and
+SDK-aware clang-tidy, documentation validation, and `git diff --check` pass.
+Independent critical review reproduced physical sidecar mutation and a vacuous
+wrapper, drove both corrections plus bounded namespace/cleanup counterexamples,
+and returned CLEAR with no remaining blocking or high-risk finding in card
+scope. Native Windows launch remains deferred to BPR-0240 and BPR-0232.

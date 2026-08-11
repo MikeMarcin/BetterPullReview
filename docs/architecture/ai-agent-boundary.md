@@ -71,11 +71,13 @@ not represent:
   confidence, permitted segments/groups, and optional selected source text;
 - only private notes named by the invocation and drafts supplied explicitly.
 
-The portable BPR-0247 panel has no note/draft selector and therefore supplies
-neither. It states that limit before launch and the public canary requires both
-encoded counts to be zero. BPR-0232 owns the reviewer selection control; adding
-one may populate the existing explicit inputs but may not introduce implicit
-ledger/editor inclusion.
+The launch panel offers opaque private-note IDs and the current draft's opaque
+ID/revision, all unchecked. Its intent carries only the checked identities; it
+never carries prose. At dispatch the application reloads the current ledger
+observation and editor draft, and exact note identity plus draft identity and
+revision must still match. A removed note, edited draft, duplicate choice, or
+over-limit selection refuses before session persistence. Unchecked prose has no
+route into the supplement.
 
 Counts and optional-presence fields are explicit, so absence is not rewritten
 as an empty string or collection. Core construction refuses invalid identities,
@@ -139,10 +141,12 @@ refuses Windows launch before `QProcess::start`. Windows support remains blocked
 until a suspended-create, assign-before-resume path has target-native proof.
 
 The application composition follows one public route: the workbench panel emits
-an intent; `agent_invocation_host` reruns core legality, builds context from the
-currently accepted epoch authority and private observations, materializes the
+an intent; `agent_invocation_host` reruns core legality and validates the full
+current context, durably admits an immutable session, then materializes the
 workspace through the retained cache actor, starts the adapter, serializes
-stream/terminal projection, and then cleans the owned workspace. Workspace and
+stream/terminal projection, and cleans the owned workspace. A core/context
+refusal performs no session write. A session-store refusal is typed and visible
+before workspace, environment, executable, or process work. Workspace and
 parent-root cleanup each require their originally captured directory identity;
 the parent is removed non-recursively only when that exact directory is empty.
 If terminal cleanup refuses a changed workspace identity, the host retains the
@@ -160,6 +164,16 @@ satisfied by a fixture-only launch helper.
 - BetterPullReview can record what supplemental context it sent, but it cannot claim to audit every item the full agent independently accessed.
 - Structured AI output is a private proposal until a user explicitly promotes or publishes it.
 - A full agent may use its own GitHub tools subject to its normal approvals; BetterPullReview learns resulting shared changes through normal synchronization.
+
+Each exact host/account/repository/pull-request scope has a durable monotonic
+session sequence and a bounded catalog of the newest 128 immutable metadata
+records. Pruning never rewinds the separate high-water sequence, so an ID is
+not reused after restart; exhaustion at signed 64-bit maximum refuses. Records
+contain only session/profile, review identity, base/head OIDs, and epoch pair —
+never context prose, output, results, credentials, argv, environment, or
+workspace paths. The panel presents the latest retained binding and the core's
+`current`, `head_moved`, `epoch_pair_changed`, or `different_review`
+classification; observing a new review never retargets the stored binding.
 
 ## What implementation settled
 
@@ -287,6 +301,9 @@ so rather than pick the reassuring answer.
 | No supplement field can carry a credential or an unselected note | `core_agent_context_supplement` |
 | An oversize supplement is refused whole | `core_agent_context_supplement` |
 | BPR-0238 observations contribute only explicitly selected private prose | `application_agent_launch` |
+| Core/context refusal writes no session; store refusal starts no downstream effect | `application_agent_invocation_host` |
+| Durable session IDs remain monotonic across restart and concurrent openers | `sqlite_review_ledger_storage` |
+| Opaque note/draft choices are unchecked and revalidated at dispatch | `qt_agent_launch_panel`, `application_agent_launch` |
 | A valid request's environment is exactly its safe allowlist | `application_agent_launch` |
 | Four protocol lifecycles preserve partial reads and require their terminal | `application_agent_launch` |
 | The supplement never reaches argv | `application_agent_launch`, `qt_agent_launch_canary` |
@@ -302,7 +319,7 @@ so rather than pick the reassuring answer.
 | GHES policy refuses before effects | `application_agent_invocation_host` |
 | Stale/cancelled composed runs leak no child or owned workspace | `application_agent_invocation_host`, `application_agent_invocation_cancellation_contract`, `application_agent_invocation_staleness_contract` |
 | A same-path, same-marker substitute cannot retarget cleanup | `git_process_contract` |
-| The shipped gesture reaches exact-head Git, launcher, terminal, and cleanup | `application_agent_invocation_composition_contract` |
+| Two fresh processes prove selected stdin, durable reopen, and next ID | `application_agent_invocation_composition_contract` |
 | Direct construction or gesture bypass cannot satisfy the public canary | `application_agent_invocation_construction_cut_contract`, `application_agent_invocation_gesture_cut_contract` |
 | Process ownership is enumerated | `architecture_boundaries` |
 

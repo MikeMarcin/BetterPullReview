@@ -64,6 +64,7 @@ namespace bpr::application {
 			std::vector<core::agent_profile>     aProfiles,
 			std::vector<core::agent_host_policy> aPolicies,
 			std::filesystem::path                aWorkspaceParent,
+			agent_session_catalog_port&          aSessions,
 			agent_workspace_port&                aWorkspaces,
 			agent_process_port&                  aProcesses,
 			environment_reader                   aEnvironment,
@@ -73,6 +74,7 @@ namespace bpr::application {
 			: Profiles{ std::move(aProfiles) }
 			, Policies{ std::move(aPolicies) }
 			, WorkspaceParent{ std::move(aWorkspaceParent) }
+			, Sessions{ aSessions }
 			, Workspaces{ aWorkspaces }
 			, Processes{ aProcesses }
 			, Environment{ std::move(aEnvironment) }
@@ -173,6 +175,36 @@ namespace bpr::application {
 			}
 		}
 
+		void project_session_catalog(
+			const agent_session_catalog_projection& aProjection) noexcept
+		{
+			try {
+				Projection.present_session_catalog(aProjection);
+			} catch (...) {
+			}
+		}
+
+		void publish_session_catalog(
+			const core::agent_revision_binding& aObserved)
+		{
+			auto loaded = Sessions.session_catalog();
+			if (!loaded) {
+				project_refuse(
+					std::string{ "agent_session_catalog_" }
+					+ std::string{ name(loaded.error()) });
+				return;
+			}
+			auto projection = agent_session_catalog_projection{
+				.Latest = loaded->Latest,
+				.Next   = loaded->Next,
+			};
+			if (loaded->Latest.has_value()) {
+				projection.LatestStatus = core::observe_agent_session(
+					*loaded->Latest, aObserved);
+			}
+			project_session_catalog(projection);
+		}
+
 		void publish_offerings()
 		{
 			auto authority = std::optional<core::pull_request_authority>{ };
@@ -206,11 +238,12 @@ namespace bpr::application {
 					|| Binding != std::optional{ aBinding };
 				ApplicationSession = aApplicationSession;
 				Authority          = std::move(aAuthority);
-				Binding            = std::move(aBinding);
+				Binding            = aBinding;
 			}
 			if (changed) {
 				supersede();
 			}
+			publish_session_catalog(aBinding);
 			publish_offerings();
 		}
 
@@ -223,6 +256,7 @@ namespace bpr::application {
 				Binding.reset();
 			}
 			supersede();
+			project_session_catalog({ });
 			publish_offerings();
 		}
 
@@ -265,7 +299,13 @@ namespace bpr::application {
 				project_refuse(core::stable_name(verdict.Refusal));
 				return;
 			}
-			const auto supplement = build_agent_context_supplement(aRequest.Context);
+			const auto provisionalSession = core::agent_session{
+				.Id      = core::agent_session_id{ 1U },
+				.Profile = profile->Id,
+				.Binding = aRequest.Context.Binding,
+			};
+			auto supplement = build_agent_context_supplement(
+				aRequest.Context, provisionalSession);
 			if (!supplement.has_value()) {
 				project_refuse("invalid_agent_context");
 				return;
@@ -281,30 +321,47 @@ namespace bpr::application {
 					|| aRequest.Context.ApplicationSession
 						!= aRequest.ApplicationSession
 					|| aRequest.Authority != *Authority
-					|| aRequest.Context.Session.Profile != profile->Id
-					|| aRequest.Context.Session.Binding != *Binding
+					|| aRequest.Context.Binding != *Binding
 					|| !binding_matches_authority(*Binding, *Authority)) {
 					project_refuse(
 						ActiveInvocation ? "agent_invocation_already_running"
 										 : "stale_or_mismatched_agent_context");
 					return;
 				}
-				job = std::make_shared<invocation>(
+				++SessionAdmissions;
+				auto admitted = Sessions.admit(agent_session_admission{
+					.Profile = profile->Id,
+					.Binding = *Binding,
+				});
+				if (!admitted) {
+					++SessionAdmissionFailures;
+					project_refuse(
+						std::string{ "agent_session_admission_" }
+						+ std::string{ name(admitted.error()) });
+					return;
+				}
+				supplement->Session = *admitted;
+				job                 = std::make_shared<invocation>(
 					agent_invocation_projection_identity{
 						.ApplicationSession   = aRequest.ApplicationSession,
 						.Authority            = aRequest.Authority,
-						.Session              = aRequest.Context.Session,
+						.Session              = *admitted,
 						.InvocationGeneration = ++InvocationGeneration,
 					},
 					std::make_shared<std::stop_source>());
 				ActiveInvocation = job;
 				ActiveJobs.store(1U, std::memory_order_release);
 			}
+			project_session_catalog(agent_session_catalog_projection{
+				.Latest       = job->Identity.Session,
+				.LatestStatus = core::observe_agent_session(
+					job->Identity.Session, aRequest.Context.Binding),
+			});
 
 			const auto existing = aRequest.ExistingCheckoutChosen
 				? prepare_agent_workspace(
 					  *profile,
-					  aRequest.Context.Session,
+					  job->Identity.Session,
 					  aRequest.ExistingCheckout,
 					  true,
 					  { })
@@ -446,7 +503,7 @@ namespace bpr::application {
 					agent_workspace_materialization_request{
 						.ApplicationSession = aRequest.ApplicationSession,
 						.Authority          = aRequest.Authority,
-						.Session            = aRequest.Context.Session,
+						.Session            = aInvocation->Identity.Session,
 						.ParentDirectory    = WorkspaceParent,
 					},
 					aInvocation->Stop->get_token());
@@ -721,6 +778,7 @@ namespace bpr::application {
 		std::vector<core::agent_profile>     Profiles;
 		std::vector<core::agent_host_policy> Policies;
 		std::filesystem::path                WorkspaceParent;
+		agent_session_catalog_port&          Sessions;
 		agent_workspace_port&                Workspaces;
 		agent_process_port&                  Processes;
 		environment_reader                   Environment;
@@ -748,12 +806,15 @@ namespace bpr::application {
 		std::atomic_uint64_t ProcessStarts            = 0U;
 		std::atomic_uint64_t WorkspaceCleanups        = 0U;
 		std::atomic_uint64_t WorkspaceCleanupFailures = 0U;
+		std::atomic_uint64_t SessionAdmissions        = 0U;
+		std::atomic_uint64_t SessionAdmissionFailures = 0U;
 	};
 
 	agent_invocation_host::agent_invocation_host(
 		std::vector<core::agent_profile>     aProfiles,
 		std::vector<core::agent_host_policy> aPolicies,
 		std::filesystem::path                aWorkspaceParent,
+		agent_session_catalog_port&          aSessions,
 		agent_workspace_port&                aWorkspaces,
 		agent_process_port&                  aProcesses,
 		environment_reader                   aEnvironment,
@@ -764,6 +825,7 @@ namespace bpr::application {
 			  std::move(aProfiles),
 			  std::move(aPolicies),
 			  std::move(aWorkspaceParent),
+			  aSessions,
 			  aWorkspaces,
 			  aProcesses,
 			  std::move(aEnvironment),
@@ -841,6 +903,8 @@ namespace bpr::application {
 			.WorkspaceCleanups = implementation->WorkspaceCleanups.load(),
 			.WorkspaceCleanupFailures
 			= implementation->WorkspaceCleanupFailures.load(),
+			.SessionAdmissions        = implementation->SessionAdmissions.load(),
+			.SessionAdmissionFailures = implementation->SessionAdmissionFailures.load(),
 		};
 	}
 } // namespace bpr::application
