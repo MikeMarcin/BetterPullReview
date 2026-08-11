@@ -1,7 +1,7 @@
 ---
 id: BPR-0258
 title: Make dark navigation icons readable
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0006
 depends_on: [BPR-0246]
 ---
@@ -48,3 +48,23 @@ git diff --check
 The new attended package must bind the committed icon implementation and all
 four new full-window captures. The card remains open until its exact exported
 verdict is validated and recorded.
+
+## Implementation checkpoint
+
+Repair commit `e10f553f54072b6761b99140cc204b5ebbf9590b` preserves each
+native `QStyle` arrow silhouette and recolors its explicit normal and disabled
+modes from the live toolbar palette. The focused selector passed 6/6 in
+104.47 seconds across scales 1.0, 1.25, and 2.0, all four appearance profiles,
+the real UIforETW capture path, and workbench composition. The post-commit
+UIforETW capture passed in 78.98 seconds. Dark measures 13.84:1 normal and
+4.45:1 disabled; High-contrast Dark measures 21.00:1 and 5.24:1. An independent
+read-only closeout review found no blocking implementation issue.
+
+The fresh immutable attended package is
+`bpr:/attended-review/betterpullreview/9cdaa26a715d8f0168dc3049`. Its sole
+subject is
+`criterion:/betterpullreview/bpr-0258/dark-navigation-icon-readability` at
+`sha256:778c9d4b6386274686e6abe37310142dcb1ddf8d56519d0786aa17549ea11463`.
+It carries no closure or release claim. This card is parked in Backlog while
+the exact exported human verdict is pending; the rejected v003 batch remains
+unchanged.
