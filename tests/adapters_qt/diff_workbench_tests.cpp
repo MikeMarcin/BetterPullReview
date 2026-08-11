@@ -949,6 +949,55 @@ namespace {
 		}
 	}
 
+	void test_semantic_selection_callback_tracks_both_panes_and_clear()
+	{
+		const auto [leftText, rightText] = representative_text();
+		const auto diff                  = computed(leftText, rightText, { }, 53U);
+		auto       workbench             = qt::diff_workbench{ };
+		auto       selections
+			= std::vector<std::optional<core::semantic_selection>>{ };
+		workbench.set_selection_sink(
+			[&selections](const std::optional<core::semantic_selection>& aSelection) {
+				selections.push_back(aSelection);
+			});
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		const auto selected = context(diff, 106U, 106U);
+		workbench.set_loading(selected);
+		workbench.publish({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+		expect(!selections.empty() && selections.back() == workbench.selection(),
+			   "accepted publication emits its reconciled semantic selection");
+
+		const auto leftBlock = workbench.left_pane()->document()->findBlockByNumber(0);
+		send_click(
+			*workbench.left_pane()->viewport(),
+			workbench.left_pane()->cursorRect(QTextCursor{ leftBlock }).center());
+		process_events();
+		expect(selections.back().has_value()
+				   && selections.back()->PreferredLine.Side == core::diff_side::left
+				   && selections.back() == workbench.selection(),
+			   "a left-pane click emits the exact left semantic source line");
+
+		const auto rightBlock = workbench.right_pane()->document()->findBlockByNumber(0);
+		send_click(
+			*workbench.right_pane()->viewport(),
+			workbench.right_pane()->cursorRect(QTextCursor{ rightBlock }).center());
+		process_events();
+		expect(selections.back().has_value()
+				   && selections.back()->PreferredLine.Side == core::diff_side::right
+				   && selections.back() == workbench.selection(),
+			   "a right-pane click emits the exact right semantic source line");
+
+		workbench.clear();
+		expect(!selections.back().has_value(),
+			   "clearing the projection emits an absent semantic selection");
+	}
+
 	void test_scale_and_high_frequency_evidence()
 	{
 		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
@@ -1995,6 +2044,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
 	test_selected_composition();
+	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_scale_and_high_frequency_evidence();
 	test_line_painting_stays_bounded_by_the_viewport();
 	test_syntax_spans_colour_the_panes();

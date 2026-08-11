@@ -43,11 +43,16 @@ namespace bpr::application {
 		return Statistics;
 	}
 
-	auto review_mutation_coordinator::confirm_target(const bool aAcknowledged)
+	auto review_mutation_coordinator::confirm_target(
+		const bool            aAcknowledged,
+		const std::stop_token aStop)
 		-> std::expected<void, review_mutation_failure>
 	{
+		if (aStop.stop_requested()) {
+			return std::unexpected(review_mutation_failure::cancelled);
+		}
 		++Statistics.TargetObservations;
-		const auto observed = Provider->observe_target();
+		const auto observed = Provider->observe_target(aStop);
 		if (!observed) {
 			return std::unexpected(observed.error());
 		}
@@ -72,28 +77,35 @@ namespace bpr::application {
 
 	auto review_mutation_coordinator::publish(
 		const core::review_publication_proposal& aProposal,
-		const bool                               aAcknowledged)
+		const bool                               aAcknowledged,
+		const std::stop_token                    aStop)
 		-> std::expected<review_mutation_receipt, review_mutation_failure>
 	{
-		return publish_bound(aProposal, std::nullopt, aAcknowledged);
+		return publish_bound(aProposal, std::nullopt, aAcknowledged, aStop);
 	}
 
 	auto review_mutation_coordinator::publish(
 		const core::review_publication_proposal& aProposal,
 		review_mutation_anchor_binding           aAnchor,
-		const bool                               aAcknowledged)
+		const bool                               aAcknowledged,
+		const std::stop_token                    aStop)
 		-> std::expected<review_mutation_receipt, review_mutation_failure>
 	{
-		return publish_bound(aProposal, std::move(aAnchor), aAcknowledged);
+		return publish_bound(aProposal, std::move(aAnchor), aAcknowledged, aStop);
 	}
 
 	auto review_mutation_coordinator::publish_bound(
 		const core::review_publication_proposal&      aProposal,
 		std::optional<review_mutation_anchor_binding> aAnchor,
-		const bool                                    aAcknowledged)
+		const bool                                    aAcknowledged,
+		const std::stop_token                         aStop)
 		-> std::expected<review_mutation_receipt, review_mutation_failure>
 	{
 		++Statistics.Attempts;
+		if (aStop.stop_requested()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::cancelled);
+		}
 		const auto completeBinding = TargetBinding.has_value()
 			&& ActingIdentityBinding.has_value() && aAnchor.has_value();
 		if (completeBinding
@@ -110,7 +122,7 @@ namespace bpr::application {
 			return std::unexpected(review_mutation_failure::undesignated_target);
 		}
 
-		if (auto prepared = confirm_target(aAcknowledged); !prepared) {
+		if (auto prepared = confirm_target(aAcknowledged, aStop); !prepared) {
 			++Statistics.RefusedBeforeSubmit;
 			return std::unexpected(prepared.error());
 		}
@@ -119,7 +131,7 @@ namespace bpr::application {
 		// whether publication was permitted; this one decides whether it is
 		// still the same pull request. Between the two there is a window, and
 		// this is what closes it.
-		if (auto current = confirm_target(aAcknowledged); !current) {
+		if (auto current = confirm_target(aAcknowledged, aStop); !current) {
 			++Statistics.RefusedBeforeSubmit;
 			return std::unexpected(current.error());
 		}
@@ -134,13 +146,18 @@ namespace bpr::application {
 			};
 		}
 
+		if (aStop.stop_requested()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::cancelled);
+		}
 		auto receipt = Provider->submit(review_mutation_request{
-			.Proposal       = aProposal,
-			.Target         = Designated,
-			.ActingIdentity = ActingIdentity,
-			.IdempotencyKey = idempotency_key_for(aProposal, Designated),
-			.LiveBinding    = std::move(liveBinding),
-		});
+											.Proposal       = aProposal,
+											.Target         = Designated,
+											.ActingIdentity = ActingIdentity,
+											.IdempotencyKey = idempotency_key_for(aProposal, Designated),
+											.LiveBinding    = std::move(liveBinding),
+										},
+										aStop);
 		if (!receipt) {
 			return receipt;
 		}

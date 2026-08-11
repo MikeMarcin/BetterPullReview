@@ -11,9 +11,12 @@
 #include <optional>
 #include <stop_token>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace bpr::application {
+	class epoch_application_host;
+
 	inline constexpr std::size_t   maximum_workbench_actionable_files     = 262'144U;
 	inline constexpr std::size_t   maximum_workbench_outstanding_requests = 64U;
 	inline constexpr std::uint32_t minimum_workbench_drawer_width         = 64U;
@@ -206,6 +209,98 @@ namespace bpr::application {
 		auto operator<=>(const workbench_selected_diff_request&) const = default;
 	};
 
+	/// \brief Opaque provenance for one endpoint resolved by the epoch host.
+	///
+	/// \details The value repeats the complete selected-diff request, side,
+	/// blob, and repository path that the epoch cache actor resolved. Production
+	/// code outside that actor can copy and validate the value but cannot mint a
+	/// replacement for an arbitrary presentation or caller-supplied path.
+	class workbench_selected_diff_endpoint final
+	{
+	public:
+		workbench_selected_diff_endpoint(
+			const workbench_selected_diff_endpoint&)                                  = default;
+		workbench_selected_diff_endpoint(workbench_selected_diff_endpoint&&) noexcept = default;
+		auto operator=(const workbench_selected_diff_endpoint&)
+			-> workbench_selected_diff_endpoint& = default;
+		auto operator=(workbench_selected_diff_endpoint&&) noexcept
+			-> workbench_selected_diff_endpoint& = default;
+		~workbench_selected_diff_endpoint()      = default;
+
+		[[nodiscard]] auto request() const noexcept
+			-> const workbench_selected_diff_request&
+		{
+			return Request;
+		}
+
+		[[nodiscard]] auto side() const noexcept -> core::diff_side
+		{
+			return Side;
+		}
+
+		[[nodiscard]] auto blob() const noexcept -> const core::git_blob_oid&
+		{
+			return Blob;
+		}
+
+		[[nodiscard]] auto path() const noexcept
+			-> const std::filesystem::path&
+		{
+			return Path;
+		}
+
+		auto operator<=>(const workbench_selected_diff_endpoint&) const = default;
+
+	private:
+		workbench_selected_diff_endpoint(
+			workbench_selected_diff_request aRequest,
+			const core::diff_side           aSide,
+			core::git_blob_oid              aBlob,
+			std::filesystem::path           aPath)
+			: Request{ std::move(aRequest) }
+			, Side{ aSide }
+			, Blob{ std::move(aBlob) }
+			, Path{ std::move(aPath) }
+		{
+		}
+
+		friend class epoch_application_host;
+#if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)
+		friend auto make_workbench_selected_diff_endpoint_for_testing(
+			workbench_selected_diff_request,
+			core::diff_side,
+			core::git_blob_oid,
+			std::filesystem::path) -> workbench_selected_diff_endpoint;
+#endif
+
+		workbench_selected_diff_request Request;
+		core::diff_side                 Side = core::diff_side::left;
+		core::git_blob_oid              Blob;
+		std::filesystem::path           Path;
+	};
+
+#if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)
+	/// \brief Mints endpoint provenance for application-host fixtures only.
+	[[nodiscard]] auto make_workbench_selected_diff_endpoint_for_testing(
+		workbench_selected_diff_request aRequest,
+		core::diff_side                 aSide,
+		core::git_blob_oid              aBlob,
+		std::filesystem::path           aPath)
+		-> workbench_selected_diff_endpoint;
+#endif
+
+	/// \brief Checks exact epoch endpoint provenance against a publication.
+	[[nodiscard]] inline auto valid(
+		const workbench_selected_diff_endpoint& aEndpoint,
+		const workbench_selected_diff_request&  aRequest,
+		const core::diff_side                   aSide,
+		const core::git_blob_oid&               aBlob,
+		const std::filesystem::path&            aPath) noexcept -> bool
+	{
+		return aEndpoint.request() == aRequest && aEndpoint.side() == aSide
+			&& aEndpoint.blob() == aBlob && aEndpoint.path() == aPath;
+	}
+
 	enum class workbench_selected_diff_status : std::uint8_t {
 		available,
 		binary,
@@ -223,10 +318,14 @@ namespace bpr::application {
 	/// \brief Describes one exact selected-file tree lookup terminal.
 	struct workbench_selected_diff_observation
 	{
-		workbench_selected_diff_request   Request;
-		workbench_selected_diff_status    Status = workbench_selected_diff_status::failure;
-		std::optional<core::git_blob_oid> LeftBlob;
-		std::optional<core::git_blob_oid> RightBlob;
+		workbench_selected_diff_request                 Request;
+		workbench_selected_diff_status                  Status = workbench_selected_diff_status::failure;
+		std::optional<core::git_blob_oid>               LeftBlob;
+		std::optional<core::git_blob_oid>               RightBlob;
+		std::optional<std::filesystem::path>            LeftPath;
+		std::optional<std::filesystem::path>            RightPath;
+		std::optional<workbench_selected_diff_endpoint> LeftEndpoint;
+		std::optional<workbench_selected_diff_endpoint> RightEndpoint;
 
 		auto operator<=>(const workbench_selected_diff_observation&) const = default;
 	};
@@ -249,8 +348,12 @@ namespace bpr::application {
 	/// \brief Describes an exact resolved file-comparison request.
 	struct workbench_selected_diff_publication
 	{
-		workbench_selected_diff_request Request;
-		core::file_comparison_key       Key;
+		workbench_selected_diff_request                 Request;
+		core::file_comparison_key                       Key;
+		std::optional<std::filesystem::path>            LeftPath;
+		std::optional<std::filesystem::path>            RightPath;
+		std::optional<workbench_selected_diff_endpoint> LeftEndpoint;
+		std::optional<workbench_selected_diff_endpoint> RightEndpoint;
 
 		auto operator<=>(const workbench_selected_diff_publication&) const = default;
 	};

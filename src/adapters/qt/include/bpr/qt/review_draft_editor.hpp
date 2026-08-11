@@ -18,6 +18,13 @@ class QLabel;
 class QPlainTextEdit;
 
 namespace bpr::qt {
+	/// \brief Names why no review-draft projection remains presentable.
+	enum class review_draft_editor_clear_reason : std::uint8_t {
+		selection_cleared,
+		selection_invalidated,
+		composition_retired,
+	};
+
 	/// \brief Records directly observable editor activity.
 	struct review_draft_editor_statistics
 	{
@@ -66,6 +73,8 @@ namespace bpr::qt {
 		void present(
 			const application::review_mutation_receipt& aReceipt,
 			const application::reconciliation_result&   aReconciliation);
+		/// \brief Clears every selection-bound projection without emitting intents.
+		void present(review_draft_editor_clear_reason aReason);
 
 		/// \brief Describes the target a publication would be sent to.
 		///

@@ -277,6 +277,41 @@ namespace {
 
 		delete editor;
 	}
+
+	void test_typed_clear_removes_stale_selection_bound_state()
+	{
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		editor->present(a_draft("Stale body"));
+		editor->present(a_receipt());
+		editor->describe_target(QStringLiteral("github.com/octo/app#7 at deadbeef"));
+		editor->present(application::review_mutation_failure::unavailable);
+
+		editor->present(qt::review_draft_editor_clear_reason::selection_invalidated);
+		expect(!editor->shown_draft().has_value()
+				   && !editor->shown_receipt().has_value()
+				   && editor->body_editor()->toPlainText().isEmpty()
+				   && editor->target_label()->text().contains(QStringLiteral("#7")),
+			   "typed invalidation clears selection state while retaining the host target");
+		expect(!editor->publish_action()->isEnabled()
+				   && !editor->discard_action()->isEnabled()
+				   && !editor->mark_read_action()->isEnabled()
+				   && !editor->accept_action()->isEnabled()
+				   && !editor->exclude_action()->isEnabled()
+				   && editor->body_editor()->isReadOnly(),
+			   "typed invalidation disables every stale action");
+		expect(log.Drafts.empty() && log.Receipts.empty(),
+			   "clearing the body as presentation emits no semantic edit");
+		expect(editor->mutation_status_text().contains(
+				   QStringLiteral("no longer available")),
+			   "the typed invalidation replaces the stale mutation status");
+		editor->present(qt::review_draft_editor_clear_reason::composition_retired);
+		expect(editor->target_label()->text().isEmpty()
+				   && editor->mutation_status_text().isEmpty(),
+			   "retiring composition clears its target and status authority");
+
+		delete editor;
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -290,6 +325,7 @@ auto main(int argc, char** argv) -> int
 	test_enablement_follows_the_projection_not_the_keystrokes();
 	test_the_publication_target_is_shown_before_publishing();
 	test_every_action_and_widget_is_distinctly_named();
+	test_typed_clear_removes_stale_selection_bound_state();
 
 	std::cout << "review-draft-editor-tests:pass\n";
 	return EXIT_SUCCESS;

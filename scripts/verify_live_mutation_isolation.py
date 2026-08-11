@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Assert that no live GitHub review mutation is reachable from a test binary.
 
-The production application links and may construct the contracted live provider
-for one exact authority, while keeping it dormant. This guard establishes the
-separate non-production property: the concrete provider remains unreachable
-from every test or helper executable even after production composition exists.
+The production application links and composes the contracted live provider
+behind an asynchronous host that has no production execution grant in this
+slice. This guard establishes the separate non-production property: the
+concrete provider remains unreachable from every test or helper executable.
 
 Three clauses, because a live mutation can become reachable three ways.
 
@@ -40,6 +40,7 @@ import sys
 PORT_IMPLEMENTATION_ALLOWLIST = frozenset(
     {
         "tests/application/review_mutation_tests.cpp",
+		"tests/application/review_mutation_application_host_tests.cpp",
         # Test-build-only provider owned by the recorded public-path fixture.
         # It has no transport, endpoint, credential, or production build path.
         "src/app/src/github_public_path_fixture.cpp",
@@ -71,6 +72,11 @@ CONSTRUCTION_SITE_ALLOWLIST = frozenset(
         "src/app/src/github_application.cpp",
     }
 )
+CONSTRUCTION_SITE_EXPECTED_COUNTS = {
+    "src/adapters/github/src/live_review_mutation_provider.hpp": 2,
+    "src/adapters/github/src/live_review_mutation_provider.cpp": 1,
+    "src/app/src/github_application.cpp": 1,
+}
 
 SOURCE_SUFFIXES = (".cpp", ".hpp", ".h", ".cc", ".cxx")
 
@@ -114,6 +120,17 @@ def construction_sites(root: pathlib.Path) -> set[str]:
         text = path.read_text(encoding="utf-8", errors="replace")
         if _CONSTRUCTION_CALL.search(text):
             found.add(path.relative_to(root).as_posix())
+    return found
+
+
+def construction_site_counts(root: pathlib.Path) -> dict[str, int]:
+    """Count factory-like declarations/definitions/calls at every source site."""
+    found: dict[str, int] = {}
+    for path in _sources(root):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        count = len(_CONSTRUCTION_CALL.findall(text))
+        if count:
+            found[path.relative_to(root).as_posix()] = count
     return found
 
 
@@ -180,7 +197,8 @@ def _check_sources(root: pathlib.Path) -> list[str]:
             f"this guard was passing without reading anything"
         )
 
-    sites = construction_sites(root)
+    counts = construction_site_counts(root)
+    sites = set(counts)
     for path in sorted(sites - CONSTRUCTION_SITE_ALLOWLIST):
         where = "a test" if path.startswith("tests/") else "production code"
         failures.append(
@@ -188,6 +206,14 @@ def _check_sources(root: pathlib.Path) -> list[str]:
             f"implementation and the composition root may construct it, and "
             f"{where} may not"
         )
+    for path, expected in CONSTRUCTION_SITE_EXPECTED_COUNTS.items():
+        actual = counts.get(path, 0)
+        if actual != expected:
+            failures.append(
+                f"{path} contains {actual} {CONSTRUCTION_TOKEN} token(s); "
+                f"expected exactly {expected}. A second factory call inside "
+                f"an allowed file is still a second live mutation path"
+            )
 
     return failures
 

@@ -38,15 +38,24 @@ the exact accepted host/account/repository/pull-request authority: selected-file
 receipt actions persist before projection, exact material receipts inform
 actionability, and notes, reviewed heads, and defect records share that host.
 Theme customization/import is also composed. The shipped draft editor now
-reaches the core review policy and fixture-only mutation coordinator through a
-real Publish action; stale targets are refused, lost results are retried
-idempotently, server comments are re-read, and capability absence is explicit.
-A tests-disabled production application can additionally construct the live
-provider only for the compiled designated repository, pull request, base, and
-head tuple and the exact dynamically authenticated acting identity. That
-provider remains dormant: production constructs no mutation coordinator and
-Publish cannot reach it. Its opaque accepted-snapshot transport lease is
-revoked on identity replacement and shutdown. Ordinary review threads can now be
+binds the diff workbench's exact semantic selection and resolved current-side
+repository path to an asynchronous review-mutation host. The fixture path
+drives the real Publish action through core policy, host admission, the
+coordinator, server refresh, and typed terminal presentation; stale targets are
+refused and lost results are retried idempotently. Selection changes during an
+in-flight publication retain the latest emitted selection until its matching
+terminal has reconciled server truth, including a return from A to B to A, and
+the epoch-sealed right endpoint cannot be replaced by an arbitrary path. A
+tests-disabled production
+application retains the live provider only for the compiled designated
+repository, pull request, base, and head tuple and the exact dynamically
+authenticated acting identity. It also composes the asynchronous host and
+coordinator, but supplies no execution grant, so publication performs zero
+provider, credential, or network work. No boolean, environment variable, CLI
+switch, persisted value, or Qt gesture can issue that absent capability. The
+host propagates per-request cancellation through live observation, submission,
+and native HTTPS, and revokes admission on identity replacement and shutdown.
+Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
 separate Publish action is still the only shared path. The shipped workbench now

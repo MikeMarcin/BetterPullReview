@@ -75,6 +75,10 @@ def parse_arguments() -> tuple[argparse.Namespace, list[str]]:
         "--cmake",
         default=shutil.which("cmake") or "cmake",
     )
+    parser.add_argument(
+        "--cxx",
+        default=shutil.which("c++") or "c++",
+    )
     parser.add_argument("--qt-root", default="")
     parser.add_argument("--qt-dir", default="")
     parser.add_argument("--cpm-source-cache", default="")
@@ -107,6 +111,135 @@ def source_files(relative_root: str) -> list[Path]:
 
 
 class CompositionContractTests(unittest.TestCase):
+    def test_production_mutation_authority_issuers_are_language_sealed(self) -> None:
+        include_arguments = [
+            f"-I{REPOSITORY_ROOT / 'src/application/include'}",
+            f"-I{REPOSITORY_ROOT / 'src/core/include'}",
+        ]
+
+        def compile_source(
+            temporary_root: Path,
+            name: str,
+            source: str,
+        ) -> subprocess.CompletedProcess[str]:
+            path = temporary_root / f"{name}.cpp"
+            path.write_text(source, encoding="utf-8")
+            return subprocess.run(
+                [
+                    ARGUMENTS.cxx,
+                    "-std=c++23",
+                    "-fsyntax-only",
+                    "-D_LIBCPP_ENABLE_EXPERIMENTAL",
+                    *include_arguments,
+                    str(path),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            production_baseline = compile_source(
+                temporary_root,
+                "production-baseline",
+                (
+                    '#include "bpr/application/review_mutation_application_host.hpp"\n'
+                    '#include "bpr/application/epoch_application_host.hpp"\n'
+                    "int main() { return 0; }\n"
+                ),
+            )
+            self.assertEqual(
+                production_baseline.returncode,
+                0,
+                production_baseline.stdout + production_baseline.stderr,
+            )
+
+            testing_baseline = compile_source(
+                temporary_root,
+                "testing-baseline",
+                (
+                    "#define BPR_APPLICATION_TESTING 1\n"
+                    '#include "bpr/application/review_mutation_application_host.hpp"\n'
+                    '#include "bpr/application/epoch_application_host.hpp"\n'
+                    "void test_issuers_are_declared() {\n"
+                    "  auto endpoint = "
+                    "bpr::application::make_workbench_selected_diff_endpoint_for_testing(\n"
+                    "    {}, bpr::core::diff_side::right, {}, {});\n"
+                    "  auto grant = bpr::application::make_review_mutation_testing_grant(\n"
+                    "    {}, {}, {}, {});\n"
+                    "  static_cast<void>(endpoint);\n"
+                    "  static_cast<void>(grant);\n"
+                    "}\n"
+                ),
+            )
+            self.assertEqual(
+                testing_baseline.returncode,
+                0,
+                testing_baseline.stdout + testing_baseline.stderr,
+            )
+
+            hostile_endpoint = compile_source(
+                temporary_root,
+                "hostile-endpoint",
+                (
+                    '#include "bpr/application/workbench_runtime_ports.hpp"\n'
+                    "auto hostile_endpoint(\n"
+                    "  bpr::application::workbench_selected_diff_request request) {\n"
+                    "  return bpr::application::workbench_selected_diff_endpoint{\n"
+                    "    request, bpr::core::diff_side::right, {}, {}};\n"
+                    "}\n"
+                ),
+            )
+            self.assertNotEqual(hostile_endpoint.returncode, 0)
+            self.assertIn(
+                "private",
+                (hostile_endpoint.stdout + hostile_endpoint.stderr).lower(),
+            )
+
+            hostile_grant = compile_source(
+                temporary_root,
+                "hostile-grant",
+                (
+                    '#include "bpr/application/review_mutation_application_host.hpp"\n'
+                    "namespace bpr::application {\n"
+                    "auto make_review_mutation_testing_grant(\n"
+                    "  core::application_session_id, core::request_generation,\n"
+                    "  core::review_mutation_target, core::github_account_id)\n"
+                    "  -> review_mutation_execution_grant {\n"
+                    "  return review_mutation_execution_grant{\n"
+                    "    new review_mutation_execution_authority{\n"
+                    "      review_mutation_execution_scope{}}};\n"
+                    "}\n"
+                    "}\n"
+                ),
+            )
+            self.assertNotEqual(hostile_grant.returncode, 0)
+            self.assertIn(
+                "private",
+                (hostile_grant.stdout + hostile_grant.stderr).lower(),
+            )
+
+            hostile_grant_call = compile_source(
+                temporary_root,
+                "hostile-grant-call",
+                (
+                    '#include "bpr/application/review_mutation_application_host.hpp"\n'
+                    "void hostile_grant_call() {\n"
+                    "  auto grant = "
+                    "bpr::application::make_review_mutation_testing_grant(\n"
+                    "    {}, {}, {}, {});\n"
+                    "  static_cast<void>(grant);\n"
+                    "}\n"
+                ),
+            )
+            self.assertNotEqual(hostile_grant_call.returncode, 0)
+            self.assertRegex(
+                (hostile_grant_call.stdout + hostile_grant_call.stderr).lower(),
+                r"(no member named|not a member)",
+            )
+
     def assert_release_self_test(
         self,
         executable: Path,
@@ -174,11 +307,11 @@ class CompositionContractTests(unittest.TestCase):
         self.assertIn("detail::admit_review_mutation_provider(", factory_body)
         self.assertNotIn("dynamic_pointer_cast", factory_body)
 
-    def test_dormant_provider_inventory_rejects_out_of_branch_use(self) -> None:
+    def test_async_mutation_host_inventory_rejects_every_direct_bypass(self) -> None:
         source = read("src/app/src/github_application.cpp")
         insertion_point = "\n\t\tvoid compose_review_mutation("
         self.assertEqual(source.count(insertion_point), 1)
-        hostile_helper = (
+        concrete_helper = (
             "\n#if !defined(BPR_BUILD_TESTING)\n"
             "\t\tvoid hostile_live_provider_use_for_contract()\n"
             "\t\t{\n"
@@ -187,32 +320,54 @@ class CompositionContractTests(unittest.TestCase):
             "\t\t}\n"
             "#endif\n"
         )
-        hostile_source = source.replace(
-            insertion_point,
-            hostile_helper + insertion_point,
-            1,
-        )
-        generic_helper = (
-            "\n\t\tvoid use(application::review_mutation_port& p)\n"
-            "\t\t{\n"
-            "\t\t\tp.observe_target();\n"
-            "\t\t}\n"
-        )
-        generic_source = source.replace(
-            insertion_point,
-            generic_helper + insertion_point,
-            1,
-        )
         provider_success = (
             "\t\t\tif (provider.has_value()) {\n"
-            "\t\t\t\tLiveReviewMutationProvider = std::move(*provider);"
+            "\t\t\t\tauto erased = "
+            "std::unique_ptr<application::review_mutation_port>{"
         )
-        self.assertEqual(generic_source.count(provider_success), 1)
-        generic_source = generic_source.replace(
+        self.assertEqual(source.count(provider_success), 1)
+        hostile_helpers = {
+            "concrete-provider": concrete_helper,
+            "generic-port": (
+                "\n\t\tvoid hostile_generic_port_for_contract(\n"
+                "\t\t\tapplication::review_mutation_port& mutation)\n"
+                "\t\t{\n"
+                "\t\t\tstatic_cast<void>(mutation.submit({ }));\n"
+                "\t\t}\n"
+            ),
+            "coordinator": (
+                "\n\t\tapplication::review_mutation_coordinator*\n"
+                "\t\t\tHostileCoordinatorForContract = nullptr;\n"
+            ),
+            "inferred-provider": (
+                "\n\t\ttemplate <typename Mutation>\n"
+                "\t\tvoid hostile_inferred_provider_for_contract(Mutation& mutation)\n"
+                "\t\t{\n"
+                "\t\t\tstatic_cast<void>(mutation.observe_target());\n"
+                "\t\t}\n"
+            ),
+            "second-factory": (
+                "\n\t\tvoid hostile_second_factory_for_contract()\n"
+                "\t\t{\n"
+                "\t\t\tstatic_cast<void>(make_live_review_mutation_provider(\n"
+                "\t\t\t\t/* hostile inventory candidate */));\n"
+                "\t\t}\n"
+            ),
+            "pointer-to-member": (
+                "\n\t\tauto HostileSubmitMemberForContract\n"
+                "\t\t\t= &application::review_mutation_port::submit;\n"
+            ),
+        }
+        hostile_sources = {
+            name: source.replace(insertion_point, helper + insertion_point, 1)
+            for name, helper in hostile_helpers.items()
+        }
+        hostile_sources["existing-provider-indirection"] = source.replace(
             provider_success,
             "\t\t\tif (provider.has_value()) {\n"
-            "\t\t\t\tuse(**provider);\n"
-            "\t\t\t\tLiveReviewMutationProvider = std::move(*provider);",
+            "\t\t\t\tstatic_cast<void>((*provider)->observe_target());\n"
+            "\t\t\t\tauto erased = "
+            "std::unique_ptr<application::review_mutation_port>{",
             1,
         )
         contract = (
@@ -223,17 +378,17 @@ class CompositionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
             baseline_path = temporary_root / "baseline-github-application.cpp"
-            hostile_path = temporary_root / "hostile-github-application.cpp"
-            generic_path = temporary_root / "generic-port-hostile-application.cpp"
             baseline_path.write_text(source, encoding="utf-8")
-            hostile_path.write_text(hostile_source, encoding="utf-8")
-            generic_path.write_text(generic_source, encoding="utf-8")
 
-            def verify(candidate: Path) -> subprocess.CompletedProcess[str]:
+            def verify(
+                candidate: Path,
+                app_source_root: Path = REPOSITORY_ROOT / "src/app",
+            ) -> subprocess.CompletedProcess[str]:
                 return subprocess.run(
                     [
                         ARGUMENTS.cmake,
                         f"-DBPR_PROVIDER_INVENTORY_SOURCE_FILE={candidate}",
+                        f"-DBPR_APP_SOURCE_ROOT={app_source_root}",
                         "-P",
                         str(contract),
                     ],
@@ -250,23 +405,103 @@ class CompositionContractTests(unittest.TestCase):
                 baseline.stdout + baseline.stderr,
             )
             self.assertIn(
-                "DORMANT_PROVIDER_INVENTORY_OK",
+                "ASYNC_MUTATION_HOST_INVENTORY_OK",
                 baseline.stdout + baseline.stderr,
             )
 
-            hostile = verify(hostile_path)
-            self.assertNotEqual(hostile.returncode, 0)
-            self.assertIn(
-                "dormant concrete provider performs an observe, submit, or publish action",
-                hostile.stdout + hostile.stderr,
-            )
+            for name, hostile_source in hostile_sources.items():
+                with self.subTest(hostile=name):
+                    hostile_path = temporary_root / f"{name}.cpp"
+                    hostile_path.write_text(hostile_source, encoding="utf-8")
+                    hostile = verify(hostile_path)
+                    self.assertNotEqual(
+                        hostile.returncode,
+                        0,
+                        hostile.stdout + hostile.stderr,
+                    )
+                    self.assertRegex(
+                        hostile.stdout + hostile.stderr,
+                        r"(full LF-normalized|concrete provider bypasses|literal inventory)",
+                    )
 
-            generic = verify(generic_path)
-            self.assertNotEqual(generic.returncode, 0)
-            self.assertIn(
-                "tests-disabled production compose_review_mutation branch digest drifted",
-                generic.stdout + generic.stderr,
+            app_tree_attacks = {
+                "second-app-generic-port": (
+                    "src/foundation_application.cpp",
+                    "append",
+                    (
+                        "\nvoid hostile_second_app_tu_generic_port(\n"
+                        "    bpr::application::review_mutation_port& mutation)\n"
+                        "{\n"
+                        "    static_cast<void>(mutation.submit({}));\n"
+                        "}\n"
+                    ),
+                ),
+                "foundation-spaced-member": (
+                    "src/foundation_application.cpp",
+                    "append",
+                    (
+                        "\ntemplate <typename Mutation>\n"
+                        "constexpr auto HostileSpacedSubmitMember\n"
+                        "    = &Mutation:: submit;\n"
+                    ),
+                ),
+                "worker-commented-member": (
+                    "src/worker_executor.cpp",
+                    "append",
+                    (
+                        "\ntemplate <typename Mutation>\n"
+                        "constexpr auto HostileCommentedSubmitMember\n"
+                        "    = &Mutation:: /* literal-evasion */ submit;\n"
+                    ),
+                ),
+                "worker-include-fragment": (
+                    "src/worker_executor.cpp",
+                    "prepend",
+                    (
+                        '#include "bpr/application/review_mutation_'
+                        "\\\n"
+                        'port.hpp"\n'
+                    ),
+                ),
+            }
+            self.assertNotIn(
+                "::submit",
+                app_tree_attacks["foundation-spaced-member"][2],
             )
+            self.assertNotIn(
+                "::submit",
+                app_tree_attacks["worker-commented-member"][2],
+            )
+            self.assertNotIn(
+                "review_mutation_port",
+                app_tree_attacks["worker-include-fragment"][2],
+            )
+            for name, (
+                relative_path,
+                placement,
+                fragment,
+            ) in app_tree_attacks.items():
+                with self.subTest(hostile=name):
+                    hostile_app_root = temporary_root / name
+                    shutil.copytree(REPOSITORY_ROOT / "src/app", hostile_app_root)
+                    hostile_app_source = hostile_app_root / relative_path
+                    original = hostile_app_source.read_text(encoding="utf-8")
+                    hostile_app_source.write_text(
+                        fragment + original
+                        if placement == "prepend"
+                        else original + fragment,
+                        encoding="utf-8",
+                    )
+                    hostile_app = verify(baseline_path, hostile_app_root)
+                    self.assertNotEqual(
+                        hostile_app.returncode,
+                        0,
+                        hostile_app.stdout + hostile_app.stderr,
+                    )
+                    self.assertIn(
+                        "production application source content digest drifted",
+                        hostile_app.stdout + hostile_app.stderr,
+                    )
 
         composition_cmake = read("src/app/CMakeLists.txt")
         target = re.search(

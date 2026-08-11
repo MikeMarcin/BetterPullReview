@@ -23,6 +23,7 @@ from scripts.verify_live_mutation_isolation import (  # noqa: E402
     FORBIDDEN_SYMBOL,
     POSITIVE_CONTROL_SYMBOL,
     REQUIRED_PORT_IMPLEMENTATION,
+    construction_site_counts,
     construction_sites,
     forbidden_symbols_in,
     port_implementations,
@@ -191,6 +192,20 @@ class ConstructionSiteTests(unittest.TestCase):
             self.assertEqual(
                 construction_sites(root),
                 {"src/app/src/github_application.cpp"},
+            )
+
+    def test_a_second_call_inside_the_composition_root_is_counted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write(
+                root,
+                "src/app/src/github_application.cpp",
+                "auto first = make_live_review_mutation_provider(one);\n"
+                "auto second = make_live_review_mutation_provider(two);\n",
+            )
+            self.assertEqual(
+                construction_site_counts(root),
+                {"src/app/src/github_application.cpp": 2},
             )
 
     def test_naming_without_calling_is_not_a_site(self) -> None:

@@ -223,6 +223,11 @@ namespace bpr::app::detail {
 		bool SemanticEdit          = false;
 		bool StaleHeadRefused      = false;
 		bool LostResultRefreshed   = false;
+		bool SelectionDeferred     = false;
+		bool LatestSelectionWins   = false;
+		bool PendingCleared        = false;
+		bool DeferredDraftExact    = false;
+		bool StaleTerminalWithheld = false;
 		bool RetryIdempotent       = false;
 		bool CapabilityFallback    = false;
 		bool ServerAuthority       = false;

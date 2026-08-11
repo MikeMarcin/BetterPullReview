@@ -124,14 +124,15 @@ they are constructed or invoked. `application_queue_composition_contract` and
 the notification activation contract remain the runtime evidence for rule
 enrollment, refresh, request submission, and exact-row activation.
 
-The review-mutation linkage inventory is profile-specific. The
-development-fixture profile requires the coordinator constructor, exact
-test-only provider boundary, and `bpr::application::reconcile`, while forbidding
-the live provider type and factory. Tests-disabled production requires the live
-provider type and factory while forbidding the coordinator constructor and all
-fixture/reconciliation symbols. The fixture marker and dormant-selection
-contract remain the runtime complements: production constructs no coordinator
-and calls neither live observation nor submission. The verifier cannot skip a
+The review-mutation linkage inventory is profile-specific. Both profiles
+require the asynchronous application-host and coordinator constructors.
+Development fixture additionally requires the exact test-only provider,
+testing-grant factory, and `bpr::application::reconcile`, while forbidding the
+live provider and factory. Tests-disabled production requires the live provider
+and factory while forbidding the fixture type, testing-grant factory, and
+reconciliation symbol. Independent construction, grant, selection, and
+host-dispatch cuts are the runtime complements; production's empty grant
+performs no live observation or submission. The verifier cannot skip a
 missing binary or supported inspector, and nonzero tools, failed demanglers, or
 malformed or zero-defined tables fail closed. Only parsed defined records count;
 `U`/`UND` references and anchors embedded in surrounding template text do not.

@@ -547,23 +547,55 @@ workspace outside its cache; the agent adapter receives that directory only
 after materialization. App composition is the only region that knows the real
 panel, host, cache, launcher, and built-in executable profiles together.
 
-The shipped review-mutation composition preserves this allocation. Qt emits
-semantic draft commands and presents typed outcomes. The core decides whether
-the draft may publish. The application coordinator fixes the destination,
+The shipped review-mutation composition preserves this allocation. Qt emits the
+diff workbench's exact semantic selection and draft commands, then presents
+typed outcomes. It owns no provider. The core decides whether the draft may
+publish. The application mutation host binds the selected comparison, file,
+workbench generation, selected-diff identity, side, line, resolved repository
+path, epoch-issued endpoint provenance, commit, designated head, and acting
+identity before queuing any effect. Only the exact right/current-head endpoint
+is supported; left, absent, stale, or mismatched paths fail before provider
+work. One host-owned drain serializes coordinator/provider effects independently
+of executor concurrency. The coordinator then fixes the destination,
 revalidates target and head, derives the idempotency key, and refreshes server
-comments before presentation. Automated product evidence installs only a
-fixture provider and coordinator under the test build. Tests-disabled production
-may construct the live provider only when the accepted handoff and snapshot
-match the compiled designated host, repository, pull request, base, and head
-tuple. The acting database ID, node ID, and login are not compiled constants:
-they come from the exact authenticated session, are cross-bound to its opaque
-accepted-snapshot transport lease, and are re-observed before a write. The host
-mints a distinct lease for each accepted snapshot and synchronously revokes it
-on pull-request or account replacement and shutdown; every retained copy then
-refuses provider construction or use. This monotonic denial is separate from
-the asynchronous cancellation and publication lifecycle owned by the following
-slice. Production still constructs no coordinator, exposes no Publish route to
-the provider, and calls neither observation nor submission.
+comments before presentation.
+
+The fixture build supplies the only current execution grant. Tests-disabled
+production constructs the same asynchronous host only when the accepted
+handoff and snapshot match the compiled designated host, repository, pull
+request, base, and head tuple. The acting database ID, node ID, and login are
+not compiled constants: they come from the exact authenticated session, are
+cross-bound to its opaque accepted-snapshot transport lease, and are
+re-observed before a write. Production supplies no execution grant and has no
+issuer for one, so a Publish attempt returns a typed refusal before provider,
+credential, or network work. No boolean, environment variable, CLI switch,
+persisted value, or ordinary Qt gesture can mint that capability.
+
+Each accepted fixture request has its own monotonic stop source. Supersession,
+explicit cancellation, authority replacement, and shutdown request stop, and
+the token propagates through coordinator observation, the provider session, and
+native HTTPS. Terminal delivery is serialized, exactly once for the current
+request, and withheld after supersession or shutdown. The host remains alive
+until its owned effects and completions are quiescent, then the composition root
+releases provider and lease authority. A UI selection made while a request is
+pending updates one latest-selection slot rather than replacing the publishing
+draft. Returning from A to B to A before the terminal therefore adopts A. The
+matching terminal always retires pending state and reconciles server truth
+before that latest selection is presented. An unavailable terminal may retain
+one exact authority-bound retry identity; different anchors or authorities
+cannot restore it, and successful retry, invalidation, composition retirement,
+and shutdown clear it.
+
+The epoch host owns the only production mint seam for sealed selected-diff
+endpoint provenance. The fixture issuer exists only under testing macros.
+Likewise, the testing-grant friendship is absent from production-flags
+translation units, so an external definition cannot acquire constructor
+access. A full LF-normalized digest locks the composition translation unit.
+A second deterministic manifest hashes every production application source and
+header as its sorted relative path plus LF-normalized content digest. The exact
+file inventory and the composition TU's semantic inventories remain separate,
+so whitespace, comment, token-fragment, or second-TU changes cannot bypass the
+binding.
 
 For RFC-BPR-0004, interaction state in the core includes the active semantic
 change and selected source line, boundary, or mapping target. Host caches may

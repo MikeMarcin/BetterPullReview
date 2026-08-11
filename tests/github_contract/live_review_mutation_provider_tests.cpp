@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <stop_token>
@@ -214,9 +215,14 @@ namespace {
 	public:
 		[[nodiscard]] auto perform_review_mutation(
 			const github_mutation_wire_request& aRequest,
-			std::stop_token) -> github_mutation_wire_completion override
+			const std::stop_token               aStop)
+			-> github_mutation_wire_completion override
 		{
 			Requests.push_back(aRequest);
+			StopObserved.push_back(aStop.stop_requested());
+			if (OnPerform) {
+				OnPerform(Requests.size());
+			}
 			if (Completions.empty()) {
 				return github_mutation_wire_error{
 					.Failure = application::review_mutation_failure::unavailable,
@@ -236,6 +242,8 @@ namespace {
 
 		std::deque<github_mutation_wire_completion> Completions;
 		std::vector<github_mutation_wire_request>   Requests;
+		std::vector<bool>                           StopObserved;
+		std::function<void(std::size_t)>            OnPerform;
 	};
 
 	class fake_github_review_mutation_lease final
@@ -499,6 +507,66 @@ namespace {
 			   "cancellation remains typed");
 	}
 
+	void test_stop_token_cancels_every_session_phase_before_the_next_wire_call()
+	{
+		auto stopped = std::stop_source{ };
+		static_cast<void>(stopped.request_stop());
+		auto beforeTransport = fake_transport{ };
+		auto beforeSession   = review_mutation_session{
+			beforeTransport, configuration(), mutation_lease()
+		};
+		const auto before = beforeSession.submit(request(), stopped.get_token());
+		expect(!before.has_value()
+				   && before.error() == application::review_mutation_failure::cancelled
+				   && beforeTransport.Requests.empty(),
+			   "a pre-stopped request performs no wire operation");
+
+		auto afterViewerStop = std::stop_source{ };
+		auto afterViewer     = fake_transport{ };
+		afterViewer.Completions.push_back(viewer_response());
+		afterViewer.OnPerform = [&afterViewerStop](const std::size_t aCount) {
+			if (aCount == 1U) {
+				static_cast<void>(afterViewerStop.request_stop());
+			}
+		};
+		auto afterViewerSession = review_mutation_session{
+			afterViewer, configuration(), mutation_lease()
+		};
+		const auto viewerCancelled = afterViewerSession.submit(
+			request(), afterViewerStop.get_token());
+		expect(!viewerCancelled.has_value()
+				   && viewerCancelled.error()
+					   == application::review_mutation_failure::cancelled
+				   && afterViewer.Requests.size() == 1U,
+			   "stopping after viewer observation prevents target observation");
+
+		auto beforeWriteStop = std::stop_source{ };
+		auto beforeWrite     = fake_transport{ };
+		beforeWrite.Completions.push_back(viewer_response());
+		beforeWrite.Completions.push_back(target_response());
+		beforeWrite.OnPerform = [&beforeWriteStop](const std::size_t aCount) {
+			if (aCount == 2U) {
+				static_cast<void>(beforeWriteStop.request_stop());
+			}
+		};
+		auto beforeWriteSession = review_mutation_session{
+			beforeWrite, configuration(), mutation_lease()
+		};
+		const auto writeCancelled = beforeWriteSession.submit(
+			request(), beforeWriteStop.get_token());
+		expect(!writeCancelled.has_value()
+				   && writeCancelled.error()
+					   == application::review_mutation_failure::cancelled
+				   && beforeWrite.Requests.size() == 2U
+				   && std::ranges::none_of(
+					   beforeWrite.Requests,
+					   [](const auto& aWire) {
+						   return aWire.Wire.Operation
+							   == review_mutation_operation::create_review_comment;
+					   }),
+			   "stopping after exact target observation prevents the POST");
+	}
+
 	void test_retained_revoked_lease_refuses_every_provider_use()
 	{
 		auto transport = fake_transport{ };
@@ -549,6 +617,7 @@ auto main() -> int
 	test_revalidation_drift_and_identity_failure_stop_before_write();
 	test_idempotency_and_indeterminate_attempts_never_duplicate();
 	test_typed_transport_outcomes_propagate_without_diagnostics();
+	test_stop_token_cancels_every_session_phase_before_the_next_wire_call();
 	test_retained_revoked_lease_refuses_every_provider_use();
 	test_retained_revoked_lease_refuses_provider_admission();
 	std::cout << "live-review-mutation-provider-tests:pass\n";

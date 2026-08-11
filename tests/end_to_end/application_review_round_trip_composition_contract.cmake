@@ -1,206 +1,355 @@
 cmake_minimum_required(VERSION 4.4.2)
 
-macro(bpr_require_dormant_provider_role pattern expected role)
-    string(REGEX MATCHALL
-        "${pattern}"
-        bpr_dormant_provider_role_matches
-        "${bpr_dormant_provider_source}"
-    )
-    list(LENGTH
-        bpr_dormant_provider_role_matches
-        bpr_dormant_provider_role_count
-    )
-    if(NOT bpr_dormant_provider_role_count EQUAL ${expected})
-        message(FATAL_ERROR
-            "dormant concrete-provider inventory expected ${expected} "
-            "${role} occurrence(s), found "
-            "${bpr_dormant_provider_role_count}"
-        )
+function(bpr_require_literal_count source_variable token expected description)
+    set(bpr_count_source "${${source_variable}}")
+    string(LENGTH "${bpr_count_source}" bpr_count_before)
+    string(LENGTH "${token}" bpr_count_token_length)
+    if(bpr_count_token_length EQUAL 0)
+        message(FATAL_ERROR "${description} uses an empty inventory token")
     endif()
-endmacro()
-
-function(bpr_verify_dormant_provider_inventory source_variable)
-    set(bpr_dormant_provider_source "${${source_variable}}")
-
-    bpr_require_dormant_provider_role(
-        "#include[ \t]+\"live_review_mutation_provider\\.hpp\""
-        1
-        "provider include"
+    string(REPLACE "${token}" "" bpr_count_without "${bpr_count_source}")
+    string(LENGTH "${bpr_count_without}" bpr_count_after)
+    math(EXPR bpr_count
+        "(${bpr_count_before} - ${bpr_count_after}) / ${bpr_count_token_length}"
     )
-    bpr_require_dormant_provider_role(
-        "using[ \t]+adapters::github::live_review_mutation_provider"
-        1
-        "provider-type using declaration"
-    )
-    bpr_require_dormant_provider_role(
-        "using[ \t]+adapters::github::make_live_review_mutation_provider"
-        1
-        "provider-factory using declaration"
-    )
-    bpr_require_dormant_provider_role(
-        "LiveReviewMutationProvider\\.reset\\(\\)"
-        2
-        "production reset"
-    )
-    bpr_require_dormant_provider_role(
-        "auto[ \t]+provider[ \t]*=[ \t]*make_live_review_mutation_provider\\("
-        1
-        "provider factory call"
-    )
-    bpr_require_dormant_provider_role(
-        "LiveReviewMutationProvider[ \t]*=[ \t]*std::move\\(\\*provider\\)"
-        1
-        "provider assignment"
-    )
-    bpr_require_dormant_provider_role(
-        "std::unique_ptr<live_review_mutation_provider>[ \t]+LiveReviewMutationProvider"
-        1
-        "production-only provider member"
-    )
-    string(REGEX MATCH
-        "LiveReviewMutationProvider[ \t\r\n]*(->|\\.)[ \t\r\n]*(observe_target|submit|publish)[ \t\r\n]*\\("
-        bpr_forbidden_dormant_provider_use
-        "${bpr_dormant_provider_source}"
-    )
-    if(NOT bpr_forbidden_dormant_provider_use STREQUAL "")
+    if(NOT bpr_count EQUAL expected)
         message(FATAL_ERROR
-            "dormant concrete provider performs an observe, submit, or "
-            "publish action outside its allowlisted lifecycle roles"
-        )
-    endif()
-
-    bpr_require_dormant_provider_role(
-        "live_review_mutation_provider"
-        5
-        "lower-case concrete-provider token"
-    )
-    bpr_require_dormant_provider_role(
-        "make_live_review_mutation_provider"
-        2
-        "provider-factory token"
-    )
-    bpr_require_dormant_provider_role(
-        "LiveReviewMutationProvider"
-        4
-        "provider-member token"
-    )
-
-    string(REGEX MATCH
-        "#if[ \t]+defined\\(BPR_BUILD_TESTING\\)[ \t\r\n]+std::unique_ptr<application::review_mutation_coordinator>[ \t]+ReviewMutationCoordinator[ \t\r\n]*;[ \t\r\n]+#else[ \t\r\n]+std::unique_ptr<live_review_mutation_provider>[ \t]+LiveReviewMutationProvider[ \t\r\n]*;[ \t\r\n]+#endif"
-        bpr_dormant_provider_member_branch
-        "${bpr_dormant_provider_source}"
-    )
-    if(bpr_dormant_provider_member_branch STREQUAL "")
-        message(FATAL_ERROR
-            "dormant concrete-provider inventory omitted its "
-            "production-only provider member branch"
-        )
-    endif()
-
-    string(REGEX MATCH
-        "#if[ \t]+defined\\(BPR_BUILD_TESTING\\)[ \t\r\n]+ReviewMutationCoordinator\\.reset\\(\\);[ \t\r\n]+#else[ \t\r\n]+LiveReviewMutationProvider\\.reset\\(\\);[ \t\r\n]+#endif"
-        bpr_dormant_provider_lifecycle_reset_branch
-        "${bpr_dormant_provider_source}"
-    )
-    if(bpr_dormant_provider_lifecycle_reset_branch STREQUAL "")
-        message(FATAL_ERROR
-            "dormant concrete-provider inventory omitted its "
-            "production-only lifecycle reset branch"
+            "${description} literal inventory expected ${expected}, found "
+            "${bpr_count}: ${token}"
         )
     endif()
 endfunction()
 
-function(bpr_verify_dormant_production_branch_digest source_variable)
-    set(bpr_dormant_branch_source "${${source_variable}}")
+function(bpr_verify_full_application_digest source_variable)
+    set(bpr_full_application_source "${${source_variable}}")
+    string(REPLACE
+        "\r\n"
+        "\n"
+        bpr_full_application_source
+        "${bpr_full_application_source}"
+    )
+    string(REPLACE
+        "\r"
+        "\n"
+        bpr_full_application_source
+        "${bpr_full_application_source}"
+    )
+    string(SHA256
+        bpr_full_application_digest
+        "${bpr_full_application_source}"
+    )
+    set(bpr_expected_full_application_digest
+        "45e1b8ad10d8e82437a0d21651558c230f00de74f2c4512abaf8e132a8daef1e"
+    )
+    if(NOT bpr_full_application_digest STREQUAL
+        bpr_expected_full_application_digest
+    )
+        message(FATAL_ERROR
+            "full LF-normalized github_application.cpp digest drifted: "
+            "expected ${bpr_expected_full_application_digest}, found "
+            "${bpr_full_application_digest}"
+        )
+    endif()
+endfunction()
+
+function(bpr_verify_app_source_tree app_source_root)
+    if(NOT IS_DIRECTORY "${app_source_root}")
+        message(FATAL_ERROR
+            "application source-tree inventory root does not exist: "
+            "${app_source_root}"
+        )
+    endif()
+    set(bpr_expected_app_sources
+        "include/bpr/app/foundation_application.hpp"
+        "include/bpr/app/github_application.hpp"
+        "include/bpr/app/worker_executor.hpp"
+        "main.cpp"
+        "src/foundation_application.cpp"
+        "src/github_application.cpp"
+        "src/github_application_fixture_access.hpp"
+        "src/github_public_path_fixture.cpp"
+        "src/github_public_path_fixture.hpp"
+        "src/worker_executor.cpp"
+    )
+    file(GLOB_RECURSE bpr_actual_app_sources
+        LIST_DIRECTORIES false
+        RELATIVE "${app_source_root}"
+        "${app_source_root}/*.c"
+        "${app_source_root}/*.cc"
+        "${app_source_root}/*.cpp"
+        "${app_source_root}/*.cxx"
+        "${app_source_root}/*.h"
+        "${app_source_root}/*.hpp"
+    )
+    list(SORT bpr_actual_app_sources)
+    if(NOT bpr_actual_app_sources STREQUAL bpr_expected_app_sources)
+        message(FATAL_ERROR
+            "application source-tree inventory drifted: expected "
+            "${bpr_expected_app_sources}, found ${bpr_actual_app_sources}"
+        )
+    endif()
+
+    set(bpr_production_app_sources
+        "include/bpr/app/foundation_application.hpp"
+        "include/bpr/app/github_application.hpp"
+        "include/bpr/app/worker_executor.hpp"
+        "main.cpp"
+        "src/foundation_application.cpp"
+        "src/github_application.cpp"
+        "src/worker_executor.cpp"
+    )
+    set(bpr_production_app_manifest "")
+    foreach(relative_source IN LISTS bpr_production_app_sources)
+        file(READ
+            "${app_source_root}/${relative_source}"
+            bpr_app_source_contents
+        )
+        string(REPLACE
+            "\r\n"
+            "\n"
+            bpr_app_source_contents
+            "${bpr_app_source_contents}"
+        )
+        string(REPLACE
+            "\r"
+            "\n"
+            bpr_app_source_contents
+            "${bpr_app_source_contents}"
+        )
+        string(SHA256
+            bpr_app_source_digest
+            "${bpr_app_source_contents}"
+        )
+        string(APPEND
+            bpr_production_app_manifest
+            "${relative_source}\n${bpr_app_source_digest}\n"
+        )
+    endforeach()
+    string(SHA256
+        bpr_production_app_manifest_digest
+        "${bpr_production_app_manifest}"
+    )
+    set(bpr_expected_production_app_manifest_digest
+        "5079083b57e84f319dccb332300a1c6df5db66c4fa19ea21a843f775ed58a2a9"
+    )
+    if(NOT bpr_production_app_manifest_digest STREQUAL
+        bpr_expected_production_app_manifest_digest
+    )
+        message(FATAL_ERROR
+            "production application source content digest drifted: expected "
+            "${bpr_expected_production_app_manifest_digest}, found "
+            "${bpr_production_app_manifest_digest}"
+        )
+    endif()
+endfunction()
+
+function(bpr_verify_async_mutation_host_inventory source_variable)
+    set(bpr_async_mutation_source "${${source_variable}}")
+    foreach(required IN ITEMS
+        "#include \"live_review_mutation_provider.hpp\""
+        "using adapters::github::make_live_review_mutation_provider;"
+        "auto provider = make_live_review_mutation_provider("
+        "ReviewMutationHost = std::make_unique<"
+        "application::review_mutation_application_host>("
+        "worker_executor                                 ReviewMutationEffects;"
+        "std::unique_ptr<application::review_mutation_application_host>"
+    )
+        string(FIND "${bpr_async_mutation_source}" "${required}" found)
+        if(found EQUAL -1)
+            message(FATAL_ERROR
+                "asynchronous mutation-host inventory omitted ${required}"
+            )
+        endif()
+    endforeach()
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "make_live_review_mutation_provider("
+        1
+        "live review mutation provider factory call"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "ReviewMutationHost->publish("
+        1
+        "review mutation host publication call"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "ReviewMutationHost = std::make_unique<"
+        2
+        "fixture and production mutation host construction"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "std::unique_ptr<application::review_mutation_port>"
+        1
+        "production provider erasure"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "review_mutation_port"
+        1
+        "whole-app mutation port reference"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "make_review_mutation_testing_grant("
+        1
+        "fixture-only mutation grant factory call"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "application::review_mutation_execution_grant{ }"
+        1
+        "production absent execution grant"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "review_mutation_coordinator"
+        0
+        "whole-app direct mutation coordinator reference"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        ".observe_target("
+        0
+        "whole-app inferred provider observation"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "->observe_target("
+        0
+        "whole-app provider observation"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        ".submit("
+        0
+        "whole-app inferred direct submit"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "->submit("
+        1
+        "whole-app pointer submit allowlist"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "ReviewLedgerHost->submit("
+        1
+        "review-ledger pointer submit allowlist"
+    )
+    foreach(forbidden IN ITEMS
+        "LiveReviewMutationProvider"
+        "ReviewMutationCoordinator->publish("
+        "provider->observe_target("
+        "provider->submit("
+        "(*provider)->observe_target("
+        "(*provider)->submit("
+        "erased->observe_target("
+        "erased->submit("
+    )
+        string(FIND "${bpr_async_mutation_source}" "${forbidden}" found)
+        if(NOT found EQUAL -1)
+            message(FATAL_ERROR
+                "concrete provider bypasses the asynchronous host with an "
+                "observe, submit, or publish action: ${forbidden}"
+            )
+        endif()
+    endforeach()
+endfunction()
+
+function(bpr_verify_production_mutation_host_digest source_variable)
+    set(bpr_mutation_branch_source "${${source_variable}}")
     string(FIND
-        "${bpr_dormant_branch_source}"
+        "${bpr_mutation_branch_source}"
         "void compose_review_mutation("
-        bpr_dormant_compose_begin
+        bpr_mutation_compose_begin
     )
     string(FIND
-        "${bpr_dormant_branch_source}"
+        "${bpr_mutation_branch_source}"
         "void refresh_review_projection()"
-        bpr_dormant_compose_end
+        bpr_mutation_compose_end
     )
-    if(bpr_dormant_compose_begin EQUAL -1
-        OR bpr_dormant_compose_end EQUAL -1
-        OR bpr_dormant_compose_end LESS_EQUAL bpr_dormant_compose_begin
+    if(bpr_mutation_compose_begin EQUAL -1
+        OR bpr_mutation_compose_end EQUAL -1
+        OR bpr_mutation_compose_end LESS_EQUAL bpr_mutation_compose_begin
     )
         message(FATAL_ERROR
             "review mutation composition boundary is missing for digest lock"
         )
     endif()
-    math(EXPR bpr_dormant_compose_length
-        "${bpr_dormant_compose_end} - ${bpr_dormant_compose_begin}"
+    math(EXPR bpr_mutation_compose_length
+        "${bpr_mutation_compose_end} - ${bpr_mutation_compose_begin}"
     )
     string(SUBSTRING
-        "${bpr_dormant_branch_source}"
-        ${bpr_dormant_compose_begin}
-        ${bpr_dormant_compose_length}
-        bpr_dormant_compose_source
+        "${bpr_mutation_branch_source}"
+        ${bpr_mutation_compose_begin}
+        ${bpr_mutation_compose_length}
+        bpr_mutation_compose_source
     )
     string(FIND
-        "${bpr_dormant_compose_source}"
+        "${bpr_mutation_compose_source}"
         "#else"
-        bpr_dormant_production_marker
+        bpr_mutation_production_marker
     )
-    if(bpr_dormant_production_marker EQUAL -1)
+    if(bpr_mutation_production_marker EQUAL -1)
         message(FATAL_ERROR
             "tests-disabled production review mutation branch is missing"
         )
     endif()
-    string(LENGTH "#else" bpr_dormant_production_marker_length)
-    math(EXPR bpr_dormant_production_begin
-        "${bpr_dormant_production_marker} + ${bpr_dormant_production_marker_length}"
+    string(LENGTH "#else" bpr_mutation_production_marker_length)
+    math(EXPR bpr_mutation_production_begin
+        "${bpr_mutation_production_marker} + ${bpr_mutation_production_marker_length}"
     )
     string(FIND
-        "${bpr_dormant_compose_source}"
+        "${bpr_mutation_compose_source}"
         "#endif"
-        bpr_dormant_production_end
+        bpr_mutation_production_end
     )
-    if(bpr_dormant_production_end LESS_EQUAL bpr_dormant_production_begin)
+    if(bpr_mutation_production_end LESS_EQUAL bpr_mutation_production_begin)
         message(FATAL_ERROR
             "tests-disabled production review mutation branch is malformed"
         )
     endif()
-    math(EXPR bpr_dormant_production_length
-        "${bpr_dormant_production_end} - ${bpr_dormant_production_begin}"
+    math(EXPR bpr_mutation_production_length
+        "${bpr_mutation_production_end} - ${bpr_mutation_production_begin}"
     )
     string(SUBSTRING
-        "${bpr_dormant_compose_source}"
-        ${bpr_dormant_production_begin}
-        ${bpr_dormant_production_length}
-        bpr_dormant_production_source
+        "${bpr_mutation_compose_source}"
+        ${bpr_mutation_production_begin}
+        ${bpr_mutation_production_length}
+        bpr_mutation_production_source
     )
     string(REPLACE
         "\r\n"
         "\n"
-        bpr_dormant_production_source
-        "${bpr_dormant_production_source}"
+        bpr_mutation_production_source
+        "${bpr_mutation_production_source}"
     )
     string(REPLACE
         "\r"
         "\n"
-        bpr_dormant_production_source
-        "${bpr_dormant_production_source}"
+        bpr_mutation_production_source
+        "${bpr_mutation_production_source}"
     )
     string(SHA256
-        bpr_dormant_production_digest
-        "${bpr_dormant_production_source}"
+        bpr_mutation_production_digest
+        "${bpr_mutation_production_source}"
     )
     # SHA-256 of the exact LF-normalized bytes after the branch's #else and
     # before its #endif. Tokens and horizontal whitespace remain unmodified.
-    set(bpr_expected_dormant_production_digest
-        "cb4661decfd4d910861a1d1f4f237dd085a14a6bada3b12ac30c7c03046b7243"
+    set(bpr_expected_mutation_production_digest
+        "ca1c73e4f0fdbcb2fc7b825d6dbb6117d2d94a3d2bf2768eb484e2ec6c921f67"
     )
-    if(NOT bpr_dormant_production_digest STREQUAL
-        bpr_expected_dormant_production_digest
+    if(NOT bpr_mutation_production_digest STREQUAL
+        bpr_expected_mutation_production_digest
     )
         message(FATAL_ERROR
             "tests-disabled production compose_review_mutation branch "
             "digest drifted: expected "
-            "${bpr_expected_dormant_production_digest}, found "
-            "${bpr_dormant_production_digest}"
+            "${bpr_expected_mutation_production_digest}, found "
+            "${bpr_mutation_production_digest}"
         )
     endif()
 endfunction()
@@ -216,11 +365,15 @@ if(DEFINED BPR_PROVIDER_INVENTORY_SOURCE_FILE)
         "${BPR_PROVIDER_INVENTORY_SOURCE_FILE}"
         bpr_provider_inventory_source
     )
-    bpr_verify_dormant_provider_inventory(bpr_provider_inventory_source)
-    bpr_verify_dormant_production_branch_digest(
+    bpr_verify_full_application_digest(bpr_provider_inventory_source)
+    bpr_verify_async_mutation_host_inventory(bpr_provider_inventory_source)
+    bpr_verify_production_mutation_host_digest(
         bpr_provider_inventory_source
     )
-    message("DORMANT_PROVIDER_INVENTORY_OK")
+    if(DEFINED BPR_APP_SOURCE_ROOT)
+        bpr_verify_app_source_tree("${BPR_APP_SOURCE_ROOT}")
+    endif()
+    message("ASYNC_MUTATION_HOST_INVENTORY_OK")
     return()
 endif()
 
@@ -240,8 +393,10 @@ foreach(required IN ITEMS
 endforeach()
 
 file(READ "${BPR_APP_SOURCE}" bpr_application_source)
-bpr_verify_dormant_provider_inventory(bpr_application_source)
-bpr_verify_dormant_production_branch_digest(bpr_application_source)
+bpr_verify_full_application_digest(bpr_application_source)
+bpr_verify_async_mutation_host_inventory(bpr_application_source)
+bpr_verify_production_mutation_host_digest(bpr_application_source)
+bpr_verify_app_source_tree("${BPR_SOURCE_ROOT}/src/app")
 string(FIND
     "${bpr_application_source}"
     "exercise_review_round_trip_composition("
@@ -289,7 +444,8 @@ foreach(required_wire IN ITEMS
 endforeach()
 foreach(required_product IN ITEMS
     "dispatch_review_draft("
-    "ReviewMutationCoordinator->publish("
+    "ReviewMutationHost->publish("
+    "set_selection_sink("
     "refresh_review_projection()"
 )
     string(FIND "${bpr_application_source}" "${required_product}" found)
@@ -340,22 +496,24 @@ string(SUBSTRING
     ${production_length}
     production_mutation_source
 )
-foreach(required_dormant IN ITEMS
+foreach(required_production_host IN ITEMS
     "select_designated_review_mutation("
     "accepted_review_mutation_transport()"
-    "LiveReviewMutationProvider.reset()"
     "make_live_review_mutation_provider("
-    "LiveReviewMutationProvider ="
+    "application::review_mutation_execution_grant{ }"
+    "ReviewMutationHost = std::make_unique<"
+    "application::review_mutation_application_host>("
 )
-    string(FIND "${production_mutation_source}" "${required_dormant}" found)
+    string(FIND "${production_mutation_source}" "${required_production_host}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR
-            "dormant production review mutation composition omitted ${required_dormant}"
+            "production review mutation host composition omitted "
+            "${required_production_host}"
         )
     endif()
 endforeach()
 foreach(forbidden_live_action IN ITEMS
-    "ReviewMutationCoordinator ="
+    "make_review_mutation_testing_grant("
     ".observe_target("
     "->observe_target("
     ".submit("
@@ -370,7 +528,8 @@ foreach(forbidden_live_action IN ITEMS
     )
     if(NOT found EQUAL -1)
         message(FATAL_ERROR
-            "dormant production composition performs ${forbidden_live_action}"
+            "production composition bypasses the asynchronous host with "
+            "${forbidden_live_action}"
         )
     endif()
 endforeach()
@@ -411,7 +570,7 @@ foreach(marker IN ITEMS
     GITHUB_FIXTURE_OK:github.com
     REVIEW_MUTATION_PROVIDER:fixture
     REVIEW_ROUND_TRIP_COMPOSITION_OK
-    REVIEW_ROUND_TRIP_COMPOSITION_EVIDENCE:111111111
+    REVIEW_ROUND_TRIP_COMPOSITION_EVIDENCE:11111111111111
     DORMANT_LIVE_PROVIDER_SELECTION:1:28/28:1:1
     WORKBENCH_HOST_COMPOSED_OK
 )

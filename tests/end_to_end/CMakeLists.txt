@@ -201,6 +201,8 @@ set(bpr_application_composition_contract_command
     "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"
     --cmake
     "${CMAKE_COMMAND}"
+    --cxx
+    "${CMAKE_CXX_COMPILER}"
 )
 if(bpr_test_qt_root)
     list(

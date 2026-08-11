@@ -614,8 +614,9 @@ namespace bpr::qt {
 			++Statistics.RejectedStaleInput;
 			return;
 		}
-		CurrentResult = aPublication.Result;
-		SemanticIndex = std::move(semanticIndex);
+		const auto previousSelection = Interaction.Selection;
+		CurrentResult                = aPublication.Result;
+		SemanticIndex                = std::move(semanticIndex);
 		// Built once here rather than searched per segment per repaint. The
 		// move table is keyed by segment identity and is unordered with
 		// respect to the segment list, so the alternative is a linear search
@@ -678,6 +679,9 @@ namespace bpr::qt {
 		schedule_geometry_rebuild(
 			measured_geometry_change::accepted_diff,
 			diff_geometry_rebuild_trigger::accepted_diff);
+		if (Interaction.Selection != previousSelection) {
+			emit_selection();
+		}
 	}
 
 	void diff_workbench::fail(
@@ -718,6 +722,12 @@ namespace bpr::qt {
 	{
 		CurrentContext.reset();
 		clear_projection(QStringLiteral("Select a file comparison"));
+	}
+
+	void diff_workbench::set_selection_sink(selection_sink aSink)
+	{
+		SelectionSink = std::move(aSink);
+		emit_selection();
 	}
 
 	auto diff_workbench::left_pane() const noexcept -> QPlainTextEdit*
@@ -1077,6 +1087,7 @@ namespace bpr::qt {
 		if (changed) {
 			++Statistics.SelectionChanges;
 			apply_interaction(false, true);
+			emit_selection();
 		}
 	}
 
@@ -1097,6 +1108,9 @@ namespace bpr::qt {
 			++Statistics.SelectionChanges;
 		}
 		apply_interaction(aReveal, changed);
+		if (changed) {
+			emit_selection();
+		}
 	}
 
 	void diff_workbench::navigate(
@@ -1116,6 +1130,7 @@ namespace bpr::qt {
 		if (changed) {
 			++Statistics.SelectionChanges;
 			apply_interaction(true, changed);
+			emit_selection();
 		}
 	}
 
@@ -1655,8 +1670,20 @@ namespace bpr::qt {
 		announce_accessible_status(Status->text());
 	}
 
+	void diff_workbench::emit_selection() noexcept
+	{
+		if (!SelectionSink) {
+			return;
+		}
+		try {
+			SelectionSink(Interaction.Selection);
+		} catch (...) {
+		}
+	}
+
 	void diff_workbench::clear_projection(QString aStatus)
 	{
+		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentDetail.reset();
 		SemanticIndex.reset();
 		CurrentResult.reset();
@@ -1679,5 +1706,8 @@ namespace bpr::qt {
 		PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
 		update_status(std::move(aStatus));
 		update_action_state();
+		if (hadSelection) {
+			emit_selection();
+		}
 	}
 } // namespace bpr::qt

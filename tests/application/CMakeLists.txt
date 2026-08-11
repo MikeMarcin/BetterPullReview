@@ -14,6 +14,32 @@ bpr_enable_warnings(test_better_pull_review_application_tests)
 bpr_add_network_isolated_test(NAME application_host COMMAND test_better_pull_review_application_tests)
 
 bpr_add_executable(
+    test_better_pull_review_review_mutation_application_host_tests
+    review_mutation_application_host_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_mutation_application_host_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+target_compile_definitions(
+    test_better_pull_review_review_mutation_application_host_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
+)
+bpr_enable_hardening(test_better_pull_review_review_mutation_application_host_tests)
+bpr_enable_warnings(test_better_pull_review_review_mutation_application_host_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_review_mutation_application_host
+    COMMAND test_better_pull_review_review_mutation_application_host_tests
+)
+set_tests_properties(
+    application_review_mutation_application_host
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "review-mutation-application-host-tests:pass"
+)
+
+bpr_add_executable(
     test_better_pull_review_application_github_host_tests
     github_application_host_tests.cpp
 )
@@ -224,6 +250,10 @@ target_link_libraries(
     test_better_pull_review_application_workbench_host_tests
     PRIVATE
         BetterPullReview::Application
+)
+target_compile_definitions(
+    test_better_pull_review_application_workbench_host_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
 )
 bpr_enable_hardening(test_better_pull_review_application_workbench_host_tests)
 bpr_enable_warnings(test_better_pull_review_application_workbench_host_tests)

@@ -17,6 +17,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <set>
@@ -122,6 +123,9 @@ namespace bpr::qt {
 		  public application::diff_projection_port
 	{
 	public:
+		using selection_sink = std::function<void(
+			const std::optional<core::semantic_selection>&)>;
+
 		explicit diff_workbench(QWidget* aParent = nullptr);
 		~diff_workbench() override;
 
@@ -137,6 +141,8 @@ namespace bpr::qt {
 		/// \brief Clears stale geometry and presents an exact pending context.
 		void set_loading(const core::diff_request_context& aContext);
 		void clear();
+		/// \brief Publishes exact semantic selections for application binding.
+		void set_selection_sink(selection_sink aSink);
 
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
@@ -255,6 +261,7 @@ namespace bpr::qt {
 		void update_action_state();
 		void announce_accessible_status(QString aText);
 		void update_status(QString aText);
+		void emit_selection() noexcept;
 		void clear_projection(QString aStatus);
 
 		QToolButton*                  PreviousChange = nullptr;
@@ -282,6 +289,7 @@ namespace bpr::qt {
 		std::optional<core::diff_semantic_index>        SemanticIndex;
 		std::optional<core::line_detail_input>          CurrentDetail;
 		core::diff_interaction_state                    Interaction;
+		selection_sink                                  SelectionSink;
 		measured_alignment_axis_cache                   AxisCache;
 		diff_workbench_statistics                       Statistics;
 		QString                                         LastAnnouncement;

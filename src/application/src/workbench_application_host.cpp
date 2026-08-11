@@ -997,7 +997,27 @@ namespace bpr::application {
 				});
 				return;
 			}
-			if (!aObservation.LeftBlob && !aObservation.RightBlob) {
+			const auto exactEndpoint = [&aObservation](
+										   const std::optional<core::git_blob_oid>&               aBlob,
+										   const std::optional<std::filesystem::path>&            aPath,
+										   const std::optional<workbench_selected_diff_endpoint>& aEndpoint,
+										   const core::diff_side                                  aSide) {
+				return aBlob.has_value() == aPath.has_value()
+					&& aBlob.has_value() == aEndpoint.has_value()
+					&& (!aBlob.has_value()
+						|| valid(*aEndpoint, aObservation.Request, aSide, *aBlob, *aPath));
+			};
+			if ((!aObservation.LeftBlob && !aObservation.RightBlob)
+				|| !exactEndpoint(
+					aObservation.LeftBlob,
+					aObservation.LeftPath,
+					aObservation.LeftEndpoint,
+					core::diff_side::left)
+				|| !exactEndpoint(
+					aObservation.RightBlob,
+					aObservation.RightPath,
+					aObservation.RightEndpoint,
+					core::diff_side::right)) {
 				aObservation.Status = workbench_selected_diff_status::failure;
 				deliver_projection([this, &aObservation] {
 					SelectedDiffProjections->fail(aObservation);
@@ -1019,6 +1039,10 @@ namespace bpr::application {
 					.Options     = diff.OptionsDigest,
 					.Algorithm   = diff.Algorithm,
 				},
+				.LeftPath      = std::move(aObservation.LeftPath),
+				.RightPath     = std::move(aObservation.RightPath),
+				.LeftEndpoint  = std::move(aObservation.LeftEndpoint),
+				.RightEndpoint = std::move(aObservation.RightEndpoint),
 			};
 			if (!core::valid(publication.Key)) {
 				aObservation.Status = workbench_selected_diff_status::failure;

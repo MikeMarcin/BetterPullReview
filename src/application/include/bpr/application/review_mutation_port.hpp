@@ -10,6 +10,7 @@
 #include <expected>
 #include <memory>
 #include <optional>
+#include <stop_token>
 #include <string>
 #include <string_view>
 
@@ -222,9 +223,35 @@ namespace bpr::application {
 			-> std::expected<core::review_mutation_target, review_mutation_failure>
 			= 0;
 
+		/// \brief Reads the target while honouring one caller-owned stop token.
+		///
+		/// \details The compatibility default keeps bounded fixture providers
+		/// source-compatible. Production providers override this path so the same
+		/// token reaches every observation and the native transport.
+		[[nodiscard]] virtual auto observe_target(std::stop_token aStop)
+			-> std::expected<core::review_mutation_target, review_mutation_failure>
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(review_mutation_failure::cancelled);
+			}
+			return observe_target();
+		}
+
 		/// \brief Submits one publication.
 		[[nodiscard]] virtual auto submit(const review_mutation_request& aRequest)
 			-> std::expected<review_mutation_receipt, review_mutation_failure> = 0;
+
+		/// \brief Submits one publication while honouring caller cancellation.
+		[[nodiscard]] virtual auto submit(
+			const review_mutation_request& aRequest,
+			std::stop_token                aStop)
+			-> std::expected<review_mutation_receipt, review_mutation_failure>
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(review_mutation_failure::cancelled);
+			}
+			return submit(aRequest);
+		}
 
 		[[nodiscard]] virtual auto capabilities() const
 			-> review_provider_capabilities = 0;

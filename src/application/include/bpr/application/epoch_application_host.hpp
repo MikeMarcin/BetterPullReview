@@ -91,6 +91,13 @@ namespace bpr::application {
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
 
 	private:
+		[[nodiscard]] static auto mint_selected_diff_endpoint(
+			workbench_selected_diff_request aRequest,
+			core::diff_side                 aSide,
+			core::git_blob_oid              aBlob,
+			std::filesystem::path           aPath)
+			-> workbench_selected_diff_endpoint;
+
 		struct implementation;
 		std::unique_ptr<implementation> Implementation;
 	};

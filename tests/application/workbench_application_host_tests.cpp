@@ -296,6 +296,23 @@ namespace {
 				== application::workbench_selected_diff_status::available) {
 				result.LeftBlob  = oid<core::git_blob_oid>(40U);
 				result.RightBlob = oid<core::git_blob_oid>(50U);
+				result.LeftPath  = aRequest.File.CurrentPath;
+				result.RightPath = aRequest.File.CurrentPath;
+				result.LeftEndpoint
+					= application::make_workbench_selected_diff_endpoint_for_testing(
+						aRequest,
+						core::diff_side::left,
+						*result.LeftBlob,
+						*result.LeftPath);
+				result.RightEndpoint
+					= application::make_workbench_selected_diff_endpoint_for_testing(
+						aRequest,
+						core::diff_side::right,
+						*result.RightBlob,
+						*result.RightPath);
+				if (ForgeRightPath) {
+					result.RightPath = "invented/third.cpp";
+				}
 			}
 			return result;
 		}
@@ -306,6 +323,7 @@ namespace {
 			= application::workbench_selected_diff_status::available;
 		std::vector<application::workbench_selected_diff_request> Requests;
 		std::vector<bool>                                         StopObserved;
+		bool                                                      ForgeRightPath = false;
 	};
 
 	class recording_selected_diff_projections final
@@ -570,6 +588,10 @@ namespace {
 				&& value.SelectedDiffs.Requests.size() == 1U
 				&& value.SelectedProjections.Published.size() == 1U
 				&& value.SelectedProjections.Published.front().Key.File == file(2U)
+				&& value.SelectedProjections.Published.front().LeftPath
+					== std::optional{ std::filesystem::path{ "file-2.cpp" } }
+				&& value.SelectedProjections.Published.front().RightPath
+					== std::optional{ std::filesystem::path{ "file-2.cpp" } }
 				&& value.SelectedProjections.Failed.empty()
 				&& value.Host.outstanding_requests() == 0U,
 			"superseded and replayed terminals cannot duplicate or replace publication");
@@ -601,6 +623,17 @@ namespace {
 		expect(
 			value.Host.outstanding_requests() == 0U,
 			"cancelled selected effect retires its request");
+
+		value.SelectedDiffs.ForgeRightPath = true;
+		value.Host.apply(core::select_workbench_file_intent{ .File = file(1U) });
+		value.Effects.drain();
+		value.Lane.drain();
+		expect(
+			value.SelectedProjections.Published.size() == 1U
+				&& value.SelectedProjections.Failed.size() == 2U
+				&& value.SelectedProjections.Failed.back().Status
+					== application::workbench_selected_diff_status::failure,
+			"an arbitrary third right path cannot replace the epoch-sealed endpoint");
 	}
 
 	void test_selected_diff_replays_after_context_arrives_and_changes()

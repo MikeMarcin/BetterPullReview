@@ -7,6 +7,7 @@
 
 #include <expected>
 #include <memory>
+#include <stop_token>
 
 namespace bpr::adapters::github {
 	/// \brief Implements ordinary GitHub source-line review-comment mutation.
@@ -30,8 +31,14 @@ namespace bpr::adapters::github {
 
 		[[nodiscard]] auto observe_target()
 			-> std::expected<core::review_mutation_target, application::review_mutation_failure> override;
+		[[nodiscard]] auto observe_target(std::stop_token aStop)
+			-> std::expected<core::review_mutation_target, application::review_mutation_failure> override;
 		[[nodiscard]] auto submit(
 			const application::review_mutation_request& aRequest)
+			-> std::expected<application::review_mutation_receipt, application::review_mutation_failure> override;
+		[[nodiscard]] auto submit(
+			const application::review_mutation_request& aRequest,
+			std::stop_token                             aStop)
 			-> std::expected<application::review_mutation_receipt, application::review_mutation_failure> override;
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override;

@@ -93,6 +93,14 @@ SHARED_REQUIRED = (
         "bpr::application::workbench_application_host::workbench_application_host",
     ),
     function_anchor(
+        "review mutation application host constructor",
+        "bpr::application::review_mutation_application_host::review_mutation_application_host",
+    ),
+    function_anchor(
+        "review mutation coordinator constructor",
+        "bpr::application::review_mutation_coordinator::review_mutation_coordinator",
+    ),
+    function_anchor(
         "appearance application host constructor",
         "bpr::application::appearance_application_host::appearance_application_host",
     ),
@@ -128,12 +136,12 @@ SHARED_REQUIRED = (
 
 FIXTURE_REQUIRED = (
     function_anchor(
-        "review mutation coordinator constructor",
-        "bpr::application::review_mutation_coordinator::review_mutation_coordinator",
-    ),
-    function_anchor(
         "fixture review mutation provider boundary",
         "bpr::app::detail::github_public_path_fixture_components::review_mutation_provider",
+    ),
+    function_anchor(
+        "fixture review mutation execution grant factory",
+        "bpr::application::make_review_mutation_testing_grant",
     ),
     function_anchor(
         "fixture review reconciliation decision",
@@ -153,13 +161,13 @@ PRODUCTION_REQUIRED = (
 )
 
 PRODUCTION_FORBIDDEN = (
-    function_anchor(
-        "review mutation coordinator constructor",
-        "bpr::application::review_mutation_coordinator::review_mutation_coordinator",
-    ),
     type_anchor(
         "GitHub public-path fixture components",
         "bpr::app::detail::github_public_path_fixture_components",
+    ),
+    function_anchor(
+        "fixture review mutation execution grant factory",
+        "bpr::application::make_review_mutation_testing_grant",
     ),
     function_anchor(
         "fixture review reconciliation decision",

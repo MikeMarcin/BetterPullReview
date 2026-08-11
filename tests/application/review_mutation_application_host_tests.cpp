@@ -1,0 +1,701 @@
+#include "bpr/application/manual_executor.hpp"
+#include "bpr/application/review_mutation_application_host.hpp"
+
+#include <algorithm>
+#include <array>
+#include <condition_variable>
+#include <cstdint>
+#include <cstdlib>
+#include <expected>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <stop_token>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <utility>
+#include <vector>
+
+namespace {
+	using namespace bpr;
+
+	void expect(const bool aCondition, const std::string_view aMessage)
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	template <typename Identity>
+	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		bytes[0]   = aSeed;
+		bytes[31]  = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
+		return Identity{ bytes };
+	}
+
+	template <typename Oid>
+	[[nodiscard]] auto oid(const std::uint8_t aSeed) -> Oid
+	{
+		auto bytes = std::array<std::uint8_t, 32U>{ };
+		for (auto index = std::size_t{ 0U }; index < 20U; ++index) {
+			bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+		}
+		return Oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto workbench_authority()
+		-> application::workbench_pull_request_authority
+	{
+		return {
+			.ApplicationSession    = core::application_session_id{ 3U },
+			.Profile               = core::host_profile_id{ 10U },
+			.ProfileRevision       = core::github_profile_revision{ 20U },
+			.Host                  = core::git_host_id{ 30U },
+			.HostAuthority         = opaque<core::host_authority_fingerprint>(13U),
+			.Account               = core::github_account_id{ 40U },
+			.Viewer                = core::github_viewer_actor_id{ 50U },
+			.Repository            = core::repository_id{ 101U },
+			.PullRequest           = core::pull_request_id{ 202U },
+			.Number                = core::pull_request_number{ 17U },
+			.Snapshot              = core::provider_snapshot_id{ 60U },
+			.IdentityGeneration    = core::github_identity_generation{ 70U },
+			.PullRequestGeneration = core::request_generation{ 80U },
+		};
+	}
+
+	[[nodiscard]] auto selected_diff_context()
+		-> application::workbench_selected_diff_context
+	{
+		const auto workbench = workbench_authority();
+		const auto authority = core::pull_request_authority{
+			.Profile         = workbench.Profile,
+			.ProfileRevision = workbench.ProfileRevision,
+			.Host            = workbench.Host,
+			.HostAuthority   = workbench.HostAuthority,
+			.Account         = workbench.Account,
+			.Viewer          = workbench.Viewer,
+			.Repository      = workbench.Repository,
+			.Cache           = opaque<core::repository_cache_scope_id>(14U),
+			.PullRequest     = workbench.PullRequest,
+			.Number          = workbench.Number,
+			.Scope           = opaque<core::pull_request_authority_scope_id>(15U),
+		};
+		const auto options = core::normalize_diff_options(core::diff_options{ });
+		expect(options.has_value(), "default options normalize");
+		const auto digest = core::options_digest(*options);
+		expect(digest.has_value(), "default options have a digest");
+		return {
+			.ApplicationSession = workbench.ApplicationSession,
+			.Authority          = authority,
+			.Comparison         = {
+				.Left = {
+					.Identity = {
+						.Authority   = authority.Scope,
+						.Incarnation = opaque<core::epoch_catalog_incarnation_id>(16U),
+						.Kind        = core::comparison_anchor_kind::epoch_base,
+						.Epoch       = core::epoch_ordinal{ 1 },
+					},
+					.Commit       = oid<core::git_commit_oid>(20U),
+					.Availability = core::anchor_availability::available,
+				},
+				.Right = {
+					.Identity = {
+						.Authority   = authority.Scope,
+						.Incarnation = opaque<core::epoch_catalog_incarnation_id>(16U),
+						.Kind        = core::comparison_anchor_kind::epoch_head,
+						.Epoch       = core::epoch_ordinal{ 1 },
+					},
+					.Commit       = oid<core::git_commit_oid>(30U),
+					.Availability = core::anchor_availability::available,
+				},
+			},
+			.ComparisonRevision = core::comparison_revision{ 1U },
+			.Options            = *options,
+			.OptionsDigest      = *digest,
+			.Algorithm          = core::supported_diff_algorithm_revision,
+		};
+	}
+
+	[[nodiscard]] auto target() -> core::review_mutation_target
+	{
+		return {
+			.Host         = core::git_host_id{ 30U },
+			.Repository   = core::repository_id{ 101U },
+			.PullRequest  = core::pull_request_id{ 202U },
+			.ExpectedHead = oid<core::git_commit_oid>(30U),
+		};
+	}
+
+	[[nodiscard]] auto live_target()
+		-> application::review_mutation_target_binding
+	{
+		return {
+			.Semantic                 = target(),
+			.Hostname                 = application::github_canonical_hostname{ "github.com" },
+			.ServerContract           = application::github_server_contract::github_com_2022_11_28,
+			.Repository               = { .Owner = "MikeMarcin", .Name = "BPR-Test" },
+			.Number                   = core::pull_request_number{ 17U },
+			.RepositoryDatabaseId     = 101U,
+			.RepositoryNodeId         = "R_fixture",
+			.PullRequestDatabaseId    = 202U,
+			.PullRequestNodeId        = "PR_fixture",
+			.BaseRepositoryDatabaseId = 101U,
+			.BaseOid                  = oid<core::git_commit_oid>(20U),
+			.BaseRef                  = "main",
+			.HeadRef                  = "fixture-head",
+			.Open                     = true,
+		};
+	}
+
+	[[nodiscard]] auto acting_identity()
+		-> application::review_mutation_acting_identity
+	{
+		return {
+			.Account    = core::github_account_id{ 40U },
+			.DatabaseId = 41U,
+			.NodeId     = "U_fixture",
+			.Login      = "fixture-reviewer",
+		};
+	}
+
+	[[nodiscard]] auto publication_request()
+		-> application::review_mutation_publication_request
+	{
+		const auto context = selected_diff_context();
+		const auto file    = opaque<core::file_identity>(44U);
+		auto       key     = core::file_comparison_key{
+			.Authority   = context.Authority,
+			.Repository  = context.Authority.Repository,
+			.PullRequest = context.Authority.PullRequest,
+			.LeftAnchor  = context.Comparison.Left.Identity,
+			.RightAnchor = context.Comparison.Right.Identity,
+			.LeftBlob    = oid<core::git_blob_oid>(40U),
+			.RightBlob   = oid<core::git_blob_oid>(50U),
+			.File        = file,
+			.Options     = context.OptionsDigest,
+			.Algorithm   = context.Algorithm,
+		};
+		const auto comparison = core::comparison_digest(key);
+		const auto anchor     = core::source_line_ref{
+			.Comparison = comparison,
+			.Side       = core::diff_side::right,
+			.Line       = 12U,
+		};
+		auto result = application::review_mutation_publication_request{
+			.Proposal = {
+				.Draft       = core::review_draft_id{ 7U },
+				.Anchor      = anchor,
+				.Body        = "Please rename this.",
+				.Disposition = core::review_disposition::comment,
+			},
+			.Selection = {
+				.Comparison    = comparison,
+				.Kind          = core::semantic_selection_kind::line,
+				.PreferredLine = anchor,
+			},
+			.SelectedDiff = {
+				.Request = {
+					.Context = {
+						.Request    = core::request_id{ 5U },
+						.Session    = core::application_session_id{ 3U },
+						.Generation = core::request_generation{ 8U },
+					},
+					.WorkbenchAuthority = workbench_authority(),
+					.Diff               = context,
+					.File               = {
+						.File             = file,
+						.PresentationPath = "display.cpp",
+						.CurrentPath      = "renamed/current.cpp",
+						.PreviousPath     = "previous/original.cpp",
+						.Change           = application::workbench_file_change_kind::renamed,
+						.ContentKind      = application::workbench_file_content_kind::text,
+					},
+				},
+				.Key       = std::move(key),
+				.LeftPath  = "previous/original.cpp",
+				.RightPath = "renamed/current.cpp",
+			},
+		};
+		result.SelectedDiff.LeftEndpoint
+			= application::make_workbench_selected_diff_endpoint_for_testing(
+				result.SelectedDiff.Request,
+				core::diff_side::left,
+				*result.SelectedDiff.Key.LeftBlob,
+				*result.SelectedDiff.LeftPath);
+		result.SelectedDiff.RightEndpoint
+			= application::make_workbench_selected_diff_endpoint_for_testing(
+				result.SelectedDiff.Request,
+				core::diff_side::right,
+				*result.SelectedDiff.Key.RightBlob,
+				*result.SelectedDiff.RightPath);
+		return result;
+	}
+
+	void bind_resolved_endpoints(
+		application::review_mutation_publication_request& aRequest)
+	{
+		aRequest.SelectedDiff.LeftEndpoint.reset();
+		if (aRequest.SelectedDiff.Key.LeftBlob.has_value()
+			&& aRequest.SelectedDiff.LeftPath.has_value()) {
+			aRequest.SelectedDiff.LeftEndpoint
+				= application::make_workbench_selected_diff_endpoint_for_testing(
+					aRequest.SelectedDiff.Request,
+					core::diff_side::left,
+					*aRequest.SelectedDiff.Key.LeftBlob,
+					*aRequest.SelectedDiff.LeftPath);
+		}
+		aRequest.SelectedDiff.RightEndpoint.reset();
+		if (aRequest.SelectedDiff.Key.RightBlob.has_value()
+			&& aRequest.SelectedDiff.RightPath.has_value()) {
+			aRequest.SelectedDiff.RightEndpoint
+				= application::make_workbench_selected_diff_endpoint_for_testing(
+					aRequest.SelectedDiff.Request,
+					core::diff_side::right,
+					*aRequest.SelectedDiff.Key.RightBlob,
+					*aRequest.SelectedDiff.RightPath);
+		}
+	}
+
+	class fake_provider final : public application::review_mutation_port
+	{
+	public:
+		auto observe_target() -> std::expected<
+			core::review_mutation_target,
+			application::review_mutation_failure> override
+		{
+			return observe_target(std::stop_token{ });
+		}
+
+		auto observe_target(const std::stop_token aStop) -> std::expected<
+			core::review_mutation_target,
+			application::review_mutation_failure> override
+		{
+			++Observations;
+			StopObserved.push_back(aStop.stop_requested());
+			if (OnObserve) {
+				OnObserve();
+			}
+			return aStop.stop_requested()
+				? std::unexpected(application::review_mutation_failure::cancelled)
+				: std::expected<core::review_mutation_target, application::review_mutation_failure>{ Reported };
+		}
+
+		auto submit(const application::review_mutation_request& aRequest)
+			-> std::expected<
+				application::review_mutation_receipt,
+				application::review_mutation_failure> override
+		{
+			return submit(aRequest, std::stop_token{ });
+		}
+
+		auto submit(
+			const application::review_mutation_request& aRequest,
+			const std::stop_token                       aStop)
+			-> std::expected<
+				application::review_mutation_receipt,
+				application::review_mutation_failure> override
+		{
+			StopObserved.push_back(aStop.stop_requested());
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			Submitted.push_back(aRequest);
+			return application::review_mutation_receipt{
+				.ServerCommentId = "fixture-comment",
+				.Duplicate       = false,
+			};
+		}
+
+		[[nodiscard]] auto capabilities() const
+			-> application::review_provider_capabilities override
+		{
+			return { .ResolvesThreads = false, .RecordsViewedState = false };
+		}
+
+		core::review_mutation_target                      Reported     = target();
+		std::size_t                                       Observations = 0U;
+		std::vector<bool>                                 StopObserved;
+		std::vector<application::review_mutation_request> Submitted;
+		std::function<void()>                             OnObserve;
+	};
+
+	class recording_projection final
+		: public application::review_mutation_projection_port
+	{
+	public:
+		void publish(const application::review_mutation_terminal& aTerminal) override
+		{
+			Published.push_back(aTerminal);
+		}
+
+		std::vector<application::review_mutation_terminal> Published;
+	};
+
+	class parallel_executor final : public application::effect_executor
+	{
+	public:
+		void post(std::function<void()> aTask) override
+		{
+			std::scoped_lock lock{ Mutex };
+			Workers.emplace_back(std::move(aTask));
+			++Posts;
+		}
+
+		void join()
+		{
+			auto workers = std::vector<std::jthread>{ };
+			{
+				std::scoped_lock lock{ Mutex };
+				workers.swap(Workers);
+			}
+			workers.clear();
+		}
+
+		[[nodiscard]] auto posts() const -> std::size_t
+		{
+			std::scoped_lock lock{ Mutex };
+			return Posts;
+		}
+
+	private:
+		mutable std::mutex        Mutex;
+		std::vector<std::jthread> Workers;
+		std::size_t               Posts = 0U;
+	};
+
+	class barrier_provider final : public application::review_mutation_port
+	{
+	public:
+		auto observe_target() -> std::expected<
+			core::review_mutation_target,
+			application::review_mutation_failure> override
+		{
+			return observe_target(std::stop_token{ });
+		}
+
+		auto observe_target(const std::stop_token aStop) -> std::expected<
+			core::review_mutation_target,
+			application::review_mutation_failure> override
+		{
+			{
+				auto lock = std::unique_lock{ Mutex };
+				++Active;
+				MaximumActive = std::max(MaximumActive, Active);
+				Entered       = true;
+				Condition.notify_all();
+				Condition.wait(lock, [this] { return Released; });
+				--Active;
+			}
+			return aStop.stop_requested()
+				? std::unexpected(application::review_mutation_failure::cancelled)
+				: std::expected<
+					  core::review_mutation_target,
+					  application::review_mutation_failure>{ target() };
+		}
+
+		auto submit(const application::review_mutation_request& aRequest)
+			-> std::expected<
+				application::review_mutation_receipt,
+				application::review_mutation_failure> override
+		{
+			return submit(aRequest, std::stop_token{ });
+		}
+
+		auto submit(
+			const application::review_mutation_request&,
+			const std::stop_token)
+			-> std::expected<
+				application::review_mutation_receipt,
+				application::review_mutation_failure> override
+		{
+			++Submissions;
+			return application::review_mutation_receipt{
+				.ServerCommentId = "unexpected",
+			};
+		}
+
+		[[nodiscard]] auto capabilities() const
+			-> application::review_provider_capabilities override
+		{
+			return { };
+		}
+
+		void wait_until_entered()
+		{
+			auto lock = std::unique_lock{ Mutex };
+			Condition.wait(lock, [this] { return Entered; });
+		}
+
+		void release()
+		{
+			{
+				std::scoped_lock lock{ Mutex };
+				Released = true;
+			}
+			Condition.notify_all();
+		}
+
+		[[nodiscard]] auto maximum_active() const -> std::size_t
+		{
+			std::scoped_lock lock{ Mutex };
+			return MaximumActive;
+		}
+
+		std::size_t Submissions = 0U;
+
+	private:
+		mutable std::mutex      Mutex;
+		std::condition_variable Condition;
+		std::size_t             Active        = 0U;
+		std::size_t             MaximumActive = 0U;
+		bool                    Entered       = false;
+		bool                    Released      = false;
+	};
+
+	[[nodiscard]] auto testing_grant()
+		-> application::review_mutation_execution_grant
+	{
+		return application::make_review_mutation_testing_grant(
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			target(),
+			core::github_account_id{ 40U });
+	}
+
+	void test_live_binding_uses_exact_right_resolved_path_asynchronously()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+		};
+
+		const auto context = host.publish(publication_request());
+		expect(context.Request.value() != 0U && effects.pending() == 1U,
+			   "an admitted request is queued and returns immediately");
+		expect(observed->Observations == 0U && projection.Published.empty(),
+			   "no provider or projection work runs inline");
+		effects.run_next();
+		expect(observed->Observations == 2U && observed->Submitted.size() == 1U,
+			   "the effect performs the two target checks and one submission");
+		expect(decisions.pending() == 1U && projection.Published.empty(),
+			   "the effect posts its terminal to the serialized decision lane");
+		decisions.run_next();
+		expect(projection.Published.size() == 1U
+				   && projection.Published.front().Result.has_value(),
+			   "one successful terminal is published");
+		expect(observed->Submitted.front().LiveBinding.has_value()
+				   && observed->Submitted.front().LiveBinding->Anchor.Path
+					   == "renamed/current.cpp"
+				   && observed->Submitted.front().LiveBinding->Anchor.Semantic.Side
+					   == core::diff_side::right
+				   && observed->Submitted.front().LiveBinding->Anchor.Commit
+					   == target().ExpectedHead,
+			   "the production-bound path uses the exact resolved right path and head");
+
+		const auto retry = host.publish(publication_request());
+		effects.run_next();
+		decisions.run_next();
+		expect(retry != context && observed->Submitted.size() == 2U
+				   && observed->Submitted[0].IdempotencyKey
+					   == observed->Submitted[1].IdempotencyKey,
+			   "a retry gets new host identity while preserving mutation idempotency identity");
+
+		auto copied = publication_request();
+		copied.SelectedDiff.Request.File.Change
+			= application::workbench_file_change_kind::copied;
+		copied.SelectedDiff.Request.File.CurrentPath  = "copied/current.cpp";
+		copied.SelectedDiff.Request.File.PreviousPath = "source/original.cpp";
+		copied.SelectedDiff.LeftPath                  = "copied/current.cpp";
+		copied.SelectedDiff.RightPath                 = "copied/current.cpp";
+		bind_resolved_endpoints(copied);
+		static_cast<void>(host.publish(std::move(copied)));
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Submitted.size() == 3U
+				   && observed->Submitted.back().LiveBinding->Anchor.Path
+					   == "copied/current.cpp",
+			   "a copied file publishes only its exact epoch-resolved right endpoint");
+	}
+
+	void test_missing_grant_and_invalid_bindings_queue_no_effect()
+	{
+		auto provider   = fake_provider{ };
+		auto effects    = application::manual_executor{ };
+		auto decisions  = application::manual_executor{ };
+		auto projection = recording_projection{ };
+		auto host       = application::review_mutation_application_host{
+			provider,
+			target(),
+			core::github_account_id{ 40U },
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			application::review_mutation_execution_grant{ },
+			effects,
+			decisions,
+			projection,
+		};
+		static_cast<void>(host.publish(publication_request()));
+		expect(effects.pending() == 0U && provider.Observations == 0U,
+			   "a missing grant performs no provider work");
+		decisions.run_next();
+		expect(!projection.Published.front().Result.has_value()
+				   && projection.Published.front().Result.error()
+					   == application::review_mutation_failure::unavailable,
+			   "a missing grant produces a typed unavailable terminal");
+
+		auto grantedProvider   = fake_provider{ };
+		auto grantedEffects    = application::manual_executor{ };
+		auto grantedDecisions  = application::manual_executor{ };
+		auto grantedProjection = recording_projection{ };
+		auto granted           = application::review_mutation_application_host{
+			grantedProvider,
+			target(),
+			core::github_account_id{ 40U },
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			grantedEffects,
+			grantedDecisions,
+			grantedProjection,
+		};
+		auto left                         = publication_request();
+		left.Selection.PreferredLine.Side = core::diff_side::left;
+		left.Proposal.Anchor              = left.Selection.PreferredLine;
+		static_cast<void>(granted.publish(left));
+		auto absent = publication_request();
+		absent.SelectedDiff.RightPath.reset();
+		static_cast<void>(granted.publish(absent));
+		auto arbitraryPath                   = publication_request();
+		arbitraryPath.SelectedDiff.RightPath = "invented/third.cpp";
+		static_cast<void>(granted.publish(arbitraryPath));
+		auto stale = publication_request();
+		stale.SelectedDiff.Request.Diff.Comparison.Right.Commit
+			= oid<core::git_commit_oid>(31U);
+		static_cast<void>(granted.publish(stale));
+		expect(grantedEffects.pending() == 0U && grantedProvider.Observations == 0U,
+			   "left, absent, arbitrary-path, and stale bindings perform no provider work");
+		grantedDecisions.drain();
+		expect(grantedProjection.Published.size() == 1U
+				   && grantedProjection.Published.front().Result.error()
+					   == application::review_mutation_failure::stale_head,
+			   "supersession withholds older refusals and publishes the current typed refusal");
+	}
+
+	void test_cancellation_supersession_and_shutdown_are_quiescent()
+	{
+		auto provider   = fake_provider{ };
+		auto effects    = application::manual_executor{ };
+		auto decisions  = application::manual_executor{ };
+		auto projection = recording_projection{ };
+		auto host       = application::review_mutation_application_host{
+			provider,
+			target(),
+			core::github_account_id{ 40U },
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+		};
+
+		const auto first             = host.publish(publication_request());
+		auto       secondRequest     = publication_request();
+		secondRequest.Proposal.Draft = core::review_draft_id{ 8U };
+		secondRequest.Proposal.Body  = "Second publication.";
+		const auto second            = host.publish(secondRequest);
+		expect(first != second && effects.pending() == 1U,
+			   "accepted requests share one host-owned serialized drain");
+		effects.drain();
+		decisions.drain();
+		expect(provider.Submitted.size() == 1U
+				   && provider.Submitted.front().Proposal.Draft
+					   == core::review_draft_id{ 8U }
+				   && projection.Published.size() == 1U
+				   && projection.Published.front().Context == second,
+			   "only the current request can submit and publish a terminal");
+
+		auto cancellation  = host.publish(publication_request());
+		provider.OnObserve = [&host, cancellation] { host.cancel(cancellation); };
+		effects.run_next();
+		provider.OnObserve = { };
+		decisions.run_next();
+		expect(projection.Published.size() == 2U
+				   && !projection.Published.back().Result.has_value()
+				   && projection.Published.back().Result.error()
+					   == application::review_mutation_failure::cancelled,
+			   "cancellation between observations reaches a typed terminal");
+
+		static_cast<void>(host.publish(publication_request()));
+		host.shutdown();
+		effects.drain();
+		decisions.drain();
+		expect(host.is_quiescent() && projection.Published.size() == 2U,
+			   "shutdown stops and drains owned work without publishing stale terminals");
+	}
+
+	void test_parallel_executor_cannot_overlap_effects_and_shutdown_drains_queue()
+	{
+		auto provider   = barrier_provider{ };
+		auto effects    = parallel_executor{ };
+		auto decisions  = application::manual_executor{ };
+		auto projection = recording_projection{ };
+		auto host       = application::review_mutation_application_host{
+			provider,
+			target(),
+			core::github_account_id{ 40U },
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+		};
+
+		static_cast<void>(host.publish(publication_request()));
+		provider.wait_until_entered();
+		auto replacement           = publication_request();
+		replacement.Proposal.Draft = core::review_draft_id{ 9U };
+		replacement.Proposal.Body  = "Queued while the first effect is active.";
+		static_cast<void>(host.publish(std::move(replacement)));
+		expect(effects.posts() == 1U && host.outstanding_requests() == 2U,
+			   "a parallel executor receives only one drain while replacement work queues");
+
+		host.shutdown();
+		provider.release();
+		effects.join();
+		decisions.drain();
+		expect(provider.maximum_active() == 1U && provider.Submissions == 0U,
+			   "host-owned draining keeps provider concurrency at one and stops queued work");
+		expect(host.is_quiescent() && projection.Published.empty(),
+			   "shutdown retires the active and queued requests without stale terminals");
+	}
+} // namespace
+
+auto main() -> int
+{
+	test_live_binding_uses_exact_right_resolved_path_asynchronously();
+	test_missing_grant_and_invalid_bindings_queue_no_effect();
+	test_cancellation_supersession_and_shutdown_are_quiescent();
+	test_parallel_executor_cannot_overlap_effects_and_shutdown_drains_queue();
+	std::cout << "review-mutation-application-host-tests:pass\n";
+	return EXIT_SUCCESS;
+}

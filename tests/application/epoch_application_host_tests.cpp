@@ -3933,6 +3933,24 @@ namespace {
 					== std::optional{ oid<core::git_blob_oid>(11U) }
 				&& observation.RightBlob
 					== std::optional{ oid<core::git_blob_oid>(21U) }
+				&& observation.LeftPath
+					== std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& observation.RightPath
+					== std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& observation.LeftEndpoint.has_value()
+				&& application::valid(
+					*observation.LeftEndpoint,
+					request,
+					core::diff_side::left,
+					*observation.LeftBlob,
+					*observation.LeftPath)
+				&& observation.RightEndpoint.has_value()
+				&& application::valid(
+					*observation.RightEndpoint,
+					request,
+					core::diff_side::right,
+					*observation.RightBlob,
+					*observation.RightPath)
 				&& value.State.TreeEntryRequests
 					== std::vector{
 						application::git_cache_tree_entry_request{
@@ -3996,7 +4014,22 @@ namespace {
 		expect(
 			both.Status == application::workbench_selected_diff_status::available
 				&& both.LeftBlob == std::optional{ leftBlob }
-				&& both.RightBlob == std::optional{ rightBlob },
+				&& both.RightBlob == std::optional{ rightBlob }
+				&& both.LeftPath == std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& both.RightPath == std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& both.LeftEndpoint.has_value() && both.RightEndpoint.has_value()
+				&& application::valid(
+					*both.LeftEndpoint,
+					request,
+					core::diff_side::left,
+					*both.LeftBlob,
+					*both.LeftPath)
+				&& application::valid(
+					*both.RightEndpoint,
+					request,
+					core::diff_side::right,
+					*both.RightBlob,
+					*both.RightPath),
 			"a provider-added file that was modified between selected commits resolves both blobs");
 
 		select_reverse_comparison(value);
@@ -4008,7 +4041,16 @@ namespace {
 		expect(
 			added.Status == application::workbench_selected_diff_status::available
 				&& added.LeftBlob == std::optional{ rightBlob }
-				&& !added.RightBlob.has_value(),
+				&& !added.RightBlob.has_value()
+				&& added.LeftPath == std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& !added.RightPath.has_value() && added.LeftEndpoint.has_value()
+				&& !added.RightEndpoint.has_value()
+				&& application::valid(
+					*added.LeftEndpoint,
+					reverseAdd,
+					core::diff_side::left,
+					*added.LeftBlob,
+					*added.LeftPath),
 			"a reverse add resolves the selected left endpoint and preserves right absence");
 
 		auto reverseDelete            = reverseAdd;
@@ -4020,7 +4062,17 @@ namespace {
 		expect(
 			removed.Status == application::workbench_selected_diff_status::available
 				&& !removed.LeftBlob.has_value()
-				&& removed.RightBlob == std::optional{ leftBlob },
+				&& removed.RightBlob == std::optional{ leftBlob }
+				&& !removed.LeftPath.has_value()
+				&& removed.RightPath == std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& !removed.LeftEndpoint.has_value()
+				&& removed.RightEndpoint.has_value()
+				&& application::valid(
+					*removed.RightEndpoint,
+					reverseDelete,
+					core::diff_side::right,
+					*removed.RightBlob,
+					*removed.RightPath),
 			"a reverse delete preserves selected left absence and resolves the right endpoint");
 
 		auto copied                 = reverseAdd;
@@ -4035,6 +4087,17 @@ namespace {
 			copiedResult.Status == application::workbench_selected_diff_status::available
 				&& copiedResult.LeftBlob == std::optional{ rightBlob }
 				&& !copiedResult.RightBlob.has_value()
+				&& copiedResult.LeftPath
+					== std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& !copiedResult.RightPath.has_value()
+				&& copiedResult.LeftEndpoint.has_value()
+				&& !copiedResult.RightEndpoint.has_value()
+				&& application::valid(
+					*copiedResult.LeftEndpoint,
+					copied,
+					core::diff_side::left,
+					*copiedResult.LeftBlob,
+					*copiedResult.LeftPath)
 				&& value.State.TreeEntryRequests.size() == copyLookupOffset + 2U
 				&& value.State.TreeEntryRequests[copyLookupOffset].Path == "file.cpp"
 				&& value.State.TreeEntryRequests[copyLookupOffset + 1U].Path
@@ -4066,7 +4129,25 @@ namespace {
 		expect(
 			forward.Status == application::workbench_selected_diff_status::available
 				&& forward.LeftBlob == std::optional{ oldBlob }
-				&& forward.RightBlob == std::optional{ newBlob },
+				&& forward.RightBlob == std::optional{ newBlob }
+				&& forward.LeftPath
+					== std::optional{ std::filesystem::path{ "old-file.cpp" } }
+				&& forward.RightPath
+					== std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& forward.LeftEndpoint.has_value()
+				&& forward.RightEndpoint.has_value()
+				&& application::valid(
+					*forward.LeftEndpoint,
+					request,
+					core::diff_side::left,
+					*forward.LeftBlob,
+					*forward.LeftPath)
+				&& application::valid(
+					*forward.RightEndpoint,
+					request,
+					core::diff_side::right,
+					*forward.RightBlob,
+					*forward.RightPath),
 			"a forward rename resolves the exact previous and current endpoint candidates");
 
 		select_reverse_comparison(value);
@@ -4080,7 +4161,25 @@ namespace {
 		expect(
 			reversed.Status == application::workbench_selected_diff_status::available
 				&& reversed.LeftBlob == std::optional{ newBlob }
-				&& reversed.RightBlob == std::optional{ oldBlob },
+				&& reversed.RightBlob == std::optional{ oldBlob }
+				&& reversed.LeftPath
+					== std::optional{ std::filesystem::path{ "file.cpp" } }
+				&& reversed.RightPath
+					== std::optional{ std::filesystem::path{ "old-file.cpp" } }
+				&& reversed.LeftEndpoint.has_value()
+				&& reversed.RightEndpoint.has_value()
+				&& application::valid(
+					*reversed.LeftEndpoint,
+					reverse,
+					core::diff_side::left,
+					*reversed.LeftBlob,
+					*reversed.LeftPath)
+				&& application::valid(
+					*reversed.RightEndpoint,
+					reverse,
+					core::diff_side::right,
+					*reversed.RightBlob,
+					*reversed.RightPath),
 			"a reverse rename independently resolves each selected endpoint");
 
 		auto ambiguous            = reverse;
@@ -4127,6 +4226,10 @@ namespace {
 			forward.Status == application::workbench_selected_diff_status::available
 				&& forward.LeftBlob == std::optional{ intermediateBlob }
 				&& forward.RightBlob == std::optional{ currentBlob }
+				&& forward.LeftPath
+					== std::optional{ std::filesystem::path{ "b.cpp" } }
+				&& forward.RightPath
+					== std::optional{ std::filesystem::path{ "c.cpp" } }
 				&& value.State.RenamePairRequests.size() == 1U
 				&& value.State.RenamePairRequests.back()
 					== application::git_cache_rename_pair_request{
@@ -4165,6 +4268,10 @@ namespace {
 			reversed.Status == application::workbench_selected_diff_status::available
 				&& reversed.LeftBlob == std::optional{ currentBlob }
 				&& reversed.RightBlob == std::optional{ intermediateBlob }
+				&& reversed.LeftPath
+					== std::optional{ std::filesystem::path{ "c.cpp" } }
+				&& reversed.RightPath
+					== std::optional{ std::filesystem::path{ "b.cpp" } }
 				&& value.State.RenamePairRequests.back().Left == reverseLeft
 				&& value.State.RenamePairRequests.back().Right == reverseRight,
 			"H2 c.cpp to H1 b.cpp resolves with the exact reversed commit order");

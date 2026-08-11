@@ -17,14 +17,28 @@ namespace bpr::adapters::github {
 	auto live_review_mutation_provider::observe_target()
 		-> std::expected<core::review_mutation_target, application::review_mutation_failure>
 	{
-		return Session.observe_target();
+		return observe_target(std::stop_token{ });
+	}
+
+	auto live_review_mutation_provider::observe_target(const std::stop_token aStop)
+		-> std::expected<core::review_mutation_target, application::review_mutation_failure>
+	{
+		return Session.observe_target(aStop);
 	}
 
 	auto live_review_mutation_provider::submit(
 		const application::review_mutation_request& aRequest)
 		-> std::expected<application::review_mutation_receipt, application::review_mutation_failure>
 	{
-		return Session.submit(aRequest);
+		return submit(aRequest, std::stop_token{ });
+	}
+
+	auto live_review_mutation_provider::submit(
+		const application::review_mutation_request& aRequest,
+		const std::stop_token                       aStop)
+		-> std::expected<application::review_mutation_receipt, application::review_mutation_failure>
+	{
+		return Session.submit(aRequest, aStop);
 	}
 
 	auto live_review_mutation_provider::capabilities() const

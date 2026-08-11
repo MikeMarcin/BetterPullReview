@@ -30,23 +30,41 @@ The Qt editor is constructed with dispatch callbacks and nothing else. There is
 no provider to hold, so a widget calling a mutation endpoint is not something
 to guard against — it is something the type cannot express.
 
-The shipped `workbench_window` composes that editor. Its text and Publish
-actions enter the core transition path, and accepted proposals reach the
-application coordinator only in the test-build fixture. That fixture fixes the
-coordinator to the exact accepted handoff target and account identity. After
-every mutation outcome the application re-reads the fixture's server-comment
-projection; Qt never treats the submitted request as server truth.
+The shipped `workbench_window` composes that editor and emits its exact
+`semantic_selection`. Its text and Publish actions enter the core transition
+path. The application host admits only a current right-side selection whose
+comparison, selected file, workbench generation, selected-diff identity,
+epoch-sealed resolved endpoint, repository path, commit, and designated head
+all agree. A caller cannot replace that endpoint with another plausible rename,
+copy, or arbitrary third path. The host then owns one drain task, so coordinator
+and provider effects remain serial even when its executor runs tasks in
+parallel. It also owns one stop source per accepted request, supersession,
+stale-terminal withholding, and shutdown quiescence.
 
-The tests-disabled production composition has a narrower dormant branch. It can
-construct the live provider only after the accepted handoff and snapshot match
-the compiled designated host, owner/name, repository and pull-request database
-and node IDs, number/open state, base repository, base OID/ref, and head OID/ref.
-The acting database ID, node ID, and login are deliberately not compiled
-allowlist constants. They are taken from the exact authenticated session,
-cross-bound to its account/profile/host lease and accepted snapshot, and
-re-observed by the provider. Production constructs no mutation coordinator and
-calls neither observation nor submission, so Publish remains unavailable on
-that branch.
+If selection changes while a publication is in flight, composition retains the
+publishing draft, retains the latest emitted exact selection, requests stop on
+the first divergence, and waits for the matching terminal. A sequence that
+returns from A to B to A therefore adopts A, not the earlier B. Every matching
+terminal clears pending state and refreshes server comments before the deferred
+selection is presented. An
+indeterminate result retains one exact retryable draft identity without
+replacing the deferred draft; it is restored only for the same semantic anchor,
+comparison, and workbench authority, and cleared after success or authority
+retirement. Typed Qt clearing removes stale body, receipt, actions, and terminal
+status without emitting an edit. Qt never treats a submitted request as server
+truth.
+
+The tests-disabled production composition retains the same asynchronous host
+shape. It can construct the live provider only after the accepted handoff and
+snapshot match the compiled designated host, owner/name, repository and
+pull-request database and node IDs, number/open state, base repository, base
+OID/ref, and head OID/ref. The acting database ID, node ID, and login are
+deliberately not compiled allowlist constants. They are taken from the exact
+authenticated session, cross-bound to its account/profile/host lease and
+accepted snapshot, and re-observed by the provider. Production has no issuer
+for the opaque execution authority, so the host receives an empty grant and
+refuses before queuing an effect. A boolean, environment variable, CLI switch,
+persisted token, or ordinary Qt gesture cannot enable publication.
 
 ## Typed vocabulary
 
@@ -60,6 +78,13 @@ that branch.
   acting identity, and the idempotency key.
 - **Completion** — `std::expected<review_mutation_receipt,
   review_mutation_failure>`.
+- **Request context** — request, application session, and workbench generation
+  identity assigned by the asynchronous host.
+- **Execution authority** — an opaque capability scoped in this slice to the
+  application session, workbench generation, designated target, and acting
+  identity. The host separately validates the exact comparison, file, anchor,
+  resolved endpoint, and commit before any effect is queued. This slice has no
+  production issuer.
 - **Observation** — `review_comment_projection` records the server reports.
 - **Delta** — `reconciliation_entry`: unchanged, added, updated, removed, or
   conflicted.
@@ -122,8 +147,10 @@ request's newer revision, and reporting the head first would hide it.
 ## Safe targets
 
 The mutation coordinator is built for exactly one designated target, fixed at
-construction and never replaceable. `publish` takes a proposal and nothing
-about where it goes, so no caller can name a destination.
+construction and never replaceable. The asynchronous host is the only composed
+caller. It derives the provider anchor from the exact selected-diff right path
+and current-head commit; callers cannot name a different destination through a
+proposal.
 
 The target is observed **twice** — once to decide whether publication is
 permitted, and again immediately before submitting. A check performed only at
@@ -220,9 +247,11 @@ must be revalidated immediately before any write as well.
 BPR-0252 now provides the first production implementation of
 `review_mutation_port`, so the former structural argument — that only test
 implementations existed — is intentionally gone. The implementation is linked
-into the production GitHub adapter. BPR-0254 composes it only as the dormant
-exact-target object described above; the designated live runner still contains
-only its fixed harmless canary, and no credential or write has been used. The
+into the production GitHub adapter. BPR-0254 first composed it as a dormant
+exact-target object. BPR-0255 now places that object behind the asynchronous
+application host and coordinator described above, with an absent production
+execution grant; the designated live runner still contains only its fixed
+harmless canary, and no credential or write has been used. The
 `live_mutation_isolation` gate is now the standing proof that survives the
 implementation:
 
@@ -265,18 +294,20 @@ external read endpoint and must receive a typed network failure from the
 sandbox. Outside that boundary the endpoint returns an HTTP response, so the
 course cannot pass merely because the application selected a fixture provider.
 
-The safe-target check itself stays in the composition root, immediately before
-the dormant provider is constructed and, in the later publication slice,
-immediately before the coordinator is constructed. It is not delegated to the
-provider, which must not police its own designation.
+The safe-target check itself stays in the composition root immediately before
+the provider and asynchronous host are constructed. The host repeats exact
+request binding before admission, and the coordinator/provider re-observe the
+target during execution. The provider does not decide its own designation.
 
 The application host exposes only an opaque mutation transport lease minted for
 one accepted snapshot. Replacing the pull-request identity, profile, account, or
 accepted snapshot and shutting down the host revoke the shared monotonic state
 seen by every retained copy. A revoked lease makes both the live factory and the
-provider protocol return `unavailable` before transport use. This is a
-fail-closed authority cut, not a claim that an already-running operation has
-been asynchronously cancelled; stop authority remains later work.
+provider protocol return `unavailable` before transport use. Separately, each
+accepted asynchronous publication owns a monotonic stop source. Supersession,
+explicit cancellation, and shutdown request stop; the same token reaches both
+coordinator observations, the live provider session, and native HTTPS. A lease
+revocation remains an admission denial rather than the cancellation mechanism.
 
 ### Portable provider protocol
 
@@ -309,9 +340,10 @@ reuses its TLS, proxy, deadline, cancellation, credential, response, and manual-
 redirect controls, and accepts `201` only for the comment POST. Neither the
 provider nor its contract constructs a network manager, reads the environment,
 or acquires credentials. Their outcomes contain only typed failure categories,
-never credential material or provider diagnostics. The protocol maps a typed
-transport cancellation, but the current mutation port supplies no stop authority
-to the provider, so provider-driven lifecycle cancellation is not yet reachable.
+never credential material or provider diagnostics. The mutation port carries
+the asynchronous host's stop token through viewer observation, exact-target
+observation, and the POST, so cancellation before or between phases prevents
+every later operation.
 
 For a write attempt, the protocol observes the acting viewer first, then
 re-observes the complete pull-request identity and head as the final network

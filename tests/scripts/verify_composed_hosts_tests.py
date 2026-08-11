@@ -19,6 +19,8 @@ SHARED_LINES = {
     "epoch application host constructor": "0002 T bpr::application::epoch_application_host::epoch_application_host()",
     "diff application host constructor": "0003 T bpr::application::diff_application_host::diff_application_host()",
     "workbench application host constructor": "0004 T bpr::application::workbench_application_host::workbench_application_host()",
+    "review mutation application host constructor": "0008 T bpr::application::review_mutation_application_host::review_mutation_application_host()",
+    "review mutation coordinator constructor": "0014 T bpr::application::review_mutation_coordinator::review_mutation_coordinator()",
     "appearance application host constructor": "0005 T bpr::application::appearance_application_host::appearance_application_host()",
     "packaged syntax classifier constructor": "0006 T bpr::adapters::syntax::packaged_syntax_classifier::packaged_syntax_classifier()",
     "review ledger application host constructor": "0007 T bpr::application::review_ledger_application_host::review_ledger_application_host()",
@@ -29,16 +31,16 @@ SHARED_LINES = {
     "Qt workbench window constructor": "0013 T bpr::qt::workbench_window::workbench_window()",
 }
 FIXTURE_LINES = {
-    "review mutation coordinator constructor": "0008 T bpr::application::review_mutation_coordinator::review_mutation_coordinator()",
-    "fixture review mutation provider boundary": "0014 T bpr::app::detail::github_public_path_fixture_components::review_mutation_provider()",
-    "fixture review reconciliation decision": "0015 T bpr::application::reconcile()",
+    "fixture review mutation provider boundary": "0015 T bpr::app::detail::github_public_path_fixture_components::review_mutation_provider()",
+    "fixture review mutation execution grant factory": "0016 T bpr::application::make_review_mutation_testing_grant()",
+    "fixture review reconciliation decision": "0017 T bpr::application::reconcile()",
 }
 PRODUCTION_LINES = {
     "live review mutation provider": (
-        "0016 T bpr::adapters::github::live_review_mutation_provider::submit()"
+        "0018 T bpr::adapters::github::live_review_mutation_provider::submit()"
     ),
     "live review mutation provider factory": (
-        "0017 T bpr::adapters::github::make_live_review_mutation_provider()"
+        "0019 T bpr::adapters::github::make_live_review_mutation_provider()"
     ),
 }
 
@@ -165,11 +167,11 @@ class ComposedHostVerifierTests(unittest.TestCase):
 
     def test_production_profile_forbids_each_fixture_authority(self) -> None:
         expected_forbidden_names = {
-            "review mutation coordinator constructor": (
-                "review mutation coordinator constructor"
-            ),
             "fixture review mutation provider boundary": (
                 "GitHub public-path fixture components"
+            ),
+            "fixture review mutation execution grant factory": (
+                "fixture review mutation execution grant factory"
             ),
             "fixture review reconciliation decision": (
                 "fixture review reconciliation decision"
@@ -279,20 +281,24 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "bpr::application::review_mutation_coordinator::"
             "review_mutation_coordinator(void)"
         )
+        windows_shared["review mutation coordinator constructor"] = windows_coordinator
         windows_shared["defect correlation decision"] = (
             "0009 T struct bpr::application::defect_correlation_result __cdecl "
             "bpr::application::correlate(int)"
         )
         windows_fixture = {
-            "review mutation coordinator constructor": windows_coordinator,
             "fixture review mutation provider boundary": (
                 "0014 T public: virtual class "
                 "bpr::application::review_mutation_port & __cdecl "
                 "bpr::app::detail::github_public_path_fixture_components::"
                 "review_mutation_provider(void)"
             ),
+            "fixture review mutation execution grant factory": (
+                "0015 T class std::shared_ptr<int> __cdecl "
+                "bpr::application::make_review_mutation_testing_grant(int)"
+            ),
             "fixture review reconciliation decision": (
-                "0015 T struct bpr::application::reconciliation_result __cdecl "
+                "0016 T struct bpr::application::reconciliation_result __cdecl "
                 "bpr::application::reconcile(int)"
             ),
         }

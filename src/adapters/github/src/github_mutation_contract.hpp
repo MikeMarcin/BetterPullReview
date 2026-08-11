@@ -206,10 +206,11 @@ namespace bpr::adapters::github::detail {
 			live_review_mutation_configuration     aConfiguration,
 			application::review_mutation_transport aLease) noexcept;
 
-		[[nodiscard]] auto observe_target()
+		[[nodiscard]] auto observe_target(std::stop_token aStop = { })
 			-> std::expected<core::review_mutation_target, application::review_mutation_failure>;
 		[[nodiscard]] auto submit(
-			const application::review_mutation_request& aRequest)
+			const application::review_mutation_request& aRequest,
+			std::stop_token                             aStop = { })
 			-> std::expected<application::review_mutation_receipt, application::review_mutation_failure>;
 
 	private:
@@ -219,10 +220,11 @@ namespace bpr::adapters::github::detail {
 			std::optional<application::review_mutation_receipt> Receipt;
 		};
 
-		[[nodiscard]] auto observe_exact()
+		[[nodiscard]] auto observe_exact(std::stop_token aStop)
 			-> std::expected<void, application::review_mutation_failure>;
 		[[nodiscard]] auto perform(
-			review_mutation_wire_request aRequest)
+			review_mutation_wire_request aRequest,
+			std::stop_token              aStop)
 			-> std::expected<review_mutation_wire_response, application::review_mutation_failure>;
 
 		github_mutation_wire_transport*           Transport = nullptr;

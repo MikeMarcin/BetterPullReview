@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <stop_token>
 
 namespace bpr::application {
 	/// \brief Records directly observable coordinator activity.
@@ -51,14 +52,16 @@ namespace bpr::application {
 		/// moved head. It can never authorise a different target.
 		[[nodiscard]] auto publish(
 			const core::review_publication_proposal& aProposal,
-			bool                                     aAcknowledged)
+			bool                                     aAcknowledged,
+			std::stop_token                          aStop = { })
 			-> std::expected<review_mutation_receipt, review_mutation_failure>;
 
 		/// \brief Publishes after binding the semantic anchor to exact source data.
 		[[nodiscard]] auto publish(
 			const core::review_publication_proposal& aProposal,
 			review_mutation_anchor_binding           aAnchor,
-			bool                                     aAcknowledged)
+			bool                                     aAcknowledged,
+			std::stop_token                          aStop = { })
 			-> std::expected<review_mutation_receipt, review_mutation_failure>;
 
 		[[nodiscard]] auto designated() const noexcept
@@ -68,12 +71,15 @@ namespace bpr::application {
 			-> review_mutation_statistics;
 
 	private:
-		[[nodiscard]] auto confirm_target(bool aAcknowledged)
+		[[nodiscard]] auto confirm_target(
+			bool            aAcknowledged,
+			std::stop_token aStop)
 			-> std::expected<void, review_mutation_failure>;
 		[[nodiscard]] auto publish_bound(
 			const core::review_publication_proposal&      aProposal,
 			std::optional<review_mutation_anchor_binding> aAnchor,
-			bool                                          aAcknowledged)
+			bool                                          aAcknowledged,
+			std::stop_token                               aStop)
 			-> std::expected<review_mutation_receipt, review_mutation_failure>;
 
 		review_mutation_port*                          Provider = nullptr;

@@ -257,6 +257,32 @@ namespace bpr::qt {
 									.arg(aReconciliation.Projection.size()));
 	}
 
+	void review_draft_editor::present(
+		const review_draft_editor_clear_reason aReason)
+	{
+		++Statistics.Presentations;
+		ShownDraft.reset();
+		ShownReceipt.reset();
+		ApplyingPresentation = true;
+		Body->clear();
+		ApplyingPresentation = false;
+		switch (aReason) {
+		case review_draft_editor_clear_reason::selection_cleared:
+			MutationStatus->setText(QStringLiteral(
+				"Select a current-head diff line to compose a review comment."));
+			break;
+		case review_draft_editor_clear_reason::selection_invalidated:
+			MutationStatus->setText(
+				QStringLiteral("The selected diff is no longer available."));
+			break;
+		case review_draft_editor_clear_reason::composition_retired:
+			TargetLabel->clear();
+			MutationStatus->clear();
+			break;
+		}
+		refresh_enablement();
+	}
+
 	void review_draft_editor::present(const core::file_receipt& aReceipt)
 	{
 		++Statistics.Presentations;

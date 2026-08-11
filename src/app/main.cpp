@@ -2633,7 +2633,10 @@ namespace {
 				   << "REVIEW_ROUND_TRIP_COMPOSITION_EVIDENCE:"
 				   << evidence.ExactDesignatedTarget << evidence.EditorComposed
 				   << evidence.SemanticEdit << evidence.StaleHeadRefused
-				   << evidence.LostResultRefreshed << evidence.RetryIdempotent
+				   << evidence.LostResultRefreshed << evidence.SelectionDeferred
+				   << evidence.LatestSelectionWins << evidence.PendingCleared
+				   << evidence.DeferredDraftExact
+				   << evidence.StaleTerminalWithheld << evidence.RetryIdempotent
 				   << evidence.CapabilityFallback << evidence.ServerAuthority
 				   << evidence.TypedQtProjection << '\n';
 			if (dormantSelection.has_value()) {

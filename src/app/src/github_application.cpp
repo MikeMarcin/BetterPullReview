@@ -44,9 +44,7 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
-#if defined(BPR_BUILD_TESTING)
-	#include "bpr/application/review_mutation_coordinator.hpp"
-#endif
+#include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_application_host.hpp"
@@ -73,6 +71,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMouseEvent>
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QPoint>
@@ -128,7 +127,6 @@ namespace bpr::app {
 	namespace {
 		using adapters::github::github_host_profile_candidate;
 		using adapters::github::github_profile_provenance;
-		using adapters::github::live_review_mutation_provider;
 		using adapters::github::make_live_review_mutation_provider;
 		using adapters::github::validate_github_host_profile;
 		using adapters::github::validated_github_host_profile;
@@ -137,9 +135,66 @@ namespace bpr::app {
 		using adapters::github::detail::make_github_provider;
 		using adapters::github::detail::native_github_wire_transport_factory;
 
-		inline constexpr auto designated_review_hostname          = std::string_view{ "github.com" };
-		inline constexpr auto designated_review_owner             = std::string_view{ "MikeMarcin" };
-		inline constexpr auto designated_review_name              = std::string_view{ "BPR-Test" };
+		inline constexpr auto designated_review_hostname = std::string_view{ "github.com" };
+		inline constexpr auto designated_review_owner    = std::string_view{ "MikeMarcin" };
+		inline constexpr auto designated_review_name     = std::string_view{ "BPR-Test" };
+
+#if defined(BPR_BUILD_TESTING)
+		/// Holds only review-mutation terminals for deterministic fixture races.
+		class gated_review_mutation_decision_executor final
+			: public application::decision_executor
+		{
+		public:
+			explicit gated_review_mutation_decision_executor(
+				application::decision_executor& aTarget)
+				: Target{ aTarget }
+			{
+			}
+
+			void post(std::function<void()> aTask) override
+			{
+				{
+					const auto lock = std::scoped_lock{ Mutex };
+					if (Holding) {
+						Held.push_back(std::move(aTask));
+						return;
+					}
+				}
+				Target.post(std::move(aTask));
+			}
+
+			void hold()
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				Holding         = true;
+			}
+
+			void release()
+			{
+				auto held = std::deque<std::function<void()>>{ };
+				{
+					const auto lock = std::scoped_lock{ Mutex };
+					Holding         = false;
+					held.swap(Held);
+				}
+				for (auto& task : held) {
+					Target.post(std::move(task));
+				}
+			}
+
+			[[nodiscard]] auto pending() const -> std::size_t
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				return Held.size();
+			}
+
+		private:
+			application::decision_executor&   Target;
+			mutable std::mutex                Mutex;
+			std::deque<std::function<void()>> Held;
+			bool                              Holding = false;
+		};
+#endif
 		inline constexpr auto designated_review_repository_id     = std::uint64_t{ 1'328'277'631U };
 		inline constexpr auto designated_review_repository_node   = std::string_view{ "R_kgDOTyvofw" };
 		inline constexpr auto designated_review_pull_request_id   = std::uint64_t{ 4'246'446'933U };
@@ -1568,6 +1623,7 @@ namespace bpr::app {
 		: public application::github_epoch_handoff_port,
 		  public application::epoch_projection_port,
 		  public application::workbench_selected_diff_projection_port,
+		  public application::review_mutation_projection_port,
 		  public application::receipt_projection_port,
 		  public application::queue_landing_projection_port,
 		  public application::agent_session_catalog_port
@@ -1840,6 +1896,10 @@ namespace bpr::app {
 			Window->set_review_draft_dispatch(
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(std::move(aCommand));
+				});
+			Window->comparison_surface()->set_selection_sink(
+				[this](const std::optional<core::semantic_selection>& aSelection) {
+					observe_review_selection(aSelection);
 				});
 			Window->set_defect_dispatch(
 				[this](core::defect_command aCommand) {
@@ -2521,36 +2581,92 @@ namespace bpr::app {
 			};
 		}
 
+		struct retryable_review_draft_record
+		{
+			core::review_comment_draft                    Draft;
+			application::workbench_pull_request_authority Authority;
+		};
+
+		[[nodiscard]] static auto exact_retryable_review_draft(
+			const retryable_review_draft_record&                 aRecord,
+			const core::semantic_selection&                      aSelection,
+			const application::workbench_pull_request_authority& aAuthority)
+			-> bool
+		{
+			return aRecord.Draft.State == core::review_draft_state::drafting
+				&& aRecord.Draft.Anchor == aSelection.PreferredLine
+				&& aRecord.Draft.Anchor.Comparison == aSelection.Comparison
+				&& aRecord.Authority == aAuthority;
+		}
+
+		void retire_review_mutation_host()
+		{
+			if (ReviewMutationHost != nullptr) {
+				ReviewMutationHost->shutdown();
+				RetiredReviewMutationHosts.push_back(
+					std::move(ReviewMutationHost));
+			}
+			std::erase_if(
+				RetiredReviewMutationHosts,
+				[](const auto& aHost) { return aHost->is_quiescent(); });
+			PendingReviewMutation.reset();
+			DeferredReviewSelection.reset();
+			RetryableReviewDraft.reset();
+		}
+
 		void compose_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
+			retire_review_mutation_host();
+			if (Window != nullptr && Window->review_editor() != nullptr) {
+				Window->review_editor()->present(
+					qt::review_draft_editor_clear_reason::composition_retired);
+			}
 			ReviewDraft.reset();
 			ReviewDraftRevision = 0U;
+			SelectedSemanticSelection.reset();
 			refresh_agent_private_context_choices();
 			ReviewProjection.clear();
 #if defined(BPR_BUILD_TESTING)
-			ReviewMutationCoordinator.reset();
 			if (Fixture == nullptr || Window == nullptr
-				|| Window->review_editor() == nullptr) {
+				|| Window->review_editor() == nullptr || WorkbenchHost == nullptr) {
+				return;
+			}
+			if (!RetiredReviewMutationHosts.empty()) {
+				auto retry = std::make_shared<application::accepted_pull_request_handoff>(
+					clone_without_smart_git(aHandoff));
+				QTimer::singleShot(0, Window.get(), [this, retry] {
+					if (!Closing) {
+						compose_review_mutation(*retry);
+					}
+				});
 				return;
 			}
 			const auto target = review_mutation_target(aHandoff);
 			Fixture->prepare_review_mutation(target);
-			ReviewMutationCoordinator = std::make_unique<
-				application::review_mutation_coordinator>(
-				Fixture->review_mutation_provider(), target, aHandoff.Account);
-			auto* const editor = Window->review_editor();
-			editor->describe_target(QStringLiteral("%1/%2#%3 at %4 as account %5")
-										.arg(QString::fromStdString(aHandoff.Locator.Owner))
-										.arg(QString::fromStdString(aHandoff.Locator.Name))
-										.arg(aHandoff.Number.value())
-										.arg(QString::fromUtf8(
-											core::canonical_hex(aHandoff.Head).view()))
-										.arg(aHandoff.Account.value()));
-			editor->present(ReviewMutationCoordinator->capabilities());
+			if (ReviewMutationDecisionGate == nullptr) {
+				ReviewMutationDecisionGate = std::make_unique<
+					gated_review_mutation_decision_executor>(DecisionLane);
+			}
+			ReviewMutationHost = std::make_unique<
+				application::review_mutation_application_host>(
+				Fixture->review_mutation_provider(),
+				target,
+				aHandoff.Account,
+				aHandoff.ApplicationSession,
+				WorkbenchHost->generation(),
+				application::make_review_mutation_testing_grant(
+					aHandoff.ApplicationSession,
+					WorkbenchHost->generation(),
+					target,
+					aHandoff.Account),
+				ReviewMutationEffects,
+				*ReviewMutationDecisionGate,
+				*this);
+			FixtureReviewMutationHostComposed = true;
 #else
-			LiveReviewMutationProvider.reset();
-			if (Host == nullptr || !Host->accepted_snapshot().has_value()) {
+			if (Host == nullptr || WorkbenchHost == nullptr
+				|| !Host->accepted_snapshot().has_value()) {
 				return;
 			}
 			auto selection = select_designated_review_mutation(
@@ -2564,12 +2680,38 @@ namespace bpr::app {
 			}
 			auto provider = make_live_review_mutation_provider(
 				std::move(lease),
-				std::move(selection->Target),
-				std::move(selection->ActingIdentity));
+				selection->Target,
+				selection->ActingIdentity);
 			if (provider.has_value()) {
-				LiveReviewMutationProvider = std::move(*provider);
+				auto erased = std::unique_ptr<application::review_mutation_port>{
+					std::move(*provider)
+				};
+				ReviewMutationHost = std::make_unique<
+					application::review_mutation_application_host>(
+					std::move(erased),
+					std::move(selection->Target),
+					std::move(selection->ActingIdentity),
+					aHandoff.ApplicationSession,
+					WorkbenchHost->generation(),
+					application::review_mutation_execution_grant{ },
+					ReviewMutationEffects,
+					DecisionLane,
+					*this);
 			}
 #endif
+			if (ReviewMutationHost == nullptr || Window == nullptr
+				|| Window->review_editor() == nullptr) {
+				return;
+			}
+			auto* const editor = Window->review_editor();
+			editor->describe_target(QStringLiteral("%1/%2#%3 at %4 as account %5")
+										.arg(QString::fromStdString(aHandoff.Locator.Owner))
+										.arg(QString::fromStdString(aHandoff.Locator.Name))
+										.arg(aHandoff.Number.value())
+										.arg(QString::fromUtf8(
+											core::canonical_hex(aHandoff.Head).view()))
+										.arg(aHandoff.Account.value()));
+			editor->present(ReviewMutationHost->capabilities());
 		}
 
 		void refresh_review_projection()
@@ -2587,9 +2729,8 @@ namespace bpr::app {
 
 		void dispatch_review_draft(core::review_draft_command aCommand)
 		{
-#if defined(BPR_BUILD_TESTING)
 			if (Closing || !ReviewDraft.has_value()
-				|| ReviewMutationCoordinator == nullptr || Window == nullptr
+				|| ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr) {
 				return;
 			}
@@ -2600,6 +2741,14 @@ namespace bpr::app {
 			ReviewDraft = outcome.Draft;
 			if (outcome.Changed) {
 				++ReviewDraftRevision;
+			}
+			if (RetryableReviewDraft.has_value()
+				&& RetryableReviewDraft->Draft.Id == ReviewDraft->Id) {
+				if (ReviewDraft->State == core::review_draft_state::discarded) {
+					RetryableReviewDraft.reset();
+				} else {
+					RetryableReviewDraft->Draft = *ReviewDraft;
+				}
 			}
 			auto* const editor = Window->review_editor();
 			editor->present(*ReviewDraft);
@@ -2612,9 +2761,8 @@ namespace bpr::app {
 			if (!proposal.has_value()) {
 				return;
 			}
-			const auto publication = ReviewMutationCoordinator->publish(*proposal, false);
-			refresh_review_projection();
-			if (!publication.has_value()) {
+			if (!SelectedDiffPublication.has_value()
+				|| !SelectedSemanticSelection.has_value()) {
 				ReviewDraft = core::apply(
 								  *ReviewDraft,
 								  core::review_draft_command{
@@ -2625,52 +2773,184 @@ namespace bpr::app {
 				++ReviewDraftRevision;
 				editor->present(*ReviewDraft);
 				refresh_agent_private_context_choices();
-				editor->present(publication.error());
+				editor->present(
+					application::review_mutation_failure::undesignated_target);
+				return;
+			}
+			const auto context = ReviewMutationHost->publish(
+				application::review_mutation_publication_request{
+					.Proposal     = *proposal,
+					.Selection    = *SelectedSemanticSelection,
+					.SelectedDiff = *SelectedDiffPublication,
+				});
+			if (context.Request.value() == 0U) {
+				ReviewDraft = core::apply(
+								  *ReviewDraft,
+								  core::review_draft_command{
+									  .Id   = ReviewDraft->Id,
+									  .Kind = core::review_draft_command_kind::fail_publish,
+								  })
+								  .Draft;
+				++ReviewDraftRevision;
+				editor->present(*ReviewDraft);
+				editor->present(application::review_mutation_failure::unavailable);
+				return;
+			}
+			PendingReviewMutation = context;
+		}
+
+		void adopt_review_selection(
+			const std::optional<core::semantic_selection>& aSelection,
+			const qt::review_draft_editor_clear_reason     aReason)
+		{
+			SelectedSemanticSelection = aSelection;
+			ReviewDraft.reset();
+			ReviewDraftRevision = 0U;
+			if (Window != nullptr && Window->review_editor() != nullptr) {
+				auto* const editor = Window->review_editor();
+				editor->present(aReason);
+				if (aSelection.has_value() && ReviewMutationHost != nullptr) {
+					editor->present(ReviewMutationHost->capabilities());
+				}
+			}
+			if (aSelection.has_value()) {
+				present_review_draft(*aSelection);
+			} else {
+				refresh_agent_private_context_choices();
+			}
+		}
+
+		void observe_review_selection(
+			const std::optional<core::semantic_selection>& aSelection)
+		{
+			if (PendingReviewMutation.has_value()) {
+				if (!DeferredReviewSelection.has_value()
+					&& aSelection == SelectedSemanticSelection) {
+					return;
+				}
+				const auto firstDivergence
+					= !DeferredReviewSelection.has_value()
+					&& aSelection != SelectedSemanticSelection;
+				DeferredReviewSelection.emplace(aSelection);
+				if (firstDivergence && ReviewMutationHost != nullptr) {
+					ReviewMutationHost->cancel(*PendingReviewMutation);
+				}
+				return;
+			}
+			if (aSelection == SelectedSemanticSelection) {
+				return;
+			}
+			adopt_review_selection(
+				aSelection,
+				qt::review_draft_editor_clear_reason::selection_cleared);
+		}
+
+		void present_review_draft(const core::semantic_selection& aSelection)
+		{
+			if (ReviewMutationHost == nullptr || Window == nullptr
+				|| Window->review_editor() == nullptr
+				|| WorkbenchHost == nullptr || !SelectedDiffPublication.has_value()
+				|| aSelection.Comparison
+					!= core::comparison_digest(SelectedDiffPublication->Key)
+				|| aSelection.PreferredLine.Comparison != aSelection.Comparison
+				|| WorkbenchHost->generation()
+					!= SelectedDiffPublication->Request.Context.Generation
+				|| WorkbenchHost->selected()
+					!= std::optional{ SelectedDiffPublication->Request.File.File }) {
+				return;
+			}
+			if (ReviewDraft.has_value()
+				&& ReviewDraft->Anchor == aSelection.PreferredLine
+				&& (ReviewDraft->State == core::review_draft_state::drafting
+					|| ReviewDraft->State == core::review_draft_state::publishing)) {
+				return;
+			}
+			if (RetryableReviewDraft.has_value()
+				&& exact_retryable_review_draft(
+					*RetryableReviewDraft,
+					aSelection,
+					SelectedDiffPublication->Request.WorkbenchAuthority)) {
+				ReviewDraft         = RetryableReviewDraft->Draft;
+				ReviewDraftRevision = 1U;
+				Window->review_editor()->present(*ReviewDraft);
+				refresh_agent_private_context_choices();
+				return;
+			}
+			ReviewDraft = core::review_comment_draft{
+				.Id     = core::review_draft_id{ NextReviewDraft++ },
+				.Anchor = aSelection.PreferredLine,
+			};
+			ReviewDraftRevision = 1U;
+			Window->review_editor()->present(*ReviewDraft);
+			refresh_agent_private_context_choices();
+		}
+
+		void publish(
+			const application::review_mutation_terminal& aTerminal) override
+		{
+			if (Closing
+				|| PendingReviewMutation != std::optional{ aTerminal.Context }) {
+				return;
+			}
+			PendingReviewMutation.reset();
+			refresh_review_projection();
+			const auto deferred = std::move(DeferredReviewSelection);
+			DeferredReviewSelection.reset();
+			if (!ReviewDraft.has_value()
+				|| ReviewDraft->State != core::review_draft_state::publishing) {
+				if (deferred.has_value()) {
+					adopt_review_selection(
+						*deferred,
+						qt::review_draft_editor_clear_reason::selection_cleared);
+				}
 				return;
 			}
 			ReviewDraft = core::apply(
 							  *ReviewDraft,
 							  core::review_draft_command{
 								  .Id   = ReviewDraft->Id,
-								  .Kind = core::review_draft_command_kind::complete_publish,
+								  .Kind = aTerminal.Result.has_value()
+									  ? core::review_draft_command_kind::complete_publish
+									  : core::review_draft_command_kind::fail_publish,
 							  })
 							  .Draft;
 			++ReviewDraftRevision;
+			const auto sameRetry = RetryableReviewDraft.has_value()
+				&& RetryableReviewDraft->Draft.Id == ReviewDraft->Id;
+			if (aTerminal.Result.has_value()) {
+				if (sameRetry) {
+					RetryableReviewDraft.reset();
+				}
+			} else if (
+				aTerminal.Result.error()
+					== application::review_mutation_failure::unavailable
+				&& SelectedDiffPublication.has_value()
+				&& ReviewDraft->Anchor.Comparison
+					== core::comparison_digest(SelectedDiffPublication->Key)) {
+				RetryableReviewDraft = retryable_review_draft_record{
+					.Draft     = *ReviewDraft,
+					.Authority = SelectedDiffPublication->Request.WorkbenchAuthority,
+				};
+			} else if (sameRetry) {
+				RetryableReviewDraft.reset();
+			}
+			refresh_agent_private_context_choices();
+			if (deferred.has_value()) {
+				adopt_review_selection(
+					*deferred,
+					qt::review_draft_editor_clear_reason::selection_cleared);
+				return;
+			}
+			if (Window == nullptr || Window->review_editor() == nullptr) {
+				return;
+			}
+			auto* const editor = Window->review_editor();
 			editor->present(*ReviewDraft);
-			refresh_agent_private_context_choices();
-			editor->present(*publication, ReviewReconciliation);
-#else
-			static_cast<void>(aCommand);
-#endif
-		}
-
-		void present_review_draft(const core::file_comparison_digest aComparison)
-		{
-#if defined(BPR_BUILD_TESTING)
-			if (ReviewMutationCoordinator == nullptr || Window == nullptr
-				|| Window->review_editor() == nullptr || !aComparison.valid()) {
-				return;
+			if (aTerminal.Result.has_value()) {
+				editor->present(*aTerminal.Result, ReviewReconciliation);
+			} else {
+				editor->present(aTerminal.Result.error());
 			}
-			if (ReviewDraft.has_value()
-				&& ReviewDraft->Anchor.Comparison == aComparison
-				&& (ReviewDraft->State == core::review_draft_state::drafting
-					|| ReviewDraft->State == core::review_draft_state::publishing)) {
-				return;
-			}
-			ReviewDraft = core::review_comment_draft{
-				.Id     = core::review_draft_id{ NextReviewDraft++ },
-				.Anchor = {
-					.Comparison = aComparison,
-					.Side       = core::diff_side::right,
-					.Line       = 1U,
-				},
-			};
-			ReviewDraftRevision = 1U;
-			Window->review_editor()->present(*ReviewDraft);
-			refresh_agent_private_context_choices();
-#else
-			static_cast<void>(aComparison);
-#endif
 		}
 
 		void retire_review_ledger()
@@ -2782,7 +3062,9 @@ namespace bpr::app {
 					.File     = SelectedDiffPublication->Request.File.File,
 					.Material = material,
 				}));
-			present_review_draft(material);
+			if (SelectedSemanticSelection.has_value()) {
+				present_review_draft(*SelectedSemanticSelection);
+			}
 		}
 
 		void publish(const application::receipt_projection& aProjection) override
@@ -2893,7 +3175,6 @@ namespace bpr::app {
 					? Host->accepted_snapshot()
 					: std::optional<application::github_pull_request_snapshot>{ };
 				compose_review_ledger(aHandoff);
-				compose_review_mutation(aHandoff);
 				WorkbenchReview.adopt(
 					aHandoff,
 					snapshot);
@@ -2947,6 +3228,7 @@ namespace bpr::app {
 				if (WorkbenchHost != nullptr) {
 					WorkbenchHost->observe(authority);
 				}
+				compose_review_mutation(aHandoff);
 				EpochHost->accept(std::move(aHandoff));
 			}
 		}
@@ -2990,11 +3272,7 @@ namespace bpr::app {
 			});
 			if (retiresLedger) {
 				retire_review_ledger();
-#if defined(BPR_BUILD_TESTING)
-				ReviewMutationCoordinator.reset();
-#else
-				LiveReviewMutationProvider.reset();
-#endif
+				retire_review_mutation_host();
 				ReviewDraft.reset();
 				ReviewDraftRevision = 0U;
 				ReviewProjection.clear();
@@ -3301,6 +3579,16 @@ namespace bpr::app {
 
 		void clear_diff_selection()
 		{
+			RetryableReviewDraft.reset();
+			if (ReviewMutationHost != nullptr
+				&& PendingReviewMutation.has_value()) {
+				DeferredReviewSelection.emplace(std::nullopt);
+				ReviewMutationHost->cancel(*PendingReviewMutation);
+			} else {
+				adopt_review_selection(
+					std::nullopt,
+					qt::review_draft_editor_clear_reason::selection_invalidated);
+			}
 			SelectedDiffPublication.reset();
 			if (DiffHost != nullptr) {
 				DiffHost->cancel();
@@ -3731,6 +4019,7 @@ namespace bpr::app {
 				return;
 			}
 			Closing = true;
+			RetryableReviewDraft.reset();
 			if (AgentHost) {
 				AgentHost->shutdown();
 			}
@@ -3759,6 +4048,12 @@ namespace bpr::app {
 			}
 			if (AppearanceHost) {
 				AppearanceHost->shutdown();
+			}
+			if (ReviewMutationHost) {
+				ReviewMutationHost->shutdown();
+			}
+			for (auto& host : RetiredReviewMutationHosts) {
+				host->shutdown();
 			}
 			DiffHost->shutdown();
 			EpochHost->shutdown();
@@ -3802,18 +4097,25 @@ namespace bpr::app {
 				|| !Host->is_quiescent()
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
 				|| (QueueHost && !QueueHost->is_quiescent())
-				|| (AppearanceHost && !AppearanceHost->is_quiescent())) {
+				|| (AppearanceHost && !AppearanceHost->is_quiescent())
+				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
+				|| std::ranges::any_of(
+					RetiredReviewMutationHosts,
+					[](const auto& aHost) { return !aHost->is_quiescent(); })) {
 				schedule_shutdown_poll();
 				return;
 			}
 
 			ShutdownCleanupFailed         = Host->shutdown_cleanup_failed();
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
+			ReviewMutationHost.reset();
+			RetiredReviewMutationHosts.clear();
 			AppearanceEffects.close_and_drain();
 			AgentEffects.close_and_drain();
 			QueueEffects.close_and_drain();
 			WorkbenchEffects.close_and_drain();
 			DiffEffects.close_and_drain();
+			ReviewMutationEffects.close_and_drain();
 			EpochEffects.close_and_drain();
 			Provider->shutdown();
 			ProviderEffects.close_and_drain();
@@ -3825,12 +4127,15 @@ namespace bpr::app {
 		std::vector<application::github_profile_option> ProfileOptions;
 		worker_executor                                 ProviderEffects;
 		worker_executor                                 VaultEffects;
+		worker_executor                                 ReviewMutationEffects;
 #if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
-		std::optional<application::accepted_pull_request_handoff>      LastAcceptedHandoff;
-		std::size_t                                                    EpochPruneIntentDispatchCount  = 0U;
-		std::size_t                                                    EpochDeleteIntentDispatchCount = 0U;
-		std::size_t                                                    EpochCancelIntentDispatchCount = 0U;
+		std::unique_ptr<gated_review_mutation_decision_executor>
+																  ReviewMutationDecisionGate;
+		std::optional<application::accepted_pull_request_handoff> LastAcceptedHandoff;
+		std::size_t                                               EpochPruneIntentDispatchCount  = 0U;
+		std::size_t                                               EpochDeleteIntentDispatchCount = 0U;
+		std::size_t                                               EpochCancelIntentDispatchCount = 0U;
 		struct appearance_theme_probe_state
 		{
 			enum class phase {
@@ -3968,9 +4273,21 @@ namespace bpr::app {
 			ReviewLedgerCompositionProbe;
 		struct review_round_trip_composition_probe_state
 		{
+			enum class phase {
+				awaiting_editor,
+				awaiting_stale_refusal,
+				awaiting_lost_effect,
+				awaiting_deferred_terminal,
+				awaiting_retry,
+				passed,
+				failed,
+			};
+
 			detail::review_round_trip_composition_probe_evidence Evidence;
-			bool                                                 Complete = false;
-			bool                                                 Failed   = false;
+			phase                                                Phase = phase::awaiting_editor;
+			std::optional<core::semantic_selection>              PublishingSelection;
+			std::optional<core::semantic_selection>              DeferredSelection;
+			std::optional<core::review_comment_draft>            PublishingDraft;
 		};
 		std::optional<review_round_trip_composition_probe_state>
 			ReviewRoundTripCompositionProbe;
@@ -4009,8 +4326,9 @@ namespace bpr::app {
 		bool                                 DisableAgentHostComposition    = false;
 		bool                                 DisableAgentGestureWire        = false;
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
-		bool                                 ReviewLedgerWasPresentOnEntry = false;
-		bool                                 ReviewLedgerRoundTripPassed   = false;
+		bool                                 ReviewLedgerWasPresentOnEntry     = false;
+		bool                                 ReviewLedgerRoundTripPassed       = false;
+		bool                                 FixtureReviewMutationHostComposed = false;
 #endif
 		std::unique_ptr<application::github_credential_vault_port>   OwnedVault;
 		std::shared_ptr<github_wire_transport_factory_port>          TransportFactory;
@@ -4028,12 +4346,17 @@ namespace bpr::app {
 		std::optional<core::file_receipt>                            ReviewLedgerReceipt;
 		bool                                                         ReviewLedgerAvailable = false;
 		std::vector<application::durable_defect_record>              DurableDefects;
-#if defined(BPR_BUILD_TESTING)
-		std::unique_ptr<application::review_mutation_coordinator> ReviewMutationCoordinator;
-#else
-		std::unique_ptr<live_review_mutation_provider> LiveReviewMutationProvider;
-#endif
+		std::unique_ptr<application::review_mutation_application_host>
+			ReviewMutationHost;
+		std::vector<std::unique_ptr<application::review_mutation_application_host>>
+			RetiredReviewMutationHosts;
+		std::optional<application::review_mutation_request_context>
+			PendingReviewMutation;
+		std::optional<std::optional<core::semantic_selection>>
+																	 DeferredReviewSelection;
+		std::optional<core::semantic_selection>                      SelectedSemanticSelection;
 		std::optional<core::review_comment_draft>                    ReviewDraft;
+		std::optional<retryable_review_draft_record>                 RetryableReviewDraft;
 		std::uint64_t                                                ReviewDraftRevision = 0U;
 		std::vector<application::review_comment_projection>          ReviewProjection;
 		application::reconciliation_result                           ReviewReconciliation;
@@ -7578,7 +7901,9 @@ namespace bpr::app {
 		github_application& aApplication)
 		-> detail::review_round_trip_composition_probe_result
 	{
-		using result               = detail::review_round_trip_composition_probe_result;
+		using result     = detail::review_round_trip_composition_probe_result;
+		using state_type = github_application::implementation::
+			review_round_trip_composition_probe_state;
 		auto* const implementation = aApplication.Implementation.get();
 		if (implementation == nullptr) {
 			return result::failed;
@@ -7587,15 +7912,15 @@ namespace bpr::app {
 			implementation->ReviewRoundTripCompositionProbe.emplace();
 		}
 		auto& probe = *implementation->ReviewRoundTripCompositionProbe;
-		if (probe.Failed) {
+		if (probe.Phase == state_type::phase::failed) {
 			return result::failed;
 		}
-		if (probe.Complete) {
+		if (probe.Phase == state_type::phase::passed) {
 			return result::passed;
 		}
 		if (implementation->Fixture != nullptr && implementation->Window != nullptr
 			&& implementation->WorkbenchHost != nullptr
-			&& implementation->ReviewMutationCoordinator != nullptr
+			&& implementation->ReviewMutationHost != nullptr
 			&& !implementation->ReviewDraft.has_value()
 			&& implementation->WorkbenchHost->outstanding_requests() == 0U) {
 			auto* const view = implementation->Window->files_drawer()->contents_view();
@@ -7607,7 +7932,7 @@ namespace bpr::app {
 			return result::pending;
 		}
 		if (implementation->Fixture == nullptr || implementation->Window == nullptr
-			|| implementation->ReviewMutationCoordinator == nullptr
+			|| implementation->ReviewMutationHost == nullptr
 			|| !implementation->ReviewDraft.has_value()
 			|| !implementation->LastAcceptedHandoff.has_value()
 			|| !implementation->LastSelectedDiff.has_value()
@@ -7615,86 +7940,316 @@ namespace bpr::app {
 			return result::pending;
 		}
 		const auto fail = [&probe] {
-			probe.Failed = true;
+			probe.Phase = state_type::phase::failed;
 			return result::failed;
 		};
 		auto* const editor     = implementation->Window->review_editor();
 		const auto  designated = github_application::implementation::review_mutation_target(
 			*implementation->LastAcceptedHandoff);
-		probe.Evidence.ExactDesignatedTarget
-			= implementation->ReviewMutationCoordinator->designated() == designated;
-		probe.Evidence.EditorComposed = editor->shown_draft().has_value()
-			&& editor->shown_draft()->Anchor.Comparison
-				== core::comparison_digest(
-					implementation->LastSelectedDiff->Key)
-			&& editor->target_label()->text().contains(
-				QString::number(implementation->LastAcceptedHandoff->Number.value()));
-		probe.Evidence.CapabilityFallback
-			= !implementation->ReviewMutationCoordinator->capabilities().ResolvesThreads
-			&& !implementation->ReviewMutationCoordinator->capabilities()
-					.RecordsViewedState
-			&& editor->mutation_status_text().contains(
-				QStringLiteral("unavailable"));
-		if (!probe.Evidence.ExactDesignatedTarget
-			|| !probe.Evidence.EditorComposed
-			|| !probe.Evidence.CapabilityFallback) {
-			return fail();
+		const auto clickRightLine = [implementation](const std::uint32_t aLine) {
+			auto* const comparison = implementation->Window->comparison_surface();
+			if (comparison == nullptr || comparison->right_pane() == nullptr) {
+				return false;
+			}
+			auto* const pane  = comparison->right_pane();
+			const auto  block = pane->document()->findBlockByNumber(
+				static_cast<int>(aLine));
+			if (!block.isValid()) {
+				return false;
+			}
+			const auto point = pane->cursorRect(QTextCursor{ block }).center();
+			auto       press = QMouseEvent{
+				QEvent::MouseButtonPress,
+				QPointF{ point },
+				QPointF{ point },
+				QPointF{ point },
+				Qt::LeftButton,
+				Qt::LeftButton,
+				Qt::NoModifier,
+			};
+			auto release = QMouseEvent{
+				QEvent::MouseButtonRelease,
+				QPointF{ point },
+				QPointF{ point },
+				QPointF{ point },
+				Qt::LeftButton,
+				Qt::NoButton,
+				Qt::NoModifier,
+			};
+			QCoreApplication::sendEvent(pane->viewport(), &press);
+			QCoreApplication::sendEvent(pane->viewport(), &release);
+			return true;
+		};
+
+		if (probe.Phase == state_type::phase::awaiting_editor) {
+			auto* const comparison = implementation->Window->comparison_surface();
+			if (comparison == nullptr || !comparison->selection().has_value()) {
+				return result::pending;
+			}
+			if (comparison->selection()->PreferredLine.Side
+				!= core::diff_side::right) {
+				auto* const pane  = comparison->right_pane();
+				const auto  block = pane->document()->findBlockByNumber(0);
+				const auto  point = pane->cursorRect(QTextCursor{ block }).center();
+				auto        press = QMouseEvent{
+					QEvent::MouseButtonPress,
+					QPointF{ point },
+					QPointF{ point },
+					QPointF{ point },
+					Qt::LeftButton,
+					Qt::LeftButton,
+					Qt::NoModifier,
+				};
+				auto release = QMouseEvent{
+					QEvent::MouseButtonRelease,
+					QPointF{ point },
+					QPointF{ point },
+					QPointF{ point },
+					Qt::LeftButton,
+					Qt::NoButton,
+					Qt::NoModifier,
+				};
+				QCoreApplication::sendEvent(pane->viewport(), &press);
+				QCoreApplication::sendEvent(pane->viewport(), &release);
+				return result::pending;
+			}
+			probe.Evidence.ExactDesignatedTarget
+				= implementation->ReviewMutationHost->designated() == designated;
+			probe.Evidence.EditorComposed = editor->shown_draft().has_value()
+				&& editor->shown_draft()->Anchor
+					== comparison->selection()->PreferredLine
+				&& editor->shown_draft()->Anchor.Side == core::diff_side::right
+				&& editor->shown_draft()->Anchor.Comparison
+					== core::comparison_digest(
+						implementation->LastSelectedDiff->Key)
+				&& editor->target_label()->text().contains(
+					QString::number(implementation->LastAcceptedHandoff->Number.value()));
+			probe.Evidence.CapabilityFallback
+				= !implementation->ReviewMutationHost->capabilities().ResolvesThreads
+				&& !implementation->ReviewMutationHost->capabilities()
+						.RecordsViewedState
+				&& editor->mutation_status_text().contains(
+					QStringLiteral("unavailable"));
+			if (!probe.Evidence.ExactDesignatedTarget
+				|| !probe.Evidence.EditorComposed
+				|| !probe.Evidence.CapabilityFallback) {
+				return fail();
+			}
+
+			const auto draftIntents = editor->statistics().DraftIntents;
+			editor->body_editor()->setPlainText(
+				QStringLiteral("BPR-0229 fixture publication."));
+			probe.Evidence.SemanticEdit
+				= editor->statistics().DraftIntents == draftIntents + 1U
+				&& implementation->ReviewDraft->Body
+					== "BPR-0229 fixture publication.";
+			if (!probe.Evidence.SemanticEdit) {
+				return fail();
+			}
+
+			auto       moved      = designated;
+			const auto secondHead = core::parse_git_commit_oid(
+				implementation->Fixture->evidence().HeadTwoOid);
+			if (!secondHead.has_value() || *secondHead == designated.ExpectedHead) {
+				return fail();
+			}
+			moved.ExpectedHead = *secondHead;
+			implementation->Fixture->report_review_mutation_target(moved);
+			editor->publish_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_stale_refusal;
+			return result::pending;
 		}
 
-		const auto draftIntents = editor->statistics().DraftIntents;
-		editor->body_editor()->setPlainText(
-			QStringLiteral("BPR-0229 fixture publication."));
-		probe.Evidence.SemanticEdit
-			= editor->statistics().DraftIntents == draftIntents + 1U
-			&& implementation->ReviewDraft->Body
-				== "BPR-0229 fixture publication.";
-		if (!probe.Evidence.SemanticEdit) {
-			return fail();
+		if (probe.Phase == state_type::phase::awaiting_stale_refusal) {
+			const auto provider = implementation->Fixture->review_mutation_evidence();
+			probe.Evidence.StaleHeadRefused
+				= implementation->ReviewDraft->State
+					== core::review_draft_state::drafting
+				&& provider.Submissions == 0U
+				&& editor->mutation_status_text().contains(QStringLiteral("head moved"));
+			if (!probe.Evidence.StaleHeadRefused) {
+				return fail();
+			}
+			const auto* const comparison
+				= implementation->Window->comparison_surface();
+			if (comparison == nullptr || !comparison->selection().has_value()
+				|| implementation->ReviewMutationDecisionGate == nullptr) {
+				return fail();
+			}
+			probe.PublishingSelection = comparison->selection();
+			probe.PublishingDraft     = implementation->ReviewDraft;
+			implementation->Fixture->report_review_mutation_target(designated);
+			implementation->ReviewMutationDecisionGate->hold();
+			editor->publish_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_lost_effect;
+			return result::pending;
 		}
 
-		auto       moved      = designated;
-		const auto secondHead = core::parse_git_commit_oid(
-			implementation->Fixture->evidence().HeadTwoOid);
-		if (!secondHead.has_value() || *secondHead == designated.ExpectedHead) {
-			return fail();
-		}
-		moved.ExpectedHead = *secondHead;
-		implementation->Fixture->report_review_mutation_target(moved);
-		editor->publish_action()->trigger();
-		probe.Evidence.StaleHeadRefused
-			= implementation->ReviewDraft->State
-				== core::review_draft_state::drafting
-			&& implementation->ReviewMutationCoordinator->statistics().Submissions == 0U
-			&& implementation->ReviewMutationCoordinator->statistics()
-					.RefusedBeforeSubmit
-				== 1U
-			&& editor->mutation_status_text().contains(QStringLiteral("head moved"));
-		if (!probe.Evidence.StaleHeadRefused) {
-			return fail();
+		if (probe.Phase == state_type::phase::awaiting_lost_effect) {
+			const auto lost = implementation->Fixture->review_mutation_evidence();
+			if (!lost.LostResult || lost.StoredComments != 1U
+				|| implementation->ReviewMutationDecisionGate == nullptr
+				|| implementation->ReviewMutationDecisionGate->pending() == 0U) {
+				return result::pending;
+			}
+			if (!probe.PublishingSelection.has_value()
+				|| !implementation->PendingReviewMutation.has_value()
+				|| !implementation->ReviewDraft.has_value()
+				|| implementation->ReviewDraft->State
+					!= core::review_draft_state::publishing) {
+				return fail();
+			}
+			auto* const comparison = implementation->Window->comparison_surface();
+			if (comparison == nullptr || comparison->right_pane() == nullptr) {
+				return fail();
+			}
+			for (auto line = 0; line < comparison->right_pane()->document()->blockCount();
+				 ++line) {
+				if (static_cast<std::uint32_t>(line)
+					== probe.PublishingSelection->PreferredLine.Line) {
+					continue;
+				}
+				if (!clickRightLine(static_cast<std::uint32_t>(line))) {
+					continue;
+				}
+				if (comparison->selection().has_value()
+					&& comparison->selection()->PreferredLine.Side
+						== core::diff_side::right
+					&& comparison->selection()->PreferredLine
+						!= probe.PublishingSelection->PreferredLine) {
+					probe.DeferredSelection = comparison->selection();
+					break;
+				}
+			}
+			const auto intermediateDeferred
+				= probe.DeferredSelection.has_value()
+				&& implementation->DeferredReviewSelection.has_value()
+				&& *implementation->DeferredReviewSelection
+					== probe.DeferredSelection
+				&& implementation->SelectedSemanticSelection
+					== probe.PublishingSelection
+				&& implementation->ReviewDraft->Anchor
+					== probe.PublishingSelection->PreferredLine
+				&& editor->shown_draft() == implementation->ReviewDraft;
+			if (!intermediateDeferred
+				|| !clickRightLine(probe.PublishingSelection->PreferredLine.Line)) {
+				return fail();
+			}
+			probe.Evidence.SelectionDeferred = true;
+			probe.Evidence.LatestSelectionWins
+				= comparison->selection() == probe.PublishingSelection
+				&& implementation->DeferredReviewSelection.has_value()
+				&& *implementation->DeferredReviewSelection
+					== probe.PublishingSelection
+				&& implementation->SelectedSemanticSelection
+					== probe.PublishingSelection
+				&& implementation->PendingReviewMutation.has_value()
+				&& probe.PublishingDraft.has_value()
+				&& implementation->ReviewDraft->Id == probe.PublishingDraft->Id
+				&& implementation->ReviewDraft->Anchor
+					== probe.PublishingSelection->PreferredLine
+				&& implementation->ReviewDraft->State
+					== core::review_draft_state::publishing;
+			if (!probe.Evidence.LatestSelectionWins) {
+				return fail();
+			}
+			implementation->ReviewMutationDecisionGate->release();
+			probe.Phase = state_type::phase::awaiting_deferred_terminal;
+			return result::pending;
 		}
 
-		implementation->Fixture->report_review_mutation_target(designated);
-		editor->publish_action()->trigger();
-		const auto lost                    = implementation->Fixture->review_mutation_evidence();
-		probe.Evidence.LostResultRefreshed = lost.LostResult
-			&& lost.StoredComments == 1U
-			&& implementation->ReviewProjection
-				== implementation->Fixture->review_comments()
-			&& implementation->ReviewDraft->State
-				== core::review_draft_state::drafting
-			&& editor->mutation_status_text().contains(
-				QStringLiteral("retry is safe"));
-		if (!probe.Evidence.LostResultRefreshed) {
-			return fail();
+		if (implementation->ReviewMutationHost->outstanding_requests() != 0U
+			|| implementation->ReviewDraft->State
+				== core::review_draft_state::publishing) {
+			return result::pending;
 		}
 
-		editor->publish_action()->trigger();
-		const auto provider = implementation->Fixture->review_mutation_evidence();
-		const auto statistics
-			= implementation->ReviewMutationCoordinator->statistics();
+		if (probe.Phase == state_type::phase::awaiting_deferred_terminal) {
+			const auto        lost = implementation->Fixture->review_mutation_evidence();
+			const auto* const comparison
+				= implementation->Window->comparison_surface();
+			auto retryIsolation = false;
+			if (probe.PublishingSelection.has_value()
+				&& probe.DeferredSelection.has_value()
+				&& implementation->RetryableReviewDraft.has_value()
+				&& implementation->SelectedDiffPublication.has_value()) {
+				auto foreign     = implementation->RetryableReviewDraft->Authority;
+				foreign.Snapshot = core::provider_snapshot_id{
+					foreign.Snapshot.value() + 1U
+				};
+				retryIsolation
+					= !github_application::implementation::exact_retryable_review_draft(
+						  *implementation->RetryableReviewDraft,
+						  *probe.DeferredSelection,
+						  implementation->SelectedDiffPublication->Request.WorkbenchAuthority)
+					&& !github_application::implementation::exact_retryable_review_draft(
+						*implementation->RetryableReviewDraft,
+						*probe.PublishingSelection,
+						foreign);
+			}
+			probe.Evidence.LostResultRefreshed = lost.LostResult
+				&& lost.StoredComments == 1U
+				&& implementation->ReviewProjection
+					== implementation->Fixture->review_comments();
+			probe.Evidence.PendingCleared
+				= !implementation->PendingReviewMutation.has_value();
+			probe.Evidence.DeferredDraftExact
+				= comparison != nullptr && probe.PublishingDraft.has_value()
+				&& implementation->SelectedSemanticSelection
+					== probe.PublishingSelection
+				&& comparison->selection() == probe.PublishingSelection
+				&& implementation->ReviewDraft->State
+					== core::review_draft_state::drafting
+				&& implementation->ReviewDraft->Anchor
+					== probe.PublishingSelection->PreferredLine
+				&& implementation->ReviewDraft->Id == probe.PublishingDraft->Id
+				&& implementation->ReviewDraft->Body == probe.PublishingDraft->Body
+				&& editor->shown_draft() == implementation->ReviewDraft
+				&& implementation->RetryableReviewDraft.has_value()
+				&& implementation->ReviewDraft
+					== std::optional{ implementation->RetryableReviewDraft->Draft }
+				&& retryIsolation;
+			probe.Evidence.StaleTerminalWithheld
+				= editor->mutation_status_text().contains(
+					  QStringLiteral("unavailable"))
+				&& !editor->mutation_status_text().contains(
+					QStringLiteral("retry is safe"))
+				&& !editor->mutation_status_text().contains(
+					QStringLiteral("cancelled"));
+			if (!probe.Evidence.LostResultRefreshed
+				|| !probe.Evidence.PendingCleared
+				|| !probe.Evidence.DeferredDraftExact
+				|| !probe.Evidence.StaleTerminalWithheld
+				|| !probe.PublishingSelection.has_value()) {
+				return fail();
+			}
+			if (comparison == nullptr || !comparison->selection().has_value()
+				|| comparison->selection()->PreferredLine
+					!= probe.PublishingSelection->PreferredLine
+				|| !implementation->ReviewDraft.has_value()
+				|| !implementation->RetryableReviewDraft.has_value()
+				|| *implementation->ReviewDraft
+					!= implementation->RetryableReviewDraft->Draft) {
+				return fail();
+			}
+			editor->body_editor()->setPlainText(
+				QStringLiteral("BPR-0229 fixture publication."));
+			if (implementation->ReviewDraft->Body
+				!= "BPR-0229 fixture publication.") {
+				return fail();
+			}
+			editor->publish_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_retry;
+			return result::pending;
+		}
+
+		const auto provider            = implementation->Fixture->review_mutation_evidence();
+		const auto statistics          = implementation->ReviewMutationHost->statistics();
 		probe.Evidence.RetryIdempotent = provider.Submissions == 2U
 			&& provider.StoredComments == 1U && provider.DuplicateReturned
-			&& statistics.Submissions == 2U && statistics.Duplicates == 1U
+			&& statistics.EffectsQueued == 3U
+			&& statistics.TerminalsPublished == 3U
+			&& !implementation->RetryableReviewDraft.has_value()
 			&& implementation->ReviewDraft->State
 				== core::review_draft_state::published;
 		probe.Evidence.ServerAuthority
@@ -7705,14 +8260,18 @@ namespace bpr::app {
 				== "BPR-0229 fixture publication.";
 		probe.Evidence.TypedQtProjection
 			= editor->shown_draft() == implementation->ReviewDraft
-			&& editor->mutation_status_text().contains(
-				QStringLiteral("safe retry"))
-			&& editor->statistics().MutationUpdates >= 4U;
+			&& editor->mutation_status_text().contains(QStringLiteral("safe retry"))
+			&& editor->statistics().MutationUpdates >= 3U;
 		if (!probe.Evidence.RetryIdempotent || !probe.Evidence.ServerAuthority
-			|| !probe.Evidence.TypedQtProjection) {
+			|| !probe.Evidence.TypedQtProjection
+			|| !probe.Evidence.SelectionDeferred
+			|| !probe.Evidence.LatestSelectionWins
+			|| !probe.Evidence.PendingCleared
+			|| !probe.Evidence.DeferredDraftExact
+			|| !probe.Evidence.StaleTerminalWithheld) {
 			return fail();
 		}
-		probe.Complete = true;
+		probe.Phase = state_type::phase::passed;
 		return result::passed;
 	}
 
@@ -7825,7 +8384,7 @@ namespace bpr::app {
 		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.HeadRef = "other"; });
 		evidence.ExpectedMismatchRejections = 28U;
 		evidence.FixtureProviderSelected
-			= implementation->ReviewMutationCoordinator != nullptr;
+			= implementation->FixtureReviewMutationHostComposed;
 		evidence.LiveProviderAbsent = true;
 		return evidence;
 	}
@@ -7865,7 +8424,7 @@ namespace bpr::app {
 		if (implementation->Fixture == nullptr || implementation->Window == nullptr
 			|| implementation->Host == nullptr
 			|| implementation->ReviewLedgerHost == nullptr
-			|| implementation->ReviewMutationCoordinator == nullptr
+			|| implementation->ReviewMutationHost == nullptr
 			|| implementation->Window->defect_card() == nullptr) {
 			return result::pending;
 		}

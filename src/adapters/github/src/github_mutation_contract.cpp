@@ -724,9 +724,14 @@ namespace bpr::adapters::github::detail {
 	{
 	}
 
-	auto review_mutation_session::perform(review_mutation_wire_request aRequest)
+	auto review_mutation_session::perform(
+		review_mutation_wire_request aRequest,
+		const std::stop_token        aStop)
 		-> std::expected<review_mutation_wire_response, application::review_mutation_failure>
 	{
+		if (aStop.stop_requested()) {
+			return std::unexpected(application::review_mutation_failure::cancelled);
+		}
 		if (Transport == nullptr || Lease == nullptr || !Lease->active()
 			|| !valid(Configuration)) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
@@ -736,7 +741,7 @@ namespace bpr::adapters::github::detail {
 				.Context = Configuration.CredentialContext,
 				.Wire    = std::move(aRequest),
 			},
-			std::stop_token{ });
+			aStop);
 		if (auto* success = std::get_if<github_mutation_wire_success>(&completion)) {
 			return std::move(success->Response);
 		}
@@ -746,7 +751,7 @@ namespace bpr::adapters::github::detail {
 		return std::unexpected(application::review_mutation_failure::cancelled);
 	}
 
-	auto review_mutation_session::observe_exact()
+	auto review_mutation_session::observe_exact(const std::stop_token aStop)
 		-> std::expected<void, application::review_mutation_failure>
 	{
 		const auto viewerRequest = compile_viewer_observation_request(
@@ -755,7 +760,7 @@ namespace bpr::adapters::github::detail {
 		if (!viewerRequest.has_value()) {
 			return std::unexpected(map_contract_failure(viewerRequest.error()));
 		}
-		auto viewerResponse = perform(*viewerRequest);
+		auto viewerResponse = perform(*viewerRequest, aStop);
 		if (!viewerResponse.has_value()) {
 			return std::unexpected(viewerResponse.error());
 		}
@@ -773,7 +778,7 @@ namespace bpr::adapters::github::detail {
 		if (!targetRequest.has_value()) {
 			return std::unexpected(map_contract_failure(targetRequest.error()));
 		}
-		auto targetResponse = perform(*targetRequest);
+		auto targetResponse = perform(*targetRequest, aStop);
 		if (!targetResponse.has_value()) {
 			return std::unexpected(targetResponse.error());
 		}
@@ -788,7 +793,7 @@ namespace bpr::adapters::github::detail {
 		return { };
 	}
 
-	auto review_mutation_session::observe_target()
+	auto review_mutation_session::observe_target(const std::stop_token aStop)
 		-> std::expected<core::review_mutation_target, application::review_mutation_failure>
 	{
 		try {
@@ -799,7 +804,7 @@ namespace bpr::adapters::github::detail {
 			if (!targetRequest.has_value()) {
 				return std::unexpected(map_contract_failure(targetRequest.error()));
 			}
-			auto targetResponse = perform(*targetRequest);
+			auto targetResponse = perform(*targetRequest, aStop);
 			if (!targetResponse.has_value()) {
 				return std::unexpected(targetResponse.error());
 			}
@@ -813,7 +818,7 @@ namespace bpr::adapters::github::detail {
 			if (!viewerRequest.has_value()) {
 				return std::unexpected(map_contract_failure(viewerRequest.error()));
 			}
-			auto viewerResponse = perform(*viewerRequest);
+			auto viewerResponse = perform(*viewerRequest, aStop);
 			if (!viewerResponse.has_value()) {
 				return std::unexpected(viewerResponse.error());
 			}
@@ -828,11 +833,15 @@ namespace bpr::adapters::github::detail {
 	}
 
 	auto review_mutation_session::submit(
-		const application::review_mutation_request& aRequest)
+		const application::review_mutation_request& aRequest,
+		const std::stop_token                       aStop)
 		-> std::expected<application::review_mutation_receipt, application::review_mutation_failure>
 	{
 		try {
 			std::scoped_lock lock{ Mutex };
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
 			if (Lease == nullptr || !Lease->active()) {
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
@@ -864,7 +873,7 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
 
-			if (auto current = observe_exact(); !current.has_value()) {
+			if (auto current = observe_exact(aStop); !current.has_value()) {
 				return std::unexpected(current.error());
 			}
 			Idempotency.emplace(
@@ -873,7 +882,7 @@ namespace bpr::adapters::github::detail {
 					.RequestFingerprint = fingerprint,
 					.Receipt            = std::nullopt,
 				});
-			auto response = perform(*wire);
+			auto response = perform(*wire, aStop);
 			if (!response.has_value()) {
 				return std::unexpected(response.error());
 			}

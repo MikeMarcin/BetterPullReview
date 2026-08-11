@@ -20,6 +20,32 @@
 #include <variant>
 #include <vector>
 
+namespace bpr::application {
+	auto epoch_application_host::mint_selected_diff_endpoint(
+		workbench_selected_diff_request aRequest,
+		const core::diff_side           aSide,
+		core::git_blob_oid              aBlob,
+		std::filesystem::path           aPath)
+		-> workbench_selected_diff_endpoint
+	{
+		return { std::move(aRequest), aSide, std::move(aBlob), std::move(aPath) };
+	}
+
+#if defined(BPR_APPLICATION_TESTING)
+	auto make_workbench_selected_diff_endpoint_for_testing(
+		workbench_selected_diff_request aRequest,
+		const core::diff_side           aSide,
+		core::git_blob_oid              aBlob,
+		std::filesystem::path           aPath)
+		-> workbench_selected_diff_endpoint
+	{
+		return {
+			std::move(aRequest), aSide, std::move(aBlob), std::move(aPath)
+		};
+	}
+#endif
+} // namespace bpr::application
+
 #if defined(BPR_APPLICATION_TESTING)
 namespace bpr::application {
 	namespace {
@@ -3238,9 +3264,27 @@ namespace bpr::application {
 												   != authorizationGeneration) {
 										observation.Status = workbench_selected_diff_status::stale;
 									} else {
-										observation.Status    = workbench_selected_diff_status::available;
+										observation.Status = workbench_selected_diff_status::available;
+										if (left->Blob.has_value() && left->Path.has_value()) {
+											observation.LeftEndpoint
+												= epoch_application_host::mint_selected_diff_endpoint(
+													aRequest,
+													core::diff_side::left,
+													*left->Blob,
+													*left->Path);
+										}
+										if (right->Blob.has_value() && right->Path.has_value()) {
+											observation.RightEndpoint
+												= epoch_application_host::mint_selected_diff_endpoint(
+													aRequest,
+													core::diff_side::right,
+													*right->Blob,
+													*right->Path);
+										}
 										observation.LeftBlob  = std::move(left->Blob);
 										observation.RightBlob = std::move(right->Blob);
+										observation.LeftPath  = std::move(left->Path);
+										observation.RightPath = std::move(right->Path);
 									}
 								}
 							}
