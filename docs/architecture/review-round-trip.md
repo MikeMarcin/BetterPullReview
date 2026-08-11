@@ -32,11 +32,21 @@ to guard against — it is something the type cannot express.
 
 The shipped `workbench_window` composes that editor. Its text and Publish
 actions enter the core transition path, and accepted proposals reach the
-application coordinator. The automated product path constructs a provider only
-inside the test-build fixture and fixes the coordinator to the exact accepted
-handoff target and account identity. After every mutation outcome the
-application re-reads the fixture's server-comment projection; Qt never treats
-the submitted request as server truth.
+application coordinator only in the test-build fixture. That fixture fixes the
+coordinator to the exact accepted handoff target and account identity. After
+every mutation outcome the application re-reads the fixture's server-comment
+projection; Qt never treats the submitted request as server truth.
+
+The tests-disabled production composition has a narrower dormant branch. It can
+construct the live provider only after the accepted handoff and snapshot match
+the compiled designated host, owner/name, repository and pull-request database
+and node IDs, number/open state, base repository, base OID/ref, and head OID/ref.
+The acting database ID, node ID, and login are deliberately not compiled
+allowlist constants. They are taken from the exact authenticated session,
+cross-bound to its account/profile/host lease and accepted snapshot, and
+re-observed by the provider. Production constructs no mutation coordinator and
+calls neither observation nor submission, so Publish remains unavailable on
+that branch.
 
 ## Typed vocabulary
 
@@ -210,10 +220,11 @@ must be revalidated immediately before any write as well.
 BPR-0252 now provides the first production implementation of
 `review_mutation_port`, so the former structural argument — that only test
 implementations existed — is intentionally gone. The implementation is linked
-into the production GitHub adapter but is not constructed by the application,
-the designated live runner still contains only its fixed harmless canary, and
-no credential or write has been used. The `live_mutation_isolation` gate is now
-the standing proof that survives the implementation:
+into the production GitHub adapter. BPR-0254 composes it only as the dormant
+exact-target object described above; the designated live runner still contains
+only its fixed harmless canary, and no credential or write has been used. The
+`live_mutation_isolation` gate is now the standing proof that survives the
+implementation:
 
 | | Fixed by contract |
 |---|---|
@@ -255,8 +266,17 @@ sandbox. Outside that boundary the endpoint returns an HTTP response, so the
 course cannot pass merely because the application selected a fixture provider.
 
 The safe-target check itself stays in the composition root, immediately before
-the coordinator is constructed. Not in the coordinator, which cannot know what
-is documented; not in the provider, which must not police itself.
+the dormant provider is constructed and, in the later publication slice,
+immediately before the coordinator is constructed. It is not delegated to the
+provider, which must not police its own designation.
+
+The application host exposes only an opaque mutation transport lease minted for
+one accepted snapshot. Replacing the pull-request identity, profile, account, or
+accepted snapshot and shutting down the host revoke the shared monotonic state
+seen by every retained copy. A revoked lease makes both the live factory and the
+provider protocol return `unavailable` before transport use. This is a
+fail-closed authority cut, not a claim that an already-running operation has
+been asynchronously cancelled; stop authority remains later work.
 
 ### Portable provider protocol
 
@@ -295,7 +315,10 @@ to the provider, so provider-driven lifecycle cancellation is not yet reachable.
 
 For a write attempt, the protocol observes the acting viewer first, then
 re-observes the complete pull-request identity and head as the final network
-operation before POST. The provider serializes attempts and retains at most
+operation before POST. Base OID/ref and head ref remain exact identity fields;
+a well-formed changed head OID is returned as the observation and produces the
+typed `stale_head` result before POST rather than being collapsed into a generic
+identity mismatch. The provider serializes attempts and retains at most
 1,024 idempotency records. Each record binds the idempotency key to a fingerprint
 of the complete canonical write request, including the resolved path. A known
 success returns the same GitHub comment identity as a duplicate only when that

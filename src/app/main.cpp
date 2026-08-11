@@ -2283,10 +2283,31 @@ namespace {
 		passed = passed && renderSaved;
 #endif
 
+#if defined(BPR_BUILD_TESTING)
+		auto dormantSelection = std::optional<
+			bpr::app::detail::dormant_live_provider_selection_evidence>{ };
+		if (aRun.ReviewRoundTripCompositionProbe) {
+			dormantSelection = bpr::app::detail::github_application_fixture_access::
+				dormant_live_provider_selection_evidence_for(aApplication);
+			passed = passed && dormantSelection->ExactTupleAccepted
+				&& dormantSelection->MismatchedTuplesRejected
+					== dormantSelection->ExpectedMismatchRejections
+				&& dormantSelection->FixtureProviderSelected
+				&& dormantSelection->LiveProviderAbsent;
+		}
+#endif
+
 		QTextStream stream{ stdout };
 #if defined(BPR_BUILD_TESTING)
 		if (aRun.Fixture) {
-			stream << "GITHUB_FIXTURE_QT_PLATFORM:"
+			const auto providerMarker = bpr::app::detail::
+				github_application_fixture_access::review_mutation_provider_marker(
+					aApplication);
+			stream << "REVIEW_MUTATION_PROVIDER:"
+				   << QByteArray{ providerMarker.data(),
+								  static_cast<qsizetype>(providerMarker.size()) }
+				   << '\n'
+				   << "GITHUB_FIXTURE_QT_PLATFORM:"
 				   << QGuiApplication::platformName() << '\n'
 				   << "GITHUB_FIXTURE_QT_STYLE:"
 				   << aApplication.window().style()->metaObject()->className()
@@ -2615,6 +2636,18 @@ namespace {
 				   << evidence.LostResultRefreshed << evidence.RetryIdempotent
 				   << evidence.CapabilityFallback << evidence.ServerAuthority
 				   << evidence.TypedQtProjection << '\n';
+			if (dormantSelection.has_value()) {
+				stream << "DORMANT_LIVE_PROVIDER_SELECTION:"
+					   << dormantSelection->ExactTupleAccepted << ':'
+					   << static_cast<unsigned long long>(
+							  dormantSelection->MismatchedTuplesRejected)
+					   << '/'
+					   << static_cast<unsigned long long>(
+							  dormantSelection->ExpectedMismatchRejections)
+					   << ':' << dormantSelection->FixtureProviderSelected
+					   << ':' << dormantSelection->LiveProviderAbsent
+					   << '\n';
+			}
 		}
 		if (aRun.DefectCompositionProbe.has_value()) {
 			const auto  name     = *aRun.DefectCompositionProbe

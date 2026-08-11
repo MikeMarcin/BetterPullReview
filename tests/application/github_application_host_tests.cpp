@@ -119,9 +119,15 @@ namespace {
 		bool Revoked = false;
 	};
 
+	struct fake_review_mutation_lease final
+		: application::review_mutation_transport_lease
+	{
+	};
+
 	struct fake_lease final
 		: application::github_account_transport_lease,
-		  application::git_smart_transport_factory_port
+		  application::git_smart_transport_factory_port,
+		  application::review_mutation_transport_factory_port
 	{
 		[[nodiscard]] auto acquire(
 			const application::git_smart_request_context& aContext)
@@ -133,8 +139,21 @@ namespace {
 			return LastTransport;
 		}
 
-		std::vector<application::git_smart_request_context> AcquiredContexts;
-		std::shared_ptr<fake_smart_transport>               LastTransport;
+		[[nodiscard]] auto acquire_review_mutation_transport() noexcept
+			-> application::review_mutation_transport override
+		{
+			try {
+				auto lease = std::make_shared<fake_review_mutation_lease>();
+				MutationLeases.push_back(lease);
+				return lease;
+			} catch (...) {
+				return { };
+			}
+		}
+
+		std::vector<application::git_smart_request_context>      AcquiredContexts;
+		std::shared_ptr<fake_smart_transport>                    LastTransport;
+		std::vector<std::shared_ptr<fake_review_mutation_lease>> MutationLeases;
 	};
 
 	template <typename Identity>
@@ -1212,7 +1231,9 @@ namespace {
 	auto test_enrollment_acceptance_snapshot_and_exact_delete() -> void
 	{
 		host_fixture fixture;
-		establish_native_session(fixture);
+		const auto   lease = establish_native_session(fixture);
+		expect(fixture.Host.accepted_review_mutation_transport() == nullptr,
+			   "an accepted account alone cannot expose mutation authority");
 
 		fixture.Host.dispatch(core::open_pull_request_intent{
 			.Repository = { .Owner = "openai", .Name = "better-pull-review" },
@@ -1233,10 +1254,20 @@ namespace {
 				   && fixture.Projections.pull_request_count() == 1U
 				   && fixture.Host.rate_limits() == rate_limits(),
 			   "exact core snapshot delta commits with distinct resource limits");
+		const auto retainedMutationLease
+			= fixture.Host.accepted_review_mutation_transport();
+		expect(retainedMutationLease != nullptr && retainedMutationLease->active()
+				   && lease->MutationLeases.size() == 1U
+				   && retainedMutationLease == lease->MutationLeases.front(),
+			   "the exact accepted snapshot mints one opaque mutation lease");
 
 		fixture.Host.dispatch(core::activate_host_profile_intent{
 			.Profile = core::host_profile_id{ 12U },
 		});
+		expect(fixture.Host.accepted_review_mutation_transport() == nullptr,
+			   "identity replacement revokes the accepted mutation lease immediately");
+		expect(!retainedMutationLease->active(),
+			   "a retained lease cannot survive profile and account invalidation");
 		expect(fixture.Vault.Deletes.size() == 1U
 				   && fixture.Vault.Deletes.front().Context.Authority.Account
 					   == viewer().Account
@@ -1256,6 +1287,31 @@ namespace {
 				   && fixture.Projections.last_host_diagnostic().Reason
 					   == core::github_reason_code::vault_unavailable,
 			   "delete failure is visible and blocks new session establishment");
+	}
+
+	auto test_retained_mutation_lease_is_revoked_on_shutdown() -> void
+	{
+		host_fixture fixture;
+		establish_native_session(fixture);
+		fixture.Host.dispatch(core::open_pull_request_intent{
+			.Repository = { .Owner = "openai", .Name = "better-pull-review" },
+			.Number     = core::pull_request_number{ 27U },
+		});
+		const auto request = fixture.Provider.PullRequests.front().Request;
+		fixture.Provider.PullRequests.front().Completion(
+			application::github_pull_request_success{
+				.Request  = request,
+				.Snapshot = snapshot(request),
+			});
+		fixture.Lane.run_next();
+		const auto retained = fixture.Host.accepted_review_mutation_transport();
+		expect(retained != nullptr && retained->active(),
+			   "an accepted snapshot exposes an active mutation lease before shutdown");
+
+		fixture.Host.shutdown();
+		expect(!retained->active()
+				   && fixture.Host.accepted_review_mutation_transport() == nullptr,
+			   "shutdown revokes every retained mutation lease synchronously");
 	}
 
 	auto test_accepted_snapshot_handoff_and_exact_invalidation() -> void
@@ -4110,6 +4166,7 @@ namespace {
 auto main() -> int
 {
 	test_enrollment_acceptance_snapshot_and_exact_delete();
+	test_retained_mutation_lease_is_revoked_on_shutdown();
 	test_accepted_snapshot_handoff_and_exact_invalidation();
 	test_success_projection_is_safe_atomic_and_conversation_complete();
 	test_every_provider_failure_maps_to_safe_pull_request_failure();

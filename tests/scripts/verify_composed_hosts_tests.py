@@ -22,7 +22,6 @@ SHARED_LINES = {
     "appearance application host constructor": "0005 T bpr::application::appearance_application_host::appearance_application_host()",
     "packaged syntax classifier constructor": "0006 T bpr::adapters::syntax::packaged_syntax_classifier::packaged_syntax_classifier()",
     "review ledger application host constructor": "0007 T bpr::application::review_ledger_application_host::review_ledger_application_host()",
-    "review mutation coordinator constructor": "0008 T bpr::application::review_mutation_coordinator::review_mutation_coordinator()",
     "defect correlation decision": "0009 T bpr::application::correlate()",
     "review queue application host constructor": "0010 T bpr::application::review_queue_application_host::review_queue_application_host()",
     "review queue notifier constructor": "0011 T bpr::application::review_queue_notifier::review_queue_notifier()",
@@ -30,12 +29,18 @@ SHARED_LINES = {
     "Qt workbench window constructor": "0013 T bpr::qt::workbench_window::workbench_window()",
 }
 FIXTURE_LINES = {
+    "review mutation coordinator constructor": "0008 T bpr::application::review_mutation_coordinator::review_mutation_coordinator()",
     "fixture review mutation provider boundary": "0014 T bpr::app::detail::github_public_path_fixture_components::review_mutation_provider()",
     "fixture review reconciliation decision": "0015 T bpr::application::reconcile()",
 }
-LIVE_PROVIDER_LINE = (
-    "0016 T bpr::adapters::github::live_review_mutation_provider::submit()"
-)
+PRODUCTION_LINES = {
+    "live review mutation provider": (
+        "0016 T bpr::adapters::github::live_review_mutation_provider::submit()"
+    ),
+    "live review mutation provider factory": (
+        "0017 T bpr::adapters::github::make_live_review_mutation_provider()"
+    ),
+}
 
 
 def rendered(lines: dict[str, str]) -> str:
@@ -115,10 +120,10 @@ class ComposedHostVerifierTests(unittest.TestCase):
             [],
         )
 
-    def test_production_profile_accepts_shared_anchors_only(self) -> None:
+    def test_production_profile_accepts_exact_live_anchors(self) -> None:
         self.assertEqual(
             audit_nm(
-                rendered(SHARED_LINES),
+                rendered(SHARED_LINES | PRODUCTION_LINES),
                 VERIFIER.PRODUCTION_PROFILE,
             ),
             [],
@@ -133,7 +138,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             }
             with self.subTest(profile="production", missing=missing):
                 failures = audit_nm(
-                    rendered(remaining),
+                    rendered(remaining | PRODUCTION_LINES),
                     VERIFIER.PRODUCTION_PROFILE,
                 )
                 self.assertTrue(any(missing in failure for failure in failures))
@@ -160,6 +165,9 @@ class ComposedHostVerifierTests(unittest.TestCase):
 
     def test_production_profile_forbids_each_fixture_authority(self) -> None:
         expected_forbidden_names = {
+            "review mutation coordinator constructor": (
+                "review mutation coordinator constructor"
+            ),
             "fixture review mutation provider boundary": (
                 "GitHub public-path fixture components"
             ),
@@ -171,7 +179,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             forbidden = expected_forbidden_names[fixture_name]
             with self.subTest(forbidden=forbidden):
                 failures = audit_nm(
-                    rendered(SHARED_LINES) + line + "\n",
+                    rendered(SHARED_LINES | PRODUCTION_LINES) + line + "\n",
                     VERIFIER.PRODUCTION_PROFILE,
                 )
                 self.assertTrue(
@@ -179,22 +187,30 @@ class ComposedHostVerifierTests(unittest.TestCase):
                     failures,
                 )
 
-    def test_both_profiles_forbid_the_exact_live_provider(self) -> None:
-        for profile, lines in (
-            (VERIFIER.PRODUCTION_PROFILE, SHARED_LINES),
-            (
-                VERIFIER.DEVELOPMENT_FIXTURE_PROFILE,
-                SHARED_LINES | FIXTURE_LINES,
-            ),
-        ):
-            with self.subTest(profile=profile):
+    def test_production_requires_and_fixture_forbids_each_live_anchor(self) -> None:
+        for missing in PRODUCTION_LINES:
+            remaining = {
+                name: line
+                for name, line in PRODUCTION_LINES.items()
+                if name != missing
+            }
+            with self.subTest(profile="production", missing=missing):
                 failures = audit_nm(
-                    rendered(lines) + LIVE_PROVIDER_LINE + "\n",
-                    profile,
+                    rendered(SHARED_LINES | remaining),
+                    VERIFIER.PRODUCTION_PROFILE,
                 )
                 self.assertTrue(
-                    any("live review mutation provider" in failure for failure in failures)
+                    any(missing in failure for failure in failures),
+                    failures,
                 )
+            with self.subTest(profile="development-fixture", forbidden=missing):
+                failures = audit_nm(
+                    rendered(SHARED_LINES | FIXTURE_LINES)
+                    + PRODUCTION_LINES[missing]
+                    + "\n",
+                    VERIFIER.DEVELOPMENT_FIXTURE_PROFILE,
+                )
+                self.assertTrue(any(missing in failure for failure in failures))
 
     def test_incidental_substring_does_not_satisfy_exact_anchor(self) -> None:
         lookalike = dict(SHARED_LINES)
@@ -203,7 +219,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "github_application_host()"
         )
         failures = audit_nm(
-            rendered(lookalike),
+            rendered(lookalike | PRODUCTION_LINES),
             VERIFIER.PRODUCTION_PROFILE,
         )
         self.assertTrue(
@@ -225,7 +241,10 @@ class ComposedHostVerifierTests(unittest.TestCase):
             f"00000001 T unrelated_symbol()\n{undefined}\n",
             VERIFIER.PRODUCTION_PROFILE,
         )
-        self.assertEqual(len(failures), len(VERIFIER.SHARED_REQUIRED))
+        self.assertEqual(
+            len(failures),
+            len(VERIFIER.SHARED_REQUIRED) + len(VERIFIER.PRODUCTION_REQUIRED),
+        )
 
     def test_embedded_template_reference_does_not_satisfy_function_anchor(self) -> None:
         embedded = dict(SHARED_LINES)
@@ -233,7 +252,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "0009 T void probe<bpr::application::correlate()>()"
         )
         failures = audit_nm(
-            rendered(embedded),
+            rendered(embedded | PRODUCTION_LINES),
             VERIFIER.PRODUCTION_PROFILE,
         )
         self.assertTrue(
@@ -246,13 +265,16 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "0009 T bpr::application::correlate(std::span<int const>)"
         )
         self.assertEqual(
-            audit_nm(rendered(overloaded), VERIFIER.PRODUCTION_PROFILE),
+            audit_nm(
+                rendered(overloaded | PRODUCTION_LINES),
+                VERIFIER.PRODUCTION_PROFILE,
+            ),
             [],
         )
 
     def test_windows_declarations_normalize_after_calling_convention(self) -> None:
         windows_shared = dict(SHARED_LINES)
-        windows_shared["review mutation coordinator constructor"] = (
+        windows_coordinator = (
             "0008 T public: __cdecl "
             "bpr::application::review_mutation_coordinator::"
             "review_mutation_coordinator(void)"
@@ -262,6 +284,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "bpr::application::correlate(int)"
         )
         windows_fixture = {
+            "review mutation coordinator constructor": windows_coordinator,
             "fixture review mutation provider boundary": (
                 "0014 T public: virtual class "
                 "bpr::application::review_mutation_port & __cdecl "
@@ -281,16 +304,22 @@ class ComposedHostVerifierTests(unittest.TestCase):
             [],
         )
 
-        windows_live_provider = (
-            "0016 T public: virtual void __cdecl "
-            "bpr::adapters::github::live_review_mutation_provider::submit(void)"
-        )
-        failures = audit_nm(
-            rendered(windows_shared) + windows_live_provider + "\n",
-            VERIFIER.PRODUCTION_PROFILE,
-        )
-        self.assertTrue(
-            any("live review mutation provider" in failure for failure in failures)
+        windows_production = {
+            "live review mutation provider": (
+                "0016 T public: virtual void __cdecl "
+                "bpr::adapters::github::live_review_mutation_provider::submit(void)"
+            ),
+            "live review mutation provider factory": (
+                "0017 T class std::expected<int, int> __cdecl "
+                "bpr::adapters::github::make_live_review_mutation_provider(int)"
+            ),
+        }
+        self.assertEqual(
+            audit_nm(
+                rendered(windows_shared | windows_production),
+                VERIFIER.PRODUCTION_PROFILE,
+            ),
+            [],
         )
 
     def test_windows_normalization_does_not_search_return_or_template_text(self) -> None:
@@ -300,7 +329,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "unrelated_decision(void)"
         )
         failures = audit_nm(
-            rendered(lookalike),
+            rendered(lookalike | PRODUCTION_LINES),
             VERIFIER.PRODUCTION_PROFILE,
         )
         self.assertTrue(
@@ -313,7 +342,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "bpr::application::correlate(int)>(void)"
         )
         failures = audit_nm(
-            rendered(authentic_probe),
+            rendered(authentic_probe | PRODUCTION_LINES),
             VERIFIER.PRODUCTION_PROFILE,
         )
         self.assertTrue(
@@ -327,7 +356,10 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "bpr::application::correlate(int)"
         )
         self.assertEqual(
-            audit_nm(rendered(nested_return), VERIFIER.PRODUCTION_PROFILE),
+            audit_nm(
+                rendered(nested_return | PRODUCTION_LINES),
+                VERIFIER.PRODUCTION_PROFILE,
+            ),
             [],
         )
 
@@ -364,7 +396,9 @@ class ComposedHostVerifierTests(unittest.TestCase):
                     VERIFIER.normalize_symbol_name(declaration)
 
     def test_forbidden_type_matches_method_and_abi_metadata_only(self) -> None:
-        shared = VERIFIER.parse_nm_defined_symbols(rendered(SHARED_LINES))
+        fixture = VERIFIER.parse_nm_defined_symbols(
+            rendered(SHARED_LINES | FIXTURE_LINES)
+        )
         qualified = "bpr::adapters::github::live_review_mutation_provider"
         for candidate in (
             f"{qualified}::submit()",
@@ -377,16 +411,16 @@ class ComposedHostVerifierTests(unittest.TestCase):
         ):
             with self.subTest(candidate=candidate):
                 failures = VERIFIER.audit_symbols(
-                    (*shared, candidate),
-                    VERIFIER.PRODUCTION_PROFILE,
+                    (*fixture, candidate),
+                    VERIFIER.DEVELOPMENT_FIXTURE_PROFILE,
                 )
                 self.assertTrue(
                     any("live review mutation provider" in failure for failure in failures)
                 )
 
         failures = VERIFIER.audit_symbols(
-            (*shared, f"{qualified}_backup::submit()"),
-            VERIFIER.PRODUCTION_PROFILE,
+            (*fixture, f"{qualified}_backup::submit()"),
+            VERIFIER.DEVELOPMENT_FIXTURE_PROFILE,
         )
         self.assertFalse(
             any("live review mutation provider" in failure for failure in failures)
@@ -733,7 +767,10 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "0001 T __ZN3bpr11application23github_application_hostC1Ev\n",
             VERIFIER.PRODUCTION_PROFILE,
         )
-        self.assertEqual(len(failures), len(VERIFIER.SHARED_REQUIRED))
+        self.assertEqual(
+            len(failures),
+            len(VERIFIER.SHARED_REQUIRED) + len(VERIFIER.PRODUCTION_REQUIRED),
+        )
 
     def test_nm_without_a_demangler_falls_back_to_objdump(self) -> None:
         tools = fake_toolchain(

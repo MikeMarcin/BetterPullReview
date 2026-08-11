@@ -13,6 +13,7 @@ if(BPR_BUILD_QT)
             src/github_read_normalizer.cpp
             src/github_wire_request_validation.cpp
 			src/live_review_mutation_provider.cpp
+			src/review_mutation_provider_admission.cpp
             src/native_https_transport.cpp
     )
     add_library(

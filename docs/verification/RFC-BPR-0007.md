@@ -85,21 +85,25 @@ the receipt actions, persistence completion, restart, and projection assertions
 in `application_review_ledger_composition_contract` remain the construction
 and runtime evidence.
 
-The shared linkage inventory also includes the review-mutation coordinator
-definition without claiming construction. The development-fixture profile
-requires the exact test-only GitHub public-path fixture provider boundary and
-`bpr::application::reconcile`; production forbids both fixture symbols. Both
-profiles forbid the exact
-`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
-lands. Missing binaries, missing supported demangling tools, nonzero tools,
-failed demanglers, and malformed or zero-defined symbol tables all fail closed.
-Only parsed defined records count; `U`/`UND` references and anchors embedded in
-surrounding template text do not. Windows declaration prefixes are accepted
-only through the first allowlisted calling convention outside balanced
-template, parameter, and array delimiters; nested conventions do not select the
-anchor boundary and unbalanced declarations fail closed. Absolute, common,
-debug, and unknown symbol kinds or sections do not count. CTest treats the
-verifier's exit status as authoritative.
+The review-mutation linkage inventory is now profile-specific. The
+development-fixture profile requires the review-mutation coordinator
+constructor, the exact test-only GitHub public-path fixture provider boundary,
+and `bpr::application::reconcile`, while forbidding the live provider type and
+factory. Tests-disabled production requires the exact
+`bpr::adapters::github::live_review_mutation_provider` type and
+`make_live_review_mutation_provider` factory, while forbidding the coordinator
+constructor and all fixture/reconciliation symbols. This is linkage evidence:
+the fixture executable marker and dormant-selection contract prove fixture
+selection, and the production cut proves the live provider has no coordinator
+and calls neither observation nor submission. Missing binaries, missing
+supported demangling tools, nonzero tools, failed demanglers, and malformed or
+zero-defined symbol tables all fail closed. Only parsed defined records count;
+`U`/`UND` references and anchors embedded in surrounding template text do not.
+Windows declaration prefixes are accepted only through the first allowlisted
+calling convention outside balanced template, parameter, and array delimiters;
+nested conventions do not select the anchor boundary and unbalanced
+declarations fail closed. Absolute, common, debug, and unknown symbol kinds or
+sections do not count. CTest treats the verifier's exit status as authoritative.
 
 ## Deferred gates
 

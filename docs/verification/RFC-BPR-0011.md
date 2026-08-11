@@ -125,21 +125,22 @@ the construction cut, gesture cut, real child, cancellation, staleness, and
 cleanup courses remain the evidence that the shipped panel constructs and
 invokes that host.
 
-The shared linkage inventory additionally includes the review-mutation
-coordinator definition without claiming construction. The development-fixture
-profile requires the exact test-only GitHub public-path fixture provider
-boundary and `bpr::application::reconcile`; production forbids both fixture
-symbols. Both profiles forbid the exact
-`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
-lands. A missing binary, missing supported demangling chain, nonzero inspector,
-failed demangler, or malformed or zero-defined table is a hard failure. Only
-parsed defined records count; `U`/`UND` references and anchors embedded in
-surrounding template text do not. Windows declaration prefixes are accepted
-only through the first allowlisted calling convention outside balanced
-template, parameter, and array delimiters; nested conventions do not select the
-anchor boundary and unbalanced declarations fail closed. Absolute, common,
-debug, and unknown symbol kinds or sections do not count. CTest treats the
-verifier's exit status as authoritative.
+The review-mutation linkage inventory is profile-specific. The
+development-fixture profile requires the coordinator constructor, exact
+test-only provider boundary, and `bpr::application::reconcile`, while forbidding
+the live provider type and factory. Tests-disabled production requires the live
+provider type and factory while forbidding the coordinator constructor and all
+fixture/reconciliation symbols. The fixture marker and dormant-selection
+contract remain the runtime complements: production constructs no coordinator
+and calls neither live observation nor submission. A missing binary, missing
+supported demangling chain, nonzero inspector, failed demangler, or malformed or
+zero-defined table is a hard failure. Only parsed defined records count;
+`U`/`UND` references and anchors embedded in surrounding template text do not.
+Windows declaration prefixes are accepted only through the first allowlisted
+calling convention outside balanced template, parameter, and array delimiters;
+nested conventions do not select the anchor boundary and unbalanced
+declarations fail closed. Absolute, common, debug, and unknown symbol kinds or
+sections do not count. CTest treats the verifier's exit status as authoritative.
 
 ## Cards
 

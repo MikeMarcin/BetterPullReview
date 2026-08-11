@@ -95,9 +95,50 @@ namespace bpr::adapters::github::detail {
 				std::forward<Handler>(aHandler));
 		}
 
+		class github_review_mutation_transport final
+			: public github_review_mutation_transport_lease
+		{
+		public:
+			github_review_mutation_transport(
+				application::github_profile_authority            aProfile,
+				application::github_credential_operation_context aCredentialContext,
+				std::shared_ptr<github_wire_transport_port>      aTransport) noexcept
+				: Profile{ std::move(aProfile) }
+				, CredentialContext{ std::move(aCredentialContext) }
+				, Transport{ std::move(aTransport) }
+			{
+			}
+
+			[[nodiscard]] auto profile() const noexcept
+				-> const application::github_profile_authority& override
+			{
+				return Profile;
+			}
+
+			[[nodiscard]] auto credential_context() const noexcept
+				-> const application::github_credential_operation_context& override
+			{
+				return CredentialContext;
+			}
+
+			[[nodiscard]] auto mutation_transport() noexcept
+				-> github_mutation_wire_transport* override
+			{
+				return active()
+					? dynamic_cast<github_mutation_wire_transport*>(Transport.get())
+					: nullptr;
+			}
+
+		private:
+			application::github_profile_authority            Profile;
+			application::github_credential_operation_context CredentialContext;
+			std::shared_ptr<github_wire_transport_port>      Transport;
+		};
+
 		class github_wire_account_transport final
 			: public application::github_account_transport_lease,
-			  public application::git_smart_transport_factory_port
+			  public application::git_smart_transport_factory_port,
+			  public application::review_mutation_transport_factory_port
 		{
 		public:
 			github_wire_account_transport(
@@ -128,6 +169,21 @@ namespace bpr::adapters::github::detail {
 					};
 				}
 				return make_native_git_smart_transport(native, aContext);
+			}
+
+			[[nodiscard]] auto acquire_review_mutation_transport() noexcept
+				-> application::review_mutation_transport override
+			{
+				if (dynamic_cast<github_mutation_wire_transport*>(Transport.get())
+					== nullptr) {
+					return { };
+				}
+				try {
+					return std::make_shared<github_review_mutation_transport>(
+						Profile, CredentialContext, Transport);
+				} catch (...) {
+					return { };
+				}
 			}
 
 			application::github_profile_authority            Profile;

@@ -64,8 +64,10 @@ namespace {
 		-> application::review_mutation_target_binding
 	{
 		return {
-			.Semantic   = target(0x11U),
-			.Repository = {
+			.Semantic       = target(0x11U),
+			.Hostname       = application::github_canonical_hostname{ "github.com" },
+			.ServerContract = application::github_server_contract::github_com_2022_11_28,
+			.Repository     = {
 				.Owner = "MikeMarcin",
 				.Name  = "BPR-Test",
 			},
@@ -75,6 +77,9 @@ namespace {
 			.PullRequestDatabaseId    = 4'246'446'933U,
 			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
 			.BaseRepositoryDatabaseId = 1'328'277'631U,
+			.BaseOid                  = commit(0x10U),
+			.BaseRef                  = "main",
+			.HeadRef                  = "codex/disposable-live-review-20260810",
 			.Open                     = true,
 		};
 	}

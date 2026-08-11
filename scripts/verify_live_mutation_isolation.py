@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
 """Assert that no live GitHub review mutation is reachable from a test binary.
 
-Today the safety property "no automated test can mutate a non-designated live
-repository" holds for a structural reason rather than a careful one:
-`application::review_mutation_port` has exactly one implementation in the tree,
-a fake inside a test, and no production code constructs a coordinator. There is
-no code path that reaches GitHub with a mutation.
-
-BPR-0142 introduces the first live implementation and destroys that argument. A
-scan that keeps passing afterwards would be passing for a reason that no longer
-exists, which is worse than no scan at all. This file replaces the structural
-argument with one that survives the live provider: the live implementation must
-be unreachable from every non-production binary, asserted rather than arranged.
+The production application links and may construct the contracted live provider
+for one exact authority, while keeping it dormant. This guard establishes the
+separate non-production property: the concrete provider remains unreachable
+from every test or helper executable even after production composition exists.
 
 Three clauses, because a live mutation can become reachable three ways.
 

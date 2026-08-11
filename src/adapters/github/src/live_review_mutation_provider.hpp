@@ -38,13 +38,15 @@ namespace bpr::adapters::github {
 
 	private:
 		friend auto make_live_review_mutation_provider(
-			detail::github_mutation_wire_transport&    aTransport,
-			detail::live_review_mutation_configuration aConfiguration) noexcept
+			application::review_mutation_transport       aLease,
+			application::review_mutation_target_binding  aTarget,
+			application::review_mutation_acting_identity aActingIdentity) noexcept
 			-> std::expected<
 				std::unique_ptr<live_review_mutation_provider>,
 				application::review_mutation_failure>;
 
 		live_review_mutation_provider(
+			application::review_mutation_transport     aLease,
 			detail::github_mutation_wire_transport&    aTransport,
 			detail::live_review_mutation_configuration aConfiguration) noexcept;
 
@@ -53,8 +55,9 @@ namespace bpr::adapters::github {
 
 	/// \brief Constructs the contracted live provider for one fixed authority.
 	[[nodiscard]] auto make_live_review_mutation_provider(
-		detail::github_mutation_wire_transport&    aTransport,
-		detail::live_review_mutation_configuration aConfiguration) noexcept
+		application::review_mutation_transport       aLease,
+		application::review_mutation_target_binding  aTarget,
+		application::review_mutation_acting_identity aActingIdentity) noexcept
 		-> std::expected<
 			std::unique_ptr<live_review_mutation_provider>,
 			application::review_mutation_failure>;

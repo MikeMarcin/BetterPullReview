@@ -232,6 +232,18 @@ namespace bpr::app::detail {
 			= default;
 	};
 
+	struct dormant_live_provider_selection_evidence
+	{
+		bool        ExactTupleAccepted         = false;
+		std::size_t MismatchedTuplesRejected   = 0U;
+		std::size_t ExpectedMismatchRejections = 0U;
+		bool        FixtureProviderSelected    = false;
+		bool        LiveProviderAbsent         = false;
+
+		auto operator<=>(const dormant_live_provider_selection_evidence&) const
+			= default;
+	};
+
 	struct agent_invocation_composition_evidence
 	{
 		bool                                          HostComposed = false;
@@ -501,6 +513,11 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto review_round_trip_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> review_round_trip_composition_probe_evidence;
+		[[nodiscard]] static auto dormant_live_provider_selection_evidence_for(
+			const github_application& aApplication)
+			-> dormant_live_provider_selection_evidence;
+		[[nodiscard]] static auto review_mutation_provider_marker(
+			const github_application& aApplication) noexcept -> std::string_view;
 		[[nodiscard]] static auto exercise_defect_composition(
 			github_application&      aApplication,
 			defect_composition_probe aCourse) -> defect_composition_probe_result;

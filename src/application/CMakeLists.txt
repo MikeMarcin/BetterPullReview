@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/appearance_application_host.cpp
         src/review_ledger_application_host.cpp
+		src/review_mutation_contract.cpp
         src/review_mutation_coordinator.cpp
         src/defect_correlation.cpp
         src/review_synchronization.cpp

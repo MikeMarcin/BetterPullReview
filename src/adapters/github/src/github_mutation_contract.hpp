@@ -202,8 +202,9 @@ namespace bpr::adapters::github::detail {
 	{
 	public:
 		review_mutation_session(
-			github_mutation_wire_transport&    aTransport,
-			live_review_mutation_configuration aConfiguration) noexcept;
+			github_mutation_wire_transport&        aTransport,
+			live_review_mutation_configuration     aConfiguration,
+			application::review_mutation_transport aLease) noexcept;
 
 		[[nodiscard]] auto observe_target()
 			-> std::expected<core::review_mutation_target, application::review_mutation_failure>;
@@ -226,6 +227,7 @@ namespace bpr::adapters::github::detail {
 
 		github_mutation_wire_transport*           Transport = nullptr;
 		live_review_mutation_configuration        Configuration;
+		application::review_mutation_transport    Lease;
 		std::mutex                                Mutex;
 		std::map<std::string, idempotency_record> Idempotency;
 	};

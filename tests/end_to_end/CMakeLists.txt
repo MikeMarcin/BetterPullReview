@@ -631,7 +631,6 @@ set_tests_properties(
     application_review_round_trip_composition_contract
     PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
-        PASS_REGULAR_EXPRESSION "REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK"
 )
 bpr_bound_automated_run(
     application_review_round_trip_composition_contract

@@ -1,11 +1,14 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_PORT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_PORT_HPP
 
+#include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
+#include <atomic>
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -49,6 +52,8 @@ namespace bpr::application {
 	struct review_mutation_target_binding
 	{
 		core::review_mutation_target Semantic;
+		github_canonical_hostname    Hostname;
+		github_server_contract       ServerContract = github_server_contract::github_com_2022_11_28;
 		core::repository_locator     Repository;
 		core::pull_request_number    Number;
 		std::uint64_t                RepositoryDatabaseId = 0U;
@@ -56,9 +61,74 @@ namespace bpr::application {
 		std::uint64_t                PullRequestDatabaseId = 0U;
 		std::string                  PullRequestNodeId;
 		std::uint64_t                BaseRepositoryDatabaseId = 0U;
-		bool                         Open                     = false;
+		core::git_commit_oid         BaseOid;
+		std::string                  BaseRef;
+		std::string                  HeadRef;
+		bool                         Open = false;
 
 		auto operator<=>(const review_mutation_target_binding&) const = default;
+	};
+
+	/// \brief Opaque lease for one accepted review-mutation authority.
+	///
+	/// \details The application host may retain and expose this capability, but
+	/// only the GitHub adapter can identify and unwrap its concrete transport.
+	/// It contains no credential bytes and exposes no provider or Qt network
+	/// type across the application boundary. Every retained shared pointer sees
+	/// the same monotonic revocation state. Revocation is an admission check, not
+	/// asynchronous transport cancellation.
+	class review_mutation_transport_lease
+	{
+	public:
+		review_mutation_transport_lease()          = default;
+		virtual ~review_mutation_transport_lease() = default;
+
+		review_mutation_transport_lease(const review_mutation_transport_lease&) = delete;
+		auto operator=(const review_mutation_transport_lease&)
+			-> review_mutation_transport_lease&                            = delete;
+		review_mutation_transport_lease(review_mutation_transport_lease&&) = delete;
+		auto operator=(review_mutation_transport_lease&&)
+			-> review_mutation_transport_lease& = delete;
+
+		/// \brief Reports whether this exact accepted-snapshot authority remains live.
+		[[nodiscard]] auto active() const noexcept -> bool
+		{
+			return Active.load(std::memory_order_acquire);
+		}
+
+		/// \brief Permanently refuses future mutation use through every retained copy.
+		///
+		/// \details This denial-only operation neither stops nor waits for an
+		/// already-running effect. The later asynchronous host owns cancellation.
+		void revoke() noexcept
+		{
+			Active.store(false, std::memory_order_release);
+		}
+
+	private:
+		std::atomic_bool Active = true;
+	};
+
+	using review_mutation_transport = std::shared_ptr<review_mutation_transport_lease>;
+
+	/// \brief Mints one opaque mutation lease for the host's accepted snapshot.
+	class review_mutation_transport_factory_port
+	{
+	public:
+		review_mutation_transport_factory_port()          = default;
+		virtual ~review_mutation_transport_factory_port() = default;
+
+		review_mutation_transport_factory_port(
+			const review_mutation_transport_factory_port&) = delete;
+		auto operator=(const review_mutation_transport_factory_port&)
+			-> review_mutation_transport_factory_port& = delete;
+		review_mutation_transport_factory_port(
+			review_mutation_transport_factory_port&&) = delete;
+		auto operator=(review_mutation_transport_factory_port&&)
+			-> review_mutation_transport_factory_port& = delete;
+
+		[[nodiscard]] virtual auto acquire_review_mutation_transport() noexcept
+			-> review_mutation_transport = 0;
 	};
 
 	/// \brief Binds the authenticated application account to GitHub identity.

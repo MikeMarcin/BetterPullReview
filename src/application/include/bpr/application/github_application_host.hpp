@@ -7,6 +7,7 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/review_mutation_port.hpp"
 #include "bpr/core/github_transition.hpp"
 
 #include <array>
@@ -99,6 +100,13 @@ namespace bpr::application {
 			-> const std::optional<github_session_read_model>&;
 		[[nodiscard]] auto accepted_snapshot() const noexcept
 			-> const std::optional<github_pull_request_snapshot>&;
+		/// \brief Returns the opaque transport for the currently accepted account.
+		///
+		/// \details The capability is absent unless the host has accepted an exact
+		/// profile, viewer, and pull-request snapshot under the same authority.
+		/// Credential bytes and concrete adapter types remain inaccessible.
+		[[nodiscard]] auto accepted_review_mutation_transport() const noexcept
+			-> review_mutation_transport;
 		[[nodiscard]] auto rate_limits() const noexcept
 			-> const github_rate_limit_state&;
 		[[nodiscard]] auto capability_cache_size() const noexcept -> std::size_t;

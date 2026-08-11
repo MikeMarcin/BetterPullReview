@@ -124,21 +124,22 @@ they are constructed or invoked. `application_queue_composition_contract` and
 the notification activation contract remain the runtime evidence for rule
 enrollment, refresh, request submission, and exact-row activation.
 
-The shared linkage inventory additionally includes the review-mutation
-coordinator definition without claiming construction. The development-fixture
-profile requires the exact test-only GitHub public-path fixture provider
-boundary and `bpr::application::reconcile`; production forbids both fixture
-symbols. Both profiles forbid the exact
-`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
-lands. The verifier cannot skip a missing binary or supported inspector, and
-nonzero tools, failed demanglers, or malformed or zero-defined tables fail
-closed. Only parsed defined records count; `U`/`UND` references and anchors
-embedded in surrounding template text do not. Windows declaration prefixes
-are accepted only through the first allowlisted calling convention outside
-balanced template, parameter, and array delimiters; nested conventions do not
-select the anchor boundary and unbalanced declarations fail closed. Absolute,
-common, debug, and unknown symbol kinds or sections do not count. CTest treats
-the verifier's exit status as authoritative.
+The review-mutation linkage inventory is profile-specific. The
+development-fixture profile requires the coordinator constructor, exact
+test-only provider boundary, and `bpr::application::reconcile`, while forbidding
+the live provider type and factory. Tests-disabled production requires the live
+provider type and factory while forbidding the coordinator constructor and all
+fixture/reconciliation symbols. The fixture marker and dormant-selection
+contract remain the runtime complements: production constructs no coordinator
+and calls neither live observation nor submission. The verifier cannot skip a
+missing binary or supported inspector, and nonzero tools, failed demanglers, or
+malformed or zero-defined tables fail closed. Only parsed defined records count;
+`U`/`UND` references and anchors embedded in surrounding template text do not.
+Windows declaration prefixes are accepted only through the first allowlisted
+calling convention outside balanced template, parameter, and array delimiters;
+nested conventions do not select the anchor boundary and unbalanced
+declarations fail closed. Absolute, common, debug, and unknown symbol kinds or
+sections do not count. CTest treats the verifier's exit status as authoritative.
 
 ## Deferred gates
 

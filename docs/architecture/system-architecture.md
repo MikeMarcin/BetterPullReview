@@ -552,8 +552,18 @@ semantic draft commands and presents typed outcomes. The core decides whether
 the draft may publish. The application coordinator fixes the destination,
 revalidates target and head, derives the idempotency key, and refreshes server
 comments before presentation. Automated product evidence installs only a
-fixture provider under the test build; production composition has no live
-mutation provider or credential-bearing mutation path.
+fixture provider and coordinator under the test build. Tests-disabled production
+may construct the live provider only when the accepted handoff and snapshot
+match the compiled designated host, repository, pull request, base, and head
+tuple. The acting database ID, node ID, and login are not compiled constants:
+they come from the exact authenticated session, are cross-bound to its opaque
+accepted-snapshot transport lease, and are re-observed before a write. The host
+mints a distinct lease for each accepted snapshot and synchronously revokes it
+on pull-request or account replacement and shutdown; every retained copy then
+refuses provider construction or use. This monotonic denial is separate from
+the asynchronous cancellation and publication lifecycle owned by the following
+slice. Production still constructs no coordinator, exposes no Publish route to
+the provider, and calls neither observation nor submission.
 
 For RFC-BPR-0004, interaction state in the core includes the active semantic
 change and selected source line, boundary, or mapping target. Host caches may

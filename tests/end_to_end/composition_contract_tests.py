@@ -45,6 +45,7 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"GITHUB_FIXTURE_OK",
     b"GITHUB_FIXTURE_FAILED",
     b"GITHUB_FIXTURE_EVIDENCE",
+    b"REVIEW_MUTATION_PROVIDER:fixture",
     b"NATIVE_APPEARANCE_",
     b"DIFF_WORKBENCH_",
     b"DIFF_INTERACTION_EVIDENCE_",
@@ -144,6 +145,7 @@ class CompositionContractTests(unittest.TestCase):
         required_selection = (
             "make_github_provider(",
             "native_github_wire_transport_factory",
+            "make_live_review_mutation_provider(",
             "make_macos_keychain_vault(",
             "make_windows_credential_manager_vault(",
             "make_linux_secret_service_vault(",
@@ -158,6 +160,113 @@ class CompositionContractTests(unittest.TestCase):
             composition_source,
             "production composition must not construct a CLI process runner",
         )
+
+        provider_source = read(
+            "src/adapters/github/src/live_review_mutation_provider.cpp"
+        )
+        factory = re.search(
+            r"auto make_live_review_mutation_provider\((?P<body>.*?)\n\t}\n",
+            provider_source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(factory, "live provider factory definition is required")
+        factory_body = factory.group("body") if factory is not None else ""
+        self.assertIn("detail::admit_review_mutation_provider(", factory_body)
+        self.assertNotIn("dynamic_pointer_cast", factory_body)
+
+    def test_dormant_provider_inventory_rejects_out_of_branch_use(self) -> None:
+        source = read("src/app/src/github_application.cpp")
+        insertion_point = "\n\t\tvoid compose_review_mutation("
+        self.assertEqual(source.count(insertion_point), 1)
+        hostile_helper = (
+            "\n#if !defined(BPR_BUILD_TESTING)\n"
+            "\t\tvoid hostile_live_provider_use_for_contract()\n"
+            "\t\t{\n"
+            "\t\t\tstatic_cast<void>(\n"
+            "\t\t\t\tLiveReviewMutationProvider->observe_target());\n"
+            "\t\t}\n"
+            "#endif\n"
+        )
+        hostile_source = source.replace(
+            insertion_point,
+            hostile_helper + insertion_point,
+            1,
+        )
+        generic_helper = (
+            "\n\t\tvoid use(application::review_mutation_port& p)\n"
+            "\t\t{\n"
+            "\t\t\tp.observe_target();\n"
+            "\t\t}\n"
+        )
+        generic_source = source.replace(
+            insertion_point,
+            generic_helper + insertion_point,
+            1,
+        )
+        provider_success = (
+            "\t\t\tif (provider.has_value()) {\n"
+            "\t\t\t\tLiveReviewMutationProvider = std::move(*provider);"
+        )
+        self.assertEqual(generic_source.count(provider_success), 1)
+        generic_source = generic_source.replace(
+            provider_success,
+            "\t\t\tif (provider.has_value()) {\n"
+            "\t\t\t\tuse(**provider);\n"
+            "\t\t\t\tLiveReviewMutationProvider = std::move(*provider);",
+            1,
+        )
+        contract = (
+            REPOSITORY_ROOT
+            / "tests/end_to_end/application_review_round_trip_composition_contract.cmake"
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            baseline_path = temporary_root / "baseline-github-application.cpp"
+            hostile_path = temporary_root / "hostile-github-application.cpp"
+            generic_path = temporary_root / "generic-port-hostile-application.cpp"
+            baseline_path.write_text(source, encoding="utf-8")
+            hostile_path.write_text(hostile_source, encoding="utf-8")
+            generic_path.write_text(generic_source, encoding="utf-8")
+
+            def verify(candidate: Path) -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [
+                        ARGUMENTS.cmake,
+                        f"-DBPR_PROVIDER_INVENTORY_SOURCE_FILE={candidate}",
+                        "-P",
+                        str(contract),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+
+            baseline = verify(baseline_path)
+            self.assertEqual(
+                baseline.returncode,
+                0,
+                baseline.stdout + baseline.stderr,
+            )
+            self.assertIn(
+                "DORMANT_PROVIDER_INVENTORY_OK",
+                baseline.stdout + baseline.stderr,
+            )
+
+            hostile = verify(hostile_path)
+            self.assertNotEqual(hostile.returncode, 0)
+            self.assertIn(
+                "dormant concrete provider performs an observe, submit, or publish action",
+                hostile.stdout + hostile.stderr,
+            )
+
+            generic = verify(generic_path)
+            self.assertNotEqual(generic.returncode, 0)
+            self.assertIn(
+                "tests-disabled production compose_review_mutation branch digest drifted",
+                generic.stdout + generic.stderr,
+            )
 
         composition_cmake = read("src/app/CMakeLists.txt")
         target = re.search(

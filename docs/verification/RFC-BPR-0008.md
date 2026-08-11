@@ -18,8 +18,10 @@ Linux code awaits native replay and Windows remains fail-closed before every
 ordinary test command. The designated pull-request identity is now connected
 to one default-off, pre-launch-validated canary lane; that lane has not been
 executed and still contains only its harmless canary. BPR-0252 now implements
-and hermetically proves the production review-comment provider protocol, but it
-is not composed into the application or live lane and no mutation was run.
+and hermetically proves the production review-comment provider protocol.
+BPR-0254 composes that provider only as a dormant exact-target object in the
+tests-disabled production application; no coordinator, Publish route,
+observation, submission, credential acquisition, or mutation was added.
 
 RFC-BPR-0008 stays `Proposed`. No card here makes a closure claim. The safe
 repository is designated, but the live criteria still require session-scoped
@@ -76,29 +78,25 @@ A row is claimed only when its card lands with direct evidence.
 | Acting identity is carried | Host | Publish under a fixture identity | The proposal and the request carry the active profile's identity | Verified for the request. BPR-0137 asserts the submitted request carries the acting identity and the coordinator's own designated target, so no caller can name a destination. Whether GitHub attributes the review to that account is BPR-0144 |
 | A source-line proposal compiles to one exact ordinary GitHub review comment | Application coordinator plus GitHub mutation contract | `ctest --test-dir build/dev --output-on-failure -R '^(application_review_mutation|github_mutation_contract)$'` | The request binds canonical owner/name, repository/PR/base identities, number/open/head, acting database/node/login identity, semantic anchor, path, commit, side, line, body, and idempotency key; any method/path/header/body tamper or invalid UTF-8 is refused | Verified hermetically by BPR-0252. GitHub.com and GHES 3.18 exact REST paths and exact `body`, `commit_id`, `path`, `side`, and one-based `line` JSON bytes pass, including zero-based semantic-line translation and response-range refusal. The corrected selector selected 2 tests (nonzero) and passed 2/2 on 2026-08-10. Incomplete or mismatched live bindings produce zero provider/transport submissions. No network or credential is used. |
 | The live provider revalidates immediately and guards retries | Production provider protocol through its separately linked session object | `ctest --test-dir build/dev --output-on-failure -R '^live_review_mutation_provider$'` | Viewer observation precedes target observation, the complete target/head check is the final network operation before POST, every tuple/actor/anchor mismatch produces no POST, known success returns one duplicate receipt only for the same canonical write fingerprint, and an indeterminate POST is not resubmitted within the provider instance | Verified hermetically by BPR-0252. The protocol preserves typed server refusal and typed transport-cancellation mapping, binds same-key records to the resolved path, bounds its process-local ledger at 1,024 entries, and accepts a receipt only when GitHub reproduces the exact anchor, body, and author identity. The port exposes no provider stop authority, and durable restart reconciliation remains composition work. The concrete provider remains absent from every non-production executable. |
+| The production provider is composed only for the designated tuple and remains dormant | Tests-disabled Release application plus development fixture | `ctest --test-dir build/dev --output-on-failure -R '^(application_composition_contract|application_review_round_trip_composition_contract|application_github_host|live_review_mutation_provider)$'` | The compiled host/repository/PR/base/head tuple must match the accepted handoff and snapshot; actor database/node/login come dynamically from the exact authenticated session; retained leases fail after replacement/shutdown; production links no coordinator and performs no provider operation | Verified portably by BPR-0254. Exact selection plus 28 single-field counterexamples pass, the fixture emits `REVIEW_MUTATION_PROVIDER:fixture`, and a revoked retained lease is refused directly by both the factory and provider session before transport use. The fresh tests-disabled Release graph requires the live provider and factory while forbidding the coordinator constructor and fixture/reconciliation symbols. Acting database ID, node ID, and login are cross-bound to the accepted account lease and snapshot and are re-observed, not compiled constants. A well-formed changed head produces `stale_head` before POST while base OID/ref and head ref remain exact. No network, credential, or live lane was used. |
 | No automated test mutates an undesignated target | Whole suite | Structural `live_mutation_isolation` plus the default-deny network/process lane | Every CTest executable, script, helper subprocess, and production-app launch is network-denied unless it belongs to one explicit designated-target lane | **Verified on the configured macOS default graph; target-native Linux/Windows remain open.** Every ordinary configured command carries the exact sandbox-runner prefix, label, isolated Python startup, and pre-boundary environment scrubs; the manifest rejects injection and false-green CTest verdict overrides across every BPR-0235 safety gate, and binds the two architecture-gate names to their exact configured commands. Direct HTTPS-port access, a Python descendant, and the shipped native-HTTPS application course receive process-boundary denial. The runner grants only selected free ports plus a fresh private Unix-socket directory; exact IPv4, IPv6, and Unix fixtures pass, while separately held unrelated loopback and Unix listeners are denied and receive no connections. The structural guard still inspects provider construction and all non-production binaries, with a non-skipping Windows inspector fallback. The default manifest has zero live exceptions. A separate configured manifest proves exactly one default-off exception named `live_review_mutation_designated_target`, with the sole `bpr_live_mutation` label and exact trusted-runner/approval command. Hermetic gate, fork-protocol, and native-race tests cover missing and malformed approval, every tuple-field mismatch, remote failure/malformed/oversize, approval substitution and consume failure, concurrent/repeated use, child surface mismatch, malformed capability, nonzero exit, timeout kill/reap, filesystem-path substitution, high inherited descriptors above a lowered limit, and exact `inspect -> remote -> consume -> child` order. The parent hard-codes the unauthenticated public GET for disposable `MikeMarcin/BPR-Test#1` and matches repository ID `1328277631`, repository node `R_kgDOTyvofw`, pull-request ID `4246446933`, node ID `PR_kwDOTyvof879G6NV`, base-repository ID `1328277631`, open state, base `e2a44aa8fef704de7373463222b1872e796918c6`, head branch `codex/disposable-live-review-20260810`, and head `17990ba0c2fb50338141f35c0717f0f99639c7ba` before descriptor-relative approval consumption. The approval binds one combined SHA-256 over four independently locked canary/child source and header files. That routine is compiled into an exact-composition runner; after parent-side environment clearing, a private pipe, exact single-thread proof, and two equal complete descriptor inventories precede one fork. The child closes the precomputed inherited descriptors and uses only fixed byte checks and async-signal-safe calls. No executable path is reopened. The live lane was not executed and no provider/write exists. The Linux namespace launcher and `/proc` child-inventory path have no target-native record; Windows native approval, child creation, and whole-suite isolation remain fail-closed. BPR-0235 remains open. |
 
 ## Standing composed-host linkage audit
 
-BPR-0248 records the fixture/production boundary in the binary verifier. The
-shared inventory requires the exact demangled
-`bpr::application::review_mutation_coordinator` constructor in both binaries,
-because the shared component definition may be linked without being
-constructed. The development-fixture profile additionally requires the exact
-test-only
-`bpr::app::detail::github_public_path_fixture_components::review_mutation_provider`
-boundary and `bpr::application::reconcile`; the production profile forbids
-both fixture-only symbols. Both profiles forbid the exact
-`bpr::adapters::github::live_review_mutation_provider` type until BPR-0142
-lands.
+BPR-0248 records the fixture/production boundary in the binary verifier, and
+BPR-0254 makes its mutation inventory profile-specific. Development fixture
+requires the exact coordinator constructor, test-only public-path provider
+boundary, and `bpr::application::reconcile`, while forbidding the live provider
+and factory. Tests-disabled production requires the exact live-provider type and
+factory while forbidding the coordinator constructor and all
+fixture/reconciliation symbols.
 
-Those results prove only what each binary links. In particular, the shared
-coordinator constructor is not evidence that production constructs a mutation
-authority. The real fixture editor, core proposal, coordinator, server refresh,
-and Qt projection trace remains the construction and runtime evidence for
-BPR-0229. The production absence of the fixture provider boundary is not
-evidence of a live provider; the same audit requires that provider to remain
-absent. Missing binaries, unsupported tool chains, nonzero tools, failed
+Those results prove only what each binary links. The real fixture editor, core
+proposal, coordinator, server refresh, and Qt projection trace remains the
+construction and runtime evidence for BPR-0229. BPR-0254's exact/mismatched
+selection probe, fixture marker, revoked-lease counterexample, and production
+source cut prove that the linked production provider has no coordinator and is
+not used. Missing binaries, unsupported tool chains, nonzero tools, failed
 demanglers, and malformed or zero-defined symbol tables fail closed. Only
 parsed defined records count; `U`/`UND` references and anchors embedded in
 surrounding template text do not. Windows declaration prefixes are accepted
@@ -145,12 +143,14 @@ live execution.
 | BPR-0141 | Simplification and closeout preparation |
 | BPR-0229 | Shipped editor-to-core-to-fixture-coordinator-to-server-refresh composition and non-bypass executable trace |
 | BPR-0252 | Uncomposed production review-comment provider, exact mutation wire contract, native HTTPS mutation operation, immediate target/viewer revalidation, and guarded idempotency |
+| BPR-0254 | Dormant exact-target production composition, renewable opaque accepted-snapshot lease, fixture marker, and profile-specific binary verification |
 
 ## Documentation ledger
 
 | Scope | Required documents | Disposition |
 |---|---|---|
 | Review, comment, and thread mapping; drafts; publish semantics; identity; stale-head behaviour; retries; capability fallback; safe-test policy; mixed-client contract | [Review Round Trip](../architecture/review-round-trip.md) | Written. Records ownership, the command/decision/proposal/request/completion/observation/delta vocabulary, the draft lifecycle, semantic anchoring, the two unequal target mismatches, safe-target enforcement, identity, idempotency, synchronization and the mixed-client contract, capability fallback, and what is not proven without a live target |
+| Production composition, exact target/actor identity, authority revocation, and dormant lifecycle | [System Architecture](../architecture/system-architecture.md), [Review Round Trip](../architecture/review-round-trip.md), and root README | Updated by BPR-0254. Compiled constants bind only the designated repository/PR/base/head tuple; acting database/node/login identity is dynamic, cross-bound to the accepted lease/snapshot, and re-observed. Retained lease revocation is denial-only and explicitly not asynchronous cancellation. Production has no coordinator or provider use. |
 | Private review ledger boundary | [Review Ledger](../architecture/review-ledger.md) | No impact. The ledger holds private progress and this RFC holds shared state; the two share no table and no authority. Recorded rather than assumed |
 
 The document names the safe mutation target and states that no other target is

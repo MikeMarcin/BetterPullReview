@@ -6,6 +6,7 @@
 
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/review_mutation_port.hpp"
 
 #include <cstdint>
 #include <expected>
@@ -13,6 +14,23 @@
 #include <span>
 
 namespace bpr::adapters::github::detail {
+	class github_mutation_wire_transport;
+
+	/// \brief Adapter-private view of an opaque review-mutation lease.
+	class github_review_mutation_transport_lease
+		: public application::review_mutation_transport_lease
+	{
+	public:
+		~github_review_mutation_transport_lease() override = default;
+
+		[[nodiscard]] virtual auto profile() const noexcept
+			-> const application::github_profile_authority& = 0;
+		[[nodiscard]] virtual auto credential_context() const noexcept
+			-> const application::github_credential_operation_context& = 0;
+		[[nodiscard]] virtual auto mutation_transport() noexcept
+			-> github_mutation_wire_transport* = 0;
+	};
+
 	using github_wire_transport_factory_result = std::expected<std::shared_ptr<github_wire_transport_port>,
 															   application::github_provider_error>;
 

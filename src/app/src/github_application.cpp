@@ -8,6 +8,7 @@
 
 #include "github_host_profile.hpp"
 #include "github_provider.hpp"
+#include "live_review_mutation_provider.hpp"
 
 #if defined(__APPLE__)
 	#include "macos_keychain.hpp"
@@ -43,7 +44,9 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
-#include "bpr/application/review_mutation_coordinator.hpp"
+#if defined(BPR_BUILD_TESTING)
+	#include "bpr/application/review_mutation_coordinator.hpp"
+#endif
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_application_host.hpp"
@@ -125,12 +128,122 @@ namespace bpr::app {
 	namespace {
 		using adapters::github::github_host_profile_candidate;
 		using adapters::github::github_profile_provenance;
+		using adapters::github::live_review_mutation_provider;
+		using adapters::github::make_live_review_mutation_provider;
 		using adapters::github::validate_github_host_profile;
 		using adapters::github::validated_github_host_profile;
 		using adapters::github::detail::github_provider;
 		using adapters::github::detail::github_wire_transport_factory_port;
 		using adapters::github::detail::make_github_provider;
 		using adapters::github::detail::native_github_wire_transport_factory;
+
+		inline constexpr auto designated_review_hostname          = std::string_view{ "github.com" };
+		inline constexpr auto designated_review_owner             = std::string_view{ "MikeMarcin" };
+		inline constexpr auto designated_review_name              = std::string_view{ "BPR-Test" };
+		inline constexpr auto designated_review_repository_id     = std::uint64_t{ 1'328'277'631U };
+		inline constexpr auto designated_review_repository_node   = std::string_view{ "R_kgDOTyvofw" };
+		inline constexpr auto designated_review_pull_request_id   = std::uint64_t{ 4'246'446'933U };
+		inline constexpr auto designated_review_pull_request_node = std::string_view{ "PR_kwDOTyvof879G6NV" };
+		inline constexpr auto designated_review_number            = std::uint32_t{ 1U };
+		inline constexpr auto designated_review_base_ref          = std::string_view{ "main" };
+		inline constexpr auto designated_review_base_full_ref     = std::string_view{ "refs/heads/main" };
+		inline constexpr auto designated_review_head_ref          = std::string_view{ "codex/disposable-live-review-20260810" };
+		inline constexpr auto designated_review_base_oid          = std::string_view{ "e2a44aa8fef704de7373463222b1872e796918c6" };
+		inline constexpr auto designated_review_head_oid          = std::string_view{ "17990ba0c2fb50338141f35c0717f0f99639c7ba" };
+
+		struct designated_review_mutation_selection
+		{
+			application::review_mutation_target_binding  Target;
+			application::review_mutation_acting_identity ActingIdentity;
+		};
+
+		[[nodiscard, maybe_unused]] auto select_designated_review_mutation(
+			const application::accepted_pull_request_handoff& aHandoff,
+			const application::github_pull_request_snapshot&  aSnapshot)
+			-> std::optional<designated_review_mutation_selection>
+		{
+			const auto expectedBase = core::parse_git_commit_oid(designated_review_base_oid);
+			const auto expectedHead = core::parse_git_commit_oid(designated_review_head_oid);
+			const auto snapshotBase = core::parse_git_commit_oid(
+				aSnapshot.PullRequest.BaseOid.value());
+			const auto snapshotHead = core::parse_git_commit_oid(
+				aSnapshot.PullRequest.HeadOid.value());
+			if (!expectedBase.has_value() || !expectedHead.has_value()
+				|| !snapshotBase.has_value() || !snapshotHead.has_value()
+				|| aHandoff.Hostname.value() != designated_review_hostname
+				|| aHandoff.ServerContract
+					!= application::github_server_contract::github_com_2022_11_28
+				|| aHandoff.Locator.Owner != designated_review_owner
+				|| aHandoff.Locator.Name != designated_review_name
+				|| aHandoff.Repository.value() != designated_review_repository_id
+				|| aHandoff.PullRequest.value() != designated_review_pull_request_id
+				|| aHandoff.Number.value() != designated_review_number
+				|| aHandoff.Base != *expectedBase || aHandoff.Head != *expectedHead
+				|| aHandoff.BaseRef.view() != designated_review_base_full_ref
+				|| aSnapshot.Profile != aHandoff.Profile
+				|| aSnapshot.Host != aHandoff.Host
+				|| aSnapshot.Account != aHandoff.Account
+				|| aSnapshot.Viewer.Actor.value().empty()
+				|| aSnapshot.Viewer.Login.empty()
+				|| aSnapshot.Repository.Repository != aHandoff.Repository
+				|| aSnapshot.Repository.Repository.value()
+					!= designated_review_repository_id
+				|| aSnapshot.Repository.Node.value() != designated_review_repository_node
+				|| aSnapshot.Repository.Owner != designated_review_owner
+				|| aSnapshot.Repository.Name != designated_review_name
+				|| aSnapshot.PullRequest.PullRequest != aHandoff.PullRequest
+				|| aSnapshot.PullRequest.PullRequest.value()
+					!= designated_review_pull_request_id
+				|| aSnapshot.PullRequest.Repository != aHandoff.Repository
+				|| aSnapshot.PullRequest.Number != aHandoff.Number
+				|| aSnapshot.PullRequest.Node.value()
+					!= designated_review_pull_request_node
+				|| aSnapshot.PullRequest.State
+					!= application::github_pull_request_state::open
+				|| *snapshotBase != *expectedBase || *snapshotHead != *expectedHead
+				|| aSnapshot.PullRequest.BaseRef != designated_review_base_ref
+				|| aSnapshot.PullRequest.HeadRef != designated_review_head_ref) {
+				return std::nullopt;
+			}
+
+			auto selection = designated_review_mutation_selection{
+				.Target = {
+					.Semantic = {
+						.Host         = aHandoff.Host,
+						.Repository   = aHandoff.Repository,
+						.PullRequest  = aHandoff.PullRequest,
+						.ExpectedHead = *expectedHead,
+					},
+					.Hostname       = application::github_canonical_hostname{ designated_review_hostname },
+					.ServerContract = application::github_server_contract::github_com_2022_11_28,
+					.Repository     = {
+						.Owner = std::string{ designated_review_owner },
+						.Name  = std::string{ designated_review_name },
+					},
+					.Number                   = aHandoff.Number,
+					.RepositoryDatabaseId     = aSnapshot.Repository.Repository.value(),
+					.RepositoryNodeId         = std::string{ aSnapshot.Repository.Node.value() },
+					.PullRequestDatabaseId    = aSnapshot.PullRequest.PullRequest.value(),
+					.PullRequestNodeId        = std::string{ aSnapshot.PullRequest.Node.value() },
+					.BaseRepositoryDatabaseId = aSnapshot.PullRequest.Repository.value(),
+					.BaseOid                  = *expectedBase,
+					.BaseRef                  = std::string{ designated_review_base_ref },
+					.HeadRef                  = std::string{ designated_review_head_ref },
+					.Open                     = true,
+				},
+				.ActingIdentity = {
+					.Account    = aHandoff.Account,
+					.DatabaseId = aSnapshot.Account.value(),
+					.NodeId     = std::string{ aSnapshot.Viewer.Actor.value() },
+					.Login      = aSnapshot.Viewer.Login,
+				},
+			};
+			if (!application::valid(selection.Target)
+				|| !application::valid(selection.ActingIdentity)) {
+				return std::nullopt;
+			}
+			return selection;
+		}
 
 		[[nodiscard]] auto native_filesystem_path(const QString& aValue)
 			-> std::filesystem::path
@@ -2411,12 +2524,12 @@ namespace bpr::app {
 		void compose_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
-			ReviewMutationCoordinator.reset();
 			ReviewDraft.reset();
 			ReviewDraftRevision = 0U;
 			refresh_agent_private_context_choices();
 			ReviewProjection.clear();
 #if defined(BPR_BUILD_TESTING)
+			ReviewMutationCoordinator.reset();
 			if (Fixture == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr) {
 				return;
@@ -2436,7 +2549,26 @@ namespace bpr::app {
 										.arg(aHandoff.Account.value()));
 			editor->present(ReviewMutationCoordinator->capabilities());
 #else
-			static_cast<void>(aHandoff);
+			LiveReviewMutationProvider.reset();
+			if (Host == nullptr || !Host->accepted_snapshot().has_value()) {
+				return;
+			}
+			auto selection = select_designated_review_mutation(
+				aHandoff, *Host->accepted_snapshot());
+			if (!selection.has_value()) {
+				return;
+			}
+			auto lease = Host->accepted_review_mutation_transport();
+			if (lease == nullptr) {
+				return;
+			}
+			auto provider = make_live_review_mutation_provider(
+				std::move(lease),
+				std::move(selection->Target),
+				std::move(selection->ActingIdentity));
+			if (provider.has_value()) {
+				LiveReviewMutationProvider = std::move(*provider);
+			}
 #endif
 		}
 
@@ -2455,6 +2587,7 @@ namespace bpr::app {
 
 		void dispatch_review_draft(core::review_draft_command aCommand)
 		{
+#if defined(BPR_BUILD_TESTING)
 			if (Closing || !ReviewDraft.has_value()
 				|| ReviewMutationCoordinator == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr) {
@@ -2506,10 +2639,14 @@ namespace bpr::app {
 			editor->present(*ReviewDraft);
 			refresh_agent_private_context_choices();
 			editor->present(*publication, ReviewReconciliation);
+#else
+			static_cast<void>(aCommand);
+#endif
 		}
 
 		void present_review_draft(const core::file_comparison_digest aComparison)
 		{
+#if defined(BPR_BUILD_TESTING)
 			if (ReviewMutationCoordinator == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr || !aComparison.valid()) {
 				return;
@@ -2531,6 +2668,9 @@ namespace bpr::app {
 			ReviewDraftRevision = 1U;
 			Window->review_editor()->present(*ReviewDraft);
 			refresh_agent_private_context_choices();
+#else
+			static_cast<void>(aComparison);
+#endif
 		}
 
 		void retire_review_ledger()
@@ -2850,7 +2990,11 @@ namespace bpr::app {
 			});
 			if (retiresLedger) {
 				retire_review_ledger();
+#if defined(BPR_BUILD_TESTING)
 				ReviewMutationCoordinator.reset();
+#else
+				LiveReviewMutationProvider.reset();
+#endif
 				ReviewDraft.reset();
 				ReviewDraftRevision = 0U;
 				ReviewProjection.clear();
@@ -3884,7 +4028,11 @@ namespace bpr::app {
 		std::optional<core::file_receipt>                            ReviewLedgerReceipt;
 		bool                                                         ReviewLedgerAvailable = false;
 		std::vector<application::durable_defect_record>              DurableDefects;
-		std::unique_ptr<application::review_mutation_coordinator>    ReviewMutationCoordinator;
+#if defined(BPR_BUILD_TESTING)
+		std::unique_ptr<application::review_mutation_coordinator> ReviewMutationCoordinator;
+#else
+		std::unique_ptr<live_review_mutation_provider> LiveReviewMutationProvider;
+#endif
 		std::optional<core::review_comment_draft>                    ReviewDraft;
 		std::uint64_t                                                ReviewDraftRevision = 0U;
 		std::vector<application::review_comment_projection>          ReviewProjection;
@@ -7577,6 +7725,118 @@ namespace bpr::app {
 				&& implementation->ReviewRoundTripCompositionProbe.has_value()
 			? implementation->ReviewRoundTripCompositionProbe->Evidence
 			: detail::review_round_trip_composition_probe_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::dormant_live_provider_selection_evidence_for(
+		const github_application& aApplication)
+		-> detail::dormant_live_provider_selection_evidence
+	{
+		auto  evidence       = detail::dormant_live_provider_selection_evidence{ };
+		auto* implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || implementation->Fixture == nullptr
+			|| !implementation->LastAcceptedHandoff.has_value()) {
+			return evidence;
+		}
+		auto       handoff  = clone_without_smart_git(*implementation->LastAcceptedHandoff);
+		auto       snapshot = application::github_pull_request_snapshot{ };
+		const auto base     = core::parse_git_commit_oid(designated_review_base_oid);
+		const auto head     = core::parse_git_commit_oid(designated_review_head_oid);
+		const auto baseRef  = application::parse_git_base_branch_ref(
+			designated_review_base_full_ref);
+		if (!base.has_value() || !head.has_value() || !baseRef.has_value()) {
+			return evidence;
+		}
+
+		handoff.Hostname = application::github_canonical_hostname{
+			designated_review_hostname
+		};
+		handoff.ServerContract = application::github_server_contract::github_com_2022_11_28;
+		handoff.Repository     = core::repository_id{ designated_review_repository_id };
+		handoff.Locator        = {
+			.Owner = std::string{ designated_review_owner },
+			.Name  = std::string{ designated_review_name },
+		};
+		handoff.PullRequest = core::pull_request_id{ designated_review_pull_request_id };
+		handoff.Number      = core::pull_request_number{ designated_review_number };
+		handoff.BaseRef     = *baseRef;
+		handoff.Base        = *base;
+		handoff.Head        = *head;
+
+		snapshot.Profile = handoff.Profile;
+		snapshot.Host    = handoff.Host;
+		snapshot.Account = handoff.Account;
+		snapshot.Viewer  = {
+			.Actor = application::github_actor_id{ "MDQ6VXNlcjIy" },
+			.Login = "fixture-reviewer",
+		};
+		snapshot.Repository.Repository   = handoff.Repository;
+		snapshot.Repository.Node         = application::github_node_id{ std::string{ designated_review_repository_node } };
+		snapshot.Repository.Owner        = std::string{ designated_review_owner };
+		snapshot.Repository.Name         = std::string{ designated_review_name };
+		snapshot.PullRequest.PullRequest = handoff.PullRequest;
+		snapshot.PullRequest.Repository  = handoff.Repository;
+		snapshot.PullRequest.Number      = handoff.Number;
+		snapshot.PullRequest.Node        = application::github_node_id{ std::string{ designated_review_pull_request_node } };
+		snapshot.PullRequest.State       = application::github_pull_request_state::open;
+		snapshot.PullRequest.BaseOid     = application::commit_oid{ std::string{ designated_review_base_oid } };
+		snapshot.PullRequest.HeadOid     = application::commit_oid{ std::string{ designated_review_head_oid } };
+		snapshot.PullRequest.BaseRef     = std::string{ designated_review_base_ref };
+		snapshot.PullRequest.HeadRef     = std::string{ designated_review_head_ref };
+
+		const auto exactSelection = select_designated_review_mutation(
+			handoff, snapshot);
+		evidence.ExactTupleAccepted = exactSelection.has_value();
+		auto rejects                = [&handoff, &snapshot, &evidence](auto aMutate) {
+			auto changedHandoff  = clone_without_smart_git(handoff);
+			auto changedSnapshot = snapshot;
+			aMutate(changedHandoff, changedSnapshot);
+			evidence.MismatchedTuplesRejected += static_cast<std::size_t>(
+				!select_designated_review_mutation(
+					 changedHandoff, changedSnapshot)
+					 .has_value());
+		};
+		rejects([](auto& aHandoff, auto&) { aHandoff.Hostname = application::github_canonical_hostname{ "ghe.example.invalid" }; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.Locator.Owner = "Other"; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.Locator.Name = "Other"; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.Repository = core::repository_id{ 9U }; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.PullRequest = core::pull_request_id{ 9U }; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.Number = core::pull_request_number{ 9U }; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.Base = aHandoff.Head; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.Head = aHandoff.Base; });
+		rejects([](auto& aHandoff, auto&) { aHandoff.BaseRef = application::git_base_branch_ref{ }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Profile = core::host_profile_id{ 9U }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Host = core::git_host_id{ 9U }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Account = core::github_account_id{ 9U }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Viewer.Actor = application::github_actor_id{ }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Viewer.Login.clear(); });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Repository.Repository = core::repository_id{ 9U }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Repository.Node = application::github_node_id{ "other" }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Repository.Owner = "Other"; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.Repository.Name = "Other"; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.PullRequest = core::pull_request_id{ 9U }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.Repository = core::repository_id{ 9U }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.Number = core::pull_request_number{ 9U }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.Node = application::github_node_id{ "other" }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.State = application::github_pull_request_state::closed; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.BaseOid = application::commit_oid{ std::string{ designated_review_head_oid } }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.HeadOid = application::commit_oid{ std::string{ designated_review_base_oid } }; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.BaseRef = "other"; });
+		rejects([](auto&, auto& aSnapshot) { aSnapshot.PullRequest.HeadRef = "other"; });
+		evidence.ExpectedMismatchRejections = 28U;
+		evidence.FixtureProviderSelected
+			= implementation->ReviewMutationCoordinator != nullptr;
+		evidence.LiveProviderAbsent = true;
+		return evidence;
+	}
+
+	auto detail::github_application_fixture_access::review_mutation_provider_marker(
+		const github_application& aApplication) noexcept -> std::string_view
+	{
+		const auto* implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->Fixture != nullptr
+			? std::string_view{ "fixture" }
+			: std::string_view{ "none" };
 	}
 
 	auto detail::github_application_fixture_access::exercise_defect_composition(

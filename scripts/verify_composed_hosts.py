@@ -105,10 +105,6 @@ SHARED_REQUIRED = (
         "bpr::application::review_ledger_application_host::review_ledger_application_host",
     ),
     function_anchor(
-        "review mutation coordinator constructor",
-        "bpr::application::review_mutation_coordinator::review_mutation_coordinator",
-    ),
-    function_anchor(
         "defect correlation decision",
         "bpr::application::correlate",
     ),
@@ -132,6 +128,10 @@ SHARED_REQUIRED = (
 
 FIXTURE_REQUIRED = (
     function_anchor(
+        "review mutation coordinator constructor",
+        "bpr::application::review_mutation_coordinator::review_mutation_coordinator",
+    ),
+    function_anchor(
         "fixture review mutation provider boundary",
         "bpr::app::detail::github_public_path_fixture_components::review_mutation_provider",
     ),
@@ -141,7 +141,22 @@ FIXTURE_REQUIRED = (
     ),
 )
 
+PRODUCTION_REQUIRED = (
+    type_anchor(
+        "live review mutation provider",
+        "bpr::adapters::github::live_review_mutation_provider",
+    ),
+    function_anchor(
+        "live review mutation provider factory",
+        "bpr::adapters::github::make_live_review_mutation_provider",
+    ),
+)
+
 PRODUCTION_FORBIDDEN = (
+    function_anchor(
+        "review mutation coordinator constructor",
+        "bpr::application::review_mutation_coordinator::review_mutation_coordinator",
+    ),
     type_anchor(
         "GitHub public-path fixture components",
         "bpr::app::detail::github_public_path_fixture_components",
@@ -152,10 +167,14 @@ PRODUCTION_FORBIDDEN = (
     ),
 )
 
-ALWAYS_FORBIDDEN = (
+FIXTURE_FORBIDDEN = (
     type_anchor(
         "live review mutation provider",
         "bpr::adapters::github::live_review_mutation_provider",
+    ),
+    function_anchor(
+        "live review mutation provider factory",
+        "bpr::adapters::github::make_live_review_mutation_provider",
     ),
 )
 
@@ -551,11 +570,13 @@ def audit_symbols(symbols: Sequence[str], profile: str) -> list[str]:
         raise ValueError(f"unknown composition profile: {profile}")
 
     required = SHARED_REQUIRED
-    forbidden = ALWAYS_FORBIDDEN
+    forbidden: tuple[symbol_anchor, ...]
     if profile == DEVELOPMENT_FIXTURE_PROFILE:
         required += FIXTURE_REQUIRED
+        forbidden = FIXTURE_FORBIDDEN
     else:
-        forbidden += PRODUCTION_FORBIDDEN
+        required += PRODUCTION_REQUIRED
+        forbidden = PRODUCTION_FORBIDDEN
 
     failures = [
         f"required exact demangled anchor is absent: {anchor.name}"
@@ -591,10 +612,12 @@ def main(arguments: Sequence[str] | None = None) -> int:
     required_count = len(SHARED_REQUIRED) + (
         len(FIXTURE_REQUIRED)
         if parsed.profile == DEVELOPMENT_FIXTURE_PROFILE
-        else 0
+        else len(PRODUCTION_REQUIRED)
     )
-    forbidden_count = len(ALWAYS_FORBIDDEN) + (
-        len(PRODUCTION_FORBIDDEN) if parsed.profile == PRODUCTION_PROFILE else 0
+    forbidden_count = (
+        len(FIXTURE_FORBIDDEN)
+        if parsed.profile == DEVELOPMENT_FIXTURE_PROFILE
+        else len(PRODUCTION_FORBIDDEN)
     )
     print(
         "COMPOSED_HOSTS_OK: "

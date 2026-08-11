@@ -41,7 +41,12 @@ Theme customization/import is also composed. The shipped draft editor now
 reaches the core review policy and fixture-only mutation coordinator through a
 real Publish action; stale targets are refused, lost results are retried
 idempotently, server comments are re-read, and capability absence is explicit.
-No live mutation provider is composed. Ordinary review threads can now be
+A tests-disabled production application can additionally construct the live
+provider only for the compiled designated repository, pull request, base, and
+head tuple and the exact dynamically authenticated acting identity. That
+provider remains dormant: production constructs no mutation coordinator and
+Publish cannot reach it. Its opaque accepted-snapshot transport lease is
+revoked on identity replacement and shutdown. Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a
 separate Publish action is still the only shared path. The shipped workbench now

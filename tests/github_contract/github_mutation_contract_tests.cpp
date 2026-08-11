@@ -46,6 +46,8 @@ namespace {
 				.PullRequest  = core::pull_request_id{ 13U },
 				.ExpectedHead = commit(0x11U),
 			},
+			.Hostname                 = application::github_canonical_hostname{ "github.com" },
+			.ServerContract           = application::github_server_contract::github_com_2022_11_28,
 			.Repository               = { .Owner = "MikeMarcin", .Name = "BPR-Test" },
 			.Number                   = core::pull_request_number{ 1U },
 			.RepositoryDatabaseId     = 1'328'277'631U,
@@ -53,6 +55,9 @@ namespace {
 			.PullRequestDatabaseId    = 4'246'446'933U,
 			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
 			.BaseRepositoryDatabaseId = 1'328'277'631U,
+			.BaseOid                  = commit(0x10U),
+			.BaseRef                  = "main",
+			.HeadRef                  = "codex/disposable-live-review-20260810",
 			.Open                     = true,
 		};
 	}
@@ -113,7 +118,10 @@ namespace {
 		return std::string{ "{\"id\":4246446933,\"node_id\":\"PR_kwDOTyvof879G6NV\","
 							"\"number\":1,\"state\":\"open\",\"head\":{\"sha\":\"" }
 		+ std::string{ core::canonical_hex(aHead).view() }
-		+ "\"},\"base\":{\"repo\":{\"id\":1328277631,"
+		+ "\",\"ref\":\"codex/disposable-live-review-20260810\"},"
+		  "\"base\":{\"sha\":\""
+			+ std::string{ core::canonical_hex(target().BaseOid).view() }
+		+ "\",\"ref\":\"main\",\"repo\":{\"id\":1328277631,"
 		  "\"node_id\":\"R_kgDOTyvofw\",\"full_name\":\"MikeMarcin/BPR-Test\"}}}";
 	}
 

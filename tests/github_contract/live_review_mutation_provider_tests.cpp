@@ -1,4 +1,5 @@
 #include "live_review_mutation_provider.hpp"
+#include "review_mutation_provider_admission.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
 
@@ -8,6 +9,7 @@
 #include <cstdlib>
 #include <deque>
 #include <iostream>
+#include <memory>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -19,6 +21,17 @@ namespace {
 	using namespace bpr;
 	using namespace bpr::adapters::github;
 	using namespace bpr::adapters::github::detail;
+
+	class fake_review_mutation_lease final
+		: public application::review_mutation_transport_lease
+	{
+	};
+
+	[[nodiscard]] auto mutation_lease()
+		-> std::shared_ptr<fake_review_mutation_lease>
+	{
+		return std::make_shared<fake_review_mutation_lease>();
+	}
 
 	static_assert(std::is_base_of_v<
 				  application::review_mutation_port,
@@ -56,6 +69,8 @@ namespace {
 				.PullRequest  = core::pull_request_id{ 13U },
 				.ExpectedHead = commit(0x11U),
 			},
+			.Hostname                 = application::github_canonical_hostname{ "github.com" },
+			.ServerContract           = application::github_server_contract::github_com_2022_11_28,
 			.Repository               = { .Owner = "MikeMarcin", .Name = "BPR-Test" },
 			.Number                   = core::pull_request_number{ 1U },
 			.RepositoryDatabaseId     = 1'328'277'631U,
@@ -63,6 +78,9 @@ namespace {
 			.PullRequestDatabaseId    = 4'246'446'933U,
 			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
 			.BaseRepositoryDatabaseId = 1'328'277'631U,
+			.BaseOid                  = commit(0x10U),
+			.BaseRef                  = "main",
+			.HeadRef                  = "codex/disposable-live-review-20260810",
 			.Open                     = true,
 		};
 	}
@@ -153,7 +171,10 @@ namespace {
 									   "\"node_id\":\"PR_kwDOTyvof879G6NV\",\"number\":1,"
 									   "\"state\":\"open\",\"head\":{\"sha\":\"" }
 					+ std::string{ core::canonical_hex(aHead).view() }
-					+ "\"},\"base\":{\"repo\":{\"id\":"
+					+ "\",\"ref\":\"codex/disposable-live-review-20260810\"},"
+					  "\"base\":{\"sha\":\""
+					+ std::string{ core::canonical_hex(target().BaseOid).view() }
+					+ "\",\"ref\":\"main\",\"repo\":{\"id\":"
 					+ std::to_string(aRepository)
 					+ ",\"node_id\":\"R_kgDOTyvofw\","
 					  "\"full_name\":\"MikeMarcin/BPR-Test\"}}}",
@@ -217,11 +238,55 @@ namespace {
 		std::vector<github_mutation_wire_request>   Requests;
 	};
 
+	class fake_github_review_mutation_lease final
+		: public github_review_mutation_transport_lease
+	{
+	public:
+		explicit fake_github_review_mutation_lease(
+			github_mutation_wire_transport& aTransport)
+			: Profile{
+				.Profile               = configuration().CredentialContext.Authority.Profile,
+				.ProfileRevision       = configuration().CredentialContext.Authority.ProfileRevision,
+				.Host                  = configuration().CredentialContext.Authority.Host,
+				.Hostname              = configuration().CredentialContext.Authority.Hostname,
+				.ServerContract        = configuration().CredentialContext.Authority.ServerContract,
+				.Authentication        = application::github_authentication_transport::native_https,
+				.ProbeContractRevision = application::github_probe_contract_revision{ 1U },
+			}
+			, Context{ configuration().CredentialContext }
+			, Transport{ &aTransport }
+		{
+		}
+
+		[[nodiscard]] auto profile() const noexcept
+			-> const application::github_profile_authority& override
+		{
+			return Profile;
+		}
+
+		[[nodiscard]] auto credential_context() const noexcept
+			-> const application::github_credential_operation_context& override
+		{
+			return Context;
+		}
+
+		[[nodiscard]] auto mutation_transport() noexcept
+			-> github_mutation_wire_transport* override
+		{
+			return active() ? Transport : nullptr;
+		}
+
+	private:
+		application::github_profile_authority            Profile;
+		application::github_credential_operation_context Context;
+		github_mutation_wire_transport*                  Transport = nullptr;
+	};
+
 	void test_observe_then_immediate_revalidate_then_submit()
 	{
 		auto transport = fake_transport{ };
 		transport.exact_submit_course();
-		auto       session = review_mutation_session{ transport, configuration() };
+		auto       session = review_mutation_session{ transport, configuration(), mutation_lease() };
 		const auto receipt = session.submit(request());
 		expect(receipt.has_value() && receipt->ServerCommentId == "PRRC_fixture_44",
 			   "exact publication succeeds");
@@ -243,7 +308,7 @@ namespace {
 	{
 		for (auto variant = 0; variant < 29; ++variant) {
 			auto transport = fake_transport{ };
-			auto session   = review_mutation_session{ transport, configuration() };
+			auto session   = review_mutation_session{ transport, configuration(), mutation_lease() };
 			auto changed   = request();
 			switch (variant) {
 			case 0:
@@ -348,7 +413,7 @@ namespace {
 		auto drift = fake_transport{ };
 		drift.Completions.push_back(viewer_response());
 		drift.Completions.push_back(target_response(1'328'277'632U));
-		auto       driftSession = review_mutation_session{ drift, configuration() };
+		auto       driftSession = review_mutation_session{ drift, configuration(), mutation_lease() };
 		const auto refused      = driftSession.submit(request());
 		expect(!refused.has_value() && drift.Requests.size() == 2U,
 			   "repository drift stops before write");
@@ -357,7 +422,7 @@ namespace {
 		movedHead.Completions.push_back(viewer_response());
 		movedHead.Completions.push_back(target_response(
 			1'328'277'631U, commit(0x77U)));
-		auto       movedSession = review_mutation_session{ movedHead, configuration() };
+		auto       movedSession = review_mutation_session{ movedHead, configuration(), mutation_lease() };
 		const auto stale        = movedSession.submit(request());
 		expect(!stale.has_value()
 				   && stale.error() == application::review_mutation_failure::stale_head
@@ -372,7 +437,7 @@ namespace {
 						  "\"node_id\":\"MDQ6VXNlcjIy\"}",
 			},
 		});
-		auto       identitySession = review_mutation_session{ identityFailure, configuration() };
+		auto       identitySession = review_mutation_session{ identityFailure, configuration(), mutation_lease() };
 		const auto wrongActor      = identitySession.submit(request());
 		expect(!wrongActor.has_value() && identityFailure.Requests.size() == 1U,
 			   "acting identity drift stops before write");
@@ -382,7 +447,7 @@ namespace {
 	{
 		auto transport = fake_transport{ };
 		transport.exact_submit_course();
-		auto       session            = review_mutation_session{ transport, configuration() };
+		auto       session            = review_mutation_session{ transport, configuration(), mutation_lease() };
 		const auto first              = session.submit(request());
 		const auto requestsAfterFirst = transport.Requests.size();
 		const auto duplicate          = session.submit(request());
@@ -401,7 +466,7 @@ namespace {
 		uncertain.Completions.emplace_back(github_mutation_wire_error{
 			.Failure = application::review_mutation_failure::unavailable,
 		});
-		auto       uncertainSession = review_mutation_session{ uncertain, configuration() };
+		auto       uncertainSession = review_mutation_session{ uncertain, configuration(), mutation_lease() };
 		const auto lost             = uncertainSession.submit(request());
 		const auto count            = uncertain.Requests.size();
 		const auto retry            = uncertainSession.submit(request());
@@ -419,7 +484,7 @@ namespace {
 		refusedTransport.Completions.emplace_back(github_mutation_wire_error{
 			.Failure = application::review_mutation_failure::refused_by_server,
 		});
-		auto       refusedSession = review_mutation_session{ refusedTransport, configuration() };
+		auto       refusedSession = review_mutation_session{ refusedTransport, configuration(), mutation_lease() };
 		const auto refused        = refusedSession.observe_target();
 		expect(!refused.has_value()
 				   && refused.error() == application::review_mutation_failure::refused_by_server,
@@ -427,11 +492,53 @@ namespace {
 
 		auto cancelledTransport = fake_transport{ };
 		cancelledTransport.Completions.emplace_back(github_mutation_wire_cancelled{ });
-		auto       cancelledSession = review_mutation_session{ cancelledTransport, configuration() };
+		auto       cancelledSession = review_mutation_session{ cancelledTransport, configuration(), mutation_lease() };
 		const auto cancelled        = cancelledSession.observe_target();
 		expect(!cancelled.has_value()
 				   && cancelled.error() == application::review_mutation_failure::cancelled,
 			   "cancellation remains typed");
+	}
+
+	void test_retained_revoked_lease_refuses_every_provider_use()
+	{
+		auto transport = fake_transport{ };
+		auto lease     = mutation_lease();
+		auto session   = review_mutation_session{
+			transport,
+			configuration(),
+			lease,
+		};
+		lease->revoke();
+
+		const auto observed  = session.observe_target();
+		const auto submitted = session.submit(request());
+		expect(!observed.has_value()
+				   && observed.error()
+					   == application::review_mutation_failure::unavailable
+				   && !submitted.has_value()
+				   && submitted.error()
+					   == application::review_mutation_failure::unavailable
+				   && transport.Requests.empty(),
+			   "a retained revoked lease refuses observation and submission before transport use");
+	}
+
+	void test_retained_revoked_lease_refuses_provider_admission()
+	{
+		auto transport = fake_transport{ };
+		auto lease     = std::make_shared<fake_github_review_mutation_lease>(transport);
+		auto retained  = application::review_mutation_transport{ lease };
+		expect(admit_review_mutation_provider(retained, target(), identity()).has_value(),
+			   "the exact active lease is admitted by the factory gate");
+		lease->revoke();
+
+		auto admission = admit_review_mutation_provider(
+			retained,
+			target(),
+			identity());
+		expect(!admission.has_value()
+				   && admission.error()
+					   == application::review_mutation_failure::unavailable,
+			   "a retained revoked lease refuses the provider factory gate");
 	}
 } // namespace
 
@@ -442,6 +549,8 @@ auto main() -> int
 	test_revalidation_drift_and_identity_failure_stop_before_write();
 	test_idempotency_and_indeterminate_attempts_never_duplicate();
 	test_typed_transport_outcomes_propagate_without_diagnostics();
+	test_retained_revoked_lease_refuses_every_provider_use();
+	test_retained_revoked_lease_refuses_provider_admission();
 	std::cout << "live-review-mutation-provider-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -570,7 +570,11 @@ namespace bpr::adapters::github::detail {
 		const auto state            = text(object->value("state"));
 		const auto head             = object->value("head").toObject();
 		const auto headSha          = text(head.value("sha"));
-		const auto baseRepository   = object->value("base").toObject().value("repo").toObject();
+		const auto headRef          = text(head.value("ref"));
+		const auto base             = object->value("base").toObject();
+		const auto baseSha          = text(base.value("sha"));
+		const auto baseRef          = text(base.value("ref"));
+		const auto baseRepository   = base.value("repo").toObject();
 		const auto repositoryId     = integer(baseRepository.value("id"));
 		const auto repositoryNode   = text(baseRepository.value("node_id"));
 		const auto fullName         = text(baseRepository.value("full_name"));
@@ -578,11 +582,16 @@ namespace bpr::adapters::github::detail {
 		const auto parsedHead       = headSha.has_value()
 			? core::parse_git_commit_oid(*headSha)
 			: std::optional<core::git_commit_oid>{ };
+		const auto parsedBase       = baseSha.has_value()
+			? core::parse_git_commit_oid(*baseSha)
+			: std::optional<core::git_commit_oid>{ };
 		const auto expectedFullName = aExpected.Repository.Owner + "/" + aExpected.Repository.Name;
 		if (!id.has_value() || !node.has_value() || !number.has_value()
 			|| !state.has_value() || !repositoryId.has_value()
 			|| !repositoryNode.has_value() || !fullName.has_value()
-			|| !baseRepositoryId.has_value() || !parsedHead.has_value()) {
+			|| !baseRepositoryId.has_value() || !parsedHead.has_value()
+			|| !parsedBase.has_value() || !baseRef.has_value()
+			|| !headRef.has_value()) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
 		if (*id != aExpected.PullRequestDatabaseId
@@ -591,7 +600,9 @@ namespace bpr::adapters::github::detail {
 			|| *repositoryId != aExpected.RepositoryDatabaseId
 			|| *repositoryNode != aExpected.RepositoryNodeId
 			|| *fullName != expectedFullName
-			|| *baseRepositoryId != aExpected.BaseRepositoryDatabaseId) {
+			|| *baseRepositoryId != aExpected.BaseRepositoryDatabaseId
+			|| *parsedBase != aExpected.BaseOid || *baseRef != aExpected.BaseRef
+			|| *headRef != aExpected.HeadRef) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		auto observed                  = aExpected;
@@ -695,22 +706,29 @@ namespace bpr::adapters::github::detail {
 			&& application::valid(aConfiguration.ActingIdentity)
 			&& aConfiguration.CredentialContext.Authority.Host
 			== aConfiguration.Target.Semantic.Host
+			&& aConfiguration.CredentialContext.Authority.Hostname
+			== aConfiguration.Target.Hostname
+			&& aConfiguration.CredentialContext.Authority.ServerContract
+			== aConfiguration.Target.ServerContract
 			&& aConfiguration.CredentialContext.Authority.Account
 			== aConfiguration.ActingIdentity.Account;
 	}
 
 	review_mutation_session::review_mutation_session(
-		github_mutation_wire_transport&    aTransport,
-		live_review_mutation_configuration aConfiguration) noexcept
+		github_mutation_wire_transport&        aTransport,
+		live_review_mutation_configuration     aConfiguration,
+		application::review_mutation_transport aLease) noexcept
 		: Transport{ &aTransport }
 		, Configuration{ std::move(aConfiguration) }
+		, Lease{ std::move(aLease) }
 	{
 	}
 
 	auto review_mutation_session::perform(review_mutation_wire_request aRequest)
 		-> std::expected<review_mutation_wire_response, application::review_mutation_failure>
 	{
-		if (Transport == nullptr || !valid(Configuration)) {
+		if (Transport == nullptr || Lease == nullptr || !Lease->active()
+			|| !valid(Configuration)) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 		auto completion = Transport->perform_review_mutation(
@@ -815,6 +833,9 @@ namespace bpr::adapters::github::detail {
 	{
 		try {
 			std::scoped_lock lock{ Mutex };
+			if (Lease == nullptr || !Lease->active()) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
 			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
 				|| !application::valid(*aRequest.LiveBinding)
 				|| aRequest.LiveBinding->Target != Configuration.Target

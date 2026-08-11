@@ -856,6 +856,32 @@ namespace bpr::application {
 								  : std::nullopt;
 		}
 
+		void revoke_review_mutation_transport() noexcept
+		{
+			if (ReviewMutationTransport != nullptr) {
+				ReviewMutationTransport->revoke();
+				ReviewMutationTransport.reset();
+			}
+		}
+
+		void renew_review_mutation_transport() noexcept
+		{
+			revoke_review_mutation_transport();
+			if (AccountTransport == nullptr) {
+				return;
+			}
+			auto* const factory = dynamic_cast<review_mutation_transport_factory_port*>(
+				AccountTransport.get());
+			if (factory == nullptr) {
+				return;
+			}
+			ReviewMutationTransport = factory->acquire_review_mutation_transport();
+			if (ReviewMutationTransport != nullptr
+				&& !ReviewMutationTransport->active()) {
+				ReviewMutationTransport.reset();
+			}
+		}
+
 		[[nodiscard]] static auto invalidation_for(
 			const accepted_pull_request_handoff& aHandoff)
 			-> pull_request_authority_invalidation
@@ -929,6 +955,7 @@ namespace bpr::application {
 					&& !fetch->Context.ExpectedPullRequest.has_value()) {
 					invalidate_epoch_authority();
 					StagedSnapshot.reset();
+					revoke_review_mutation_transport();
 					AcceptedSnapshot.reset();
 				}
 			}
@@ -1078,6 +1105,7 @@ namespace bpr::application {
 			}
 			StagedSession.reset();
 			StagedSnapshot.reset();
+			revoke_review_mutation_transport();
 			AcceptedSnapshot.reset();
 			RateLimits = { };
 			AccountTransport.reset();
@@ -2799,6 +2827,7 @@ namespace bpr::application {
 					&& *output.AcceptedSnapshot == expected) {
 					AcceptedSnapshot = std::move(StagedSnapshot);
 					StagedSnapshot.reset();
+					renew_review_mutation_transport();
 					static_cast<void>(
 						merge(RateLimits, AcceptedSnapshot->RateLimits));
 					publish_transition(
@@ -2960,6 +2989,7 @@ namespace bpr::application {
 			}
 			static_cast<void>(CapabilityCache.clear());
 			DeferredSession.reset();
+			revoke_review_mutation_transport();
 			reset_session_scratch();
 			StagedSnapshot.reset();
 			AcceptedSession.reset();
@@ -3017,6 +3047,7 @@ namespace bpr::application {
 		std::optional<github_profile_authority>            AcceptedProfileAuthority;
 		std::optional<github_capability_cache_entry>       AcceptedCapabilityEvidence;
 		std::optional<github_pull_request_snapshot>        AcceptedSnapshot;
+		review_mutation_transport                          ReviewMutationTransport;
 		github_rate_limit_state                            RateLimits;
 		std::uint64_t                                      LogicalEpoch               = 0U;
 		bool                                               Closing                    = false;
@@ -3096,6 +3127,32 @@ namespace bpr::application {
 		-> const std::optional<github_pull_request_snapshot>&
 	{
 		return Implementation->AcceptedSnapshot;
+	}
+
+	auto github_application_host::accepted_review_mutation_transport() const noexcept
+		-> review_mutation_transport
+	{
+		const auto& host = *Implementation;
+		if (host.Closing || host.ReviewMutationTransport == nullptr
+			|| !host.ReviewMutationTransport->active()
+			|| !host.AcceptedSession.has_value()
+			|| !host.AcceptedProfileAuthority.has_value()
+			|| !host.AcceptedSnapshot.has_value()) {
+			return { };
+		}
+		const auto& session   = *host.AcceptedSession;
+		const auto& authority = *host.AcceptedProfileAuthority;
+		const auto& snapshot  = *host.AcceptedSnapshot;
+		if (session.Profile != authority.Profile
+			|| session.Host != authority.Host
+			|| snapshot.Profile != session.Profile
+			|| snapshot.Host != session.Host
+			|| snapshot.Account != session.Viewer.Account
+			|| snapshot.Viewer.Actor != session.Viewer.Node
+			|| snapshot.Viewer.Login != session.Viewer.Login) {
+			return { };
+		}
+		return host.ReviewMutationTransport;
 	}
 
 	auto github_application_host::rate_limits() const noexcept
