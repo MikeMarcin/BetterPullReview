@@ -15,12 +15,15 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QItemSelectionModel>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QPainter>
+#include <QPalette>
 #include <QPlainTextEdit>
 #include <QScrollArea>
 #include <QSizePolicy>
@@ -64,6 +67,59 @@ namespace bpr::qt {
 		static_assert(
 			static_cast<std::size_t>(application::file_receipt_action_id::excluded)
 			== 3U);
+
+		/// \brief Recolours one native icon silhouette for the live widget palette.
+		///
+		/// \details Some styles return fixed black arrow pixels even when a widget
+		/// has adopted a dark local palette. Reusing the style's normal pixmap as an
+		/// alpha mask preserves its platform-specific arrow geometry while making
+		/// the foreground follow the palette. Disabled mode is populated explicitly
+		/// so Qt does not synthesize another black or unreadably faded variant.
+		[[nodiscard]] auto palette_aware_icon(
+			QStyle&                      aStyle,
+			const QStyle::StandardPixmap aPixmap,
+			const QPalette&              aPalette,
+			QWidget* const               aWidget) -> QIcon
+		{
+			auto source = aStyle.standardIcon(aPixmap, nullptr, aWidget);
+			if (source.isNull()) {
+				return source;
+			}
+
+			auto           result       = QIcon{ };
+			constexpr auto logicalSizes = std::array{ 16, 20, 24, 32 };
+			constexpr auto scales       = std::array{ 1.0, 1.25, 2.0 };
+			constexpr auto modes        = std::array{
+				std::pair{ QIcon::Normal, QPalette::Active },
+				std::pair{ QIcon::Active, QPalette::Active },
+				std::pair{ QIcon::Selected, QPalette::Active },
+				std::pair{ QIcon::Disabled, QPalette::Disabled },
+			};
+			for (const auto& [mode, group] : modes) {
+				for (const auto logicalSize : logicalSizes) {
+					for (const auto scale : scales) {
+						auto pixels = source.pixmap(
+							QSize{ logicalSize, logicalSize },
+							scale,
+							QIcon::Normal,
+							QIcon::Off);
+						if (pixels.isNull()) {
+							continue;
+						}
+						{
+							auto painter = QPainter{ &pixels };
+							painter.setCompositionMode(
+								QPainter::CompositionMode_SourceIn);
+							painter.fillRect(
+								pixels.rect(),
+								aPalette.color(group, QPalette::ButtonText));
+						}
+						result.addPixmap(pixels, mode, QIcon::Off);
+					}
+				}
+			}
+			return result.isNull() ? source : result;
+		}
 
 		[[nodiscard]] auto reason_text(const core::workbench_reason_code aReason)
 			-> QString
@@ -2448,14 +2504,14 @@ namespace bpr::qt {
 		}
 		Drawers[0].Toggle->setIcon(nativeStyle->standardIcon(
 			QStyle::SP_DirOpenIcon, nullptr, this));
-		Navigation[0].Action->setIcon(nativeStyle->standardIcon(
-			QStyle::SP_ArrowUp, nullptr, this));
-		Navigation[1].Action->setIcon(nativeStyle->standardIcon(
-			QStyle::SP_ArrowDown, nullptr, this));
-		Navigation[2].Action->setIcon(nativeStyle->standardIcon(
-			QStyle::SP_ArrowBack, nullptr, this));
-		Navigation[3].Action->setIcon(nativeStyle->standardIcon(
-			QStyle::SP_ArrowForward, nullptr, this));
+		Navigation[0].Action->setIcon(palette_aware_icon(
+			*nativeStyle, QStyle::SP_ArrowUp, palette(), this));
+		Navigation[1].Action->setIcon(palette_aware_icon(
+			*nativeStyle, QStyle::SP_ArrowDown, palette(), this));
+		Navigation[2].Action->setIcon(palette_aware_icon(
+			*nativeStyle, QStyle::SP_ArrowBack, palette(), this));
+		Navigation[3].Action->setIcon(palette_aware_icon(
+			*nativeStyle, QStyle::SP_ArrowForward, palette(), this));
 		ReviewDetailsAction->setIcon(nativeStyle->standardIcon(
 			QStyle::SP_FileDialogInfoView, nullptr, this));
 		ReviewControlsButton->setIcon(nativeStyle->standardIcon(

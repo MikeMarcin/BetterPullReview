@@ -141,6 +141,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		navigation_row_exact_order
 		navigation_actions_icon_only
 		navigation_actions_have_native_icons
+		navigation_icons_palette_aware
 		navigation_actions_accessible
 		navigation_accessible_names_unique
 	)
@@ -148,6 +149,57 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		if(NOT interaction_value)
 			message(FATAL_ERROR
 				"UIforETW ${profile} compact navigation omitted ${interaction}"
+			)
+		endif()
+	endforeach()
+
+	if(profile MATCHES "^high-contrast-")
+		set(normal_icon_contrast_floor 700)
+	else()
+		set(normal_icon_contrast_floor 450)
+	endif()
+	foreach(navigation_icon IN ITEMS
+		previous_file
+		next_file
+		previous_change
+		next_change
+	)
+		foreach(field IN ITEMS background normal_foreground disabled_foreground)
+			string(JSON color GET
+				"${capture_facts}" navigation_icon_contrast
+				"${navigation_icon}" "${field}")
+			string(LENGTH "${color}" color_length)
+			if(NOT color_length EQUAL 9)
+				message(FATAL_ERROR
+					"UIforETW ${profile} ${navigation_icon} ${field} is not an exact ARGB colour"
+				)
+			endif()
+		endforeach()
+		string(JSON normal_pixels GET
+			"${capture_facts}" navigation_icon_contrast
+			"${navigation_icon}" normal_foreground_pixels)
+		string(JSON disabled_pixels GET
+			"${capture_facts}" navigation_icon_contrast
+			"${navigation_icon}" disabled_foreground_pixels)
+		string(JSON normal_contrast GET
+			"${capture_facts}" navigation_icon_contrast
+			"${navigation_icon}" normal_contrast_hundredths)
+		string(JSON disabled_contrast GET
+			"${capture_facts}" navigation_icon_contrast
+			"${navigation_icon}" disabled_contrast_hundredths)
+		string(JSON states_distinct GET
+			"${capture_facts}" navigation_icon_contrast
+			"${navigation_icon}" states_distinct)
+		if(normal_pixels LESS 1
+			OR disabled_pixels LESS 1
+			OR normal_contrast LESS normal_icon_contrast_floor
+			OR disabled_contrast LESS 300
+			OR NOT states_distinct)
+			message(FATAL_ERROR
+				"UIforETW ${profile} ${navigation_icon} is unreadable: "
+				"pixels=${normal_pixels}/${disabled_pixels} "
+				"contrast=${normal_contrast}/${disabled_contrast} "
+				"distinct=${states_distinct}"
 			)
 		endif()
 	endforeach()

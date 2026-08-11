@@ -15,6 +15,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QIcon>
+#include <QImage>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -584,17 +585,39 @@ namespace {
 									   window.accept_action(),
 									   window.exclude_action() },
 			   "the popup reuses the four existing receipt actions without duplicating policy");
-
-		for (auto* const action : required) {
-			action->setIcon(QIcon{ });
+		const auto secondaryIcons = std::array{
+			files->icon().pixmap(QSize{ 24, 24 }).toImage(),
+			conversations->icon().pixmap(QSize{ 24, 24 }).toImage(),
+			window.review_details_toggle_action()
+				->icon()
+				.pixmap(QSize{ 24, 24 })
+				.toImage(),
+			reviewButton->icon().pixmap(QSize{ 24, 24 }).toImage(),
+		};
+		for (std::size_t first = 0U; first < secondaryIcons.size(); ++first) {
+			for (std::size_t second = first + 1U;
+				 second < secondaryIcons.size(); ++second) {
+				expect(!secondaryIcons[first].isNull()
+						   && secondaryIcons[first] != secondaryIcons[second],
+					   "drawer, details, and private-progress symbols remain visually distinct");
+			}
 		}
-		reviewButton->setIcon(QIcon{ });
-		auto styleChange = QEvent{ QEvent::StyleChange };
-		QApplication::sendEvent(&window, &styleChange);
-		expect(std::ranges::all_of(required, [](const QAction* const aAction) {
-				   return !aAction->icon().isNull();
-			   }) && !reviewButton->icon().isNull(),
-			   "a native style change refreshes every derived QStyle icon");
+
+		for (const auto type : { QEvent::PaletteChange,
+								 QEvent::FontChange,
+								 QEvent::StyleChange,
+								 QEvent::ThemeChange }) {
+			for (auto* const action : required) {
+				action->setIcon(QIcon{ });
+			}
+			reviewButton->setIcon(QIcon{ });
+			auto appearanceChange = QEvent{ type };
+			QApplication::sendEvent(&window, &appearanceChange);
+			expect(std::ranges::all_of(required, [](const QAction* const aAction) {
+					   return !aAction->icon().isNull();
+				   }) && !reviewButton->icon().isNull(),
+				   "every native appearance change refreshes every derived toolbar icon");
+		}
 
 		window.resize(window.minimumWidth(), 720);
 		QApplication::processEvents();

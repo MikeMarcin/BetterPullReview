@@ -92,6 +92,14 @@ presenters are icon-only, but each retains a stable visible tooltip, accessible
 name and description, strong-focus stop, and keyboard shortcut. No text toolbar
 appears at a narrower width.
 
+The four navigation arrows use the native style's silhouettes with foreground
+pixels derived from the row's live active and disabled `ButtonText` roles.
+Palette, font, style, and theme changes rebuild those modes. This presentation
+refresh changes neither command identity nor projected enablement: disabled
+arrows remain readable and visually distinct, while the Files, Conversations,
+Review details, and private-progress symbols retain their separate native
+icons.
+
 `Next actionable` remains available as a secondary command and uses the local actionability projection.
 
 RFC-BPR-0005 implements this shell. The four primary actions are `QAction`s

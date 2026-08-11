@@ -65,6 +65,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -6407,6 +6408,82 @@ namespace bpr::app {
 			return count;
 		}
 
+		/// \brief Records the actual normal and disabled pixels of one toolbar icon.
+		struct navigation_icon_contrast_observation
+		{
+			QColor       Background;
+			QColor       NormalForeground;
+			QColor       DisabledForeground;
+			std::size_t  NormalForegroundPixels     = 0U;
+			std::size_t  DisabledForegroundPixels   = 0U;
+			std::int64_t NormalContrastHundredths   = 0;
+			std::int64_t DisabledContrastHundredths = 0;
+			bool         StatesDistinct             = false;
+		};
+
+		[[nodiscard]] auto exact_icon_foreground_pixels(
+			const QIcon&      aIcon,
+			const QSize&      aSize,
+			const qreal       aScale,
+			const QIcon::Mode aMode,
+			const QColor&     aExpected) -> std::size_t
+		{
+			const auto image = aIcon.pixmap(aSize, aScale, aMode, QIcon::Off)
+								   .toImage()
+								   .convertToFormat(QImage::Format_ARGB32);
+			if (image.isNull() || !aExpected.isValid()) {
+				return 0U;
+			}
+			constexpr auto rgbComponentMask = QRgb{ 0x00FF'FFFFU };
+			const auto     expected         = aExpected.rgb() & rgbComponentMask;
+			auto           count            = std::size_t{ 0U };
+			for (auto y = 0; y < image.height(); ++y) {
+				for (auto x = 0; x < image.width(); ++x) {
+					const auto pixel = image.pixel(x, y);
+					if (qAlpha(pixel) >= 224
+						&& (pixel & rgbComponentMask) == expected) {
+						++count;
+					}
+				}
+			}
+			return count;
+		}
+
+		[[nodiscard]] auto observe_navigation_icon_contrast(
+			const QToolButton& aButton)
+			-> navigation_icon_contrast_observation
+		{
+			const auto background = aButton.palette().color(
+				QPalette::Active, QPalette::Button);
+			const auto normal = aButton.palette().color(
+				QPalette::Active, QPalette::ButtonText);
+			const auto disabled = aButton.palette().color(
+				QPalette::Disabled, QPalette::ButtonText);
+			const auto size          = aButton.iconSize().expandedTo(QSize{ 16, 16 });
+			const auto scale         = aButton.devicePixelRatioF();
+			const auto normalImage   = aButton.icon()
+										   .pixmap(size, scale, QIcon::Normal, QIcon::Off)
+										   .toImage();
+			const auto disabledImage = aButton.icon()
+										   .pixmap(size, scale, QIcon::Disabled, QIcon::Off)
+										   .toImage();
+			return {
+				.Background             = background,
+				.NormalForeground       = normal,
+				.DisabledForeground     = disabled,
+				.NormalForegroundPixels = exact_icon_foreground_pixels(
+					aButton.icon(), size, scale, QIcon::Normal, normal),
+				.DisabledForegroundPixels = exact_icon_foreground_pixels(
+					aButton.icon(), size, scale, QIcon::Disabled, disabled),
+				.NormalContrastHundredths   = static_cast<std::int64_t>(std::lround(
+					100.0 * qt::contrast_ratio(qt::to_appearance_color(background), qt::to_appearance_color(normal)))),
+				.DisabledContrastHundredths = static_cast<std::int64_t>(std::lround(
+					100.0 * qt::contrast_ratio(qt::to_appearance_color(background), qt::to_appearance_color(disabled)))),
+				.StatesDistinct             = !normalImage.isNull()
+					&& !disabledImage.isNull() && normalImage != disabledImage,
+			};
+		}
+
 		[[nodiscard]] auto exact_role_selection_present(
 			const QPlainTextEdit&              aPane,
 			const core::decoded_text_document& aDocument,
@@ -7566,6 +7643,28 @@ namespace bpr::app {
 				return false;
 			}
 		}
+		const auto navigationIconObservations = std::array{
+			observe_navigation_icon_contrast(*requiredPresenters[1]),
+			observe_navigation_icon_contrast(*requiredPresenters[2]),
+			observe_navigation_icon_contrast(*requiredPresenters[3]),
+			observe_navigation_icon_contrast(*requiredPresenters[4]),
+		};
+		const auto normalIconContrastFloor
+			= aMode == core::appearance_mode::high_contrast_light
+				|| aMode == core::appearance_mode::high_contrast_dark
+			? std::int64_t{ 700 }
+			: std::int64_t{ 450 };
+		const auto navigationIconsPaletteAware = std::ranges::all_of(
+			navigationIconObservations,
+			[normalIconContrastFloor](
+				const navigation_icon_contrast_observation& aObservation) {
+				return aObservation.NormalForegroundPixels > 0U
+					&& aObservation.DisabledForegroundPixels > 0U
+					&& aObservation.NormalContrastHundredths
+					>= normalIconContrastFloor
+					&& aObservation.DisabledContrastHundredths >= 300
+					&& aObservation.StatesDistinct;
+			});
 		auto* const spacer = toolbar->findChild<QWidget*>(
 			QStringLiteral("workbenchNavigationSpacer"), Qt::FindDirectChildrenOnly);
 		const auto toolbarActions       = toolbar->actions();
@@ -7716,6 +7815,26 @@ namespace bpr::app {
 			std::distance(result->Alignment.Groups.begin(), firstGroup));
 		const auto secondChangeIndex = static_cast<qint64>(
 			std::distance(result->Alignment.Groups.begin(), secondGroup));
+		const auto iconContrastJson = [](
+										  const navigation_icon_contrast_observation& aValue) {
+			return QJsonObject{
+				{ QStringLiteral("background"),
+				  aValue.Background.name(QColor::HexArgb) },
+				{ QStringLiteral("normal_foreground"),
+				  aValue.NormalForeground.name(QColor::HexArgb) },
+				{ QStringLiteral("disabled_foreground"),
+				  aValue.DisabledForeground.name(QColor::HexArgb) },
+				{ QStringLiteral("normal_foreground_pixels"),
+				  static_cast<qint64>(aValue.NormalForegroundPixels) },
+				{ QStringLiteral("disabled_foreground_pixels"),
+				  static_cast<qint64>(aValue.DisabledForegroundPixels) },
+				{ QStringLiteral("normal_contrast_hundredths"),
+				  static_cast<qint64>(aValue.NormalContrastHundredths) },
+				{ QStringLiteral("disabled_contrast_hundredths"),
+				  static_cast<qint64>(aValue.DisabledContrastHundredths) },
+				{ QStringLiteral("states_distinct"), aValue.StatesDistinct },
+			};
+		};
 		auto facts = QJsonObject{
 			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v3") },
 			{ QStringLiteral("appearance"), appearance_mode_name(aMode) },
@@ -7747,6 +7866,18 @@ namespace bpr::app {
 			{ QStringLiteral("navigation_row_exact_order"), exactRowOrder },
 			{ QStringLiteral("navigation_actions_icon_only"), iconOnly },
 			{ QStringLiteral("navigation_actions_have_native_icons"), nativeIcons },
+			{ QStringLiteral("navigation_icons_palette_aware"), navigationIconsPaletteAware },
+			{ QStringLiteral("navigation_icon_contrast"),
+			  QJsonObject{
+				  { QStringLiteral("previous_file"),
+					iconContrastJson(navigationIconObservations[0]) },
+				  { QStringLiteral("next_file"),
+					iconContrastJson(navigationIconObservations[1]) },
+				  { QStringLiteral("previous_change"),
+					iconContrastJson(navigationIconObservations[2]) },
+				  { QStringLiteral("next_change"),
+					iconContrastJson(navigationIconObservations[3]) },
+			  } },
 			{ QStringLiteral("navigation_actions_accessible"), accessible },
 			{ QStringLiteral("navigation_accessible_names_unique"), uniqueNames },
 			{ QStringLiteral("files_drawer_visible"), false },

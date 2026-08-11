@@ -13,11 +13,23 @@ font. Derived title and status fonts, standard icons, delegate geometry, and
 layout are refreshed when Qt reports application palette, font, style, or
 theme changes.
 
-The focused-workbench navigation row uses only standard `QStyle` icons. Files,
-Previous/Next file, Previous/Next change, Review details, private review
-progress, and Conversations all reacquire their icons from the live style on a
-style or theme change. No QSS or custom image asset fixes those icons to one
-palette or platform.
+The focused-workbench navigation row derives every silhouette from standard
+`QStyle` icons. Files, Review details, private review progress, and
+Conversations retain the style's native pixels. The four Previous/Next file
+and change actions retain the native arrow masks but recolor their normal and
+disabled foreground pixels from the live `ButtonText` palette roles. This
+prevents a style's fixed black arrow pixels from disappearing against a dark
+widget-local palette while preserving platform-specific arrow geometry. All
+icons are reacquired after palette, font, style, or theme changes. No QSS or
+custom image asset fixes them to one palette or platform.
+
+Rendered tests inspect the actual normal and disabled arrow pixmaps in all four
+built-in profiles. They require exact palette-foreground pixels, the profile's
+ordinary or high-contrast text floor for normal arrows, a 3.00:1 non-text floor
+for disabled arrows, and distinct normal/disabled rasters. The real UIforETW
+capture records the same pixel counts and contrast ratios beside each
+full-window image, so a black-on-dark regression cannot pass merely because an
+icon object is non-null.
 
 The conversation delegate uses the live style option for colors and fonts,
 lets the native style paint selection and focus, and wraps remote literal

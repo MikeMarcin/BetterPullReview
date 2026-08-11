@@ -5,10 +5,14 @@
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/workbench_window.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QColor>
 #include <QFont>
+#include <QIcon>
+#include <QImage>
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QString>
@@ -60,9 +64,10 @@ namespace {
 
 	// WCAG contrast floors. AA is the ordinary-profile obligation and AAA the
 	// obligation a high-contrast profile exists to meet.
-	constexpr auto readable_contrast     = 4.5;
-	constexpr auto high_contrast_minimum = 7.0;
-	constexpr auto maximum_contrast      = 21.0;
+	constexpr auto readable_contrast      = 4.5;
+	constexpr auto high_contrast_minimum  = 7.0;
+	constexpr auto maximum_contrast       = 21.0;
+	constexpr auto disabled_icon_contrast = 3.0;
 
 	constexpr auto all_variants = std::array{
 		core::appearance_variant::light,
@@ -85,6 +90,34 @@ namespace {
 			return core::appearance_mode::high_contrast_dark;
 		}
 		return core::appearance_mode::light;
+	}
+
+	/// \brief Counts the strongly opaque pixels carrying one exact palette tint.
+	[[nodiscard]] auto palette_foreground_pixels(
+		const QIcon&      aIcon,
+		const QIcon::Mode aMode,
+		const QColor&     aExpected) -> std::size_t
+	{
+		const auto image = aIcon.pixmap(
+									QSize{ 24, 24 }, 2.0, aMode, QIcon::Off)
+							   .toImage()
+							   .convertToFormat(QImage::Format_ARGB32);
+		if (image.isNull() || !aExpected.isValid()) {
+			return 0U;
+		}
+		constexpr auto rgbComponentMask = QRgb{ 0x00FF'FFFFU };
+		const auto     expected         = aExpected.rgb() & rgbComponentMask;
+		auto           count            = std::size_t{ 0U };
+		for (auto y = 0; y < image.height(); ++y) {
+			for (auto x = 0; x < image.width(); ++x) {
+				const auto pixel = image.pixel(x, y);
+				if (qAlpha(pixel) >= 224
+					&& (pixel & rgbComponentMask) == expected) {
+					++count;
+				}
+			}
+		}
+		return count;
 	}
 
 	/// \brief Holds the readability facts one profile palette reports.
@@ -523,6 +556,80 @@ namespace {
 		expect(
 			profile.statistics().AppliedSurfaces == 1U,
 			"exactly one surface adopted the derived palette");
+	}
+
+	auto test_navigation_icons_follow_every_profile_palette() -> void
+	{
+		auto profile = qt::appearance_profile{ };
+		auto window  = qt::workbench_window{ };
+
+		for (const auto variant : all_variants) {
+			static_cast<void>(profile.select_mode(explicit_mode_for(variant)));
+			profile.apply_to(window);
+			process_events();
+
+			const auto background = window.palette().color(
+				QPalette::Active, QPalette::Button);
+			const auto normal = window.palette().color(
+				QPalette::Active, QPalette::ButtonText);
+			const auto disabled = window.palette().color(
+				QPalette::Disabled, QPalette::ButtonText);
+			const auto normalMinimum
+				= variant == core::appearance_variant::high_contrast_light
+					|| variant == core::appearance_variant::high_contrast_dark
+				? high_contrast_minimum
+				: readable_contrast;
+			expect(
+				qt::contrast_ratio(
+					qt::to_appearance_color(background),
+					qt::to_appearance_color(normal))
+					>= normalMinimum,
+				"normal navigation foreground meets the profile's text contrast floor");
+			expect(
+				qt::contrast_ratio(
+					qt::to_appearance_color(background),
+					qt::to_appearance_color(disabled))
+					>= disabled_icon_contrast,
+				"disabled navigation foreground remains a readable non-text indicator");
+			expect(
+				normal != disabled,
+				"normal and disabled navigation foregrounds remain distinguishable");
+
+			const auto actions = std::array{
+				window.previous_file_action(),
+				window.next_file_action(),
+				window.previous_change_action(),
+				window.next_change_action(),
+			};
+			auto normalImages = std::array<QImage, 4U>{ };
+			for (std::size_t index = 0U; index < actions.size(); ++index) {
+				const auto& icon = actions[index]->icon();
+				expect(
+					palette_foreground_pixels(icon, QIcon::Normal, normal) > 0U,
+					"each normal navigation icon paints exact live-palette foreground pixels");
+				expect(
+					palette_foreground_pixels(icon, QIcon::Disabled, disabled) > 0U,
+					"each disabled navigation icon paints exact live-palette foreground pixels");
+				const auto normalImage   = icon.pixmap(
+												   QSize{ 24, 24 }, 2.0, QIcon::Normal, QIcon::Off)
+											   .toImage();
+				const auto disabledImage = icon.pixmap(
+												   QSize{ 24, 24 }, 2.0, QIcon::Disabled, QIcon::Off)
+											   .toImage();
+				expect(
+					!normalImage.isNull() && normalImage != disabledImage,
+					"each navigation icon carries visibly distinct normal and disabled modes");
+				normalImages[index] = normalImage;
+			}
+			for (std::size_t first = 0U; first < normalImages.size(); ++first) {
+				for (std::size_t second = first + 1U;
+					 second < normalImages.size(); ++second) {
+					expect(
+						normalImages[first] != normalImages[second],
+						"previous and next file/change silhouettes remain visually distinct");
+				}
+			}
+		}
 	}
 
 	auto test_immediate_preview_updates_without_restart() -> void
@@ -1866,6 +1973,7 @@ auto main(int argc, char** argv) -> int
 	test_derived_text_stays_readable_on_every_fill();
 	test_the_core_decides_which_variant_applies();
 	test_applies_semantic_colors_without_forcing_style_or_stylesheet();
+	test_navigation_icons_follow_every_profile_palette();
 	test_immediate_preview_updates_without_restart();
 	test_customisation_round_trips_through_the_durable_record();
 	test_total_palette_preview_cancel_and_adoption_are_exact();
