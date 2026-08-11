@@ -85,7 +85,9 @@ negative. Immutable v003 binds implementation commit `2124cbf`, ordered-source
 digest `sha256:45f5c6da4c6c6c23c675565df6b94113ec07a54c55e28eef4bdbc403127f6616`,
 and batch `bpr:/attended-review/betterpullreview/99b3c1cc6701ce6ab64d7ecb`.
 
-No v001 or v002 decision is carried forward. The implementation has no
-remaining automated work, so this card is parked in Backlog awaiting the exact
-v003 exported verdict; only the integrator may validate that verdict and move
-the card onward.
+No v001 or v002 decision is carried forward. The exact v003 verdict was
+validated and recorded at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v003/` as a rejection:
+the dark-mode Previous/Next icons are unreadable. BPR-0258 owns that narrow
+repair and the required new attended batch. This card remains Backlog; the
+rejected v003 subject is evidence, not acceptance.
