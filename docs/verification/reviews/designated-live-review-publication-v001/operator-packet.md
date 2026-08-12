@@ -30,11 +30,11 @@ Run only these exact immutable artifacts:
 
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
-| `build/bpr0256-release/designated-live/d8ad05b9e356b0df1177c9b276feeea2a80978da20134682ce2ce02fa8ab2791/capsule/BetterPullReview.app/Contents/MacOS/better_pull_review` | `sha256:cff273ed420ea26a7a6ba6d0ed9a2cce1329c3b264436d5d21459e7d7a077b88` | 7725008 |
-| `build/bpr0256-release/designated-live/d8ad05b9e356b0df1177c9b276feeea2a80978da20134682ce2ce02fa8ab2791/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor` | `sha256:9fd9bf46190bbed26fe40bf91d190f590fdaa82a36337954005456fa9704d01d` | 154720 |
-| `build/bpr0256-release/designated-live/d8ad05b9e356b0df1177c9b276feeea2a80978da20134682ce2ce02fa8ab2791/capsule.inventory` | `sha256:26a91b8fffdc82e96ee38dd5a43bd119bc9b38c45f4cef2a60c1ea099e771052` | 13111 |
-| `approval-subject.txt` | `sha256:fab80d48be980823986080fbb2d554468cf896d94bc613ec542f762ef0b0f45e` | 1058 |
-| `source-manifest.txt` | `sha256:d8ad05b9e356b0df1177c9b276feeea2a80978da20134682ce2ce02fa8ab2791` | 3147 |
+| `build/bpr0256-release/designated-live/01b2c4bdd232acf86d5f6ef2cdb1f0b61fbc9b37a4069ad29c5c255dc15f11cd/capsule/BetterPullReview.app/Contents/MacOS/better_pull_review` | `sha256:a5027a312188fab6668d71469eb256946d1fc4608676133a5f2cdca7bbef373c` | 7724448 |
+| `build/bpr0256-release/designated-live/01b2c4bdd232acf86d5f6ef2cdb1f0b61fbc9b37a4069ad29c5c255dc15f11cd/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor` | `sha256:e346b799a2f255dc7179075dd327800336a89084faa17d44a78c7eaff7b7cfbf` | 154720 |
+| `build/bpr0256-release/designated-live/01b2c4bdd232acf86d5f6ef2cdb1f0b61fbc9b37a4069ad29c5c255dc15f11cd/capsule.inventory` | `sha256:f3ff8c296ca94e7025bb5ebd8d7693d514b491637e71ec4951574a12d78f93d9` | 13111 |
+| `approval-subject.txt` | `sha256:3703270dfb05b37df79f208b1875d510793aa16d9a1154ed192b81c6dbf873bc` | 1058 |
+| `source-manifest.txt` | `sha256:01b2c4bdd232acf86d5f6ef2cdb1f0b61fbc9b37a4069ad29c5c255dc15f11cd` | 3147 |
 
 The source-manifest digest is the exact
 `BPR_ATTENDED_REVIEW_SOURCE_SHA256` compiled into the executable. Its producer
@@ -68,7 +68,7 @@ If approved, create a fresh private directory and materialize exactly the
 subject bytes plus this one final line:
 
 ```text
-subject_sha256=fab80d48be980823986080fbb2d554468cf896d94bc613ec542f762ef0b0f45e
+subject_sha256=3703270dfb05b37df79f208b1875d510793aa16d9a1154ed192b81c6dbf873bc
 ```
 
 The resulting approval must end in one newline, be a new regular file owned by
@@ -90,8 +90,8 @@ cmake -S . -B build/bpr0256-live-manifest -G Ninja \
   -DBPR_BUILD_QT=ON \
   -DBPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON \
   -DBPR_DESIGNATED_LIVE_MUTATION_APPROVAL=/absolute/resolved/private/approval.txt \
-  -DBPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR=/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0256-release/designated-live/d8ad05b9e356b0df1177c9b276feeea2a80978da20134682ce2ce02fa8ab2791/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor \
-  -DBPR_DESIGNATED_LIVE_MUTATION_INVENTORY=/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0256-release/designated-live/d8ad05b9e356b0df1177c9b276feeea2a80978da20134682ce2ce02fa8ab2791/capsule.inventory \
+  -DBPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR=/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0256-release/designated-live/01b2c4bdd232acf86d5f6ef2cdb1f0b61fbc9b37a4069ad29c5c255dc15f11cd/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor \
+  -DBPR_DESIGNATED_LIVE_MUTATION_INVENTORY=/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0256-release/designated-live/01b2c4bdd232acf86d5f6ef2cdb1f0b61fbc9b37a4069ad29c5c255dc15f11cd/capsule.inventory \
   -DBPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR=/Users/jaeger/Documents/GitHub/BetterPullReview/build/bpr0256-release \
   -DCPM_SOURCE_CACHE=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache
 ctest --test-dir build/bpr0256-live-manifest --show-only=json-v1
@@ -156,15 +156,15 @@ is prepared for the bound macOS build only and makes no cross-platform claim.
 Before any run, return one of these exact decisions:
 
 > I approve the exact one-use approval subject
-> sha256:fab80d48be980823986080fbb2d554468cf896d94bc613ec542f762ef0b0f45e
+> sha256:3703270dfb05b37df79f208b1875d510793aa16d9a1154ed192b81c6dbf873bc
 > for BetterPullReview binary
-> sha256:cff273ed420ea26a7a6ba6d0ed9a2cce1329c3b264436d5d21459e7d7a077b88
+> sha256:a5027a312188fab6668d71469eb256946d1fc4608676133a5f2cdca7bbef373c
 > and signed-capsule supervisor
-> sha256:9fd9bf46190bbed26fe40bf91d190f590fdaa82a36337954005456fa9704d01d
+> sha256:e346b799a2f255dc7179075dd327800336a89084faa17d44a78c7eaff7b7cfbf
 > and capsule inventory
-> sha256:26a91b8fffdc82e96ee38dd5a43bd119bc9b38c45f4cef2a60c1ea099e771052
+> sha256:f3ff8c296ca94e7025bb5ebd8d7693d514b491637e71ec4951574a12d78f93d9
 > and source manifest
-> sha256:d8ad05b9e356b0df1177c9b276feeea2a80978da20134682ce2ce02fa8ab2791
+> sha256:01b2c4bdd232acf86d5f6ef2cdb1f0b61fbc9b37a4069ad29c5c255dc15f11cd
 > to publish one source-line review comment to MikeMarcin/BPR-Test#1 at head
 > 17990ba0c2fb50338141f35c0717f0f99639c7ba.
 

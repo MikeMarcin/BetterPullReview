@@ -153,3 +153,42 @@ navigation branch into `main`. That merge changes bound source
 manifest, approval subject, capsule identity, and operator packet are now
 **intentionally stale and must not be used**. Regeneration and full replay are
 the first required BPR-0256 actions in a future session.
+
+## Unattended refresh — 2026-08-11
+
+The current tests-disabled Release capsule rebuilt and verified on macOS with
+source digest
+`01b2c4bdd232acf86d5f6ef2cdb1f0b61fbc9b37a4069ad29c5c255dc15f11cd`.
+The refreshed application, supervisor, and capsule inventory are respectively
+bound as
+`sha256:a5027a312188fab6668d71469eb256946d1fc4608676133a5f2cdca7bbef373c`,
+`sha256:e346b799a2f255dc7179075dd327800336a89084faa17d44a78c7eaff7b7cfbf`,
+and
+`sha256:f3ff8c296ca94e7025bb5ebd8d7693d514b491637e71ec4951574a12d78f93d9`.
+The exact refreshed approval subject is
+`sha256:3703270dfb05b37df79f208b1875d510793aa16d9a1154ed192b81c6dbf873bc`;
+the packet itself is
+`sha256:10d04228de59c536df5398be22b755131f51cf1ffa467146c2ee807f2ba6ed4e`
+at 9,569 bytes. No approval file was materialized.
+
+The eight-test focused matrix passed 8/8 after repairing three stale
+composition-integrity digests and changing one vault-specific hostile fixture
+from globally reserved `CreateProcessW` to independently forbidden
+`ShellExecuteW`. The complete architecture pair also passed, as did the direct
+three-test precedence check for vault fallback and exact Windows process
+ownership. The code-simplification pass found no safe further change.
+
+The opt-in graph was configured only for static inspection with a private,
+deliberately invalid placeholder that was removed immediately afterward. CTest
+reported exactly one `live_review_mutation_designated_target`, exactly one
+`bpr_live_mutation` label, a 1,800-second timeout, the refreshed supervisor and
+inventory, only `--attended-launch`, `--inventory`, and `--approval` arguments,
+and explicit credential-environment removal. The test was not executed; no
+network request, credential access, browser action, or mutation occurred.
+
+The repository-wide format gate then identified pre-existing formatting drift
+in the preserved BPR-0240 Windows process slice and merged compact-navigation
+source. That drift is remaining unattended work and blocks this card's final
+format/tidy evidence until repaired. The refreshed packet remains pending an
+exact operator decision and must be regenerated again if any bound source byte
+changes.

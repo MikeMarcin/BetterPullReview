@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
     set(bpr_expected_full_application_digest
-		"1cd7721efbf29fa8d36f8ef7117be43c7f6d83351b61f7392ee3855c25851a61"
+        "5548dc018a17a4d2d15b29c2fa9df5c67bcd343d8db1220238471e72b9d5ef18"
     )
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -132,7 +132,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
     set(bpr_expected_production_app_manifest_digest
-		"f9121942f55b3faa1681df5310b4049a38a5aff1736af19585aec0ff455c82dd"
+        "4ff79b2cc3ee6a7258d4d790bbae334951731e11fb3228e855787eaf94f85a5e"
     )
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -365,7 +365,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
     # SHA-256 of the exact LF-normalized bytes after the branch's #else and
     # before its #endif. Tokens and horizontal whitespace remain unmodified.
     set(bpr_expected_mutation_production_digest
-		"f5d36bb31502e6456de01388a0d9c31eb594121a35afd27cc8932b3b8c89f682"
+        "d8274b712f6e4d5260e5df0c0d3e4b9f38cff80d0b3b4a93352a8732ac92875f"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

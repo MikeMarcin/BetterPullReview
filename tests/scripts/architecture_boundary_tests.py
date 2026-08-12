@@ -4725,8 +4725,8 @@ auto finish_background_reap(
             ("sqlite3* database;\n", "settings/database"),
             ("GetEnvironmentVariableW(nullptr, nullptr, 0U);\n",
              "environment"),
-            ("CreateProcessW(nullptr, nullptr, nullptr, nullptr, FALSE, 0U, "
-             "nullptr, nullptr, nullptr, nullptr);\n", "command/process"),
+            ("ShellExecuteW(nullptr, nullptr, nullptr, nullptr, nullptr, 0);\n",
+             "command/process"),
             ("WinHttpOpen(nullptr, 0U, nullptr, nullptr, 0U);\n", "network"),
             ("MessageBoxW(nullptr, nullptr, nullptr, 0U);\n", "Qt/UI"),
             ("OutputDebugStringW(nullptr);\n", "logging/printing"),
