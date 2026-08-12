@@ -1,7 +1,7 @@
 ---
 id: BPR-0263
 title: Baseline indeterminate comment recovery
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255]
 ---
