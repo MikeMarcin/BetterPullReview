@@ -1,6 +1,10 @@
 # Designated one-shot live review publication operator packet
 
-Status: **pending operator decision; not BPR-0142, BPR-0235, or RFC-BPR-0008 approval**
+Status: **INVALIDATED BY CAPABILITY-CRITICAL REVIEW — DO NOT APPROVE OR RUN**
+
+The exact artifacts below are retained only as evidence of the rejected proof
+surface. BPR-0261 through BPR-0263 must land and this entire packet must be
+regenerated before any operator decision is requested.
 
 This packet requests one bounded decision: whether to authorize this exact
 tests-disabled BetterPullReview build to publish one ordinary source-line review

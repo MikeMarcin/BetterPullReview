@@ -1,9 +1,9 @@
 ---
 id: BPR-0256
 title: Build the attended one-shot live application lane
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0255]
+depends_on: [BPR-0255, BPR-0261, BPR-0262, BPR-0263]
 ---
 
 # Build the attended one-shot live application lane
@@ -243,3 +243,28 @@ mutation was created. The packet is now mechanically ready for independent
 capability-critical review and then an exact operator decision. Any subsequent
 bound-source, capsule, inventory, subject, or packet byte change reopens this
 refresh and invalidates that decision.
+
+## Capability-critical review — blocking result
+
+The independent capability-critical review found three reproducible blocking
+counterexamples and two related high-risk gaps. The checked-in packet is
+therefore invalid and must not be approved or executed.
+
+- The spent marker is scoped to the approval artifact's mutable parent, so the
+  same approval identity can mint another grant under a second or recreated
+  private parent. Approval opening also follows symlinked earlier ancestors.
+  Ready BPR-0261 owns global replay state and descriptor-walk path safety.
+- The tests-disabled application accepts the attended approval argv directly
+  without authenticating the verified supervisor or binding the inventory, so
+  direct launch bypasses the claimed capsule-only path. Static capsule checking
+  also releases nested identities before launch. Backlog BPR-0262 owns launch
+  provenance and retained capsule identity.
+- Indeterminate recovery records no pre-POST exact-comment baseline, so a
+  pre-existing identical comment can be adopted as the attempted publication.
+  Backlog BPR-0263 owns durable baseline-aware reconciliation.
+
+The reviewer independently confirmed the current packet hashes and manifest
+shape and ran no live/network/credential action. Those mechanical checks do not
+overcome the semantic counterexamples. This card is parked in Backlog until all
+three child cards are done, the packet is regenerated again, the complete gates
+pass, and a fresh capability-critical review has no blocker.
