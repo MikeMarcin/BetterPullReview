@@ -212,3 +212,34 @@ adapter/application targets rebuild, and the exact
 preceding capsule, source manifest, approval subject, and packet. No approval
 file exists and the live test has not run; a fresh final packet is required
 after this checkpoint is committed.
+
+## Final unattended packet refresh — 2026-08-12
+
+The final committed bound source produced and verified a tests-disabled Release
+capsule at source digest
+`d625798086f4f441d22aeb4986ab8058e62a09d8d5ed6d2b4bf7337e025acef2`.
+Its application, supervisor, and inventory are respectively
+`sha256:7bacbba642fe140bad64cc2ae4d25c089e441d79f9cfb4bf4586e33b2630934a`,
+`sha256:3917ed1c5e150b3f7c2e7aeb3886d13c003c997cc56f4b323d9c258e960a37e4`,
+and
+`sha256:a1efe2b300503b84a4085516f7b494c9361ef6dfff71a43dc2575945346cb150`.
+The exact approval subject is
+`sha256:7016b9f127ef79ee5bc8eb8245be1c4d58d177fc07440118c10d06eacb1c545f`;
+the 9,569-byte operator packet is
+`sha256:ddddcac933ae0bb5a5f3c04ccaa5ad18a6367b7c5052562df718a21ef4f7bae9`.
+
+The exact eight-test hermetic matrix passed 8/8 in 89.80 seconds. A fresh static
+inspection again found exactly one `live_review_mutation_designated_target`,
+one `bpr_live_mutation` label, a 1,800-second timeout, only the exact supervisor,
+inventory, and approval arguments, and explicit credential/loader environment
+removal. Its deliberately invalid private placeholder was deleted afterward;
+the test was not executed. The combined repository gate then passed formatting
+for all 373 files and strict warnings-as-errors tidy for all 227 translation
+units. Documentation validation reports `DOCUMENTATION_OK`, and
+`git diff --check` passes.
+
+No approval file, credential, network request, browser action, comment, or
+mutation was created. The packet is now mechanically ready for independent
+capability-critical review and then an exact operator decision. Any subsequent
+bound-source, capsule, inventory, subject, or packet byte change reopens this
+refresh and invalidates that decision.
