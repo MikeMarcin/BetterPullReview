@@ -47,6 +47,7 @@
 	#include <QSplitter>
 	#include <QStyle>
 	#include <QStyleHints>
+	#include <QSystemTrayIcon>
 	#include <QTreeView>
 	#include <QWheelEvent>
 #endif
@@ -4558,10 +4559,13 @@ namespace {
 		native_notification_stage   Stage = native_notification_stage::connect;
 		std::chrono::milliseconds   Budget{ };
 		automated_clock::time_point Started;
-		bool                        Attended      = false;
-		bool                        RequestCut    = false;
-		bool                        ActivationCut = false;
-		bool                        Failed        = false;
+		bool                        Attended                  = false;
+		bool                        RequestCut                = false;
+		bool                        ActivationCut             = false;
+		bool                        SignalObservationCut      = false;
+		bool                        Failed                    = false;
+		std::size_t                 PlatformActivationSignals = 0U;
+		QSystemTrayIcon*            PlatformTray              = nullptr;
 	};
 
 	[[nodiscard]] auto notification_fixture_ref() -> bpr::core::pull_request_ref
@@ -4613,12 +4617,30 @@ namespace {
 		bpr::app::github_application&                  aApplication,
 		const std::shared_ptr<native_notification_run> aRun)
 	{
-		aRun->Started = automated_clock::now();
-		auto tick     = std::make_shared<std::function<void()>>();
-		*tick         = [&aApplication,
-						 aRun,
-						 tick,
-						 alive = aApplication.liveness()] {
+		aRun->Started      = automated_clock::now();
+		aRun->PlatformTray = aApplication.window().findChild<QSystemTrayIcon*>(
+			QStringLiteral("reviewQueueNotificationTray"));
+		if (!aRun->SignalObservationCut) {
+			if (aRun->PlatformTray == nullptr) {
+				fail_native_notification_run(
+					aApplication, *aRun, "platform_tray_not_composed");
+			} else {
+				QObject::connect(
+					aRun->PlatformTray,
+					&QSystemTrayIcon::messageClicked,
+					&aApplication.window(),
+					[run = std::weak_ptr<native_notification_run>{ aRun }] {
+						if (const auto locked = run.lock()) {
+							++locked->PlatformActivationSignals;
+						}
+					});
+			}
+		}
+		auto tick = std::make_shared<std::function<void()>>();
+		*tick     = [&aApplication,
+					 aRun,
+					 tick,
+					 alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -4671,7 +4693,7 @@ namespace {
 				}
 				if (evidence.RequestsAttempted != 0U || evidence.Submitted != 0U
 					|| evidence.DisplaySubmissions != 0U
-					|| evidence.PlatformActivationSignals != 0U
+					|| aRun->PlatformActivationSignals != 0U
 					|| evidence.LastSubmitted.has_value()) {
 					fail_native_notification_run(
 						aApplication, *aRun, "quiet_baseline_requested_notification");
@@ -4697,7 +4719,7 @@ namespace {
 							aApplication);
 					if (evidence.RequestsAttempted != 0U || evidence.Submitted != 0U
 						|| evidence.DisplaySubmissions != 0U
-						|| evidence.PlatformActivationSignals != 0U
+						|| aRun->PlatformActivationSignals != 0U
 						|| evidence.LastSubmitted.has_value()) {
 						fail_native_notification_run(
 							aApplication, *aRun, "request_cut_reached_sink");
@@ -4730,7 +4752,8 @@ namespace {
 						aApplication, *aRun, "display_boundary_not_reached");
 					break;
 				}
-				if (evidence.PlatformActivationSignals != 0U) {
+				if (aRun->PlatformActivationSignals != 0U
+					|| evidence.Activations != 0U || evidence.Selections != 0U) {
 					fail_native_notification_run(
 						aApplication, *aRun, "activation_signal_before_click");
 					break;
@@ -4762,14 +4785,12 @@ namespace {
 					QTextStream{ stdout }
 						<< "NATIVE_NOTIFICATION_QT_ACTIVE_WINDOW_OK\n"
 						<< Qt::flush;
-					const auto activationEmitted = bpr::app::detail::
-						github_application_fixture_access::activate_platform_notification(
-							aApplication);
-					if (!activationEmitted) {
+					if (aRun->PlatformTray == nullptr) {
 						fail_native_notification_run(
-							aApplication, *aRun, "platform_activation_not_emitted");
+							aApplication, *aRun, "platform_tray_not_composed");
 						break;
 					}
+					aRun->PlatformTray->messageClicked();
 				}
 				aRun->Stage = native_notification_stage::await_activation;
 				break;
@@ -4782,7 +4803,7 @@ namespace {
 				if (evidence.Activations != 1U) {
 					break;
 				}
-				if (evidence.PlatformActivationSignals != 1U) {
+				if (aRun->PlatformActivationSignals != 1U) {
 					fail_native_notification_run(
 						aApplication, *aRun, "tray_signal_count_mismatch");
 					break;
@@ -5155,8 +5176,6 @@ auto main(int argc, char** argv) -> int
 			= nativeNotificationProbe || nativeNotificationAttended;
 		fixtureOptions.CaptureSystemNotificationDisplay
 			= nativeNotificationProbe && !nativeNotificationRequestCut;
-		fixtureOptions.DisablePlatformSignalObservation
-			= nativeNotificationSignalObservationCut;
 		fixtureOptions.DisableNotificationRequestWire
 			= nativeNotificationRequestCut;
 		fixtureOptions.DisableNotificationSelectionWire
@@ -5537,6 +5556,8 @@ auto main(int argc, char** argv) -> int
 					.Attended      = nativeNotificationAttended,
 					.RequestCut    = nativeNotificationRequestCut,
 					.ActivationCut = nativeNotificationActivationCut,
+					.SignalObservationCut
+					= nativeNotificationSignalObservationCut,
 				}));
 		} else
 #endif

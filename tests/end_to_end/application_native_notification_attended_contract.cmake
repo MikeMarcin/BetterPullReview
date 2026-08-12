@@ -3,11 +3,19 @@ if(NOT DEFINED BPR_APPLICATION OR NOT DEFINED BPR_ROOT OR NOT DEFINED BPR_SOURCE
 endif()
 
 file(READ "${BPR_SOURCE}/src/app/main.cpp" course_source)
-foreach(forbidden IN ITEMS "deliver\\(" "select_queue_item\\(" "Notifications->activate")
+foreach(forbidden IN ITEMS
+    "deliver\\("
+    "select_queue_item\\("
+    "Notifications->activate"
+    "activate_platform_notification"
+)
     if(course_source MATCHES "${forbidden}")
         message(FATAL_ERROR "native notification course bypasses a production wire: ${forbidden}")
     endif()
 endforeach()
+if(NOT course_source MATCHES "PlatformTray->messageClicked\\(\\);")
+    message(FATAL_ERROR "native notification course omits the real tray signal")
+endif()
 
 foreach(course IN ITEMS positive request-cut activation-cut)
     string(REPLACE "-" "_" course_name "${course}")

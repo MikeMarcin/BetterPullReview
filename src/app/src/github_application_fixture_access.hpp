@@ -52,7 +52,6 @@ namespace bpr::app::detail {
 		bool                                 LoseFirstReviewMutationResult    = false;
 		bool                                 UseGrantedNotificationSink       = false;
 		bool                                 CaptureSystemNotificationDisplay = false;
-		bool                                 DisablePlatformSignalObservation = false;
 		bool                                 DisableNotificationRequestWire   = false;
 		bool                                 DisableNotificationSelectionWire = false;
 		bool                                 DisableAgentHostComposition      = false;
@@ -65,7 +64,6 @@ namespace bpr::app::detail {
 		std::size_t                                        RequestsAttempted                  = 0U;
 		std::size_t                                        Submitted                          = 0U;
 		std::size_t                                        DisplaySubmissions                 = 0U;
-		std::size_t                                        PlatformActivationSignals          = 0U;
 		std::size_t                                        SuppressedUnattributableActivation = 0U;
 		std::size_t                                        Activations                        = 0U;
 		std::size_t                                        Selections                         = 0U;
@@ -402,13 +400,6 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto queue_notification_evidence(
 			const github_application& aApplication) noexcept
 			-> queue_notification_fixture_evidence;
-		/// \brief Emits the identityless platform's first message click.
-		///
-		/// \details A legacy fixture sink invokes its installed callback. The system
-		/// sink course emits the real tray's `messageClicked` signal. This helper
-		/// never calls the notifier or the queue selection surface.
-		[[nodiscard]] static auto activate_platform_notification(
-			github_application& aApplication) -> bool;
 		[[nodiscard]] static auto maintenance_evidence(
 			const github_application& aApplication,
 			core::review_epoch_id     aTarget) noexcept

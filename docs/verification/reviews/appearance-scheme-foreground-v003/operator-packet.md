@@ -25,13 +25,13 @@ Run only these exact immutable inputs:
 
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
-| `build/dev/src/app/better_pull_review` | `sha256:f322c2ae740a2c4491157c047f49e42a40df4535ac4a91282f86eb72f393a70c` | 47691392 |
+| `build/dev/src/app/better_pull_review` | `sha256:d1f00e799621c9f66e9c2e68d52c727a17f456db539b714040cecf52906463f5` | 50026368 |
 | `docs/issues/done/BPR-0249-make-native-appearance-probe-await-selected-diff.md` | `sha256:fe76c86329e9eb6650a9fa11103739fb0bfae0480a174b69689a74d057ff153b` | 4144 |
 
-The repository commit at packet preparation was
-`ea6f4faca3af5f4aae9d2dbc5b2854cf3bf5a2f1`. BPR-0114 and BPR-0220 are the
-mutable decision targets and are deliberately not digest authorities: recording
-this run must update those cards without invalidating the human statement.
+The bound artifact digests, rather than the mutable repository branch head, are
+the packet authority. BPR-0114 and BPR-0220 are the mutable decision targets and
+are deliberately not digest authorities: recording this run must update those
+cards without invalidating the human statement.
 
 Before starting, verify the bound inputs:
 
@@ -176,7 +176,7 @@ Paste the complete v003 log, then include this exact statement:
 
 > I ran the BPR-0114/BPR-0220 selected-diff foreground appearance probe
 > against executable
-> sha256:f322c2ae740a2c4491157c047f49e42a40df4535ac4a91282f86eb72f393a70c
+> sha256:d1f00e799621c9f66e9c2e68d52c727a17f456db539b714040cecf52906463f5
 > and BPR-0249 implementation record
 > sha256:fe76c86329e9eb6650a9fa11103739fb0bfae0480a174b69689a74d057ff153b;
 > I established the visible review.cpp comparison in Light, focused its left

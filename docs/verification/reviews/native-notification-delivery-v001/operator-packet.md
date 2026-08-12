@@ -31,7 +31,7 @@ Review and either accept or reject all of these facts as one decision:
 
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
-| `build/dev/src/app/better_pull_review` | `sha256:e5dfd8bc2cb28e1a254bd3de741d3cdd647757bd774c0fc0f911d521c8e4722e` | 50,027,200 |
+| `build/dev/src/app/better_pull_review` | `sha256:d1f00e799621c9f66e9c2e68d52c727a17f456db539b714040cecf52906463f5` | 50,026,368 |
 | `docs/issues/done/BPR-0251-compose-attended-native-notification-course.md` | `sha256:9576aef7f125a62d88c0f1e7928357906d47d7a1a8a8b48617f09945f4110be6` | 5,183 |
 
 The deterministic preflight is
@@ -82,7 +82,7 @@ preflight cannot prove facts 2 or 3; the owner must see and click the banner.
 
 To approve, reply with this exact statement:
 
-> I approve BPR-0168 native notification delivery for executable sha256:e5dfd8bc2cb28e1a254bd3de741d3cdd647757bd774c0fc0f911d521c8e4722e and completed implementation record sha256:9576aef7f125a62d88c0f1e7928357906d47d7a1a8a8b48617f09945f4110be6: the shipped observer-rule and Refresh course reported NATIVE_NOTIFICATION_QUIET_BASELINE_OK and NATIVE_NOTIFICATION_REQUEST_SUBMITTED_OK; I saw the macOS banner “octo-org/review-repository #17” / “The code moved after you reviewed it.” with no source path, source line, comment body, private note, draft, or credential; I clicked that banner, and BetterPullReview selected and focused github.com / octo-reviewer / octo-org/review-repository #17 with NATIVE_NOTIFICATION_ACTIVATION_OK and NATIVE_NOTIFICATION_EXACT_LANDING_SELECTION_OK; the pipeline exited zero with NATIVE_NOTIFICATION_SHUTDOWN_OK and NATIVE_NOTIFICATION_ATTENDED_RUN_OK, without QSystemTrayIcon::setVisible: No Icon set or any NATIVE_NOTIFICATION_REFUSED marker.
+> I approve BPR-0168 native notification delivery for executable sha256:d1f00e799621c9f66e9c2e68d52c727a17f456db539b714040cecf52906463f5 and completed implementation record sha256:9576aef7f125a62d88c0f1e7928357906d47d7a1a8a8b48617f09945f4110be6: the shipped observer-rule and Refresh course reported NATIVE_NOTIFICATION_QUIET_BASELINE_OK and NATIVE_NOTIFICATION_REQUEST_SUBMITTED_OK; I saw the macOS banner “octo-org/review-repository #17” / “The code moved after you reviewed it.” with no source path, source line, comment body, private note, draft, or credential; I clicked that banner, and BetterPullReview selected and focused github.com / octo-reviewer / octo-org/review-repository #17 with NATIVE_NOTIFICATION_ACTIVATION_OK and NATIVE_NOTIFICATION_EXACT_LANDING_SELECTION_OK; the pipeline exited zero with NATIVE_NOTIFICATION_SHUTDOWN_OK and NATIVE_NOTIFICATION_ATTENDED_RUN_OK, without QSystemTrayIcon::setVisible: No Icon set or any NATIVE_NOTIFICATION_REFUSED marker.
 
 To reject, identify the banner, click, selection, focus, warning, or marker fact
 that failed. Rejection leaves BPR-0168 pending and makes no RFC closeout claim.
