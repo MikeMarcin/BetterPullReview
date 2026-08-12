@@ -87,6 +87,16 @@ course's fixed 19 frame names plus its trace and appearance stamp are cleared
 before each attempt so a partial run cannot inherit later evidence from an
 older success.
 
+BPR-0266 repairs the later epoch-refresh gate shared by the appearance gesture
+course. The initial GitHub projection remains review-wide with five roots and
+nine exact identities. After `review.cpp` is selected, refresh now requires the
+accepted focused-navigation projection: three thread roots and their four exact
+comment identities, with review-wide review and issue-comment roots absent.
+Failure-only telemetry reports every presentation operand and the epoch-cause
+guardrail without credential or repository-source content. The appearance
+gesture course passes this focused gate; it does not supply the separate
+frontmost native appearance verdict.
+
 Read the Composition and Deferred gates sections before the claim matrix. A
 `Verified` row proves only the direct surface it names.
 

@@ -67,6 +67,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 	#include <unistd.h>
@@ -429,6 +430,9 @@ namespace {
 		std::string                ExpectedTitle;
 		std::string                ExpectedAccountText;
 		int                        ExpectedConversationRows = 0;
+		std::vector<std::string>   ExpectedConversationIdentities;
+		int                        ExpectedFocusedConversationRows = 0;
+		std::vector<std::string>   ExpectedFocusedConversationIdentities;
 		std::optional<std::string> ExpectedThreadId;
 	};
 
@@ -442,13 +446,38 @@ namespace {
 		-> fixture_run_expectations
 	{
 		return {
-			.Owner                    = "octo-org",
-			.Repository               = "review-repository",
-			.Number                   = 17,
-			.ExpectedTitle            = "Keep review snapshots deterministic",
-			.ExpectedAccountText      = "Octo Reviewer (@octo-reviewer)",
-			.ExpectedConversationRows = 5,
-			.ExpectedThreadId         = "review-thread:PRRT_fixture_1",
+			.Owner                          = "octo-org",
+			.Repository                     = "review-repository",
+			.Number                         = 17,
+			.ExpectedTitle                  = "Keep review snapshots deterministic",
+			.ExpectedAccountText            = "Octo Reviewer (@octo-reviewer)",
+			.ExpectedConversationRows       = 5,
+			.ExpectedConversationIdentities = {
+				"review:PRR_fixture_1",
+				"review-thread:PRRT_fixture_1",
+				"review-comment:PRRC_fixture_1",
+				"review-thread:PRRT_fixture_2",
+				"review-comment:PRRC_fixture_2",
+				"review-comment:PRRC_fixture_3",
+				"review-thread:PRRT_fixture_file",
+				"review-comment:PRRC_fixture_file",
+				"issue-comment:IC_fixture_1",
+			},
+			// The workbench already has review.cpp selected when the refresh
+			// projection arrives. Its accepted focused-navigation behavior keeps
+			// all three threads anchored to that file and their four comments,
+			// while omitting the review-wide review and issue-comment roots.
+			.ExpectedFocusedConversationRows       = 3,
+			.ExpectedFocusedConversationIdentities = {
+				"review-thread:PRRT_fixture_1",
+				"review-comment:PRRC_fixture_1",
+				"review-thread:PRRT_fixture_2",
+				"review-comment:PRRC_fixture_2",
+				"review-comment:PRRC_fixture_3",
+				"review-thread:PRRT_fixture_file",
+				"review-comment:PRRC_fixture_file",
+			},
+			.ExpectedThreadId = "review-thread:PRRT_fixture_1",
 		};
 	}
 #endif
@@ -1899,22 +1928,58 @@ namespace {
 	}
 
 #if defined(BPR_BUILD_TESTING)
+	void append_fixture_conversation_identities(
+		const bpr::qt::github_conversation_model& aModel,
+		const QModelIndex&                        aParent,
+		std::vector<std::string>&                 aIdentities)
+	{
+		for (auto row = 0; row < aModel.rowCount(aParent); ++row) {
+			const auto index = aModel.index(row, 0, aParent);
+			aIdentities.push_back(aModel.id_for_index(index));
+			append_fixture_conversation_identities(aModel, index, aIdentities);
+		}
+	}
+
+	[[nodiscard]] auto fixture_conversation_identities(
+		const bpr::qt::github_conversation_model& aModel)
+		-> std::vector<std::string>
+	{
+		auto identities = std::vector<std::string>{ };
+		append_fixture_conversation_identities(aModel, { }, identities);
+		return identities;
+	}
+
+	[[nodiscard]] auto fixture_diagnostic_text(QString aValue) -> QString
+	{
+		aValue.replace(u'\\', QStringLiteral("\\\\"));
+		aValue.replace(u'\r', QStringLiteral("\\r"));
+		aValue.replace(u'\n', QStringLiteral("\\n"));
+		return aValue;
+	}
+
 	[[nodiscard]] auto fixture_presentation_passed(
 		bpr::qt::workbench_window&      aWindow,
 		const std::string_view          aExpectedActiveHostText,
-		const fixture_run_expectations& aExpected) -> bool
+		const fixture_run_expectations& aExpected,
+		const bool                      aFocused = false) -> bool
 	{
-		const auto* const title = aWindow.findChild<QLabel*>(QStringLiteral("pullRequestTitle"));
+		const auto* const title              = aWindow.findChild<QLabel*>(QStringLiteral("pullRequestTitle"));
+		const auto        expectedRows       = aFocused
+			? aExpected.ExpectedFocusedConversationRows
+			: aExpected.ExpectedConversationRows;
+		const auto&       expectedIdentities = aFocused
+			? aExpected.ExpectedFocusedConversationIdentities
+			: aExpected.ExpectedConversationIdentities;
 		return aWindow.github_status_text() == "Pull request ready."
 			&& aWindow.active_account_text() == aExpected.ExpectedAccountText
 			&& aWindow.active_host_text() == aExpectedActiveHostText
 			&& aWindow.github_open_action()->isEnabled()
 			&& aWindow.github_refresh_action()->isEnabled()
 			&& title != nullptr
-			&& title->text()
-			== QString::fromStdString(aExpected.ExpectedTitle)
-			&& aWindow.conversation_model()->rowCount()
-			== aExpected.ExpectedConversationRows
+			&& title->text() == QString::fromStdString(aExpected.ExpectedTitle)
+			&& aWindow.conversation_model()->rowCount() == expectedRows
+			&& fixture_conversation_identities(*aWindow.conversation_model())
+			== expectedIdentities
 			&& (!aExpected.ExpectedThreadId.has_value()
 				|| aWindow.conversation_model()
 					   ->index_for_id(*aExpected.ExpectedThreadId)
@@ -2616,6 +2681,92 @@ namespace {
 				   << "PUBLIC_PATH_EPOCH_CORE_STATUS:"
 				   << aRun.LastEpochCoreStatus << '\n';
 #if defined(BPR_BUILD_TESTING)
+			if (aRun.FailedStage
+				== static_cast<int>(automated_run::stage::epoch_refresh)) {
+				const auto* const title = window.findChild<QLabel*>(
+					QStringLiteral("pullRequestTitle"));
+				const auto identities = fixture_conversation_identities(
+					*window.conversation_model());
+				const auto& expectedIdentities
+					= aRun.Expectations.ExpectedFocusedConversationIdentities;
+				const auto expectedThreadValid
+					= !aRun.Expectations.ExpectedThreadId.has_value()
+					|| window.conversation_model()
+						   ->index_for_id(*aRun.Expectations.ExpectedThreadId)
+						   .isValid();
+				const auto causeRow = fixture_anchor_row(
+					*window.epoch_selectors()->history_model(),
+					2U,
+					bpr::core::comparison_anchor_kind::epoch_head);
+				const auto causeActual = causeRow >= 0
+					? window.epoch_selectors()
+						  ->history_model()
+						  ->index(causeRow, 0)
+						  .data(bpr::qt::epoch_history_model::primary_cause_role)
+						  .toInt()
+					: -1;
+				const auto report      = [&stream](
+											 const std::string_view aTerm,
+											 const auto&            aExpected,
+											 const auto&            aActual) {
+					stream << "EPOCH_REFRESH_PRESENTATION_TERM:"
+						   << QByteArray{ aTerm.data(), static_cast<qsizetype>(aTerm.size()) }
+						   << ":expected=" << aExpected << ":actual=" << aActual << '\n';
+				};
+				report(
+					"status",
+					QStringLiteral("Pull request ready."),
+					fixture_diagnostic_text(QString::fromStdString(
+						window.github_status_text())));
+				report(
+					"account",
+					QString::fromStdString(aRun.Expectations.ExpectedAccountText),
+					fixture_diagnostic_text(QString::fromStdString(
+						window.active_account_text())));
+				report(
+					"host",
+					QString::fromStdString(aRun.ExpectedActiveHostText),
+					fixture_diagnostic_text(QString::fromStdString(
+						window.active_host_text())));
+				report("open-action", true, window.github_open_action()->isEnabled());
+				report(
+					"refresh-action",
+					true,
+					window.github_refresh_action()->isEnabled());
+				report("title-present", true, title != nullptr);
+				report(
+					"title-text",
+					QString::fromStdString(aRun.Expectations.ExpectedTitle),
+					fixture_diagnostic_text(
+						title != nullptr ? title->text() : QString{ }));
+				report(
+					"conversation-roots",
+					aRun.Expectations.ExpectedFocusedConversationRows,
+					window.conversation_model()->rowCount());
+				report(
+					"expected-thread-valid",
+					true,
+					expectedThreadValid);
+				report(
+					"github-full-resets",
+					0U,
+					window.statistics().GithubFullResets);
+				report(
+					"epoch-cause",
+					static_cast<int>(
+						bpr::core::epoch_primary_cause::force_push_rebase),
+					causeActual);
+				stream << "EPOCH_REFRESH_PRESENTATION_IDENTITIES:expected=";
+				for (const auto& identity : expectedIdentities) {
+					stream << QString::fromStdString(identity) << ',';
+				}
+				stream << ":actual=";
+				for (const auto& identity : identities) {
+					stream << QString::fromStdString(identity) << ',';
+				}
+				stream << ":passed=" << (identities == expectedIdentities)
+					   << ":cause_row=" << causeRow << '\n';
+			}
 			if (aRun.MaintenanceProbe
 				!= automated_run::epoch_maintenance_probe::none) {
 				const auto maintenance = bpr::app::detail::
@@ -3811,7 +3962,8 @@ namespace {
 				if (fixture_presentation_passed(
 						window,
 						aRun->ExpectedActiveHostText,
-						aRun->Expectations)
+						aRun->Expectations,
+						true)
 					&& fixture_epoch_pair_passed(
 						window,
 						evidence.BaseOid,

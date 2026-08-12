@@ -678,6 +678,17 @@ Driver scripts derive their per-invocation `execute_process` timeouts from the
 same budget, so an inner backstop cannot fire before the run's own limit
 either.
 
+BPR-0266 restores the focused epoch-refresh public-path assertion after the
+conversation drawer began following the selected file. The open projection is
+still asserted as five review-wide roots with nine exact identities. Once
+`review.cpp` is focused, the refreshed projection must contain exactly three
+thread roots and their four comment children, while the same host, repository,
+pull request, Base-to-HeadTwo pair, ordinal-two `Force-push/rebase` cause, and
+zero whole-model resets remain required. GitHub.com and GHES two-process
+persistence both pass this stronger gate. The maintenance course also reaches
+its public epoch-prune verdict, but its wrapper currently fails a separate
+review-ledger restart marker; that mismatch is not epoch-presentation evidence.
+
 `application_automated_run_budget` exercises the bound. `--automated-stall-probe`
 holds the `open` stage forever, which is the shape of a hang: nothing crashes,
 nothing errors, a readiness condition simply never becomes true. The run
