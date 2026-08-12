@@ -1,7 +1,7 @@
 ---
 id: BPR-0270
 title: Restore the composed conversation-host contract
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191]
 ---
