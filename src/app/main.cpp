@@ -1332,27 +1332,69 @@ namespace {
 		bpr::qt::workbench_window&             aWindow,
 		const std::optional<std::string_view>& aRawDirectory) -> bool
 	{
-		if (!aRawDirectory.has_value() || aRawDirectory->empty()) {
+		const auto fail = [](const QString& aPredicate) {
+			auto stream = QTextStream{ stdout };
+			stream << "DIFF_INTERACTION_FAILURE:" << aPredicate << '\n';
+			stream.flush();
 			return false;
+		};
+		if (!aRawDirectory.has_value() || aRawDirectory->empty()) {
+			return fail(QStringLiteral("evidence-directory-missing"));
 		}
 		const auto directoryPath = QString::fromUtf8(
 			aRawDirectory->data(), static_cast<qsizetype>(aRawDirectory->size()));
 		if (!QDir{ }.mkpath(directoryPath)) {
-			return false;
+			return fail(QStringLiteral("evidence-directory-create"));
 		}
-		const auto directory = QDir{ directoryPath };
-		auto       trace     = QFile{
+		const auto     directory     = QDir{ directoryPath };
+		constexpr auto evidenceFiles = std::array<std::string_view, 21>{
+			"appearance-at-capture.json",
+			"interaction-trace.jsonl",
+			"01-selected-composition.png",
+			"02-matching-early.png",
+			"03-matching-late.png",
+			"04-left-pane-input.png",
+			"05-insertion-early.png",
+			"06-insertion-late.png",
+			"07-matching-continuation.png",
+			"08-insertion-reversed.png",
+			"09-right-pane-input.png",
+			"10-divider-input.png",
+			"11-deletion-early.png",
+			"12-deletion-late.png",
+			"13-replacement-early.png",
+			"14-replacement-late.png",
+			"15-other-ribbon-selected.png",
+			"16-ribbon-selection.png",
+			"17-divider-resized.png",
+			"18-comparison-start.png",
+			"19-comparison-end.png",
+		};
+		for (const auto evidenceFile : evidenceFiles) {
+			const auto fileName = QString::fromLatin1(
+				evidenceFile.data(), static_cast<qsizetype>(evidenceFile.size()));
+			const auto filePath = directory.filePath(fileName);
+			if (QFile::exists(filePath) && !QFile::remove(filePath)) {
+				return fail(QStringLiteral("stale-evidence-remove:") + fileName);
+			}
+		}
+		auto trace = QFile{
 			directory.filePath(QStringLiteral("interaction-trace.jsonl"))
 		};
 		if (!trace.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-			return false;
+			return fail(QStringLiteral("interaction-trace-open"));
 		}
 
 		auto* const workbench = aWindow.comparison_surface();
 		if (workbench == nullptr || workbench->current_result() == nullptr
 			|| !workbench->current_context().has_value()
 			|| !workbench->selection().has_value()) {
-			return false;
+			return fail(QStringLiteral("initial-workbench-state"));
+		}
+		auto* const vertical = workbench->findChild<QSplitter*>(
+			QStringLiteral("diffWorkbenchVerticalSplitter"));
+		if (vertical == nullptr) {
+			return fail(QStringLiteral("vertical-splitter-missing"));
 		}
 		// Records the appearance the frames are taken under, next to the
 		// frames. The end-of-run APPEARANCE_APPLIED marker cannot serve: the
@@ -1440,24 +1482,28 @@ namespace {
 		const auto initialStats   = workbench->statistics();
 		const auto capture        = [&](const std::string_view aStep) {
 			settle_automated_events();
+			const auto step = QString::fromLatin1(
+				aStep.data(), static_cast<qsizetype>(aStep.size()));
 			const auto& retained  = controller->current_frame();
 			const auto& rendered  = workbench->link_map()->current_frame();
 			const auto& selection = workbench->selection();
 			if (!retained.has_value() || !rendered.has_value()
 				|| !workbench->current_context().has_value()
 				|| !selection.has_value()) {
-				return false;
+				return fail(QStringLiteral("capture-state:") + step);
 			}
-			const auto step = QString::fromLatin1(
-				aStep.data(), static_cast<qsizetype>(aStep.size()));
 			const auto imageName = step + QStringLiteral(".png");
 			if (!aWindow.grab().save(directory.filePath(imageName), "PNG")) {
-				return false;
+				return fail(QStringLiteral("capture-image-write:") + step);
 			}
-			const auto& frame     = *retained;
-			const auto  stats     = workbench->statistics();
-			const auto  linkStats = workbench->link_map()->statistics();
-			auto        stream    = QTextStream{ &trace };
+			const auto& frame         = *retained;
+			const auto  stats         = workbench->statistics();
+			const auto  linkStats     = workbench->link_map()->statistics();
+			const auto  splitterSizes = vertical->sizes();
+			if (splitterSizes.size() != 2) {
+				return fail(QStringLiteral("capture-splitter-shape:") + step);
+			}
+			auto stream = QTextStream{ &trace };
 			stream << "{\"step\":" << diff_evidence_json_string(step) << ','
 				   << "\"render_file\":" << diff_evidence_json_string(imageName)
 				   << ",\"qt_platform\":"
@@ -1507,6 +1553,12 @@ namespace {
 				   << ",\"link_map_height\":" << workbench->link_map()->height()
 				   << ",\"link_map_visible\":"
 				   << (workbench->link_map()->isVisible() ? "true" : "false")
+				   << ",\"comparison_viewport_height\":"
+				   << workbench->left_pane()->viewport()->height()
+				   << ",\"detail_viewport_height\":"
+				   << workbench->detail_pane()->viewport()->height()
+				   << ",\"vertical_splitter_top_size\":" << splitterSizes.front()
+				   << ",\"vertical_splitter_detail_size\":" << splitterSizes.back()
 				   << ",\"link_map_retained_changes\":"
 				   << static_cast<qulonglong>(linkStats.RetainedChangedEntries)
 				   << ",\"link_map_candidate_entries\":"
@@ -1522,7 +1574,9 @@ namespace {
 				   << ",\"semantic_index_builds\":" << stats.SemanticIndexBuilds
 				   << "}\n";
 			stream.flush();
-			return trace.error() == QFileDevice::NoError;
+			return trace.error() == QFileDevice::NoError
+				? true
+				: fail(QStringLiteral("capture-trace-write:") + step);
 		};
 
 		if (!capture("01-selected-composition")
@@ -1728,21 +1782,72 @@ namespace {
 			return false;
 		}
 
-		auto* const vertical = workbench->findChild<QSplitter*>(
-			QStringLiteral("diffWorkbenchVerticalSplitter"));
-		if (vertical == nullptr) {
-			return false;
+		const auto selectionBeforeResize  = workbench->selection();
+		const auto statisticsBeforeResize = workbench->statistics();
+		const auto sizes                  = vertical->sizes();
+		if (sizes.size() != 2) {
+			return fail(QStringLiteral("vertical-splitter-shape"));
 		}
-		const auto selectionBeforeResize = workbench->selection();
-		const auto rebuildsBeforeResize  = workbench->statistics().GeometryRebuilds;
-		const auto sizes                 = vertical->sizes();
-		const auto total                 = std::accumulate(sizes.begin(), sizes.end(), 0);
-		const auto smallerTop            = std::max(140, total / 3);
-		vertical->setSizes({ smallerTop, total - smallerTop });
+		const auto total = std::accumulate(sizes.begin(), sizes.end(), 0);
+		if (total <= 0) {
+			return fail(QStringLiteral("vertical-splitter-empty"));
+		}
+		auto minimumTop = 0;
+		auto maximumTop = 0;
+		vertical->getRange(1, &minimumTop, &maximumTop);
+		const auto currentTop = sizes.front();
+		const auto targetTop  = currentTop < maximumTop
+			? std::min(maximumTop, currentTop + 32)
+			: std::max(minimumTop, currentTop - 32);
+		if (targetTop == currentTop) {
+			return fail(QStringLiteral("vertical-splitter-no-legal-target"));
+		}
+		const auto viewportBeforeResize = workbench->left_pane()->viewport()->height();
+		vertical->setSizes({ targetTop, total - targetTop });
+		const auto rebuildDeadline
+			= std::chrono::steady_clock::now() + std::chrono::milliseconds{ 500 };
+		while (workbench->statistics().GeometryRebuilds
+				   == statisticsBeforeResize.GeometryRebuilds
+			   && std::chrono::steady_clock::now() < rebuildDeadline) {
+			QApplication::processEvents();
+		}
 		settle_automated_events();
-		if (workbench->statistics().GeometryRebuilds != rebuildsBeforeResize + 1U
-			|| workbench->selection() != selectionBeforeResize
-			|| !capture("17-divider-resized")) {
+		const auto sizesAfterResize = vertical->sizes();
+		if (sizesAfterResize.size() != 2) {
+			return fail(QStringLiteral("vertical-splitter-result-shape"));
+		}
+		if (sizesAfterResize == sizes) {
+			return fail(QStringLiteral("vertical-splitter-size-unchanged"));
+		}
+		if (sizesAfterResize.front() != targetTop
+			|| sizesAfterResize.back() != total - targetTop) {
+			return fail(QStringLiteral("vertical-splitter-target-not-applied"));
+		}
+		if (workbench->left_pane()->viewport()->height() == viewportBeforeResize) {
+			return fail(QStringLiteral("vertical-splitter-viewport-unchanged"));
+		}
+		const auto statisticsAfterResize = workbench->statistics();
+		if (statisticsAfterResize.GeometryRebuilds
+			!= statisticsBeforeResize.GeometryRebuilds + 1U) {
+			return fail(QStringLiteral("vertical-splitter-rebuild-count"));
+		}
+		if (statisticsAfterResize.GeometryRebuildHistoryOverflow
+			|| statisticsAfterResize.GeometryRebuildHistorySize
+				!= statisticsBeforeResize.GeometryRebuildHistorySize + 1U) {
+			return fail(QStringLiteral("vertical-splitter-rebuild-history"));
+		}
+		const auto rebuildTrigger
+			= statisticsAfterResize
+				  .GeometryRebuildHistory[statisticsAfterResize.GeometryRebuildHistorySize - 1U]
+				  .Triggers;
+		if ((rebuildTrigger & bpr::qt::diff_geometry_rebuild_trigger::pane_viewport_resize)
+			== bpr::qt::diff_geometry_rebuild_trigger::none) {
+			return fail(QStringLiteral("vertical-splitter-rebuild-attribution"));
+		}
+		if (workbench->selection() != selectionBeforeResize) {
+			return fail(QStringLiteral("vertical-splitter-selection-changed"));
+		}
+		if (!capture("17-divider-resized")) {
 			return false;
 		}
 
@@ -1760,14 +1865,26 @@ namespace {
 		}
 
 		const auto finalStats = workbench->statistics();
-		return workbench->current_context() == initialContext
-			&& finalStats.SemanticIndexBuilds == initialStats.SemanticIndexBuilds
-			&& workbench->shared_scrollbar()->isEnabled()
-			&& workbench->left_pane()->verticalScrollBarPolicy()
-			== Qt::ScrollBarAlwaysOff
-			&& workbench->right_pane()->verticalScrollBarPolicy()
-			== Qt::ScrollBarAlwaysOff
-			&& trace.error() == QFileDevice::NoError;
+		if (workbench->current_context() != initialContext) {
+			return fail(QStringLiteral("final-context-changed"));
+		}
+		if (finalStats.SemanticIndexBuilds != initialStats.SemanticIndexBuilds) {
+			return fail(QStringLiteral("final-semantic-index-rebuilt"));
+		}
+		if (!workbench->shared_scrollbar()->isEnabled()) {
+			return fail(QStringLiteral("final-shared-scrollbar-disabled"));
+		}
+		if (workbench->left_pane()->verticalScrollBarPolicy()
+			!= Qt::ScrollBarAlwaysOff) {
+			return fail(QStringLiteral("final-left-independent-scrollbar"));
+		}
+		if (workbench->right_pane()->verticalScrollBarPolicy()
+			!= Qt::ScrollBarAlwaysOff) {
+			return fail(QStringLiteral("final-right-independent-scrollbar"));
+		}
+		return trace.error() == QFileDevice::NoError
+			? true
+			: fail(QStringLiteral("final-trace-write"));
 	}
 #endif
 

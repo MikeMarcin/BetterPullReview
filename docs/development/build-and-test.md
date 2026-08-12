@@ -242,13 +242,21 @@ composition and shutdown lane. The normal public path must emit
 `PUBLIC_PATH_OK`, `GITHUB_FIXTURE_OK:github.com`, `DIFF_WORKBENCH_OK`, and
 `DIFF_INTERACTION_EVIDENCE_OK`, followed by `RENDER_OK`. It writes the final
 full-window raster to
-`build/dev/tests/end_to_end/diff-workbench-public-path.png` and an 18-step
+`build/dev/tests/end_to_end/diff-workbench-public-path.png` and a 19-step
 rendered interaction sequence plus `interaction-trace.jsonl` below
 `build/dev/tests/end_to_end/bpr-0083-diff-interaction/`. The trace records the
 retained comparison position, active segment, projected coordinates,
 requested and applied pane origins, clamp state, selected identities,
 link-map dimensions, visible-set work, and selection-callback counts, geometry
-generation, and semantic generation for every rendered frame. Scale rasters are written below
+generation, semantic generation, pane/detail viewport heights, and vertical
+splitter sizes for every rendered frame. Before each attempt, the course
+removes only its fixed trace, appearance stamp, and 19 frame filenames so a
+failed run cannot leave later frames from an older success looking current.
+Its divider step chooses a changed target from the splitter's live legal
+range, waits at most 500 ms for the queued geometry result, and requires one
+viewport-attributed rebuild with the exact semantic selection retained. A
+failure prints a fixed `DIFF_INTERACTION_FAILURE:<predicate>` marker without
+paths or source content. Scale rasters are written below
 `build/dev/tests/adapters_qt/`. Offscreen output is not target-native
 System-theme or final presentation-polish evidence.
 

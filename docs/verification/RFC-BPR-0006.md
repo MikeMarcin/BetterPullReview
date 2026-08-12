@@ -76,6 +76,17 @@ shuts down normally, and writes no render. This does not supply the
 still-required frontmost Light → Dark verdict or decide BPR-0220's geometry
 result.
 
+BPR-0265 repairs the shared diff-interaction course consumed by the appearance
+public paths after compact navigation made the old one-third divider request
+legally impossible. The course now derives a changed target from the live
+splitter range, boundedly awaits the queued result, and requires both the exact
+retained selection and one viewport-attributed geometry rebuild. Its trace
+records the before/after viewport and splitter dimensions, fixed predicate
+markers identify failures without source or path disclosure, and only the
+course's fixed 19 frame names plus its trace and appearance stamp are cleared
+before each attempt so a partial run cannot inherit later evidence from an
+older success.
+
 Read the Composition and Deferred gates sections before the claim matrix. A
 `Verified` row proves only the direct surface it names.
 
