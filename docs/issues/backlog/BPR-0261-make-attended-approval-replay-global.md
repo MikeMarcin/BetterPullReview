@@ -59,6 +59,11 @@ selects a monotonic authority outside that namespace or explicitly narrows the
 threat model and reset semantics. The rejected implementation was not merged,
 and no live lane, network request, credential, or approval was used.
 
+The narrowed local-authority option is awaiting an exact operator decision in
+[designated-live-replay-threat-model-v001](../../verification/reviews/designated-live-replay-threat-model-v001/operator-packet.md).
+Packet preparation is not approval; until the exact response is returned, no
+implementation under that threat model is authorized.
+
 ## Verification
 
 - Bootstrap tests exercise same bytes across two private roots, removal and

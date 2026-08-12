@@ -1,0 +1,13 @@
+schema_name=bpr.operator_decision_subject
+schema_version=1
+gate=designated-live-replay-threat-model-v001
+decision=authorize-narrowed-local-replay-authority
+scope=macos-designated-live-verification-lane-only
+fact_1=Intentional deletion, rollback, restoration, or mutation of BetterPullReview replay state by the same user or an administrator is outside the supported threat model.
+fact_2=The supported threat model still includes accidental loss, unsafe permissions, symlinked paths, concurrent honest spenders, and substitution observed at defined retained-descriptor revalidation barriers; every detected condition fails closed.
+fact_3=Replay namespace initialization or reset is an explicit operation separate from an attended launch and creates a fresh random namespace identity; an attended launch never silently recreates missing state.
+fact_4=Every approval subject binds the replay schema, normalized namespace path, and random namespace identity; reset invalidates every approval bound to the prior identity and requires a fresh attended approval.
+fact_5=One approval ID is admitted by exclusive durable record creation with retained descriptor, exact name-to-inode and link-count revalidation, and no grant after any failed check or durability result.
+fact_6=The one-use claim is conditional on the replay namespace not being intentionally deleted, rolled back, restored, or tampered with by the same user or an administrator.
+fact_7=Approval authorizes implementation and hermetic verification only; it does not authorize a live GitHub run, credential use, comment publication, release packaging, or RFC closeout.
+rejection=Keep BPR-0261 in Backlog and require a monotonic authority outside current-user-mutable storage.

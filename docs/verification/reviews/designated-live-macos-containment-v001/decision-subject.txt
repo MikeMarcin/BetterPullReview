@@ -1,0 +1,13 @@
+schema_name=bpr.operator_decision_subject
+schema_version=1
+gate=designated-live-macos-containment-v001
+decision=authorize-read-only-image-and-kernel-audited-launch-topology
+scope=macos-designated-live-verification-lane-only
+fact_1=An external stage-zero launcher mounts a digest-bound disk image read-only beneath a fresh owner-private mount root; the app, stage-one supervisor, verifier, and resource inventory live inside that image.
+fact_2=Stage one and the app independently require the same read-only mount, retained no-link descriptors, exact inventory and signature identities, and fail closed on nested-resource substitution or mount drift.
+fact_3=Stage one may use only an initially empty macOS Mach SERVICE_SLOT inherited across suspended spawn; it restores the parent's exact registered-port snapshot immediately after spawn and has no argv, environment, PID-only, nonce-only, generic-pipe, or persistent-state fallback.
+fact_4=The app and stage one complete a bidirectional fixed-message handshake, validate kernel audit trailers and peer code identity with Security.framework before QApplication or public observation, and refuse direct or alternate launch.
+fact_5=The approval subject binds the stage-one supervisor and in-image inventory/resource identities; a raw image pathname hash is release evidence but is not claimed as an FD-atomic DiskImages attach identity.
+fact_6=If SERVICE_SLOT is occupied, audit validation fails, the mount is writable, detach requires force, or any identity differs, the lane fails closed.
+fact_7=Approval authorizes implementation and hermetic verification only; it does not authorize a live GitHub run, credential use, comment publication, distribution packaging, signing/notarization policy, or RFC-BPR-0014 closeout.
+rejection=Keep BPR-0262 in Backlog and select another authenticated containment topology.

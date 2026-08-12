@@ -14,6 +14,12 @@ capsule supervisor from another parent, while the approval subject and runtime
 bootstrap bind neither supervisor nor inventory. The same review identified a
 check/use gap for nested capsule entries after path-based verification.
 
+The read-only-image and kernel-audited Mach launch topology is awaiting an
+exact operator decision in
+[designated-live-macos-containment-v001](../../verification/reviews/designated-live-macos-containment-v001/operator-packet.md).
+Packet preparation is not approval; BPR-0262 remains Backlog and no live or
+package authority exists unless the exact bound response is returned.
+
 ## Required final state
 
 - The shipped app refuses attended authority unless it can authenticate that
@@ -48,4 +54,3 @@ check/use gap for nested capsule entries after path-based verification.
   verification and requires refusal before GUI resume.
 - Architecture, capsule, manifest, bootstrap, production-symbol/source,
   format/tidy, documentation, and diff gates pass.
-
