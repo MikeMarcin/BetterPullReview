@@ -33,6 +33,41 @@ bpr_add_network_isolated_test(
     NAME application_review_mutation_application_host
     COMMAND test_better_pull_review_review_mutation_application_host_tests
 )
+
+bpr_add_executable(
+    test_better_pull_review_designated_review_authority_bootstrap_tests
+    designated_review_authority_bootstrap_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_designated_review_authority_bootstrap_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+target_include_directories(
+    test_better_pull_review_designated_review_authority_bootstrap_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/application/src"
+)
+target_compile_definitions(
+    test_better_pull_review_designated_review_authority_bootstrap_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
+)
+bpr_enable_hardening(
+    test_better_pull_review_designated_review_authority_bootstrap_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_designated_review_authority_bootstrap_tests
+)
+bpr_add_network_isolated_test(
+    NAME application_designated_review_authority_bootstrap
+    COMMAND test_better_pull_review_designated_review_authority_bootstrap_tests
+)
+set_tests_properties(
+    application_designated_review_authority_bootstrap
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION
+            "designated-review-authority-bootstrap-tests:(pass|platform-deferred)"
+)
 set_tests_properties(
     application_review_mutation_application_host
     PROPERTIES

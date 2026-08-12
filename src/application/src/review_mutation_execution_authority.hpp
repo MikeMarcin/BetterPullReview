@@ -1,0 +1,151 @@
+#ifndef BPR_SRC_APPLICATION_SRC_REVIEW_MUTATION_EXECUTION_AUTHORITY_HPP
+#define BPR_SRC_APPLICATION_SRC_REVIEW_MUTATION_EXECUTION_AUTHORITY_HPP
+
+#include "bpr/application/review_mutation_application_host.hpp"
+
+#include <atomic>
+#include <chrono>
+#include <cstdint>
+#include <expected>
+#include <filesystem>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
+
+namespace bpr::application::detail {
+	enum class designated_review_bootstrap_failure : std::uint8_t {
+		invalid_configuration,
+		artifact_absent,
+		unsafe_parent,
+		unsafe_artifact,
+		artifact_limit,
+		malformed_approval,
+		approval_mismatch,
+		approval_digest_mismatch,
+		executable_unavailable,
+		executable_limit,
+		public_observation,
+		artifact_substituted,
+		artifact_replayed,
+		spent_state_failure,
+		file_sync_failure,
+		directory_sync_failure,
+		consume_failure,
+		platform_unavailable,
+	};
+
+	enum class designated_review_public_observation_failure : std::uint8_t {
+		network,
+		timeout,
+		http,
+		redirect,
+		malformed,
+		response_limit,
+		identity_mismatch,
+		unavailable,
+	};
+
+	class designated_review_public_observation_port
+	{
+	public:
+		virtual ~designated_review_public_observation_port() = default;
+
+		[[nodiscard]] virtual auto observe(
+			const review_mutation_target_binding& aExpected)
+			-> std::expected<void, designated_review_public_observation_failure>
+			= 0;
+	};
+
+	struct designated_review_bootstrap_request
+	{
+		std::filesystem::path ApprovalPath;
+		std::filesystem::path ExecutablePath;
+		std::string           SourceSha256;
+		std::string           BuildConfiguration;
+		bool                  BuildTesting = true;
+
+		auto operator<=>(const designated_review_bootstrap_request&) const = default;
+	};
+
+	[[nodiscard]] auto designated_review_approval_subject(
+		const designated_review_bootstrap_request& aRequest,
+		std::string_view                           aApplicationSha256,
+		std::string_view                           aApprovalId)
+		-> std::expected<std::string, designated_review_bootstrap_failure>;
+
+	class designated_review_authority_bootstrap final
+	{
+	public:
+		designated_review_authority_bootstrap() = delete;
+
+		[[nodiscard]] static auto run(
+			const designated_review_bootstrap_request& aRequest,
+			designated_review_public_observation_port& aObservation)
+			-> std::expected<
+				review_mutation_execution_grant,
+				designated_review_bootstrap_failure>;
+	};
+
+#if defined(BPR_APPLICATION_TESTING)
+	void fail_designated_review_fsync_after_for_testing(std::uint32_t aCalls) noexcept;
+#endif
+} // namespace bpr::application::detail
+
+namespace bpr::application {
+	class review_mutation_execution_authority final
+	{
+	public:
+		review_mutation_execution_authority(
+			const review_mutation_execution_authority&) = delete;
+		auto operator=(const review_mutation_execution_authority&)
+			-> review_mutation_execution_authority& = delete;
+		~review_mutation_execution_authority()      = default;
+
+	private:
+		enum class kind : std::uint8_t {
+			testing_reusable,
+			attended_one_shot,
+		};
+
+		explicit review_mutation_execution_authority(
+			review_mutation_execution_scope aScope);
+		review_mutation_execution_authority(
+			review_mutation_target_binding        aTarget,
+			std::chrono::steady_clock::time_point aExpiresAt) noexcept;
+
+		[[nodiscard]] auto bind(
+			const review_mutation_execution_scope& aScope) noexcept -> bool;
+		[[nodiscard]] auto permits(
+			const review_mutation_execution_scope& aScope) noexcept -> bool;
+		void revoke() noexcept;
+
+		friend class review_mutation_application_host;
+		friend class detail::designated_review_authority_bootstrap;
+#if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)
+		friend auto make_review_mutation_testing_grant(
+			core::application_session_id,
+			core::request_generation,
+			review_mutation_target_binding,
+			review_mutation_acting_identity)
+			-> std::shared_ptr<review_mutation_execution_authority>;
+		friend auto make_review_mutation_one_shot_testing_grant(
+			review_mutation_target_binding,
+			std::chrono::steady_clock::time_point)
+			-> std::shared_ptr<review_mutation_execution_authority>;
+#endif
+
+		mutable std::mutex                             Mutex;
+		review_mutation_execution_scope                Scope;
+		review_mutation_target_binding                 Target;
+		std::optional<review_mutation_acting_identity> ActingIdentity;
+		std::chrono::steady_clock::time_point          ExpiresAt{ };
+		kind                                           Kind     = kind::testing_reusable;
+		bool                                           Bound    = false;
+		std::atomic_bool                               Consumed = false;
+		std::atomic_bool                               Revoked  = false;
+	};
+} // namespace bpr::application
+
+#endif

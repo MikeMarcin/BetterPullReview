@@ -28,6 +28,18 @@ set(
     "src/adapters/github/src/native_https_transport.hpp"
 )
 set(
+    github_designated_live_observer_relative
+    "src/adapters/github/src/designated_live_public_observer.cpp"
+)
+set(
+    github_designated_live_observer_interface_relative
+    "src/adapters/github/src/designated_live_public_observer.hpp"
+)
+set(
+    app_designated_live_supervisor_relative
+    "src/app/src/designated_live_macos_supervisor.cpp"
+)
+set(
     github_wire_validation_relative
     "src/adapters/github/src/github_wire_request_validation.cpp"
 )
@@ -1244,10 +1256,10 @@ if(EXISTS "${designated_live_test_canary}")
         "${designated_live_test_cmake_contents}"
     )
     list(LENGTH designated_live_runner_target_mentions designated_live_runner_target_mention_count)
-    if(NOT designated_live_runner_target_mention_count EQUAL 7)
+    if(NOT designated_live_runner_target_mention_count EQUAL 6)
         message(
             FATAL_ERROR
-            "Designated live runner target must have exactly its seven fixed composition/registration uses"
+            "Designated live regression runner target must have exactly its six fixed composition uses"
         )
     endif()
 endif()
@@ -1309,6 +1321,11 @@ if(
         FATAL_ERROR
         "Application target must depend inward on Core only"
     )
+endif()
+
+set(app_cmake_contents "")
+if(EXISTS "${BPR_ROOT}/src/app/CMakeLists.txt")
+    file(READ "${BPR_ROOT}/src/app/CMakeLists.txt" app_cmake_contents)
 endif()
 
 file(READ "${BPR_ROOT}/src/adapters/qt/CMakeLists.txt" qt_cmake_contents)
@@ -1379,7 +1396,25 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
             "${BPR_ROOT}"
             "${current_allowed}"
         )
-        if(current_allowed_relative MATCHES "^src/adapters/git/")
+        if(
+            current_allowed_relative
+                STREQUAL github_designated_live_observer_relative
+        )
+            set(effect_owner_cmake "${github_cmake_contents}")
+            set(
+                effect_owner_target
+                "better_pull_review_designated_live_public_observer"
+            )
+        elseif(
+            current_allowed_relative
+                STREQUAL app_designated_live_supervisor_relative
+        )
+            set(effect_owner_cmake "${app_cmake_contents}")
+            set(
+                effect_owner_target
+                "tool_better_pull_review_designated_live_supervisor"
+            )
+        elseif(current_allowed_relative MATCHES "^src/adapters/git/")
             set(effect_owner_cmake "${git_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_git")
         elseif(current_allowed_relative MATCHES "^src/adapters/agent/")
@@ -1432,15 +1467,254 @@ verify_effect_owner(
     "${github_cli_transport_relative}"
 )
 verify_effect_owner(
-    "(Security/(Security|SecItem|SecKeychain)\\.h|Sec(Item|Keychain)[A-Za-z0-9_]*|kSec[A-Z][A-Za-z0-9_]*)"
+    "(Security/(SecItem|SecKeychain)\\.h|Sec(Item|Keychain)[A-Za-z0-9_]*|kSec(Class|Attr|Use|Match|Return)[A-Za-z0-9_]*)"
     "macOS Keychain API"
     "${macos_keychain_relative}"
+)
+verify_effect_owner(
+    "(Sec(Static)?Code[A-Za-z0-9_]*|SecRequirement[A-Za-z0-9_]*|kSec(Code|CS|Guest)[A-Za-z0-9_]*)"
+    "macOS code-signing API"
+    "${github_designated_live_observer_relative}"
+    "${app_designated_live_supervisor_relative}"
+)
+verify_effect_owner(
+    "(/usr/bin/curl|com\\.apple\\.curl)"
+    "designated live public curl/network"
+    "${github_designated_live_observer_relative}"
+)
+verify_effect_owner(
+    "(^|[^A-Za-z0-9_])posix_spawn[ \\t\\r\\n]*\\("
+    "posix_spawn"
+    "${github_designated_live_observer_relative}"
+    "${app_designated_live_supervisor_relative}"
 )
 verify_effect_owner(
     "(wincred\\.h|Cred(Read|Write|Delete|Free|Enumerate|Rename|Protect|Unprotect|Pack|UnPack|IsProtected|FindBest|GetSessionTypes|Marshal|Unmarshal)[A-Za-z0-9_]*|P?CREDENTIAL(A|W)?([^A-Z0-9_]|$)|CRED_[A-Z0-9_]+)"
     "Windows Credential Manager API"
     "${windows_credential_manager_relative}"
 )
+
+get_filename_component(
+    github_designated_live_observer_file
+    "${BPR_ROOT}/${github_designated_live_observer_relative}"
+    ABSOLUTE
+)
+get_filename_component(
+    github_designated_live_observer_interface_file
+    "${BPR_ROOT}/${github_designated_live_observer_interface_relative}"
+    ABSOLUTE
+)
+if(EXISTS "${github_designated_live_observer_file}")
+    if(NOT EXISTS "${github_designated_live_observer_interface_file}")
+        message(FATAL_ERROR "Designated live public observer interface is missing")
+    endif()
+    file(
+        READ
+        "${github_designated_live_observer_file}"
+        github_designated_live_observer_contents
+    )
+    file(
+        READ
+        "${github_designated_live_observer_interface_file}"
+        github_designated_live_observer_interface_contents
+    )
+    foreach(
+        required_observer_fragment
+        IN ITEMS
+            [=["/usr/bin/curl"]=]
+            [=["https://api.github.com"]=]
+            [=["/repos/MikeMarcin/BPR-Test/pulls/1"]=]
+            [=[CFSTR("anchor apple and identifier \"com.apple.curl\"")]=]
+            [=[kSecCSCheckAllArchitectures]=]
+            [=[POSIX_SPAWN_START_SUSPENDED]=]
+            [=[std::array<char*, 1>{ nullptr }]=]
+            [=["--disable"]=]
+            [=["--request"]=]
+            [=["GET"]=]
+            [=["--proto"]=]
+            [=["=https"]=]
+            [=["--tlsv1.2"]=]
+            [=["--tls-max"]=]
+            [=["1.3"]=]
+            [=["--http1.1"]=]
+            [=["--noproxy"]=]
+            [=["--proxy"]=]
+            [=["--max-redirs"]=]
+            [=["--connect-timeout"]=]
+            [=["--max-time"]=]
+            [=["--max-filesize"]=]
+            [=["Accept: application/vnd.github+json"]=]
+            [=["User-Agent: BetterPullReview/0.1"]=]
+            [=["X-GitHub-Api-Version: 2022-11-28"]=]
+            [=["Accept-Encoding: identity"]=]
+            [=["Accept-Language: *"]=]
+            [=[designated_live_public_observation_failure::cancelled]=]
+            [=[designated_live_public_observation_failure::timeout]=]
+            [=[response_header_limit]=]
+            [=[response_body_limit]=]
+    )
+        string(
+            FIND
+            "${github_designated_live_observer_contents}"
+            "${required_observer_fragment}"
+            required_observer_fragment_index
+        )
+        if(required_observer_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live public observer policy is incomplete: "
+                "${required_observer_fragment}"
+            )
+        endif()
+    endforeach()
+    foreach(
+        forbidden_observer_pattern
+        IN ITEMS
+            "(^|[^A-Za-z0-9_])(getenv|setenv|putenv)[ \\t\\r\\n]*\\("
+            "(^|[^A-Za-z0-9_])(system|popen|fork|exec[a-zA-Z0-9_]*|posix_spawnp)[ \\t\\r\\n]*\\("
+            "(QProcess|QNetwork|QTcp|QUdp|NSURLSession|CFNetwork|curl_easy_|libcurl)"
+            "\"--(location|netrc|cookie|user|oauth2-bearer)\""
+    )
+        if(
+            github_designated_live_observer_contents
+                MATCHES "${forbidden_observer_pattern}"
+        )
+            message(
+                FATAL_ERROR
+                "Designated live public observer acquired forbidden ambient, "
+                "redirect, credential, shell, or second-network authority: "
+                "${forbidden_observer_pattern}"
+            )
+        endif()
+    endforeach()
+    foreach(
+        required_observer_interface_fragment
+        IN ITEMS
+            [=[observe_designated_live_public_target(]=]
+            [=[std::stop_token aStop = { })]=]
+            [=[#if defined(BPR_DESIGNATED_LIVE_PUBLIC_OBSERVER_TESTING)]=]
+    )
+        string(
+            FIND
+            "${github_designated_live_observer_interface_contents}"
+            "${required_observer_interface_fragment}"
+            required_observer_interface_fragment_index
+        )
+        if(required_observer_interface_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live public observer interface is not a fixed "
+                "production operation: ${required_observer_interface_fragment}"
+            )
+        endif()
+    endforeach()
+    foreach(
+        required_observer_cmake_fragment
+        IN ITEMS
+            [=[add_library( better_pull_review_designated_live_public_observer STATIC src/designated_live_public_observer.cpp )]=]
+            [=[if(APPLE AND (BUILD_TESTING OR BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE))]=]
+            [=[target_compile_definitions( better_pull_review_designated_live_public_observer PRIVATE BPR_DESIGNATED_LIVE_PUBLIC_OBSERVER_TESTING=1 )]=]
+    )
+        string(
+            FIND
+            "${github_cmake_compact}"
+            "${required_observer_cmake_fragment}"
+            required_observer_cmake_fragment_index
+        )
+        if(required_observer_cmake_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live public observer build ownership or test-seam "
+                "isolation is incomplete: ${required_observer_cmake_fragment}"
+            )
+        endif()
+    endforeach()
+
+endif()
+
+get_filename_component(
+    app_designated_live_supervisor_file
+    "${BPR_ROOT}/${app_designated_live_supervisor_relative}"
+    ABSOLUTE
+)
+if(EXISTS "${app_designated_live_supervisor_file}")
+    file(
+        READ
+        "${app_designated_live_supervisor_file}"
+        app_designated_live_supervisor_contents
+    )
+    foreach(
+        required_supervisor_fragment
+        IN ITEMS
+            [=[run_static_verifier(*root, *inventory)]=]
+            [=[observe_designated_live_public_target()]=]
+            [=[launch_attended_application(*root, attended->Approval)]=]
+            [=[POSIX_SPAWN_START_SUSPENDED]=]
+            [=[guest_signing_digest(process)]=]
+            [=["--attended-designated-live-approval"]=]
+    )
+        string(
+            FIND
+            "${app_designated_live_supervisor_contents}"
+            "${required_supervisor_fragment}"
+            required_supervisor_fragment_index
+        )
+        if(required_supervisor_fragment_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live supervisor prelaunch policy is incomplete: "
+                "${required_supervisor_fragment}"
+            )
+        endif()
+    endforeach()
+    string(
+        REGEX MATCHALL
+        "observe_designated_live_public_target[ \t\r\n]*[(][ \t\r\n]*[)]"
+        designated_live_supervisor_observation_calls
+        "${app_designated_live_supervisor_contents}"
+    )
+    list(
+        LENGTH
+        designated_live_supervisor_observation_calls
+        designated_live_supervisor_observation_call_count
+    )
+    if(NOT designated_live_supervisor_observation_call_count EQUAL 1)
+        message(
+            FATAL_ERROR
+            "Designated live supervisor must perform exactly one fixed public observation"
+        )
+    endif()
+    string(
+        FIND
+        "${app_designated_live_supervisor_contents}"
+        "run_static_verifier(*root, *inventory)"
+        designated_live_supervisor_verifier_index
+    )
+    string(
+        FIND
+        "${app_designated_live_supervisor_contents}"
+        "observe_designated_live_public_target()"
+        designated_live_supervisor_observation_index
+    )
+    string(
+        FIND
+        "${app_designated_live_supervisor_contents}"
+        "launch_attended_application(*root, attended->Approval)"
+        designated_live_supervisor_launch_index
+    )
+    if(
+        designated_live_supervisor_verifier_index GREATER_EQUAL
+            designated_live_supervisor_observation_index
+        OR designated_live_supervisor_observation_index GREATER_EQUAL
+            designated_live_supervisor_launch_index
+    )
+        message(
+            FATAL_ERROR
+            "Designated live supervisor must verify the capsule and observe the "
+            "fixed public target before application launch"
+        )
+    endif()
+endif()
 verify_effect_owner(
     "(libsecret/secret\\.h|org\\.freedesktop\\.(Secret|secrets)|(^|[^A-Za-z0-9_])secret_(collection|item|password|schema|service|value)_[A-Za-z0-9_]*|(^|[^A-Za-z0-9_])Secret(Collection|Item|Schema|Service|Value)[A-Za-z0-9_]*|(^|[^A-Za-z0-9_])SECRET_(COLLECTION|ITEM|SCHEMA|SERVICE|VALUE)_[A-Z0-9_]*)"
     "Linux Secret Service API"
@@ -3461,7 +3735,7 @@ endif()
 
 set(
     alternate_process_patterns
-    "(NSTask|GSubprocess|g_subprocess_|CreateProcess(AsUser|WithLogon|WithToken)?[AW]?|ShellExecute(Ex)?[AW]?|WinExec|posix_spawnp?|(^|[^A-Za-z0-9_])(_?w?system|_?w?popen|fork|vfork|clone3?|exec(l|le|lp|v|ve|vp|vpe)|_?w?spawn(l|le|lp|lpe|v|ve|vp|vpe))[ \t\r\n]*\\()"
+    "(NSTask|GSubprocess|g_subprocess_|CreateProcess(AsUser|WithLogon|WithToken)?[AW]?|ShellExecute(Ex)?[AW]?|WinExec|posix_spawnp|(^|[^A-Za-z0-9_])(_?w?system|_?w?popen|fork|vfork|clone3?|exec(l|le|lp|v|ve|vp|vpe)|_?w?spawn(l|le|lp|lpe|v|ve|vp|vpe))[ \t\r\n]*\\()"
     "(#[ \t]*include[ \t]*[<\"]boost/process|boost::process|Poco::Process|wx(Process|Execute)|uv_spawn|g_spawn[A-Za-z0-9_]*)"
     "(/bin/(ba|z|k|c)?sh|\"(/usr/bin/)?(sh|bash|zsh|ksh|csh|fish|cmd(\\.exe)?|powershell(\\.exe)?|pwsh(\\.exe)?)\"|(^|[^A-Za-z0-9_])(sh|bash|zsh|cmd)[ \t]+(-c|/c)([^A-Za-z0-9_]|$))"
 )

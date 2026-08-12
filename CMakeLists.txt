@@ -44,6 +44,23 @@ endif()
 
 option(BPR_BUILD_QT "Build the Qt presentation adapter" ON)
 option(
+    BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE
+    "Build the narrow tests-disabled macOS attended-review execution capsule"
+    OFF
+)
+if(BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE AND NOT APPLE)
+    message(
+        FATAL_ERROR
+        "BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE is supported only on macOS"
+    )
+endif()
+if(BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE AND BUILD_TESTING)
+    message(
+        FATAL_ERROR
+        "The designated live macOS capsule requires BUILD_TESTING=OFF"
+    )
+endif()
+option(
     BPR_DEPENDENCY_OFFLINE
     "Require all CPM-managed source dependencies to exist in CPM_SOURCE_CACHE"
     OFF

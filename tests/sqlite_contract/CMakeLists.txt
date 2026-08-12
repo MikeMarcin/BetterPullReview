@@ -86,6 +86,33 @@ bpr_add_executable(
     test_better_pull_review_sqlite_review_ledger_tests
     review_ledger_storage_tests.cpp
 )
+
+bpr_add_executable(
+    test_better_pull_review_review_mutation_recovery_storage_tests
+    review_mutation_recovery_storage_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_mutation_recovery_storage_tests
+    PRIVATE
+        BetterPullReview::AdapterSQLite
+        BetterPullReview::SQLite3
+)
+bpr_enable_hardening(
+    test_better_pull_review_review_mutation_recovery_storage_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_review_mutation_recovery_storage_tests
+)
+bpr_add_network_isolated_test(
+    NAME sqlite_review_mutation_recovery_storage
+    COMMAND test_better_pull_review_review_mutation_recovery_storage_tests
+)
+set_tests_properties(
+    sqlite_review_mutation_recovery_storage
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "review-mutation-recovery-storage-tests:pass"
+        TIMEOUT 30
+)
 target_link_libraries(
     test_better_pull_review_sqlite_review_ledger_tests
     PRIVATE

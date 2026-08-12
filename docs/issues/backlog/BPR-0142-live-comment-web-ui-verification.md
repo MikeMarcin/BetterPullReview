@@ -24,10 +24,11 @@ it carries no marker and behaves like an ordinary comment.
 
 ## Exactly what is missing
 
-1. **The live provider and its exact-target lane.** The product owner has now
-   designated disposable `MikeMarcin/BPR-Test#1` with immutable repository,
-   pull-request, base-repository, and head identities. No live child may launch
-   until BPR-0235 implements and verifies the exact pre-launch check.
+1. **Attended execution of the prepared one-shot shipped-app lane.** BPR-0256
+   prepares the digest-bound signed-capsule supervisor, private in-application
+   bootstrap, and exact tests-disabled application registration for designated
+   `MikeMarcin/BPR-Test#1`. It does not execute the lane or provide
+   Linux/Windows evidence.
 2. **A write-scoped token for that repository, supplied by the product owner.**
    It is never committed, never logged, and never placed in a fixture.
 3. **A human at the keyboard** to open the pull request, read the comment,
@@ -80,6 +81,15 @@ database ID `4246446933`, node ID `PR_kwDOTyvof879G6NV`, head OID
 and open state. Creating the fixture PR is not the RFC's comment mutation and
 does not itself satisfy any live-provider, web-UI, identity, or mixed-client
 criterion.
+
+BPR-0256 prepares a pending digest-bound operator packet for the exact shipped
+Release build. The operator must approve and materialize its exact one-use
+artifact, enter any credential only through the Qt sensitive prompt, run the
+single live test, and inspect the resulting first comment in GitHub's web UI.
+Its one-comment authority does not include posting a reply; reply-return
+evidence requires a separately authorized attended checkpoint. No approval
+verdict, credential access, live execution, or web evidence is claimed by that
+card.
 
 The token is minted at session time with `gh auth token` and pasted into the
 application's Qt-owned credential input. It is never committed, logged, echoed,

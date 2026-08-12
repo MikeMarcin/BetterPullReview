@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -56,6 +57,7 @@ REQUIRED_COMMAND_BOUND_TESTS = {
 MACOS_LOOPBACK_AUTHORITIES = {
     "test_network_isolation_loopback": 1,
     "test_network_isolation_unrelated": 1,
+    "designated_live_public_observer_fixture": 1,
     "native_https_transport_fixture": 2,
     "native_git_smart_transport_fixture": 1,
 }
@@ -283,8 +285,8 @@ def configured_failures(
                 failures.append(
                     f"{name} labels are {labels!r}, expected only {LIVE_TEST_LABEL}"
                 )
-            if property_value(test, "TIMEOUT") != 30.0:
-                failures.append(f"{name} must retain its exact 30-second timeout")
+            if property_value(test, "TIMEOUT") != 1800.0:
+                failures.append(f"{name} must retain its exact 1800-second timeout")
             failures.extend(live_credential_failures(test, name))
             continue
         if isinstance(labels, list) and LIVE_TEST_LABEL in labels:
@@ -333,6 +335,82 @@ def configured_failures(
     return failures
 
 
+def live_supervisor_failures(
+    supervisor: pathlib.Path,
+    inventory: pathlib.Path,
+    build_dir: pathlib.Path,
+    root: pathlib.Path,
+) -> list[str]:
+    """Validate the explicit tests-disabled signed-capsule supervisor identity."""
+    failures: list[str] = []
+    if not supervisor.is_absolute() or not inventory.is_absolute() or not build_dir.is_absolute():
+        return ["live supervisor, inventory, and producer build directory must be absolute"]
+    try:
+        resolved_supervisor = supervisor.resolve(strict=True)
+        resolved_inventory = inventory.resolve(strict=True)
+        resolved_build = build_dir.resolve(strict=True)
+    except OSError as error:
+        return [f"live supervisor, inventory, or producer build is unavailable: {error}"]
+    if supervisor != resolved_supervisor or inventory != resolved_inventory:
+        failures.append("live supervisor and inventory paths must be resolved and immutable")
+    if not resolved_supervisor.is_file() or not os.access(resolved_supervisor, os.X_OK):
+        failures.append("live supervisor is not an executable regular file")
+    if resolved_supervisor.name != "better_pull_review_designated_live_supervisor":
+        failures.append("live command is not the signed-capsule BetterPullReview supervisor")
+    if not resolved_inventory.is_file():
+        failures.append("live capsule inventory is not a regular file")
+    for artifact, label in (
+        (resolved_supervisor, "supervisor"),
+        (resolved_inventory, "inventory"),
+    ):
+        try:
+            artifact.relative_to(resolved_build)
+        except ValueError:
+            failures.append(f"live {label} is outside its explicit producer build directory")
+
+    cache = resolved_build / "CMakeCache.txt"
+    if not cache.is_file():
+        failures.append("live producer build has no CMakeCache.txt")
+        return failures
+    text = cache.read_text(encoding="utf-8", errors="strict")
+    required_cache = {
+        "BUILD_TESTING:BOOL": "OFF",
+        "BPR_BUILD_QT:BOOL": "ON",
+        "CMAKE_BUILD_TYPE:STRING": "Release",
+        "CMAKE_HOME_DIRECTORY:INTERNAL": str(root.resolve()),
+    }
+    for key, expected in required_cache.items():
+        match = re.search(rf"^{re.escape(key)}=(.*)$", text, re.MULTILINE)
+        if match is None or match.group(1) != expected:
+            failures.append(
+                f"live producer cache {key} is "
+                f"{None if match is None else match.group(1)!r}, expected {expected!r}"
+            )
+
+    source_candidates = [
+        path
+        for base in (root / "src", root / "cmake")
+        if base.is_dir()
+        for path in base.rglob("*")
+        if path.is_file()
+    ]
+    source_candidates.extend(
+        path
+        for path in (root / "CMakeLists.txt", root / "CMakePresets.json")
+        if path.is_file()
+    )
+    if not source_candidates:
+        failures.append("live freshness inventory found no product source")
+    elif min(
+        resolved_supervisor.stat().st_mtime_ns,
+        resolved_inventory.stat().st_mtime_ns,
+    ) < max(
+        path.stat().st_mtime_ns for path in source_candidates
+    ):
+        failures.append("live supervisor or inventory predates product source or build configuration")
+    return failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True, type=pathlib.Path)
@@ -344,7 +422,9 @@ def main() -> int:
     parser.add_argument("--python", type=pathlib.Path)
     parser.add_argument("--macos-runner", type=pathlib.Path)
     parser.add_argument("--linux-launcher", type=pathlib.Path)
-    parser.add_argument("--live-runner", type=pathlib.Path)
+    parser.add_argument("--live-supervisor", type=pathlib.Path)
+    parser.add_argument("--live-inventory", type=pathlib.Path)
+    parser.add_argument("--live-build-dir", type=pathlib.Path)
     parser.add_argument("--live-approval", type=pathlib.Path)
     arguments = parser.parse_args()
 
@@ -398,22 +478,35 @@ def main() -> int:
         prefix = []
     if prefix:
         live_arguments = (
-            arguments.live_runner,
+            arguments.live_supervisor,
+            arguments.live_inventory,
+            arguments.live_build_dir,
             arguments.live_approval,
         )
         if any(value is not None for value in live_arguments) and not all(
             value is not None for value in live_arguments
         ):
             failures.append(
-                "live runner and approval arguments must be supplied together"
+                "live supervisor, inventory, producer build, and approval arguments must be supplied together"
             )
             live_command = None
         elif all(value is not None for value in live_arguments):
             live_command = [
-                str(arguments.live_runner.absolute()),
+                str(arguments.live_supervisor.absolute()),
+                "--attended-launch",
+                "--inventory",
+                str(arguments.live_inventory.absolute()),
                 "--approval",
                 str(arguments.live_approval.absolute()),
             ]
+            failures.extend(
+                live_supervisor_failures(
+                    arguments.live_supervisor,
+                    arguments.live_inventory,
+                    arguments.live_build_dir,
+                    arguments.root,
+                )
+            )
         else:
             live_command = None
         if arguments.python is None:

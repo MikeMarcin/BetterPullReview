@@ -3,6 +3,7 @@
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/core/sha256.hpp"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -157,6 +158,51 @@ namespace bpr::adapters::github::detail {
 				append_fingerprint_text(material, header.Value);
 			}
 			append_fingerprint_text(material, aRequest.Body);
+			return core::sha256(std::span{
+				reinterpret_cast<const std::uint8_t*>(material.data()),
+				material.size() });
+		}
+
+		void append_fingerprint_oid(
+			std::string& aMaterial, const core::git_commit_oid& aOid)
+		{
+			append_fingerprint_integer(
+				aMaterial, static_cast<std::uint64_t>(aOid.algorithm()));
+			aMaterial.append(
+				reinterpret_cast<const char*>(aOid.bytes().data()),
+				aOid.bytes().size());
+		}
+
+		[[nodiscard]] auto canonical_authority_fingerprint(
+			const application::review_mutation_live_binding& aBinding)
+			-> std::array<std::uint8_t, 32>
+		{
+			const auto& target   = aBinding.Target;
+			const auto& actor    = aBinding.ActingIdentity;
+			auto        material = std::string{ };
+			append_fingerprint_integer(material, target.Semantic.Host.value());
+			append_fingerprint_integer(material, target.Semantic.Repository.value());
+			append_fingerprint_integer(material, target.Semantic.PullRequest.value());
+			append_fingerprint_oid(material, target.Semantic.ExpectedHead);
+			append_fingerprint_text(material, target.Hostname.value());
+			append_fingerprint_integer(
+				material, static_cast<std::uint64_t>(target.ServerContract));
+			append_fingerprint_text(material, target.Repository.Owner);
+			append_fingerprint_text(material, target.Repository.Name);
+			append_fingerprint_integer(material, target.Number.value());
+			append_fingerprint_integer(material, target.RepositoryDatabaseId);
+			append_fingerprint_text(material, target.RepositoryNodeId);
+			append_fingerprint_integer(material, target.PullRequestDatabaseId);
+			append_fingerprint_text(material, target.PullRequestNodeId);
+			append_fingerprint_integer(material, target.BaseRepositoryDatabaseId);
+			append_fingerprint_oid(material, target.BaseOid);
+			append_fingerprint_text(material, target.BaseRef);
+			append_fingerprint_text(material, target.HeadRef);
+			append_fingerprint_integer(material, target.Open ? 1U : 0U);
+			append_fingerprint_integer(material, actor.Account.value());
+			append_fingerprint_integer(material, actor.DatabaseId);
+			append_fingerprint_text(material, actor.NodeId);
+			append_fingerprint_text(material, actor.Login);
 			return core::sha256(std::span{
 				reinterpret_cast<const std::uint8_t*>(material.data()),
 				material.size() });
@@ -405,6 +451,25 @@ namespace bpr::adapters::github::detail {
 			return parsed.object();
 		}
 
+		[[nodiscard]] auto array_document(
+			const review_mutation_wire_response& aResponse)
+			-> std::optional<QJsonArray>
+		{
+			if (aResponse.Body.empty()
+				|| aResponse.Body.size() > maximum_review_mutation_response_bytes
+				|| !json_preflight{ aResponse.Body }.run()) {
+				return std::nullopt;
+			}
+			QJsonParseError error;
+			const auto      parsed = QJsonDocument::fromJson(
+				QByteArray{ aResponse.Body.data(), static_cast<qsizetype>(aResponse.Body.size()) },
+				&error);
+			if (error.error != QJsonParseError::NoError || !parsed.isArray()) {
+				return std::nullopt;
+			}
+			return parsed.array();
+		}
+
 		[[nodiscard]] auto text(const QJsonValue& aValue) -> std::optional<std::string>
 		{
 			if (!aValue.isString()) {
@@ -436,6 +501,32 @@ namespace bpr::adapters::github::detail {
 						   && bounded_text(aHeader.Value, 8U * 1024U)
 						   && aHeader.Name != "Location" && aHeader.Name != "location";
 				   });
+		}
+
+		[[nodiscard]] auto has_header(
+			const review_mutation_wire_response& aResponse,
+			const std::string_view               aName) noexcept -> bool
+		{
+			return std::ranges::any_of(aResponse.Headers, [aName](const http_header& aHeader) {
+				return aHeader.Name.size() == aName.size()
+					&& std::ranges::equal(
+						   aHeader.Name,
+						   aName,
+						   [](const unsigned char aLeft, const unsigned char aRight) {
+							   return std::tolower(aLeft) == std::tolower(aRight);
+						   });
+			});
+		}
+
+		[[nodiscard]] auto same_attempt(
+			const application::review_mutation_recovery_record& aLeft,
+			const application::review_mutation_recovery_record& aRight) noexcept
+			-> bool
+		{
+			return aLeft.IdempotencyKey == aRight.IdempotencyKey
+				&& aLeft.RequestFingerprint == aRight.RequestFingerprint
+				&& aLeft.AuthorityFingerprint == aRight.AuthorityFingerprint
+				&& aLeft.Body == aRight.Body && aLeft.Anchor == aRight.Anchor;
 		}
 
 		[[nodiscard]] auto map_contract_failure(
@@ -524,6 +615,26 @@ namespace bpr::adapters::github::detail {
 		};
 	}
 
+	auto compile_review_comment_observation_request(
+		const application::review_mutation_request& aRequest,
+		const application::github_server_contract   aServer)
+		-> review_mutation_request_result
+	{
+		const auto mutation = compile_review_comment_request(aRequest, aServer);
+		if (!mutation.has_value()) {
+			return std::unexpected(mutation.error());
+		}
+		return review_mutation_wire_request{
+			.Semantic  = aRequest,
+			.Server    = aServer,
+			.Operation = review_mutation_operation::observe_review_comments,
+			.Method    = http_method::get,
+			.Path      = mutation->Path + "?per_page=100",
+			.Headers   = common_headers(),
+			.Body      = { },
+		};
+	}
+
 	auto validate_outbound_review_mutation_request(
 		const review_mutation_wire_request& aRequest)
 		-> std::expected<void, review_mutation_contract_failure>
@@ -538,8 +649,13 @@ namespace bpr::adapters::github::detail {
 						canonical = compile_target_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
-					} else {
+					} else if (aRequest.Operation
+							   == review_mutation_operation::create_review_comment) {
 						canonical = compile_review_comment_request(aSemantic, aRequest.Server);
+					} else if (aRequest.Operation
+							   == review_mutation_operation::observe_review_comments) {
+						canonical = compile_review_comment_observation_request(
+							aSemantic, aRequest.Server);
 					}
 				},
 				aRequest.Semantic);
@@ -699,6 +815,67 @@ namespace bpr::adapters::github::detail {
 		};
 	}
 
+	auto parse_review_comment_observations(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_mutation_request& aExpected)
+		-> review_mutation_parse_result<review_mutation_server_reconciliation>
+	{
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)
+			|| has_header(aResponse, "Link") || !aExpected.LiveBinding.has_value()) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto array = array_document(aResponse);
+		if (!array.has_value() || array->size() > 100) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		auto result = review_mutation_server_reconciliation{ };
+		result.Projection.reserve(static_cast<std::size_t>(array->size()));
+		for (const auto& value : *array) {
+			if (!value.isObject()) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			const auto object = value.toObject();
+			const auto node   = text(object.value("node_id"));
+			const auto body   = text(object.value("body"));
+			if (!node.has_value() || !body.has_value()
+				|| !bounded_text(*node, 256U)
+				|| body->size() > maximum_review_mutation_response_bytes
+				|| !utf8_round_trip(*body)) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			result.Projection.push_back(application::review_comment_projection{
+				.ServerId = *node,
+				.Body     = *body,
+			});
+
+			const auto bytes     = QJsonDocument{ object }.toJson(QJsonDocument::Compact);
+			const auto candidate = review_mutation_wire_response{
+				.Status = 201,
+				.Body   = std::string{
+					bytes.constData(), static_cast<std::size_t>(bytes.size()) },
+			};
+			const auto exact = parse_review_comment_response(candidate, aExpected);
+			if (exact.has_value()) {
+				if (result.ExactReceipt.has_value()) {
+					return failed(review_mutation_contract_failure::identity_mismatch);
+				}
+				result.ExactReceipt = exact->Receipt;
+			} else if (exact.error()
+					   != review_mutation_contract_failure::identity_mismatch) {
+				return failed(exact.error());
+			}
+		}
+		std::ranges::sort(result.Projection, { }, &application::review_comment_projection::ServerId);
+		if (std::ranges::adjacent_find(
+				result.Projection,
+				{ },
+				&application::review_comment_projection::ServerId)
+			!= result.Projection.end()) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		return result;
+	}
+
 	auto valid(const live_review_mutation_configuration& aConfiguration) noexcept -> bool
 	{
 		return application::valid(aConfiguration.CredentialContext)
@@ -717,10 +894,13 @@ namespace bpr::adapters::github::detail {
 	review_mutation_session::review_mutation_session(
 		github_mutation_wire_transport&        aTransport,
 		live_review_mutation_configuration     aConfiguration,
-		application::review_mutation_transport aLease) noexcept
+		application::review_mutation_transport aLease,
+		std::unique_ptr<application::review_mutation_recovery_port>
+			aRecovery) noexcept
 		: Transport{ &aTransport }
 		, Configuration{ std::move(aConfiguration) }
 		, Lease{ std::move(aLease) }
+		, Recovery{ std::move(aRecovery) }
 	{
 	}
 
@@ -793,6 +973,30 @@ namespace bpr::adapters::github::detail {
 		return { };
 	}
 
+	auto review_mutation_session::reconcile(
+		const application::review_mutation_request& aRequest,
+		const std::stop_token                       aStop)
+		-> std::expected<
+			review_mutation_server_reconciliation,
+			application::review_mutation_failure>
+	{
+		const auto wire = compile_review_comment_observation_request(
+			aRequest,
+			Configuration.CredentialContext.Authority.ServerContract);
+		if (!wire.has_value()) {
+			return std::unexpected(map_contract_failure(wire.error()));
+		}
+		auto response = perform(*wire, aStop);
+		if (!response.has_value()) {
+			return std::unexpected(response.error());
+		}
+		auto parsed = parse_review_comment_observations(*response, aRequest);
+		if (!parsed.has_value()) {
+			return std::unexpected(map_contract_failure(parsed.error()));
+		}
+		return std::move(*parsed);
+	}
+
 	auto review_mutation_session::observe_target(const std::stop_token aStop)
 		-> std::expected<core::review_mutation_target, application::review_mutation_failure>
 	{
@@ -837,63 +1041,155 @@ namespace bpr::adapters::github::detail {
 		const std::stop_token                       aStop)
 		-> std::expected<application::review_mutation_receipt, application::review_mutation_failure>
 	{
+		return submit_and_reconcile(aRequest, aStop).Result;
+	}
+
+	auto review_mutation_session::submit_and_reconcile(
+		const application::review_mutation_request& aRequest,
+		const std::stop_token                       aStop)
+		-> application::review_mutation_submission
+	{
+		const auto failure = [](const application::review_mutation_failure aFailure) {
+			return application::review_mutation_submission{
+				.Result = std::unexpected(aFailure),
+			};
+		};
 		try {
 			std::scoped_lock lock{ Mutex };
 			if (aStop.stop_requested()) {
-				return std::unexpected(application::review_mutation_failure::cancelled);
+				return failure(application::review_mutation_failure::cancelled);
 			}
-			if (Lease == nullptr || !Lease->active()) {
-				return std::unexpected(application::review_mutation_failure::unavailable);
+			if (Lease == nullptr || !Lease->active() || Recovery == nullptr) {
+				return failure(application::review_mutation_failure::unavailable);
 			}
 			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
 				|| !application::valid(*aRequest.LiveBinding)
 				|| aRequest.LiveBinding->Target != Configuration.Target
 				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
-				return std::unexpected(application::review_mutation_failure::undesignated_target);
+				return failure(application::review_mutation_failure::undesignated_target);
 			}
 			const auto wire = compile_review_comment_request(
 				aRequest,
 				Configuration.CredentialContext.Authority.ServerContract);
 			if (!wire.has_value()) {
-				return std::unexpected(map_contract_failure(wire.error()));
+				return failure(map_contract_failure(wire.error()));
 			}
 			const auto fingerprint = canonical_write_fingerprint(*wire);
+			const auto expected    = application::review_mutation_recovery_record{
+				.IdempotencyKey       = aRequest.IdempotencyKey,
+				.RequestFingerprint   = fingerprint,
+				.AuthorityFingerprint = canonical_authority_fingerprint(
+					*aRequest.LiveBinding),
+				.Body   = aRequest.Proposal.Body,
+				.Anchor = aRequest.LiveBinding->Anchor,
+			};
+			if (!application::valid(expected)) {
+				return failure(application::review_mutation_failure::unavailable);
+			}
 
-			if (const auto known = Idempotency.find(aRequest.IdempotencyKey);
-				known != Idempotency.end()) {
-				if (known->second.RequestFingerprint != fingerprint
-					|| !known->second.Receipt.has_value()) {
-					return std::unexpected(application::review_mutation_failure::unavailable);
+			const auto finish_known = [&](
+										  const application::review_mutation_recovery_record& aKnown,
+										  const bool                                          aAlreadyObserved) -> application::review_mutation_submission {
+				if (!same_attempt(aKnown, expected)) {
+					return failure(application::review_mutation_failure::unavailable);
 				}
-				auto duplicate      = *known->second.Receipt;
-				duplicate.Duplicate = true;
-				return duplicate;
+				if (aKnown.State == application::review_mutation_recovery_state::succeeded
+					&& aKnown.Receipt.has_value()) {
+					auto duplicate      = *aKnown.Receipt;
+					duplicate.Duplicate = true;
+					return { .Result = std::move(duplicate) };
+				}
+				if (aKnown.State != application::review_mutation_recovery_state::unresolved
+					|| aKnown.Receipt.has_value()) {
+					return failure(application::review_mutation_failure::unavailable);
+				}
+				if (!aAlreadyObserved) {
+					const auto current = observe_exact(aStop);
+					if (!current.has_value()) {
+						return failure(current.error());
+					}
+				}
+				auto observed = reconcile(aRequest, aStop);
+				if (!observed.has_value()) {
+					return failure(observed.error());
+				}
+				auto submission = application::review_mutation_submission{
+					.Reconciliation = observed->Projection,
+				};
+				if (!observed->ExactReceipt.has_value()) {
+					return submission;
+				}
+				auto receipt        = *observed->ExactReceipt;
+				receipt.Duplicate   = true;
+				const auto resolved = Recovery->resolve(
+					aRequest.IdempotencyKey, fingerprint, receipt);
+				if (!resolved.has_value()) {
+					return submission;
+				}
+				submission.Result = std::move(receipt);
+				return submission;
+			};
+
+			const auto loaded = Recovery->load(aRequest.IdempotencyKey);
+			if (!loaded.has_value()) {
+				return failure(application::review_mutation_failure::unavailable);
 			}
-			if (Idempotency.size() >= maximum_review_mutation_idempotency_records) {
-				return std::unexpected(application::review_mutation_failure::unavailable);
+			if (loaded->has_value()) {
+				return finish_known(**loaded, false);
+			}
+			if (const auto current = observe_exact(aStop); !current.has_value()) {
+				return failure(current.error());
+			}
+			if (aStop.stop_requested()) {
+				return failure(application::review_mutation_failure::cancelled);
+			}
+			const auto admitted = Recovery->admit(expected);
+			if (!admitted.has_value()) {
+				return failure(application::review_mutation_failure::unavailable);
+			}
+			if (!admitted->Inserted) {
+				return finish_known(admitted->Record, true);
 			}
 
-			if (auto current = observe_exact(aStop); !current.has_value()) {
-				return std::unexpected(current.error());
+			auto submission = application::review_mutation_submission{
+				.MutationAttempted = true,
+			};
+			auto response    = perform(*wire, aStop);
+			auto postReceipt = std::optional<application::review_mutation_receipt>{ };
+			if (response.has_value()) {
+				const auto parsed = parse_review_comment_response(*response, aRequest);
+				if (parsed.has_value()) {
+					postReceipt = parsed->Receipt;
+				} else {
+					submission.Result = std::unexpected(map_contract_failure(parsed.error()));
+				}
+			} else {
+				submission.Result = std::unexpected(response.error());
 			}
-			Idempotency.emplace(
-				aRequest.IdempotencyKey,
-				idempotency_record{
-					.RequestFingerprint = fingerprint,
-					.Receipt            = std::nullopt,
-				});
-			auto response = perform(*wire, aStop);
-			if (!response.has_value()) {
-				return std::unexpected(response.error());
+
+			// Once POST has been invoked its transmission is ambiguous even if the
+			// caller cancels. The bounded transport therefore performs this one
+			// credentialed GET with an independent token before returning.
+			auto observed = reconcile(aRequest, { });
+			if (observed.has_value()) {
+				submission.Reconciliation = observed->Projection;
 			}
-			const auto parsed = parse_review_comment_response(*response, aRequest);
-			if (!parsed.has_value()) {
-				return std::unexpected(map_contract_failure(parsed.error()));
+			auto confirmed = observed.has_value() && observed->ExactReceipt.has_value()
+				? observed->ExactReceipt
+				: postReceipt;
+			if (!confirmed.has_value()) {
+				return submission;
 			}
-			Idempotency.at(aRequest.IdempotencyKey).Receipt = parsed->Receipt;
-			return parsed->Receipt;
+			confirmed->Duplicate = false;
+			const auto resolved  = Recovery->resolve(
+				aRequest.IdempotencyKey, fingerprint, *confirmed);
+			if (!resolved.has_value()) {
+				return submission;
+			}
+			submission.Result = std::move(*confirmed);
+			return submission;
 		} catch (...) {
-			return std::unexpected(application::review_mutation_failure::unavailable);
+			return failure(application::review_mutation_failure::unavailable);
 		}
 	}
 } // namespace bpr::adapters::github::detail

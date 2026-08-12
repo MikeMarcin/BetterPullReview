@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_PORT_HPP
 
 #include "bpr/application/github_host_authority.hpp"
+#include "bpr/application/review_synchronization.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
@@ -13,6 +14,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief Names why a mutation could not be performed.
@@ -207,6 +209,23 @@ namespace bpr::application {
 		auto operator<=>(const review_mutation_receipt&) const = default;
 	};
 
+	/// \brief Carries both the write outcome and its authoritative server refresh.
+	struct review_mutation_submission
+	{
+		std::expected<review_mutation_receipt, review_mutation_failure> Result{
+			std::unexpected(review_mutation_failure::unavailable)
+		};
+		std::expected<
+			std::vector<review_comment_projection>,
+			review_mutation_failure>
+			 Reconciliation{
+				 std::unexpected(review_mutation_failure::unavailable)
+			 };
+		bool MutationAttempted = false;
+
+		auto operator==(const review_mutation_submission&) const -> bool = default;
+	};
+
 	/// \brief The GitHub mutation surface, as the host sees it.
 	class review_mutation_port
 	{
@@ -251,6 +270,22 @@ namespace bpr::application {
 				return std::unexpected(review_mutation_failure::cancelled);
 			}
 			return submit(aRequest);
+		}
+
+		/// \brief Submits and returns the server refresh performed after the attempt.
+		///
+		/// \details Fixture providers keep the compatibility path. The production
+		/// provider overrides this operation so a POST and its reconciliation are
+		/// one serialized effect and cannot be separated by a terminal callback.
+		[[nodiscard]] virtual auto submit_and_reconcile(
+			const review_mutation_request& aRequest,
+			std::stop_token                aStop)
+			-> review_mutation_submission
+		{
+			return {
+				.Result            = submit(aRequest, aStop),
+				.MutationAttempted = true,
+			};
 		}
 
 		[[nodiscard]] virtual auto capabilities() const

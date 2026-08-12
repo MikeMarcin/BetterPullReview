@@ -1,4 +1,59 @@
 if(BPR_BUILD_QT)
+    if(APPLE AND (BUILD_TESTING OR BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE))
+        find_library(
+            BPR_DESIGNATED_LIVE_OBSERVER_SECURITY_FRAMEWORK
+            Security
+            REQUIRED
+        )
+        find_library(
+            BPR_DESIGNATED_LIVE_OBSERVER_COREFOUNDATION_FRAMEWORK
+            CoreFoundation
+            REQUIRED
+        )
+        add_library(
+            better_pull_review_designated_live_public_observer
+            STATIC
+                src/designated_live_public_observer.cpp
+        )
+        add_library(
+            BetterPullReview::DesignatedLivePublicObserver
+            ALIAS
+            better_pull_review_designated_live_public_observer
+        )
+        target_link_libraries(
+            better_pull_review_designated_live_public_observer
+            PUBLIC
+                BetterPullReview::Application
+            PRIVATE
+                Threads::Threads
+                "${BPR_DESIGNATED_LIVE_OBSERVER_COREFOUNDATION_FRAMEWORK}"
+                "${BPR_DESIGNATED_LIVE_OBSERVER_SECURITY_FRAMEWORK}"
+        )
+        target_include_directories(
+            better_pull_review_designated_live_public_observer
+            PUBLIC
+                "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        )
+        target_compile_features(
+            better_pull_review_designated_live_public_observer
+            PUBLIC
+                cxx_std_23
+        )
+        if(BUILD_TESTING)
+            target_compile_definitions(
+                better_pull_review_designated_live_public_observer
+                PRIVATE
+                    BPR_DESIGNATED_LIVE_PUBLIC_OBSERVER_TESTING=1
+            )
+        endif()
+        bpr_enable_hardening(
+            better_pull_review_designated_live_public_observer
+        )
+        bpr_enable_warnings(
+            better_pull_review_designated_live_public_observer
+        )
+    endif()
+
     add_library(
         better_pull_review_adapter_github
         STATIC
@@ -35,6 +90,7 @@ if(BPR_BUILD_QT)
         better_pull_review_adapter_github
         PRIVATE
             "${CMAKE_CURRENT_SOURCE_DIR}/src"
+            "${PROJECT_SOURCE_DIR}/src/application/src"
     )
     target_compile_features(
         better_pull_review_adapter_github

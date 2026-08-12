@@ -21,6 +21,12 @@ namespace bpr::app {
 		std::optional<std::filesystem::path> ApplicationDataRoot = std::nullopt;
 		std::optional<std::filesystem::path> GitExecutable       = std::nullopt;
 		std::optional<std::filesystem::path> ExistingCheckout    = std::nullopt;
+		std::optional<std::filesystem::path> AttendedDesignatedLiveApproval
+			= std::nullopt;
+		std::filesystem::path RunningExecutable;
+		std::string           AttendedSourceSha256;
+		std::string           BuildConfiguration;
+		bool                  BuildTesting = true;
 	};
 
 	/// \brief Describes the github application status record.

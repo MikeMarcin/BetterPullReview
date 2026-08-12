@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
     set(bpr_expected_full_application_digest
-        "45e1b8ad10d8e82437a0d21651558c230f00de74f2c4512abaf8e132a8daef1e"
+		"1cd7721efbf29fa8d36f8ef7117be43c7f6d83351b61f7392ee3855c25851a61"
     )
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -64,12 +64,13 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
+		"src/designated_live_macos_supervisor.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
         "src/github_application_fixture_access.hpp"
         "src/github_public_path_fixture.cpp"
         "src/github_public_path_fixture.hpp"
-        "src/worker_executor.cpp"
+		"src/worker_executor.cpp"
     )
     file(GLOB_RECURSE bpr_actual_app_sources
         LIST_DIRECTORIES false
@@ -94,9 +95,10 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/github_application.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
+		"src/designated_live_macos_supervisor.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
-        "src/worker_executor.cpp"
+		"src/worker_executor.cpp"
     )
     set(bpr_production_app_manifest "")
     foreach(relative_source IN LISTS bpr_production_app_sources)
@@ -130,7 +132,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
     set(bpr_expected_production_app_manifest_digest
-        "5079083b57e84f319dccb332300a1c6df5db66c4fa19ea21a843f775ed58a2a9"
+		"f9121942f55b3faa1681df5310b4049a38a5aff1736af19585aec0ff455c82dd"
     )
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -149,8 +151,13 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
         "#include \"live_review_mutation_provider.hpp\""
         "using adapters::github::make_live_review_mutation_provider;"
         "auto provider = make_live_review_mutation_provider("
+		"adapters::sqlite::make_review_mutation_recovery_store("
+		"std::move(*recovery)"
+		"application::detail::designated_review_authority_bootstrap::run("
+        "adapters::github::detail::make_designated_review_public_observer("
         "ReviewMutationHost = std::make_unique<"
         "application::review_mutation_application_host>("
+        "std::move(LiveReviewMutationGrant)"
         "worker_executor                                 ReviewMutationEffects;"
         "std::unique_ptr<application::review_mutation_application_host>"
     )
@@ -199,8 +206,26 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
     )
     bpr_require_literal_count(
         bpr_async_mutation_source
-        "application::review_mutation_execution_grant{ }"
+		"application::detail::designated_review_authority_bootstrap::run("
         1
+        "attended production authority bootstrap call"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "adapters::github::detail::make_designated_review_public_observer("
+        1
+        "attended public observation adapter construction"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "std::move(LiveReviewMutationGrant)"
+        1
+        "production one-use execution grant handoff"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "application::review_mutation_execution_grant{ }"
+        0
         "production absent execution grant"
     )
     bpr_require_literal_count(
@@ -268,7 +293,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
     )
     string(FIND
         "${bpr_mutation_branch_source}"
-        "void refresh_review_projection()"
+		"void refresh_review_projection("
         bpr_mutation_compose_end
     )
     if(bpr_mutation_compose_begin EQUAL -1
@@ -340,7 +365,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
     # SHA-256 of the exact LF-normalized bytes after the branch's #else and
     # before its #endif. Tokens and horizontal whitespace remain unmodified.
     set(bpr_expected_mutation_production_digest
-        "ca1c73e4f0fdbcb2fc7b825d6dbb6117d2d94a3d2bf2768eb484e2ec6c921f67"
+		"f5d36bb31502e6456de01388a0d9c31eb594121a35afd27cc8932b3b8c89f682"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest
@@ -446,7 +471,7 @@ foreach(required_product IN ITEMS
     "dispatch_review_draft("
     "ReviewMutationHost->publish("
     "set_selection_sink("
-    "refresh_review_projection()"
+	"refresh_review_projection(aTerminal)"
 )
     string(FIND "${bpr_application_source}" "${required_product}" found)
     if(found EQUAL -1)
@@ -463,7 +488,7 @@ string(FIND
 )
 string(FIND
     "${bpr_application_source}"
-    "void refresh_review_projection()"
+	"void refresh_review_projection("
     mutation_composition_end
 )
 if(mutation_composition_begin EQUAL -1
@@ -499,8 +524,10 @@ string(SUBSTRING
 foreach(required_production_host IN ITEMS
     "select_designated_review_mutation("
     "accepted_review_mutation_transport()"
+	"adapters::sqlite::make_review_mutation_recovery_store("
     "make_live_review_mutation_provider("
-    "application::review_mutation_execution_grant{ }"
+	"std::move(*recovery)"
+    "std::move(LiveReviewMutationGrant)"
     "ReviewMutationHost = std::make_unique<"
     "application::review_mutation_application_host>("
 )

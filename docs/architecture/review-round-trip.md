@@ -61,10 +61,14 @@ pull-request database and node IDs, number/open state, base repository, base
 OID/ref, and head OID/ref. The acting database ID, node ID, and login are
 deliberately not compiled allowlist constants. They are taken from the exact
 authenticated session, cross-bound to its account/profile/host lease and
-accepted snapshot, and re-observed by the provider. Production has no issuer
-for the opaque execution authority, so the host receives an empty grant and
-refuses before queuing an effect. A boolean, environment variable, CLI switch,
-persisted token, or ordinary Qt gesture cannot enable publication.
+accepted snapshot, and re-observed by the provider. An ordinary production
+launch has no execution authority and refuses before queuing an effect. The
+only production issuer is the attended bootstrap described below: it consumes
+one owner-private approval bound to the exact shipped executable, source
+surface, designated target, and public target observation. It then retains one
+opaque authority until the host validates and atomically admits one exact
+request. No boolean, environment variable, credential, raw nonce, persisted
+setting, IPC message, or ordinary Qt gesture can mint that authority.
 
 ## Typed vocabulary
 
@@ -83,8 +87,9 @@ persisted token, or ordinary Qt gesture cannot enable publication.
 - **Execution authority** — an opaque capability scoped in this slice to the
   application session, workbench generation, designated target, and acting
   identity. The host separately validates the exact comparison, file, anchor,
-  resolved endpoint, and commit before any effect is queued. This slice has no
-  production issuer.
+  resolved endpoint, and commit. The attended carrier is atomically consumed
+  immediately before the first exact effect is queued; invalid attempts do not
+  consume it, and cancellation, invalidation, timeout, or shutdown revoke it.
 - **Observation** — `review_comment_projection` records the server reports.
 - **Delta** — `reconciliation_entry`: unchanged, added, updated, removed, or
   conflicted.
@@ -176,41 +181,82 @@ boundary exists. The boundary therefore includes Python, CMake, arbitrary
 helper descendants, and test-driven production-application launches. The
 structural provider inventory remains defense in depth.
 
-The default configured CTest manifest has no network-enabled exception. An
-explicitly enabled build may register exactly one exception,
+The default configured CTest manifest has no live exception. An explicitly
+enabled build may register exactly one exception,
 `live_review_mutation_designated_target`, with the sole label
-`bpr_live_mutation`. Its test-only native parent accepts no caller-selected
-host, URL, name, label, or child. It retains owner-private parent-directory and
-approval descriptors, descriptor-relatively moves the checked entry into a
-private claim, compares and unlinks the moved inode, and proves the retained
-descriptor has zero links. Only after
-an unauthenticated bounded GET to the hard-coded public pull endpoint matches
-every immutable field below may it create the fixed child. Redirects,
-credentials, ambient target selection, malformed or oversized JSON, remote
-failure, approval substitution, a closed PR, or a moved head are typed
-no-launch results.
+`bpr_live_mutation`. Configuration requires four already-resolved absolute
+paths: an existing approval artifact, the signed-capsule supervisor, the
+capsule inventory, and the separate Release producer directory. Registration
+proves that the supervisor and inventory are inside the exact producer tree,
+that the producer cache says `BUILD_TESTING=OFF`, `BPR_BUILD_QT=ON`, `Release`,
+and this source root, and that neither artifact predates product source or
+build configuration. The test command is only the supervisor plus
+`--attended-launch`, the inventory, and the approval path. It has a fixed
+30-minute timeout, no pass/skip/disable inversion, and no credential
+environment.
 
-The current child is a harmless canary with no provider, credential, network,
-pathname-execution, or mutation capability. The approval binds one combined
-SHA-256 over the independently architecture-locked canary and fork-owner source
-and header bytes. The architecture gate also fixes the runner's complete source
-list, compile definitions, and Qt link composition. The routine is compiled
-into the trusted runner, so no mutable executable is reopened after binding.
-After approval consumption the parent clears its environment, creates one
-private pipe, proves the process has exactly one thread, and obtains two equal
-exact open-descriptor inventories. macOS uses `PROC_PIDTASKINFO` and
-`PROC_PIDLISTFDS`; the still-unverified Linux implementation uses
-`/proc/self/task` and `/proc/self/fd`. Any query failure, multiple thread,
-inventory drift, or missing pipe descriptor refuses before fork. The child
-iterates only the preallocated inventory, closes every entry above standard
-error, maps only the pipe to standard input, performs fixed byte checks, and
-exits using only async-signal-safe calls. Bounded wait, kill, and reap remain
-parent-owned. The capability contains only the versioned 64-hex nonce and never
-appears in arguments or environment.
-The default graph and all other tests retain the process-level network-denied
-wrapper. This portable registration and macOS/POSIX approval implementation is
-not target-native Linux or Windows evidence and does not authorize BPR-0142 to
-run a write.
+The supervisor first verifies every signed capsule file, dependency, resource,
+symlink, mode, Qt lookup rule, Mach-O load path, and signature against the
+immutable inventory. It then performs the narrow unauthenticated public target
+observation before creating the GUI process. The app is created suspended from
+the owner-private capsule; the supervisor compares the child's dynamic signing
+identity with the prevalidated static identity and revalidates the retained
+path identity before resuming it. The application then opens the approval and
+its owner-private parent through retained native descriptors, bounds and
+validates the exact ordered subject and its SHA-256, descriptor-relatively
+moves the checked entry to an exclusive claim name, compares and unlinks the
+same inode, proves that the retained descriptor has zero links, durably records
+the random approval ID as spent, and mints one private 15-minute carrier.
+Substitution, replay, timeout, malformed or oversized content, remote failure,
+a closed PR, or a moved head yields no grant.
+
+BPR-0235 requires that public observation to finish before the Qt application
+process exists, so it cannot use `native_https_transport`: that adapter owns a
+Qt network manager and requires the application runtime the check is meant to
+precede. The prelaunch observation is therefore a separate, fixed GitHub
+adapter effect implemented with Apple's `/usr/bin/curl`. This is not an
+authentication or mutation transport. The production operation has no target,
+argument, environment, proxy, credential, or trust-store input. It opens
+`/usr/bin` and `curl` without following links, requires root-owned non-writable
+native identities, validates every architecture against `anchor apple and
+identifier "com.apple.curl"`, retains the file identity, starts the absolute
+path suspended with an empty environment, compares the child's dynamic code
+digest to the retained static digest, revalidates the path identity, and only
+then resumes it. There is no shell or path search.
+
+The command is an exact HTTP/1.1 `GET` of the compiled GitHub.com REST URL with
+TLS 1.2 through 1.3, redirects disabled, both proxy selection mechanisms
+disabled, curl configuration disabled, and fixed accept, API-version,
+identity-encoding, language, and user-agent headers. It never enables netrc,
+cookies, authentication, or compression. Production uses curl's Apple system
+trust; a private CA and loopback resolution exist only in the tests-enabled
+translation unit. Curl's own connect/total limit is 15 seconds, the parent
+kills and reaps after 17 seconds or cancellation, headers are bounded at 64
+KiB, body at 256 KiB, and stderr at 16 KiB. Typed failure distinguishes
+unavailability, network failure, timeout, cancellation, redirect, response
+limit, HTTP failure, malformed input, and identity mismatch. The parser then
+matches the complete immutable public target. Architecture inventory makes
+this the only source allowed to name the curl executable or its Apple trust
+requirement and leaves every other shell/process API forbidden. Authenticated
+reads and all writes remain owned by the existing native HTTPS adapter.
+
+The asynchronous host binds that carrier to the application session, workbench
+generation, designated target, authenticated actor, comparison, file,
+right-side semantic anchor, resolved path, and current head. Validation occurs
+before supersession, and the one atomic consume is the final admission step
+immediately before effect enqueue. Invalid requests neither consume the grant
+nor cancel an already admitted request; the first exact request consumes it and
+every later request refuses. Shared revocation state survives retained copies
+and is triggered by cancellation, invalidation, timeout, and shutdown.
+
+The earlier BPR-0235 runner, gate, fork protocol, and harmless canary remain
+unchanged as hermetic regression evidence. They are not the live test command
+and cannot be selected as its shipped application. The default graph and all
+other tests retain the process-level network-denied wrapper. Neither the live
+lane nor any credential or mutation was executed while preparing this path.
+Target-native Linux and Windows evidence remains deferred, and the Windows
+approval bootstrap remains fail-closed; this work does not close BPR-0142 or
+BPR-0235.
 
 Weakening the coordinator's target check to let a test through would remove the
 property the test exists to exercise. It is not an acceptable shortcut under
@@ -249,9 +295,12 @@ BPR-0252 now provides the first production implementation of
 implementations existed — is intentionally gone. The implementation is linked
 into the production GitHub adapter. BPR-0254 first composed it as a dormant
 exact-target object. BPR-0255 now places that object behind the asynchronous
-application host and coordinator described above, with an absent production
-execution grant; the designated live runner still contains only its fixed
-harmless canary, and no credential or write has been used. The
+application host and coordinator described above. BPR-0256 adds the sole
+attended one-shot issuer and registers a signed-capsule prelaunch supervisor
+around a separately built tests-disabled shipped application as the default-off
+live lane; ordinary launches still have no grant. The designated regression
+runner still contains only its fixed
+harmless canary, and no live lane, credential, or write has been used. The
 `live_mutation_isolation` gate is now the standing proof that survives the
 implementation:
 

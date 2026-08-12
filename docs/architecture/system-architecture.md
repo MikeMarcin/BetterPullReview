@@ -112,6 +112,14 @@ The live repository may use different target names, but it must enforce these ru
 - `QProcess`, `QNetworkAccessManager`, and credential-vault APIs are confined
   to designated external adapter sources; their presence in a provider adapter
   does not authorize their use in the application host or Qt presentation.
+- The BPR-0235 prelaunch public-identity check is one narrower macOS exception:
+  a dedicated GitHub adapter owns an absolute, Apple-code-validated
+  `/usr/bin/curl` child because Qt and its native HTTPS manager must not exist
+  yet. Its production API accepts only cancellation, its target and wire
+  profile are compiled constants, its environment is empty, and it has no
+  authentication or mutation operation. Exact static ownership keeps this
+  exception out of the application host, Qt adapter, and ordinary provider;
+  authenticated GitHub traffic still uses native HTTPS only.
 - The Qt adapter uses Qt idiomatically. It does not own canonical GitHub state, review policy, persistence, asynchronous orchestration, or stale-result policy.
 - The composition root is the only place that knows all concrete pieces.
 - In-process communication uses typed C++ calls and records. JSON/RPC is added only at a real process boundary such as an agent protocol.
@@ -560,16 +568,31 @@ of executor concurrency. The coordinator then fixes the destination,
 revalidates target and head, derives the idempotency key, and refreshes server
 comments before presentation.
 
-The fixture build supplies the only current execution grant. Tests-disabled
-production constructs the same asynchronous host only when the accepted
-handoff and snapshot match the compiled designated host, repository, pull
-request, base, and head tuple. The acting database ID, node ID, and login are
-not compiled constants: they come from the exact authenticated session, are
-cross-bound to its opaque accepted-snapshot transport lease, and are
-re-observed before a write. Production supplies no execution grant and has no
-issuer for one, so a Publish attempt returns a typed refusal before provider,
-credential, or network work. No boolean, environment variable, CLI switch,
-persisted value, or ordinary Qt gesture can mint that capability.
+The fixture build supplies a reusable testing grant. Tests-disabled production
+constructs the same asynchronous host only when the accepted handoff and
+snapshot match the compiled designated host, repository, pull request, base,
+and head tuple. The acting database ID, node ID, and login are not compiled
+constants: they come from the exact authenticated session, are cross-bound to
+its opaque accepted-snapshot transport lease, and are re-observed before a
+write. An ordinary production launch supplies no grant. The sole production
+path is two-stage: an owner-private signed-capsule supervisor verifies the
+complete dependency/resource inventory and performs one unauthenticated,
+redirect-free public target observation before it creates the GUI process;
+then a private in-application bootstrap validates and atomically consumes one
+owner-private approval bound to the actual shipped executable, source digest,
+Release/tests-disabled build identity, exact designated tuple, and random
+one-use approval ID. Credentials remain in the later Qt sensitive prompt and
+never enter that approval or the supervisor.
+
+The production carrier is private and one-use. It first binds the application
+session, workbench generation, exact target, and authenticated actor. The host
+then validates comparison, file, right-side semantic anchor, resolved path,
+and current head before atomically consuming the carrier immediately before
+effect enqueue. Invalid requests do not consume or supersede; the first exact
+request consumes, every later request refuses, and shared cancellation,
+invalidation, expiry, and shutdown revoke unused authority. No boolean,
+environment variable, credential, raw nonce, persisted value, IPC message, or
+ordinary Qt gesture can mint the capability.
 
 Each accepted fixture request has its own monotonic stop source. Supersession,
 explicit cancellation, authority replacement, and shutdown request stop, and

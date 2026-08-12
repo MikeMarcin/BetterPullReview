@@ -1,14 +1,18 @@
 #include "bpr/app/github_application.hpp"
+
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "review_mutation_execution_authority.hpp"
 
 #include "bpr/app/worker_executor.hpp"
 
 #include "github_host_profile.hpp"
 #include "github_provider.hpp"
+#include "designated_review_public_observer.hpp"
 #include "live_review_mutation_provider.hpp"
+#include "native_https_transport.hpp"
 
 #if defined(__APPLE__)
 	#include "macos_keychain.hpp"
@@ -22,7 +26,6 @@
 	#include "github_public_path_fixture.hpp"
 	#include "github_read_contract.hpp"
 	#include "github_wire_transport.hpp"
-	#include "native_https_transport.hpp"
 #endif
 
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
@@ -32,6 +35,7 @@
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
+#include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
@@ -299,6 +303,67 @@ namespace bpr::app {
 			}
 			return selection;
 		}
+
+#if defined(BPR_BUILD_TESTING)
+		[[nodiscard]] auto select_fixture_review_mutation(
+			const application::accepted_pull_request_handoff& aHandoff,
+			const application::github_pull_request_snapshot&  aSnapshot)
+			-> std::optional<designated_review_mutation_selection>
+		{
+			const auto base = core::parse_git_commit_oid(
+				aSnapshot.PullRequest.BaseOid.value());
+			const auto head = core::parse_git_commit_oid(
+				aSnapshot.PullRequest.HeadOid.value());
+			if (!base.has_value() || !head.has_value()
+				|| *base != aHandoff.Base || *head != aHandoff.Head
+				|| aSnapshot.Profile != aHandoff.Profile
+				|| aSnapshot.Host != aHandoff.Host
+				|| aSnapshot.Account != aHandoff.Account
+				|| aSnapshot.Repository.Repository != aHandoff.Repository
+				|| aSnapshot.Repository.Owner != aHandoff.Locator.Owner
+				|| aSnapshot.Repository.Name != aHandoff.Locator.Name
+				|| aSnapshot.PullRequest.PullRequest != aHandoff.PullRequest
+				|| aSnapshot.PullRequest.Repository != aHandoff.Repository
+				|| aSnapshot.PullRequest.Number != aHandoff.Number
+				|| aSnapshot.PullRequest.State
+					!= application::github_pull_request_state::open) {
+				return std::nullopt;
+			}
+			auto selection = designated_review_mutation_selection{
+				.Target = {
+					.Semantic = {
+						.Host         = aHandoff.Host,
+						.Repository   = aHandoff.Repository,
+						.PullRequest  = aHandoff.PullRequest,
+						.ExpectedHead = *head,
+					},
+					.Hostname                 = aHandoff.Hostname,
+					.ServerContract           = aHandoff.ServerContract,
+					.Repository               = aHandoff.Locator,
+					.Number                   = aHandoff.Number,
+					.RepositoryDatabaseId     = aSnapshot.Repository.Repository.value(),
+					.RepositoryNodeId         = std::string{ aSnapshot.Repository.Node.value() },
+					.PullRequestDatabaseId    = aSnapshot.PullRequest.PullRequest.value(),
+					.PullRequestNodeId        = std::string{ aSnapshot.PullRequest.Node.value() },
+					.BaseRepositoryDatabaseId = aSnapshot.PullRequest.Repository.value(),
+					.BaseOid                  = *base,
+					.BaseRef                  = aSnapshot.PullRequest.BaseRef,
+					.HeadRef                  = aSnapshot.PullRequest.HeadRef,
+					.Open                     = true,
+				},
+				.ActingIdentity = {
+					.Account    = aHandoff.Account,
+					.DatabaseId = aSnapshot.Account.value(),
+					.NodeId     = std::string{ aSnapshot.Viewer.Actor.value() },
+					.Login      = aSnapshot.Viewer.Login,
+				},
+			};
+			return application::valid(selection.Target)
+					&& application::valid(selection.ActingIdentity)
+				? std::optional{ std::move(selection) }
+				: std::nullopt;
+		}
+#endif
 
 		[[nodiscard]] auto native_filesystem_path(const QString& aValue)
 			-> std::filesystem::path
@@ -1638,6 +1703,34 @@ namespace bpr::app {
 #endif
 		)
 		{
+#if defined(BPR_BUILD_TESTING)
+			if (aConfig.AttendedDesignatedLiveApproval.has_value()) {
+				throw std::invalid_argument{
+					"attended live approval is unavailable in a tests-enabled composition"
+				};
+			}
+#else
+			if (aConfig.AttendedDesignatedLiveApproval.has_value()) {
+				auto observer
+					= adapters::github::detail::make_designated_review_public_observer();
+				if (observer == nullptr) {
+					throw std::runtime_error{ "public observer unavailable" };
+				}
+				auto authority = application::detail::designated_review_authority_bootstrap::run(
+					application::detail::designated_review_bootstrap_request{
+						.ApprovalPath       = *aConfig.AttendedDesignatedLiveApproval,
+						.ExecutablePath     = aConfig.RunningExecutable,
+						.SourceSha256       = aConfig.AttendedSourceSha256,
+						.BuildConfiguration = aConfig.BuildConfiguration,
+						.BuildTesting       = aConfig.BuildTesting,
+					},
+					*observer);
+				if (!authority.has_value() || *authority == nullptr) {
+					throw std::runtime_error{ "attended live approval refused" };
+				}
+				LiveReviewMutationGrant = std::move(*authority);
+			}
+#endif
 			if (aConfig.ExistingCheckout.has_value()) {
 				std::error_code checkoutError;
 				const auto      canonical = std::filesystem::canonical(
@@ -2629,7 +2722,8 @@ namespace bpr::app {
 			ReviewProjection.clear();
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr || Window == nullptr
-				|| Window->review_editor() == nullptr || WorkbenchHost == nullptr) {
+				|| Window->review_editor() == nullptr || WorkbenchHost == nullptr
+				|| Host == nullptr || !Host->accepted_snapshot().has_value()) {
 				return;
 			}
 			if (!RetiredReviewMutationHosts.empty()) {
@@ -2642,7 +2736,12 @@ namespace bpr::app {
 				});
 				return;
 			}
-			const auto target = review_mutation_target(aHandoff);
+			auto selection = select_fixture_review_mutation(
+				aHandoff, *Host->accepted_snapshot());
+			if (!selection.has_value()) {
+				return;
+			}
+			const auto target = selection->Target.Semantic;
 			Fixture->prepare_review_mutation(target);
 			if (ReviewMutationDecisionGate == nullptr) {
 				ReviewMutationDecisionGate = std::make_unique<
@@ -2651,15 +2750,15 @@ namespace bpr::app {
 			ReviewMutationHost = std::make_unique<
 				application::review_mutation_application_host>(
 				Fixture->review_mutation_provider(),
-				target,
-				aHandoff.Account,
+				selection->Target,
+				selection->ActingIdentity,
 				aHandoff.ApplicationSession,
 				WorkbenchHost->generation(),
 				application::make_review_mutation_testing_grant(
 					aHandoff.ApplicationSession,
 					WorkbenchHost->generation(),
-					target,
-					aHandoff.Account),
+					selection->Target,
+					selection->ActingIdentity),
 				ReviewMutationEffects,
 				*ReviewMutationDecisionGate,
 				*this);
@@ -2672,16 +2771,35 @@ namespace bpr::app {
 			auto selection = select_designated_review_mutation(
 				aHandoff, *Host->accepted_snapshot());
 			if (!selection.has_value()) {
+				LiveReviewMutationGrant.reset();
+				return;
+			}
+			if (LiveReviewMutationGrant == nullptr) {
 				return;
 			}
 			auto lease = Host->accepted_review_mutation_transport();
 			if (lease == nullptr) {
 				return;
 			}
+			const auto repository = selection->Target.Repository.Owner + "/"
+				+ selection->Target.Repository.Name;
+			auto recovery = adapters::sqlite::make_review_mutation_recovery_store({
+				.StorageRoot = ApplicationDataRoot,
+				.Host        = std::string{ selection->Target.Hostname.value() },
+				.Account     = std::to_string(selection->ActingIdentity.Account.value()),
+				.Repository  = repository,
+				.PullRequest = static_cast<std::int64_t>(
+					selection->Target.Number.value()),
+			});
+			if (!recovery.has_value()) {
+				LiveReviewMutationGrant.reset();
+				return;
+			}
 			auto provider = make_live_review_mutation_provider(
 				std::move(lease),
 				selection->Target,
-				selection->ActingIdentity);
+				selection->ActingIdentity,
+				std::move(*recovery));
 			if (provider.has_value()) {
 				auto erased = std::unique_ptr<application::review_mutation_port>{
 					std::move(*provider)
@@ -2693,10 +2811,12 @@ namespace bpr::app {
 					std::move(selection->ActingIdentity),
 					aHandoff.ApplicationSession,
 					WorkbenchHost->generation(),
-					application::review_mutation_execution_grant{ },
+					std::move(LiveReviewMutationGrant),
 					ReviewMutationEffects,
 					DecisionLane,
 					*this);
+			} else {
+				LiveReviewMutationGrant.reset();
 			}
 #endif
 			if (ReviewMutationHost == nullptr || Window == nullptr
@@ -2714,15 +2834,24 @@ namespace bpr::app {
 			editor->present(ReviewMutationHost->capabilities());
 		}
 
-		void refresh_review_projection()
+		void refresh_review_projection(
+			const application::review_mutation_terminal& aTerminal)
 		{
 #if defined(BPR_BUILD_TESTING)
+			static_cast<void>(aTerminal);
 			if (Fixture == nullptr) {
 				return;
 			}
 			const auto observed  = Fixture->review_comments();
 			ReviewReconciliation = application::reconcile(
 				ReviewProjection, observed, { });
+			ReviewProjection = ReviewReconciliation.Projection;
+#else
+			if (!aTerminal.Reconciliation.has_value()) {
+				return;
+			}
+			ReviewReconciliation = application::reconcile(
+				ReviewProjection, *aTerminal.Reconciliation, { });
 			ReviewProjection = ReviewReconciliation.Projection;
 #endif
 		}
@@ -2893,7 +3022,7 @@ namespace bpr::app {
 				return;
 			}
 			PendingReviewMutation.reset();
-			refresh_review_projection();
+			refresh_review_projection(aTerminal);
 			const auto deferred = std::move(DeferredReviewSelection);
 			DeferredReviewSelection.reset();
 			if (!ReviewDraft.has_value()
@@ -4347,7 +4476,8 @@ namespace bpr::app {
 		bool                                                         ReviewLedgerAvailable = false;
 		std::vector<application::durable_defect_record>              DurableDefects;
 		std::unique_ptr<application::review_mutation_application_host>
-			ReviewMutationHost;
+													 ReviewMutationHost;
+		application::review_mutation_execution_grant LiveReviewMutationGrant;
 		std::vector<std::unique_ptr<application::review_mutation_application_host>>
 			RetiredReviewMutationHosts;
 		std::optional<application::review_mutation_request_context>

@@ -2,6 +2,7 @@ add_library(
     better_pull_review_application
     STATIC
         src/appearance_application_host.cpp
+		src/designated_review_authority_bootstrap.cpp
         src/review_ledger_application_host.cpp
 		src/review_mutation_contract.cpp
         src/review_mutation_coordinator.cpp

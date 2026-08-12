@@ -7,10 +7,14 @@
 
 namespace bpr::adapters::github {
 	live_review_mutation_provider::live_review_mutation_provider(
-		application::review_mutation_transport     aLease,
-		detail::github_mutation_wire_transport&    aTransport,
-		detail::live_review_mutation_configuration aConfiguration) noexcept
-		: Session{ aTransport, std::move(aConfiguration), std::move(aLease) }
+		application::review_mutation_transport                      aLease,
+		detail::github_mutation_wire_transport&                     aTransport,
+		detail::live_review_mutation_configuration                  aConfiguration,
+		std::unique_ptr<application::review_mutation_recovery_port> aRecovery) noexcept
+		: Session{ aTransport,
+				   std::move(aConfiguration),
+				   std::move(aLease),
+				   std::move(aRecovery) }
 	{
 	}
 
@@ -41,6 +45,14 @@ namespace bpr::adapters::github {
 		return Session.submit(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::submit_and_reconcile(
+		const application::review_mutation_request& aRequest,
+		const std::stop_token                       aStop)
+		-> application::review_mutation_submission
+	{
+		return Session.submit_and_reconcile(aRequest, aStop);
+	}
+
 	auto live_review_mutation_provider::capabilities() const
 		-> application::review_provider_capabilities
 	{
@@ -51,13 +63,17 @@ namespace bpr::adapters::github {
 	}
 
 	auto make_live_review_mutation_provider(
-		application::review_mutation_transport       aLease,
-		application::review_mutation_target_binding  aTarget,
-		application::review_mutation_acting_identity aActingIdentity) noexcept
+		application::review_mutation_transport                      aLease,
+		application::review_mutation_target_binding                 aTarget,
+		application::review_mutation_acting_identity                aActingIdentity,
+		std::unique_ptr<application::review_mutation_recovery_port> aRecovery) noexcept
 		-> std::expected<
 			std::unique_ptr<live_review_mutation_provider>,
 			application::review_mutation_failure>
 	{
+		if (aRecovery == nullptr) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
 		auto admission = detail::admit_review_mutation_provider(
 			std::move(aLease),
 			std::move(aTarget),
@@ -69,6 +85,7 @@ namespace bpr::adapters::github {
 			std::move(admission->Lease),
 			*admission->Transport,
 			std::move(admission->Configuration),
+			std::move(aRecovery),
 		};
 		if (provider == nullptr) {
 			return std::unexpected(application::review_mutation_failure::unavailable);

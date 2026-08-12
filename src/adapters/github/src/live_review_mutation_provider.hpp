@@ -36,6 +36,10 @@ namespace bpr::adapters::github {
 		[[nodiscard]] auto submit(
 			const application::review_mutation_request& aRequest)
 			-> std::expected<application::review_mutation_receipt, application::review_mutation_failure> override;
+		[[nodiscard]] auto submit_and_reconcile(
+			const application::review_mutation_request& aRequest,
+			std::stop_token                             aStop)
+			-> application::review_mutation_submission override;
 		[[nodiscard]] auto submit(
 			const application::review_mutation_request& aRequest,
 			std::stop_token                             aStop)
@@ -47,7 +51,9 @@ namespace bpr::adapters::github {
 		friend auto make_live_review_mutation_provider(
 			application::review_mutation_transport       aLease,
 			application::review_mutation_target_binding  aTarget,
-			application::review_mutation_acting_identity aActingIdentity) noexcept
+			application::review_mutation_acting_identity aActingIdentity,
+			std::unique_ptr<application::review_mutation_recovery_port>
+				aRecovery) noexcept
 			-> std::expected<
 				std::unique_ptr<live_review_mutation_provider>,
 				application::review_mutation_failure>;
@@ -55,7 +61,9 @@ namespace bpr::adapters::github {
 		live_review_mutation_provider(
 			application::review_mutation_transport     aLease,
 			detail::github_mutation_wire_transport&    aTransport,
-			detail::live_review_mutation_configuration aConfiguration) noexcept;
+			detail::live_review_mutation_configuration aConfiguration,
+			std::unique_ptr<application::review_mutation_recovery_port>
+				aRecovery) noexcept;
 
 		detail::review_mutation_session Session;
 	};
@@ -64,7 +72,9 @@ namespace bpr::adapters::github {
 	[[nodiscard]] auto make_live_review_mutation_provider(
 		application::review_mutation_transport       aLease,
 		application::review_mutation_target_binding  aTarget,
-		application::review_mutation_acting_identity aActingIdentity) noexcept
+		application::review_mutation_acting_identity aActingIdentity,
+		std::unique_ptr<application::review_mutation_recovery_port>
+			aRecovery) noexcept
 		-> std::expected<
 			std::unique_ptr<live_review_mutation_provider>,
 			application::review_mutation_failure>;

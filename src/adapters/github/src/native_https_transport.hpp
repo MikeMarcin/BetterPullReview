@@ -7,6 +7,7 @@
 
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/review_mutation_application_host.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -188,6 +189,7 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto observe_native_https_runtime(
 		const validated_github_host_profile& aProfile) noexcept
 		-> native_https_runtime_facts;
+
 } // namespace bpr::adapters::github::detail
 
 #endif // BPR_SRC_ADAPTERS_GITHUB_SRC_NATIVE_HTTPS_TRANSPORT_HPP

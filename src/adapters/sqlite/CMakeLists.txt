@@ -11,6 +11,7 @@ add_library(
         src/workbench_settings_database.cpp
         src/workbench_settings_store.cpp
         src/review_ledger_store.cpp
+        src/review_mutation_recovery_store.cpp
         src/epoch_catalog.cpp
 )
 add_library(

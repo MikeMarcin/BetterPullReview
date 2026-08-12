@@ -19,6 +19,24 @@ set(
     CACHE FILEPATH
     "Absolute path to the one-shot designated live-mutation approval artifact"
 )
+set(
+    BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR
+    ""
+    CACHE FILEPATH
+    "Absolute path to the signed-capsule designated live supervisor"
+)
+set(
+    BPR_DESIGNATED_LIVE_MUTATION_INVENTORY
+    ""
+    CACHE FILEPATH
+    "Absolute path to the signed-capsule inventory"
+)
+set(
+    BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR
+    ""
+    CACHE PATH
+    "Absolute build directory that produced the designated shipped application"
+)
 if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     if(NOT BPR_BUILD_QT)
         message(
@@ -29,12 +47,199 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     if(
         NOT BPR_DESIGNATED_LIVE_MUTATION_APPROVAL
         OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+        OR NOT EXISTS "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+        OR IS_DIRECTORY "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+        OR IS_SYMLINK "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
     )
         message(
             FATAL_ERROR
-            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an absolute BPR_DESIGNATED_LIVE_MUTATION_APPROVAL path"
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an existing absolute non-symlink BPR_DESIGNATED_LIVE_MUTATION_APPROVAL file"
         )
     endif()
+    if(
+        NOT BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR
+        OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+        OR NOT EXISTS "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+        OR IS_DIRECTORY "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+        OR IS_SYMLINK "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+        OR NOT IS_EXECUTABLE "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+    )
+        message(
+            FATAL_ERROR
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an existing absolute BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR executable"
+        )
+    endif()
+    if(
+        NOT BPR_DESIGNATED_LIVE_MUTATION_INVENTORY
+        OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
+        OR NOT EXISTS "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
+        OR IS_DIRECTORY "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
+        OR IS_SYMLINK "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
+    )
+        message(
+            FATAL_ERROR
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an existing absolute BPR_DESIGNATED_LIVE_MUTATION_INVENTORY file"
+        )
+    endif()
+    if(
+        NOT BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR
+        OR NOT IS_ABSOLUTE "${BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR}"
+        OR NOT EXISTS "${BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR}/CMakeCache.txt"
+        OR IS_SYMLINK "${BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR}"
+    )
+        message(
+            FATAL_ERROR
+            "BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST requires an absolute BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR with CMakeCache.txt"
+        )
+    endif()
+
+    file(
+        REAL_PATH
+        "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+        bpr_designated_live_supervisor_real
+    )
+    file(
+        REAL_PATH
+        "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
+        bpr_designated_live_inventory_real
+    )
+    file(
+        REAL_PATH
+        "${BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR}"
+        bpr_designated_live_build_real
+    )
+    file(
+        REAL_PATH
+        "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
+        bpr_designated_live_approval_real
+    )
+    if(
+        NOT BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR
+            STREQUAL bpr_designated_live_supervisor_real
+        OR NOT BPR_DESIGNATED_LIVE_MUTATION_INVENTORY
+            STREQUAL bpr_designated_live_inventory_real
+        OR NOT BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR
+            STREQUAL bpr_designated_live_build_real
+        OR NOT BPR_DESIGNATED_LIVE_MUTATION_APPROVAL
+            STREQUAL bpr_designated_live_approval_real
+    )
+        message(
+            FATAL_ERROR
+            "Designated live supervisor, inventory, producer build, and approval paths must already be resolved absolute paths"
+        )
+    endif()
+
+    get_filename_component(
+        bpr_designated_live_supervisor_name
+        "${bpr_designated_live_supervisor_real}"
+        NAME
+    )
+    string(TOLOWER
+        "${bpr_designated_live_supervisor_name}"
+        bpr_designated_live_supervisor_name_lower
+    )
+    if(
+        NOT bpr_designated_live_supervisor_name_lower
+            STREQUAL "better_pull_review_designated_live_supervisor"
+    )
+        message(
+            FATAL_ERROR
+            "Designated live command must be the signed-capsule BetterPullReview supervisor, never the regression runner, application, or a fixture"
+        )
+    endif()
+    cmake_path(
+        IS_PREFIX
+        bpr_designated_live_build_real
+        "${bpr_designated_live_supervisor_real}"
+        NORMALIZE
+        bpr_designated_live_supervisor_in_build
+    )
+    cmake_path(
+        IS_PREFIX
+        bpr_designated_live_build_real
+        "${bpr_designated_live_inventory_real}"
+        NORMALIZE
+        bpr_designated_live_inventory_in_build
+    )
+    if(
+        NOT bpr_designated_live_supervisor_in_build
+        OR NOT bpr_designated_live_inventory_in_build
+    )
+        message(
+            FATAL_ERROR
+            "Designated live supervisor and inventory must be inside their exact producer build directory"
+        )
+    endif()
+
+    file(
+        REAL_PATH
+        "${PROJECT_SOURCE_DIR}"
+        bpr_designated_live_source_real
+    )
+    file(
+        STRINGS
+        "${bpr_designated_live_build_real}/CMakeCache.txt"
+        bpr_designated_live_producer_cache
+    )
+    foreach(
+        bpr_designated_live_required_cache
+        IN ITEMS
+            "BUILD_TESTING:BOOL=OFF"
+            "BPR_BUILD_QT:BOOL=ON"
+            "CMAKE_BUILD_TYPE:STRING=Release"
+            "CMAKE_HOME_DIRECTORY:INTERNAL=${bpr_designated_live_source_real}"
+    )
+        list(FIND
+            bpr_designated_live_producer_cache
+            "${bpr_designated_live_required_cache}"
+            bpr_designated_live_required_cache_index
+        )
+        if(bpr_designated_live_required_cache_index EQUAL -1)
+            message(
+                FATAL_ERROR
+                "Designated live producer cache must contain exactly ${bpr_designated_live_required_cache}"
+            )
+        endif()
+    endforeach()
+
+    file(
+        GLOB_RECURSE
+        bpr_designated_live_product_inputs
+        LIST_DIRECTORIES false
+        "${PROJECT_SOURCE_DIR}/src/*"
+        "${PROJECT_SOURCE_DIR}/cmake/*"
+    )
+    list(
+        APPEND
+        bpr_designated_live_product_inputs
+        "${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+        "${PROJECT_SOURCE_DIR}/CMakePresets.json"
+    )
+    file(
+        TIMESTAMP
+        "${bpr_designated_live_supervisor_real}"
+        bpr_designated_live_supervisor_timestamp
+        "%Y%m%d%H%M%S"
+        UTC
+    )
+    foreach(bpr_designated_live_product_input IN LISTS bpr_designated_live_product_inputs)
+        file(
+            TIMESTAMP
+            "${bpr_designated_live_product_input}"
+            bpr_designated_live_product_input_timestamp
+            "%Y%m%d%H%M%S"
+            UTC
+        )
+        if(
+            bpr_designated_live_product_input_timestamp
+                STRGREATER bpr_designated_live_supervisor_timestamp
+        )
+            message(
+                FATAL_ERROR
+                "Designated live supervisor predates product source or build configuration: ${bpr_designated_live_product_input}"
+            )
+        endif()
+    endforeach()
 endif()
 
 if(APPLE)
@@ -237,20 +442,13 @@ function(bpr_add_designated_live_mutation_test)
     if(NOT BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
         return()
     endif()
-    if(
-        NOT TARGET tool_better_pull_review_designated_live_mutation_runner
-        OR NOT TARGET test_better_pull_review_designated_live_mutation_canary
-    )
-        message(
-            FATAL_ERROR
-            "The designated live test requires its exact trusted runner and harmless canary targets"
-        )
-    endif()
-
     add_test(
         NAME live_review_mutation_designated_target
         COMMAND
-            "$<TARGET_FILE:tool_better_pull_review_designated_live_mutation_runner>"
+            "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+            --attended-launch
+            --inventory
+            "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
             --approval
             "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
     )
@@ -260,7 +458,7 @@ function(bpr_add_designated_live_mutation_test)
     )
     set_property(
         TEST live_review_mutation_designated_target
-        PROPERTY TIMEOUT 30
+        PROPERTY TIMEOUT 1800
     )
     set_property(
         TEST live_review_mutation_designated_target

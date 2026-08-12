@@ -43,6 +43,37 @@ DESIGNATED_LIVE_TEST_CHILD_HEADER = (
 DESIGNATED_LIVE_TEST_CMAKE = (
     REPOSITORY_ROOT / "tests" / "CMakeLists.txt"
 ).read_text(encoding="utf-8")
+DESIGNATED_LIVE_PUBLIC_OBSERVER_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "adapters"
+    / "github"
+    / "src"
+    / "designated_live_public_observer.cpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_PUBLIC_OBSERVER_INTERFACE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "adapters"
+    / "github"
+    / "src"
+    / "designated_live_public_observer.hpp"
+).read_text(encoding="utf-8")
+DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "app"
+    / "src"
+    / "designated_live_macos_supervisor.cpp"
+).read_text(encoding="utf-8")
+
+DESIGNATED_LIVE_MACOS_SUPERVISOR_TARGET = """\
+target_sources(
+    tool_better_pull_review_designated_live_supervisor
+    PRIVATE
+        src/designated_live_macos_supervisor.cpp
+)
+"""
 
 ADAPTER_ROOT = """\
 add_subdirectory(github)
@@ -178,6 +209,23 @@ endif()
     + WINDOWS_CREDENTIAL_TARGET
     + LINUX_SECRET_SERVICE_TARGET
 )
+
+DESIGNATED_LIVE_PUBLIC_OBSERVER_TARGET = """\
+if(APPLE AND (BUILD_TESTING OR BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE))
+    add_library(
+        better_pull_review_designated_live_public_observer
+        STATIC
+            src/designated_live_public_observer.cpp
+    )
+    if(BUILD_TESTING)
+        target_compile_definitions(
+            better_pull_review_designated_live_public_observer
+            PRIVATE
+                BPR_DESIGNATED_LIVE_PUBLIC_OBSERVER_TESTING=1
+        )
+    endif()
+endif()
+"""
 
 GITHUB_CLI_PROCESS_INTERFACE = """\
 #pragma once
@@ -2069,7 +2117,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 mutated = dict(exact_sources)
                 mutated["tests/CMakeLists.txt"] = mutated_cmake
                 self.assert_failure(
-                    "Designated live runner target",
+                    "Designated live",
                     mutated,
                 )
 
@@ -3377,13 +3425,169 @@ auto finish_background_reap(
         )
         for hostile_surface in hostile_surfaces:
             with self.subTest(hostile_surface=hostile_surface):
+                expected = (
+                    "posix_spawn ownership violation"
+                    if hostile_surface.startswith("posix_spawn(")
+                    else "Alternate process or shell API is forbidden"
+                )
                 self.assert_failure(
-                    "Alternate process or shell API is forbidden",
+                    expected,
                     {
                         "src/adapters/github/src/alternate_process.cpp":
                             hostile_surface
                     },
                 )
+
+    def test_designated_live_public_observer_is_the_only_curl_owner(
+        self,
+    ) -> None:
+        for hostile_surface in (
+            'constexpr const char* executable = "/usr/bin/curl";\n',
+            'constexpr const char* requirement = "com.apple.curl";\n',
+        ):
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    "designated live public curl/network ownership violation",
+                    {
+                        "src/adapters/github/src/alternate_observer.cpp":
+                            hostile_surface
+                    },
+                )
+
+    def test_designated_live_public_observer_policy_is_hostile_cut(
+        self,
+    ) -> None:
+        sources = {
+            "src/adapters/github/src/designated_live_public_observer.cpp":
+                DESIGNATED_LIVE_PUBLIC_OBSERVER_SOURCE,
+            "src/adapters/github/src/designated_live_public_observer.hpp":
+                DESIGNATED_LIVE_PUBLIC_OBSERVER_INTERFACE,
+        }
+        target = GITHUB_TARGET + DESIGNATED_LIVE_PUBLIC_OBSERVER_TARGET
+        allowed = self.run_check(sources, github_target=target)
+        self.assertEqual(
+            allowed.returncode,
+            0,
+            allowed.stdout + allowed.stderr,
+        )
+
+        for required_fragment in (
+            '"--disable"',
+            "POSIX_SPAWN_START_SUSPENDED",
+            'CFSTR("anchor apple and identifier \\"com.apple.curl\\"")',
+            "std::array<char*, 1>{ nullptr }",
+        ):
+            with self.subTest(required_fragment=required_fragment):
+                self.assert_failure(
+                    "Designated live public observer policy is incomplete",
+                    {
+                        **sources,
+                        "src/adapters/github/src/"
+                        "designated_live_public_observer.cpp":
+                            DESIGNATED_LIVE_PUBLIC_OBSERVER_SOURCE.replace(
+                                required_fragment,
+                                "",
+                                1,
+                            ),
+                    },
+                    github_target=target,
+                )
+
+        self.assert_failure(
+            "Designated live public observer acquired forbidden ambient",
+            {
+                **sources,
+                "src/adapters/github/src/designated_live_public_observer.cpp":
+                    DESIGNATED_LIVE_PUBLIC_OBSERVER_SOURCE
+                    + '\nconst char* forbidden = getenv("HTTPS_PROXY");\n',
+            },
+            github_target=target,
+        )
+
+    def test_designated_live_supervisor_observes_before_app_launch(
+        self,
+    ) -> None:
+        sources = {
+            "src/adapters/github/src/designated_live_public_observer.cpp":
+                DESIGNATED_LIVE_PUBLIC_OBSERVER_SOURCE,
+            "src/adapters/github/src/designated_live_public_observer.hpp":
+                DESIGNATED_LIVE_PUBLIC_OBSERVER_INTERFACE,
+            "src/app/CMakeLists.txt":
+                DESIGNATED_LIVE_MACOS_SUPERVISOR_TARGET,
+            "src/app/src/designated_live_macos_supervisor.cpp":
+                DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE,
+        }
+        target = GITHUB_TARGET + DESIGNATED_LIVE_PUBLIC_OBSERVER_TARGET
+        allowed = self.run_check(sources, github_target=target)
+        self.assertEqual(
+            allowed.returncode,
+            0,
+            allowed.stdout + allowed.stderr,
+        )
+
+        self.assert_failure(
+            "Designated live supervisor prelaunch policy is incomplete",
+            {
+                **sources,
+                "src/app/src/designated_live_macos_supervisor.cpp":
+                    DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
+                        "observe_designated_live_public_target()",
+                        "observe_designated_live_public_target_disabled()",
+                        1,
+                    ),
+            },
+            github_target=target,
+        )
+
+        self.assert_failure(
+            "Designated live supervisor prelaunch policy is incomplete",
+            {
+                **sources,
+                "src/app/src/designated_live_macos_supervisor.cpp":
+                    DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
+                        "run_static_verifier(*root, *inventory)",
+                        "run_static_verifier_disabled(*root, *inventory)",
+                        1,
+                    ),
+            },
+            github_target=target,
+        )
+
+        observation = (
+            "const auto observed\n"
+            "\t\t= bpr::adapters::github::detail::"
+            "observe_designated_live_public_target();"
+        )
+        launch = (
+            "return launch_attended_application(*root, attended->Approval)\n"
+            "\t\t? EXIT_SUCCESS\n"
+            "\t\t: EXIT_FAILURE;"
+        )
+        reordered = DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE.replace(
+            observation,
+            "const auto launchResult = "
+            "launch_attended_application(*root, attended->Approval);",
+            1,
+        ).replace(
+            launch,
+            observation
+            + "\n\tif (!observed.has_value()) {\n"
+            "\t\treturn EXIT_FAILURE;\n\t}\n"
+            "\treturn launchResult ? EXIT_SUCCESS : EXIT_FAILURE;",
+            1,
+        )
+        self.assertNotEqual(
+            reordered,
+            DESIGNATED_LIVE_MACOS_SUPERVISOR_SOURCE,
+        )
+        self.assert_failure(
+            "Designated live supervisor must verify the capsule",
+            {
+                **sources,
+                "src/app/src/designated_live_macos_supervisor.cpp": reordered,
+            },
+            github_target=target,
+        )
 
     def test_cli_transport_requires_allowlisted_invocation_and_environment(
         self,
@@ -4643,8 +4847,13 @@ auto finish_background_reap(
         )
         for hostile_source, surface_name in hostile_surfaces:
             with self.subTest(surface_name=surface_name):
+                expected = (
+                    "posix_spawn ownership violation"
+                    if "posix_spawn" in hostile_source
+                    else f"Forbidden {surface_name} surface"
+                )
                 self.assert_failure(
-                    f"Forbidden {surface_name} surface",
+                    expected,
                     {
                         "src/adapters/github/src/macos_keychain.cpp":
                             MACOS_KEYCHAIN_SOURCE + hostile_source

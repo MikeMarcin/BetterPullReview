@@ -147,80 +147,63 @@ an ordinary unsandboxed Windows CTest run is not permitted. The structural
 symbol guard now selects `dumpbin`, `llvm-readobj`, or `objdump` on Windows and
 fails when none can inspect the binaries.
 
-The default graph registers no live-test exception. Set
-`BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON` only in a separate attended build
-and provide an absolute `BPR_DESIGNATED_LIVE_MUTATION_APPROVAL` path. That
-configuration registers exactly `live_review_mutation_designated_target` with
-the sole `bpr_live_mutation` label. Its trusted test-only native parent has one
-hard-coded unauthenticated GET authority:
-`https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1`. It rejects
-redirects, authentication, arbitrary URLs and targets, and every remote tuple
-mismatch before child creation. It then atomically consumes the exact approved
-inode and sends only `bpr.designated-live-capability/v1` plus the approved
-session nonce to a fixed canary routine compiled into the trusted runner. The
-command has no caller-selected child argument or executable path. GitHub token
-environment variables are scrubbed before the parent starts. The CTest entry
-has an exact 30-second outer timeout. It and the BPR-0235 safety verifiers use
-process exit as their only verdict; pass, fail, skip, inversion, disabled, and
-skip-return overrides are forbidden.
+The default graph registers no live-test exception. The earlier trusted runner,
+gate, fork protocol, and harmless canary remain regression-only surfaces and
+are never the live application. The sole opt-in exception launches the
+owner-private signed-capsule supervisor. That supervisor verifies the complete
+capsule and performs the fixed unauthenticated public target observation before
+creating the fresh tests-disabled shipped application that will later present
+Qt and own the asynchronous host.
 
-The approval file and its immediate parent directory are owned by the invoking
-user, non-symlink, and have no group or other permissions. The bounded file's
-exact ordered UTF-8 form is:
+Follow the digest-bound operator packet under
+`docs/verification/reviews/designated-live-review-publication-v001/`. It names
+the exact subject bytes and instructs the operator to materialize the approval
+only after approving that exact build. The file and its immediate parent must
+be owned by the invoking user, non-symlink, and have no group or other
+permissions. The approval carries no credential; any write-scoped credential
+is entered only through the application's existing Qt sensitive prompt.
 
-```text
-bpr.designated-live-approval/v1
-host=github.com
-owner=MikeMarcin
-repository=BPR-Test
-repository_database_id=1328277631
-repository_node_id=R_kgDOTyvofw
-pull_request_number=1
-pull_request_database_id=4246446933
-pull_request_node_id=PR_kwDOTyvof879G6NV
-base_repository_database_id=1328277631
-state=open
-head_sha=17990ba0c2fb50338141f35c0717f0f99639c7ba
-base_sha=e2a44aa8fef704de7373463222b1872e796918c6
-head_branch=codex/disposable-live-review-20260810
-canary_surface_sha256=fb77b7ca2a80bea0c584c23dee5c466de0c8bc26c12dee515cf2dc167a05294c
-session_nonce=<64 lowercase hexadecimal characters>
-```
+Configure a separate opt-in test graph only after the approval file exists.
+Supply the resolved supervisor and capsule-inventory paths plus the producer
+directory from a separate fresh `BUILD_TESTING=OFF`, `BPR_BUILD_QT=ON`,
+`Release` capsule build. Configuration rejects a missing/symlink approval, an
+alternate supervisor, a missing inventory, the regression runner, artifacts
+outside the producer tree, a tests-enabled or non-Release producer, a different
+source root, and artifacts older than product source or build configuration.
+The registration is fixed to one test,
+`live_review_mutation_designated_target`, with only `bpr_live_mutation`, a
+30-minute timeout, no credential environment, and no pass/skip/disable or
+exit-verdict overrides.
 
-The parent retains directory and approval descriptors, renames the checked
-entry into a newly created private claim directory, compares the moved object
-to the open snapshot, unlinks that exact entry, and requires the retained file
-descriptor to report zero links. The claim and descriptor remain alive through
-child termination. The approval's `canary_surface_sha256` is one deterministic
-digest over the exact canary and child `.cpp` and `.hpp` hashes, all four of
-which the architecture gate locks independently. That gate also fixes the live
-runner's source list, compile definitions, and Qt links. After the comparison,
-the parent clears its environment, creates one private capability pipe, proves
-that it has exactly one thread, and requires two equal exact open-descriptor
-inventories containing both pipe ends. macOS obtains those facts through
-`PROC_PIDTASKINFO` and `PROC_PIDLISTFDS`; Linux has a fail-closed `/proc` path
-that still requires target-native evidence. The child iterates the preallocated
-inventory, closes every inherited descriptor above standard error, maps only
-the pipe to standard input, performs fixed byte checks through the compiled-in
-routine, and exits; it never opens or executes a filesystem path. The parent
-owns bounded wait, timeout kill, and reap. Native Windows child creation remains
-fail-closed. Do not interpret a canary pass as provider/write evidence, and do
-not execute the live lane as part of ordinary verification. The full
-default-deny Linux and Windows matrices remain required at the deferred
-target-native gate.
+Before startup the supervisor verifies the signed capsule, performs one
+unauthenticated redirect-free public observation through the GitHub adapter,
+creates the app suspended, compares its dynamic code identity with the
+prevalidated static identity, and revalidates the retained executable identity
+before resume. The shipped application then identifies and hashes its own
+executable, validates the exact digest-bound approval through retained native
+file/directory identity, durably records its random approval ID as spent, and
+atomically consumes the same approval inode. It then holds one private
+15-minute authority. The first valid host binding seals that authority to the
+freshly authenticated acting identity; the async host consumes it only after
+session, generation, exact target and actor, comparison, file, right anchor,
+resolved path, and current head all match. Invalid requests do not consume it;
+cancellation, invalidation, expiry, and shutdown revoke it. Windows approval
+bootstrap and target-native Linux/Windows evidence remain deferred and fail
+closed.
 
 Inspect the two manifest modes without running the live lane:
 
 ```sh
 ctest --test-dir build/dev --show-only=json-v1
 
-cmake --preset dev -B build/designated-live-structure \
-  -DBPR_DEPENDENCY_OFFLINE=ON \
+cmake -S . -B build/designated-live-structure -G Ninja \
+  -DBUILD_TESTING=ON \
+  -DBPR_BUILD_QT=ON \
   -DBPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON \
-  -DBPR_DESIGNATED_LIVE_MUTATION_APPROVAL=/absolute/path/to/approval
-cmake --build build/designated-live-structure --target \
-  tool_better_pull_review_designated_live_mutation_runner \
-  test_better_pull_review_designated_live_mutation_canary
+  -DBPR_DESIGNATED_LIVE_MUTATION_APPROVAL=/absolute/resolved/path/to/approval \
+  -DBPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR=/absolute/resolved/release/capsule/BetterPullReview.app/Contents/Helpers/better_pull_review_designated_live_supervisor \
+  -DBPR_DESIGNATED_LIVE_MUTATION_INVENTORY=/absolute/resolved/release/capsule.inventory \
+  -DBPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR=/absolute/resolved/release/build
 ctest --test-dir build/designated-live-structure --show-only=json-v1
 ```
 

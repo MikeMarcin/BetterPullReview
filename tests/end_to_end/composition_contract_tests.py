@@ -169,8 +169,12 @@ class CompositionContractTests(unittest.TestCase):
                     "    {}, bpr::core::diff_side::right, {}, {});\n"
                     "  auto grant = bpr::application::make_review_mutation_testing_grant(\n"
                     "    {}, {}, {}, {});\n"
+                    "  auto one_shot = "
+                    "bpr::application::make_review_mutation_one_shot_testing_grant(\n"
+                    "    std::chrono::steady_clock::now());\n"
                     "  static_cast<void>(endpoint);\n"
                     "  static_cast<void>(grant);\n"
+                    "  static_cast<void>(one_shot);\n"
                     "}\n"
                 ),
             )
@@ -237,6 +241,75 @@ class CompositionContractTests(unittest.TestCase):
             self.assertNotEqual(hostile_grant_call.returncode, 0)
             self.assertRegex(
                 (hostile_grant_call.stdout + hostile_grant_call.stderr).lower(),
+                r"(no member named|not a member)",
+            )
+
+            hostile_attended_authority = compile_source(
+                temporary_root,
+                "hostile-attended-authority",
+                (
+                    '#include "bpr/application/review_mutation_application_host.hpp"\n'
+                    "auto hostile_attended_authority() {\n"
+                    "  return bpr::application::review_mutation_execution_grant{\n"
+                    "    new bpr::application::review_mutation_execution_authority{\n"
+                    "      std::chrono::steady_clock::now()}};\n"
+                    "}\n"
+                ),
+            )
+            self.assertNotEqual(hostile_attended_authority.returncode, 0)
+            self.assertIn(
+                "private",
+                (
+                    hostile_attended_authority.stdout
+                    + hostile_attended_authority.stderr
+                ).lower(),
+            )
+
+            hostile_bootstrap_definition = compile_source(
+                temporary_root,
+                "hostile-bootstrap-definition",
+                (
+                    '#include "bpr/application/review_mutation_application_host.hpp"\n'
+                    "namespace bpr::application {\n"
+                    "class designated_review_authority_bootstrap final {\n"
+                    "public:\n"
+                    "  static auto mint() {\n"
+                    "    return review_mutation_execution_grant{\n"
+                    "      new review_mutation_execution_authority{\n"
+                    "        std::chrono::steady_clock::now()}};\n"
+                    "  }\n"
+                    "};\n"
+                    "}\n"
+                ),
+            )
+            self.assertNotEqual(hostile_bootstrap_definition.returncode, 0)
+            self.assertRegex(
+                (
+                    hostile_bootstrap_definition.stdout
+                    + hostile_bootstrap_definition.stderr
+                ).lower(),
+                r"(redefinition|private)",
+            )
+
+            hostile_one_shot_factory_call = compile_source(
+                temporary_root,
+                "hostile-one-shot-factory-call",
+                (
+                    '#include "bpr/application/review_mutation_application_host.hpp"\n'
+                    "void hostile_one_shot_factory_call() {\n"
+                    "  auto grant = bpr::application::"
+                    "make_review_mutation_one_shot_testing_grant(\n"
+                    "    std::chrono::steady_clock::now());\n"
+                    "  static_cast<void>(grant);\n"
+                    "}\n"
+                ),
+            )
+            self.assertNotEqual(hostile_one_shot_factory_call.returncode, 0)
+            self.assertRegex(
+                (
+                    hostile_one_shot_factory_call.stdout
+                    + hostile_one_shot_factory_call.stderr
+                ).lower(),
                 r"(no member named|not a member)",
             )
 

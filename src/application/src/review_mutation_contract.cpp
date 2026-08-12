@@ -1,4 +1,5 @@
 #include "bpr/application/review_mutation_coordinator.hpp"
+#include "bpr/application/review_mutation_recovery_port.hpp"
 
 #include "bpr/core/sha256.hpp"
 
@@ -10,6 +11,16 @@
 
 namespace bpr::application {
 	namespace {
+		[[nodiscard]] auto lowercase_hexadecimal(
+			const std::string_view aValue) noexcept -> bool
+		{
+			return aValue.size() == 64U
+				&& std::ranges::all_of(aValue, [](const unsigned char aCharacter) {
+					   return (aCharacter >= '0' && aCharacter <= '9')
+						   || (aCharacter >= 'a' && aCharacter <= 'f');
+				   });
+		}
+
 		[[nodiscard]] auto bounded_text(
 			const std::string_view aText,
 			const std::size_t      aMaximum) noexcept -> bool
@@ -34,6 +45,22 @@ namespace bpr::application {
 			aText += '\x1f';
 		}
 	} // namespace
+
+	auto valid(const review_mutation_recovery_record& aRecord) noexcept -> bool
+	{
+		const auto receiptMatchesState
+			= aRecord.State == review_mutation_recovery_state::succeeded
+			? aRecord.Receipt.has_value() && !aRecord.Receipt->ServerCommentId.empty()
+				&& aRecord.Receipt->ServerCommentId.size() <= 256U
+			: !aRecord.Receipt.has_value();
+		return lowercase_hexadecimal(aRecord.IdempotencyKey)
+			&& !aRecord.Body.empty() && aRecord.Body.size() <= 64U * 1024U
+			&& valid(aRecord.Anchor)
+			&& aRecord.Anchor.Semantic.Side == core::diff_side::right
+			&& aRecord.Anchor.Path.size()
+			<= maximum_review_mutation_recovery_path_bytes
+			&& receiptMatchesState;
+	}
 
 	auto valid(const review_mutation_target_binding& aBinding) noexcept -> bool
 	{

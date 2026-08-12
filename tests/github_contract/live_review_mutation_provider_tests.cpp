@@ -1,6 +1,7 @@
 #include "live_review_mutation_provider.hpp"
 #include "review_mutation_provider_admission.hpp"
 
+#include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 
 #include <algorithm>
@@ -8,8 +9,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
+#include <filesystem>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <stop_token>
 #include <string>
@@ -210,6 +213,121 @@ namespace {
 		};
 	}
 
+	[[nodiscard]] auto comment_list_response(
+		const std::size_t aExactCount = 1U)
+		-> github_mutation_wire_completion
+	{
+		auto body = std::string{ "[" };
+		for (auto index = std::size_t{ }; index < aExactCount; ++index) {
+			if (index != 0U) {
+				body.push_back(',');
+			}
+			body += std::string{ "{\"id\":" } + std::to_string(44U + index)
+				+ ",\"node_id\":\"PRRC_fixture_" + std::to_string(44U + index)
+				+ "\",\"path\":\"fixture/review.txt\",\"commit_id\":\""
+				+ std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() }
+				+ "\",\"side\":\"RIGHT\",\"line\":13,"
+				  "\"body\":\"Please rename this.\",\"user\":{"
+				  "\"login\":\"fixture-reviewer\",\"id\":22,"
+				  "\"node_id\":\"MDQ6VXNlcjIy\"}}";
+		}
+		body.push_back(']');
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = std::move(body),
+			},
+		};
+	}
+
+	struct fake_recovery_state
+	{
+		std::map<std::string, application::review_mutation_recovery_record> Records;
+	};
+
+	class fake_recovery final : public application::review_mutation_recovery_port
+	{
+	public:
+		explicit fake_recovery(std::shared_ptr<fake_recovery_state> aState)
+			: State{ std::move(aState) }
+		{
+		}
+
+		auto load(const std::string& aKey)
+			-> std::expected<
+				std::optional<application::review_mutation_recovery_record>,
+				application::review_mutation_recovery_failure> override
+		{
+			if (const auto found = State->Records.find(aKey);
+				found != State->Records.end()) {
+				return found->second;
+			}
+			return std::optional<application::review_mutation_recovery_record>{ };
+		}
+
+		auto admit(const application::review_mutation_recovery_record& aRecord)
+			-> std::expected<
+				application::review_mutation_recovery_admission,
+				application::review_mutation_recovery_failure> override
+		{
+			if (const auto found = State->Records.find(aRecord.IdempotencyKey);
+				found != State->Records.end()) {
+				return application::review_mutation_recovery_admission{
+					.Record = found->second,
+				};
+			}
+			State->Records.emplace(aRecord.IdempotencyKey, aRecord);
+			return application::review_mutation_recovery_admission{
+				.Record   = aRecord,
+				.Inserted = true,
+			};
+		}
+
+		auto resolve(
+			const std::string&                          aKey,
+			const std::array<std::uint8_t, 32>&         aFingerprint,
+			const application::review_mutation_receipt& aReceipt)
+			-> std::expected<
+				application::review_mutation_recovery_record,
+				application::review_mutation_recovery_failure> override
+		{
+			const auto found = State->Records.find(aKey);
+			if (found == State->Records.end()
+				|| found->second.RequestFingerprint != aFingerprint) {
+				return std::unexpected(
+					application::review_mutation_recovery_failure::conflict);
+			}
+			found->second.State   = application::review_mutation_recovery_state::succeeded;
+			found->second.Receipt = aReceipt;
+			return found->second;
+		}
+
+	private:
+		std::shared_ptr<fake_recovery_state> State;
+	};
+
+	[[nodiscard]] auto make_recovery(
+		std::shared_ptr<fake_recovery_state> aState
+		= std::make_shared<fake_recovery_state>())
+		-> std::unique_ptr<application::review_mutation_recovery_port>
+	{
+		return std::make_unique<fake_recovery>(std::move(aState));
+	}
+
+	[[nodiscard]] auto open_recovery(const std::filesystem::path& aRoot)
+		-> std::unique_ptr<application::review_mutation_recovery_port>
+	{
+		auto opened = adapters::sqlite::make_review_mutation_recovery_store({
+			.StorageRoot = aRoot,
+			.Host        = "github.com",
+			.Account     = std::to_string(identity().Account.value()),
+			.Repository  = "MikeMarcin/BPR-Test",
+			.PullRequest = 1,
+		});
+		expect(opened.has_value(), "persistent recovery store opens for exact scope");
+		return std::move(*opened);
+	}
+
 	class fake_transport final : public github_mutation_wire_transport
 	{
 	public:
@@ -238,6 +356,7 @@ namespace {
 			Completions.push_back(viewer_response());
 			Completions.push_back(target_response());
 			Completions.push_back(comment_response());
+			Completions.push_back(comment_list_response());
 		}
 
 		std::deque<github_mutation_wire_completion> Completions;
@@ -294,18 +413,23 @@ namespace {
 	{
 		auto transport = fake_transport{ };
 		transport.exact_submit_course();
-		auto       session = review_mutation_session{ transport, configuration(), mutation_lease() };
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), make_recovery()
+		};
 		const auto receipt = session.submit(request());
 		expect(receipt.has_value() && receipt->ServerCommentId == "PRRC_fixture_44",
 			   "exact publication succeeds");
-		expect(transport.Requests.size() == 3U
+		expect(transport.Requests.size() == 4U
 				   && transport.Requests[0].Wire.Operation
 					   == review_mutation_operation::observe_viewer
 				   && transport.Requests[1].Wire.Operation
 					   == review_mutation_operation::observe_pull_request
 				   && transport.Requests[2].Wire.Operation
-					   == review_mutation_operation::create_review_comment,
-			   "target and acting identity are revalidated immediately before post");
+					   == review_mutation_operation::create_review_comment
+				   && transport.Requests[3].Wire.Operation
+					   == review_mutation_operation::observe_review_comments
+				   && transport.Requests[3].Wire.Path.ends_with("/comments?per_page=100"),
+			   "exact authority is revalidated before post and reconciled afterwards");
 		expect(std::ranges::all_of(transport.Requests, [](const auto& aWire) {
 				   return aWire.Context == credential_context();
 			   }),
@@ -316,8 +440,10 @@ namespace {
 	{
 		for (auto variant = 0; variant < 29; ++variant) {
 			auto transport = fake_transport{ };
-			auto session   = review_mutation_session{ transport, configuration(), mutation_lease() };
-			auto changed   = request();
+			auto session   = review_mutation_session{
+				transport, configuration(), mutation_lease(), make_recovery()
+			};
+			auto changed = request();
 			switch (variant) {
 			case 0:
 				changed.LiveBinding.reset();
@@ -421,8 +547,10 @@ namespace {
 		auto drift = fake_transport{ };
 		drift.Completions.push_back(viewer_response());
 		drift.Completions.push_back(target_response(1'328'277'632U));
-		auto       driftSession = review_mutation_session{ drift, configuration(), mutation_lease() };
-		const auto refused      = driftSession.submit(request());
+		auto driftSession = review_mutation_session{
+			drift, configuration(), mutation_lease(), make_recovery()
+		};
+		const auto refused = driftSession.submit(request());
 		expect(!refused.has_value() && drift.Requests.size() == 2U,
 			   "repository drift stops before write");
 
@@ -430,8 +558,10 @@ namespace {
 		movedHead.Completions.push_back(viewer_response());
 		movedHead.Completions.push_back(target_response(
 			1'328'277'631U, commit(0x77U)));
-		auto       movedSession = review_mutation_session{ movedHead, configuration(), mutation_lease() };
-		const auto stale        = movedSession.submit(request());
+		auto movedSession = review_mutation_session{
+			movedHead, configuration(), mutation_lease(), make_recovery()
+		};
+		const auto stale = movedSession.submit(request());
 		expect(!stale.has_value()
 				   && stale.error() == application::review_mutation_failure::stale_head
 				   && movedHead.Requests.size() == 2U,
@@ -445,8 +575,10 @@ namespace {
 						  "\"node_id\":\"MDQ6VXNlcjIy\"}",
 			},
 		});
-		auto       identitySession = review_mutation_session{ identityFailure, configuration(), mutation_lease() };
-		const auto wrongActor      = identitySession.submit(request());
+		auto identitySession = review_mutation_session{
+			identityFailure, configuration(), mutation_lease(), make_recovery()
+		};
+		const auto wrongActor = identitySession.submit(request());
 		expect(!wrongActor.has_value() && identityFailure.Requests.size() == 1U,
 			   "acting identity drift stops before write");
 	}
@@ -455,7 +587,9 @@ namespace {
 	{
 		auto transport = fake_transport{ };
 		transport.exact_submit_course();
-		auto       session            = review_mutation_session{ transport, configuration(), mutation_lease() };
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), make_recovery()
+		};
 		const auto first              = session.submit(request());
 		const auto requestsAfterFirst = transport.Requests.size();
 		const auto duplicate          = session.submit(request());
@@ -468,22 +602,60 @@ namespace {
 				   && transport.Requests.size() == requestsAfterFirst,
 			   "a reused key with a different resolved path cannot reuse a receipt or submit");
 
+		auto recovery  = std::make_shared<fake_recovery_state>();
 		auto uncertain = fake_transport{ };
 		uncertain.Completions.push_back(viewer_response());
 		uncertain.Completions.push_back(target_response());
 		uncertain.Completions.emplace_back(github_mutation_wire_error{
 			.Failure = application::review_mutation_failure::unavailable,
 		});
-		auto       uncertainSession = review_mutation_session{ uncertain, configuration(), mutation_lease() };
-		const auto lost             = uncertainSession.submit(request());
-		const auto count            = uncertain.Requests.size();
-		const auto retry            = uncertainSession.submit(request());
-		const auto otherPath
-			= uncertainSession.submit(request_at_path("fixture/other.txt"));
-		expect(!lost.has_value() && !retry.has_value()
-				   && !otherPath.has_value()
-				   && uncertain.Requests.size() == count,
-			   "an indeterminate post guards same-key retries and resolved-path substitution");
+		uncertain.Completions.push_back(comment_list_response(0U));
+		auto uncertainSession = review_mutation_session{
+			uncertain, configuration(), mutation_lease(), make_recovery(recovery)
+		};
+		const auto lost = uncertainSession.submit(request());
+		expect(!lost.has_value() && uncertain.Requests.size() == 4U,
+			   "an indeterminate post is reconciled once and remains unresolved");
+
+		auto restarted = fake_transport{ };
+		restarted.Completions.push_back(viewer_response());
+		restarted.Completions.push_back(target_response());
+		restarted.Completions.push_back(comment_list_response());
+		auto restartedSession = review_mutation_session{
+			restarted, configuration(), mutation_lease(), make_recovery(recovery)
+		};
+		const auto recovered = restartedSession.submit(request());
+		const auto count     = restarted.Requests.size();
+		const auto otherPath = restartedSession.submit(
+			request_at_path("fixture/other.txt"));
+		expect(recovered.has_value() && recovered->Duplicate
+				   && !otherPath.has_value() && restarted.Requests.size() == count
+				   && count == 3U
+				   && std::ranges::none_of(restarted.Requests, [](const auto& aWire) {
+						  return aWire.Wire.Operation
+							  == review_mutation_operation::create_review_comment;
+					  }),
+			   "restart recovery is GET-only and conflicting reuse refuses before transport");
+	}
+
+	void test_reconciliation_rejects_omitted_or_ambiguous_exact_comment()
+	{
+		auto paginated = comment_list_response();
+		std::get<github_mutation_wire_success>(paginated).Response.Headers.push_back({
+			.Name  = "Link",
+			.Value = "<https://api.github.com/page=2>; rel=\"next\"",
+		});
+		const auto incomplete = parse_review_comment_observations(
+			std::get<github_mutation_wire_success>(paginated).Response, request());
+		expect(!incomplete.has_value(),
+			   "a paginated comment snapshot cannot omit the idempotency target");
+
+		const auto multiple = parse_review_comment_observations(
+			std::get<github_mutation_wire_success>(comment_list_response(2U)).Response,
+			request());
+		expect(!multiple.has_value()
+				   && multiple.error() == review_mutation_contract_failure::identity_mismatch,
+			   "multiple exact server matches remain explicitly indeterminate");
 	}
 
 	void test_typed_transport_outcomes_propagate_without_diagnostics()
@@ -492,16 +664,20 @@ namespace {
 		refusedTransport.Completions.emplace_back(github_mutation_wire_error{
 			.Failure = application::review_mutation_failure::refused_by_server,
 		});
-		auto       refusedSession = review_mutation_session{ refusedTransport, configuration(), mutation_lease() };
-		const auto refused        = refusedSession.observe_target();
+		auto refusedSession = review_mutation_session{
+			refusedTransport, configuration(), mutation_lease(), make_recovery()
+		};
+		const auto refused = refusedSession.observe_target();
 		expect(!refused.has_value()
 				   && refused.error() == application::review_mutation_failure::refused_by_server,
 			   "server refusal remains typed");
 
 		auto cancelledTransport = fake_transport{ };
 		cancelledTransport.Completions.emplace_back(github_mutation_wire_cancelled{ });
-		auto       cancelledSession = review_mutation_session{ cancelledTransport, configuration(), mutation_lease() };
-		const auto cancelled        = cancelledSession.observe_target();
+		auto cancelledSession = review_mutation_session{
+			cancelledTransport, configuration(), mutation_lease(), make_recovery()
+		};
+		const auto cancelled = cancelledSession.observe_target();
 		expect(!cancelled.has_value()
 				   && cancelled.error() == application::review_mutation_failure::cancelled,
 			   "cancellation remains typed");
@@ -513,7 +689,7 @@ namespace {
 		static_cast<void>(stopped.request_stop());
 		auto beforeTransport = fake_transport{ };
 		auto beforeSession   = review_mutation_session{
-			beforeTransport, configuration(), mutation_lease()
+			beforeTransport, configuration(), mutation_lease(), make_recovery()
 		};
 		const auto before = beforeSession.submit(request(), stopped.get_token());
 		expect(!before.has_value()
@@ -530,7 +706,7 @@ namespace {
 			}
 		};
 		auto afterViewerSession = review_mutation_session{
-			afterViewer, configuration(), mutation_lease()
+			afterViewer, configuration(), mutation_lease(), make_recovery()
 		};
 		const auto viewerCancelled = afterViewerSession.submit(
 			request(), afterViewerStop.get_token());
@@ -550,7 +726,7 @@ namespace {
 			}
 		};
 		auto beforeWriteSession = review_mutation_session{
-			beforeWrite, configuration(), mutation_lease()
+			beforeWrite, configuration(), mutation_lease(), make_recovery()
 		};
 		const auto writeCancelled = beforeWriteSession.submit(
 			request(), beforeWriteStop.get_token());
@@ -575,6 +751,7 @@ namespace {
 			transport,
 			configuration(),
 			lease,
+			make_recovery(),
 		};
 		lease->revoke();
 
@@ -608,14 +785,69 @@ namespace {
 					   == application::review_mutation_failure::unavailable,
 			   "a retained revoked lease refuses the provider factory gate");
 	}
+
+	void write_unresolved_restart_fixture(const std::filesystem::path& aRoot)
+	{
+		auto transport = fake_transport{ };
+		transport.Completions.push_back(viewer_response());
+		transport.Completions.push_back(target_response());
+		transport.Completions.emplace_back(github_mutation_wire_error{
+			.Failure = application::review_mutation_failure::unavailable,
+		});
+		transport.Completions.push_back(comment_list_response(0U));
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), open_recovery(aRoot)
+		};
+		const auto submission = session.submit_and_reconcile(request());
+		expect(submission.MutationAttempted && !submission.Result.has_value()
+				   && submission.Reconciliation.has_value()
+				   && submission.Reconciliation->empty()
+				   && transport.Requests.size() == 4U,
+			   "first process durably leaves a visible unresolved attempt");
+		std::cout << "restart-recovery-phase-one:unresolved\n";
+	}
+
+	void recover_unresolved_restart_fixture(const std::filesystem::path& aRoot)
+	{
+		auto transport = fake_transport{ };
+		transport.Completions.push_back(viewer_response());
+		transport.Completions.push_back(target_response());
+		transport.Completions.push_back(comment_list_response());
+		auto session = review_mutation_session{
+			transport, configuration(), mutation_lease(), open_recovery(aRoot)
+		};
+		const auto submission = session.submit_and_reconcile(request());
+		expect(submission.Result.has_value() && submission.Result->Duplicate
+				   && submission.Reconciliation.has_value()
+				   && submission.Reconciliation->size() == 1U
+				   && !submission.MutationAttempted
+				   && std::ranges::none_of(transport.Requests, [](const auto& aWire) {
+						  return aWire.Wire.Operation
+							  == review_mutation_operation::create_review_comment;
+					  }),
+			   "second process resolves only from an exact server snapshot without POST");
+		std::cout << "restart-recovery-phase-two:resolved-get-only\n";
+	}
 } // namespace
 
-auto main() -> int
+auto main(const int aCount, char** aValues) -> int
 {
+	if (aCount == 3 && std::string_view{ aValues[1] } == "--write-unresolved") {
+		write_unresolved_restart_fixture(aValues[2]);
+		return EXIT_SUCCESS;
+	}
+	if (aCount == 3 && std::string_view{ aValues[1] } == "--recover-unresolved") {
+		recover_unresolved_restart_fixture(aValues[2]);
+		return EXIT_SUCCESS;
+	}
+	if (aCount != 1) {
+		return EXIT_FAILURE;
+	}
 	test_observe_then_immediate_revalidate_then_submit();
 	test_invalid_bindings_submit_nothing();
 	test_revalidation_drift_and_identity_failure_stop_before_write();
 	test_idempotency_and_indeterminate_attempts_never_duplicate();
+	test_reconciliation_rejects_omitted_or_ambiguous_exact_comment();
 	test_typed_transport_outcomes_propagate_without_diagnostics();
 	test_stop_token_cancels_every_session_phase_before_the_next_wire_call();
 	test_retained_revoked_lease_refuses_every_provider_use();

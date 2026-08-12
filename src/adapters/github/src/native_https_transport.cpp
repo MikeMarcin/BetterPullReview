@@ -1,5 +1,8 @@
 #include "native_https_transport.hpp"
 
+#include "designated_review_public_observer.hpp"
+#include "review_mutation_execution_authority.hpp"
+
 #include "github_paged_read.hpp"
 #include "github_wire_request_validation.hpp"
 
@@ -3960,5 +3963,256 @@ namespace bpr::adapters::github::detail {
 		} catch (...) {
 			return facts;
 		}
+	}
+
+	namespace {
+		constexpr auto designated_public_observation_timeout
+			= std::chrono::seconds{ 15 };
+		constexpr auto designated_public_observation_limit
+			= std::size_t{ 256U * 1024U };
+
+		[[nodiscard]] auto public_observation_failure(
+			const application::detail::designated_review_public_observation_failure aFailure)
+			-> std::expected<
+				void,
+				application::detail::designated_review_public_observation_failure>
+		{
+			return std::unexpected(aFailure);
+		}
+
+		class native_designated_review_public_observer final
+			: public application::detail::designated_review_public_observation_port
+		{
+		public:
+			auto observe(const application::review_mutation_target_binding& aExpected)
+				-> std::expected<
+					void,
+					application::detail::designated_review_public_observation_failure> override
+			{
+				using failure_type
+					= application::detail::designated_review_public_observation_failure;
+				if (QCoreApplication::instance() == nullptr
+					|| QThread::currentThread() != QCoreApplication::instance()->thread()
+					|| aExpected.Hostname.value() != "github.com"
+					|| aExpected.ServerContract
+						!= application::github_server_contract::github_com_2022_11_28) {
+					return public_observation_failure(failure_type::unavailable);
+				}
+				const auto compiled = compile_target_observation_request(aExpected);
+				if (!compiled.has_value() || compiled->Method != http_method::get
+					|| !compiled->Body.empty()) {
+					return public_observation_failure(failure_type::identity_mismatch);
+				}
+				const auto encoded = QByteArray{ "https://api.github.com" }
+					+ QByteArray{ compiled->Path.data(),
+								  static_cast<qsizetype>(compiled->Path.size()) };
+				const auto url = QUrl::fromEncoded(encoded, QUrl::StrictMode);
+				if (!url.isValid() || url.scheme() != QStringLiteral("https")
+					|| url.host() != QStringLiteral("api.github.com")
+					|| !url.userInfo().isEmpty() || !url.query().isEmpty()
+					|| !url.fragment().isEmpty()) {
+					return public_observation_failure(failure_type::identity_mismatch);
+				}
+
+				auto manager = QNetworkAccessManager{ };
+				manager.setProxy(QNetworkProxy{ QNetworkProxy::NoProxy });
+				auto request = QNetworkRequest{ url };
+				request.setAttribute(
+					QNetworkRequest::RedirectPolicyAttribute,
+					QNetworkRequest::ManualRedirectPolicy);
+				request.setAttribute(
+					QNetworkRequest::CookieLoadControlAttribute,
+					QNetworkRequest::Manual);
+				request.setAttribute(
+					QNetworkRequest::CookieSaveControlAttribute,
+					QNetworkRequest::Manual);
+				request.setAttribute(
+					QNetworkRequest::AuthenticationReuseAttribute,
+					QNetworkRequest::Manual);
+				request.setAttribute(
+					QNetworkRequest::CacheLoadControlAttribute,
+					QNetworkRequest::AlwaysNetwork);
+				request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
+				request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+				request.setAttribute(QNetworkRequest::Http2DirectAttribute, false);
+				request.setAttribute(QNetworkRequest::Http2CleartextAllowedAttribute, false);
+				request.setMaximumRedirectsAllowed(0);
+				request.setDecompressedSafetyCheckThreshold(0);
+				request.setTransferTimeout(static_cast<int>(
+					std::chrono::duration_cast<std::chrono::milliseconds>(
+						designated_public_observation_timeout)
+						.count()));
+				for (const auto& header : compiled->Headers) {
+					const auto name = QByteArray{ header.Name.data(),
+												  static_cast<qsizetype>(header.Name.size()) };
+					if (name.compare("Authorization", Qt::CaseInsensitive) == 0
+						|| name.compare("Cookie", Qt::CaseInsensitive) == 0
+						|| name.compare("Proxy-Authorization", Qt::CaseInsensitive) == 0) {
+						return public_observation_failure(failure_type::identity_mismatch);
+					}
+					request.setRawHeader(
+						name,
+						QByteArray{ header.Value.data(),
+									static_cast<qsizetype>(header.Value.size()) });
+				}
+				request.setRawHeader("Accept-Encoding", "identity");
+				request.setRawHeader("Accept-Language", "*");
+				auto tls = QSslConfiguration::defaultConfiguration();
+				tls.setCaCertificates(QSslConfiguration::systemCaCertificates());
+				tls.setLocalCertificateChain({ });
+				tls.setPrivateKey(QSslKey{ });
+				tls.setBackendConfiguration({ });
+				tls.setSessionTicket({ });
+				tls.setPreSharedKeyIdentityHint({ });
+				tls.setAllowedNextProtocols(
+					{ QByteArray{ QSslConfiguration::NextProtocolHttp1_1 } });
+				tls.setPeerVerifyMode(QSslSocket::VerifyPeer);
+				tls.setPeerVerifyDepth(0);
+				tls.setProtocol(QSsl::TlsV1_2OrLater);
+				tls.setSslOption(QSsl::SslOptionDisableCompression, true);
+				tls.setSslOption(QSsl::SslOptionDisableSessionTickets, true);
+				tls.setSslOption(QSsl::SslOptionDisableSessionSharing, true);
+				tls.setSslOption(QSsl::SslOptionDisableSessionPersistence, true);
+				tls.setSslOption(QSsl::SslOptionDisableLegacyRenegotiation, true);
+				request.setSslConfiguration(tls);
+
+				auto* const reply = manager.get(request);
+				if (reply == nullptr) {
+					return public_observation_failure(failure_type::unavailable);
+				}
+				auto body                = QByteArray{ };
+				auto timedOut            = false;
+				auto responseLimit       = false;
+				auto transportRefused    = false;
+				auto authentication      = false;
+				auto proxyAuthentication = false;
+				auto preSharedKey        = false;
+				auto loop                = QEventLoop{ };
+				auto timer               = QTimer{ };
+				timer.setSingleShot(true);
+				timer.start(static_cast<int>(
+					std::chrono::duration_cast<std::chrono::milliseconds>(
+						designated_public_observation_timeout)
+						.count()));
+				const auto drain = [&] {
+					const auto chunk = reply->readAll();
+					if (chunk.size()
+						> static_cast<qsizetype>(designated_public_observation_limit)
+							- body.size()) {
+						responseLimit = true;
+						reply->abort();
+						return;
+					}
+					body.append(chunk);
+				};
+				QObject::connect(reply, &QNetworkReply::readyRead, &loop, drain);
+				QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+				QObject::connect(&timer, &QTimer::timeout, &loop, [&] {
+					timedOut = true;
+					reply->abort();
+					loop.quit();
+				});
+				QObject::connect(
+					reply,
+					&QNetworkReply::sslErrors,
+					&loop,
+					[&](const QList<QSslError>&) {
+						transportRefused = true;
+						reply->abort();
+					});
+				QObject::connect(
+					&manager,
+					&QNetworkAccessManager::authenticationRequired,
+					&loop,
+					[&](QNetworkReply*, QAuthenticator*) {
+						authentication = true;
+						reply->abort();
+					});
+				QObject::connect(
+					&manager,
+					&QNetworkAccessManager::proxyAuthenticationRequired,
+					&loop,
+					[&](const QNetworkProxy&, QAuthenticator*) {
+						proxyAuthentication = true;
+						reply->abort();
+					});
+				QObject::connect(
+					reply,
+					&QNetworkReply::preSharedKeyAuthenticationRequired,
+					&loop,
+					[&](QSslPreSharedKeyAuthenticator*) {
+						preSharedKey = true;
+						reply->abort();
+					});
+				loop.exec(QEventLoop::ExcludeUserInputEvents);
+				timer.stop();
+				drain();
+
+				if (timedOut) {
+					return public_observation_failure(failure_type::timeout);
+				}
+				if (responseLimit) {
+					return public_observation_failure(failure_type::response_limit);
+				}
+				if (transportRefused || authentication || proxyAuthentication
+					|| preSharedKey || reply->error() != QNetworkReply::NoError) {
+					return public_observation_failure(failure_type::network);
+				}
+				const auto status = reply->attribute(
+					QNetworkRequest::HttpStatusCodeAttribute);
+				const auto redirect = reply->attribute(
+					QNetworkRequest::RedirectionTargetAttribute);
+				if (redirect.isValid()
+					|| (status.isValid() && status.toInt() >= 300 && status.toInt() < 400)) {
+					return public_observation_failure(failure_type::redirect);
+				}
+				if (!status.isValid() || status.toInt() != 200) {
+					return public_observation_failure(failure_type::http);
+				}
+				const auto encoding = reply->rawHeader("Content-Encoding");
+				if (!encoding.isEmpty()
+					&& encoding.compare("identity", Qt::CaseInsensitive) != 0) {
+					return public_observation_failure(failure_type::malformed);
+				}
+				auto       headers = std::vector<http_header>{ };
+				const auto pairs   = reply->rawHeaderPairs();
+				if (pairs.size() > 64) {
+					return public_observation_failure(failure_type::response_limit);
+				}
+				for (const auto& [name, value] : pairs) {
+					if (name.size() > 256 || value.size() > 8U * 1024U) {
+						return public_observation_failure(failure_type::response_limit);
+					}
+					headers.push_back({
+						.Name  = name.toStdString(),
+						.Value = value.toStdString(),
+					});
+				}
+				const auto parsed = parse_target_observation(
+					review_mutation_wire_response{
+						.Status  = status.toInt(),
+						.Headers = std::move(headers),
+						.Body    = body.toStdString(),
+					},
+					aExpected);
+				if (!parsed.has_value()) {
+					return public_observation_failure(
+						parsed.error() == review_mutation_contract_failure::identity_mismatch
+							? failure_type::identity_mismatch
+							: failure_type::malformed);
+				}
+				if (parsed->Target.Semantic.ExpectedHead
+					!= aExpected.Semantic.ExpectedHead) {
+					return public_observation_failure(failure_type::identity_mismatch);
+				}
+				return { };
+			}
+		};
+	} // namespace
+
+	auto make_designated_review_public_observer()
+		-> std::unique_ptr<application::detail::designated_review_public_observation_port>
+	{
+		return std::make_unique<native_designated_review_public_observer>();
 	}
 } // namespace bpr::adapters::github::detail

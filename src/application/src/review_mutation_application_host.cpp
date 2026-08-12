@@ -1,5 +1,7 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 
+#include "review_mutation_execution_authority.hpp"
+
 #include <atomic>
 #include <deque>
 #include <filesystem>
@@ -11,6 +13,19 @@
 namespace bpr::application {
 	namespace {
 		constexpr auto maximum_outstanding_review_mutations = std::size_t{ 8U };
+
+		[[nodiscard]] auto valid_execution_scope(
+			const review_mutation_execution_scope& aScope) noexcept -> bool
+		{
+			return aScope.ApplicationSession.value() != 0U
+				&& aScope.WorkbenchGeneration.value() != 0U
+				&& valid(aScope.Target) && valid(aScope.ActingIdentity)
+				&& aScope.Comparison.valid() && aScope.File.valid()
+				&& aScope.Anchor.Comparison == aScope.Comparison
+				&& aScope.Anchor.Side == core::diff_side::right
+				&& !aScope.ResolvedPath.empty()
+				&& aScope.Commit == aScope.Target.Semantic.ExpectedHead;
+		}
 
 		[[nodiscard]] auto portable_path_text(
 			const std::filesystem::path& aPath) -> std::optional<std::string>
@@ -32,12 +47,104 @@ namespace bpr::application {
 
 	} // namespace
 
+	review_mutation_execution_authority::review_mutation_execution_authority(
+		review_mutation_execution_scope aScope)
+		: Scope{ std::move(aScope) }
+		, Target{ Scope.Target }
+		, ActingIdentity{ Scope.ActingIdentity }
+		, Bound{ true }
+	{
+	}
+
+	review_mutation_execution_authority::review_mutation_execution_authority(
+		review_mutation_target_binding              aTarget,
+		const std::chrono::steady_clock::time_point aExpiresAt) noexcept
+		: Target{ std::move(aTarget) }
+		, ExpiresAt{ aExpiresAt }
+		, Kind{ kind::attended_one_shot }
+	{
+	}
+
+	auto review_mutation_execution_authority::bind(
+		const review_mutation_execution_scope& aScope) noexcept -> bool
+	{
+		if (Revoked.load(std::memory_order_acquire)
+			|| aScope.ApplicationSession.value() == 0U
+			|| aScope.WorkbenchGeneration.value() == 0U
+			|| !valid(aScope.Target) || !valid(aScope.ActingIdentity)
+			|| aScope.Target != Target) {
+			return false;
+		}
+		std::scoped_lock lock{ Mutex };
+		if (Revoked.load(std::memory_order_relaxed)) {
+			return false;
+		}
+		if (Kind == kind::attended_one_shot
+			&& std::chrono::steady_clock::now() >= ExpiresAt) {
+			Revoked.store(true, std::memory_order_release);
+			return false;
+		}
+		if (Bound) {
+			return Scope.ApplicationSession == aScope.ApplicationSession
+				&& Scope.WorkbenchGeneration == aScope.WorkbenchGeneration
+				&& Scope.Target == aScope.Target
+				&& ActingIdentity.has_value()
+				&& *ActingIdentity == aScope.ActingIdentity;
+		}
+		Scope.ApplicationSession  = aScope.ApplicationSession;
+		Scope.WorkbenchGeneration = aScope.WorkbenchGeneration;
+		Scope.Target              = aScope.Target;
+		Scope.ActingIdentity      = aScope.ActingIdentity;
+		ActingIdentity            = aScope.ActingIdentity;
+		Bound                     = true;
+		return true;
+	}
+
+	auto review_mutation_execution_authority::permits(
+		const review_mutation_execution_scope& aScope) noexcept -> bool
+	{
+		if (!valid_execution_scope(aScope)
+			|| Revoked.load(std::memory_order_acquire)) {
+			return false;
+		}
+		std::scoped_lock lock{ Mutex };
+		if (!Bound || Revoked.load(std::memory_order_relaxed)
+			|| !ActingIdentity.has_value()
+			|| Scope.ApplicationSession != aScope.ApplicationSession
+			|| Scope.WorkbenchGeneration != aScope.WorkbenchGeneration
+			|| Scope.Target != aScope.Target
+			|| *ActingIdentity != aScope.ActingIdentity) {
+			return false;
+		}
+		if (Kind == kind::testing_reusable) {
+			return true;
+		}
+		if (std::chrono::steady_clock::now() >= ExpiresAt) {
+			Revoked.store(true, std::memory_order_release);
+			return false;
+		}
+		auto expected = false;
+		return Consumed.compare_exchange_strong(
+			expected,
+			true,
+			std::memory_order_acq_rel,
+			std::memory_order_acquire);
+	}
+
+	void review_mutation_execution_authority::revoke() noexcept
+	{
+		std::scoped_lock lock{ Mutex };
+		if (Kind == kind::attended_one_shot) {
+			Revoked.store(true, std::memory_order_release);
+		}
+	}
+
 #if defined(BPR_APPLICATION_TESTING)
 	auto make_review_mutation_testing_grant(
 		const core::application_session_id aSession,
 		const core::request_generation     aGeneration,
-		core::review_mutation_target       aTarget,
-		const core::github_account_id      aActingIdentity)
+		review_mutation_target_binding     aTarget,
+		review_mutation_acting_identity    aActingIdentity)
 		-> review_mutation_execution_grant
 	{
 		return review_mutation_execution_grant{
@@ -48,6 +155,17 @@ namespace bpr::application {
 					.Target              = std::move(aTarget),
 					.ActingIdentity      = aActingIdentity,
 				} }
+		};
+	}
+
+	auto make_review_mutation_one_shot_testing_grant(
+		review_mutation_target_binding              aTarget,
+		const std::chrono::steady_clock::time_point aExpiresAt)
+		-> review_mutation_execution_grant
+	{
+		return review_mutation_execution_grant{
+			new review_mutation_execution_authority{
+				std::move(aTarget), aExpiresAt }
 		};
 	}
 #endif
@@ -62,6 +180,13 @@ namespace bpr::application {
 			review_mutation_anchor_binding      Anchor;
 			std::stop_source                    Stop;
 			bool                                Superseded = false;
+			bool                                Refusal    = false;
+		};
+
+		struct validated_publication final
+		{
+			review_mutation_anchor_binding  Anchor;
+			review_mutation_execution_scope Scope;
 		};
 
 		implementation(
@@ -75,10 +200,11 @@ namespace bpr::application {
 			decision_executor&                    aDecisionLane,
 			review_mutation_projection_port&      aProjection)
 			: OwnedProvider{ std::move(aProvider) }
-			, Coordinator{ *OwnedProvider, std::move(aTarget), aActingIdentity }
+			, TargetBinding{ std::move(aTarget) }
+			, ActingIdentityBinding{ std::move(aActingIdentity) }
+			, Coordinator{ *OwnedProvider, TargetBinding, ActingIdentityBinding }
 			, Session{ aSession }
 			, Generation{ aWorkbenchGeneration }
-			, ActingIdentity{ aActingIdentity.Account }
 			, Grant{ std::move(aExecutionGrant) }
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
@@ -86,31 +212,51 @@ namespace bpr::application {
 			, Capabilities{ Coordinator.capabilities() }
 			, CompleteLiveBinding{ true }
 		{
+			bind_grant();
 		}
 
 #if defined(BPR_APPLICATION_TESTING)
 		implementation(
 			review_mutation_port&              aProvider,
-			core::review_mutation_target       aTarget,
-			const core::github_account_id      aActingIdentity,
+			review_mutation_target_binding     aTarget,
+			review_mutation_acting_identity    aActingIdentity,
 			const core::application_session_id aSession,
 			const core::request_generation     aWorkbenchGeneration,
 			review_mutation_execution_grant    aExecutionGrant,
 			effect_executor&                   aEffects,
 			decision_executor&                 aDecisionLane,
 			review_mutation_projection_port&   aProjection)
-			: Coordinator{ aProvider, std::move(aTarget), aActingIdentity }
+			: TargetBinding{ std::move(aTarget) }
+			, ActingIdentityBinding{ std::move(aActingIdentity) }
+			, Coordinator{ aProvider, TargetBinding, ActingIdentityBinding }
 			, Session{ aSession }
 			, Generation{ aWorkbenchGeneration }
-			, ActingIdentity{ aActingIdentity }
 			, Grant{ std::move(aExecutionGrant) }
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
 			, Projection{ aProjection }
 			, Capabilities{ Coordinator.capabilities() }
+			, CompleteLiveBinding{ true }
 		{
+			bind_grant();
 		}
 #endif
+
+		void bind_grant() noexcept
+		{
+			if (Grant == nullptr) {
+				return;
+			}
+			const auto scope = review_mutation_execution_scope{
+				.ApplicationSession  = Session,
+				.WorkbenchGeneration = Generation,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
+			};
+			if (!Grant->bind(scope)) {
+				Grant.reset();
+			}
+		}
 
 		[[nodiscard]] auto context() noexcept -> review_mutation_request_context
 		{
@@ -123,9 +269,8 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] auto validate(
-			const review_mutation_publication_request& aRequest,
-			const review_mutation_execution_grant&     aGrant) const
-			-> std::expected<review_mutation_anchor_binding, review_mutation_failure>
+			const review_mutation_publication_request& aRequest) const
+			-> std::expected<validated_publication, review_mutation_failure>
 		{
 			const auto& publication = aRequest.SelectedDiff;
 			const auto& selected    = aRequest.Selection;
@@ -193,22 +338,23 @@ namespace bpr::application {
 			const auto scope = review_mutation_execution_scope{
 				.ApplicationSession  = Session,
 				.WorkbenchGeneration = Generation,
-				.Target              = Coordinator.designated(),
-				.ActingIdentity      = ActingIdentity,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
 				.Comparison          = selected.Comparison,
 				.File                = key.File,
 				.Anchor              = selected.PreferredLine,
+				.ResolvedPath        = anchor.Path,
 				.Commit              = comparison.Right.Commit,
 			};
-			if (!aGrant || !aGrant->permits(scope)) {
-				return std::unexpected(review_mutation_failure::unavailable);
-			}
-			return anchor;
+			return validated_publication{
+				.Anchor = std::move(anchor),
+				.Scope  = scope,
+			};
 		}
 
 		void complete(
-			const std::shared_ptr<request_record>&                          aRecord,
-			std::expected<review_mutation_receipt, review_mutation_failure> aResult)
+			const std::shared_ptr<request_record>& aRecord,
+			review_mutation_submission             aSubmission)
 		{
 			auto publish = false;
 			{
@@ -220,7 +366,8 @@ namespace bpr::application {
 				}
 				Outstanding.erase(found);
 				++Statistics.Completions;
-				publish = !Closing && !aRecord->Superseded && Active == aRecord;
+				publish = !Closing && !aRecord->Superseded
+					&& (aRecord->Refusal || Active == aRecord);
 				if (Active == aRecord) {
 					Active.reset();
 				}
@@ -233,8 +380,10 @@ namespace bpr::application {
 			if (publish) {
 				try {
 					Projection.publish(review_mutation_terminal{
-						.Context = aRecord->Context,
-						.Result  = std::move(aResult),
+						.Context           = aRecord->Context,
+						.Result            = std::move(aSubmission.Result),
+						.Reconciliation    = std::move(aSubmission.Reconciliation),
+						.MutationAttempted = aSubmission.MutationAttempted,
 					});
 				} catch (...) {
 				}
@@ -247,7 +396,9 @@ namespace bpr::application {
 		{
 			auto self = shared_from_this();
 			DecisionLane.post([self, aRecord, aFailure] {
-				self->complete(aRecord, std::unexpected(aFailure));
+				self->complete(aRecord, review_mutation_submission{
+											.Result = std::unexpected(aFailure),
+										});
 			});
 		}
 
@@ -265,26 +416,28 @@ namespace bpr::application {
 					EffectQueue.pop_front();
 				}
 
-				auto result = std::expected<
-					review_mutation_receipt,
-					review_mutation_failure>{
-					std::unexpected(review_mutation_failure::cancelled)
+				auto result = review_mutation_submission{
+					.Result = std::unexpected(review_mutation_failure::cancelled),
 				};
 				if (!record->Stop.stop_requested()) {
 					try {
 						result = CompleteLiveBinding
-							? Coordinator.publish(
+							? Coordinator.publish_attempt(
 								  record->Request.Proposal,
 								  record->Anchor,
 								  record->Request.Acknowledged,
 								  record->Stop.get_token())
-							: Coordinator.publish(
-								  record->Request.Proposal,
-								  record->Request.Acknowledged,
-								  record->Stop.get_token());
+							: review_mutation_submission{
+								  .Result = Coordinator.publish(
+									  record->Request.Proposal,
+									  record->Request.Acknowledged,
+									  record->Stop.get_token()),
+							  };
 					} catch (...) {
-						result = std::unexpected(
-							review_mutation_failure::unavailable);
+						result = review_mutation_submission{
+							.Result = std::unexpected(
+								review_mutation_failure::unavailable),
+						};
 					}
 				}
 
@@ -296,21 +449,42 @@ namespace bpr::application {
 			}
 		}
 
-		void queue_effect(const std::shared_ptr<request_record>& aRecord)
+		[[nodiscard]] auto queue_effect(
+			const std::shared_ptr<request_record>& aRecord,
+			const review_mutation_execution_grant& aGrant,
+			const review_mutation_execution_scope& aScope)
+			-> std::optional<review_mutation_failure>
 		{
 			auto refused = std::deque<std::shared_ptr<request_record>>{ };
 			{
 				std::scoped_lock lock{ Mutex };
+				if (Closing || Outstanding.size() >= maximum_outstanding_review_mutations) {
+					return review_mutation_failure::unavailable;
+				}
+				if (aRecord->Stop.stop_requested() || aGrant == nullptr
+					|| !aGrant->permits(aScope)) {
+					return review_mutation_failure::unavailable;
+				}
+				for (auto& entry : Outstanding) {
+					auto& outstanding = entry.second;
+					if (!outstanding->Refusal && !outstanding->Superseded) {
+						outstanding->Superseded = true;
+						static_cast<void>(outstanding->Stop.request_stop());
+						++Statistics.Superseded;
+					}
+				}
+				Outstanding.emplace(aRecord->Context.Request.value(), aRecord);
+				Active = aRecord;
 				EffectQueue.push_back(aRecord);
 				++Statistics.EffectsQueued;
 				if (DrainScheduled) {
-					return;
+					return std::nullopt;
 				}
 				DrainScheduled = true;
 				auto self      = shared_from_this();
 				try {
 					Effects.post([self] { self->drain_effects(); });
-					return;
+					return std::nullopt;
 				} catch (...) {
 					DrainScheduled = false;
 					refused.swap(EffectQueue);
@@ -320,6 +494,23 @@ namespace bpr::application {
 				schedule_terminal(
 					record, review_mutation_failure::unavailable);
 			}
+			return std::nullopt;
+		}
+
+		void retain_refusal(
+			const std::shared_ptr<request_record>& aRecord,
+			const review_mutation_failure          aFailure)
+		{
+			{
+				std::scoped_lock lock{ Mutex };
+				++Statistics.RefusedBeforeEffect;
+				if (Closing || Outstanding.size() >= maximum_outstanding_review_mutations) {
+					return;
+				}
+				aRecord->Refusal = true;
+				Outstanding.emplace(aRecord->Context.Request.value(), aRecord);
+			}
+			schedule_terminal(aRecord, aFailure);
 		}
 
 		[[nodiscard]] auto publish(review_mutation_publication_request aRequest)
@@ -342,38 +533,21 @@ namespace bpr::application {
 						.Generation = Generation,
 					};
 				}
-				if (Outstanding.size() >= maximum_outstanding_review_mutations) {
-					++Statistics.RefusedBeforeEffect;
-					return {
-						.Session    = Session,
-						.Generation = Generation,
-					};
-				}
-				for (auto& entry : Outstanding) {
-					auto& outstanding = entry.second;
-					if (!outstanding->Superseded) {
-						outstanding->Superseded = true;
-						static_cast<void>(outstanding->Stop.request_stop());
-						++Statistics.Superseded;
-					}
-				}
-				Outstanding.emplace(record->Context.Request.value(), record);
-				Active = record;
-				grant  = Grant;
+				grant = Grant;
 			}
 
-			auto anchor = validate(record->Request, grant);
-			if (!anchor.has_value()) {
-				{
-					std::scoped_lock lock{ Mutex };
-					++Statistics.RefusedBeforeEffect;
-				}
-				schedule_terminal(record, anchor.error());
+			auto validated = validate(record->Request);
+			if (!validated.has_value()) {
+				retain_refusal(record, validated.error());
 				return record->Context;
 			}
-			record->Anchor = std::move(*anchor);
+			record->Anchor = std::move(validated->Anchor);
 
-			queue_effect(record);
+			if (const auto failure = queue_effect(
+					record, grant, validated->Scope);
+				failure.has_value()) {
+				retain_refusal(record, *failure);
+			}
 			return record->Context;
 		}
 
@@ -384,6 +558,9 @@ namespace bpr::application {
 			if (found != Outstanding.end()
 				&& found->second->Context == aContext) {
 				static_cast<void>(found->second->Stop.request_stop());
+				if (!found->second->Refusal && Grant != nullptr) {
+					Grant->revoke();
+				}
 			}
 		}
 
@@ -394,6 +571,9 @@ namespace bpr::application {
 				return;
 			}
 			Closing = true;
+			if (Grant != nullptr) {
+				Grant->revoke();
+			}
 			Grant.reset();
 			Active.reset();
 			for (auto& entry : Outstanding) {
@@ -405,10 +585,11 @@ namespace bpr::application {
 		}
 
 		std::unique_ptr<review_mutation_port> OwnedProvider;
+		review_mutation_target_binding        TargetBinding;
+		review_mutation_acting_identity       ActingIdentityBinding;
 		review_mutation_coordinator           Coordinator;
 		core::application_session_id          Session;
 		core::request_generation              Generation;
-		core::github_account_id               ActingIdentity;
 		review_mutation_execution_grant       Grant;
 		effect_executor&                      Effects;
 		decision_executor&                    DecisionLane;
@@ -452,8 +633,8 @@ namespace bpr::application {
 #if defined(BPR_APPLICATION_TESTING)
 	review_mutation_application_host::review_mutation_application_host(
 		review_mutation_port&              aFixtureProvider,
-		core::review_mutation_target       aTarget,
-		const core::github_account_id      aActingIdentity,
+		review_mutation_target_binding     aTarget,
+		review_mutation_acting_identity    aActingIdentity,
 		const core::application_session_id aSession,
 		const core::request_generation     aWorkbenchGeneration,
 		review_mutation_execution_grant    aExecutionGrant,

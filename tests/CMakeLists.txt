@@ -292,6 +292,15 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_test_network_isolation_tests.py"
 )
 
+if(APPLE)
+    bpr_add_network_isolated_test(
+        NAME designated_live_macos_capsule_contract
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/designated_live_macos_capsule_tests.py"
+    )
+endif()
+
 set(bpr_network_isolation_verifier_command
     Python3::Interpreter
     "${PROJECT_SOURCE_DIR}/scripts/verify_test_network_isolation.py"
@@ -329,8 +338,12 @@ if(BPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST)
     list(
         APPEND
         bpr_network_isolation_verifier_command
-        --live-runner
-        "$<TARGET_FILE:tool_better_pull_review_designated_live_mutation_runner>"
+        --live-supervisor
+        "${BPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR}"
+        --live-inventory
+        "${BPR_DESIGNATED_LIVE_MUTATION_INVENTORY}"
+        --live-build-dir
+        "${BPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR}"
         --live-approval
         "${BPR_DESIGNATED_LIVE_MUTATION_APPROVAL}"
     )

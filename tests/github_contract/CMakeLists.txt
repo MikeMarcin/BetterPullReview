@@ -2,6 +2,56 @@ bpr_add_executable(
     test_better_pull_review_native_https_transport_tests
     native_https_transport_tests.cpp
 )
+
+if(APPLE)
+    bpr_add_executable(
+        test_better_pull_review_designated_live_public_observer_tests
+        designated_live_public_observer_tests.cpp
+    )
+    target_link_libraries(
+        test_better_pull_review_designated_live_public_observer_tests
+        PRIVATE
+            BetterPullReview::DesignatedLivePublicObserver
+    )
+    target_compile_definitions(
+        test_better_pull_review_designated_live_public_observer_tests
+        PRIVATE
+            BPR_DESIGNATED_LIVE_PUBLIC_OBSERVER_TESTING=1
+    )
+    target_include_directories(
+        test_better_pull_review_designated_live_public_observer_tests
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+    )
+    bpr_enable_hardening(
+        test_better_pull_review_designated_live_public_observer_tests
+    )
+    bpr_enable_warnings(
+        test_better_pull_review_designated_live_public_observer_tests
+    )
+    find_program(
+        BPR_TEST_DESIGNATED_LIVE_OPENSSL
+        NAMES openssl
+        REQUIRED
+    )
+    bpr_add_network_isolated_test(
+        NAME designated_live_public_observer_fixture
+        LOOPBACK_PORT_COUNT 1
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/verify_designated_live_public_observer.py"
+            --executable
+            "$<TARGET_FILE:test_better_pull_review_designated_live_public_observer_tests>"
+            --openssl
+            "${BPR_TEST_DESIGNATED_LIVE_OPENSSL}"
+    )
+    set_tests_properties(
+        designated_live_public_observer_fixture
+        PROPERTIES
+            RESOURCE_LOCK designated_live_public_observer_loopback
+            TIMEOUT 90
+    )
+endif()
 target_link_libraries(
     test_better_pull_review_native_https_transport_tests
     PRIVATE
@@ -248,11 +298,12 @@ bpr_add_executable(
     test_better_pull_review_live_review_mutation_provider_tests
     live_review_mutation_provider_tests.cpp
 )
-target_link_libraries(
-    test_better_pull_review_live_review_mutation_provider_tests
-    PRIVATE
-        BetterPullReview::AdapterGitHub
-        BetterPullReview::Application
+	target_link_libraries(
+	    test_better_pull_review_live_review_mutation_provider_tests
+	    PRIVATE
+	        BetterPullReview::AdapterGitHub
+	        BetterPullReview::AdapterSQLite
+	        BetterPullReview::Application
         Qt6::Core
 )
 target_include_directories(
@@ -265,6 +316,14 @@ bpr_enable_warnings(test_better_pull_review_live_review_mutation_provider_tests)
 bpr_add_network_isolated_test(
     NAME live_review_mutation_provider
     COMMAND test_better_pull_review_live_review_mutation_provider_tests
+)
+bpr_add_network_isolated_test(
+    NAME live_review_mutation_restart_recovery
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/review_mutation_restart_recovery_tests.py"
+        --executable
+        "$<TARGET_FILE:test_better_pull_review_live_review_mutation_provider_tests>"
 )
 
 bpr_add_executable(

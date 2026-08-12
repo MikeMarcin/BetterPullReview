@@ -5,6 +5,7 @@
 
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/review_mutation_port.hpp"
+#include "bpr/application/review_mutation_recovery_port.hpp"
 
 #include <array>
 #include <cstddef>
@@ -26,6 +27,7 @@ namespace bpr::adapters::github::detail {
 	enum class review_mutation_operation : std::uint8_t {
 		observe_pull_request,
 		observe_viewer,
+		observe_review_comments,
 		create_review_comment,
 	};
 
@@ -95,6 +97,14 @@ namespace bpr::adapters::github::detail {
 		auto operator<=>(const review_mutation_comment_observation&) const = default;
 	};
 
+	struct review_mutation_server_reconciliation
+	{
+		std::vector<application::review_comment_projection> Projection;
+		std::optional<application::review_mutation_receipt> ExactReceipt;
+
+		auto operator<=>(const review_mutation_server_reconciliation&) const = default;
+	};
+
 	using review_mutation_request_result = std::expected<
 		review_mutation_wire_request,
 		review_mutation_contract_failure>;
@@ -115,6 +125,10 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	[[nodiscard]] auto compile_review_comment_observation_request(
+		const application::review_mutation_request& aRequest,
+		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
 	[[nodiscard]] auto validate_outbound_review_mutation_request(
 		const review_mutation_wire_request& aRequest)
 		-> std::expected<void, review_mutation_contract_failure>;
@@ -130,6 +144,10 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&        aResponse,
 		const application::review_mutation_request& aExpected)
 		-> review_mutation_parse_result<review_mutation_comment_observation>;
+	[[nodiscard]] auto parse_review_comment_observations(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_mutation_request& aExpected)
+		-> review_mutation_parse_result<review_mutation_server_reconciliation>;
 
 	struct github_mutation_wire_request
 	{
@@ -204,7 +222,9 @@ namespace bpr::adapters::github::detail {
 		review_mutation_session(
 			github_mutation_wire_transport&        aTransport,
 			live_review_mutation_configuration     aConfiguration,
-			application::review_mutation_transport aLease) noexcept;
+			application::review_mutation_transport aLease,
+			std::unique_ptr<application::review_mutation_recovery_port>
+				aRecovery) noexcept;
 
 		[[nodiscard]] auto observe_target(std::stop_token aStop = { })
 			-> std::expected<core::review_mutation_target, application::review_mutation_failure>;
@@ -212,26 +232,30 @@ namespace bpr::adapters::github::detail {
 			const application::review_mutation_request& aRequest,
 			std::stop_token                             aStop = { })
 			-> std::expected<application::review_mutation_receipt, application::review_mutation_failure>;
+		[[nodiscard]] auto submit_and_reconcile(
+			const application::review_mutation_request& aRequest,
+			std::stop_token                             aStop = { })
+			-> application::review_mutation_submission;
 
 	private:
-		struct idempotency_record
-		{
-			std::array<std::uint8_t, 32>                        RequestFingerprint;
-			std::optional<application::review_mutation_receipt> Receipt;
-		};
-
 		[[nodiscard]] auto observe_exact(std::stop_token aStop)
 			-> std::expected<void, application::review_mutation_failure>;
+		[[nodiscard]] auto reconcile(
+			const application::review_mutation_request& aRequest,
+			std::stop_token                             aStop)
+			-> std::expected<
+				review_mutation_server_reconciliation,
+				application::review_mutation_failure>;
 		[[nodiscard]] auto perform(
 			review_mutation_wire_request aRequest,
 			std::stop_token              aStop)
 			-> std::expected<review_mutation_wire_response, application::review_mutation_failure>;
 
-		github_mutation_wire_transport*           Transport = nullptr;
-		live_review_mutation_configuration        Configuration;
-		application::review_mutation_transport    Lease;
-		std::mutex                                Mutex;
-		std::map<std::string, idempotency_record> Idempotency;
+		github_mutation_wire_transport*                             Transport = nullptr;
+		live_review_mutation_configuration                          Configuration;
+		application::review_mutation_transport                      Lease;
+		std::unique_ptr<application::review_mutation_recovery_port> Recovery;
+		std::mutex                                                  Mutex;
 	};
 } // namespace bpr::adapters::github::detail
 

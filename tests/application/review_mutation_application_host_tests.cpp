@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
@@ -312,17 +313,35 @@ namespace {
 			};
 		}
 
+		auto submit_and_reconcile(
+			const application::review_mutation_request& aRequest,
+			const std::stop_token                       aStop)
+			-> application::review_mutation_submission override
+		{
+			if (NextSubmission.has_value()) {
+				Submitted.push_back(aRequest);
+				auto result = std::move(*NextSubmission);
+				NextSubmission.reset();
+				return result;
+			}
+			return {
+				.Result            = submit(aRequest, aStop),
+				.MutationAttempted = true,
+			};
+		}
+
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
 			return { .ResolvesThreads = false, .RecordsViewedState = false };
 		}
 
-		core::review_mutation_target                      Reported     = target();
-		std::size_t                                       Observations = 0U;
-		std::vector<bool>                                 StopObserved;
-		std::vector<application::review_mutation_request> Submitted;
-		std::function<void()>                             OnObserve;
+		core::review_mutation_target                           Reported     = target();
+		std::size_t                                            Observations = 0U;
+		std::vector<bool>                                      StopObserved;
+		std::vector<application::review_mutation_request>      Submitted;
+		std::function<void()>                                  OnObserve;
+		std::optional<application::review_mutation_submission> NextSubmission;
 	};
 
 	class recording_projection final
@@ -464,8 +483,8 @@ namespace {
 		return application::make_review_mutation_testing_grant(
 			core::application_session_id{ 3U },
 			core::request_generation{ 8U },
-			target(),
-			core::github_account_id{ 40U });
+			live_target(),
+			acting_identity());
 	}
 
 	void test_live_binding_uses_exact_right_resolved_path_asynchronously()
@@ -535,6 +554,45 @@ namespace {
 			   "a copied file publishes only its exact epoch-resolved right endpoint");
 	}
 
+	void test_attempted_failure_publishes_authoritative_reconciliation()
+	{
+		auto provider            = std::make_unique<fake_provider>();
+		provider->NextSubmission = application::review_mutation_submission{
+			.Result = std::unexpected(
+				application::review_mutation_failure::unavailable),
+			.Reconciliation = std::vector<application::review_comment_projection>{
+				{ .ServerId = "PRRC_existing", .Body = "Server authority." },
+			},
+			.MutationAttempted = true,
+		};
+		auto effects    = application::manual_executor{ };
+		auto decisions  = application::manual_executor{ };
+		auto projection = recording_projection{ };
+		auto host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+		};
+
+		static_cast<void>(host.publish(publication_request()));
+		effects.drain();
+		decisions.drain();
+		expect(projection.Published.size() == 1U
+				   && projection.Published.front().MutationAttempted
+				   && !projection.Published.front().Result.has_value()
+				   && projection.Published.front().Reconciliation.has_value()
+				   && projection.Published.front().Reconciliation->size() == 1U
+				   && projection.Published.front().Reconciliation->front().ServerId
+					   == "PRRC_existing",
+			   "an attempted indeterminate terminal retains its real server snapshot");
+	}
+
 	void test_missing_grant_and_invalid_bindings_queue_no_effect()
 	{
 		auto provider   = fake_provider{ };
@@ -543,8 +601,8 @@ namespace {
 		auto projection = recording_projection{ };
 		auto host       = application::review_mutation_application_host{
 			provider,
-			target(),
-			core::github_account_id{ 40U },
+			live_target(),
+			acting_identity(),
 			core::application_session_id{ 3U },
 			core::request_generation{ 8U },
 			application::review_mutation_execution_grant{ },
@@ -567,8 +625,8 @@ namespace {
 		auto grantedProjection = recording_projection{ };
 		auto granted           = application::review_mutation_application_host{
 			grantedProvider,
-			target(),
-			core::github_account_id{ 40U },
+			live_target(),
+			acting_identity(),
 			core::application_session_id{ 3U },
 			core::request_generation{ 8U },
 			testing_grant(),
@@ -593,10 +651,16 @@ namespace {
 		expect(grantedEffects.pending() == 0U && grantedProvider.Observations == 0U,
 			   "left, absent, arbitrary-path, and stale bindings perform no provider work");
 		grantedDecisions.drain();
-		expect(grantedProjection.Published.size() == 1U
-				   && grantedProjection.Published.front().Result.error()
+		expect(grantedProjection.Published.size() == 4U
+				   && grantedProjection.Published[0].Result.error()
+					   == application::review_mutation_failure::unsupported
+				   && grantedProjection.Published[1].Result.error()
+					   == application::review_mutation_failure::unsupported
+				   && grantedProjection.Published[2].Result.error()
+					   == application::review_mutation_failure::undesignated_target
+				   && grantedProjection.Published[3].Result.error()
 					   == application::review_mutation_failure::stale_head,
-			   "supersession withholds older refusals and publishes the current typed refusal");
+			   "each invalid request publishes its own typed refusal without supersession");
 	}
 
 	void test_cancellation_supersession_and_shutdown_are_quiescent()
@@ -607,8 +671,8 @@ namespace {
 		auto projection = recording_projection{ };
 		auto host       = application::review_mutation_application_host{
 			provider,
-			target(),
-			core::github_account_id{ 40U },
+			live_target(),
+			acting_identity(),
 			core::application_session_id{ 3U },
 			core::request_generation{ 8U },
 			testing_grant(),
@@ -660,8 +724,8 @@ namespace {
 		auto projection = recording_projection{ };
 		auto host       = application::review_mutation_application_host{
 			provider,
-			target(),
-			core::github_account_id{ 40U },
+			live_target(),
+			acting_identity(),
 			core::application_session_id{ 3U },
 			core::request_generation{ 8U },
 			testing_grant(),
@@ -688,14 +752,266 @@ namespace {
 		expect(host.is_quiescent() && projection.Published.empty(),
 			   "shutdown retires the active and queued requests without stale terminals");
 	}
+
+	void test_one_shot_authority_consumes_only_the_first_exact_admission()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  grant      = application::make_review_mutation_one_shot_testing_grant(
+			live_target(),
+			std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+		auto host = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			grant,
+			effects,
+			decisions,
+			projection,
+		};
+
+		auto invalid                         = publication_request();
+		invalid.Selection.PreferredLine.Side = core::diff_side::left;
+		invalid.Proposal.Anchor              = invalid.Selection.PreferredLine;
+		static_cast<void>(host.publish(std::move(invalid)));
+		expect(effects.pending() == 0U && observed->Observations == 0U,
+			   "an invalid exact binding neither consumes nor queues the one-shot authority");
+		decisions.drain();
+
+		const auto first = host.publish(publication_request());
+		expect(first.Request.value() != 0U && effects.pending() == 1U,
+			   "the first exact request consumes immediately before queue insertion");
+		auto second           = publication_request();
+		second.Proposal.Draft = core::review_draft_id{ 81U };
+		second.Proposal.Body  = "A later request must not consume again.";
+		static_cast<void>(host.publish(std::move(second)));
+		expect(effects.pending() == 1U,
+			   "a consumed authority refuses a second request without superseding the admitted effect");
+		effects.drain();
+		decisions.drain();
+		expect(observed->Submitted.size() == 1U
+				   && observed->Submitted.front().Proposal.Draft
+					   == core::review_draft_id{ 7U },
+			   "only the first exact request reaches the provider");
+		expect(projection.Published.size() == 3U,
+			   "invalid, consumed, and successful attempts each receive a typed terminal");
+	}
+
+	void test_one_shot_authority_expiry_invalidation_and_shutdown_revoke_grants()
+	{
+		auto expired = application::make_review_mutation_one_shot_testing_grant(
+			live_target(),
+			std::chrono::steady_clock::now() - std::chrono::seconds{ 1 });
+		auto expiredProvider   = std::make_unique<fake_provider>();
+		auto expiredEffects    = application::manual_executor{ };
+		auto expiredDecisions  = application::manual_executor{ };
+		auto expiredProjection = recording_projection{ };
+		auto expiredHost       = application::review_mutation_application_host{
+			std::move(expiredProvider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			expired,
+			expiredEffects,
+			expiredDecisions,
+			expiredProjection,
+		};
+		static_cast<void>(expiredHost.publish(publication_request()));
+		expect(expiredEffects.pending() == 0U,
+			   "an expired one-shot authority queues no effect");
+
+		{
+			auto grant = application::make_review_mutation_one_shot_testing_grant(
+				live_target(),
+				std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+			auto provider   = std::make_unique<fake_provider>();
+			auto effects    = application::manual_executor{ };
+			auto decisions  = application::manual_executor{ };
+			auto projection = recording_projection{ };
+			auto host       = application::review_mutation_application_host{
+				std::move(provider),
+				live_target(),
+				acting_identity(),
+				core::application_session_id{ 3U },
+				core::request_generation{ 8U },
+				grant,
+				effects,
+				decisions,
+				projection,
+			};
+			host.shutdown();
+
+			auto replacementProvider   = std::make_unique<fake_provider>();
+			auto replacementEffects    = application::manual_executor{ };
+			auto replacementDecisions  = application::manual_executor{ };
+			auto replacementProjection = recording_projection{ };
+			auto replacementHost       = application::review_mutation_application_host{
+				std::move(replacementProvider),
+				live_target(),
+				acting_identity(),
+				core::application_session_id{ 3U },
+				core::request_generation{ 8U },
+				grant,
+				replacementEffects,
+				replacementDecisions,
+				replacementProjection,
+			};
+			static_cast<void>(replacementHost.publish(publication_request()));
+			expect(replacementEffects.pending() == 0U,
+				   "shutdown revokes an unused one-shot authority");
+		}
+
+		{
+			auto grant = application::make_review_mutation_one_shot_testing_grant(
+				live_target(),
+				std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+			auto provider   = std::make_unique<fake_provider>();
+			auto effects    = application::manual_executor{ };
+			auto decisions  = application::manual_executor{ };
+			auto projection = recording_projection{ };
+			auto host       = application::review_mutation_application_host{
+				std::move(provider),
+				live_target(),
+				acting_identity(),
+				core::application_session_id{ 3U },
+				core::request_generation{ 8U },
+				grant,
+				effects,
+				decisions,
+				projection,
+			};
+			auto invalid                         = publication_request();
+			invalid.Selection.PreferredLine.Side = core::diff_side::left;
+			invalid.Proposal.Anchor              = invalid.Selection.PreferredLine;
+			const auto context                   = host.publish(std::move(invalid));
+			host.cancel(context);
+			static_cast<void>(host.publish(publication_request()));
+			expect(effects.pending() == 1U,
+				   "cancelling an invalid refusal does not revoke an unused one-shot authority");
+		}
+
+		auto grant = application::make_review_mutation_one_shot_testing_grant(
+			live_target(),
+			std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+		auto providerOne   = std::make_unique<fake_provider>();
+		auto effectsOne    = application::manual_executor{ };
+		auto decisionsOne  = application::manual_executor{ };
+		auto projectionOne = recording_projection{ };
+		auto hostOne       = application::review_mutation_application_host{
+			std::move(providerOne),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			grant,
+			effectsOne,
+			decisionsOne,
+			projectionOne,
+		};
+		auto providerTwo   = std::make_unique<fake_provider>();
+		auto effectsTwo    = application::manual_executor{ };
+		auto decisionsTwo  = application::manual_executor{ };
+		auto projectionTwo = recording_projection{ };
+		auto hostTwo       = application::review_mutation_application_host{
+			std::move(providerTwo),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 4U },
+			core::request_generation{ 8U },
+			grant,
+			effectsTwo,
+			decisionsTwo,
+			projectionTwo,
+		};
+		static_cast<void>(hostOne.publish(publication_request()));
+		expect(effectsOne.pending() == 1U && effectsTwo.pending() == 0U,
+			   "a mismatched second host cannot revoke the first exact session binding");
+	}
+
+	void test_one_shot_authority_rejects_same_core_different_full_identity()
+	{
+		auto grant = application::make_review_mutation_one_shot_testing_grant(
+			live_target(),
+			std::chrono::steady_clock::now() + std::chrono::minutes{ 5 });
+		auto wrongTarget = live_target();
+		wrongTarget.RepositoryNodeId += "-substituted";
+		auto wrongProvider   = std::make_unique<fake_provider>();
+		auto wrongEffects    = application::manual_executor{ };
+		auto wrongDecisions  = application::manual_executor{ };
+		auto wrongProjection = recording_projection{ };
+		auto wrongHost       = application::review_mutation_application_host{
+			std::move(wrongProvider),
+			wrongTarget,
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			grant,
+			wrongEffects,
+			wrongDecisions,
+			wrongProjection,
+		};
+		static_cast<void>(wrongHost.publish(publication_request()));
+		expect(wrongEffects.pending() == 0U,
+			   "same core identity with different provider target identity is refused");
+
+		auto exactProvider   = std::make_unique<fake_provider>();
+		auto exactEffects    = application::manual_executor{ };
+		auto exactDecisions  = application::manual_executor{ };
+		auto exactProjection = recording_projection{ };
+		auto exactHost       = application::review_mutation_application_host{
+			std::move(exactProvider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			grant,
+			exactEffects,
+			exactDecisions,
+			exactProjection,
+		};
+
+		auto wrongActor = acting_identity();
+		wrongActor.NodeId += "-substituted";
+		auto actorProvider   = std::make_unique<fake_provider>();
+		auto actorEffects    = application::manual_executor{ };
+		auto actorDecisions  = application::manual_executor{ };
+		auto actorProjection = recording_projection{ };
+		auto actorHost       = application::review_mutation_application_host{
+			std::move(actorProvider),
+			live_target(),
+			wrongActor,
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			grant,
+			actorEffects,
+			actorDecisions,
+			actorProjection,
+		};
+		static_cast<void>(actorHost.publish(publication_request()));
+		expect(actorEffects.pending() == 0U,
+			   "the carrier seals to the first fresh authenticated actor and rejects a different full identity");
+		static_cast<void>(exactHost.publish(publication_request()));
+		expect(exactEffects.pending() == 1U,
+			   "invalid target and later actor bind attempts do not revoke the exact sealed authority");
+	}
 } // namespace
 
 auto main() -> int
 {
 	test_live_binding_uses_exact_right_resolved_path_asynchronously();
+	test_attempted_failure_publishes_authoritative_reconciliation();
 	test_missing_grant_and_invalid_bindings_queue_no_effect();
 	test_cancellation_supersession_and_shutdown_are_quiescent();
 	test_parallel_executor_cannot_overlap_effects_and_shutdown_drains_queue();
+	test_one_shot_authority_consumes_only_the_first_exact_admission();
+	test_one_shot_authority_expiry_invalidation_and_shutdown_revoke_grants();
+	test_one_shot_authority_rejects_same_core_different_full_identity();
 	std::cout << "review-mutation-application-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -50,11 +50,17 @@ tests-disabled production
 application retains the live provider only for the compiled designated
 repository, pull request, base, and head tuple and the exact dynamically
 authenticated acting identity. It also composes the asynchronous host and
-coordinator, but supplies no execution grant, so publication performs zero
-provider, credential, or network work. No boolean, environment variable, CLI
-switch, persisted value, or Qt gesture can issue that absent capability. The
-host propagates per-request cancellation through live observation, submission,
-and native HTTPS, and revokes admission on identity replacement and shutdown.
+coordinator. Ordinary launches supply no execution grant. The sole production
+path uses a signed-capsule supervisor to verify the app/dependency inventory and
+observe the exact public target before GUI creation. Its private in-app issuer
+then consumes an exact build/target-bound attended approval and authorizes only
+the first fully bound async-host request. Credentials remain in the Qt sensitive
+prompt; no boolean, environment variable, raw nonce, persisted value, IPC
+message, or ordinary Qt gesture can issue that capability. The host propagates
+per-request cancellation through live observation, submission, and native
+HTTPS, revokes admission on identity replacement and shutdown, and durably
+reconciles an indeterminate attempted publication from server truth after
+restart without a second POST.
 Ordinary review threads can now be
 classified into private durable defect cards: evidence remains distinct from
 explicit verification, the stable multi-defect queue survives restart, and a

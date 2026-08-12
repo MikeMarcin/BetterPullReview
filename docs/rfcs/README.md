@@ -52,9 +52,15 @@ Live work is tracked on the [issue board](../issues/README.md).
 ## Deferred post-pack work
 
 The table above is the complete fourteen-RFC pack-v2 sequence. The following
-RFC is outside that canonical pack, cannot block its implementation or
-closeout, and remains deferred until its upstream eligibility gates exist:
+RFCs are outside that canonical pack, cannot block its implementation or
+closeout, and remain deferred until their eligibility gates exist:
 
 | RFC | Title | Status | Eligibility |
 |---|---|---|---|
 | [RFC-BPR-0015](future/RFC-BPR-0015-github-cli-production-enablement.md) | GitHub CLI Production Enablement | Deferred | RFC-BPR-0014 closed and official `gh` supplies the required safety contract |
+| [RFC-BPR-0016](future/RFC-BPR-0016-github-device-authorization-flow.md) | GitHub Device Authorization Flow | Deferred | RFC-BPR-0002 closed and the product owner registers a device-flow application identity |
+| [RFC-BPR-0017](future/RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Deferred | RFC-BPR-0002 closed, recorded anonymous-access probe evidence, and a product decision that the mode is wanted |
+
+RFC-BPR-0016 and RFC-BPR-0017 address the same operator complaint by opposite
+routes and are alternatives rather than companions. RFC-BPR-0017 records why
+RFC-BPR-0016 is the stronger answer.

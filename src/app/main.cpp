@@ -53,6 +53,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <charconv>
 #include <chrono>
 #include <cmath>
@@ -67,11 +68,66 @@
 #include <string>
 #include <string_view>
 
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+	#include <unistd.h>
+#endif
+
 #if defined(BPR_BUILD_TESTING)
 	#include <cstring>
 #endif
 
 namespace {
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+	constexpr auto designated_live_child_channel = 3;
+	constexpr auto designated_live_probe_argument
+		= std::string_view{ "--designated-live-preflight-probe" };
+	constexpr auto designated_live_probe_acknowledgement
+		= std::string_view{ "BPR_DESIGNATED_LIVE_PREFLIGHT_OK\n" };
+
+	[[nodiscard]] auto run_designated_live_preflight_probe(
+		const int argc, char** argv) noexcept -> std::optional<int>
+	{
+		if (argc != 2 || argv == nullptr || argv[1] == nullptr
+			|| std::string_view{ argv[1] } != designated_live_probe_argument) {
+			return std::nullopt;
+		}
+		auto challenge = std::array<char, 65>{ };
+		auto received  = std::size_t{ 0U };
+		while (received != challenge.size()) {
+			const auto count = ::read(
+				designated_live_child_channel,
+				challenge.data() + received,
+				challenge.size() - received);
+			if (count < 0 && errno == EINTR) {
+				continue;
+			}
+			if (count <= 0) {
+				return EXIT_FAILURE;
+			}
+			received += static_cast<std::size_t>(count);
+		}
+		const auto expected = std::string{ BPR_ATTENDED_REVIEW_SOURCE_SHA256 } + "\n";
+		if (std::string_view{ challenge.data(), challenge.size() } != expected) {
+			return EXIT_FAILURE;
+		}
+		auto written = std::size_t{ 0U };
+		while (written != designated_live_probe_acknowledgement.size()) {
+			const auto count = ::write(
+				designated_live_child_channel,
+				designated_live_probe_acknowledgement.data() + written,
+				designated_live_probe_acknowledgement.size() - written);
+			if (count < 0 && errno == EINTR) {
+				continue;
+			}
+			if (count <= 0) {
+				return EXIT_FAILURE;
+			}
+			written += static_cast<std::size_t>(count);
+		}
+		return EXIT_SUCCESS;
+	}
+#endif
+
 	// Defined outside the tests-enabled guard because the evidence block that
 	// prints NOTIFICATION_PERMISSION is itself unguarded: a Release build with
 	// tests disabled still reports it. It lived inside the guard, so that build
@@ -4417,6 +4473,12 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+	if (const auto preflight = run_designated_live_preflight_probe(argc, argv);
+		preflight.has_value()) {
+		return *preflight;
+	}
+#endif
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	QCoreApplication::setApplicationName(QStringLiteral("BetterPullReview"));
@@ -4442,6 +4504,45 @@ auto main(int argc, char** argv) -> int
 		auto config = bpr::app::github_application_config{
 			.EnterpriseHostname = std::nullopt,
 		};
+		auto attendedApprovalCount = std::size_t{ 0U };
+		for (auto index = 1; index < argc; ++index) {
+			if (std::string_view{ argv[index] }
+				== "--attended-designated-live-approval") {
+				++attendedApprovalCount;
+			}
+		}
+#if defined(BPR_BUILD_TESTING)
+		if (attendedApprovalCount != 0U) {
+			QTextStream{ stdout } << "STARTUP_FAILED\n";
+			return EXIT_FAILURE;
+		}
+#else
+		if (attendedApprovalCount > 1U) {
+			QTextStream{ stdout } << "STARTUP_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (attendedApprovalCount == 1U) {
+			const auto approval = argument_value(
+				argc, argv, "--attended-designated-live-approval");
+			if (!approval.has_value()) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			const auto approvalPath = std::filesystem::path{ std::string{ *approval } };
+			if (!approvalPath.is_absolute()
+				|| approvalPath.lexically_normal() != approvalPath) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			const auto executableUtf8             = QCoreApplication::applicationFilePath().toUtf8();
+			config.AttendedDesignatedLiveApproval = approvalPath;
+			config.RunningExecutable              = std::filesystem::path{ std::string{
+				executableUtf8.constData(), static_cast<std::size_t>(executableUtf8.size()) } };
+			config.AttendedSourceSha256           = BPR_ATTENDED_REVIEW_SOURCE_SHA256;
+			config.BuildConfiguration             = BPR_BUILD_CONFIGURATION;
+			config.BuildTesting                   = false;
+		}
+#endif
 		if (const auto host = argument_value(argc, argv, "--ghes-host");
 			host.has_value()) {
 			config.EnterpriseHostname = std::string{ *host };

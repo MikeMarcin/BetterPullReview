@@ -19,8 +19,9 @@ one exact request in a tests-disabled shipped application.
 
 - The existing canary runner/gate remains a hermetic regression surface. The
   sole opt-in `live_review_mutation_designated_target` command instead names an
-  absolute, freshly built `BUILD_TESTING=OFF` shipped application and its
-  attended bootstrap. It never launches the tests-enabled fixture app.
+  absolute signed-capsule supervisor and inventory around a freshly built
+  `BUILD_TESTING=OFF` shipped application and its attended bootstrap. It never
+  launches the tests-enabled fixture app or the GUI directly.
 - The shipped app accepts one production-only attended bootstrap authority. It
   validates an absolute approval artifact using retained native file/directory
   identity, exact owner-private permissions, bounded bytes, exact schema and
@@ -83,3 +84,65 @@ one exact request in a tests-disabled shipped application.
   graphs fail.
 - Existing designated canary/gate, async host, live isolation, architecture,
   documentation, scoped format/tidy, and `git diff --check` gates remain green.
+
+## Unattended implementation checkpoint
+
+The signed-capsule prelaunch supervisor, private in-application bootstrap,
+narrow GitHub-adapter public observation, private one-use host carrier, exact
+request admission, production-only CLI surface, and tests-disabled shipped-app
+CTest registration are implemented. Hermetic tests
+exercise unsafe/malformed/replayed/substituted approvals, digest and every
+target/build mismatch, observer failures, concurrent consume, invalid-before-
+valid host admission, exact one-use behavior, expiry, cancellation, and
+shutdown without network or credentials. Hostile syntax/source checks reject
+external authority construction and redefinition of the sealed issuer.
+
+The prior BPR-0235 runner/gate/canary sources remain unchanged and are
+regression-only. Configure-time and independent manifest checks reject that
+runner, direct GUI and fixture/alternate apps, alternate supervisors or
+inventories, tests-enabled/non-Release producer trees, missing approval, stale
+artifacts, credential environment, verdict overrides, or a second live lane.
+
+The digest-bound operator packet is pending attended review. The live test has
+not been executed; no credential or network was accessed and no mutation was
+submitted. Target-native Linux/Windows evidence remains deferred by product-
+owner direction, and the Windows bootstrap remains fail-closed. Accordingly
+this card stays in progress and makes no BPR-0142, BPR-0235, or RFC closeout
+claim.
+
+## Session handoff — 2026-08-11
+
+The operator ended the implementation session and requested that all current
+work be committed and merged without claiming this card complete. The saved
+tree contains the signed macOS capsule/supervisor, private approval bootstrap,
+one-shot async-host admission, public target observer, durable publication
+recovery, static live-lane registration, hostile contracts, documentation, and
+the pending operator packet. Future authentication/read investigations are
+preserved as draft RFC-BPR-0016 and RFC-BPR-0017; they are not acceptance
+claims for this card.
+
+Exact unfinished work remains owned here:
+
+- Re-run `architecture_boundaries` and `architecture_boundary_contract` after
+  the saved verifier update from the old `inventory` expression to the current
+  dereferenced `*inventory` expression. The interrupted 16-test replay passed
+  the other twelve completed BPR-0256 tests, failed those two stale-expression
+  gates before the correction, and was stopped while the two composition
+  contracts were still pending.
+- Rebuild the signed capsule and refresh `source-manifest.txt`,
+  `approval-subject.txt`, and `operator-packet.md` after any subsequent source
+  edit. The currently recorded packet binds source digest
+  `d8ad05b9e356b0df1177c9b276feeea2a80978da20134682ce2ce02fa8ab2791`;
+  it must be treated as stale if this commit changes a bound source byte.
+- Reconfigure and inspect the static opt-in manifest against the final packet,
+  then run scoped format/tidy, documentation validation, `git diff --check`,
+  and the complete focused matrix from the final committed tree.
+- Run the capability-critical independent closeout review. The required
+  read-only reorientation lane could not be created in this session because
+  the runtime repeatedly returned `agent thread limit reached`; this is a
+  recorded serial-fallback trigger, not a waiver of the review gate.
+- Do not execute the live lane until the regenerated operator packet receives
+  its exact approval statement. BPR-0142 still owns the attended publication
+  and GitHub web inspection; BPR-0235 still owns target-native/default-deny
+  closeout. Terminal BPR-0241 through BPR-0245 remain in backlog under their
+  existing dependency cards.

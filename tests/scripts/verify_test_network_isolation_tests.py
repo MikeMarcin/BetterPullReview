@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 import pathlib
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -21,6 +24,7 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     RAW_REGISTRATION_OWNER,
     configured_failures,
     environment_injection_failures,
+    live_supervisor_failures,
     registration_inventory,
 )
 from scripts.run_network_isolated_test import write_profile  # noqa: E402
@@ -52,6 +56,17 @@ def live_scrub_property() -> dict[str, object]:
             )
         ],
     }
+
+
+def live_command() -> list[str]:
+    return [
+        "/build/better_pull_review_designated_live_supervisor",
+        "--attended-launch",
+        "--inventory",
+        "/build/capsule.inventory",
+        "--approval",
+        "/approval",
+    ]
 
 
 def protected_commands() -> dict[str, list[str]]:
@@ -190,10 +205,10 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "tests": [
                     {
                         "name": LIVE_TEST_NAME,
-                        "command": ["/runner", "--approval", "/approval"],
+                        "command": live_command(),
                         "properties": [
                             {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
-                            {"name": "TIMEOUT", "value": 30.0},
+                            {"name": "TIMEOUT", "value": 1800.0},
                             live_scrub_property(),
                         ],
                     }
@@ -206,17 +221,17 @@ class ConfiguredManifestTests(unittest.TestCase):
         )
 
     def test_exact_single_live_exception_passes(self) -> None:
-        live_command = ["/runner", "--approval", "/approval"]
+        expected_live_command = live_command()
         self.assertEqual(
             configured_failures(
                 {
                     "tests": [
                         {
                             "name": LIVE_TEST_NAME,
-                            "command": live_command,
+                            "command": expected_live_command,
                             "properties": [
                                 {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
-                                {"name": "TIMEOUT", "value": 30.0},
+                                {"name": "TIMEOUT", "value": 1800.0},
                                 live_scrub_property(),
                             ],
                         },
@@ -231,26 +246,26 @@ class ConfiguredManifestTests(unittest.TestCase):
                     ]
                 },
                 ["/sandbox"],
-                live_command=live_command,
+                live_command=expected_live_command,
             ),
             [],
         )
 
     def test_live_name_prefix_label_and_second_exception_are_exact(self) -> None:
-        live_command = ["/runner", "--approval", "/approval"]
+        expected_live_command = live_command()
         hostile = (
             {
                 "name": "arbitrary_live_name",
-                "command": live_command,
+                "command": expected_live_command,
                 "properties": [
                     {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
-                    {"name": "TIMEOUT", "value": 30.0},
+                    {"name": "TIMEOUT", "value": 1800.0},
                     live_scrub_property(),
                 ],
             },
             {
                 "name": LIVE_TEST_NAME,
-                "command": ["/other-runner", "--approval", "/approval"],
+                "command": ["/fixture-supervisor", "--attended-launch", "--inventory", "/inventory", "--approval", "/approval"],
                 "properties": [
                     {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
                     live_scrub_property(),
@@ -258,10 +273,10 @@ class ConfiguredManifestTests(unittest.TestCase):
             },
             {
                 "name": LIVE_TEST_NAME,
-                "command": live_command,
+                "command": expected_live_command,
                 "properties": [
                     {"name": "LABELS", "value": ["arbitrary_live_label"]},
-                    {"name": "TIMEOUT", "value": 30.0},
+                    {"name": "TIMEOUT", "value": 1800.0},
                     live_scrub_property(),
                 ],
             },
@@ -269,7 +284,7 @@ class ConfiguredManifestTests(unittest.TestCase):
         failures = configured_failures(
             {"tests": list(hostile)},
             ["/sandbox"],
-            live_command=live_command,
+            live_command=expected_live_command,
         )
         self.assertTrue(any("count is 2" in value for value in failures))
         self.assertTrue(any("only live_review_mutation_designated_target" in value for value in failures))
@@ -277,13 +292,13 @@ class ConfiguredManifestTests(unittest.TestCase):
         self.assertTrue(any("labels are" in value for value in failures))
 
     def test_live_timeout_and_process_exit_verdict_are_fixed(self) -> None:
-        live_command = ["/runner", "--approval", "/approval"]
+        expected_live_command = live_command()
         failures = configured_failures(
             {
                 "tests": [
                     {
                         "name": LIVE_TEST_NAME,
-                        "command": live_command,
+                        "command": expected_live_command,
                         "properties": [
                             {"name": "LABELS", "value": [LIVE_TEST_LABEL]},
                             {"name": "TIMEOUT", "value": 31.0},
@@ -294,17 +309,17 @@ class ConfiguredManifestTests(unittest.TestCase):
                 ]
             },
             ["/sandbox"],
-            live_command=live_command,
+            live_command=expected_live_command,
         )
-        self.assertTrue(any("30-second timeout" in value for value in failures))
+        self.assertTrue(any("1800-second timeout" in value for value in failures))
         self.assertTrue(any("process exit" in value for value in failures))
 
     def test_all_verdict_override_properties_are_rejected(self) -> None:
-        live_command = ["/runner", "--approval", "/approval"]
+        expected_live_command = live_command()
         for safety_name in sorted(EXIT_VERDICT_TESTS):
             for property_name in sorted(FORBIDDEN_EXIT_VERDICT_PROPERTIES):
                 is_live = safety_name == LIVE_TEST_NAME
-                command = live_command if is_live else ["/sandbox", "/test"]
+                command = expected_live_command if is_live else ["/sandbox", "/test"]
                 properties = [
                     {
                         "name": "LABELS",
@@ -316,7 +331,7 @@ class ConfiguredManifestTests(unittest.TestCase):
                     live_scrub_property() if is_live else scrub_property(),
                 ]
                 if is_live:
-                    properties.append({"name": "TIMEOUT", "value": 30.0})
+                    properties.append({"name": "TIMEOUT", "value": 1800.0})
                 with self.subTest(
                     safety_name=safety_name,
                     property_name=property_name,
@@ -332,7 +347,7 @@ class ConfiguredManifestTests(unittest.TestCase):
                             ]
                         },
                         ["/sandbox"],
-                        live_command=live_command if is_live else None,
+                        live_command=expected_live_command if is_live else None,
                     )
                     self.assertTrue(
                         any("process exit" in value for value in failures)
@@ -412,6 +427,156 @@ class ConfiguredManifestTests(unittest.TestCase):
         self.assertEqual(len(failures), 2)
 
 
+class LiveSupervisorIdentityTests(unittest.TestCase):
+    def make_fixture(
+        self, root: pathlib.Path
+    ) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
+        source = root / "src" / "app" / "main.cpp"
+        source.parent.mkdir(parents=True)
+        source.write_text("int main() {}\n", encoding="utf-8")
+        build = root / "build" / "release"
+        supervisor = (
+            build
+            / "designated-live"
+            / "source"
+            / "capsule"
+            / "BetterPullReview.app"
+            / "Contents"
+            / "Helpers"
+            / "better_pull_review_designated_live_supervisor"
+        )
+        supervisor.parent.mkdir(parents=True)
+        supervisor.write_bytes(b"signed-supervisor")
+        supervisor.chmod(0o700)
+        inventory = build / "designated-live" / "source" / "capsule.inventory"
+        inventory.write_text("schema_name=bpr.designated_live_macos_capsule\n", encoding="utf-8")
+        (build / "CMakeCache.txt").write_text(
+            "BUILD_TESTING:BOOL=OFF\n"
+            "BPR_BUILD_QT:BOOL=ON\n"
+            "CMAKE_BUILD_TYPE:STRING=Release\n"
+            f"CMAKE_HOME_DIRECTORY:INTERNAL={root.resolve()}\n",
+            encoding="utf-8",
+        )
+        source_time = source.stat().st_mtime_ns
+        os.utime(supervisor, ns=(source_time + 1, source_time + 1))
+        os.utime(inventory, ns=(source_time + 1, source_time + 1))
+        return supervisor.resolve(), inventory.resolve(), build.resolve()
+
+    def test_exact_fresh_tests_disabled_supervisor_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            supervisor, inventory, build = self.make_fixture(root)
+            self.assertEqual(
+                live_supervisor_failures(supervisor, inventory, build, root),
+                [],
+            )
+
+    def test_fixture_alternate_stale_and_tests_enabled_supervisors_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            supervisor, inventory, build = self.make_fixture(root)
+            cache = build / "CMakeCache.txt"
+            cache.write_text(
+                cache.read_text(encoding="utf-8").replace(
+                    "BUILD_TESTING:BOOL=OFF", "BUILD_TESTING:BOOL=ON"
+                ),
+                encoding="utf-8",
+            )
+            supervisor.chmod(0o600)
+            os.utime(supervisor, ns=(1, 1))
+            failures = live_supervisor_failures(supervisor, inventory, build, root)
+            self.assertTrue(any("executable regular file" in value for value in failures))
+            self.assertTrue(any("BUILD_TESTING:BOOL" in value for value in failures))
+            self.assertTrue(any("predates" in value for value in failures))
+
+            alternate = root / "fixture-supervisor"
+            alternate.write_bytes(b"fixture")
+            alternate.chmod(0o700)
+            failures = live_supervisor_failures(alternate, inventory, build, root)
+            self.assertTrue(any("signed-capsule BetterPullReview" in value for value in failures))
+            self.assertTrue(any("outside" in value for value in failures))
+
+    def test_regression_runner_cannot_be_selected_as_the_live_supervisor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            supervisor, inventory, build = self.make_fixture(root)
+            runner = build / "tool_better_pull_review_designated_live_mutation_runner"
+            runner.write_bytes(supervisor.read_bytes())
+            runner.chmod(0o700)
+            os.utime(runner, ns=(supervisor.stat().st_mtime_ns,) * 2)
+
+            failures = live_supervisor_failures(runner.resolve(), inventory, build, root)
+            self.assertTrue(
+                any("signed-capsule BetterPullReview" in value for value in failures)
+            )
+
+    def test_registration_rejects_runner_and_tests_enabled_producer_directly(
+        self,
+    ) -> None:
+        cmake = shutil.which("cmake") or "cmake"
+        module = (
+            pathlib.Path(__file__).resolve().parents[2]
+            / "cmake"
+            / "BprTestIsolation.cmake"
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory).resolve()
+            approval = root / "approval"
+            approval.write_text("not an approval\n", encoding="utf-8")
+            producer = root / "producer"
+            producer.mkdir()
+
+            def configure(supervisor_name: str, build_testing: str) -> subprocess.CompletedProcess[str]:
+                supervisor = producer / supervisor_name
+                supervisor.write_bytes(b"candidate")
+                supervisor.chmod(0o700)
+                inventory = producer / "capsule.inventory"
+                inventory.write_text("candidate\n", encoding="utf-8")
+                (producer / "CMakeCache.txt").write_text(
+                    f"BUILD_TESTING:BOOL={build_testing}\n"
+                    "BPR_BUILD_QT:BOOL=ON\n"
+                    "CMAKE_BUILD_TYPE:STRING=Release\n"
+                    f"CMAKE_HOME_DIRECTORY:INTERNAL={root}\n",
+                    encoding="utf-8",
+                )
+                return subprocess.run(
+                    [
+                        cmake,
+                        "-DBPR_ENABLE_DESIGNATED_LIVE_MUTATION_TEST=ON",
+                        "-DBPR_BUILD_QT=ON",
+                        f"-DBPR_DESIGNATED_LIVE_MUTATION_APPROVAL={approval}",
+                        f"-DBPR_DESIGNATED_LIVE_MUTATION_SUPERVISOR={supervisor}",
+                        f"-DBPR_DESIGNATED_LIVE_MUTATION_INVENTORY={inventory}",
+                        f"-DBPR_DESIGNATED_LIVE_MUTATION_BUILD_DIR={producer}",
+                        f"-DPROJECT_SOURCE_DIR={root}",
+                        "-P",
+                        str(module),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+
+            runner = configure(
+                "tool_better_pull_review_designated_live_mutation_runner",
+                "OFF",
+            )
+            self.assertNotEqual(runner.returncode, 0)
+            self.assertIn(
+                "never the regression runner, application, or a fixture",
+                runner.stdout + runner.stderr,
+            )
+
+            tests_enabled = configure("better_pull_review_designated_live_supervisor", "ON")
+            self.assertNotEqual(tests_enabled.returncode, 0)
+            self.assertIn(
+                "BUILD_TESTING:BOOL=OFF",
+                tests_enabled.stdout + tests_enabled.stderr,
+            )
+
+
 class ConfiguredManifestAndProfileTests(unittest.TestCase):
     def test_derived_profile_contains_only_exact_runner_authority(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -465,6 +630,42 @@ class ConfiguredManifestAndProfileTests(unittest.TestCase):
                                 {
                                     "name": "LABELS",
                                     "value": ["bpr_network_isolated"],
+                                },
+                                scrub_property(),
+                            ],
+                        }
+                    ]
+                },
+                ["/usr/bin/python3", "-I", "-S", "/runner.py"],
+                macos_runner=True,
+            ),
+            [],
+        )
+
+    def test_designated_public_observer_has_one_loopback_authority(self) -> None:
+        self.assertEqual(
+            configured_failures(
+                {
+                    "tests": [
+                        {
+                            "name": "designated_live_public_observer_fixture",
+                            "command": [
+                                "/usr/bin/python3",
+                                "-I",
+                                "-S",
+                                "/runner.py",
+                                "--loopback-port-count",
+                                "1",
+                                "--",
+                                "/usr/bin/python3",
+                            ],
+                            "properties": [
+                                {
+                                    "name": "LABELS",
+                                    "value": [
+                                        "bpr_loopback_fixture",
+                                        "bpr_network_isolated",
+                                    ],
                                 },
                                 scrub_property(),
                             ],

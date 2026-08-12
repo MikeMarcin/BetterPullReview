@@ -81,7 +81,7 @@ namespace bpr::application {
 		const std::stop_token                    aStop)
 		-> std::expected<review_mutation_receipt, review_mutation_failure>
 	{
-		return publish_bound(aProposal, std::nullopt, aAcknowledged, aStop);
+		return publish_bound(aProposal, std::nullopt, aAcknowledged, aStop).Result;
 	}
 
 	auto review_mutation_coordinator::publish(
@@ -91,6 +91,18 @@ namespace bpr::application {
 		const std::stop_token                    aStop)
 		-> std::expected<review_mutation_receipt, review_mutation_failure>
 	{
+		return publish_bound(
+				   aProposal, std::move(aAnchor), aAcknowledged, aStop)
+			.Result;
+	}
+
+	auto review_mutation_coordinator::publish_attempt(
+		const core::review_publication_proposal& aProposal,
+		review_mutation_anchor_binding           aAnchor,
+		const bool                               aAcknowledged,
+		const std::stop_token                    aStop)
+		-> review_mutation_submission
+	{
 		return publish_bound(aProposal, std::move(aAnchor), aAcknowledged, aStop);
 	}
 
@@ -99,12 +111,17 @@ namespace bpr::application {
 		std::optional<review_mutation_anchor_binding> aAnchor,
 		const bool                                    aAcknowledged,
 		const std::stop_token                         aStop)
-		-> std::expected<review_mutation_receipt, review_mutation_failure>
+		-> review_mutation_submission
 	{
+		const auto failed = [](const review_mutation_failure aFailure) {
+			return review_mutation_submission{
+				.Result = std::unexpected(aFailure),
+			};
+		};
 		++Statistics.Attempts;
 		if (aStop.stop_requested()) {
 			++Statistics.RefusedBeforeSubmit;
-			return std::unexpected(review_mutation_failure::cancelled);
+			return failed(review_mutation_failure::cancelled);
 		}
 		const auto completeBinding = TargetBinding.has_value()
 			&& ActingIdentityBinding.has_value() && aAnchor.has_value();
@@ -113,18 +130,18 @@ namespace bpr::application {
 				|| !valid(*aAnchor) || aAnchor->Semantic != aProposal.Anchor
 				|| aAnchor->Commit != TargetBinding->Semantic.ExpectedHead)) {
 			++Statistics.RefusedBeforeSubmit;
-			return std::unexpected(review_mutation_failure::undesignated_target);
+			return failed(review_mutation_failure::undesignated_target);
 		}
 		if (!completeBinding
 			&& (TargetBinding.has_value() || ActingIdentityBinding.has_value()
 				|| aAnchor.has_value())) {
 			++Statistics.RefusedBeforeSubmit;
-			return std::unexpected(review_mutation_failure::undesignated_target);
+			return failed(review_mutation_failure::undesignated_target);
 		}
 
 		if (auto prepared = confirm_target(aAcknowledged, aStop); !prepared) {
 			++Statistics.RefusedBeforeSubmit;
-			return std::unexpected(prepared.error());
+			return failed(prepared.error());
 		}
 
 		// Observed again immediately before submitting. The first check decided
@@ -133,7 +150,7 @@ namespace bpr::application {
 		// this is what closes it.
 		if (auto current = confirm_target(aAcknowledged, aStop); !current) {
 			++Statistics.RefusedBeforeSubmit;
-			return std::unexpected(current.error());
+			return failed(current.error());
 		}
 
 		++Statistics.Submissions;
@@ -148,22 +165,22 @@ namespace bpr::application {
 
 		if (aStop.stop_requested()) {
 			++Statistics.RefusedBeforeSubmit;
-			return std::unexpected(review_mutation_failure::cancelled);
+			return failed(review_mutation_failure::cancelled);
 		}
-		auto receipt = Provider->submit(review_mutation_request{
-											.Proposal       = aProposal,
-											.Target         = Designated,
-											.ActingIdentity = ActingIdentity,
-											.IdempotencyKey = idempotency_key_for(aProposal, Designated),
-											.LiveBinding    = std::move(liveBinding),
-										},
-										aStop);
-		if (!receipt) {
-			return receipt;
+		auto submission = Provider->submit_and_reconcile(review_mutation_request{
+															 .Proposal       = aProposal,
+															 .Target         = Designated,
+															 .ActingIdentity = ActingIdentity,
+															 .IdempotencyKey = idempotency_key_for(aProposal, Designated),
+															 .LiveBinding    = std::move(liveBinding),
+														 },
+														 aStop);
+		if (!submission.Result) {
+			return submission;
 		}
-		if (receipt->Duplicate) {
+		if (submission.Result->Duplicate) {
 			++Statistics.Duplicates;
 		}
-		return receipt;
+		return submission;
 	}
 } // namespace bpr::application

@@ -74,7 +74,11 @@ function(bpr_configure_dependencies)
     bpr_require_dependency_target(Threads::Threads Threads)
     list(APPEND records "Threads|TOOLCHAIN|Threads::Threads")
 
-    if(BUILD_TESTING OR BPR_ENABLE_CODING_TARGETS)
+    if(
+        BUILD_TESTING
+        OR BPR_ENABLE_CODING_TARGETS
+        OR BPR_BUILD_DESIGNATED_LIVE_MACOS_CAPSULE
+    )
         bpr_reject_dependency_redirect(Python3)
         bpr_require_dependency_target_absent(
             Python3::Interpreter
