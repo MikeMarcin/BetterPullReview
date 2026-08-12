@@ -1,7 +1,7 @@
 ---
 id: BPR-0268
 title: Restore the Cocoa notification activation course
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0251]
 ---
