@@ -1,7 +1,7 @@
 ---
 id: BPR-0269
 title: Remove the stale epoch-maintenance ledger marker
-status: In Progress
+status: Done
 rfc: RFC-BPR-0003
 depends_on: [BPR-0264]
 ---
@@ -44,3 +44,17 @@ a path the current maintenance course does not execute.
   component selectors plus architecture boundaries.
 - Run repository format/tidy, documentation, and diff gates.
 - Review the exact wrapper/ledger ownership change independently.
+
+## Closeout
+
+The maintenance wrapper no longer treats `ReceiptLoadHits` as proof that the
+SQLite ledger exists. It retains the shared application-data root and every
+epoch seed, reuse, prune, delete, restart, and public-path marker. The unchanged
+dedicated review-ledger composition contract remains responsible for proving
+the selected-material receipt load across a real process restart.
+
+The paired maintenance and ledger composition contracts passed 2/2; the
+review-ledger host, epoch host, maintenance integration, and architecture pair
+passed 5/5. Documentation and diff gates passed. Independent review returned
+`ACCEPT` and confirmed the four-process root flow and durable store composition
+remain unchanged.
