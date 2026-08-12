@@ -1,7 +1,7 @@
 ---
 id: BPR-0266
 title: Restore epoch public-path presentation after focused navigation
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0264]
 ---
@@ -46,3 +46,21 @@ cause row, or another exact predicate.
 - Run the architecture boundary pair, repository format/tidy, documentation,
   and diff gates.
 - Review the final state-transition and diagnostic evidence independently.
+
+## Closeout
+
+The restored gate preserves two exact presentation states instead of weakening
+one row count: initial open requires five review-wide roots and nine preorder
+identities; refreshed `review.cpp` focus requires three thread roots and their
+four exact comment children. Host, repository, pull request, title, actions,
+selected thread, Base-to-HeadTwo OIDs, ordinal-two force-push/rebase cause, and
+zero full-model resets remain mandatory. Failure-only testing telemetry reports
+each presentation operand and the cause guardrail with record separators
+escaped and no comment bodies or source content.
+
+GitHub.com and GHES two-process persistence, the appearance gesture course,
+and focused conversation-model evidence passed. The maintenance epoch/prune
+path passed; BPR-0269 then removed its independent stale ledger-load wrapper
+marker and the complete maintenance contract passed. Scoped format/tidy,
+documentation, diff, manifest, and architecture gates passed. Independent
+review returned `ACCEPT` with no blocking or high-risk finding.
