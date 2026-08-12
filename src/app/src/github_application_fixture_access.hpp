@@ -52,6 +52,7 @@ namespace bpr::app::detail {
 		bool                                 LoseFirstReviewMutationResult    = false;
 		bool                                 UseGrantedNotificationSink       = false;
 		bool                                 CaptureSystemNotificationDisplay = false;
+		bool                                 DisablePlatformSignalObservation = false;
 		bool                                 DisableNotificationRequestWire   = false;
 		bool                                 DisableNotificationSelectionWire = false;
 		bool                                 DisableAgentHostComposition      = false;
@@ -64,6 +65,7 @@ namespace bpr::app::detail {
 		std::size_t                                        RequestsAttempted                  = 0U;
 		std::size_t                                        Submitted                          = 0U;
 		std::size_t                                        DisplaySubmissions                 = 0U;
+		std::size_t                                        PlatformActivationSignals          = 0U;
 		std::size_t                                        SuppressedUnattributableActivation = 0U;
 		std::size_t                                        Activations                        = 0U;
 		std::size_t                                        Selections                         = 0U;

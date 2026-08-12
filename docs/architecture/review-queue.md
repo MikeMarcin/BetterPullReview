@@ -269,7 +269,9 @@ Because an unattended Cocoa command-line process may remain natively inactive,
 the testing-only course establishes the real workbench as Qt's logical active
 window before emitting `messageClicked`. It then requires the unchanged
 notification activation and landing proxy to produce the exact queue-row focus;
-this does not claim native foreground activation.
+an independently connected testing-only observer records exactly one tray
+signal, and an observation cut proves that evidence is required. This does not
+claim native foreground activation.
 
 A submitted native activation returns through `review_queue_notifier::activate` and asks
 the real landing proxy to select the exact visible identity. The queue row is

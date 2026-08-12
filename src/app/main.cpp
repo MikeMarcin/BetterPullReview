@@ -4671,6 +4671,7 @@ namespace {
 				}
 				if (evidence.RequestsAttempted != 0U || evidence.Submitted != 0U
 					|| evidence.DisplaySubmissions != 0U
+					|| evidence.PlatformActivationSignals != 0U
 					|| evidence.LastSubmitted.has_value()) {
 					fail_native_notification_run(
 						aApplication, *aRun, "quiet_baseline_requested_notification");
@@ -4696,6 +4697,7 @@ namespace {
 							aApplication);
 					if (evidence.RequestsAttempted != 0U || evidence.Submitted != 0U
 						|| evidence.DisplaySubmissions != 0U
+						|| evidence.PlatformActivationSignals != 0U
 						|| evidence.LastSubmitted.has_value()) {
 						fail_native_notification_run(
 							aApplication, *aRun, "request_cut_reached_sink");
@@ -4726,6 +4728,11 @@ namespace {
 				if (!aRun->Attended && evidence.DisplaySubmissions != 1U) {
 					fail_native_notification_run(
 						aApplication, *aRun, "display_boundary_not_reached");
+					break;
+				}
+				if (evidence.PlatformActivationSignals != 0U) {
+					fail_native_notification_run(
+						aApplication, *aRun, "activation_signal_before_click");
 					break;
 				}
 				QTextStream{ stdout }
@@ -4775,6 +4782,14 @@ namespace {
 				if (evidence.Activations != 1U) {
 					break;
 				}
+				if (evidence.PlatformActivationSignals != 1U) {
+					fail_native_notification_run(
+						aApplication, *aRun, "tray_signal_count_mismatch");
+					break;
+				}
+				QTextStream{ stdout }
+					<< "NATIVE_NOTIFICATION_TRAY_SIGNAL_OK\n"
+					<< Qt::flush;
 				if (aRun->ActivationCut) {
 					if (evidence.Selections != 0U) {
 						fail_native_notification_run(
@@ -5134,10 +5149,14 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--native-notification-cut-request-wire");
 		const auto nativeNotificationActivationCut = has_argument(
 			argc, argv, "--native-notification-cut-activation-wire");
+		const auto nativeNotificationSignalObservationCut = has_argument(
+			argc, argv, "--native-notification-cut-signal-observation");
 		const auto nativeNotificationCourse
 			= nativeNotificationProbe || nativeNotificationAttended;
 		fixtureOptions.CaptureSystemNotificationDisplay
 			= nativeNotificationProbe && !nativeNotificationRequestCut;
+		fixtureOptions.DisablePlatformSignalObservation
+			= nativeNotificationSignalObservationCut;
 		fixtureOptions.DisableNotificationRequestWire
 			= nativeNotificationRequestCut;
 		fixtureOptions.DisableNotificationSelectionWire

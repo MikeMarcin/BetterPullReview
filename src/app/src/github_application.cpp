@@ -1759,6 +1759,8 @@ namespace bpr::app {
 					= aFixtureOptions.UseGrantedNotificationSink;
 				CaptureSystemNotificationDisplay
 					= aFixtureOptions.CaptureSystemNotificationDisplay;
+				DisablePlatformSignalObservation
+					= aFixtureOptions.DisablePlatformSignalObservation;
 				DisableNotificationRequestWire
 					= aFixtureOptions.DisableNotificationRequestWire;
 				DisableNotificationSelectionWire
@@ -2234,6 +2236,16 @@ namespace bpr::app {
 				}
 				SystemNotificationSink = sink.get();
 				NotificationSink       = std::move(sink);
+#if defined(BPR_BUILD_TESTING)
+				if (!DisablePlatformSignalObservation
+					&& SystemNotificationSink->tray_icon() != nullptr) {
+					QObject::connect(
+						SystemNotificationSink->tray_icon(),
+						&QSystemTrayIcon::messageClicked,
+						Window.get(),
+						[this] { ++PlatformActivationSignals; });
+				}
+#endif
 			}
 			Notifications = std::make_unique<application::review_queue_notifier>(
 				*NotificationSink,
@@ -4621,9 +4633,11 @@ namespace bpr::app {
 		fixture_notification_sink* FixtureNotificationSink          = nullptr;
 		bool                       UseGrantedNotificationSink       = false;
 		bool                       CaptureSystemNotificationDisplay = false;
+		bool                       DisablePlatformSignalObservation = false;
 		bool                       DisableNotificationRequestWire   = false;
 		bool                       DisableNotificationSelectionWire = false;
 		std::size_t                CapturedNotificationDisplays     = 0U;
+		std::size_t                PlatformActivationSignals        = 0U;
 #endif
 	};
 
@@ -4849,6 +4863,8 @@ namespace bpr::app {
 			.RequestsAttempted  = implementation->NotificationRequestsAttempted,
 			.Submitted          = statistics.Submitted,
 			.DisplaySubmissions = implementation->CapturedNotificationDisplays,
+			.PlatformActivationSignals
+			= implementation->PlatformActivationSignals,
 			.SuppressedUnattributableActivation
 			= statistics.SuppressedUnattributableActivation,
 			.Activations       = statistics.Activations,
