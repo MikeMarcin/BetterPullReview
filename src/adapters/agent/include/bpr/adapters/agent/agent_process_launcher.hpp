@@ -14,9 +14,8 @@ namespace bpr::adapters::agent {
 	/// request pairs. Context is written only to stdin. Stdout is decoded a
 	/// partial read at a time while stderr is drained independently, with fixed
 	/// byte/frame ceilings. On POSIX, cancellation and timeout terminate the
-	/// process group, not only the immediate child. Windows launch is refused
-	/// before process start until pre-start descendant containment has
-	/// target-native proof.
+	/// process group, not only the immediate child. Windows uses a suspended
+	/// native launch assigned to a kill-on-close Job Object before first resume.
 	class agent_process_launcher final
 		: public QObject,
 		  public application::agent_process_port
@@ -47,6 +46,11 @@ namespace bpr::adapters::agent {
 		/// \details The run loop observes the atomic request and performs all
 		/// toolkit and process-tree operations on its owning thread.
 		void cancel() noexcept override;
+
+#if defined(BPR_BUILD_TESTING) && defined(Q_OS_WIN)
+		/// \brief Forces the pre-resume Job Object assignment seam to fail.
+		static void force_job_assignment_failure_for_testing(bool aEnabled) noexcept;
+#endif
 
 	private:
 		struct implementation;

@@ -34,3 +34,21 @@ composition.
   placing context in argv.
 - A canary asserts all required context fields, stderr pressure, partial
   frames, nonzero exit, cancellation, and stale-result rejection.
+
+## Session handoff — 2026-08-11
+
+The operator ended the current implementation session and requested that the
+in-flight Windows process work be preserved rather than discarded. The saved
+slice adds a private WIN32 backend, launcher/CMake integration, canary support,
+and architecture hostile checks for explicit UTF-16 argv/CWD/environment,
+allowlisted handles, suspended process creation, pre-resume Job Object
+assignment, incremental stdout/stderr draining, cancellation, reaping, and
+descendant containment.
+
+This card remains in progress. No compile or target-native Windows run was
+completed after these edits, and no Linux/macOS regression matrix, format/tidy,
+documentation gate, or independent review was run. The next session must first
+build the affected agent/Qt canary targets on a portable host, run the
+architecture boundary pair, then obtain the required target-native Windows
+compile/runtime evidence. None of this handoff closes BPR-0240, BPR-0245, or
+RFC-BPR-0011.
