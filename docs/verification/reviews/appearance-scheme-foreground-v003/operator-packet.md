@@ -25,7 +25,7 @@ Run only these exact immutable inputs:
 
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
-| `build/dev/src/app/better_pull_review` | `sha256:d1f00e799621c9f66e9c2e68d52c727a17f456db539b714040cecf52906463f5` | 50026368 |
+| `build/dev/src/app/better_pull_review` | `sha256:f7128e4eb27d31eed9fca4c1d9d46ee232305a07a421009c30085d476ba05a40` | 50026800 |
 | `docs/issues/done/BPR-0249-make-native-appearance-probe-await-selected-diff.md` | `sha256:fe76c86329e9eb6650a9fa11103739fb0bfae0480a174b69689a74d057ff153b` | 4144 |
 
 The bound artifact digests, rather than the mutable repository branch head, are
@@ -176,7 +176,7 @@ Paste the complete v003 log, then include this exact statement:
 
 > I ran the BPR-0114/BPR-0220 selected-diff foreground appearance probe
 > against executable
-> sha256:d1f00e799621c9f66e9c2e68d52c727a17f456db539b714040cecf52906463f5
+> sha256:f7128e4eb27d31eed9fca4c1d9d46ee232305a07a421009c30085d476ba05a40
 > and BPR-0249 implementation record
 > sha256:fe76c86329e9eb6650a9fa11103739fb0bfae0480a174b69689a74d057ff153b;
 > I established the visible review.cpp comparison in Light, focused its left

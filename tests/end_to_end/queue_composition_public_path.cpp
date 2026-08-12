@@ -201,11 +201,11 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "exact-metadata-only-payload");
 			}
 			if (!app::detail::github_application_fixture_access::
-					activate_platform_notification(*application)) {
+					activate_fixture_notification(*application)) {
 				return fail(*application, "platform-activation");
 			}
 			if (app::detail::github_application_fixture_access::
-					activate_platform_notification(*application)) {
+					activate_fixture_notification(*application)) {
 				return fail(*application, "duplicate-platform-activation");
 			}
 			if (course == "activation-cut") {

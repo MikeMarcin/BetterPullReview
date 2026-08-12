@@ -400,6 +400,9 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto queue_notification_evidence(
 			const github_application& aApplication) noexcept
 			-> queue_notification_fixture_evidence;
+		/// \brief Emits one activation through the legacy fixture-only sink.
+		[[nodiscard]] static auto activate_fixture_notification(
+			github_application& aApplication) -> bool;
 		[[nodiscard]] static auto maintenance_evidence(
 			const github_application& aApplication,
 			core::review_epoch_id     aTarget) noexcept

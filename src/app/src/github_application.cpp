@@ -4862,6 +4862,15 @@ namespace bpr::app {
 		};
 	}
 
+	auto detail::github_application_fixture_access::activate_fixture_notification(
+		github_application& aApplication) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr
+			&& implementation->FixtureNotificationSink != nullptr
+			&& implementation->FixtureNotificationSink->activate();
+	}
+
 	auto detail::github_application_fixture_access::maintenance_evidence(
 		const github_application& aApplication,
 		core::review_epoch_id     aTarget) noexcept
