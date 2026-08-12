@@ -69,3 +69,24 @@ executed on Windows. The card therefore remains in progress with its Windows
 compile/runtime matrix, complete portable regression matrix, strict tidy,
 documentation gate, and independent review still required for terminal
 closure.
+
+## macOS portable lifecycle checkpoint — 2026-08-12
+
+The affected agent launch, invocation-host, Qt launch-panel, and Qt canary
+targets rebuilt on macOS. The exact `application_agent_launch`,
+`application_agent_invocation_host`, `qt_agent_launch_panel`,
+`qt_agent_launch_canary`, `application_agent_invocation_composition_contract`,
+`architecture_boundaries`, and `architecture_boundary_contract` selector then
+passed 7/7 in 157.95 seconds under the repository network-isolation wrapper.
+
+The repository format check passed for `agent_process_launcher.cpp`,
+`windows_agent_process.cpp`, and `agent_launch_canary_tests.cpp`. Strict scoped
+clang-tidy passed the two macOS compilation-database translation units,
+`agent_process_launcher.cpp` and `agent_launch_canary_tests.cpp`; the WIN32-only
+`windows_agent_process.cpp` translation unit was reported absent from that
+database and remains target-native Windows work.
+
+This checkpoint closes the selected portable macOS evidence gap only. The card
+remains in progress pending the target-native Windows compile/runtime matrix,
+the remaining portable regression and closeout gates, and independent terminal
+review.
