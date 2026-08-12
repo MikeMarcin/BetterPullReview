@@ -120,7 +120,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         "\"base_blob\": \"b995e189fb58da146945e1fb22380cdf4a7f4e47\""
         "\"head_blob\": \"6335c1b2e14cd5e63142ce1dfc283fcf538fb134\""
         "\"fixture_diff_helper_invocations\": 0"
-        "\"schema\": \"bpr.uiforetw_intraline_capture.v3\""
+        "\"schema\": \"bpr.uiforetw_intraline_capture.v4\""
         "\"selected_path\": \"UIforETW/UIforETW.rc\""
     )
         string(FIND "${capture_facts}" "${fact}" found)
@@ -527,6 +527,70 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
                 )
             endif()
         endforeach()
+
+		foreach(connector_state IN ITEMS selected unselected)
+			set(connector_key "${connector_state}_connector")
+			string(JSON observed_state GET
+				"${capture_facts}" "${target}" "${connector_key}" state)
+			foreach(color_field IN ITEMS gutter_background dominant_path_pixel)
+				string(JSON connector_color GET
+					"${capture_facts}" "${target}" "${connector_key}"
+					"${color_field}")
+				string(LENGTH "${connector_color}" connector_color_length)
+				if(NOT connector_color_length EQUAL 9)
+					message(FATAL_ERROR
+						"UIforETW ${profile} ${target} ${connector_state} "
+						"${color_field} is not exact ARGB"
+					)
+				endif()
+			endforeach()
+			string(JSON sampled_pixels GET
+				"${capture_facts}" "${target}" "${connector_key}"
+				sampled_path_pixels)
+			string(JSON contrast_pixels GET
+				"${capture_facts}" "${target}" "${connector_key}"
+				contrast_pixels)
+			string(JSON dominant_pixels GET
+				"${capture_facts}" "${target}" "${connector_key}"
+				dominant_path_pixels)
+			string(JSON contrast_floor GET
+				"${capture_facts}" "${target}" "${connector_key}"
+				contrast_floor_hundredths)
+			string(JSON median_contrast GET
+				"${capture_facts}" "${target}" "${connector_key}"
+				median_contrast_hundredths)
+			math(EXPR twice_contrast_pixels "${contrast_pixels} * 2")
+			if(NOT "${observed_state}" STREQUAL "${connector_state}"
+					OR sampled_pixels LESS 24
+					OR contrast_pixels LESS 24
+					OR dominant_pixels LESS 24
+					OR NOT contrast_floor EQUAL 300
+					OR (connector_state STREQUAL "unselected"
+						AND (median_contrast LESS 300
+							OR twice_contrast_pixels LESS sampled_pixels)))
+				message(FATAL_ERROR
+					"UIforETW ${profile} ${target} ${connector_state} "
+					"raster is unreadable: state=${observed_state} "
+					"pixels=${contrast_pixels}/${sampled_pixels} "
+					"dominant=${dominant_pixels} median=${median_contrast}"
+				)
+			endif()
+		endforeach()
+		string(JSON selected_background GET
+			"${capture_facts}" "${target}" selected_connector gutter_background)
+		string(JSON unselected_background GET
+			"${capture_facts}" "${target}" unselected_connector gutter_background)
+		string(JSON selected_dominant GET
+			"${capture_facts}" "${target}" selected_connector dominant_path_pixel)
+		string(JSON unselected_dominant GET
+			"${capture_facts}" "${target}" unselected_connector dominant_path_pixel)
+		if(NOT "${selected_background}" STREQUAL "${unselected_background}"
+				OR "${selected_dominant}" STREQUAL "${unselected_dominant}")
+			message(FATAL_ERROR
+				"UIforETW ${profile} ${target} selected/unselected rasters "
+				"are not distinct on one observed gutter"
+			)
+		endif()
     endforeach()
     string(JSON first_group GET
         "${capture_facts}" replacement_28_to_24 group)

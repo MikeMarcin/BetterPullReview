@@ -28,6 +28,16 @@ The center divider displays filled neutral ribbons connecting corresponding chan
 - The panes, not the ribbons, carry the main add/delete color language.
 - Selected or hovered correspondence becomes more prominent without obscuring code.
 
+Ordinary ribbons derive their translucent fill from the live window-text role,
+not from the chrome shade family. Selected ribbons retain the highlight fill
+and add a window-text edge, so selection remains distinct while both states
+stay visible on light and dark gutter surfaces. Rendered evidence samples the
+actual path pixels against the dominant observed gutter pixel: an unselected
+path must have at least 24 samples and at least half of its mapped samples at
+the 3.00:1 non-text floor, with a median of at least 3.00:1. A selected path
+must contribute at least 24 actual edge pixels at that floor and have a
+different dominant path pixel from the same path when unselected.
+
 ### 2.2 Topology
 
 Ordinary ribbons do not cross. A moved-code relationship is shown through paired markers and only an optional temporary overlay when selected or hovered.
@@ -118,6 +128,9 @@ During epoch or file change:
 - Painting is antialiased at supported scale factors.
 - Ribbons meet pane edges without seams.
 - Dark, light, and system themes preserve sufficient contrast.
+- Light, Dark, High-contrast Light, and High-contrast Dark captures measure
+  known selected and unselected paths from the composed map raster against
+  the actual observed gutter background.
 - Color is not the only indication of insertion, deletion, replacement, selection, or unavailable state.
 
 These are product acceptance requirements. RFC-BPR-0004's deterministic

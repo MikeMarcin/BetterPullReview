@@ -31,6 +31,18 @@ capture records the same pixel counts and contrast ratios beside each
 full-window image, so a black-on-dark regression cannot pass merely because an
 icon object is non-null.
 
+The correspondence map follows the same rendered-pixel rule. Ordinary ribbons
+blend the live `WindowText` role over the inherited gutter, while selected
+ribbons retain the live `Highlight` fill and gain a `WindowText` edge. The
+UIforETW capture uses each public `visible_links()` path to mask the composed
+map grab, excludes overlapping paths, and observes the dominant gutter pixel
+outside the paths. For each known path it records selected and unselected
+dominant pixels, the number of mapped samples, the number at or above the
+3.00:1 non-text floor, and median contrast. Unselected ribbons require at
+least half of a meaningful sample to clear the floor; selected ribbons require
+a meaningful above-floor edge sample and a dominant raster distinct from the
+same unselected path. Palette values or a non-null pen alone are not evidence.
+
 The conversation delegate uses the live style option for colors and fonts,
 lets the native style paint selection and focus, and wraps remote literal
 text without elision. Color is not used as the only state signal.

@@ -73,6 +73,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMouseEvent>
+#include <QPainterPathStroker>
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QPoint>
@@ -6575,16 +6576,131 @@ namespace bpr::app {
 			};
 		}
 
+		struct connector_pixel_observation
+		{
+			QColor       Background;
+			QColor       Dominant;
+			std::size_t  SampledPixels            = 0U;
+			std::size_t  ContrastPixels           = 0U;
+			std::size_t  DominantPixels           = 0U;
+			std::int64_t MedianContrastHundredths = 0;
+		};
+
 		struct connector_render_observation
 		{
-			QRectF  Bounds;
-			QPointF Start;
-			QPointF End;
-			bool    LeftEndpoint  = false;
-			bool    RightEndpoint = false;
-			bool    LeftOverlap   = false;
-			bool    RightOverlap  = false;
+			QRectF                      Bounds;
+			QPointF                     Start;
+			QPointF                     End;
+			connector_pixel_observation Pixels;
+			bool                        Selected      = false;
+			bool                        LeftEndpoint  = false;
+			bool                        RightEndpoint = false;
+			bool                        LeftOverlap   = false;
+			bool                        RightOverlap  = false;
 		};
+
+		[[nodiscard]] auto dominant_connector_pixel(std::vector<QRgb> aPixels)
+			-> std::pair<QColor, std::size_t>
+		{
+			if (aPixels.empty()) {
+				return { QColor{ }, 0U };
+			}
+			std::ranges::sort(aPixels);
+			auto bestPixel = aPixels.front();
+			auto bestCount = std::size_t{ 0U };
+			for (auto first = aPixels.begin(); first != aPixels.end();) {
+				const auto last = std::ranges::find_if(
+					first, aPixels.end(), [first](const QRgb aPixel) {
+						return aPixel != *first;
+					});
+				const auto count = static_cast<std::size_t>(
+					std::distance(first, last));
+				if (count > bestCount) {
+					bestPixel = *first;
+					bestCount = count;
+				}
+				first = last;
+			}
+			return { QColor::fromRgba(bestPixel), bestCount };
+		}
+
+		[[nodiscard]] auto observe_connector_pixels(
+			qt::diff_link_map&           aMap,
+			const qt::visible_diff_link& aTarget)
+			-> connector_pixel_observation
+		{
+			const auto image = aMap.grab().toImage().convertToFormat(
+				QImage::Format_ARGB32);
+			const auto scale = image.devicePixelRatio();
+			if (image.isNull() || scale <= 0.0) {
+				return { };
+			}
+
+			const auto links   = aMap.visible_links();
+			auto       stroker = QPainterPathStroker{ };
+			stroker.setWidth(3.0);
+			const auto targetMask
+				= aTarget.Path.united(stroker.createStroke(aTarget.Path));
+			auto backgroundPixels = std::vector<QRgb>{ };
+			auto targetPixels     = std::vector<QRgb>{ };
+			backgroundPixels.reserve(
+				static_cast<std::size_t>(image.sizeInBytes() / 4));
+			targetPixels.reserve(backgroundPixels.capacity() / 4U);
+			for (auto y = 0; y < image.height(); ++y) {
+				for (auto x = 0; x < image.width(); ++x) {
+					const auto point = QPointF{
+						(static_cast<qreal>(x) + 0.5) / scale,
+						(static_cast<qreal>(y) + 0.5) / scale,
+					};
+					const auto inAny = std::ranges::any_of(
+						links,
+						[point](const qt::visible_diff_link& aLink) {
+							return aLink.Path.contains(point);
+						});
+					if (targetMask.contains(point)) {
+						const auto overlapsAnother = std::ranges::any_of(
+							links,
+							[&aTarget, point](const qt::visible_diff_link& aLink) {
+								return &aLink != &aTarget
+									&& aLink.Path.contains(point);
+							});
+						if (!overlapsAnother) {
+							targetPixels.push_back(image.pixel(x, y));
+						}
+					} else if (!inAny) {
+						backgroundPixels.push_back(image.pixel(x, y));
+					}
+				}
+			}
+
+			const auto [background, backgroundCount]
+				= dominant_connector_pixel(std::move(backgroundPixels));
+			const auto [dominant, dominantCount]
+				= dominant_connector_pixel(targetPixels);
+			if (!background.isValid() || backgroundCount == 0U
+				|| !dominant.isValid() || targetPixels.empty()) {
+				return { };
+			}
+
+			auto contrasts = std::vector<std::int64_t>{ };
+			contrasts.reserve(targetPixels.size());
+			for (const auto pixel : targetPixels) {
+				contrasts.push_back(static_cast<std::int64_t>(std::lround(
+					100.0 * qt::contrast_ratio(qt::to_appearance_color(background), qt::to_appearance_color(QColor::fromRgba(pixel))))));
+			}
+			std::ranges::sort(contrasts);
+			return {
+				.Background     = background,
+				.Dominant       = dominant,
+				.SampledPixels  = targetPixels.size(),
+				.ContrastPixels = static_cast<std::size_t>(
+					std::ranges::count_if(
+						contrasts,
+						[](const auto aContrast) { return aContrast >= 300; })),
+				.DominantPixels           = dominantCount,
+				.MedianContrastHundredths = contrasts[contrasts.size() / 2U],
+			};
+		}
 
 		[[nodiscard]] auto observe_connector_render(
 			qt::diff_workbench&                 aWorkbench,
@@ -6624,10 +6740,18 @@ namespace bpr::app {
 			const auto endElement   = found->Path.elementAt(3);
 			const auto start        = QPointF{ startElement.x, startElement.y };
 			const auto end          = QPointF{ endElement.x, endElement.y };
+			const auto selection    = map->selected();
+			const auto isSelected   = selection.has_value()
+				&& (selection->Group.has_value()
+							&& found->Identity.Group.has_value()
+						? selection->Group == found->Identity.Group
+						: selection->Segment == found->Identity.Segment);
 			return connector_render_observation{
 				.Bounds        = found->Path.boundingRect(),
 				.Start         = start,
 				.End           = end,
+				.Pixels        = observe_connector_pixels(*map, *found),
+				.Selected      = isSelected,
 				.LeftEndpoint  = std::abs(start.x()) <= 0.5,
 				.RightEndpoint = std::abs(end.x() - map->width()) <= 0.5,
 				.LeftOverlap   = overlaps(
@@ -7528,7 +7652,28 @@ namespace bpr::app {
 		};
 		const auto connectorValid = [](const connector_render_observation& aValue) {
 			return aValue.LeftEndpoint && aValue.RightEndpoint
-				&& aValue.LeftOverlap && aValue.RightOverlap;
+				&& aValue.LeftOverlap && aValue.RightOverlap
+				&& aValue.Pixels.Background.isValid()
+				&& aValue.Pixels.Dominant.isValid()
+				&& aValue.Pixels.SampledPixels >= 24U
+				&& aValue.Pixels.ContrastPixels >= 24U
+				&& aValue.Pixels.DominantPixels >= 24U;
+		};
+		const auto selectedReadable = [&connectorValid](
+										  const connector_render_observation& aValue) {
+			return aValue.Selected && connectorValid(aValue);
+		};
+		const auto unselectedReadable = [&connectorValid](
+											const connector_render_observation& aValue) {
+			return !aValue.Selected && connectorValid(aValue)
+				&& aValue.Pixels.ContrastPixels * 2U
+				>= aValue.Pixels.SampledPixels
+				&& aValue.Pixels.MedianContrastHundredths >= 300;
+		};
+		const auto statesDistinct = [](const connector_render_observation& aSelected,
+									   const connector_render_observation& aUnselected) {
+			return aSelected.Pixels.Background == aUnselected.Pixels.Background
+				&& aSelected.Pixels.Dominant != aUnselected.Pixels.Dominant;
 		};
 
 		if (!navigate_to_group(*workbench, *result, *firstPair->Group)
@@ -7539,14 +7684,22 @@ namespace bpr::app {
 		drain();
 		const auto firstSelected = observeTarget(
 			"WS_TABSTOP,464,28,67,10", "WS_TABSTOP,464,24,67,10");
-		const auto firstSelectedConnector = firstSelected.has_value()
+		const auto secondUnselected = observeTarget(
+			"WS_TABSTOP,464,42,98,10", "WS_TABSTOP,464,36,98,10");
+		const auto firstSelectedConnector    = firstSelected.has_value()
 			? observe_connector_render(*workbench, *firstSelected)
+			: std::optional<connector_render_observation>{ };
+		const auto secondUnselectedConnector = secondUnselected.has_value()
+			? observe_connector_render(*workbench, *secondUnselected)
 			: std::optional<connector_render_observation>{ };
 		if (!firstSelected.has_value() || !selected(*firstPair)
 			|| firstSelected->LeftRolePixels == 0U
 			|| firstSelected->RightRolePixels == 0U
+			|| !secondUnselected.has_value()
 			|| !firstSelectedConnector.has_value()
-			|| !connectorValid(*firstSelectedConnector)) {
+			|| !secondUnselectedConnector.has_value()
+			|| !selectedReadable(*firstSelectedConnector)
+			|| !unselectedReadable(*secondUnselectedConnector)) {
 			QTextStream{ stderr } << "UIFORETW_CAPTURE_FIRST_TARGET_FAILED\n";
 			return false;
 		}
@@ -7559,14 +7712,26 @@ namespace bpr::app {
 		drain();
 		const auto secondSelected = observeTarget(
 			"WS_TABSTOP,464,42,98,10", "WS_TABSTOP,464,36,98,10");
-		const auto secondSelectedConnector = secondSelected.has_value()
+		const auto firstUnselected = observeTarget(
+			"WS_TABSTOP,464,28,67,10", "WS_TABSTOP,464,24,67,10");
+		const auto secondSelectedConnector  = secondSelected.has_value()
 			? observe_connector_render(*workbench, *secondSelected)
+			: std::optional<connector_render_observation>{ };
+		const auto firstUnselectedConnector = firstUnselected.has_value()
+			? observe_connector_render(*workbench, *firstUnselected)
 			: std::optional<connector_render_observation>{ };
 		if (!secondSelected.has_value() || !selected(*secondPair)
 			|| secondSelected->LeftRolePixels == 0U
 			|| secondSelected->RightRolePixels == 0U
+			|| !firstUnselected.has_value()
 			|| !secondSelectedConnector.has_value()
-			|| !connectorValid(*secondSelectedConnector)) {
+			|| !firstUnselectedConnector.has_value()
+			|| !selectedReadable(*secondSelectedConnector)
+			|| !unselectedReadable(*firstUnselectedConnector)
+			|| !statesDistinct(
+				*firstSelectedConnector, *firstUnselectedConnector)
+			|| !statesDistinct(
+				*secondSelectedConnector, *secondUnselectedConnector)) {
 			QTextStream{ stderr } << "UIFORETW_CAPTURE_SECOND_TARGET_FAILED\n";
 			return false;
 		}
@@ -7593,8 +7758,8 @@ namespace bpr::app {
 			|| first->LeftRolePixels == 0U || first->RightRolePixels == 0U
 			|| second->LeftRolePixels == 0U || second->RightRolePixels == 0U
 			|| !firstConnector.has_value() || !secondConnector.has_value()
-			|| !connectorValid(*firstConnector)
-			|| !connectorValid(*secondConnector) || !selected(*firstPair)) {
+			|| !selectedReadable(*firstConnector)
+			|| !unselectedReadable(*secondConnector) || !selected(*firstPair)) {
 			QTextStream{ stderr } << "UIFORETW_CAPTURE_FINAL_TARGET_FAILED\n";
 			return false;
 		}
@@ -7770,6 +7935,22 @@ namespace bpr::app {
 		};
 		const auto connectorJson = [](const connector_render_observation& aValue) {
 			return QJsonObject{
+				{ QStringLiteral("state"),
+				  aValue.Selected ? QStringLiteral("selected")
+								  : QStringLiteral("unselected") },
+				{ QStringLiteral("gutter_background"),
+				  aValue.Pixels.Background.name(QColor::HexArgb) },
+				{ QStringLiteral("dominant_path_pixel"),
+				  aValue.Pixels.Dominant.name(QColor::HexArgb) },
+				{ QStringLiteral("sampled_path_pixels"),
+				  static_cast<qint64>(aValue.Pixels.SampledPixels) },
+				{ QStringLiteral("contrast_pixels"),
+				  static_cast<qint64>(aValue.Pixels.ContrastPixels) },
+				{ QStringLiteral("dominant_path_pixels"),
+				  static_cast<qint64>(aValue.Pixels.DominantPixels) },
+				{ QStringLiteral("contrast_floor_hundredths"), 300 },
+				{ QStringLiteral("median_contrast_hundredths"),
+				  aValue.Pixels.MedianContrastHundredths },
 				{ QStringLiteral("bounds"), rectangle_json(aValue.Bounds) },
 				{ QStringLiteral("start"), point_json(aValue.Start) },
 				{ QStringLiteral("end"), point_json(aValue.End) },
@@ -7791,6 +7972,8 @@ namespace bpr::app {
 									const intraline_render_observation& aTarget,
 									const intraline_render_observation& aSelectedTarget,
 									const connector_render_observation& aConnector,
+									const connector_render_observation& aSelectedConnector,
+									const connector_render_observation& aUnselectedConnector,
 									const qint64                        aChangeIndex) {
 			return QJsonObject{
 				{ QStringLiteral("segment"), identityText(aTarget.Pair.Segment) },
@@ -7809,6 +7992,10 @@ namespace bpr::app {
 				{ QStringLiteral("selected_right_role_pixels"), static_cast<qint64>(aSelectedTarget.RightRolePixels) },
 				{ QStringLiteral("change_index"), aChangeIndex },
 				{ QStringLiteral("connector"), connectorJson(aConnector) },
+				{ QStringLiteral("selected_connector"),
+				  connectorJson(aSelectedConnector) },
+				{ QStringLiteral("unselected_connector"),
+				  connectorJson(aUnselectedConnector) },
 			};
 		};
 		const auto firstChangeIndex = static_cast<qint64>(
@@ -7836,7 +8023,7 @@ namespace bpr::app {
 			};
 		};
 		auto facts = QJsonObject{
-			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v3") },
+			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v4") },
 			{ QStringLiteral("appearance"), appearance_mode_name(aMode) },
 			{ QStringLiteral("qt_platform"), QGuiApplication::platformName() },
 			{ QStringLiteral("qt_version"), QString::fromLatin1(qVersion()) },
@@ -7909,8 +8096,8 @@ namespace bpr::app {
 			{ QStringLiteral("selected_change_index"), firstChangeIndex },
 			{ QStringLiteral("selected_segment"), identityText(first->Pair.Segment) },
 			{ QStringLiteral("selected_group"), identityText(*first->Pair.Group) },
-			{ QStringLiteral("replacement_28_to_24"), targetJson(*first, *firstSelected, *firstConnector, firstChangeIndex) },
-			{ QStringLiteral("replacement_42_to_36"), targetJson(*second, *secondSelected, *secondConnector, secondChangeIndex) },
+			{ QStringLiteral("replacement_28_to_24"), targetJson(*first, *firstSelected, *firstConnector, *firstSelectedConnector, *firstUnselectedConnector, firstChangeIndex) },
+			{ QStringLiteral("replacement_42_to_36"), targetJson(*second, *secondSelected, *secondConnector, *secondSelectedConnector, *secondUnselectedConnector, secondChangeIndex) },
 		};
 		auto file = QFile{ directory.filePath(QStringLiteral("capture-facts.json")) };
 		if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {

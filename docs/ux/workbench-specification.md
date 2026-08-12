@@ -231,7 +231,10 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
 - The center `DiffLinkMap` paints filled monotonic interval ribbons and
   insertion/deletion wedges attached to actual pane boundaries. Moved-code
   metadata uses markers or a temporary overlay, never permanent crossing
-  ordinary ribbons.
+  ordinary ribbons. Its live-palette ordinary fill remains readable against
+  the gutter in every built-in profile, while the selected highlight plus
+  contrasting edge stays distinct. The composed capture verifies these as
+  actual selected and unselected path pixels without changing endpoints.
 - A one-sided block pins the empty side at the synchronization rail while the
   populated side advances. Unequal replacements advance proportionally and
   meet at one segment endpoint; reverse input retraces without accumulated
