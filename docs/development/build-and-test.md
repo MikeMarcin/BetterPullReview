@@ -252,6 +252,7 @@ generation, semantic generation, pane/detail viewport heights, and vertical
 splitter sizes for every rendered frame. Before each attempt, the course
 removes only its fixed trace, appearance stamp, and 19 frame filenames so a
 failed run cannot leave later frames from an older success looking current.
+It attempts all 21 fixed removals before reporting one bounded cleanup failure.
 Its divider step chooses a changed target from the splitter's live legal
 range, waits at most 500 ms for the queued geometry result, and requires one
 viewport-attributed rebuild with the exact semantic selection retained. A

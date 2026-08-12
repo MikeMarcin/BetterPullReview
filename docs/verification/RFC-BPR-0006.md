@@ -84,8 +84,9 @@ retained selection and one viewport-attributed geometry rebuild. Its trace
 records the before/after viewport and splitter dimensions, fixed predicate
 markers identify failures without source or path disclosure, and only the
 course's fixed 19 frame names plus its trace and appearance stamp are cleared
-before each attempt so a partial run cannot inherit later evidence from an
-older success.
+before each attempt. All 21 fixed removals are attempted before one bounded
+cleanup failure is reported, so a partial run cannot inherit later evidence
+from an older success.
 
 BPR-0266 repairs the later epoch-refresh gate shared by the appearance gesture
 course. The initial GitHub projection remains review-wide with five roots and

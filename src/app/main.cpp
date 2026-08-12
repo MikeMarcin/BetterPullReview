@@ -1361,10 +1361,14 @@ namespace {
 		bpr::qt::workbench_window&             aWindow,
 		const std::optional<std::string_view>& aRawDirectory) -> bool
 	{
-		const auto fail = [](const QString& aPredicate) {
-			auto stream = QTextStream{ stdout };
-			stream << "DIFF_INTERACTION_FAILURE:" << aPredicate << '\n';
-			stream.flush();
+		auto       failureReported = false;
+		const auto fail            = [&failureReported](const QString& aPredicate) -> bool {
+			if (!failureReported) {
+				auto stream = QTextStream{ stdout };
+				stream << "DIFF_INTERACTION_FAILURE:" << aPredicate << '\n';
+				stream.flush();
+				failureReported = true;
+			}
 			return false;
 		};
 		if (!aRawDirectory.has_value() || aRawDirectory->empty()) {
@@ -1399,13 +1403,17 @@ namespace {
 			"18-comparison-start.png",
 			"19-comparison-end.png",
 		};
+		auto staleEvidenceRemovalFailed = false;
 		for (const auto evidenceFile : evidenceFiles) {
 			const auto fileName = QString::fromLatin1(
 				evidenceFile.data(), static_cast<qsizetype>(evidenceFile.size()));
 			const auto filePath = directory.filePath(fileName);
 			if (QFile::exists(filePath) && !QFile::remove(filePath)) {
-				return fail(QStringLiteral("stale-evidence-remove:") + fileName);
+				staleEvidenceRemovalFailed = true;
 			}
+		}
+		if (staleEvidenceRemovalFailed) {
+			return fail(QStringLiteral("stale-evidence-remove"));
 		}
 		auto trace = QFile{
 			directory.filePath(QStringLiteral("interaction-trace.jsonl"))
@@ -1439,7 +1447,7 @@ namespace {
 			};
 			if (!stamp.open(
 					QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-				return false;
+				return fail(QStringLiteral("appearance-stamp-open"));
 			}
 			auto out = QTextStream{ &stamp };
 			out << "{\"base\":\""
@@ -1451,7 +1459,7 @@ namespace {
 				<< "\"}\n";
 			out.flush();
 			if (stamp.error() != QFileDevice::NoError) {
-				return false;
+				return fail(QStringLiteral("appearance-stamp-write"));
 			}
 
 			// And the stamp is held to the pixels, so it cannot drift into
@@ -1460,7 +1468,7 @@ namespace {
 			// glyph from deciding the answer.
 			auto* const pane = workbench->left_pane();
 			if (pane == nullptr) {
-				return false;
+				return fail(QStringLiteral("appearance-pane-missing"));
 			}
 			const auto raster = pane->viewport()->grab().toImage();
 			auto       tally  = std::map<QRgb, int>{ };
@@ -1470,13 +1478,13 @@ namespace {
 				}
 			}
 			if (tally.empty()) {
-				return false;
+				return fail(QStringLiteral("appearance-raster-empty"));
 			}
 			const auto commonest = std::ranges::max_element(
 				tally, { }, [](const auto& aEntry) { return aEntry.second; });
 			if (QColor{ commonest->first }
 				!= aWindow.palette().color(QPalette::Base)) {
-				return false;
+				return fail(QStringLiteral("appearance-raster-palette"));
 			}
 		}
 
@@ -1502,9 +1510,17 @@ namespace {
 			bpr::core::alignment_kind::replacement);
 		const auto* const deletion  = findFirst(bpr::core::alignment_kind::left_only);
 		const auto* const insertion = findFirst(bpr::core::alignment_kind::right_only);
-		if (matching == nullptr || replacement == nullptr || deletion == nullptr
-			|| insertion == nullptr) {
-			return false;
+		if (matching == nullptr) {
+			return fail(QStringLiteral("alignment-matching-missing"));
+		}
+		if (replacement == nullptr) {
+			return fail(QStringLiteral("alignment-replacement-missing"));
+		}
+		if (deletion == nullptr) {
+			return fail(QStringLiteral("alignment-deletion-missing"));
+		}
+		if (insertion == nullptr) {
+			return fail(QStringLiteral("alignment-insertion-missing"));
 		}
 
 		const auto initialContext = *workbench->current_context();
@@ -1519,18 +1535,18 @@ namespace {
 			if (!retained.has_value() || !rendered.has_value()
 				|| !workbench->current_context().has_value()
 				|| !selection.has_value()) {
-				return fail(QStringLiteral("capture-state:") + step);
+				return fail(QStringLiteral("capture-state"));
 			}
 			const auto imageName = step + QStringLiteral(".png");
 			if (!aWindow.grab().save(directory.filePath(imageName), "PNG")) {
-				return fail(QStringLiteral("capture-image-write:") + step);
+				return fail(QStringLiteral("capture-image-write"));
 			}
 			const auto& frame         = *retained;
 			const auto  stats         = workbench->statistics();
 			const auto  linkStats     = workbench->link_map()->statistics();
 			const auto  splitterSizes = vertical->sizes();
 			if (splitterSizes.size() != 2) {
-				return fail(QStringLiteral("capture-splitter-shape:") + step);
+				return fail(QStringLiteral("capture-splitter-shape"));
 			}
 			auto stream = QTextStream{ &trace };
 			stream << "{\"step\":" << diff_evidence_json_string(step) << ','
@@ -1605,65 +1621,94 @@ namespace {
 			stream.flush();
 			return trace.error() == QFileDevice::NoError
 				? true
-				: fail(QStringLiteral("capture-trace-write:") + step);
+				: fail(QStringLiteral("capture-trace-write"));
 		};
 
-		if (!capture("01-selected-composition")
-			|| !controller->reveal_segment(matching->Id, 0.2)) {
-			return false;
+		if (!capture("01-selected-composition")) {
+			return fail(QStringLiteral("capture-selected-composition"));
+		}
+		if (!controller->reveal_segment(matching->Id, 0.2)) {
+			return fail(QStringLiteral("matching-early-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("matching-early-frame"));
 		}
 		const auto matchingEarly = *controller->current_frame();
-		if (!capture("02-matching-early")
-			|| !controller->reveal_segment(matching->Id, 0.8)) {
-			return false;
+		if (!capture("02-matching-early")) {
+			return fail(QStringLiteral("capture-matching-early"));
+		}
+		if (!controller->reveal_segment(matching->Id, 0.8)) {
+			return fail(QStringLiteral("matching-late-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("matching-late-frame"));
 		}
 		const auto matchingLate = *controller->current_frame();
 		if (matchingLate.Left.ProjectedDocumentY
-				<= matchingEarly.Left.ProjectedDocumentY
-			|| matchingLate.Right.ProjectedDocumentY
-				<= matchingEarly.Right.ProjectedDocumentY
-			|| !capture("03-matching-late")) {
-			return false;
+			<= matchingEarly.Left.ProjectedDocumentY) {
+			return fail(QStringLiteral("matching-left-projection-stationary"));
+		}
+		if (matchingLate.Right.ProjectedDocumentY
+			<= matchingEarly.Right.ProjectedDocumentY) {
+			return fail(QStringLiteral("matching-right-projection-stationary"));
+		}
+		if (!capture("03-matching-late")) {
+			return fail(QStringLiteral("capture-matching-late"));
 		}
 
 		const auto inputOrigin = controller->maximum_position() * 0.45;
 		controller->set_position(inputOrigin);
 		if (!send_diff_evidence_wheel(
 				*workbench->left_pane()->viewport(), QPoint{ 0, -32 })) {
-			return false;
+			return fail(QStringLiteral("left-pane-wheel-rejected"));
 		}
 		const auto leftInputPosition = controller->position();
 		// The receiver-equivalence steps below compare the right pane and the
 		// divider against this value. Require the wheel to have actually moved
 		// the retained position first, otherwise all three receivers would
 		// agree trivially at the origin even if none of them handled the event.
-		if (leftInputPosition <= inputOrigin || !capture("04-left-pane-input")) {
-			return false;
+		if (leftInputPosition <= inputOrigin) {
+			return fail(QStringLiteral("left-pane-wheel-stationary"));
+		}
+		if (!capture("04-left-pane-input")) {
+			return fail(QStringLiteral("capture-left-pane-input"));
 		}
 
 		if (!controller->reveal_segment(insertion->Id, 0.2)) {
-			return false;
+			return fail(QStringLiteral("insertion-early-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("insertion-early-frame"));
 		}
 		const auto insertionEarly = *controller->current_frame();
-		if (!capture("05-insertion-early")
-			|| !controller->reveal_segment(insertion->Id, 0.8)) {
-			return false;
+		if (!capture("05-insertion-early")) {
+			return fail(QStringLiteral("capture-insertion-early"));
+		}
+		if (!controller->reveal_segment(insertion->Id, 0.8)) {
+			return fail(QStringLiteral("insertion-late-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("insertion-late-frame"));
 		}
 		const auto insertionLate = *controller->current_frame();
 		if (std::abs(insertionLate.Left.ProjectedDocumentY
 					 - insertionEarly.Left.ProjectedDocumentY)
-				> 0.000'001
-			|| insertionLate.Right.ProjectedDocumentY
-				<= insertionEarly.Right.ProjectedDocumentY
-			|| !capture("06-insertion-late")) {
-			return false;
+			> 0.000'001) {
+			return fail(QStringLiteral("insertion-left-projection-moved"));
+		}
+		if (insertionLate.Right.ProjectedDocumentY
+			<= insertionEarly.Right.ProjectedDocumentY) {
+			return fail(QStringLiteral("insertion-right-projection-stationary"));
+		}
+		if (!capture("06-insertion-late")) {
+			return fail(QStringLiteral("capture-insertion-late"));
 		}
 		const auto insertionIterator = std::ranges::find(
 			alignment.Segments,
 			insertion->Id,
 			[](const auto& aSegment) { return aSegment.Id; });
 		if (insertionIterator == alignment.Segments.end()) {
-			return false;
+			return fail(QStringLiteral("insertion-segment-not-indexed"));
 		}
 		const auto continuation = std::ranges::find_if(
 			insertionIterator + 1,
@@ -1671,85 +1716,135 @@ namespace {
 			[](const auto& aSegment) {
 				return aSegment.Kind == bpr::core::alignment_kind::equal;
 			});
-		if (continuation == alignment.Segments.end()
-			|| !controller->reveal_segment(continuation->Id, 0.25)
-			|| !capture("07-matching-continuation")
-			|| !controller->reveal_segment(insertion->Id, 0.8)
-			|| !controller->reveal_segment(insertion->Id, 0.2)) {
-			return false;
+		if (continuation == alignment.Segments.end()) {
+			return fail(QStringLiteral("insertion-continuation-missing"));
+		}
+		if (!controller->reveal_segment(continuation->Id, 0.25)) {
+			return fail(QStringLiteral("insertion-continuation-reveal"));
+		}
+		if (!capture("07-matching-continuation")) {
+			return fail(QStringLiteral("capture-matching-continuation"));
+		}
+		if (!controller->reveal_segment(insertion->Id, 0.8)) {
+			return fail(QStringLiteral("insertion-reverse-late-reveal"));
+		}
+		if (!controller->reveal_segment(insertion->Id, 0.2)) {
+			return fail(QStringLiteral("insertion-reverse-early-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("insertion-reversed-frame"));
 		}
 		const auto insertionReversed = *controller->current_frame();
 		if (std::abs(insertionReversed.Left.ProjectedDocumentY
 					 - insertionEarly.Left.ProjectedDocumentY)
-				> 0.000'001
-			|| std::abs(insertionReversed.Right.ProjectedDocumentY
-						- insertionEarly.Right.ProjectedDocumentY)
-				> 0.000'001
-			|| !capture("08-insertion-reversed")) {
-			return false;
+			> 0.000'001) {
+			return fail(QStringLiteral("insertion-reversed-left-mismatch"));
+		}
+		if (std::abs(insertionReversed.Right.ProjectedDocumentY
+					 - insertionEarly.Right.ProjectedDocumentY)
+			> 0.000'001) {
+			return fail(QStringLiteral("insertion-reversed-right-mismatch"));
+		}
+		if (!capture("08-insertion-reversed")) {
+			return fail(QStringLiteral("capture-insertion-reversed"));
 		}
 
 		controller->set_position(inputOrigin);
 		if (!send_diff_evidence_wheel(
 				*workbench->right_pane()->viewport(), QPoint{ 0, -32 })) {
-			return false;
+			return fail(QStringLiteral("right-pane-wheel-rejected"));
 		}
 		const auto rightInputPosition = controller->position();
-		if (std::abs(rightInputPosition - leftInputPosition) > 0.000'001
-			|| rightInputPosition <= inputOrigin
-			|| !capture("09-right-pane-input")) {
-			return false;
+		if (std::abs(rightInputPosition - leftInputPosition) > 0.000'001) {
+			return fail(QStringLiteral("right-pane-wheel-not-equivalent"));
+		}
+		if (rightInputPosition <= inputOrigin) {
+			return fail(QStringLiteral("right-pane-wheel-stationary"));
+		}
+		if (!capture("09-right-pane-input")) {
+			return fail(QStringLiteral("capture-right-pane-input"));
 		}
 		controller->set_position(inputOrigin);
-		if (std::abs(controller->position() - inputOrigin) > 0.000'001
-			|| !send_diff_evidence_wheel(*workbench->link_map(), QPoint{ 0, -32 })) {
-			return false;
+		if (std::abs(controller->position() - inputOrigin) > 0.000'001) {
+			return fail(QStringLiteral("divider-wheel-origin-mismatch"));
+		}
+		if (!send_diff_evidence_wheel(*workbench->link_map(), QPoint{ 0, -32 })) {
+			return fail(QStringLiteral("divider-wheel-rejected"));
 		}
 		const auto dividerInputPosition = controller->position();
-		if (std::abs(dividerInputPosition - leftInputPosition) > 0.000'001
-			|| dividerInputPosition <= inputOrigin
-			|| !capture("10-divider-input")) {
-			return false;
+		if (std::abs(dividerInputPosition - leftInputPosition) > 0.000'001) {
+			return fail(QStringLiteral("divider-wheel-not-equivalent"));
+		}
+		if (dividerInputPosition <= inputOrigin) {
+			return fail(QStringLiteral("divider-wheel-stationary"));
+		}
+		if (!capture("10-divider-input")) {
+			return fail(QStringLiteral("capture-divider-input"));
 		}
 
 		if (!controller->reveal_segment(deletion->Id, 0.2)) {
-			return false;
+			return fail(QStringLiteral("deletion-early-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("deletion-early-frame"));
 		}
 		const auto deletionEarly = *controller->current_frame();
-		if (!capture("11-deletion-early")
-			|| !controller->reveal_segment(deletion->Id, 0.8)) {
-			return false;
+		if (!capture("11-deletion-early")) {
+			return fail(QStringLiteral("capture-deletion-early"));
+		}
+		if (!controller->reveal_segment(deletion->Id, 0.8)) {
+			return fail(QStringLiteral("deletion-late-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("deletion-late-frame"));
 		}
 		const auto deletionLate = *controller->current_frame();
 		if (deletionLate.Left.ProjectedDocumentY
-				<= deletionEarly.Left.ProjectedDocumentY
-			|| std::abs(deletionLate.Right.ProjectedDocumentY
-						- deletionEarly.Right.ProjectedDocumentY)
-				> 0.000'001
-			|| !capture("12-deletion-late")) {
-			return false;
+			<= deletionEarly.Left.ProjectedDocumentY) {
+			return fail(QStringLiteral("deletion-left-projection-stationary"));
+		}
+		if (std::abs(deletionLate.Right.ProjectedDocumentY
+					 - deletionEarly.Right.ProjectedDocumentY)
+			> 0.000'001) {
+			return fail(QStringLiteral("deletion-right-projection-moved"));
+		}
+		if (!capture("12-deletion-late")) {
+			return fail(QStringLiteral("capture-deletion-late"));
 		}
 
 		if (!controller->reveal_segment(replacement->Id, 0.2)) {
-			return false;
+			return fail(QStringLiteral("replacement-early-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("replacement-early-frame"));
 		}
 		const auto replacementEarly = *controller->current_frame();
-		if (!capture("13-replacement-early")
-			|| !controller->reveal_segment(replacement->Id, 0.8)) {
-			return false;
+		if (!capture("13-replacement-early")) {
+			return fail(QStringLiteral("capture-replacement-early"));
+		}
+		if (!controller->reveal_segment(replacement->Id, 0.8)) {
+			return fail(QStringLiteral("replacement-late-reveal"));
+		}
+		if (!controller->current_frame().has_value()) {
+			return fail(QStringLiteral("replacement-late-frame"));
 		}
 		const auto replacementLate = *controller->current_frame();
 		const auto leftAdvance     = replacementLate.Left.ProjectedDocumentY
 			- replacementEarly.Left.ProjectedDocumentY;
 		const auto rightAdvance = replacementLate.Right.ProjectedDocumentY
 			- replacementEarly.Right.ProjectedDocumentY;
-		if (leftAdvance <= 0.0 || rightAdvance <= leftAdvance
-			|| !capture("14-replacement-late")) {
-			return false;
+		if (leftAdvance <= 0.0) {
+			return fail(QStringLiteral("replacement-left-projection-stationary"));
+		}
+		if (rightAdvance <= leftAdvance) {
+			return fail(QStringLiteral("replacement-right-projection-not-greater"));
+		}
+		if (!capture("14-replacement-late")) {
+			return fail(QStringLiteral("capture-replacement-late"));
 		}
 
 		if (!controller->reveal_segment(replacement->Id, 0.5)) {
-			return false;
+			return fail(QStringLiteral("replacement-center-reveal"));
 		}
 		settle_automated_events();
 		const auto visible  = workbench->link_map()->visible_links();
@@ -1759,8 +1854,11 @@ namespace {
 			[](const bpr::qt::visible_diff_link& aLink) {
 				return aLink.Identity.Segment;
 			});
-		if (ribbonIt == visible.end() || ribbonIt->Path.isEmpty()) {
-			return false;
+		if (ribbonIt == visible.end()) {
+			return fail(QStringLiteral("replacement-ribbon-missing"));
+		}
+		if (ribbonIt->Path.isEmpty()) {
+			return fail(QStringLiteral("replacement-ribbon-path-empty"));
 		}
 		const auto& ribbon = *ribbonIt;
 
@@ -1774,41 +1872,59 @@ namespace {
 					&& !aLink.Path.isEmpty();
 			});
 		if (otherIt == visible.end()) {
-			return false;
+			return fail(QStringLiteral("other-ribbon-missing"));
 		}
 		const auto& otherLink  = *otherIt;
 		const auto  otherPoint = otherLink.Path.boundingRect().center();
 		if (!otherLink.Path.contains(otherPoint)) {
-			return false;
+			return fail(QStringLiteral("other-ribbon-center-outside"));
 		}
 		send_diff_evidence_click(*workbench->link_map(), otherPoint);
 		settle_automated_events();
-		if (!workbench->selection().has_value()
-			|| workbench->selection()->Group != otherLink.Identity.Group
-			|| workbench->selection()->Group == ribbon.Identity.Group
-			|| !capture("15-other-ribbon-selected")) {
-			return false;
+		if (!workbench->selection().has_value()) {
+			return fail(QStringLiteral("other-ribbon-selection-missing"));
+		}
+		if (workbench->selection()->Group != otherLink.Identity.Group) {
+			return fail(QStringLiteral("other-ribbon-selection-mismatch"));
+		}
+		if (workbench->selection()->Group == ribbon.Identity.Group) {
+			return fail(QStringLiteral("other-ribbon-selection-not-distinct"));
+		}
+		if (!capture("15-other-ribbon-selected")) {
+			return fail(QStringLiteral("capture-other-ribbon-selected"));
 		}
 
 		const auto point = ribbon.Path.boundingRect().center();
 		if (!ribbon.Path.contains(point)) {
-			return false;
+			return fail(QStringLiteral("replacement-ribbon-center-outside"));
 		}
 		const auto callbacksBeforeClick
 			= workbench->link_map()->statistics().SelectionCallbacks;
 		send_diff_evidence_click(*workbench->link_map(), point);
 		settle_automated_events();
-		if (!workbench->selection().has_value()
-			|| workbench->selection()->Group != ribbon.Identity.Group
-			|| !workbench->link_map()->selected().has_value()
-			|| workbench->link_map()->selected()->Group
-				!= workbench->selection()->Group
-			|| workbench->link_map()->statistics().SelectionCallbacks
-				!= callbacksBeforeClick + 1U
-			|| !workbench->detail_pane()->toPlainText().startsWith(
-				QStringLiteral("Change "))
-			|| !capture("16-ribbon-selection")) {
-			return false;
+		if (!workbench->selection().has_value()) {
+			return fail(QStringLiteral("replacement-ribbon-selection-missing"));
+		}
+		if (workbench->selection()->Group != ribbon.Identity.Group) {
+			return fail(QStringLiteral("replacement-ribbon-selection-mismatch"));
+		}
+		if (!workbench->link_map()->selected().has_value()) {
+			return fail(QStringLiteral("link-map-selection-missing"));
+		}
+		if (workbench->link_map()->selected()->Group
+			!= workbench->selection()->Group) {
+			return fail(QStringLiteral("link-map-selection-mismatch"));
+		}
+		if (workbench->link_map()->statistics().SelectionCallbacks
+			!= callbacksBeforeClick + 1U) {
+			return fail(QStringLiteral("ribbon-selection-callback-count"));
+		}
+		if (!workbench->detail_pane()->toPlainText().startsWith(
+				QStringLiteral("Change "))) {
+			return fail(QStringLiteral("ribbon-selection-detail-missing"));
+		}
+		if (!capture("16-ribbon-selection")) {
+			return fail(QStringLiteral("capture-ribbon-selection"));
 		}
 
 		const auto selectionBeforeResize  = workbench->selection();
@@ -1877,20 +1993,24 @@ namespace {
 			return fail(QStringLiteral("vertical-splitter-selection-changed"));
 		}
 		if (!capture("17-divider-resized")) {
-			return false;
+			return fail(QStringLiteral("capture-divider-resized"));
 		}
 
 		controller->home();
 		if (std::abs(controller->position() - controller->minimum_position())
-				> 0.000'001
-			|| !capture("18-comparison-start")) {
-			return false;
+			> 0.000'001) {
+			return fail(QStringLiteral("comparison-start-position"));
+		}
+		if (!capture("18-comparison-start")) {
+			return fail(QStringLiteral("capture-comparison-start"));
 		}
 		controller->end();
 		if (std::abs(controller->position() - controller->maximum_position())
-				> 0.000'001
-			|| !capture("19-comparison-end")) {
-			return false;
+			> 0.000'001) {
+			return fail(QStringLiteral("comparison-end-position"));
+		}
+		if (!capture("19-comparison-end")) {
+			return fail(QStringLiteral("capture-comparison-end"));
 		}
 
 		const auto finalStats = workbench->statistics();
