@@ -837,7 +837,7 @@ namespace bpr::adapters::github::detail {
 			pid_t      process     = -1;
 			const auto spawned     = posix_spawn(
 				&process,
-				curl_path.data(),
+				aArguments.front().c_str(),
 				&actions,
 				&attributes,
 				argumentPointers.data(),

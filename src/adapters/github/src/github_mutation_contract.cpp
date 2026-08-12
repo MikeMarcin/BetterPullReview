@@ -1087,9 +1087,9 @@ namespace bpr::adapters::github::detail {
 				return failure(application::review_mutation_failure::unavailable);
 			}
 
-			const auto finish_known = [&](
-										  const application::review_mutation_recovery_record& aKnown,
-										  const bool                                          aAlreadyObserved) -> application::review_mutation_submission {
+			const auto finishKnown = [&](
+										 const application::review_mutation_recovery_record& aKnown,
+										 const bool                                          aAlreadyObserved) -> application::review_mutation_submission {
 				if (!same_attempt(aKnown, expected)) {
 					return failure(application::review_mutation_failure::unavailable);
 				}
@@ -1135,7 +1135,7 @@ namespace bpr::adapters::github::detail {
 				return failure(application::review_mutation_failure::unavailable);
 			}
 			if (loaded->has_value()) {
-				return finish_known(**loaded, false);
+				return finishKnown(**loaded, false);
 			}
 			if (const auto current = observe_exact(aStop); !current.has_value()) {
 				return failure(current.error());
@@ -1148,7 +1148,7 @@ namespace bpr::adapters::github::detail {
 				return failure(application::review_mutation_failure::unavailable);
 			}
 			if (!admitted->Inserted) {
-				return finish_known(admitted->Record, true);
+				return finishKnown(admitted->Record, true);
 			}
 
 			auto submission = application::review_mutation_submission{

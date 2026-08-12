@@ -38,7 +38,7 @@ namespace bpr::application::detail {
 		constexpr auto maximum_approval_bytes   = std::size_t{ 8U * 1024U };
 		constexpr auto maximum_executable_bytes = std::size_t{ 256U * 1024U * 1024U };
 		constexpr auto authority_lifetime       = std::chrono::minutes{ 15 };
-		constexpr auto spent_directory_name     = std::string_view{ ".bpr-spent" };
+		constexpr char spent_directory_name[]   = ".bpr-spent";
 
 		constexpr auto designated_hostname      = std::string_view{ "github.com" };
 		constexpr auto designated_owner         = std::string_view{ "MikeMarcin" };
@@ -330,7 +330,7 @@ namespace bpr::application::detail {
 					designated_review_bootstrap_failure::invalid_configuration);
 			}
 			auto createdDirectory = false;
-			if (::mkdirat(aApproval.Parent.get(), spent_directory_name.data(), 0700) == 0) {
+			if (::mkdirat(aApproval.Parent.get(), spent_directory_name, 0700) == 0) {
 				createdDirectory = true;
 			} else if (errno != EEXIST) {
 				return std::unexpected(
@@ -338,7 +338,7 @@ namespace bpr::application::detail {
 			}
 			auto        spent = file_descriptor{ ::openat(
 				aApproval.Parent.get(),
-				spent_directory_name.data(),
+				spent_directory_name,
 				O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
 			struct stat spentStatus{ };
 			if (!spent || ::fstat(spent.get(), &spentStatus) != 0
@@ -400,7 +400,7 @@ namespace bpr::application::detail {
 			}
 			auto spent = file_descriptor{ ::openat(
 				aApproval.Parent.get(),
-				spent_directory_name.data(),
+				spent_directory_name,
 				O_RDONLY | O_CLOEXEC | O_DIRECTORY | O_NOFOLLOW) };
 			if (!spent) {
 				return errno == ENOENT

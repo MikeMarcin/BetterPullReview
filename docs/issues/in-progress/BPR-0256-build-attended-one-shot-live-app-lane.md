@@ -192,3 +192,23 @@ source. That drift is remaining unattended work and blocks this card's final
 format/tidy evidence until repaired. The refreshed packet remains pending an
 exact operator decision and must be regenerated again if any bound source byte
 changes.
+
+## Strict-tidy repair checkpoint — 2026-08-11
+
+After the formatting drift was isolated and repaired under BPR-0240 and
+BPR-0260, the complete 227-translation-unit strict-tidy scan exposed five
+additional violations in this card's designated-lane sources. The repair keeps
+the same semantics while removing unsafe C-string assumptions: the retained
+`std::string` now supplies the exact `posix_spawn` executable path, and the
+fixed spent-directory name is a null-terminated character array. The one local
+mutation helper was renamed to the repository's lower-camel convention.
+
+Strict tidy passes directly for all three affected translation units. Their
+adapter/application targets rebuild, and the exact
+`application_designated_review_authority_bootstrap`,
+`application_review_mutation`, `designated_live_public_observer_fixture`,
+`github_mutation_contract`, and `live_review_mutation_provider` selector passes
+5/5 in 15.15 seconds. These bound source changes intentionally invalidate the
+preceding capsule, source manifest, approval subject, and packet. No approval
+file exists and the live test has not run; a fresh final packet is required
+after this checkpoint is committed.
