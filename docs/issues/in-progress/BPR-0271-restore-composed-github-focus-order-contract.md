@@ -1,7 +1,7 @@
 ---
 id: BPR-0271
 title: Restore the composed GitHub focus-order contract
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0010
 depends_on: [BPR-0239]
 ---
