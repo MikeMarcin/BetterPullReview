@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -100,7 +101,7 @@ namespace bpr::adapters::github::detail {
 	struct review_mutation_server_reconciliation
 	{
 		std::vector<application::review_comment_projection> Projection;
-		std::optional<application::review_mutation_receipt> ExactReceipt;
+		std::vector<application::review_mutation_receipt>   ExactReceipts;
 
 		auto operator<=>(const review_mutation_server_reconciliation&) const = default;
 	};
@@ -164,17 +165,29 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const github_mutation_wire_success&) const -> bool = default;
 	};
 
+	enum class github_mutation_transmission : std::uint8_t {
+		definitely_not_sent,
+		indeterminate,
+	};
+
 	struct github_mutation_wire_error
 	{
 		application::review_mutation_failure Failure = application::review_mutation_failure::unavailable;
+		github_mutation_transmission         Transmission
+			= github_mutation_transmission::definitely_not_sent;
 
 		auto operator==(const github_mutation_wire_error&) const -> bool = default;
 	};
 
 	struct github_mutation_wire_cancelled
 	{
+		github_mutation_transmission Transmission
+			= github_mutation_transmission::definitely_not_sent;
+
 		auto operator==(const github_mutation_wire_cancelled&) const -> bool = default;
 	};
+
+	using github_mutation_transmission_witness = std::function<bool()>;
 
 	using github_mutation_wire_completion = std::variant<
 		github_mutation_wire_success,
@@ -194,8 +207,9 @@ namespace bpr::adapters::github::detail {
 		virtual ~github_mutation_wire_transport() = default;
 
 		[[nodiscard]] virtual auto perform_review_mutation(
-			const github_mutation_wire_request& aRequest,
-			std::stop_token                     aStop)
+			const github_mutation_wire_request&  aRequest,
+			std::stop_token                      aStop,
+			github_mutation_transmission_witness aWitness)
 			-> github_mutation_wire_completion = 0;
 	};
 
@@ -247,8 +261,9 @@ namespace bpr::adapters::github::detail {
 				review_mutation_server_reconciliation,
 				application::review_mutation_failure>;
 		[[nodiscard]] auto perform(
-			review_mutation_wire_request aRequest,
-			std::stop_token              aStop)
+			review_mutation_wire_request         aRequest,
+			std::stop_token                      aStop,
+			github_mutation_transmission_witness aWitness = { })
 			-> std::expected<review_mutation_wire_response, application::review_mutation_failure>;
 
 		github_mutation_wire_transport*                             Transport = nullptr;

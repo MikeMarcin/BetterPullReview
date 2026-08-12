@@ -31,6 +31,12 @@ namespace bpr::application {
 				   });
 		}
 
+		[[nodiscard]] auto valid_server_comment_id(
+			const std::string_view aValue) noexcept -> bool
+		{
+			return bounded_text(aValue, 256U);
+		}
+
 		void append(std::string& aText, const std::uint64_t aValue)
 		{
 			aText += std::to_string(aValue);
@@ -50,16 +56,33 @@ namespace bpr::application {
 	{
 		const auto receiptMatchesState
 			= aRecord.State == review_mutation_recovery_state::succeeded
-			? aRecord.Receipt.has_value() && !aRecord.Receipt->ServerCommentId.empty()
-				&& aRecord.Receipt->ServerCommentId.size() <= 256U
+			? aRecord.Receipt.has_value()
+				&& valid_server_comment_id(aRecord.Receipt->ServerCommentId)
 			: !aRecord.Receipt.has_value();
+		const auto baselineValid = !aRecord.BaselineExactCommentIds.has_value()
+			|| (aRecord.BaselineExactCommentIds->size()
+					<= maximum_review_mutation_baseline_comments
+				&& std::ranges::all_of(
+					*aRecord.BaselineExactCommentIds,
+					valid_server_comment_id)
+				&& std::ranges::is_sorted(*aRecord.BaselineExactCommentIds)
+				&& std::ranges::adjacent_find(*aRecord.BaselineExactCommentIds)
+					== aRecord.BaselineExactCommentIds->end());
+		const auto transmissionMatchesBaseline
+			= aRecord.BaselineExactCommentIds.has_value()
+			? aRecord.Transmission
+					== review_mutation_recovery_transmission::prepared
+				|| aRecord.Transmission
+					== review_mutation_recovery_transmission::possibly_transmitted
+			: aRecord.Transmission
+				== review_mutation_recovery_transmission::baseline_incomplete;
 		return lowercase_hexadecimal(aRecord.IdempotencyKey)
 			&& !aRecord.Body.empty() && aRecord.Body.size() <= 64U * 1024U
 			&& valid(aRecord.Anchor)
 			&& aRecord.Anchor.Semantic.Side == core::diff_side::right
 			&& aRecord.Anchor.Path.size()
 			<= maximum_review_mutation_recovery_path_bytes
-			&& receiptMatchesState;
+			&& receiptMatchesState && baselineValid && transmissionMatchesBaseline;
 	}
 
 	auto valid(const review_mutation_target_binding& aBinding) noexcept -> bool

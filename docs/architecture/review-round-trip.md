@@ -371,9 +371,10 @@ request form remains solely for the fixture provider; the live provider refuses
 it before any transport operation.
 
 `github_mutation_contract.{hpp,cpp}` is separate from the read-only request
-contract. It compiles only three canonical operations: observe the current
-viewer, observe the exact pull request, and create an ordinary REST pull-request
-review comment with `body`, `commit_id`, `path`, `side`, and `line`. GitHub.com
+contract. It compiles only four canonical operations: observe the current
+viewer, observe the exact pull request, list the bounded first 100 review
+comments without pagination, and create an ordinary REST pull-request review
+comment with `body`, `commit_id`, `path`, `side`, and `line`. GitHub.com
 and GHES 3.18 use their exact REST roots. The core's zero-based semantic line is
 translated with a checked `+1` to the REST API's one-based `line`, and response
 parsing reverses that translation within the core line type's range. Canonical
@@ -394,9 +395,12 @@ the asynchronous host's stop token through viewer observation, exact-target
 observation, and the POST, so cancellation before or between phases prevents
 every later operation.
 
-For a write attempt, the protocol observes the acting viewer first, then
-re-observes the complete pull-request identity and head as the final network
-operation before POST. Base OID/ref and head ref remain exact identity fields;
+For a new write attempt, the protocol first records the sorted, unique node IDs
+of every exact actor/anchor/path/commit/line/body match in the bounded comment
+snapshot and durably admits that baseline with the canonical write fingerprint.
+Only then does it observe the acting viewer and re-observe the complete
+pull-request identity and head as the final network operations before POST.
+Base OID/ref and head ref remain exact identity fields;
 a well-formed changed head OID is returned as the observation and produces the
 typed `stale_head` result before POST rather than being collapsed into a generic
 identity mismatch. The provider serializes attempts and retains at most
@@ -404,13 +408,35 @@ identity mismatch. The provider serializes attempts and retains at most
 of the complete canonical write request, including the resolved path. A known
 success returns the same GitHub comment identity as a duplicate only when that
 fingerprint also matches; a same-key request with another resolved path is
-refused before observation or POST. An attempt whose POST outcome is
-indeterminate is retained as guarded and is never resubmitted by that provider
-instance; avoiding a duplicate takes precedence over an automatic retry. This
-protection is conservative and process-local. Durable restart reconciliation
-remains composition work. The POST response must reproduce the exact path,
-commit, side, line,
-body, and acting identity before its GitHub node ID becomes the receipt.
+refused before observation or POST. An admitted row begins `prepared`. It
+remains in that non-recoverable phase for pre-dispatch refusal, cancellation,
+and process death before transport creates the POST operation. Only the native
+transport can advance it to `possibly_transmitted`: immediately after
+`QNetworkAccessManager::post` returns a reply, a one-shot callback must commit
+that phase before response processing continues. Failure to commit the witness
+aborts the reply and deliberately risks a false negative rather than
+attributing another client's comment. Once any proxy candidate returns a POST
+reply, a retryable proxy failure does not advance to another candidate; doing so
+would create a second POST after the first had become indeterminate. Read-only
+GET operations retain bounded proxy fallback. A prepared or baseline-incomplete
+attempt performs no recovery network operation and is never resubmitted.
+
+Post-attempt and restart reconciliation is available only for a durably
+`possibly_transmitted` attempt. It subtracts the durable baseline from all exact
+matches and resolves only when exactly one new node ID remains. Zero or multiple
+new IDs, pagination, an oversized snapshot, baseline-integrity failure, or a
+missing legacy baseline remain guarded without another POST. A successful POST
+response remains a direct receipt only when it reproduces the exact path,
+commit, side, line, body, and acting identity and its node ID was absent from
+the durable baseline. The SQLite authority repeats that last baseline check
+before recording the receipt.
+
+The markerless protocol cannot distinguish BetterPullReview's write from an
+identical comment another client creates after baseline capture. If POST is
+indeterminate and exactly one such new identity exists, it satisfies the same
+delta rule. Avoiding that attribution limit would require hidden metadata or a
+provider idempotency field, neither of which ordinary GitHub review comments
+offer.
 
 Hermetic provider tests exercise this production protocol through its
 separately linked session object rather than linking the concrete live-provider
@@ -443,10 +469,17 @@ the same key and the provider recognises a known success; two genuinely
 different comments cannot collide, because the draft identity is part of it. A
 key that ignored the body, the anchor, or the head would let different comments
 share one. GitHub exposes no ordinary review-comment idempotency field, and
-BetterPullReview publishes no private marker, so an indeterminate POST is
-guarded against automatic resubmission for the life of the provider instance
-rather than guessed to have failed. Reconciliation across process restart is
-not provided by this uncomposed slice.
+BetterPullReview publishes no private marker, so an indeterminate POST is never
+automatically resubmitted. The exact-scope SQLite recovery store persists the
+canonical request plus its pre-attempt exact-match baseline. The originating
+process and every later process use the same GET-only baseline subtraction;
+schema-v1 unresolved rows have no trustworthy baseline and therefore remain
+permanently guarded, while their already successful receipts remain readable.
+Schema v2 binds the encoded baseline to its SHA-256 digest and verifies the
+digest before decoding; admission commits the attempt, baseline, digest, and
+prepared phase in one transaction. This detects corruption inside the
+owner-private database. It is not a claim of tamper resistance against an actor
+who can rewrite both data and digest.
 
 ## Synchronization and the mixed-client contract
 

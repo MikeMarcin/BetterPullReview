@@ -109,8 +109,9 @@ namespace bpr::adapters::github::detail {
 			-> github_capability_probe_wire_completion override;
 
 		[[nodiscard]] auto perform_review_mutation(
-			const github_mutation_wire_request& aRequest,
-			std::stop_token                     aStop)
+			const github_mutation_wire_request&  aRequest,
+			std::stop_token                      aStop,
+			github_mutation_transmission_witness aWitness)
 			-> github_mutation_wire_completion override;
 
 	private:

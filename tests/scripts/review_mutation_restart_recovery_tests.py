@@ -33,10 +33,22 @@ def main() -> int:
         root = pathlib.Path(raw)
         first = run(arguments.executable, "--write-unresolved", root)
         second = run(arguments.executable, "--recover-unresolved", root)
+        prepared_root = root / "prepared"
+        prepared_root.mkdir(mode=0o700)
+        prepared_first = run(
+            arguments.executable, "--write-prepared-crash", prepared_root
+        )
+        prepared_second = run(
+            arguments.executable, "--recover-prepared", prepared_root
+        )
     if "restart-recovery-phase-one:unresolved" not in first:
         raise RuntimeError("first process did not persist the unresolved state")
     if "restart-recovery-phase-two:resolved-get-only" not in second:
         raise RuntimeError("second process did not resolve through GET-only recovery")
+    if "restart-prepared-phase-one:crash-before-post" not in prepared_first:
+        raise RuntimeError("first prepared process did not stop before POST witness")
+    if "restart-prepared-phase-two:zero-transport" not in prepared_second:
+        raise RuntimeError("prepared restart observed transport or external C1")
     print("review-mutation-restart-recovery-tests:pass")
     return 0
 

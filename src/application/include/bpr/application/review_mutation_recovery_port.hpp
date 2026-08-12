@@ -8,10 +8,12 @@
 #include <expected>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace bpr::application {
 	inline constexpr std::size_t maximum_review_mutation_recovery_records    = 1'024U;
 	inline constexpr std::size_t maximum_review_mutation_recovery_path_bytes = 4'096U;
+	inline constexpr std::size_t maximum_review_mutation_baseline_comments   = 100U;
 
 	enum class review_mutation_recovery_failure : std::uint8_t {
 		unavailable,
@@ -25,6 +27,12 @@ namespace bpr::application {
 		succeeded,
 	};
 
+	enum class review_mutation_recovery_transmission : std::uint8_t {
+		baseline_incomplete,
+		prepared,
+		possibly_transmitted,
+	};
+
 	/// \brief One exact write whose transmission outcome must survive restart.
 	struct review_mutation_recovery_record
 	{
@@ -33,6 +41,10 @@ namespace bpr::application {
 		std::array<std::uint8_t, 32>   AuthorityFingerprint{ };
 		std::string                    Body;
 		review_mutation_anchor_binding Anchor;
+		/// Null means a migrated attempt that predates durable baseline capture.
+		std::optional<std::vector<std::string>> BaselineExactCommentIds;
+		review_mutation_recovery_transmission   Transmission
+			= review_mutation_recovery_transmission::baseline_incomplete;
 		review_mutation_recovery_state State
 			= review_mutation_recovery_state::unresolved;
 		std::optional<review_mutation_receipt> Receipt;
@@ -73,6 +85,14 @@ namespace bpr::application {
 			const review_mutation_recovery_record& aRecord)
 			-> std::expected<
 				review_mutation_recovery_admission,
+				review_mutation_recovery_failure> = 0;
+
+		/// \brief Durably witnesses that the transport created the POST operation.
+		[[nodiscard]] virtual auto mark_possibly_transmitted(
+			const std::string&                  aIdempotencyKey,
+			const std::array<std::uint8_t, 32>& aRequestFingerprint)
+			-> std::expected<
+				review_mutation_recovery_record,
 				review_mutation_recovery_failure> = 0;
 
 		/// \brief Atomically records the exact server-confirmed receipt.

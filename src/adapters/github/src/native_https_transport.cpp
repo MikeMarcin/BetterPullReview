@@ -38,6 +38,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <new>
@@ -169,16 +170,20 @@ namespace bpr::adapters::github::detail {
 		struct operation_state
 		{
 			operation_state(native_request aRequest, const std::stop_token aStop,
-							const std::chrono::steady_clock::time_point aDeadline)
+							const std::chrono::steady_clock::time_point aDeadline,
+							github_mutation_transmission_witness        aWitness = { })
 				: Request{ std::move(aRequest) }
 				, Stop{ aStop }
 				, Deadline{ aDeadline }
+				, TransmissionWitness{ std::move(aWitness) }
 			{
 			}
 
 			native_request                        Request;
 			std::stop_token                       Stop;
 			std::chrono::steady_clock::time_point Deadline;
+			github_mutation_transmission_witness  TransmissionWitness;
+			bool                                  MutationPostCreated = false;
 			std::optional<hop_result>             Result;
 			std::atomic_bool                      Done = false;
 		};
@@ -1911,7 +1916,9 @@ namespace bpr::adapters::github::detail {
 			return application::review_mutation_failure::unavailable;
 		}
 
-		[[nodiscard]] auto mutation_completion(hop_result aResult)
+		[[nodiscard]] auto mutation_completion(
+			hop_result                         aResult,
+			const github_mutation_transmission aTransmission)
 			-> github_mutation_wire_completion
 		{
 			if (auto* success = std::get_if<hop_success>(&aResult)) {
@@ -1925,14 +1932,18 @@ namespace bpr::adapters::github::detail {
 			}
 			if (auto* error = std::get_if<application::github_provider_error>(&aResult)) {
 				return github_mutation_wire_error{
-					.Failure = mutation_failure(error->Failure),
+					.Failure      = mutation_failure(error->Failure),
+					.Transmission = aTransmission,
 				};
 			}
 			if (std::holds_alternative<hop_cancelled>(aResult)) {
-				return github_mutation_wire_cancelled{ };
+				return github_mutation_wire_cancelled{
+					.Transmission = aTransmission,
+				};
 			}
 			return github_mutation_wire_error{
-				.Failure = application::review_mutation_failure::unavailable,
+				.Failure      = application::review_mutation_failure::unavailable,
+				.Transmission = aTransmission,
 			};
 		}
 	} // namespace
@@ -2233,8 +2244,9 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto perform_review_mutation(
-			const github_mutation_wire_request& aRequest,
-			const std::stop_token               aStop)
+			const github_mutation_wire_request&  aRequest,
+			const std::stop_token                aStop,
+			github_mutation_transmission_witness aWitness)
 			-> github_mutation_wire_completion
 		{
 			if (aStop.stop_requested()) {
@@ -2262,8 +2274,18 @@ namespace bpr::adapters::github::detail {
 					.Failure = application::review_mutation_failure::unavailable,
 				};
 			}
+			auto postCreated = std::make_shared<std::atomic_bool>(false);
+			auto witness     = [postCreated, witness = std::move(aWitness)]() mutable {
+				postCreated->store(true, std::memory_order_release);
+				return witness && witness();
+			};
+			auto result = perform_validated(
+				aRequest, std::move(native), aStop, std::move(witness));
 			return mutation_completion(
-				perform_validated(aRequest, std::move(native), aStop));
+				std::move(result),
+				postCreated->load(std::memory_order_acquire)
+					? github_mutation_transmission::indeterminate
+					: github_mutation_transmission::definitely_not_sent);
 		}
 
 		[[nodiscard]] auto can_acquire_smart(
@@ -2513,9 +2535,10 @@ namespace bpr::adapters::github::detail {
 		}
 
 		template <typename Request>
-		[[nodiscard]] auto perform_validated(const Request&        aRequest,
-											 native_request        aNative,
-											 const std::stop_token aStop)
+		[[nodiscard]] auto perform_validated(const Request&                       aRequest,
+											 native_request                       aNative,
+											 const std::stop_token                aStop,
+											 github_mutation_transmission_witness aWitness = { })
 			-> hop_result
 		{
 			if (Closing.load(std::memory_order_acquire) || Dispatcher == nullptr
@@ -2545,7 +2568,8 @@ namespace bpr::adapters::github::detail {
 			try {
 				state = std::make_shared<operation_state>(
 					std::move(aNative), aStop,
-					std::chrono::steady_clock::now() + Policy.TotalTimeout);
+					std::chrono::steady_clock::now() + Policy.TotalTimeout,
+					std::move(aWitness));
 			} catch (...) {
 				discard_bootstrap();
 				return provider_error(
@@ -3082,6 +3106,21 @@ namespace bpr::adapters::github::detail {
 				return provider_error(
 					application::github_provider_failure::network);
 			}
+			if (aOperation->Request.Surface == native_request_surface::review_mutation
+				&& aOperation->Request.Method == http_method::post) {
+				aOperation->MutationPostCreated = true;
+				auto witnessed                  = false;
+				try {
+					witnessed = aOperation->TransmissionWitness
+						&& aOperation->TransmissionWitness();
+				} catch (...) {
+				}
+				if (!witnessed) {
+					abort_hop(state);
+					return provider_error(
+						application::github_provider_failure::unavailable);
+				}
+			}
 			active_hop_guard active{ state, ActiveHop };
 			state.Reply->setReadBufferSize(static_cast<qint64>(std::min(
 				Policy.ResponseBodyLimit + 1U, response_read_buffer_bytes)));
@@ -3253,6 +3292,9 @@ namespace bpr::adapters::github::detail {
 				auto attempt = execute_hop(aOperation, aUrl, aCandidates[index]);
 				if (auto* proxyFailure = std::get_if<hop_proxy_failure>(&attempt);
 					proxyFailure != nullptr) {
+					if (aOperation->MutationPostCreated) {
+						return proxyFailure->Error;
+					}
 					if (index + 1U < aCandidates.size()) {
 						continue;
 					}
@@ -3753,8 +3795,9 @@ namespace bpr::adapters::github::detail {
 	}
 
 	auto native_https_transport::perform_review_mutation(
-		const github_mutation_wire_request& aRequest,
-		const std::stop_token               aStop)
+		const github_mutation_wire_request&  aRequest,
+		const std::stop_token                aStop,
+		github_mutation_transmission_witness aWitness)
 		-> github_mutation_wire_completion
 	{
 		if (Implementation == nullptr) {
@@ -3762,7 +3805,8 @@ namespace bpr::adapters::github::detail {
 				.Failure = application::review_mutation_failure::unavailable,
 			};
 		}
-		return Implementation->perform_review_mutation(aRequest, aStop);
+		return Implementation->perform_review_mutation(
+			aRequest, aStop, std::move(aWitness));
 	}
 
 	auto make_native_https_bootstrap_transport(

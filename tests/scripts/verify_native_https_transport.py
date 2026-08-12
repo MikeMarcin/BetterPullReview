@@ -25,6 +25,7 @@ HOST = "ghe.bpr.invalid"
 REST_PATH = "/api/v3/user"
 REDIRECTED_REST_PATH = "/api/v3/user/redirected"
 GRAPHQL_PATH = "/api/graphql"
+MUTATION_PATH = "/api/v3/repos/octo-org/review-repository/pulls/17/comments"
 
 CONNECT_HEADER_LIMIT = 16 * 1024
 ORIGIN_HEADER_LIMIT = 32 * 1024
@@ -37,6 +38,9 @@ HANDLER_GRACE_SECONDS = 0.25
 
 SCENARIOS = (
     "success",
+    "mutation-witness",
+    "mutation-witness-failure",
+    "mutation-proxy-no-fallback",
     "proxy-fallback",
     "same-redirect",
     "same-query-redirect",
@@ -695,7 +699,10 @@ class LoopbackConnectTlsFixture:
         except ProbeFailure as error:
             self.observation.violate(error.code)
         except (ConnectionError, OSError, ssl.SSLError):
-            if not self.stop_event.is_set():
+            if (
+                not self.stop_event.is_set()
+                and self.scenario != "mutation-witness-failure"
+            ):
                 self.observation.violate("connection-handler")
         except Exception:
             self.observation.violate("connection-handler")
@@ -731,6 +738,21 @@ class LoopbackConnectTlsFixture:
             self.observation.violate("origin-accept-language")
 
         if self.scenario in {
+            "mutation-witness",
+            "mutation-witness-failure",
+        }:
+            if (
+                request.method != "POST"
+                or request.target != MUTATION_PATH
+                or request.body_size == 0
+            ):
+                self.observation.violate("mutation-request")
+            if (
+                one_header(request.headers, "content-type")
+                != b"application/json"
+            ):
+                self.observation.violate("mutation-content-type")
+        elif self.scenario in {
             "graphql-redirect",
             "graphql-link",
             "graphql-403-rate",
@@ -766,6 +788,18 @@ class LoopbackConnectTlsFixture:
         connection: ssl.SSLSocket,
         sequence: int,
     ) -> None:
+        if self.scenario in {
+            "mutation-witness",
+            "mutation-witness-failure",
+        }:
+            connection.sendall(
+                response_bytes(
+                    201,
+                    "Created",
+                    b'{"id":44,"node_id":"PRRC_fixture_44"}',
+                )
+            )
+            return
         if self.scenario == "same-redirect" and sequence == 0:
             connection.sendall(
                 response_bytes(
@@ -1083,6 +1117,12 @@ class LoopbackConnectTlsFixture:
             if actual != expected or tls_failures != 0:
                 raise ProbeFailure("pre-cancel-network-effect")
             return
+
+        if self.scenario == "mutation-proxy-no-fallback":
+            actual = (accepts, connects, handshakes, requests, authorizations)
+            if actual != (0, 0, 0, 0, 0) or tls_failures != 0 or targets:
+                raise ProbeFailure("mutation-proxy-fallback-effect")
+            return
         if self.scenario == "untrusted-certificate":
             if (
                 accepts != 1
@@ -1093,6 +1133,18 @@ class LoopbackConnectTlsFixture:
                 or (handshakes, tls_failures) not in {(1, 0), (0, 1)}
             ):
                 raise ProbeFailure("untrusted-certificate-observation")
+            return
+
+        if self.scenario == "mutation-witness-failure":
+            if (
+                not (
+                    0 <= authorizations <= requests <= handshakes
+                    <= connects <= accepts <= 1
+                )
+                or tls_failures != 0
+                or (targets and targets != (MUTATION_PATH,))
+            ):
+                raise ProbeFailure("mutation-witness-failure-observation")
             return
 
         expected_requests = 2 if self.scenario == "same-redirect" else 1
@@ -1108,6 +1160,12 @@ class LoopbackConnectTlsFixture:
         if self.scenario == "same-redirect":
             if targets != (REST_PATH, REDIRECTED_REST_PATH):
                 raise ProbeFailure("same-redirect-targets")
+        elif self.scenario in {
+            "mutation-witness",
+            "mutation-witness-failure",
+        }:
+            if targets != (MUTATION_PATH,):
+                raise ProbeFailure("mutation-witness-target")
         elif self.scenario in {
             "graphql-redirect",
             "graphql-link",
@@ -1270,7 +1328,10 @@ def verify_scenario(
             certificate,
             ports[0],
         ) as fixture:
-            if scenario == "proxy-fallback":
+            if scenario in {
+                "proxy-fallback",
+                "mutation-proxy-no-fallback",
+            }:
                 with RefusingLoopbackProxy(ports[1]) as refused:
                     invoke_child(
                         executable,

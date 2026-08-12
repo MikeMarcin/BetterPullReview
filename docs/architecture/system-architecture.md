@@ -568,6 +568,25 @@ of executor concurrency. The coordinator then fixes the destination,
 revalidates target and head, derives the idempotency key, and refreshes server
 comments before presentation.
 
+The live provider captures a bounded, sorted set of exact matching GitHub
+comment node IDs before durable admission. The exact-scope SQLite store commits
+that baseline and the canonical write fingerprint atomically, then viewer and
+target/head observations remain the final authority sequence immediately before
+POST. Admission is only a prepared row: the native transport advances it to
+possibly-transmitted through a one-shot durable callback after the Qt network
+manager returns a POST reply. A failed witness aborts the reply; pre-dispatch
+failure and death before that callback remain prepared and perform no recovery
+transport. Native proxy fallback cannot create a second mutation POST after
+the first candidate creates its reply, even when its terminal error would be
+retryable for a GET. A possibly-transmitted originating or restarted process
+performs only GET reconciliation: current exact IDs minus the durable baseline
+must contain exactly one identity to resolve. Zero or multiple candidates,
+pagination, capacity overflow, digest-invalid baseline bytes, and migrated
+unresolved v1 rows with no baseline fail closed without a second POST. The
+encoded baseline and SHA-256 digest commit together. An exact successful POST
+response is its own direct receipt only when its ID was absent from the durable
+baseline.
+
 The fixture build supplies a reusable testing grant. Tests-disabled production
 constructs the same asynchronous host only when the accepted handoff and
 snapshot match the compiled designated host, repository, pull request, base,

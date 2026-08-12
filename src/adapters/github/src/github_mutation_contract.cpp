@@ -11,10 +11,13 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <concepts>
+#include <iterator>
 #include <limits>
+#include <memory>
 #include <new>
 #include <optional>
 #include <ranges>
@@ -529,6 +532,37 @@ namespace bpr::adapters::github::detail {
 				&& aLeft.Body == aRight.Body && aLeft.Anchor == aRight.Anchor;
 		}
 
+		[[nodiscard]] auto exact_comment_ids(
+			const review_mutation_server_reconciliation& aObservation)
+			-> std::vector<std::string>
+		{
+			auto result = std::vector<std::string>{ };
+			result.reserve(aObservation.ExactReceipts.size());
+			std::ranges::transform(
+				aObservation.ExactReceipts,
+				std::back_inserter(result),
+				&application::review_mutation_receipt::ServerCommentId);
+			return result;
+		}
+
+		[[nodiscard]] auto new_exact_receipt(
+			const review_mutation_server_reconciliation& aObservation,
+			const std::vector<std::string>&              aBaseline)
+			-> std::optional<application::review_mutation_receipt>
+		{
+			auto result = std::optional<application::review_mutation_receipt>{ };
+			for (const auto& receipt : aObservation.ExactReceipts) {
+				if (std::ranges::binary_search(aBaseline, receipt.ServerCommentId)) {
+					continue;
+				}
+				if (result.has_value()) {
+					return std::nullopt;
+				}
+				result = receipt;
+			}
+			return result;
+		}
+
 		[[nodiscard]] auto map_contract_failure(
 			const review_mutation_contract_failure aFailure) noexcept
 			-> application::review_mutation_failure
@@ -856,10 +890,7 @@ namespace bpr::adapters::github::detail {
 			};
 			const auto exact = parse_review_comment_response(candidate, aExpected);
 			if (exact.has_value()) {
-				if (result.ExactReceipt.has_value()) {
-					return failed(review_mutation_contract_failure::identity_mismatch);
-				}
-				result.ExactReceipt = exact->Receipt;
+				result.ExactReceipts.push_back(exact->Receipt);
 			} else if (exact.error()
 					   != review_mutation_contract_failure::identity_mismatch) {
 				return failed(exact.error());
@@ -873,6 +904,15 @@ namespace bpr::adapters::github::detail {
 			!= result.Projection.end()) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
+		std::ranges::sort(
+			result.ExactReceipts,
+			{ },
+			&application::review_mutation_receipt::ServerCommentId);
+		const auto duplicates = std::ranges::unique(
+			result.ExactReceipts,
+			{ },
+			&application::review_mutation_receipt::ServerCommentId);
+		result.ExactReceipts.erase(duplicates.begin(), duplicates.end());
 		return result;
 	}
 
@@ -905,8 +945,9 @@ namespace bpr::adapters::github::detail {
 	}
 
 	auto review_mutation_session::perform(
-		review_mutation_wire_request aRequest,
-		const std::stop_token        aStop)
+		review_mutation_wire_request         aRequest,
+		const std::stop_token                aStop,
+		github_mutation_transmission_witness aWitness)
 		-> std::expected<review_mutation_wire_response, application::review_mutation_failure>
 	{
 		if (aStop.stop_requested()) {
@@ -921,7 +962,8 @@ namespace bpr::adapters::github::detail {
 				.Context = Configuration.CredentialContext,
 				.Wire    = std::move(aRequest),
 			},
-			aStop);
+			aStop,
+			std::move(aWitness));
 		if (auto* success = std::get_if<github_mutation_wire_success>(&completion)) {
 			return std::move(success->Response);
 		}
@@ -1087,10 +1129,9 @@ namespace bpr::adapters::github::detail {
 				return failure(application::review_mutation_failure::unavailable);
 			}
 
-			const auto finishKnown = [&](
-										 const application::review_mutation_recovery_record& aKnown,
-										 const bool                                          aAlreadyObserved) -> application::review_mutation_submission {
-				if (!same_attempt(aKnown, expected)) {
+			const auto finishKnown = [&](const application::review_mutation_recovery_record& aKnown)
+				-> application::review_mutation_submission {
+				if (!application::valid(aKnown) || !same_attempt(aKnown, expected)) {
 					return failure(application::review_mutation_failure::unavailable);
 				}
 				if (aKnown.State == application::review_mutation_recovery_state::succeeded
@@ -1100,14 +1141,15 @@ namespace bpr::adapters::github::detail {
 					return { .Result = std::move(duplicate) };
 				}
 				if (aKnown.State != application::review_mutation_recovery_state::unresolved
-					|| aKnown.Receipt.has_value()) {
+					|| aKnown.Receipt.has_value()
+					|| !aKnown.BaselineExactCommentIds.has_value()
+					|| aKnown.Transmission
+						!= application::review_mutation_recovery_transmission::possibly_transmitted) {
 					return failure(application::review_mutation_failure::unavailable);
 				}
-				if (!aAlreadyObserved) {
-					const auto current = observe_exact(aStop);
-					if (!current.has_value()) {
-						return failure(current.error());
-					}
+				const auto current = observe_exact(aStop);
+				if (!current.has_value()) {
+					return failure(current.error());
 				}
 				auto observed = reconcile(aRequest, aStop);
 				if (!observed.has_value()) {
@@ -1116,17 +1158,18 @@ namespace bpr::adapters::github::detail {
 				auto submission = application::review_mutation_submission{
 					.Reconciliation = observed->Projection,
 				};
-				if (!observed->ExactReceipt.has_value()) {
+				auto receipt = new_exact_receipt(
+					*observed, *aKnown.BaselineExactCommentIds);
+				if (!receipt.has_value()) {
 					return submission;
 				}
-				auto receipt        = *observed->ExactReceipt;
-				receipt.Duplicate   = true;
+				receipt->Duplicate  = true;
 				const auto resolved = Recovery->resolve(
-					aRequest.IdempotencyKey, fingerprint, receipt);
+					aRequest.IdempotencyKey, fingerprint, *receipt);
 				if (!resolved.has_value()) {
 					return submission;
 				}
-				submission.Result = std::move(receipt);
+				submission.Result = std::move(*receipt);
 				return submission;
 			};
 
@@ -1135,7 +1178,29 @@ namespace bpr::adapters::github::detail {
 				return failure(application::review_mutation_failure::unavailable);
 			}
 			if (loaded->has_value()) {
-				return finishKnown(**loaded, false);
+				return finishKnown(**loaded);
+			}
+
+			auto baseline = reconcile(aRequest, aStop);
+			if (!baseline.has_value()) {
+				return failure(baseline.error());
+			}
+			if (aStop.stop_requested()) {
+				return failure(application::review_mutation_failure::cancelled);
+			}
+			auto admittedRecord                    = expected;
+			admittedRecord.BaselineExactCommentIds = exact_comment_ids(*baseline);
+			admittedRecord.Transmission
+				= application::review_mutation_recovery_transmission::prepared;
+			if (!application::valid(admittedRecord)) {
+				return failure(application::review_mutation_failure::unavailable);
+			}
+			const auto admitted = Recovery->admit(admittedRecord);
+			if (!admitted.has_value()) {
+				return failure(application::review_mutation_failure::unavailable);
+			}
+			if (!admitted->Inserted) {
+				return finishKnown(admitted->Record);
 			}
 			if (const auto current = observe_exact(aStop); !current.has_value()) {
 				return failure(current.error());
@@ -1143,18 +1208,24 @@ namespace bpr::adapters::github::detail {
 			if (aStop.stop_requested()) {
 				return failure(application::review_mutation_failure::cancelled);
 			}
-			const auto admitted = Recovery->admit(expected);
-			if (!admitted.has_value()) {
-				return failure(application::review_mutation_failure::unavailable);
-			}
-			if (!admitted->Inserted) {
-				return finishKnown(admitted->Record, true);
-			}
 
 			auto submission = application::review_mutation_submission{
 				.MutationAttempted = true,
 			};
-			auto response    = perform(*wire, aStop);
+			auto witnessed = std::make_shared<std::atomic_bool>(false);
+			auto response  = perform(
+				*wire,
+				aStop,
+				[this, witnessed, key = aRequest.IdempotencyKey, fingerprint] {
+					if (witnessed->exchange(true, std::memory_order_acq_rel)) {
+						return false;
+					}
+					const auto marked = Recovery->mark_possibly_transmitted(
+						key, fingerprint);
+					return marked.has_value()
+						&& marked->Transmission
+						== application::review_mutation_recovery_transmission::possibly_transmitted;
+				});
 			auto postReceipt = std::optional<application::review_mutation_receipt>{ };
 			if (response.has_value()) {
 				const auto parsed = parse_review_comment_response(*response, aRequest);
@@ -1166,6 +1237,12 @@ namespace bpr::adapters::github::detail {
 			} else {
 				submission.Result = std::unexpected(response.error());
 			}
+			const auto transmission = Recovery->load(aRequest.IdempotencyKey);
+			if (!transmission.has_value() || !transmission->has_value()
+				|| (**transmission).Transmission
+					!= application::review_mutation_recovery_transmission::possibly_transmitted) {
+				return submission;
+			}
 
 			// Once POST has been invoked its transmission is ambiguous even if the
 			// caller cancels. The bounded transport therefore performs this one
@@ -1174,9 +1251,16 @@ namespace bpr::adapters::github::detail {
 			if (observed.has_value()) {
 				submission.Reconciliation = observed->Projection;
 			}
-			auto confirmed = observed.has_value() && observed->ExactReceipt.has_value()
-				? observed->ExactReceipt
-				: postReceipt;
+			auto confirmed = postReceipt.has_value()
+					&& !std::ranges::binary_search(
+								 *admittedRecord.BaselineExactCommentIds,
+								 postReceipt->ServerCommentId)
+				? postReceipt
+				: std::nullopt;
+			if (!confirmed.has_value() && observed.has_value()) {
+				confirmed = new_exact_receipt(
+					*observed, *admittedRecord.BaselineExactCommentIds);
+			}
 			if (!confirmed.has_value()) {
 				return submission;
 			}

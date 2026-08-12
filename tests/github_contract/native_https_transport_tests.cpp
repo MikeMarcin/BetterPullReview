@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <charconv>
 #include <chrono>
 #include <cstddef>
@@ -73,6 +74,14 @@ namespace {
 		if (!aCondition) {
 			throw test_failure{ aMessage };
 		}
+	}
+
+	template <typename Identity>
+	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		bytes.fill(aSeed);
+		return Identity{ bytes };
 	}
 
 	void discard_qt_message(
@@ -244,6 +253,77 @@ namespace {
 				.ServerContract = aProfile.server_contract(),
 			},
 			.IdentityGeneration = aRequest.IdentityGeneration,
+		};
+	}
+
+	[[nodiscard]] auto mutation_request_for(
+		const validated_github_host_profile& aProfile)
+		-> github_mutation_wire_request
+	{
+		const auto context = pull_request_context(aProfile);
+		const auto head    = *core::parse_git_commit_oid(
+			"1111111111111111111111111111111111111111");
+		const auto base = *core::parse_git_commit_oid(
+			"2222222222222222222222222222222222222222");
+		const auto target = application::review_mutation_target_binding{
+			.Semantic = {
+				.Host         = context.Host,
+				.Repository   = *context.ExpectedRepository,
+				.PullRequest  = *context.ExpectedPullRequest,
+				.ExpectedHead = head,
+			},
+			.Hostname                 = application::github_canonical_hostname{ aProfile.hostname() },
+			.ServerContract           = aProfile.server_contract(),
+			.Repository               = context.Repository,
+			.Number                   = context.Number,
+			.RepositoryDatabaseId     = 1'328'277'631U,
+			.RepositoryNodeId         = "R_kgDOTyvofw",
+			.PullRequestDatabaseId    = 4'246'446'933U,
+			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
+			.BaseRepositoryDatabaseId = 1'328'277'631U,
+			.BaseOid                  = base,
+			.BaseRef                  = "main",
+			.HeadRef                  = "feature/review",
+			.Open                     = true,
+		};
+		const auto identity = application::review_mutation_acting_identity{
+			.Account    = context.Account,
+			.DatabaseId = 22U,
+			.NodeId     = "MDQ6VXNlcjIy",
+			.Login      = "fixture-reviewer",
+		};
+		const auto proposal = core::review_publication_proposal{
+			.Draft  = core::review_draft_id{ 31U },
+			.Anchor = {
+				.Comparison = opaque<core::file_comparison_digest>(0x22U),
+				.Side       = core::diff_side::right,
+				.Line       = 12U,
+			},
+			.Body        = "Please rename this.",
+			.Disposition = core::review_disposition::comment,
+		};
+		const auto semantic = application::review_mutation_request{
+			.Proposal       = proposal,
+			.Target         = target.Semantic,
+			.ActingIdentity = identity.Account,
+			.IdempotencyKey = application::idempotency_key_for(
+				proposal, target.Semantic),
+			.LiveBinding = application::review_mutation_live_binding{
+				.Target         = target,
+				.ActingIdentity = identity,
+				.Anchor         = {
+					.Semantic = proposal.Anchor,
+					.Path     = "fixture/review.txt",
+					.Commit   = head,
+				},
+			},
+		};
+		const auto wire = compile_review_comment_request(
+			semantic, aProfile.server_contract());
+		expect(wire.has_value(), "fixture-mutation-wire");
+		return {
+			.Context = account_operation_context(aProfile, context),
+			.Wire    = *wire,
 		};
 	}
 
@@ -480,6 +560,8 @@ namespace {
 				.ExpectedHead = *core::parse_git_commit_oid(
 					"1111111111111111111111111111111111111111"),
 			},
+			.Hostname                 = application::github_canonical_hostname{ native->hostname() },
+			.ServerContract           = native->server_contract(),
 			.Repository               = pullRequest.Repository,
 			.Number                   = pullRequest.Number,
 			.RepositoryDatabaseId     = 204U,
@@ -487,6 +569,9 @@ namespace {
 			.PullRequestDatabaseId    = 205U,
 			.PullRequestNodeId        = "PR_fixture_205",
 			.BaseRepositoryDatabaseId = 204U,
+			.BaseOid                  = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"),
+			.BaseRef                  = "main",
+			.HeadRef                  = "feature/review",
 			.Open                     = true,
 		};
 		const auto mutationWire = compile_target_observation_request(mutationTarget);
@@ -498,20 +583,24 @@ namespace {
 		std::stop_source mutationStopped;
 		expect(mutationStopped.request_stop(), "mutation-pre-cancel-request");
 		const auto mutationCancelled = (*account)->perform_review_mutation(
-			mutationRequest, mutationStopped.get_token());
-		expect(std::holds_alternative<github_mutation_wire_cancelled>(
-				   mutationCancelled),
+			mutationRequest, mutationStopped.get_token(), [] { return true; });
+		const auto* mutationCancellation = std::get_if<github_mutation_wire_cancelled>(&mutationCancelled);
+		expect(mutationCancellation != nullptr
+				   && mutationCancellation->Transmission
+					   == github_mutation_transmission::definitely_not_sent,
 			   "mutation-pre-cancelled-without-network");
 
 		auto invalidMutation = mutationRequest;
 		invalidMutation.Wire.Path += "/tampered";
 		const auto invalidMutationCompletion = (*account)->perform_review_mutation(
-			invalidMutation, std::stop_token{ });
+			invalidMutation, std::stop_token{ }, [] { return true; });
 		const auto* invalidMutationError = std::get_if<github_mutation_wire_error>(
 			&invalidMutationCompletion);
 		expect(invalidMutationError != nullptr
 				   && invalidMutationError->Failure
-					   == application::review_mutation_failure::unavailable,
+					   == application::review_mutation_failure::unavailable
+				   && invalidMutationError->Transmission
+					   == github_mutation_transmission::definitely_not_sent,
 			   "invalid-mutation-refused-before-network");
 
 		auto accountDrift = repository;
@@ -650,6 +739,9 @@ namespace {
 
 	enum class fixture_scenario : std::uint8_t {
 		success,
+		mutation_witness,
+		mutation_witness_failure,
+		mutation_proxy_no_fallback,
 		proxy_fallback,
 		same_redirect,
 		same_query_redirect,
@@ -688,6 +780,15 @@ namespace {
 	{
 		if (aValue == "success") {
 			return fixture_scenario::success;
+		}
+		if (aValue == "mutation-witness") {
+			return fixture_scenario::mutation_witness;
+		}
+		if (aValue == "mutation-witness-failure") {
+			return fixture_scenario::mutation_witness_failure;
+		}
+		if (aValue == "mutation-proxy-no-fallback") {
+			return fixture_scenario::mutation_proxy_no_fallback;
 		}
 		if (aValue == "proxy-fallback") {
 			return fixture_scenario::proxy_fallback;
@@ -791,6 +892,12 @@ namespace {
 		switch (aScenario) {
 		case fixture_scenario::success:
 			return "success";
+		case fixture_scenario::mutation_witness:
+			return "mutation-witness";
+		case fixture_scenario::mutation_witness_failure:
+			return "mutation-witness-failure";
+		case fixture_scenario::mutation_proxy_no_fallback:
+			return "mutation-proxy-no-fallback";
 		case fixture_scenario::proxy_fallback:
 			return "proxy-fallback";
 		case fixture_scenario::same_redirect:
@@ -1135,6 +1242,9 @@ namespace {
 	{
 		switch (aScenario) {
 		case fixture_scenario::success:
+		case fixture_scenario::mutation_witness:
+		case fixture_scenario::mutation_witness_failure:
+		case fixture_scenario::mutation_proxy_no_fallback:
 		case fixture_scenario::proxy_fallback:
 		case fixture_scenario::same_redirect:
 		case fixture_scenario::response_metadata:
@@ -1327,6 +1437,46 @@ namespace {
 												 aScenario);
 			return;
 		}
+		if (aScenario == fixture_scenario::mutation_witness
+			|| aScenario == fixture_scenario::mutation_witness_failure
+			|| aScenario == fixture_scenario::mutation_proxy_no_fallback) {
+			const auto request   = mutation_request_for(*profile);
+			auto       transport = make_native_https_account_transport_for_test(
+				*profile,
+				application::github_credential_retrieve_success{
+					.Context    = request.Context,
+					.Credential = credential_material(framedCredential),
+				},
+				configuration);
+			wipe(framedCredential);
+			expect(transport.has_value(), "mutation-fixture-transport");
+			std::atomic_uint32_t witnessCount{ 0U };
+			const auto           completion = (*transport)->perform_review_mutation(request, std::stop_token{ }, [&witnessCount, aScenario] {
+				witnessCount.fetch_add(1U, std::memory_order_relaxed);
+				return aScenario != fixture_scenario::mutation_witness_failure;
+			});
+			expect(
+				witnessCount.load(std::memory_order_relaxed) == 1U,
+				"mutation-fixture-one-witness");
+			if (aScenario == fixture_scenario::mutation_witness) {
+				const auto* success = std::get_if<github_mutation_wire_success>(
+					&completion);
+				expect(
+					success != nullptr && success->Response.Status == 201,
+					"mutation-fixture-success");
+			} else {
+				const auto* failure = std::get_if<github_mutation_wire_error>(
+					&completion);
+				expect(
+					failure != nullptr
+						&& failure->Failure
+							== application::review_mutation_failure::unavailable
+						&& failure->Transmission
+							== github_mutation_transmission::indeterminate,
+					"mutation-fixture-failed-witness-aborts");
+			}
+			return;
+		}
 
 		const auto operation = aScenario == fixture_scenario::graphql_redirect
 				|| aScenario == fixture_scenario::graphql_link
@@ -1395,12 +1545,14 @@ auto main(int argument_count, char* arguments[]) -> int
 			"fixture-selection");
 		expect(
 			(
-				*scenario == fixture_scenario::proxy_fallback
+				(*scenario == fixture_scenario::proxy_fallback
+				 || *scenario == fixture_scenario::mutation_proxy_no_fallback)
 				&& argument_count == 7
 				&& std::string_view{ arguments[5] }
 					== "--fallback-proxy-port"
 				&& fallbackProxyPort.has_value())
 				|| (*scenario != fixture_scenario::proxy_fallback
+					&& *scenario != fixture_scenario::mutation_proxy_no_fallback
 					&& argument_count == 5),
 			"fixture-proxy-selection");
 		run_fixture(

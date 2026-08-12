@@ -309,6 +309,23 @@ survive and all three abandoned replacements disappear together.
 That test is POSIX-only and compiles out on Windows, where `fork` does not
 exist. The Windows equivalent is unwritten rather than silently passing.
 
+Live review-comment write recovery is deliberately not part of this ledger.
+Its separate owner-private `review-mutation-recovery.sqlite3` database stores an
+exact-scope canonical write fingerprint, resolved anchor/body, state/receipt,
+and at most 100 sorted exact-match comment node IDs observed before admission.
+Schema version two keeps those baseline bytes in a keyed side table so a
+version-one migration can retain successful receipts while representing old
+unresolved rows as baseline-incomplete. Such rows cannot resolve or POST. New
+unresolved rows, baseline bytes, SHA-256 integrity digest, and prepared
+transmission phase are committed in one transaction. Only a transport-owned
+callback after native POST-reply creation can durably mark an attempt possibly
+transmitted. Prepared attempts perform no recovery transport; possibly-
+transmitted restart reconciliation is GET-only and accepts exactly one current
+match absent from that baseline. The store also refuses to resolve any direct
+receipt already in the baseline. The digest detects stored corruption under
+the owner-private database assumption; it is not a same-user tamper-proof
+authority.
+
 ## Backups, retention, and purge
 
 **Purge is deletion.** Removing `review-ledger.sqlite3` with its `-wal` and
