@@ -354,12 +354,13 @@ namespace bpr::qt {
 		painter.setRenderHint(QPainter::Antialiasing, true);
 
 		const auto normal = with_alpha(
-			palette().color(QPalette::Mid), 112);
+			palette().color(QPalette::WindowText), 144);
 		const auto hoverFill = with_alpha(
 			palette().color(QPalette::Highlight), 112);
 		const auto selectedFill = with_alpha(
 			palette().color(QPalette::Highlight), 168);
-		const auto outline = palette().color(QPalette::Highlight);
+		const auto outline         = palette().color(QPalette::Highlight);
+		const auto selectedOutline = palette().color(QPalette::WindowText);
 
 		auto ordinaryPaths = QPainterPath{ };
 		for (const auto& link : VisibleLinks) {
@@ -379,7 +380,7 @@ namespace bpr::qt {
 			}
 			if (entry_selected(entry)) {
 				painter.fillPath(link.Path, selectedFill);
-				painter.setPen(QPen{ outline, 1.5 });
+				painter.setPen(QPen{ selectedOutline, 1.5 });
 				painter.drawPath(link.Path);
 			}
 

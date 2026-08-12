@@ -1,0 +1,22 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/0075b116efe8d055d1ddc0f5",
+  "review_gate": "compact_focused_review_navigation",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0259/dark-connector-visibility",
+      "subject_digest": "sha256:b1cd509bea7eb23a25626c0b819d3eec9a4506ffa42f0c79b2d5d598185b40f6"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {},
+  "downstream_claims": {
+    "bpr_0257_closed": false,
+    "bpr_0258_closed": false,
+    "bpr_0259_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

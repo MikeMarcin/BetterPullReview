@@ -60,6 +60,11 @@ namespace bpr::application {
 		// Reobserves receipt-derived actionability without replacing the accepted
 		// authority or detaching its retained selected diff.
 		void refresh_actionability();
+		// Supplies the bounded change cursor observed for one exact accepted diff.
+		// Stale or superseded selected-diff identities are ignored.
+		void observe_change_navigation(
+			workbench_selected_diff_request              aRequest,
+			std::optional<core::workbench_change_cursor> aCursor);
 		void apply(core::workbench_interaction_intent aIntent);
 		// Host-owned drawer width, clamped to the configured bound and persisted.
 		void resize(core::workbench_drawer aDrawer, std::uint32_t aWidth);

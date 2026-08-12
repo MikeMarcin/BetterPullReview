@@ -75,6 +75,12 @@ namespace bpr::application {
 		{
 		};
 
+		struct deferred_workbench_change_navigation
+		{
+			workbench_selected_diff_request              Request;
+			std::optional<core::workbench_change_cursor> Cursor;
+		};
+
 		struct deferred_workbench_resize
 		{
 			core::workbench_drawer Drawer = core::workbench_drawer::files;
@@ -94,6 +100,7 @@ namespace bpr::application {
 														deferred_workbench_invalidate,
 														deferred_workbench_selected_diff_refresh,
 														deferred_workbench_actionability_refresh,
+														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
 														deferred_workbench_cancel,
@@ -314,6 +321,11 @@ namespace bpr::application {
 											 ingress_type,
 											 deferred_workbench_actionability_refresh>) {
 						refresh_actionability_now();
+					} else if constexpr (std::is_same_v<
+											 ingress_type,
+											 deferred_workbench_change_navigation>) {
+						observe_change_navigation_now(
+							aTyped.Request, aTyped.Cursor);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_intent>) {
 						apply_now(aTyped.Intent);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_resize>) {
@@ -554,6 +566,8 @@ namespace bpr::application {
 
 		void submit_selected_diff()
 		{
+			clear_change_navigation();
+			publish_changes(local_context());
 			if (SelectedDiffs == nullptr || SelectedDiffProjections == nullptr
 				|| !Authority.has_value() || selected_file() == nullptr) {
 				return;
@@ -786,6 +800,7 @@ namespace bpr::application {
 			SelectedFile.reset();
 			const auto output = core::observe_workbench_navigation(State, std::nullopt);
 			LastReason        = output.Reason;
+			clear_change_navigation();
 			if (hadAuthorityBoundState) {
 				publish_changes(local_context());
 			}
@@ -809,6 +824,35 @@ namespace bpr::application {
 			submit_observation(*Authority);
 		}
 
+		void observe_change_navigation_now(
+			const workbench_selected_diff_request&              aRequest,
+			const std::optional<core::workbench_change_cursor>& aCursor)
+		{
+			if (Closing || !AcceptedSelectedDiff.has_value()
+				|| aRequest != *AcceptedSelectedDiff
+				|| !Authority.has_value()
+				|| aRequest.WorkbenchAuthority != *Authority
+				|| aRequest.Context.Session != Session
+				|| aRequest.Context.Generation != Generation
+				|| !Selected.has_value()
+				|| aRequest.File.File != *Selected) {
+				return;
+			}
+			const auto output = core::observe_workbench_change_navigation(State, aCursor);
+			LastReason        = output.Reason;
+			if (output.Reason == core::workbench_reason_code::none) {
+				publish_changes(aRequest.Context);
+			}
+		}
+
+		void clear_change_navigation()
+		{
+			AcceptedSelectedDiff.reset();
+			const auto output = core::observe_workbench_change_navigation(
+				State, std::nullopt);
+			LastReason = output.Reason;
+		}
+
 		void invalidate_now(const workbench_pull_request_authority& aAuthority)
 		{
 			if (Closing || !Authority.has_value() || *Authority != aAuthority) {
@@ -826,6 +870,7 @@ namespace bpr::application {
 			SelectedFile.reset();
 			const auto output = core::observe_workbench_navigation(State, std::nullopt);
 			LastReason        = output.Reason;
+			clear_change_navigation();
 			publish_changes(local_context());
 		}
 
@@ -1051,6 +1096,7 @@ namespace bpr::application {
 				});
 				return;
 			}
+			AcceptedSelectedDiff = aObservation.Request;
 			deliver_projection([this, &publication] {
 				SelectedDiffProjections->publish(publication);
 			});
@@ -1239,6 +1285,7 @@ namespace bpr::application {
 		std::optional<core::workbench_file_id>          Selected;
 		std::optional<workbench_file_observation_entry> SelectedFile;
 		std::optional<workbench_pull_request_authority> Authority;
+		std::optional<workbench_selected_diff_request>  AcceptedSelectedDiff;
 		workbench_layout_settings                       Layout;
 
 		std::vector<outstanding_request>       Outstanding;
@@ -1315,6 +1362,16 @@ namespace bpr::application {
 	void workbench_application_host::refresh_actionability()
 	{
 		Implementation->enqueue(deferred_workbench_actionability_refresh{ });
+	}
+
+	void workbench_application_host::observe_change_navigation(
+		workbench_selected_diff_request              aRequest,
+		std::optional<core::workbench_change_cursor> aCursor)
+	{
+		Implementation->enqueue(deferred_workbench_change_navigation{
+			.Request = std::move(aRequest),
+			.Cursor  = aCursor,
+		});
 	}
 
 	void workbench_application_host::apply(core::workbench_interaction_intent aIntent)

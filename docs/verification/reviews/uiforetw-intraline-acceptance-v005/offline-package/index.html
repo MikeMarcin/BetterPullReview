@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visible dark diff connectors</title>
+  <style>
+:root {
+  color-scheme: dark;
+  --page: #101419;
+  --panel: #192027;
+  --panel-strong: #202a33;
+  --text: #edf3f7;
+  --muted: #a8b5bf;
+  --line: #3a4853;
+  --accent: #75b9d5;
+  --accept: #57c48c;
+  --reject: #ed7777;
+  --pending: #e6b85d;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+a { color: #9fdcf3; }
+header, main { width: min(1480px, calc(100% - 2rem)); margin-inline: auto; }
+header { padding: 2rem 0 1rem; }
+h1, h2, h3, p { margin-top: 0; }
+.lede, .muted { color: var(--muted); }
+.scope-warning {
+  border-left: 4px solid var(--pending);
+  background: #282418;
+  padding: 1rem;
+}
+.reference-disclaimer {
+  border-left: 4px solid var(--accent);
+  background: #16222a;
+  padding: 1rem;
+  margin-top: .75rem;
+}
+.review-controls {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: .8rem 1rem;
+  margin-bottom: 1rem;
+  background: #081016;
+  border: 1px solid var(--line);
+  border-radius: .6rem;
+  box-shadow: 0 .25rem .75rem #0008;
+}
+.review-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+}
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .9rem;
+  font-weight: 700;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem 1rem;
+  margin-left: auto;
+}
+#review-status {
+  min-height: 1.3em;
+  margin: .4rem 0 0;
+  color: var(--muted);
+  font-size: .9rem;
+}
+button, textarea { font: inherit; }
+button {
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .55rem .8rem;
+  background: #28343e;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  color: #c2cdd4;
+  background: #2f3b43;
+  border-color: #61717a;
+}
+.subject {
+  scroll-margin-top: 8rem;
+  margin: 0 0 1.25rem;
+  padding: 1.1rem;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: .7rem;
+}
+.subject[data-review-state="accept"] { border-color: var(--accept); }
+.subject[data-review-state="reject"] { border-color: var(--reject); }
+.subject[data-review-state="pending"] { border-color: var(--pending); }
+.subject[data-review-state="not-chosen"] { border-color: var(--line); opacity: .78; }
+.selection-group {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  background: #131c24;
+  border: 1px solid var(--accent);
+  border-radius: .7rem;
+}
+.selection-group h2 { margin-bottom: .35rem; }
+.selection-group-status { margin: 0; font-weight: 700; color: var(--accent); }
+.selection-group-members {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin-top: .8rem;
+  align-items: start;
+}
+.selection-group-members .subject { margin: 0; position: relative; }
+.selection-group-members .media-grid { grid-template-columns: 1fr; }
+.subject.option { padding: .85rem; background: var(--panel-strong); }
+.subject.option h3 { margin-bottom: .3rem; padding-right: 5.5rem; }
+.option-actions { margin: .8rem 0 .3rem; align-items: center; }
+.option-actions .choose { flex: 1 1 auto; font-weight: 700; background: #1d3a4d; }
+.option-actions .minor { padding: .3rem .55rem; font-size: .85rem; background: transparent; }
+.option-extra, .notes-fold { margin-top: .5rem; color: var(--muted); font-size: .9rem; }
+.option-extra summary, .notes-fold summary { cursor: pointer; }
+.option-extra section { margin-top: .5rem; }
+.option-extra h4 { margin: 0 0 .25rem; }
+.selection-group-members .subject::after {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  padding: .1rem .5rem;
+  border-radius: .3rem;
+  font-size: .8rem;
+  font-weight: 700;
+}
+.selection-group-members .subject[data-review-state="accept"]::after {
+  content: "Chosen";
+  background: var(--accept);
+  color: #07150f;
+}
+.selection-group-members .subject[data-review-state="reject"]::after {
+  content: "Defective";
+  background: var(--reject);
+  color: #1b0808;
+}
+.selection-group-members .subject[data-review-state="not-chosen"]::after {
+  content: "Not chosen";
+  background: #2a333b;
+  color: var(--muted);
+}
+@media (max-width: 850px) {
+  .selection-group-members { grid-template-columns: 1fr; }
+}
+.subject-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: start;
+}
+.identity { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; word-break: break-all; }
+.audit-banner {
+  padding: .55rem .8rem;
+  border-radius: .4rem;
+  font-weight: 700;
+}
+.audit-banner[data-audit="pass"] { background: #12281c; color: var(--accept); border: 1px solid var(--accept); }
+.audit-banner[data-audit="fail"] { background: #2b1414; color: var(--reject); border: 1px solid var(--reject); }
+.media-groups { display: grid; gap: 1rem; }
+.media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .75rem; }
+.media-grid.compare { grid-template-columns: 1fr 1fr; }
+figure { margin: 0; padding: .6rem; background: var(--panel-strong); border-radius: .4rem; }
+figure img, figure video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  background-color: #6d7479;
+  background-image:
+    linear-gradient(45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(-45deg, #8a9297 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #8a9297 75%),
+    linear-gradient(-45deg, transparent 75%, #8a9297 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+figure audio { display: block; width: 100%; margin: .5rem 0; }
+figcaption { padding-top: .45rem; color: var(--muted); }
+.criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.detail-sections { display: grid; gap: 1rem; margin-top: 1rem; }
+.detail-sections dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+.detail-sections dt { color: var(--muted); }
+.detail-sections dd { margin: 0; }
+.detail-sections pre {
+  margin: 0;
+  padding: .65rem;
+  overflow-x: auto;
+  background: #11171c;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem;
+}
+.identity-files { margin-top: 1rem; }
+.decision-row { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0; }
+button[data-decision="accept"][aria-pressed="true"] { color: #07150f; background: var(--accept); }
+button[data-decision="reject"][aria-pressed="true"] { color: #1b0808; background: var(--reject); }
+.audit-note { margin: -.5rem 0 1rem; }
+.notes { display: grid; gap: .35rem; }
+textarea { width: 100%; min-height: 5rem; padding: .65rem; color: var(--text); background: #11171c; border: 1px solid var(--line); border-radius: .35rem; }
+.export-panel { margin: 1rem 0 3rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line); border-radius: .6rem; }
+#verdict-output { min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+@media (max-width: 850px) {
+  .criteria, .media-grid.compare { grid-template-columns: 1fr; }
+  .review-actions { margin-left: 0; }
+}
+@media (max-width: 620px) {
+  .review-summary, .review-actions { width: 100%; }
+}
+
+/* Full-resolution inspection. A quiet affordance on the thumbnail,
+   and an overlay that shows the image at its native size so a one-pixel
+   connector can actually be judged. */
+.media-zoom {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  position: relative;
+}
+.media-zoom img { display: block; width: 100%; }
+.media-zoom-hint {
+  position: absolute;
+  right: 0.4rem;
+  bottom: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 0.2rem;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.media-zoom:hover .media-zoom-hint,
+.media-zoom:focus-visible .media-zoom-hint { opacity: 1; }
+.media-zoom:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+.media-viewer[hidden] { display: none; }
+.media-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+}
+.media-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  color: #fff;
+  font-size: 0.9rem;
+}
+.media-viewer-close {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  border-radius: 0.25rem;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.media-viewer-counter {
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  padding-right: 1rem;
+}
+.media-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.9rem;
+  line-height: 1;
+  padding: .45rem .75rem .6rem;
+  border-radius: .35rem;
+}
+.media-viewer-nav[hidden] { display: none; }
+.media-viewer-prev { left: .75rem; }
+.media-viewer-next { right: .75rem; }
+.media-viewer-surface { flex: 1; overflow: auto; display: flex; }
+/* Native size, not fitted: fitting it would reproduce the defect this fixes.
+   Auto margins center an image smaller than the viewport and collapse to zero
+   when it overflows, keeping large captures scrollable from their origin. */
+.media-viewer-surface img { display: block; image-rendering: pixelated; margin: auto; }
+
+</style>
+</head>
+<body>
+  <header>
+    <h1>Visible dark diff connectors</h1>
+    <p class="lede">Project: betterpullreview · Gate: compact_focused_review_navigation · Scope: human_ui_criterion_isolation_only · Batch: bpr:/attended-review/betterpullreview/0075b116efe8d055d1ddc0f5</p>
+    <p class="scope-warning"><strong>Scope:</strong> This page records attended human decisions for this exact batch and gate only. It stores choices in this browser and cannot write repository evidence. Acceptance asserts nothing beyond this gate; these claims remain false: bpr_0257_closed, bpr_0258_closed, bpr_0259_closed, release_gate_satisfied, rfc_closeout_claimed. Export the complete verdict and return it to the requesting agent session for validation.</p>
+    <p class="reference-disclaimer"><strong>Reference:</strong> This is a new immutable batch from repair commit 8b1108cc957225ef56402870daf2a9975feba8b6 and freshly generated image/fact bytes. It directly addresses the validated v004 rejection, &#x27;The arrows look good now but the dark mode mode swoosh connectors are too hard to see except for the selected one.&#x27; No v003 or v004 decision carries forward. Judge the selected and unselected center-gutter connectors in Dark and High-contrast Dark first, then confirm the arrows, compact row, and diff remain coherent in both light profiles. The captures use Qt 6.11.1 offscreen QFusionStyle at device pixel ratio 1; native platform-specific artwork, issue closure, RFC closeout, release readiness, and deferred Linux/Windows work are outside this batch.</p>
+  </header>
+  <main>
+    <section class="review-controls" aria-label="Review progress and export">
+      <div class="review-controls-row">
+        <div class="review-summary">
+          <span id="review-progress">0/1 reviewed</span>
+          <span id="review-totals">0 accepted · 0 rejected · 1 pending</span>
+        </div>
+        <div class="review-actions">
+          <label><input id="pending-only" type="checkbox"> Show pending only</label>
+          <button id="export-verdict" type="button" disabled>Copy the complete verdict</button>
+        </div>
+      </div>
+      <p id="review-status" role="status" aria-live="polite" aria-atomic="true">Resolve every exact subject to unlock the final verdict.</p>
+    </section>
+    <article class="subject" data-subject-id="criterion:/betterpullreview/bpr-0259/dark-connector-visibility" data-subject-digest="sha256:b1cd509bea7eb23a25626c0b819d3eec9a4506ffa42f0c79b2d5d598185b40f6" data-review-state="pending">
+  <div class="subject-head">
+    <div>
+      <h2>Are selected and unselected diff connectors now clear in dark modes?</h2>
+      <p>Ordinary center-gutter connectors now use a palette-derived neutral stroke that stays visible on dark surfaces. The selected connector retains its highlighted fill and gains a contrasting edge. Review Dark and High-contrast Dark first; the compact toolbar, readable arrows, connector geometry, endpoints, and two-pane comparison are otherwise unchanged.</p>
+    </div>
+    <div class="identity">criterion:/betterpullreview/bpr-0259/dark-connector-visibility<br>sha256:b1cd509bea7eb23a25626c0b819d3eec9a4506ffa42f0c79b2d5d598185b40f6</div>
+  </div>
+  <p class="audit-banner" data-audit="pass">Mechanical audit: PASS — The exact six-test selector passed 6/6. Actual unselected connector pixels measure 5.33:1 median contrast in Dark and 6.57:1 in High-contrast Dark, with 840/1008 samples at or above 3:1 in each profile. Selected connectors contribute 250 above-floor edge pixels and remain raster-distinct. Independent read-only closeout review found no blocker and confirmed that v004 would fail the new actual-raster gate.</p>
+  <div class="media-groups">
+    <section><h3>Primary decision: dark connector visibility</h3><p class="muted">Inspect the center gutter. The selected connector is the highlighted upper swoosh; the unselected connector is the neutral lower swoosh. Click for native resolution.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-dark-connector-visibility/dark-connector-captures/01-dark-full-window.png" data-full-label="Dark — full window" aria-label="View Dark — full window at full resolution"><img loading="lazy" src="subjects/001-dark-connector-visibility/dark-connector-captures/01-dark-full-window.png" alt="Dark — full window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark — full window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-dark-connector-visibility/dark-connector-captures/02-high-contrast-dark-full-window.png" data-full-label="High-contrast Dark — full window" aria-label="View High-contrast Dark — full window at full resolution"><img loading="lazy" src="subjects/001-dark-connector-visibility/dark-connector-captures/02-high-contrast-dark-full-window.png" alt="High-contrast Dark — full window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark — full window</figcaption></figure></div></section>
+<section><h3>Dark comparison detail</h3><p class="muted">Confirm both connector states remain attached to the correct left/right rows without obscuring the comparison.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-dark-connector-visibility/dark-comparison-detail/01-dark-comparison-crop.png" data-full-label="Dark — comparison crop" aria-label="View Dark — comparison crop at full resolution"><img loading="lazy" src="subjects/001-dark-connector-visibility/dark-comparison-detail/01-dark-comparison-crop.png" alt="Dark — comparison crop"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Dark — comparison crop</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-dark-connector-visibility/dark-comparison-detail/02-high-contrast-dark-comparison-crop.png" data-full-label="High-contrast Dark — comparison crop" aria-label="View High-contrast Dark — comparison crop at full resolution"><img loading="lazy" src="subjects/001-dark-connector-visibility/dark-comparison-detail/02-high-contrast-dark-comparison-crop.png" alt="High-contrast Dark — comparison crop"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Dark — comparison crop</figcaption></figure></div></section>
+<section><h3>Regression check: light profiles</h3><p class="muted">Confirm the selected and unselected connectors remain coherent without changing the compact allocation or readable arrows.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-dark-connector-visibility/light-regression-captures/01-light-full-window.png" data-full-label="Light — full window" aria-label="View Light — full window at full resolution"><img loading="lazy" src="subjects/001-dark-connector-visibility/light-regression-captures/01-light-full-window.png" alt="Light — full window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light — full window</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-dark-connector-visibility/light-regression-captures/02-high-contrast-light-full-window.png" data-full-label="High-contrast Light — full window" aria-label="View High-contrast Light — full window at full resolution"><img loading="lazy" src="subjects/001-dark-connector-visibility/light-regression-captures/02-high-contrast-light-full-window.png" alt="High-contrast Light — full window"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light — full window</figcaption></figure></div></section>
+<section><h3>Selected comparison remains reviewable</h3><p class="muted">The paint-only repair must not alter the exact selected two-pane diff.</p><div class="media-grid"><figure><button type="button" class="media-zoom" data-full-source="subjects/001-dark-connector-visibility/light-comparison-continuity/01-light-comparison-crop.png" data-full-label="Light — comparison crop" aria-label="View Light — comparison crop at full resolution"><img loading="lazy" src="subjects/001-dark-connector-visibility/light-comparison-continuity/01-light-comparison-crop.png" alt="Light — comparison crop"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>Light — comparison crop</figcaption></figure>
+<figure><button type="button" class="media-zoom" data-full-source="subjects/001-dark-connector-visibility/light-comparison-continuity/02-high-contrast-light-comparison-crop.png" data-full-label="High-contrast Light — comparison crop" aria-label="View High-contrast Light — comparison crop at full resolution"><img loading="lazy" src="subjects/001-dark-connector-visibility/light-comparison-continuity/02-high-contrast-light-comparison-crop.png" alt="High-contrast Light — comparison crop"><span class="media-zoom-hint" aria-hidden="true">Full size</span></button><figcaption>High-contrast Light — comparison crop</figcaption></figure></div></section>
+  </div>
+  <div class="criteria">
+    <section><h3>Acceptance criteria</h3><ul><li>Unselected swoosh connectors are immediately visible in Dark</li><li>Unselected swoosh connectors are immediately visible in High-contrast Dark</li><li>The selected connector remains clearly distinguishable from the unselected connectors</li><li>The compact navigation arrows remain readable and recognizable in both dark profiles</li><li>Connector endpoints, one-row layout, and the focused two-pane diff remain coherent in all four profiles</li></ul></section>
+    <section><h3>Known concerns</h3><ul><li>These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style.</li><li>The composed capture measures actual map pixels and contrast. Selected/unselected automation requires distinct dominant pixels, while this attended decision remains the perceptual check that the two states are clearly distinguishable.</li><li>The v003 and v004 rejections remain immutable evidence. Accepting this subject approves only the repaired connector criterion in these exact v005 bytes.</li></ul></section>
+  </div>
+  <div class="detail-sections"><section><h3>Bound identity and rendered-pixel evidence</h3><dl><dt>Producing source</dt><dd>repair commit 8b1108cc957225ef56402870daf2a9975feba8b6; ordered BPR-0259 implementation-files digest sha256:edecfca81bae158e7e0b88dd7c0cba6dc096a1a21797c9d1dd46e503a2f585d4</dd><dt>Dark unselected connector</dt><dd>dominant #ff8e949a on #ff1c2026; 5.33:1 median contrast; 840/1008 actual path samples at or above 3.00:1</dd><dt>High-contrast Dark unselected connector</dt><dd>dominant #ff909090 on #ff000000; 6.57:1 median contrast; 840/1008 actual path samples at or above 3.00:1</dd><dt>Light unselected connector</dt><dd>3.70:1 median contrast; 840/1008 samples at or above 3.00:1</dd><dt>High-contrast Light unselected connector</dt><dd>5.02:1 median contrast; 840/1008 samples at or above 3.00:1</dd><dt>Selected connectors</dt><dd>highlighted fill plus palette-text edge; 250/1008 actual samples at or above 3.00:1; dominant raster differs from the same unselected path</dd><dt>Compact allocation</dt><dd>Full window 1280 x 1000; one 1280 x 39 navigation row; native comparison 1262 x 918</dd><dt>Selected file</dt><dd>UIforETW/UIforETW.rc</dd><dt>Exact comparison</dt><dd>8b70ee179fe55b705ee4e613ecbc89a0acebc1bc -&gt; e40058be7d5fe319342dffb567ce30e42bc6f4de</dd><dt>Focused verification</dt><dd>6/6 passed in 103.31 seconds; post-commit UIforETW capture passed in 84.96 seconds</dd><dt>Capture environment</dt><dd>Debug/dev, macOS arm64, Qt 6.11.1, offscreen QFusionStyle, DPR 1</dd></dl></section></div>
+  <section class="identity-files"><h3>Identity-bound files</h3><ul><li><a href="subjects/001-dark-connector-visibility/identity/01-capture-manifest.json">Capture manifest</a> <span class="identity">sha256:5f54fa485bea13e9dd706e431fde17b4f58781b000b156ef601bc47c817f6c9d</span></li><li><a href="subjects/001-dark-connector-visibility/identity/02-dark-capture-facts.json">Dark capture facts</a> <span class="identity">sha256:7fe0c0c9aa14b2fd0257c56862442b01420b4a1a765328b8e18a4c0ceb77cf9b</span></li><li><a href="subjects/001-dark-connector-visibility/identity/03-high-contrast-dark-capture-facts.json">High-contrast Dark capture facts</a> <span class="identity">sha256:b5d6666a738abd5ab0e4bae2081850a68577e64267157488707bdc8cb3e14b96</span></li><li><a href="subjects/001-dark-connector-visibility/identity/04-light-capture-facts.json">Light capture facts</a> <span class="identity">sha256:cb3de1626b705caeeef6b4e93c1fe2b52be391d628006d191b21ecebd44fa0e3</span></li><li><a href="subjects/001-dark-connector-visibility/identity/05-high-contrast-light-capture-facts.json">High-contrast Light capture facts</a> <span class="identity">sha256:5c8ffc60716f2044d3f650179d155570a01a259f4f96224590d6dc68d860777f</span></li></ul></section>
+  <div class="decision-row" role="group" aria-label="Decision for Are selected and unselected diff connectors now clear in dark modes?">
+    <button type="button" data-decision="accept" aria-pressed="false">Accept exact subject</button>
+    <button type="button" data-decision="reject" aria-pressed="false">Reject exact subject</button>
+    <button type="button" data-decision="clear" aria-pressed="false">Clear decision</button>
+  </div>
+
+  <label class="notes">Review notes<textarea data-review-notes placeholder="Optional subject-specific notes"></textarea></label>
+</article>
+    <section class="export-panel">
+      <h2>Final result</h2>
+      <p>The pinned copy button unlocks after every exact subject has Accept or Reject selected. Its result stays visible in the top review bar, and the complete JSON remains below as a manual-copy fallback.</p>
+      <textarea id="verdict-output" readonly aria-label="Exported verdict JSON"></textarea>
+    </section>
+  </main>
+  <script id="attended-review-config" type="application/json">{"batch_id":"bpr:/attended-review/betterpullreview/0075b116efe8d055d1ddc0f5","downstream_claims":{"bpr_0257_closed":false,"bpr_0258_closed":false,"bpr_0259_closed":false,"release_gate_satisfied":false,"rfc_closeout_claimed":false},"project_id":"betterpullreview","reference_disclaimer":"This is a new immutable batch from repair commit 8b1108cc957225ef56402870daf2a9975feba8b6 and freshly generated image/fact bytes. It directly addresses the validated v004 rejection, 'The arrows look good now but the dark mode mode swoosh connectors are too hard to see except for the selected one.' No v003 or v004 decision carries forward. Judge the selected and unselected center-gutter connectors in Dark and High-contrast Dark first, then confirm the arrows, compact row, and diff remain coherent in both light profiles. The captures use Qt 6.11.1 offscreen QFusionStyle at device pixel ratio 1; native platform-specific artwork, issue closure, RFC closeout, release readiness, and deferred Linux/Windows work are outside this batch.","review_gate":"compact_focused_review_navigation","review_scope":"human_ui_criterion_isolation_only","schema_name":"bpr.attended_review_batch","schema_version":1,"subjects":[{"ab_group":"","acceptance_criteria":["Unselected swoosh connectors are immediately visible in Dark","Unselected swoosh connectors are immediately visible in High-contrast Dark","The selected connector remains clearly distinguishable from the unselected connectors","The compact navigation arrows remain readable and recognizable in both dark profiles","Connector endpoints, one-row layout, and the focused two-pane diff remain coherent in all four profiles"],"audit_verdict":{"note":"The exact six-test selector passed 6/6. Actual unselected connector pixels measure 5.33:1 median contrast in Dark and 6.57:1 in High-contrast Dark, with 840/1008 samples at or above 3:1 in each profile. Selected connectors contribute 250 above-floor edge pixels and remain raster-distinct. Independent read-only closeout review found no blocker and confirmed that v004 would fail the new actual-raster gate.","status":"pass"},"choice_group":"","description":"Ordinary center-gutter connectors now use a palette-derived neutral stroke that stays visible on dark surfaces. The selected connector retains its highlighted fill and gains a contrasting edge. Review Dark and High-contrast Dark first; the compact toolbar, readable arrows, connector geometry, endpoints, and two-pane comparison are otherwise unchanged.","detail_sections":[{"heading":"Bound identity and rendered-pixel evidence","items":[{"definition":"repair commit 8b1108cc957225ef56402870daf2a9975feba8b6; ordered BPR-0259 implementation-files digest sha256:edecfca81bae158e7e0b88dd7c0cba6dc096a1a21797c9d1dd46e503a2f585d4","term":"Producing source"},{"definition":"dominant #ff8e949a on #ff1c2026; 5.33:1 median contrast; 840/1008 actual path samples at or above 3.00:1","term":"Dark unselected connector"},{"definition":"dominant #ff909090 on #ff000000; 6.57:1 median contrast; 840/1008 actual path samples at or above 3.00:1","term":"High-contrast Dark unselected connector"},{"definition":"3.70:1 median contrast; 840/1008 samples at or above 3.00:1","term":"Light unselected connector"},{"definition":"5.02:1 median contrast; 840/1008 samples at or above 3.00:1","term":"High-contrast Light unselected connector"},{"definition":"highlighted fill plus palette-text edge; 250/1008 actual samples at or above 3.00:1; dominant raster differs from the same unselected path","term":"Selected connectors"},{"definition":"Full window 1280 x 1000; one 1280 x 39 navigation row; native comparison 1262 x 918","term":"Compact allocation"},{"definition":"UIforETW/UIforETW.rc","term":"Selected file"},{"definition":"8b70ee179fe55b705ee4e613ecbc89a0acebc1bc -\u003e e40058be7d5fe319342dffb567ce30e42bc6f4de","term":"Exact comparison"},{"definition":"6/6 passed in 103.31 seconds; post-commit UIforETW capture passed in 84.96 seconds","term":"Focused verification"},{"definition":"Debug/dev, macOS arm64, Qt 6.11.1, offscreen QFusionStyle, DPR 1","term":"Capture environment"}],"kind":"definitions"}],"display_name":"Are selected and unselected diff connectors now clear in dark modes?","identity_files":[{"label":"Capture manifest","media_kind":"file","path":"subjects/001-dark-connector-visibility/identity/01-capture-manifest.json","sha256":"sha256:5f54fa485bea13e9dd706e431fde17b4f58781b000b156ef601bc47c817f6c9d"},{"label":"Dark capture facts","media_kind":"file","path":"subjects/001-dark-connector-visibility/identity/02-dark-capture-facts.json","sha256":"sha256:7fe0c0c9aa14b2fd0257c56862442b01420b4a1a765328b8e18a4c0ceb77cf9b"},{"label":"High-contrast Dark capture facts","media_kind":"file","path":"subjects/001-dark-connector-visibility/identity/03-high-contrast-dark-capture-facts.json","sha256":"sha256:b5d6666a738abd5ab0e4bae2081850a68577e64267157488707bdc8cb3e14b96"},{"label":"Light capture facts","media_kind":"file","path":"subjects/001-dark-connector-visibility/identity/04-light-capture-facts.json","sha256":"sha256:cb3de1626b705caeeef6b4e93c1fe2b52be391d628006d191b21ecebd44fa0e3"},{"label":"High-contrast Light capture facts","media_kind":"file","path":"subjects/001-dark-connector-visibility/identity/05-high-contrast-light-capture-facts.json","sha256":"sha256:5c8ffc60716f2044d3f650179d155570a01a259f4f96224590d6dc68d860777f"}],"known_concerns":["These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style.","The composed capture measures actual map pixels and contrast. Selected/unselected automation requires distinct dominant pixels, while this attended decision remains the perceptual check that the two states are clearly distinguishable.","The v003 and v004 rejections remain immutable evidence. Accepting this subject approves only the repaired connector criterion in these exact v005 bytes."],"media_groups":[{"group_id":"dark-connector-captures","items":[{"label":"Dark — full window","media_kind":"image","path":"subjects/001-dark-connector-visibility/dark-connector-captures/01-dark-full-window.png","sha256":"sha256:dd82aaabe742ed2511c4071d738d00579ecbe7764871a287be24dcd44788b311"},{"label":"High-contrast Dark — full window","media_kind":"image","path":"subjects/001-dark-connector-visibility/dark-connector-captures/02-high-contrast-dark-full-window.png","sha256":"sha256:9fd8ca574dfebf6dec34ce5ea8b0d1b3e103a0f36169d508a981159213e700aa"}],"layout":"grid","note":"Inspect the center gutter. The selected connector is the highlighted upper swoosh; the unselected connector is the neutral lower swoosh. Click for native resolution.","required":true,"title":"Primary decision: dark connector visibility"},{"group_id":"dark-comparison-detail","items":[{"label":"Dark — comparison crop","media_kind":"image","path":"subjects/001-dark-connector-visibility/dark-comparison-detail/01-dark-comparison-crop.png","sha256":"sha256:177f6d726cbc5dc9b7cd5457d929e132cf8328712ab773af161b083764757edf"},{"label":"High-contrast Dark — comparison crop","media_kind":"image","path":"subjects/001-dark-connector-visibility/dark-comparison-detail/02-high-contrast-dark-comparison-crop.png","sha256":"sha256:0f9f8cbb92420e5f4391b2fdd6555984db89580ff78af1466bab565178c53fc1"}],"layout":"grid","note":"Confirm both connector states remain attached to the correct left/right rows without obscuring the comparison.","required":true,"title":"Dark comparison detail"},{"group_id":"light-regression-captures","items":[{"label":"Light — full window","media_kind":"image","path":"subjects/001-dark-connector-visibility/light-regression-captures/01-light-full-window.png","sha256":"sha256:4ac0662bf19a610526a6bb850a76e187d094801d9642a6ee2c636c314183a9c2"},{"label":"High-contrast Light — full window","media_kind":"image","path":"subjects/001-dark-connector-visibility/light-regression-captures/02-high-contrast-light-full-window.png","sha256":"sha256:fe73c139944cfd39e1b457ddc9aea892dc823b0931ea6f03745aa24c8f67639f"}],"layout":"grid","note":"Confirm the selected and unselected connectors remain coherent without changing the compact allocation or readable arrows.","required":true,"title":"Regression check: light profiles"},{"group_id":"light-comparison-continuity","items":[{"label":"Light — comparison crop","media_kind":"image","path":"subjects/001-dark-connector-visibility/light-comparison-continuity/01-light-comparison-crop.png","sha256":"sha256:fe5b4493c5ea01ddec46dc98692a5e383f928e77c6e5d4165003a725377cc1fe"},{"label":"High-contrast Light — comparison crop","media_kind":"image","path":"subjects/001-dark-connector-visibility/light-comparison-continuity/02-high-contrast-light-comparison-crop.png","sha256":"sha256:be469cf92a8a690344da8929304eed20be3bba89c62911fc603886492e278661"}],"layout":"grid","note":"The paint-only repair must not alter the exact selected two-pane diff.","required":true,"title":"Selected comparison remains reviewable"}],"subject_digest":"sha256:b1cd509bea7eb23a25626c0b819d3eec9a4506ffa42f0c79b2d5d598185b40f6","subject_id":"criterion:/betterpullreview/bpr-0259/dark-connector-visibility","subject_key":"dark-connector-visibility"}],"title":"Visible dark diff connectors"}</script>
+  <script>
+(function (root) {
+  "use strict";
+
+  const STORAGE_PREFIX = "bpr.attended-review.v1";
+  const VERDICT_SCHEMA = "bpr.attended_review_verdict";
+
+  function identityKey(subject) {
+    return `${subject.subject_id}@${subject.subject_digest}`;
+  }
+
+  function storageKey(batchId, subject) {
+    return `${STORAGE_PREFIX}:${batchId}:${subject.subject_id}:${subject.subject_digest}`;
+  }
+
+  function createMemoryStorage() {
+    const values = new Map();
+    return {
+      getItem(key) {
+        return values.has(key) ? values.get(key) : null;
+      },
+      setItem(key, value) {
+        values.set(key, String(value));
+      },
+      removeItem(key) {
+        values.delete(key);
+      },
+    };
+  }
+
+  function availableStorage() {
+    try {
+      if (!root.localStorage) {
+        return createMemoryStorage();
+      }
+      const probe = `${STORAGE_PREFIX}:probe`;
+      root.localStorage.setItem(probe, "1");
+      root.localStorage.removeItem(probe);
+      return root.localStorage;
+    } catch (_error) {
+      return createMemoryStorage();
+    }
+  }
+
+  function normalizeSaved(value) {
+    if (!value || typeof value !== "object") {
+      return { decision: null, notes: "" };
+    }
+    const decision = value.decision === "accept" || value.decision === "reject"
+      ? value.decision
+      : null;
+    return {
+      decision,
+      notes: typeof value.notes === "string" ? value.notes : "",
+    };
+  }
+
+  function auditFailed(subject) {
+    return Boolean(subject.audit_verdict && subject.audit_verdict.status === "fail");
+  }
+
+  class ReviewController {
+    constructor(config, storage) {
+      if (!config || !Array.isArray(config.subjects)) {
+        throw new Error("review config must contain subjects");
+      }
+      if (!config.downstream_claims || typeof config.downstream_claims !== "object") {
+        throw new Error("review config must declare downstream_claims");
+      }
+      this.config = config;
+      this.groups = new Map();
+      for (const group of config.selection_groups || []) {
+        this.groups.set(group.group_id, group);
+      }
+      for (const subject of config.subjects) {
+        const token = subject.choice_group;
+        if (token && !this.groups.has(token)) {
+          this.groups.set(token, { group_id: token, min_accept: 1, max_accept: 1 });
+        }
+      }
+      this.storage = storage || availableStorage();
+      this.states = new Map();
+      for (const subject of config.subjects) {
+        const raw = this.storage.getItem(storageKey(config.batch_id, subject));
+        let parsed = null;
+        if (raw !== null) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (_error) {
+            parsed = null;
+          }
+        }
+        const state = normalizeSaved(parsed);
+        if (state.decision === "accept" && auditFailed(subject)) {
+          state.decision = null;
+        }
+        this.states.set(identityKey(subject), state);
+      }
+    }
+
+    subject(subjectId, subjectDigest) {
+      const found = this.config.subjects.find(
+        (item) => item.subject_id === subjectId && item.subject_digest === subjectDigest
+      );
+      if (!found) {
+        throw new Error(`unknown subject identity: ${subjectId}@${subjectDigest}`);
+      }
+      return found;
+    }
+
+    state(subject) {
+      return this.states.get(identityKey(subject));
+    }
+
+    save(subject) {
+      this.storage.setItem(
+        storageKey(this.config.batch_id, subject),
+        JSON.stringify(this.state(subject))
+      );
+    }
+
+    subjectGroupId(subject) {
+      return subject.selection_group || subject.choice_group || null;
+    }
+
+    groupMembers(groupId) {
+      return this.config.subjects.filter((item) => this.subjectGroupId(item) === groupId);
+    }
+
+    groupTally(groupId) {
+      const group = this.groups.get(groupId);
+      const members = this.groupMembers(groupId);
+      let chosen = 0;
+      let rejected = 0;
+      for (const member of members) {
+        const decision = this.state(member).decision;
+        if (decision === "accept") chosen += 1;
+        if (decision === "reject") rejected += 1;
+      }
+      const undecided = members.length - chosen - rejected;
+      const satisfied = (chosen >= group.min_accept && chosen <= group.max_accept)
+        || (chosen === 0 && rejected === members.length);
+      return { group, members, chosen, rejected, undecided, satisfied };
+    }
+
+    setDecision(subjectId, subjectDigest, decision) {
+      if (decision !== "accept" && decision !== "reject" && decision !== null) {
+        throw new Error(`invalid decision: ${decision}`);
+      }
+      const subject = this.subject(subjectId, subjectDigest);
+      if (decision === "accept" && auditFailed(subject)) {
+        throw new Error("subject failed its mechanical audit; accept is unavailable");
+      }
+      const groupId = this.subjectGroupId(subject);
+      if (decision === "accept" && groupId && this.groups.has(groupId)) {
+        const tally = this.groupTally(groupId);
+        const alreadyChosen = this.state(subject).decision === "accept";
+        if (!alreadyChosen && tally.chosen >= tally.group.max_accept) {
+          if (tally.group.max_accept === 1) {
+            for (const member of tally.members) {
+              const memberState = this.state(member);
+              if (memberState.decision === "accept") {
+                memberState.decision = null;
+                this.save(member);
+              }
+            }
+          } else {
+            throw new Error(
+              `selection group '${groupId}' allows at most ${tally.group.max_accept} chosen alternatives; clear one first`
+            );
+          }
+        }
+      }
+      this.state(subject).decision = decision;
+      this.save(subject);
+      return this.summary();
+    }
+
+    setNotes(subjectId, subjectDigest, notes) {
+      const subject = this.subject(subjectId, subjectDigest);
+      this.state(subject).notes = String(notes || "");
+      this.save(subject);
+      return this.summary();
+    }
+
+    summary() {
+      let accepted = 0;
+      let rejected = 0;
+      let notChosen = 0;
+      let pending = 0;
+      for (const subject of this.config.subjects) {
+        const decision = this.state(subject).decision;
+        if (decision === "accept") accepted += 1;
+        if (decision === "reject") rejected += 1;
+        if (!decision && !this.subjectGroupId(subject)) pending += 1;
+      }
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (tally.satisfied) {
+          notChosen += tally.undecided;
+        } else {
+          pending += tally.undecided || 1;
+        }
+      }
+      const total = this.config.subjects.length;
+      return {
+        accepted,
+        rejected,
+        notChosen,
+        resolved: total - pending,
+        pending,
+        total,
+      };
+    }
+
+    buildVerdict() {
+      for (const groupId of this.groups.keys()) {
+        const tally = this.groupTally(groupId);
+        if (!tally.satisfied) {
+          throw new Error(
+            `cannot export: selection group '${groupId}' is unresolved; choose between `
+            + `${tally.group.min_accept} and ${tally.group.max_accept} alternatives or reject every member`
+          );
+        }
+      }
+      const summary = this.summary();
+      if (summary.pending !== 0) {
+        throw new Error(`cannot export: ${summary.pending} subject(s) remain pending`);
+      }
+      const accepted = [];
+      const rejected = [];
+      const notChosen = [];
+      const notes = {};
+      for (const subject of this.config.subjects) {
+        const state = this.state(subject);
+        const identity = {
+          subject_id: subject.subject_id,
+          subject_digest: subject.subject_digest,
+        };
+        if (state.decision === "accept") {
+          accepted.push(identity);
+        } else if (state.decision === "reject") {
+          rejected.push(identity);
+        } else {
+          notChosen.push(identity);
+        }
+        if (state.notes.trim()) {
+          notes[identityKey(subject)] = state.notes;
+        }
+      }
+      const verdict = {
+        schema_name: VERDICT_SCHEMA,
+        schema_version: 1,
+        batch_id: this.config.batch_id,
+        review_gate: this.config.review_gate,
+        review_scope: this.config.review_scope,
+        accepted_subjects: accepted,
+        rejected_subjects: rejected,
+        notes_by_subject_identity: notes,
+        downstream_claims: { ...this.config.downstream_claims },
+      };
+      if (this.groups.size > 0) {
+        verdict.not_chosen_subjects = notChosen;
+      }
+      return verdict;
+    }
+  }
+
+  async function copyText(text, environment) {
+    const env = environment || root;
+    if (env.navigator && env.navigator.clipboard && env.navigator.clipboard.writeText) {
+      try {
+        await env.navigator.clipboard.writeText(text);
+        return "clipboard";
+      } catch (_error) {
+        // Local file origins frequently expose Clipboard API but deny writes.
+        // Continue to the legacy selection-based copy path in that case.
+      }
+    }
+    const document = env.document;
+    if (!document || !document.execCommand) {
+      throw new Error("clipboard copy is unavailable; copy the displayed JSON manually");
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) {
+      throw new Error("clipboard copy failed; copy the displayed JSON manually");
+    }
+    return "execCommand";
+  }
+
+  function initializePage(document) {
+    const configNode = document.getElementById("attended-review-config");
+    if (!configNode) return null;
+    const config = JSON.parse(configNode.textContent);
+    const controller = new ReviewController(config);
+    const cards = Array.from(document.querySelectorAll("[data-subject-id]"));
+    const progress = document.getElementById("review-progress");
+    const totals = document.getElementById("review-totals");
+    const pendingOnly = document.getElementById("pending-only");
+    const exportButton = document.getElementById("export-verdict");
+    const exportOutput = document.getElementById("verdict-output");
+    const reviewStatus = document.getElementById("review-status");
+
+    function cardSubject(card) {
+      return controller.subject(card.dataset.subjectId, card.dataset.subjectDigest);
+    }
+
+    function render() {
+      const summary = controller.summary();
+      progress.textContent = `${summary.resolved}/${summary.total} reviewed`;
+      const segments = [`${summary.accepted} accepted`, `${summary.rejected} rejected`];
+      if (controller.groups.size > 0) {
+        segments.push(`${summary.notChosen} not chosen`);
+      }
+      segments.push(`${summary.pending} pending`);
+      totals.textContent = segments.join(" · ");
+      exportButton.disabled = summary.pending !== 0;
+      if (summary.pending !== 0) {
+        exportButton.textContent = "Copy the complete verdict";
+      }
+      const tallies = new Map();
+      for (const groupId of controller.groups.keys()) {
+        tallies.set(groupId, controller.groupTally(groupId));
+      }
+      for (const card of cards) {
+        const subject = cardSubject(card);
+        const state = controller.state(subject);
+        let reviewState = state.decision || "pending";
+        const groupId = controller.subjectGroupId(subject);
+        if (!state.decision && groupId) {
+          const tally = tallies.get(groupId);
+          if (tally && tally.satisfied) {
+            reviewState = "not-chosen";
+          }
+        }
+        card.dataset.reviewState = reviewState;
+        card.hidden = Boolean(pendingOnly.checked && reviewState !== "pending");
+        for (const button of card.querySelectorAll("[data-decision]")) {
+          button.setAttribute("aria-pressed", String(button.dataset.decision === state.decision));
+        }
+      }
+      for (const node of document.querySelectorAll("[data-selection-group-status]")) {
+        const tally = tallies.get(node.dataset.selectionGroupStatus);
+        if (!tally) continue;
+        const range = tally.group.min_accept === tally.group.max_accept
+          ? String(tally.group.max_accept)
+          : `${tally.group.min_accept}-${tally.group.max_accept}`;
+        if (tally.satisfied && tally.chosen === 0) {
+          node.textContent = `Every alternative rejected: this question has no acceptable answer (needs ${range}).`;
+        } else if (tally.satisfied) {
+          node.textContent = `Satisfied: ${tally.chosen} chosen of ${range}; ${tally.undecided} not chosen, ${tally.rejected} rejected.`;
+        } else {
+          node.textContent = `Unresolved: ${tally.chosen} chosen of ${range} needed; ${tally.undecided} undecided, ${tally.rejected} rejected.`;
+        }
+      }
+    }
+
+    for (const card of cards) {
+      const subject = cardSubject(card);
+      const state = controller.state(subject);
+      const notes = card.querySelector("[data-review-notes]");
+      notes.value = state.notes;
+      for (const button of card.querySelectorAll("[data-decision]")) {
+        button.addEventListener("click", () => {
+          let decision = button.dataset.decision === "clear" ? null : button.dataset.decision;
+          if (decision && controller.state(subject).decision === decision) {
+            decision = null;
+          }
+          try {
+            controller.setDecision(subject.subject_id, subject.subject_digest, decision);
+          } catch (error) {
+            reviewStatus.textContent = error.message;
+            return;
+          }
+          exportOutput.value = "";
+          reviewStatus.textContent = "Decision saved in this browser.";
+          exportButton.textContent = "Copy the complete verdict";
+          render();
+        });
+      }
+      notes.addEventListener("input", () => {
+        controller.setNotes(subject.subject_id, subject.subject_digest, notes.value);
+        exportOutput.value = "";
+        reviewStatus.textContent = "Notes saved in this browser.";
+        exportButton.textContent = "Copy the complete verdict";
+      });
+    }
+
+    pendingOnly.addEventListener("change", render);
+    exportButton.addEventListener("click", async () => {
+      try {
+        const text = `${JSON.stringify(controller.buildVerdict(), null, 2)}\n`;
+        exportOutput.value = text;
+        const method = await copyText(text);
+        exportButton.textContent = "Copied — return it to the agent";
+        reviewStatus.textContent = method === "clipboard"
+          ? "Complete verdict copied. Paste it back to the requesting agent session."
+          : "Complete verdict copied with the local fallback. Paste it back to the requesting agent session.";
+      } catch (error) {
+        exportButton.textContent = "Copy the complete verdict";
+        exportOutput.focus();
+        exportOutput.select();
+        reviewStatus.textContent = `${error.message}. The complete JSON below is selected for manual copy.`;
+      }
+    });
+    render();
+    return controller;
+  }
+
+  const api = {
+    ReviewController,
+    copyText,
+    createMemoryStorage,
+    identityKey,
+    initializePage,
+    storageKey,
+  };
+  root.BprAttendedReview = api;
+  if (root.document) {
+    if (root.document.readyState === "loading") {
+      root.document.addEventListener("DOMContentLoaded", () => initializePage(root.document));
+    } else {
+      initializePage(root.document);
+    }
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this);
+
+// Full-resolution inspection. Opening and closing the viewer must not
+// touch decision state or the export lock, so this only reads the DOM.
+(function attachFullResolutionViewer() {
+  // The runtime is loaded browserless by the skill's own tests, so it must not
+  // touch the DOM at import time.
+  if (typeof document === 'undefined' || !document.body) { return; }
+  var viewer = document.createElement('div');
+  viewer.className = 'media-viewer';
+  viewer.hidden = true;
+  viewer.setAttribute('role', 'dialog');
+  viewer.setAttribute('aria-modal', 'true');
+  viewer.innerHTML =
+    '<div class="media-viewer-bar">' +
+    '<span class="media-viewer-label"></span>' +
+    '<span class="media-viewer-counter"></span>' +
+    '<button type="button" class="media-viewer-close">Close</button>' +
+    '</div><div class="media-viewer-surface"><img alt=""></div>' +
+    '<button type="button" class="media-viewer-nav media-viewer-prev" aria-label="Previous image">&#8249;</button>' +
+    '<button type="button" class="media-viewer-nav media-viewer-next" aria-label="Next image">&#8250;</button>';
+  document.body.appendChild(viewer);
+
+  var image = viewer.querySelector('.media-viewer-surface img');
+  var label = viewer.querySelector('.media-viewer-label');
+  var counter = viewer.querySelector('.media-viewer-counter');
+  var closeButton = viewer.querySelector('.media-viewer-close');
+  var prevButton = viewer.querySelector('.media-viewer-prev');
+  var nextButton = viewer.querySelector('.media-viewer-next');
+  var lastTrigger = null;
+
+  function visibleTriggers() {
+    return Array.prototype.filter.call(
+      document.querySelectorAll('.media-zoom'),
+      function (candidate) { return candidate.offsetParent !== null; }
+    );
+  }
+
+  function close() {
+    viewer.hidden = true;
+    image.removeAttribute('src');
+    if (lastTrigger) { lastTrigger.focus(); lastTrigger = null; }
+  }
+
+  function open(trigger, focusClose) {
+    lastTrigger = trigger;
+    image.src = trigger.getAttribute('data-full-source');
+    image.alt = trigger.getAttribute('data-full-label') || '';
+    label.textContent = trigger.getAttribute('data-full-label') || '';
+    var list = visibleTriggers();
+    var index = list.indexOf(trigger);
+    var navigable = list.length > 1;
+    counter.textContent = navigable && index >= 0 ? (index + 1) + ' / ' + list.length : '';
+    prevButton.hidden = !navigable;
+    nextButton.hidden = !navigable;
+    viewer.hidden = false;
+    if (focusClose !== false) { closeButton.focus(); }
+  }
+
+  function step(delta) {
+    var list = visibleTriggers();
+    if (!list.length) { return; }
+    var index = list.indexOf(lastTrigger);
+    var next = ((index < 0 ? 0 : index + delta) + list.length) % list.length;
+    open(list[next], false);
+  }
+
+  document.addEventListener('click', function (event) {
+    var trigger = event.target.closest ? event.target.closest('.media-zoom') : null;
+    if (trigger) { event.preventDefault(); open(trigger); return; }
+    if (viewer.hidden) { return; }
+    if (event.target.closest && event.target.closest('.media-viewer-prev')) { step(-1); return; }
+    if (event.target.closest && event.target.closest('.media-viewer-next')) { step(1); return; }
+    if (event.target === viewer || event.target === closeButton) { close(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (viewer.hidden) { return; }
+    if (event.key === 'Escape') { close(); return; }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); return; }
+    if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+  });
+})();
+
+</script>
+</body>
+</html>

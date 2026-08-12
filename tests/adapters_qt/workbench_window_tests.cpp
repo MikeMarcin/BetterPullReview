@@ -13,6 +13,9 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QElapsedTimer>
+#include <QEvent>
+#include <QIcon>
+#include <QImage>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -506,7 +509,7 @@ namespace {
 			   "the host failure is explicit in status text");
 	}
 
-	void test_compact_overflow_preserves_keyboard_access()
+	void test_compact_icon_row_preserves_exact_order_and_edges()
 	{
 		intent_log           log;
 		qt::workbench_window window{
@@ -518,58 +521,111 @@ namespace {
 			}
 		};
 		window.publish(every_primary_command_offered());
-
-		const auto threshold = window.compact_width_threshold();
-		expect(threshold > window.minimumWidth(),
-			   "the compact overflow is reachable at a supported window width");
-
-		window.resize(threshold + 320, 720);
+		window.resize(1'280, 720);
 		window.show();
 		QApplication::processEvents();
-		expect(window.toolbar_mode() == qt::workbench_toolbar_mode::expanded,
-			   "a wide window keeps primary navigation top-level");
-		for (auto* const action : navigation_actions(window)) {
-			expect(window.primary_toolbar()->actions().contains(action),
-				   "every primary action is top-level in the wide toolbar");
-			expect(qobject_cast<QToolButton*>(
-					   window.primary_toolbar()->widgetForAction(action))
-					   != nullptr,
-				   "every top-level action has a focusable toolbar button");
+
+		auto* const toolbar       = window.primary_toolbar();
+		auto* const files         = window.files_drawer_toggle_action();
+		auto* const conversations = window.conversations_drawer_toggle_action();
+		const auto  navigation    = navigation_actions(window);
+		const auto  actions       = toolbar->actions();
+		expect(window.findChildren<QToolBar*>().size() == 1,
+			   "the focused review surface has exactly one toolbar row");
+		expect(!actions.isEmpty() && actions.front() == files
+				   && actions.back() == conversations,
+			   "Files is the far-left action and Conversations is the far-right action");
+		for (std::size_t index = 0U; index < navigation.size(); ++index) {
+			expect(actions.indexOf(navigation[index])
+					   == actions.indexOf(files) + static_cast<qsizetype>(index) + 1,
+				   "file and change navigation occupy the exact semantic order between drawer edges");
 		}
-		expect(!window.navigation_overflow_button()->isVisible(),
-			   "the compact overflow stays out of the way at wide widths");
+		const auto required = std::array{
+			files,
+			navigation[0],
+			navigation[1],
+			navigation[2],
+			navigation[3],
+			conversations,
+		};
+		for (auto* const action : required) {
+			auto* const button = qobject_cast<QToolButton*>(
+				toolbar->widgetForAction(action));
+			expect(button != nullptr && button->isVisible()
+					   && button->toolButtonStyle() == Qt::ToolButtonIconOnly
+					   && !button->icon().isNull(),
+				   "every required drawer/navigation presenter is visible, native-icon, and icon-only");
+			expect(button->focusPolicy() == Qt::StrongFocus
+					   && !button->accessibleName().isEmpty()
+					   && !button->accessibleDescription().isEmpty(),
+				   "every required presenter is focusable, named, and described");
+			expect(window.actions().contains(action) && !action->shortcut().isEmpty()
+					   && action->shortcutContext() == Qt::WindowShortcut,
+				   "every required action retains its stable window shortcut");
+		}
+		auto* const spacer = toolbar->findChild<QWidget*>(
+			QStringLiteral("workbenchNavigationSpacer"));
+		expect(spacer != nullptr && spacer->width() > 0
+				   && spacer->x()
+					   > toolbar->widgetForAction(window.next_change_action())->x()
+				   && toolbar->widgetForAction(conversations)->x()
+					   > spacer->x(),
+			   "one flexible spacer holds Conversations at the opposite row edge");
+
+		auto* const reviewButton = window.review_controls_button();
+		auto* const reviewMenu   = window.review_controls_menu();
+		expect(reviewButton != nullptr && reviewButton->menu() == reviewMenu
+				   && reviewButton->toolButtonStyle() == Qt::ToolButtonIconOnly
+				   && reviewButton->focusPolicy() == Qt::StrongFocus
+				   && !reviewButton->shortcut().isEmpty(),
+			   "secondary private-progress controls use one keyboard-accessible icon popup");
+		expect(reviewMenu->actions()
+				   == QList<QAction*>{ window.seen_action(),
+									   window.read_action(),
+									   window.accept_action(),
+									   window.exclude_action() },
+			   "the popup reuses the four existing receipt actions without duplicating policy");
+		const auto secondaryIcons = std::array{
+			files->icon().pixmap(QSize{ 24, 24 }).toImage(),
+			conversations->icon().pixmap(QSize{ 24, 24 }).toImage(),
+			window.review_details_toggle_action()
+				->icon()
+				.pixmap(QSize{ 24, 24 })
+				.toImage(),
+			reviewButton->icon().pixmap(QSize{ 24, 24 }).toImage(),
+		};
+		for (std::size_t first = 0U; first < secondaryIcons.size(); ++first) {
+			for (std::size_t second = first + 1U;
+				 second < secondaryIcons.size(); ++second) {
+				expect(!secondaryIcons[first].isNull()
+						   && secondaryIcons[first] != secondaryIcons[second],
+					   "drawer, details, and private-progress symbols remain visually distinct");
+			}
+		}
+
+		for (const auto type : { QEvent::PaletteChange,
+								 QEvent::FontChange,
+								 QEvent::StyleChange,
+								 QEvent::ThemeChange }) {
+			for (auto* const action : required) {
+				action->setIcon(QIcon{ });
+			}
+			reviewButton->setIcon(QIcon{ });
+			auto appearanceChange = QEvent{ type };
+			QApplication::sendEvent(&window, &appearanceChange);
+			expect(std::ranges::all_of(required, [](const QAction* const aAction) {
+					   return !aAction->icon().isNull();
+				   }) && !reviewButton->icon().isNull(),
+				   "every native appearance change refreshes every derived toolbar icon");
+		}
 
 		window.resize(window.minimumWidth(), 720);
 		QApplication::processEvents();
-		expect(window.toolbar_mode() == qt::workbench_toolbar_mode::compact,
-			   "a narrow window moves primary navigation into the overflow");
-		expect(window.navigation_overflow_button()->isVisible(),
-			   "the compact overflow is explicit rather than implicit");
-		expect(window.navigation_overflow_button()->focusPolicy() != Qt::NoFocus,
-			   "the compact overflow itself is keyboard focusable");
-		expect(!window.navigation_overflow_button()->shortcut().isEmpty(),
-			   "the compact overflow opens from a keyboard mnemonic");
-		expect(window.navigation_overflow_button()->menu() != nullptr
-				   && window.navigation_overflow_button()->menu()
-					   == window.navigation_overflow_menu(),
-			   "the compact overflow presents the navigation menu");
-
-		for (auto* const action : navigation_actions(window)) {
-			expect(!window.primary_toolbar()->actions().contains(action),
-				   "a narrow toolbar no longer shows the action top-level");
-			expect(window.navigation_overflow_menu()->actions().contains(action),
-				   "every primary action stays reachable inside the overflow");
-			expect(window.actions().contains(action),
-				   "every primary action stays associated with the window so its "
-				   "shortcut keeps working in the compact overflow");
-			expect(!action->shortcut().isEmpty(),
-				   "every primary action keeps a keyboard shortcut when compact");
-			expect(action->shortcutContext() == Qt::WindowShortcut,
-				   "the retained shortcut is addressable from the whole window");
-			expect(action->isVisible(),
-				   "no primary action silently disappears when compact");
-			expect(action->isEnabled(),
-				   "compact layout does not change command legality");
+		for (auto* const action : required) {
+			expect(toolbar->actions().contains(action)
+					   && toolbar->widgetForAction(action)->isVisible()
+					   && action->isEnabled(),
+				   "all six primary icon actions remain top-level and enabled at the supported width floor");
 		}
 
 		log.Workbench.clear();
@@ -577,18 +633,7 @@ namespace {
 		window.previous_file_action()->trigger();
 		window.next_change_action()->trigger();
 		expect(log.Workbench.size() == 1U && log.Change.size() == 1U,
-			   "compact primary actions still translate to semantic intents");
-
-		window.resize(threshold + 320, 720);
-		QApplication::processEvents();
-		expect(window.toolbar_mode() == qt::workbench_toolbar_mode::expanded,
-			   "widening the window restores top-level primary navigation");
-		for (auto* const action : navigation_actions(window)) {
-			expect(window.primary_toolbar()->actions().contains(action)
-					   && window.actions().contains(action)
-					   && action->isEnabled(),
-				   "restoring the wide layout preserves the action and its state");
-		}
+			   "icon-only primary actions still translate to their semantic intents");
 		window.hide();
 	}
 
@@ -608,11 +653,11 @@ namespace {
 			expect(button->focusPolicy() == Qt::StrongFocus,
 				   "every primary action is keyboard focusable");
 		}
-		expect(!window.navigation_overflow_button()->accessibleName().isEmpty()
-				   && !window.navigation_overflow_menu()
+		expect(!window.review_controls_button()->accessibleName().isEmpty()
+				   && !window.review_controls_menu()
 						   ->accessibleName()
 						   .isEmpty(),
-			   "the compact overflow carries accessible names");
+			   "the bounded secondary review popup carries accessible names");
 
 		expect(window.files_drawer() != nullptr
 				   && window.conversations_drawer() != nullptr
@@ -644,7 +689,7 @@ namespace {
 		expect(window.statistics().Announcements == before.Announcements + 1U,
 			   "an unchanged status is not announced again");
 
-		window.resize(window.compact_width_threshold() + 320, 720);
+		window.resize(1'280, 720);
 		window.show();
 		QApplication::processEvents();
 		const auto expected = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
@@ -653,10 +698,8 @@ namespace {
 					   < 0.001,
 				   "the window runs at the exact expected device scale");
 		}
-		expect(window.toolbar_mode() == qt::workbench_toolbar_mode::expanded
-				   && window.compact_width_threshold() > window.minimumWidth(),
-			   "the compact threshold stays style-derived and reachable at this "
-			   "scale");
+		expect(window.findChildren<QToolBar*>().size() == 1,
+			   "every tested scale retains one compact navigation row");
 		window.hide();
 	}
 
@@ -681,15 +724,12 @@ namespace {
 				   && window.actions().contains(files)
 				   && window.actions().contains(conversations),
 			   "each drawer toggle is a checkable window action with a shortcut");
-		expect(!window.primary_toolbar()->actions().contains(files)
-				   && !window.primary_toolbar()->actions().contains(conversations)
-				   && window.drawer_toolbar()->actions().contains(files)
-				   && window.drawer_toolbar()->actions().contains(conversations),
-			   "the drawer toggles never compete with primary navigation for "
-			   "toolbar width");
+		expect(window.primary_toolbar()->actions().front() == files
+				   && window.primary_toolbar()->actions().back() == conversations,
+			   "the drawer toggles occupy the exact far-left and far-right row edges");
 		for (auto* const toggle : { files, conversations }) {
 			auto* const button = qobject_cast<QToolButton*>(
-				window.drawer_toolbar()->widgetForAction(toggle));
+				window.primary_toolbar()->widgetForAction(toggle));
 			expect(button != nullptr && !button->accessibleName().isEmpty()
 					   && !button->accessibleDescription().isEmpty()
 					   && button->focusPolicy() == Qt::StrongFocus,
@@ -778,7 +818,7 @@ namespace {
 			.FilesWidth         = 320U,
 			.ConversationsWidth = 260U,
 		};
-		window.resize(window.compact_width_threshold() + 320, 720);
+		window.resize(1'280, 720);
 		window.show();
 		QApplication::processEvents();
 		window.publish(opened);
@@ -848,10 +888,10 @@ namespace {
 		auto* const epochs     = window.epoch_selectors();
 		auto* const detail     = window.detail_pane();
 		auto* const button     = qobject_cast<QToolButton*>(
-			window.drawer_toolbar()->widgetForAction(action));
+			window.primary_toolbar()->widgetForAction(action));
 		expect(action != nullptr && action->isCheckable() && action->isChecked()
 				   && !action->shortcut().isEmpty()
-				   && window.drawer_toolbar()->actions().contains(action)
+				   && window.primary_toolbar()->actions().contains(action)
 				   && button != nullptr && button->focusPolicy() == Qt::StrongFocus
 				   && button->accessibleName() == QStringLiteral("Review details toggle")
 				   && !button->accessibleDescription().isEmpty()
@@ -901,7 +941,7 @@ namespace {
 			.FilesWidth         = 320U,
 			.ConversationsWidth = 260U,
 		};
-		window.resize(window.compact_width_threshold() + 320, 720);
+		window.resize(1'280, 720);
 		window.show();
 		QApplication::processEvents();
 		window.publish(opened);
@@ -1516,7 +1556,7 @@ namespace {
 			   "same height");
 
 		qt::workbench_window window;
-		window.resize(window.compact_width_threshold() + 320, 820);
+		window.resize(1'280, 820);
 		window.show();
 		process_events();
 
@@ -1577,7 +1617,7 @@ namespace {
 		// the bottom of the fixture a shorter viewport shows a trailing page with
 		// no correspondence in it at all. The assertion is unchanged -- the
 		// window it is asserted on is the composed one now.
-		window.resize(window.compact_width_threshold() + 320, 820 + 220);
+		window.resize(1'280, 820 + 220);
 		window.show();
 		process_events();
 		auto* const surface = publish_fixture(window, diff);
@@ -1752,7 +1792,7 @@ namespace {
 			   "the fixture carries several canonical change groups");
 
 		qt::workbench_window window;
-		window.resize(window.compact_width_threshold() + 320, 820);
+		window.resize(1'280, 820);
 		window.show();
 		process_events();
 
@@ -1819,7 +1859,10 @@ namespace {
 		for (std::size_t index = 0U; index < diff.Alignment.Groups.size();
 			 ++index) {
 			if (index != 0U) {
-				surface->next_change_button()->click();
+				expect(surface->navigate_change(
+						   core::change_navigation_direction::next,
+						   core::change_navigation_policy::stop),
+					   "the semantic bridge reaches the next canonical group");
 				process_events();
 			}
 			const auto& selection = surface->selection();
@@ -1920,7 +1963,7 @@ namespace {
 	///
 	/// \details `findChildren` is recursive and untyped by role, so this is the
 	/// complete retained widget tree beneath the subject: toolbars, tool
-	/// buttons, the overflow menu, drawer panels, item views, splitter handles,
+	/// compact-row buttons, drawer panels, item views, splitter handles,
 	/// the source panes, their viewports, and their scrollbars. A per-source-row
 	/// widget layer anywhere beneath the subject would be counted here.
 	[[nodiscard]] auto widget_count(const QWidget& aSubject) -> std::size_t
@@ -2001,7 +2044,7 @@ namespace {
 	void test_a_large_file_leaves_the_widget_count_bounded()
 	{
 		qt::workbench_window window;
-		window.resize(window.compact_width_threshold() + 320, 820);
+		window.resize(1'280, 820);
 		window.show();
 		process_events();
 
@@ -2550,7 +2593,7 @@ namespace {
 	void test_focus_order_is_declared_named_and_walkable()
 	{
 		qt::workbench_window window;
-		window.resize(window.compact_width_threshold() + 320, 820);
+		window.resize(1'280, 820);
 		window.show();
 		process_events();
 
@@ -2612,34 +2655,32 @@ namespace {
 			sequences.push_back(action->shortcut());
 		}
 		expect(!sequences.contains(
-				   window.navigation_overflow_button()->shortcut()),
-			   "the compact overflow's own shortcut is not claimed by an action "
+				   window.review_controls_button()->shortcut()),
+			   "the secondary review popup's own shortcut is not claimed by an action "
 			   "as well");
 
 		window.resize(window.minimumWidth(), 720);
 		process_events();
-		expect(window.toolbar_mode() == qt::workbench_toolbar_mode::compact,
-			   "the narrow window really entered the compact overflow");
 		const auto compact = window.focus_order();
-		expect(compact.front() == window.navigation_overflow_button(),
-			   "the compact overflow is the first interactive stop once primary "
-			   "navigation moves into it");
+		expect(compact.front()
+				   == window.primary_toolbar()->widgetForAction(
+					   window.files_drawer_toggle_action()),
+			   "Files remains the first interactive stop at the supported width floor");
 		for (auto* const stop : compact) {
 			expect(!stop->accessibleName().isEmpty()
 					   && !stop->accessibleDescription().isEmpty(),
-				   "the compact layout keeps every stop named and described");
+				   "the compact icon row keeps every stop named and described");
 		}
+		expect(accessible_names(compact) == declared,
+			   "narrowing the window never removes or replaces a primary navigation stop");
 		expect(walked_focus_order(compact) == compact.mid(1),
 			   "the compact focus chain walks its declared order exactly");
 
-		window.resize(window.compact_width_threshold() + 320, 820);
+		window.resize(1'280, 820);
 		process_events();
-		expect(window.toolbar_mode() == qt::workbench_toolbar_mode::expanded,
-			   "widening the window restores top-level primary navigation");
 		const auto restored = window.focus_order();
 		expect(accessible_names(restored) == declared,
-			   "returning to the wide layout restores the same declared focus "
-			   "order, not the order the rebuilt toolbar buttons landed in");
+			   "returning to the wide layout retains the same declared focus order");
 		expect(walked_focus_order(restored) == restored.mid(1),
 			   "the restored focus chain walks the declared order exactly");
 		window.hide();
@@ -2720,7 +2761,7 @@ namespace {
 					   const std::uint32_t          aWidth) {
 					log.Width.push_back({ .Drawer = aDrawer, .Width = aWidth });
 				} });
-		window->resize(window->compact_width_threshold() + 320, 820);
+		window->resize(1'280, 820);
 		window->show();
 		process_events();
 
@@ -2739,7 +2780,9 @@ namespace {
 		// every composed region answers with that same selection.
 		const auto beforeSelection = surface->selection();
 		const auto beforeDetail    = window->detail_pane()->toPlainText();
-		surface->next_change_button()->click();
+		expect(surface->navigate_change(core::change_navigation_direction::next,
+										core::change_navigation_policy::stop),
+			   "the semantic bridge selects the next change");
 		process_events();
 		const auto& selection = surface->selection();
 		expect(selection.has_value() && selection != beforeSelection,
@@ -2784,7 +2827,7 @@ namespace {
 		window.reset();
 
 		qt::workbench_window restarted;
-		restarted.resize(restarted.compact_width_threshold() + 320, 820);
+		restarted.resize(1'280, 820);
 		restarted.show();
 		process_events();
 		expect(restarted.files_drawer()->width() != static_cast<int>(persistedWidth)
@@ -3210,7 +3253,7 @@ auto main(int argc, char** argv) -> int
 	test_all_four_primary_actions_follow_one_core_projection();
 	test_every_primary_action_translates_to_a_semantic_intent();
 	test_action_state_follows_core_command_projections();
-	test_compact_overflow_preserves_keyboard_access();
+	test_compact_icon_row_preserves_exact_order_and_edges();
 	test_shell_accessibility_status_and_scale();
 	test_drawer_toggles_follow_core_command_projections();
 	test_collapsing_a_drawer_returns_space_to_the_centre();

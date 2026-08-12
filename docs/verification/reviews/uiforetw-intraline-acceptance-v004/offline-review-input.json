@@ -1,0 +1,102 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Readable compact navigation in dark modes",
+  "review_gate": "compact_focused_review_navigation",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "downstream_claims": {
+    "bpr_0257_closed": false,
+    "bpr_0258_closed": false,
+    "rfc_closeout_claimed": false,
+    "release_gate_satisfied": false
+  },
+  "reference_disclaimer": "This is a new immutable batch from repair commit e10f553f54072b6761b99140cc204b5ebbf9590b and freshly generated image/fact bytes. It directly addresses the validated v003 rejection, 'The dark mode next/prev buttons are unreadable.' No v003 decision carries forward. Judge the visible Previous/Next file and change arrows in Dark and High-contrast Dark, then confirm the compact row and diff remain coherent in both light profiles. The captures use Qt 6.11.1 offscreen QFusionStyle at device pixel ratio 1; native platform-specific artwork, issue closure, RFC closeout, release readiness, and deferred Linux/Windows work are outside this batch.",
+  "subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0258/dark-navigation-icon-readability",
+      "subject_key": "dark-navigation-icon-readability",
+      "display_name": "Are the compact navigation arrows now readable in dark modes?",
+      "description": "The four Previous/Next file and change arrows now preserve the native QStyle silhouettes while taking their normal and disabled foreground colors from the live toolbar palette. Review Dark and High-contrast Dark first. The row order, edge placement, collapsed drawers, and two-pane comparison are unchanged from the compact-navigation design.",
+      "acceptance_criteria": [
+        "Previous file, Next file, Previous change, and Next change are immediately recognizable and readable in Dark",
+        "The same four arrows are immediately recognizable and readable in High-contrast Dark",
+        "Normal and disabled arrow treatments remain visually distinct without making disabled controls disappear",
+        "Files, Conversations, Review details, and private-progress symbols remain distinct from one another and from navigation",
+        "The one-row layout and focused two-pane diff remain coherent in Light, Dark, High-contrast Light, and High-contrast Dark"
+      ],
+      "known_concerns": [
+        "These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style.",
+        "Disabled-mode pixmaps, palette refresh events, shortcuts, focus, accessibility, projection-driven enablement, semantic routes, drawer reopening, and scale behavior are mechanically asserted; a static full-window capture cannot show every interaction.",
+        "The v003 rejection remains immutable evidence. Accepting this subject approves only the repaired visual criterion in these exact v004 bytes."
+      ],
+      "ab_group": null,
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The exact six-test repair selector passed 6/6. Every arrow carries exact live-palette pixels in explicit normal and disabled modes. Dark measures 13.84:1 enabled and 4.45:1 disabled; High-contrast Dark measures 21.00:1 and 5.24:1. Light and High-contrast Light also exceed their required floors. An independent read-only closeout review found no blocking issue and confirmed visible bright arrows in both dark captures."
+      },
+      "media_groups": [
+        {
+          "group_id": "dark-state-captures",
+          "title": "Primary decision: dark navigation readability",
+          "required": true,
+          "layout": "grid",
+          "note": "Inspect the four arrow buttons immediately to the right of Files. Click for native resolution.",
+          "items": [
+            { "label": "Dark — full window", "path": "captures/dark-full-window.png" },
+            { "label": "High-contrast Dark — full window", "path": "captures/high-contrast-dark-full-window.png" }
+          ]
+        },
+        {
+          "group_id": "light-regression-captures",
+          "title": "Regression check: light profiles",
+          "required": true,
+          "layout": "grid",
+          "note": "Confirm the palette-aware arrows remain clear without changing the compact allocation or selected diff.",
+          "items": [
+            { "label": "Light — full window", "path": "captures/light-full-window.png" },
+            { "label": "High-contrast Light — full window", "path": "captures/high-contrast-light-full-window.png" }
+          ]
+        },
+        {
+          "group_id": "comparison-continuity",
+          "title": "Selected comparison remains reviewable",
+          "required": true,
+          "layout": "grid",
+          "note": "The icon-only repair must not reduce or alter the exact selected two-pane diff.",
+          "items": [
+            { "label": "Dark — comparison crop", "path": "captures/dark-intraline-comparison.png" },
+            { "label": "High-contrast Dark — comparison crop", "path": "captures/high-contrast-dark-intraline-comparison.png" },
+            { "label": "Light — comparison crop", "path": "captures/light-intraline-comparison.png" },
+            { "label": "High-contrast Light — comparison crop", "path": "captures/high-contrast-light-intraline-comparison.png" }
+          ]
+        }
+      ],
+      "detail_sections": [
+        {
+          "heading": "Bound identity and measured contrast",
+          "kind": "definitions",
+          "items": [
+            { "term": "Producing source", "definition": "repair commit e10f553f54072b6761b99140cc204b5ebbf9590b; ordered BPR-0258 implementation-files digest sha256:b99c58a80458b2b9369125fd96eb993d33a58ee51ba9c80bd0743de8f43b5875" },
+            { "term": "Dark arrows", "definition": "normal #ffe6edf3 on #ff1c2026 = 13.84:1; disabled #ff81868c = 4.45:1; 90–92 and 92 exact foreground pixels respectively" },
+            { "term": "High-contrast Dark arrows", "definition": "normal #ffffffff on #ff000000 = 21.00:1; disabled #ff7f7f7f = 5.24:1; 92 and 80 exact foreground pixels respectively" },
+            { "term": "Light arrows", "definition": "normal 14.73:1; disabled 3.11:1" },
+            { "term": "High-contrast Light arrows", "definition": "normal 21.00:1; disabled 4.00:1" },
+            { "term": "Compact allocation", "definition": "Full window 1280 x 1000; one 1280 x 39 navigation row; native comparison 1262 x 918" },
+            { "term": "Selected file", "definition": "UIforETW/UIforETW.rc" },
+            { "term": "Exact comparison", "definition": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc -> e40058be7d5fe319342dffb567ce30e42bc6f4de" },
+            { "term": "Focused verification", "definition": "6/6 passed in 104.47 seconds; post-commit UIforETW capture passed in 78.98 seconds" },
+            { "term": "Capture environment", "definition": "Debug/dev, macOS arm64, Qt 6.11.1, offscreen QFusionStyle, DPR 1" }
+          ]
+        }
+      ],
+      "identity_files": [
+        { "label": "Capture manifest", "path": "captures/manifest.json" },
+        { "label": "Dark capture facts", "path": "captures/dark-capture-facts.json" },
+        { "label": "High-contrast Dark capture facts", "path": "captures/high-contrast-dark-capture-facts.json" },
+        { "label": "Light capture facts", "path": "captures/light-capture-facts.json" },
+        { "label": "High-contrast Light capture facts", "path": "captures/high-contrast-light-capture-facts.json" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "schema": "bpr.uiforetw_intraline_capture_manifest.v4",
+  "implementation_commit": "e10f553f54072b6761b99140cc204b5ebbf9590b",
+  "implementation_files": [
+    "docs/ux/appearance-and-accessibility.md",
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/adapters_qt/appearance_profile_tests.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp",
+    "tests/end_to_end/application_uiforetw_selected_diff_contract.cmake"
+  ],
+  "implementation_files_sha256": "b99c58a80458b2b9369125fd96eb993d33a58ee51ba9c80bd0743de8f43b5875",
+  "implementation_digest_command": "shasum -a 256 <implementation_files in listed order> | shasum -a 256",
+  "supersedes_rejected_batch": "bpr:/attended-review/betterpullreview/99b3c1cc6701ce6ab64d7ecb",
+  "rejected_feedback": "The dark mode next/prev buttons are unreadable.",
+  "build_preset": "dev",
+  "configuration": "Debug",
+  "platform": "macOS arm64",
+  "qt_version": "6.11.1",
+  "qt_platform": "offscreen",
+  "qt_style": "QFusionStyle",
+  "device_pixel_ratio": 1,
+  "logical_dimensions": [1280, 1000],
+  "navigation_row_dimensions": [1280, 39],
+  "focused_comparison_dimensions": [1262, 918],
+  "focused_comparison_ratio_permille": [985, 918],
+  "verification_command": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure",
+  "verification_result": "pass: 1/1 in 78.98 seconds; four profile captures plus cut-selection-wire negative",
+  "focused_matrix_command": "ctest --preset dev -R '^(qt_workbench_window_scale_(100|125|200)|qt_appearance_profile|application_uiforetw_selected_diff_contract|application_workbench_composition_contract)$' --output-on-failure",
+  "focused_matrix_result": "pass: 6/6 in 104.47 seconds",
+  "verified_course": [
+    "Files-drawer selection",
+    "Next file",
+    "Previous file",
+    "Next change",
+    "Previous change",
+    "Files drawer toggle",
+    "Conversations drawer toggle"
+  ],
+  "navigation_icon_requirements": {
+    "ordinary_normal_contrast_hundredths": 450,
+    "high_contrast_normal_contrast_hundredths": 700,
+    "disabled_contrast_hundredths": 300,
+    "exact_live_palette_foreground_pixels_required": true,
+    "normal_and_disabled_rasters_must_differ": true,
+    "all_four_direction_silhouettes_must_differ": true
+  },
+  "fixture": {
+    "identity": "google/UIforETW#74",
+    "selected_path": "UIforETW/UIforETW.rc",
+    "base_commit": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+    "head_commit": "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "base_blob": "b995e189fb58da146945e1fb22380cdf4a7f4e47",
+    "head_blob": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+    "recording_sha256": "d46b4521e12851821bf5eb64648664f84924a8f4781ab22fa416017fa29e9aaa",
+    "objects_pack_sha256": "f6016a7f75699daf66c65fbaa2427415687e95177227dea41cd6b01443563c50"
+  },
+  "captures": [
+    {
+      "profile": "light",
+      "full_window_sha256": "110905e23e8d73c5add1c8530659941d46037159a53c49cbcdcf33f18cc86eda",
+      "intraline_comparison_sha256": "f773240adeba2a8a2a46e4f4f5f1f7953752f3affe3c990c403ff25168ad38ac",
+      "facts_sha256": "cc5c688bd45c1366f726782852c267000dc302fcc0fc3707ebca1e76c1852c05",
+      "normal_contrast_hundredths": 1473,
+      "disabled_contrast_hundredths": 311
+    },
+    {
+      "profile": "dark",
+      "full_window_sha256": "e22808fdaab050bda8a9ab9a52694f4c4afc75118c58a555ac612be9eed4abda",
+      "intraline_comparison_sha256": "246f2bc92eb01e271316c8ca7ce245dfffaa5d75223b216cc231a2309518eaa7",
+      "facts_sha256": "d86d2677ade36353abdcb86be45a8240530ff404d7320cd4b1c1b3f72746c56c",
+      "normal_contrast_hundredths": 1384,
+      "disabled_contrast_hundredths": 445
+    },
+    {
+      "profile": "high-contrast-light",
+      "full_window_sha256": "42fc3dff31f9d39bccbf7c0b37553ec6bf472df3c36109c9bbe6c55ddd4dad82",
+      "intraline_comparison_sha256": "f1d9dcc235e5988c1b402559a6108d6e42e8d093ce186dd0e248696cf961a518",
+      "facts_sha256": "015ca9ec436d892bae3ec5b64aa81d239b75d8f27fefd7e21d125ccf768dd642",
+      "normal_contrast_hundredths": 2100,
+      "disabled_contrast_hundredths": 400
+    },
+    {
+      "profile": "high-contrast-dark",
+      "full_window_sha256": "73118744d53e4cf6bd21a8434caa82af59d0aa1f34020bd5ab495615da5d2db1",
+      "intraline_comparison_sha256": "9ee1f0d0a72aa1d239ee5ce63bc5938c611e85acd854df49c9fb0415ad92cda4",
+      "facts_sha256": "10e9863ebca78240c1cd947fc8b60474e322ed4b843e220fa53bc9a8e252528b",
+      "normal_contrast_hundredths": 2100,
+      "disabled_contrast_hundredths": 524
+    }
+  ]
+}

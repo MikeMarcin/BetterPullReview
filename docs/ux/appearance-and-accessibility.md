@@ -13,6 +13,36 @@ font. Derived title and status fonts, standard icons, delegate geometry, and
 layout are refreshed when Qt reports application palette, font, style, or
 theme changes.
 
+The focused-workbench navigation row derives every silhouette from standard
+`QStyle` icons. Files, Review details, private review progress, and
+Conversations retain the style's native pixels. The four Previous/Next file
+and change actions retain the native arrow masks but recolor their normal and
+disabled foreground pixels from the live `ButtonText` palette roles. This
+prevents a style's fixed black arrow pixels from disappearing against a dark
+widget-local palette while preserving platform-specific arrow geometry. All
+icons are reacquired after palette, font, style, or theme changes. No QSS or
+custom image asset fixes them to one palette or platform.
+
+Rendered tests inspect the actual normal and disabled arrow pixmaps in all four
+built-in profiles. They require exact palette-foreground pixels, the profile's
+ordinary or high-contrast text floor for normal arrows, a 3.00:1 non-text floor
+for disabled arrows, and distinct normal/disabled rasters. The real UIforETW
+capture records the same pixel counts and contrast ratios beside each
+full-window image, so a black-on-dark regression cannot pass merely because an
+icon object is non-null.
+
+The correspondence map follows the same rendered-pixel rule. Ordinary ribbons
+blend the live `WindowText` role over the inherited gutter, while selected
+ribbons retain the live `Highlight` fill and gain a `WindowText` edge. The
+UIforETW capture uses each public `visible_links()` path to mask the composed
+map grab, excludes overlapping paths, and observes the dominant gutter pixel
+outside the paths. For each known path it records selected and unselected
+dominant pixels, the number of mapped samples, the number at or above the
+3.00:1 non-text floor, and median contrast. Unselected ribbons require at
+least half of a meaningful sample to clear the floor; selected ribbons require
+a meaningful above-floor edge sample and a dominant raster distinct from the
+same unselected path. Palette values or a non-null pen alone are not evidence.
+
 The conversation delegate uses the live style option for colors and fonts,
 lets the native style paint selection and focus, and wraps remote literal
 text without elision. Color is not used as the only state signal.
@@ -288,10 +318,13 @@ Package audited definitions and themes as resources. Disable filesystem discover
 
 ### Workbench focus order and accessible naming (RFC-BPR-0005)
 
-The workbench shell declares its focus order explicitly and re-applies it
-whenever the toolbar changes between expanded and compact mode. The order is
-anchored to a control that is never rebuilt, so a toolbar rebuild cannot make
-it drift.
+The workbench shell declares its focus order explicitly. Its compact row begins
+with Files, Previous file, Next file, Previous change, Next change, Review
+details, private review progress, and Conversations. The row is persistent and
+is not rebuilt or replaced by a second toolbar at a narrower width, so its
+keyboard identity cannot drift across a responsive-mode transition. The
+private-progress button opens the same receipt actions in a keyboard-operable
+popup and safely returns to the persistent row when the popup closes.
 
 The declared order never reorders a stop that belongs to a composed region. The
 epoch control and the comparison surface keep their own internal focus order,
@@ -304,10 +337,12 @@ window.** This is enforced by a test rather than by convention, because the
 rule was broken four separate times before it was enforced: a retired
 placeholder duplicated the composed detail pane, the toolbar's change buttons
 duplicated the comparison surface's own in-surface buttons, the drawer toggles
-duplicated the drawer panels' list views, and the overflow menu duplicated the
-button that opens it. Each case left two focusable widgets answering to one
-identity, which assistive technology cannot disambiguate. Visible labels may
-repeat; accessible names may not.
+duplicated the drawer panels' list views, and a former navigation overflow menu
+duplicated its opener. The duplicate in-surface change buttons and navigation
+overflow are removed, and the compact row is the single presenter. Each former
+case left two focusable widgets answering to one identity, which assistive
+technology cannot disambiguate. Visible labels may repeat; accessible names
+may not.
 
 The same scan forbids duplicate key sequences, for the related reason that Qt
 resolves an ambiguous shortcut by triggering neither binding, so a collision

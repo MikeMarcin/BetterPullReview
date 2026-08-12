@@ -603,10 +603,10 @@ auto main(int argc, char** argv) -> int
 			return fail(*application, "real-selected-diff");
 		}
 		auto* const surface = window.comparison_surface();
-		if (!surface->next_change_button()->isEnabled()) {
+		if (!surface->navigate_change(core::change_navigation_direction::next,
+									  core::change_navigation_policy::stop)) {
 			return fail(*application, "semantic-selection-action");
 		}
-		surface->next_change_button()->click();
 		if (!wait_until([surface] {
 				return surface->selection().has_value();
 			})) {

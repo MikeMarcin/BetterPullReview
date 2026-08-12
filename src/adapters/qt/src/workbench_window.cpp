@@ -14,14 +14,16 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
-#include <QFontMetrics>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QItemSelectionModel>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QPainter>
+#include <QPalette>
 #include <QPlainTextEdit>
 #include <QScrollArea>
 #include <QSizePolicy>
@@ -43,11 +45,6 @@
 
 namespace bpr::qt {
 	namespace {
-		// The narrowest code column the central review surface is worth keeping.
-		// Primary navigation moves into the compact overflow rather than eating
-		// into it, which is what "narrow width" means for this window.
-		constexpr int reserved_central_columns = 80;
-
 		// The toolbar's first entries are the file actions and the rest are the
 		// change actions, in the core's own command order.
 		constexpr std::size_t file_navigation_entries = 2U;
@@ -70,6 +67,59 @@ namespace bpr::qt {
 		static_assert(
 			static_cast<std::size_t>(application::file_receipt_action_id::excluded)
 			== 3U);
+
+		/// \brief Recolours one native icon silhouette for the live widget palette.
+		///
+		/// \details Some styles return fixed black arrow pixels even when a widget
+		/// has adopted a dark local palette. Reusing the style's normal pixmap as an
+		/// alpha mask preserves its platform-specific arrow geometry while making
+		/// the foreground follow the palette. Disabled mode is populated explicitly
+		/// so Qt does not synthesize another black or unreadably faded variant.
+		[[nodiscard]] auto palette_aware_icon(
+			QStyle&                      aStyle,
+			const QStyle::StandardPixmap aPixmap,
+			const QPalette&              aPalette,
+			QWidget* const               aWidget) -> QIcon
+		{
+			auto source = aStyle.standardIcon(aPixmap, nullptr, aWidget);
+			if (source.isNull()) {
+				return source;
+			}
+
+			auto           result       = QIcon{ };
+			constexpr auto logicalSizes = std::array{ 16, 20, 24, 32 };
+			constexpr auto scales       = std::array{ 1.0, 1.25, 2.0 };
+			constexpr auto modes        = std::array{
+				std::pair{ QIcon::Normal, QPalette::Active },
+				std::pair{ QIcon::Active, QPalette::Active },
+				std::pair{ QIcon::Selected, QPalette::Active },
+				std::pair{ QIcon::Disabled, QPalette::Disabled },
+			};
+			for (const auto& [mode, group] : modes) {
+				for (const auto logicalSize : logicalSizes) {
+					for (const auto scale : scales) {
+						auto pixels = source.pixmap(
+							QSize{ logicalSize, logicalSize },
+							scale,
+							QIcon::Normal,
+							QIcon::Off);
+						if (pixels.isNull()) {
+							continue;
+						}
+						{
+							auto painter = QPainter{ &pixels };
+							painter.setCompositionMode(
+								QPainter::CompositionMode_SourceIn);
+							painter.fillRect(
+								pixels.rect(),
+								aPalette.color(group, QPalette::ButtonText));
+						}
+						result.addPixmap(pixels, mode, QIcon::Off);
+					}
+				}
+			}
+			return result.isNull() ? source : result;
+		}
 
 		[[nodiscard]] auto reason_text(const core::workbench_reason_code aReason)
 			-> QString
@@ -231,14 +281,12 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("workbenchWindow"));
 		setWindowTitle(QStringLiteral("BetterPullReview"));
-		// Deliberately narrower than compact_width_threshold(). A supported width
-		// below the natural navigation width is exactly what the explicit compact
-		// overflow exists for.
+		// The six primary icon controls remain top-level at this supported floor;
+		// text never consumes their persistent row width.
 		setMinimumSize(480, 360);
 		resize(1'280, 820);
 
 		build_primary_toolbar();
-		build_drawer_toolbar();
 		build_central_surface();
 		build_github_header();
 
@@ -253,7 +301,9 @@ namespace bpr::qt {
 											 | Qt::TextSelectableByMouse);
 		statusBar()->addWidget(StatusLabel, 1);
 
-		apply_layout_mode();
+		configure_tool_buttons();
+		refresh_toolbar_icons();
+		apply_focus_order();
 		update_action_state();
 		update_status_text();
 	}
@@ -264,13 +314,55 @@ namespace bpr::qt {
 	{
 		PrimaryToolbar = addToolBar(QStringLiteral("Review navigation"));
 		PrimaryToolbar->setObjectName(QStringLiteral("workbenchPrimaryToolbar"));
-		PrimaryToolbar->setAccessibleName(
-			QStringLiteral("Primary review navigation"));
+		PrimaryToolbar->setAccessibleName(QStringLiteral("Focused review navigation"));
 		PrimaryToolbar->setAccessibleDescription(QStringLiteral(
-			"Move between actionable pull-request files and semantic changes"));
+			"Files drawer, file and change navigation, secondary review controls, and conversations drawer"));
 		PrimaryToolbar->setMovable(false);
 		PrimaryToolbar->setFloatable(false);
-		PrimaryToolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		PrimaryToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+
+		const auto makeDrawer = [this](const QString&      aText,
+									   const QString&      aName,
+									   const QString&      aAccessible,
+									   const QString&      aObjectName,
+									   const QString&      aCollapse,
+									   const QString&      aExpand,
+									   const QKeySequence& aShortcut) -> drawer_entry {
+			auto* const action = new QAction{ aText, this };
+			action->setObjectName(aObjectName);
+			action->setCheckable(true);
+			action->setShortcut(aShortcut);
+			action->setShortcutContext(Qt::WindowShortcut);
+			action->setIconText(aName);
+			addAction(action);
+			return {
+				.Toggle     = action,
+				.Name       = aName,
+				.Accessible = aAccessible,
+				.Collapse   = aCollapse,
+				.Expand     = aExpand,
+			};
+		};
+
+		// Alt+1 through Alt+3 belong to the composed review-history control's
+		// named comparisons, so drawer gestures retain their unambiguous Alt+Shift
+		// bindings from the existing semantic action path.
+		Drawers[0] = makeDrawer(
+			QStringLiteral("&Files drawer"),
+			QStringLiteral("Files drawer"),
+			QStringLiteral("Files drawer toggle"),
+			QStringLiteral("toggleWorkbenchFilesDrawerAction"),
+			QStringLiteral("Hide the file drawer and give its width to the comparison."),
+			QStringLiteral("Show the file drawer at its saved width."),
+			QKeySequence{ QStringLiteral("Alt+Shift+1") });
+		Drawers[1] = makeDrawer(
+			QStringLiteral("&Conversations drawer"),
+			QStringLiteral("Conversations drawer"),
+			QStringLiteral("Conversations drawer toggle"),
+			QStringLiteral("toggleWorkbenchConversationsDrawerAction"),
+			QStringLiteral("Hide the conversation drawer and give its width to the comparison."),
+			QStringLiteral("Show the conversation drawer at its saved width."),
+			QKeySequence{ QStringLiteral("Alt+Shift+2") });
 
 		const auto make = [this](const QString&      aText,
 								 const QString&      aName,
@@ -282,7 +374,7 @@ namespace bpr::qt {
 			action->setObjectName(aObjectName);
 			action->setShortcut(aShortcut);
 			// Window context keeps the shortcut live from anywhere in the window,
-			// including while the action lives in the compact overflow.
+			// including while focus is inside either drawer or comparison pane.
 			action->setShortcutContext(Qt::WindowShortcut);
 			action->setIconText(aName);
 			addAction(action);
@@ -306,61 +398,18 @@ namespace bpr::qt {
 							 QStringLiteral("nextWorkbenchFileAction"),
 							 QStringLiteral("Select the next actionable file."),
 							 QKeySequence{ QStringLiteral("Alt+Down") });
-		// The composed comparison surface offers its own in-surface previous and
-		// next change buttons, which already answer to "Previous change" and
-		// "Next change". Two focusable widgets answering to one assistive name in
-		// one window is an accessibility defect, so the top-level toolbar states
-		// which pair it is.
 		Navigation[2] = make(QStringLiteral("Pre&vious change"),
 							 QStringLiteral("Previous change"),
-							 QStringLiteral("Previous review change"),
+							 QStringLiteral("Previous change"),
 							 QStringLiteral("previousWorkbenchChangeAction"),
 							 QStringLiteral("Select the previous semantic change."),
 							 QKeySequence{ QStringLiteral("Alt+PgUp") });
 		Navigation[3] = make(QStringLiteral("Ne&xt change"),
 							 QStringLiteral("Next change"),
-							 QStringLiteral("Next review change"),
+							 QStringLiteral("Next change"),
 							 QStringLiteral("nextWorkbenchChangeAction"),
 							 QStringLiteral("Select the next semantic change."),
 							 QKeySequence{ QStringLiteral("Alt+PgDown") });
-
-		PrimaryToolbar->addAction(Navigation[0].Action);
-		PrimaryToolbar->addAction(Navigation[1].Action);
-		SeparatorAction = PrimaryToolbar->addSeparator();
-		PrimaryToolbar->addAction(Navigation[2].Action);
-		PrimaryToolbar->addAction(Navigation[3].Action);
-
-		OverflowMenu = new QMenu{ this };
-		OverflowMenu->setObjectName(
-			QStringLiteral("workbenchNavigationOverflowMenu"));
-		// Named apart from the button that opens it: the button and its popup are
-		// two widgets, and one assistive name cannot mean both.
-		OverflowMenu->setAccessibleName(
-			QStringLiteral("Review navigation overflow"));
-		OverflowMenu->setAccessibleDescription(QStringLiteral(
-			"Primary review navigation moved into the compact overflow"));
-		OverflowButton = new menu_tool_button{ this };
-		OverflowButton->setObjectName(
-			QStringLiteral("workbenchNavigationOverflowButton"));
-		OverflowButton->setText(QStringLiteral("&Navigation"));
-		// setText derives a mnemonic, and platforms that do not use Alt mnemonics
-		// derive an empty one. Set the shortcut explicitly afterwards so the
-		// compact overflow is keyboard-openable everywhere.
-		OverflowButton->setShortcut(QKeySequence{ QStringLiteral("Alt+N") });
-		OverflowButton->setAccessibleName(QStringLiteral("Review navigation"));
-		OverflowButton->setAccessibleDescription(QStringLiteral(
-			"Open previous and next file and change navigation"));
-		OverflowButton->setToolTip(
-			QStringLiteral("Primary review navigation for narrow windows."));
-		OverflowButton->setStatusTip(OverflowButton->toolTip());
-		OverflowButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-		OverflowButton->setPopupMode(QToolButton::InstantPopup);
-		OverflowButton->setFocusPolicy(Qt::StrongFocus);
-		OverflowButton->setMenu(OverflowMenu);
-		OverflowAction = PrimaryToolbar->addWidget(OverflowButton);
-		OverflowAction->setObjectName(
-			QStringLiteral("workbenchNavigationOverflowAction"));
-		OverflowAction->setVisible(false);
 
 		for (std::size_t index = 0U; index < Navigation.size(); ++index) {
 			connect(Navigation[index].Action,
@@ -368,69 +417,6 @@ namespace bpr::qt {
 					this,
 					[this, index] { dispatch_navigation(index); });
 		}
-	}
-
-	void workbench_window::build_drawer_toolbar()
-	{
-		// A separate row. The drawer toggles are permanently top-level, so putting
-		// them beside primary navigation would let them push navigation past the
-		// width compact_width_threshold() promises it fits in.
-		addToolBarBreak(Qt::TopToolBarArea);
-		DrawerToolbar = addToolBar(QStringLiteral("Review layout"));
-		DrawerToolbar->setObjectName(QStringLiteral("workbenchDrawerToolbar"));
-		DrawerToolbar->setAccessibleName(QStringLiteral("Review layout"));
-		DrawerToolbar->setAccessibleDescription(QStringLiteral(
-			"Show or hide the file drawer, conversation drawer, and secondary review details"));
-		DrawerToolbar->setMovable(false);
-		DrawerToolbar->setFloatable(false);
-		DrawerToolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
-
-		const auto make = [this](const QString&      aText,
-								 const QString&      aName,
-								 const QString&      aAccessible,
-								 const QString&      aObjectName,
-								 const QString&      aCollapse,
-								 const QString&      aExpand,
-								 const QKeySequence& aShortcut) -> drawer_entry {
-			auto* const action = new QAction{ aText, this };
-			action->setObjectName(aObjectName);
-			action->setCheckable(true);
-			action->setShortcut(aShortcut);
-			action->setShortcutContext(Qt::WindowShortcut);
-			action->setIconText(aName);
-			addAction(action);
-			DrawerToolbar->addAction(action);
-			return {
-				.Toggle     = action,
-				.Name       = aName,
-				.Accessible = aAccessible,
-				.Collapse   = aCollapse,
-				.Expand     = aExpand,
-			};
-		};
-
-		// Alt+1 through Alt+3 belong to the composed review-history control's
-		// named comparisons, which are widget-context shortcuts. A window-context
-		// duplicate would be ambiguous exactly while that control has focus, and
-		// Qt answers an ambiguous overload by triggering neither action.
-		Drawers[0] = make(
-			QStringLiteral("&Files drawer"),
-			QStringLiteral("Files drawer"),
-			QStringLiteral("Files drawer toggle"),
-			QStringLiteral("toggleWorkbenchFilesDrawerAction"),
-			QStringLiteral("Hide the file drawer and give its width to the "
-						   "comparison."),
-			QStringLiteral("Show the file drawer at its saved width."),
-			QKeySequence{ QStringLiteral("Alt+Shift+1") });
-		Drawers[1] = make(
-			QStringLiteral("&Conversations drawer"),
-			QStringLiteral("Conversations drawer"),
-			QStringLiteral("Conversations drawer toggle"),
-			QStringLiteral("toggleWorkbenchConversationsDrawerAction"),
-			QStringLiteral("Hide the conversation drawer and give its width to "
-						   "the comparison."),
-			QStringLiteral("Show the conversation drawer at its saved width."),
-			QKeySequence{ QStringLiteral("Alt+Shift+2") });
 
 		for (std::size_t index = 0U; index < Drawers.size(); ++index) {
 			connect(Drawers[index].Toggle,
@@ -451,7 +437,6 @@ namespace bpr::qt {
 			"Hide secondary review details and give their height to the comparison."));
 		ReviewDetailsAction->setStatusTip(ReviewDetailsAction->toolTip());
 		addAction(ReviewDetailsAction);
-		DrawerToolbar->addAction(ReviewDetailsAction);
 		connect(
 			ReviewDetailsAction,
 			&QAction::toggled,
@@ -475,13 +460,17 @@ namespace bpr::qt {
 				ReviewDetailsAction->setToolTip(description);
 				ReviewDetailsAction->setStatusTip(description);
 				if (auto* const button = qobject_cast<QToolButton*>(
-						DrawerToolbar->widgetForAction(ReviewDetailsAction));
+						PrimaryToolbar->widgetForAction(ReviewDetailsAction));
 					button != nullptr) {
 					button->setAccessibleDescription(description);
 				}
 			});
 
-		DrawerToolbar->addSeparator();
+		ReviewControlsMenu = new QMenu{ this };
+		ReviewControlsMenu->setObjectName(QStringLiteral("workbenchReviewControlsMenu"));
+		ReviewControlsMenu->setAccessibleName(QStringLiteral("Private progress actions"));
+		ReviewControlsMenu->setAccessibleDescription(QStringLiteral(
+			"Seen, read, acceptance, and exclusion actions for the selected exact file material"));
 		const auto receiptAction = [this](
 									   const std::size_t aIndex,
 									   const QString&    aText,
@@ -493,7 +482,7 @@ namespace bpr::qt {
 			action->setIconText(aText);
 			action->setEnabled(false);
 			addAction(action);
-			DrawerToolbar->addAction(action);
+			ReviewControlsMenu->addAction(action);
 			ReceiptActions[aIndex] = action;
 			connect(action,
 					&QAction::triggered,
@@ -518,6 +507,38 @@ namespace bpr::qt {
 					  QStringLiteral("E&xclude"),
 					  QStringLiteral("toggleSelectedFileExclusionAction"),
 					  QStringLiteral("Change private exclusion for the selected file."));
+
+		ReviewControlsButton = new menu_tool_button{ this };
+		ReviewControlsButton->setObjectName(QStringLiteral("workbenchReviewControlsButton"));
+		ReviewControlsButton->setText(QStringLiteral("Private &progress"));
+		ReviewControlsButton->setShortcut(QKeySequence{ QStringLiteral("Alt+Shift+4") });
+		ReviewControlsButton->setAccessibleName(QStringLiteral("Private progress"));
+		ReviewControlsButton->setAccessibleDescription(QStringLiteral(
+			"Open private seen, read, acceptance, and exclusion actions"));
+		ReviewControlsButton->setToolTip(QStringLiteral("Private progress actions"));
+		ReviewControlsButton->setStatusTip(ReviewControlsButton->toolTip());
+		ReviewControlsButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		ReviewControlsButton->setPopupMode(QToolButton::InstantPopup);
+		ReviewControlsButton->setFocusPolicy(Qt::StrongFocus);
+		ReviewControlsButton->setMenu(ReviewControlsMenu);
+
+		// Exact persistent order: the two semantic drawer edges enclose all four
+		// navigation actions. Secondary review controls stay bounded, and the
+		// expanding widget is the only item allowed to consume surplus width.
+		PrimaryToolbar->addAction(Drawers[0].Toggle);
+		for (const auto& entry : Navigation) {
+			PrimaryToolbar->addAction(entry.Action);
+		}
+		PrimaryToolbar->addSeparator();
+		PrimaryToolbar->addAction(ReviewDetailsAction);
+		auto* const reviewControlsAction = PrimaryToolbar->addWidget(ReviewControlsButton);
+		reviewControlsAction->setObjectName(QStringLiteral("workbenchReviewControlsAction"));
+		ToolbarSpacer = new QWidget{ PrimaryToolbar };
+		ToolbarSpacer->setObjectName(QStringLiteral("workbenchNavigationSpacer"));
+		ToolbarSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+		auto* const spacerAction = PrimaryToolbar->addWidget(ToolbarSpacer);
+		spacerAction->setObjectName(QStringLiteral("workbenchNavigationSpacerAction"));
+		PrimaryToolbar->addAction(Drawers[1].Toggle);
 	}
 
 	void workbench_window::build_central_surface()
@@ -544,8 +565,8 @@ namespace bpr::qt {
 		EpochSelectors = new epoch_comparison_control{ { }, CentreSurface };
 		// An ignored horizontal hint, exactly as the drawer heading uses. The
 		// centre must never impose a minimum width that the drawer widths the
-		// host persists cannot coexist with, and the window must stay able to
-		// reach the supported widths the compact overflow exists for.
+		// host persists cannot coexist with, and the window must stay usable at
+		// the supported compact icon-row width.
 		EpochSelectors->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		// RFC-BPR-0004's workbench is composed unchanged. It keeps the single
 		// shared vertical scrollbar, the single link map, and the natural-layout
@@ -1679,47 +1700,15 @@ namespace bpr::qt {
 		return ReceiptActions[3];
 	}
 
-	auto workbench_window::navigation_overflow_button() const noexcept
+	auto workbench_window::review_controls_button() const noexcept
 		-> QToolButton*
 	{
-		return OverflowButton;
+		return ReviewControlsButton;
 	}
 
-	auto workbench_window::navigation_overflow_menu() const noexcept -> QMenu*
+	auto workbench_window::review_controls_menu() const noexcept -> QMenu*
 	{
-		return OverflowMenu;
-	}
-
-	auto workbench_window::toolbar_mode() const noexcept -> workbench_toolbar_mode
-	{
-		return Mode;
-	}
-
-	auto workbench_window::compact_width_threshold() const -> int
-	{
-		const auto  metrics      = PrimaryToolbar->fontMetrics();
-		auto* const toolbarStyle = PrimaryToolbar->style();
-		const auto  margin       = toolbarStyle->pixelMetric(
-			QStyle::PM_ButtonMargin, nullptr, PrimaryToolbar);
-		const auto spacing = toolbarStyle->pixelMetric(
-			QStyle::PM_ToolBarItemSpacing, nullptr, PrimaryToolbar);
-		const auto item = toolbarStyle->pixelMetric(
-			QStyle::PM_ToolBarItemMargin, nullptr, PrimaryToolbar);
-		auto width = 2
-			* toolbarStyle->pixelMetric(
-				QStyle::PM_ToolBarFrameWidth, nullptr, PrimaryToolbar);
-		for (const auto& entry : Navigation) {
-			width += metrics.horizontalAdvance(entry.Name) + (2 * margin)
-				+ (2 * item) + spacing;
-		}
-		return width
-			+ (reserved_central_columns
-			   * metrics.horizontalAdvance(QLatin1Char('0')));
-	}
-
-	auto workbench_window::drawer_toolbar() const noexcept -> QToolBar*
-	{
-		return DrawerToolbar;
+		return ReviewControlsMenu;
 	}
 
 	auto workbench_window::files_drawer() const noexcept -> workbench_drawer_panel*
@@ -2257,24 +2246,17 @@ namespace bpr::qt {
 			}
 		};
 
-		if (Mode == workbench_toolbar_mode::compact) {
-			append(OverflowButton);
-		} else {
-			for (const auto& entry : Navigation) {
-				append(qobject_cast<QToolButton*>(
-					PrimaryToolbar->widgetForAction(entry.Action)));
-			}
-		}
-		for (const auto& entry : Drawers) {
+		append(qobject_cast<QToolButton*>(
+			PrimaryToolbar->widgetForAction(Drawers[0].Toggle)));
+		for (const auto& entry : Navigation) {
 			append(qobject_cast<QToolButton*>(
-				DrawerToolbar->widgetForAction(entry.Toggle)));
+				PrimaryToolbar->widgetForAction(entry.Action)));
 		}
 		append(qobject_cast<QToolButton*>(
-			DrawerToolbar->widgetForAction(ReviewDetailsAction)));
-		for (auto* const action : ReceiptActions) {
-			append(qobject_cast<QToolButton*>(
-				DrawerToolbar->widgetForAction(action)));
-		}
+			PrimaryToolbar->widgetForAction(ReviewDetailsAction)));
+		append(ReviewControlsButton);
+		append(qobject_cast<QToolButton*>(
+			PrimaryToolbar->widgetForAction(Drawers[1].Toggle)));
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
 		if (SessionPanel != nullptr) {
@@ -2357,9 +2339,7 @@ namespace bpr::qt {
 		case QEvent::FontChange:
 		case QEvent::StyleChange:
 		case QEvent::ThemeChange:
-			// The threshold is style- and font-derived, so a native appearance
-			// change can legitimately move the window across it.
-			apply_layout_mode();
+			refresh_toolbar_icons();
 			// The pull-request title and identity carry derived emphasis fonts,
 			// which stop tracking the application font unless they are re-derived
 			// here. `github_window` did this; the shell must too, or a reviewer
@@ -2374,12 +2354,6 @@ namespace bpr::qt {
 		default:
 			break;
 		}
-	}
-
-	void workbench_window::resizeEvent(QResizeEvent* const aEvent)
-	{
-		QMainWindow::resizeEvent(aEvent);
-		apply_layout_mode();
 	}
 
 	void workbench_window::dispatch_navigation(const std::size_t aIndex)
@@ -2491,43 +2465,6 @@ namespace bpr::qt {
 		return { files, centre, conversations };
 	}
 
-	void workbench_window::apply_layout_mode()
-	{
-		const auto mode = width() < compact_width_threshold()
-			? workbench_toolbar_mode::compact
-			: workbench_toolbar_mode::expanded;
-		if (ToolbarConfigured && mode == Mode) {
-			return;
-		}
-		Mode              = mode;
-		ToolbarConfigured = true;
-
-		for (const auto& entry : Navigation) {
-			PrimaryToolbar->removeAction(entry.Action);
-			OverflowMenu->removeAction(entry.Action);
-		}
-		const auto compact = Mode == workbench_toolbar_mode::compact;
-		for (std::size_t index = 0U; index < Navigation.size(); ++index) {
-			auto* const action = Navigation[index].Action;
-			if (compact) {
-				OverflowMenu->addAction(action);
-			} else {
-				// File actions sit before the separator, change actions after it.
-				PrimaryToolbar->insertAction(index < file_navigation_entries
-												 ? SeparatorAction
-												 : OverflowAction,
-											 action);
-			}
-		}
-		SeparatorAction->setVisible(!compact);
-		OverflowAction->setVisible(compact);
-		configure_tool_buttons();
-		// A mode change destroys and recreates the toolbar buttons, so the
-		// declared order has to be reasserted over the widgets that now exist.
-		apply_focus_order();
-		++Statistics.ToolbarModeChanges;
-	}
-
 	void workbench_window::configure_tool_buttons()
 	{
 		for (const auto& entry : Navigation) {
@@ -2542,7 +2479,7 @@ namespace bpr::qt {
 		}
 		for (const auto& entry : Drawers) {
 			auto* const button = qobject_cast<QToolButton*>(
-				DrawerToolbar->widgetForAction(entry.Toggle));
+				PrimaryToolbar->widgetForAction(entry.Toggle));
 			if (button == nullptr) {
 				continue;
 			}
@@ -2551,21 +2488,46 @@ namespace bpr::qt {
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
 		if (auto* const button = qobject_cast<QToolButton*>(
-				DrawerToolbar->widgetForAction(ReviewDetailsAction));
+				PrimaryToolbar->widgetForAction(ReviewDetailsAction));
 			button != nullptr) {
 			button->setAccessibleName(QStringLiteral("Review details toggle"));
 			button->setAccessibleDescription(ReviewDetailsAction->toolTip());
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
-		for (auto* const action : ReceiptActions) {
-			auto* const button = qobject_cast<QToolButton*>(
-				DrawerToolbar->widgetForAction(action));
-			if (button == nullptr) {
-				continue;
-			}
-			button->setAccessibleName(action->text().remove(QLatin1Char{ '&' }));
-			button->setAccessibleDescription(action->toolTip());
-			button->setFocusPolicy(Qt::StrongFocus);
+	}
+
+	void workbench_window::refresh_toolbar_icons()
+	{
+		auto* const nativeStyle = style();
+		if (nativeStyle == nullptr) {
+			return;
+		}
+		Drawers[0].Toggle->setIcon(nativeStyle->standardIcon(
+			QStyle::SP_DirOpenIcon, nullptr, this));
+		Navigation[0].Action->setIcon(palette_aware_icon(
+			*nativeStyle, QStyle::SP_ArrowUp, palette(), this));
+		Navigation[1].Action->setIcon(palette_aware_icon(
+			*nativeStyle, QStyle::SP_ArrowDown, palette(), this));
+		Navigation[2].Action->setIcon(palette_aware_icon(
+			*nativeStyle, QStyle::SP_ArrowBack, palette(), this));
+		Navigation[3].Action->setIcon(palette_aware_icon(
+			*nativeStyle, QStyle::SP_ArrowForward, palette(), this));
+		ReviewDetailsAction->setIcon(nativeStyle->standardIcon(
+			QStyle::SP_FileDialogInfoView, nullptr, this));
+		ReviewControlsButton->setIcon(nativeStyle->standardIcon(
+			QStyle::SP_DialogApplyButton, nullptr, this));
+		Drawers[1].Toggle->setIcon(nativeStyle->standardIcon(
+			QStyle::SP_FileDialogListView, nullptr, this));
+
+		constexpr auto receiptIcons = std::array{
+			QStyle::SP_DialogYesButton,
+			QStyle::SP_DialogApplyButton,
+			QStyle::SP_DialogOkButton,
+			QStyle::SP_DialogCancelButton,
+		};
+		for (std::size_t index = 0U; index < ReceiptActions.size(); ++index) {
+			ReceiptActions[index]->setIcon(nativeStyle->standardIcon(
+				receiptIcons[index], nullptr, this));
 		}
 	}
 
@@ -2575,12 +2537,6 @@ namespace bpr::qt {
 		if (order.isEmpty()) {
 			return;
 		}
-		// A toolbar mode change destroys and recreates the primary buttons, and a
-		// newly created widget joins the focus chain wherever Qt puts it. The
-		// compact overflow is built once and never moved, so anchoring the chain
-		// to it makes the declared order survive every mode change instead of
-		// drifting to wherever the last rebuild landed.
-		QWidget::setTabOrder(OverflowButton, order.first());
 		for (auto index = qsizetype{ 1 }; index < order.size(); ++index) {
 			auto* const previous = order[index - 1];
 			auto* const next     = order[index];
@@ -2695,13 +2651,19 @@ namespace bpr::qt {
 		const auto  projection = command(aId);
 		const auto  expanded   = aState == core::workbench_drawer_state::expanded;
 		entry.Toggle->setChecked(expanded);
+		const auto enabledText = expanded ? entry.Collapse : entry.Expand;
 		describe_action(
 			entry.Toggle,
 			projection && projection->Enabled,
-			expanded ? entry.Collapse : entry.Expand,
+			enabledText,
 			drawer_reason_text(projection
 								   ? projection->DisabledReason
 								   : core::workbench_reason_code::no_active_workbench));
+		if (auto* const button = qobject_cast<QToolButton*>(
+				PrimaryToolbar->widgetForAction(entry.Toggle));
+			button != nullptr) {
+			button->setAccessibleDescription(entry.Toggle->toolTip());
+		}
 	}
 
 	void workbench_window::update_status_text()

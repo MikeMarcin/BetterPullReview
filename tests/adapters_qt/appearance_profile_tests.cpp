@@ -5,10 +5,15 @@
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/workbench_window.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QColor>
 #include <QFont>
+#include <QIcon>
+#include <QImage>
+#include <QPainterPathStroker>
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QString>
@@ -60,9 +65,10 @@ namespace {
 
 	// WCAG contrast floors. AA is the ordinary-profile obligation and AAA the
 	// obligation a high-contrast profile exists to meet.
-	constexpr auto readable_contrast     = 4.5;
-	constexpr auto high_contrast_minimum = 7.0;
-	constexpr auto maximum_contrast      = 21.0;
+	constexpr auto readable_contrast      = 4.5;
+	constexpr auto high_contrast_minimum  = 7.0;
+	constexpr auto maximum_contrast       = 21.0;
+	constexpr auto disabled_icon_contrast = 3.0;
 
 	constexpr auto all_variants = std::array{
 		core::appearance_variant::light,
@@ -85,6 +91,34 @@ namespace {
 			return core::appearance_mode::high_contrast_dark;
 		}
 		return core::appearance_mode::light;
+	}
+
+	/// \brief Counts the strongly opaque pixels carrying one exact palette tint.
+	[[nodiscard]] auto palette_foreground_pixels(
+		const QIcon&      aIcon,
+		const QIcon::Mode aMode,
+		const QColor&     aExpected) -> std::size_t
+	{
+		const auto image = aIcon.pixmap(
+									QSize{ 24, 24 }, 2.0, aMode, QIcon::Off)
+							   .toImage()
+							   .convertToFormat(QImage::Format_ARGB32);
+		if (image.isNull() || !aExpected.isValid()) {
+			return 0U;
+		}
+		constexpr auto rgbComponentMask = QRgb{ 0x00FF'FFFFU };
+		const auto     expected         = aExpected.rgb() & rgbComponentMask;
+		auto           count            = std::size_t{ 0U };
+		for (auto y = 0; y < image.height(); ++y) {
+			for (auto x = 0; x < image.width(); ++x) {
+				const auto pixel = image.pixel(x, y);
+				if (qAlpha(pixel) >= 224
+					&& (pixel & rgbComponentMask) == expected) {
+					++count;
+				}
+			}
+		}
+		return count;
 	}
 
 	/// \brief Holds the readability facts one profile palette reports.
@@ -523,6 +557,80 @@ namespace {
 		expect(
 			profile.statistics().AppliedSurfaces == 1U,
 			"exactly one surface adopted the derived palette");
+	}
+
+	auto test_navigation_icons_follow_every_profile_palette() -> void
+	{
+		auto profile = qt::appearance_profile{ };
+		auto window  = qt::workbench_window{ };
+
+		for (const auto variant : all_variants) {
+			static_cast<void>(profile.select_mode(explicit_mode_for(variant)));
+			profile.apply_to(window);
+			process_events();
+
+			const auto background = window.palette().color(
+				QPalette::Active, QPalette::Button);
+			const auto normal = window.palette().color(
+				QPalette::Active, QPalette::ButtonText);
+			const auto disabled = window.palette().color(
+				QPalette::Disabled, QPalette::ButtonText);
+			const auto normalMinimum
+				= variant == core::appearance_variant::high_contrast_light
+					|| variant == core::appearance_variant::high_contrast_dark
+				? high_contrast_minimum
+				: readable_contrast;
+			expect(
+				qt::contrast_ratio(
+					qt::to_appearance_color(background),
+					qt::to_appearance_color(normal))
+					>= normalMinimum,
+				"normal navigation foreground meets the profile's text contrast floor");
+			expect(
+				qt::contrast_ratio(
+					qt::to_appearance_color(background),
+					qt::to_appearance_color(disabled))
+					>= disabled_icon_contrast,
+				"disabled navigation foreground remains a readable non-text indicator");
+			expect(
+				normal != disabled,
+				"normal and disabled navigation foregrounds remain distinguishable");
+
+			const auto actions = std::array{
+				window.previous_file_action(),
+				window.next_file_action(),
+				window.previous_change_action(),
+				window.next_change_action(),
+			};
+			auto normalImages = std::array<QImage, 4U>{ };
+			for (std::size_t index = 0U; index < actions.size(); ++index) {
+				const auto& icon = actions[index]->icon();
+				expect(
+					palette_foreground_pixels(icon, QIcon::Normal, normal) > 0U,
+					"each normal navigation icon paints exact live-palette foreground pixels");
+				expect(
+					palette_foreground_pixels(icon, QIcon::Disabled, disabled) > 0U,
+					"each disabled navigation icon paints exact live-palette foreground pixels");
+				const auto normalImage   = icon.pixmap(
+												   QSize{ 24, 24 }, 2.0, QIcon::Normal, QIcon::Off)
+											   .toImage();
+				const auto disabledImage = icon.pixmap(
+												   QSize{ 24, 24 }, 2.0, QIcon::Disabled, QIcon::Off)
+											   .toImage();
+				expect(
+					!normalImage.isNull() && normalImage != disabledImage,
+					"each navigation icon carries visibly distinct normal and disabled modes");
+				normalImages[index] = normalImage;
+			}
+			for (std::size_t first = 0U; first < normalImages.size(); ++first) {
+				for (std::size_t second = first + 1U;
+					 second < normalImages.size(); ++second) {
+					expect(
+						normalImages[first] != normalImages[second],
+						"previous and next file/change silhouettes remain visually distinct");
+				}
+			}
+		}
 	}
 
 	auto test_immediate_preview_updates_without_restart() -> void
@@ -1143,6 +1251,29 @@ namespace {
 		return *outcome.Result;
 	}
 
+	[[nodiscard]] auto computed_connector_comparison()
+		-> core::computed_file_diff
+	{
+		constexpr auto leftText
+			= std::string_view{ "same-head\nold-one\nsame-middle\nold-two\nsame-tail\n" };
+		constexpr auto rightText
+			= std::string_view{ "same-head\nnew-one\nsame-middle\nnew-two\nsame-tail\n" };
+		const auto options = core::diff_options{ };
+		auto       left    = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
+		auto       right   = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
+		const auto outcome = core::compute_file_diff({
+			.Key        = comparison_key(options),
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ left },
+			.RightBytes = std::span<const std::uint8_t>{ right },
+		});
+		expect(
+			outcome.Reason == core::diff_reason_code::none
+				&& outcome.Result.has_value(),
+			"the connector fixture computes and publishes");
+		return *outcome.Result;
+	}
+
 	void append_code(std::vector<std::uint8_t>& aBytes, const std::uint8_t aCode)
 	{
 		aBytes.push_back(aCode);
@@ -1243,6 +1374,206 @@ namespace {
 							 + (found->RightBottom - found->RightTop) };
 	}
 
+	struct connector_pixel_observation
+	{
+		QColor       Background;
+		QColor       Dominant;
+		std::size_t  SampledPixels            = 0U;
+		std::size_t  ContrastPixels           = 0U;
+		std::size_t  DominantPixels           = 0U;
+		std::int64_t MedianContrastHundredths = 0;
+	};
+
+	[[nodiscard]] auto dominant_pixel(std::vector<QRgb> aPixels)
+		-> std::pair<QColor, std::size_t>
+	{
+		if (aPixels.empty()) {
+			return { QColor{ }, 0U };
+		}
+		std::ranges::sort(aPixels);
+		auto bestPixel = aPixels.front();
+		auto bestCount = std::size_t{ 0U };
+		for (auto first = aPixels.begin(); first != aPixels.end();) {
+			const auto last = std::ranges::find_if(
+				first, aPixels.end(), [first](const QRgb aPixel) {
+					return aPixel != *first;
+				});
+			const auto count = static_cast<std::size_t>(
+				std::distance(first, last));
+			if (count > bestCount) {
+				bestPixel = *first;
+				bestCount = count;
+			}
+			first = last;
+		}
+		return { QColor::fromRgba(bestPixel), bestCount };
+	}
+
+	[[nodiscard]] auto observe_connector_pixels(
+		qt::diff_link_map&           aMap,
+		const qt::visible_diff_link& aTarget) -> connector_pixel_observation
+	{
+		const auto image = aMap.grab().toImage().convertToFormat(
+			QImage::Format_ARGB32);
+		const auto scale = image.devicePixelRatio();
+		if (image.isNull() || scale <= 0.0) {
+			return { };
+		}
+
+		const auto links   = aMap.visible_links();
+		auto       stroker = QPainterPathStroker{ };
+		stroker.setWidth(3.0);
+		const auto targetMask
+			= aTarget.Path.united(stroker.createStroke(aTarget.Path));
+		auto backgroundPixels = std::vector<QRgb>{ };
+		auto targetPixels     = std::vector<QRgb>{ };
+		backgroundPixels.reserve(static_cast<std::size_t>(image.sizeInBytes() / 4));
+		targetPixels.reserve(backgroundPixels.capacity() / 4U);
+		for (auto y = 0; y < image.height(); ++y) {
+			for (auto x = 0; x < image.width(); ++x) {
+				const auto point = QPointF{
+					(static_cast<qreal>(x) + 0.5) / scale,
+					(static_cast<qreal>(y) + 0.5) / scale,
+				};
+				const auto inAny = std::ranges::any_of(
+					links,
+					[point](const qt::visible_diff_link& aLink) {
+						return aLink.Path.contains(point);
+					});
+				if (targetMask.contains(point)) {
+					const auto overlapsAnother = std::ranges::any_of(
+						links,
+						[&aTarget, point](const qt::visible_diff_link& aLink) {
+							return &aLink != &aTarget && aLink.Path.contains(point);
+						});
+					if (!overlapsAnother) {
+						targetPixels.push_back(image.pixel(x, y));
+					}
+				} else if (!inAny) {
+					backgroundPixels.push_back(image.pixel(x, y));
+				}
+			}
+		}
+
+		const auto [background, backgroundCount]
+			= dominant_pixel(std::move(backgroundPixels));
+		const auto [dominant, dominantCount] = dominant_pixel(targetPixels);
+		if (!background.isValid() || backgroundCount == 0U
+			|| !dominant.isValid() || targetPixels.empty()) {
+			return { };
+		}
+
+		auto contrasts = std::vector<std::int64_t>{ };
+		contrasts.reserve(targetPixels.size());
+		for (const auto pixel : targetPixels) {
+			contrasts.push_back(static_cast<std::int64_t>(std::lround(
+				100.0 * qt::contrast_ratio(qt::to_appearance_color(background), qt::to_appearance_color(QColor::fromRgba(pixel))))));
+		}
+		std::ranges::sort(contrasts);
+		return {
+			.Background     = background,
+			.Dominant       = dominant,
+			.SampledPixels  = targetPixels.size(),
+			.ContrastPixels = static_cast<std::size_t>(
+				std::ranges::count_if(contrasts, [](const auto aContrast) {
+					return aContrast >= 300;
+				})),
+			.DominantPixels           = dominantCount,
+			.MedianContrastHundredths = contrasts[contrasts.size() / 2U],
+		};
+	}
+
+	void test_rendered_connectors_clear_the_non_text_floor_in_every_profile()
+	{
+		const auto diff      = computed_connector_comparison();
+		auto       profile   = qt::appearance_profile{ };
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(900, 480);
+		workbench.show();
+		process_events();
+
+		const auto pending = core::diff_request_context{
+			.Request            = core::request_id{ 91U },
+			.ApplicationSession = core::application_session_id{ 92U },
+			.Key                = diff.Alignment.Key,
+			.Generation         = core::request_generation{ 93U },
+		};
+		workbench.set_loading(pending);
+		workbench.publish({
+			.Context = pending,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		});
+		process_events();
+		expect(
+			workbench.navigate_change(
+				core::change_navigation_direction::next,
+				core::change_navigation_policy::stop),
+			"the connector fixture selects one semantic change");
+		process_events();
+
+		for (const auto variant : all_variants) {
+			static_cast<void>(profile.select_mode(explicit_mode_for(variant)));
+			profile.apply_to(workbench);
+			process_events();
+
+			auto* const map       = workbench.link_map();
+			const auto  selection = map->selected();
+			const auto  links     = map->visible_links();
+			const auto  selected  = std::ranges::find_if(
+				links,
+				[&selection](const qt::visible_diff_link& aLink) {
+					return selection.has_value()
+						&& (selection->Group.has_value()
+									&& aLink.Identity.Group.has_value()
+								? selection->Group == aLink.Identity.Group
+								: selection->Segment == aLink.Identity.Segment);
+				});
+			const auto unselected = std::ranges::find_if(
+				links,
+				[&selection](const qt::visible_diff_link& aLink) {
+					return !selection.has_value()
+						|| (selection->Group.has_value()
+									&& aLink.Identity.Group.has_value()
+								? selection->Group != aLink.Identity.Group
+								: selection->Segment != aLink.Identity.Segment);
+				});
+			expect(
+				selected != links.end() && unselected != links.end(),
+				"the rendered map exposes known selected and unselected paths");
+
+			const auto selectedPixels   = observe_connector_pixels(*map, *selected);
+			const auto unselectedPixels = observe_connector_pixels(*map, *unselected);
+			const auto sampled          = [](const connector_pixel_observation& aValue) {
+				return aValue.SampledPixels >= 24U
+					&& aValue.ContrastPixels >= 24U
+					&& aValue.DominantPixels >= 24U;
+			};
+			const auto unselectedReadable = sampled(unselectedPixels)
+				&& unselectedPixels.ContrastPixels * 2U
+					>= unselectedPixels.SampledPixels
+				&& unselectedPixels.MedianContrastHundredths >= 300;
+			if (!sampled(selectedPixels) || !unselectedReadable) {
+				std::cerr << "  connector variant " << static_cast<int>(variant)
+						  << " selected pixels/contrast/dominant/median "
+						  << selectedPixels.SampledPixels << '/'
+						  << selectedPixels.ContrastPixels << '/'
+						  << selectedPixels.DominantPixels << '/'
+						  << selectedPixels.MedianContrastHundredths
+						  << "; unselected " << unselectedPixels.SampledPixels << '/'
+						  << unselectedPixels.ContrastPixels << '/'
+						  << unselectedPixels.DominantPixels << '/'
+						  << unselectedPixels.MedianContrastHundredths << '\n';
+			}
+			expect(
+				sampled(selectedPixels) && unselectedReadable,
+				"actual selected and unselected connector pixels clear the non-text floor");
+			expect(
+				selectedPixels.Background == unselectedPixels.Background
+					&& selectedPixels.Dominant != unselectedPixels.Dominant,
+				"selected and unselected connector rasters stay distinct on one observed gutter");
+		}
+	}
+
 	// Tab width is not a font property, and Qt sends no event when a widget is
 	// given a font it already has, so a tab-width-only change reached the
 	// workbench through nothing at all: ribbons and the measured axis stayed
@@ -1275,7 +1606,9 @@ namespace {
 		profile.apply_code_font_to(workbench);
 		process_events();
 
-		workbench.next_change_button()->click();
+		expect(workbench.navigate_change(core::change_navigation_direction::next,
+										 core::change_navigation_policy::stop),
+			   "the semantic navigation bridge selects a retained change");
 		process_events();
 		auto* const controller = workbench.scroll_controller();
 		expect(
@@ -1404,7 +1737,9 @@ namespace {
 		profile.apply_code_font_to(workbench);
 		process_events();
 
-		workbench.next_change_button()->click();
+		expect(workbench.navigate_change(core::change_navigation_direction::next,
+										 core::change_navigation_policy::stop),
+			   "the semantic navigation bridge selects a retained change");
 		process_events();
 		auto* const controller = workbench.scroll_controller();
 		expect(
@@ -1862,6 +2197,7 @@ auto main(int argc, char** argv) -> int
 	test_derived_text_stays_readable_on_every_fill();
 	test_the_core_decides_which_variant_applies();
 	test_applies_semantic_colors_without_forcing_style_or_stylesheet();
+	test_navigation_icons_follow_every_profile_palette();
 	test_immediate_preview_updates_without_restart();
 	test_customisation_round_trips_through_the_durable_record();
 	test_total_palette_preview_cancel_and_adoption_are_exact();
@@ -1870,6 +2206,7 @@ auto main(int argc, char** argv) -> int
 	test_every_typography_field_previews_immediately();
 	test_a_value_outside_the_published_bounds_is_never_applied();
 	test_every_role_converts_through_presentation_colour();
+	test_rendered_connectors_clear_the_non_text_floor_in_every_profile();
 	test_a_font_change_moves_geometry_and_not_semantics();
 	test_a_tab_width_change_alone_invalidates_measured_geometry();
 	test_intraline_emphasis_never_collapses_onto_its_row_fill();

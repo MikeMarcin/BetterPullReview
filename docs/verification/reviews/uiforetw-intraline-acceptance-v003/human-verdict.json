@@ -1,0 +1,22 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/99b3c1cc6701ce6ab64d7ecb",
+  "review_gate": "compact_focused_review_navigation",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0257/compact-focused-review-navigation",
+      "subject_digest": "sha256:b0cd007b4752685ea05645b493695c182710f40c6eae545996a5192c5ae34b57"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0257/compact-focused-review-navigation@sha256:b0cd007b4752685ea05645b493695c182710f40c6eae545996a5192c5ae34b57": "The dark mode next/prev buttons are unreadable."
+  },
+  "downstream_claims": {
+    "bpr_0257_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

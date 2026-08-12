@@ -503,28 +503,32 @@ namespace {
 				&& !workbench.shared_scrollbar()->accessibleDescription().isEmpty()
 				&& !workbench.detail_pane()->accessibleDescription().isEmpty(),
 			"composed focus surfaces expose accessible identities and status");
-		workbench.next_change_button()->click();
+		const auto firstGroup = workbench.selection()->Group;
+		expect(workbench.navigate_change(core::change_navigation_direction::next,
+										 core::change_navigation_policy::stop),
+			   "the semantic navigation bridge selects the next canonical group");
 		process_events();
 		expect(
-			workbench.previous_change_button()->isEnabled()
-				&& workbench.next_change_button()->isEnabled(),
-			"middle semantic selection enables both navigation commands");
-		workbench.previous_change_button()->setFocus(Qt::OtherFocusReason);
-		process_events();
-		expect(
-			QApplication::focusWidget() == workbench.previous_change_button(),
-			"focus enters the first workbench command");
-		send_key(*workbench.previous_change_button(), Qt::Key_Tab);
-		process_events();
-		expect(
-			QApplication::focusWidget() == workbench.next_change_button(),
-			"Tab follows the explicit command order");
-		send_key(*workbench.next_change_button(), Qt::Key_Tab);
+			workbench.selection()->Group != firstGroup,
+			"semantic navigation changes the one retained selection");
+		expect(workbench.findChildren<QToolButton*>().isEmpty(),
+			   "the comparison surface contains no duplicate change-navigation presenter");
+		workbench.left_pane()->setFocus(Qt::OtherFocusReason);
 		process_events();
 		expect(
 			QApplication::focusWidget() == workbench.left_pane(),
-			"Tab advances from commands into the earlier natural source pane");
-		workbench.previous_change_button()->setFocus(Qt::OtherFocusReason);
+			"focus enters the earlier natural source pane directly");
+		send_key(*workbench.left_pane(), Qt::Key_Tab);
+		process_events();
+		expect(
+			QApplication::focusWidget() == workbench.link_map(),
+			"Tab follows the comparison surface's internal focus order");
+		send_key(*workbench.link_map(), Qt::Key_Tab);
+		process_events();
+		expect(
+			QApplication::focusWidget() == workbench.right_pane(),
+			"Tab advances from the link map into the later natural source pane");
+		workbench.left_pane()->setFocus(Qt::OtherFocusReason);
 		process_events();
 
 		auto* const controller = workbench.scroll_controller();
@@ -732,11 +736,15 @@ namespace {
 				&& ribbonLinkMapAnnouncements == 0U,
 			"ribbon selection emits one combined polite workbench announcement without a link-map duplicate");
 		const auto selectedGroup = workbench.selection()->Group;
-		workbench.next_change_button()->click();
+		expect(workbench.navigate_change(core::change_navigation_direction::next,
+										 core::change_navigation_policy::stop),
+			   "Next change navigates the canonical group vector");
 		process_events();
 		expect(workbench.selection()->Group != selectedGroup,
 			   "Next change navigates the canonical group vector");
-		workbench.previous_change_button()->click();
+		expect(workbench.navigate_change(core::change_navigation_direction::previous,
+										 core::change_navigation_policy::stop),
+			   "Previous change returns through the same semantic bridge");
 		process_events();
 		expect(workbench.selection()->Group == selectedGroup,
 			   "Previous change returns to the same stable group");

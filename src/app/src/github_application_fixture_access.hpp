@@ -332,19 +332,25 @@ namespace bpr::app::detail {
 	/// \brief Records the real recorded-file selection and intraline path.
 	struct uiforetw_selected_diff_probe_evidence
 	{
-		bool ExactCommitPair         = false;
-		bool ResourceGesture         = false;
-		bool ResourceExactBlobs      = false;
-		bool ResourceIntralinePair   = false;
-		bool ResourceRolePaint       = false;
-		bool ResourcePublication     = false;
-		bool RcGesture               = false;
-		bool RcExactBlobs            = false;
-		bool RcIntralinePairs        = false;
-		bool RcRolePaint             = false;
-		bool RcPublication           = false;
-		bool FocusedReviewLayout     = false;
-		bool FixtureDiffHelperUnused = false;
+		bool ExactCommitPair           = false;
+		bool ResourceGesture           = false;
+		bool ResourceExactBlobs        = false;
+		bool ResourceIntralinePair     = false;
+		bool ResourceRolePaint         = false;
+		bool ResourcePublication       = false;
+		bool RcGesture                 = false;
+		bool RcExactBlobs              = false;
+		bool RcIntralinePairs          = false;
+		bool RcRolePaint               = false;
+		bool RcPublication             = false;
+		bool PreviousFileNavigation    = false;
+		bool NextFileNavigation        = false;
+		bool PreviousChangeNavigation  = false;
+		bool NextChangeNavigation      = false;
+		bool FilesDrawerToggle         = false;
+		bool ConversationsDrawerToggle = false;
+		bool FocusedReviewLayout       = false;
+		bool FixtureDiffHelperUnused   = false;
 
 		auto operator<=>(const uiforetw_selected_diff_probe_evidence&) const
 			= default;

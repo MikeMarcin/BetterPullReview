@@ -1,0 +1,23 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/9cdaa26a715d8f0168dc3049",
+  "review_gate": "compact_focused_review_navigation",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0258/dark-navigation-icon-readability",
+      "subject_digest": "sha256:778c9d4b6386274686e6abe37310142dcb1ddf8d56519d0786aa17549ea11463"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0258/dark-navigation-icon-readability@sha256:778c9d4b6386274686e6abe37310142dcb1ddf8d56519d0786aa17549ea11463": "The arrows look good now but the dark mode mode swoosh connectors are too hard to see except for the selected one."
+  },
+  "downstream_claims": {
+    "bpr_0257_closed": false,
+    "bpr_0258_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}

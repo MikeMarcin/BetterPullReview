@@ -69,6 +69,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -76,6 +77,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMouseEvent>
+#include <QPainterPathStroker>
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QPoint>
@@ -93,6 +95,7 @@
 #include <QTextFormat>
 #include <QTextStream>
 #include <QTimer>
+#include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
 
@@ -105,6 +108,7 @@
 #include <filesystem>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -2395,13 +2399,8 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 			++WorkbenchChangeDispatches;
 #endif
-			auto* const button = aIntent.Direction
-					== core::change_navigation_direction::previous
-				? Window->comparison_surface()->previous_change_button()
-				: Window->comparison_surface()->next_change_button();
-			if (button != nullptr) {
-				button->click();
-			}
+			static_cast<void>(Window->comparison_surface()->navigate_change(
+				aIntent.Direction, aIntent.Policy));
 		}
 
 		void dispatch_workbench_width(
@@ -2952,6 +2951,7 @@ namespace bpr::app {
 		void observe_review_selection(
 			const std::optional<core::semantic_selection>& aSelection)
 		{
+			observe_change_navigation(aSelection);
 			if (PendingReviewMutation.has_value()) {
 				if (!DeferredReviewSelection.has_value()
 					&& aSelection == SelectedSemanticSelection) {
@@ -2972,6 +2972,50 @@ namespace bpr::app {
 			adopt_review_selection(
 				aSelection,
 				qt::review_draft_editor_clear_reason::selection_cleared);
+		}
+
+		void observe_change_navigation(
+			const std::optional<core::semantic_selection>& aSelection)
+		{
+			if (WorkbenchHost == nullptr || Window == nullptr
+				|| !SelectedDiffPublication.has_value()) {
+				return;
+			}
+			const auto* const comparison = Window->comparison_surface();
+			const auto&       result     = comparison->current_result();
+			const auto&       selected   = *SelectedDiffPublication;
+			if (!result || result->Alignment.Key != selected.Key
+				|| (aSelection.has_value()
+					&& aSelection->Comparison != result->Alignment.Digest)) {
+				WorkbenchHost->observe_change_navigation(
+					selected.Request, std::nullopt);
+				return;
+			}
+
+			const auto& groups = result->Alignment.Groups;
+			if (groups.size() > std::numeric_limits<std::uint32_t>::max()) {
+				WorkbenchHost->observe_change_navigation(
+					selected.Request, std::nullopt);
+				return;
+			}
+			auto cursor = core::workbench_change_cursor{
+				.ChangeCount = static_cast<std::uint32_t>(groups.size()),
+			};
+			if (!aSelection.has_value() || !aSelection->Group.has_value()) {
+				cursor.PreviousAvailable = !groups.empty();
+				cursor.NextAvailable     = !groups.empty();
+			} else {
+				cursor.Group     = aSelection->Group;
+				const auto found = std::ranges::find(
+					groups, *aSelection->Group, &core::change_group::Id);
+				if (found != groups.end()) {
+					cursor.Ordinal = static_cast<std::uint32_t>(
+						std::ranges::distance(groups.begin(), found) + 1);
+					cursor.PreviousAvailable = cursor.Ordinal > 1U;
+					cursor.NextAvailable     = cursor.Ordinal < cursor.ChangeCount;
+				}
+			}
+			WorkbenchHost->observe_change_navigation(selected.Request, cursor);
 		}
 
 		void present_review_draft(const core::semantic_selection& aSelection)
@@ -4341,6 +4385,8 @@ namespace bpr::app {
 			enum class phase {
 				awaiting_observation,
 				awaiting_resource_diff,
+				awaiting_support_diff,
+				awaiting_resource_return,
 				awaiting_rc_diff,
 				awaiting_focused_layout,
 				passed,
@@ -4352,6 +4398,8 @@ namespace bpr::app {
 			qt::workbench_window_statistics               WindowStatistics;
 			std::size_t                                   SelectedDiffPublications = 0U;
 			std::size_t                                   SelectedDiffFailures     = 0U;
+			std::size_t                                   IntentDispatches         = 0U;
+			std::size_t                                   ChangeDispatches         = 0U;
 			std::size_t                                   Waits                    = 0U;
 		};
 		std::optional<uiforetw_selected_diff_probe_state>
@@ -5916,30 +5964,30 @@ namespace bpr::app {
 				|| !probe.Evidence.ExactComparison) {
 				return fail();
 			}
-			auto* action = window->next_change_action();
-			if (comparison->next_change_button() == nullptr
-				|| !comparison->next_change_button()->isEnabled()) {
-				action = window->previous_change_action();
-				if (comparison->previous_change_button() == nullptr
-					|| !comparison->previous_change_button()->isEnabled()) {
-					return fail();
-				}
-			}
-			if (action == nullptr) {
+			const auto& groups   = comparison->current_result()->Alignment.Groups;
+			const auto  selected = comparison->selection().has_value()
+					&& comparison->selection()->Group.has_value()
+				? std::ranges::find(
+					  groups,
+					  *comparison->selection()->Group,
+					  &core::change_group::Id)
+				: groups.end();
+			auto*       action   = selected == groups.end()
+					|| std::next(selected) != groups.end()
+				? window->next_change_action()
+				: window->previous_change_action();
+			if (action == nullptr || !action->isEnabled()) {
 				return fail();
 			}
 
 			probe.Selection        = comparison->selection();
 			probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
-			action->setEnabled(true);
 			action->trigger();
 			probe.Phase = state_type::phase::awaiting_change_projection;
 			return result::pending;
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_change_projection) {
-			window->previous_change_action()->setEnabled(false);
-			window->next_change_action()->setEnabled(false);
 			if (implementation->WorkbenchChangeDispatches
 				== probe.ChangeDispatches) {
 				return result::pending;
@@ -5950,6 +5998,49 @@ namespace bpr::app {
 				&& comparison != nullptr
 				&& comparison->selection() != probe.Selection;
 			if (!probe.Evidence.ChangeDispatch || window->files_drawer() == nullptr) {
+				return fail();
+			}
+
+			const auto& groups = comparison->current_result()->Alignment.Groups;
+			if (groups.size() < 2U) {
+				return fail();
+			}
+			for (auto attempts = std::size_t{ 0U };
+				 attempts < groups.size()
+				 && (!comparison->selection().has_value()
+					 || comparison->selection()->Group != groups.back().Id);
+				 ++attempts) {
+				if (!comparison->navigate_change(
+						core::change_navigation_direction::next,
+						core::change_navigation_policy::stop)) {
+					return fail();
+				}
+			}
+			if (!comparison->selection().has_value()
+				|| comparison->selection()->Group != groups.back().Id) {
+				return fail();
+			}
+			auto wrapCommands = core::workbench_command_delta{ };
+			for (auto index = std::size_t{ 0U };
+				 index < wrapCommands.Commands.size(); ++index) {
+				wrapCommands.Commands[index] = core::workbench_command_projection{
+					.Id             = static_cast<core::workbench_command_id>(index),
+					.Enabled        = true,
+					.DisabledReason = core::workbench_reason_code::none,
+				};
+			}
+			wrapCommands.Policy = core::change_navigation_policy::wrap;
+			window->publish(application::workbench_projection{
+				.Context  = implementation->LastSelectedDiff->Request.Context,
+				.Commands = wrapCommands,
+			});
+			const auto wrapDispatches = implementation->WorkbenchChangeDispatches;
+			window->next_change_action()->trigger();
+			probe.Evidence.ChangeDispatch
+				= implementation->WorkbenchChangeDispatches == wrapDispatches + 1U
+				&& comparison->selection().has_value()
+				&& comparison->selection()->Group == groups.front().Id;
+			if (!probe.Evidence.ChangeDispatch) {
 				return fail();
 			}
 
@@ -6099,6 +6190,8 @@ namespace bpr::app {
 			= "7da9aac464237ee5f1e2c9bc821598ff1f02b352";
 		inline constexpr std::string_view uiforetw_resource_head_blob
 			= "79a81a859f1b281c99e3c624b3263e618d7e1652";
+		inline constexpr std::string_view uiforetw_support_path
+			= "UIforETW/Support.cpp";
 		inline constexpr std::string_view uiforetw_rc_path
 			= "UIforETW/UIforETW.rc";
 		inline constexpr std::string_view uiforetw_rc_base_blob
@@ -6259,25 +6352,25 @@ namespace bpr::app {
 				if (selection.has_value() && selection->Group == aTarget) {
 					return true;
 				}
-				const auto  current      = selection.has_value()
+				const auto current      = selection.has_value()
 						&& selection->Group.has_value()
 					? std::ranges::find(
 						  aResult.Alignment.Groups,
 						  *selection->Group,
 						  &core::change_group::Id)
 					: aResult.Alignment.Groups.end();
-				const auto  currentIndex = current != aResult.Alignment.Groups.end()
+				const auto currentIndex = current != aResult.Alignment.Groups.end()
 					? std::optional<std::size_t>{ static_cast<std::size_t>(
 						  std::distance(aResult.Alignment.Groups.begin(), current)) }
 					: std::nullopt;
-				auto* const action       = !currentIndex.has_value()
+				const auto direction    = !currentIndex.has_value()
 						|| *currentIndex < targetIndex
-					? aWorkbench.next_change_button()
-					: aWorkbench.previous_change_button();
-				if (action == nullptr || !action->isEnabled()) {
+					? core::change_navigation_direction::next
+					: core::change_navigation_direction::previous;
+				if (!aWorkbench.navigate_change(
+						direction, core::change_navigation_policy::stop)) {
 					return false;
 				}
-				action->click();
 				QApplication::processEvents();
 			}
 			return false;
@@ -6446,6 +6539,82 @@ namespace bpr::app {
 			return count;
 		}
 
+		/// \brief Records the actual normal and disabled pixels of one toolbar icon.
+		struct navigation_icon_contrast_observation
+		{
+			QColor       Background;
+			QColor       NormalForeground;
+			QColor       DisabledForeground;
+			std::size_t  NormalForegroundPixels     = 0U;
+			std::size_t  DisabledForegroundPixels   = 0U;
+			std::int64_t NormalContrastHundredths   = 0;
+			std::int64_t DisabledContrastHundredths = 0;
+			bool         StatesDistinct             = false;
+		};
+
+		[[nodiscard]] auto exact_icon_foreground_pixels(
+			const QIcon&      aIcon,
+			const QSize&      aSize,
+			const qreal       aScale,
+			const QIcon::Mode aMode,
+			const QColor&     aExpected) -> std::size_t
+		{
+			const auto image = aIcon.pixmap(aSize, aScale, aMode, QIcon::Off)
+								   .toImage()
+								   .convertToFormat(QImage::Format_ARGB32);
+			if (image.isNull() || !aExpected.isValid()) {
+				return 0U;
+			}
+			constexpr auto rgbComponentMask = QRgb{ 0x00FF'FFFFU };
+			const auto     expected         = aExpected.rgb() & rgbComponentMask;
+			auto           count            = std::size_t{ 0U };
+			for (auto y = 0; y < image.height(); ++y) {
+				for (auto x = 0; x < image.width(); ++x) {
+					const auto pixel = image.pixel(x, y);
+					if (qAlpha(pixel) >= 224
+						&& (pixel & rgbComponentMask) == expected) {
+						++count;
+					}
+				}
+			}
+			return count;
+		}
+
+		[[nodiscard]] auto observe_navigation_icon_contrast(
+			const QToolButton& aButton)
+			-> navigation_icon_contrast_observation
+		{
+			const auto background = aButton.palette().color(
+				QPalette::Active, QPalette::Button);
+			const auto normal = aButton.palette().color(
+				QPalette::Active, QPalette::ButtonText);
+			const auto disabled = aButton.palette().color(
+				QPalette::Disabled, QPalette::ButtonText);
+			const auto size          = aButton.iconSize().expandedTo(QSize{ 16, 16 });
+			const auto scale         = aButton.devicePixelRatioF();
+			const auto normalImage   = aButton.icon()
+										   .pixmap(size, scale, QIcon::Normal, QIcon::Off)
+										   .toImage();
+			const auto disabledImage = aButton.icon()
+										   .pixmap(size, scale, QIcon::Disabled, QIcon::Off)
+										   .toImage();
+			return {
+				.Background             = background,
+				.NormalForeground       = normal,
+				.DisabledForeground     = disabled,
+				.NormalForegroundPixels = exact_icon_foreground_pixels(
+					aButton.icon(), size, scale, QIcon::Normal, normal),
+				.DisabledForegroundPixels = exact_icon_foreground_pixels(
+					aButton.icon(), size, scale, QIcon::Disabled, disabled),
+				.NormalContrastHundredths   = static_cast<std::int64_t>(std::lround(
+					100.0 * qt::contrast_ratio(qt::to_appearance_color(background), qt::to_appearance_color(normal)))),
+				.DisabledContrastHundredths = static_cast<std::int64_t>(std::lround(
+					100.0 * qt::contrast_ratio(qt::to_appearance_color(background), qt::to_appearance_color(disabled)))),
+				.StatesDistinct             = !normalImage.isNull()
+					&& !disabledImage.isNull() && normalImage != disabledImage,
+			};
+		}
+
 		[[nodiscard]] auto exact_role_selection_present(
 			const QPlainTextEdit&              aPane,
 			const core::decoded_text_document& aDocument,
@@ -6537,16 +6706,131 @@ namespace bpr::app {
 			};
 		}
 
+		struct connector_pixel_observation
+		{
+			QColor       Background;
+			QColor       Dominant;
+			std::size_t  SampledPixels            = 0U;
+			std::size_t  ContrastPixels           = 0U;
+			std::size_t  DominantPixels           = 0U;
+			std::int64_t MedianContrastHundredths = 0;
+		};
+
 		struct connector_render_observation
 		{
-			QRectF  Bounds;
-			QPointF Start;
-			QPointF End;
-			bool    LeftEndpoint  = false;
-			bool    RightEndpoint = false;
-			bool    LeftOverlap   = false;
-			bool    RightOverlap  = false;
+			QRectF                      Bounds;
+			QPointF                     Start;
+			QPointF                     End;
+			connector_pixel_observation Pixels;
+			bool                        Selected      = false;
+			bool                        LeftEndpoint  = false;
+			bool                        RightEndpoint = false;
+			bool                        LeftOverlap   = false;
+			bool                        RightOverlap  = false;
 		};
+
+		[[nodiscard]] auto dominant_connector_pixel(std::vector<QRgb> aPixels)
+			-> std::pair<QColor, std::size_t>
+		{
+			if (aPixels.empty()) {
+				return { QColor{ }, 0U };
+			}
+			std::ranges::sort(aPixels);
+			auto bestPixel = aPixels.front();
+			auto bestCount = std::size_t{ 0U };
+			for (auto first = aPixels.begin(); first != aPixels.end();) {
+				const auto last = std::ranges::find_if(
+					first, aPixels.end(), [first](const QRgb aPixel) {
+						return aPixel != *first;
+					});
+				const auto count = static_cast<std::size_t>(
+					std::distance(first, last));
+				if (count > bestCount) {
+					bestPixel = *first;
+					bestCount = count;
+				}
+				first = last;
+			}
+			return { QColor::fromRgba(bestPixel), bestCount };
+		}
+
+		[[nodiscard]] auto observe_connector_pixels(
+			qt::diff_link_map&           aMap,
+			const qt::visible_diff_link& aTarget)
+			-> connector_pixel_observation
+		{
+			const auto image = aMap.grab().toImage().convertToFormat(
+				QImage::Format_ARGB32);
+			const auto scale = image.devicePixelRatio();
+			if (image.isNull() || scale <= 0.0) {
+				return { };
+			}
+
+			const auto links   = aMap.visible_links();
+			auto       stroker = QPainterPathStroker{ };
+			stroker.setWidth(3.0);
+			const auto targetMask
+				= aTarget.Path.united(stroker.createStroke(aTarget.Path));
+			auto backgroundPixels = std::vector<QRgb>{ };
+			auto targetPixels     = std::vector<QRgb>{ };
+			backgroundPixels.reserve(
+				static_cast<std::size_t>(image.sizeInBytes() / 4));
+			targetPixels.reserve(backgroundPixels.capacity() / 4U);
+			for (auto y = 0; y < image.height(); ++y) {
+				for (auto x = 0; x < image.width(); ++x) {
+					const auto point = QPointF{
+						(static_cast<qreal>(x) + 0.5) / scale,
+						(static_cast<qreal>(y) + 0.5) / scale,
+					};
+					const auto inAny = std::ranges::any_of(
+						links,
+						[point](const qt::visible_diff_link& aLink) {
+							return aLink.Path.contains(point);
+						});
+					if (targetMask.contains(point)) {
+						const auto overlapsAnother = std::ranges::any_of(
+							links,
+							[&aTarget, point](const qt::visible_diff_link& aLink) {
+								return &aLink != &aTarget
+									&& aLink.Path.contains(point);
+							});
+						if (!overlapsAnother) {
+							targetPixels.push_back(image.pixel(x, y));
+						}
+					} else if (!inAny) {
+						backgroundPixels.push_back(image.pixel(x, y));
+					}
+				}
+			}
+
+			const auto [background, backgroundCount]
+				= dominant_connector_pixel(std::move(backgroundPixels));
+			const auto [dominant, dominantCount]
+				= dominant_connector_pixel(targetPixels);
+			if (!background.isValid() || backgroundCount == 0U
+				|| !dominant.isValid() || targetPixels.empty()) {
+				return { };
+			}
+
+			auto contrasts = std::vector<std::int64_t>{ };
+			contrasts.reserve(targetPixels.size());
+			for (const auto pixel : targetPixels) {
+				contrasts.push_back(static_cast<std::int64_t>(std::lround(
+					100.0 * qt::contrast_ratio(qt::to_appearance_color(background), qt::to_appearance_color(QColor::fromRgba(pixel))))));
+			}
+			std::ranges::sort(contrasts);
+			return {
+				.Background     = background,
+				.Dominant       = dominant,
+				.SampledPixels  = targetPixels.size(),
+				.ContrastPixels = static_cast<std::size_t>(
+					std::ranges::count_if(
+						contrasts,
+						[](const auto aContrast) { return aContrast >= 300; })),
+				.DominantPixels           = dominantCount,
+				.MedianContrastHundredths = contrasts[contrasts.size() / 2U],
+			};
+		}
 
 		[[nodiscard]] auto observe_connector_render(
 			qt::diff_workbench&                 aWorkbench,
@@ -6586,10 +6870,18 @@ namespace bpr::app {
 			const auto endElement   = found->Path.elementAt(3);
 			const auto start        = QPointF{ startElement.x, startElement.y };
 			const auto end          = QPointF{ endElement.x, endElement.y };
+			const auto selection    = map->selected();
+			const auto isSelected   = selection.has_value()
+				&& (selection->Group.has_value()
+							&& found->Identity.Group.has_value()
+						? selection->Group == found->Identity.Group
+						: selection->Segment == found->Identity.Segment);
 			return connector_render_observation{
 				.Bounds        = found->Path.boundingRect(),
 				.Start         = start,
 				.End           = end,
+				.Pixels        = observe_connector_pixels(*map, *found),
+				.Selected      = isSelected,
 				.LeftEndpoint  = std::abs(start.x()) <= 0.5,
 				.RightEndpoint = std::abs(end.x() - map->width()) <= 0.5,
 				.LeftOverlap   = overlaps(
@@ -7105,8 +7397,101 @@ namespace bpr::app {
 				}
 				return result::pending;
 			}
+			auto* const nextFile = window->next_file_action();
+			if (nextFile == nullptr || !nextFile->isEnabled()) {
+				return fail();
+			}
+			probe.IntentDispatches = implementation->WorkbenchIntentDispatches;
+			probe.SelectedDiffPublications
+				= implementation->SelectedDiffPublications;
+			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
+			probe.Waits                = 0U;
+			nextFile->trigger();
+			probe.Phase = state_type::phase::awaiting_support_diff;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_support_diff) {
+			if (implementation->SelectedDiffFailures != probe.SelectedDiffFailures) {
+				return fail();
+			}
+			if (implementation->SelectedDiffPublications
+				== probe.SelectedDiffPublications) {
+				if (++probe.Waits > 512U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			const auto exactPublication
+				= implementation->SelectedDiffPublications
+					== probe.SelectedDiffPublications + 1U
+				&& implementation->LastSelectedDiff.has_value()
+				&& implementation->LastSelectedDiff->Request.File.PresentationPath
+					== uiforetw_support_path;
+			if (!exactPublication) {
+				return fail();
+			}
+			const auto exactSupport = workbench->current_result() != nullptr
+				&& workbench->current_result()->Alignment.Key
+					== implementation->LastSelectedDiff->Key;
+			if (!exactSupport) {
+				if (++probe.Waits > 512U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			probe.Evidence.NextFileNavigation
+				= implementation->WorkbenchIntentDispatches
+				== probe.IntentDispatches + 1U;
+			auto* const previousFile = window->previous_file_action();
+			if (!probe.Evidence.NextFileNavigation || previousFile == nullptr
+				|| !previousFile->isEnabled()) {
+				return fail();
+			}
+			probe.IntentDispatches = implementation->WorkbenchIntentDispatches;
+			probe.SelectedDiffPublications
+				= implementation->SelectedDiffPublications;
+			probe.SelectedDiffFailures = implementation->SelectedDiffFailures;
+			probe.Waits                = 0U;
+			previousFile->trigger();
+			probe.Phase = state_type::phase::awaiting_resource_return;
+			return result::pending;
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_resource_return) {
+			if (implementation->SelectedDiffFailures != probe.SelectedDiffFailures) {
+				return fail();
+			}
+			if (implementation->SelectedDiffPublications
+				== probe.SelectedDiffPublications) {
+				if (++probe.Waits > 512U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			if (implementation->SelectedDiffPublications
+					!= probe.SelectedDiffPublications + 1U
+				|| !implementation->LastSelectedDiff.has_value()
+				|| implementation->LastSelectedDiff->Request.File.PresentationPath
+					!= uiforetw_resource_path) {
+				return fail();
+			}
+			if (!selected_diff_matches(
+					*implementation,
+					uiforetw_resource_path,
+					uiforetw_resource_base_blob,
+					uiforetw_resource_head_blob)) {
+				if (++probe.Waits > 512U) {
+					return fail();
+				}
+				return result::pending;
+			}
+			probe.Evidence.PreviousFileNavigation
+				= implementation->WorkbenchIntentDispatches
+				== probe.IntentDispatches + 1U;
 			const auto rc = drawer_row(*window, uiforetw_rc_path);
-			if (!rc.isValid() || view == nullptr) {
+			if (!probe.Evidence.PreviousFileNavigation || !rc.isValid()
+				|| view == nullptr) {
 				return fail();
 			}
 			probe.WindowStatistics = window->statistics();
@@ -7171,12 +7556,44 @@ namespace bpr::app {
 			if (!probe.Evidence.RcIntralinePairs || !pairOne->Group.has_value()) {
 				return fail();
 			}
+			if (!probe.Evidence.NextChangeNavigation) {
+				auto* const nextChange     = window->next_change_action();
+				auto* const previousChange = window->previous_change_action();
+				const auto  before         = workbench->selection();
+				if (nextChange == nullptr || previousChange == nullptr
+					|| !nextChange->isEnabled() || !before.has_value()) {
+					return fail();
+				}
+				probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
+				nextChange->trigger();
+				probe.Evidence.NextChangeNavigation
+					= implementation->WorkbenchChangeDispatches
+						== probe.ChangeDispatches + 1U
+					&& workbench->selection().has_value()
+					&& workbench->selection()->Group != before->Group
+					&& previousChange->isEnabled();
+				if (!probe.Evidence.NextChangeNavigation) {
+					return fail();
+				}
+				previousChange->trigger();
+				probe.Evidence.PreviousChangeNavigation
+					= implementation->WorkbenchChangeDispatches
+						== probe.ChangeDispatches + 2U
+					&& workbench->selection() == before;
+				if (!probe.Evidence.PreviousChangeNavigation) {
+					return fail();
+				}
+			}
 			if (!workbench->selection().has_value()
 				|| workbench->selection()->Group != pairOne->Group) {
 				if (probe.Waits++ > computed.Alignment.Groups.size()) {
 					return fail();
 				}
-				workbench->next_change_button()->click();
+				if (!workbench->navigate_change(
+						core::change_navigation_direction::next,
+						core::change_navigation_policy::stop)) {
+					return fail();
+				}
 				return result::pending;
 			}
 			probe.Waits = 0U;
@@ -7212,6 +7629,10 @@ namespace bpr::app {
 				probe.Evidence.RcIntralinePairs,
 				probe.Evidence.RcRolePaint,
 				probe.Evidence.RcPublication,
+				probe.Evidence.PreviousFileNavigation,
+				probe.Evidence.NextFileNavigation,
+				probe.Evidence.PreviousChangeNavigation,
+				probe.Evidence.NextChangeNavigation,
 				probe.Evidence.FixtureDiffHelperUnused,
 			};
 			if (!std::ranges::all_of(semantic, std::identity{ })) {
@@ -7226,13 +7647,25 @@ namespace bpr::app {
 				return fail();
 			}
 			if (files->isChecked()) {
+				const auto dispatches = implementation->WorkbenchIntentDispatches;
 				files->trigger();
+				probe.Evidence.FilesDrawerToggle
+					= implementation->WorkbenchIntentDispatches == dispatches + 1U
+					&& !files->isChecked();
 			}
 			if (conversations->isChecked()) {
+				const auto dispatches = implementation->WorkbenchIntentDispatches;
 				conversations->trigger();
+				probe.Evidence.ConversationsDrawerToggle
+					= implementation->WorkbenchIntentDispatches == dispatches + 1U
+					&& !conversations->isChecked();
 			}
 			if (details->isChecked()) {
 				details->trigger();
+			}
+			if (!probe.Evidence.FilesDrawerToggle
+				|| !probe.Evidence.ConversationsDrawerToggle) {
+				return fail();
 			}
 			probe.Waits = 0U;
 			probe.Phase = state_type::phase::awaiting_focused_layout;
@@ -7349,7 +7782,28 @@ namespace bpr::app {
 		};
 		const auto connectorValid = [](const connector_render_observation& aValue) {
 			return aValue.LeftEndpoint && aValue.RightEndpoint
-				&& aValue.LeftOverlap && aValue.RightOverlap;
+				&& aValue.LeftOverlap && aValue.RightOverlap
+				&& aValue.Pixels.Background.isValid()
+				&& aValue.Pixels.Dominant.isValid()
+				&& aValue.Pixels.SampledPixels >= 24U
+				&& aValue.Pixels.ContrastPixels >= 24U
+				&& aValue.Pixels.DominantPixels >= 24U;
+		};
+		const auto selectedReadable = [&connectorValid](
+										  const connector_render_observation& aValue) {
+			return aValue.Selected && connectorValid(aValue);
+		};
+		const auto unselectedReadable = [&connectorValid](
+											const connector_render_observation& aValue) {
+			return !aValue.Selected && connectorValid(aValue)
+				&& aValue.Pixels.ContrastPixels * 2U
+				>= aValue.Pixels.SampledPixels
+				&& aValue.Pixels.MedianContrastHundredths >= 300;
+		};
+		const auto statesDistinct = [](const connector_render_observation& aSelected,
+									   const connector_render_observation& aUnselected) {
+			return aSelected.Pixels.Background == aUnselected.Pixels.Background
+				&& aSelected.Pixels.Dominant != aUnselected.Pixels.Dominant;
 		};
 
 		if (!navigate_to_group(*workbench, *result, *firstPair->Group)
@@ -7360,14 +7814,22 @@ namespace bpr::app {
 		drain();
 		const auto firstSelected = observeTarget(
 			"WS_TABSTOP,464,28,67,10", "WS_TABSTOP,464,24,67,10");
-		const auto firstSelectedConnector = firstSelected.has_value()
+		const auto secondUnselected = observeTarget(
+			"WS_TABSTOP,464,42,98,10", "WS_TABSTOP,464,36,98,10");
+		const auto firstSelectedConnector    = firstSelected.has_value()
 			? observe_connector_render(*workbench, *firstSelected)
+			: std::optional<connector_render_observation>{ };
+		const auto secondUnselectedConnector = secondUnselected.has_value()
+			? observe_connector_render(*workbench, *secondUnselected)
 			: std::optional<connector_render_observation>{ };
 		if (!firstSelected.has_value() || !selected(*firstPair)
 			|| firstSelected->LeftRolePixels == 0U
 			|| firstSelected->RightRolePixels == 0U
+			|| !secondUnselected.has_value()
 			|| !firstSelectedConnector.has_value()
-			|| !connectorValid(*firstSelectedConnector)) {
+			|| !secondUnselectedConnector.has_value()
+			|| !selectedReadable(*firstSelectedConnector)
+			|| !unselectedReadable(*secondUnselectedConnector)) {
 			QTextStream{ stderr } << "UIFORETW_CAPTURE_FIRST_TARGET_FAILED\n";
 			return false;
 		}
@@ -7380,14 +7842,26 @@ namespace bpr::app {
 		drain();
 		const auto secondSelected = observeTarget(
 			"WS_TABSTOP,464,42,98,10", "WS_TABSTOP,464,36,98,10");
-		const auto secondSelectedConnector = secondSelected.has_value()
+		const auto firstUnselected = observeTarget(
+			"WS_TABSTOP,464,28,67,10", "WS_TABSTOP,464,24,67,10");
+		const auto secondSelectedConnector  = secondSelected.has_value()
 			? observe_connector_render(*workbench, *secondSelected)
+			: std::optional<connector_render_observation>{ };
+		const auto firstUnselectedConnector = firstUnselected.has_value()
+			? observe_connector_render(*workbench, *firstUnselected)
 			: std::optional<connector_render_observation>{ };
 		if (!secondSelected.has_value() || !selected(*secondPair)
 			|| secondSelected->LeftRolePixels == 0U
 			|| secondSelected->RightRolePixels == 0U
+			|| !firstUnselected.has_value()
 			|| !secondSelectedConnector.has_value()
-			|| !connectorValid(*secondSelectedConnector)) {
+			|| !firstUnselectedConnector.has_value()
+			|| !selectedReadable(*secondSelectedConnector)
+			|| !unselectedReadable(*firstUnselectedConnector)
+			|| !statesDistinct(
+				*firstSelectedConnector, *firstUnselectedConnector)
+			|| !statesDistinct(
+				*secondSelectedConnector, *secondUnselectedConnector)) {
 			QTextStream{ stderr } << "UIFORETW_CAPTURE_SECOND_TARGET_FAILED\n";
 			return false;
 		}
@@ -7414,8 +7888,8 @@ namespace bpr::app {
 			|| first->LeftRolePixels == 0U || first->RightRolePixels == 0U
 			|| second->LeftRolePixels == 0U || second->RightRolePixels == 0U
 			|| !firstConnector.has_value() || !secondConnector.has_value()
-			|| !connectorValid(*firstConnector)
-			|| !connectorValid(*secondConnector) || !selected(*firstPair)) {
+			|| !selectedReadable(*firstConnector)
+			|| !unselectedReadable(*secondConnector) || !selected(*firstPair)) {
 			QTextStream{ stderr } << "UIFORETW_CAPTURE_FINAL_TARGET_FAILED\n";
 			return false;
 		}
@@ -7425,13 +7899,114 @@ namespace bpr::app {
 		auto* const detail            = workbench->detail_pane();
 		auto* const comparisonSurface = workbench->comparison_splitter();
 		auto* const linkMap           = workbench->link_map();
+		auto* const toolbar           = window->primary_toolbar();
+		auto* const filesAction       = window->files_drawer_toggle_action();
+		auto* const previousFile      = window->previous_file_action();
+		auto* const nextFile          = window->next_file_action();
+		auto* const previousChange    = window->previous_change_action();
+		auto* const nextChange        = window->next_change_action();
+		auto* const conversationsAction
+			= window->conversations_drawer_toggle_action();
+		auto* const reviewDetails  = window->review_details_toggle_action();
+		auto* const reviewControls = window->review_controls_button();
 		if (header == nullptr || header->isVisible()
 			|| window->epoch_selectors()->isVisible()
 			|| detail == nullptr || detail->isVisible()
 			|| window->files_drawer()->isVisible()
 			|| window->conversations_drawer()->isVisible()
-			|| comparisonSurface == nullptr || linkMap == nullptr) {
+			|| comparisonSurface == nullptr || linkMap == nullptr
+			|| toolbar == nullptr || filesAction == nullptr
+			|| previousFile == nullptr || nextFile == nullptr
+			|| previousChange == nullptr || nextChange == nullptr
+			|| conversationsAction == nullptr || reviewDetails == nullptr
+			|| reviewControls == nullptr) {
 			return false;
+		}
+		const auto requiredActions = std::array{
+			filesAction,
+			previousFile,
+			nextFile,
+			previousChange,
+			nextChange,
+			conversationsAction,
+		};
+		auto requiredPresenters = std::array<QToolButton*, 6U>{ };
+		for (std::size_t index = 0U; index < requiredActions.size(); ++index) {
+			requiredPresenters[index] = qobject_cast<QToolButton*>(
+				toolbar->widgetForAction(requiredActions[index]));
+			if (requiredPresenters[index] == nullptr) {
+				return false;
+			}
+		}
+		const auto navigationIconObservations = std::array{
+			observe_navigation_icon_contrast(*requiredPresenters[1]),
+			observe_navigation_icon_contrast(*requiredPresenters[2]),
+			observe_navigation_icon_contrast(*requiredPresenters[3]),
+			observe_navigation_icon_contrast(*requiredPresenters[4]),
+		};
+		const auto normalIconContrastFloor
+			= aMode == core::appearance_mode::high_contrast_light
+				|| aMode == core::appearance_mode::high_contrast_dark
+			? std::int64_t{ 700 }
+			: std::int64_t{ 450 };
+		const auto navigationIconsPaletteAware = std::ranges::all_of(
+			navigationIconObservations,
+			[normalIconContrastFloor](
+				const navigation_icon_contrast_observation& aObservation) {
+				return aObservation.NormalForegroundPixels > 0U
+					&& aObservation.DisabledForegroundPixels > 0U
+					&& aObservation.NormalContrastHundredths
+					>= normalIconContrastFloor
+					&& aObservation.DisabledContrastHundredths >= 300
+					&& aObservation.StatesDistinct;
+			});
+		auto* const spacer = toolbar->findChild<QWidget*>(
+			QStringLiteral("workbenchNavigationSpacer"), Qt::FindDirectChildrenOnly);
+		const auto toolbarActions       = toolbar->actions();
+		const auto reviewControlsAction = std::ranges::find_if(
+			toolbarActions,
+			[toolbar, reviewControls](QAction* const aAction) {
+				return toolbar->widgetForAction(aAction) == reviewControls;
+			});
+		const auto spacerAction = std::ranges::find_if(
+			toolbarActions,
+			[toolbar, spacer](QAction* const aAction) {
+				return toolbar->widgetForAction(aAction) == spacer;
+			});
+		const auto exactRowOrder = toolbarActions.size() == 10U
+			&& toolbarActions[0] == filesAction
+			&& toolbarActions[1] == previousFile
+			&& toolbarActions[2] == nextFile
+			&& toolbarActions[3] == previousChange
+			&& toolbarActions[4] == nextChange
+			&& toolbarActions[5]->isSeparator()
+			&& toolbarActions[6] == reviewDetails
+			&& reviewControlsAction == toolbarActions.begin() + 7
+			&& spacerAction == toolbarActions.begin() + 8
+			&& toolbarActions[9] == conversationsAction;
+		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly;
+		auto nativeIcons = true;
+		auto accessible  = true;
+		auto uniqueNames = true;
+		for (std::size_t index = 0U; index < requiredActions.size(); ++index) {
+			const auto* const action = requiredActions[index];
+			const auto* const button = requiredPresenters[index];
+			iconOnly                 = iconOnly
+				&& button->toolButtonStyle() == Qt::ToolButtonIconOnly;
+			nativeIcons = nativeIcons && !action->icon().isNull()
+				&& !button->icon().isNull();
+			accessible = accessible && !button->accessibleName().isEmpty()
+				&& !button->accessibleDescription().isEmpty()
+				&& !action->toolTip().isEmpty() && !action->shortcut().isEmpty()
+				&& button->focusPolicy() == Qt::StrongFocus;
+			for (std::size_t other = index + 1U;
+				 other < requiredActions.size(); ++other) {
+				uniqueNames = uniqueNames
+					&& requiredPresenters[index]->accessibleName()
+						!= requiredPresenters[other]->accessibleName()
+					&& requiredActions[index]->objectName()
+						!= requiredActions[other]->objectName();
+			}
 		}
 		const auto inWindow = [window](const QWidget& aWidget) {
 			return QRect{
@@ -7490,6 +8065,22 @@ namespace bpr::app {
 		};
 		const auto connectorJson = [](const connector_render_observation& aValue) {
 			return QJsonObject{
+				{ QStringLiteral("state"),
+				  aValue.Selected ? QStringLiteral("selected")
+								  : QStringLiteral("unselected") },
+				{ QStringLiteral("gutter_background"),
+				  aValue.Pixels.Background.name(QColor::HexArgb) },
+				{ QStringLiteral("dominant_path_pixel"),
+				  aValue.Pixels.Dominant.name(QColor::HexArgb) },
+				{ QStringLiteral("sampled_path_pixels"),
+				  static_cast<qint64>(aValue.Pixels.SampledPixels) },
+				{ QStringLiteral("contrast_pixels"),
+				  static_cast<qint64>(aValue.Pixels.ContrastPixels) },
+				{ QStringLiteral("dominant_path_pixels"),
+				  static_cast<qint64>(aValue.Pixels.DominantPixels) },
+				{ QStringLiteral("contrast_floor_hundredths"), 300 },
+				{ QStringLiteral("median_contrast_hundredths"),
+				  aValue.Pixels.MedianContrastHundredths },
 				{ QStringLiteral("bounds"), rectangle_json(aValue.Bounds) },
 				{ QStringLiteral("start"), point_json(aValue.Start) },
 				{ QStringLiteral("end"), point_json(aValue.End) },
@@ -7511,6 +8102,8 @@ namespace bpr::app {
 									const intraline_render_observation& aTarget,
 									const intraline_render_observation& aSelectedTarget,
 									const connector_render_observation& aConnector,
+									const connector_render_observation& aSelectedConnector,
+									const connector_render_observation& aUnselectedConnector,
 									const qint64                        aChangeIndex) {
 			return QJsonObject{
 				{ QStringLiteral("segment"), identityText(aTarget.Pair.Segment) },
@@ -7529,14 +8122,38 @@ namespace bpr::app {
 				{ QStringLiteral("selected_right_role_pixels"), static_cast<qint64>(aSelectedTarget.RightRolePixels) },
 				{ QStringLiteral("change_index"), aChangeIndex },
 				{ QStringLiteral("connector"), connectorJson(aConnector) },
+				{ QStringLiteral("selected_connector"),
+				  connectorJson(aSelectedConnector) },
+				{ QStringLiteral("unselected_connector"),
+				  connectorJson(aUnselectedConnector) },
 			};
 		};
 		const auto firstChangeIndex = static_cast<qint64>(
 			std::distance(result->Alignment.Groups.begin(), firstGroup));
 		const auto secondChangeIndex = static_cast<qint64>(
 			std::distance(result->Alignment.Groups.begin(), secondGroup));
+		const auto iconContrastJson = [](
+										  const navigation_icon_contrast_observation& aValue) {
+			return QJsonObject{
+				{ QStringLiteral("background"),
+				  aValue.Background.name(QColor::HexArgb) },
+				{ QStringLiteral("normal_foreground"),
+				  aValue.NormalForeground.name(QColor::HexArgb) },
+				{ QStringLiteral("disabled_foreground"),
+				  aValue.DisabledForeground.name(QColor::HexArgb) },
+				{ QStringLiteral("normal_foreground_pixels"),
+				  static_cast<qint64>(aValue.NormalForegroundPixels) },
+				{ QStringLiteral("disabled_foreground_pixels"),
+				  static_cast<qint64>(aValue.DisabledForegroundPixels) },
+				{ QStringLiteral("normal_contrast_hundredths"),
+				  static_cast<qint64>(aValue.NormalContrastHundredths) },
+				{ QStringLiteral("disabled_contrast_hundredths"),
+				  static_cast<qint64>(aValue.DisabledContrastHundredths) },
+				{ QStringLiteral("states_distinct"), aValue.StatesDistinct },
+			};
+		};
 		auto facts = QJsonObject{
-			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v2") },
+			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v4") },
 			{ QStringLiteral("appearance"), appearance_mode_name(aMode) },
 			{ QStringLiteral("qt_platform"), QGuiApplication::platformName() },
 			{ QStringLiteral("qt_version"), QString::fromLatin1(qVersion()) },
@@ -7557,12 +8174,44 @@ namespace bpr::app {
 			{ QStringLiteral("added_role"), added.name(QColor::HexArgb) },
 			{ QStringLiteral("intraline_edit_count"), static_cast<qint64>(workbench->current_result()->Intraline.size()) },
 			{ QStringLiteral("fixture_diff_helper_invocations"), static_cast<qint64>(implementation->FixtureDiffHelperInvocations) },
+			{ QStringLiteral("previous_file_navigation_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.PreviousFileNavigation },
+			{ QStringLiteral("next_file_navigation_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.NextFileNavigation },
+			{ QStringLiteral("previous_change_navigation_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.PreviousChangeNavigation },
+			{ QStringLiteral("next_change_navigation_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.NextChangeNavigation },
+			{ QStringLiteral("files_drawer_toggle_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.FilesDrawerToggle },
+			{ QStringLiteral("conversations_drawer_toggle_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.ConversationsDrawerToggle },
+			{ QStringLiteral("navigation_row_exact_order"), exactRowOrder },
+			{ QStringLiteral("navigation_actions_icon_only"), iconOnly },
+			{ QStringLiteral("navigation_actions_have_native_icons"), nativeIcons },
+			{ QStringLiteral("navigation_icons_palette_aware"), navigationIconsPaletteAware },
+			{ QStringLiteral("navigation_icon_contrast"),
+			  QJsonObject{
+				  { QStringLiteral("previous_file"),
+					iconContrastJson(navigationIconObservations[0]) },
+				  { QStringLiteral("next_file"),
+					iconContrastJson(navigationIconObservations[1]) },
+				  { QStringLiteral("previous_change"),
+					iconContrastJson(navigationIconObservations[2]) },
+				  { QStringLiteral("next_change"),
+					iconContrastJson(navigationIconObservations[3]) },
+			  } },
+			{ QStringLiteral("navigation_actions_accessible"), accessible },
+			{ QStringLiteral("navigation_accessible_names_unique"), uniqueNames },
 			{ QStringLiteral("files_drawer_visible"), false },
 			{ QStringLiteral("conversations_drawer_visible"), false },
 			{ QStringLiteral("review_details_visible"), false },
 			{ QStringLiteral("epoch_controls_visible"), false },
 			{ QStringLiteral("selected_change_detail_visible"), false },
 			{ QStringLiteral("full_window_rect"), rectangle_json(window->rect()) },
+			{ QStringLiteral("navigation_row_rect_in_window"), rectangle_json(inWindow(*toolbar)) },
+			{ QStringLiteral("files_toggle_rect_in_row"), rectangle_json(requiredPresenters[0]->geometry()) },
+			{ QStringLiteral("previous_file_rect_in_row"), rectangle_json(requiredPresenters[1]->geometry()) },
+			{ QStringLiteral("next_file_rect_in_row"), rectangle_json(requiredPresenters[2]->geometry()) },
+			{ QStringLiteral("previous_change_rect_in_row"), rectangle_json(requiredPresenters[3]->geometry()) },
+			{ QStringLiteral("next_change_rect_in_row"), rectangle_json(requiredPresenters[4]->geometry()) },
+			{ QStringLiteral("review_details_rect_in_row"), rectangle_json(toolbar->actionGeometry(reviewDetails)) },
+			{ QStringLiteral("private_progress_rect_in_row"), rectangle_json(reviewControls->geometry()) },
+			{ QStringLiteral("conversations_toggle_rect_in_row"), rectangle_json(requiredPresenters[5]->geometry()) },
 			{ QStringLiteral("comparison_rect_in_window"), rectangle_json(comparisonRect) },
 			{ QStringLiteral("left_pane_rect_in_window"), rectangle_json(leftPaneRect) },
 			{ QStringLiteral("right_pane_rect_in_window"), rectangle_json(rightPaneRect) },
@@ -7577,8 +8226,8 @@ namespace bpr::app {
 			{ QStringLiteral("selected_change_index"), firstChangeIndex },
 			{ QStringLiteral("selected_segment"), identityText(first->Pair.Segment) },
 			{ QStringLiteral("selected_group"), identityText(*first->Pair.Group) },
-			{ QStringLiteral("replacement_28_to_24"), targetJson(*first, *firstSelected, *firstConnector, firstChangeIndex) },
-			{ QStringLiteral("replacement_42_to_36"), targetJson(*second, *secondSelected, *secondConnector, secondChangeIndex) },
+			{ QStringLiteral("replacement_28_to_24"), targetJson(*first, *firstSelected, *firstConnector, *firstSelectedConnector, *firstUnselectedConnector, firstChangeIndex) },
+			{ QStringLiteral("replacement_42_to_36"), targetJson(*second, *secondSelected, *secondConnector, *secondSelectedConnector, *secondUnselectedConnector, secondChangeIndex) },
 		};
 		auto file = QFile{ directory.filePath(QStringLiteral("capture-facts.json")) };
 		if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {

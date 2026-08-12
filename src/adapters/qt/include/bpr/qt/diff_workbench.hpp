@@ -28,7 +28,6 @@ class QPlainTextEdit;
 class QResizeEvent;
 class QScrollBar;
 class QSplitter;
-class QToolButton;
 
 namespace bpr::qt {
 	/// \brief Identifies the Qt-facing source that requested a geometry rebuild.
@@ -147,8 +146,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto detail_pane() const noexcept -> QPlainTextEdit*;
-		[[nodiscard]] auto previous_change_button() const noexcept -> QToolButton*;
-		[[nodiscard]] auto next_change_button() const noexcept -> QToolButton*;
+		/// \brief Applies one semantic previous/next change gesture.
+		///
+		/// \details The workbench owns the one immutable semantic index. Presenters
+		/// pass the exact core-projected stop-versus-wrap policy with the gesture;
+		/// the comparison contains no duplicate navigation controls and never
+		/// recomputes mapping in Qt.
+		[[nodiscard]] auto navigate_change(
+			core::change_navigation_direction aDirection,
+			core::change_navigation_policy    aPolicy) -> bool;
 		[[nodiscard]] auto shared_scrollbar() const noexcept -> QScrollBar*;
 		[[nodiscard]] auto comparison_splitter() const noexcept
 			-> diff_comparison_splitter*;
@@ -253,28 +259,24 @@ namespace bpr::qt {
 		void apply_frame(const comparison_scroll_frame& aFrame);
 		void select_line(core::diff_side aSide, std::uint32_t aLine);
 		void select_link(const diff_link_map_identity& aIdentity, bool aReveal);
-		void navigate(core::change_navigation_direction aDirection);
 		void synchronize_geometry_selection(bool aReveal);
 		void apply_interaction(bool aReveal, bool aAnnounceSelection);
 		void update_detail();
 		void update_selection_paint();
-		void update_action_state();
 		void announce_accessible_status(QString aText);
 		void update_status(QString aText);
 		void emit_selection() noexcept;
 		void clear_projection(QString aStatus);
 
-		QToolButton*                  PreviousChange = nullptr;
-		QToolButton*                  NextChange     = nullptr;
-		QLabel*                       Status         = nullptr;
-		diff_comparison_splitter*     Comparison     = nullptr;
-		QPlainTextEdit*               Left           = nullptr;
-		QPlainTextEdit*               Right          = nullptr;
-		QScrollBar*                   SharedScroll   = nullptr;
-		comparison_scroll_controller* Controller     = nullptr;
-		diff_link_map*                LinkMap        = nullptr;
-		QSplitter*                    Vertical       = nullptr;
-		QPlainTextEdit*               Detail         = nullptr;
+		QLabel*                       Status       = nullptr;
+		diff_comparison_splitter*     Comparison   = nullptr;
+		QPlainTextEdit*               Left         = nullptr;
+		QPlainTextEdit*               Right        = nullptr;
+		QScrollBar*                   SharedScroll = nullptr;
+		comparison_scroll_controller* Controller   = nullptr;
+		diff_link_map*                LinkMap      = nullptr;
+		QSplitter*                    Vertical     = nullptr;
+		QPlainTextEdit*               Detail       = nullptr;
 
 		std::optional<core::diff_request_context> CurrentContext;
 		diff_presentation_colors                  Colors;
