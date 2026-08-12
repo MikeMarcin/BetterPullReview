@@ -4737,6 +4737,24 @@ namespace {
 							: "NATIVE_NOTIFICATION_DISPLAY_BOUNDARY_OK\n")
 					<< Qt::flush;
 				if (!aRun->Attended) {
+					// Cocoa may keep an unattended command-line test application
+					// natively inactive. Establish only Qt's logical active window;
+					// the real notification selection path must still acquire focus.
+					QT_WARNING_PUSH
+					QT_WARNING_DISABLE_DEPRECATED
+					QApplication::setActiveWindow(&window);
+					QT_WARNING_POP
+					QApplication::processEvents();
+					if (QApplication::activeWindow() != &window) {
+						fail_native_notification_run(
+							aApplication,
+							*aRun,
+							"qt_active_window_not_acquired");
+						break;
+					}
+					QTextStream{ stdout }
+						<< "NATIVE_NOTIFICATION_QT_ACTIVE_WINDOW_OK\n"
+						<< Qt::flush;
 					const auto activationEmitted = bpr::app::detail::
 						github_application_fixture_access::activate_platform_notification(
 							aApplication);

@@ -265,6 +265,11 @@ target, and the shipped landing proxy selects and focuses the complete
 host/account/repository/pull-request identity. Independent cuts remove the
 request wire and activation-to-selection wire. That course proves composition,
 not that macOS displayed a banner; the latter remains BPR-0168's attended fact.
+Because an unattended Cocoa command-line process may remain natively inactive,
+the testing-only course establishes the real workbench as Qt's logical active
+window before emitting `messageClicked`. It then requires the unchanged
+notification activation and landing proxy to produce the exact queue-row focus;
+this does not claim native foreground activation.
 
 A submitted native activation returns through `review_queue_notifier::activate` and asks
 the real landing proxy to select the exact visible identity. The queue row is

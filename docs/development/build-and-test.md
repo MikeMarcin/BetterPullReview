@@ -105,7 +105,11 @@ The deterministic `application_native_notification_attended_contract` replaces
 only the operating-system display boundary. It preserves the real queue rule,
 Refresh, system-tray sink, tray click signal, notifier activation, and exact
 landing-row selection, and runs independent request and activation cuts. It
-does not claim that the operating system displayed a banner.
+does not claim that the operating system displayed a banner. On Cocoa, the
+testing-only course establishes the workbench as Qt's logical active window
+before it emits the real tray signal; the selection path must still focus the
+exact queue row. This is deterministic Qt focus evidence, not proof that the
+unattended process became the native foreground application.
 
 BPR-0168's operator packet runs the shipped `better_pull_review` executable
 with its native `QSystemTrayIcon::showMessage` boundary. The application first
