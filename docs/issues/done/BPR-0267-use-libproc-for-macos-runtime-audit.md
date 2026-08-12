@@ -1,7 +1,7 @@
 ---
 id: BPR-0267
 title: Use libproc for the sandboxed macOS runtime audit
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0264]
 ---
@@ -42,3 +42,20 @@ inside the same sandbox without broadening its authority.
   the network-isolation manifest/structure counterexamples.
 - Run Python compilation, documentation, diff, and relevant architecture gates.
 - Review the final security verifier change independently.
+
+## Closeout
+
+Darwin child discovery now calls `proc_listchildpids` through its exact signed
+ABI, validates parent and returned PIDs, sorts and deduplicates the point-in-
+time result, and fails closed on library, API, invocation, native error,
+invalid-result, or bounded-capacity violations. The fixed buffer admits up to
+1,024 direct children plus one overflow slot. Darwin dispatch launches neither
+`ps` nor a shell; Linux and Windows behavior is unchanged, as are the sandbox
+profile and application.
+
+Thirteen unit tests, including a real native direct child and hostile ABI/error/
+capacity cases, passed. `runtime_process_surface` passed inside the unchanged
+default-deny network wrapper, and the runtime-audit, network structure/manifest,
+and architecture selector passed 6/6. Documentation and diff gates passed.
+Independent security review returned `ACCEPT` with no blocking or high-risk
+finding.
