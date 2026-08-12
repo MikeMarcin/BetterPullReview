@@ -8,9 +8,9 @@
 
 #include "bpr/app/worker_executor.hpp"
 
+#include "designated_review_public_observer.hpp"
 #include "github_host_profile.hpp"
 #include "github_provider.hpp"
-#include "designated_review_public_observer.hpp"
 #include "live_review_mutation_provider.hpp"
 #include "native_https_transport.hpp"
 

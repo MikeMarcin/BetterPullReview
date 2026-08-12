@@ -43,3 +43,21 @@ ctest --preset dev --output-on-failure -R '^(qt_diff_workbench_scale_(100|125|20
 python3 scripts/verify_documentation.py --root .
 git diff --check
 ```
+
+## Implementation checkpoint — 2026-08-11
+
+Canonical formatting changed one line by sorting the designated public
+observer include before the other GitHub adapter includes. No executable token,
+authority boundary, navigation path, or rendering behavior changed. The exact
+full-source and source-tree integrity digests were refreshed; the production
+mutation-branch digest remained unchanged. The required selector passed 7/7 in
+127.56 seconds, the 373-file formatting gate passed, documentation reported
+`DOCUMENTATION_OK`, and `git diff --check` passed.
+
+The strict repository tidy scan reached all 227 translation units and then
+reported five older violations in three files owned by the BPR-0256 designated
+live-review lane: one unsafe string-view pointer in the public observer, one
+mutation-contract local naming violation, and three unsafe string-view pointers
+in the approval bootstrap. This card remains in progress until that separately
+owned gate drift is repaired and the exact full tidy target passes; none of
+those findings changes this card's one-line formatting scope.
