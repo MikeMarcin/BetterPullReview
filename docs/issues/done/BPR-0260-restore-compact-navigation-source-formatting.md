@@ -1,7 +1,7 @@
 ---
 id: BPR-0260
 title: Restore compact-navigation source formatting
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0259]
 ---
@@ -61,3 +61,13 @@ mutation-contract local naming violation, and three unsafe string-view pointers
 in the approval bootstrap. This card remains in progress until that separately
 owned gate drift is repaired and the exact full tidy target passes; none of
 those findings changes this card's one-line formatting scope.
+
+## Terminal closure — 2026-08-12
+
+BPR-0256 repaired its separately owned strict-tidy findings without expanding
+this card's source scope. From that stable tree, the combined repository gate
+passed: formatting checked all 373 files and strict warnings-as-errors tidy
+checked all 227 translation units. Documentation validation again reported
+`DOCUMENTATION_OK`, and `git diff --check` passed. The one-line canonical
+include ordering and its exact integrity digests are therefore terminal for
+this card; BPR-0256 separately owns the regenerated attended packet.
