@@ -52,3 +52,20 @@ build the affected agent/Qt canary targets on a portable host, run the
 architecture boundary pair, then obtain the required target-native Windows
 compile/runtime evidence. None of this handoff closes BPR-0240, BPR-0245, or
 RFC-BPR-0011.
+
+## macOS formatting checkpoint — 2026-08-11
+
+The preserved slice's three format-gate findings were repaired with the
+repository's configured `clang-format`, changing whitespace only in
+`agent_process_launcher.cpp`, `windows_agent_process.cpp`, and
+`agent_launch_canary_tests.cpp`. Direct `--dry-run --Werror` verification now
+passes for all three files. On macOS, the adapter and Qt canary targets rebuilt,
+and the exact `architecture_boundaries`, `architecture_boundary_contract`, and
+`qt_agent_launch_canary` selector passed 3/3 in 128.33 seconds.
+
+This checkpoint is not target-native Windows evidence: the private WIN32
+backend remains excluded by the macOS preprocessor and has not been compiled or
+executed on Windows. The card therefore remains in progress with its Windows
+compile/runtime matrix, complete portable regression matrix, strict tidy,
+documentation gate, and independent review still required for terminal
+closure.

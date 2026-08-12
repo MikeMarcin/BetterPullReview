@@ -3,12 +3,12 @@
 #if defined(Q_OS_WIN)
 	#include "windows_agent_process.hpp"
 #else
-#include <QByteArray>
-#include <QElapsedTimer>
-#include <QProcess>
-#include <QProcessEnvironment>
-#include <QString>
-#include <QStringList>
+	#include <QByteArray>
+	#include <QElapsedTimer>
+	#include <QProcess>
+	#include <QProcessEnvironment>
+	#include <QString>
+	#include <QStringList>
 #endif
 
 #include <algorithm>
@@ -31,13 +31,13 @@ namespace bpr::adapters::agent {
 	};
 
 	namespace {
-	#if !defined(Q_OS_WIN)
+#if !defined(Q_OS_WIN)
 		struct process_state
 		{
 			QProcess Process{ nullptr };
-#if defined(Q_OS_UNIX)
+	#if defined(Q_OS_UNIX)
 			qint64 ProcessGroup = 0;
-#endif
+	#endif
 		};
 
 		[[nodiscard]] auto wait_slice(
@@ -51,19 +51,19 @@ namespace bpr::adapters::agent {
 		template <typename State>
 		void end_process_tree(State& aState)
 		{
-#if defined(Q_OS_UNIX)
+	#if defined(Q_OS_UNIX)
 			if (aState.ProcessGroup > 0) {
 				static_cast<void>(::kill(
 					-static_cast<pid_t>(aState.ProcessGroup), SIGKILL));
 				aState.ProcessGroup = 0;
 			}
-#endif
+	#endif
 			if (aState.Process.state() != QProcess::NotRunning) {
 				aState.Process.kill();
 				static_cast<void>(aState.Process.waitForFinished(5'000));
 			}
 		}
-	#endif
+#endif
 	} // namespace
 
 	agent_process_launcher::agent_process_launcher(QObject* const aParent)
@@ -86,7 +86,7 @@ namespace bpr::adapters::agent {
 		const std::stop_token                    aStop)
 		-> application::agent_run_result
 	{
-		auto result = application::agent_run_result{ .Session = aRequest.Session };
+		auto       result                 = application::agent_run_result{ .Session = aRequest.Session };
 		auto&      control                = *Implementation;
 		const auto cancellationGeneration = control.CancellationGeneration.load(
 			std::memory_order_acquire);

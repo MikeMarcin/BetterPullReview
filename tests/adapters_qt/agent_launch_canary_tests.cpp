@@ -277,7 +277,7 @@ namespace {
 		plant_parent_secrets();
 		qputenv("BPR_CANARY_ALLOWED", QByteArray{ "allowed-value" });
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
-		auto launched = request(core::agent_protocol::codex_jsonl_exec);
+		auto       launched         = request(core::agent_protocol::codex_jsonl_exec);
 		const auto workingDirectory = std::filesystem::temp_directory_path()
 			/ ("bpr-agent-cwd-"
 			   + std::to_string(
@@ -288,8 +288,8 @@ namespace {
 				&& !filesystemError,
 			"the canary receives a dedicated accepted working directory");
 		launched.WorkingDirectory = workingDirectory.string();
-		auto       launcher = adapters::agent::agent_process_launcher{ };
-		const auto result   = launcher.run(launched, 20'000);
+		auto       launcher       = adapters::agent::agent_process_launcher{ };
+		const auto result         = launcher.run(launched, 20'000);
 		static_cast<void>(std::filesystem::remove(workingDirectory, filesystemError));
 		expect(
 			result.Outcome == application::agent_run_outcome::success,
@@ -329,7 +329,7 @@ namespace {
 		expect(
 			childWorkingDirectories.size() == 1U
 				&& std::filesystem::path{ childWorkingDirectories.front() }
-					   .lexically_normal()
+						.lexically_normal()
 					== workingDirectory.lexically_normal(),
 			"the child reports the exact request working directory, not the parent cwd");
 		const auto input = event_values(result, "stdin");
@@ -571,7 +571,7 @@ namespace {
 			launched.Arguments.end(),
 			{ "--pre-assignment-side-effect", marker.string() });
 
-		auto       launcher = adapters::agent::agent_process_launcher{ };
+		auto launcher = adapters::agent::agent_process_launcher{ };
 		adapters::agent::agent_process_launcher::
 			force_job_assignment_failure_for_testing(true);
 		const auto result = launcher.run(launched, 20'000);

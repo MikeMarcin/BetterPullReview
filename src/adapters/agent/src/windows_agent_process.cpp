@@ -99,7 +99,7 @@ namespace bpr::adapters::agent::detail {
 				List = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(
 					Storage.data());
 				return InitializeProcThreadAttributeList(
-					List, 1U, 0U, &bytes)
+						   List, 1U, 0U, &bytes)
 					!= FALSE;
 			}
 
@@ -107,13 +107,13 @@ namespace bpr::adapters::agent::detail {
 				std::array<HANDLE, 3U>& aHandles) -> bool
 			{
 				return UpdateProcThreadAttribute(
-					List,
-					0U,
-					PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-					aHandles.data(),
-					aHandles.size() * sizeof(HANDLE),
-					nullptr,
-					nullptr)
+						   List,
+						   0U,
+						   PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+						   aHandles.data(),
+						   aHandles.size() * sizeof(HANDLE),
+						   nullptr,
+						   nullptr)
 					!= FALSE;
 			}
 
@@ -176,11 +176,11 @@ namespace bpr::adapters::agent::detail {
 			const std::wstring& aLeft, const std::wstring& aRight) noexcept -> bool
 		{
 			return CompareStringOrdinal(
-				aLeft.data(),
-				static_cast<int>(aLeft.size()),
-				aRight.data(),
-				static_cast<int>(aRight.size()),
-				TRUE)
+					   aLeft.data(),
+					   static_cast<int>(aLeft.size()),
+					   aRight.data(),
+					   static_cast<int>(aRight.size()),
+					   TRUE)
 				== CSTR_LESS_THAN;
 		}
 
@@ -188,11 +188,11 @@ namespace bpr::adapters::agent::detail {
 			const std::wstring& aLeft, const std::wstring& aRight) noexcept -> bool
 		{
 			return CompareStringOrdinal(
-				aLeft.data(),
-				static_cast<int>(aLeft.size()),
-				aRight.data(),
-				static_cast<int>(aRight.size()),
-				TRUE)
+					   aLeft.data(),
+					   static_cast<int>(aLeft.size()),
+					   aRight.data(),
+					   static_cast<int>(aRight.size()),
+					   TRUE)
 				== CSTR_EQUAL;
 		}
 
@@ -264,7 +264,7 @@ namespace bpr::adapters::agent::detail {
 		}
 
 		[[nodiscard]] auto command_line(
-			const std::wstring& aExecutable,
+			const std::wstring&             aExecutable,
 			const std::vector<std::string>& aArguments)
 			-> std::optional<std::wstring>
 		{
@@ -284,19 +284,19 @@ namespace bpr::adapters::agent::detail {
 		[[nodiscard]] auto make_pipe(const bool aParentWrites)
 			-> std::optional<pipe_pair>
 		{
-			auto attributes            = SECURITY_ATTRIBUTES{ };
-			attributes.nLength         = sizeof(attributes);
-			attributes.bInheritHandle  = TRUE;
+			auto attributes                 = SECURITY_ATTRIBUTES{ };
+			attributes.nLength              = sizeof(attributes);
+			attributes.bInheritHandle       = TRUE;
 			attributes.lpSecurityDescriptor = nullptr;
-			auto readHandle  = HANDLE{ nullptr };
-			auto writeHandle = HANDLE{ nullptr };
+			auto readHandle                 = HANDLE{ nullptr };
+			auto writeHandle                = HANDLE{ nullptr };
 			if (
 				CreatePipe(&readHandle, &writeHandle, &attributes, 0U)
 				== FALSE) {
 				return std::nullopt;
 			}
-			auto read  = unique_handle{ readHandle };
-			auto write = unique_handle{ writeHandle };
+			auto read   = unique_handle{ readHandle };
+			auto write  = unique_handle{ writeHandle };
 			auto result = pipe_pair{
 				.Parent = aParentWrites ? std::move(write) : std::move(read),
 				.Child  = aParentWrites ? std::move(read) : std::move(write),
@@ -344,7 +344,7 @@ namespace bpr::adapters::agent::detail {
 					const auto requested = static_cast<DWORD>(std::min<std::size_t>(
 						aBytes.size() - offset,
 						16U * 1024U));
-					auto written = DWORD{ 0U };
+					auto       written   = DWORD{ 0U };
 					if (
 						WriteFile(
 							aPipe,
@@ -352,7 +352,7 @@ namespace bpr::adapters::agent::detail {
 							requested,
 							&written,
 							nullptr)
-						== FALSE
+							== FALSE
 						|| written == 0U) {
 						completed.store(true, std::memory_order_release);
 						return;
@@ -489,14 +489,14 @@ namespace bpr::adapters::agent::detail {
 			const HANDLE                             aJob)
 			-> application::agent_run_result
 		{
-			auto result = application::agent_run_result{ .Session = aRequest.Session };
-			auto decoder = application::agent_protocol_decoder{ aRequest.Protocol };
+			auto result   = application::agent_run_result{ .Session = aRequest.Session };
+			auto decoder  = application::agent_protocol_decoder{ aRequest.Protocol };
 			auto sequence = std::uint64_t{ 0U };
 			auto protocolFailure
 				= std::optional<application::agent_protocol_failure>{ };
 			auto forcedOutcome
 				= std::optional<application::agent_run_outcome>{ };
-			auto appServerPhase = std::uint8_t{ 0U };
+			auto       appServerPhase = std::uint8_t{ 0U };
 			const auto isAppServer
 				= aRequest.Protocol == core::agent_protocol::codex_app_server;
 
@@ -659,7 +659,7 @@ namespace bpr::adapters::agent::detail {
 			}
 
 			aInput.reset();
-			auto exitCode = DWORD{ 0U };
+			auto       exitCode = DWORD{ 0U };
 			const auto processExited
 				= WaitForSingleObject(aProcess, 0U) == WAIT_OBJECT_0;
 			if (processExited) {
@@ -699,7 +699,7 @@ namespace bpr::adapters::agent::detail {
 			const auto trailing = decoder.finish();
 			if (!trailing || (isAppServer && appServerPhase != 2U)) {
 				result.Events.clear();
-				result.Outcome = application::agent_run_outcome::protocol_failure;
+				result.Outcome         = application::agent_run_outcome::protocol_failure;
 				result.ProtocolFailure = trailing
 					? application::agent_protocol_failure::malformed_frame
 					: trailing.error();
@@ -736,7 +736,7 @@ namespace bpr::adapters::agent::detail {
 		const cancellation_probe&                aCancelled)
 		-> application::agent_run_result
 	{
-		auto result = application::agent_run_result{ .Session = aRequest.Session };
+		auto result           = application::agent_run_result{ .Session = aRequest.Session };
 		auto executable       = utf16(aRequest.Executable);
 		auto workingDirectory = utf16(aRequest.WorkingDirectory);
 		auto environment      = environment_block(aRequest.Environment);
@@ -769,7 +769,7 @@ namespace bpr::adapters::agent::detail {
 			result.StandardError = "agent containment creation failed";
 			return result;
 		}
-		auto limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION{ };
+		auto limits                             = JOBOBJECT_EXTENDED_LIMIT_INFORMATION{ };
 		limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 		if (
 			SetInformationJobObject(
@@ -790,29 +790,29 @@ namespace bpr::adapters::agent::detail {
 			result.StandardError = "agent private handle-list creation failed";
 			return result;
 		}
-		auto startup                     = STARTUPINFOEXW{ };
-		startup.StartupInfo.cb           = sizeof(startup);
-		startup.StartupInfo.dwFlags      = STARTF_USESTDHANDLES;
-		startup.StartupInfo.hStdInput    = input->Child.get();
-		startup.StartupInfo.hStdOutput   = output->Child.get();
-		startup.StartupInfo.hStdError    = error->Child.get();
-		startup.lpAttributeList          = attributes.get();
-		auto processInformation          = PROCESS_INFORMATION{ };
-		const auto creationFlags = DWORD{
+		auto startup                   = STARTUPINFOEXW{ };
+		startup.StartupInfo.cb         = sizeof(startup);
+		startup.StartupInfo.dwFlags    = STARTF_USESTDHANDLES;
+		startup.StartupInfo.hStdInput  = input->Child.get();
+		startup.StartupInfo.hStdOutput = output->Child.get();
+		startup.StartupInfo.hStdError  = error->Child.get();
+		startup.lpAttributeList        = attributes.get();
+		auto       processInformation  = PROCESS_INFORMATION{ };
+		const auto creationFlags       = DWORD{
 			CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT
 			| EXTENDED_STARTUPINFO_PRESENT
 		};
 		const auto created = CreateProcessW(
-			executable->c_str(),
-			command->data(),
-			nullptr,
-			nullptr,
-			TRUE,
-			creationFlags,
-			environment->data(),
-			workingDirectory->c_str(),
-			&startup.StartupInfo,
-			&processInformation)
+								 executable->c_str(),
+								 command->data(),
+								 nullptr,
+								 nullptr,
+								 TRUE,
+								 creationFlags,
+								 environment->data(),
+								 workingDirectory->c_str(),
+								 &startup.StartupInfo,
+								 &processInformation)
 			!= FALSE;
 		auto process = unique_handle{ processInformation.hProcess };
 		auto thread  = unique_handle{ processInformation.hThread };
