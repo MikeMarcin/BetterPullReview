@@ -1,7 +1,7 @@
 ---
 id: BPR-0272
 title: Include observer-rule actions in the workbench focus order
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0010
 depends_on: [BPR-0271]
 ---
