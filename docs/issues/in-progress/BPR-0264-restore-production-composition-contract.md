@@ -1,7 +1,7 @@
 ---
 id: BPR-0264
 title: Restore the production composition contract after recovery repair
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0263]
 ---
