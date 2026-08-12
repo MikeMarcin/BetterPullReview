@@ -1,7 +1,7 @@
 ---
 id: BPR-0270
 title: Restore the composed conversation-host contract
-status: In Progress
+status: Done
 rfc: RFC-BPR-0005
 depends_on: [BPR-0191]
 ---
@@ -46,3 +46,17 @@ the immediate parent.
   continuation.
 - Review the final assertion and its hostile outside-drawer counterexample
   independently.
+
+## Closeout
+
+The composed course now checks the accepted BPR-0191 ownership relation rather
+than an obsolete immediate-parent shape: the non-null conversation panel must
+be a descendant of the conversations drawer. The wrapper that also hosts the
+review editor, agent surface, and defect controls remains unchanged. A hostile
+LLDB reparenting outside the drawer made the assertion fail.
+
+After the separate BPR-0271 focus-order repair, the composed GitHub and
+workbench-window courses pass at 100, 125, and 200 percent, along with the
+conversation-panel, queue, and architecture evidence. Scoped format/tidy and
+diff gates passed. Independent review accepted the semantic implementation and
+confirmed the later focus failure was not caused by this three-line repair.
