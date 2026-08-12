@@ -1,7 +1,7 @@
 ---
 id: BPR-0261
 title: Make attended approval replay global and path-safe
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255]
 ---
@@ -47,4 +47,3 @@ rejects symlinks only at the immediate parent and leaf, not in every ancestor.
 - Architecture and production-composition cuts prove replay state is supplied
   only by the selected composition path and no ambient fallback exists.
 - The focused BPR-0256 matrix, format/tidy, documentation, and diff gates pass.
-
