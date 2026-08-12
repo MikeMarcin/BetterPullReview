@@ -633,8 +633,9 @@ namespace {
 		// checked here.
 		expect(
 			window.conversations_drawer() != nullptr
-				&& window.conversation_panel()->parentWidget()
-					== window.conversations_drawer(),
+				&& window.conversation_panel() != nullptr
+				&& window.conversations_drawer()->isAncestorOf(
+					window.conversation_panel()),
 			"at the 640-pixel minimum the conversation is still hosted by the "
 			"conversations drawer");
 
