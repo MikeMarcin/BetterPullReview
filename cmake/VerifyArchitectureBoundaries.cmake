@@ -71,6 +71,10 @@ set(
     "src/adapters/agent/src/agent_process_launcher.cpp"
 )
 set(
+    agent_windows_process_relative
+    "src/adapters/agent/src/windows_agent_process.cpp"
+)
+set(
     git_process_port_relative
     "src/application/include/bpr/application/git_process_port.hpp"
 )
@@ -128,6 +132,96 @@ set(agent_adapter_cmake "${BPR_ROOT}/src/adapters/agent/CMakeLists.txt")
 set(agent_cmake_contents "")
 if(EXISTS "${agent_adapter_cmake}")
     file(READ "${agent_adapter_cmake}" agent_cmake_contents)
+endif()
+if(NOT agent_cmake_contents STREQUAL "")
+    foreach(
+        pattern
+        IN ITEMS
+            "add_library\\([ \t\r\n]*better_pull_review_adapter_agent([ \t\r\n]|\\))"
+            "src/agent_process_launcher\\.cpp"
+            "if\\(WIN32\\)"
+            "src/windows_agent_process\\.cpp"
+            "Kernel32"
+            "if\\(BUILD_TESTING\\)"
+            "BPR_BUILD_TESTING=1"
+    )
+        if(NOT agent_cmake_contents MATCHES "${pattern}")
+            message(
+                FATAL_ERROR
+                "Agent process adapter target contract is incomplete: ${pattern}"
+            )
+        endif()
+    endforeach()
+    if(NOT EXISTS "${BPR_ROOT}/${agent_windows_process_relative}")
+        message(
+            FATAL_ERROR
+            "The designated native Windows agent process source is required: "
+            "${agent_windows_process_relative}"
+        )
+    endif()
+    file(
+        READ
+        "${BPR_ROOT}/${agent_windows_process_relative}"
+        agent_windows_process_contents
+    )
+    foreach(
+        required_native_agent_process_pattern
+        IN ITEMS
+            "CreateProcessW"
+            "CREATE_SUSPENDED"
+            "CREATE_UNICODE_ENVIRONMENT"
+            "EXTENDED_STARTUPINFO_PRESENT"
+            "PROC_THREAD_ATTRIBUTE_HANDLE_LIST"
+            "STARTF_USESTDHANDLES"
+            "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE"
+            "AssignProcessToJobObject"
+            "ResumeThread"
+            "TerminateJobObject"
+            "CancelIoEx"
+            "CancelSynchronousIo"
+            "QueryInformationJobObject"
+            "BPR_BUILD_TESTING"
+            "ForceJobAssignmentFailure"
+    )
+        if(
+            NOT agent_windows_process_contents
+                MATCHES "${required_native_agent_process_pattern}"
+        )
+            message(
+                FATAL_ERROR
+                "Native Windows agent process contract is incomplete: "
+                "${required_native_agent_process_pattern}"
+            )
+        endif()
+    endforeach()
+    foreach(
+        forbidden_native_agent_process_pattern
+        IN ITEMS
+            "QProcess"
+            "CreateProcessA"
+            "CreateProcess(AsUser|WithLogon|WithToken)[AW]?"
+            "ShellExecute(Ex)?[AW]?"
+            "WinExec"
+            "CREATE_BREAKAWAY_FROM_JOB"
+            "JOB_OBJECT_LIMIT_(BREAKAWAY_OK|SILENT_BREAKAWAY_OK)"
+            "CREATE_(NEW_PROCESS_GROUP|NEW_CONSOLE)"
+            "DETACHED_PROCESS"
+            "GetEnvironment(Strings|Variable)[AW]?"
+            "QProcessEnvironment"
+            "(/bin/(ba|z|k|c)?sh|cmd(\\.exe)?|powershell(\\.exe)?|pwsh(\\.exe)?)"
+            "std::(cout|cerr|clog)"
+    )
+        if(
+            agent_windows_process_contents
+                MATCHES "${forbidden_native_agent_process_pattern}"
+        )
+            message(
+                FATAL_ERROR
+                "Forbidden native Windows agent process surface: "
+                "${forbidden_native_agent_process_pattern}"
+            )
+        endif()
+    endforeach()
 endif()
 set(
     git_target_patterns
@@ -1415,6 +1509,17 @@ verify_effect_owner(
     "${github_process_runner_relative}"
     "${git_process_runner_relative}"
     "${agent_process_runner_relative}"
+)
+verify_effect_owner(
+    "CreateProcess(AsUser|WithLogon|WithToken)?[AW]?[ \t\r\n]*\\("
+    "native Windows process creation API"
+    "${agent_windows_process_relative}"
+)
+verify_effect_owner(
+    "(CreateJobObjectW|SetInformationJobObject|AssignProcessToJobObject|ResumeThread|TerminateJobObject|QueryInformationJobObject|InitializeProcThreadAttributeList|UpdateProcThreadAttribute|DeleteProcThreadAttributeList|PROC_THREAD_ATTRIBUTE_HANDLE_LIST|CancelSynchronousIo)"
+    "native Windows agent containment API"
+    "${git_process_runner_relative}"
+    "${agent_windows_process_relative}"
 )
 verify_effect_owner(
     "QNetworkAccessManager"
@@ -3461,7 +3566,7 @@ endif()
 
 set(
     alternate_process_patterns
-    "(NSTask|GSubprocess|g_subprocess_|CreateProcess(AsUser|WithLogon|WithToken)?[AW]?|ShellExecute(Ex)?[AW]?|WinExec|posix_spawnp?|(^|[^A-Za-z0-9_])(_?w?system|_?w?popen|fork|vfork|clone3?|exec(l|le|lp|v|ve|vp|vpe)|_?w?spawn(l|le|lp|lpe|v|ve|vp|vpe))[ \t\r\n]*\\()"
+    "(NSTask|GSubprocess|g_subprocess_|ShellExecute(Ex)?[AW]?|WinExec|posix_spawnp?|(^|[^A-Za-z0-9_])(_?w?system|_?w?popen|fork|vfork|clone3?|exec(l|le|lp|v|ve|vp|vpe)|_?w?spawn(l|le|lp|lpe|v|ve|vp|vpe))[ \t\r\n]*\\()"
     "(#[ \t]*include[ \t]*[<\"]boost/process|boost::process|Poco::Process|wx(Process|Execute)|uv_spawn|g_spawn[A-Za-z0-9_]*)"
     "(/bin/(ba|z|k|c)?sh|\"(/usr/bin/)?(sh|bash|zsh|ksh|csh|fish|cmd(\\.exe)?|powershell(\\.exe)?|pwsh(\\.exe)?)\"|(^|[^A-Za-z0-9_])(sh|bash|zsh|cmd)[ \t]+(-c|/c)([^A-Za-z0-9_]|$))"
 )

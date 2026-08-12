@@ -327,6 +327,13 @@ auto main(int argc, char** argv) -> int
 		!marker.empty()) {
 		heartbeat(marker);
 	}
+	if (const auto marker
+		= argument_after(argc, argv, "--pre-assignment-side-effect");
+		!marker.empty()) {
+		auto sideEffect = std::ofstream{ marker, std::ios::binary };
+		sideEffect.put('r');
+		sideEffect.flush();
+	}
 
 	const auto protocol = selected_protocol(argc, argv);
 	const auto input    = read_input(

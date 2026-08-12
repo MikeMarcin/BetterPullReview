@@ -47,6 +47,7 @@ DESIGNATED_LIVE_TEST_CMAKE = (
 ADAPTER_ROOT = """\
 add_subdirectory(github)
 add_subdirectory(git)
+add_subdirectory(agent)
 """
 
 DEPENDENCIES_TARGET = """\
@@ -89,6 +90,26 @@ GIT_PROCESS_FACTORY = (
     / "adapters"
     / "git"
     / "installed_git_process.hpp"
+).read_text(encoding="utf-8")
+
+AGENT_TARGET = (
+    REPOSITORY_ROOT / "src" / "adapters" / "agent" / "CMakeLists.txt"
+).read_text(encoding="utf-8")
+AGENT_PROCESS_RUNNER_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "adapters"
+    / "agent"
+    / "src"
+    / "agent_process_launcher.cpp"
+).read_text(encoding="utf-8")
+AGENT_WINDOWS_PROCESS_SOURCE = (
+    REPOSITORY_ROOT
+    / "src"
+    / "adapters"
+    / "agent"
+    / "src"
+    / "windows_agent_process.cpp"
 ).read_text(encoding="utf-8")
 
 APPLE_KEYCHAIN_TARGET = """\
@@ -1215,6 +1236,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         adapter_root: str = ADAPTER_ROOT,
         github_target: str = GITHUB_TARGET,
         git_target: str = GIT_TARGET,
+        agent_target: str = AGENT_TARGET,
         omit_macos_source: bool = False,
         omit_windows_source: bool = False,
         omit_linux_source: bool = False,
@@ -1235,6 +1257,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "src/adapters/CMakeLists.txt": adapter_root,
                 "src/adapters/github/CMakeLists.txt": github_target,
                 "src/adapters/git/CMakeLists.txt": git_target,
+                "src/adapters/agent/CMakeLists.txt": agent_target,
                 "src/adapters/qt/CMakeLists.txt": "",
                 "src/adapters/git/src/installed_git_process.cpp":
                     GIT_PROCESS_RUNNER_SOURCE,
@@ -1242,6 +1265,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "git_process_port.hpp": GIT_PROCESS_PORT,
                 "src/adapters/git/include/bpr/adapters/git/"
                 "installed_git_process.hpp": GIT_PROCESS_FACTORY,
+                "src/adapters/agent/src/agent_process_launcher.cpp":
+                    AGENT_PROCESS_RUNNER_SOURCE,
+                "src/adapters/agent/src/windows_agent_process.cpp":
+                    AGENT_WINDOWS_PROCESS_SOURCE,
             }
             if not omit_process_interface:
                 files[
@@ -1334,6 +1361,91 @@ class ArchitectureBoundaryTests(unittest.TestCase):
     def test_designated_installed_git_process_runner_is_allowed(self) -> None:
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_native_windows_agent_process_owner_is_exact(self) -> None:
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        self.assert_failure(
+            "native Windows process creation API ownership violation",
+            {
+                "src/adapters/agent/src/other.cpp":
+                    "CreateProcessW(nullptr, nullptr, nullptr, nullptr, "
+                    "FALSE, 0U, nullptr, nullptr, nullptr, nullptr);\n"
+            },
+        )
+        self.assert_failure(
+            "native Windows agent containment API ownership violation",
+            {
+                "src/adapters/agent/src/other.cpp":
+                    "AssignProcessToJobObject(nullptr, nullptr);\n"
+            },
+        )
+
+    def test_native_windows_agent_target_owns_selected_backend(self) -> None:
+        self.assert_failure(
+            "Agent process adapter target contract is incomplete",
+            agent_target=AGENT_TARGET.replace(
+                "            src/windows_agent_process.cpp\n",
+                "",
+            ),
+        )
+        self.assert_failure(
+            "Agent process adapter target contract is incomplete",
+            agent_target=AGENT_TARGET.replace(
+                "            Kernel32\n",
+                "",
+            ),
+        )
+
+    def test_native_windows_agent_requires_suspended_containment_sequence(
+        self,
+    ) -> None:
+        for required in (
+            "CreateProcessW",
+            "CREATE_SUSPENDED",
+            "PROC_THREAD_ATTRIBUTE_HANDLE_LIST",
+            "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
+            "AssignProcessToJobObject",
+            "ResumeThread",
+            "TerminateJobObject",
+            "CancelSynchronousIo",
+            "QueryInformationJobObject",
+            "ForceJobAssignmentFailure",
+        ):
+            with self.subTest(required=required):
+                self.assert_failure(
+                    "Native Windows agent process contract is incomplete",
+                    {
+                        "src/adapters/agent/src/windows_agent_process.cpp":
+                            AGENT_WINDOWS_PROCESS_SOURCE.replace(
+                                required,
+                                "REMOVED_REQUIRED_NATIVE_PROCESS_PRIMITIVE",
+                            )
+                    },
+                )
+
+    def test_native_windows_agent_rejects_escape_and_fallback_surfaces(
+        self,
+    ) -> None:
+        hostile_surfaces = (
+            "CreateProcessA(nullptr, nullptr, nullptr, nullptr, FALSE, 0U, "
+            "nullptr, nullptr, nullptr, nullptr);\n",
+            "const DWORD escape = CREATE_BREAKAWAY_FROM_JOB;\n",
+            "const DWORD escape = JOB_OBJECT_LIMIT_BREAKAWAY_OK;\n",
+            "auto* inherited = GetEnvironmentStringsW();\n",
+            "QProcess fallback;\n",
+            "ShellExecuteW(nullptr, nullptr, nullptr, nullptr, nullptr, 0);\n",
+        )
+        for hostile_surface in hostile_surfaces:
+            with self.subTest(hostile_surface=hostile_surface):
+                self.assert_failure(
+                    "Forbidden native Windows agent process surface",
+                    {
+                        "src/adapters/agent/src/windows_agent_process.cpp":
+                            AGENT_WINDOWS_PROCESS_SOURCE + hostile_surface
+                    },
+                )
 
     def test_core_agent_profile_owns_only_agent_environment_policy_names(
         self,
@@ -3378,7 +3490,11 @@ auto finish_background_reap(
         for hostile_surface in hostile_surfaces:
             with self.subTest(hostile_surface=hostile_surface):
                 self.assert_failure(
-                    "Alternate process or shell API is forbidden",
+                    (
+                        "native Windows process creation API ownership violation"
+                        if hostile_surface.startswith("CreateProcessW")
+                        else "Alternate process or shell API is forbidden"
+                    ),
                     {
                         "src/adapters/github/src/alternate_process.cpp":
                             hostile_surface

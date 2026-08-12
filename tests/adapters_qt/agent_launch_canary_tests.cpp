@@ -189,7 +189,6 @@ namespace {
 		return *built;
 	}
 
-#if !defined(Q_OS_WIN)
 	[[nodiscard]] auto event_values(
 		const application::agent_run_result& aResult, const std::string_view aTag)
 		-> std::vector<std::string>
@@ -278,9 +277,20 @@ namespace {
 		plant_parent_secrets();
 		qputenv("BPR_CANARY_ALLOWED", QByteArray{ "allowed-value" });
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
-		const auto launched = request(core::agent_protocol::codex_jsonl_exec);
+		auto launched = request(core::agent_protocol::codex_jsonl_exec);
+		const auto workingDirectory = std::filesystem::temp_directory_path()
+			/ ("bpr-agent-cwd-"
+			   + std::to_string(
+				   std::chrono::steady_clock::now().time_since_epoch().count()));
+		std::error_code filesystemError;
+		expect(
+			std::filesystem::create_directory(workingDirectory, filesystemError)
+				&& !filesystemError,
+			"the canary receives a dedicated accepted working directory");
+		launched.WorkingDirectory = workingDirectory.string();
 		auto       launcher = adapters::agent::agent_process_launcher{ };
 		const auto result   = launcher.run(launched, 20'000);
+		static_cast<void>(std::filesystem::remove(workingDirectory, filesystemError));
 		expect(
 			result.Outcome == application::agent_run_outcome::success,
 			"the boundary canary succeeds");
@@ -315,6 +325,13 @@ namespace {
 					&& argument.find("retry exhaustion") == std::string::npos,
 				"PR identity and private context never reach argv");
 		}
+		const auto childWorkingDirectories = event_values(result, "cwd");
+		expect(
+			childWorkingDirectories.size() == 1U
+				&& std::filesystem::path{ childWorkingDirectories.front() }
+					   .lexically_normal()
+					== workingDirectory.lexically_normal(),
+			"the child reports the exact request working directory, not the parent cwd");
 		const auto input = event_values(result, "stdin");
 		expect(
 			std::ranges::any_of(input, [](const std::string& aInput) {
@@ -538,17 +555,40 @@ namespace {
 			"the descendant heartbeat stops with its process group - no child leaks");
 		std::filesystem::remove(marker, ignored);
 	}
-#else
-	void test_windows_launch_is_refused_before_start()
+
+#if defined(Q_OS_WIN) && defined(BPR_BUILD_TESTING)
+	void test_windows_assignment_failure_has_no_pre_assignment_side_effect()
 	{
+		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
+		const auto marker = std::filesystem::temp_directory_path()
+			/ ("bpr-agent-pre-assignment-"
+			   + std::to_string(
+				   std::chrono::steady_clock::now().time_since_epoch().count()));
+		std::error_code ignored;
+		std::filesystem::remove(marker, ignored);
+		auto launched = request(core::agent_protocol::external_terminal);
+		launched.Arguments.insert(
+			launched.Arguments.end(),
+			{ "--pre-assignment-side-effect", marker.string() });
+
 		auto       launcher = adapters::agent::agent_process_launcher{ };
-		const auto result   = launcher.run(
-			request(core::agent_protocol::external_terminal), 20'000);
+		adapters::agent::agent_process_launcher::
+			force_job_assignment_failure_for_testing(true);
+		const auto result = launcher.run(launched, 20'000);
+		adapters::agent::agent_process_launcher::
+			force_job_assignment_failure_for_testing(false);
 		expect(
 			result.Outcome == application::agent_run_outcome::failed_to_start
 				&& !result.StandardError.empty() && !result.ExitCode.has_value()
-				&& result.Events.empty(),
-			"Windows refuses before starting a child until pre-start containment is proven");
+				&& result.Events.empty() && !std::filesystem::exists(marker),
+			"forced Job Object assignment failure leaves the suspended child without a side effect");
+
+		const auto recovered = launcher.run(
+			request(core::agent_protocol::external_terminal), 20'000);
+		expect(
+			recovered.Outcome == application::agent_run_outcome::success,
+			"the native launcher recovers after a pre-resume assignment refusal");
+		std::filesystem::remove(marker, ignored);
 	}
 #endif
 } // namespace
@@ -556,14 +596,13 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QCoreApplication application{ argc, argv };
-#if defined(Q_OS_WIN)
-	test_windows_launch_is_refused_before_start();
-#else
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_real_child_receives_no_parent_credential_or_context_in_argv();
 	test_independent_agent_identity_alone_controls_canary_authority();
 	test_every_terminal_condition_is_typed_and_failed_runs_publish_no_result();
 	test_timeout_terminates_the_descendant_process_tree();
+#if defined(Q_OS_WIN) && defined(BPR_BUILD_TESTING)
+	test_windows_assignment_failure_has_no_pre_assignment_side_effect();
 #endif
 	std::cout << "agent-launch-canary-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -11,6 +11,18 @@ add_library(
     STATIC
         src/agent_process_launcher.cpp
 )
+if(WIN32)
+    target_sources(
+        better_pull_review_adapter_agent
+        PRIVATE
+            src/windows_agent_process.cpp
+    )
+    target_link_libraries(
+        better_pull_review_adapter_agent
+        PRIVATE
+            Kernel32
+    )
+endif()
 add_library(
     BetterPullReview::AdapterAgent
     ALIAS
@@ -29,6 +41,13 @@ target_link_libraries(
         Qt6::Core
 )
 target_compile_features(better_pull_review_adapter_agent PUBLIC cxx_std_23)
+if(BUILD_TESTING)
+    target_compile_definitions(
+        better_pull_review_adapter_agent
+        PRIVATE
+            BPR_BUILD_TESTING=1
+    )
+endif()
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(
         better_pull_review_adapter_agent

@@ -1,11 +1,15 @@
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 
+#if defined(Q_OS_WIN)
+	#include "windows_agent_process.hpp"
+#else
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QString>
 #include <QStringList>
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -27,6 +31,7 @@ namespace bpr::adapters::agent {
 	};
 
 	namespace {
+	#if !defined(Q_OS_WIN)
 		struct process_state
 		{
 			QProcess Process{ nullptr };
@@ -58,6 +63,7 @@ namespace bpr::adapters::agent {
 				static_cast<void>(aState.Process.waitForFinished(5'000));
 			}
 		}
+	#endif
 	} // namespace
 
 	agent_process_launcher::agent_process_launcher(QObject* const aParent)
@@ -80,18 +86,7 @@ namespace bpr::adapters::agent {
 		const std::stop_token                    aStop)
 		-> application::agent_run_result
 	{
-		auto result = application::agent_run_result{
-			.Session = aRequest.Session,
-		};
-#if defined(Q_OS_WIN)
-		static_cast<void>(aTimeoutMilliseconds);
-		static_cast<void>(aSink);
-		result.Outcome = application::agent_run_outcome::failed_to_start;
-		result.StandardError
-			= "agent launch is disabled on Windows until pre-start process-tree "
-			  "containment has target-native proof";
-		return result;
-#else
+		auto result = application::agent_run_result{ .Session = aRequest.Session };
 		auto&      control                = *Implementation;
 		const auto cancellationGeneration = control.CancellationGeneration.load(
 			std::memory_order_acquire);
@@ -116,7 +111,6 @@ namespace bpr::adapters::agent {
 				Running = false;
 			}
 		} guard{ control.Running };
-		auto            state = process_state{ };
 		std::error_code workingDirectoryError;
 		const auto      workingDirectory = std::filesystem::path{
 			aRequest.WorkingDirectory
@@ -131,6 +125,12 @@ namespace bpr::adapters::agent {
 			result.StandardError = "agent working directory is not an accepted directory";
 			return result;
 		}
+
+#if defined(Q_OS_WIN)
+		return detail::run_windows_agent_process(
+			aRequest, aTimeoutMilliseconds, aSink, cancelled);
+#else
+		auto state = process_state{ };
 
 		auto environment = QProcessEnvironment{ };
 		for (const auto& [name, value] : aRequest.Environment) {
@@ -352,4 +352,12 @@ namespace bpr::adapters::agent {
 			1U,
 			std::memory_order_acq_rel);
 	}
+
+#if defined(BPR_BUILD_TESTING) && defined(Q_OS_WIN)
+	void agent_process_launcher::force_job_assignment_failure_for_testing(
+		const bool aEnabled) noexcept
+	{
+		detail::force_windows_job_assignment_failure_for_testing(aEnabled);
+	}
+#endif
 } // namespace bpr::adapters::agent

@@ -363,6 +363,7 @@ target_compile_definitions(
     test_better_pull_review_qt_agent_launch_canary_tests
     PRIVATE
         "BPR_AGENT_CANARY_EXECUTABLE=\"$<TARGET_FILE:test_better_pull_review_agent_canary>\""
+        BPR_BUILD_TESTING=1
 )
 add_dependencies(
     test_better_pull_review_qt_agent_launch_canary_tests
