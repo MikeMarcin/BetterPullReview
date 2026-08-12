@@ -62,6 +62,19 @@
       }
     },
     {
+      "name": "app-release",
+      "displayName": "Release application (tests disabled)",
+      "description": "Production-shaped BetterPullReview application; unsigned and unpackaged until RFC-BPR-0014.",
+      "inherits": "_ninja-common",
+      "binaryDir": "${sourceDir}/build/app-release",
+      "cacheVariables": {
+        "BPR_BUILD_QT": "ON",
+        "BUILD_TESTING": "OFF",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TEST_BUILD_DEPENDS": "OFF"
+      }
+    },
+    {
       "name": "windows-dev",
       "displayName": "Windows developer build",
       "inherits": "_common",
@@ -92,6 +105,14 @@
       "name": "core-only",
       "inherits": "_build-common",
       "configurePreset": "core-only"
+    },
+    {
+      "name": "app-release",
+      "inherits": "_build-common",
+      "configurePreset": "app-release",
+      "targets": [
+        "app_better_pull_review"
+      ]
     },
     {
       "name": "windows-dev",
@@ -145,6 +166,14 @@
         { "type": "configure", "name": "core-only" },
         { "type": "build", "name": "core-only" },
         { "type": "test", "name": "core-only" }
+      ]
+    },
+    {
+      "name": "app-release",
+      "displayName": "Configure and build the tests-disabled Release app",
+      "steps": [
+        { "type": "configure", "name": "app-release" },
+        { "type": "build", "name": "app-release" }
       ]
     },
     {
