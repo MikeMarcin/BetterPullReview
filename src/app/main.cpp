@@ -4629,9 +4629,9 @@ namespace {
 					aRun->PlatformTray,
 					&QSystemTrayIcon::messageClicked,
 					&aApplication.window(),
-					[run = std::weak_ptr<native_notification_run>{ aRun }] {
-						if (const auto locked = run.lock()) {
-							++locked->PlatformActivationSignals;
+					[aWeakRun = std::weak_ptr<native_notification_run>{ aRun }] {
+						if (const auto aLockedRun = aWeakRun.lock()) {
+							++aLockedRun->PlatformActivationSignals;
 						}
 					});
 			}

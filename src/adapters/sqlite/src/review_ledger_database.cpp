@@ -25,8 +25,9 @@ namespace bpr::adapters::sqlite::detail {
 			preflight_test_hook&         aHook,
 			const std::filesystem::path& aPath)
 		{
-			if (const auto hook = std::exchange(aHook, nullptr); hook != nullptr) {
-				hook(aPath);
+			if (const auto aHeldHook = std::exchange(aHook, nullptr);
+				aHeldHook != nullptr) {
+				aHeldHook(aPath);
 			}
 		}
 #endif
