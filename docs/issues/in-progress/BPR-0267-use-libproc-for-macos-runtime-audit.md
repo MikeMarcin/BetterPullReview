@@ -1,9 +1,9 @@
 ---
 id: BPR-0267
 title: Use libproc for the sandboxed macOS runtime audit
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0008
-depends_on: [BPR-0235]
+depends_on: [BPR-0264]
 ---
 
 # Use libproc for the sandboxed macOS runtime audit
