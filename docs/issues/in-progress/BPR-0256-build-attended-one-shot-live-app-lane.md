@@ -146,3 +146,10 @@ Exact unfinished work remains owned here:
   and GitHub web inspection; BPR-0235 still owns target-native/default-deny
   closeout. Terminal BPR-0241 through BPR-0245 remain in backlog under their
   existing dependency cards.
+
+Post-session integration merged the BPR-0257 through BPR-0259 compact-review
+navigation branch into `main`. That merge changes bound source
+`src/app/src/github_application.cpp`, so the checked-in BPR-0256 source
+manifest, approval subject, capsule identity, and operator packet are now
+**intentionally stale and must not be used**. Regeneration and full replay are
+the first required BPR-0256 actions in a future session.
