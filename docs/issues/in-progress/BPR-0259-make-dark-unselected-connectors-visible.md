@@ -1,7 +1,7 @@
 ---
 id: BPR-0259
 title: Make dark unselected connectors visible
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0246]
 ---
@@ -79,3 +79,20 @@ subject is
 The package carries no issue, release, or RFC closeout claim. This card is
 parked in Backlog while the exact exported human verdict is pending; v003 and
 v004 remain immutable rejections.
+
+## Attended result
+
+The exact v005 export was validated against its immutable batch manifest and
+recorded at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v005/`. The product
+owner accepted
+`criterion:/betterpullreview/bpr-0259/dark-connector-visibility` at
+`sha256:b1cd509bea7eb23a25626c0b819d3eec9a4506ffa42f0c79b2d5d598185b40f6`
+without notes. This accepts only the digest-bound visual criterion: selected
+and unselected connectors are clear in the exact v005 profiles while the
+compact row, arrows, endpoints, and focused comparison remain coherent.
+
+The returned export explicitly leaves BPR-0257, BPR-0258, and BPR-0259 open
+and makes no release or RFC-closeout claim. The accepted subject therefore
+moves this card out of the attended-wait lane, but does not by itself close
+any issue or broader gate. The v003 and v004 rejections remain immutable.
