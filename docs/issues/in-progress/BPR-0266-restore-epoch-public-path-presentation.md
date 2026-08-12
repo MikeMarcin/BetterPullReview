@@ -1,9 +1,9 @@
 ---
 id: BPR-0266
 title: Restore epoch public-path presentation after focused navigation
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0006
-depends_on: [BPR-0257]
+depends_on: [BPR-0264]
 ---
 
 # Restore epoch public-path presentation after focused navigation
