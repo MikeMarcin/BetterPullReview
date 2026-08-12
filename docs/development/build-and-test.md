@@ -894,6 +894,12 @@ remains BPR-0036 work. The binary-dependency script also supports all three
 platforms, using `dumpbin` on Windows when available, followed by
 `llvm-readobj` and `objdump` fallbacks.
 
+On macOS the direct-child sample calls `proc_listchildpids` through libproc
+instead of launching the process-wide `ps` utility. The query admits at most
+1,024 direct child PIDs, uses one extra native buffer slot to detect overflow,
+normalizes duplicate results, and fails closed on library, API, return-count,
+PID, or capacity errors. Linux and Windows keep their existing platform paths.
+
 For the BPR-0027 application host and provider, build the focused targets and
 run the complete local contract group:
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ctypes
 import os
 import platform
 import re
@@ -8,11 +9,16 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 
 CANARY = "BPR_CANARY_SECRET_7B1E6D9A"
 SOCKET_PATTERN = re.compile(r"socket:\[(\d+)\]")
+DARWIN_PID_MAX = (1 << 31) - 1
+DARWIN_CHILD_PID_LIMIT = 1024
+
+DarwinChildPidQuery = Callable[[int, ctypes.Array, int], int]
 
 
 def output_lines(output: str) -> list[str]:
@@ -50,6 +56,71 @@ def unix_child_processes(parent_pid: int) -> list[int]:
     return children
 
 
+def load_darwin_child_pid_query(
+    library_loader: Callable[..., object] | None = None,
+) -> DarwinChildPidQuery:
+    loader = ctypes.CDLL if library_loader is None else library_loader
+    try:
+        library = loader("libproc.dylib", use_errno=True)
+    except OSError as error:
+        raise RuntimeError("macOS libproc is unavailable") from error
+
+    try:
+        query = library.proc_listchildpids  # type: ignore[attr-defined]
+    except AttributeError as error:
+        raise RuntimeError("macOS libproc has no proc_listchildpids API") from error
+
+    query.argtypes = [ctypes.c_int32, ctypes.c_void_p, ctypes.c_int]
+    query.restype = ctypes.c_int
+
+    def invoke(parent_pid: int, buffer: ctypes.Array, buffer_size: int) -> int:
+        return query(parent_pid, buffer, buffer_size)
+
+    return invoke
+
+
+def darwin_child_processes(
+    parent_pid: int,
+    query: DarwinChildPidQuery | None = None,
+) -> list[int]:
+    if type(parent_pid) is not int or not 1 <= parent_pid <= DARWIN_PID_MAX:
+        raise RuntimeError(f"invalid macOS parent PID: {parent_pid!r}")
+
+    child_query = load_darwin_child_pid_query() if query is None else query
+    query_capacity = DARWIN_CHILD_PID_LIMIT + 1
+    child_buffer = (ctypes.c_int32 * query_capacity)()
+    ctypes.set_errno(0)
+    try:
+        child_count = child_query(
+            parent_pid,
+            child_buffer,
+            ctypes.sizeof(child_buffer),
+        )
+    except Exception as error:
+        raise RuntimeError("proc_listchildpids invocation failed") from error
+
+    if type(child_count) is not int:
+        raise RuntimeError("proc_listchildpids returned a non-integer count")
+    if child_count < 0:
+        raise RuntimeError(
+            f"proc_listchildpids failed with errno {ctypes.get_errno()}"
+        )
+    if child_count > DARWIN_CHILD_PID_LIMIT:
+        raise RuntimeError(
+            "proc_listchildpids exceeded the direct-child capacity "
+            f"of {DARWIN_CHILD_PID_LIMIT}"
+        )
+
+    children: set[int] = set()
+    for child_pid in child_buffer[:child_count]:
+        if not 1 <= child_pid <= DARWIN_PID_MAX or child_pid == parent_pid:
+            raise RuntimeError(
+                f"proc_listchildpids returned an invalid child PID: {child_pid}"
+            )
+        children.add(child_pid)
+    return sorted(children)
+
+
 def windows_child_process_query(parent_pid: int) -> str:
     return (
         "Get-CimInstance Win32_Process "
@@ -68,7 +139,10 @@ def windows_child_processes(parent_pid: int) -> list[int]:
 
 
 def child_processes(parent_pid: int) -> list[int]:
-    if platform.system() == "Windows":
+    system = platform.system()
+    if system == "Darwin":
+        return darwin_child_processes(parent_pid)
+    if system == "Windows":
         return windows_child_processes(parent_pid)
     return unix_child_processes(parent_pid)
 

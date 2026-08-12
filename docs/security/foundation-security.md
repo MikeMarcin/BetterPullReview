@@ -28,7 +28,10 @@ The macOS, Linux, and Windows process audit launches the real application with
 the offscreen Qt platform, injects a canary secret, maps process-owned network
 endpoints and child processes, terminates the application, and checks captured
 output. It fails on any network endpoint, subprocess, or canary-bearing output.
-Windows inspection uses process-scoped PowerShell/CIM,
+macOS direct-child inspection uses the process-scoped
+`proc_listchildpids` libproc API with a fixed 1,024-child limit and fails closed
+on unavailable APIs, invalid results, or overflow; it does not launch `ps` or a
+shell inside the network sandbox. Windows inspection uses process-scoped PowerShell/CIM,
 `Get-NetTCPConnection`, and `Get-NetUDPEndpoint` queries.
 
 ```sh
