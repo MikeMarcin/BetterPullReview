@@ -7,6 +7,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
 #include <QCursor>
@@ -17,6 +18,7 @@
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListView>
 #include <QPalette>
 #include <QPersistentModelIndex>
 #include <QPixmap>
@@ -681,6 +683,11 @@ namespace {
 		capture_layout_state(window, QStringLiteral("loading"));
 
 		publish_pull_request(window);
+		window.set_queue_preferences_dispatch(
+			[](application::queue_preferences_intent) { });
+		window.publish(application::queue_landing_projection{
+			.Status = application::queue_landing_status::ready,
+		});
 		QApplication::processEvents();
 		expect(
 			presentation_state(window) == QStringLiteral("loaded")
@@ -711,11 +718,66 @@ namespace {
 			}
 			return aStart;
 		};
+		auto declaredTabStops = window.focus_order();
+		declaredTabStops.removeIf([](const QWidget* const aStop) {
+			return !aStop->isVisible() || !aStop->isEnabled()
+				|| (aStop->focusPolicy() & Qt::TabFocus) == 0;
+		});
+		expect(!declaredTabStops.isEmpty(), "the workbench declares available tab stops");
+
+		auto  walkedTabStops = QList<QWidget*>{ };
+		auto* currentTabStop = declaredTabStops.front();
+		auto  steps          = qsizetype{ 0 };
+		do {
+			if (declaredTabStops.contains(currentTabStop)) {
+				walkedTabStops.push_back(currentTabStop);
+			}
+			currentTabStop = nextVisibleTabStop(currentTabStop);
+			++steps;
+		} while (
+			currentTabStop != declaredTabStops.front()
+			&& steps <= window.findChildren<QWidget*>().size());
 		expect(
-			nextVisibleTabStop(window.profile_selector()) == connectButton
-				&& nextVisibleTabStop(connectButton) == connectionButton
-				&& nextVisibleTabStop(refreshButton) == technicalButton,
-			"disclosures follow the natural primary-control tab order");
+			currentTabStop == declaredTabStops.front()
+				&& walkedTabStops == declaredTabStops,
+			"the live Qt tab chain walks every declared available stop in order");
+
+		const auto containsInOrder = [](
+										 const QList<QWidget*>& aStops,
+										 const QList<QWidget*>& aExpected) {
+			auto cursor = aStops.cbegin();
+			for (auto* const expected : aExpected) {
+				cursor = std::find(cursor, aStops.cend(), expected);
+				if (cursor == aStops.cend()) {
+					return false;
+				}
+				++cursor;
+			}
+			return true;
+		};
+		expect(
+			containsInOrder(
+				declaredTabStops,
+				{ window.profile_selector(), connectButton, connectionButton })
+				&& containsInOrder(
+					declaredTabStops,
+					{
+						refreshButton,
+						window.queue_view(),
+						window.queue_role_filter(),
+						window.queue_observer_filter(),
+						window.queue_bucket_filter(),
+						window.queue_repository_filter(),
+						window.queue_quiet_filter(),
+						window.queue_sort_selector(),
+						required_child<QComboBox>(
+							window, "observerRuleSelector"),
+						window.queue_rule_kind_selector(),
+						window.queue_rule_pattern_editor(),
+						window.queue_rule_exclusion(),
+						technicalButton,
+					}),
+			"session controls and every queue stop retain their accepted relative order");
 
 		connectionButton->setFocus(Qt::TabFocusReason);
 		connectionButton->click();
