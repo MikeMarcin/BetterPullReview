@@ -3,8 +3,9 @@
 Status: **INVALIDATED BY CAPABILITY-CRITICAL REVIEW — DO NOT APPROVE OR RUN**
 
 The exact artifacts below are retained only as evidence of the rejected proof
-surface. BPR-0261 through BPR-0263 must land and this entire packet must be
-regenerated before any operator decision is requested.
+surface. BPR-0263 repaired recovery, but BPR-0261 and BPR-0262 must land and
+this entire packet must be regenerated before any operator decision is
+requested.
 
 This packet requests one bounded decision: whether to authorize this exact
 tests-disabled BetterPullReview build to publish one ordinary source-line review

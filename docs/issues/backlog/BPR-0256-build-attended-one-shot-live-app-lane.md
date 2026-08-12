@@ -253,18 +253,23 @@ therefore invalid and must not be approved or executed.
 - The spent marker is scoped to the approval artifact's mutable parent, so the
   same approval identity can mint another grant under a second or recreated
   private parent. Approval opening also follows symlinked earlier ancestors.
-  Ready BPR-0261 owns global replay state and descriptor-walk path safety.
+  Backlog BPR-0261 owns replay authority and descriptor-walk path safety; its
+  attempted local-filesystem repair failed independent review and now awaits
+  the exact threat-model decision packet.
 - The tests-disabled application accepts the attended approval argv directly
   without authenticating the verified supervisor or binding the inventory, so
   direct launch bypasses the claimed capsule-only path. Static capsule checking
   also releases nested identities before launch. Backlog BPR-0262 owns launch
   provenance and retained capsule identity.
-- Indeterminate recovery records no pre-POST exact-comment baseline, so a
-  pre-existing identical comment can be adopted as the attempted publication.
-  Backlog BPR-0263 owns durable baseline-aware reconciliation.
+- The indeterminate-recovery counterexample is repaired by done BPR-0263. It
+  persists a bounded digest-bound pre-POST baseline, distinguishes prepared
+  from possibly-transmitted attempts through a native transport witness,
+  refuses pre-existing direct receipts, and performs zero-POST restart
+  reconciliation only for possibly-transmitted attempts. Its independent
+  capability-critical review accepted the repair after the final 8/8 matrix.
 
 The reviewer independently confirmed the current packet hashes and manifest
 shape and ran no live/network/credential action. Those mechanical checks do not
-overcome the semantic counterexamples. This card is parked in Backlog until all
-three child cards are done, the packet is regenerated again, the complete gates
-pass, and a fresh capability-critical review has no blocker.
+overcome the two remaining authority counterexamples. This card is parked in
+Backlog until BPR-0261 and BPR-0262 are done, the packet is regenerated again,
+the complete gates pass, and a fresh capability-critical review has no blocker.
