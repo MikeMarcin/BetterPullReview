@@ -1,7 +1,7 @@
 ---
 id: BPR-0260
 title: Restore compact-navigation source formatting
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0006
 depends_on: [BPR-0259]
 ---
