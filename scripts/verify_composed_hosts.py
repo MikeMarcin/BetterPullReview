@@ -147,6 +147,10 @@ FIXTURE_REQUIRED = (
         "fixture review mutation execution grant factory",
         "bpr::application::make_review_mutation_testing_grant",
     ),
+    function_anchor(
+        "fixture one-shot review mutation execution grant factory",
+        "bpr::application::make_review_mutation_one_shot_testing_grant",
+    ),
 )
 
 PRODUCTION_REQUIRED = (
@@ -168,6 +172,10 @@ PRODUCTION_FORBIDDEN = (
     function_anchor(
         "fixture review mutation execution grant factory",
         "bpr::application::make_review_mutation_testing_grant",
+    ),
+    function_anchor(
+        "fixture one-shot review mutation execution grant factory",
+        "bpr::application::make_review_mutation_one_shot_testing_grant",
     ),
 )
 

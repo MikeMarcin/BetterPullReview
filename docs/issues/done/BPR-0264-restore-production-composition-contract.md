@@ -1,7 +1,7 @@
 ---
 id: BPR-0264
 title: Restore the production composition contract after recovery repair
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0263]
 ---
@@ -49,3 +49,26 @@ composition evidence.
   documentation gate and tests, and `git diff --check`.
 - Review the final diff independently as capability-critical production
   composition and mutation-authority work.
+
+## Closeout
+
+The language-sealing fixture and hostile probes now call the current
+target-bound one-shot testing-grant factory. The composed-host verifier treats
+generic reconciliation as a shared production/fixture decision, retains
+opposite live-versus-fixture provider inventories, and explicitly requires or
+forbids both testing-grant factories by profile. The latter closes the
+independent review's non-blocking observation that a future source split could
+otherwise expose the one-shot factory without tripping the production symbol
+denylist.
+
+Direct macOS evidence passed the 42-test verifier unit suite, both composed
+application host profiles, the language-sealing contract, and the fresh
+tests-disabled Release `application_composition_contract` after the verifier
+hardening. Repository format, focused tidy, documentation, and diff gates
+passed for the implementation slice. An independent capability-critical
+review returned `ACCEPT` with no blocking or verification finding.
+
+The remaining complete-suite failures were reproduced outside this change and
+split by causal surface into BPR-0265 through BPR-0268. They do not invalidate
+the exact composition inventory repaired here and make no live, attended,
+Windows, or Linux claim.

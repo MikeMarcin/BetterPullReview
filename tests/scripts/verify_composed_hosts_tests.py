@@ -34,6 +34,7 @@ SHARED_LINES = {
 FIXTURE_LINES = {
     "fixture review mutation provider boundary": "0015 T bpr::app::detail::github_public_path_fixture_components::review_mutation_provider()",
     "fixture review mutation execution grant factory": "0016 T bpr::application::make_review_mutation_testing_grant()",
+    "fixture one-shot review mutation execution grant factory": "0018 T bpr::application::make_review_mutation_one_shot_testing_grant()",
 }
 PRODUCTION_LINES = {
     "live review mutation provider": (
@@ -212,6 +213,9 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "fixture review mutation execution grant factory": (
                 "fixture review mutation execution grant factory"
             ),
+            "fixture one-shot review mutation execution grant factory": (
+                "fixture one-shot review mutation execution grant factory"
+            ),
         }
         for fixture_name, line in FIXTURE_LINES.items():
             forbidden = expected_forbidden_names[fixture_name]
@@ -336,6 +340,10 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "fixture review mutation execution grant factory": (
                 "0015 T class std::shared_ptr<int> __cdecl "
                 "bpr::application::make_review_mutation_testing_grant(int)"
+            ),
+            "fixture one-shot review mutation execution grant factory": (
+                "0017 T class std::shared_ptr<int> __cdecl "
+                "bpr::application::make_review_mutation_one_shot_testing_grant(int)"
             ),
         }
         self.assertEqual(

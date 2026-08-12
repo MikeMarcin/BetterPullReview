@@ -3,7 +3,7 @@ id: BPR-0265
 title: Restore the diff-interaction public path after compact navigation
 status: In Progress
 rfc: RFC-BPR-0006
-depends_on: [BPR-0257]
+depends_on: [BPR-0264]
 ---
 
 # Restore the diff-interaction public path after compact navigation
