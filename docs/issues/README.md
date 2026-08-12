@@ -370,7 +370,9 @@ keeps the appearance host, System defaults, session switching, and syntax path
 composed when durable appearance storage cannot open, and done BPR-0237 adds
 semantic customization and safe theme import. BPR-0233 owns recorded
 selected-diff pixels, BPR-0220 owns native rebuild attribution, and
-BPR-0114/BPR-0115 retain attended and terminal closeout work.
+BPR-0114/BPR-0115 retain attended and terminal closeout work. Ready BPR-0260
+owns the formatting-only repair for the merged compact-navigation composition
+source before BPR-0256's digest-bound packet can be refreshed finally.
 
 Done BPR-0180 is the card that changed how this board reads evidence. It
 reconciled RFC-BPR-0006's ledger against what the application actually
@@ -496,6 +498,7 @@ also depend transitively on more than one group.
 | Owner-attended or native-display judgment | BPR-0100, BPR-0114, BPR-0168 with done BPR-0251, BPR-0210, BPR-0214, and ready BPR-0220 | A person looking, clicking, granting permission, or resolving the unexplained native geometry delta; BPR-0251 makes the real notification course truthful |
 | Product composition | Backlog BPR-0232; done BPR-0223, BPR-0226 through BPR-0231, BPR-0247, and BPR-0250 | Notification request/activation, the workbench host, selected diff, ledger, actionability, fixture-safe review round trip, durable defect workflow, observer-rule queue, portable agent invocation, durable sessions, and explicit private-context selection are composed. BPR-0232 waits for deferred native Windows lifecycle proof and its final replay through that same surface. |
 | Missing component and resilience scope | In-progress BPR-0235 and BPR-0240; done BPR-0237 through BPR-0239 | Complete target-native live-test isolation and the required agent contract; theme customization, durable ledger state, queue filtering/sorting, and BPR-0236's appearance-storage fallback are done |
+| Repository hygiene | Ready BPR-0260; in-progress BPR-0240 owns its separate Windows-process files | Restore canonical formatting after preserved/merged work without changing behavior, then regenerate every affected digest-bound artifact |
 | Recorded selected-diff proof | Backlog BPR-0233 plus done BPR-0246, gating BPR-0214, BPR-0210, and BPR-0100 | The real selected-file course binds UIforETW commits/blobs, named replacement pairs, semantic roles, and a cut-wire negative. The v001 attended batch was rejected. Done BPR-0246 supplies the mechanically green 1280 × 1000 focused layout with shipped drawer/detail controls, exact-span/connector evidence, and immutable digest-bound v002; its attended verdict remains |
 | Closeout rigor and terminal cards | Done BPR-0234 and BPR-0248; backlog BPR-0241 through BPR-0245 | The standing shipped-binary composition inventory is reconciled with exact fixture/production profiles; replay each anchored executable checklist and retain a live terminal card for each Proposed RFC |
 | Deferred or not a slice | BPR-0211, BPR-0212, BPR-0156, BPR-0101, BPR-0115 | Owner-deferred, RFC-scale, or blocked by closure ordering |
