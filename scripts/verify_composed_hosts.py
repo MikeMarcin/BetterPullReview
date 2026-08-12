@@ -101,6 +101,10 @@ SHARED_REQUIRED = (
         "bpr::application::review_mutation_coordinator::review_mutation_coordinator",
     ),
     function_anchor(
+        "review reconciliation decision",
+        "bpr::application::reconcile",
+    ),
+    function_anchor(
         "appearance application host constructor",
         "bpr::application::appearance_application_host::appearance_application_host",
     ),
@@ -143,10 +147,6 @@ FIXTURE_REQUIRED = (
         "fixture review mutation execution grant factory",
         "bpr::application::make_review_mutation_testing_grant",
     ),
-    function_anchor(
-        "fixture review reconciliation decision",
-        "bpr::application::reconcile",
-    ),
 )
 
 PRODUCTION_REQUIRED = (
@@ -168,10 +168,6 @@ PRODUCTION_FORBIDDEN = (
     function_anchor(
         "fixture review mutation execution grant factory",
         "bpr::application::make_review_mutation_testing_grant",
-    ),
-    function_anchor(
-        "fixture review reconciliation decision",
-        "bpr::application::reconcile",
     ),
 )
 

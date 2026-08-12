@@ -21,6 +21,7 @@ SHARED_LINES = {
     "workbench application host constructor": "0004 T bpr::application::workbench_application_host::workbench_application_host()",
     "review mutation application host constructor": "0008 T bpr::application::review_mutation_application_host::review_mutation_application_host()",
     "review mutation coordinator constructor": "0014 T bpr::application::review_mutation_coordinator::review_mutation_coordinator()",
+    "review reconciliation decision": "0017 T bpr::application::reconcile()",
     "appearance application host constructor": "0005 T bpr::application::appearance_application_host::appearance_application_host()",
     "packaged syntax classifier constructor": "0006 T bpr::adapters::syntax::packaged_syntax_classifier::packaged_syntax_classifier()",
     "review ledger application host constructor": "0007 T bpr::application::review_ledger_application_host::review_ledger_application_host()",
@@ -33,7 +34,6 @@ SHARED_LINES = {
 FIXTURE_LINES = {
     "fixture review mutation provider boundary": "0015 T bpr::app::detail::github_public_path_fixture_components::review_mutation_provider()",
     "fixture review mutation execution grant factory": "0016 T bpr::application::make_review_mutation_testing_grant()",
-    "fixture review reconciliation decision": "0017 T bpr::application::reconcile()",
 }
 PRODUCTION_LINES = {
     "live review mutation provider": (
@@ -131,6 +131,45 @@ class ComposedHostVerifierTests(unittest.TestCase):
             [],
         )
 
+    def test_reconciliation_is_shared_while_fixture_authorities_stay_forbidden(self) -> None:
+        without_reconciliation = dict(SHARED_LINES)
+        without_reconciliation.pop("review reconciliation decision")
+        for profile, profile_lines in (
+            (VERIFIER.DEVELOPMENT_FIXTURE_PROFILE, FIXTURE_LINES),
+            (VERIFIER.PRODUCTION_PROFILE, PRODUCTION_LINES),
+        ):
+            with self.subTest(profile=profile, condition="reconciliation-required"):
+                failures = audit_nm(
+                    rendered(without_reconciliation | profile_lines),
+                    profile,
+                )
+                self.assertTrue(
+                    any("review reconciliation decision" in failure for failure in failures),
+                    failures,
+                )
+
+        self.assertEqual(
+            audit_nm(
+                rendered(SHARED_LINES | PRODUCTION_LINES),
+                VERIFIER.PRODUCTION_PROFILE,
+            ),
+            [],
+        )
+        for fixture_name, line in FIXTURE_LINES.items():
+            with self.subTest(
+                profile=VERIFIER.PRODUCTION_PROFILE,
+                condition="fixture-authority-forbidden",
+                fixture=fixture_name,
+            ):
+                failures = audit_nm(
+                    rendered(SHARED_LINES | PRODUCTION_LINES) + line + "\n",
+                    VERIFIER.PRODUCTION_PROFILE,
+                )
+                self.assertTrue(
+                    any("forbidden" in failure for failure in failures),
+                    failures,
+                )
+
     def test_every_shared_anchor_is_required_in_both_profiles(self) -> None:
         for missing in SHARED_LINES:
             remaining = {
@@ -172,9 +211,6 @@ class ComposedHostVerifierTests(unittest.TestCase):
             ),
             "fixture review mutation execution grant factory": (
                 "fixture review mutation execution grant factory"
-            ),
-            "fixture review reconciliation decision": (
-                "fixture review reconciliation decision"
             ),
         }
         for fixture_name, line in FIXTURE_LINES.items():
@@ -286,6 +322,10 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "0009 T struct bpr::application::defect_correlation_result __cdecl "
             "bpr::application::correlate(int)"
         )
+        windows_shared["review reconciliation decision"] = (
+            "0016 T struct bpr::application::reconciliation_result __cdecl "
+            "bpr::application::reconcile(int)"
+        )
         windows_fixture = {
             "fixture review mutation provider boundary": (
                 "0014 T public: virtual class "
@@ -296,10 +336,6 @@ class ComposedHostVerifierTests(unittest.TestCase):
             "fixture review mutation execution grant factory": (
                 "0015 T class std::shared_ptr<int> __cdecl "
                 "bpr::application::make_review_mutation_testing_grant(int)"
-            ),
-            "fixture review reconciliation decision": (
-                "0016 T struct bpr::application::reconciliation_result __cdecl "
-                "bpr::application::reconcile(int)"
             ),
         }
         self.assertEqual(

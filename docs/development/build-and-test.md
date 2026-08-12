@@ -385,13 +385,15 @@ ctest --test-dir build/dev --output-on-failure \
 `development-fixture` profile. It requires exact demangled constructor or
 decision anchors for the GitHub, epoch, diff, workbench, appearance, syntax,
 review-ledger, defect-correlation, queue, notification, portable-agent, and Qt
-window paths, plus the shared review-mutation coordinator definition. That
-profile additionally requires the exact test-only GitHub public-path fixture
-provider boundary and reconciliation decision. The `production` profile
-requires the shared anchors, forbids those two fixture-only symbols, and is run
-against the fresh tests-disabled Release executable by
-`application_composition_contract`. Both profiles forbid the exact live review
-mutation provider until its own composition card lands.
+window paths, plus the shared review-mutation host, coordinator, and generic
+`bpr::application::reconcile` decision. That profile additionally requires the
+exact test-only GitHub public-path fixture provider boundary and testing-grant
+factory while forbidding the live provider type and factory. The `production`
+profile additionally requires the live provider type and factory while
+forbidding the fixture component type and testing-grant factory; the generic
+reconciliation decision remains required because the tests-disabled live path
+uses it for post-mutation projection. `application_composition_contract` runs
+that profile against the fresh tests-disabled Release executable.
 
 The inspector fails closed for a missing binary, missing tool chain, nonzero
 tool, failed demangler, malformed inspector output, or table with zero defined
@@ -442,9 +444,10 @@ contain no fixture translation unit, macro, epoch fixture argument/marker,
 label, path, or evidence string. It also requires production to compose only
 `native_github_wire_transport_factory` and rejects CLI process-runner factory
 symbols in the application. Its production-profile composed-host audit also
-requires every shared exact demangled anchor while rejecting the fixture
-provider boundary, fixture reconciliation decision, and live mutation
-provider. The tests-disabled `--self-test` enumerates every
+requires every shared exact demangled anchor, including the generic
+reconciliation decision, and the live mutation provider type and factory while
+rejecting the fixture component type and testing-grant factory. The
+tests-disabled `--self-test` enumerates every
 visible CLI profile and requires `CLI_UNAVAILABLE_OK` plus the exact
 `CLI_UNAVAILABLE_COUNT`; provider
 counter tests prove the CLI viewer rejection makes zero transport-factory,

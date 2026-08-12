@@ -171,7 +171,7 @@ class CompositionContractTests(unittest.TestCase):
                     "    {}, {}, {}, {});\n"
                     "  auto one_shot = "
                     "bpr::application::make_review_mutation_one_shot_testing_grant(\n"
-                    "    std::chrono::steady_clock::now());\n"
+                    "    {}, std::chrono::steady_clock::now());\n"
                     "  static_cast<void>(endpoint);\n"
                     "  static_cast<void>(grant);\n"
                     "  static_cast<void>(one_shot);\n"
@@ -299,7 +299,7 @@ class CompositionContractTests(unittest.TestCase):
                     "void hostile_one_shot_factory_call() {\n"
                     "  auto grant = bpr::application::"
                     "make_review_mutation_one_shot_testing_grant(\n"
-                    "    std::chrono::steady_clock::now());\n"
+                    "    {}, std::chrono::steady_clock::now());\n"
                     "  static_cast<void>(grant);\n"
                     "}\n"
                 ),

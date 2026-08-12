@@ -126,12 +126,13 @@ cleanup courses remain the evidence that the shipped panel constructs and
 invokes that host.
 
 The review-mutation linkage inventory is profile-specific. Both profiles
-require the asynchronous application-host and coordinator constructors.
-Development fixture additionally requires the exact test-only provider,
-testing-grant factory, and `bpr::application::reconcile`, while forbidding the
-live provider and factory. Tests-disabled production requires the live provider
-and factory while forbidding the fixture type, testing-grant factory, and
-reconciliation symbol. Independent construction, grant, selection, and
+require the asynchronous application-host and coordinator constructors plus
+the generic `bpr::application::reconcile` decision used after mutation.
+Development fixture additionally requires the exact test-only provider and
+testing-grant factory while forbidding the live provider and factory.
+Tests-disabled production requires the live provider and factory while
+forbidding the fixture component type and testing-grant factory. Independent
+construction, grant, selection, and
 host-dispatch cuts are the runtime complements; production's empty grant
 performs no live observation or submission. A missing binary, missing
 supported demangling chain, nonzero inspector, failed demangler, or malformed or

@@ -21,8 +21,9 @@ composition evidence.
   continues to prove that production translation units cannot call or forge
   either testing or attended authority issuers.
 - The tests-disabled Release application passes the production composed-host
-  inventory without hiding a fixture-only provider, reconciliation decision,
-  credential seam, or testing grant in production.
+  inventory without hiding a fixture-only provider, credential seam, or
+  testing grant, while retaining the generic reconciliation decision used by
+  the live post-mutation projection.
 - Any verifier change distinguishes a legitimate production recovery contract
   from a fixture-only implementation by source and selected-symbol evidence; it
   must not merely delete or weaken a failing forbidden anchor.

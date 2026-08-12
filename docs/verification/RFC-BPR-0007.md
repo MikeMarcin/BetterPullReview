@@ -86,15 +86,15 @@ in `application_review_ledger_composition_contract` remain the construction
 and runtime evidence.
 
 The review-mutation linkage inventory is profile-specific. Both profiles
-require the asynchronous application-host and coordinator constructors. The
+require the asynchronous application-host and coordinator constructors plus
+the generic `bpr::application::reconcile` decision used after mutation. The
 development-fixture profile additionally requires the exact test-only GitHub
-public-path provider boundary, testing-grant factory, and
-`bpr::application::reconcile`, while forbidding the live provider and factory.
-Tests-disabled production requires the exact live-provider type and factory,
-while forbidding the fixture type, testing-grant factory, and reconciliation
-symbol. This is linkage evidence; independent construction, grant, selection,
-and host-dispatch cuts prove the executable route, and the empty production
-grant proves zero provider work. Missing binaries, missing
+public-path provider boundary and testing-grant factory while forbidding the
+live provider and factory. Tests-disabled production requires the exact
+live-provider type and factory while forbidding the fixture component type and
+testing-grant factory. This is linkage evidence; independent construction,
+grant, selection, and host-dispatch cuts prove the executable route, and the
+empty production grant proves zero provider work. Missing binaries, missing
 supported demangling tools, nonzero tools, failed demanglers, and malformed or
 zero-defined symbol tables all fail closed. Only parsed defined records count;
 `U`/`UND` references and anchors embedded in surrounding template text do not.
