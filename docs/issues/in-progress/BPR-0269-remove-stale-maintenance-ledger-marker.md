@@ -1,7 +1,7 @@
 ---
 id: BPR-0269
 title: Remove the stale epoch-maintenance ledger marker
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0003
 depends_on: [BPR-0264]
 ---
