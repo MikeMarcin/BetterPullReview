@@ -1,0 +1,83 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CMake: configure (app-release)",
+      "detail": "cmake --preset app-release",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--preset", "app-release"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "CMake: build (app-release)",
+      "detail": "cmake --build --preset app-release",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--build", "--preset", "app-release"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "CMake: configure + build (app-release)",
+      "detail": "cmake --workflow --preset app-release",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--workflow", "--preset", "app-release"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "CMake: configure (dev)",
+      "detail": "cmake --preset dev",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--preset", "dev"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "CMake: build (dev)",
+      "detail": "cmake --build --preset dev",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--build", "--preset", "dev"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "CMake: test (dev)",
+      "detail": "ctest --preset dev",
+      "type": "process",
+      "command": "ctest",
+      "args": ["--preset", "dev"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "CMake: configure + build + test (dev)",
+      "detail": "cmake --workflow --preset dev",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--workflow", "--preset", "dev"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "CMake: configure + build + test (core-only)",
+      "detail": "cmake --workflow --preset core-only",
+      "type": "process",
+      "command": "cmake",
+      "args": ["--workflow", "--preset", "core-only"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": ["$gcc"]
+    }
+  ]
+}

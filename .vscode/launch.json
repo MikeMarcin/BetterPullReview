@@ -1,0 +1,78 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run BetterPullReview (app-release)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/app-release/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "MIMode": "lldb",
+      "preLaunchTask": "CMake: build (app-release)",
+      "linux": {
+        "program": "${workspaceFolder}/build/app-release/src/app/better_pull_review",
+        "MIMode": "gdb"
+      },
+      "windows": {
+        "type": "cppvsdbg",
+        "program": "${workspaceFolder}/build/app-release/src/app/better_pull_review.exe"
+      }
+    },
+    {
+      "name": "Debug BetterPullReview (dev)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "MIMode": "lldb",
+      "preLaunchTask": "CMake: build (dev)",
+      "linux": {
+        "program": "${workspaceFolder}/build/dev/src/app/better_pull_review",
+        "MIMode": "gdb"
+      },
+      "windows": {
+        "type": "cppvsdbg",
+        "program": "${workspaceFolder}/build/dev/src/app/better_pull_review.exe"
+      }
+    },
+    {
+      "name": "Run BetterPullReview --self-test (app-release)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/app-release/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+      "args": ["--self-test"],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "MIMode": "lldb",
+      "preLaunchTask": "CMake: build (app-release)",
+      "linux": {
+        "program": "${workspaceFolder}/build/app-release/src/app/better_pull_review",
+        "MIMode": "gdb"
+      },
+      "windows": {
+        "type": "cppvsdbg",
+        "program": "${workspaceFolder}/build/app-release/src/app/better_pull_review.exe"
+      }
+    },
+    {
+      "name": "Run CMake Tools launch target",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${command:cmake.launchTargetPath}",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "MIMode": "lldb",
+      "linux": { "MIMode": "gdb" },
+      "windows": { "type": "cppvsdbg" }
+    }
+  ]
+}
