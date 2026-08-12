@@ -68,3 +68,17 @@ subject is
 It carries no closure or release claim. This card is parked in Backlog while
 the exact exported human verdict is pending; the rejected v003 batch remains
 unchanged.
+
+## Attended result
+
+The exact v004 export was validated against its batch manifest and recorded at
+`docs/verification/reviews/uiforetw-intraline-acceptance-v004/`. The product
+owner rejected the criterion with this note:
+
+> The arrows look good now but the dark mode mode swoosh connectors are too
+> hard to see except for the selected one.
+
+This confirms the bounded arrow repair visually, but it does not accept the
+combined compact-review criterion or close this card. BPR-0259 owns the newly
+exposed unselected-connector contrast defect. The v004 rejection remains
+immutable and no acceptance is inferred from the positive sub-observation.
