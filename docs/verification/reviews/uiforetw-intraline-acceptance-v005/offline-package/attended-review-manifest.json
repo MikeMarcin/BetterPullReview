@@ -1,0 +1,214 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/0075b116efe8d055d1ddc0f5",
+  "downstream_claims": {
+    "bpr_0257_closed": false,
+    "bpr_0258_closed": false,
+    "bpr_0259_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "This is a new immutable batch from repair commit 8b1108cc957225ef56402870daf2a9975feba8b6 and freshly generated image/fact bytes. It directly addresses the validated v004 rejection, 'The arrows look good now but the dark mode mode swoosh connectors are too hard to see except for the selected one.' No v003 or v004 decision carries forward. Judge the selected and unselected center-gutter connectors in Dark and High-contrast Dark first, then confirm the arrows, compact row, and diff remain coherent in both light profiles. The captures use Qt 6.11.1 offscreen QFusionStyle at device pixel ratio 1; native platform-specific artwork, issue closure, RFC closeout, release readiness, and deferred Linux/Windows work are outside this batch.",
+  "review_gate": "compact_focused_review_navigation",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "Unselected swoosh connectors are immediately visible in Dark",
+        "Unselected swoosh connectors are immediately visible in High-contrast Dark",
+        "The selected connector remains clearly distinguishable from the unselected connectors",
+        "The compact navigation arrows remain readable and recognizable in both dark profiles",
+        "Connector endpoints, one-row layout, and the focused two-pane diff remain coherent in all four profiles"
+      ],
+      "audit_verdict": {
+        "note": "The exact six-test selector passed 6/6. Actual unselected connector pixels measure 5.33:1 median contrast in Dark and 6.57:1 in High-contrast Dark, with 840/1008 samples at or above 3:1 in each profile. Selected connectors contribute 250 above-floor edge pixels and remain raster-distinct. Independent read-only closeout review found no blocker and confirmed that v004 would fail the new actual-raster gate.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Ordinary center-gutter connectors now use a palette-derived neutral stroke that stays visible on dark surfaces. The selected connector retains its highlighted fill and gains a contrasting edge. Review Dark and High-contrast Dark first; the compact toolbar, readable arrows, connector geometry, endpoints, and two-pane comparison are otherwise unchanged.",
+      "detail_sections": [
+        {
+          "heading": "Bound identity and rendered-pixel evidence",
+          "items": [
+            {
+              "definition": "repair commit 8b1108cc957225ef56402870daf2a9975feba8b6; ordered BPR-0259 implementation-files digest sha256:edecfca81bae158e7e0b88dd7c0cba6dc096a1a21797c9d1dd46e503a2f585d4",
+              "term": "Producing source"
+            },
+            {
+              "definition": "dominant #ff8e949a on #ff1c2026; 5.33:1 median contrast; 840/1008 actual path samples at or above 3.00:1",
+              "term": "Dark unselected connector"
+            },
+            {
+              "definition": "dominant #ff909090 on #ff000000; 6.57:1 median contrast; 840/1008 actual path samples at or above 3.00:1",
+              "term": "High-contrast Dark unselected connector"
+            },
+            {
+              "definition": "3.70:1 median contrast; 840/1008 samples at or above 3.00:1",
+              "term": "Light unselected connector"
+            },
+            {
+              "definition": "5.02:1 median contrast; 840/1008 samples at or above 3.00:1",
+              "term": "High-contrast Light unselected connector"
+            },
+            {
+              "definition": "highlighted fill plus palette-text edge; 250/1008 actual samples at or above 3.00:1; dominant raster differs from the same unselected path",
+              "term": "Selected connectors"
+            },
+            {
+              "definition": "Full window 1280 x 1000; one 1280 x 39 navigation row; native comparison 1262 x 918",
+              "term": "Compact allocation"
+            },
+            {
+              "definition": "UIforETW/UIforETW.rc",
+              "term": "Selected file"
+            },
+            {
+              "definition": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc -> e40058be7d5fe319342dffb567ce30e42bc6f4de",
+              "term": "Exact comparison"
+            },
+            {
+              "definition": "6/6 passed in 103.31 seconds; post-commit UIforETW capture passed in 84.96 seconds",
+              "term": "Focused verification"
+            },
+            {
+              "definition": "Debug/dev, macOS arm64, Qt 6.11.1, offscreen QFusionStyle, DPR 1",
+              "term": "Capture environment"
+            }
+          ],
+          "kind": "definitions"
+        }
+      ],
+      "display_name": "Are selected and unselected diff connectors now clear in dark modes?",
+      "identity_files": [
+        {
+          "label": "Capture manifest",
+          "media_kind": "file",
+          "path": "subjects/001-dark-connector-visibility/identity/01-capture-manifest.json",
+          "sha256": "sha256:5f54fa485bea13e9dd706e431fde17b4f58781b000b156ef601bc47c817f6c9d"
+        },
+        {
+          "label": "Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-dark-connector-visibility/identity/02-dark-capture-facts.json",
+          "sha256": "sha256:7fe0c0c9aa14b2fd0257c56862442b01420b4a1a765328b8e18a4c0ceb77cf9b"
+        },
+        {
+          "label": "High-contrast Dark capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-dark-connector-visibility/identity/03-high-contrast-dark-capture-facts.json",
+          "sha256": "sha256:b5d6666a738abd5ab0e4bae2081850a68577e64267157488707bdc8cb3e14b96"
+        },
+        {
+          "label": "Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-dark-connector-visibility/identity/04-light-capture-facts.json",
+          "sha256": "sha256:cb3de1626b705caeeef6b4e93c1fe2b52be391d628006d191b21ecebd44fa0e3"
+        },
+        {
+          "label": "High-contrast Light capture facts",
+          "media_kind": "file",
+          "path": "subjects/001-dark-connector-visibility/identity/05-high-contrast-light-capture-facts.json",
+          "sha256": "sha256:5c8ffc60716f2044d3f650179d155570a01a259f4f96224590d6dc68d860777f"
+        }
+      ],
+      "known_concerns": [
+        "These captures use offscreen QFusionStyle and judge the deterministic appearance profiles, not every native operating-system style.",
+        "The composed capture measures actual map pixels and contrast. Selected/unselected automation requires distinct dominant pixels, while this attended decision remains the perceptual check that the two states are clearly distinguishable.",
+        "The v003 and v004 rejections remain immutable evidence. Accepting this subject approves only the repaired connector criterion in these exact v005 bytes."
+      ],
+      "media_groups": [
+        {
+          "group_id": "dark-connector-captures",
+          "items": [
+            {
+              "label": "Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-dark-connector-visibility/dark-connector-captures/01-dark-full-window.png",
+              "sha256": "sha256:dd82aaabe742ed2511c4071d738d00579ecbe7764871a287be24dcd44788b311"
+            },
+            {
+              "label": "High-contrast Dark — full window",
+              "media_kind": "image",
+              "path": "subjects/001-dark-connector-visibility/dark-connector-captures/02-high-contrast-dark-full-window.png",
+              "sha256": "sha256:9fd8ca574dfebf6dec34ce5ea8b0d1b3e103a0f36169d508a981159213e700aa"
+            }
+          ],
+          "layout": "grid",
+          "note": "Inspect the center gutter. The selected connector is the highlighted upper swoosh; the unselected connector is the neutral lower swoosh. Click for native resolution.",
+          "required": true,
+          "title": "Primary decision: dark connector visibility"
+        },
+        {
+          "group_id": "dark-comparison-detail",
+          "items": [
+            {
+              "label": "Dark — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-dark-connector-visibility/dark-comparison-detail/01-dark-comparison-crop.png",
+              "sha256": "sha256:177f6d726cbc5dc9b7cd5457d929e132cf8328712ab773af161b083764757edf"
+            },
+            {
+              "label": "High-contrast Dark — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-dark-connector-visibility/dark-comparison-detail/02-high-contrast-dark-comparison-crop.png",
+              "sha256": "sha256:0f9f8cbb92420e5f4391b2fdd6555984db89580ff78af1466bab565178c53fc1"
+            }
+          ],
+          "layout": "grid",
+          "note": "Confirm both connector states remain attached to the correct left/right rows without obscuring the comparison.",
+          "required": true,
+          "title": "Dark comparison detail"
+        },
+        {
+          "group_id": "light-regression-captures",
+          "items": [
+            {
+              "label": "Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-dark-connector-visibility/light-regression-captures/01-light-full-window.png",
+              "sha256": "sha256:4ac0662bf19a610526a6bb850a76e187d094801d9642a6ee2c636c314183a9c2"
+            },
+            {
+              "label": "High-contrast Light — full window",
+              "media_kind": "image",
+              "path": "subjects/001-dark-connector-visibility/light-regression-captures/02-high-contrast-light-full-window.png",
+              "sha256": "sha256:fe73c139944cfd39e1b457ddc9aea892dc823b0931ea6f03745aa24c8f67639f"
+            }
+          ],
+          "layout": "grid",
+          "note": "Confirm the selected and unselected connectors remain coherent without changing the compact allocation or readable arrows.",
+          "required": true,
+          "title": "Regression check: light profiles"
+        },
+        {
+          "group_id": "light-comparison-continuity",
+          "items": [
+            {
+              "label": "Light — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-dark-connector-visibility/light-comparison-continuity/01-light-comparison-crop.png",
+              "sha256": "sha256:fe5b4493c5ea01ddec46dc98692a5e383f928e77c6e5d4165003a725377cc1fe"
+            },
+            {
+              "label": "High-contrast Light — comparison crop",
+              "media_kind": "image",
+              "path": "subjects/001-dark-connector-visibility/light-comparison-continuity/02-high-contrast-light-comparison-crop.png",
+              "sha256": "sha256:be469cf92a8a690344da8929304eed20be3bba89c62911fc603886492e278661"
+            }
+          ],
+          "layout": "grid",
+          "note": "The paint-only repair must not alter the exact selected two-pane diff.",
+          "required": true,
+          "title": "Selected comparison remains reviewable"
+        }
+      ],
+      "subject_digest": "sha256:b1cd509bea7eb23a25626c0b819d3eec9a4506ffa42f0c79b2d5d598185b40f6",
+      "subject_id": "criterion:/betterpullreview/bpr-0259/dark-connector-visibility",
+      "subject_key": "dark-connector-visibility"
+    }
+  ],
+  "title": "Visible dark diff connectors"
+}

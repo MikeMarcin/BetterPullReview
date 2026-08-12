@@ -1,0 +1,106 @@
+{
+  "schema": "bpr.uiforetw_intraline_capture_manifest.v5",
+  "implementation_commit": "8b1108cc957225ef56402870daf2a9975feba8b6",
+  "implementation_files": [
+    "docs/ux/appearance-and-accessibility.md",
+    "docs/ux/diff-link-map-and-alignment-space-scrolling.md",
+    "docs/ux/workbench-specification.md",
+    "src/adapters/qt/src/diff_link_map.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/adapters_qt/appearance_profile_tests.cpp",
+    "tests/end_to_end/application_uiforetw_selected_diff_contract.cmake"
+  ],
+  "implementation_files_sha256": "edecfca81bae158e7e0b88dd7c0cba6dc096a1a21797c9d1dd46e503a2f585d4",
+  "implementation_digest_command": "shasum -a 256 <implementation_files in listed order> | shasum -a 256",
+  "supersedes_rejected_batch": "bpr:/attended-review/betterpullreview/9cdaa26a715d8f0168dc3049",
+  "rejected_feedback": "The arrows look good now but the dark mode mode swoosh connectors are too hard to see except for the selected one.",
+  "build_preset": "dev",
+  "configuration": "Debug",
+  "platform": "macOS arm64",
+  "qt_version": "6.11.1",
+  "qt_platform": "offscreen",
+  "qt_style": "QFusionStyle",
+  "device_pixel_ratio": 1,
+  "logical_dimensions": [1280, 1000],
+  "navigation_row_dimensions": [1280, 39],
+  "focused_comparison_dimensions": [1262, 918],
+  "focused_comparison_ratio_permille": [985, 918],
+  "verification_command": "ctest --preset dev -R '^application_uiforetw_selected_diff_contract$' --output-on-failure",
+  "verification_result": "pass: 1/1 in 84.96 seconds after repair commit; four profile captures plus cut-selection-wire negative",
+  "focused_matrix_command": "ctest --preset dev -R '^(qt_diff_workbench_scale_(100|125|200)|qt_appearance_profile|application_uiforetw_selected_diff_contract|application_workbench_composition_contract)$' --output-on-failure",
+  "focused_matrix_result": "pass: 6/6 in 103.31 seconds",
+  "verified_course": [
+    "Files-drawer selection",
+    "Next file",
+    "Previous file",
+    "Next change",
+    "Previous change",
+    "Files drawer toggle",
+    "Conversations drawer toggle"
+  ],
+  "connector_requirements": {
+    "contrast_floor_hundredths": 300,
+    "meaningful_sample_pixels": 24,
+    "unselected_majority_must_clear_floor": true,
+    "unselected_median_must_clear_floor": true,
+    "selected_edge_pixels_must_clear_floor": true,
+    "selected_and_unselected_dominant_pixels_must_differ": true,
+    "actual_composed_map_raster_required": true
+  },
+  "fixture": {
+    "identity": "google/UIforETW#74",
+    "selected_path": "UIforETW/UIforETW.rc",
+    "base_commit": "8b70ee179fe55b705ee4e613ecbc89a0acebc1bc",
+    "head_commit": "e40058be7d5fe319342dffb567ce30e42bc6f4de",
+    "base_blob": "b995e189fb58da146945e1fb22380cdf4a7f4e47",
+    "head_blob": "6335c1b2e14cd5e63142ce1dfc283fcf538fb134",
+    "recording_sha256": "d46b4521e12851821bf5eb64648664f84924a8f4781ab22fa416017fa29e9aaa",
+    "objects_pack_sha256": "f6016a7f75699daf66c65fbaa2427415687e95177227dea41cd6b01443563c50"
+  },
+  "captures": [
+    {
+      "profile": "light",
+      "full_window_sha256": "4ac0662bf19a610526a6bb850a76e187d094801d9642a6ee2c636c314183a9c2",
+      "intraline_comparison_sha256": "fe5b4493c5ea01ddec46dc98692a5e383f928e77c6e5d4165003a725377cc1fe",
+      "facts_sha256": "cb3de1626b705caeeef6b4e93c1fe2b52be391d628006d191b21ecebd44fa0e3",
+      "unselected_contrast_pixels": 840,
+      "unselected_sampled_pixels": 1008,
+      "unselected_median_contrast_hundredths": 370,
+      "selected_contrast_pixels": 250,
+      "selected_sampled_pixels": 1008
+    },
+    {
+      "profile": "dark",
+      "full_window_sha256": "dd82aaabe742ed2511c4071d738d00579ecbe7764871a287be24dcd44788b311",
+      "intraline_comparison_sha256": "177f6d726cbc5dc9b7cd5457d929e132cf8328712ab773af161b083764757edf",
+      "facts_sha256": "7fe0c0c9aa14b2fd0257c56862442b01420b4a1a765328b8e18a4c0ceb77cf9b",
+      "unselected_contrast_pixels": 840,
+      "unselected_sampled_pixels": 1008,
+      "unselected_median_contrast_hundredths": 533,
+      "selected_contrast_pixels": 250,
+      "selected_sampled_pixels": 1008
+    },
+    {
+      "profile": "high-contrast-light",
+      "full_window_sha256": "fe73c139944cfd39e1b457ddc9aea892dc823b0931ea6f03745aa24c8f67639f",
+      "intraline_comparison_sha256": "be469cf92a8a690344da8929304eed20be3bba89c62911fc603886492e278661",
+      "facts_sha256": "5c8ffc60716f2044d3f650179d155570a01a259f4f96224590d6dc68d860777f",
+      "unselected_contrast_pixels": 840,
+      "unselected_sampled_pixels": 1008,
+      "unselected_median_contrast_hundredths": 502,
+      "selected_contrast_pixels": 250,
+      "selected_sampled_pixels": 1008
+    },
+    {
+      "profile": "high-contrast-dark",
+      "full_window_sha256": "9fd8ca574dfebf6dec34ce5ea8b0d1b3e103a0f36169d508a981159213e700aa",
+      "intraline_comparison_sha256": "0f9f8cbb92420e5f4391b2fdd6555984db89580ff78af1466bab565178c53fc1",
+      "facts_sha256": "b5d6666a738abd5ab0e4bae2081850a68577e64267157488707bdc8cb3e14b96",
+      "unselected_contrast_pixels": 840,
+      "unselected_sampled_pixels": 1008,
+      "unselected_median_contrast_hundredths": 657,
+      "selected_contrast_pixels": 250,
+      "selected_sampled_pixels": 1008
+    }
+  ]
+}
