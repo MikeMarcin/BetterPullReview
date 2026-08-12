@@ -1,7 +1,7 @@
 ---
 id: BPR-0259
 title: Make dark unselected connectors visible
-status: In Progress
+status: Done
 rfc: RFC-BPR-0006
 depends_on: [BPR-0246]
 ---
@@ -96,3 +96,13 @@ The returned export explicitly leaves BPR-0257, BPR-0258, and BPR-0259 open
 and makes no release or RFC-closeout claim. The accepted subject therefore
 moves this card out of the attended-wait lane, but does not by itself close
 any issue or broader gate. The v003 and v004 rejections remain immutable.
+
+## Terminal closure — 2026-08-11
+
+The integrator independently reconciled the accepted v005 subject with the
+card's required final state and current committed tree. After rebuilding the
+developer graph so the executable matched capture schema v4, the exact six-test
+selector passed 6/6 in 109.68 seconds. Documentation validation reported
+`DOCUMENTATION_OK`, and `git diff --check` passed. This tracker transition is
+the issue closeout that the attended verdict deliberately did not perform; it
+makes no BPR-0257, BPR-0258, release, or RFC closeout claim.
