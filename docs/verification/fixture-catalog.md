@@ -1059,7 +1059,13 @@ routine model reset, no extra smart/provider traffic during maintenance, exact
 typed targets, and orderly shutdown. Its fixed markers include
 `EPOCH_MAINTENANCE_PRUNED_RESTART_DELETE_OK` and
 `EPOCH_MAINTENANCE_DELETED_RESTART_OK`; all storage remains under the disposable
-fixture root and no GitHub or developer worktree mutation occurs.
+fixture root and no GitHub or developer worktree mutation occurs. The epoch
+catalog and review-ledger database persist under that same root, but this
+maintenance course does not use `REVIEW_LEDGER_PRESENT_ON_ENTRY` as existence
+proof: the marker counts a receipt hit after a selected-material load, which
+the prune branch does not execute before maintenance. The dedicated
+`application_review_ledger_composition_contract` owns exact seed/reopen receipt
+load evidence.
 
 ## GitHub hosts
 

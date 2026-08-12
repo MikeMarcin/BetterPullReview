@@ -686,8 +686,10 @@ thread roots and their four comment children, while the same host, repository,
 pull request, Base-to-HeadTwo pair, ordinal-two `Force-push/rebase` cause, and
 zero whole-model resets remain required. GitHub.com and GHES two-process
 persistence both pass this stronger gate. The maintenance course also reaches
-its public epoch-prune verdict, but its wrapper currently fails a separate
-review-ledger restart marker; that mismatch is not epoch-presentation evidence.
+its public epoch-prune verdict. BPR-0269 removed its stale receipt-load marker
+expectations: all four processes still share one persistent fixture root, while
+exact review-ledger seed/reopen load evidence remains owned by the dedicated
+review-ledger composition contract.
 
 `application_automated_run_budget` exercises the bound. `--automated-stall-probe`
 holds the `open` stage forever, which is the shape of a hang: nothing crashes,

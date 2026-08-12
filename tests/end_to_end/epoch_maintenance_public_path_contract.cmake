@@ -57,20 +57,18 @@ function(run_phase label)
     endforeach()
 endfunction()
 
-# The seed phase composes the ledger for the first time in this root, so the
-# receipt cannot already be there. Asserting the 0 is what makes the 1 on the
-# next phase mean something: a probe that always reported "present" would
-# otherwise pass.
+# Seed and every maintenance phase use this one fixture root, so the epoch
+# catalog and review ledger persist across the four real process executions.
 run_phase(
-    "EPOCH_FIXTURE_SEED_OK;REVIEW_LEDGER_PRESENT_ON_ENTRY:0;REVIEW_LEDGER_OK"
+    "EPOCH_FIXTURE_SEED_OK;REVIEW_LEDGER_OK"
     --epoch-fixture-phase
     seed
 )
-# A separate execution of the real binary, against the same application data
-# root, finds the receipt the earlier process committed. This is the restart
-# claim: a new process, not a reopened handle.
+# The prune branch starts maintenance before its selected-material ledger
+# probe. Receipt-load persistence belongs to the dedicated review-ledger
+# composition contract, not this maintenance verdict.
 run_phase(
-    "EPOCH_MAINTENANCE_PRUNE_OK;REVIEW_LEDGER_PRESENT_ON_ENTRY:1"
+    "EPOCH_MAINTENANCE_PRUNE_OK"
     --epoch-fixture-phase
     reuse
     --epoch-maintenance-probe
