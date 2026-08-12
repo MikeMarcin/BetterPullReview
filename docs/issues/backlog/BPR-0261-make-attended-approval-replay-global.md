@@ -1,7 +1,7 @@
 ---
 id: BPR-0261
 title: Make attended approval replay global and path-safe
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255]
 ---
@@ -37,6 +37,27 @@ rejects symlinks only at the immediate parent and leaf, not in every ancestor.
 - Do not authenticate the supervisor-to-app launch; BPR-0262 owns that boundary.
 - Do not change GitHub mutation/recovery semantics; BPR-0263 owns reconciliation.
 - Do not materialize an approval or execute the designated live lane.
+
+## Capability-critical review result
+
+The 2026-08-12 closeout review rejected the local-filesystem implementation.
+Three counterexamples remain under the card's stated current-user threat model:
+
+- the attended composition recreated an absent replay directory, so deleting or
+  rolling back that directory made a later launch indistinguishable from first
+  use and allowed the same approved bytes to mint another grant;
+- another same-user process could unlink or replace the exclusively created
+  marker after its last name/inode check, leaving no reachable spent identity;
+- an `fsync` failure followed by a crash could lose the marker while an
+  identical approval copy remained reusable elsewhere.
+
+Retaining descriptors and adding inode/link revalidation can narrow in-flight
+path races, but no state stored wholly below a current-user-mutable namespace
+can provide deletion- or rollback-resistant compare-and-set semantics. This
+card therefore remains Backlog until an attended product/security decision
+selects a monotonic authority outside that namespace or explicitly narrows the
+threat model and reset semantics. The rejected implementation was not merged,
+and no live lane, network request, credential, or approval was used.
 
 ## Verification
 

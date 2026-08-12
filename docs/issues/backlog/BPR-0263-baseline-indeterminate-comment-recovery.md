@@ -3,7 +3,7 @@ id: BPR-0263
 title: Baseline indeterminate comment recovery
 status: Backlog
 rfc: RFC-BPR-0008
-depends_on: [BPR-0262]
+depends_on: [BPR-0255]
 ---
 
 # Baseline indeterminate comment recovery
@@ -12,6 +12,11 @@ The BPR-0256 critical review proved that reconciliation can adopt a comment
 that already matched actor, anchor, path, commit, line, and body before the
 attempt. If POST then fails without transmission, the existing comment is
 currently recorded as the new attempt's success.
+
+This recovery ambiguity is independent of approval replay storage and
+supervisor/capsule provenance. BPR-0255 already supplies the asynchronous host
+and exact request identity that this repair extends, so BPR-0261 and BPR-0262
+are not implementation prerequisites.
 
 ## Required final state
 
@@ -47,4 +52,3 @@ currently recorded as the new attempt's success.
   GET-only resolution with zero second POST.
 - Provider, SQLite, application composition, architecture, format/tidy,
   documentation, and diff gates pass.
-
