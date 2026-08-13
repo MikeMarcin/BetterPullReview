@@ -1,7 +1,7 @@
 ---
 id: BPR-0275
 title: Record RFC-BPR-0016 dependency and application authority
-status: Ready
+status: Backlog
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -31,3 +31,13 @@ Collect digest-bound product-owner decisions before registration or code work.
   the same commit; a denied exception leaves BPR-0035 intact.
 - No client identifier, endpoint response, token, device/user code, or product
   enablement is introduced by this card.
+
+## Pending packets
+
+- `docs/verification/reviews/rfc0016-prerequisite-exception-v001/`
+- `docs/verification/reviews/rfc0016-github-app-registration-v001/`
+
+Both decisions are independent. A response to one grants no authority from the
+other.
+
+Status: `awaiting-user` for both exact statements.

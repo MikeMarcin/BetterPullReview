@@ -1,0 +1,13 @@
+schema_name=bpr.operator_decision_subject
+schema_version=1
+gate=rfc0016-prerequisite-exception-v001
+decision=authorize-available-target-rfc0016-implementation-before-rfc0002-closeout
+scope=rfc0016-implementation-and-hermetic-verification-only
+fact_1=RFC-BPR-0002 remains Proposed because BPR-0036 still requires direct real Windows 10 or 11 x64 credential-vault, native-HTTPS, build, runtime, and release evidence and BPR-0035 cannot close before it.
+fact_2=The exception permits RFC-BPR-0016 implementation and hermetic verification on available local or target-native hosts only after its registered-application and sanitized real-service wire-contract gates are independently approved and completed.
+fact_3=The exception does not change RFC-BPR-0002 status, waive BPR-0035 or BPR-0036, convert macOS, cross-compilation, mocks, fixtures, or hosted workflows into Windows evidence, or authorize RFC-BPR-0016 Auto-Verified closeout before RFC-BPR-0002 is Auto-Verified.
+fact_4=RFC-BPR-0016 must reuse the existing native-HTTPS transport, redirect, certificate, proxy, cancellation, and platform-vault boundaries without weakening or restating unverified Windows claims as proven.
+fact_5=This decision grants no GitHub application registration, endpoint traffic, credential acquisition, fixture capture, repository access, repository mutation, live verification, distribution, or release authority.
+fact_6=No partial device-flow product mode may exist until BPR-0275 and BPR-0276 record the exact selected application identity, public client identifier, minimum permissions, real sanitized contracts, and capability selection.
+fact_7=Rejection leaves BPR-0276 dependent on BPR-0035 and permits planning only; approval requires the RFC eligibility text and BPR-0276 dependency to be updated in the same committed slice before implementation begins.
+rejection=Keep RFC-BPR-0016 Deferred for implementation until BPR-0035 records RFC-BPR-0002 Auto-Verified.
