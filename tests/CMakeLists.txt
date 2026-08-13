@@ -264,6 +264,13 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME dif_assets_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/dif_asset_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME dependency_modernization_contract
     COMMAND
         Python3::Interpreter
