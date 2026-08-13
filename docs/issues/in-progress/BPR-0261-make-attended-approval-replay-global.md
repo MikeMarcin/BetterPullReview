@@ -29,8 +29,10 @@ rejects symlinks only at the immediate parent and leaf, not in every ancestor.
   invariants remain unchanged.
 - Concurrent processes cannot both spend one approval identity, and a failed
   durability/consumption sequence never leaves a reusable grant.
-- No approval, replay identity, or path contains a credential or reaches argv,
-  environment, diagnostics, logs, Qt presentation state, or SQLite.
+- No approval bytes, replay identity, or replay path contains a credential or
+  reaches argv, environment, diagnostics, logs, Qt presentation state, or
+  SQLite. BPR-0262 remains the owner of replacing the existing supervisor-to-app
+  approval-artifact path handoff while authenticating that launch.
 
 ## Non-goals
 
