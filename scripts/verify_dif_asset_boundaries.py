@@ -161,6 +161,20 @@ def _validate_ctest_registration(build: Path) -> None:
             raise BoundaryError(f"dif_assets_contract registration lacks {marker}")
 
 
+def _validate_core_ctest_surface(build: Path) -> None:
+    path = build / "tests/CTestTestfile.cmake"
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise BoundaryError(
+            "core-only graph has no readable tests/CTestTestfile.cmake"
+        ) from error
+    if "test_network_isolation_application" in content:
+        raise BoundaryError(
+            "core-only registered the unavailable Qt application probe"
+        )
+
+
 def _discover_application(build: Path) -> Path:
     candidates: list[Path] = []
     for name in ("better_pull_review", "better_pull_review.exe"):
@@ -249,6 +263,7 @@ def validate_profile(source: Path, build: Path, profile: str) -> dict[str, Any]:
             raise BoundaryError(f"core-only selected Qt/app source: {leaked[0]}")
         if "qt6::" in lowered_graph or "/qt6/" in lowered_graph:
             raise BoundaryError("core-only selected a Qt6 build dependency")
+        _validate_core_ctest_surface(build)
 
     if profile == "app-release":
         leaked_tests = [path for path in first_party if path.startswith("tests/")]

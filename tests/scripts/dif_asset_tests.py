@@ -696,6 +696,22 @@ class DifAssetTests(unittest.TestCase):
         ):
             BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "core-only")
 
+    def test_boundary_verifier_rejects_qt_app_probe_in_core_only(self) -> None:
+        build = make_selected_build(
+            Path(self.temporary.name) / "selected-builds", "core-only"
+        )
+        ctest = build / "tests/CTestTestfile.cmake"
+        ctest.write_text(
+            ctest.read_text(encoding="utf-8")
+            + 'add_test("test_network_isolation_application" '
+            '"app_better_pull_review")\n',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(
+            BOUNDARY.BoundaryError, "Qt application probe"
+        ):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "core-only")
+
     def test_boundary_verifier_rejects_selected_art_tool_dependency(self) -> None:
         build = make_selected_build(
             Path(self.temporary.name) / "selected-builds", "dev"

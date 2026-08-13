@@ -402,12 +402,14 @@ if(APPLE)
             unrelated
     )
 endif()
-bpr_add_network_isolated_test(
-    NAME test_network_isolation_application
-    COMMAND
-        app_better_pull_review
-        --network-isolation-probe
-)
+if(TARGET app_better_pull_review)
+    bpr_add_network_isolated_test(
+        NAME test_network_isolation_application
+        COMMAND
+            app_better_pull_review
+            --network-isolation-probe
+    )
+endif()
 set_tests_properties(
     test_network_isolation_external
     PROPERTIES
@@ -430,12 +432,14 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 15
 )
-set_tests_properties(
-    test_network_isolation_application
-    PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        TIMEOUT 15
-)
+if(TEST test_network_isolation_application)
+    set_tests_properties(
+        test_network_isolation_application
+        PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            TIMEOUT 15
+    )
+endif()
 
 add_custom_target(
     check_boundaries
