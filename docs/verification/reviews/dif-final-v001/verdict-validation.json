@@ -1,0 +1,41 @@
+{
+  "schema_name": "bpr.attended_review_validation_record",
+  "schema_version": 1,
+  "recorded_at": "2026-08-13T05:44:01-07:00",
+  "batch_id": "bpr:/attended-review/betterpullreview/c93e59ae499277a8d2e854f6",
+  "review_gate": "dif_final_rights_and_visual_acceptance",
+  "review_scope": "final_source_rights_and_human_visual_criterion_isolation_only",
+  "invocation": "python3 .agents/skills/bpr-attended-review/scripts/build_attended_review.py validate-verdict --manifest docs/verification/reviews/dif-final-v001/offline-package/attended-review-manifest.json --verdict docs/verification/reviews/dif-final-v001/human-verdict.json",
+  "result": "valid complete verdict",
+  "outcome": "all_subjects_accepted_with_runtime_design_note",
+  "manifest": {
+    "path": "docs/verification/reviews/dif-final-v001/offline-package/attended-review-manifest.json",
+    "sha256": "sha256:e193929eb467185f9224c0af411af645e4d57b061d46601f1bf3fdf103853718",
+    "byte_length": 38085
+  },
+  "verdict": {
+    "path": "docs/verification/reviews/dif-final-v001/human-verdict.json",
+    "sha256": "sha256:e2c0c426732076312ae03fd55349ff1f721cf2e18bdca96f346ae4443d1cfe9d",
+    "byte_length": 2108
+  },
+  "official_validator": {
+    "path": ".agents/skills/bpr-attended-review/scripts/build_attended_review.py",
+    "sha256": "sha256:bb5ccf6bd8fe265ea886a6e5e33912ce72c19ec20d99b0c807f542c0b425742a",
+    "byte_length": 45484
+  },
+  "accepted_note_disposition": {
+    "subject_identity": "criterion:/betterpullreview/rfc-bpr-0019/dif-identity-and-foreign-exclusion-v1@sha256:a57e5da8f73c3d1519eb6df420957343a3a993b45f0e0a6580617194243108ab",
+    "note": "This is all fine but I don't think the +/- card should be part of the core base sprite.",
+    "disposition": "Preserve as a downstream runtime-composition constraint: RFC-BPR-0020 must not infer approval to make the plus/minus card inseparable from Dif's core base sprite. Any asset-byte revision requires a new digest-bound asset verdict."
+  },
+  "claims": {
+    "verdict_validated_against_its_batch_manifest": true,
+    "final_source_rights_validated": true,
+    "visual_acceptance_granted_for_exact_reviewed_assets": true,
+    "package_release_approved": false,
+    "rfc_bpr_0019_auto_verified": false,
+    "rfc_bpr_0020_authorized": false,
+    "runtime_composition_approved": false,
+    "runtime_mascot_approved": false
+  }
+}

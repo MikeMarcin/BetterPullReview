@@ -1,7 +1,7 @@
 ---
 id: BPR-0291
 title: Record final Dif rights and attended visual verdicts
-status: In Progress
+status: Done
 rfc: RFC-BPR-0019
 depends_on: [BPR-0290]
 ---
@@ -72,5 +72,31 @@ the manifest SHA-256 is
 and the page SHA-256 is
 `96a5c8b343228a38b529bb8f4f3982d110a35792574e5ce6cc939b4268320504`.
 
-No verdict has been recorded. The page must export one complete user verdict;
-only that exact returned JSON may be saved and validated against this manifest.
+## Recorded verdict
+
+The product owner returned one complete verdict for batch
+`bpr:/attended-review/betterpullreview/c93e59ae499277a8d2e854f6`. The official
+validator accepted the exact export as a complete manifest-bound verdict. All
+six subjects are accepted: final production-source rights and the five
+independent identity, motion, registration, appearance, and reduced-motion
+visual criteria. No subject is rejected, omitted, added, or reordered.
+
+The byte-preserved export is
+`docs/verification/reviews/dif-final-v001/human-verdict.json`, SHA-256
+`e2c0c426732076312ae03fd55349ff1f721cf2e18bdca96f346ae4443d1cfe9d`.
+The durable validation record is
+`docs/verification/reviews/dif-final-v001/verdict-validation.json`. It binds
+the 38,085-byte manifest, 2,108-byte verdict, and official validator hashes and
+records `valid complete verdict`.
+
+The accepted identity subject includes the owner's note that the plus/minus
+card should not be part of the core base sprite. This does not reject the exact
+RFC-BPR-0019 art-direction subject, but it is a mandatory downstream
+composition constraint: RFC-BPR-0020 may not infer approval to make that prop
+inseparable from Dif's base. Any asset-byte revision must receive a new
+digest-bound verdict.
+
+The export expressly leaves package release, RFC-BPR-0019 Auto-Verification,
+RFC-BPR-0020 authorization, runtime composition, and the runtime mascot
+unapproved. This card therefore closes only the exact final-source rights and
+attended visual gate it owns.

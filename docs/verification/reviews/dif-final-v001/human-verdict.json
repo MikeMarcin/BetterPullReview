@@ -1,0 +1,44 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/c93e59ae499277a8d2e854f6",
+  "review_gate": "dif_final_rights_and_visual_acceptance",
+  "review_scope": "final_source_rights_and_human_visual_criterion_isolation_only",
+  "accepted_subjects": [
+    {
+      "subject_id": "authority:/betterpullreview/rfc-bpr-0019/dif-final-production-rights-v1",
+      "subject_digest": "sha256:13646e6c2807fdbd49e0a467b6b50962cdfe6e6e2ed20b67bf2c729363128fdd"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-identity-and-foreign-exclusion-v1",
+      "subject_digest": "sha256:a57e5da8f73c3d1519eb6df420957343a3a993b45f0e0a6580617194243108ab"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-motion-at-shipping-sizes-v1",
+      "subject_digest": "sha256:6ac1f35de6457f6971746f9d94a9afaf2085912367a2a763cca3737d8da7cb5a"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-registration-seam-and-handoff-v1",
+      "subject_digest": "sha256:232406dc5aa201c9fc20da33ce1c744a506b877aba5b5514976af8787eae8893"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-appearance-contexts-v1",
+      "subject_digest": "sha256:6e8c3a57dfa2c07d34d02528c8f2581c3e67468ee3d0f201119f57a3c89610d1"
+    },
+    {
+      "subject_id": "criterion:/betterpullreview/rfc-bpr-0019/dif-reduced-motion-rest-v1",
+      "subject_digest": "sha256:2289597f3b6d892090a1e1b13c1607c8a8d05da6392918e3e967f55419c7e121"
+    }
+  ],
+  "rejected_subjects": [],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/rfc-bpr-0019/dif-identity-and-foreign-exclusion-v1@sha256:a57e5da8f73c3d1519eb6df420957343a3a993b45f0e0a6580617194243108ab": "This is all fine but I don't think the +/- card should be part of the core base sprite."
+  },
+  "downstream_claims": {
+    "package_release_approved": false,
+    "rfc_bpr_0019_auto_verified": false,
+    "rfc_bpr_0020_authorized": false,
+    "runtime_composition_approved": false,
+    "runtime_mascot_approved": false
+  }
+}
