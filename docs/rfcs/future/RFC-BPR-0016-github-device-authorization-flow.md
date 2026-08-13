@@ -221,7 +221,11 @@ refusal rather than a partial attempt.
 - Placing a token, refresh token, or device code in process arguments,
   environment, logs, diagnostics, SQLite, UI text, fixtures, or evidence.
 - Polling faster than the interval the service supplies, or continuing to poll
-  after denial, expiry, or the total bound.
+  after denial, expiry, or the total bound. The sole exception is one
+  digest-bound, owner-attended, capture-only early poll used by BPR-0276 to
+  record GitHub's `slow_down` contract. That probe is bounded to the designated
+  application, never enters product code, sends no repository request, resumes
+  compliant timing immediately, and grants no general rate-limit exception.
 - Allowing an operator-editable scope set, or silently widening scopes.
 - Following a verification or redirect address that does not match the
   compiled profile authority.

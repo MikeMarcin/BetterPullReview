@@ -25,7 +25,7 @@ immutable closeout head and an independent capability-critical review.
 | State | Acceptance criterion | Direct verification surface | Expected result | Gate |
 |---|---|---|---|---|
 | [ ] | GitHub.com device enrollment reaches the existing vault with no settings/SQLite copy. | Tests-disabled public composition plus vault/settings/SQLite inspection against recorded contracts | Exactly one existing-vault enrollment; no alternate copy or partial profile | external-contract + automated |
-| [ ] | Core, Qt, and projection contain no client/endpoint/code/token material. | Compile-time boundary tests plus source/symbol/type inventory | Forbidden facts cannot cross the host boundary | automated |
+| [ ] | Core, Qt, and projection contain no client identifier, service endpoint, secret device code, or token material; the host display projection contains only user code, validated verification URI, and expiry. | Compile-time boundary tests plus source/symbol/type inventory | Forbidden facts cannot cross; exact allowed display fields reach Qt | automated |
 | [ ] | Pending, denied, expired, rate-limited, and disabled outcomes are typed and clean. | Host replay of every sanitized real-service fixture | Distinct terminal/continuation behavior; zero retained transient material | automated |
 | [ ] | Polling honors interval, backoff, total bound, cancellation, and shutdown. | Controlled-clock/manual-executor host tests | No early/late/extra poll; deterministic erasure and quiescence | automated |
 | [ ] | Certificates and redirects fail closed on both endpoints. | Native HTTPS hostile loopback contracts | Zero forwarded credential/body on certificate, unknown-authority, or query redirect | automated |
@@ -62,6 +62,10 @@ planned selectors only by updating that ledger and this anchor atomically.
       disposition.
 - [ ] Final clean replay and independent capability-critical review accept the
       immutable closeout head.
+- [ ] The idempotent `verify_rfc0016_platform_course.py` final-head course passes
+      with `--expected-device-selection enabled --fresh` on macOS, Linux, and
+      Windows after every implementation, simplification, documentation, and
+      platform card is terminal; one-time flip records are provenance only.
 - [ ] Only after every row is satisfied, the RFC status, index, verification
       ledger, and issue board transition atomically to `Auto-Verified`/terminal.
 

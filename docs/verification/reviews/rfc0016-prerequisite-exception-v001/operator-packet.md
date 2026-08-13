@@ -18,8 +18,8 @@ after the separate application-registration gates are satisfied.
 
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
-| `decision-subject.txt` | `sha256:64a258848ab1ca1277da2757584d82870ed98618590afbb6cfa479b3d75d4508` | 1954 |
-| `docs/rfcs/future/RFC-BPR-0016-github-device-authorization-flow.md` | `sha256:24c24335b40767aa4412e6244752576e6452e12312a6e41f084dcddee427c681` | 15685 |
+| `decision-subject.txt` | `sha256:d0d021ce54207c4ee44771a3e1b4e1bf787e4ff9aaafa99f15fa52afa6c9647b` | 2217 |
+| `docs/rfcs/future/RFC-BPR-0016-github-device-authorization-flow.md` | `sha256:ad0baf748befb8931c0bd9cfd4d2f5157941deed24429c4efed9c3a582298daa` | 16022 |
 | `docs/rfcs/RFC-BPR-0002-github-host-auth-capability-layer.md` | `sha256:5007fa1ac89809dc004985d1bd4ed9362883437e7802306ade15ebffc8c3a310` | 8192 |
 | `docs/issues/backlog/BPR-0036-windows-x64-target-native-verification.md` | `sha256:9752ff5470e1cd7fa574a812ff73c33bc15c85f0196b8914819a899d292bed15` | 1664 |
 
@@ -33,7 +33,7 @@ To approve, reply with this exact statement:
 
 > I approve the RFC-BPR-0016 available-target implementation exception bound
 > by decision subject
-> sha256:64a258848ab1ca1277da2757584d82870ed98618590afbb6cfa479b3d75d4508,
+> sha256:d0d021ce54207c4ee44771a3e1b4e1bf787e4ff9aaafa99f15fa52afa6c9647b,
 > including all seven facts. This is
 > for implementation and hermetic verification only; it does not waive
 > BPR-0035 or BPR-0036, change RFC-BPR-0002 status, authorize GitHub

@@ -18,3 +18,9 @@ depends_on: [BPR-0036, BPR-0282]
   storage/rotation, and Release selection are target-native; macOS, Wine,
   cross-compilation, mocks, or hosted workflows do not substitute.
 - Device capability stays unavailable on Windows until this card is terminal.
+- After all target-native rows pass, this card owns the Windows production-
+  selection flip in the same commit and reruns the complete Release/public/
+  native/hygiene matrix against the enabled artifact before becoming terminal.
+- BPR-0311 adds and records a native `windows-app-release` tests-disabled
+  Release preset before the flip. The one-time flip record is distinct from
+  BPR-0285's idempotent final-head platform course against enabled Windows.

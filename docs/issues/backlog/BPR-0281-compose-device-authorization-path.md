@@ -10,12 +10,15 @@ depends_on: [BPR-0279, BPR-0280]
 
 ## Required final state
 
-- The tests-disabled shipped application selects the registered GitHub.com
-  device capability on macOS only after BPR-0282's target-native evidence and
-  reaches the existing profile enrollment/vault path.
-- Linux and Windows keep the same visible typed `device_flow_unavailable`
-  selection with zero requests until BPR-0310 and BPR-0311 respectively are
-  terminal; build target alone never enables the capability.
+- The tests-disabled shipped application composes the registered GitHub.com
+  device path behind explicit per-platform capability selection and reaches the
+  existing profile enrollment/vault path in its tests-enabled recorded course.
+- Production macOS, Linux, and Windows all remain visibly
+  `device_flow_unavailable` with zero requests in this slice. BPR-0282 owns the
+  same-slice macOS enablement and final rerun after native proof passes.
+- BPR-0310 and BPR-0311 respectively own the same-slice Linux and Windows
+  production enablement plus complete target-native rerun. Build target or card
+  folder movement alone never enables the capability.
 - Unregistered builds and every GHES profile keep the visible choice but return
   typed `device_flow_unavailable` before constructing or sending a request.
 - Manual token enrollment remains functional before and after device success.

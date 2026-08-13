@@ -3,7 +3,7 @@ id: BPR-0283
 title: Simplify the device-authorization implementation
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0281, BPR-0282]
+depends_on: [BPR-0281, BPR-0282, BPR-0310, BPR-0311]
 ---
 
 # Simplify the device-authorization implementation
@@ -16,5 +16,7 @@ depends_on: [BPR-0281, BPR-0282]
 - Core, host, adapter, Qt, and composition ownership remains explicit; security
   checks, erasure, cancellation, and bounded-state code are not collapsed into
   clever or unauditable helpers.
+- The pass occurs after macOS, Linux, and Windows production-selection changes,
+  including `windows-app-release`, so it covers the complete implementation.
 - Scoped format, strict tidy, focused tests, Release contracts, documentation,
   and `git diff --check` pass after simplification.

@@ -48,11 +48,11 @@ and never creates a settings or SQLite path.
 | BPR-0280 | Implement Qt acquisition chooser and browser-handoff presentation | BPR-0277, BPR-0279 |
 | BPR-0281 | Compose the registered GitHub.com path and zero-request unavailable paths | BPR-0279, BPR-0280 |
 | BPR-0282 | Complete security, hostile, release, and public-path evidence | BPR-0281 |
-| BPR-0283 | Simplify the complete implementation without changing authority | BPR-0281, BPR-0282 |
+| BPR-0283 | Simplify the complete cross-platform implementation without changing authority | BPR-0281, BPR-0282, BPR-0310, BPR-0311 |
 | BPR-0284 | Reconcile product, architecture, security, build, and agent documentation | BPR-0281, BPR-0282, BPR-0283 |
 | BPR-0285 | Capability-critical final replay and RFC closeout | BPR-0035, BPR-0275 through BPR-0284, BPR-0310, BPR-0311 |
-| BPR-0310 | Prove Linux device-flow selection target-native | BPR-0282 |
-| BPR-0311 | Prove Windows device-flow selection target-native | BPR-0036, BPR-0282 |
+| BPR-0310 | Prove and enable Linux device-flow selection target-native | BPR-0282 |
+| BPR-0311 | Prove and enable Windows device-flow selection target-native | BPR-0036, BPR-0282 |
 
 BPR-0276 initially retains BPR-0035. If the product owner approves a narrow
 implementation exception, that same digest-bound decision commit must update
