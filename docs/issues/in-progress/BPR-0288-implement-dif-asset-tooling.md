@@ -1,7 +1,7 @@
 ---
 id: BPR-0288
 title: Implement deterministic Dif asset tooling
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0019
 depends_on: [BPR-0286]
 ---

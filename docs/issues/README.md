@@ -498,7 +498,7 @@ also depend transitively on more than one group.
 
 | Group | Cards | What is actually missing |
 |---|---|---|
-| Requested Dif mascot program | Done planning BPR-0286, ready BPR-0287/BPR-0288, backlog BPR-0289 through BPR-0295 | RFC-BPR-0019 tooling may proceed under the recorded post-pack frontier advance, but production art awaits an exact rights decision; final rights/visual verdicts and RFC-BPR-0006/RFC-BPR-0013 closeout remain non-waived. RFC-BPR-0020 cannot begin before RFC-BPR-0019 is Auto-Verified |
+| Requested Dif mascot program | Done planning BPR-0286, in-progress BPR-0288, ready BPR-0287, backlog BPR-0289 through BPR-0295 | RFC-BPR-0019 tooling may proceed under the recorded post-pack frontier advance, but production art awaits an exact rights decision; final rights/visual verdicts and RFC-BPR-0006/RFC-BPR-0013 closeout remain non-waived. RFC-BPR-0020 cannot begin before RFC-BPR-0019 is Auto-Verified |
 | Requested post-pack device authorization | Done planning BPR-0274, ready BPR-0275, backlog BPR-0276 through BPR-0285 | RFC-BPR-0016 remains Deferred. Product-owner application/dependency authority, a registered public client, sanitized real-service contracts, RFC-BPR-0002 closeout, implementation, and capability-critical final replay remain explicit; no partial device-flow mode exists |
 | Real Windows x64 hardware | BPR-0036, BPR-0053, and transitively BPR-0035, BPR-0054, BPR-0083 | Target-native execution; no available-platform substitute counts |
 | A designated live GitHub pull request | BPR-0142, BPR-0143, BPR-0144, BPR-0169, and BPR-0153 | Disposable `MikeMarcin/BPR-Test#1` is identity-bound; the live provider, exact-target lane, owner-authenticated mutations, and attended/mixed-client checks remain |
