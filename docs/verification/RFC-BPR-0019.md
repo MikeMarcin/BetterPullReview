@@ -2,8 +2,9 @@
 
 RFC base: `58b5116f8706ac336664cc3fc39dabc66745a70d`
 
-Status: **deterministic offline tooling is implemented; production art awaits a
-digest-bound rights decision.** BPR-0288 is done at `1a5c9b8`: its 18-case
+Status: **deterministic offline tooling is implemented and pre-creation asset
+authority is validated; production art is next.** BPR-0288 is done at
+`1a5c9b8`: its 18-case
 contract passes in developer and core-only configurations, and an independent
 scout closed its catalog-portability, neutral-body-box, and symlink-containment
 findings. The tooling consumes no supplied art and grants no reference or
@@ -23,7 +24,7 @@ until replayed at the final closeout head.
 
 | Acceptance claim | Planned direct evidence | Current disposition |
 |---|---|---|
-| Owned original source pack and exact rights | BPR-0287 pre-creation decision, BPR-0289 source hashes, BPR-0291 final rights subject and scoped foreign-material audit | Planned; no ownership assertion is inferred from the implementation request |
+| Owned original source pack and exact rights | BPR-0287 pre-creation decision, BPR-0289 source hashes, BPR-0291 final rights subject and scoped foreign-material audit | BPR-0287 pre-creation authority accepted and manifest-validated in `dif-provenance-v001`; final source rights and foreign-material audit remain planned |
 | Byte-identical offline regeneration | BPR-0288 deterministic tool contract and BPR-0290 two-empty-tree/committed-tree comparison | Tool and synthetic byte-tree contract verified at `1a5c9b8`; production pack replay remains planned |
 | Exact three-clip manifest and fixed descriptor | Schema validator, hostile graph cases, and narrow generated-catalog compile consumer | Synthetic manifest/catalog contract verified at `1a5c9b8`; production pack compile consumer remains planned |
 | Transparent bounded registered runtime cells | Full cell/gutter/edge/body/baseline/travel/rate/frame/pixel/file validation and negative corpus | Planned |
@@ -49,10 +50,10 @@ and delegated review disposition before any closeout checkbox changes.
 
 ## Closeout blockers
 
-- BPR-0287 has no returned rights decision at the planning head.
-- BPR-0287 now presents that pending decision through a deterministic,
-  identity-only offline attended-review page. Its complete exported verdict
-  remains required and must validate against the generated batch manifest.
+- BPR-0287 is complete: the accepted identity-only page export validated
+  against batch `bpr:/attended-review/betterpullreview/844543906f4f8df462676ab0`.
+  That decision authorizes creation only; BPR-0291 retains final-source rights
+  and visual acceptance authority.
 - BPR-0291 has no final rights or attended visual verdict at the planning head.
 - RFC-BPR-0006 is not Auto-Verified and its live closeout is BPR-0115.
 - RFC-BPR-0013 is not Auto-Verified and has no live terminal closeout card at

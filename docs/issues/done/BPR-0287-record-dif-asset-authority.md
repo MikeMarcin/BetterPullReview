@@ -1,7 +1,7 @@
 ---
 id: BPR-0287
 title: Record Dif asset authority and pre-creation provenance
-status: Backlog
+status: Done
 rfc: RFC-BPR-0019
 depends_on: [BPR-0286]
 ---
@@ -31,16 +31,28 @@ confirm that no Nib, Mel, or AllTheThings art or identity may enter BPR.
 - The returned complete verdict export is dated when recorded, binds the
   decision-maker capacity representation, selects exactly one outcome, and is
   validated against the generated batch manifest.
-- The initial `provenance.json` authority fields reproduce the decision without
-  asserting rights beyond its exact scope.
+- BPR-0289 must reproduce the decision in the initial `provenance.json`
+  authority fields without asserting rights beyond its exact scope.
 - Refusal or insufficient authority leaves BPR-0289 blocked and adds no product
   asset; approval authorizes creation but not final visual acceptance.
 
-## Awaiting user
+## Recorded verdict
 
-Status: `awaiting-user` for a complete accept-or-reject export from the
-[digest-bound local review page](../../verification/reviews/dif-provenance-v001/offline-package/index.html).
-The package copies and binds decision subject
-`sha256:d86ec61323c4f7304810253b392ed0482563b4f2f382fb64f4a7ff0b668a909d`;
-the package manifest records the resulting subject digest and batch identity.
-No production asset is created until the returned export validates exactly.
+The product owner returned and accepted the complete page export on
+2026-08-13. The official validator accepted batch
+`bpr:/attended-review/betterpullreview/844543906f4f8df462676ab0`, subject
+`authority:/betterpullreview/rfc-bpr-0019/dif-precreation-v1`, and subject
+digest `sha256:850b6dead5226ce1a9e12a7a17d3a7d3f7826e6bfe328feeea64f85ba71b64a7`
+without rejection or widened downstream claims.
+
+Durable evidence:
+
+- [human-verdict.json](../../verification/reviews/dif-provenance-v001/human-verdict.json)
+- [verdict-validation.json](../../verification/reviews/dif-provenance-v001/verdict-validation.json)
+- bound decision subject
+  `sha256:d86ec61323c4f7304810253b392ed0482563b4f2f382fb64f4a7ff0b668a909d`
+
+This approval authorizes reference-informed original Dif production-asset
+creation under the exact bound scope. It does not validate final source rights,
+approve any visual result, compose a runtime mascot, approve packaging or
+release, or close the RFC. Those false-only boundaries remain in the verdict.
