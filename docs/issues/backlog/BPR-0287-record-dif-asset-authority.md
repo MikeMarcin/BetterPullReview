@@ -1,7 +1,7 @@
 ---
 id: BPR-0287
 title: Record Dif asset authority and pre-creation provenance
-status: In Progress
+status: Backlog
 rfc: RFC-BPR-0019
 depends_on: [BPR-0286]
 ---
@@ -32,3 +32,11 @@ confirm that no Nib, Mel, or AllTheThings art or identity may enter BPR.
   asserting rights beyond its exact scope.
 - Refusal or insufficient authority leaves BPR-0289 blocked and adds no product
   asset; approval authorizes creation but not final visual acceptance.
+
+## Awaiting user
+
+Status: `awaiting-user` for the exact statement in the
+[digest-bound operator packet](../../verification/reviews/dif-provenance-v001/operator-packet.md#operator-response).
+The packet is bound to decision subject
+`sha256:d86ec61323c4f7304810253b392ed0482563b4f2f382fb64f4a7ff0b668a909d`.
+No production asset is created until that statement is returned exactly.

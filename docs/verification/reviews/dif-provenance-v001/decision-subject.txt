@@ -1,0 +1,57 @@
+RFC-BPR-0019 DIF PRE-CREATION ASSET AUTHORITY DECISION V1
+
+This is one indivisible approve-or-reject decision over the following facts.
+
+1. DECISION-MAKER CAPACITY
+The approving person represents that they are the creator/rightsholder of the
+Dif reference identity and supplied reference images, or are authorized by that
+creator/rightsholder to grant every use in this decision.
+
+2. EXACT SUPPLIED REFERENCE BYTES
+The Dif concept reference is the 1,777,731-byte RGB PNG named
+dif_ref_sheet.png with SHA-256
+cf35d96198e20575069b3dd43edd352a04393e457970219738a9e888458729c0.
+The brand-family reference is the 2,002,023-byte RGB PNG named
+mascot_group.png with SHA-256
+5859655aa4c39e50a7e3c522e48f8b34c48bd5749553089be95860e7f2d0f39e.
+
+3. REFERENCE-INFORMED CREATION AUTHORITY
+The approving person authorizes the BetterPullReview project to use those two
+exact images as creative guidance for an original Dif production master,
+source-frame sequences, generated sprite strips, preview media, and future Dif
+derivatives. Direct cropping or shipping of either opaque supplied image is not
+authorized by this decision.
+
+4. REPOSITORY AND DISTRIBUTION AUTHORITY
+The approving person authorizes BetterPullReview to create, edit, reproduce,
+commit, publish, sublicense, and distribute the resulting Dif source and
+generated assets with BetterPullReview source, binaries, packages, marketing,
+and documentation, for commercial and noncommercial use, worldwide and
+perpetually. No attribution or third-party license notice is required beyond
+the repository provenance record unless later production inputs introduce a
+separate obligation.
+
+5. CREATION TOOLS AND FINAL AUTHORITY
+BetterPullReview may use OpenAI image generation plus checked-in offline
+deterministic transformation tooling and recorded manual edits to create the
+production sources. Prompts, tools, input digests, and editing steps are
+recorded in provenance; approved checked-in source bytes, not prompt replay or
+model regeneration, become the production authority.
+
+6. FOREIGN IDENTITY EXCLUSION
+The 21,969-byte nib-animation-bootstrap.zip with SHA-256
+e924c69865ff2998fed3bc5981a405c46960a9ef561947ce64b99fa52e54aeef is
+process guidance only. This decision grants no right to copy or adapt Nib,
+Mel, or AllTheThings artwork, code, names, silhouettes, props, palettes,
+dimensions, clip timing, or branding into BetterPullReview product assets.
+
+7. BOUNDED RESULTING IDENTITY
+The authorized direction is the RFC-BPR-0019 Dif identity: an original compact
+purple-and-light panda with an abstract plus/minus diff-card prop and a calm,
+supportive expression that does not imply a review result or AI authority.
+
+8. SEPARATE FINAL GATES
+This decision authorizes creation under the stated rights and scope. It is not
+visual acceptance of any resulting asset. Final production-source hashes,
+provenance assertions, foreign-identity exclusion, and the five visual/motion
+subjects remain separate digest-bound decisions under BPR-0291.
