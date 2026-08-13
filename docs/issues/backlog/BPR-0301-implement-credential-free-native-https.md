@@ -3,7 +3,7 @@ id: BPR-0301
 title: Implement typed credential-free native HTTPS reads
 status: Backlog
 rfc: RFC-BPR-0017
-depends_on: [BPR-0035, BPR-0299]
+depends_on: [BPR-0035, BPR-0312]
 ---
 
 # Implement typed credential-free native HTTPS reads

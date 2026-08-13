@@ -16,5 +16,6 @@ depends_on: [BPR-0300, BPR-0302]
   capability-, queue-, epoch-, cache-, and projection-sensitive generation.
 - Concurrency, cancellation, stale completion, refresh/rate refusal, shutdown,
   and repeated switching are bounded and tested with manual executors/counters.
-- Mutations, triage, queue roles, viewed/resolution actions, and Git smart
-  credential use remain unavailable rather than approximated.
+- Mutations, triage, queue roles, and viewed/resolution actions remain
+  unavailable rather than approximated. BPR-0317 owns the distinct credential-
+  free public Git/cache/epoch/diff authority.

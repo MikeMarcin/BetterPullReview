@@ -3,7 +3,7 @@ id: BPR-0309
 title: Anchor RFC-BPR-0017 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0017
-depends_on: [BPR-0035, BPR-0297, BPR-0298, BPR-0299, BPR-0300, BPR-0301, BPR-0302, BPR-0303, BPR-0304, BPR-0305, BPR-0306, BPR-0307, BPR-0308]
+depends_on: [BPR-0035, BPR-0285, BPR-0297, BPR-0298, BPR-0299, BPR-0300, BPR-0301, BPR-0302, BPR-0303, BPR-0304, BPR-0305, BPR-0306, BPR-0307, BPR-0308, BPR-0312, BPR-0313, BPR-0314, BPR-0315, BPR-0316, BPR-0317]
 ---
 
 # Anchor RFC-BPR-0017 capability-critical verification
@@ -13,15 +13,18 @@ RFC base: `a45750f6bd84716240aa27a20f0734f33808ab8e`.
 ## Run objective and membership
 
 This is the terminal anchor for the second RFC in the requested sequence,
-after RFC-BPR-0016. Membership is BPR-0296 through BPR-0309 plus the existing
-RFC-BPR-0002 closeout BPR-0035/BPR-0036. Newly discovered required work enters
-the dependency closure before closeout.
+after RFC-BPR-0016. RFC-BPR-0017 membership is BPR-0296 through BPR-0309 plus
+BPR-0312 through BPR-0317. RFC-BPR-0016 anchor BPR-0285 and RFC-BPR-0002 cards
+BPR-0035/BPR-0036 are external dependencies only and retain their own RFC
+ownership. Newly discovered required work enters the dependency closure before
+closeout.
 
 ## Acceptance checklist
 
 | State | Criterion | Final direct surface | Expected result | Gate |
 |---|---|---|---|---|
 | [ ] | Public GitHub.com PR opens through the existing provider/normalizer. | Tests-disabled recorded-contract public composition | One path, no parallel provider/normalizer/fixture system | automated |
+| [ ] | Public Git/cache/epoch authority renders exact selected-file diff content without viewer identity. | Credential-free smart-HTTP, discriminated authority, versioned SQLite migration/restart, and real rendered diff course | Exact path/base/head/content, migrated authenticated rows, isolated namespaces, no credential, stable anonymous authority | automated + native |
 | [ ] | GraphQL and viewer identity refuse before request construction. | Provider admission counters | Distinct typed reasons and zero requests | automated |
 | [ ] | Anonymous read shape is exact and triage/action capabilities are absent. | Core/host/projection/Qt matrix | No defaulted viewer, resolution, viewed, or actionability state | automated |
 | [ ] | No credential or authorization path is touched. | Vault/native-HTTPS positive canaries | Zero lookup/enrollment/header and deliberate anonymous authority | automated |

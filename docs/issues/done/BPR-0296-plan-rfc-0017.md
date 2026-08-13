@@ -50,9 +50,11 @@ verification matrix for unauthenticated public review reading.
 - Recorded that the live tree contradicts two RFC findings: the transport and
   host require authenticated identity, and the current catalog has no REST
   review-comment operation from which anonymous threads could be reconstructed.
-- Allocated BPR-0297 through BPR-0309 for RFC correction, probes, the explicit
-  build/no-build decision, core/transport/normalization/host/Qt/composition,
-  verification, simplification, documentation, and critical closeout.
+- Allocated BPR-0297 through BPR-0309 plus BPR-0312 through BPR-0317 for RFC
+  correction, probes, non-product transport demonstration, the explicit build/
+  no-build decision and positive gate, core/transport/normalization/host/diff/
+  Qt/composition, platform evidence, verification, simplification,
+  documentation, and critical closeout.
 - Kept the RFC `Deferred`, the existing public observer outside product
   authority, and every network/product-mode gate explicit.
 - Bound the issue graph, claim matrix, documentation ledger, and direct

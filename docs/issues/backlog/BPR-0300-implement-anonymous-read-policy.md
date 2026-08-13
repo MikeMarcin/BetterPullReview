@@ -3,7 +3,7 @@ id: BPR-0300
 title: Implement deterministic anonymous-read policy
 status: Backlog
 rfc: RFC-BPR-0017
-depends_on: [BPR-0035, BPR-0299]
+depends_on: [BPR-0035, BPR-0312]
 ---
 
 # Implement deterministic anonymous-read policy
