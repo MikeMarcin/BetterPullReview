@@ -1,7 +1,7 @@
 ---
 id: BPR-0286
 title: Plan RFC-BPR-0019 implementation and verification
-status: In Progress
+status: Done
 rfc: RFC-BPR-0019
 depends_on: []
 ---
@@ -44,3 +44,15 @@ matrix before any Dif production asset enters the repository.
   architecture allocation, claim matrix, documentation impact, and blockers.
 - The board names the live Dif program without treating planned work or an
   unreturned operator packet as implementation evidence.
+
+## Result
+
+- Allocated BPR-0287 through BPR-0295 for authority/provenance, deterministic
+  tooling, original source creation, generated contracts, attended decisions,
+  isolation/security, documentation, simplification, and ordinary closeout.
+- Recorded the product-owner-requested post-pack frontier advance without
+  converting it into an asset-rights assertion or ordered-closeout waiver.
+- Mapped every acceptance criterion to a direct final-head row and created the
+  RFC verification and documentation ledgers at the immutable base.
+- Reserved Qt-adapter asset ownership while keeping generator execution,
+  runtime composition, motion preference, and package work outside this RFC.
