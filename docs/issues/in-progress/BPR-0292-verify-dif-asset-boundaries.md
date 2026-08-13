@@ -1,7 +1,7 @@
 ---
 id: BPR-0292
 title: Verify Dif asset isolation and security boundaries
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0019
 depends_on: [BPR-0290]
 ---
