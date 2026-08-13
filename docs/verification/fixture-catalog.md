@@ -119,9 +119,34 @@ schema. Every non-registration artifact carries the registration-record
 digest, so outcomes and probes from a different registration cannot be mixed
 into the set. Neither the public sanitizers nor the manifest builder can emit
 or accept `real_service` provenance. The offline validator can therefore
-establish durable schema integrity but cannot claim that GitHub was contacted:
-`--require-complete` remains fail-closed until a future live runner supplies an
-exact independently produced capture attestation and its verifier. Its
+establish durable schema integrity but cannot claim that GitHub was contacted
+on its own. `--require-complete` remains fail-closed for an unattested tree
+unless `--attestation-review` names one direct repository-recorded review
+under `docs/verification/reviews/` and `--course-evidence-root` supplies the
+exact five attended course trees. The validator closes every course inventory,
+execution record, transition, outcome, route projection, registration binding,
+and tree digest. The same exact root also carries canonical copies of the
+one-replacement authority and its before-traffic spent marker. Their authority,
+current-runner, record-digest, reservation-marker, and ordered
+authorized-before-spent-before-course timestamps are closed; their bytes are
+review identities but are deliberately excluded from the five runner course
+tree digests because they were not stored inside those course roots. The
+validator requires the current repository runner digest throughout and
+reassembles the final fixture bytes and manifest from the prescribed course
+sources. The review must bind every course, authority, and fixture artifact plus the
+runner's strict `live-run-attestation.json` as identity files in one fixed
+`rfc0016_attended_live_capture` gate. It requires an exact accepted verdict,
+false-only downstream claims, byte triples for the current capture runner,
+input, rendered page, manifest, verdict, and repository's official
+attended-review validator. It then revalidates the verdict and rebuilds the
+page through that bound validator. Unknown fields or types, links, escaping
+paths, byte drift, missing, extra, or swapped course evidence, failed audit,
+rejection, mixed registrations, changed assembly sources, and self-authored
+records without the independent validation record fail closed.
+Acceptance means only that a human accepted the exact sanitized bytes as
+attended BPR-0276 run evidence; it does not claim cryptographic GitHub or
+transport authenticity. The unit suite's generated verdict exercises this
+contract only; it is not a real user export or immutable attended record. Its
 read-only route metadata is closed to the designated
 `MikeMarcin/BPR-Test` repository and pull request 1:
 Metadata REST, Contents smart-HTTP discovery/upload-pack, Checks GET,

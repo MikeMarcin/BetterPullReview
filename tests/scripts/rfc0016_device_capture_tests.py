@@ -5,10 +5,12 @@ import ast
 import copy
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from unittest import mock
 
@@ -97,7 +99,9 @@ def encode(value: object) -> bytes:
     return json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
 
 
-def registration_observation() -> dict[str, object]:
+def registration_observation(
+    public_client_id: str = "Iv1.0123456789abcdef",
+) -> dict[str, object]:
     return {
         "application_kind": "github_app",
         "application_visibility": "private",
@@ -112,7 +116,7 @@ def registration_observation() -> dict[str, object]:
         "owner_kind": "user",
         "owner_login": "MikeMarcin",
         "permissions": EXPECTED_PERMISSIONS,
-        "public_client_id": "Iv1.0123456789abcdef",
+        "public_client_id": public_client_id,
         "refresh_policy": "expiring_user_token_with_refresh",
         "user_access_token_expiration_enabled": True,
         "webhook_active": False,
@@ -204,6 +208,488 @@ def write_synthetic_complete_root(root: Path) -> None:
     write_contract_root(root, "synthetic")
 
 
+def write_payload_tree(root: Path, payloads: dict[str, bytes]) -> None:
+    for relative, payload in payloads.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+
+
+def course_evidence_records(
+    registration_payload: bytes,
+    runner_digest: str,
+    reservation_digest: str,
+) -> dict[str, dict[str, bytes]]:
+    course_times = {
+        "access-denied": "2026-08-13T16:00:00Z",
+        "device-flow-disabled": "2026-08-13T16:01:00Z",
+        "expired-token": "2026-08-13T16:02:00Z",
+        "slow-down": "2026-08-13T16:03:00Z",
+        "token-success": "2026-08-13T16:04:00Z",
+    }
+    outcomes = {
+        "access-denied": (
+            "device_code_success",
+            "authorization_pending",
+            "access_denied",
+        ),
+        "device-flow-disabled": ("device_flow_disabled",),
+        "expired-token": ("device_code_success", "expired_token"),
+        "slow-down": (
+            "device_code_success",
+            "authorization_pending",
+            "slow_down",
+        ),
+        "token-success": (
+            "device_code_success",
+            "authorization_pending",
+            "token_success",
+        ),
+    }
+    registration_digest = CAPTURE._sha256(registration_payload)
+    records: dict[str, dict[str, bytes]] = {}
+    for course in CAPTURE.ATTESTATION_COURSES:
+        executed_at = course_times[course]
+        bindings = {
+            "device_flow_transition_sha256": None,
+            "slow_down_reservation_sha256": (
+                reservation_digest if course == "slow-down" else None
+            ),
+        }
+        course_records = {"registration.json": registration_payload}
+        for outcome in outcomes[course]:
+            artifact = CAPTURE.sanitize_outcome(
+                outcome,
+                outcome_bodies()[outcome],
+                http_status=200,
+                captured_at_utc=executed_at,
+                source_kind="unattested_capture",
+                registration_record_sha256=registration_digest,
+            )
+            course_records[f"outcomes/{outcome}.json"] = CAPTURE.canonical_json(
+                artifact
+            )
+        if course == "token-success":
+            course_records["route-probes.json"] = CAPTURE.canonical_json(
+                CAPTURE.sanitize_route_probes(
+                    CAPTURE.expected_route_probes(),
+                    captured_at_utc=executed_at,
+                    source_kind="unattested_capture",
+                    registration_record_sha256=registration_digest,
+                )
+            )
+        if course == "device-flow-disabled":
+            transition = CAPTURE.canonical_json(
+                {
+                    "application_id": CAPTURE.APPROVED_APPLICATION_ID,
+                    "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
+                    "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+                    "observation_method": "attended_github_settings_page",
+                    "owner_login": "MikeMarcin",
+                    "public_client_id": CAPTURE.APPROVED_PUBLIC_CLIENT_ID,
+                    "schema_name": (
+                        "bpr.rfc0016.device_flow_transition_observation"
+                    ),
+                    "schema_version": 1,
+                    "states": [
+                        {
+                            "device_flow_enabled": True,
+                            "observed_at_utc": "2026-08-13T16:00:58Z",
+                            "phase": "before_enabled",
+                        },
+                        {
+                            "device_flow_enabled": False,
+                            "observed_at_utc": "2026-08-13T16:00:59Z",
+                            "phase": "disabled_for_capture",
+                        },
+                        {
+                            "device_flow_enabled": True,
+                            "observed_at_utc": "2026-08-13T16:01:01Z",
+                            "phase": "restored_enabled",
+                        },
+                    ],
+                }
+            )
+            course_records["device-flow-transition.json"] = transition
+            bindings["device_flow_transition_sha256"] = CAPTURE._sha256(transition)
+        course_records["course-execution.json"] = CAPTURE.canonical_json(
+            {
+                "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
+                "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+                "bindings": bindings,
+                "capture_runner_sha256": runner_digest,
+                "course": course,
+                "executed_at_utc": executed_at,
+                "registration_record_sha256": registration_digest,
+                "schema_name": "bpr.rfc0016.course_execution",
+                "schema_version": 1,
+            }
+        )
+        records[course] = course_records
+    return records
+
+
+def slow_down_authority_records(runner_digest: str) -> dict[str, bytes]:
+    authority = CAPTURE.canonical_json(
+        {
+            "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
+            "authority_id": CAPTURE.SLOW_DOWN_REPLACEMENT_AUTHORITY_ID,
+            "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+            "authorized_at_utc": "2026-08-13T16:02:58Z",
+            "course": "slow-down",
+            "previous_early_poll_consumed": True,
+            "replacement_early_poll_limit": 1,
+            "schema_name": "bpr.rfc0016.slow_down_replacement_authority",
+            "schema_version": 1,
+            "state": "replacement_authorized",
+        }
+    )
+    spent = CAPTURE.canonical_json(
+        {
+            "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
+            "authority_id": CAPTURE.SLOW_DOWN_REPLACEMENT_AUTHORITY_ID,
+            "authority_record_sha256": CAPTURE._sha256(authority),
+            "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+            "capture_runner_sha256": runner_digest,
+            "course": "slow-down",
+            "schema_name": "bpr.rfc0016.slow_down_reservation",
+            "schema_version": 1,
+            "spent_before_traffic_at_utc": "2026-08-13T16:02:59Z",
+            "state": "spent",
+        }
+    )
+    return {
+        CAPTURE.SLOW_DOWN_AUTHORITY_PATH: authority,
+        CAPTURE.SLOW_DOWN_SPENT_PATH: spent,
+    }
+
+
+def assembled_fixture(
+    course_records: dict[str, dict[str, bytes]],
+) -> dict[str, bytes]:
+    return CAPTURE._assemble_course_fixture(course_records)
+
+
+def unvalidated_assembled_fixture(
+    courses: dict[str, dict[str, bytes]],
+) -> dict[str, bytes]:
+    artifacts = {
+        "registration.json": courses["token-success"]["registration.json"],
+        "route-probes.json": courses["token-success"]["route-probes.json"],
+        "outcomes/access_denied.json": courses["access-denied"][
+            "outcomes/access_denied.json"
+        ],
+        "outcomes/authorization_pending.json": courses["slow-down"][
+            "outcomes/authorization_pending.json"
+        ],
+        "outcomes/device_code_success.json": courses["token-success"][
+            "outcomes/device_code_success.json"
+        ],
+        "outcomes/device_flow_disabled.json": courses["device-flow-disabled"][
+            "outcomes/device_flow_disabled.json"
+        ],
+        "outcomes/expired_token.json": courses["expired-token"][
+            "outcomes/expired_token.json"
+        ],
+        "outcomes/slow_down.json": courses["slow-down"][
+            "outcomes/slow_down.json"
+        ],
+        "outcomes/token_success.json": courses["token-success"][
+            "outcomes/token_success.json"
+        ],
+    }
+    artifacts["manifest.json"] = CAPTURE.canonical_json(
+        {
+            "artifacts": [
+                {
+                    "path": relative,
+                    "sha256": CAPTURE._sha256(payload),
+                    "source_kind": json.loads(payload)["provenance"][
+                        "source_kind"
+                    ],
+                }
+                for relative, payload in sorted(artifacts.items())
+            ],
+            "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
+            "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+            "schema_name": "bpr.rfc0016.device_capture_manifest",
+            "schema_version": 1,
+            "state": "unattested_capture",
+        }
+    )
+    return artifacts
+
+
+def live_run_attestation(
+    fixture_payloads: dict[str, bytes],
+    course_records: dict[str, dict[str, bytes]],
+    runner_digest: str,
+) -> bytes:
+    executions = {
+        course: json.loads(records["course-execution.json"])
+        for course, records in course_records.items()
+    }
+    return CAPTURE.canonical_json(
+        {
+            "artifacts": [
+                {
+                    "path": relative,
+                    "sha256": CAPTURE._sha256(payload),
+                }
+                for relative, payload in sorted(fixture_payloads.items())
+            ],
+            "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
+            "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+            "capture_runner_sha256": runner_digest,
+            "course_execution": {
+                course: {
+                    "bindings": execution["bindings"],
+                    "capture_runner_sha256": execution["capture_runner_sha256"],
+                    "executed_at_utc": execution["executed_at_utc"],
+                }
+                for course, execution in sorted(executions.items())
+            },
+            "course_tree_sha256": {
+                course: CAPTURE._course_tree_digest(records)
+                for course, records in sorted(course_records.items())
+            },
+            "schema_name": "bpr.rfc0016.live_run_attestation",
+            "schema_version": 1,
+            "state": "attended_runner_completed_unattested",
+        }
+    )
+
+
+def artifact_triple(path: Path, repository_root: Path) -> dict[str, object]:
+    payload = path.read_bytes()
+    return {
+        "byte_length": len(payload),
+        "path": path.relative_to(repository_root).as_posix(),
+        "sha256": CAPTURE._sha256(payload),
+    }
+
+
+def build_attestation_review(
+    repository_root: Path,
+    *,
+    mutate_evidence: Callable[
+        [dict[str, dict[str, bytes]], dict[str, bytes]],
+        None,
+    ]
+    | None = None,
+) -> tuple[Path, Path, Path]:
+    validator = repository_root / CAPTURE.ATTENDED_VALIDATOR_PATH
+    validator.parent.mkdir(parents=True)
+    validator.write_bytes(
+        (
+            REPOSITORY_ROOT
+            / CAPTURE.ATTENDED_VALIDATOR_PATH
+        ).read_bytes()
+    )
+    for asset_name in ("attended_review.css", "attended_review_runtime.js"):
+        asset = validator.parent.parent / "assets" / asset_name
+        asset.parent.mkdir(parents=True, exist_ok=True)
+        asset.write_bytes(
+            (
+                REPOSITORY_ROOT
+                / ".agents"
+                / "skills"
+                / "bpr-attended-review"
+                / "assets"
+                / asset_name
+            ).read_bytes()
+        )
+    runner = repository_root / CAPTURE.CAPTURE_RUNNER_PATH
+    runner.parent.mkdir(parents=True, exist_ok=True)
+    runner.write_bytes((REPOSITORY_ROOT / CAPTURE.CAPTURE_RUNNER_PATH).read_bytes())
+    runner_digest = CAPTURE._sha256(runner.read_bytes())
+    registration = CAPTURE.sanitize_registration(
+        registration_observation(CAPTURE.APPROVED_PUBLIC_CLIENT_ID),
+        captured_at_utc=CAPTURED_AT,
+        source_kind="unattested_capture",
+    )
+    registration_payload = CAPTURE.canonical_json(registration)
+    course_root = repository_root / "capture" / "courses"
+    authority_records = slow_down_authority_records(runner_digest)
+    write_payload_tree(course_root, authority_records)
+    course_records = course_evidence_records(
+        registration_payload,
+        runner_digest,
+        CAPTURE._sha256(authority_records[CAPTURE.SLOW_DOWN_SPENT_PATH]),
+    )
+    fixture_payloads = assembled_fixture(course_records)
+    if mutate_evidence is not None:
+        mutate_evidence(course_records, fixture_payloads)
+    for course, records in course_records.items():
+        write_payload_tree(course_root / course, records)
+    fixture_root = repository_root / "capture" / "fixture"
+    write_payload_tree(fixture_root, fixture_payloads)
+    attestation = repository_root / "capture" / "live-run-attestation.json"
+    attestation.write_bytes(
+        live_run_attestation(fixture_payloads, course_records, runner_digest)
+    )
+    review = (
+        repository_root
+        / "docs"
+        / "verification"
+        / "reviews"
+        / "rfc0016-attended-live-capture-v001"
+    )
+    review.mkdir(parents=True)
+    input_path = review / "offline-review-input.json"
+    identity_files = [
+        {
+            "label": f"fixture:{relative}",
+            "path": os.path.relpath(fixture_root / relative, review),
+        }
+        for relative in sorted(fixture_payloads)
+    ] + [
+        {
+            "label": f"course:{course}/{relative}",
+            "path": os.path.relpath(course_root / course / relative, review),
+        }
+        for course, records in sorted(course_records.items())
+        for relative in sorted(records)
+    ] + [
+        {
+            "label": f"authority:{relative}",
+            "path": os.path.relpath(course_root / relative, review),
+        }
+        for relative in (
+            CAPTURE.SLOW_DOWN_AUTHORITY_PATH,
+            CAPTURE.SLOW_DOWN_SPENT_PATH,
+        )
+    ] + [
+        {
+            "label": "attestation:live-run-attestation.json",
+            "path": os.path.relpath(attestation, review),
+        }
+    ]
+    input_path.write_bytes(
+        CAPTURE.canonical_json(
+            {
+                "downstream_claims": CAPTURE.ATTESTATION_DOWNSTREAM_CLAIMS,
+                "project_id": "betterpullreview",
+                "reference_disclaimer": CAPTURE.ATTESTATION_REFERENCE_DISCLAIMER,
+                "review_gate": CAPTURE.ATTESTATION_REVIEW_GATE,
+                "review_scope": CAPTURE.ATTESTATION_REVIEW_SCOPE,
+                "schema_name": "bpr.attended_review_batch_input",
+                "schema_version": 1,
+                "subjects": [
+                    {
+                        "ab_group": None,
+                        "acceptance_criteria": CAPTURE.ATTESTATION_ACCEPTANCE_CRITERIA,
+                        "audit_verdict": CAPTURE.ATTESTATION_AUDIT,
+                        "choice_group": None,
+                        "description": CAPTURE.ATTESTATION_DESCRIPTION,
+                        "detail_sections": [],
+                        "display_name": CAPTURE.ATTESTATION_DISPLAY_NAME,
+                        "identity_files": identity_files,
+                        "known_concerns": CAPTURE.ATTESTATION_KNOWN_CONCERNS,
+                        "media_groups": [],
+                        "subject_id": CAPTURE.ATTESTATION_SUBJECT_ID,
+                        "subject_key": CAPTURE.ATTESTATION_SUBJECT_KEY,
+                    }
+                ],
+                "title": CAPTURE.ATTESTATION_REVIEW_TITLE,
+            }
+        )
+    )
+    package = review / "offline-package"
+    subprocess.run(
+        [
+            sys.executable,
+            str(
+                REPOSITORY_ROOT
+                / CAPTURE.ATTENDED_VALIDATOR_PATH
+            ),
+            "build",
+            "--input",
+            str(input_path),
+            "--out",
+            str(package),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    manifest_path = package / "attended-review-manifest.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    subject = manifest["subjects"][0]
+    verdict_path = review / "human-verdict.json"
+    verdict_path.write_text(
+        json.dumps(
+            {
+                "schema_name": "bpr.attended_review_verdict",
+                "schema_version": 1,
+                "batch_id": manifest["batch_id"],
+                "review_gate": CAPTURE.ATTESTATION_REVIEW_GATE,
+                "review_scope": CAPTURE.ATTESTATION_REVIEW_SCOPE,
+                "accepted_subjects": [
+                    {
+                        "subject_id": subject["subject_id"],
+                        "subject_digest": subject["subject_digest"],
+                    }
+                ],
+                "rejected_subjects": [],
+                "notes_by_subject_identity": {},
+                "downstream_claims": CAPTURE.ATTESTATION_DOWNSTREAM_CLAIMS,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    validation_path = review / "verdict-validation.json"
+    validation_path.write_bytes(
+        CAPTURE.canonical_json(
+            {
+                "batch_id": manifest["batch_id"],
+                "capture_runner": artifact_triple(runner, repository_root),
+                "claims": CAPTURE.ATTESTATION_VALIDATION_CLAIMS,
+                "invocation": (
+                    f"python3 {CAPTURE.ATTENDED_VALIDATOR_PATH} validate-verdict "
+                    f"--manifest {manifest_path.relative_to(repository_root).as_posix()} "
+                    f"--verdict {verdict_path.relative_to(repository_root).as_posix()}"
+                ),
+                "manifest": artifact_triple(manifest_path, repository_root),
+                "official_validator": artifact_triple(validator, repository_root),
+                "outcome": "all_subjects_accepted",
+                "recorded_at": "2026-08-13T09:30:00-07:00",
+                "result": "valid complete verdict",
+                "review_input": artifact_triple(input_path, repository_root),
+                "review_page": artifact_triple(
+                    package / "index.html",
+                    repository_root,
+                ),
+                "review_gate": CAPTURE.ATTESTATION_REVIEW_GATE,
+                "review_scope": CAPTURE.ATTESTATION_REVIEW_SCOPE,
+                "schema_name": "bpr.attended_review_validation_record",
+                "schema_version": 1,
+                "verdict": artifact_triple(verdict_path, repository_root),
+            }
+        )
+    )
+    return fixture_root, course_root, review
+
+
+def rewrite_json(path: Path, document: object) -> None:
+    path.write_bytes(CAPTURE.canonical_json(document))
+
+
+def refresh_validation_triple(
+    review: Path,
+    repository_root: Path,
+    field: str,
+    path: Path,
+) -> None:
+    validation_path = review / "verdict-validation.json"
+    validation = json.loads(validation_path.read_bytes())
+    validation[field] = artifact_triple(path, repository_root)
+    rewrite_json(validation_path, validation)
+
+
 class CaptureContractTests(unittest.TestCase):
     def assert_rejected(self, action) -> None:
         with self.assertRaises(CAPTURE.ContractError) as caught:
@@ -276,6 +762,646 @@ class CaptureContractTests(unittest.TestCase):
                     root,
                     require_complete=True,
                 )
+            )
+
+    def test_exact_attended_review_admits_unattested_capture_via_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repository_root = Path(temporary).resolve()
+            fixture_root, course_root, review = build_attestation_review(
+                repository_root
+            )
+            with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                self.assertEqual(
+                    CAPTURE.validate_fixture_root(fixture_root),
+                    "unattested_capture",
+                )
+                self.assert_rejected(
+                    lambda: CAPTURE.validate_fixture_root(
+                        fixture_root,
+                        require_complete=True,
+                    )
+                )
+                self.assert_rejected(
+                    lambda: CAPTURE.validate_fixture_root(
+                        fixture_root,
+                        require_complete=True,
+                        attestation_review=review,
+                    )
+                )
+                with mock.patch.object(sys, "argv", [
+                    str(TOOL_PATH),
+                    "validate",
+                    "--fixture-root",
+                    str(fixture_root),
+                    "--require-complete",
+                    "--attestation-review",
+                    str(review),
+                    "--course-evidence-root",
+                    str(course_root),
+                ]):
+                    self.assertEqual(CAPTURE.main(), 0)
+
+    def test_attended_review_rejects_schema_verdict_and_claim_tampering(self) -> None:
+        mutations = (
+            ("manifest-unknown", "manifest", lambda value: value.update(extra=True)),
+            (
+                "identity-unknown",
+                "manifest",
+                lambda value: value["subjects"][0]["identity_files"][0].update(
+                    extra=True
+                ),
+            ),
+            (
+                "false-audit",
+                "manifest",
+                lambda value: value["subjects"][0]["audit_verdict"].update(
+                    status="fail"
+                ),
+            ),
+            (
+                "wrong-gate",
+                "verdict",
+                lambda value: value.update(review_gate="other_gate"),
+            ),
+            (
+                "rejected",
+                "verdict",
+                lambda value: (
+                    value["rejected_subjects"].extend(value["accepted_subjects"]),
+                    value["accepted_subjects"].clear(),
+                ),
+            ),
+            (
+                "wrong-claims",
+                "verdict",
+                lambda value: value["downstream_claims"].update(
+                    bpr_0276_closed=True
+                ),
+            ),
+            (
+                "boolean-integer-alias",
+                "validation",
+                lambda value: value.update(schema_version=True),
+            ),
+            (
+                "claim-integer-alias",
+                "validation",
+                lambda value: value["claims"].update(
+                    release_gate_satisfied=0
+                ),
+            ),
+        )
+        for name, artifact, mutate in mutations:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                repository_root = Path(temporary).resolve()
+                fixture_root, course_root, review = build_attestation_review(
+                    repository_root
+                )
+                paths = {
+                    "manifest": review / "offline-package" / "attended-review-manifest.json",
+                    "verdict": review / "human-verdict.json",
+                    "validation": review / "verdict-validation.json",
+                }
+                document = json.loads(paths[artifact].read_bytes())
+                mutate(document)
+                rewrite_json(paths[artifact], document)
+                if artifact != "validation":
+                    refresh_validation_triple(
+                        review,
+                        repository_root,
+                        artifact,
+                        paths[artifact],
+                    )
+                with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                    self.assert_rejected(
+                        lambda: CAPTURE.validate_fixture_root(
+                            fixture_root,
+                            require_complete=True,
+                            attestation_review=review,
+                            course_evidence_root=course_root,
+                        )
+                    )
+
+    def test_attended_review_rejects_identity_path_link_and_byte_drift(self) -> None:
+        mutations = (
+            "missing",
+            "extra",
+            "escape",
+            "symlink",
+            "fixture-bytes",
+            "course-bytes",
+            "authority-bytes",
+            "attestation-bytes",
+        )
+        for mutation in mutations:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                repository_root = Path(temporary).resolve()
+                fixture_root, course_root, review = build_attestation_review(
+                    repository_root
+                )
+                manifest_path = (
+                    review / "offline-package" / "attended-review-manifest.json"
+                )
+                manifest = json.loads(manifest_path.read_bytes())
+                identities = manifest["subjects"][0]["identity_files"]
+                identity_path = review / "offline-package" / identities[0]["path"]
+                if mutation == "missing":
+                    identities.pop(0)
+                    rewrite_json(manifest_path, manifest)
+                    refresh_validation_triple(
+                        review, repository_root, "manifest", manifest_path
+                    )
+                elif mutation == "extra":
+                    identities.append(copy.deepcopy(identities[0]))
+                    rewrite_json(manifest_path, manifest)
+                    refresh_validation_triple(
+                        review, repository_root, "manifest", manifest_path
+                    )
+                elif mutation == "escape":
+                    identities[0]["path"] = "../../../../capture/fixture/manifest.json"
+                    rewrite_json(manifest_path, manifest)
+                    refresh_validation_triple(
+                        review, repository_root, "manifest", manifest_path
+                    )
+                elif mutation == "symlink":
+                    identity_path.unlink()
+                    identity_path.symlink_to(fixture_root / "manifest.json")
+                elif mutation == "fixture-bytes":
+                    identity_path.write_bytes(identity_path.read_bytes() + b" ")
+                elif mutation == "course-bytes":
+                    course_identity = next(
+                        identity
+                        for identity in identities
+                        if identity["label"].startswith("course:")
+                    )
+                    course_path = (
+                        review / "offline-package" / course_identity["path"]
+                    )
+                    course_path.write_bytes(course_path.read_bytes() + b" ")
+                elif mutation == "authority-bytes":
+                    authority_identity = next(
+                        identity
+                        for identity in identities
+                        if identity["label"].startswith("authority:")
+                    )
+                    authority_path = (
+                        review / "offline-package" / authority_identity["path"]
+                    )
+                    authority_path.write_bytes(authority_path.read_bytes() + b" ")
+                else:
+                    attestation_path = (
+                        review / "offline-package" / identities[-1]["path"]
+                    )
+                    attestation_path.write_bytes(
+                        attestation_path.read_bytes() + b" "
+                    )
+                with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                    self.assert_rejected(
+                        lambda: CAPTURE.validate_fixture_root(
+                            fixture_root,
+                            require_complete=True,
+                            attestation_review=review,
+                            course_evidence_root=course_root,
+                        )
+                    )
+
+    def test_course_evidence_rejects_runner_tree_and_execution_fabrication(self) -> None:
+        mutations = (
+            "runner",
+            "course-runner",
+            "tree",
+            "execution",
+            "runner-triple",
+        )
+        for mutation in mutations:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                repository_root = Path(temporary).resolve()
+                fixture_root, course_root, review = build_attestation_review(
+                    repository_root
+                )
+                if mutation == "runner":
+                    runner = repository_root / CAPTURE.CAPTURE_RUNNER_PATH
+                    runner.write_bytes(runner.read_bytes() + b"\n")
+                elif mutation == "course-runner":
+                    execution_path = (
+                        course_root / "access-denied" / "course-execution.json"
+                    )
+                    execution = json.loads(execution_path.read_bytes())
+                    execution["capture_runner_sha256"] = "sha256:" + "0" * 64
+                    rewrite_json(execution_path, execution)
+                elif mutation == "tree":
+                    manifest = json.loads(
+                        (
+                            review
+                            / "offline-package"
+                            / "attended-review-manifest.json"
+                        ).read_bytes()
+                    )
+                    attestation_identity = next(
+                        identity
+                        for identity in manifest["subjects"][0]["identity_files"]
+                        if identity["label"]
+                        == "attestation:live-run-attestation.json"
+                    )
+                    attestation_path = (
+                        review / "offline-package" / attestation_identity["path"]
+                    )
+                    attestation = json.loads(attestation_path.read_bytes())
+                    attestation["course_tree_sha256"]["access-denied"] = (
+                        "sha256:" + "0" * 64
+                    )
+                    rewrite_json(attestation_path, attestation)
+                elif mutation == "execution":
+                    execution_path = (
+                        course_root / "access-denied" / "course-execution.json"
+                    )
+                    execution = json.loads(execution_path.read_bytes())
+                    execution["course"] = "slow-down"
+                    rewrite_json(execution_path, execution)
+                else:
+                    validation_path = review / "verdict-validation.json"
+                    validation = json.loads(validation_path.read_bytes())
+                    validation["capture_runner"]["sha256"] = "sha256:" + "0" * 64
+                    rewrite_json(validation_path, validation)
+                with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                    self.assert_rejected(
+                        lambda: CAPTURE.validate_fixture_root(
+                            fixture_root,
+                            require_complete=True,
+                            attestation_review=review,
+                            course_evidence_root=course_root,
+                        )
+                    )
+
+    def test_course_evidence_rejects_missing_extra_and_swapped_files(self) -> None:
+        mutations = (
+            "missing",
+            "extra",
+            "symlink",
+            "swapped",
+            "mixed-registration",
+        )
+        for mutation in mutations:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                repository_root = Path(temporary).resolve()
+                fixture_root, course_root, review = build_attestation_review(
+                    repository_root
+                )
+                access_pending = (
+                    course_root
+                    / "access-denied"
+                    / "outcomes"
+                    / "authorization_pending.json"
+                )
+                if mutation == "missing":
+                    access_pending.unlink()
+                elif mutation == "extra":
+                    (course_root / "access-denied" / "unexpected.json").write_text(
+                        "{}\n",
+                        encoding="utf-8",
+                    )
+                elif mutation == "symlink":
+                    access_pending.unlink()
+                    access_pending.symlink_to(
+                        course_root
+                        / "slow-down"
+                        / "outcomes"
+                        / "authorization_pending.json"
+                    )
+                elif mutation == "swapped":
+                    slow_pending = (
+                        course_root
+                        / "slow-down"
+                        / "outcomes"
+                        / "authorization_pending.json"
+                    )
+                    access_payload = access_pending.read_bytes()
+                    access_pending.write_bytes(slow_pending.read_bytes())
+                    slow_pending.write_bytes(access_payload)
+                else:
+                    foreign = CAPTURE.sanitize_registration(
+                        registration_observation(),
+                        captured_at_utc=CAPTURED_AT,
+                        source_kind="unattested_capture",
+                    )
+                    (course_root / "expired-token" / "registration.json").write_bytes(
+                        CAPTURE.canonical_json(foreign)
+                    )
+                with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                    self.assert_rejected(
+                        lambda: CAPTURE.validate_fixture_root(
+                            fixture_root,
+                            require_complete=True,
+                            attestation_review=review,
+                            course_evidence_root=course_root,
+                        )
+                    )
+
+    def test_course_evidence_rejects_changed_final_assembly_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repository_root = Path(temporary).resolve()
+            fixture_root, course_root, review = build_attestation_review(
+                repository_root
+            )
+            replacement = (
+                course_root
+                / "access-denied"
+                / "outcomes"
+                / "authorization_pending.json"
+            ).read_bytes()
+            (fixture_root / "outcomes/authorization_pending.json").write_bytes(
+                replacement
+            )
+            artifacts = {
+                relative: (fixture_root / relative).read_bytes()
+                for relative in CAPTURE.COMPLETE_ARTIFACTS
+            }
+            (fixture_root / "manifest.json").write_bytes(
+                CAPTURE.canonical_json(
+                    CAPTURE.build_manifest(sorted(artifacts.items()))
+                )
+            )
+            with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                self.assert_rejected(
+                    lambda: CAPTURE.validate_fixture_root(
+                        fixture_root,
+                        require_complete=True,
+                        attestation_review=review,
+                        course_evidence_root=course_root,
+                    )
+                )
+
+    def test_slow_down_authority_chain_rejects_missing_tampered_and_unbound_records(
+        self,
+    ) -> None:
+        mutations = (
+            "missing",
+            "extra",
+            "authority",
+            "authority-digest",
+            "time",
+            "runner",
+            "marker-binding",
+        )
+        for mutation in mutations:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                repository_root = Path(temporary).resolve()
+                fixture_root, course_root, review = build_attestation_review(
+                    repository_root
+                )
+                authority_path = course_root / CAPTURE.SLOW_DOWN_AUTHORITY_PATH
+                spent_path = course_root / CAPTURE.SLOW_DOWN_SPENT_PATH
+                if mutation == "missing":
+                    authority_path.unlink()
+                elif mutation == "extra":
+                    (course_root / "unexpected.json").write_text(
+                        "{}\n",
+                        encoding="utf-8",
+                    )
+                elif mutation == "authority":
+                    authority = json.loads(authority_path.read_bytes())
+                    authority["previous_early_poll_consumed"] = False
+                    rewrite_json(authority_path, authority)
+                elif mutation == "authority-digest":
+                    spent = json.loads(spent_path.read_bytes())
+                    spent["authority_record_sha256"] = "sha256:" + "0" * 64
+                    rewrite_json(spent_path, spent)
+                elif mutation == "time":
+                    spent = json.loads(spent_path.read_bytes())
+                    spent["spent_before_traffic_at_utc"] = "2026-08-13T16:03:01Z"
+                    rewrite_json(spent_path, spent)
+                elif mutation == "runner":
+                    spent = json.loads(spent_path.read_bytes())
+                    spent["capture_runner_sha256"] = "sha256:" + "0" * 64
+                    rewrite_json(spent_path, spent)
+                else:
+                    execution_path = (
+                        course_root / "slow-down" / "course-execution.json"
+                    )
+                    execution = json.loads(execution_path.read_bytes())
+                    execution["bindings"]["slow_down_reservation_sha256"] = (
+                        "sha256:" + "0" * 64
+                    )
+                    rewrite_json(execution_path, execution)
+                with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                    self.assert_rejected(
+                        lambda: CAPTURE.validate_fixture_root(
+                            fixture_root,
+                            require_complete=True,
+                            attestation_review=review,
+                            course_evidence_root=course_root,
+                        )
+                    )
+
+    def test_attended_review_rejects_changed_input_page_and_validator_proof(self) -> None:
+        mutations = ("input", "page", "validator", "self-authored-only")
+        for mutation in mutations:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                repository_root = Path(temporary).resolve()
+                fixture_root, course_root, review = build_attestation_review(
+                    repository_root
+                )
+                validation_path = review / "verdict-validation.json"
+                if mutation == "input":
+                    path = review / "offline-review-input.json"
+                    document = json.loads(path.read_bytes())
+                    document["review_scope"] = "other_scope"
+                    rewrite_json(path, document)
+                    refresh_validation_triple(
+                        review, repository_root, "review_input", path
+                    )
+                elif mutation == "page":
+                    path = review / "offline-package" / "index.html"
+                    path.write_bytes(path.read_bytes() + b"<!-- changed -->\n")
+                    refresh_validation_triple(
+                        review, repository_root, "review_page", path
+                    )
+                elif mutation == "validator":
+                    validation = json.loads(validation_path.read_bytes())
+                    validation["official_validator"]["sha256"] = "sha256:" + "0" * 64
+                    rewrite_json(validation_path, validation)
+                else:
+                    validation_path.unlink()
+                with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                    self.assert_rejected(
+                        lambda: CAPTURE.validate_fixture_root(
+                            fixture_root,
+                            require_complete=True,
+                            attestation_review=review,
+                            course_evidence_root=course_root,
+                        )
+                    )
+
+    def test_attestation_and_validation_triples_require_exact_integer_types(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            repository_root = Path(temporary).resolve()
+            fixture_root, course_root, review = build_attestation_review(
+                repository_root
+            )
+            validation_path = review / "verdict-validation.json"
+            validation = json.loads(validation_path.read_bytes())
+            validation["manifest"]["byte_length"] = True
+            rewrite_json(validation_path, validation)
+            with mock.patch.object(CAPTURE, "REPOSITORY_ROOT", repository_root):
+                fixture_payloads = {
+                    path.relative_to(fixture_root).as_posix(): path.read_bytes()
+                    for path in fixture_root.rglob("*")
+                    if path.is_file()
+                }
+                (
+                    _courses,
+                    _authority_records,
+                    executions,
+                    course_digests,
+                    runner_digest,
+                ) = CAPTURE._validate_course_evidence(
+                    course_root,
+                    fixture_payloads,
+                )
+                attestation = json.loads(
+                    (repository_root / "capture/live-run-attestation.json").read_bytes()
+                )
+                attestation["schema_version"] = True
+                self.assert_rejected(
+                    lambda: CAPTURE._validate_live_run_attestation(
+                        CAPTURE.canonical_json(attestation),
+                        fixture_payloads,
+                        executions=executions,
+                        course_digests=course_digests,
+                        runner_digest=runner_digest,
+                    )
+                )
+                self.assert_rejected(
+                    lambda: CAPTURE.validate_fixture_root(
+                        fixture_root,
+                        require_complete=True,
+                        attestation_review=review,
+                        course_evidence_root=course_root,
+                    )
+                )
+
+    def test_full_attended_path_rejects_boolean_schema_version_aliases(self) -> None:
+        def replace_registration(
+            courses: dict[str, dict[str, bytes]],
+            fixture: dict[str, bytes],
+        ) -> None:
+            registration = json.loads(
+                courses["token-success"]["registration.json"]
+            )
+            registration["schema_version"] = True
+            registration_payload = CAPTURE.canonical_json(registration)
+            registration_digest = CAPTURE._sha256(registration_payload)
+            for records in courses.values():
+                records["registration.json"] = registration_payload
+                for relative, payload in list(records.items()):
+                    if relative.startswith("outcomes/") or relative == "route-probes.json":
+                        document = json.loads(payload)
+                        document["provenance"]["registration_record_sha256"] = (
+                            registration_digest
+                        )
+                        records[relative] = CAPTURE.canonical_json(document)
+                execution = json.loads(records["course-execution.json"])
+                execution["registration_record_sha256"] = registration_digest
+                records["course-execution.json"] = CAPTURE.canonical_json(
+                    execution
+                )
+            fixture.clear()
+            fixture.update(unvalidated_assembled_fixture(courses))
+
+        def replace_course_schema(
+            course: str,
+            relative: str,
+        ) -> Callable[
+            [dict[str, dict[str, bytes]], dict[str, bytes]],
+            None,
+        ]:
+            def mutate(
+                courses: dict[str, dict[str, bytes]],
+                fixture: dict[str, bytes],
+            ) -> None:
+                document = json.loads(courses[course][relative])
+                document["schema_version"] = True
+                courses[course][relative] = CAPTURE.canonical_json(document)
+                fixture.clear()
+                fixture.update(unvalidated_assembled_fixture(courses))
+
+            return mutate
+
+        def replace_manifest(
+            _courses: dict[str, dict[str, bytes]],
+            fixture: dict[str, bytes],
+        ) -> None:
+            manifest = json.loads(fixture["manifest.json"])
+            manifest["schema_version"] = True
+            fixture["manifest.json"] = CAPTURE.canonical_json(manifest)
+
+        cases = (
+            ("registration", replace_registration),
+            (
+                "outcome",
+                replace_course_schema(
+                    "token-success",
+                    "outcomes/device_code_success.json",
+                ),
+            ),
+            (
+                "route-probes",
+                replace_course_schema("token-success", "route-probes.json"),
+            ),
+            ("manifest", replace_manifest),
+        )
+        for name, mutate_evidence in cases:
+            with (
+                self.subTest(name=name),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                repository_root = Path(temporary).resolve()
+                fixture_root, course_root, review = build_attestation_review(
+                    repository_root,
+                    mutate_evidence=mutate_evidence,
+                )
+                with mock.patch.object(
+                    CAPTURE,
+                    "REPOSITORY_ROOT",
+                    repository_root,
+                ):
+                    self.assert_rejected(
+                        lambda: CAPTURE.validate_fixture_root(
+                            fixture_root,
+                            require_complete=True,
+                            attestation_review=review,
+                            course_evidence_root=course_root,
+                        )
+                    )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            pending_root = Path(temporary)
+            pending = {
+                "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
+                "schema_name": "bpr.rfc0016.device_capture_state",
+                "schema_version": True,
+                "state": "pending_real_capture",
+            }
+            (pending_root / "pending.json").write_bytes(
+                CAPTURE.canonical_json(pending)
+            )
+            self.assert_rejected(
+                lambda: CAPTURE.validate_fixture_root(pending_root)
             )
 
     def test_provenance_and_manifest_bind_plain_authority_amendment(self) -> None:
