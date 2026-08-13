@@ -1,7 +1,7 @@
 ---
 id: BPR-0275
 title: Record RFC-BPR-0016 dependency and application authority
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -43,4 +43,5 @@ Collect digest-bound product-owner decisions before registration or code work.
 Both decisions are independent. A response to one grants no authority from the
 other.
 
-Status: `awaiting-user` for both exact statements.
+Status: both exact statements received on 2026-08-13; response preservation,
+validation, and the approved prerequisite-exception amendment are in progress.
