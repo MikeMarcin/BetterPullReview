@@ -2,8 +2,8 @@
 
 This directory contains the canonical, owned Dif source bytes for
 RFC-BPR-0019. The checked-in PNGs, not a prompt replay, are the source of truth.
-`generated/` is produced deterministically from these sources by
-`scripts/dif_assets.py` under BPR-0290.
+`generated/` is the committed deterministic runtime product of these sources,
+produced by `scripts/dif_assets.py` under BPR-0290.
 
 ## Authority and boundaries
 
@@ -63,7 +63,7 @@ Motion is deliberately minimal and deterministic:
 
 ## Maintainer commands
 
-Generate into a new empty directory while BPR-0289 is in source-only state:
+Generate a proposed product tree into a new empty directory:
 
 ```sh
 python3 scripts/dif_assets.py generate \
@@ -71,11 +71,14 @@ python3 scripts/dif_assets.py generate \
   --out <empty-output-directory>
 ```
 
-After BPR-0290 commits `generated/`, validate and reproduce it with:
+Validate the complete source/generated inventory and reproduce the committed
+tree twice in isolated temporary directories with:
 
 ```sh
 python3 scripts/dif_assets.py validate --assets src/adapters/qt/assets/dif
 python3 scripts/dif_assets.py verify --assets src/adapters/qt/assets/dif
+ctest --preset dev -R '^dif_assets_contract$' --output-on-failure
+ctest --preset core-only -R '^dif_assets_contract$' --output-on-failure
 ```
 
 Do not hand-edit generated strips or the descriptor. Change checked-in source

@@ -2,14 +2,16 @@
 
 RFC base: `58b5116f8706ac336664cc3fc39dabc66745a70d`
 
-Status: **pre-creation authority, deterministic tooling, and the original Dif
-source pack are implemented; committed generated products are next.** BPR-0288
-is done at `1a5c9b8`: its 18-case
-contract passes in developer and core-only configurations, and an independent
-scout closed its catalog-portability, neutral-body-box, and symlink-containment
-findings. The tooling consumes no supplied art and grants no reference or
-distribution authority. Historical or delegated observations remain provenance
-until replayed at the final closeout head.
+Status: **the original Dif source pack and deterministic generated sprite
+products are implemented; final source-rights and attended visual review are
+next.** BPR-0288 is done at `1a5c9b8`: its initial 18-case contract closed the
+catalog-portability, neutral-body-box, and symlink-containment findings.
+BPR-0290 extends that contract to 21 cases, including narrow compilation of
+both synthetic and production catalogs plus stale manifest and digest-inventory
+negatives, in developer and core-only selections. The tooling consumes no
+supplied art and grants no reference or distribution authority. Historical or
+delegated observations remain provenance until replayed at the final closeout
+head.
 
 ## Architecture allocation
 
@@ -25,10 +27,10 @@ until replayed at the final closeout head.
 | Acceptance claim | Planned direct evidence | Current disposition |
 |---|---|---|
 | Owned original source pack and exact rights | BPR-0287 pre-creation decision, BPR-0289 source hashes, BPR-0291 final rights subject and scoped foreign-material audit | Pre-creation authority and the exact 1024-pixel source inventory exist; final source rights and foreign-material audit remain BPR-0291 gates |
-| Byte-identical offline regeneration | BPR-0288 deterministic tool contract and BPR-0290 two-empty-tree/committed-tree comparison | Tool and synthetic byte-tree contract verified at `1a5c9b8`; production pack replay remains planned |
-| Exact three-clip manifest and fixed descriptor | Schema validator, hostile graph cases, and narrow generated-catalog compile consumer | Synthetic manifest/catalog contract verified at `1a5c9b8`; production pack compile consumer remains planned |
-| Transparent bounded registered runtime cells | Full cell/gutter/edge/body/baseline/travel/rate/frame/pixel/file validation and negative corpus | Source pack compiles through the production manifest with shared body bounds, baseline, center, and travel; committed-strip replay remains BPR-0290 |
-| Mechanical motion plus attended art direction | Seam/handoff mechanics and BPR-0291 five-subject immutable offline visual package | Planned; owner-attended |
+| Byte-identical offline regeneration | BPR-0288 deterministic tool contract and BPR-0290 two-empty-tree/committed-tree comparison | Production strips, catalog, and digest inventory reproduce byte for byte from two isolated empty trees; final closeout replay remains required |
+| Exact three-clip manifest and fixed descriptor | Schema validator, hostile graph cases, and narrow generated-catalog compile consumer | Production and synthetic catalogs compile in a C++20 consumer; stale manifest/catalog and digest inventory fail non-vacuously |
+| Transparent bounded registered runtime cells | Full cell/gutter/edge/body/baseline/travel/rate/frame/pixel/file validation and negative corpus | All three committed strips validate with six transparent gutters, nine declared cells, shared registration, and bounded budgets |
+| Mechanical motion plus attended art direction | Seam/handoff mechanics and BPR-0291 five-subject immutable offline visual package | Mechanical calm seam and greet handoff pass; owner-attended visual direction remains BPR-0291 |
 | Developer/core-only/tests-disabled isolation | Clean selected-graph builds, dependency/resource scans, and cut registration/tool-dependency negatives | Planned |
 | Complete honest documentation | BPR-0293 RFC-base path ledger and documentation gate | Planned |
 

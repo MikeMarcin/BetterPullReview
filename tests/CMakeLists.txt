@@ -275,6 +275,8 @@ bpr_add_network_isolated_test(
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/dif_asset_tests.py"
+        --cxx
+        "${CMAKE_CXX_COMPILER}"
 )
 
 bpr_add_network_isolated_test(

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -20,6 +22,66 @@ if SPEC is None or SPEC.loader is None:
 DIF = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = DIF
 SPEC.loader.exec_module(DIF)
+
+
+def _test_arguments(argv: list[str]) -> tuple[list[str], list[str]]:
+    unittest_argv = [argv[0]]
+    compiler: list[str] = []
+    index = 1
+    while index < len(argv):
+        if argv[index] == "--cxx":
+            if index + 1 >= len(argv):
+                raise RuntimeError("--cxx requires a compiler path")
+            compiler = [argv[index + 1]]
+            index += 2
+            continue
+        unittest_argv.append(argv[index])
+        index += 1
+    return unittest_argv, compiler
+
+
+UNITTEST_ARGV, CONFIGURED_CXX = _test_arguments(sys.argv)
+
+
+def cxx_command() -> list[str]:
+    if CONFIGURED_CXX:
+        return CONFIGURED_CXX
+    configured = os.environ.get("CXX")
+    if configured:
+        return shlex.split(configured)
+    discovered = shutil.which("c++") or shutil.which("clang++") or shutil.which("g++")
+    if discovered is None:
+        raise AssertionError("a C++ compiler is required for the catalog consumer test")
+    return [discovered]
+
+
+def compile_catalog(catalog: Path) -> subprocess.CompletedProcess[str]:
+    with tempfile.TemporaryDirectory(prefix="bpr-dif-catalog-") as directory:
+        root = Path(directory)
+        shutil.copy2(catalog, root / "dif-sprite-catalog.hpp")
+        consumer = root / "catalog-consumer.cpp"
+        consumer.write_text(
+            '#include "dif-sprite-catalog.hpp"\n'
+            "static_assert(bpr::adapters::qt::dif::kSchemaVersion == 1);\n"
+            "static_assert(bpr::adapters::qt::dif::kClips.size() == 3);\n"
+            "static_assert(bpr::adapters::qt::dif::kCellSize == 256);\n"
+            "int main() { return bpr::adapters::qt::dif::kClips[0].id.empty(); }\n",
+            encoding="utf-8",
+        )
+        command = cxx_command()
+        executable = Path(command[0]).name.lower()
+        if executable in {"cl", "cl.exe", "clang-cl", "clang-cl.exe"}:
+            arguments = [*command, "/nologo", "/std:c++20", "/Zs", str(consumer)]
+        else:
+            arguments = [
+                *command,
+                "-std=c++20",
+                "-fsyntax-only",
+                "-x",
+                "c++",
+                str(consumer),
+            ]
+        return subprocess.run(arguments, check=False, capture_output=True, text=True)
 
 
 def write_json(path: Path, value: object) -> None:
@@ -470,6 +532,24 @@ class DifAssetTests(unittest.TestCase):
         with self.assertRaisesRegex(DIF.AssetError, "stale"):
             DIF.validate_assets(self.root)
 
+    def test_rejects_stale_manifest_catalog_digest(self) -> None:
+        path = self.root / "dif-sprite-manifest.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["clips"][0]["accessible_description"] = (
+            "Dif breathes calmly as a decorative companion."
+        )
+        write_json(path, manifest)
+        with self.assertRaisesRegex(DIF.AssetError, "stale"):
+            DIF.validate_assets(self.root)
+
+    def test_rejects_stale_digest_inventory(self) -> None:
+        path = self.root / "generated/dif-sprite-digests.json"
+        inventory = json.loads(path.read_text(encoding="utf-8"))
+        inventory["output_sha256"]["dif-rest.png"] = "0" * 64
+        write_json(path, inventory)
+        with self.assertRaisesRegex(DIF.AssetError, "stale"):
+            DIF.validate_assets(self.root)
+
     def test_rejects_unlisted_asset_file(self) -> None:
         (self.root / "source/extra.png").write_bytes(DIF.encode_png(synthetic_frame(0)))
         with self.assertRaisesRegex(DIF.AssetError, "unexpected=.*extra"):
@@ -509,6 +589,22 @@ class DifAssetTests(unittest.TestCase):
         self.assertNotIn(b"source/", catalog)
         self.assertNotIn(str(self.root).encode("utf-8"), catalog)
 
+    def test_generated_catalog_compiles_in_narrow_consumers(self) -> None:
+        production = (
+            REPOSITORY_ROOT
+            / "src/adapters/qt/assets/dif/generated/dif-sprite-catalog.hpp"
+        )
+        self.assertTrue(production.is_file(), "the committed production catalog is absent")
+        catalogs = (self.root / "generated/dif-sprite-catalog.hpp", production)
+        for catalog in catalogs:
+            with self.subTest(catalog=catalog):
+                result = compile_catalog(catalog)
+                self.assertEqual(
+                    result.returncode,
+                    0,
+                    f"catalog consumer compilation failed:\n{result.stdout}{result.stderr}",
+                )
+
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(argv=UNITTEST_ARGV)
