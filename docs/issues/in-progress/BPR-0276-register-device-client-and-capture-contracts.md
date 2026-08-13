@@ -38,12 +38,28 @@ client and capture sanitized contracts from the endpoints the product will call.
 ## Current course
 
 The private GitHub App registration and selected-repository installation have
-occurred under attended observation. Hermetic capture/sanitization tooling is
-green, but the complete real-service contract set and read-only permission
-probes remain pending. Earlier fail-closed exploratory endpoint attempts
-published no fixture: one early poll observed `slow_down` without retaining a
-complete admissible course, and two expiry attempts retained nothing. A
-replacement early poll is not authorized by the current one-shot course.
+occurred under attended observation. The immutable attended runner captured and
+locally validated the real `expired_token` course and the token-success course,
+including all ten exact read-only Metadata, Contents smart-HTTP, Checks,
+pull-request REST, and review-thread GraphQL probes. Those two owner-private
+course roots remain transient until the complete five-course set is assembled,
+reviewed, and recorded; they do not yet satisfy the real-contract gate.
+
+The denial, disabled-setting, and `slow_down` courses remain pending explicit
+operator direction because they respectively revoke the current BPR-Test user
+authorization, temporarily disable and restore Device Flow, and spend one
+replacement early poll. The original early poll observed `slow_down` but its
+interrupted exploratory course retained no admissible fixture. No replacement
+poll is authorized yet.
+
+The hermetic sanitizer, attended runner, and exact external-attestation
+verifier are committed at `3b6d470`, `100f578`, and `910176c`. The verifier
+requires every final fixture byte, all five closed course trees, the exact
+runner bytes, the disabled-setting transition, the replacement-poll authority
+and spent marker, deterministic reassembly, and a genuine accepted
+BetterPullReview attended-review export. Its claim is deliberately limited to
+human acceptance of those exact sanitized bytes as attended run evidence; it
+does not claim cryptographic user, GitHub, or transport authenticity.
 
 The verification app is private and owner-only under
 `rfc0016-private-owner-only-2026-08-13`. This narrows the accepted registration
