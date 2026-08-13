@@ -53,6 +53,13 @@ replacement early poll. The original early poll observed `slow_down` but its
 interrupted exploratory course retained no admissible fixture. No replacement
 poll is authorized yet.
 
+The denial direction must also authorize one immediate fresh token-success
+course afterward. That course restores the BPR-Test user authorization and
+repeats only the same ten designated read-only probes; its closed root replaces
+the earlier token-success root in final assembly. The already valid earlier
+root remains preserved as intermediate evidence until closeout cleanup and is
+never silently deleted or represented as the post-denial restoration.
+
 The hermetic sanitizer, attended runner, and exact external-attestation
 verifier are committed at `3b6d470`, `100f578`, and `910176c`. The verifier
 requires every final fixture byte, all five closed course trees, the exact
