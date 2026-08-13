@@ -1,7 +1,7 @@
 ---
 id: BPR-0290
 title: Generate and mechanically verify Dif sprite assets
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0019
 depends_on: [BPR-0288, BPR-0289]
 ---
