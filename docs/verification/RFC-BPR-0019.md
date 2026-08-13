@@ -11,7 +11,9 @@ both synthetic and production catalogs plus stale manifest and digest-inventory
 negatives, in developer and core-only selections. The tooling consumes no
 supplied art and grants no reference or distribution authority. Historical or
 delegated observations remain provenance until replayed at the final closeout
-head.
+head. BPR-0294's behavior-preserving simplification is complete at `b5c183f`:
+its exact clean archive reproduces every generated and attended-preview byte
+and passes all 33 focused cases.
 
 ## Architecture allocation
 
@@ -27,7 +29,7 @@ head.
 | Acceptance claim | Planned direct evidence | Current disposition |
 |---|---|---|
 | Owned original source pack and exact rights | BPR-0287 pre-creation decision, BPR-0289 source hashes, BPR-0291 final rights subject and scoped foreign-material audit | Both exact attended authority decisions validate; final production-source rights and the scoped foreign-material audit are accepted for the bound asset bytes |
-| Byte-identical offline regeneration | BPR-0288 deterministic tool contract and BPR-0290 two-empty-tree/committed-tree comparison | Production strips, catalog, and digest inventory reproduce byte for byte from two isolated empty trees; final closeout replay remains required |
+| Byte-identical offline regeneration | BPR-0288 deterministic tool contract and BPR-0290 two-empty-tree/committed-tree comparison | Production strips, catalog, and digest inventory reproduce byte for byte from two isolated empty trees; BPR-0294 preserves generated tree digest `da65cd5231cf70c1964de3dc11226ad613506f94a452ebe4e31e207c40138ed6` and attended-preview tree digest `c29e92783869b4acce69cc5024fcc8603140b81b17747ef6f61cf446add0fa56` at `b5c183f`; final closeout replay remains required |
 | Exact three-clip manifest and fixed descriptor | Schema validator, hostile graph cases, and narrow generated-catalog compile consumer | Production and synthetic catalogs compile in a C++20 consumer; stale manifest/catalog and digest inventory fail non-vacuously |
 | Transparent bounded registered runtime cells | Full cell/gutter/edge/body/baseline/travel/rate/frame/pixel/file validation and negative corpus | All three committed strips validate with six transparent gutters, nine declared cells, shared registration, and bounded budgets |
 | Mechanical motion plus attended art direction | Seam/handoff mechanics and BPR-0291 five-subject immutable offline visual package | Mechanical calm seam and greet handoff pass; all five exact owner-attended visual subjects are accepted, with the plus/minus-card note preserved for downstream composition |
@@ -92,6 +94,8 @@ above.
 - The accepted identity subject notes that the plus/minus card should not be
   part of the core base sprite. RFC-BPR-0020 must preserve that downstream
   composition constraint or reopen the affected digest-bound asset decision.
+- BPR-0294 is complete at `b5c183f`; the simplification changes no generated,
+  preview, attended-review, schema, diagnostic, or rejection identity.
 - RFC-BPR-0006 is not Auto-Verified and its live closeout is BPR-0115.
 - RFC-BPR-0013 is not Auto-Verified and has no live terminal closeout card at
   the planning head; individual resilience fixes do not substitute for one.
