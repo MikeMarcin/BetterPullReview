@@ -31,7 +31,7 @@ head.
 | Exact three-clip manifest and fixed descriptor | Schema validator, hostile graph cases, and narrow generated-catalog compile consumer | Production and synthetic catalogs compile in a C++20 consumer; stale manifest/catalog and digest inventory fail non-vacuously |
 | Transparent bounded registered runtime cells | Full cell/gutter/edge/body/baseline/travel/rate/frame/pixel/file validation and negative corpus | All three committed strips validate with six transparent gutters, nine declared cells, shared registration, and bounded budgets |
 | Mechanical motion plus attended art direction | Seam/handoff mechanics and BPR-0291 five-subject immutable offline visual package | Mechanical calm seam and greet handoff pass; all five exact owner-attended visual subjects are accepted, with the plus/minus-card note preserved for downstream composition |
-| Developer/core-only/tests-disabled isolation | Clean selected-graph builds, dependency/resource scans, and cut registration/tool-dependency negatives | Planned |
+| Developer/core-only/tests-disabled isolation | Clean selected-graph builds, dependency/resource scans, and cut registration/tool-dependency negatives | BPR-0292 passes at `d402338`: 182 dev and 83 core-only tests, tests-disabled app build, source/binary/resource scans, and 33 nonvacuous asset/boundary cases are green |
 | Complete honest documentation | BPR-0293 RFC-base path ledger and documentation gate | Planned |
 
 Final replay records use the exact normalized acceptance-criterion text as
