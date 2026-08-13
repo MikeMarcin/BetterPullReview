@@ -2,11 +2,13 @@
 
 RFC base: `58b5116f8706ac336664cc3fc39dabc66745a70d`
 
-Status: **planned under an explicit post-pack implementation-frontier advance;
-production art awaits a digest-bound rights decision.** The offline tooling
-slice may proceed because it consumes no supplied art and grants no reference
-or distribution authority. Historical or delegated observations remain
-provenance until replayed at the final closeout head.
+Status: **deterministic offline tooling is implemented; production art awaits a
+digest-bound rights decision.** BPR-0288 is done at `1a5c9b8`: its 18-case
+contract passes in developer and core-only configurations, and an independent
+scout closed its catalog-portability, neutral-body-box, and symlink-containment
+findings. The tooling consumes no supplied art and grants no reference or
+distribution authority. Historical or delegated observations remain provenance
+until replayed at the final closeout head.
 
 ## Architecture allocation
 
@@ -22,8 +24,8 @@ provenance until replayed at the final closeout head.
 | Acceptance claim | Planned direct evidence | Current disposition |
 |---|---|---|
 | Owned original source pack and exact rights | BPR-0287 pre-creation decision, BPR-0289 source hashes, BPR-0291 final rights subject and scoped foreign-material audit | Planned; no ownership assertion is inferred from the implementation request |
-| Byte-identical offline regeneration | BPR-0288 deterministic tool contract and BPR-0290 two-empty-tree/committed-tree comparison | Planned |
-| Exact three-clip manifest and fixed descriptor | Schema validator, hostile graph cases, and narrow generated-catalog compile consumer | Planned |
+| Byte-identical offline regeneration | BPR-0288 deterministic tool contract and BPR-0290 two-empty-tree/committed-tree comparison | Tool and synthetic byte-tree contract verified at `1a5c9b8`; production pack replay remains planned |
+| Exact three-clip manifest and fixed descriptor | Schema validator, hostile graph cases, and narrow generated-catalog compile consumer | Synthetic manifest/catalog contract verified at `1a5c9b8`; production pack compile consumer remains planned |
 | Transparent bounded registered runtime cells | Full cell/gutter/edge/body/baseline/travel/rate/frame/pixel/file validation and negative corpus | Planned |
 | Mechanical motion plus attended art direction | Seam/handoff mechanics and BPR-0291 five-subject immutable offline visual package | Planned; owner-attended |
 | Developer/core-only/tests-disabled isolation | Clean selected-graph builds, dependency/resource scans, and cut registration/tool-dependency negatives | Planned |
