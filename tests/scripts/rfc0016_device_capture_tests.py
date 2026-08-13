@@ -39,6 +39,7 @@ SYNTHETIC_USER_CODE = "BPR1" + "-" + "TEST"
 EXPECTED_AUTHORITY_SUBJECT_SHA256 = (
     "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178"
 )
+EXPECTED_AUTHORITY_AMENDMENT_ID = "rfc0016-private-owner-only-2026-08-13"
 REQUIRED_OUTCOMES = (
     "access_denied",
     "authorization_pending",
@@ -217,6 +218,10 @@ class CaptureContractTests(unittest.TestCase):
             CAPTURE.AUTHORITY_SUBJECT_SHA256,
             EXPECTED_AUTHORITY_SUBJECT_SHA256,
         )
+        self.assertEqual(
+            CAPTURE.AUTHORITY_AMENDMENT_ID,
+            EXPECTED_AUTHORITY_AMENDMENT_ID,
+        )
         self.assertEqual(CAPTURE.OUTCOMES, REQUIRED_OUTCOMES)
         self.assertEqual(CAPTURE.REGISTRATION_PERMISSIONS, EXPECTED_PERMISSIONS)
         self.assertEqual(
@@ -273,6 +278,37 @@ class CaptureContractTests(unittest.TestCase):
                 )
             )
 
+    def test_provenance_and_manifest_bind_plain_authority_amendment(self) -> None:
+        artifacts = contract_artifacts("unattested_capture")
+        for payload in artifacts.values():
+            document = json.loads(payload)
+            self.assertEqual(
+                document["provenance"]["authority_amendment_id"],
+                EXPECTED_AUTHORITY_AMENDMENT_ID,
+            )
+        manifest = CAPTURE.build_manifest(list(artifacts.items()))
+        self.assertEqual(
+            manifest["authority_amendment_id"],
+            EXPECTED_AUTHORITY_AMENDMENT_ID,
+        )
+
+        registration = json.loads(artifacts["registration.json"])
+        registration["provenance"]["authority_amendment_id"] = "other-direction"
+        self.assert_rejected(
+            lambda: CAPTURE.validate_registration_artifact(
+                registration,
+                require_real=False,
+            )
+        )
+        manifest["authority_amendment_id"] = "other-direction"
+        self.assert_rejected(
+            lambda: CAPTURE._validate_manifest(
+                manifest,
+                artifacts,
+                require_real=False,
+            )
+        )
+
     def test_public_sanitizers_cannot_fabricate_real_capture_provenance(self) -> None:
         self.assert_rejected(
             lambda: CAPTURE.sanitize_registration(
@@ -309,6 +345,7 @@ class CaptureContractTests(unittest.TestCase):
                 }
                 for relative in CAPTURE.COMPLETE_ARTIFACTS
             ],
+            "authority_amendment_id": CAPTURE.AUTHORITY_AMENDMENT_ID,
             "authority_subject_sha256": CAPTURE.AUTHORITY_SUBJECT_SHA256,
             "schema_name": "bpr.rfc0016.device_capture_manifest",
             "schema_version": CAPTURE.SCHEMA_VERSION,

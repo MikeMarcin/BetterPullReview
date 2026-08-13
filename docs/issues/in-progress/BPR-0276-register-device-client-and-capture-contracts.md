@@ -15,7 +15,8 @@ client and capture sanitized contracts from the endpoints the product will call.
 
 - The registered owner, public client identifier, exact permission/scope set,
   installation policy, device-flow setting, and refresh policy match the
-  approved subject; no client secret is shipped or committed.
+  approved subject as narrowed by the recorded private/owner-only plain
+  operator amendment; no client secret is shipped or committed.
 - Sanitized real-service fixtures cover device-code success, token success,
   `authorization_pending`, one deliberately early bounded poll producing
   `slow_down`, denied, expired, and disabled responses. `slow_down` is the
@@ -36,6 +37,15 @@ client and capture sanitized contracts from the endpoints the product will call.
 
 ## Current course
 
-The hermetic capture/sanitization/provenance tooling is in progress. Actual
-GitHub App registration, installation, device/token endpoint traffic, and
-read-only permission probes remain attended and have not occurred.
+The private GitHub App registration and selected-repository installation have
+occurred under attended observation. Hermetic capture/sanitization tooling is
+green, but the complete real-service contract set and read-only permission
+probes remain pending. Earlier fail-closed exploratory endpoint attempts
+published no fixture: one early poll observed `slow_down` without retaining a
+complete admissible course, and two expiry attempts retained nothing. A
+replacement early poll is not authorized by the current one-shot course.
+
+The verification app is private and owner-only under
+`rfc0016-private-owner-only-2026-08-13`. This narrows the accepted registration
+authority; it does not establish an any-account production identity or permit
+production selection for other GitHub accounts.

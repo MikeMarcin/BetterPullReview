@@ -135,6 +135,17 @@ enterprise instance. That registration is an enterprise-administration action
 this RFC explicitly does not own. Until an instance supplies one, GHES
 profiles keep the manual token path and report `device_flow_unavailable`.
 
+### Private verification identity
+
+The owner later narrowed the BPR-0276 verification registration to a private,
+owner-only GitHub App in plain operator direction recorded as
+`rfc0016-private-owner-only-2026-08-13`. That reversible configuration choice
+does not widen the accepted permissions or traffic course. It permits
+implementation and owner-attended verification against `MikeMarcin/BPR-Test`,
+but it is not an any-account production identity. Production selection for
+other GitHub accounts and this RFC's closeout remain unavailable until an
+appropriate distributable identity exists.
+
 ## Architectural allocation
 
 - **Core:** owns the device-authorization interaction state as a bounded

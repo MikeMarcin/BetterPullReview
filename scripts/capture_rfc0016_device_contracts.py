@@ -26,6 +26,7 @@ SCHEMA_VERSION = 1
 AUTHORITY_SUBJECT_SHA256 = (
     "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178"
 )
+AUTHORITY_AMENDMENT_ID = "rfc0016-private-owner-only-2026-08-13"
 CAPTURE_TOOL = "scripts/capture_rfc0016_device_contracts.py"
 MAX_JSON_BYTES = 64 * 1024
 MAX_FIXTURE_BYTES = 512 * 1024
@@ -57,6 +58,7 @@ BASE64_VALUE = re.compile(r"^[A-Za-z0-9+/]{32,}={0,2}$")
 PUBLIC_CLIENT_ID_IN_TEXT = re.compile(r"\bIv1\.[A-Za-z0-9]{12,}\b")
 SAFE_LONG_VALUES = frozenset(
     {
+        AUTHORITY_AMENDMENT_ID,
         "expiring_user_token_with_refresh",
     }
 )
@@ -131,6 +133,13 @@ GRAPHQL_DOCUMENT = (
     "pageInfo{hasNextPage endCursor}}}}}"
 )
 GRAPHQL_VARIABLES = {"name": "BPR-Test", "number": 1, "owner": "MikeMarcin"}
+GIT_UPLOAD_PACK_BODY = (
+    b"0014command=ls-refs\n"
+    b"0015agent=git/2.43.0\n"
+    b"0001"
+    b"0014ref-prefix HEAD\n"
+    b"0000"
+)
 
 
 class ContractError(ValueError):
@@ -302,6 +311,7 @@ def _validate_provenance(
     registration_bound: bool,
 ) -> dict[str, object]:
     expected_keys = {
+        "authority_amendment_id",
         "authority_subject_sha256",
         "capture_tool",
         "captured_at_utc",
@@ -325,7 +335,8 @@ def _validate_provenance(
     ):
         raise ContractError("capture source is not admissible")
     if (
-        provenance["authority_subject_sha256"] != AUTHORITY_SUBJECT_SHA256
+        provenance["authority_amendment_id"] != AUTHORITY_AMENDMENT_ID
+        or provenance["authority_subject_sha256"] != AUTHORITY_SUBJECT_SHA256
         or provenance["capture_tool"] != CAPTURE_TOOL
         or provenance["observation"] != observation
         or provenance["service"] != "github.com"
@@ -350,6 +361,7 @@ def make_provenance(
     registration_record_sha256: str | None = None,
 ) -> dict[str, object]:
     provenance: dict[str, object] = {
+        "authority_amendment_id": AUTHORITY_AMENDMENT_ID,
         "authority_subject_sha256": AUTHORITY_SUBJECT_SHA256,
         "capture_tool": CAPTURE_TOOL,
         "captured_at_utc": captured_at_utc,
@@ -716,7 +728,7 @@ def expected_route_probes() -> list[dict[str, object]]:
             "smart_http",
             "POST",
             "https://github.com/MikeMarcin/BPR-Test.git/git-upload-pack",
-            "git-upload-pack-read",
+            GIT_UPLOAD_PACK_BODY.decode("ascii"),
         ),
         (
             "checks",
@@ -936,6 +948,7 @@ def _build_manifest(
         )
     return {
         "artifacts": entries,
+        "authority_amendment_id": AUTHORITY_AMENDMENT_ID,
         "authority_subject_sha256": AUTHORITY_SUBJECT_SHA256,
         "schema_name": "bpr.rfc0016.device_capture_manifest",
         "schema_version": SCHEMA_VERSION,
@@ -988,6 +1001,7 @@ def _validate_manifest(
         value,
         {
             "artifacts",
+            "authority_amendment_id",
             "authority_subject_sha256",
             "schema_name",
             "schema_version",
@@ -997,6 +1011,8 @@ def _validate_manifest(
     )
     if require_real:
         raise ContractError("external capture attestation is required")
+    if manifest["authority_amendment_id"] != AUTHORITY_AMENDMENT_ID:
+        raise ContractError("manifest authority amendment mismatch")
     source_kind_by_state = {
         "synthetic_contract_test": "synthetic",
         "unattested_capture": "unattested_capture",

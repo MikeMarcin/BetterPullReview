@@ -16,7 +16,7 @@ Final results must be replayed against the immutable closeout head.
 | Gate | State | Owner | Evidence required |
 |---|---|---|---|
 | Available-target implementation exception | Validated | BPR-0275 | Exact seven-fact response permits implementation/hermetic verification after application registration and real contracts; BPR-0035/BPR-0036 and final closeout remain mandatory |
-| Registered public application identity | Pending | BPR-0276 | Digest-bound owner authority is validated; selected application record, public client identifier, exact permissions, and no shipped client secret remain to be proven |
+| Registered private verification application identity | Pending | BPR-0276 | Digest-bound owner authority plus the later plain private/owner-only amendment are recorded; selected application record, public client identifier, exact permissions, and no shipped client secret remain to be proven |
 | Resolved application kind | Validated | BPR-0275 | Accepted GitHub App decision with exact installation, lifetime, refresh, permissions, and rejected OAuth-App rationale |
 | Real sanitized wire contracts | Pending | BPR-0276 | Actual selected-service success, pending, one bounded early-poll `slow_down`, denied, expired, and disabled capture; separately labeled synthetic malformed/truncated/duplicate/oversized hostile fixtures; secret-free evidence |
 | RFC-BPR-0002 Auto-Verified | Pending | BPR-0035/BPR-0036 | Direct real Windows x64 evidence and terminal RFC-BPR-0002 closeout; macOS, mocks, cross-compilation, and hosted workflows do not substitute |
@@ -31,6 +31,17 @@ Both byte-preserved responses have adjacent validation records committed by
 BPR-0275. The immutable packet files retain their decision-time `pending`
 labels; the records and this ledger are the canonical outcomes. Neither
 accepted authority proves a registered identity or captured wire contract.
+The later plain amendment
+[`rfc0016-private-owner-only-2026-08-13`](reviews/rfc0016-github-app-registration-v001/operator-amendment.md)
+narrows the verification identity to private/owner-only. It does not widen any
+permission or capture authority, and it does not establish the any-account
+production identity needed for distribution or RFC closeout.
+
+The originally authorized single early capture poll has been consumed: the
+service returned `slow_down`, but the interrupted exploratory course retained
+no admissible complete fixture. No replacement early poll may run unless the
+operator gives a new plain, narrowly scoped direction; the live runner must
+otherwise refuse before endpoint traffic.
 
 ## Permission inventory
 
