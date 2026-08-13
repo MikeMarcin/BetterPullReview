@@ -296,7 +296,11 @@ namespace bpr::qt {
 		StatusLabel->setAccessibleDescription(QStringLiteral(
 			"Selected file position, host failures, and review-history state in "
 			"text"));
-		StatusLabel->setWordWrap(true);
+		// QStatusBar temporarily hides this label for an action status tip. Keep
+		// both presentations on one compressible line so that swap cannot change
+		// the status bar's height and move the workbench beneath it.
+		StatusLabel->setWordWrap(false);
+		StatusLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		StatusLabel->setTextInteractionFlags(Qt::TextSelectableByKeyboard
 											 | Qt::TextSelectableByMouse);
 		statusBar()->addWidget(StatusLabel, 1);

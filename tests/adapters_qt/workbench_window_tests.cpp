@@ -29,6 +29,8 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
+#include <QStatusBar>
+#include <QStatusTipEvent>
 #include <QStringList>
 #include <QSysInfo>
 #include <QTextBlock>
@@ -700,6 +702,43 @@ namespace {
 		}
 		expect(window.findChildren<QToolBar*>().size() == 1,
 			   "every tested scale retains one compact navigation row");
+		window.hide();
+	}
+
+	void test_toolbar_status_tips_do_not_resize_the_workbench()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 720);
+		window.show();
+		QApplication::processEvents();
+
+		auto* const statusBar       = window.statusBar();
+		auto* const central         = window.centralWidget();
+		const auto  statusBarHeight = statusBar->height();
+		const auto  centralGeometry = central->geometry();
+		const auto  retainedStatus  = window.status_text();
+		auto        hover           = QStatusTipEvent{
+			window.files_drawer_toggle_action()->statusTip()
+		};
+		QApplication::sendEvent(&window, &hover);
+		QApplication::processEvents();
+
+		expect(statusBar->currentMessage()
+				   == window.files_drawer_toggle_action()->statusTip(),
+			   "toolbar hover presents the action's temporary status message");
+		expect(statusBar->height() == statusBarHeight
+				   && central->geometry() == centralGeometry,
+			   "toolbar hover leaves status-bar and central-surface geometry unchanged");
+
+		auto leave = QStatusTipEvent{ QString{ } };
+		QApplication::sendEvent(&window, &leave);
+		QApplication::processEvents();
+		expect(statusBar->currentMessage().isEmpty()
+				   && window.status_text() == retainedStatus,
+			   "leaving the toolbar restores the unchanged retained status");
+		expect(statusBar->height() == statusBarHeight
+				   && central->geometry() == centralGeometry,
+			   "leaving the toolbar preserves the same stable geometry");
 		window.hide();
 	}
 
@@ -3332,6 +3371,7 @@ auto main(int argc, char** argv) -> int
 	test_action_state_follows_core_command_projections();
 	test_compact_icon_row_preserves_exact_order_and_edges();
 	test_shell_accessibility_status_and_scale();
+	test_toolbar_status_tips_do_not_resize_the_workbench();
 	test_drawer_toggles_follow_core_command_projections();
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_review_details_return_height_to_the_comparison();
