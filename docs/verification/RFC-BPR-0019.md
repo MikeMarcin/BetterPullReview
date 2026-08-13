@@ -50,6 +50,9 @@ and delegated review disposition before any closeout checkbox changes.
 ## Closeout blockers
 
 - BPR-0287 has no returned rights decision at the planning head.
+- BPR-0287 now presents that pending decision through a deterministic,
+  identity-only offline attended-review page. Its complete exported verdict
+  remains required and must validate against the generated batch manifest.
 - BPR-0291 has no final rights or attended visual verdict at the planning head.
 - RFC-BPR-0006 is not Auto-Verified and its live closeout is BPR-0115.
 - RFC-BPR-0013 is not Auto-Verified and has no live terminal closeout card at

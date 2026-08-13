@@ -1,0 +1,86 @@
+{
+  "batch_id": "bpr:/attended-review/betterpullreview/844543906f4f8df462676ab0",
+  "downstream_claims": {
+    "final_source_rights_validated": false,
+    "package_release_approved": false,
+    "rfc_closeout_claimed": false,
+    "runtime_mascot_approved": false,
+    "visual_acceptance_granted": false
+  },
+  "project_id": "betterpullreview",
+  "reference_disclaimer": "The supplied Dif reference images and Nib bootstrap archive are not embedded in this package. Their exact SHA-256 digests and byte lengths are bound inside the copied decision subject. Accepting this subject authorizes only the pre-creation scope stated here; it does not accept any future artwork.",
+  "review_gate": "dif_precreation_asset_authority",
+  "review_scope": "precreation_asset_authority_only",
+  "schema_name": "bpr.attended_review_batch",
+  "schema_version": 1,
+  "subjects": [
+    {
+      "ab_group": "",
+      "acceptance_criteria": [
+        "You have creator/rightsholder capacity or delegated authority for every use in the bound subject.",
+        "The two supplied PNG identities match the exact names, SHA-256 digests, and byte lengths shown below.",
+        "BPR may use those exact images only as creative guidance for original Dif production sources and derivatives; it may not crop or ship the opaque references.",
+        "BPR receives the exact repository, source/binary/package, marketing, documentation, commercial/noncommercial, worldwide, perpetual, and sublicensable distribution authority stated in the subject.",
+        "OpenAI image generation, recorded manual edits, and checked-in deterministic offline transformation tooling are authorized; approved checked-in source bytes become production authority.",
+        "The Nib archive is process guidance only and grants no Nib, Mel, or AllTheThings art, code, name, identity, palette, dimension, timing, or branding reuse.",
+        "The authorized direction is an original compact purple-and-light Dif panda with a nonsemantic abstract plus/minus diff-card prop and a calm, supportive expression.",
+        "Final production-source rights validation and every visual or motion decision remain separate BPR-0291 attended gates."
+      ],
+      "audit_verdict": {
+        "note": "The bound decision subject and all three named external inputs were locally checked against the displayed SHA-256 digests and byte lengths before this package was built.",
+        "status": "pass"
+      },
+      "choice_group": "",
+      "description": "Accept or reject all eight facts as one decision. Acceptance is a representation that you are the creator/rightsholder of the supplied Dif identity and images, or are authorized by that creator/rightsholder to grant every stated use.",
+      "detail_sections": [
+        {
+          "heading": "Exact supplied inputs",
+          "items": [
+            {
+              "definition": "1,777,731 bytes; sha256:cf35d96198e20575069b3dd43edd352a04393e457970219738a9e888458729c0",
+              "term": "dif_ref_sheet.png"
+            },
+            {
+              "definition": "2,002,023 bytes; sha256:5859655aa4c39e50a7e3c522e48f8b34c48bd5749553089be95860e7f2d0f39e",
+              "term": "mascot_group.png"
+            },
+            {
+              "definition": "21,969 bytes; sha256:e924c69865ff2998fed3bc5981a405c46960a9ef561947ce64b99fa52e54aeef",
+              "term": "nib-animation-bootstrap.zip"
+            }
+          ],
+          "kind": "definitions"
+        },
+        {
+          "heading": "Decision boundary",
+          "items": [
+            "Accept exact subject: authorize creation under every fact above and in the identity-bound decision subject.",
+            "Reject exact subject: refuse this scope; add a note identifying the capacity, file identity, permission, distribution, notice, tool, foreign-identity, or later-gate fact that must change.",
+            "Clear decision: leave the gate unresolved and authorize nothing.",
+            "After deciding, copy the complete verdict JSON and return it to the requesting Codex task. The page cannot write repository evidence."
+          ],
+          "kind": "list"
+        }
+      ],
+      "display_name": "Authorize original Dif production-asset creation",
+      "identity_files": [
+        {
+          "label": "Dif pre-creation asset authority decision subject",
+          "media_kind": "file",
+          "path": "subjects/001-dif-precreation-authority-v1/identity/01-dif-pre-creation-asset-authority-decision-subject.txt",
+          "sha256": "sha256:d86ec61323c4f7304810253b392ed0482563b4f2f382fb64f4a7ff0b668a909d"
+        }
+      ],
+      "known_concerns": [
+        "Accepting does not validate or approve production artwork that does not yet exist.",
+        "Accepting does not approve runtime composition, packaging, release, or RFC closeout.",
+        "Rejecting or leaving this subject pending keeps BPR-0289 and all production-art work blocked."
+      ],
+      "media_groups": [],
+      "subject_digest": "sha256:850b6dead5226ce1a9e12a7a17d3a7d3f7826e6bfe328feeea64f85ba71b64a7",
+      "subject_id": "authority:/betterpullreview/rfc-bpr-0019/dif-precreation-v1",
+      "subject_key": "dif-precreation-authority-v1"
+    }
+  ],
+  "title": "Dif pre-creation asset authority (RFC-BPR-0019)"
+}

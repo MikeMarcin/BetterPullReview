@@ -1,0 +1,80 @@
+{
+  "schema_name": "bpr.attended_review_batch_input",
+  "schema_version": 1,
+  "project_id": "betterpullreview",
+  "title": "Dif pre-creation asset authority (RFC-BPR-0019)",
+  "review_gate": "dif_precreation_asset_authority",
+  "review_scope": "precreation_asset_authority_only",
+  "downstream_claims": {
+    "final_source_rights_validated": false,
+    "package_release_approved": false,
+    "rfc_closeout_claimed": false,
+    "runtime_mascot_approved": false,
+    "visual_acceptance_granted": false
+  },
+  "reference_disclaimer": "The supplied Dif reference images and Nib bootstrap archive are not embedded in this package. Their exact SHA-256 digests and byte lengths are bound inside the copied decision subject. Accepting this subject authorizes only the pre-creation scope stated here; it does not accept any future artwork.",
+  "subjects": [
+    {
+      "subject_id": "authority:/betterpullreview/rfc-bpr-0019/dif-precreation-v1",
+      "subject_key": "dif-precreation-authority-v1",
+      "display_name": "Authorize original Dif production-asset creation",
+      "description": "Accept or reject all eight facts as one decision. Acceptance is a representation that you are the creator/rightsholder of the supplied Dif identity and images, or are authorized by that creator/rightsholder to grant every stated use.",
+      "acceptance_criteria": [
+        "You have creator/rightsholder capacity or delegated authority for every use in the bound subject.",
+        "The two supplied PNG identities match the exact names, SHA-256 digests, and byte lengths shown below.",
+        "BPR may use those exact images only as creative guidance for original Dif production sources and derivatives; it may not crop or ship the opaque references.",
+        "BPR receives the exact repository, source/binary/package, marketing, documentation, commercial/noncommercial, worldwide, perpetual, and sublicensable distribution authority stated in the subject.",
+        "OpenAI image generation, recorded manual edits, and checked-in deterministic offline transformation tooling are authorized; approved checked-in source bytes become production authority.",
+        "The Nib archive is process guidance only and grants no Nib, Mel, or AllTheThings art, code, name, identity, palette, dimension, timing, or branding reuse.",
+        "The authorized direction is an original compact purple-and-light Dif panda with a nonsemantic abstract plus/minus diff-card prop and a calm, supportive expression.",
+        "Final production-source rights validation and every visual or motion decision remain separate BPR-0291 attended gates."
+      ],
+      "known_concerns": [
+        "Accepting does not validate or approve production artwork that does not yet exist.",
+        "Accepting does not approve runtime composition, packaging, release, or RFC closeout.",
+        "Rejecting or leaving this subject pending keeps BPR-0289 and all production-art work blocked."
+      ],
+      "audit_verdict": {
+        "status": "pass",
+        "note": "The bound decision subject and all three named external inputs were locally checked against the displayed SHA-256 digests and byte lengths before this package was built."
+      },
+      "media_groups": [],
+      "detail_sections": [
+        {
+          "heading": "Exact supplied inputs",
+          "kind": "definitions",
+          "items": [
+            {
+              "term": "dif_ref_sheet.png",
+              "definition": "1,777,731 bytes; sha256:cf35d96198e20575069b3dd43edd352a04393e457970219738a9e888458729c0"
+            },
+            {
+              "term": "mascot_group.png",
+              "definition": "2,002,023 bytes; sha256:5859655aa4c39e50a7e3c522e48f8b34c48bd5749553089be95860e7f2d0f39e"
+            },
+            {
+              "term": "nib-animation-bootstrap.zip",
+              "definition": "21,969 bytes; sha256:e924c69865ff2998fed3bc5981a405c46960a9ef561947ce64b99fa52e54aeef"
+            }
+          ]
+        },
+        {
+          "heading": "Decision boundary",
+          "kind": "list",
+          "items": [
+            "Accept exact subject: authorize creation under every fact above and in the identity-bound decision subject.",
+            "Reject exact subject: refuse this scope; add a note identifying the capacity, file identity, permission, distribution, notice, tool, foreign-identity, or later-gate fact that must change.",
+            "Clear decision: leave the gate unresolved and authorize nothing.",
+            "After deciding, copy the complete verdict JSON and return it to the requesting Codex task. The page cannot write repository evidence."
+          ]
+        }
+      ],
+      "identity_files": [
+        {
+          "label": "Dif pre-creation asset authority decision subject",
+          "path": "decision-subject.txt"
+        }
+      ]
+    }
+  ]
+}
