@@ -1,7 +1,7 @@
 ---
 id: BPR-0276
 title: Register the device client and capture real wire contracts
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0016
 depends_on: [BPR-0275]
 ---

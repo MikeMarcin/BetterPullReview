@@ -15,9 +15,9 @@ Final results must be replayed against the immutable closeout head.
 
 | Gate | State | Owner | Evidence required |
 |---|---|---|---|
-| Available-target implementation exception | Approved; recording validation | BPR-0275 | Exact seven-fact response permits implementation/hermetic verification after application registration and real contracts; BPR-0035/BPR-0036 and final closeout remain mandatory |
-| Registered public application identity | Pending | BPR-0275/BPR-0276 | Digest-bound owner authority, selected application record, public client identifier, exact permissions, and no shipped client secret |
-| Resolved application kind | Approved; recording validation | BPR-0275 | Accepted GitHub App decision with exact installation, lifetime, refresh, permissions, and rejected OAuth-App rationale |
+| Available-target implementation exception | Validated | BPR-0275 | Exact seven-fact response permits implementation/hermetic verification after application registration and real contracts; BPR-0035/BPR-0036 and final closeout remain mandatory |
+| Registered public application identity | Pending | BPR-0276 | Digest-bound owner authority is validated; selected application record, public client identifier, exact permissions, and no shipped client secret remain to be proven |
+| Resolved application kind | Validated | BPR-0275 | Accepted GitHub App decision with exact installation, lifetime, refresh, permissions, and rejected OAuth-App rationale |
 | Real sanitized wire contracts | Pending | BPR-0276 | Actual selected-service success, pending, one bounded early-poll `slow_down`, denied, expired, and disabled capture; separately labeled synthetic malformed/truncated/duplicate/oversized hostile fixtures; secret-free evidence |
 | RFC-BPR-0002 Auto-Verified | Pending | BPR-0035/BPR-0036 | Direct real Windows x64 evidence and terminal RFC-BPR-0002 closeout; macOS, mocks, cross-compilation, and hosted workflows do not substitute |
 
@@ -27,9 +27,10 @@ packet can authorize available-target implementation only. It cannot verify or
 remove the fourth final-closeout gate. The independent
 [`rfc0016-github-app-registration-v001`](reviews/rfc0016-github-app-registration-v001/operator-packet.md)
 packet authorizes only the exact registration and bounded capture it names.
-Both byte-preserved responses await their adjacent validation records in
-BPR-0275; neither response by itself proves a registered identity or captured
-wire contract.
+Both byte-preserved responses have adjacent validation records committed by
+BPR-0275. The immutable packet files retain their decision-time `pending`
+labels; the records and this ledger are the canonical outcomes. Neither
+accepted authority proves a registered identity or captured wire contract.
 
 ## Permission inventory
 
@@ -101,8 +102,8 @@ immutable final-head platform replay is the closeout result.
 
 | Claim set | Exact command or attended interaction | Proof condition | Result | Durable evidence | Commit |
 |---|---|---|---|---|---|
-| Eligibility exception | Quote the exact statement in `reviews/rfc0016-prerequisite-exception-v001/operator-packet.md` | Subject digest and all seven facts match; no adjacent authority inferred | Approved; validation record pending | `reviews/rfc0016-prerequisite-exception-v001/operator-response.md` | Pending response commit |
-| Registration authority | Quote the exact statement in `reviews/rfc0016-github-app-registration-v001/operator-packet.md` | Exact GitHub App owner/configuration/permissions/capture boundary; no mutation, release, distribution, GHES, or secret-bearing evidence inferred | Approved; validation record pending | `reviews/rfc0016-github-app-registration-v001/operator-response.md` | Pending response commit |
+| Eligibility exception | Quote the exact statement in `reviews/rfc0016-prerequisite-exception-v001/operator-packet.md`; run `validate_operator_packet.py --validate-existing` against the adjacent record at its committed record identity | Subject digest and all seven facts match; no adjacent authority inferred | Passed: `OPERATOR_RESPONSE_VALID:rfc0016-prerequisite-exception-v001` | `reviews/rfc0016-prerequisite-exception-v001/operator-response.md` and adjacent `validation-record.json` | Authority `e36c2b4aff66f59fe17d3cb1349e13071543bd53`; record `7f74b9f404d858991ee0a96421e7da3829bcd891` |
+| Registration authority | Quote the exact statement in `reviews/rfc0016-github-app-registration-v001/operator-packet.md`; run `validate_operator_packet.py --validate-existing` against the adjacent record at its committed record identity | Exact GitHub App owner/configuration/permissions/capture boundary; no mutation, release, distribution, GHES, or secret-bearing evidence inferred | Passed: `OPERATOR_RESPONSE_VALID:rfc0016-github-app-registration-v001` | `reviews/rfc0016-github-app-registration-v001/operator-response.md` and adjacent `validation-record.json` | Authority `e36c2b4aff66f59fe17d3cb1349e13071543bd53`; record `7f74b9f404d858991ee0a96421e7da3829bcd891` |
 | Registered identity and real capture | Perform BPR-0276's exact bounded attended course under the accepted registration authority | Exact configured public client; real success/pending/one early-poll `slow_down`/denied/expired/disabled; synthetic hostile bodies labeled; no secrets | Pending | BPR-0276 registration record and fixture provenance | Pending |
 | Focused semantic/host/wire/Qt/product matrix | `cmake --preset dev --fresh && cmake --build --preset dev --clean-first && python3 scripts/verify_rfc0016_test_inventory.py --build-dir build/dev && ctest --test-dir build/dev --output-on-failure -R '^(core_device_authorization|application_device_authorization_host|github_device_authorization_contract|native_https_device_authorization_(contract|fixture)|qt_device_authorization_scale_(100|125|200)|application_device_authorization_(public_path|unavailable|release_contract))$'` | Fresh build identity is recorded; inventory requires every exact selector before CTest; all pass and negative cuts fail if boundary, cleanup, authority, display, refresh, or selection is bypassed | Pending | This row plus fresh build identity, inventory output, final CTest summary, and exact fixture paths | Pending |
 | Core-only matrix | `cmake --preset core-only --fresh && cmake --build --preset core-only --clean-first && ctest --preset core-only --output-on-failure` | Fresh core builds/tests without Qt/provider/effect dependencies | Pending | This row, fresh build identity, final counts, and failing-if-wrong core selectors | Pending |

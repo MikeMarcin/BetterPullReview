@@ -1,7 +1,7 @@
 ---
 id: BPR-0275
 title: Record RFC-BPR-0016 dependency and application authority
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -35,7 +35,7 @@ Collect digest-bound product-owner decisions before registration or code work.
 - No client identifier, endpoint response, token, device/user code, or product
   enablement is introduced by this card.
 
-## Pending packets
+## Decision packets
 
 - `docs/verification/reviews/rfc0016-prerequisite-exception-v001/`
 - `docs/verification/reviews/rfc0016-github-app-registration-v001/`
@@ -43,8 +43,9 @@ Collect digest-bound product-owner decisions before registration or code work.
 Both decisions are independent. A response to one grants no authority from the
 other.
 
-Status: both exact statements received on 2026-08-13; response preservation,
-validation, and the approved prerequisite-exception amendment are in progress.
+The packet files remain immutable decision-time evidence, including their
+original `pending` labels. Canonical outcomes are the adjacent byte-preserved
+responses and validation records.
 
 ## Accepted decisions
 
@@ -58,3 +59,16 @@ validation, and the approved prerequisite-exception amendment are in progress.
   `sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178`.
   Repository mutation, release/distribution, GHES registration, and
   secret-bearing evidence remain unauthorized.
+
+## Result
+
+- Response/authority commit:
+  `e36c2b4aff66f59fe17d3cb1349e13071543bd53`.
+- Validation-record commit:
+  `7f74b9f404d858991ee0a96421e7da3829bcd891`.
+- Both records replayed with `OPERATOR_RESPONSE_VALID`; the record commit
+  differs from its authority parent only by the two adjacent
+  `validation-record.json` files.
+- The prerequisite exception, RFC eligibility wording, and BPR-0276 dependency
+  changed atomically with the preserved responses. No registration, traffic,
+  credentials, codes, endpoint response, or product enablement occurred.
