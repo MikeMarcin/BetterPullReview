@@ -10,12 +10,15 @@ depends_on: [BPR-0279, BPR-0280]
 
 ## Required final state
 
-- The tests-disabled shipped application composes the registered GitHub.com
-  device path behind explicit per-platform capability selection and reaches the
-  existing profile enrollment/vault path in its tests-enabled recorded course.
+- The tests-disabled shipped application composes the visible device choice
+  and explicit per-platform capability boundary without a client identifier;
+  it returns `device_flow_unavailable` before request construction. The tests-
+  enabled recorded course composes the private verification client and reaches
+  the existing profile enrollment/vault path.
 - Production macOS, Linux, and Windows all remain visibly
   `device_flow_unavailable` with zero requests in this slice. BPR-0282 owns the
-  same-slice macOS enablement and final rerun after native proof passes.
+  complete macOS native/security proof while unavailable; BPR-0318 separately
+  owns a distributable identity, the macOS enablement, and the final rerun.
 - BPR-0310 and BPR-0311 respectively own the same-slice Linux and Windows
   production enablement plus complete target-native rerun. Build target or card
   folder movement alone never enables the capability.

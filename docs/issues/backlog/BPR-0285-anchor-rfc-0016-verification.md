@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311, BPR-0318]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -15,9 +15,9 @@ RFC base: `b969554fb45d838b2a4ea11811363bd7e158e47e`.
 This is the terminal anchor for the first RFC in the requested sequence:
 RFC-BPR-0016, then RFC-BPR-0017, then remaining unattended macOS-ready work.
 Its planned membership is exactly BPR-0274 through BPR-0285, target-native
-platform cards BPR-0310/BPR-0311, plus pre-existing RFC-BPR-0002 closeout
-BPR-0035/BPR-0036. Any newly discovered required work is added explicitly to
-this dependency closure before closeout.
+platform cards BPR-0310/BPR-0311, distributable-identity card BPR-0318, plus
+pre-existing RFC-BPR-0002 closeout BPR-0035/BPR-0036. Any newly discovered
+required work is added explicitly to this dependency closure before closeout.
 
 Historical runs are provenance only. Every row requires final replay at the
 immutable closeout head and an independent capability-critical review.
@@ -56,6 +56,9 @@ planned selectors only by updating that ledger and this anchor atomically.
       terminal in dependency order.
 - [ ] Security/hostile/public/Release and every claimed supported-platform
       target-native matrix is terminal; unavailable platforms remain explicit.
+- [ ] BPR-0318 records a distributable production identity before any platform
+      becomes available; the private owner-only verification identity is never
+      treated as distribution authority.
 - [ ] Simplification is terminal before the final documentation impact review.
 - [ ] Every documentation-ledger row in
       `docs/verification/RFC-BPR-0016.md` is updated or has an exact no-impact
@@ -64,8 +67,9 @@ planned selectors only by updating that ledger and this anchor atomically.
       immutable closeout head.
 - [ ] The idempotent `verify_rfc0016_platform_course.py` final-head course passes
       with `--expected-device-selection enabled --fresh` on macOS, Linux, and
-      Windows after every implementation, simplification, documentation, and
-      platform card is terminal; one-time flip records are provenance only.
+      Windows after BPR-0318 and every implementation, simplification,
+      documentation, and platform card is terminal; one-time flip records are
+      provenance only.
 - [ ] Only after every row is satisfied, the RFC status, index, verification
       ledger, and issue board transition atomically to `Auto-Verified`/terminal.
 
@@ -73,8 +77,8 @@ planned selectors only by updating that ledger and this anchor atomically.
 
 - [ ] BPR-0035 records RFC-BPR-0002 Auto-Verified after BPR-0036's real Windows
       x64 evidence; no available-platform substitute is counted.
-- [ ] BPR-0275 through BPR-0284 are terminal and the documentation impact ledger
-      is resolved against the immutable base.
+- [ ] BPR-0275 through BPR-0284 and BPR-0318 are terminal and the documentation
+      impact ledger is resolved against the immutable base.
 - [ ] Clean `dev`, `core-only`, sanitizer, tests-disabled Release, focused native
       HTTPS/Qt/application, format, strict tidy, documentation, dependency,
       runtime, secret-scan, and diff gates pass at the closeout head.
