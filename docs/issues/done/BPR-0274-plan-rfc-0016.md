@@ -1,7 +1,7 @@
 ---
 id: BPR-0274
 title: Plan RFC-BPR-0016 implementation and verification
-status: In Progress
+status: Done
 rfc: RFC-BPR-0016
 depends_on: []
 ---
@@ -46,3 +46,20 @@ for the GitHub device-authorization RFC before any implementation begins.
   build selection, and operator guidance.
 - Pending attended and external gates are explicit, digest-bound, and grant no
   implementation or remote authority by implication.
+
+## Result
+
+- Recorded the immutable RFC base and the product-owner-requested RFC order in
+  the RFC-BPR-0016 issue plan.
+- Allocated BPR-0275 through BPR-0285 for eligibility, real-service contracts,
+  core policy, GitHub transport, application orchestration, Qt presentation,
+  composition, security verification, documentation, simplification, and
+  capability-critical closeout.
+- Kept the RFC `Deferred`: neither the unresolved RFC-BPR-0002 closeout nor the
+  application-registration and real-service-fixture gates was inferred away.
+- Mapped every acceptance criterion to a falsifiable final-head row on
+  BPR-0285 and recorded affected documentation surfaces.
+- Recorded the scheduler-capacity defect encountered during planning: the
+  runtime advertised ten child slots but rejected a third live child both at
+  the root and through a running worker. Two read-only lanes ran concurrently;
+  remaining planning work continued locally without widening write ownership.
