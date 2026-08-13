@@ -1,7 +1,7 @@
 ---
 id: BPR-0291
 title: Record final Dif rights and attended visual verdicts
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0019
 depends_on: [BPR-0290]
 ---
