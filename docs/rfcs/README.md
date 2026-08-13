@@ -60,7 +60,13 @@ closeout, and remain deferred until their eligibility gates exist:
 | [RFC-BPR-0015](future/RFC-BPR-0015-github-cli-production-enablement.md) | GitHub CLI Production Enablement | Deferred | RFC-BPR-0014 closed and official `gh` supplies the required safety contract |
 | [RFC-BPR-0016](future/RFC-BPR-0016-github-device-authorization-flow.md) | GitHub Device Authorization Flow | Deferred | RFC-BPR-0002 closed and the product owner registers a device-flow application identity |
 | [RFC-BPR-0017](future/RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Deferred | RFC-BPR-0002 closed, recorded anonymous-access probe evidence, and a product decision that the mode is wanted |
+| [RFC-BPR-0018](future/RFC-BPR-0018-robust-settings-center.md) | Robust Settings Center and Preference Ownership | Deferred | RFC-BPR-0014 closed or an explicit post-pack frontier exception, plus a complete existing-setting authority and persistence inventory |
 
 RFC-BPR-0016 and RFC-BPR-0017 address the same operator complaint by opposite
 routes and are alternatives rather than companions. RFC-BPR-0017 records why
 RFC-BPR-0016 is the stronger answer.
+
+RFC-BPR-0018 adopts the interaction system of the product owner's
+AllTheThings settings center while preserving BetterPullReview's typed domain
+ownership. It is a presentation and preference-orchestration RFC, not authority
+to copy unrelated AllTheThings settings or to centralize domain state.
