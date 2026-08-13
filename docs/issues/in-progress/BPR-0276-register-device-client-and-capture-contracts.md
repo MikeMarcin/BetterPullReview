@@ -1,7 +1,7 @@
 ---
 id: BPR-0276
 title: Register the device client and capture real wire contracts
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0016
 depends_on: [BPR-0275]
 ---
@@ -33,3 +33,9 @@ client and capture sanitized contracts from the endpoints the product will call.
   as configured in the registration but no POST is sent; actual review-comment
   publication belongs to the separate identity-bound designated-live packet and
   cannot be inferred from this card.
+
+## Current course
+
+The hermetic capture/sanitization/provenance tooling is in progress. Actual
+GitHub App registration, installation, device/token endpoint traffic, and
+read-only permission probes remain attended and have not occurred.
