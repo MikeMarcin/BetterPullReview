@@ -302,6 +302,13 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME rfc0016_device_capture_security
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_device_capture_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME test_network_isolation_structure_contract
     COMMAND
         Python3::Interpreter

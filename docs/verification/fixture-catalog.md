@@ -83,6 +83,59 @@ duplicate JSON members and encoded secret/path/email/foreign-authority
 bypasses, and checks both hosts against one independent normalized
 expectation. No live or private repository response was recorded.
 
+## Pending RFC-BPR-0016 device-authorization contract v1
+
+`tests/fixtures/github/device-authorization/v1/` currently contains only the
+canonical `pending_real_capture` state. It contains no fabricated endpoint
+outcome and is not evidence that the GitHub App has been registered or that a
+GitHub endpoint or repository has been contacted. The real registration,
+device-code and token outcomes, and bounded read-only permission probes remain
+the attended BPR-0276 course.
+
+`scripts/capture_rfc0016_device_contracts.py` is an offline-only sanitizer and
+validator for that later course. It has no live-network or write mode. The
+library surface accepts response bytes in memory, projects only closed
+structural fields, omits access/refresh tokens and device/user codes, and
+requires canonical JSON before an unattested durable fixture tree can validate.
+Error responses retain only the closed error enum and a boolean confirming that
+the observed error URI used the official documentation authority. Their
+free-form description and URI text are listed as observed-but-omitted fields,
+so user-code-, cookie-, JWT-, path-, or identity-shaped text cannot become
+durable evidence.
+The closed schema requires exactly one projection for device-code
+success, token success, `authorization_pending`, `slow_down`, `access_denied`,
+`expired_token`, and `device_flow_disabled`; synthetic hostile parser inputs
+cannot satisfy an unattested-capture manifest. A separate exact registration
+record constrains the GitHub App to private visibility under owner
+`MikeMarcin`, owner-only installation with selected-repository access only to
+`MikeMarcin/BPR-Test`, and the approved repository permissions. Its OAuth
+client type remains `public`; the record contains that public client identifier
+and its SHA-256 digest, never a client secret.
+
+The unattested manifest pins every artifact path and digest plus the prior
+accepted authority-ceiling decision identity; the narrower private-owner-only
+implementation selection is enforced independently by the closed registration
+schema. Every non-registration artifact carries the registration-record
+digest, so outcomes and probes from a different registration cannot be mixed
+into the set. Neither the public sanitizers nor the manifest builder can emit
+or accept `real_service` provenance. The offline validator can therefore
+establish durable schema integrity but cannot claim that GitHub was contacted:
+`--require-complete` remains fail-closed until a future live runner supplies an
+exact independently produced capture attestation and its verifier. Its
+read-only route metadata is closed to the designated
+`MikeMarcin/BPR-Test` repository and pull request 1:
+Metadata REST, Contents smart-HTTP discovery/upload-pack, Checks GET,
+pull-request REST reads, and the exact review-thread GraphQL query. It cannot
+admit a review publication route or infer permission to mutate.
+`rfc0016_device_capture_security` runs the validator under the repository's
+network-isolation wrapper and proves exact tree/schema/size rejection,
+duplicate-key and secret canaries, path/IP/email/foreign-URL rejection,
+raw-transcript refusal, digest integrity, registration binding, route/method
+closure, the one-`slow_down` inventory, private owner-only registration, and an
+adversarial synthetic-to-real provenance reproduction. Dedicated regressions
+also prove lowercase user-code-shaped text, `session_id` cookie material, and a
+JWT-shaped credential are omitted from canonical error artifacts.
+
 ## Implemented GitHub capability contract v1
 
 `tests/fixtures/github/capabilities/v1/` contains independent complete
