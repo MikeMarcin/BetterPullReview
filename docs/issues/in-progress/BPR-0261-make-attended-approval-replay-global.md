@@ -1,7 +1,7 @@
 ---
 id: BPR-0261
 title: Make attended approval replay global and path-safe
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255]
 ---
