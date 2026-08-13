@@ -68,6 +68,24 @@ context-menu input; is absent from the tab chain; and cannot be the only source
 of application status. Existing landing title, guidance, connection state,
 diagnostics, and accessible status remain authoritative.
 
+### Accepted prop-separation note
+
+The accepted RFC-BPR-0019 identity verdict includes a product-owner note: the
+plus/minus card should not be part of Dif's core base sprite. This is a
+downstream composition constraint, not permission to alter the reviewed bytes.
+RFC-BPR-0020 must represent the base Dif character independently of that prop;
+the card may be an optional reviewed overlay or variant, but it cannot be an
+inseparable base-identity requirement.
+
+The current RFC-BPR-0019 raster cells contain the card. Those exact bytes remain
+accepted for the asset subject, but they do not by themselves satisfy this
+runtime constraint. Cropping, masking, inpainting, or erasing the prop during
+decode or paint is prohibited. If the runtime design needs revised base and
+overlay bytes, that work is a new RFC-BPR-0019 asset revision: regenerate the
+catalog, repeat mechanical verification, and obtain new digest-bound rights and
+visual verdicts before selecting the revision. Until then, runtime composition
+remains unapproved.
+
 ## Goals
 
 - Add a typed, durable application-wide motion preference to the existing

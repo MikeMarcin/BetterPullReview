@@ -99,6 +99,50 @@ Both presets use out-of-source directories under ignored `build/`.
 Both also have schema-12 workflow presets, for example
 `cmake --workflow --preset core-only`.
 
+## Dif asset maintenance
+
+The checked-in files below `src/adapters/qt/assets/dif/source/` and the manifest
+are the editable authority. Generate proposed products into a new empty
+directory; never write over committed products to inspect a candidate:
+
+```sh
+python3 scripts/dif_assets.py generate \
+  --assets src/adapters/qt/assets/dif \
+  --out <empty-output-directory>
+```
+
+Validate the admitted tree and reproduce the committed generated tree twice:
+
+```sh
+python3 scripts/dif_assets.py validate \
+  --assets src/adapters/qt/assets/dif
+python3 scripts/dif_assets.py verify \
+  --assets src/adapters/qt/assets/dif
+ctest --preset dev -R '^dif_assets_contract$' --output-on-failure
+ctest --preset core-only -R '^dif_assets_contract$' --output-on-failure
+```
+
+The contract is network-isolated and uses only the configured C++ compiler and
+Python standard library. Ordinary configure and build steps do not run the
+generator or require ImageGen, ImageMagick, Pillow, a model, or network access.
+The tests-disabled application does not yet select Dif resources.
+
+Before closing an asset revision, configure and build clean `dev`, `core-only`,
+and `app-release` graphs, run the complete dev/core matrices, and invoke:
+
+```sh
+python3 scripts/verify_dif_asset_boundaries.py \
+  --source . \
+  --dev-build build/dev \
+  --core-build build/core-only \
+  --app-build build/app-release
+```
+
+Any source, manifest, generator, generated-product, preview-renderer, or review
+identity change invalidates the affected attended digest. Rebuild the offline
+review page and obtain a new verdict. RFC-BPR-0020 resource or runtime work must
+not be folded into an asset-only revision.
+
 ## Attended native notification course
 
 The deterministic `application_native_notification_attended_contract` replaces

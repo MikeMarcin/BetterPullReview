@@ -36,3 +36,13 @@ themes, rendering mechanics, and event translation.
   entries.
 - Treat offscreen forced-style renders as deterministic layout evidence only;
   they do not verify system appearance integration.
+- Treat `assets/dif/source/` plus the manifest as the editable Dif authority;
+  never hand-edit `assets/dif/generated/` or use a generative prompt as the
+  regeneration source.
+- A Dif source, manifest, generator, generated-product, or preview change must
+  regenerate into an empty directory, pass `dif_assets_contract` in dev and
+  core-only, pass the selected-graph boundary verifier, and receive a new
+  digest-bound attended verdict before runtime selection.
+- Keep Dif resources, clip/frame state, and animation mechanics in Qt. Do not
+  move them into core or the application host. Preserve the owner's requirement
+  that the plus/minus prop remain separate from Dif's core base representation.

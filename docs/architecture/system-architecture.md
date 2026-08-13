@@ -533,6 +533,30 @@ that the application inherits the native style and interface font.
 The Qt-free `core-only` preset acquires neither KSyntaxHighlighting nor the
 syntax adapter; its resolved package set remains SQLite alone.
 
+## Dif asset ownership boundary
+
+RFC-BPR-0019 places Dif's editable source frames, manifest, provenance, and
+committed generated products under `src/adapters/qt/assets/dif/`. The offline
+`scripts/dif_assets.py` tool validates and regenerates that tree. It is a
+maintainer tool, not a product dependency: ordinary developer, core-only, and
+tests-disabled application graphs do not select or execute it.
+
+The generated catalog is a fixed C++ descriptor with Qt resource names, but
+RFC-BPR-0019 does not bind those resources to a target. Core and application
+state contain no mascot, image, clip, frame, timing, visibility, or motion
+preference. The application binary likewise contains no Dif asset until the
+downstream composition RFC selects it. This keeps creative source ownership
+inside the Qt adapter tree without turning asset policy into core policy or
+runtime JSON parsing.
+
+RFC-BPR-0020 may consume only an Auto-Verified asset revision. It owns the Qt
+resource binding, one decoded cache, sequencer, widget, lifecycle, motion
+preference integration, and real landing composition. The accepted asset note
+also requires the plus/minus prop to remain separable from Dif's core base
+representation. If satisfying that note changes any current raster, the asset
+revision returns through RFC-BPR-0019's deterministic and attended gates before
+the application selects it.
+
 ## Feature allocation
 
 | Feature family | Functional core | Application host | Qt presentation adapter |
@@ -545,6 +569,7 @@ syntax adapter; its resolved package set remains SQLite alone.
 | Queue/observers | rule matching and attention policy | refresh timers, API/cache, notification request execution | queue models, filters, native notification presentation |
 | AI | provider-host policy, context-scope decisions, staleness, finding promotion | process/session/workspace management and protocols | explicit invocation, approvals, chat/findings presentation |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
+| Dif mascot | no asset, frame, timer, or mascot state | no asset generation, decode, or animation state | RFC-BPR-0019 owns reviewed asset bytes; RFC-BPR-0020 later owns fixed resources, sequencing, painting, and lifecycle |
 
 The shipped agent route preserves this allocation. Qt exposes provider,
 disclosure, working-copy choice, start/cancel, stream, and terminal state, but

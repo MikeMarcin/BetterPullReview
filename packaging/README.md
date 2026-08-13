@@ -24,6 +24,20 @@ claim. Signing, deployment of Qt dependencies, Linux installation rules, and
 clean-machine verification remain RFC-BPR-0014 work. Regeneration and asset
 ownership are documented in [`icons/README.md`](icons/README.md).
 
+## Dif asset notice boundary
+
+RFC-BPR-0019 records Dif as owned original artwork. Its exact provenance says
+`notice_required: false` and retains the repository provenance record unless a
+later production input introduces an obligation. The asset RFC does not install
+the source pack, bind the generated strips into an application resource, create
+an SBOM entry, or change a package manifest.
+
+RFC-BPR-0020 must re-evaluate the recorded notice disposition when it selects a
+reviewed asset revision for the application. RFC-BPR-0014 remains the authority
+for final SBOM generation, installation paths, dependency collection, signing,
+notarization, and release evidence. A passing asset or runtime review is not a
+package-readiness claim.
+
 ## RFC-BPR-0002 dependency record
 
 The effect-backed GitHub adapter adds private Qt Core and Qt Network 6.8+

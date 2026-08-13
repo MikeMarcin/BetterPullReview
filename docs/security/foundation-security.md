@@ -43,3 +43,27 @@ python3 scripts/verify_runtime_surface.py \
 
 The foundation does not claim provider credential or mutation safety; those
 become applicable when RFC-BPR-0002 and RFC-BPR-0008 introduce those surfaces.
+
+## Dif asset security boundary
+
+RFC-BPR-0019's raster pack is an offline Qt-adapter input. Its validator admits
+only a closed relative-path inventory and rejects symlink components before it
+reads provenance-bound source bytes. Source and generated PNGs are canonical,
+non-interlaced RGBA8 with only `IHDR`, `IDAT`, and `IEND`; dimensions, encoded
+bytes, decoded bytes, alpha, hidden RGB, gutters, edges, frame counts, rates,
+and aggregate budgets are bounded before generation succeeds.
+
+The asset tree contains no remote reference, active content, executable
+payload, private path, credential marker, repository data, username, or runtime
+loader instruction. The ImageGen prompt is retained as explicit creation
+provenance in the asset README, not in PNG metadata and not as a regeneration
+authority. The checked-in source bytes are authoritative. The offline tool uses
+only its declared Python standard-library surface and contains no HTTP, model,
+or subprocess capability.
+
+Clean selected-graph and binary scans keep the generator, art dependencies,
+manifest, catalog, and raster resources out of core-only and out of the current
+tests-disabled application. RFC-BPR-0020 must repeat the resource and runtime
+audit when it intentionally changes that application boundary. The attended
+identity review, rather than a byte scan, owns visual originality, GitHub-mark
+absence, and foreign-character exclusion.

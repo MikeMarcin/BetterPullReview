@@ -4,6 +4,34 @@
 
 Appearance is intentionally outside the functional core. The host owns settings persistence, resource policy, scheduling, and caches. The Qt presentation adapter owns system-scheme observation, fonts, colors, layout, syntax presentation, accessibility, previews, and visual-state composition. Appearance changes publish bounded presentation invalidations rather than changing review semantics.
 
+## Dif asset appearance and accessibility boundary
+
+RFC-BPR-0019 supplies an asset contract, not a runtime mascot. Its exact
+attended review covers the neutral master and every source/runtime cell,
+declared-speed motion at 64, 72, and 96 logical pixels, registration and
+handoffs, System/Light/Dark/high-contrast context plates at 1.0x, 1.25x, and
+2.0x, and the static `rest` fallback. Those reviewed images retain Dif's stable
+brand colors but include no background plate, stylesheet, text, status badge,
+or palette override.
+
+The three clip descriptions are deliberately nonsemantic. `calm_idle` is
+decorative presence, `greet` is a restrained landing acknowledgement, and
+`rest` is the awake static fallback. None of them means that Dif reviewed,
+approved, rejected, or found a defect. A later runtime must preserve equivalent
+text and controls when the mascot is absent or motion is reduced; animation
+cannot become the only carrier of application state.
+
+The final attended verdict accepts the exact reviewed assets and notes that the
+plus/minus card should not be part of Dif's core base sprite. Runtime work must
+therefore resolve the prop as a separate composition concern. The current
+rasters cannot be silently cropped or repainted to satisfy that note because
+any changed pixel requires a new digest-bound asset verdict.
+
+RFC-BPR-0020 owns all widget, timer, motion-preference, accessibility-tree,
+focus, layout, high-DPI, palette-change, platform-observation, and public-path
+behavior. Until that RFC closes, no document or screenshot should describe Dif
+as present in the application.
+
 ## Current system-native presentation
 
 The RFC-BPR-0002 GitHub window currently follows the palette, style, and
