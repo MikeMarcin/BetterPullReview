@@ -374,8 +374,9 @@ def validate_asset_file_hygiene(root: Path) -> dict[str, Any]:
     pngs = [path for path in files if path.suffix.lower() == ".png"]
     for path in files:
         payload = path.read_bytes()
+        lowered = payload.lower()
         for marker in FORBIDDEN_ASSET_TEXT:
-            if marker.lower() in payload.lower():
+            if marker.lower() in lowered:
                 relative = path.relative_to(root).as_posix()
                 raise BoundaryError(
                     f"asset file {relative} contains private/active marker: "

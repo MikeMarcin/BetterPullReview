@@ -217,21 +217,6 @@ def _png_chunk(kind: bytes, payload: bytes) -> bytes:
     )
 
 
-def encode_png(image: RgbaImage) -> bytes:
-    rows = bytearray()
-    stride = image.width * 4
-    for y in range(image.height):
-        rows.append(0)
-        rows.extend(image.pixels[y * stride : (y + 1) * stride])
-    header = struct.pack(">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0)
-    return (
-        PNG_SIGNATURE
-        + _png_chunk(b"IHDR", header)
-        + _png_chunk(b"IDAT", zlib.compress(bytes(rows), level=9))
-        + _png_chunk(b"IEND", b"")
-    )
-
-
 def _filtered_rgba_rows(image: RgbaImage) -> bytes:
     rows = bytearray()
     stride = image.width * 4
@@ -239,6 +224,16 @@ def _filtered_rgba_rows(image: RgbaImage) -> bytes:
         rows.append(0)
         rows.extend(image.pixels[y * stride : (y + 1) * stride])
     return bytes(rows)
+
+
+def encode_png(image: RgbaImage) -> bytes:
+    header = struct.pack(">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0)
+    return (
+        PNG_SIGNATURE
+        + _png_chunk(b"IHDR", header)
+        + _png_chunk(b"IDAT", zlib.compress(_filtered_rgba_rows(image), level=9))
+        + _png_chunk(b"IEND", b"")
+    )
 
 
 def encode_apng(
@@ -1011,7 +1006,7 @@ def _catalog_bytes(manifest: dict[str, Any]) -> bytes:
 def generated_products(
     root: Path,
 ) -> dict[PurePosixPath, bytes]:
-    manifest, _provenance, clips = compile_assets(root)
+    manifest, provenance, clips = compile_assets(root)
     products: dict[PurePosixPath, bytes] = {}
     for clip in clips:
         relative = PurePosixPath(clip.data["strip"]).relative_to("generated")
@@ -1019,7 +1014,7 @@ def generated_products(
     products[PurePosixPath(GENERATED_CATALOG)] = _catalog_bytes(manifest)
     source_digests = {
         item["path"]: item["sha256"]
-        for item in load_canonical_json(root / "provenance.json")["source_files"]
+        for item in provenance["source_files"]
     }
     output_digests = {
         str(relative): sha256_bytes(payload)
@@ -1038,11 +1033,14 @@ def generated_products(
     return products
 
 
-def _write_products(products: dict[PurePosixPath, bytes], output: Path) -> None:
-    if output.exists():
-        if not output.is_dir() or any(output.iterdir()):
-            raise AssetError("output directory must be empty")
+def _prepare_empty_directory(output: Path, context: str) -> None:
+    if output.exists() and (not output.is_dir() or any(output.iterdir())):
+        raise AssetError(f"{context} directory must be empty")
     output.mkdir(parents=True, exist_ok=True)
+
+
+def _write_products(products: dict[PurePosixPath, bytes], output: Path) -> None:
+    _prepare_empty_directory(output, "output")
     for relative, payload in sorted(products.items(), key=lambda item: str(item[0])):
         destination = _asset_path(output, relative)
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1105,9 +1103,10 @@ def verify_assets(root: Path) -> None:
         products = generated_products(root)
         _write_products(products, first)
         _write_products(generated_products(root), second)
-        if _tree_bytes(first) != _tree_bytes(second):
+        first_tree = _tree_bytes(first)
+        if first_tree != _tree_bytes(second):
             raise AssetError("two clean regenerations differ")
-        if _tree_bytes(first) != _tree_bytes(root / "generated"):
+        if first_tree != _tree_bytes(root / "generated"):
             raise AssetError("clean regeneration differs from committed products")
 
 
@@ -1190,10 +1189,7 @@ def _with_registration_overlay(
 
 def render_previews(root: Path, output: Path) -> None:
     manifest, _provenance, clips = compile_assets(root)
-    if output.exists():
-        if not output.is_dir() or any(output.iterdir()):
-            raise AssetError("preview output directory must be empty")
-    output.mkdir(parents=True, exist_ok=True)
+    _prepare_empty_directory(output, "preview output")
     products: dict[str, bytes] = {}
     for clip in clips:
         sheet = _join_grid(list(clip.frames), columns=min(6, len(clip.frames)))

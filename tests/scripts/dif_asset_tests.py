@@ -12,25 +12,26 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import ModuleType
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPOSITORY_ROOT / "scripts/dif_assets.py"
-SPEC = importlib.util.spec_from_file_location("dif_assets", SCRIPT)
-if SPEC is None or SPEC.loader is None:
-    raise RuntimeError("could not load scripts/dif_assets.py")
-DIF = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = DIF
-SPEC.loader.exec_module(DIF)
 BOUNDARY_SCRIPT = REPOSITORY_ROOT / "scripts/verify_dif_asset_boundaries.py"
-BOUNDARY_SPEC = importlib.util.spec_from_file_location(
-    "verify_dif_asset_boundaries", BOUNDARY_SCRIPT
-)
-if BOUNDARY_SPEC is None or BOUNDARY_SPEC.loader is None:
-    raise RuntimeError("could not load scripts/verify_dif_asset_boundaries.py")
-BOUNDARY = importlib.util.module_from_spec(BOUNDARY_SPEC)
-sys.modules[BOUNDARY_SPEC.name] = BOUNDARY
-BOUNDARY_SPEC.loader.exec_module(BOUNDARY)
+
+
+def load_test_module(name: str, path: Path) -> ModuleType:
+    specification = importlib.util.spec_from_file_location(name, path)
+    if specification is None or specification.loader is None:
+        raise RuntimeError(f"could not load {path.relative_to(REPOSITORY_ROOT)}")
+    module = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = module
+    specification.loader.exec_module(module)
+    return module
+
+
+DIF = load_test_module("dif_assets", SCRIPT)
+BOUNDARY = load_test_module("verify_dif_asset_boundaries", BOUNDARY_SCRIPT)
 
 
 def _test_arguments(argv: list[str]) -> tuple[list[str], list[str]]:
