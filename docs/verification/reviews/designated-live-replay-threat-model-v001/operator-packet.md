@@ -29,7 +29,7 @@ Review and either accept or reject all of these facts as one decision:
 | Artifact | SHA-256 | Bytes |
 |---|---|---:|
 | `decision-subject.txt` | `sha256:a1e954aef213ea36e920b6635a8d3542cf783a7a02200ef3730b17c7af71c43f` | 1731 |
-| `src/app/src/github_application.cpp` | `sha256:1231342889316149a194766b6463c1efc3e42cfb145009c9b7b8e8d83fe0c991` | 375966 |
+| `src/app/src/github_application.cpp` | `sha256:6c1c70c8d3a9eff041b304acbf70d841d6f2c2417e3a71e20393208ae7b32c32` | 375522 |
 | `src/application/src/designated_review_authority_bootstrap.cpp` | `sha256:fabb6db81a93bbdb04a48a5a78efed10965b37ac6fd31b7e9ec48a56a3ffbbef` | 24209 |
 
 The rejected implementation was independently falsified in three ways: the
@@ -43,6 +43,9 @@ mutation was used.
 Changing any bound artifact byte reopens this decision. Approval selects only
 the narrowed local replay design in the exact subject; it does not retroactively
 approve the rejected implementation.
+The pending packet was rebound after a later fixture-notification helper change
+in `github_application.cpp`; the decision subject and replay bootstrap remained
+byte-identical, and no verdict had been recorded.
 
 ## Operator response
 

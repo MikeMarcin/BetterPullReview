@@ -30,7 +30,7 @@ Review and either accept or reject all of these facts as one decision:
 |---|---|---:|
 | `decision-subject.txt` | `sha256:cf71a398143725314c461dcd9c06cea2605e00847e4aee90acf9699c5b7fb6f9` | 1858 |
 | `src/app/src/designated_live_macos_supervisor.cpp` | `sha256:c6e9ad0e6673a66994cd7ffd637344c40e603ee61f6600fba4dfdf26a7015277` | 22913 |
-| `src/app/main.cpp` | `sha256:e77468c72fc1a4bdd1ecfb93a8b741da2e04d06114e9c48932fb0ca2a65f45dd` | 206226 |
+| `src/app/main.cpp` | `sha256:449d34b8186d039684f678f51032dae0bd439238e4be1e0f0c49282645fb1b34` | 224798 |
 | `scripts/designated_live_macos_capsule.py` | `sha256:7e4d77d0c93a3aa393de60b4a893f0a220986b6e51cbf79b05c0f31657ae32ea` | 25358 |
 
 Read-only host probes established that a UDZO/APFS image attached with
@@ -45,6 +45,9 @@ every spawn result, and causes fail-closed behavior when occupied.
 
 Changing any bound artifact byte reopens this decision. No live lane, network
 request, credential, approval, or GitHub mutation was used to prepare it.
+The pending packet was rebound after later diagnostic and notification-course
+changes in `main.cpp`; the decision subject and every dedicated containment
+artifact remained byte-identical, and no verdict had been recorded.
 
 ## Operator response
 
