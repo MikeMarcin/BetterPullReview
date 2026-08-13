@@ -1,7 +1,7 @@
 ---
 id: BPR-0261
 title: Make attended approval replay global and path-safe
-status: Backlog
+status: Ready
 rfc: RFC-BPR-0008
 depends_on: [BPR-0255]
 ---
@@ -59,10 +59,12 @@ selects a monotonic authority outside that namespace or explicitly narrows the
 threat model and reset semantics. The rejected implementation was not merged,
 and no live lane, network request, credential, or approval was used.
 
-The narrowed local-authority option is awaiting an exact operator decision in
+The narrowed local-authority option was approved for implementation and
+hermetic verification only through the exact operator statement recorded in
 [designated-live-replay-threat-model-v001](../../verification/reviews/designated-live-replay-threat-model-v001/operator-packet.md).
-Packet preparation is not approval; until the exact response is returned, no
-implementation under that threat model is authorized.
+The accepted subject explicitly excludes intentional same-user or administrator
+deletion, rollback, restoration, or mutation of replay state. It grants no live
+GitHub, credential, publication, packaging, or RFC-closeout authority.
 
 ## Verification
 

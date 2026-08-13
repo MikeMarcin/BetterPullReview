@@ -1,6 +1,9 @@
 # Designated live replay threat-model operator review
 
-Status: **pending operator decision; not live-publication or RFC approval**
+Status: **accepted 2026-08-12 for implementation and hermetic verification only; not live-publication or RFC approval**
+
+The exact accepted statement is preserved in
+[`operator-response.md`](operator-response.md).
 
 This packet presents the bounded product/security decision required by
 BPR-0261 after capability-critical review proved that current-user-mutable

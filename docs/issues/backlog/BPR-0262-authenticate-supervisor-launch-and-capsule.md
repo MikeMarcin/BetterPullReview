@@ -14,11 +14,13 @@ capsule supervisor from another parent, while the approval subject and runtime
 bootstrap bind neither supervisor nor inventory. The same review identified a
 check/use gap for nested capsule entries after path-based verification.
 
-The read-only-image and kernel-audited Mach launch topology is awaiting an
-exact operator decision in
+The read-only-image and kernel-audited Mach launch topology was approved for
+implementation and hermetic verification only through the exact operator
+statement recorded in
 [designated-live-macos-containment-v001](../../verification/reviews/designated-live-macos-containment-v001/operator-packet.md).
-Packet preparation is not approval; BPR-0262 remains Backlog and no live or
-package authority exists unless the exact bound response is returned.
+BPR-0262 remains Backlog only because BPR-0261 must land first. The accepted
+subject grants no live GitHub, credential, publication, package,
+signing/notarization, or RFC-closeout authority.
 
 ## Required final state
 

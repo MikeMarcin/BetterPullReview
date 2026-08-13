@@ -1,6 +1,9 @@
 # Designated live macOS containment operator review
 
-Status: **pending operator decision; not live-publication, packaging, or RFC approval**
+Status: **accepted 2026-08-12 for implementation and hermetic verification only; not live-publication, packaging, or RFC approval**
+
+The exact accepted statement is preserved in
+[`operator-response.md`](operator-response.md).
 
 This packet presents the bounded architecture decision required by BPR-0262.
 It does not materialize an approval, authorize a credential, execute a live
