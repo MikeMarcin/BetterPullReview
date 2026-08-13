@@ -1,7 +1,7 @@
 ---
 id: BPR-0294
 title: Simplify the Dif asset tooling and tests
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0019
 depends_on: [BPR-0288, BPR-0290, BPR-0292, BPR-0293]
 ---
