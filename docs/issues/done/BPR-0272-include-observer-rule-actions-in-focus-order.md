@@ -1,7 +1,7 @@
 ---
 id: BPR-0272
 title: Include observer-rule actions in the workbench focus order
-status: In Progress
+status: Done
 rfc: RFC-BPR-0010
 depends_on: [BPR-0271]
 ---
@@ -53,3 +53,22 @@ actions are available to a keyboard user.
   continuation.
 - Independently review hostile omitted, duplicated, disabled, and reordered
   presenter counterexamples.
+
+## Closeout
+
+The workbench now retains the exact Add and Remove tool-button presenters,
+gives each a stable object identity and explicit accessible name and
+description, and declares both immediately after Exclude. Available-stop
+evidence preserves the structural order while omitting only disabled controls.
+The focused tests prove blank input, absent selection, restored prerequisites,
+single-stop identity, typed local intents, and no queue mutation before an
+accepted projection. The composed 100, 125, and 200 percent courses walk the
+real Qt chain through Exclude, Add, Remove, and technical details.
+
+The exact eight-test matrix passed under the checked-in macOS network-denial
+wrapper: all three workbench scales, all three composed GitHub scales,
+`qt_review_queue`, and `application_queue_composition_contract`. Scoped format
+and strict clang-tidy passed, as did the documentation and diff gates.
+Independent closeout review returned `ACCEPT` with no blocker or high-risk
+finding; its only verification gap was an outer-sandbox refusal before product
+execution, covered by the primary escalated 8/8 replay.
