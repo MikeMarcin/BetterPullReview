@@ -1,7 +1,8 @@
 # Offline Attended Review Packages
 
 The builder converts a JSON input manifest into a self-contained, offline
-`index.html` plus `attended-review-manifest.json`. The page works over
+`index.html` plus `attended-review-manifest.json`. Subjects may bind media or
+document-only evidence. The page works over
 `file://`, stores progress in the browser keyed by batch, subject, and
 content digest, and exports one complete verdict once every subject is
 resolved. Gates, scopes, claims, and media groups are caller-declared.
@@ -78,14 +79,16 @@ Field rules:
   otherwise infer from an accept.
 - `reference_disclaimer`: optional; rendered prominently; part of batch
   identity, so changing the framing changes the batch.
-- `media_groups`: caller-named and ordered. `required: true` (default) with
+- `media_groups`: optional, caller-named, and ordered. `required: true` (default) with
   no items is a build error; `required: false` with no items drops the
   group from the manifest and digest. Every subject must retain at least
-  one non-empty group. `layout: compare` renders a two-up grid and needs
+  one non-empty group or one `identity_files` entry. An identity-only subject
+  is the document review form: leave `media_groups` empty and render the
+  decision facts in digest-bound `detail_sections`. `layout: compare` renders a two-up grid and needs
   at least two items. Previewable kinds: image (.gif .jpeg .jpg .png
   .webp), video (.mp4 .webm), audio (.flac .m4a .mp3 .ogg .opus .wav).
-  Anything else goes in `identity_files`, which binds bytes without
-  previewing them.
+  Anything else goes in `identity_files`, which copies and binds the bytes
+  without previewing them.
 - Every previewable image is also a full-resolution trigger. The grid
   sizes media to the layout, which is not always enough to judge the
   claim: a one-device-pixel rendering detail in a full-window capture

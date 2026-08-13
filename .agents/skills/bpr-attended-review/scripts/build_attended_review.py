@@ -301,9 +301,9 @@ def prepare_subject(
     subject_root = output_root / "subjects" / subject_dir_name
     relative_subject_root = Path("subjects") / subject_dir_name
 
-    raw_groups = raw.get("media_groups")
-    if not isinstance(raw_groups, list) or not raw_groups:
-        raise ReviewError(f"{field}.media_groups must be a non-empty array")
+    raw_groups = raw.get("media_groups", [])
+    if not isinstance(raw_groups, list):
+        raise ReviewError(f"{field}.media_groups must be an array")
     groups: list[dict[str, Any]] = []
     group_identities: list[dict[str, Any]] = []
     seen_group_ids: set[str] = set()
@@ -326,9 +326,6 @@ def prepare_subject(
         record, identity = prepared
         groups.append(record)
         group_identities.append(identity)
-    if not groups:
-        raise ReviewError(f"{field} must retain at least one non-empty media group")
-
     identity_files_raw = raw.get("identity_files", [])
     identity_files, file_identity = prepare_files(
         identity_files_raw,
@@ -338,6 +335,10 @@ def prepare_subject(
         relative_root=relative_subject_root / "identity",
         previewable=False,
     )
+    if not groups and not identity_files:
+        raise ReviewError(
+            f"{field} must retain at least one non-empty media group or identity file"
+        )
 
     digest_input = {
         "subject_id": subject_id,

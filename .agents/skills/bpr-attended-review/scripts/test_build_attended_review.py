@@ -208,7 +208,9 @@ class AttendedReviewPackageTests(unittest.TestCase):
         self.source["subjects"][1]["media_groups"][0]["required"] = False
         self.source["subjects"][1]["media_groups"][0]["items"] = []
         self.write_source()
-        with self.assertRaisesRegex(review.ReviewError, "retain at least one non-empty media group"):
+        with self.assertRaisesRegex(
+            review.ReviewError, "retain at least one non-empty media group or identity file"
+        ):
             self.build("all-empty")
 
         self.reset()
@@ -218,6 +220,41 @@ class AttendedReviewPackageTests(unittest.TestCase):
         self.write_source()
         with self.assertRaisesRegex(review.ReviewError, "previewable extension"):
             self.build("bad-ext")
+
+    def test_identity_only_subject_builds_and_validates(self) -> None:
+        self.source["subjects"] = [
+            {
+                "subject_id": "authority:/fixture/document-only",
+                "subject_key": "document-only-authority",
+                "display_name": "Approve the exact authority subject",
+                "description": "One bounded decision over identity-bound text evidence.",
+                "acceptance_criteria": ["Every declared fact is accepted as one decision"],
+                "known_concerns": ["No visual or release approval is implied"],
+                "detail_sections": [
+                    {
+                        "heading": "Decision facts",
+                        "kind": "list",
+                        "items": ["Exact scope", "Exact exclusions"],
+                    }
+                ],
+                "identity_files": [
+                    {"label": "Authority subject", "path": "manifest.json"}
+                ],
+            }
+        ]
+        self.write_source()
+
+        manifest = self.build("identity-only")
+        subject = manifest["subjects"][0]
+        self.assertEqual(subject["media_groups"], [])
+        self.assertEqual(len(subject["identity_files"]), 1)
+        page = (self.root / "identity-only" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Approve the exact authority subject", page)
+        self.assertIn("Identity-bound files", page)
+        self.assertNotIn('<section class="media-group">', page)
+
+        verdict = self.complete_verdict(manifest, accept_indices={0})
+        review.validate_verdict(manifest, verdict)
 
     def test_claims_and_tokens(self) -> None:
         self.source["downstream_claims"]["runtime_promotion_approved"] = True

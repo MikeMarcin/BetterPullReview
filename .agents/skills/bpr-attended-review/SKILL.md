@@ -1,6 +1,6 @@
 ---
 name: bpr-attended-review
-description: Prepare, collect, validate, and record attended human-approval verdicts through deterministic digest-bound artifacts: offline review pages with exact per-subject decisions and batch-bound verdict export, and markdown operator packets for single bounded decisions. Use when the agent needs to run an attended review checkpoint, build a human approval page for captured image, video, or audio evidence, present visual or UI acceptance-criterion evidence for sign-off, review diff-rendering or workbench interaction states, run an A/B comparison, multiple-choice, or select-N alternative selection, write an operator review packet for a terms or dependency-acquisition decision, validate a returned verdict against its exact batch manifest, or record verdicts as repository evidence.
+description: Prepare, collect, validate, and record attended human-approval verdicts through deterministic digest-bound artifacts: offline review pages with exact per-subject decisions and batch-bound verdict export, including document-only authority gates, and markdown operator packets when an interactive page cannot be used. Use when the agent needs to run an attended review checkpoint, build a human approval page for identity-bound documents or captured image, video, or audio evidence, present visual or UI acceptance-criterion evidence for sign-off, review diff-rendering or workbench interaction states, run an A/B comparison, multiple-choice, or select-N alternative selection, write a fallback operator packet for a terms or dependency-acquisition decision, validate a returned verdict against its exact batch manifest, or record verdicts as repository evidence.
 ---
 
 # BPR Attended Review
@@ -20,17 +20,19 @@ the returned verdict, and only after validation.
 
 ## Choose The Form
 
-- One bounded yes/no decision over facts and evidence (third-party terms
-  acceptance, dependency acquisition, declared-versus-observed deltas,
-  repair authorization): write a markdown operator packet. Follow
-  `references/operator-packet.md`.
-- Multiple subjects or media to inspect (UI acceptance criteria,
-  diff-rendering states, captured image, video, or audio batches): build
-  the offline review page. Follow `references/offline-review.md`. When
+- Prefer the offline review page for new attended checkpoints whenever the
+  runtime can present local HTML. It supports one bounded document-only
+  authority decision as well as multiple subjects or media to inspect. Bind a
+  document-only subject through `identity_files`, render its exact facts in
+  `detail_sections`, and leave `media_groups` empty. Follow
+  `references/offline-review.md`. When
   subjects are alternatives to one question rather than independent
   pass/fail checks — an A/B comparison, a multiple choice, or a select-N —
   declare a selection group so unchosen alternatives are recorded as not
   chosen, never as rejections.
+- Use a markdown operator packet only when the environment cannot present the
+  local page or an established external workflow explicitly requires a
+  verbatim statement. Follow `references/operator-packet.md`.
 
 ## Offline Review Page Loop
 

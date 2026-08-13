@@ -1,9 +1,12 @@
 # Operator Review Packets
 
-Use a markdown packet when the attended gate is one bounded decision over
-facts and evidence — third-party terms acceptance, dependency acquisition,
-declared-versus-observed count deltas, repair or migration authorization —
-rather than media to inspect.
+Use a markdown packet as a fallback when the runtime cannot present the local
+offline review page or an established external workflow explicitly requires a
+verbatim statement. New document-only gates — third-party terms acceptance,
+dependency acquisition, declared-versus-observed count deltas, repair or
+migration authorization — normally use one identity-only offline-page subject
+so the operator receives the same interactive, digest-bound export workflow as
+media reviews.
 
 ## Template
 
