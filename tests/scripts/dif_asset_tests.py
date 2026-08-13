@@ -22,6 +22,15 @@ if SPEC is None or SPEC.loader is None:
 DIF = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = DIF
 SPEC.loader.exec_module(DIF)
+BOUNDARY_SCRIPT = REPOSITORY_ROOT / "scripts/verify_dif_asset_boundaries.py"
+BOUNDARY_SPEC = importlib.util.spec_from_file_location(
+    "verify_dif_asset_boundaries", BOUNDARY_SCRIPT
+)
+if BOUNDARY_SPEC is None or BOUNDARY_SPEC.loader is None:
+    raise RuntimeError("could not load scripts/verify_dif_asset_boundaries.py")
+BOUNDARY = importlib.util.module_from_spec(BOUNDARY_SPEC)
+sys.modules[BOUNDARY_SPEC.name] = BOUNDARY
+BOUNDARY_SPEC.loader.exec_module(BOUNDARY)
 
 
 def _test_arguments(argv: list[str]) -> tuple[list[str], list[str]]:
@@ -124,7 +133,12 @@ def synthetic_frame(
 
 def make_pack(root: Path) -> None:
     root.mkdir(parents=True)
-    (root / "README.md").write_text("# Synthetic Dif asset pack\n", encoding="utf-8")
+    (root / "README.md").write_text(
+        "# Synthetic Dif asset pack\n\n"
+        "The checked-in PNGs, not a prompt replay, are the source of truth.\n\n"
+        "The exact prompt was:\n\n```text\nsynthetic fixture\n```\n",
+        encoding="utf-8",
+    )
     source_images = {
         "source/dif-neutral-master.png": synthetic_frame(0, size=512),
         "source/calm-idle/frame-000.png": synthetic_frame(0),
@@ -296,6 +310,60 @@ def png_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
     if offset != len(data) or not chunks or chunks[-1][0] != b"IEND":
         raise AssertionError("preview chunks do not consume the PNG")
     return chunks
+
+
+def make_selected_build(root: Path, profile: str) -> Path:
+    build = root / profile
+    build.mkdir(parents=True)
+    build_testing = "OFF" if profile == "app-release" else "ON"
+    build_qt = "OFF" if profile == "core-only" else "ON"
+    (build / "CMakeCache.txt").write_text(
+        f"BPR_BUILD_QT:BOOL={build_qt}\nBUILD_TESTING:BOOL={build_testing}\n",
+        encoding="utf-8",
+    )
+    sources = [REPOSITORY_ROOT / "src/core/src/model.cpp"]
+    if profile == "dev":
+        sources.append(REPOSITORY_ROOT / "src/adapters/qt/src/foundation_window.cpp")
+    elif profile == "app-release":
+        sources.extend(
+            [
+                REPOSITORY_ROOT / "src/adapters/qt/src/foundation_window.cpp",
+                REPOSITORY_ROOT / "src/app/main.cpp",
+            ]
+        )
+    commands = [
+        {
+            "directory": str(build),
+            "command": f"c++ -c {source}",
+            "file": str(source),
+            "output": str(build / f"{index}.o"),
+        }
+        for index, source in enumerate(sources)
+    ]
+    (build / "compile_commands.json").write_text(
+        json.dumps(commands), encoding="utf-8"
+    )
+    (build / "build.ninja").write_text("build all: phony\n", encoding="utf-8")
+    if profile != "app-release":
+        ctest = build / "tests/CTestTestfile.cmake"
+        ctest.parent.mkdir(parents=True)
+        ctest.write_text(
+            'add_test("dif_assets_contract" "python" '
+            '"run_network_isolated_test.py" "dif_asset_tests.py" '
+            '"--cxx" "c++")\n'
+            'set_tests_properties("dif_assets_contract" PROPERTIES '
+            'LABELS "bpr_network_isolated")\n',
+            encoding="utf-8",
+        )
+    if profile in {"dev", "app-release"}:
+        application = build / "src/app/better_pull_review"
+        application.parent.mkdir(parents=True)
+        application.write_bytes(b"BPR_SYNTHETIC_APPLICATION\0")
+    if profile == "core-only":
+        library = build / "src/core/libbetter_pull_review_core.a"
+        library.parent.mkdir(parents=True)
+        library.write_bytes(b"BPR_SYNTHETIC_CORE_LIBRARY\0")
+    return build
 
 
 class DifAssetTests(unittest.TestCase):
@@ -604,6 +672,133 @@ class DifAssetTests(unittest.TestCase):
                     0,
                     f"catalog consumer compilation failed:\n{result.stdout}{result.stderr}",
                 )
+
+    def test_boundary_verifier_accepts_exact_selected_profiles(self) -> None:
+        root = Path(self.temporary.name) / "selected-builds"
+        for profile in ("dev", "core-only", "app-release"):
+            with self.subTest(profile=profile):
+                result = BOUNDARY.validate_profile(
+                    REPOSITORY_ROOT,
+                    make_selected_build(root, profile),
+                    profile,
+                )
+                self.assertGreater(result["first_party_translation_units"], 0)
+
+    def test_boundary_verifier_rejects_cut_ctest_registration(self) -> None:
+        build = make_selected_build(
+            Path(self.temporary.name) / "selected-builds", "core-only"
+        )
+        (build / "tests/CTestTestfile.cmake").write_text(
+            "# registration cut\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(
+            BOUNDARY.BoundaryError, "registered exactly once"
+        ):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "core-only")
+
+    def test_boundary_verifier_rejects_selected_art_tool_dependency(self) -> None:
+        build = make_selected_build(
+            Path(self.temporary.name) / "selected-builds", "dev"
+        )
+        (build / "build.ninja").write_text(
+            "build generated: CUSTOM_COMMAND ImageMagick\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "imagemagick"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "dev")
+
+    def test_boundary_verifier_rejects_qt_source_in_core_only(self) -> None:
+        build = make_selected_build(
+            Path(self.temporary.name) / "selected-builds", "core-only"
+        )
+        path = build / "compile_commands.json"
+        commands = json.loads(path.read_text(encoding="utf-8"))
+        source = REPOSITORY_ROOT / "src/adapters/qt/src/foundation_window.cpp"
+        commands.append(
+            {
+                "directory": str(build),
+                "command": f"c++ -c {source}",
+                "file": str(source),
+                "output": str(build / "qt.o"),
+            }
+        )
+        path.write_text(json.dumps(commands), encoding="utf-8")
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "Qt/app source"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "core-only")
+
+    def test_boundary_verifier_rejects_test_source_in_release_app(self) -> None:
+        build = make_selected_build(
+            Path(self.temporary.name) / "selected-builds", "app-release"
+        )
+        path = build / "compile_commands.json"
+        commands = json.loads(path.read_text(encoding="utf-8"))
+        source = REPOSITORY_ROOT / "tests/core/core_tests.cpp"
+        commands.append(
+            {
+                "directory": str(build),
+                "command": f"c++ -c {source}",
+                "file": str(source),
+                "output": str(build / "test.o"),
+            }
+        )
+        path.write_text(json.dumps(commands), encoding="utf-8")
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "test source"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "app-release")
+
+    def test_boundary_verifier_rejects_dif_marker_in_application(self) -> None:
+        build = make_selected_build(
+            Path(self.temporary.name) / "selected-builds", "app-release"
+        )
+        application = build / "src/app/better_pull_review"
+        application.write_bytes(
+            application.read_bytes() + b":/bpr/dif/dif-calm-idle.png"
+        )
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "binary embeds"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "app-release")
+
+    def test_boundary_verifier_rejects_dif_marker_in_core_artifact(self) -> None:
+        build = make_selected_build(
+            Path(self.temporary.name) / "selected-builds", "core-only"
+        )
+        library = build / "src/core/libbetter_pull_review_core.a"
+        library.write_bytes(library.read_bytes() + b"dif-sprite-manifest.json")
+        with self.assertRaisesRegex(
+            BOUNDARY.BoundaryError, "library artifact embeds"
+        ):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "core-only")
+
+    def test_boundary_verifier_rejects_network_capable_asset_tool(self) -> None:
+        path = Path(self.temporary.name) / "network_asset_tool.py"
+        path.write_text("import urllib.request\n", encoding="utf-8")
+        with self.assertRaisesRegex(
+            BOUNDARY.BoundaryError, "unapproved capability"
+        ):
+            BOUNDARY.validate_offline_tool(path)
+
+    def test_boundary_verifier_rejects_private_path_in_asset_text(self) -> None:
+        readme = self.root / "README.md"
+        readme.write_text(
+            readme.read_text(encoding="utf-8") + "private=/Users/example/repo\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(
+            BOUNDARY.BoundaryError, "private/active marker"
+        ):
+            BOUNDARY.validate_asset_file_hygiene(self.root)
+
+    def test_boundary_verifier_requires_prompt_authority_disposition(self) -> None:
+        (self.root / "README.md").write_text(
+            "# Prompt is not an asset authority\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "prompt disposition"):
+            BOUNDARY.validate_asset_file_hygiene(self.root)
+
+    def test_live_dif_tool_and_runtime_source_boundary_pass(self) -> None:
+        tool = BOUNDARY.validate_offline_tool(BOUNDARY_SCRIPT.parent / "dif_assets.py")
+        self.assertIn("zlib", tool["imports"])
+        runtime = BOUNDARY.validate_runtime_source_absence(REPOSITORY_ROOT)
+        self.assertGreater(runtime["checked_files"], 0)
+        assets = BOUNDARY.validate_asset_tree(REPOSITORY_ROOT)
+        self.assertTrue(assets["prompt_recorded_as_provenance_only"])
 
 
 if __name__ == "__main__":
