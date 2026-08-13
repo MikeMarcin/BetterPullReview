@@ -77,6 +77,23 @@ verdict is the remaining dependency. No acceptance is carried forward from
 v001. Both replacement groups are selected in turn, and the selected-row wash
 no longer hides the exact intraline role in the raster.
 
+## Attended checkpoint — v002 rejected
+
+The product owner rejected the exact v002 subject on 2026-08-12. The complete
+verdict validates against batch
+`bpr:/attended-review/betterpullreview/198d1045d20ff4752b7dc747` and is preserved
+in `human-verdict.json` with its `verdict-validation.json` record. The stated
+defects are poor or uncertain fixed-width code typeface/render quality,
+missing corresponding source-pane character emphasis while the destination
+span is highlighted, and invisible unselected dark-mode swoosh connectors.
+
+No downstream claim closes. The connector observation applies to these exact
+v002 bytes, which predate BPR-0259's separately accepted connector repair; the
+current product still needs a fresh integrated capture to prove that repair in
+this selected-diff criterion. Typeface quality and symmetric source/destination
+intraline emphasis require separate product diagnosis and repair before a new
+batch is prepared.
+
 ## Verification
 
 ```sh

@@ -1,0 +1,24 @@
+{
+  "schema_name": "bpr.attended_review_verdict",
+  "schema_version": 1,
+  "batch_id": "bpr:/attended-review/betterpullreview/198d1045d20ff4752b7dc747",
+  "review_gate": "uiforetw_intraline_acceptance",
+  "review_scope": "human_ui_criterion_isolation_only",
+  "accepted_subjects": [],
+  "rejected_subjects": [
+    {
+      "subject_id": "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis",
+      "subject_digest": "sha256:3c3d1808289c5c8d368f2ab3fad63da22f055e42bf343ed8f998125c8476c453"
+    }
+  ],
+  "notes_by_subject_identity": {
+    "criterion:/betterpullreview/bpr-0233/recorded-intraline-emphasis@sha256:3c3d1808289c5c8d368f2ab3fad63da22f055e42bf343ed8f998125c8476c453": "The font itself is not great quality, i'm not even sure it is fixed-width which for code is required, we need to ensure we select a top tier code typeface and focus heavily on the quality of its rendered appearance. The inline changes seem to only highly the changed characters on the destination pane, but the corresponding characters on the source pane should also be highlighted. Dark mode connector coloring seems to have regressed, I can no longer seen the unselected swooshes--we fixed this before already."
+  },
+  "downstream_claims": {
+    "bpr_0210_closed": false,
+    "bpr_0214_closed": false,
+    "bpr_0233_closed": false,
+    "release_gate_satisfied": false,
+    "rfc_closeout_claimed": false
+  }
+}
