@@ -26,9 +26,10 @@ client and capture sanitized contracts from the endpoints the product will call.
 - Capture tooling and evidence prove tokens, refresh tokens, device codes, user
   codes, cookies, and credentials are absent from repository artifacts and logs.
 - The public identifier and fixture provenance are recorded without compiling
-  the identifier into any product artifact or granting repository-mutation
-  authority; BPR-0281 owns compiled production selection after this gate is
-  terminal.
+  the private verification identifier into any product artifact or granting
+  repository-mutation authority. BPR-0281 owns the client-free unavailable
+  composition; BPR-0318 separately owns a distributable identity and compiled
+  production selection.
 - Read-only app-token probes prove Metadata, Contents, Checks, pull-request REST,
   and the exact review-thread GraphQL document. Pull requests write is verified
   as configured in the registration but no POST is sent; actual review-comment
