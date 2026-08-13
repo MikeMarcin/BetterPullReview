@@ -1,7 +1,7 @@
 ---
 id: BPR-0293
 title: Document the Dif asset system
-status: Backlog
+status: In Progress
 rfc: RFC-BPR-0019
 depends_on: [BPR-0287, BPR-0290, BPR-0291, BPR-0292]
 ---
