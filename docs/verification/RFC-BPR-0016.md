@@ -15,17 +15,21 @@ Final results must be replayed against the immutable closeout head.
 
 | Gate | State | Owner | Evidence required |
 |---|---|---|---|
+| Available-target implementation exception | Approved; recording validation | BPR-0275 | Exact seven-fact response permits implementation/hermetic verification after application registration and real contracts; BPR-0035/BPR-0036 and final closeout remain mandatory |
 | Registered public application identity | Pending | BPR-0275/BPR-0276 | Digest-bound owner authority, selected application record, public client identifier, exact permissions, and no shipped client secret |
-| Resolved application kind | Pending | BPR-0275 | Accepted GitHub App or OAuth App decision with installation, lifetime, refresh, and rejected-alternative rationale |
+| Resolved application kind | Approved; recording validation | BPR-0275 | Accepted GitHub App decision with exact installation, lifetime, refresh, permissions, and rejected OAuth-App rationale |
 | Real sanitized wire contracts | Pending | BPR-0276 | Actual selected-service success, pending, one bounded early-poll `slow_down`, denied, expired, and disabled capture; separately labeled synthetic malformed/truncated/duplicate/oversized hostile fixtures; secret-free evidence |
 | RFC-BPR-0002 Auto-Verified | Pending | BPR-0035/BPR-0036 | Direct real Windows x64 evidence and terminal RFC-BPR-0002 closeout; macOS, mocks, cross-compilation, and hosted workflows do not substitute |
 
-The pending
+The accepted
 [`rfc0016-prerequisite-exception-v001`](reviews/rfc0016-prerequisite-exception-v001/operator-packet.md)
 packet can authorize available-target implementation only. It cannot verify or
 remove the fourth final-closeout gate. The independent
 [`rfc0016-github-app-registration-v001`](reviews/rfc0016-github-app-registration-v001/operator-packet.md)
-packet can authorize only the exact registration and bounded capture it names.
+packet authorizes only the exact registration and bounded capture it names.
+Both byte-preserved responses await their adjacent validation records in
+BPR-0275; neither response by itself proves a registered identity or captured
+wire contract.
 
 ## Permission inventory
 
@@ -97,8 +101,9 @@ immutable final-head platform replay is the closeout result.
 
 | Claim set | Exact command or attended interaction | Proof condition | Result | Durable evidence | Commit |
 |---|---|---|---|---|---|
-| Eligibility exception | Quote the exact statement in `reviews/rfc0016-prerequisite-exception-v001/operator-packet.md` | Subject digest and all seven facts match; no adjacent authority inferred | Pending | `reviews/rfc0016-prerequisite-exception-v001/operator-response.md` | Pending |
-| Registration and real capture | Quote the exact statement in `reviews/rfc0016-github-app-registration-v001/operator-packet.md`, then perform BPR-0276's bounded attended course | Exact owner/config/permissions; real success/pending/one early-poll `slow_down`/denied/expired/disabled; synthetic hostile bodies labeled; no secrets | Pending | `reviews/rfc0016-github-app-registration-v001/operator-response.md` and BPR-0276 fixture provenance | Pending |
+| Eligibility exception | Quote the exact statement in `reviews/rfc0016-prerequisite-exception-v001/operator-packet.md` | Subject digest and all seven facts match; no adjacent authority inferred | Approved; validation record pending | `reviews/rfc0016-prerequisite-exception-v001/operator-response.md` | Pending response commit |
+| Registration authority | Quote the exact statement in `reviews/rfc0016-github-app-registration-v001/operator-packet.md` | Exact GitHub App owner/configuration/permissions/capture boundary; no mutation, release, distribution, GHES, or secret-bearing evidence inferred | Approved; validation record pending | `reviews/rfc0016-github-app-registration-v001/operator-response.md` | Pending response commit |
+| Registered identity and real capture | Perform BPR-0276's exact bounded attended course under the accepted registration authority | Exact configured public client; real success/pending/one early-poll `slow_down`/denied/expired/disabled; synthetic hostile bodies labeled; no secrets | Pending | BPR-0276 registration record and fixture provenance | Pending |
 | Focused semantic/host/wire/Qt/product matrix | `cmake --preset dev --fresh && cmake --build --preset dev --clean-first && python3 scripts/verify_rfc0016_test_inventory.py --build-dir build/dev && ctest --test-dir build/dev --output-on-failure -R '^(core_device_authorization|application_device_authorization_host|github_device_authorization_contract|native_https_device_authorization_(contract|fixture)|qt_device_authorization_scale_(100|125|200)|application_device_authorization_(public_path|unavailable|release_contract))$'` | Fresh build identity is recorded; inventory requires every exact selector before CTest; all pass and negative cuts fail if boundary, cleanup, authority, display, refresh, or selection is bypassed | Pending | This row plus fresh build identity, inventory output, final CTest summary, and exact fixture paths | Pending |
 | Core-only matrix | `cmake --preset core-only --fresh && cmake --build --preset core-only --clean-first && ctest --preset core-only --output-on-failure` | Fresh core builds/tests without Qt/provider/effect dependencies | Pending | This row, fresh build identity, final counts, and failing-if-wrong core selectors | Pending |
 | Tests-disabled Release | `cmake --preset app-release --fresh && cmake --build --preset app-release --clean-first` | Fresh registered production selection builds; testing factories/seams are absent | Pending | This row plus fresh build identity, Release executable digest/size, and selection contract | Pending |

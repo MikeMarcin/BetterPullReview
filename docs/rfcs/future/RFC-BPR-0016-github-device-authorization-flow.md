@@ -114,6 +114,22 @@ Implementation may begin only after all of the following exist:
   redirect, certificate, and vault guarantees rather than restating them, so
   it cannot close before the guarantees it depends on are themselves closed.
 
+### Recorded available-target implementation exception
+
+The operator approved the seven-fact decision subject
+`sha256:d0d021ce54207c4ee44771a3e1b4e1bf787e4ff9aaafa99f15fa52afa6c9647b`.
+That subject binds the predecessor RFC digest
+`sha256:ad0baf748befb8931c0bd9cfd4d2f5157941deed24429c4efed9c3a582298daa`;
+this subsection is the fact-7-mandated integration consequence, not changed
+decision-time evidence.
+After the first three eligibility gates above are completed, RFC-BPR-0016 may
+be implemented and hermetically verified on available local or target-native
+hosts before RFC-BPR-0002 is Auto-Verified. This exception does not waive
+BPR-0035 or BPR-0036, change RFC-BPR-0002 status, turn available-host evidence
+into Windows evidence, authorize registration or traffic beyond its separate
+packet, or permit RFC-BPR-0016 closeout. The fourth gate remains mandatory for
+`Auto-Verified` status.
+
 GitHub Enterprise Server requires an application registered on each
 enterprise instance. That registration is an enterprise-administration action
 this RFC explicitly does not own. Until an instance supplies one, GHES

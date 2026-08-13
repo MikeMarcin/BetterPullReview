@@ -45,3 +45,16 @@ other.
 
 Status: both exact statements received on 2026-08-13; response preservation,
 validation, and the approved prerequisite-exception amendment are in progress.
+
+## Accepted decisions
+
+- The available-target implementation exception is accepted exactly as bound
+  by subject
+  `sha256:d0d021ce54207c4ee44771a3e1b4e1bf787e4ff9aaafa99f15fa52afa6c9647b`.
+  BPR-0035/BPR-0036 and RFC-BPR-0002 closeout remain mandatory.
+- The selected application is the exact approved GitHub App owned by
+  `MikeMarcin`, with the exact installation, permission, refresh, registration,
+  and bounded sanitized-capture authority bound by subject
+  `sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178`.
+  Repository mutation, release/distribution, GHES registration, and
+  secret-bearing evidence remain unauthorized.

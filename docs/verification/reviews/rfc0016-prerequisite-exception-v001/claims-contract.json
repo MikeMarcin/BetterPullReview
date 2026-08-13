@@ -1,0 +1,17 @@
+{
+  "adjacent_false_claims": [
+    "bpr0035_waived",
+    "bpr0036_waived",
+    "github_registration_inferred_from_prerequisite_exception",
+    "github_traffic_inferred_from_prerequisite_exception",
+    "release_authorized",
+    "repository_access_inferred_from_prerequisite_exception",
+    "repository_mutation_authorized",
+    "rfc0002_auto_verified",
+    "rfc0016_closeout_authorized"
+  ],
+  "approved_claim": "rfc0016_prerequisite_exception_v001_approved",
+  "gate": "rfc0016-prerequisite-exception-v001",
+  "schema_name": "bpr.operator_claim_contract",
+  "schema_version": 1
+}

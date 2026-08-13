@@ -58,7 +58,7 @@ closeout, and remain deferred until their eligibility gates exist:
 | RFC | Title | Status | Eligibility |
 |---|---|---|---|
 | [RFC-BPR-0015](future/RFC-BPR-0015-github-cli-production-enablement.md) | GitHub CLI Production Enablement | Deferred | RFC-BPR-0014 closed and official `gh` supplies the required safety contract |
-| [RFC-BPR-0016](future/RFC-BPR-0016-github-device-authorization-flow.md) | GitHub Device Authorization Flow | Deferred | RFC-BPR-0002 closed and the product owner registers a device-flow application identity |
+| [RFC-BPR-0016](future/RFC-BPR-0016-github-device-authorization-flow.md) | GitHub Device Authorization Flow | Deferred | The recorded narrow exception permits implementation/hermetic verification after its application identity and real-contract gates; RFC-BPR-0002 closeout remains mandatory before this RFC can close |
 | [RFC-BPR-0017](future/RFC-BPR-0017-unauthenticated-public-review-read.md) | Unauthenticated Public Review Read | Deferred | RFC-BPR-0002 closed, recorded anonymous-access probe evidence, and a product decision that the mode is wanted |
 | [RFC-BPR-0018](future/RFC-BPR-0018-robust-settings-center.md) | Robust Settings Center and Preference Ownership | Deferred | RFC-BPR-0014 closed or an explicit post-pack frontier exception, plus a complete existing-setting authority and persistence inventory |
 | [RFC-BPR-0019](future/RFC-BPR-0019-dif-visual-identity-sprite-assets.md) | Dif Visual Identity, Sprite Assets, and Animation Contract | Deferred | RFC-BPR-0006 and RFC-BPR-0013 closed, RFC-BPR-0014 closed or an explicit post-pack frontier exception, and confirmed asset ownership/provenance |

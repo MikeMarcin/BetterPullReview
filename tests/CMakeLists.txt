@@ -217,6 +217,13 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME operator_response_validation_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/.agents/skills/bpr-attended-review/scripts/test_validate_operator_packet.py"
+)
+
+bpr_add_network_isolated_test(
     NAME project_source_dump_contract
     COMMAND
         Python3::Interpreter
