@@ -1,0 +1,53 @@
+{
+  "checks": {
+    "approval_statement_exact": true,
+    "committed_artifacts_exact": true,
+    "decision_subject_digest_bound": true,
+    "overall": "pass"
+  },
+  "claims": {
+    "distribution_authorized": false,
+    "ghes_registration_authorized": false,
+    "release_authorized": false,
+    "repository_mutation_authorized": false,
+    "rfc0016_closeout_authorized": false,
+    "rfc0016_github_app_registration_v001_approved": true,
+    "secret_bearing_evidence_authorized": false,
+    "unbounded_repository_access_authorized": false,
+    "undesignated_target_access_authorized": false
+  },
+  "claims_contract": {
+    "byte_length": 525,
+    "path": "docs/verification/reviews/rfc0016-github-app-registration-v001/claims-contract.json",
+    "sha256": "sha256:5311754d8e1d8837a98941e0d843410a1d988f35bcde3663c3fa5aed6dfe72aa"
+  },
+  "decision_subject": {
+    "byte_length": 4393,
+    "path": "docs/verification/reviews/rfc0016-github-app-registration-v001/decision-subject.txt",
+    "sha256": "sha256:d3cfb906170799ee7c90a8290cabee1b1e7e6afef40937a08f7b21bd5b42d178"
+  },
+  "extraction_rule": "first contiguous blockquote after the unique LF approval marker; remove exactly '> ' when present; preserve UTF-8/LF and one terminal LF",
+  "gate": "rfc0016-github-app-registration-v001",
+  "official_validator": {
+    "byte_length": 20829,
+    "path": ".agents/skills/bpr-attended-review/scripts/validate_operator_packet.py",
+    "sha256": "sha256:a27ae0f2ac003a88818a0706943109513c6469d69ecb7fa67b6e0301a4749461"
+  },
+  "operator_response": {
+    "byte_length": 413,
+    "path": "docs/verification/reviews/rfc0016-github-app-registration-v001/operator-response.md",
+    "sha256": "sha256:8e76046d10cbec6304881e023c55c92aa6ddf282ddcf63a0fd79fff1bab9de78"
+  },
+  "outcome": "approved",
+  "recorded_at": "2026-08-13T04:57:54-07:00",
+  "result": "pass",
+  "reviewed_packet": {
+    "byte_length": 3871,
+    "path": "docs/verification/reviews/rfc0016-github-app-registration-v001/operator-packet.md",
+    "sha256": "sha256:2c614bfd49867ec195879ec9827fac8c1e984a2e1a2be6739a004ac2a2dfe520"
+  },
+  "schema_name": "bpr.operator_response_validation",
+  "schema_version": 1,
+  "validated_commit": "e36c2b4aff66f59fe17d3cb1349e13071543bd53",
+  "validation_command": "python3 .agents/skills/bpr-attended-review/scripts/validate_operator_packet.py --repository-root . --commit e36c2b4aff66f59fe17d3cb1349e13071543bd53 --packet docs/verification/reviews/rfc0016-github-app-registration-v001/operator-packet.md --subject docs/verification/reviews/rfc0016-github-app-registration-v001/decision-subject.txt --response docs/verification/reviews/rfc0016-github-app-registration-v001/operator-response.md --claims-contract docs/verification/reviews/rfc0016-github-app-registration-v001/claims-contract.json --recorded-at 2026-08-13T04:57:54-07:00 --output docs/verification/reviews/rfc0016-github-app-registration-v001/validation-record.json"
+}
