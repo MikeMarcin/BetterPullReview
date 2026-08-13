@@ -17,7 +17,7 @@ Final results must be replayed against the immutable closeout head.
 |---|---|---|---|
 | Registered public application identity | Pending | BPR-0275/BPR-0276 | Digest-bound owner authority, selected application record, public client identifier, exact permissions, and no shipped client secret |
 | Resolved application kind | Pending | BPR-0275 | Accepted GitHub App or OAuth App decision with installation, lifetime, refresh, and rejected-alternative rationale |
-| Real sanitized wire contracts | Pending | BPR-0276 | Actual selected-service success, pending, slow-down, denied, expired, disabled, malformed, oversized, and rate-limited capture with secret-free evidence |
+| Real sanitized wire contracts | Pending | BPR-0276 | Actual selected-service success, pending, one bounded early-poll `slow_down`, denied, expired, and disabled capture; separately labeled synthetic malformed/truncated/duplicate/oversized hostile fixtures; secret-free evidence |
 | RFC-BPR-0002 Auto-Verified | Pending | BPR-0035/BPR-0036 | Direct real Windows x64 evidence and terminal RFC-BPR-0002 closeout; macOS, mocks, cross-compilation, and hosted workflows do not substitute |
 
 The pending
@@ -49,13 +49,14 @@ attended permission decision.
 | State | RFC acceptance claim | Owning card | Final direct surface |
 |---|---|---|---|
 | [ ] | GitHub.com device grant enrolls through the existing vault with no settings or SQLite copy. | BPR-0279, BPR-0281, BPR-0282 | Tests-disabled public composition against recorded contracts plus vault/settings/SQLite inspection |
-| [ ] | Core, Qt, and projection expose no token, refresh token, device code, client identifier, or endpoint. | BPR-0277, BPR-0280, BPR-0282 | Compile-time boundary/type/symbol inventory with forbidden-field negative controls |
+| [ ] | Core, Qt, and projections expose no token, refresh token, secret device code, client identifier, or device/token service endpoint; the host display projection carries only user code, validated verification URI, and expiry. | BPR-0277, BPR-0280, BPR-0282 | Compile-time boundary/type/symbol inventory with forbidden-field negative controls and exact allowed-display fields |
 | [ ] | Pending, denied, expired, rate-limited, and disabled outcomes are typed and retain no transient material or partial profile. | BPR-0278, BPR-0279, BPR-0282 | Real-contract adapter replay plus host cleanup cuts |
 | [ ] | Polling honors interval, slow-down, total bound, UI cancellation, and shutdown cleanup. | BPR-0279, BPR-0282 | Controlled-clock/manual-executor host matrix |
 | [ ] | Certificate, unknown-authority redirect, and query redirect fail closed on both endpoints before forwarding. | BPR-0278, BPR-0282 | Native HTTPS hostile loopback matrix for device and token routes |
 | [ ] | Off-authority verification address is refused with zero browser calls. | BPR-0280, BPR-0282 | Host browser-capability authority cut and Qt projection course |
 | [ ] | Browser handoff failure leaves the flow live and later authorization can complete elsewhere. | BPR-0279, BPR-0280, BPR-0282 | Failing-opener application/Qt course followed by authorized terminal |
 | [ ] | Manual token enrollment remains functional for every profile. | BPR-0280, BPR-0281, BPR-0282 | Manual-before/device/manual-after public composition courses including GHES |
+| [ ] | A selected GitHub App refreshes before expiry and atomically rotates access/refresh material under existing vault authority. | BPR-0279, BPR-0282 | Controlled clock, native refresh wire, vault rotation/restart, stale/canceled result, cleanup, and typed re-enrollment courses |
 | [ ] | Unregistered and GHES profiles return `device_flow_unavailable` with zero requests. | BPR-0281, BPR-0282 | Tests-disabled capability-selection counters and hostile profile cases |
 | [ ] | Build and verification evidence is local or target-native and contains no secret/transient material. | BPR-0282, BPR-0285 | Clean matrices, Release/runtime/dependency/evidence scans, and no-Actions inventory |
 
@@ -75,6 +76,35 @@ BPR-0282 must register and directly run the final names from a clean build.
 | Security | Source/binary/type/fixture/log/settings/SQLite/process/environment forbidden-material scans with positive canaries |
 | Build/runtime | Clean `dev`, `core-only`, sanitizers, tests-disabled Release, format, strict tidy, dependency, runtime, docs, and diff gates |
 | Supported platforms | Target-native device-flow evidence for every platform where capability is enabled; otherwise exact unavailable selection and a named open platform card |
+
+### Capability selection by platform
+
+| Platform | Initial production selection after BPR-0281 | Enabling evidence |
+|---|---|---|
+| macOS | Available only after BPR-0282 target-native native-HTTPS, Keychain, browser, Cocoa, Release, and hygiene rows pass | BPR-0282 |
+| Linux | `device_flow_unavailable`, zero requests | BPR-0310 target-native Linux closeout |
+| Windows x64 | `device_flow_unavailable`, zero requests | BPR-0036 plus BPR-0311 target-native Windows closeout |
+| GHES on every platform | `device_flow_unavailable`, zero requests | Future instance-specific registration decision outside RFC-BPR-0016 |
+
+## Final command ledger
+
+These selectors are planned names, not passing tests. BPR-0282 must register
+them exactly or update this ledger and BPR-0285 in the same implementation
+commit. Every result/evidence/commit cell remains pending until final-head
+execution.
+
+| Claim set | Exact command or attended interaction | Proof condition | Result | Durable evidence | Commit |
+|---|---|---|---|---|---|
+| Eligibility exception | Quote the exact statement in `reviews/rfc0016-prerequisite-exception-v001/operator-packet.md` | Subject digest and all seven facts match; no adjacent authority inferred | Pending | `reviews/rfc0016-prerequisite-exception-v001/operator-response.md` | Pending |
+| Registration and real capture | Quote the exact statement in `reviews/rfc0016-github-app-registration-v001/operator-packet.md`, then perform BPR-0276's bounded attended course | Exact owner/config/permissions; real success/pending/one early-poll `slow_down`/denied/expired/disabled; synthetic hostile bodies labeled; no secrets | Pending | `reviews/rfc0016-github-app-registration-v001/operator-response.md` and BPR-0276 fixture provenance | Pending |
+| Focused semantic/host/wire/Qt/product matrix | `ctest --test-dir build/dev --output-on-failure -R '^(core_device_authorization|application_device_authorization_host|github_device_authorization_contract|native_https_device_authorization_(contract|fixture)|qt_device_authorization_scale_(100|125|200)|application_device_authorization_(public_path|unavailable|release_contract))$'` | All registered selectors pass; negative cuts fail if boundary, cleanup, authority, display, refresh, or selection is bypassed | Pending | This row plus final CTest output summary and exact fixture paths | Pending |
+| Core-only matrix | `cmake --preset core-only && cmake --build --preset core-only && ctest --preset core-only --output-on-failure` | Core builds/tests without Qt/provider/effect dependencies | Pending | This row, final counts, and failing-if-wrong core selectors | Pending |
+| Tests-disabled Release | `cmake --preset app-release && cmake --build --preset app-release` | Registered production selection builds; testing factories/seams are absent | Pending | This row plus Release executable digest/size and selection contract | Pending |
+| macOS native surface | `ctest --test-dir build/dev --output-on-failure -R '^(native_https_device_authorization_fixture|application_github_credential_vault|qt_device_authorization_cocoa_public_path)$'` | Native TLS/redirect/proxy and Keychain lifecycle pass; real Cocoa course proves exact display/handoff | Pending | This row plus bound native artifact/host/version record | Pending |
+| Refresh lifecycle | `ctest --test-dir build/dev --output-on-failure -R '^(application_device_authorization_refresh|github_device_authorization_refresh_contract|application_github_credential_vault)$'` | Refresh precedes expiry; vault rotation is atomic; stale/canceled/failed refresh cannot leak or rotate and failure requests re-enrollment | Pending | This row plus controlled-clock/native-wire/vault evidence | Pending |
+| Boundary and hygiene | `cmake --build build/dev --target check_boundaries coding-format-check coding-tidy && python3 scripts/verify_documentation.py --root . && git diff --check` | Architecture, forbidden-field/secret scans, format, strict tidy, documentation, and diff gates pass | Pending | This row plus exact gate outputs and scanned artifact inventory | Pending |
+| Final complete local matrix | `cmake --preset dev && cmake --build --preset dev && ctest --preset dev --output-on-failure` | Clean complete configured macOS matrix passes at immutable closeout head | Pending | This row plus final count/duration and commit | Pending |
+| Capability-critical closeout | Independent `rfc-critical-reviewer` review of immutable final head, artifacts, packets, commands, and claims | Reviewer returns ACCEPT with no unresolved blocking/high-risk finding | Pending | BPR-0285 final five-section review record | Pending |
 
 ## Documentation impact ledger
 

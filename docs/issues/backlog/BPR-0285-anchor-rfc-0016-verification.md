@@ -3,7 +3,7 @@ id: BPR-0285
 title: Anchor RFC-BPR-0016 capability-critical verification
 status: Backlog
 rfc: RFC-BPR-0016
-depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284]
+depends_on: [BPR-0035, BPR-0275, BPR-0276, BPR-0277, BPR-0278, BPR-0279, BPR-0280, BPR-0281, BPR-0282, BPR-0283, BPR-0284, BPR-0310, BPR-0311]
 ---
 
 # Anchor RFC-BPR-0016 capability-critical verification
@@ -14,9 +14,10 @@ RFC base: `b969554fb45d838b2a4ea11811363bd7e158e47e`.
 
 This is the terminal anchor for the first RFC in the requested sequence:
 RFC-BPR-0016, then RFC-BPR-0017, then remaining unattended macOS-ready work.
-Its planned membership is exactly BPR-0274 through BPR-0285 plus pre-existing
-RFC-BPR-0002 closeout BPR-0035/BPR-0036. Any newly discovered required work is
-added explicitly to this dependency closure before closeout.
+Its planned membership is exactly BPR-0274 through BPR-0285, target-native
+platform cards BPR-0310/BPR-0311, plus pre-existing RFC-BPR-0002 closeout
+BPR-0035/BPR-0036. Any newly discovered required work is added explicitly to
+this dependency closure before closeout.
 
 Historical runs are provenance only. Every row requires final replay at the
 immutable closeout head and an independent capability-critical review.
@@ -31,6 +32,7 @@ immutable closeout head and an independent capability-critical review.
 | [ ] | Off-authority verification addresses never open. | Address-validation and browser-capability cut test | Typed refusal and zero browser calls | automated |
 | [ ] | Browser-open failure leaves authorization live and completable elsewhere. | Qt/host failing-opener public course | Code/address remain; later authorization succeeds | automated |
 | [ ] | Manual token enrollment remains functional for every profile. | Public composition manual-before/device/manual-after courses | Existing vault path remains first-class and unchanged | automated |
+| [ ] | A selected GitHub App refreshes and rotates vault material safely. | Controlled-clock host, native HTTPS refresh, and vault rotation/restart contracts | Refresh precedes expiry; stale/canceled results cannot rotate; failure becomes typed re-enrollment with no leaked prior material | automated |
 | [ ] | Unregistered and GHES profiles refuse with zero requests. | Tests-disabled public counters and hostile capability selection | Exact `device_flow_unavailable`; zero constructed/sent requests | automated |
 | [ ] | Evidence is local/target-native and secret-free. | Clean matrices, Release/runtime/dependency scans, evidence audit | No GitHub Actions evidence and no secret/transient material | automated + target-native |
 
@@ -39,8 +41,15 @@ commit, and durable evidence in `docs/verification/RFC-BPR-0016.md`. Registered
 selectors must be enumerated there before final replay; invented future command
 names do not count.
 
+The seeded exact commands, proof conditions, pending results/evidence, and
+commit fields live in
+`docs/verification/RFC-BPR-0016.md#final-command-ledger`; BPR-0282 replaces
+planned selectors only by updating that ledger and this anchor atomically.
+
 ## Phase checklist
 
+- [ ] The immutable planning snapshot, complete live issue graph, verification
+      ledger, and attended packets are committed and revalidated at closeout.
 - [ ] Eligibility decisions and external contracts are committed and every RFC
       gate is satisfied or narrowed by an exact accepted exception.
 - [ ] Core, GitHub adapter, host, Qt, and production composition slices are
@@ -53,6 +62,8 @@ names do not count.
       disposition.
 - [ ] Final clean replay and independent capability-critical review accept the
       immutable closeout head.
+- [ ] Only after every row is satisfied, the RFC status, index, verification
+      ledger, and issue board transition atomically to `Auto-Verified`/terminal.
 
 ## Closeout checklist
 
@@ -64,7 +75,7 @@ names do not count.
       HTTPS/Qt/application, format, strict tidy, documentation, dependency,
       runtime, secret-scan, and diff gates pass at the closeout head.
 - [ ] The verification ledger records exact commands, interactions, results,
-      artifact paths, and commits for all ten acceptance rows and every claimed
+      artifact paths, and commits for every acceptance row and claimed
       supported platform; macOS alone does not prove Windows or Linux.
 - [ ] An independent `rfc-critical-reviewer` falsifies the exact claim matrix,
       application-selection path, packet provenance, and negative controls with

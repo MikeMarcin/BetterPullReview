@@ -51,9 +51,10 @@ for the GitHub device-authorization RFC before any implementation begins.
 
 - Recorded the immutable RFC base and the product-owner-requested RFC order in
   the RFC-BPR-0016 issue plan.
-- Allocated BPR-0275 through BPR-0285 for eligibility, real-service contracts,
-  core policy, GitHub transport, application orchestration, Qt presentation,
-  composition, security verification, documentation, simplification, and
+- Allocated BPR-0275 through BPR-0285 plus BPR-0310/BPR-0311 for
+  eligibility, real-service contracts, core policy, GitHub transport,
+  application orchestration, Qt presentation, composition, security
+  verification, documentation, simplification, platform evidence, and
   capability-critical closeout.
 - Kept the RFC `Deferred`: neither the unresolved RFC-BPR-0002 closeout nor the
   application-registration and real-service-fixture gates was inferred away.

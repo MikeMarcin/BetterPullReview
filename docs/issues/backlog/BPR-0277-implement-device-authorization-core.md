@@ -14,8 +14,10 @@ depends_on: [BPR-0276]
   legality, stale-result rejection, terminal diagnostics, and cancellation.
 - Poll timing, interval, backoff, and transport retry mechanics remain host
   effects owned by BPR-0279 and never enter core policy.
-- Core and projection types cannot represent client identifiers, endpoints,
-  poll intervals, device/user codes, access tokens, or refresh tokens.
+- Core and core-owned state cannot represent client identifiers, service
+  endpoints, poll intervals, device/user codes, access tokens, or refresh
+  tokens. A narrow host-owned display projection may carry only the user code,
+  authority-validated verification URI, and bounded expiry needed by Qt.
 - Replay/property tests cover every legal and illegal transition, duplicate and
   stale observations, cancellation, denial, expiry, unavailable, and success.
 - No Qt, provider, filesystem, process, clock, timer, thread, network, database,

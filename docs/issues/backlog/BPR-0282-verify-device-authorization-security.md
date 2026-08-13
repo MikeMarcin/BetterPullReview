@@ -15,6 +15,10 @@ depends_on: [BPR-0281]
 - Hostile courses prove interval/backoff/total bounds, cancellation/shutdown,
   malformed/oversized bodies, off-authority addresses, both endpoint redirect
   and certificate failures, browser failure, and zero-request unavailability.
+- For a selected GitHub App, controlled-clock/native-HTTPS/vault courses prove
+  refresh before expiry, atomic access/refresh rotation, stale/canceled refresh
+  rejection, refresh-material cleanup, and typed recoverable re-enrollment on
+  refresh failure.
 - Source, binary, fixture, log, settings, SQLite, process, and environment scans
   find no client secret, access/refresh token, device code, or user code.
 - A registered-contract public course proves one vault enrollment and no

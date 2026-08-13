@@ -27,6 +27,9 @@ Collect digest-bound product-owner decisions before registration or code work.
 
 - The exact decision subject and approval statement are committed with matching
   SHA-256 identities.
+- Each accepted statement is preserved byte-for-byte as `operator-response.md`;
+  an exact-statement validation record names the packet, subject digest,
+  validation result, and commit. A packet template alone never satisfies a gate.
 - Any granted prerequisite exception updates the RFC and BPR-0276 dependency in
   the same commit; a denied exception leaves BPR-0035 intact.
 - No client identifier, endpoint response, token, device/user code, or product
