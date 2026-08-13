@@ -1,7 +1,7 @@
 ---
 id: BPR-0287
 title: Record Dif asset authority and pre-creation provenance
-status: Ready
+status: In Progress
 rfc: RFC-BPR-0019
 depends_on: [BPR-0286]
 ---

@@ -3,6 +3,7 @@ schema_version=1
 gate=rfc0016-github-app-registration-v001
 decision=select-and-authorize-github-app-registration-and-bounded-wire-capture
 scope=rfc0016-github-com-public-client-and-sanitized-contracts-only
+official_contract_record=sha256:0ea5fb0edfbb6debbbe7261b595b8bf6180928120eb98142dce1627dc46a7fc8
 fact_1=The selected application kind is a GitHub App owned by the GitHub user MikeMarcin, configured so any GitHub user or organization may install it; OAuth App is rejected because its repo scope is materially broader than the fine-grained repository permissions required by BetterPullReview.
 fact_2=The GitHub App has device flow enabled, user access token expiration enabled, no active webhook, no callback or loopback listener, no embedded browser, and no client secret in any shipped application or repository artifact.
 fact_3=The requested GitHub App repository permissions are Metadata read-only, Contents read-only, Checks read-only, and Pull requests read-and-write; no Issues, Actions, Workflows, Commit statuses, Administration, organization, enterprise, or account permission and no OAuth scope is requested, and a successful device-flow response is expected to report an empty scope.
